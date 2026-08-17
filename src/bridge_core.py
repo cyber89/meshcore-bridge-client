@@ -1,7 +1,7 @@
 """
 Core Orchestrator and Lifecycle Manager for MeshCore Universal Bridge.
-Integra el adaptador serial, cliente MQTT, Store & Forward en SQLite, Rate Limiter con PriorityQueue
-y reporte periódico de métricas y salud del sistema para n8n.
+Integra el adaptador serial, cliente MQTT, Store & Forward en SQLite, Rate Limiter con PriorityQueue,
+Registro Dinámico de Nodos, Decodificador CayenneLPP y Gestión Remota de Repetidores para n8n.
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import config
+from src.contact_manager import NodeRegistry
 from src.mqtt_client import AsyncBridgeMQTTClient
 from src.protocol_types import (
     MeshcoreFrame,
@@ -22,6 +23,8 @@ from src.protocol_types import (
     TextMessagePayload,
 )
 from src.rate_limiter import TxItem, TxPriority, TxRateLimiter
+from src.repeater_manager import RepeaterManager
+from src.sensor_decoder import CayenneLPPDecoder
 from src.serial_driver import (
     BaseSerialAdapter,
     MeshcoreSDKAdapter,
@@ -32,7 +35,7 @@ from src.store_forward import PacketDeduplicator, SQLiteStoreAndForward
 
 
 class MeshCoreBridge:
-    """Orquestador central del puente MeshCore <-> MQTT <-> n8n."""
+    """Orquestador central del puente MeshCore <-> MQTT <-> n8n (v2.1)."""
 
     def __init__(
         self,
@@ -54,7 +57,11 @@ class MeshCoreBridge:
             window_seconds=getattr(config, "DEDUPLICATION_WINDOW_SEC", 60.0),
         )
 
-        # 2. Capa de Transmisión con Rate Limiting y Airtime
+        # 2. Registro Dinámico de Nodos y Repetidores
+        self.node_registry = NodeRegistry()
+        self.repeater_manager = RepeaterManager()
+
+        # 3. Capa de Transmisión con Rate Limiting y Airtime
         self.rate_limiter = TxRateLimiter(
             tx_interval_sec=config.TX_INTERVAL_SEC,
             default_sf=getattr(config, "LORA_DEFAULT_SF", 11),
@@ -62,7 +69,7 @@ class MeshCoreBridge:
             transmit_callback=self._execute_tx_transmission,
         )
 
-        # 3. Capa de Comunicación MQTT
+        # 4. Capa de Comunicación MQTT
         self.mqtt = AsyncBridgeMQTTClient(
             broker=config.MQTT_BROKER,
             port=config.MQTT_PORT,
@@ -74,11 +81,11 @@ class MeshCoreBridge:
             on_rx_message_callback=self._on_incoming_mqtt_message,
         )
 
-        # 4. Capa de Adaptador Serial
+        # 5. Capa de Adaptador Serial
         self.serial_adapter: BaseSerialAdapter = self._create_serial_adapter()
         self.serial_adapter.set_rx_callback(self.on_mesh_event)
 
-        # 5. Vigilante de Puerto Serial
+        # 6. Vigilante de Puerto Serial
         self.watchdog = SerialWatchdog(
             adapter=self.serial_adapter,
             timeout_sec=config.SERIAL_TIMEOUT,
@@ -158,12 +165,18 @@ class MeshCoreBridge:
         return self.mqtt.flush_offline_buffer()
 
     def resolve_sender_name(self, prefix_or_key: str) -> str:
+        # Primero consultar el registro dinámico local
+        local_name = self.node_registry.resolve_name(prefix_or_key)
+        if local_name and local_name != prefix_or_key:
+            return local_name
         return self.serial_adapter.resolve_sender_name(prefix_or_key)
 
     def resolve_recipient_target(self, name_or_key: str) -> Any:
+        contact = self.node_registry.get_by_key_or_prefix(name_or_key)
+        target_key = contact.public_key if contact else name_or_key
         if isinstance(self.serial_adapter, MeshcoreSDKAdapter):
-            return self.serial_adapter._resolve_target(name_or_key)
-        return name_or_key
+            return self.serial_adapter._resolve_target(target_key)
+        return target_key
 
     def _create_serial_adapter(self) -> BaseSerialAdapter:
         """Crea el adaptador serial adecuado con fallback transparente."""
@@ -195,7 +208,7 @@ class MeshCoreBridge:
 
         # Iniciar reporte periódico de salud
         self._health_task = asyncio.create_task(self._health_reporter_loop(), name="HealthReporter")
-        logging.info("MeshCore Bridge iniciado y operativo.")
+        logging.info("MeshCore Bridge iniciado y operativo (v2.1).")
 
     async def stop(self) -> None:
         """Detención ordenada de todos los subsistemas."""
@@ -339,15 +352,27 @@ class MeshCoreBridge:
         return ack_payload
 
     async def handle_admin(self, admin_data: dict[str, Any]) -> dict[str, Any]:
-        """Ejecuta comandos de administración sobre la radio."""
+        """Ejecuta comandos de administración sobre la radio o repetidores."""
         action = str(admin_data.get("action", admin_data.get("command", "")))
         req_id = admin_data.get("request_id", admin_data.get("id"))
+        target_node = admin_data.get("target_node", admin_data.get("repeater"))
         res: dict[str, Any] = {"status": "ok", "action": action}
         if req_id is not None:
             res["request_id"] = req_id
 
         if action == "get_config":
             res["config"] = getattr(self.mc, "self_info", {"name": "Heltec_Router_E2E", "radio_freq": 915.0})
+        elif action == "list_nodes":
+            res["nodes"] = self.node_registry.list_nodes()
+
+        # Si el comando va dirigido a un repetidor remoto
+        if target_node:
+            cmd_text = self.repeater_manager.build_repeater_command_payload(action, admin_data)
+            await self._execute_tx({"to": str(target_node), "text": f"cmd {cmd_text}", "request_id": req_id})
+            res["target_node"] = target_node
+            res["cmd_dispatched"] = cmd_text
+            self.publish_mqtt_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/status", json.dumps(res), qos=1)
+            return res
 
         if self.mc and hasattr(self.mc, "commands"):
             try:
@@ -390,12 +415,31 @@ class MeshCoreBridge:
         else:
             payload_dict = {"raw": str(payload_obj)}
 
+        # Caso Sniffer RF (0x88 / LOG_DATA)
+        if "LOG_DATA" in ev_type_str or "rf_log" in ev_type_str:
+            parsed_log = self.repeater_manager.parse_log_packet(payload_dict.get("raw", payload_obj))
+            self.mqtt.publish_safe(config.TOPIC_RX_LOG, json.dumps(parsed_log), qos=0)
+            return
+
         rssi = payload_dict.get("rssi", -80)
         snr = payload_dict.get("snr", 10.0)
         sender = str(payload_dict.get("sender", payload_dict.get("pubkey_prefix", "unknown")))
         sender_name = str(payload_dict.get("sender_name", self.resolve_sender_name(sender)))
         text = str(payload_dict.get("text", payload_dict.get("message", "")))
         channel_idx = int(payload_dict.get("channel_idx", payload_dict.get("channel", 0)))
+        hops = int(payload_dict.get("hop_count", payload_dict.get("hops", 0)))
+
+        # Actualizar directorio dinámico de nodos
+        if sender and sender != "unknown":
+            bat_pct = int(payload_dict["battery"]) if "battery" in payload_dict and isinstance(payload_dict["battery"], (int, float)) else None
+            self.node_registry.add_or_update(
+                public_key=sender,
+                name=sender_name,
+                hops=hops,
+                last_rssi=int(rssi) if isinstance(rssi, (int, float)) else -80,
+                last_snr=float(snr) if isinstance(snr, (int, float)) else 10.0,
+                battery_pct=bat_pct,
+            )
 
         is_channel_event = "CHANNEL_MSG" in ev_type_str or (text and channel_idx >= 0 and "DIRECT" not in ev_type_str)
         is_direct_event = "DIRECT_MSG" in ev_type_str
@@ -431,10 +475,15 @@ class MeshCoreBridge:
             self.mqtt.publish_safe(f"{config.TOPIC_RX_DIRECT}/{sender}", evt_json, qos=0)
 
         else:
+            # Evento genérico o telemetría (con decodificación CayenneLPP si hay bytes crudos)
+            if "raw_bytes" in payload_dict and isinstance(payload_dict["raw_bytes"], (bytes, bytearray)):
+                _readings, summary = CayenneLPPDecoder.decode(payload_dict["raw_bytes"])
+                payload_dict.update(summary)
+
             payload_dict["timestamp"] = datetime.now(timezone.utc).isoformat()
             evt_json = json.dumps(payload_dict, sort_keys=True)
             self.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
-            if "battery" in payload_dict or "voltage" in payload_dict or "temperature" in payload_dict:
+            if "battery" in payload_dict or "voltage" in payload_dict or "temperature" in payload_dict or "temperature_c" in payload_dict:
                 self.mqtt.publish_safe(config.TOPIC_RX_TELEMETRY, evt_json, qos=0)
 
     def on_radio_event(self, event: Any) -> None:
@@ -493,6 +542,19 @@ class MeshCoreBridge:
                 await self._handle_tx_request(payload_str)
             elif topic == self.mqtt.topic_admin_cmd:
                 await self._handle_admin_request(payload_str)
+            elif topic.startswith(config.TOPIC_ADMIN_REPEATER):
+                # Extraer prefijo de nodo: {prefix}/admin/repeater/{target_node}/cmd
+                parts = topic.split("/")
+                target_node = parts[3] if len(parts) > 3 else "repeater"
+                try:
+                    data = json.loads(payload_str)
+                    if isinstance(data, dict):
+                        data["target_node"] = target_node
+                        await self.handle_admin(data)
+                    else:
+                        await self.handle_admin({"action": str(data), "target_node": target_node})
+                except Exception:
+                    await self.handle_admin({"action": payload_str, "target_node": target_node})
         except Exception as e:
             logging.error(f"Error procesando mensaje MQTT entrante ({topic}): {e}", exc_info=True)
 
@@ -576,6 +638,7 @@ class MeshCoreBridge:
                     "serial_connected": self.serial_adapter.is_connected,
                     "mqtt_connected": self.mqtt.is_connected,
                     "offline_buffer_pending": self.store_and_forward.get_size(),
+                    "known_mesh_nodes": self.node_registry.get_count(),
                     "tx_queue_depth": self.rate_limiter.get_queue_depth(),
                     "total_rx_packets": self.rx_count,
                     "total_tx_packets": self.tx_count,

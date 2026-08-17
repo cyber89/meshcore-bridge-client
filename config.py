@@ -50,12 +50,14 @@ TOPIC_RX_CHANNEL  = f"{TOPIC_PREFIX}/rx/channel"       # Canales secundarios: {p
 TOPIC_RX_DIRECT   = f"{TOPIC_PREFIX}/rx/direct"        # Mensajes directos: {prefix}/rx/direct/{sender_id}
 TOPIC_RX_TELEMETRY= f"{TOPIC_PREFIX}/rx/telemetry"     # Batería, voltaje y métricas de nodos
 TOPIC_RX_NODES    = f"{TOPIC_PREFIX}/rx/nodes"         # Anuncios y nodos descubiertos
+TOPIC_RX_LOG      = f"{TOPIC_PREFIX}/rx/log"           # Streaming de logs RF y sniffer de paquetes
 
 TOPIC_TX          = f"{TOPIC_PREFIX}/tx"               # Entrada de transmisión (n8n -> Heltec)
 TOPIC_TX_STATUS   = f"{TOPIC_PREFIX}/tx/status"        # Confirmación / ACK de transmisión
 
 TOPIC_ADMIN_CMD   = f"{TOPIC_PREFIX}/admin/cmd"        # Entrada de comandos de administración
 TOPIC_ADMIN_STAT  = f"{TOPIC_PREFIX}/admin/status"     # Respuesta de comandos de administración
+TOPIC_ADMIN_REPEATER = f"{TOPIC_PREFIX}/admin/repeater" # Gestión remota de repetidores por RF
 
 # ================= Parámetros de Resiliencia y Control =================
 SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", str(Path(__file__).resolve().parent / "meshcore_buffer.db"))
