@@ -1,5 +1,5 @@
 {
-  "name": "MeshCore LoRa - Universal MQTT Bridge & Bot Workflow",
+  "name": "MeshCore Universal Bridge v2.1 - Complete IoT & LoRa Bot Workflow",
   "nodes": [
     {
       "parameters": {
@@ -11,21 +11,21 @@
       "type": "n8n-nodes-base.mqttTrigger",
       "typeVersion": 1,
       "position": [
-        240,
-        300
+        200,
+        340
       ]
     },
     {
       "parameters": {
-        "jsCode": "// ==========================================================\n// Validación y Deduplicación de Paquetes Mesh LoRa\n// ==========================================================\n\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.messageCache) {\n  staticData.messageCache = {};\n}\n\nconst now = Date.now();\nconst CACHE_TTL_MS = 30000; // Ventana de 30 segundos\n\n// Limpieza periódica de caché antigua (> 60 segundos)\nfor (const key of Object.keys(staticData.messageCache)) {\n  if (now - staticData.messageCache[key] > 60000) {\n    delete staticData.messageCache[key];\n  }\n}\n\nconst results = [];\n\nfor (const item of $input.all()) {\n  let payload = item.json;\n\n  // Desempaquetar payload si viene dentro de message o data\n  if (payload && payload.message !== undefined) {\n    if (typeof payload.message === 'string') {\n      try {\n        payload = JSON.parse(payload.message);\n      } catch (e) {\n        payload = { text: payload.message, event_type: 'public' };\n      }\n    } else if (typeof payload.message === 'object' && payload.message !== null) {\n      payload = payload.message;\n    }\n  } else if (payload && payload.data !== undefined) {\n    if (typeof payload.data === 'string') {\n      try {\n        payload = JSON.parse(payload.data);\n      } catch (e) {\n        payload = { text: payload.data, event_type: 'public' };\n      }\n    }\n  }\n\n  if (!payload || typeof payload !== 'object') {\n    continue;\n  }\n\n  const eventType = payload.event_type || 'public';\n  const senderId = payload.sender_id || 'unknown';\n  const channelIdx = payload.channel_index !== undefined ? payload.channel_index : 0;\n  const text = (payload.text || payload.raw_text || '').trim();\n\n  // Generar hash para deduplicación\n  const msgKey = `${eventType}_${senderId}_${channelIdx}_${text}`;\n\n  let isDuplicate = false;\n  if (text.length > 0) {\n    if (staticData.messageCache[msgKey] && (now - staticData.messageCache[msgKey] < CACHE_TTL_MS)) {\n      isDuplicate = true;\n    } else {\n      staticData.messageCache[msgKey] = now;\n    }\n  }\n\n  results.push({\n    json: {\n      ...payload,\n      event_type: eventType,\n      sender_id: senderId,\n      channel_index: channelIdx,\n      text: text,\n      is_duplicate: isDuplicate,\n      processed_at: new Date().toISOString()\n    }\n  });\n}\n\nreturn results;"
+        "jsCode": "// ==========================================================\n// Validación, Normalización y Deduplicación de Paquetes Mesh LoRa (v2.1)\n// ==========================================================\n\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.messageCache) {\n  staticData.messageCache = {};\n}\n\nconst now = Date.now();\nconst CACHE_TTL_MS = 30000; // Ventana de 30 segundos\n\n// Limpieza periódica de caché antigua (> 60 segundos)\nfor (const key of Object.keys(staticData.messageCache)) {\n  if (now - staticData.messageCache[key] > 60000) {\n    delete staticData.messageCache[key];\n  }\n}\n\nconst results = [];\n\nfor (const item of $input.all()) {\n  let payload = item.json;\n\n  // Desempaquetar payload si viene encapsulado en message o data\n  if (payload && payload.message !== undefined) {\n    if (typeof payload.message === 'string') {\n      try {\n        payload = JSON.parse(payload.message);\n      } catch (e) {\n        payload = { text: payload.message, event_type: 'public' };\n      }\n    } else if (typeof payload.message === 'object' && payload.message !== null) {\n      payload = payload.message;\n    }\n  } else if (payload && payload.data !== undefined) {\n    if (typeof payload.data === 'string') {\n      try {\n        payload = JSON.parse(payload.data);\n      } catch (e) {\n        payload = { text: payload.data, event_type: 'public' };\n      }\n    }\n  }\n\n  if (!payload || typeof payload !== 'object') {\n    continue;\n  }\n\n  let eventType = payload.event_type || 'public';\n  if (payload.temperature_c !== undefined || payload.battery_pct !== undefined || payload.voltage_v !== undefined) {\n    if (!payload.text) eventType = 'telemetry';\n  }\n  if (payload.event_type === 'rf_log') {\n    eventType = 'rf_log';\n  }\n\n  const senderId = payload.sender_id || payload.sender || 'unknown';\n  const senderName = payload.sender_name || senderId;\n  const channelIdx = payload.channel_index !== undefined ? payload.channel_index : (payload.channel_idx !== undefined ? payload.channel_idx : 0);\n  const text = (payload.text || payload.raw_text || '').trim();\n\n  // Generar hash para deduplicación\n  const msgKey = `${eventType}_${senderId}_${channelIdx}_${text}`;\n\n  let isDuplicate = false;\n  if (text.length > 0) {\n    if (staticData.messageCache[msgKey] && (now - staticData.messageCache[msgKey] < CACHE_TTL_MS)) {\n      isDuplicate = true;\n    } else {\n      staticData.messageCache[msgKey] = now;\n    }\n  }\n\n  results.push({\n    json: {\n      ...payload,\n      event_type: eventType,\n      sender_id: senderId,\n      sender_name: senderName,\n      channel_index: channelIdx,\n      text: text,\n      is_duplicate: isDuplicate,\n      processed_at: new Date().toISOString()\n    }\n  });\n}\n\nreturn results;"
       },
       "id": "2",
       "name": "Deduplicar y Validar",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        460,
-        300
+        440,
+        340
       ]
     },
     {
@@ -45,7 +45,7 @@
       "typeVersion": 1,
       "position": [
         680,
-        300
+        340
       ]
     },
     {
@@ -63,8 +63,20 @@
               "output": 1
             },
             {
-              "value2": "dm",
+              "value2": "direct",
               "output": 2
+            },
+            {
+              "value2": "telemetry",
+              "output": 3
+            },
+            {
+              "value2": "node_advert",
+              "output": 4
+            },
+            {
+              "value2": "rf_log",
+              "output": 5
             }
           ]
         }
@@ -74,47 +86,86 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 1,
       "position": [
-        900,
-        300
+        920,
+        340
       ]
     },
     {
       "parameters": {
-        "jsCode": "// ==========================================================\n// Procesador de Canal Público (Canal 0)\n// Comandos: /time, /date, /datetime, y Eco general\n// ==========================================================\n\nconst results = [];\n\nfor (const item of $input.all()) {\n  const msg = item.json;\n  const rawText = (msg.text || '').trim();\n  const lower = rawText.toLowerCase();\n  const senderName = msg.sender_name || msg.sender_id || 'Nodo';\n  \n  const now = new Date();\n  let replyText = '';\n\n  if (lower === '/time') {\n    replyText = `⏰ Hora actual: ${now.toTimeString().split(' ')[0]}`;\n  } else if (lower === '/date') {\n    replyText = `📅 Fecha actual: ${now.toISOString().split('T')[0]}`;\n  } else if (lower === '/datetime') {\n    replyText = `📅⏰ Fecha y Hora: ${now.toISOString().replace('T', ' ').substring(0, 19)} UTC`;\n  } else {\n    replyText = `[Eco Pub] Recibido de ${senderName}: \"${rawText}\"`;\n  }\n\n  results.push({\n    json: {\n      topic: 'meshcore/tx',\n      request_id: `n8n_pub_${Date.now()}`,\n      to: 'broadcast',\n      channel_index: 0,\n      text: replyText\n    }\n  });\n}\n\nreturn results;"
+        "jsCode": "// ==========================================================\n// Procesador de Canal Público (Canal 0)\n// Comandos: /time, /date, /datetime, /ping, /help, /nodes\n// ==========================================================\n\nconst results = [];\n\nfor (const item of $input.all()) {\n  const msg = item.json;\n  const rawText = (msg.text || '').trim();\n  const lower = rawText.toLowerCase();\n  const senderName = msg.sender_name || msg.sender_id || 'Nodo';\n  \n  const now = new Date();\n  let replyText = '';\n\n  if (lower === '/time') {\n    replyText = `⏰ Hora actual: ${now.toTimeString().split(' ')[0]} UTC`;\n  } else if (lower === '/date') {\n    replyText = `📅 Fecha actual: ${now.toISOString().split('T')[0]}`;\n  } else if (lower === '/datetime') {\n    replyText = `📅⏰ Fecha y Hora: ${now.toISOString().replace('T', ' ').substring(0, 19)} UTC`;\n  } else if (lower === '/ping') {\n    replyText = `🏓 Pong desde n8n Bridge! (Nodo: ${senderName})`;\n  } else if (lower === '/help') {\n    replyText = `📖 Comandos MeshCore:\\n/time - Hora UTC\\n/date - Fecha\\n/ping - Comprobar enlace\\n/status - Estado del nodo\\n/admin - Comandos admin`;\n  } else {\n    replyText = `[Eco Pub] ${senderName}: \"${rawText}\"`;\n  }\n\n  results.push({\n    json: {\n      topic: 'meshcore/tx',\n      request_id: `n8n_pub_${Date.now()}`,\n      to: 'broadcast',\n      channel_index: 0,\n      text: replyText\n    }\n  });\n}\n\nreturn results;"
       },
       "id": "5",
       "name": "Procesar Canal Público",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1140,
-        180
+        1200,
+        140
       ]
     },
     {
       "parameters": {
-        "jsCode": "// ==========================================================\n// Procesador de Canales Privados (Canal > 0)\n// ==========================================================\n\nconst results = [];\n\nfor (const item of $input.all()) {\n  const msg = item.json;\n  const rawText = (msg.text || '').trim();\n  const senderName = msg.sender_name || msg.sender_id || 'Nodo';\n  const chIdx = msg.channel_index || 1;\n\n  const replyText = `[Eco Ch ${chIdx}] Recibido de ${senderName}: \"${rawText}\"`;\n\n  results.push({\n    json: {\n      topic: 'meshcore/tx',\n      request_id: `n8n_chan_${Date.now()}`,\n      to: 'broadcast',\n      channel_index: chIdx,\n      text: replyText\n    }\n  });\n}\n\nreturn results;"
+        "jsCode": "// ==========================================================\n// Procesador de Canales Secundarios Cifrados (Canal 1..7)\n// ==========================================================\n\nconst results = [];\n\nfor (const item of $input.all()) {\n  const msg = item.json;\n  const rawText = (msg.text || '').trim();\n  const senderName = msg.sender_name || msg.sender_id || 'Nodo';\n  const chIdx = msg.channel_index || 1;\n\n  const replyText = `[Eco Ch ${chIdx}] ${senderName}: \"${rawText}\"`;\n\n  results.push({\n    json: {\n      topic: 'meshcore/tx',\n      request_id: `n8n_chan_${Date.now()}`,\n      to: 'broadcast',\n      channel_index: chIdx,\n      text: replyText\n    }\n  });\n}\n\nreturn results;"
       },
       "id": "6",
-      "name": "Procesar Canal Privado",
+      "name": "Procesar Canal Secundario",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1140,
-        320
+        1200,
+        280
       ]
     },
     {
       "parameters": {
-        "jsCode": "// ==========================================================\n// Procesador de Mensajes Directos (DM) y Admin\n// ==========================================================\n\nconst ADMIN_WHITELIST = ['admin_master', 'heltec_admin', 'rak_admin', 'lilygo_admin', '8f3a12bc'];\n\nconst results = [];\n\nfor (const item of $input.all()) {\n  const msg = item.json;\n  const rawText = (msg.text || '').trim();\n  const lower = rawText.toLowerCase();\n  const senderId = msg.sender_id || 'unknown';\n  const senderName = msg.sender_name || senderId;\n  const isAdmin = ADMIN_WHITELIST.includes(senderId) || ADMIN_WHITELIST.includes(senderName);\n\n  if (lower === '/status') {\n    const rssiInfo = msg.metrics && msg.metrics.rssi ? ` | RSSI: ${msg.metrics.rssi} dBm` : '';\n    const replyText = `[Status MeshCore Node]\\nBridge: Online\\nNodo: Activo${rssiInfo}\\nHora: ${new Date().toISOString().substring(11, 19)} UTC`;\n    \n    results.push({\n      json: {\n        topic: 'meshcore/tx',\n        request_id: `n8n_status_${Date.now()}`,\n        to: senderId,\n        channel_index: 0,\n        text: replyText\n      }\n    });\n    continue;\n  }\n\n  if (lower.startsWith('/admin')) {\n    if (!isAdmin) {\n      results.push({\n        json: {\n          topic: 'meshcore/tx',\n          request_id: `n8n_denied_${Date.now()}`,\n          to: senderId,\n          channel_index: 0,\n          text: '⛔ Acceso denegado: Nodo no autorizado para comandos administrativos.'\n        }\n      });\n      continue;\n    }\n\n    const parts = rawText.split(' ').filter(p => p.length > 0);\n    const subCmd = (parts[1] || '').toLowerCase();\n\n    let actionName = null;\n    let ackNotice = '';\n    let extraData = {};\n\n    if (subCmd === 'get_config' || subCmd === 'config') {\n      actionName = 'get_config';\n      ackNotice = '⚙️ Consultando configuración del nodo...';\n    } else if (subCmd === 'get_contacts' || subCmd === 'contacts') {\n      actionName = 'get_contacts';\n      ackNotice = '📖 Consultando libreta de contactos...';\n    } else if (subCmd === 'set_name' && parts[2]) {\n      actionName = 'set_name';\n      extraData.name = parts.slice(2).join(' ');\n      ackNotice = `✏️ Cambiando nombre a: ${extraData.name}`;\n    } else if (subCmd === 'set_power' && parts[2]) {\n      actionName = 'set_tx_power';\n      extraData.power = parseInt(parts[2], 10);\n      ackNotice = `📶 Ajustando potencia TX a: ${extraData.power} dBm`;\n    } else if (subCmd === 'req_telemetry' && parts[2]) {\n      actionName = 'req_telemetry';\n      extraData.target = parts[2];\n      ackNotice = `📡 Solicitando telemetría de: ${parts[2]}`;\n    } else {\n      ackNotice = '❓ Comando admin no reconocido.';\n    }\n\n    results.push({\n      json: {\n        topic: 'meshcore/tx',\n        request_id: `n8n_adm_ack_${Date.now()}`,\n        to: senderId,\n        channel_index: 0,\n        text: ackNotice\n      }\n    });\n\n    if (actionName) {\n      results.push({\n        json: {\n          topic: 'meshcore/admin/cmd',\n          request_id: `n8n_adm_${Date.now()}`,\n          action: actionName,\n          ...extraData\n        }\n      });\n    }\n    continue;\n  }\n\n  // Eco DM\n  results.push({\n    json: {\n      topic: 'meshcore/tx',\n      request_id: `n8n_dm_${Date.now()}`,\n      to: senderId,\n      channel_index: 0,\n      text: `[Eco DM] Recibido: \"${rawText}\"`\n    }\n  });\n}\n\nreturn results;"
+        "jsCode": "// ==========================================================\n// Procesador de Mensajes Directos (DM), Admin y Repetidores\n// ==========================================================\n\nconst ADMIN_WHITELIST = ['admin_master', 'heltec_admin', 'rak_admin', 'lilygo_admin', '8f3a12bc', 'feedfacecafe0001'];\n\nconst results = [];\n\nfor (const item of $input.all()) {\n  const msg = item.json;\n  const rawText = (msg.text || '').trim();\n  const lower = rawText.toLowerCase();\n  const senderId = msg.sender_id || 'unknown';\n  const senderName = msg.sender_name || senderId;\n  const isAdmin = ADMIN_WHITELIST.includes(senderId) || ADMIN_WHITELIST.includes(senderName);\n\n  if (lower === '/status') {\n    const rssiInfo = msg.metrics && msg.metrics.rssi ? ` | RSSI: ${msg.metrics.rssi} dBm` : '';\n    const replyText = `[Status MeshCore v2.1]\\nBridge: Online\\nNodo: ${senderName}${rssiInfo}\\nHora: ${new Date().toISOString().substring(11, 19)} UTC`;\n    \n    results.push({\n      json: {\n        topic: 'meshcore/tx',\n        request_id: `n8n_status_${Date.now()}`,\n        to: senderId,\n        channel_index: 0,\n        text: replyText\n      }\n    });\n    continue;\n  }\n\n  if (lower.startsWith('/admin')) {\n    if (!isAdmin) {\n      results.push({\n        json: {\n          topic: 'meshcore/tx',\n          request_id: `n8n_denied_${Date.now()}`,\n          to: senderId,\n          channel_index: 0,\n          text: '⛔ Acceso denegado: Nodo no autorizado para comandos administrativos.'\n        }\n      });\n      continue;\n    }\n\n    const parts = rawText.split(' ').filter(p => p.length > 0);\n    const subCmd = (parts[1] || '').toLowerCase();\n\n    // Caso 1: Comandos a Repetidores Remotos (/admin repeater <node_id> <cmd>)\n    if (subCmd === 'repeater' && parts[2] && parts[3]) {\n      const targetRepeater = parts[2];\n      const repCmd = parts.slice(3).join(' ');\n      results.push({\n        json: {\n          topic: `meshcore/admin/repeater/${targetRepeater}/cmd`,\n          request_id: `n8n_rep_${Date.now()}`,\n          action: repCmd,\n          target_node: targetRepeater\n        }\n      });\n      results.push({\n        json: {\n          topic: 'meshcore/tx',\n          request_id: `n8n_ack_${Date.now()}`,\n          to: senderId,\n          text: `📡 Enviando comando \"${repCmd}\" a repetidor ${targetRepeater}...`\n        }\n      });\n      continue;\n    }\n\n    // Caso 2: Comandos Locales\n    let actionName = null;\n    let ackNotice = '';\n    let extraData = {};\n\n    if (subCmd === 'get_config' || subCmd === 'config') {\n      actionName = 'get_config';\n      ackNotice = '⚙️ Consultando configuración del nodo...';\n    } else if (subCmd === 'list_nodes' || subCmd === 'nodes') {\n      actionName = 'list_nodes';\n      ackNotice = '📖 Consultando registro de nodos activos...';\n    } else if (subCmd === 'set_name' && parts[2]) {\n      actionName = 'set_name';\n      extraData.name = parts.slice(2).join(' ');\n      ackNotice = `✏️ Cambiando nombre a: ${extraData.name}`;\n    } else if (subCmd === 'set_power' && parts[2]) {\n      actionName = 'set_tx_power';\n      extraData.power = parseInt(parts[2], 10);\n      ackNotice = `📶 Ajustando potencia TX a: ${extraData.power} dBm`;\n    } else if (subCmd === 'reboot') {\n      actionName = 'reboot';\n      ackNotice = '🔄 Reiniciando radio local...';\n    } else {\n      ackNotice = '❓ Comando admin no reconocido. Uso: /admin [config|nodes|set_name <n>|set_power <p>|repeater <id> <cmd>]';\n    }\n\n    results.push({\n      json: {\n        topic: 'meshcore/tx',\n        request_id: `n8n_adm_ack_${Date.now()}`,\n        to: senderId,\n        channel_index: 0,\n        text: ackNotice\n      }\n    });\n\n    if (actionName) {\n      results.push({\n        json: {\n          topic: 'meshcore/admin/cmd',\n          request_id: `n8n_adm_${Date.now()}`,\n          action: actionName,\n          ...extraData\n        }\n      });\n    }\n    continue;\n  }\n\n  // Eco DM\n  results.push({\n    json: {\n      topic: 'meshcore/tx',\n      request_id: `n8n_dm_${Date.now()}`,\n      to: senderId,\n      channel_index: 0,\n      text: `[Eco DM] Recibido: \"${rawText}\"`\n    }\n  });\n}\n\nreturn results;"
       },
       "id": "7",
       "name": "Procesar DMs y Admin",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1140,
-        480
+        1200,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ==========================================================\n// Procesador de Telemetría Ambiental y Sensores CayenneLPP\n// ==========================================================\n\nconst results = [];\n\nfor (const item of $input.all()) {\n  const data = item.json;\n  const sender = data.sender || data.sender_id || 'unknown';\n  const temp = data.temperature_c !== undefined ? data.temperature_c : null;\n  const hum = data.humidity_pct !== undefined ? data.humidity_pct : null;\n  const press = data.pressure_hpa !== undefined ? data.pressure_hpa : null;\n  const batt = data.battery_pct !== undefined ? data.battery_pct : (data.battery !== undefined ? data.battery : null);\n  const volt = data.voltage_v !== undefined ? data.voltage_v : null;\n  const gps = data.gps || null;\n\n  let isAlert = false;\n  let alertMsg = '';\n\n  // Detección de umbrales críticos\n  if (batt !== null && batt < 20) {\n    isAlert = true;\n    alertMsg += `⚠️ Batería baja (${batt}%) en nodo ${sender}. `;\n  }\n  if (temp !== null && temp > 45.0) {\n    isAlert = true;\n    alertMsg += `🔥 Temperatura alta (${temp}°C) en nodo ${sender}. `;\n  }\n\n  results.push({\n    json: {\n      event_type: 'telemetry_processed',\n      sender: sender,\n      temperature: temp,\n      humidity: hum,\n      pressure: press,\n      battery_pct: batt,\n      voltage_v: volt,\n      gps: gps,\n      is_alert: isAlert,\n      alert_text: alertMsg,\n      timestamp: new Date().toISOString()\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "8",
+      "name": "Procesar Telemetría CayenneLPP",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ==========================================================\n// Procesador de Anuncios de Nodos (Node Discovery)\n// ==========================================================\n\nconst results = [];\nfor (const item of $input.all()) {\n  const data = item.json;\n  results.push({\n    json: {\n      event_type: 'node_discovered',\n      node_id: data.sender || data.sender_id,\n      node_name: data.sender_name || 'Nuevo Nodo',\n      hops: data.hops || 0,\n      discovered_at: new Date().toISOString()\n    }\n  });\n}\nreturn results;"
+      },
+      "id": "9",
+      "name": "Procesar Anuncio de Nodos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ==========================================================\n// Procesador de Packet Sniffer RF (0x88 LOG_DATA)\n// ==========================================================\n\nconst results = [];\nfor (const item of $input.all()) {\n  const data = item.json;\n  results.push({\n    json: {\n      event_type: 'rf_traffic_logged',\n      route_type_id: data.route_type_id,\n      payload_type_id: data.payload_type_id,\n      bytes: data.byte_length || 0,\n      captured_at: new Date().toISOString()\n    }\n  });\n}\nreturn results;"
+      },
+      "id": "10",
+      "name": "Procesar Sniffer RF",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        840
       ]
     },
     {
@@ -123,13 +174,13 @@
         "message": "={{ JSON.stringify($json) }}",
         "options": {}
       },
-      "id": "8",
-      "name": "Publicar a MQTT (TX)",
+      "id": "11",
+      "name": "Publicar a MQTT (TX / Admin)",
       "type": "n8n-nodes-base.mqtt",
       "typeVersion": 1,
       "position": [
-        1460,
-        300
+        1520,
+        280
       ]
     }
   ],
@@ -178,7 +229,7 @@
         ],
         [
           {
-            "node": "Procesar Canal Privado",
+            "node": "Procesar Canal Secundario",
             "type": "main",
             "index": 0
           }
@@ -189,6 +240,27 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Procesar Telemetría CayenneLPP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Procesar Anuncio de Nodos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Procesar Sniffer RF",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -196,18 +268,18 @@
       "main": [
         [
           {
-            "node": "Publicar a MQTT (TX)",
+            "node": "Publicar a MQTT (TX / Admin)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Procesar Canal Privado": {
+    "Procesar Canal Secundario": {
       "main": [
         [
           {
-            "node": "Publicar a MQTT (TX)",
+            "node": "Publicar a MQTT (TX / Admin)",
             "type": "main",
             "index": 0
           }
@@ -218,7 +290,7 @@
       "main": [
         [
           {
-            "node": "Publicar a MQTT (TX)",
+            "node": "Publicar a MQTT (TX / Admin)",
             "type": "main",
             "index": 0
           }
