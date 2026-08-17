@@ -72,6 +72,19 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
 
 ---
 
+### Agente 4: Web UI/UX & Frontend Architect Agent
+- **Objetivo**: Diseñar y maquetar la interfaz web SPA en HTML5 semántico, CSS3 moderno (Vanilla CSS) y JavaScript asíncrono para WebSockets y REST API.
+- **Área de Trabajo**:
+  - Lectura: `/docs/ARCHITECTURE.md`, `/src/protocol_types.py`
+  - Escritura: `/src/web/static/**`, `/src/web/templates/**`
+- **Reglas y Restricciones Estrictas**:
+  1. **Cero Dependencias Pesadas**: Usar Vanilla CSS y Vanilla JS nativo sin frameworks bloqueantes (React/Vue/Tailwind) para garantizar arranque instantáneo (< 100ms) y bajo consumo de RAM en SBCs (Orange Pi / Raspberry Pi).
+  2. **Diseño Visual de Grado Profesional**: Cumplir estrictamente la guía de diseño (paleta armónica en tonos pizarra oscuro/azul acero, tipografía legible con espaciado equilibrado, micro-animaciones en transiciones, estado activo en botones y badges de calidad de señal RF).
+  3. **Totalmente Responsivo**: Adaptación fluida para pantallas móviles de campo (smartphones/tablets) y pantallas de escritorio.
+  4. **Conexión en Tiempo Real**: Cliente WebSocket con reconexión automática y sincronización de estado en vivo.
+
+---
+
 ## 3. Flujo de Trabajo y Ciclo de Iteración
 
 ```mermaid

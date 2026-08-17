@@ -74,5 +74,11 @@ LORA_DEFAULT_BW_KHZ = float(os.getenv("LORA_DEFAULT_BW_KHZ", "250.0"))       # A
 LORA_DEFAULT_CR = int(os.getenv("LORA_DEFAULT_CR", "5"))                      # Coding Rate (5 = 4/5, 6 = 4/6, etc.)
 LORA_PREAMBLE_LEN = int(os.getenv("LORA_PREAMBLE_LEN", "8"))                 # Símbolos de preámbulo
 
+# ================= Servidor Web Embebido y Cliente Web SPA =================
+WEB_ENABLED = os.getenv("WEB_ENABLED", "true").lower() in ("true", "1", "yes")
+WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")
+WEB_PORT = int(os.getenv("WEB_PORT", "8080"))
+
+
 # ================= Logging =================
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()

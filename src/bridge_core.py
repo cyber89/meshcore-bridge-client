@@ -93,6 +93,19 @@ class MeshCoreBridge:
             on_timeout_reconnect=self._reconnect_serial,
         )
 
+        # 7. Servidor Web Asíncrono y WebSocket Hub
+        web_enabled = getattr(config, "WEB_ENABLED", True)
+        from src.web import MeshCoreWebServer
+        self.web_server: MeshCoreWebServer | None = (
+            MeshCoreWebServer(
+                bridge=self,
+                host=getattr(config, "WEB_HOST", "0.0.0.0"),
+                port=getattr(config, "WEB_PORT", 8080),
+            )
+            if web_enabled
+            else None
+        )
+
         # Tareas en segundo plano y métricas
         self._health_task: asyncio.Task[None] | None = None
         self.rx_count = 0
@@ -206,14 +219,21 @@ class MeshCoreBridge:
         await self.serial_adapter.connect()
         self.watchdog.start()
 
+        # Iniciar servidor web si está habilitado
+        if self.web_server:
+            await self.web_server.start()
+
         # Iniciar reporte periódico de salud
         self._health_task = asyncio.create_task(self._health_reporter_loop(), name="HealthReporter")
-        logging.info("MeshCore Bridge iniciado y operativo (v2.1).")
+        logging.info("MeshCore Bridge iniciado y operativo (v3.0).")
 
     async def stop(self) -> None:
         """Detención ordenada de todos los subsistemas."""
         logging.info("Deteniendo MeshCore Bridge...")
         self.running = False
+
+        if self.web_server:
+            await self.web_server.stop()
 
         if self._health_task and not self._health_task.done():
             self._health_task.cancel()
@@ -460,6 +480,8 @@ class MeshCoreBridge:
                 self.mqtt.publish_safe(config.TOPIC_RX_PUBLIC, evt_json, qos=0)
             else:
                 self.mqtt.publish_safe(f"{config.TOPIC_RX_CHANNEL}/ch_{channel_idx}", evt_json, qos=0)
+            if self.web_server:
+                self.web_server.broadcast_event(evt_payload)
 
         elif is_direct_event:
             evt_payload = {
@@ -473,6 +495,8 @@ class MeshCoreBridge:
             evt_json = json.dumps(evt_payload)
             self.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
             self.mqtt.publish_safe(f"{config.TOPIC_RX_DIRECT}/{sender}", evt_json, qos=0)
+            if self.web_server:
+                self.web_server.broadcast_event(evt_payload)
 
         else:
             # Evento genérico o telemetría (con decodificación CayenneLPP si hay bytes crudos)
@@ -485,6 +509,8 @@ class MeshCoreBridge:
             self.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
             if "battery" in payload_dict or "voltage" in payload_dict or "temperature" in payload_dict or "temperature_c" in payload_dict:
                 self.mqtt.publish_safe(config.TOPIC_RX_TELEMETRY, evt_json, qos=0)
+            if self.web_server:
+                self.web_server.broadcast_event(payload_dict)
 
     def on_radio_event(self, event: Any) -> None:
         """Alias para on_mesh_event."""

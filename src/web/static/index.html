@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MeshCore Web Client - LoRa Base Station</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <!-- Leaflet Map CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body class="dark-theme">
+  <div id="app" class="app-layout">
+    <!-- Header Superior -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="logo-badge">
+          <span class="logo-icon">📻</span>
+          <span class="logo-title">MeshCore <strong>Bridge</strong></span>
+        </div>
+        <div class="connection-status" id="wsStatus">
+          <span class="status-dot disconnected"></span>
+          <span class="status-text">Conectando...</span>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="header-metrics">
+          <span class="metric-chip" title="Nodos Activos en Malla">👥 <strong id="headerNodeCount">0</strong></span>
+          <span class="metric-chip" title="Paquetes Recibidos">📥 <strong id="headerRxCount">0</strong></span>
+          <span class="metric-chip" title="Paquetes Emitidos">📤 <strong id="headerTxCount">0</strong></span>
+          <span class="metric-chip" title="Cola de Transmisión">⏱️ <strong id="headerQueueDepth">0</strong></span>
+        </div>
+        <button id="themeToggleBtn" class="btn-icon" title="Cambiar tema">🌓</button>
+      </div>
+    </header>
+
+    <!-- Cuerpo Principal -->
+    <div class="app-body">
+      <!-- Barra Lateral de Navegación y Canales -->
+      <aside class="app-sidebar">
+        <nav class="nav-tabs">
+          <button class="nav-btn active" data-tab="tab-chat">💬 Mensajería</button>
+          <button class="nav-btn" data-tab="tab-map">🗺️ Mapa en Vivo</button>
+          <button class="nav-btn" data-tab="tab-nodes">📡 Directorio de Nodos</button>
+          <button class="nav-btn" data-tab="tab-contacts">👥 Contactos y Claves</button>
+          <button class="nav-btn" data-tab="tab-telemetry">📊 Sensores Ambientales</button>
+          <button class="nav-btn" data-tab="tab-settings">⚙️ Configuración</button>
+        </nav>
+
+        <!-- Selector de Canales / DMs Activos en Vista de Chat -->
+        <div class="channel-selector-card" id="sidebarChannelList">
+          <div class="section-subtitle">Canales LoRa</div>
+          <ul class="channel-list" id="channelListUi">
+            <li class="channel-item active" data-channel-idx="0">
+              <span class="ch-badge">Ch 0</span>
+              <span class="ch-name">Público / Broadcast</span>
+            </li>
+          </ul>
+          <div class="section-subtitle" style="margin-top: 15px;">Mensajes Directos</div>
+          <ul class="channel-list" id="dmListUi">
+            <li class="empty-hint">No hay DMs recientes</li>
+          </ul>
+        </div>
+      </aside>
+
+      <!-- Área de Contenido Principal -->
+      <main class="app-main">
+        <!-- Pestaña 1: Mensajería / Chat -->
+        <section id="tab-chat" class="tab-pane active">
+          <div class="chat-container">
+            <div class="chat-header">
+              <div class="active-target-info">
+                <h2 id="chatActiveTitle">Canal 0 (Público / Broadcast)</h2>
+                <span class="target-sub" id="chatActiveSub">Difusión comunitaria sin cifrado</span>
+              </div>
+              <button class="btn-secondary btn-sm" id="clearChatBtn">Limpiar Vista</button>
+            </div>
+
+            <!-- Feed de Mensajes -->
+            <div class="chat-messages" id="chatMessageFeed">
+              <div class="chat-welcome-card">
+                <h3>Bienvenido a MeshCore Web Station</h3>
+                <p>Monitoreo y emisión en tiempo real a través de la malla LoRa.</p>
+              </div>
+            </div>
+
+            <!-- Caja de Entrada de Mensaje -->
+            <form id="chatInputForm" class="chat-composer">
+              <input type="text" id="chatInputText" placeholder="Escribe un mensaje para transmitir por RF..." autocomplete="off" required />
+              <button type="submit" class="btn-primary" id="btnSendMsg">
+                <span>Enviar</span> 🚀
+              </button>
+            </form>
+          </div>
+        </section>
+
+        <!-- Pestaña 2: Mapa GPS en Vivo -->
+        <section id="tab-map" class="tab-pane">
+          <div class="map-container">
+            <div id="liveGpsMap" class="leaflet-map-canvas"></div>
+            <div class="map-overlay-info">
+              <h4>Posiciones en Malla LoRa</h4>
+              <div id="mapNodesList" class="map-nodes-feed"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Pestaña 3: Directorio de Nodos & Repetidores -->
+        <section id="tab-nodes" class="tab-pane">
+          <div class="nodes-view-container">
+            <div class="pane-header">
+              <h2>Nodos Detectados en la Malla</h2>
+              <button class="btn-secondary" id="btnRefreshNodes">🔄 Actualizar</button>
+            </div>
+            <div class="nodes-grid" id="nodesGridUi">
+              <div class="empty-state">Buscando nodos en el aire...</div>
+            </div>
+
+            <!-- Consola de Comandos de Repetidores Remotos -->
+            <div class="repeater-cmd-box">
+              <h3>Consola de Administración de Repetidores Remotos</h3>
+              <form id="repeaterCmdForm" class="grid-form">
+                <div class="form-group">
+                  <label for="repTarget">Nodo / Repetidor Destino:</label>
+                  <input type="text" id="repTarget" placeholder="ej. feedface0001 o alias" required />
+                </div>
+                <div class="form-group">
+                  <label for="repAction">Comando RF:</label>
+                  <select id="repAction">
+                    <option value="stats-radio">stats-radio (Métricas RF)</option>
+                    <option value="stats-core">stats-core (Estado Core)</option>
+                    <option value="stats-packets">stats-packets (Contador de Paquetes)</option>
+                    <option value="neighbors">neighbors (Vecinos Directos)</option>
+                    <option value="discover.neighbors">discover.neighbors (Sondeo de Malla)</option>
+                    <option value="log start">log start (Activar Packet Sniffer RF)</option>
+                    <option value="log stop">log stop (Desactivar Packet Sniffer)</option>
+                    <option value="advert">advert (Forzar Anuncio)</option>
+                    <option value="reboot">reboot (Reiniciar Repetidor)</option>
+                  </select>
+                </div>
+                <button type="submit" class="btn-primary">Enviar Comando RF</button>
+              </form>
+              <div class="console-output" id="repConsoleOutput">Esperando comandos...</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Pestaña 4: Contactos y Gestión de Canales Cifrados -->
+        <section id="tab-contacts" class="tab-pane">
+          <div class="contacts-view-container">
+            <div class="split-columns">
+              <!-- Columna Contactos -->
+              <div class="card-box">
+                <div class="pane-header">
+                  <h3>Libreta de Contactos</h3>
+                </div>
+                <form id="addContactForm" class="compact-form">
+                  <input type="text" id="contactPubKey" placeholder="Clave Pública Hex (ej. feedfacecafe0001)" required />
+                  <input type="text" id="contactName" placeholder="Nombre amigable (ej. Base Montaña)" />
+                  <input type="text" id="contactAlias" placeholder="Alias corto (ej. Repeater_1)" />
+                  <button type="submit" class="btn-primary btn-block">Guardar Contacto</button>
+                </form>
+                <div class="contacts-list" id="contactsListContainer"></div>
+              </div>
+
+              <!-- Columna Canales Cifrados -->
+              <div class="card-box">
+                <div class="pane-header">
+                  <h3>Canales Privados (Cifrado AES)</h3>
+                </div>
+                <form id="addChannelForm" class="compact-form">
+                  <select id="chIndexSelect">
+                    <option value="1">Canal 1</option>
+                    <option value="2">Canal 2</option>
+                    <option value="3">Canal 3</option>
+                    <option value="4">Canal 4</option>
+                    <option value="5">Canal 5</option>
+                    <option value="6">Canal 6</option>
+                    <option value="7">Canal 7</option>
+                  </select>
+                  <input type="text" id="chNameInput" placeholder="Nombre del Canal (ej. Operaciones)" required />
+                  <input type="password" id="chPskInput" placeholder="Clave de Cifrado PSK / AES" />
+                  <button type="submit" class="btn-primary btn-block">Guardar Canal</button>
+                </form>
+                <div class="channels-detail-list" id="channelsDetailContainer"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Pestaña 5: Sensores Ambientales / CayenneLPP -->
+        <section id="tab-telemetry" class="tab-pane">
+          <div class="telemetry-view-container">
+            <div class="pane-header">
+              <h2>Telemetría Ambiental (IPSO CayenneLPP)</h2>
+              <span class="badge-tag">Decodificación en Tiempo Real</span>
+            </div>
+            <div class="telemetry-cards-grid" id="telemetryGridUi">
+              <div class="empty-state">Esperando tramas de telemetría en el aire...</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Pestaña 6: Configuración del Sistema -->
+        <section id="tab-settings" class="tab-pane">
+          <div class="settings-view-container">
+            <div class="pane-header">
+              <h2>Parámetros de la Radio y Bridge</h2>
+            </div>
+            <div class="settings-grid">
+              <div class="card-box">
+                <h3>Configuración de Radio Local</h3>
+                <form id="localRadioForm" class="stacked-form">
+                  <div class="form-group">
+                    <label for="localNodeName">Nombre del Nodo Local:</label>
+                    <input type="text" id="localNodeName" placeholder="Heltec_Base_Station" />
+                  </div>
+                  <div class="form-group">
+                    <label for="localTxPower">Potencia TX LoRa (dBm):</label>
+                    <input type="number" id="localTxPower" min="2" max="22" value="20" />
+                  </div>
+                  <button type="submit" class="btn-primary">Guardar en Radio</button>
+                  <button type="button" id="btnRebootRadio" class="btn-danger" style="margin-top: 10px;">Reiniciar Transceptor LoRa</button>
+                </form>
+              </div>
+
+              <div class="card-box">
+                <h3>Diagnóstico de Salud del Sistema</h3>
+                <div class="system-stats-list" id="systemHealthStats">
+                  <div class="stat-item"><span>Estado:</span> <strong id="diagBridgeStatus">Online</strong></div>
+                  <div class="stat-item"><span>Puerto Serial:</span> <strong id="diagSerialPort">AUTO</strong></div>
+                  <div class="stat-item"><span>Conexión MQTT:</span> <strong id="diagMqttConnected">Conectado</strong></div>
+                  <div class="stat-item"><span>Buffer SQLite Offline:</span> <strong id="diagBufferCount">0</strong></div>
+                  <div class="stat-item"><span>Uptime:</span> <strong id="diagUptime">0s</strong></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>
