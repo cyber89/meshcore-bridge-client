@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MeshCore Web Client - LoRa Base Station</title>
+  <title>MeshCore Web Client - Base Station & RF Analyzer</title>
   <link rel="stylesheet" href="/css/app.css">
   <!-- Leaflet Map CSS & JS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -16,7 +16,7 @@
       <div class="header-left">
         <div class="logo-badge">
           <span class="logo-icon">📻</span>
-          <span class="logo-title">MeshCore <strong>Bridge</strong></span>
+          <span class="logo-title">MeshCore <strong>Station</strong></span>
         </div>
         <div class="connection-status" id="wsStatus">
           <span class="status-dot disconnected"></span>
@@ -25,9 +25,10 @@
       </div>
       <div class="header-right">
         <div class="header-metrics">
-          <span class="metric-chip" title="Nodos Activos en Malla">👥 <strong id="headerNodeCount">0</strong></span>
+          <span class="metric-chip" title="Nodos Activos">👥 <strong id="headerNodeCount">0</strong></span>
           <span class="metric-chip" title="Paquetes Recibidos">📥 <strong id="headerRxCount">0</strong></span>
           <span class="metric-chip" title="Paquetes Emitidos">📤 <strong id="headerTxCount">0</strong></span>
+          <span class="metric-chip" title="Tasa de Error">⚠️ <strong id="headerErrorRate">0.0%</strong></span>
           <span class="metric-chip" title="Cola de Transmisión">⏱️ <strong id="headerQueueDepth">0</strong></span>
         </div>
         <button id="themeToggleBtn" class="btn-icon" title="Cambiar tema">🌓</button>
@@ -36,14 +37,17 @@
 
     <!-- Cuerpo Principal -->
     <div class="app-body">
-      <!-- Barra Lateral de Navegación y Canales -->
+      <!-- Barra Lateral de Navegación -->
       <aside class="app-sidebar">
         <nav class="nav-tabs">
           <button class="nav-btn active" data-tab="tab-chat">💬 Mensajería</button>
           <button class="nav-btn" data-tab="tab-map">🗺️ Mapa en Vivo</button>
-          <button class="nav-btn" data-tab="tab-nodes">📡 Directorio de Nodos</button>
+          <button class="nav-btn" data-tab="tab-nodes">📡 Directorio Nodos</button>
+          <button class="nav-btn" data-tab="tab-sniffer">🕵️ Sniffer RF (0x88)</button>
+          <button class="nav-btn" data-tab="tab-analytics">📈 Métricas y Tops</button>
+          <button class="nav-btn" data-tab="tab-telemetry">📊 Sensores</button>
           <button class="nav-btn" data-tab="tab-contacts">👥 Contactos y Claves</button>
-          <button class="nav-btn" data-tab="tab-telemetry">📊 Sensores Ambientales</button>
+          <button class="nav-btn" data-tab="tab-logs">📜 Consola de Logs</button>
           <button class="nav-btn" data-tab="tab-settings">⚙️ Configuración</button>
         </nav>
 
@@ -145,7 +149,163 @@
           </div>
         </section>
 
-        <!-- Pestaña 4: Contactos y Gestión de Canales Cifrados -->
+        <!-- Pestaña 4: Sniffer RF & Analizador de Paquetes (0x88) -->
+        <section id="tab-sniffer" class="tab-pane">
+          <div class="sniffer-view-container">
+            <div class="pane-header">
+              <div>
+                <h2>🕵️ RF Packet Sniffer & Analizador Wire</h2>
+                <span class="target-sub">Captura e inspección profunda de tramas LoRa en el aire (Opcode 0x88)</span>
+              </div>
+              <div class="sniffer-controls">
+                <button id="btnToggleSniffer" class="btn-primary">▶ Iniciar Sniffer</button>
+                <button id="btnClearSniffer" class="btn-secondary">🗑️ Limpiar</button>
+              </div>
+            </div>
+
+            <!-- Barra de Filtros del Sniffer -->
+            <div class="filter-toolbar">
+              <div class="filter-item">
+                <label for="filterSnifferType">Tipo de Carga Útil:</label>
+                <select id="filterSnifferType">
+                  <option value="ALL">Todos los tipos</option>
+                  <option value="TXT_MSG">TXT_MSG (Mensajes de texto)</option>
+                  <option value="GRP_DATA">GRP_DATA (CayenneLPP / Sensores)</option>
+                  <option value="TELEMETRY">TELEMETRY (Batería / Estado)</option>
+                  <option value="ADVERT">ADVERT (Anuncios de presencia)</option>
+                  <option value="ACK">ACK (Acuses de entrega)</option>
+                  <option value="REQ">REQ / RESP (RPC Remoto)</option>
+                </select>
+              </div>
+              <div class="filter-item">
+                <label for="filterSnifferNode">Filtrar por Nodo:</label>
+                <input type="text" id="filterSnifferNode" placeholder="ej. feedface o broadcast" />
+              </div>
+              <div class="filter-item">
+                <label for="filterSnifferRoute">Enrutamiento:</label>
+                <select id="filterSnifferRoute">
+                  <option value="ALL">Todas las rutas</option>
+                  <option value="FLOOD">FLOOD (Inundación)</option>
+                  <option value="DIRECT">DIRECT (Directo)</option>
+                  <option value="DISCOVERY">DISCOVERY (Exploración)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Tabla de Captura en Vivo -->
+            <div class="table-card">
+              <table class="data-table" id="snifferDataTable">
+                <thead>
+                  <tr>
+                    <th>Hora</th>
+                    <th>Ruta</th>
+                    <th>Tipo Payload</th>
+                    <th>Remitente</th>
+                    <th>Saltos</th>
+                    <th>Longitud</th>
+                    <th>RSSI / SNR</th>
+                    <th>Hex Dump / Contenido</th>
+                  </tr>
+                </thead>
+                <tbody id="snifferTableBody">
+                  <tr class="empty-row"><td colspan="8">Esperando capturas de tramas en el aire...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- Pestaña 5: Métricas Avanzadas y Tops de Rendimiento -->
+        <section id="tab-analytics" class="tab-pane">
+          <div class="analytics-view-container">
+            <div class="pane-header">
+              <h2>📈 Tablero de Métricas Avanzadas & Estadísticas</h2>
+              <button class="btn-secondary" id="btnRefreshAnalytics">🔄 Actualizar Métricas</button>
+            </div>
+
+            <!-- Tarjetas KPI -->
+            <div class="kpi-grid">
+              <div class="kpi-card">
+                <span class="kpi-title">📦 Total Paquetes (Tráfico)</span>
+                <span class="kpi-value" id="kpiTotalPackets">0</span>
+                <span class="kpi-sub" id="kpiRxTxSplit">RX: 0 | TX: 0</span>
+              </div>
+              <div class="kpi-card">
+                <span class="kpi-title">👥 Nodos Activos</span>
+                <span class="kpi-value" id="kpiActiveNodes">0</span>
+                <span class="kpi-sub">En red mesh</span>
+              </div>
+              <div class="kpi-card">
+                <span class="kpi-title">⚠️ Tasa de Error Global</span>
+                <span class="kpi-value" id="kpiGlobalErrorRate">0.0%</span>
+                <span class="kpi-sub" id="kpiTotalErrorsCount">0 errores registrados</span>
+              </div>
+              <div class="kpi-card">
+                <span class="kpi-title">📶 Calidad de Enlace Promedio</span>
+                <span class="kpi-value" id="kpiAvgSnr">-- dB</span>
+                <span class="kpi-sub" id="kpiAvgRssi">RSSI Promedio: -- dBm</span>
+              </div>
+            </div>
+
+            <!-- Grids de Tops -->
+            <div class="analytics-split-grid">
+              <!-- Top Nodos por Tráfico -->
+              <div class="card-box">
+                <div class="pane-header">
+                  <h3>🏆 Top 10 Nodos por Tráfico</h3>
+                </div>
+                <div class="leaderboard-list" id="topTrafficNodesList">
+                  <div class="empty-state">Sin datos de tráfico acumulados.</div>
+                </div>
+              </div>
+
+              <!-- Top Repetidores por Clientes Conectados -->
+              <div class="card-box">
+                <div class="pane-header">
+                  <h3>🌐 Top Repetidores por Clientes / Vecinos</h3>
+                </div>
+                <div class="leaderboard-list" id="topRepeatersList">
+                  <div class="empty-state">Sin repetidores reportando vecinos aún.</div>
+                </div>
+              </div>
+
+              <!-- Top Calidad de Señal -->
+              <div class="card-box">
+                <div class="pane-header">
+                  <h3>📶 Ranking de Calidad de Señal (SNR / RSSI)</h3>
+                </div>
+                <div class="leaderboard-list" id="topSignalNodesList">
+                  <div class="empty-state">Sin nodos con métricas de enlace.</div>
+                </div>
+              </div>
+
+              <!-- Top Errores por Categoría -->
+              <div class="card-box">
+                <div class="pane-header">
+                  <h3>🚨 Desglose de Errores por Categoría</h3>
+                </div>
+                <div class="leaderboard-list" id="topErrorsList">
+                  <div class="empty-state">0 errores detectados en la sesión.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Pestaña 6: Sensores Ambientales / CayenneLPP -->
+        <section id="tab-telemetry" class="tab-pane">
+          <div class="telemetry-view-container">
+            <div class="pane-header">
+              <h2>Telemetría Ambiental (IPSO CayenneLPP)</h2>
+              <span class="badge-tag">Decodificación en Tiempo Real</span>
+            </div>
+            <div class="telemetry-cards-grid" id="telemetryGridUi">
+              <div class="empty-state">Esperando tramas de telemetría en el aire...</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Pestaña 7: Contactos y Gestión de Canales Cifrados -->
         <section id="tab-contacts" class="tab-pane">
           <div class="contacts-view-container">
             <div class="split-columns">
@@ -188,20 +348,42 @@
           </div>
         </section>
 
-        <!-- Pestaña 5: Sensores Ambientales / CayenneLPP -->
-        <section id="tab-telemetry" class="tab-pane">
-          <div class="telemetry-view-container">
+        <!-- Pestaña 8: Consola de Logs del Sistema -->
+        <section id="tab-logs" class="tab-pane">
+          <div class="logs-view-container">
             <div class="pane-header">
-              <h2>Telemetría Ambiental (IPSO CayenneLPP)</h2>
-              <span class="badge-tag">Decodificación en Tiempo Real</span>
+              <div>
+                <h2>📜 Consola de Logs del Sistema</h2>
+                <span class="target-sub">Flujo de depuración, transacciones seriales y eventos del bridge en vivo</span>
+              </div>
+              <div class="logs-actions">
+                <button id="btnExportLogs" class="btn-secondary">📥 Descargar Logs (.json)</button>
+                <button id="btnClearLogs" class="btn-secondary">🗑️ Limpiar</button>
+              </div>
             </div>
-            <div class="telemetry-cards-grid" id="telemetryGridUi">
-              <div class="empty-state">Esperando tramas de telemetría en el aire...</div>
+
+            <!-- Filtros de Logs -->
+            <div class="logs-filter-bar">
+              <div class="level-chips">
+                <button class="chip active" data-level="ALL">TODOS</button>
+                <button class="chip" data-level="INFO">INFO</button>
+                <button class="chip" data-level="WARN">WARN</button>
+                <button class="chip" data-level="ERROR">ERROR</button>
+              </div>
+              <input type="text" id="logSearchInput" placeholder="Buscar en logs..." />
+              <label class="checkbox-label">
+                <input type="checkbox" id="autoScrollLogs" checked /> Auto-scroll
+              </label>
+            </div>
+
+            <!-- Ventana Terminal de Logs -->
+            <div class="terminal-window" id="terminalLogFeed">
+              <div class="log-line info">[SISTEMA] Consola de logs de MeshCore Bridge iniciada.</div>
             </div>
           </div>
         </section>
 
-        <!-- Pestaña 6: Configuración del Sistema -->
+        <!-- Pestaña 9: Configuración del Sistema -->
         <section id="tab-settings" class="tab-pane">
           <div class="settings-view-container">
             <div class="pane-header">

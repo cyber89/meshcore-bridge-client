@@ -1,14 +1,14 @@
 """
 Node Registry & Contact Directory for MeshCore Bridge.
-Mantiene un registro de nodos activos, libretas de contactos, alias y métricas RF
-en memoria con soporte de búsqueda O(1) y sincronización delta.
+Mantiene un registro de nodos activos, libretas de contactos, alias, telemetría y métricas RF
+en memoria con soporte de búsqueda O(1), estadísticas de tráfico y análisis topológico.
 """
 
 from __future__ import annotations
 
 import logging
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 
@@ -23,10 +23,23 @@ class NodeContactInfo:
     last_snr: float = 10.0
     battery_pct: int | None = None
     last_seen: float = 0.0
+    rx_packets: int = 0
+    tx_packets: int = 0
+    error_count: int = 0
+    connected_clients_count: int = 0
+    neighbors: list[str] = field(default_factory=list)
+    temperature_c: float | None = None
+    humidity_pct: float | None = None
+    pressure_hpa: float | None = None
+    voltage_v: float | None = None
+    latitude: float | None = None
+    longitude: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["key_prefix"] = self.public_key[:8] if len(self.public_key) >= 8 else self.public_key
+        d["total_packets"] = self.rx_packets + self.tx_packets
+        d["error_rate_pct"] = round((self.error_count / (d["total_packets"] or 1)) * 100, 1)
         return d
 
 
@@ -36,6 +49,14 @@ class NodeRegistry:
     def __init__(self) -> None:
         self._nodes_by_key: dict[str, NodeContactInfo] = {}
         self._nodes_by_name: dict[str, str] = {}  # lower(name) -> public_key
+        self.error_categories: dict[str, int] = {
+            "SERIAL_TIMEOUT": 0,
+            "TX_BUFFER_OVERFLOW": 0,
+            "CRC_MISMATCH": 0,
+            "RADIO_BUSY": 0,
+            "ROUTE_UNREACHABLE": 0,
+            "MQTT_DISCONNECT": 0,
+        }
         self.last_sync_timestamp: float = 0.0
 
     def add_or_update(
@@ -47,22 +68,46 @@ class NodeRegistry:
         last_rssi: int = -80,
         last_snr: float = 10.0,
         battery_pct: int | None = None,
+        rx_packets: int | None = None,
+        tx_packets: int | None = None,
+        error_count: int | None = None,
+        connected_clients_count: int | None = None,
+        neighbors: list[str] | None = None,
+        temperature_c: float | None = None,
+        humidity_pct: float | None = None,
+        pressure_hpa: float | None = None,
+        voltage_v: float | None = None,
+        latitude: float | None = None,
+        longitude: float | None = None,
     ) -> NodeContactInfo:
-        """Añade o actualiza la información de un nodo."""
+        """Añade o actualiza la información de un nodo preservando métricas acumuladas."""
         norm_key = public_key.strip().lower()
-        clean_name = name.strip() or f"Node_{norm_key[:6]}"
-        clean_alias = alias.strip() or clean_name
+        existing = self._nodes_by_key.get(norm_key)
+
+        clean_name = name.strip() or (existing.name if existing else f"Node_{norm_key[:6]}")
+        clean_alias = alias.strip() or (existing.alias if existing else clean_name)
         now = time.time()
 
         contact = NodeContactInfo(
             public_key=norm_key,
             name=clean_name,
             alias=clean_alias,
-            hops=hops,
-            last_rssi=last_rssi,
-            last_snr=last_snr,
-            battery_pct=battery_pct,
+            hops=hops if hops != 0 or not existing else existing.hops,
+            last_rssi=last_rssi if last_rssi != -80 or not existing else existing.last_rssi,
+            last_snr=last_snr if last_snr != 10.0 or not existing else existing.last_snr,
+            battery_pct=battery_pct if battery_pct is not None or not existing else existing.battery_pct,
             last_seen=now,
+            rx_packets=rx_packets if rx_packets is not None else (existing.rx_packets if existing else 0),
+            tx_packets=tx_packets if tx_packets is not None else (existing.tx_packets if existing else 0),
+            error_count=error_count if error_count is not None else (existing.error_count if existing else 0),
+            connected_clients_count=connected_clients_count if connected_clients_count is not None else (existing.connected_clients_count if existing else 0),
+            neighbors=neighbors if neighbors is not None else (existing.neighbors if existing else []),
+            temperature_c=temperature_c if temperature_c is not None else (existing.temperature_c if existing else None),
+            humidity_pct=humidity_pct if humidity_pct is not None else (existing.humidity_pct if existing else None),
+            pressure_hpa=pressure_hpa if pressure_hpa is not None else (existing.pressure_hpa if existing else None),
+            voltage_v=voltage_v if voltage_v is not None else (existing.voltage_v if existing else None),
+            latitude=latitude if latitude is not None else (existing.latitude if existing else None),
+            longitude=longitude if longitude is not None else (existing.longitude if existing else None),
         )
 
         self._nodes_by_key[norm_key] = contact
@@ -71,6 +116,73 @@ class NodeRegistry:
             self._nodes_by_name[clean_alias.lower()] = norm_key
 
         return contact
+
+    def record_packet(
+        self,
+        public_key: str,
+        is_rx: bool,
+        is_error: bool = False,
+        rssi: int | None = None,
+        snr: float | None = None,
+        telemetry: dict[str, Any] | None = None,
+    ) -> None:
+        """Registra un evento de paquete para actualizar contadores de tráfico y salud."""
+        norm_key = public_key.strip().lower()
+        if not norm_key:
+            return
+
+        existing = self._nodes_by_key.get(norm_key)
+        curr_rx = (existing.rx_packets if existing else 0) + (1 if is_rx else 0)
+        curr_tx = (existing.tx_packets if existing else 0) + (0 if is_rx else 1)
+        curr_err = (existing.error_count if existing else 0) + (1 if is_error else 0)
+
+        telem = telemetry or {}
+        temp = telem.get("temperature_c", telem.get("temperature"))
+        hum = telem.get("humidity_pct", telem.get("humidity"))
+        press = telem.get("pressure_hpa", telem.get("pressure"))
+        volt = telem.get("voltage_v", telem.get("voltage"))
+        batt = telem.get("battery_pct", telem.get("battery"))
+        gps = telem.get("gps", {})
+
+        self.add_or_update(
+            public_key=norm_key,
+            name=existing.name if existing else f"Node_{norm_key[:6]}",
+            alias=existing.alias if existing else "",
+            last_rssi=rssi if rssi is not None else (existing.last_rssi if existing else -80),
+            last_snr=snr if snr is not None else (existing.last_snr if existing else 10.0),
+            battery_pct=int(batt) if batt is not None else (existing.battery_pct if existing else None),
+            rx_packets=curr_rx,
+            tx_packets=curr_tx,
+            error_count=curr_err,
+            temperature_c=float(temp) if temp is not None else None,
+            humidity_pct=float(hum) if hum is not None else None,
+            pressure_hpa=float(press) if press is not None else None,
+            voltage_v=float(volt) if volt is not None else None,
+            latitude=float(gps["latitude"]) if isinstance(gps, dict) and "latitude" in gps else None,
+            longitude=float(gps["longitude"]) if isinstance(gps, dict) and "longitude" in gps else None,
+        )
+
+    def record_error(self, category: str) -> None:
+        """Incrementa el contador de errores por categoría."""
+        cat = category.upper().strip()
+        if cat in self.error_categories:
+            self.error_categories[cat] += 1
+        else:
+            self.error_categories[cat] = 1
+
+    def record_neighbors(self, public_key: str, neighbors: list[str]) -> None:
+        """Registra la lista de vecinos/clientes conectados a un repetidor."""
+        norm_key = public_key.strip().lower()
+        clean_neighbors = [n.strip().lower() for n in neighbors if n.strip()]
+        existing = self._nodes_by_key.get(norm_key)
+        if existing:
+            self.add_or_update(
+                public_key=norm_key,
+                name=existing.name,
+                alias=existing.alias,
+                neighbors=clean_neighbors,
+                connected_clients_count=len(clean_neighbors),
+            )
 
     def get_by_key_or_prefix(self, query: str) -> NodeContactInfo | None:
         """Busca un nodo por clave completa, prefijo hex o nombre exacto."""
@@ -104,6 +216,49 @@ class NodeRegistry:
     def list_nodes(self) -> list[dict[str, Any]]:
         """Retorna la lista de todos los nodos registrados en formato serializable."""
         return [c.to_dict() for c in self._nodes_by_key.values()]
+
+    def get_analytics_summary(self) -> dict[str, Any]:
+        """Calcula el resumen analítico avanzado (Top Nodos, Top Clientes, Top Errores)."""
+        nodes_list = [c.to_dict() for c in self._nodes_by_key.values()]
+
+        # 1. Top Nodos por Tráfico (RX + TX)
+        top_traffic = sorted(nodes_list, key=lambda n: int(str(n.get("total_packets", 0))), reverse=True)[:10]
+
+        # 2. Top Nodos por Calidad de Señal (SNR / RSSI)
+        top_best_signal = sorted(nodes_list, key=lambda n: float(str(n.get("last_snr", 0.0))), reverse=True)[:5]
+        top_worst_signal = sorted(nodes_list, key=lambda n: float(str(n.get("last_snr", 0.0))))[:5]
+
+        # 3. Top Clientes Conectados por Repetidor
+        top_repeaters = sorted(nodes_list, key=lambda n: int(str(n.get("connected_clients_count", 0))), reverse=True)[:5]
+
+        # 4. Top Errores
+        error_items: list[dict[str, Any]] = [
+            {"category": k, "count": v} for k, v in self.error_categories.items()
+        ]
+        sorted_errors = sorted(
+            error_items,
+            key=lambda e: int(str(e["count"])),
+            reverse=True,
+        )
+
+        total_rx = sum(int(str(n.get("rx_packets", 0))) for n in nodes_list)
+        total_tx = sum(int(str(n.get("tx_packets", 0))) for n in nodes_list)
+        total_err = sum(int(str(n.get("error_count", 0))) for n in nodes_list)
+
+        return {
+            "summary": {
+                "total_nodes": len(nodes_list),
+                "total_rx_packets": total_rx,
+                "total_tx_packets": total_tx,
+                "total_errors": total_err,
+                "global_error_rate_pct": round((total_err / ((total_rx + total_tx) or 1)) * 100, 2),
+            },
+            "top_nodes_by_traffic": top_traffic,
+            "top_nodes_best_snr": top_best_signal,
+            "top_nodes_worst_snr": top_worst_signal,
+            "top_repeaters_by_clients": top_repeaters,
+            "top_error_breakdown": sorted_errors,
+        }
 
     def get_count(self) -> int:
         return len(self._nodes_by_key)

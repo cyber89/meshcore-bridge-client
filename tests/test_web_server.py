@@ -23,6 +23,8 @@ class TestWebServerRouter(unittest.IsolatedAsyncioTestCase):
             last_rssi=-70,
             last_snr=11.5,
             battery_pct=90,
+            rx_packets=15,
+            tx_packets=5,
         )
         self.mock_bridge.rate_limiter = MagicMock()
         self.mock_bridge.rate_limiter.get_queue_depth.return_value = 0
@@ -93,6 +95,26 @@ class TestWebServerRouter(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(code, 200)
         self.assertEqual(data["status"], "ok")
         self.mock_bridge.handle_admin.assert_called_once()
+
+    async def test_analytics_endpoint(self) -> None:
+        code, data = await self.router.handle_request("GET", "/api/analytics")
+        self.assertEqual(code, 200)
+        self.assertIn("top_nodes_by_traffic", data)
+        self.assertEqual(len(data["top_nodes_by_traffic"]), 1)
+        self.assertEqual(data["top_nodes_by_traffic"][0]["public_key"], "feedface0001")
+        self.assertEqual(data["top_nodes_by_traffic"][0]["total_packets"], 20)
+
+    async def test_sniffer_control_endpoint(self) -> None:
+        code, data = await self.router.handle_request("POST", "/api/sniffer/control", {"action": "start"})
+        self.assertEqual(code, 200)
+        self.assertTrue(data["sniffer_active"])
+
+    async def test_system_logs_endpoint(self) -> None:
+        self.router.log_system_event("WARN", "Prueba de advertencia en logs", source="test")
+        code, data = await self.router.handle_request("GET", "/api/system/logs")
+        self.assertEqual(code, 200)
+        self.assertGreaterEqual(data["count"], 1)
+        self.assertEqual(data["system_logs"][-1]["level"], "WARN")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 /**
  * MeshCore Web Client - Reactive Vanilla JS Application Engine (v3.0)
+ * Incluye mensajería, mapa interactivo, RF Sniffer 0x88, métricas avanzadas y consola de logs.
  */
 
 (function () {
@@ -15,8 +16,14 @@
     channels: [],
     messages: [],
     telemetry: [],
+    snifferLogs: [],
+    systemLogs: [],
+    analytics: {},
     map: null,
     mapMarkers: {},
+    snifferActive: false,
+    selectedLogLevel: "ALL",
+    logSearchQuery: "",
   };
 
   // Elementos DOM
@@ -25,6 +32,7 @@
     headerNodeCount: document.getElementById("headerNodeCount"),
     headerRxCount: document.getElementById("headerRxCount"),
     headerTxCount: document.getElementById("headerTxCount"),
+    headerErrorRate: document.getElementById("headerErrorRate"),
     headerQueueDepth: document.getElementById("headerQueueDepth"),
     themeToggleBtn: document.getElementById("themeToggleBtn"),
     navButtons: document.querySelectorAll(".nav-btn"),
@@ -43,6 +51,34 @@
     repTarget: document.getElementById("repTarget"),
     repAction: document.getElementById("repAction"),
     repConsoleOutput: document.getElementById("repConsoleOutput"),
+    // Sniffer DOM
+    btnToggleSniffer: document.getElementById("btnToggleSniffer"),
+    btnClearSniffer: document.getElementById("btnClearSniffer"),
+    filterSnifferType: document.getElementById("filterSnifferType"),
+    filterSnifferNode: document.getElementById("filterSnifferNode"),
+    filterSnifferRoute: document.getElementById("filterSnifferRoute"),
+    snifferTableBody: document.getElementById("snifferTableBody"),
+    // Analytics DOM
+    btnRefreshAnalytics: document.getElementById("btnRefreshAnalytics"),
+    kpiTotalPackets: document.getElementById("kpiTotalPackets"),
+    kpiRxTxSplit: document.getElementById("kpiRxTxSplit"),
+    kpiActiveNodes: document.getElementById("kpiActiveNodes"),
+    kpiGlobalErrorRate: document.getElementById("kpiGlobalErrorRate"),
+    kpiTotalErrorsCount: document.getElementById("kpiTotalErrorsCount"),
+    kpiAvgSnr: document.getElementById("kpiAvgSnr"),
+    kpiAvgRssi: document.getElementById("kpiAvgRssi"),
+    topTrafficNodesList: document.getElementById("topTrafficNodesList"),
+    topRepeatersList: document.getElementById("topRepeatersList"),
+    topSignalNodesList: document.getElementById("topSignalNodesList"),
+    topErrorsList: document.getElementById("topErrorsList"),
+    // Logs DOM
+    btnExportLogs: document.getElementById("btnExportLogs"),
+    btnClearLogs: document.getElementById("btnClearLogs"),
+    levelChips: document.querySelectorAll(".level-chips .chip"),
+    logSearchInput: document.getElementById("logSearchInput"),
+    autoScrollLogs: document.getElementById("autoScrollLogs"),
+    terminalLogFeed: document.getElementById("terminalLogFeed"),
+    // Contactos & Canales DOM
     addContactForm: document.getElementById("addContactForm"),
     contactsListContainer: document.getElementById("contactsListContainer"),
     addChannelForm: document.getElementById("addChannelForm"),
@@ -64,6 +100,8 @@
     setupTabNavigation();
     setupThemeToggle();
     setupForms();
+    setupSnifferControls();
+    setupLogsControls();
     initLeafletMap();
     connectWebSocket();
     fetchInitialData();
@@ -87,6 +125,15 @@
         if (targetTab === "tab-map" && state.map) {
           setTimeout(() => state.map.invalidateSize(), 200);
         }
+        if (targetTab === "tab-analytics") {
+          fetchAnalytics();
+        }
+        if (targetTab === "tab-sniffer") {
+          fetchSnifferLogs();
+        }
+        if (targetTab === "tab-logs") {
+          fetchSystemLogs();
+        }
       });
     });
 
@@ -98,6 +145,10 @@
 
     if (dom.btnRefreshNodes) {
       dom.btnRefreshNodes.addEventListener("click", fetchNodes);
+    }
+
+    if (dom.btnRefreshAnalytics) {
+      dom.btnRefreshAnalytics.addEventListener("click", fetchAnalytics);
     }
   }
 
@@ -125,6 +176,7 @@
       state.ws.onopen = () => {
         state.connected = true;
         updateWsBadge(true);
+        appendTerminalLog("INFO", "Conexión WebSocket establecida con el bridge.");
       };
 
       state.ws.onmessage = (event) => {
@@ -139,6 +191,7 @@
       state.ws.onclose = () => {
         state.connected = false;
         updateWsBadge(false);
+        appendTerminalLog("WARN", "WebSocket desconectado. Reintentando...");
         setTimeout(connectWebSocket, 3000);
       };
 
@@ -167,13 +220,14 @@
   function handleIncomingWsEvent(event) {
     const type = event.event_type || "";
 
-    // 1. Mensaje de Texto (Público, Canal o DM)
+    // 1. Mensaje de Texto
     if (type === "public" || type === "channel" || type === "direct" || event.text) {
       appendChatMessage(event);
       state.messages.push(event);
       if (type === "direct" && event.sender) {
         addOrUpdateDmItem(event.sender, event.sender_name);
       }
+      appendTerminalLog("INFO", `Mensaje [${type}] de ${event.sender_name || event.sender}: ${event.text || ""}`);
     }
 
     // 2. Telemetría Ambiental
@@ -183,16 +237,20 @@
       if (event.gps) {
         updateMapNodePosition(event.sender || event.sender_id, event.sender_name, event.gps);
       }
+      appendTerminalLog("INFO", `Telemetría recibida de nodo ${event.sender || event.sender_id}`);
     }
 
     // 3. Log de Sniffer RF
     if (type === "rf_log") {
-      appendConsoleLog(`[SNIFFER RF] Ruta: ${event.route_type_id} | Tipo: ${event.payload_type_id} | Bytes: ${event.byte_length}`);
+      state.snifferLogs.unshift(event);
+      renderSnifferTable();
+      appendTerminalLog("INFO", `[RF SNIFFER] Capturada trama de ${event.byte_length || 0} bytes en ${event.route_type_id || "RF"}`);
     }
 
     // 4. Anuncio de Nodos
     if (type === "node_advert" || event.public_key) {
       fetchNodes();
+      appendTerminalLog("INFO", `Anuncio de presencia de nodo ${event.public_key || ""}`);
     }
   }
 
@@ -202,7 +260,6 @@
   function appendChatMessage(msg) {
     if (!dom.chatMessageFeed) return;
 
-    // Filtrar si el mensaje corresponde al canal / DM activo
     const chIdx = msg.channel_idx !== undefined ? msg.channel_idx : (msg.channel_index !== undefined ? msg.channel_index : 0);
     const isDirect = msg.event_type === "direct";
     const sender = msg.sender || msg.sender_id || "Desconocido";
@@ -236,10 +293,298 @@
   }
 
   // ================================================================
-  // Enviar Mensaje TX
+  // RF Packet Sniffer & Analizador de Tramas
+  // ================================================================
+  function setupSnifferControls() {
+    if (dom.btnToggleSniffer) {
+      dom.btnToggleSniffer.addEventListener("click", async () => {
+        const action = state.snifferActive ? "stop" : "start";
+        try {
+          const res = await fetch("/api/sniffer/control", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: action }),
+          });
+          const json = await res.json();
+          state.snifferActive = json.sniffer_active;
+          dom.btnToggleSniffer.textContent = state.snifferActive ? "⏹ Detener Sniffer" : "▶ Iniciar Sniffer";
+          dom.btnToggleSniffer.className = state.snifferActive ? "btn-danger" : "btn-primary";
+          appendTerminalLog("INFO", `Sniffer RF ${state.snifferActive ? "ACTIVADO" : "DETENIDO"}`);
+        } catch (e) {
+          appendTerminalLog("ERROR", `Error controlando sniffer: ${e.message}`);
+        }
+      });
+    }
+
+    if (dom.btnClearSniffer) {
+      dom.btnClearSniffer.addEventListener("click", () => {
+        state.snifferLogs = [];
+        renderSnifferTable();
+      });
+    }
+
+    if (dom.filterSnifferType) dom.filterSnifferType.addEventListener("change", renderSnifferTable);
+    if (dom.filterSnifferNode) dom.filterSnifferNode.addEventListener("input", renderSnifferTable);
+    if (dom.filterSnifferRoute) dom.filterSnifferRoute.addEventListener("change", renderSnifferTable);
+  }
+
+  async function fetchSnifferLogs() {
+    try {
+      const res = await fetch("/api/logs");
+      const data = await res.json();
+      state.snifferLogs = data.logs || [];
+      renderSnifferTable();
+    } catch (e) {
+      console.debug(e);
+    }
+  }
+
+  function renderSnifferTable() {
+    if (!dom.snifferTableBody) return;
+
+    const typeFilter = dom.filterSnifferType ? dom.filterSnifferType.value : "ALL";
+    const nodeFilter = dom.filterSnifferNode ? dom.filterSnifferNode.value.trim().toLowerCase() : "";
+    const routeFilter = dom.filterSnifferRoute ? dom.filterSnifferRoute.value : "ALL";
+
+    const filtered = state.snifferLogs.filter((log) => {
+      const pType = String(log.payload_type_id || log.payload_type || "");
+      const rType = String(log.route_type_id || log.route_type || "");
+      const sender = String(log.sender || log.src_node || "").toLowerCase();
+
+      if (typeFilter !== "ALL" && !pType.includes(typeFilter)) return false;
+      if (routeFilter !== "ALL" && !rType.includes(routeFilter)) return false;
+      if (nodeFilter && !sender.includes(nodeFilter)) return false;
+      return true;
+    });
+
+    if (filtered.length === 0) {
+      dom.snifferTableBody.innerHTML = '<tr class="empty-row"><td colspan="8">No hay tramas coincidentes con los filtros.</td></tr>';
+      return;
+    }
+
+    dom.snifferTableBody.innerHTML = filtered
+      .slice(0, 100)
+      .map((log) => {
+        const timeStr = log.iso_time || (log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : "--");
+        const routeTag = `<span class="tag-route">${escapeHtml(log.route_type_id || "FLOOD")}</span>`;
+        const payloadTag = `<span class="tag-payload">${escapeHtml(log.payload_type_id || log.payload_type || "UNKNOWN")}</span>`;
+        const senderStr = escapeHtml(log.sender || log.src_node || "broadcast");
+        const hopsStr = log.hop_count !== undefined ? `${log.hop_count} saltos` : "0";
+        const bytesStr = `${log.byte_length || (log.raw_hex ? log.raw_hex.length / 2 : 0)} B`;
+        const metricsStr = log.metrics ? `${log.metrics.rssi || -80}dBm / ${log.metrics.snr || 10}dB` : "--";
+        const hexDump = log.raw_hex || log.hex_data || "0xAA ... 0x55";
+
+        return `
+        <tr>
+          <td>${timeStr}</td>
+          <td>${routeTag}</td>
+          <td>${payloadTag}</td>
+          <td><strong>${senderStr}</strong></td>
+          <td>${hopsStr}</td>
+          <td>${bytesStr}</td>
+          <td>${metricsStr}</td>
+          <td class="hex-cell" title="${escapeHtml(hexDump)}">${escapeHtml(hexDump)}</td>
+        </tr>
+      `;
+      })
+      .join("");
+  }
+
+  // ================================================================
+  // Métricas Avanzadas y Tops
+  // ================================================================
+  async function fetchAnalytics() {
+    try {
+      const res = await fetch("/api/analytics");
+      const data = await res.json();
+      state.analytics = data;
+      renderAnalyticsDashboard(data);
+    } catch (e) {
+      console.debug("Error obteniendo analítica:", e);
+    }
+  }
+
+  function renderAnalyticsDashboard(data) {
+    const sum = data.summary || {};
+
+    if (dom.kpiTotalPackets) dom.kpiTotalPackets.textContent = (sum.total_rx_packets || 0) + (sum.total_tx_packets || 0);
+    if (dom.kpiRxTxSplit) dom.kpiRxTxSplit.textContent = `RX: ${sum.total_rx_packets || 0} | TX: ${sum.total_tx_packets || 0}`;
+    if (dom.kpiActiveNodes) dom.kpiActiveNodes.textContent = sum.total_nodes || state.nodes.length;
+    if (dom.kpiGlobalErrorRate) dom.kpiGlobalErrorRate.textContent = `${sum.global_error_rate_pct || 0.0}%`;
+    if (dom.headerErrorRate) dom.headerErrorRate.textContent = `${sum.global_error_rate_pct || 0.0}%`;
+    if (dom.kpiTotalErrorsCount) dom.kpiTotalErrorsCount.textContent = `${sum.total_errors || 0} errores registrados`;
+
+    // 1. Top Nodos por Tráfico
+    if (dom.topTrafficNodesList) {
+      const topT = data.top_nodes_by_traffic || [];
+      if (topT.length === 0) {
+        dom.topTrafficNodesList.innerHTML = '<div class="empty-state">Sin tráfico acumulado.</div>';
+      } else {
+        const maxPackets = Math.max(...topT.map((n) => n.total_packets || 1), 1);
+        dom.topTrafficNodesList.innerHTML = topT
+          .map((n, idx) => {
+            const pct = Math.round(((n.total_packets || 0) / maxPackets) * 100);
+            return `
+            <div class="leaderboard-item">
+              <span class="leaderboard-rank">#${idx + 1}</span>
+              <span style="font-weight:600; width:120px;">${escapeHtml(n.alias || n.name)}</span>
+              <div class="progress-bar-container">
+                <div class="progress-bar-fill" style="width: ${pct}%"></div>
+              </div>
+              <span><strong>${n.total_packets || 0}</strong> pkts (RX:${n.rx_packets || 0}/TX:${n.tx_packets || 0})</span>
+            </div>
+          `;
+          })
+          .join("");
+      }
+    }
+
+    // 2. Top Repetidores por Clientes
+    if (dom.topRepeatersList) {
+      const topR = data.top_repeaters_by_clients || [];
+      if (topR.length === 0) {
+        dom.topRepeatersList.innerHTML = '<div class="empty-state">Sin repetidores con vecinos registrados.</div>';
+      } else {
+        dom.topRepeatersList.innerHTML = topR
+          .map((r, idx) => `
+          <div class="leaderboard-item">
+            <span class="leaderboard-rank">#${idx + 1}</span>
+            <span style="font-weight:600;">${escapeHtml(r.alias || r.name)}</span>
+            <span class="badge-tag">${r.connected_clients_count || 0} clientes conectados</span>
+          </div>
+        `)
+          .join("");
+      }
+    }
+
+    // 3. Ranking de Señal
+    if (dom.topSignalNodesList) {
+      const topS = data.top_nodes_best_snr || [];
+      if (topS.length === 0) {
+        dom.topSignalNodesList.innerHTML = '<div class="empty-state">Sin nodos con métricas de enlace.</div>';
+      } else {
+        dom.topSignalNodesList.innerHTML = topS
+          .map((s, idx) => `
+          <div class="leaderboard-item">
+            <span class="leaderboard-rank">#${idx + 1}</span>
+            <span>${escapeHtml(s.alias || s.name)}</span>
+            <span>SNR: <strong>${s.last_snr} dB</strong> | RSSI: ${s.last_rssi} dBm</span>
+          </div>
+        `)
+          .join("");
+      }
+    }
+
+    // 4. Desglose de Errores
+    if (dom.topErrorsList) {
+      const errors = data.top_error_breakdown || [];
+      const hasErrors = errors.some((e) => e.count > 0);
+      if (!hasErrors) {
+        dom.topErrorsList.innerHTML = '<div class="empty-state" style="color:var(--accent-emerald)">0 errores detectados. Operación estable al 100%.</div>';
+      } else {
+        dom.topErrorsList.innerHTML = errors
+          .filter((e) => e.count > 0)
+          .map((e) => `
+          <div class="leaderboard-item">
+            <span style="color:var(--accent-rose); font-weight:600;">${escapeHtml(e.category)}</span>
+            <span><strong>${e.count}</strong> incidencias</span>
+          </div>
+        `)
+          .join("");
+      }
+    }
+  }
+
+  // ================================================================
+  // Consola de Logs del Sistema
+  // ================================================================
+  function setupLogsControls() {
+    if (dom.levelChips) {
+      dom.levelChips.forEach((chip) => {
+        chip.addEventListener("click", () => {
+          dom.levelChips.forEach((c) => c.classList.remove("active"));
+          chip.classList.add("active");
+          state.selectedLogLevel = chip.getAttribute("data-level") || "ALL";
+          renderTerminalLogs();
+        });
+      });
+    }
+
+    if (dom.logSearchInput) {
+      dom.logSearchInput.addEventListener("input", (e) => {
+        state.logSearchQuery = e.target.value.toLowerCase();
+        renderTerminalLogs();
+      });
+    }
+
+    if (dom.btnClearLogs) {
+      dom.btnClearLogs.addEventListener("click", () => {
+        state.systemLogs = [];
+        renderTerminalLogs();
+      });
+    }
+
+    if (dom.btnExportLogs) {
+      dom.btnExportLogs.addEventListener("click", () => {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.systemLogs, null, 2));
+        const dlAnchor = document.createElement("a");
+        dlAnchor.setAttribute("href", dataStr);
+        dlAnchor.setAttribute("download", `meshcore_logs_${new Date().toISOString().slice(0, 10)}.json`);
+        document.body.appendChild(dlAnchor);
+        dlAnchor.click();
+        dlAnchor.remove();
+      });
+    }
+  }
+
+  async function fetchSystemLogs() {
+    try {
+      const res = await fetch("/api/system/logs");
+      const data = await res.json();
+      state.systemLogs = data.system_logs || [];
+      renderTerminalLogs();
+    } catch (e) {
+      console.debug(e);
+    }
+  }
+
+  function appendTerminalLog(level, msg) {
+    const entry = {
+      timestamp: Date.now(),
+      iso_time: new Date().toLocaleTimeString(),
+      level: level.toUpperCase(),
+      message: msg,
+    };
+    state.systemLogs.push(entry);
+    if (state.systemLogs.length > 500) state.systemLogs.shift();
+    renderTerminalLogs();
+  }
+
+  function renderTerminalLogs() {
+    if (!dom.terminalLogFeed) return;
+
+    const filtered = state.systemLogs.filter((l) => {
+      if (state.selectedLogLevel !== "ALL" && l.level !== state.selectedLogLevel) return false;
+      if (state.logSearchQuery && !l.message.toLowerCase().includes(state.logSearchQuery)) return false;
+      return true;
+    });
+
+    dom.terminalLogFeed.innerHTML = filtered
+      .map((l) => {
+        const lvlClass = l.level === "ERROR" ? "error" : (l.level === "WARN" ? "warn" : "info");
+        return `<div class="log-line ${lvlClass}"><span class="log-timestamp">[${l.iso_time}]</span> [${l.level}] ${escapeHtml(l.message)}</div>`;
+      })
+      .join("");
+
+    if (dom.autoScrollLogs && dom.autoScrollLogs.checked) {
+      dom.terminalLogFeed.scrollTop = dom.terminalLogFeed.scrollHeight;
+    }
+  }
+
+  // ================================================================
+  // Enviar Mensaje TX y Comandos
   // ================================================================
   function setupForms() {
-    // 1. Formulario de Chat
     if (dom.chatInputForm) {
       dom.chatInputForm.addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -252,7 +597,6 @@
           channel_index: state.activeTarget.type === "channel" ? state.activeTarget.id : 0,
         };
 
-        // Mostrar de inmediato en UI
         appendChatMessage({
           sender_name: "Tú (Base)",
           text: text,
@@ -277,7 +621,6 @@
       });
     }
 
-    // 2. Formulario de Comandos a Repetidores
     if (dom.repeaterCmdForm) {
       dom.repeaterCmdForm.addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -301,7 +644,6 @@
       });
     }
 
-    // 3. Formulario de Añadir Contacto
     if (dom.addContactForm) {
       dom.addContactForm.addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -321,7 +663,6 @@
       });
     }
 
-    // 4. Formulario de Añadir Canal
     if (dom.addChannelForm) {
       dom.addChannelForm.addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -340,7 +681,6 @@
       });
     }
 
-    // 5. Configuración de Radio Local
     if (dom.localRadioForm) {
       dom.localRadioForm.addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -382,7 +722,7 @@
   // Consultas REST
   // ================================================================
   async function fetchInitialData() {
-    await Promise.all([fetchChannels(), fetchNodes(), fetchContacts(), fetchPeriodicStatus()]);
+    await Promise.all([fetchChannels(), fetchNodes(), fetchContacts(), fetchPeriodicStatus(), fetchAnalytics()]);
   }
 
   async function fetchChannels() {
@@ -513,7 +853,7 @@
           <div>📶 RSSI: <strong>${n.last_rssi || -80} dBm</strong></div>
           <div>📡 SNR: <strong>${n.last_snr || 10} dB</strong></div>
           <div>🔋 Batería: <strong>${n.battery_pct !== null && n.battery_pct !== undefined ? n.battery_pct + "%" : "N/A"}</strong></div>
-          <div>⏱️ Visto: <strong>${Math.round(Date.now() / 1000 - (n.last_seen || 0))}s atrás</strong></div>
+          <div>📦 Tráfico: <strong>${n.total_packets || 0} pkts</strong></div>
         </div>
         <button class="btn-secondary btn-sm" onclick="window.setDmTarget('${n.public_key}', '${escapeHtml(n.name)}')">Enviar DM 💬</button>
       </div>
