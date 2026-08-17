@@ -1,0 +1,22 @@
+[Unit]
+Description=MeshCore Heltec v4 LoRa to MQTT Bridge Service
+After=network.target mosquitto.service
+Wants=mosquitto.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/meshcore-bridge
+ExecStart=/opt/meshcore-bridge/venv/bin/python /opt/meshcore-bridge/meshcore_bridge.py
+Restart=always
+RestartSec=5
+EnvironmentFile=-/opt/meshcore-bridge/.env
+StandardOutput=journal
+StandardError=journal
+
+# Seguridad y aislamiento opcional
+KillMode=process
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target

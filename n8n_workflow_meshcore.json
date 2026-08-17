@@ -1,0 +1,229 @@
+{
+  "name": "MeshCore LoRa - Universal MQTT Bridge & Bot Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "topics": "meshcore/rx/all",
+        "options": {}
+      },
+      "id": "1",
+      "name": "MQTT Trigger (MeshCore RX)",
+      "type": "n8n-nodes-base.mqttTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ==========================================================\n// Validación y Deduplicación de Paquetes Mesh LoRa\n// ==========================================================\n\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.messageCache) {\n  staticData.messageCache = {};\n}\n\nconst now = Date.now();\nconst CACHE_TTL_MS = 30000; // Ventana de 30 segundos\n\n// Limpieza periódica de caché antigua (> 60 segundos)\nfor (const key of Object.keys(staticData.messageCache)) {\n  if (now - staticData.messageCache[key] > 60000) {\n    delete staticData.messageCache[key];\n  }\n}\n\nconst results = [];\n\nfor (const item of $input.all()) {\n  let payload = item.json;\n\n  // Desempaquetar payload si viene dentro de message o data\n  if (payload && payload.message !== undefined) {\n    if (typeof payload.message === 'string') {\n      try {\n        payload = JSON.parse(payload.message);\n      } catch (e) {\n        payload = { text: payload.message, event_type: 'public' };\n      }\n    } else if (typeof payload.message === 'object' && payload.message !== null) {\n      payload = payload.message;\n    }\n  } else if (payload && payload.data !== undefined) {\n    if (typeof payload.data === 'string') {\n      try {\n        payload = JSON.parse(payload.data);\n      } catch (e) {\n        payload = { text: payload.data, event_type: 'public' };\n      }\n    }\n  }\n\n  if (!payload || typeof payload !== 'object') {\n    continue;\n  }\n\n  const eventType = payload.event_type || 'public';\n  const senderId = payload.sender_id || 'unknown';\n  const channelIdx = payload.channel_index !== undefined ? payload.channel_index : 0;\n  const text = (payload.text || payload.raw_text || '').trim();\n\n  // Generar hash para deduplicación\n  const msgKey = `${eventType}_${senderId}_${channelIdx}_${text}`;\n\n  let isDuplicate = false;\n  if (text.length > 0) {\n    if (staticData.messageCache[msgKey] && (now - staticData.messageCache[msgKey] < CACHE_TTL_MS)) {\n      isDuplicate = true;\n    } else {\n      staticData.messageCache[msgKey] = now;\n    }\n  }\n\n  results.push({\n    json: {\n      ...payload,\n      event_type: eventType,\n      sender_id: senderId,\n      channel_index: channelIdx,\n      text: text,\n      is_duplicate: isDuplicate,\n      processed_at: new Date().toISOString()\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "2",
+      "name": "Deduplicar y Validar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.is_duplicate }}",
+              "value2": false
+            }
+          ]
+        }
+      },
+      "id": "3",
+      "name": "¿Es Mensaje Nuevo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.event_type }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "public",
+              "output": 0
+            },
+            {
+              "value2": "channel",
+              "output": 1
+            },
+            {
+              "value2": "dm",
+              "output": 2
+            }
+          ]
+        }
+      },
+      "id": "4",
+      "name": "Enrutar por Tipo",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ==========================================================\n// Procesador de Canal Público (Canal 0)\n// Comandos: /time, /date, /datetime, y Eco general\n// ==========================================================\n\nconst results = [];\n\nfor (const item of $input.all()) {\n  const msg = item.json;\n  const rawText = (msg.text || '').trim();\n  const lower = rawText.toLowerCase();\n  const senderName = msg.sender_name || msg.sender_id || 'Nodo';\n  \n  const now = new Date();\n  let replyText = '';\n\n  if (lower === '/time') {\n    replyText = `⏰ Hora actual: ${now.toTimeString().split(' ')[0]}`;\n  } else if (lower === '/date') {\n    replyText = `📅 Fecha actual: ${now.toISOString().split('T')[0]}`;\n  } else if (lower === '/datetime') {\n    replyText = `📅⏰ Fecha y Hora: ${now.toISOString().replace('T', ' ').substring(0, 19)} UTC`;\n  } else {\n    replyText = `[Eco Pub] Recibido de ${senderName}: \"${rawText}\"`;\n  }\n\n  results.push({\n    json: {\n      topic: 'meshcore/tx',\n      request_id: `n8n_pub_${Date.now()}`,\n      to: 'broadcast',\n      channel_index: 0,\n      text: replyText\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "5",
+      "name": "Procesar Canal Público",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1140,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ==========================================================\n// Procesador de Canales Privados (Canal > 0)\n// ==========================================================\n\nconst results = [];\n\nfor (const item of $input.all()) {\n  const msg = item.json;\n  const rawText = (msg.text || '').trim();\n  const senderName = msg.sender_name || msg.sender_id || 'Nodo';\n  const chIdx = msg.channel_index || 1;\n\n  const replyText = `[Eco Ch ${chIdx}] Recibido de ${senderName}: \"${rawText}\"`;\n\n  results.push({\n    json: {\n      topic: 'meshcore/tx',\n      request_id: `n8n_chan_${Date.now()}`,\n      to: 'broadcast',\n      channel_index: chIdx,\n      text: replyText\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "6",
+      "name": "Procesar Canal Privado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1140,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ==========================================================\n// Procesador de Mensajes Directos (DM) y Admin\n// ==========================================================\n\nconst ADMIN_WHITELIST = ['admin_master', 'heltec_admin', 'rak_admin', 'lilygo_admin', '8f3a12bc'];\n\nconst results = [];\n\nfor (const item of $input.all()) {\n  const msg = item.json;\n  const rawText = (msg.text || '').trim();\n  const lower = rawText.toLowerCase();\n  const senderId = msg.sender_id || 'unknown';\n  const senderName = msg.sender_name || senderId;\n  const isAdmin = ADMIN_WHITELIST.includes(senderId) || ADMIN_WHITELIST.includes(senderName);\n\n  if (lower === '/status') {\n    const rssiInfo = msg.metrics && msg.metrics.rssi ? ` | RSSI: ${msg.metrics.rssi} dBm` : '';\n    const replyText = `[Status MeshCore Node]\\nBridge: Online\\nNodo: Activo${rssiInfo}\\nHora: ${new Date().toISOString().substring(11, 19)} UTC`;\n    \n    results.push({\n      json: {\n        topic: 'meshcore/tx',\n        request_id: `n8n_status_${Date.now()}`,\n        to: senderId,\n        channel_index: 0,\n        text: replyText\n      }\n    });\n    continue;\n  }\n\n  if (lower.startsWith('/admin')) {\n    if (!isAdmin) {\n      results.push({\n        json: {\n          topic: 'meshcore/tx',\n          request_id: `n8n_denied_${Date.now()}`,\n          to: senderId,\n          channel_index: 0,\n          text: '⛔ Acceso denegado: Nodo no autorizado para comandos administrativos.'\n        }\n      });\n      continue;\n    }\n\n    const parts = rawText.split(' ').filter(p => p.length > 0);\n    const subCmd = (parts[1] || '').toLowerCase();\n\n    let actionName = null;\n    let ackNotice = '';\n    let extraData = {};\n\n    if (subCmd === 'get_config' || subCmd === 'config') {\n      actionName = 'get_config';\n      ackNotice = '⚙️ Consultando configuración del nodo...';\n    } else if (subCmd === 'get_contacts' || subCmd === 'contacts') {\n      actionName = 'get_contacts';\n      ackNotice = '📖 Consultando libreta de contactos...';\n    } else if (subCmd === 'set_name' && parts[2]) {\n      actionName = 'set_name';\n      extraData.name = parts.slice(2).join(' ');\n      ackNotice = `✏️ Cambiando nombre a: ${extraData.name}`;\n    } else if (subCmd === 'set_power' && parts[2]) {\n      actionName = 'set_tx_power';\n      extraData.power = parseInt(parts[2], 10);\n      ackNotice = `📶 Ajustando potencia TX a: ${extraData.power} dBm`;\n    } else if (subCmd === 'req_telemetry' && parts[2]) {\n      actionName = 'req_telemetry';\n      extraData.target = parts[2];\n      ackNotice = `📡 Solicitando telemetría de: ${parts[2]}`;\n    } else {\n      ackNotice = '❓ Comando admin no reconocido.';\n    }\n\n    results.push({\n      json: {\n        topic: 'meshcore/tx',\n        request_id: `n8n_adm_ack_${Date.now()}`,\n        to: senderId,\n        channel_index: 0,\n        text: ackNotice\n      }\n    });\n\n    if (actionName) {\n      results.push({\n        json: {\n          topic: 'meshcore/admin/cmd',\n          request_id: `n8n_adm_${Date.now()}`,\n          action: actionName,\n          ...extraData\n        }\n      });\n    }\n    continue;\n  }\n\n  // Eco DM\n  results.push({\n    json: {\n      topic: 'meshcore/tx',\n      request_id: `n8n_dm_${Date.now()}`,\n      to: senderId,\n      channel_index: 0,\n      text: `[Eco DM] Recibido: \"${rawText}\"`\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "7",
+      "name": "Procesar DMs y Admin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1140,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "topic": "={{ $json.topic || 'meshcore/tx' }}",
+        "message": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "8",
+      "name": "Publicar a MQTT (TX)",
+      "type": "n8n-nodes-base.mqtt",
+      "typeVersion": 1,
+      "position": [
+        1460,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "MQTT Trigger (MeshCore RX)": {
+      "main": [
+        [
+          {
+            "node": "Deduplicar y Validar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deduplicar y Validar": {
+      "main": [
+        [
+          {
+            "node": "¿Es Mensaje Nuevo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es Mensaje Nuevo?": {
+      "main": [
+        [
+          {
+            "node": "Enrutar por Tipo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enrutar por Tipo": {
+      "main": [
+        [
+          {
+            "node": "Procesar Canal Público",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Procesar Canal Privado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Procesar DMs y Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Procesar Canal Público": {
+      "main": [
+        [
+          {
+            "node": "Publicar a MQTT (TX)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Procesar Canal Privado": {
+      "main": [
+        [
+          {
+            "node": "Publicar a MQTT (TX)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Procesar DMs y Admin": {
+      "main": [
+        [
+          {
+            "node": "Publicar a MQTT (TX)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

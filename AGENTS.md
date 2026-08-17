@@ -1,0 +1,107 @@
+# MeshCore Bridge - Protocolo de Ejecución de Agentes de Antigravity
+
+Este documento establece las reglas operativas, roles, restricciones y contratos de interfaz para los agentes que colaboran en el desarrollo, optimización y mantenimiento de **MeshCore Bridge**.
+
+---
+
+## 1. Single Source of Truth (SSoT) y Estructura de Directorios
+
+- **`/reference/meshcore/`**: Firmware oficial de MeshCore en C/C++ (Solo Lectura).
+- **`/reference/meshcore_py/`**: SDK oficial en Python de MeshCore (Solo Lectura).
+- **`/reference/meshcore_cli/`**: Implementación CLI oficial de MeshCore (Solo Lectura).
+- **`/docs/`**: Especificaciones formales del protocolo (`PROTOCOL_SPEC.md`), arquitectura y diagramas (`ARCHITECTURE.md`).
+- **`/src/`**: Código fuente de producción del bridge en Python (`asyncio`, `pyserial-asyncio`, `paho-mqtt`).
+- **`/tests/`**: Suites de pruebas automatizadas con `pytest` (Unitarias, Fuzzing, Concurrencia, Mock Hardware).
+- **`.agents/skills/`**: Herramientas y skills personalizadas para inspección, validación de tramas y verificación estática.
+
+---
+
+## 2. Definición de Agentes y Límites de Responsabilidad
+
+### Agente 1: Protocol & Firmware Investigator Agent
+- **Objetivo**: Extraer la verdad fundamental del protocolo examinando los headers C/C++ y los repositorios en `/reference/`.
+- **Área de Trabajo**:
+  - Lectura: `/reference/**`
+  - Escritura: `/docs/PROTOCOL_SPEC.md`, `/src/protocol_types.py`
+- **Herramientas**:
+  - Skill: `meshcore_source_inspector` (AST / Struct / Enum Extractor)
+- **Reglas y Restricciones Estrictas**:
+  1. **NUNCA** escribir código de red (MQTT, Sockets), SQLite ni controladores de hardware serie en `/src/meshcore_bridge.py`.
+  2. Cada struct de C/C++ extraído debe documentar:
+     - Endianness (por defecto Little-Endian en ARM/ESP32).
+     - Modificadores de empaquetado (`packed`, padding bytes, offsets en bytes).
+     - Polinomio de CRC y secuencia de inicialización (Init / XorOut).
+  3. Los tipos en `/src/protocol_types.py` deben ser `@dataclass(frozen=True)` o Enums con tipado estricto.
+
+---
+
+### Agente 2: Python Bridge Architect Agent
+- **Objetivo**: Diseñar y programar el pipeline asíncrono, determinista y resiliente del bridge en `/src/`.
+- **Área de Trabajo**:
+  - Lectura: `/docs/PROTOCOL_SPEC.md`, `/src/protocol_types.py`, `/reference/**`
+  - Escritura: `/src/**` (excepto `protocol_types.py` que es propiedad del Investigador), `/docs/ARCHITECTURE.md`
+- **Herramientas**:
+  - Skill: `lora_frame_validator`
+  - Skill: `bridge_test_runner`
+- **Reglas y Restricciones Estrictas**:
+  1. Todo código asíncrono debe usar `asyncio` nativo, sin llamadas bloqueantes en el event loop.
+  2. Implementar siempre descompresión/framing determinista (Byte Stuffing / SOF / EOF / CRC validation).
+  3. La persistencia Store & Forward en SQLite debe usar transacciones WAL y modo asíncrono sin bloquear el loop.
+  4. Los mensajes MQTT deben cumplir con el esquema JSON documentado para su consumo en n8n.
+  5. **NUNCA** modificar `/src/protocol_types.py` arbitrariamente para sortear una validación de tipos; cualquier cambio en el formato de tramas debe ser coordinado con el Investigador.
+
+---
+
+### Agente 3: Protocol QA & Fuzzing Agent
+- **Objetivo**: Garantizar cero regresiones, máxima cobertura y resiliencia ante datos corruptos o anomalías de hardware.
+- **Área de Trabajo**:
+  - Lectura: `/docs/PROTOCOL_SPEC.md`, `/src/**`, `/reference/**`
+  - Escritura: `/tests/**`
+- **Herramientas**:
+  - Skill: `bridge_test_runner`
+  - Skill: `lora_frame_validator`
+- **Reglas y Restricciones Estrictas**:
+  1. Escribir pruebas deterministas sin dependencias de hardware real (utilizar fixtures, mocks y streams virtuales).
+  2. Incluir pruebas de fuzzing:
+     - Tramas truncadas antes del EOF.
+     - Tramas con CRC corrupto.
+     - Bytes de escape (ESC) malformados o incompletos.
+     - Flooding de tramas para probar el Rate Limiter de transmisión.
+     - Caídas simuladas de conexión serial y desconexión intempestiva del broker MQTT.
+  3. **NUNCA** silenciar aserciones ni rebajar el nivel de rigor en `mypy --strict`.
+
+---
+
+## 3. Flujo de Trabajo y Ciclo de Iteración
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Usuario
+    participant Inv as Investigator Agent
+    participant Arch as Architect Agent
+    participant QA as QA & Fuzzing Agent
+
+    Usuario->>Inv: "Analizar nuevo paquete/header en firmware"
+    Inv->>Inv: Ejecuta meshcore_source_inspector
+    Inv->>Inv: Actualiza /docs/PROTOCOL_SPEC.md y /src/protocol_types.py
+    Inv-->>Arch: Notifica contratos listos
+    
+    Arch->>Arch: Implementa parser/driver asíncrono en /src/
+    Arch->>Arch: Valida con lora_frame_validator
+    Arch->>Arch: Actualiza /docs/ARCHITECTURE.md
+    Arch-->>QA: Notifica código listo para verificación
+    
+    QA->>QA: Ejecuta bridge_test_runner (Pytest + Mypy + Ruff)
+    QA->>QA: Implementa suites de fuzzing y resiliencia en /tests/
+    QA-->>Usuario: Reporta matriz de verificación y estado de calidad
+```
+
+---
+
+## 4. Estándares de Calidad de Código y Tipado
+
+- **Python Version**: `>= 3.10`
+- **Linter & Formatter**: `ruff` (conformidad PEP 8 y buenas prácticas)
+- **Type Checker**: `mypy --strict` (prohibido el uso indiscriminado de `Any`)
+- **Control de Versiones**: Commits atómicos en Git tras cada hito validado.

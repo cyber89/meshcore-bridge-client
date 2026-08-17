@@ -1,0 +1,4 @@
+# Dependencias requeridas para MeshCore Bridge
+paho-mqtt>=2.0.0
+meshcore>=1.17.0
+python-dotenv>=1.0.0
