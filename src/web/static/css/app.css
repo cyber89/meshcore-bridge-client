@@ -1,5 +1,6 @@
 /* ==============================================================================
    MeshCore Web Client - Modern Vanilla CSS Design System (v3.0)
+   Accesibilidad WCAG 2.2 AA, Navegación por Teclado y Alto Rendimiento
    ============================================================================== */
 
 :root {
@@ -38,7 +39,7 @@
   --border-subtle: #cbd5e1;
   --text-primary: #0f172a;
   --text-secondary: #475569;
-  --text-muted: #94a3b8;
+  --text-muted: #64748b;
   --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
@@ -55,6 +56,12 @@ body {
   line-height: 1.5;
   height: 100vh;
   overflow: hidden;
+}
+
+/* Accesibilidad: Foco Visible de Alto Contraste */
+:focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
 }
 
 /* Layout Principal */
@@ -478,6 +485,17 @@ body {
   background-color: #111827;
 }
 
+.map-offline-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 20px;
+}
+
 .map-overlay-info {
   position: absolute;
   top: 20px;
@@ -830,6 +848,16 @@ body {
 .log-line.warn { color: #fbbf24; }
 .log-line.error { color: #f87171; }
 .log-timestamp { color: #64748b; margin-right: 6px; }
+
+/* Reducción de Movimiento (Accesibilidad) */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 
 /* Responsive */
 @media (max-width: 900px) {

@@ -112,13 +112,17 @@
   // Navegación por Pestañas
   // ================================================================
   function setupTabNavigation() {
-    dom.navButtons.forEach((btn) => {
+    dom.navButtons.forEach((btn, index) => {
       btn.addEventListener("click", () => {
         const targetTab = btn.getAttribute("data-tab");
-        dom.navButtons.forEach((b) => b.classList.remove("active"));
+        dom.navButtons.forEach((b) => {
+          b.classList.remove("active");
+          b.setAttribute("aria-selected", "false");
+        });
         dom.tabPanes.forEach((p) => p.classList.remove("active"));
 
         btn.classList.add("active");
+        btn.setAttribute("aria-selected", "true");
         const pane = document.getElementById(targetTab);
         if (pane) pane.classList.add("active");
 
@@ -133,6 +137,21 @@
         }
         if (targetTab === "tab-logs") {
           fetchSystemLogs();
+        }
+      });
+
+      // Navegación accesible por teclado (Flechas Arriba/Abajo)
+      btn.addEventListener("keydown", (e) => {
+        let nextBtn = null;
+        if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+          nextBtn = dom.navButtons[(index + 1) % dom.navButtons.length];
+        } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+          nextBtn = dom.navButtons[(index - 1 + dom.navButtons.length) % dom.navButtons.length];
+        }
+        if (nextBtn) {
+          e.preventDefault();
+          nextBtn.focus();
+          nextBtn.click();
         }
       });
     });
@@ -904,17 +923,35 @@
   }
 
   // ================================================================
-  // Mapa Leaflet
+  // Mapa Leaflet con Resiliencia Offline
   // ================================================================
   function initLeafletMap() {
     const mapEl = document.getElementById("liveGpsMap");
-    if (!mapEl || typeof L === "undefined") return;
+    if (!mapEl) return;
 
-    state.map = L.map("liveGpsMap").setView([20.0, -75.0], 4);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: "© OpenStreetMap",
-    }).addTo(state.map);
+    if (typeof L === "undefined") {
+      mapEl.innerHTML = `
+        <div class="map-offline-fallback">
+          <div style="font-size: 2.8rem; margin-bottom: 12px;">🗺️</div>
+          <h3>Modo de Mapa Offline</h3>
+          <p>La estación base está operando sin conexión a Internet externa.</p>
+          <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 8px;">
+            Las posiciones GPS de los nodos continúan registrándose y mostrándose en el panel lateral.
+          </p>
+        </div>
+      `;
+      return;
+    }
+
+    try {
+      state.map = L.map("liveGpsMap").setView([20.0, -75.0], 4);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "© OpenStreetMap",
+      }).addTo(state.map);
+    } catch (e) {
+      console.debug("Error inicializando mapa Leaflet:", e);
+    }
   }
 
   function updateMapNodePosition(nodeId, nodeName, gps) {

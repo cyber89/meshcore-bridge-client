@@ -124,7 +124,21 @@ class MeshCoreWebServer:
                 await self._handle_websocket_handshake(reader, writer, headers["sec-websocket-key"])
                 return
 
-            # 2. Leer cuerpo si existe Content-Length
+            # 2. Manejo de CORS Preflight (OPTIONS)
+            if method == "OPTIONS":
+                writer.write(
+                    b"HTTP/1.1 204 No Content\r\n"
+                    b"Access-Control-Allow-Origin: *\r\n"
+                    b"Access-Control-Allow-Methods: GET, POST, OPTIONS, DELETE\r\n"
+                    b"Access-Control-Allow-Headers: Content-Type, Authorization\r\n"
+                    b"Access-Control-Max-Age: 86400\r\n"
+                    b"Connection: close\r\n\r\n"
+                )
+                await writer.drain()
+                writer.close()
+                return
+
+            # 3. Leer cuerpo si existe Content-Length
             body_dict: dict[str, Any] = {}
             if "content-length" in headers:
                 content_len = int(headers["content-length"])
@@ -134,7 +148,7 @@ class MeshCoreWebServer:
                 except Exception:
                     body_dict = {"raw": body_bytes.decode("utf-8", errors="ignore")}
 
-            # 3. Manejo de API REST
+            # 4. Manejo de API REST
             if path.startswith("/api/"):
                 status_code, resp_json = await self.router.handle_request(method, path, body_dict)
                 resp_bytes = json.dumps(resp_json, indent=2).encode("utf-8")
@@ -143,7 +157,7 @@ class MeshCoreWebServer:
                     f"Content-Type: application/json; charset=utf-8\r\n"
                     f"Content-Length: {len(resp_bytes)}\r\n"
                     f"Access-Control-Allow-Origin: *\r\n"
-                    f"Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
+                    f"Access-Control-Allow-Methods: GET, POST, OPTIONS, DELETE\r\n"
                     f"Access-Control-Allow-Headers: Content-Type\r\n"
                     f"Connection: close\r\n\r\n".encode() + resp_bytes
                 )
