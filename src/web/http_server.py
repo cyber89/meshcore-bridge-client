@@ -138,17 +138,23 @@ class MeshCoreWebServer:
                 writer.close()
                 return
 
-            # 3. Leer cuerpo si existe Content-Length
+            # 3. Leer cuerpo si existe Content-Length (con límite de tamaño para prevenir DoS)
             body_dict: dict[str, Any] = {}
             if "content-length" in headers:
                 content_len = int(headers["content-length"])
+                if content_len > 1024 * 1024:  # 1 MB max
+                    writer.write(b"HTTP/1.1 413 Payload Too Large\r\nConnection: close\r\n\r\n")
+                    await writer.drain()
+                    writer.close()
+                    return
+
                 body_bytes = await reader.readexactly(content_len)
                 try:
                     body_dict = json.loads(body_bytes.decode("utf-8"))
                 except Exception:
                     body_dict = {"raw": body_bytes.decode("utf-8", errors="ignore")}
 
-            # 4. Manejo de API REST
+            # 4. Manejo de API REST con Cabeceras de Seguridad
             if path.startswith("/api/"):
                 status_code, resp_json = await self.router.handle_request(method, path, body_dict)
                 resp_bytes = json.dumps(resp_json, indent=2).encode("utf-8")
@@ -159,6 +165,9 @@ class MeshCoreWebServer:
                     f"Access-Control-Allow-Origin: *\r\n"
                     f"Access-Control-Allow-Methods: GET, POST, OPTIONS, DELETE\r\n"
                     f"Access-Control-Allow-Headers: Content-Type\r\n"
+                    f"X-Content-Type-Options: nosniff\r\n"
+                    f"X-Frame-Options: DENY\r\n"
+                    f"Referrer-Policy: strict-origin-when-cross-origin\r\n"
                     f"Connection: close\r\n\r\n".encode() + resp_bytes
                 )
                 await writer.drain()
@@ -272,6 +281,9 @@ class MeshCoreWebServer:
                 f"Content-Type: {content_type}; charset=utf-8\r\n"
                 f"Content-Length: {len(file_bytes)}\r\n"
                 f"Cache-Control: public, max-age=3600\r\n"
+                f"X-Content-Type-Options: nosniff\r\n"
+                f"X-Frame-Options: DENY\r\n"
+                f"Referrer-Policy: strict-origin-when-cross-origin\r\n"
                 f"Connection: close\r\n\r\n".encode() + file_bytes
             )
         else:
@@ -279,7 +291,10 @@ class MeshCoreWebServer:
             writer.write(
                 f"HTTP/1.1 200 OK\r\n"
                 f"Content-Type: text/html; charset=utf-8\r\n"
-                f"Content-Length: {len(fallback)}\r\n\r\n".encode() + fallback
+                f"Content-Length: {len(fallback)}\r\n"
+                f"X-Content-Type-Options: nosniff\r\n"
+                f"X-Frame-Options: DENY\r\n"
+                f"Connection: close\r\n\r\n".encode() + fallback
             )
 
         await writer.drain()

@@ -85,6 +85,22 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
 
 ---
 
+### Agente 5: Security & Vulnerability Auditor Agent
+- **Objetivo**: Auditar, fortificar y garantizar la seguridad integral del bridge, API REST, WebSockets, base de datos SQLite y mitigación de vulnerabilidades OWASP Top 10.
+- **Área de Trabajo**:
+  - Lectura: Todo el repositorio (`/src/**`, `/docs/**`, `/tests/**`, `/reference/**`)
+  - Escritura: `.agents/skills/security-code-auditor/**`, `/tests/test_security_*.py`, parches de seguridad en `/src/**`
+- **Herramientas**:
+  - Skill: `security-code-auditor` (Bandit SAST, AST SQL Injection Scanner, Path Traversal & XSS Auditor)
+  - Skill: `bridge_test_runner`
+- **Reglas y Restricciones Estrictas**:
+  1. **100% Consultas Parametrizadas**: Prohibida la interpolación de cadenas o f-strings en sentencias SQL.
+  2. **Sanitización Estricta de Entradas**: Sanitizar todos los datos externos provenientes de MQTT, RF y HTTP antes de almacenarlos o renderizarlos en el DOM (`escapeHtml`).
+  3. **Cabeceras de Seguridad Obligatorias**: Mantener `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` y límites de tamaño `MAX_BODY_SIZE` contra ataques DoS.
+  4. **Aislamiento de Rutas Canónicas**: Prevenir Directory Traversal validando que cualquier acceso a disco resida estrictamente dentro de los límites canónicos permitidos (`.resolve()`).
+
+---
+
 ## 3. Flujo de Trabajo y Ciclo de Iteración
 
 ```mermaid
