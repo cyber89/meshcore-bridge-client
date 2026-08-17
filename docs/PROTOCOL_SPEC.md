@@ -4,7 +4,12 @@
 > **Single Source of Truth de Protocolo para Agentes de Antigravity**  
 > **Versión**: 2.0.0  
 > **Firmware Target**: MeshCore Companion USB v1.17+  
-> **Arquitectura Target**: ESP32-S3, ESP32-C3, nRF52840, RP2040 (ARM Cortex-M / RISC-V)
+> **Arquitectura Target**: ESP32-S3, ESP32-C3, nRF52840, RP2040 (ARM Cortex-M / RISC-V)  
+> **Documentación Técnica de Referencia**:
+> - [01. Firmware C/C++ Internals](file:///c:/Users/Ruby/Desktop/meshcore-bridge/docs/reference_analysis/01_FIRMWARE_C_CPP.md)
+> - [02. Python SDK & OpCodes](file:///c:/Users/Ruby/Desktop/meshcore-bridge/docs/reference_analysis/02_PYTHON_SDK.md)
+> - [03. CLI & Repeater Management](file:///c:/Users/Ruby/Desktop/meshcore-bridge/docs/reference_analysis/03_CLI_AND_REPEATER_MANAGEMENT.md)
+> - [04. Agent Integration Guide](file:///c:/Users/Ruby/Desktop/meshcore-bridge/docs/reference_analysis/04_INTEGRATION_GUIDE_FOR_AGENTS.md)
 
 ---
 

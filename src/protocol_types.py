@@ -34,6 +34,74 @@ class OpCode(IntEnum):
     ACK = 0x07
 
 
+class FirmwareRouteType(IntEnum):
+    """Tipos de enrutamiento LoRa en el firmware C/C++ (Packet.h)."""
+    TRANSPORT_FLOOD = 0x00
+    FLOOD = 0x01
+    DIRECT = 0x02
+    TRANSPORT_DIRECT = 0x03
+
+
+class FirmwarePayloadType(IntEnum):
+    """Tipos de payload en la capa wire del firmware C/C++ (Packet.h)."""
+    REQ = 0x00
+    RESPONSE = 0x01
+    TXT_MSG = 0x02
+    ACK = 0x03
+    ADVERT = 0x04
+    GRP_TXT = 0x05
+    GRP_DATA = 0x06
+    ANON_REQ = 0x07
+    PATH = 0x08
+    TRACE = 0x09
+    MULTIPART = 0x0A
+    CONTROL = 0x0B
+    RAW_CUSTOM = 0x0F
+
+
+class FirmwareCommandType(IntEnum):
+    """OpCodes de comandos Host -> Radio del SDK oficial (packets.py)."""
+    APP_START = 1
+    SEND_TXT_MSG = 2
+    SEND_CHANNEL_TXT_MSG = 3
+    GET_CONTACTS = 4
+    GET_DEVICE_TIME = 5
+    SET_DEVICE_TIME = 6
+    SEND_SELF_ADVERT = 7
+    SET_ADVERT_NAME = 8
+    ADD_UPDATE_CONTACT = 9
+    SYNC_NEXT_MESSAGE = 10
+    SET_RADIO_PARAMS = 11
+    SET_RADIO_TX_POWER = 12
+    RESET_PATH = 13
+    SET_ADVERT_LATLON = 14
+    REMOVE_CONTACT = 15
+    REBOOT = 19
+    GET_BATT_AND_STORAGE = 20
+    SEND_RAW_DATA = 25
+    SEND_TRACE_PATH = 36
+    SEND_TELEMETRY_REQ = 39
+    BINARY_REQ = 50
+    GET_STATS = 56
+
+
+class FirmwarePushCode(IntEnum):
+    """Códigos de notificaciones Push asíncronas Radio -> Host (packets.py)."""
+    ADVERTISEMENT = 0x80
+    PATH_UPDATE = 0x81
+    ACK = 0x82
+    MESSAGES_WAITING = 0x83
+    RAW_DATA = 0x84
+    STATUS_RESPONSE = 0x87
+    LOG_DATA = 0x88
+    TRACE_DATA = 0x89
+    TELEMETRY_RESPONSE = 0x8B
+    BINARY_RESPONSE = 0x8C
+    CONTROL_DATA = 0x8E
+    CONTACT_DELETED = 0x8F
+    CONTACTS_FULL = 0x90
+
+
 class HardwareModel(IntEnum):
     """Modelos de hardware soportados por MeshCore."""
     UNKNOWN = 0x00
