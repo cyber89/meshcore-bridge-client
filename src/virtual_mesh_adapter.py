@@ -110,15 +110,33 @@ class VirtualMeshAdapter(BaseSerialAdapter):
         target_clean = str(target or "").strip().lower()
 
         target_node = None
-        if target_clean in (str(self.node_alpha["key"]), "alpha", str(self.node_alpha["alias"]).lower()):
-            target_node = self.node_alpha
-        elif target_clean in (str(self.node_bravo["key"]), "bravo", str(self.node_bravo["alias"]).lower()):
-            target_node = self.node_bravo
-        elif channel_idx == 0 and not target_clean:
-            target_node = self.node_alpha
+        is_direct = False
+
+        if target_clean and target_clean not in ("broadcast", "public", "0xffff", "none"):
+            is_direct = True
+            if target_clean in (str(self.node_alpha["key"]).lower(), "alpha", str(self.node_alpha["alias"]).lower()):
+                target_node = self.node_alpha
+            elif target_clean in (str(self.node_bravo["key"]).lower(), "bravo", str(self.node_bravo["alias"]).lower()):
+                target_node = self.node_bravo
+            else:
+                target_node = {
+                    "key": target_clean,
+                    "name": f"Node_{target_clean[:6]}",
+                    "alias": f"Node_{target_clean[:6]}",
+                    "snr": 10.0,
+                    "rssi": -78,
+                    "hops": 1,
+                }
+        else:
+            if channel_idx == 0:
+                target_node = self.node_alpha
+            elif channel_idx == 1:
+                target_node = self.node_bravo
+            else:
+                target_node = self.node_alpha
 
         if target_node:
-            asyncio.create_task(self._simulate_echo_reply(target_node, text))
+            asyncio.create_task(self._simulate_echo_reply(target_node, text, channel_idx=channel_idx, is_direct=is_direct))
 
         return {
             "status": "ok",
@@ -196,28 +214,54 @@ class VirtualMeshAdapter(BaseSerialAdapter):
             target_node = self.node_bravo
 
         if target_node and text:
-            await self._simulate_echo_reply(target_node, text)
+            await self._simulate_echo_reply(target_node, text, channel_idx=0, is_direct=True)
 
-    async def _simulate_echo_reply(self, node: dict[str, Any], original_text: str) -> None:
+    async def _simulate_echo_reply(
+        self,
+        node: dict[str, Any],
+        original_text: str,
+        channel_idx: int = 0,
+        is_direct: bool = True,
+    ) -> None:
         """Simula que el nodo remoto procesa el mensaje y responde con un Eco por RF."""
         await asyncio.sleep(0.4)
 
-        echo_msg = f"[Echo de {node['alias']}]: Recibido: \"{original_text}\" | SNR: {node['snr']}dB RSSI: {node['rssi']}dBm Hops: {node['hops']}"
+        if is_direct:
+            echo_msg = f"[Echo DM de {node['alias']}]: Recibido: \"{original_text}\" | SNR: {node['snr']}dB RSSI: {node['rssi']}dBm Hops: {node['hops']}"
+            echo_event = {
+                "type": "DIRECT_MSG",
+                "event_type": "direct",
+                "sender": str(node["key"]),
+                "sender_name": str(node["alias"]),
+                "text": echo_msg,
+                "metrics": {
+                    "rssi": node["rssi"],
+                    "snr": node["snr"],
+                },
+                "hop_count": int(node["hops"]),
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            }
+        else:
+            ch_name = f"Canal {channel_idx}"
+            echo_msg = f"[Echo {ch_name} de {node['alias']}]: Recibido en {ch_name}: \"{original_text}\" | SNR: {node['snr']}dB"
+            echo_event = {
+                "type": "CHANNEL_MSG",
+                "event_type": "public" if channel_idx == 0 else "channel",
+                "sender": str(node["key"]),
+                "sender_name": str(node["alias"]),
+                "text": echo_msg,
+                "channel_idx": channel_idx,
+                "channel_index": channel_idx,
+                "metrics": {
+                    "rssi": node["rssi"],
+                    "snr": node["snr"],
+                },
+                "hop_count": int(node["hops"]),
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            }
 
-        echo_event = {
-            "type": "DIRECT_MSG",
-            "event_type": "direct",
-            "sender": str(node["key"]),
-            "sender_name": str(node["alias"]),
-            "text": echo_msg,
-            "metrics": {
-                "rssi": node["rssi"],
-                "snr": node["snr"],
-            },
-            "hop_count": int(node["hops"]),
-            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        }
         self._dispatch_event(echo_event)
+        logging.info(f"Bot de Eco ejecutado desde nodo virtual {node['name']} ({node['alias']}) [Direct={is_direct}, Ch={channel_idx}]")
         logging.info(f"Bot de Eco ejecutado desde nodo virtual {node['name']} ({node['alias']})")
 
     async def _simulation_loop(self) -> None:

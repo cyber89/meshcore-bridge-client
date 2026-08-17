@@ -121,6 +121,103 @@ async def test_e2e_dm_auto_echo_reception() -> None:
 
 
 @pytest.mark.asyncio
+async def test_e2e_channel_switching_and_isolated_feed() -> None:
+    """Prueba el cambio interactivo entre Canal 0 y Canal 1 con aislamiento estricto de mensajes."""
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page(viewport={"width": 1920, "height": 1080})
+        await page.goto(BASE_URL, wait_until="domcontentloaded", timeout=15000)
+
+        # 1. Asegurar vista de chat
+        await page.locator('[data-tab="tab-chat"]').click()
+        await page.wait_for_timeout(300)
+
+        # 2. Seleccionar Canal 1 en la barra lateral
+        ch1_item = page.locator('#channelListUi li:has-text("Ch 1")')
+        await ch1_item.click()
+        await page.wait_for_timeout(300)
+
+        title_text = await page.locator("#chatActiveTitle").inner_text()
+        assert "Canal 1" in title_text
+
+        # 3. Transmitir mensaje en Canal 1
+        msg_ch1 = "Mensaje exclusivo para Canal 1 - LoRa Net"
+        input_elem = page.locator("#chatInputText")
+        await input_elem.fill(msg_ch1)
+        await input_elem.press("Enter")
+        await page.wait_for_timeout(2000)
+
+        feed_ch1 = await page.locator("#chatMessageFeed").inner_text()
+        assert msg_ch1 in feed_ch1
+
+        # 4. Cambiar a Canal 0 (Broadcast)
+        ch0_item = page.locator('#channelListUi li:has-text("Ch 0")')
+        await ch0_item.click()
+        await page.wait_for_timeout(300)
+
+        title_ch0 = await page.locator("#chatActiveTitle").inner_text()
+        assert "Canal 0" in title_ch0
+
+        feed_ch0 = await page.locator("#chatMessageFeed").inner_text()
+        # El mensaje de Canal 1 no debe contaminar la vista de Canal 0
+        assert msg_ch1 not in feed_ch0
+
+        # 5. Volver a Canal 1 y verificar persistencia
+        await ch1_item.click()
+        await page.wait_for_timeout(300)
+        feed_ch1_restored = await page.locator("#chatMessageFeed").inner_text()
+        assert msg_ch1 in feed_ch1_restored
+
+        await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_e2e_dm_multi_recipient_isolation() -> None:
+    """Prueba el envío de DMs a múltiples nodos con aislamiento y recepción de Eco."""
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page(viewport={"width": 1920, "height": 1080})
+        await page.goto(BASE_URL, wait_until="domcontentloaded", timeout=15000)
+
+        # 1. Iniciar chat con Alpha Field Sensor
+        await page.evaluate('window.setDmTarget("a1b2c3d4e5f6", "Alpha Field Sensor")')
+        await page.wait_for_timeout(300)
+
+        title_alpha = await page.locator("#chatActiveTitle").inner_text()
+        assert "Alpha" in title_alpha
+
+        dm_alpha = "Direct Message to Alpha Node"
+        await page.locator("#chatInputText").fill(dm_alpha)
+        await page.locator("#chatInputText").press("Enter")
+        await page.wait_for_timeout(2500)
+
+        feed_alpha = await page.locator("#chatMessageFeed").inner_text()
+        assert dm_alpha in feed_alpha
+
+        # 2. Iniciar chat con Bravo Scout Rover
+        await page.evaluate('window.setDmTarget("d7e8f9012345", "Bravo Scout Rover")')
+        await page.wait_for_timeout(300)
+
+        title_bravo = await page.locator("#chatActiveTitle").inner_text()
+        assert "Bravo" in title_bravo
+
+        feed_bravo = await page.locator("#chatMessageFeed").inner_text()
+        # El mensaje privado de Alpha no debe aparecer en la conversación de Bravo
+        assert dm_alpha not in feed_bravo
+
+        # Enviar DM a Bravo
+        dm_bravo = "Direct Message to Bravo Rover"
+        await page.locator("#chatInputText").fill(dm_bravo)
+        await page.locator("#chatInputText").press("Enter")
+        await page.wait_for_timeout(2500)
+
+        feed_bravo_after = await page.locator("#chatMessageFeed").inner_text()
+        assert dm_bravo in feed_bravo_after
+
+        await browser.close()
+
+
+@pytest.mark.asyncio
 async def test_e2e_console_error_audit() -> None:
     """Audita que no ocurra ninguna excepción JavaScript no capturada durante el ciclo completo."""
     console_errors: list[str] = []

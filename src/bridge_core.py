@@ -479,6 +479,8 @@ class MeshCoreBridge:
             "sender": sender,
             "sender_name": sender_name,
             "text": text,
+            "channel_idx": channel_idx,
+            "channel_index": channel_idx,
             "metrics": {"rssi": rssi, "snr": snr},
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }

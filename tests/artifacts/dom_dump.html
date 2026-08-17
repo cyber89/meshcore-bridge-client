@@ -28,8 +28,8 @@
       <div class="header-right">
         <div class="header-metrics" role="region" aria-label="Métricas globales de tráfico">
           <span class="metric-chip" title="Nodos Activos">👥 <strong id="headerNodeCount">2</strong></span>
-          <span class="metric-chip" title="Paquetes Recibidos">📥 <strong id="headerRxCount">348</strong></span>
-          <span class="metric-chip" title="Paquetes Emitidos">📤 <strong id="headerTxCount">17</strong></span>
+          <span class="metric-chip" title="Paquetes Recibidos">📥 <strong id="headerRxCount">600</strong></span>
+          <span class="metric-chip" title="Paquetes Emitidos">📤 <strong id="headerTxCount">32</strong></span>
           <span class="metric-chip" title="Tasa de Error">⚠️ <strong id="headerErrorRate">0%</strong></span>
           <span class="metric-chip" title="Cola de Transmisión">⏱️ <strong id="headerQueueDepth">0</strong></span>
         </div>
@@ -67,9 +67,13 @@
         <span class="ch-name">Canal Emergencia</span>
       </li></ul>
           <div class="section-subtitle" style="margin-top: 15px;">Mensajes Directos</div>
-          <ul class="channel-list" id="dmListUi" role="listbox" aria-label="Mensajes directos">
-            <li class="empty-hint">No hay DMs recientes</li>
-          </ul>
+          <ul class="channel-list" id="dmListUi" role="listbox" aria-label="Mensajes directos"><li class="channel-item" data-dm-key="a1b2c3d4e5f6">
+        <span class="ch-badge">DM</span>
+        <span class="ch-name">Alpha Field Sensor</span>
+      </li><li class="channel-item" data-dm-key="d7e8f9012345">
+        <span class="ch-badge">DM</span>
+        <span class="ch-name">Bravo Scout Rover</span>
+      </li></ul>
         </div>
       </aside>
 
@@ -87,12 +91,10 @@
             </div>
 
             <!-- Feed de Mensajes -->
-            <div class="chat-messages" id="chatMessageFeed" role="log" aria-live="polite" aria-label="Historial de mensajes de chat">
-              <div class="chat-welcome-card">
-                <h3>Bienvenido a MeshCore Web Station</h3>
-                <p>Monitoreo y emisión en tiempo real a través de la malla LoRa.</p>
-              </div>
-            </div>
+            <div class="chat-messages" id="chatMessageFeed" role="log" aria-live="polite" aria-label="Historial de mensajes de chat"><div class="chat-welcome-card">
+        <h3>📻 Canal 0 (Público)</h3>
+        <p>Monitoreo y emisión en tiempo real.</p>
+      </div></div>
 
             <!-- Caja de Entrada de Mensaje -->
             <form id="chatInputForm" class="chat-composer" aria-label="Formulario de envío de mensajes">
@@ -133,7 +135,7 @@
           <div>📶 RSSI: <strong>-72 dBm</strong></div>
           <div>📡 SNR: <strong>9.8 dB</strong></div>
           <div>🔋 Batería: <strong>94%</strong></div>
-          <div>📦 Tráfico: <strong>182 pkts</strong></div>
+          <div>📦 Tráfico: <strong>318 pkts</strong></div>
         </div>
         <button class="btn-secondary btn-sm" onclick="window.setDmTarget('a1b2c3d4e5f6', 'Alpha Field Sensor')">Enviar DM 💬</button>
       </div>
@@ -148,7 +150,7 @@
           <div>📶 RSSI: <strong>-81 dBm</strong></div>
           <div>📡 SNR: <strong>7.2 dB</strong></div>
           <div>🔋 Batería: <strong>88%</strong></div>
-          <div>📦 Tráfico: <strong>103 pkts</strong></div>
+          <div>📦 Tráfico: <strong>178 pkts</strong></div>
         </div>
         <button class="btn-secondary btn-sm" onclick="window.setDmTarget('d7e8f9012345', 'Bravo Scout Rover')">Enviar DM 💬</button>
       </div>
@@ -261,8 +263,8 @@
             <div class="kpi-grid" role="region" aria-label="Tarjetas de rendimiento clave">
               <div class="kpi-card">
                 <span class="kpi-title">📦 Total Paquetes (Tráfico)</span>
-                <span class="kpi-value" id="kpiTotalPackets">285</span>
-                <span class="kpi-sub" id="kpiRxTxSplit">RX: 280 | TX: 5</span>
+                <span class="kpi-value" id="kpiTotalPackets">496</span>
+                <span class="kpi-sub" id="kpiRxTxSplit">RX: 483 | TX: 13</span>
               </div>
               <div class="kpi-card">
                 <span class="kpi-title">👥 Nodos Activos</span>
@@ -295,16 +297,16 @@
               <div class="progress-bar-container">
                 <div class="progress-bar-fill" style="width: 100%"></div>
               </div>
-              <span><strong>182</strong> pkts (RX:177/TX:5)</span>
+              <span><strong>318</strong> pkts (RX:306/TX:12)</span>
             </div>
           
             <div class="leaderboard-item">
               <span class="leaderboard-rank">#2</span>
               <span style="font-weight:600; width:120px;">Bravo Scout Rover</span>
               <div class="progress-bar-container">
-                <div class="progress-bar-fill" style="width: 57%"></div>
+                <div class="progress-bar-fill" style="width: 56%"></div>
               </div>
-              <span><strong>103</strong> pkts (RX:103/TX:0)</span>
+              <span><strong>178</strong> pkts (RX:177/TX:1)</span>
             </div>
           </div>
               </div>
@@ -476,7 +478,7 @@
             </div>
 
             <!-- Ventana Terminal de Logs -->
-            <div class="terminal-window" id="terminalLogFeed" role="log" aria-live="polite" aria-label="Terminal de eventos del sistema"><div class="log-line info"><span class="log-timestamp">[6:36:45 PM]</span> [INFO] Conexión WebSocket establecida con el bridge.</div></div>
+            <div class="terminal-window" id="terminalLogFeed" role="log" aria-live="polite" aria-label="Terminal de eventos del sistema"><div class="log-line info"><span class="log-timestamp">[6:45:02 PM]</span> [INFO] Conexión WebSocket establecida con el bridge.</div></div>
           </div>
         </section>
 
@@ -509,8 +511,8 @@
                   <div class="stat-item"><span>Estado:</span> <strong id="diagBridgeStatus">online</strong></div>
                   <div class="stat-item"><span>Puerto Serial:</span> <strong id="diagSerialPort">AUTO</strong></div>
                   <div class="stat-item"><span>Conexión MQTT:</span> <strong id="diagMqttConnected">Desconectado</strong></div>
-                  <div class="stat-item"><span>Buffer SQLite Offline:</span> <strong id="diagBufferCount">675</strong></div>
-                  <div class="stat-item"><span>Uptime:</span> <strong id="diagUptime">694s</strong></div>
+                  <div class="stat-item"><span>Buffer SQLite Offline:</span> <strong id="diagBufferCount">1000</strong></div>
+                  <div class="stat-item"><span>Uptime:</span> <strong id="diagUptime">1191s</strong></div>
                 </div>
               </div>
             </div>

@@ -239,13 +239,13 @@
   function handleIncomingWsEvent(event) {
     const type = event.event_type || "";
 
-    // 1. Mensaje de Texto
+    // 1. Mensaje de Texto (Canal o DM)
     if (type === "public" || type === "channel" || type === "direct" || event.text) {
-      appendChatMessage(event);
       state.messages.push(event);
       if (type === "direct" && event.sender) {
-        addOrUpdateDmItem(event.sender, event.sender_name);
+        renderDmList();
       }
+      appendChatMessage(event);
       appendTerminalLog("INFO", `Mensaje [${type}] de ${event.sender_name || event.sender}: ${event.text || ""}`);
     }
 
@@ -274,33 +274,62 @@
   }
 
   // ================================================================
-  // Feed de Mensajería y Renderizado de Burbujas
+  // Gestión de Destinos (Canales / Mensajes Directos) y Feed de Chat
   // ================================================================
-  function appendChatMessage(msg) {
-    if (!dom.chatMessageFeed) return;
+  function setActiveTarget(target) {
+    state.activeTarget = target;
+    if (dom.chatActiveTitle) dom.chatActiveTitle.textContent = target.name;
+    if (dom.chatActiveSub) {
+      dom.chatActiveSub.textContent =
+        target.sub ||
+        (target.type === "dm" ? `Mensaje Directo Privado (Clave: ${target.id})` : "Difusión comunitaria en malla LoRa");
+    }
+    renderChannelList();
+    renderDmList();
+    renderChatFeed();
+  }
 
-    const chIdx = msg.channel_idx !== undefined ? msg.channel_idx : (msg.channel_index !== undefined ? msg.channel_index : 0);
-    const isDirect = msg.event_type === "direct";
-    const sender = msg.sender || msg.sender_id || "Desconocido";
-    const senderName = msg.sender_name || sender;
-
-    if (msg.is_outbound) {
-      // Mensajes salientes propios siempre se renderizan en la vista actual
-    } else if (state.activeTarget.type === "channel") {
-      if (isDirect || chIdx !== state.activeTarget.id) {
-        return;
-      }
+  function isMsgForActiveTarget(msg) {
+    if (state.activeTarget.type === "channel") {
+      if (msg.event_type === "direct") return false;
+      const targetCh = parseInt(state.activeTarget.id, 10);
+      const msgCh =
+        msg.channel_idx !== undefined
+          ? parseInt(msg.channel_idx, 10)
+          : msg.channel_index !== undefined
+          ? parseInt(msg.channel_index, 10)
+          : 0;
+      return msgCh === targetCh;
     } else if (state.activeTarget.type === "dm") {
-      const targetId = String(state.activeTarget.id).toLowerCase();
-      const msgSender = String(sender).toLowerCase();
-      if (!isDirect || (msgSender !== targetId && !msgSender.includes(targetId) && !targetId.includes(msgSender))) {
-        return;
+      if (msg.event_type !== "direct") return false;
+      const targetKey = String(state.activeTarget.id || "").trim().toLowerCase();
+      const msgSender = String(msg.sender || "").trim().toLowerCase();
+      const msgTarget = String(msg.target_id || msg.to || "").trim().toLowerCase();
+
+      if (msg.is_outbound) {
+        return (
+          msgTarget === targetKey ||
+          (msgTarget.length >= 4 && targetKey.includes(msgTarget)) ||
+          (targetKey.length >= 4 && msgTarget.includes(targetKey))
+        );
+      } else {
+        return (
+          msgSender === targetKey ||
+          (msgSender.length >= 4 && targetKey.includes(msgSender)) ||
+          (targetKey.length >= 4 && msgSender.includes(targetKey))
+        );
       }
     }
+    return true;
+  }
 
+  function renderBubbleElement(msg) {
+    if (!dom.chatMessageFeed) return;
     const bubble = document.createElement("div");
     bubble.className = msg.is_outbound ? "chat-bubble outbound" : "chat-bubble";
 
+    const sender = msg.sender || msg.sender_id || (msg.is_outbound ? "Tú (Base)" : "Desconocido");
+    const senderName = msg.sender_name || sender;
     const timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
     const rssiStr = msg.metrics && msg.metrics.rssi ? ` | RSSI: ${msg.metrics.rssi} dBm` : "";
     const snrStr = msg.metrics && msg.metrics.snr ? ` | SNR: ${msg.metrics.snr} dB` : "";
@@ -315,7 +344,41 @@
     `;
 
     dom.chatMessageFeed.appendChild(bubble);
+  }
+
+  function renderChatFeed() {
+    if (!dom.chatMessageFeed) return;
+    dom.chatMessageFeed.innerHTML = "";
+
+    const welcomeCard = document.createElement("div");
+    welcomeCard.className = "chat-welcome-card";
+    if (state.activeTarget.type === "dm") {
+      welcomeCard.innerHTML = `
+        <h3>💬 Conversación Privada</h3>
+        <p>Chat directo con <strong>${escapeHtml(state.activeTarget.name)}</strong>.</p>
+      `;
+    } else {
+      welcomeCard.innerHTML = `
+        <h3>📻 ${escapeHtml(state.activeTarget.name)}</h3>
+        <p>${escapeHtml(state.activeTarget.sub || "Monitoreo y emisión en tiempo real.")}</p>
+      `;
+    }
+    dom.chatMessageFeed.appendChild(welcomeCard);
+
+    const filtered = state.messages.filter((msg) => isMsgForActiveTarget(msg));
+    filtered.forEach((msg) => {
+      renderBubbleElement(msg);
+    });
+
     dom.chatMessageFeed.scrollTop = dom.chatMessageFeed.scrollHeight;
+  }
+
+  function appendChatMessage(msg) {
+    if (!dom.chatMessageFeed) return;
+    if (isMsgForActiveTarget(msg)) {
+      renderBubbleElement(msg);
+      dom.chatMessageFeed.scrollTop = dom.chatMessageFeed.scrollHeight;
+    }
   }
 
   // ================================================================
@@ -617,18 +680,30 @@
         const text = (dom.chatInputText.value || "").trim();
         if (!text) return;
 
+        const isDm = state.activeTarget.type === "dm";
+        const targetId = isDm ? state.activeTarget.id : "broadcast";
+        const chIdx = isDm ? 0 : parseInt(state.activeTarget.id, 10);
+
         const payload = {
           text: text,
-          to: state.activeTarget.type === "dm" ? state.activeTarget.id : "broadcast",
-          channel_index: state.activeTarget.type === "channel" ? state.activeTarget.id : 0,
+          to: targetId,
+          channel_index: chIdx,
         };
 
-        appendChatMessage({
+        const outboundMsg = {
           sender_name: "Tú (Base)",
           text: text,
           is_outbound: true,
           timestamp: new Date().toISOString(),
-        });
+          event_type: isDm ? "direct" : (chIdx === 0 ? "public" : "channel"),
+          channel_idx: chIdx,
+          channel_index: chIdx,
+          target_id: isDm ? targetId : null,
+          to: targetId,
+        };
+
+        state.messages.push(outboundMsg);
+        appendChatMessage(outboundMsg);
         dom.chatInputText.value = "";
 
         const submitBtn = dom.chatInputForm.querySelector('button[type="submit"]');
@@ -642,7 +717,7 @@
           });
           const json = await res.json();
           if (json.status === "ok") {
-            showToast("success", "Mensaje transmitido a la malla LoRa");
+            showToast("success", isDm ? `Mensaje directo enviado a ${state.activeTarget.name}` : `Mensaje transmitido en Canal ${chIdx}`);
           } else {
             showToast("error", `Error TX: ${json.error || "Fallo en transmisión"}`);
             appendConsoleLog(`[ERROR TX] ${json.error || "Fallo en transmisión"}`);
@@ -740,7 +815,7 @@
             body: JSON.stringify({ action: "set_tx_power", power: pwr }),
           });
         }
-        alert("Configuración enviada a la radio local.");
+        showToast("success", "Configuración enviada a la radio local");
       });
     }
 
@@ -752,6 +827,7 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ action: "reboot" }),
           });
+          showToast("warning", "Comando de reinicio enviado");
         }
       });
     }
@@ -762,6 +838,8 @@
   // ================================================================
   async function fetchInitialData() {
     await Promise.all([fetchChannels(), fetchNodes(), fetchContacts(), fetchPeriodicStatus(), fetchAnalytics()]);
+    renderDmList();
+    renderChatFeed();
   }
 
   async function fetchChannels() {
@@ -781,6 +859,7 @@
       const data = await res.json();
       state.nodes = data.nodes || [];
       renderNodesGrid();
+      renderDmList();
       if (dom.headerNodeCount) dom.headerNodeCount.textContent = state.nodes.length;
     } catch (e) {
       console.debug(e);
@@ -793,6 +872,7 @@
       const data = await res.json();
       state.contacts = data.contacts || [];
       renderContactsList();
+      renderDmList();
     } catch (e) {
       console.debug(e);
     }
@@ -823,17 +903,19 @@
 
     state.channels.forEach((ch) => {
       const li = document.createElement("li");
-      const isActive = state.activeTarget.type === "channel" && state.activeTarget.id === ch.index;
+      const isActive = state.activeTarget.type === "channel" && parseInt(state.activeTarget.id, 10) === parseInt(ch.index, 10);
       li.className = isActive ? "channel-item active" : "channel-item";
       li.innerHTML = `
         <span class="ch-badge">Ch ${ch.index}</span>
         <span class="ch-name">${escapeHtml(ch.name)}</span>
       `;
       li.addEventListener("click", () => {
-        state.activeTarget = { type: "channel", id: ch.index, name: `Canal ${ch.index} (${ch.name})` };
-        dom.chatActiveTitle.textContent = state.activeTarget.name;
-        dom.chatActiveSub.textContent = ch.is_public ? "Difusión comunitaria" : "Canal cifrado con AES";
-        renderChannelList();
+        setActiveTarget({
+          type: "channel",
+          id: ch.index,
+          name: `Canal ${ch.index} (${ch.name})`,
+          sub: ch.is_public ? "Difusión comunitaria sin cifrado" : "Canal cifrado con AES",
+        });
       });
       dom.channelListUi.appendChild(li);
     });
@@ -852,24 +934,66 @@
     }
   }
 
-  function addOrUpdateDmItem(key, name) {
+  function renderDmList() {
     if (!dom.dmListUi) return;
-    let existing = dom.dmListUi.querySelector(`[data-dm-key="${key}"]`);
-    if (!existing) {
+    dom.dmListUi.innerHTML = "";
+
+    const dmMap = new Map();
+
+    // 1. De nodos descubiertos
+    state.nodes.forEach((n) => {
+      if (n.public_key) {
+        dmMap.set(n.public_key.toLowerCase(), { key: n.public_key, name: n.alias || n.name });
+      }
+    });
+
+    // 2. De contactos guardados
+    state.contacts.forEach((c) => {
+      if (c.public_key) {
+        dmMap.set(c.public_key.toLowerCase(), { key: c.public_key, name: c.alias || c.name });
+      }
+    });
+
+    // 3. De mensajes directos recibidos
+    state.messages.forEach((m) => {
+      if (m.event_type === "direct" && m.sender) {
+        dmMap.set(m.sender.toLowerCase(), { key: m.sender, name: m.sender_name || m.sender });
+      }
+    });
+
+    if (dmMap.size === 0) {
+      dom.dmListUi.innerHTML = '<li class="empty-hint">No hay DMs recientes</li>';
+      return;
+    }
+
+    dmMap.forEach((dm) => {
       const li = document.createElement("li");
-      li.className = "channel-item";
-      li.setAttribute("data-dm-key", key);
+      const targetIdStr = String(state.activeTarget.id).toLowerCase();
+      const dmKeyStr = dm.key.toLowerCase();
+      const isActive =
+        state.activeTarget.type === "dm" &&
+        (targetIdStr === dmKeyStr || targetIdStr.includes(dmKeyStr) || dmKeyStr.includes(targetIdStr));
+
+      li.className = isActive ? "channel-item active" : "channel-item";
+      li.setAttribute("data-dm-key", dm.key);
       li.innerHTML = `
         <span class="ch-badge">DM</span>
-        <span class="ch-name">${escapeHtml(name || key.substring(0, 8))}</span>
+        <span class="ch-name">${escapeHtml(dm.name || dm.key.substring(0, 8))}</span>
       `;
       li.addEventListener("click", () => {
-        state.activeTarget = { type: "dm", id: key, name: `DM con ${name || key}` };
-        dom.chatActiveTitle.textContent = state.activeTarget.name;
-        dom.chatActiveSub.textContent = `Clave: ${key}`;
+        setActiveTarget({
+          type: "dm",
+          id: dm.key,
+          name: `DM con ${dm.name || dm.key}`,
+          sub: `Clave: ${dm.key}`,
+        });
       });
       dom.dmListUi.appendChild(li);
-    }
+    });
+  }
+
+  function addOrUpdateDmItem(key, name) {
+    renderDmList();
   }
 
   function renderNodesGrid() {
@@ -894,7 +1018,7 @@
           <div>🔋 Batería: <strong>${n.battery_pct !== null && n.battery_pct !== undefined ? n.battery_pct + "%" : "N/A"}</strong></div>
           <div>📦 Tráfico: <strong>${n.total_packets || 0} pkts</strong></div>
         </div>
-        <button class="btn-secondary btn-sm" onclick="window.setDmTarget('${n.public_key}', '${escapeHtml(n.name)}')">Enviar DM 💬</button>
+        <button class="btn-secondary btn-sm" onclick="window.setDmTarget('${n.public_key}', '${escapeHtml(n.alias || n.name)}')">Enviar DM 💬</button>
       </div>
     `
       )
@@ -1035,9 +1159,12 @@
   }
 
   window.setDmTarget = function (key, name) {
-    state.activeTarget = { type: "dm", id: key, name: `DM con ${name || key}` };
-    if (dom.chatActiveTitle) dom.chatActiveTitle.textContent = state.activeTarget.name;
-    if (dom.chatActiveSub) dom.chatActiveSub.textContent = `Clave: ${key}`;
+    setActiveTarget({
+      type: "dm",
+      id: key,
+      name: `DM con ${name || key}`,
+      sub: `Clave: ${key}`,
+    });
     const chatTabBtn = document.querySelector('[data-tab="tab-chat"]');
     if (chatTabBtn) chatTabBtn.click();
     showToast("info", `Iniciando chat privado con ${name || key}`);
