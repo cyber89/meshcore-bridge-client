@@ -54,6 +54,7 @@ if (-not (Test-Path "$ScriptDir\.env")) {
 
 Write-Host ""
 Write-Host "🎉 Configuración de MeshCore Bridge completada." -ForegroundColor Green
+Write-Host "🌐 Cliente Web Station SPA: http://localhost:8080" -ForegroundColor Green
 Write-Host "Para iniciar el servicio ejecuta:" -ForegroundColor Cyan
 Write-Host "    python -m src" -ForegroundColor Yellow
 Write-Host ""
@@ -62,3 +63,4 @@ if ($Run) {
     Write-Host "Iniciando MeshCore Bridge..." -ForegroundColor Cyan
     & $PythonPath -m src
 }
+
