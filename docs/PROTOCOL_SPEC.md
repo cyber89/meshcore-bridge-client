@@ -236,3 +236,32 @@ El bridge encola la solicitud en el **Rate Limiter** asíncrono (respetando la v
   "queue_depth": 0
 }
 ```
+
+---
+
+## 7. Adaptador de Simulación Virtual y Banco de Pruebas (`VirtualMeshAdapter`)
+
+Para desarrollo, pruebas de integración sin hardware y demostraciones interactivas, MeshCore Bridge implementa un adaptador virtual que emula el comportamiento de un transceptor SX1262 y una red mallada con dos nodos remotos:
+
+### 7.1 Nodos Virtuales Pre-registrados
+1. **🛰️ Alpha Field Sensor (`a1b2c3d4e5f6`)**:
+   - Tipo: Sensor ambiental fijo.
+   - Posición GPS: `20.1500° N, -75.2000° W` (Altitud 45m).
+   - Telemetría: Temperatura oscilante 22-26°C, Humedad 58%, Presión 1013 hPa, Batería 94%.
+   - Métrica RF: RSSI -72 dBm, SNR 9.8 dB, Saltos: 1.
+2. **🚜 Bravo Scout Rover (`d7e8f9012345`)**:
+   - Tipo: Unidad móvil de patrullaje / Rover.
+   - Posición GPS: Dinámica (patrón orbital alrededor de `20.1800° N, -75.2500° W`).
+   - Telemetría: Temperatura 25-27°C, Humedad 52%, Presión 1011 hPa, Batería 88%.
+   - Métrica RF: RSSI -81 dBm, SNR 7.2 dB, Saltos: 2.
+
+### 7.2 Protocolo de Auto-Eco (Echo Bot)
+Al recibir un mensaje saliente TX dirigido por mensaje privado (DM) o mencionando a los nodos, el simulador:
+1. Emite un acuse de recibo inmediato `ACK` (OpCode 0x07).
+2. Simula la latencia de propagación RF LoRa en el aire (~400ms).
+3. Inyecta una trama de respuesta DM (`DIRECT_MSG`) con el formato:
+   `[Echo de <Alias>]: Recibido: "<Texto Original>" | SNR: <X>dB RSSI: <Y>dBm Hops: <Z>`
+
+### 7.3 Generación de Telemetría y Sniffer Wire (0x88 LOG_DATA)
+- **CayenneLPP Periódico**: Inyección de tramas binarias multicanal (Temp, Humedad, Barómetro, Batería, GPS).
+- **RF Sniffer Ingestion**: Emisión de tramas wire `0x88 LOG_DATA` para validación en vivo del Packet Sniffer.

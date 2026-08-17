@@ -351,6 +351,8 @@ class MeshCoreBridge:
                         status_val = "error"
                         self.tx_error_count += 1
                         error_detail = str(getattr(res_obj, "payload", "Radio returned error event"))
+            elif self.serial_adapter:
+                await self.serial_adapter.send_message(text=text, target=str(target) if target else None, channel_idx=ch_idx)
 
         except Exception as e:
             self.tx_error_count += 1
