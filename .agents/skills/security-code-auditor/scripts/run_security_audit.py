@@ -22,7 +22,7 @@ if sys.platform == "win32":
     except Exception:
         pass
 
-ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
+ROOT_DIR = Path(__file__).resolve().parents[4]
 SRC_DIR = ROOT_DIR / "src"
 STATIC_DIR = SRC_DIR / "web" / "static"
 

@@ -26,7 +26,7 @@ class MeshCoreWebServer:
     def __init__(
         self,
         bridge: Any,
-        host: str = "0.0.0.0",
+        host: str = "127.0.0.1",
         port: int = 8080,
         static_dir: str | None = None,
     ) -> None:
@@ -192,7 +192,10 @@ class MeshCoreWebServer:
     ) -> None:
         """Ejecuta el handshake RFC 6455 de WebSocket."""
         guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
-        accept_key = base64.b64encode(hashlib.sha1((sec_key + guid).encode("utf-8")).digest()).decode("utf-8")
+        # RFC 6455 exige específicamente SHA-1 para el cálculo de Sec-WebSocket-Accept
+        accept_key = base64.b64encode(
+            hashlib.sha1((sec_key + guid).encode("utf-8"), usedforsecurity=False).digest()  # nosec B324
+        ).decode("utf-8")
 
         handshake_resp = (
             "HTTP/1.1 101 Switching Protocols\r\n"

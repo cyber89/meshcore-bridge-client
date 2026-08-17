@@ -99,7 +99,7 @@ class MeshCoreBridge:
         self.web_server: MeshCoreWebServer | None = (
             MeshCoreWebServer(
                 bridge=self,
-                host=getattr(config, "WEB_HOST", "0.0.0.0"),
+                host=getattr(config, "WEB_HOST", "0.0.0.0"),  # nosec B104
                 port=getattr(config, "WEB_PORT", 8080),
             )
             if web_enabled
