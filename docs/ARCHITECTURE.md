@@ -1,14 +1,14 @@
-# Arquitectura del Sistema MeshCore Universal Bridge (v2.1)
+# Arquitectura del Sistema MeshCore Universal Bridge & Web Station (v3.0)
 
 > **Documentación Técnica de Diseño, Módulos, Métodos y Flujos Asíncronos**  
-> **Versión**: 2.1.0 (Arquitectura Modular de Alto Rendimiento con CayenneLPP, NodeRegistry & Repeater Remote Management)  
-> **Patrón de Diseño**: Reactor Asíncrono Concurrente / Adaptador Serial Híbrido / Store & Forward Transaccional con TTL / Rate Limiter LoRa con Cola de Prioridades / Descodificador de Sensores IPSO / Registro Dinámico de Nodos
+> **Versión**: 3.0.0 (Arquitectura Modular de Alto Rendimiento con Servidor Web SPA, RF Packet Sniffer, Analytics y CayenneLPP)  
+> **Patrón de Diseño**: Reactor Asíncrono Concurrente / Servidor Web Ligero Asíncrono / WebSocket Hub / Adaptador Serial Híbrido / Store & Forward Transaccional con TTL / Rate Limiter LoRa con Cola de Prioridades / Descodificador de Sensores IPSO / Registro Dinámico de Nodos con Analítica
 
 ---
 
 ## 1. Visión General y Diagrama de Arquitectura Modular
 
-MeshCore Bridge opera como un middleware industrial sin bloqueo entre el hardware LoRa (USB-CDC / UART) y la plataforma de automatización n8n mediante MQTT.
+MeshCore Bridge opera como un middleware industrial sin bloqueo entre el hardware LoRa (USB-CDC / UART), la plataforma de automatización n8n (mediante MQTT) y los usuarios de campo a través de una **Interfaz Web SPA Moderna en Tiempo Real**.
 
 ```mermaid
 flowchart TB
@@ -29,11 +29,20 @@ flowchart TB
     end
 
     subgraph CoreSubsystem["Orquestador Central (/src/bridge_core.py)"]
-        BRIDGE["MeshCoreBridge (Reactor Asíncrono v2.1)"]
+        BRIDGE["MeshCoreBridge (Reactor Asíncrono v3.0)"]
         REGISTRY["NodeRegistry (/src/contact_manager.py)"]
         REPEATER["RepeaterManager (/src/repeater_manager.py)"]
         LPP_DEC["CayenneLPPDecoder (/src/sensor_decoder.py)"]
         TYPES["Protocol Types Dataclasses (/src/protocol_types.py)"]
+    end
+
+    subgraph WebSubsystem["Capa de Servidor Web & Cliente SPA (/src/web/)"]
+        HTTP_SRV["MeshCoreWebServer (Async HTTP 1.1 + WebSocket Hub)"]
+        ROUTER["WebAPIRouter (REST API: /api/*)"]
+        SPA["Cliente SPA (HTML5 Semántico + Vanilla CSS + JS)"]
+        
+        HTTP_SRV --> ROUTER
+        SPA <==>|WebSocket /ws/live & REST| HTTP_SRV
     end
 
     subgraph StorageSubsystem["Capa de Resiliencia y Persistencia (/src/store_forward.py)"]
@@ -53,6 +62,7 @@ flowchart TB
     subgraph Consumers["Capa de Consumo y Automatización"]
         BROKER["Mosquitto MQTT Broker"]
         N8N["Flujos de Automatización n8n"]
+        BROWSER["Navegador Web / Smartphone"]
     end
 
     ADAPTER <==>|Eventos RX / TX Raw / Sniffer 0x88| BRIDGE
@@ -65,15 +75,32 @@ flowchart TB
     BRIDGE <==> PRIO_QUEUE
     PRIO_QUEUE <==> AIRTIME
     BRIDGE <==> MQTT_CLIENT
+    BRIDGE <==> HTTP_SRV
 
     MQTT_CLIENT <==>|TCP 1883 / TLS| BROKER <==> N8N
+    HTTP_SRV <==>|HTTP :8080 / WS| BROWSER
 ```
 
 ---
 
-## 2. Descripción de Componentes Principales (v2.1)
+## 2. Descripción de Componentes Principales (v3.0)
 
-### 2.1 Decodificador CayenneLPP (`src/sensor_decoder.py`)
+### 2.1 Servidor Web Asíncrono y WebSocket Hub (`src/web/http_server.py`)
+- **Servidor HTTP 1.1 Nativo**: Despacha la aplicación de una sola página (SPA) y los endpoints de la API REST sin requerir frameworks pesados.
+- **WebSocket RFC 6455 Hub**: Canal bidireccional en `/ws/live` para streaming continuo de mensajes entrantes, telemetría y tramas capturadas en el aire.
+- **CORS Preflight**: Soporte completo para peticiones `OPTIONS` retornando `204 No Content`.
+
+### 2.2 Enrutador REST API (`src/web/api_router.py`)
+Centraliza las operaciones del cliente web y herramientas externas:
+- `/api/status`: Diagnóstico de salud, uptime, estado de enlaces y colas.
+- `/api/nodes`: Directorio en vivo de nodos en la malla.
+- `/api/analytics`: Resumen analítico con Top 10 Nodos por Tráfico, Top Repetidores por Clientes Conectados, Ranking de Señal y Desglose de Errores.
+- `/api/sniffer/control` y `/api/logs`: Control y consulta del interceptor de paquetes RF.
+- `/api/system/logs`: Historial de registros del puente con filtrado de severidad.
+- `/api/contacts` & `/api/channels`: Gestión de libreta de contactos y configuración de canales cifrados AES.
+- `/api/tx`: Transmisión RF directa a canales públicos, privados o DMs.
+
+### 2.3 Decodificador CayenneLPP (`src/sensor_decoder.py`)
 Decodifica paquetes ambientales binarios (`GRP_DATA`, `TELEMETRY_RESPONSE`) convirtiendo los canales IPSO estándar en valores de ingeniería con unidades:
 - **Temperatura**: Canales con identificador `103` (resolución $0.1^\circ\text{C}$).
 - **Humedad Relativa**: Canales con identificador `104` (resolución $0.5\%$).
@@ -82,15 +109,11 @@ Decodifica paquetes ambientales binarios (`GRP_DATA`, `TELEMETRY_RESPONSE`) conv
 - **Posición GPS**: Canales con identificador `136` (Latitud, Longitud $0.0001^\circ$ y Altitud).
 - **Acelerómetro (MMA)**: Canales con identificador `113` (Ejes $X, Y, Z$ en $0.001\text{ G}$).
 
-### 2.2 Registro Dinámico de Nodos (`src/contact_manager.py`)
+### 2.4 Registro Dinámico de Nodos con Analítica (`src/contact_manager.py`)
 Mantiene una tabla en memoria con los nodos activos detectados en la malla:
 - Resolución de alias y claves públicas en $O(1)$.
-- Métricas RF asociadas: último SNR, RSSI, número de saltos (`hops`) y porcentaje de batería.
-- Limpieza automática (`cleanup_inactive`) para evitar saturación de memoria ante despliegues masivos.
-
-### 2.3 Gestor de Repetidores y Packet Sniffer (`src/repeater_manager.py`)
-- **Gestión Remota**: Enruta comandos de diagnóstico (`stats-core`, `stats-radio`, `neighbors`, `log start`, `set tx`) hacia repetidores distantes mediante tramas `cmd` cifradas sobre el tópico `meshcore/admin/repeater/{node_id}/cmd`.
-- **Packet Sniffer RF**: Procesa eventos push `0x88` (`LOG_DATA`), desglosando la ruta de saltos y calidad de señal en `meshcore/rx/log`.
+- Métricas RF asociadas: último SNR, RSSI, número de saltos (`hops`), porcentaje de batería y contadores acumulados de paquetes RX/TX y errores.
+- Cálculo de rankings analíticos en tiempo real (`get_analytics_summary`).
 
 ---
 

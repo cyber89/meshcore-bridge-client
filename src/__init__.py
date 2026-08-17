@@ -1,6 +1,6 @@
 """
 MeshCore Bridge Package.
-Puente determinista y asíncrono entre hardware LoRa MeshCore y MQTT/n8n.
+Puente determinista y asíncrono entre hardware LoRa MeshCore, MQTT/n8n y Servidor Web SPA.
 """
 
 from src.bridge_core import MeshCoreBridge
@@ -25,11 +25,16 @@ from src.serial_driver import (
     RawSerialFramingAdapter,
     SerialWatchdog,
 )
+from src.store_forward import PacketDeduplicator, SQLiteStoreAndForward
+from src.web.api_router import WebAPIRouter
+from src.web.http_server import MeshCoreWebServer
 
-__version__ = "2.1.0"
+__version__ = "3.0.0"
 
 __all__ = [
     "MeshCoreBridge",
+    "MeshCoreWebServer",
+    "WebAPIRouter",
     "AsyncBridgeMQTTClient",
     "SQLiteStoreAndForward",
     "PacketDeduplicator",

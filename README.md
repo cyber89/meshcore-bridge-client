@@ -1,6 +1,6 @@
-# MeshCore Universal Bridge v2.1: LoRa Companion USB <-> MQTT <-> n8n
+# MeshCore Universal Bridge & Web Station v3.0
 
-Puente bidireccional asíncrono, resiliente y de grado industrial para conectar nodos de radio **MeshCore Companion USB (v1.17+)** (**Heltec**, **LilyGO TTGO**, **RAKwireless WisBlock**, **Seeed Studio**, **Raspberry Pi RP2040**) con un broker **MQTT (Mosquitto)** y flujos de automatización en **n8n**.
+Puente bidireccional asíncrono, resiliente y de grado industrial para conectar nodos de radio **MeshCore Companion USB (v1.17+)** (**Heltec**, **LilyGO TTGO**, **RAKwireless WisBlock**, **Seeed Studio**, **Raspberry Pi RP2040**) con **MQTT (Mosquitto)**, flujos de automatización en **n8n** y una **Interfaz Web SPA Moderna (HTML5, Vanilla CSS, JS)** con **RF Packet Sniffer** y **Tablero de Métricas Avanzadas**.
 
 ---
 
@@ -14,18 +14,24 @@ Puente bidireccional asíncrono, resiliente y de grado industrial para conectar 
 
 ---
 
-## 🚀 Características Principales (v2.1)
+## 🚀 Características Principales (v3.0)
 
-- **Arquitectura Modular por Capas (`/src/`)**: Desacoplamiento total entre capas de hardware, transporte, serialización y almacenamiento.
-- **Adaptador Serial Híbrido Resiliente**: Soporte nativo para el SDK oficial `meshcore_py` con fallback autónomo a `RawSerialFramingAdapter` (framing binario SOF/EOF/ESC/CRC-16).
+- **🌐 Cliente Web Station SPA Integrado (`http://<IP>:8080`)**:
+  - Interfaz ultraligera sin frameworks pesados (< 10 MB RAM, arranque en < 50ms).
+  - Cumplimiento **WCAG 2.2 AA** con navegación 100% por teclado, foco visible y regiones ARIA.
+  - Chat en tiempo real para Canal Público 0, Canales Privados 1..7 (Cifrado AES) y Mensajes Directos (DMs).
+  - **Mapa GPS Interactivo** (Leaflet) con detección de modo offline para despliegues de campo aislados.
+  - **🕵️ RF Packet Sniffer & Analizador Wire (`0x88 LOG_DATA`)**: Captura e inspección profunda de tramas LoRa en el aire en tiempo real con visor de volcado hexadecimal.
+  - **📈 Tablero de Métricas Avanzadas & Estadísticas**: Rankings de Top 10 Nodos por Tráfico, Top Repetidores por Clientes/Vecinos, Ranking de Calidad de Señal (SNR/RSSI) y Desglose de Errores por Categoría.
+  - **📜 Consola de Logs del Sistema**: Terminal interactiva con filtros de severidad (`INFO`, `WARN`, `ERROR`), buscador y exportación en formato `.json`.
+- **🔌 API REST JSON & WebSocket Hub**: Endpoints completos (`/api/status`, `/api/nodes`, `/api/contacts`, `/api/channels`, `/api/tx`, `/api/analytics`, `/api/sniffer/control`, `/api/system/logs`) con soporte CORS preflight `OPTIONS`.
 - **Decodificador Nativo CayenneLPP (`src/sensor_decoder.py`)**: Deserialización determinista de telemetría ambiental (temperatura, humedad, presión, GPS, acelerómetro MMA y voltaje).
 - **Directorio Dinámico de Nodos (`src/contact_manager.py`)**: Registro en memoria `NodeRegistry` con resolución de alias y claves públicas en $O(1)$.
 - **Gestión Remota de Repetidores (`src/repeater_manager.py`)**: Enrutamiento de comandos de diagnóstico (`stats-radio`, `neighbors`, `log start/stop`, `set tx`) a repetidores remotos por RF.
-- **Sniffer RF de Paquetes (`meshcore/rx/log`)**: Captura en tiempo real de tramas LoRa en el aire emitidas por repetidores (evento push `0x88`).
 - **Store & Forward Transaccional con TTL**: Persistencia en SQLite en modo `WAL` (`Write-Ahead Logging`), purga por expiración y deduplicación LRU en memoria RAM.
 - **LoRa TX Rate Limiter con Cola de Prioridades**: Espaciado adaptativo según el cálculo analítico de tiempo en el aire LoRa de Semtech (`estimate_lora_airtime_ms`).
 - **Serial Watchdog Activo**: Detección automática de bloqueos silenciosos del puerto USB y autorrecuperación suave.
-- **Suite Exhaustiva de 50 Pruebas Automatizadas (100% Superadas)**: Pruebas unitarias, concurrencia multihilo, simulación de flapping de red, fallas de hardware, fuzzing de payloads, inyección SQL y matriz de flujos n8n.
+- **Suite Exhaustiva de 55 Pruebas Automatizadas (100% Superadas)**: Pruebas unitarias, concurrencia multihilo, simulación de flapping de red, fallas de hardware, fuzzing de payloads y endpoints web.
 
 ---
 
@@ -43,27 +49,31 @@ meshcore-bridge/
 ├── meshcore-bridge.service           # Archivo de servicio systemd para Linux
 ├── n8n_workflow_meshcore.json        # Workflow exportable listo para importar en n8n
 ├── src/                              # Código fuente modular de producción
-│   ├── __init__.py                   # Exportaciones públicas de interfaz
+│   ├── __init__.py                   # Exportaciones públicas de interfaz v3.0
 │   ├── __main__.py                   # Entrypoint 'python -m src'
 │   ├── bridge_core.py                # Orquestador central MeshCoreBridge
-│   ├── contact_manager.py            # Registro dinámico de nodos y libreta de contactos
+│   ├── contact_manager.py            # Registro dinámico de nodos, métricas top y libreta
 │   ├── mqtt_client.py                # Cliente MQTT asíncrono puenteado
 │   ├── protocol_types.py             # Dataclasses inmutables y tipadas con CRC-16
 │   ├── rate_limiter.py               # Rate Limiter con PriorityQueue y LoRa Airtime
 │   ├── repeater_manager.py           # Gestor de repetidores remotos y RF sniffer
 │   ├── sensor_decoder.py             # Decodificador CayenneLPP para sensores ambientales
 │   ├── serial_driver.py              # Adaptadores de comunicación serial y Watchdog
-│   └── store_forward.py              # SQLiteStoreAndForward con TTL y deduplicación
+│   ├── store_forward.py              # SQLiteStoreAndForward con TTL y deduplicación
+│   └── web/                          # Subsistema del Servidor Web y Cliente SPA
+│       ├── __init__.py               # Exportaciones de MeshCoreWebServer y WebAPIRouter
+│       ├── api_router.py             # Enrutador REST API para contactos, canales, sniffer y métricas
+│       ├── http_server.py            # Servidor HTTP 1.1 y WebSocket Hub asíncrono
+│       └── static/                   # Assets estáticos de la interfaz web
+│           ├── index.html            # Maquetación semántica SPA accesible (WCAG 2.2)
+│           ├── css/app.css           # Sistema de diseño moderno en Vanilla CSS
+│           └── js/app.js             # Lógica reactiva Vanilla JS y WebSocket
 ├── docs/                             # Documentación técnica completa
-│   ├── ARCHITECTURE.md               # Diagramas Mermaid v2.1, clases y flujos
+│   ├── ARCHITECTURE.md               # Diagramas Mermaid v3.0, clases y flujos
 │   ├── PROTOCOL_SPEC.md              # Especificación de tramas binarias y contratos JSON
 │   └── reference_analysis/           # Análisis técnico profundo de repositorios MeshCore
-│       ├── 01_FIRMWARE_C_CPP.md      # Internals del firmware C/C++ y Packet.h
-│       ├── 02_PYTHON_SDK.md          # Arquitectura del SDK meshcore_py y OpCodes
-│       ├── 03_CLI_AND_REPEATER_MANAGEMENT.md # Modos UART vs Mesh y catálogo de repetidores
-│       └── 04_INTEGRATION_GUIDE_FOR_AGENTS.md # Manual operativo para agentes
 ├── reference/                        # Repositorios oficiales de referencia (SSoT)
-└── tests/                            # 50 Suites de pruebas unitarias y fuzzing
+└── tests/                            # 55 Suites de pruebas unitarias y fuzzing
 ```
 
 ---
@@ -102,7 +112,7 @@ sudo bash install.sh
 .\install.ps1 -InstallDeps -Run
 ```
 
-### Ejecutar Verificación Completa de Calidad:
+### Ejecutar Verificación Completa de Calidad (`bridge_test_runner`):
 ```bash
 python .agents/skills/bridge-test-runner/scripts/run_checks.py
 ```
