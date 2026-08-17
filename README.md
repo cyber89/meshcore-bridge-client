@@ -116,3 +116,17 @@ sudo bash install.sh
 ```bash
 python .agents/skills/bridge-test-runner/scripts/run_checks.py
 ```
+
+### Ejecutar Simulación Interactiva en Vivo (Con Nodos Alpha, Bravo y Auto-Echo):
+```bash
+python run_interactive_demo.py
+```
+
+### Ejecutar Suite E2E & Automatización Visual con Playwright:
+```bash
+# Ejecutar suite de pruebas de integración en navegador real
+pytest -v tests/test_e2e_playwright.py
+
+# Inspección visual automática y capturas Desktop/Mobile (1920x1080 / 390x844)
+python scripts/inspect_web.py --url http://localhost:8080
+```

@@ -284,11 +284,18 @@
     const sender = msg.sender || msg.sender_id || "Desconocido";
     const senderName = msg.sender_name || sender;
 
-    if (state.activeTarget.type === "channel" && (isDirect || chIdx !== state.activeTarget.id)) {
-      return;
-    }
-    if (state.activeTarget.type === "dm" && (!isDirect || sender !== state.activeTarget.id)) {
-      return;
+    if (msg.is_outbound) {
+      // Mensajes salientes propios siempre se renderizan en la vista actual
+    } else if (state.activeTarget.type === "channel") {
+      if (isDirect || chIdx !== state.activeTarget.id) {
+        return;
+      }
+    } else if (state.activeTarget.type === "dm") {
+      const targetId = String(state.activeTarget.id).toLowerCase();
+      const msgSender = String(sender).toLowerCase();
+      if (!isDirect || (msgSender !== targetId && !msgSender.includes(targetId) && !targetId.includes(msgSender))) {
+        return;
+      }
     }
 
     const bubble = document.createElement("div");
@@ -624,6 +631,9 @@
         });
         dom.chatInputText.value = "";
 
+        const submitBtn = dom.chatInputForm.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.classList.add("btn-loading");
+
         try {
           const res = await fetch("/api/tx", {
             method: "POST",
@@ -631,11 +641,17 @@
             body: JSON.stringify(payload),
           });
           const json = await res.json();
-          if (json.status !== "ok") {
+          if (json.status === "ok") {
+            showToast("success", "Mensaje transmitido a la malla LoRa");
+          } else {
+            showToast("error", `Error TX: ${json.error || "Fallo en transmisión"}`);
             appendConsoleLog(`[ERROR TX] ${json.error || "Fallo en transmisión"}`);
           }
         } catch (err) {
+          showToast("error", `Error de red: ${err.message}`);
           appendConsoleLog(`[ERROR TX] ${err.message}`);
+        } finally {
+          if (submitBtn) submitBtn.classList.remove("btn-loading");
         }
       });
     }
@@ -656,8 +672,10 @@
             body: JSON.stringify({ target_node: target, action: action }),
           });
           const json = await res.json();
+          showToast("info", `Comando '${action}' enviado a repetidor ${target}`);
           appendConsoleLog(`[RESP CMD] ${JSON.stringify(json.result || json)}`);
         } catch (err) {
+          showToast("error", `Error en comando: ${err.message}`);
           appendConsoleLog(`[ERROR CMD] ${err.message}`);
         }
       });
@@ -677,6 +695,7 @@
           body: JSON.stringify({ public_key: key, name: name, alias: alias }),
         });
 
+        showToast("success", `Contacto guardado: ${alias || name || key}`);
         dom.addContactForm.reset();
         fetchContacts();
       });
@@ -695,6 +714,7 @@
           body: JSON.stringify({ index: idx, name: name, psk: psk }),
         });
 
+        showToast("success", `Canal ${idx} configurado: ${name}`);
         dom.addChannelForm.reset();
         fetchChannels();
       });
@@ -970,6 +990,34 @@
     }
   }
 
+  // ================================================================
+  // Sistema de Notificaciones Toast Flotantes
+  // ================================================================
+  function showToast(type, message, duration = 3500) {
+    const container = document.getElementById("toastContainer");
+    if (!container) return;
+
+    const toast = document.createElement("div");
+    toast.className = `toast toast-${type}`;
+
+    let icon = "ℹ️";
+    if (type === "success") icon = "✅";
+    else if (type === "error") icon = "❌";
+    else if (type === "warning") icon = "⚠️";
+
+    toast.innerHTML = `
+      <span class="toast-icon" aria-hidden="true">${icon}</span>
+      <span class="toast-msg">${escapeHtml(message)}</span>
+    `;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+      toast.classList.add("toast-out");
+      setTimeout(() => toast.remove(), 300);
+    }, duration);
+  }
+
   function appendConsoleLog(text) {
     if (!dom.repConsoleOutput) return;
     const line = document.createElement("div");
@@ -992,6 +1040,7 @@
     if (dom.chatActiveSub) dom.chatActiveSub.textContent = `Clave: ${key}`;
     const chatTabBtn = document.querySelector('[data-tab="tab-chat"]');
     if (chatTabBtn) chatTabBtn.click();
+    showToast("info", `Iniciando chat privado con ${name || key}`);
   };
 
   // Iniciar al cargar el DOM
