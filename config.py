@@ -61,8 +61,16 @@ TOPIC_ADMIN_STAT  = f"{TOPIC_PREFIX}/admin/status"     # Respuesta de comandos d
 SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", str(Path(__file__).resolve().parent / "meshcore_buffer.db"))
 TX_INTERVAL_SEC = float(os.getenv("TX_INTERVAL_SEC", "1.0"))                 # Espaciado de transmisión RF (LoRa Rate Limiter)
 OFFLINE_BUFFER_MAX_SIZE = int(os.getenv("OFFLINE_BUFFER_MAX_SIZE", "1000"))   # Capacidad máxima del buffer offline SQLite
+OFFLINE_BUFFER_TTL_HOURS = float(os.getenv("OFFLINE_BUFFER_TTL_HOURS", "48.0")) # TTL máximo para retención de telemetría (horas)
+DEDUPLICATION_WINDOW_SEC = float(os.getenv("DEDUPLICATION_WINDOW_SEC", "60.0")) # Ventana temporal de deduplicación de paquetes (segundos)
 WATCHDOG_INTERVAL_SEC = float(os.getenv("WATCHDOG_INTERVAL_SEC", "60.0"))     # Intervalo de supervisión de vivacidad serial
 HEALTH_METRICS_INTERVAL_SEC = float(os.getenv("HEALTH_METRICS_INTERVAL_SEC", "60.0")) # Intervalo de reporte de salud
+
+# ================= Parámetros de Radio y Airtime LoRa =================
+LORA_DEFAULT_SF = int(os.getenv("LORA_DEFAULT_SF", "11"))                     # Spreading Factor por defecto (SF7..SF12)
+LORA_DEFAULT_BW_KHZ = float(os.getenv("LORA_DEFAULT_BW_KHZ", "250.0"))       # Ancho de banda en kHz (125, 250, 500)
+LORA_DEFAULT_CR = int(os.getenv("LORA_DEFAULT_CR", "5"))                      # Coding Rate (5 = 4/5, 6 = 4/6, etc.)
+LORA_PREAMBLE_LEN = int(os.getenv("LORA_PREAMBLE_LEN", "8"))                 # Símbolos de preámbulo
 
 # ================= Logging =================
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()

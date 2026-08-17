@@ -1,188 +1,223 @@
-# Arquitectura del Sistema MeshCore Universal Bridge
+# Arquitectura del Sistema MeshCore Universal Bridge (v2.0)
 
-> **Documentación Técnica de Diseño, Métodos y Flujos Asíncronos**  
-> **Versión**: 2.0.0  
-> **Patrón de Diseño**: Reactor Asíncrono Concurrente / Store & Forward Transaccional / Framing Determinista
+> **Documentación Técnica de Diseño, Módulos, Métodos y Flujos Asíncronos**  
+> **Versión**: 2.0.0 (Arquitectura Modular de Alto Rendimiento)  
+> **Patrón de Diseño**: Reactor Asíncrono Concurrente / Adaptador Serial Híbrido / Store & Forward Transaccional con TTL / Rate Limiter LoRa con Cola de Prioridades
 
 ---
 
-## 1. Visión General y Diagrama de Bloques
+## 1. Visión General y Diagrama de Arquitectura Modular
 
-MeshCore Bridge opera como una pasarela bidireccional, sin bloqueo y tolerante a fallos entre el hardware LoRa (vía USB-CDC / UART) y el ecosistema MQTT/n8n.
+MeshCore Bridge opera como un middleware industrial sin bloqueo entre el hardware LoRa (USB-CDC / UART) y la plataforma de automatización n8n mediante MQTT.
 
 ```mermaid
 flowchart TB
-    subgraph Hardware["Capa Dispositivo Embebido"]
-        DEV["Transceptor LoRa + MCU (ESP32-S3 / RP2040 / nRF52)"]
+    subgraph HardwareLayer["Capa Hardware Embebido LoRa"]
+        DEV["Dispositivo MeshCore (Heltec V3 / LilyGO T-Beam / RAK4631 / RP2040)"]
     end
 
-    subgraph SerialLayer["Capa Serial Asíncrona"]
-        WATCH["SerialWatchdog (Supervisión Activa)"]
-        SERIAL_RX["Async Serial Reader (pyserial-asyncio)"]
-        SERIAL_TX["Async Serial Writer"]
-        DEV <==>|UART 115200 8N1| SERIAL_RX & SERIAL_TX
-        WATCH -.->|Monitorea latidos y reconecta| SERIAL_RX
-    end
-
-    subgraph FrameLayer["Capa de Framing y Protocolo"]
-        DEFRAME["FrameDecoder (SOF/EOF/ESC/CRC-16)"]
-        ENFRAME["FrameEncoder (Byte Stuffing + CRC)"]
-        TYPES["Protocol Types Dataclasses (/src/protocol_types.py)"]
+    subgraph SerialSubsystem["Sub-sistema Serial (/src/serial_driver.py)"]
+        WATCH["SerialWatchdog (Supervisión Activa & Keep-alive)"]
+        ADAPTER{"BaseSerialAdapter (Patrón Adaptador)"}
+        SDK_ADAPT["MeshcoreSDKAdapter (SDK meshcore_py Oficial)"]
+        RAW_ADAPT["RawSerialFramingAdapter (pyserial-asyncio + De-framer)"]
         
-        SERIAL_RX --> DEFRAME --> TYPES
-        TYPES --> ENFRAME --> SERIAL_TX
+        DEV <==>|UART 115200 8N1| ADAPTER
+        ADAPTER -.->|Principal| SDK_ADAPT
+        ADAPTER -.->|Fallback| RAW_ADAPT
+        WATCH -.->|Monitorea inactividad| ADAPTER
     end
 
-    subgraph ResilienceLayer["Capa de Resiliencia y Almacenamiento"]
-        TX_QUEUE["TxRateLimiter (Token Bucket / Airtime Control)"]
-        SF_DB[("SQLite Store & Forward (Modo WAL)")]
-        HEALTH["HealthMonitor (Métricas en Tiempo Real)"]
+    subgraph CoreSubsystem["Orquestador Central (/src/bridge_core.py)"]
+        BRIDGE["MeshCoreBridge (Reactor Asíncrono)"]
+        TYPES["Protocol Types Dataclasses (/src/protocol_types.py)"]
     end
 
-    subgraph MQTTLayer["Capa de Mensajería MQTT"]
-        MQTT_CLIENT["Async MQTT Client (paho-mqtt / aiomqtt)"]
-        DISPATCH["MQTT Topic Dispatcher & JSON Serializer"]
+    subgraph StorageSubsystem["Capa de Resiliencia y Persistencia (/src/store_forward.py)"]
+        DEDUP["PacketDeduplicator (RAM Sliding Window)"]
+        SF_DB[("SQLiteStoreAndForward (Modo WAL + TTL Purge)")]
     end
 
-    subgraph Automation["Capa de Automatización Externa"]
+    subgraph TransmissionSubsystem["Capa de Transmisión RF (/src/rate_limiter.py)"]
+        PRIO_QUEUE["TxRateLimiter (asyncio.PriorityQueue)"]
+        AIRTIME["Semtech Airtime Estimator (SF, BW, CR)"]
+    end
+
+    subgraph MQTTSubsystem["Capa de Comunicación MQTT (/src/mqtt_client.py)"]
+        MQTT_CLIENT["AsyncBridgeMQTTClient (Paho-MQTT v2.x Bridged)"]
+    end
+
+    subgraph Consumers["Capa de Consumo y Automatización"]
         BROKER["Mosquitto MQTT Broker"]
-        N8N["n8n Workflows"]
+        N8N["Flujos de Automatización n8n"]
     end
 
-    TYPES --> DISPATCH
-    DISPATCH -->|Online| MQTT_CLIENT
-    DISPATCH -->|Offline / Fallo de Red| SF_DB
-    SF_DB -->|Drenado Automático al Reconectar| MQTT_CLIENT
+    ADAPTER <==>|Eventos RX / TX Raw| BRIDGE
+    BRIDGE <==> TYPES
+    BRIDGE <==> DEDUP
+    BRIDGE <==> SF_DB
+    BRIDGE <==> PRIO_QUEUE
+    PRIO_QUEUE <==> AIRTIME
+    BRIDGE <==> MQTT_CLIENT
 
     MQTT_CLIENT <==>|TCP 1883 / TLS| BROKER <==> N8N
-    MQTT_CLIENT -->|Suscripción meshcore/tx| TX_QUEUE --> TYPES
-    HEALTH -->|meshcore/bridge/health| MQTT_CLIENT
 ```
 
 ---
 
-## 2. Explicación Detallada de Componentes y Métodos
+## 2. Descripción de Módulos y Métodos Principales
 
-### 2.1 Módulo Serial Asíncrono y Framing (`SerialAsyncProtocol`)
+### 2.1 Módulo Serial Híbrido (`src/serial_driver.py`)
 
-El driver serial procesa un flujo continuo de bytes (`stream-oriented`) y lo convierte en tramas discretas e íntegras mediante delimitadores `SOF (0xAA)`, `EOF (0x55)`, caracteres de escape `ESC (0x1B)` y validación `CRC-16-CCITT`.
+Provee abstracción transparente sobre el hardware serial. Si el SDK oficial `meshcore_py` está instalado y disponible, utiliza su capa de sesión y libreta de contactos; si no, conmuta deterministamente al driver de tramas binarias directas.
+
+```mermaid
+classDiagram
+    class BaseSerialAdapter {
+        +str port
+        +int baud_rate
+        +float timeout_sec
+        +bool is_connected
+        +float last_heartbeat_time
+        +set_rx_callback(callback)
+        +heartbeat()
+        +connect()* bool
+        +disconnect()*
+        +send_message(text, target, channel_idx)* dict
+        +send_admin_cmd(action, params)* dict
+        +resolve_sender_name(prefix_or_key) str
+    }
+
+    class MeshcoreSDKAdapter {
+        +MeshCore mc
+        +connect() bool
+        +disconnect()
+        +send_message(text, target, channel_idx) dict
+        +send_admin_cmd(action, params) dict
+        -_register_event_handlers()
+        -_resolve_target(name_or_key) Any
+    }
+
+    class RawSerialFramingAdapter {
+        -bytearray _rx_buffer
+        -bool _in_frame
+        -bool _in_escape
+        +connect() bool
+        +disconnect()
+        +process_incoming_bytes(chunk) list~MeshcoreFrame~
+        +send_message(text, target, channel_idx) dict
+    }
+
+    class SerialWatchdog {
+        +BaseSerialAdapter adapter
+        +float timeout_sec
+        +float interval_sec
+        +start()
+        +stop()
+        -_supervise_loop()
+    }
+
+    BaseSerialAdapter <|-- MeshcoreSDKAdapter
+    BaseSerialAdapter <|-- RawSerialFramingAdapter
+    SerialWatchdog o-- BaseSerialAdapter
+```
+
+#### Métodos Clave:
+1. **`process_incoming_bytes(chunk: bytes) -> list[MeshcoreFrame]`**:
+   - Máquina de estados para framing determinista: localiza delimitadores `SOF (0xAA)`, `EOF (0x55)`, desempaqueta caracteres escapados `ESC (0x1B) ^ 0x20` y valida la integridad mediante `CRC-16-CCITT`.
+2. **`SerialWatchdog._supervise_loop() -> None`**:
+   - Evalúa periódicamente la diferencia `time.time() - last_heartbeat_time`. Si excede `SERIAL_TIMEOUT` segundos, gatilla una reconexión segura del puerto serie sin detener el servicio.
+
+---
+
+### 2.2 Módulo de Persistencia y Deduplicación (`src/store_forward.py`)
+
+Garantiza **Cero Pérdida de Datos** durante desconexiones del broker MQTT o inestabilidad de red, evitando a su vez la saturación de n8n por eventos repetidos.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> WAIT_SOF: Inicio / Reset Buffer
-    WAIT_SOF --> IN_FRAME: Byte == 0xAA (SOF)
-    WAIT_SOF --> WAIT_SOF: Byte != 0xAA (Descartar ruido)
+    [*] --> EVALUATE: Mensaje RX o TX Generado
+    EVALUATE --> DEDUP_CHECK: Calcular Hash SHA-256
+    DEDUP_CHECK --> DISCARD: ¿Visto en últimos 60s? (Duplicado)
+    DEDUP_CHECK --> MQTT_ROUTE: Es paquete nuevo
     
-    IN_FRAME --> IN_ESCAPE: Byte == 0x1B (ESC)
-    IN_ESCAPE --> IN_FRAME: Guardar Byte XOR 0x20
+    MQTT_ROUTE --> DIRECT_PUBLISH: MQTT Online
+    MQTT_ROUTE --> SQLITE_WAL: MQTT Offline / Fallo de Red
     
-    IN_FRAME --> PROCESS_PACKET: Byte == 0x55 (EOF)
-    IN_FRAME --> IN_FRAME: Guardar Byte regular
-    
-    PROCESS_PACKET --> VALIDATE_CRC: Longitud >= Min Frame (9B)
-    PROCESS_PACKET --> WAIT_SOF: Trama truncada (Error Framing)
-    
-    VALIDATE_CRC --> DISPATCH_PACKET: CRC OK
-    VALIDATE_CRC --> WAIT_SOF: CRC Mismatch (Descarte seguro)
-    DISPATCH_PACKET --> WAIT_SOF: Trama entregada a Cola RX
+    SQLITE_WAL --> PERSISTED: Guardar con TTL (ej. 48h)
+    PERSISTED --> DRAIN_ON_CONNECT: Broker Reconectado
+    DRAIN_ON_CONNECT --> DIRECT_PUBLISH: Vaciado FIFO en lotes de 50
+    DISCARD --> [*]
+    DIRECT_PUBLISH --> [*]
 ```
 
 #### Métodos Clave:
-1. **`data_received(data: bytes) -> None`**:
-   - Invocado por el bucle de eventos de `asyncio` cuando entran bytes por el puerto serie.
-   - Itera byte a byte a través de la máquina de estados de framing.
-   - Protege contra desbordamiento de búfer (`max_frame_size = 512 bytes`).
-2. **`encode_frame(opcode: int, seq: int, src: int, dst: int, payload: bytes) -> bytes`**:
-   - Construye la cabecera binaria, calcula el CRC-16 CCITT sobre `[OpCode .. Payload]` y aplica byte stuffing para emitir una trama delimitada por `SOF` y `EOF`.
+1. **`enqueue(topic, payload, qos, retain, msg_hash, ttl_seconds) -> bool`**:
+   - Inserta atómicamente el paquete en la base de datos SQLite configurada en modo `WAL` (`Write-Ahead Logging`).
+   - Aplica política circular si se alcanza `OFFLINE_BUFFER_MAX_SIZE` y calcula la fecha de expiración `expires_at = now + ttl`.
+2. **`purge_expired() -> int`**:
+   - Purga de forma eficiente todos los registros cuya vigencia haya caducado, previniendo el despacho de telemetría obsoleta hacia n8n tras cortes prolongados.
+3. **`PacketDeduplicator.is_duplicate(key: str) -> bool`**:
+   - Filtro LRU en memoria RAM de $O(1)$ con ventana de tiempo deslizante (`DEDUPLICATION_WINDOW_SEC`).
 
 ---
 
-### 2.2 Buffer Persistente Store & Forward (`SQLiteStoreAndForward`)
+### 2.3 Módulo de Transmisión y Rate Limiting (`src/rate_limiter.py`)
 
-Garantiza **Cero Pérdida de Datos** cuando la conexión con el broker MQTT se interrumpe (cortes de fibra, caída del contenedor Mosquitto, reinicios de red).
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Parser as Frame Parser
-    participant Bridge as Bridge Core
-    participant SQLite as SQLite Buffer (WAL)
-    participant MQTT as Broker MQTT
-    participant n8n as n8n Workflow
-
-    Parser->>Bridge: Evento RX Validado (Telemetría)
-    alt MQTT Conectado
-        Bridge->>MQTT: publish("meshcore/rx/telemetry", json_payload)
-        MQTT->>n8n: Webhook Trigger
-    else MQTT Desconectado (Fallo de Red)
-        Bridge->>SQLite: insert_offline(topic, payload, qos=1)
-        Note over SQLite: Persistido en disco con ACID y modo WAL
-    end
-
-    Note over Bridge, MQTT: Reconexión Exitosa con MQTT Broker
-    Bridge->>SQLite: fetch_pending_batch(limit=50)
-    loop Para cada mensaje encolado
-        SQLite-->>Bridge: Mensaje histórico
-        Bridge->>MQTT: publish(topic, payload, qos=1)
-        Bridge->>SQLite: mark_as_delivered(msg_id)
-    end
-```
-
-#### Métodos Clave:
-1. **`enqueue(topic: str, payload: str, qos: int, retain: bool) -> int`**:
-   - Inserta de forma síncrona/atómica el mensaje en la tabla `offline_queue`.
-   - Si la cola excede `OFFLINE_BUFFER_MAX_SIZE`, descarta los mensajes más antiguos (estrategia FIFO circular de seguridad).
-2. **`flush_pending(client: mqtt.Client) -> int`**:
-   - Se ejecuta inmediatamente después del evento `on_connect` de MQTT.
-   - Lee en lotes de 50 registros para no saturar el socket y los publica secuencialmente en el broker, eliminándolos de SQLite tras confirmación.
-
----
-
-### 2.3 Rate Limiter de Transmisión LoRa (`TxRateLimiter`)
-
-Las redes LoRa están sujetas a restricciones de ciclo de trabajo (**Duty Cycle**) y tiempos en el aire (**Airtime**). Emitir ráfagas continuas desde n8n saturaría el buffer FIFO del chip RF (SX1262/SX1276) o provocaría colisiones en la malla.
+Controla el flujo de paquetes salientes hacia la red LoRa para evitar sobrecalentamiento del chip RF (SX1262/SX1276), cumplir las regulaciones de tiempo en el aire (Airtime / Duty Cycle) y dar paso prioritario a comandos críticos.
 
 ```mermaid
 graph TD
-    N8N_IN[n8n publica en meshcore/tx] --> ENQUEUE[Encolar en asyncio.Queue]
-    ENQUEUE --> WORKER[RateLimiter Worker Loop]
-    WORKER --> CALC_AIRTIME[Calcular tiempo de emisión estimado]
-    CALC_AIRTIME --> SEND_UART[Escribir trama en puerto Serial]
-    SEND_UART --> SLEEP[asyncio.sleep TX_INTERVAL_SEC + Backoff]
-    SLEEP --> WORKER
+    IN_TX[Solicitud de Transmisión desde MQTT / n8n] --> CALC_AIRTIME[Cálculo de Airtime LoRa Semtech]
+    CALC_AIRTIME --> CLASSIFY{Asignar Prioridad}
+    
+    CLASSIFY -->|ACK / Ping / Admin| PRIO_0[Prioridad 0: HIGH]
+    CLASSIFY -->|Texto Directo / Canal| PRIO_1[Prioridad 1: NORMAL]
+    CLASSIFY -->|Telemetría / Broadcast| PRIO_2[Prioridad 2: LOW]
+    
+    PRIO_0 --> QUEUE[(asyncio.PriorityQueue)]
+    PRIO_1 --> QUEUE
+    PRIO_2 --> QUEUE
+    
+    QUEUE --> WORKER[Rate Limiter Worker Loop]
+    WORKER --> SERIAL_TX[Transmitir por UART]
+    SERIAL_TX --> PACING[Pacing: TX_INTERVAL + 10% Airtime + Jitter]
+    PACING --> WORKER
 ```
 
-#### Métodos Clave:
-1. **`submit_tx(command: TxCommand) -> asyncio.Future`**:
-   - Encola un mensaje saliente devolviendo un `Future` que se resuelve cuando el transceptor confirma la emisión.
-2. **`_worker_loop() -> None`**:
-   - Extrae solicitudes una a una, aplica el intervalo reglamentario `TX_INTERVAL_SEC` (por defecto 1.0s) e introduce jitter pseudo-aleatorio para evitar colisiones periódicas con otros nodos.
+#### Ecuación de Tiempo en el Aire (Semtech LoRa Airtime):
+$$T_{\text{packet}} = T_{\text{preamble}} + T_{\text{payload}}$$
+$$T_{\text{sym}} = \frac{2^{\text{SF}}}{\text{BW}_{\text{Hz}}}$$
+$$T_{\text{preamble}} = (N_{\text{preamble}} + 4.25) \times T_{\text{sym}}$$
+$$N_{\text{payload}} = 8 + \max\left(\left\lceil \frac{8 \cdot \text{PL} - 4 \cdot \text{SF} + 28 + 16 \cdot \text{CRC} - 20 \cdot \text{IH}}{4 \cdot (\text{SF} - 2 \cdot \text{DE})} \right\rceil \cdot \text{CR},\, 0\right)$$
 
 ---
 
-### 2.4 Vigilante Activo de Puerto Serial (`SerialWatchdog`)
+### 2.4 Módulo Cliente MQTT Puenteado (`src/mqtt_client.py`)
 
-Los adaptadores USB-CDC (CH340, CP2102, FTDI o USB nativo de ESP32-S3/RP2040) pueden sufrir bloqueos silenciosos (*silent stalls*) por descargas electrostáticas o desbordamiento de búfer USB del kernel del sistema operativo.
+Proporciona integración segura entre la librería síncrona `paho-mqtt` y el reactor asíncrono de `asyncio`.
 
 #### Métodos Clave:
-1. **`heartbeat() -> None`**:
-   - Se llama cada vez que se recibe al menos 1 byte válido del puerto serie.
-2. **`_supervision_loop() -> None`**:
-   - Evalúa cada `WATCHDOG_INTERVAL_SEC` (60s). Si han transcurrido más de `SERIAL_TIMEOUT` segundos sin actividad y el hardware soporta ping activo, emite un comando de sondeo (`0x07 PING`).
-   - Si el dispositivo no responde en 5 segundos, cierra limpiamente el descriptor de archivo serial, libera recursos y reinicia la conexión UART.
+1. **`publish_safe(topic, payload_str, qos, retain, ttl_seconds) -> bool`**:
+   - Intenta la publicación directa en el socket MQTT. En caso de fallo o desconexión, delega automáticamente en `SQLiteStoreAndForward`.
+2. **`flush_offline_buffer() -> int`**:
+   - Tras el evento `on_connect`, drena secuencialmente los mensajes almacenados en disco sin bloquear el hilo de red ni el loop de `asyncio`.
 
 ---
 
-## 3. Formato y Esquema de Datos de Protocolo (`/src/protocol_types.py`)
+## 3. Matriz de Mapeo de Tópicos MQTT para n8n
 
-Todos los paquetes que circulan por el puente se tipan mediante clases inmutables:
-
-| Tipo de Paquete | Clase Python | OpCode | Campos Principales |
-| :--- | :--- | :--- | :--- |
-| **Cabecera Genérica** | `FrameHeader` | N/A | `opcode`, `seq_num`, `src_node_id`, `dst_node_id`, `hop_limit`, `payload_len` |
-| **Telemetría** | `TelemetryPayload` | `0x01` | `battery_mv`, `solar_mv`, `temp_c`, `humidity_pct`, `pressure_hpa`, `snr_db`, `rssi_dbm` |
-| **Mensaje de Texto** | `TextMessagePayload` | `0x02` | `channel_idx`, `sender_alias`, `text` |
-| **Anuncio de Nodo** | `NodeAdvertisement` | `0x03` | `node_id`, `short_name`, `long_name`, `hw_model`, `fw_version`, `lat`, `lon`, `alt_m` |
-| **Comando Admin** | `AdminCommand` | `0x05` | `command_id`, `parameter_key`, `parameter_value` |
-| **Respuesta Admin** | `AdminResponse` | `0x06` | `command_id`, `status_code`, `response_payload` |
-| **Confirmación (ACK)** | `AckPayload` | `0x07` | `ack_seq_num`, `status` |
+| Tópico MQTT | Dirección | QoS | Retenido | Contenido / Payload |
+| :--- | :--- | :--- | :--- | :--- |
+| `meshcore/bridge/state` | Bridge $\to$ MQTT | 1 | Sí (LWT) | `{"status": "online" \| "offline", "timestamp": ...}` |
+| `meshcore/bridge/health` | Bridge $\to$ MQTT | 0 | No | Métricas periódicas: uptime, estado serial, buffer pending, contadores TX/RX |
+| `meshcore/rx/all` | Bridge $\to$ MQTT | 0 | No | Tópico unificado con todos los eventos de la malla en formato JSON estandarizado |
+| `meshcore/rx/telemetry` | Bridge $\to$ MQTT | 0 | No | Telemetría (batería mV, solar, temperatura, humedad, presión, SNR, RSSI) |
+| `meshcore/rx/public` | Bridge $\to$ MQTT | 0 | No | Mensajes de texto en canal público / broadcast (Canal 0) |
+| `meshcore/rx/channel/ch_{id}` | Bridge $\to$ MQTT | 0 | No | Mensajes de texto en canales secundarios cifrados o grupales |
+| `meshcore/rx/direct/{node_id}` | Bridge $\to$ MQTT | 0 | No | Mensajes directos punto a punto dirigidos al nodo o reenviados |
+| `meshcore/rx/nodes` | Bridge $\to$ MQTT | 0 | No | Anuncios de presencia de nodos, coordenadas GPS y versión de firmware |
+| `meshcore/tx` | n8n $\to$ Bridge | 1 | No | Solicitudes de emisión LoRa: `{"text": "...", "dest_node_id": "...", "channel_idx": 0}` |
+| `meshcore/tx/status` | Bridge $\to$ n8n | 1 | No | Confirmación de encolado/emisión y estado del rate limiter |
+| `meshcore/admin/cmd` | n8n $\to$ Bridge | 1 | No | Comandos de administración (`reboot`, `set_tx_power`, `ping`) |
+| `meshcore/admin/status` | Bridge $\to$ n8n | 1 | No | Resultado y status code del comando administrativo ejecutado |

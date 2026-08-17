@@ -51,6 +51,7 @@ module = [
     "serial.*",
     "serial_asyncio.*",
     "meshcore.*",
+    "dotenv.*",
 ]
 ignore_missing_imports = true
 
