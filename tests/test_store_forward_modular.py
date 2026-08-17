@@ -64,11 +64,11 @@ class TestStoreForwardModular(unittest.TestCase):
         self.assertEqual(batch[-1][2], "payload_14")
 
     def test_ttl_expiration_purging(self) -> None:
-        # Encolar con TTL de 0.1 segundos
-        self.sf.enqueue("fast/expire", "expired_payload", ttl_seconds=0.1)
+        # Encolar con TTL de 0.5 segundos
+        self.sf.enqueue("fast/expire", "expired_payload", ttl_seconds=0.5)
         self.assertEqual(self.sf.get_size(), 1)
 
-        time.sleep(0.2)  # Esperar a que expire
+        time.sleep(0.6)  # Esperar a que expire
         purged = self.sf.purge_expired()
         self.assertEqual(purged, 1)
         self.assertEqual(self.sf.get_size(), 0)

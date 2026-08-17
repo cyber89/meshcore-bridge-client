@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # MeshCore Bridge - Script de Instalación, Actualización y Despliegue Automatizado
+# Versión: 2.1.0 (Producción)
 # Compatible con Armbian (Orange Pi 2W), Debian, Ubuntu y Raspberry Pi OS
 # ==============================================================================
 
@@ -23,7 +24,7 @@ TARGET_USER="${SUDO_USER:-$USER}"
 
 echo -e "${CYAN}"
 echo "=================================================================="
-echo "    🚀 GESTOR UNIVERSAL DE MESHCORE BRIDGE (v1.17)"
+echo "    🚀 GESTOR UNIVERSAL DE MESHCORE BRIDGE (v2.1.0)"
 echo "    Heltec / LilyGO / RAKwireless / Seeed / RP2040 <-> MQTT <-> n8n"
 echo "=================================================================="
 echo -e "${NC}"
@@ -62,11 +63,18 @@ if [[ "${1:-}" == "--update" ]]; then
     echo -e "${BLUE}[1/5] Deteniendo servicio actual...${NC}"
     systemctl stop "$SERVICE_NAME" 2>/dev/null || true
 
-    echo -e "${BLUE}[2/5] Actualizando archivos de código fuente y documentación...${NC}"
+    echo -e "${BLUE}[2/5] Actualizando archivos de código fuente, paquete src/ y documentación...${NC}"
     cp -f "$CURRENT_DIR/config.py" "$INSTALL_DIR/"
     cp -f "$CURRENT_DIR/meshcore_bridge.py" "$INSTALL_DIR/"
+    cp -f "$CURRENT_DIR/pyproject.toml" "$INSTALL_DIR/" 2>/dev/null || true
     cp -f "$CURRENT_DIR/requirements.txt" "$INSTALL_DIR/"
     cp -f "$CURRENT_DIR/meshcore-bridge.service" "$INSTALL_DIR/"
+    
+    # Copiar paquete modular src/
+    mkdir -p "$INSTALL_DIR/src"
+    cp -rf "$CURRENT_DIR/src/"* "$INSTALL_DIR/src/"
+    
+    # Copiar documentación
     mkdir -p "$INSTALL_DIR/docs"
     cp -rf "$CURRENT_DIR/docs/"* "$INSTALL_DIR/docs/" 2>/dev/null || true
 
@@ -175,7 +183,7 @@ echo -e "${GREEN}[OK] Usuario '${TARGET_USER}' añadido al grupo dialout.${NC}"
 
 # Detección automática del puerto serial del dispositivo MeshCore
 echo -e "${BLUE}[4/7] Detectando dispositivo MeshCore Companion USB conectado (Heltec, LilyGO, RAK, Seeed, RP2040)...${NC}"
-DETECTED_PORT="/dev/ttyACM0"
+DETECTED_PORT="AUTO"
 
 if ls /dev/serial/by-id/* >/dev/null 2>&1; then
     DETECTED_PORT="$(ls /dev/serial/by-id/* | head -n 1)"
@@ -187,8 +195,7 @@ elif [[ -e /dev/ttyUSB0 ]]; then
     DETECTED_PORT="/dev/ttyUSB0"
     echo -e "${GREEN}[OK] Dispositivo detectado en: /dev/ttyUSB0${NC}"
 else
-    echo -e "${YELLOW}[AVISO] No se detectó un puerto serial activo actualmente. Se usará /dev/ttyACM0 por defecto.${NC}"
-    echo "       (Conecta tu placa LoRa por USB y edita $INSTALL_DIR/.env si es necesario)."
+    echo -e "${YELLOW}[AVISO] No se detectó un puerto serial conectado actualmente. Se configurará en modo 'AUTO'.${NC}"
 fi
 
 # Despliegue de archivos en /opt/meshcore-bridge
@@ -197,8 +204,13 @@ mkdir -p "$INSTALL_DIR"
 
 cp -rf "$CURRENT_DIR/config.py" "$INSTALL_DIR/"
 cp -rf "$CURRENT_DIR/meshcore_bridge.py" "$INSTALL_DIR/"
+cp -rf "$CURRENT_DIR/pyproject.toml" "$INSTALL_DIR/" 2>/dev/null || true
 cp -rf "$CURRENT_DIR/requirements.txt" "$INSTALL_DIR/"
 cp -rf "$CURRENT_DIR/meshcore-bridge.service" "$INSTALL_DIR/"
+
+mkdir -p "$INSTALL_DIR/src"
+cp -rf "$CURRENT_DIR/src/"* "$INSTALL_DIR/src/"
+
 mkdir -p "$INSTALL_DIR/docs"
 cp -rf "$CURRENT_DIR/docs/"* "$INSTALL_DIR/docs/" 2>/dev/null || true
 
@@ -206,10 +218,10 @@ cp -rf "$CURRENT_DIR/docs/"* "$INSTALL_DIR/docs/" 2>/dev/null || true
 if [[ ! -f "$INSTALL_DIR/.env" ]]; then
     cat << EOF > "$INSTALL_DIR/.env"
 # ================================================================
-# Configuración del Puente MeshCore <-> MQTT Bridge
+# Configuración del Puente MeshCore <-> MQTT Bridge v2.1
 # ================================================================
 
-# Puerto Serial detectado automáticamente
+# Puerto Serial detectado automáticamente (o valor explícito ej: /dev/ttyACM0)
 SERIAL_PORT=${DETECTED_PORT}
 BAUD_RATE=115200
 SERIAL_TIMEOUT=30.0
@@ -227,9 +239,13 @@ TOPIC_PREFIX=meshcore
 # Base de datos SQLite persistente Store & Forward
 SQLITE_DB_PATH=${INSTALL_DIR}/meshcore_buffer.db
 
-# Parámetros de Resiliencia
+# Parámetros de Resiliencia y Radio LoRa
 TX_INTERVAL_SEC=1.0
 OFFLINE_BUFFER_MAX_SIZE=1000
+OFFLINE_BUFFER_TTL_HOURS=48.0
+DEDUPLICATION_WINDOW_SEC=60.0
+LORA_DEFAULT_SF=11
+LORA_DEFAULT_BW_KHZ=250.0
 WATCHDOG_INTERVAL_SEC=60.0
 HEALTH_METRICS_INTERVAL_SEC=60.0
 

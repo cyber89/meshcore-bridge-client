@@ -30,11 +30,28 @@ except ImportError:
     EventType = None
 
 
+def detect_serial_port() -> str:
+    """Detecta automáticamente el puerto serial de un nodo LoRa conectado."""
+    try:
+        import serial.tools.list_ports
+        ports = list(serial.tools.list_ports.comports())
+        for p in ports:
+            desc = (p.description or "").lower()
+            hwid = (p.hwid or "").lower()
+            if any(k in desc or k in hwid for k in ("heltec", "cp210", "ch340", "ch341", "ftdi", "uart", "acm", "usb serial", "espressif", "t-beam", "rak")):
+                return str(p.device)
+        if ports:
+            return str(ports[0].device)
+    except Exception:
+        pass
+    return "/dev/ttyACM0"
+
+
 class BaseSerialAdapter(abc.ABC):
     """Interfaz abstracta para adaptadores de comunicación serial con hardware MeshCore."""
 
     def __init__(self, port: str, baud_rate: int = 115200, timeout_sec: float = 30.0) -> None:
-        self.port = port
+        self.port = detect_serial_port() if str(port).upper() in ("AUTO", "DETECT", "DEFAULT", "") else port
         self.baud_rate = baud_rate
         self.timeout_sec = timeout_sec
         self.is_connected = False

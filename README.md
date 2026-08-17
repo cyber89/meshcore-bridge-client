@@ -1,4 +1,4 @@
-# MeshCore Universal Bridge: LoRa Companion USB <-> MQTT <-> n8n
+# MeshCore Universal Bridge v2.1: LoRa Companion USB <-> MQTT <-> n8n
 
 Puente bidireccional asíncrono, resiliente y de grado industrial para conectar nodos de radio **MeshCore Companion USB (v1.17+)** (**Heltec**, **LilyGO TTGO**, **RAKwireless WisBlock**, **Seeed Studio**, **Raspberry Pi RP2040**) con un broker **MQTT (Mosquitto)** y flujos de automatización en **n8n**.
 
@@ -14,19 +14,18 @@ Puente bidireccional asíncrono, resiliente y de grado industrial para conectar 
 
 ---
 
-## 🚀 Características Principales
+## 🚀 Características Principales (v2.1)
 
-- **Conexión Serial Asíncrona Resiliente**: Reconexión automática ante desconexiones USB o reinicios de nodo con `asyncio`.
-- **Integración con MeshCore v1.17**: Manejo de eventos nativos de canal, mensajes directos (DMs), anuncios de nodos y telemetría (batería, voltaje, temperatura, RSSI, SNR, saltos).
-- **Publicación MQTT Híbrida**: Publica en tópicos específicos (`meshcore/rx/public`, `meshcore/rx/channel/...`, `meshcore/rx/direct/...`, `meshcore/rx/telemetry`) y en un tópico unificado (`meshcore/rx/all`).
-- **Transmisión Bidireccional (TX) con ACKs**: Acepta texto plano o JSON con `request_id` y emite confirmación de entrega en `meshcore/tx/status`.
-- **Suite Administrativa por MQTT**: Comandos `get_config`, `get_contacts`, `set_name`, `set_tx_power`, `req_telemetry` y `reboot` a través de `meshcore/admin/cmd` y `meshcore/admin/status`.
-- **Last Will and Testament (LWT)**: Publicación retenida de estado `online` / `offline` en `meshcore/bridge/state`.
-- **Buffer Persistente SQLite Store-and-Forward (Cero Pérdida de Datos)**: Retención de mensajes en base de datos SQLite local (`WAL mode`) durante caídas de MQTT, resistente a reinicios y cortes eléctricos.
-- **LoRa TX Rate Limiter**: Control de congestión RF con espaciado de transmisión (`TX_INTERVAL_SEC=1.0s`).
-- **Serial Watchdog Activo**: Detección automática de bloqueos silenciosos del chip USB y autorrecuperación.
-- **Telemetría de Salud en Vivo**: Publicación en tiempo real de estadísticas de rendimiento en `meshcore/bridge/health`.
-- **Suite Exhaustiva de 28 Pruebas Automatizadas (100% Superadas)**: Pruebas unitarias, concurrencia multihilo, simulación de flapping de red, fallas de hardware, fuzzing de payloads, inyección SQL y matriz de flujos n8n.
+- **Arquitectura Modular por Capas (`/src/`)**: Desacoplamiento total entre capas de hardware, transporte, serialización y almacenamiento.
+- **Adaptador Serial Híbrido Resiliente**: Soporte nativo para el SDK oficial `meshcore_py` con fallback autónomo a `RawSerialFramingAdapter` (framing binario SOF/EOF/ESC/CRC-16).
+- **Decodificador Nativo CayenneLPP (`src/sensor_decoder.py`)**: Deserialización determinista de telemetría ambiental (temperatura, humedad, presión, GPS, acelerómetro MMA y voltaje).
+- **Directorio Dinámico de Nodos (`src/contact_manager.py`)**: Registro en memoria `NodeRegistry` con resolución de alias y claves públicas en $O(1)$.
+- **Gestión Remota de Repetidores (`src/repeater_manager.py`)**: Enrutamiento de comandos de diagnóstico (`stats-radio`, `neighbors`, `log start/stop`, `set tx`) a repetidores remotos por RF.
+- **Sniffer RF de Paquetes (`meshcore/rx/log`)**: Captura en tiempo real de tramas LoRa en el aire emitidas por repetidores (evento push `0x88`).
+- **Store & Forward Transaccional con TTL**: Persistencia en SQLite en modo `WAL` (`Write-Ahead Logging`), purga por expiración y deduplicación LRU en memoria RAM.
+- **LoRa TX Rate Limiter con Cola de Prioridades**: Espaciado adaptativo según el cálculo analítico de tiempo en el aire LoRa de Semtech (`estimate_lora_airtime_ms`).
+- **Serial Watchdog Activo**: Detección automática de bloqueos silenciosos del puerto USB y autorrecuperación suave.
+- **Suite Exhaustiva de 50 Pruebas Automatizadas (100% Superadas)**: Pruebas unitarias, concurrencia multihilo, simulación de flapping de red, fallas de hardware, fuzzing de payloads, inyección SQL y matriz de flujos n8n.
 
 ---
 
@@ -35,77 +34,75 @@ Puente bidireccional asíncrono, resiliente y de grado industrial para conectar 
 ```
 meshcore-bridge/
 ├── config.py                         # Carga de variables de entorno y configuración
-├── meshcore_bridge.py                # Script principal del servicio bridge (SQLite, Rate Limiter, Watchdog)
-├── requirements.txt                  # Dependencias Python
-├── .env.example                      # Plantilla de configuración con variables de SQLite y resiliencia
-├── install.sh                        # Script de despliegue y actualización en 1 comando (--update / --uninstall)
+├── meshcore_bridge.py                # Entrypoint raíz compatible
+├── requirements.txt                  # Dependencias Python de producción
+├── pyproject.toml                    # Configuración estricta de pytest, mypy y ruff
+├── .env.example                      # Plantilla de configuración de entorno
+├── install.sh                        # Script de instalación y actualización para Linux / Raspberry Pi
+├── install.ps1                       # Script de instalación y ejecución para Windows PowerShell
 ├── meshcore-bridge.service           # Archivo de servicio systemd para Linux
 ├── n8n_workflow_meshcore.json        # Workflow exportable listo para importar en n8n
-├── docs/
-│   ├── DEPLOYMENT_GUIDE.md           # Guía paso a paso de despliegue en Linux / systemd
-│   └── CODE_EXPLANATION.md           # Explicación técnica y arquitectura del código
-├── tests/
-│   ├── test_bridge_logic.py          # Pruebas de parsing y deduplicación
-│   ├── test_store_and_forward.py     # Pruebas de buffer persistente SQLite y reinicios
-│   ├── test_tx_rate_limiter.py       # Pruebas de rate limiter LoRa y ACKs
-│   ├── test_serial_watchdog.py       # Pruebas del watchdog serial
-│   ├── test_e2e_simulation.py        # Simulación End-to-End completa
-│   ├── test_stress_flood.py          # Pruebas de estrés y ráfagas masivas
-│   ├── test_fuzzing_and_edge_cases.py# Fuzzing de entradas, inyección SQL y valores extremos
-│   ├── test_concurrency_and_flapping.py # Concurrencia multihilo y micro-cortes de red
-│   └── test_n8n_parser_matrix.py     # Matriz de deserialización y deduplicación n8n
-└── README.md                         # Este archivo
+├── src/                              # Código fuente modular de producción
+│   ├── __init__.py                   # Exportaciones públicas de interfaz
+│   ├── __main__.py                   # Entrypoint 'python -m src'
+│   ├── bridge_core.py                # Orquestador central MeshCoreBridge
+│   ├── contact_manager.py            # Registro dinámico de nodos y libreta de contactos
+│   ├── mqtt_client.py                # Cliente MQTT asíncrono puenteado
+│   ├── protocol_types.py             # Dataclasses inmutables y tipadas con CRC-16
+│   ├── rate_limiter.py               # Rate Limiter con PriorityQueue y LoRa Airtime
+│   ├── repeater_manager.py           # Gestor de repetidores remotos y RF sniffer
+│   ├── sensor_decoder.py             # Decodificador CayenneLPP para sensores ambientales
+│   ├── serial_driver.py              # Adaptadores de comunicación serial y Watchdog
+│   └── store_forward.py              # SQLiteStoreAndForward con TTL y deduplicación
+├── docs/                             # Documentación técnica completa
+│   ├── ARCHITECTURE.md               # Diagramas Mermaid v2.1, clases y flujos
+│   ├── PROTOCOL_SPEC.md              # Especificación de tramas binarias y contratos JSON
+│   └── reference_analysis/           # Análisis técnico profundo de repositorios MeshCore
+│       ├── 01_FIRMWARE_C_CPP.md      # Internals del firmware C/C++ y Packet.h
+│       ├── 02_PYTHON_SDK.md          # Arquitectura del SDK meshcore_py y OpCodes
+│       ├── 03_CLI_AND_REPEATER_MANAGEMENT.md # Modos UART vs Mesh y catálogo de repetidores
+│       └── 04_INTEGRATION_GUIDE_FOR_AGENTS.md # Manual operativo para agentes
+├── reference/                        # Repositorios oficiales de referencia (SSoT)
+└── tests/                            # 50 Suites de pruebas unitarias y fuzzing
 ```
 
 ---
 
-## 📡 Mapa de Tópicos MQTT
+## 📡 Mapa de Tópicos MQTT para n8n
 
 | Tópico | Tipo | Dirección | Descripción |
 | :--- | :--- | :--- | :--- |
 | `meshcore/bridge/state` | Estado | Bridge ➔ Broker | Estado `online`/`offline` (Retained LWT). |
+| `meshcore/bridge/health`| Salud | Bridge ➔ Broker | Métricas periódicas de salud, memoria y contadores. |
 | `meshcore/rx/all` | Stream | Bridge ➔ Broker | **Tópico unificado**: Todos los eventos RX normalizados en JSON. |
 | `meshcore/rx/public` | RX | Bridge ➔ Broker | Mensajes recibidos en el canal público (Canal 0). |
 | `meshcore/rx/channel/ch_<idx>` | RX | Bridge ➔ Broker | Mensajes recibidos en canal secundario `<idx>`. |
 | `meshcore/rx/direct/<sender_id>`| RX | Bridge ➔ Broker | Mensajes directos (DMs) recibidos. |
-| `meshcore/rx/telemetry` | Telemetría | Bridge ➔ Broker | Batería, voltaje y métricas RF de nodos. |
+| `meshcore/rx/telemetry` | Telemetría | Bridge ➔ Broker | Batería, voltaje, CayenneLPP (temp, hum, baro, GPS). |
 | `meshcore/rx/nodes` | Anuncios | Bridge ➔ Broker | Nodos descubiertos y presencia en la malla. |
+| `meshcore/rx/log` | Sniffer | Bridge ➔ Broker | Streaming de paquetes LoRa capturados en el aire. |
 | `meshcore/tx` | TX | n8n ➔ Bridge | Petición para transmitir mensaje por RF. |
 | `meshcore/tx/status` | ACK | Bridge ➔ n8n | Confirmación de transmisión RF (`sent`/`error`). |
-| `meshcore/admin/cmd` | Admin | n8n ➔ Bridge | Comandos de control (`get_config`, `set_name`, etc.). |
-| `meshcore/admin/status` | Admin | Bridge ➔ n8n | Resultado de comandos administrativos. |
+| `meshcore/admin/cmd` | Admin | n8n ➔ Bridge | Comandos locales (`get_config`, `set_name`, `list_nodes`). |
+| `meshcore/admin/status`| Admin | Bridge ➔ n8n | Resultado de comandos administrativos locales. |
+| `meshcore/admin/repeater/<id>/cmd` | Admin | n8n ➔ Bridge | Comandos remotos a repetidores (`stats-radio`, `neighbors`). |
+| `meshcore/admin/repeater/<id>/status`| Admin | Bridge ➔ n8n | Acuse y resultado del comando remoto a repetidor. |
 
 ---
 
-## ⚡ Inicio Rápido
+## ⚡ Instalación y Despliegue en 1 Comando
 
-### Despliegue Automatizado en 1 Comando (Recomendado en Linux / Armbian):
+### En Linux (Orange Pi / Raspberry Pi / Ubuntu / Debian):
 ```bash
-# Instalación completa desde cero:
 sudo bash install.sh
-
-# O si ya lo tenías instalado, actualizar código sin borrar tu configuración:
-sudo bash install.sh --update
 ```
-*Este comando instala dependencias, configura Mosquitto, detecta el puerto del Heltec y activa el servicio systemd automáticamente.*
 
----
+### En Windows (PowerShell):
+```powershell
+.\install.ps1 -InstallDeps -Run
+```
 
-### Despliegue Manual:
-1. **Instalar dependencias**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-2. **Configurar variables**:
-   ```bash
-   cp .env.example .env
-   ```
-3. **Ejecutar**:
-   ```bash
-   python meshcore_bridge.py
-   ```
-
-Consulta la [Guía de Despliegue](docs/DEPLOYMENT_GUIDE.md) para más detalles.
-
-5. **Para detalles técnicos y flujo de concurrencia**:
-   Consulta la [Explicación del Código](docs/CODE_EXPLANATION.md).
+### Ejecutar Verificación Completa de Calidad:
+```bash
+python .agents/skills/bridge-test-runner/scripts/run_checks.py
+```

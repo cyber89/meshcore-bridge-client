@@ -87,6 +87,7 @@ class TestFuzzingAndEdgeCases(unittest.TestCase):
             # Debe procesarlo sin excepciones no controladas
             try:
                 self.bridge.on_mqtt_message(self.bridge.mqtt_client, None, msg_mock)
+                self.loop.run_until_complete(asyncio.sleep(0.005))
             except Exception as e:
                 self.fail(f"on_mqtt_message falló con payload {raw_bytes}: {e}")
 
