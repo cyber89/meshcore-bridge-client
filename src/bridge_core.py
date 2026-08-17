@@ -441,6 +441,8 @@ class MeshCoreBridge:
         if "LOG_DATA" in ev_type_str or "rf_log" in ev_type_str:
             parsed_log = self.repeater_manager.parse_log_packet(payload_dict.get("raw", payload_obj))
             self.mqtt.publish_safe(config.TOPIC_RX_LOG, json.dumps(parsed_log), qos=0)
+            if self.web_server:
+                self.web_server.broadcast_event(parsed_log)
             return
 
         rssi = payload_dict.get("rssi", -80)
@@ -506,8 +508,16 @@ class MeshCoreBridge:
 
     def _handle_mesh_telemetry_msg(self, payload_dict: dict[str, Any]) -> None:
         if "raw_bytes" in payload_dict and isinstance(payload_dict["raw_bytes"], (bytes, bytearray)):
-            _readings, summary = CayenneLPPDecoder.decode(payload_dict["raw_bytes"])
+            raw_b = bytes(payload_dict["raw_bytes"])
+            _readings, summary = CayenneLPPDecoder.decode(raw_b)
+            payload_dict["raw_hex"] = raw_b.hex()
+            payload_dict.pop("raw_bytes", None)
             payload_dict.update(summary)
+
+        # Sanitizar cualquier otro campo bytes restante
+        for k, v in list(payload_dict.items()):
+            if isinstance(v, (bytes, bytearray)):
+                payload_dict[k] = bytes(v).hex()
 
         payload_dict["timestamp"] = datetime.now(timezone.utc).isoformat()
         evt_json = json.dumps(payload_dict, sort_keys=True)

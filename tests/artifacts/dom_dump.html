@@ -1,0 +1,526 @@
+<!DOCTYPE html><html lang="es"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="MeshCore Web Station - Estación base para mensajería, telemetría LoRa, sniffer de paquetes RF y administración de repetidores en tiempo real.">
+  <meta name="theme-color" content="#0b0f19">
+  <title>MeshCore Web Client - Base Station &amp; RF Analyzer</title>
+  <!-- Favicon SVG Embebido -->
+  <link rel="icon" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'&gt;&lt;text y='.9em' font-size='90'&gt;📻&lt;/text&gt;&lt;/svg&gt;">
+  <link rel="stylesheet" href="/css/app.css">
+  <!-- Leaflet Map CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body class="dark-theme">
+  <div id="app" class="app-layout">
+    <!-- Header Superior -->
+    <header class="app-header" role="banner">
+      <div class="header-left">
+        <div class="logo-badge">
+          <span class="logo-icon" aria-hidden="true">📻</span>
+          <h1 class="logo-title">MeshCore <strong>Station</strong></h1>
+        </div>
+        <div class="connection-status" id="wsStatus" role="status" aria-live="polite">
+          <span class="status-dot connected" aria-hidden="true"></span>
+          <span class="status-text">En Vivo (LoRa)</span>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="header-metrics" role="region" aria-label="Métricas globales de tráfico">
+          <span class="metric-chip" title="Nodos Activos">👥 <strong id="headerNodeCount">2</strong></span>
+          <span class="metric-chip" title="Paquetes Recibidos">📥 <strong id="headerRxCount">208</strong></span>
+          <span class="metric-chip" title="Paquetes Emitidos">📤 <strong id="headerTxCount">11</strong></span>
+          <span class="metric-chip" title="Tasa de Error">⚠️ <strong id="headerErrorRate">0%</strong></span>
+          <span class="metric-chip" title="Cola de Transmisión">⏱️ <strong id="headerQueueDepth">0</strong></span>
+        </div>
+        <button id="themeToggleBtn" class="btn-icon" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema claro u oscuro">🌓</button>
+      </div>
+    </header>
+
+    <!-- Cuerpo Principal -->
+    <div class="app-body">
+      <!-- Barra Lateral de Navegación -->
+      <aside class="app-sidebar" role="navigation" aria-label="Navegación principal">
+        <nav class="nav-tabs" role="tablist">
+          <button class="nav-btn active" role="tab" aria-selected="true" aria-controls="tab-chat" id="navTabChat" data-tab="tab-chat">💬 Mensajería</button>
+          <button class="nav-btn" role="tab" aria-selected="false" aria-controls="tab-map" id="navTabMap" data-tab="tab-map">🗺️ Mapa en Vivo</button>
+          <button class="nav-btn" role="tab" aria-selected="false" aria-controls="tab-nodes" id="navTabNodes" data-tab="tab-nodes">📡 Directorio Nodos</button>
+          <button class="nav-btn" role="tab" aria-selected="false" aria-controls="tab-sniffer" id="navTabSniffer" data-tab="tab-sniffer">🕵️ Sniffer RF (0x88)</button>
+          <button class="nav-btn" role="tab" aria-selected="false" aria-controls="tab-analytics" id="navTabAnalytics" data-tab="tab-analytics">📈 Métricas y Tops</button>
+          <button class="nav-btn" role="tab" aria-selected="false" aria-controls="tab-telemetry" id="navTabTelemetry" data-tab="tab-telemetry">📊 Sensores</button>
+          <button class="nav-btn" role="tab" aria-selected="false" aria-controls="tab-contacts" id="navTabContacts" data-tab="tab-contacts">👥 Contactos y Claves</button>
+          <button class="nav-btn" role="tab" aria-selected="false" aria-controls="tab-logs" id="navTabLogs" data-tab="tab-logs">📜 Consola de Logs</button>
+          <button class="nav-btn" role="tab" aria-selected="false" aria-controls="tab-settings" id="navTabSettings" data-tab="tab-settings">⚙️ Configuración</button>
+        </nav>
+
+        <!-- Selector de Canales / DMs Activos en Vista de Chat -->
+        <div class="channel-selector-card" id="sidebarChannelList" aria-label="Selector de Canales">
+          <div class="section-subtitle">Canales LoRa</div>
+          <ul class="channel-list" id="channelListUi" role="listbox" aria-label="Canales disponibles"><li class="channel-item active">
+        <span class="ch-badge">Ch 0</span>
+        <span class="ch-name">Public / Broadcast</span>
+      </li><li class="channel-item">
+        <span class="ch-badge">Ch 1</span>
+        <span class="ch-name">Canal Secundario 1</span>
+      </li><li class="channel-item">
+        <span class="ch-badge">Ch 2</span>
+        <span class="ch-name">Canal Emergencia</span>
+      </li></ul>
+          <div class="section-subtitle" style="margin-top: 15px;">Mensajes Directos</div>
+          <ul class="channel-list" id="dmListUi" role="listbox" aria-label="Mensajes directos">
+            <li class="empty-hint">No hay DMs recientes</li>
+          </ul>
+        </div>
+      </aside>
+
+      <!-- Área de Contenido Principal -->
+      <main class="app-main" role="main">
+        <!-- Pestaña 1: Mensajería / Chat -->
+        <section id="tab-chat" class="tab-pane active" role="tabpanel" aria-labelledby="navTabChat">
+          <div class="chat-container">
+            <div class="chat-header">
+              <div class="active-target-info">
+                <h2 id="chatActiveTitle">Canal 0 (Público / Broadcast)</h2>
+                <span class="target-sub" id="chatActiveSub">Difusión comunitaria sin cifrado</span>
+              </div>
+              <button class="btn-secondary btn-sm" id="clearChatBtn" aria-label="Limpiar vista de chat">Limpiar Vista</button>
+            </div>
+
+            <!-- Feed de Mensajes -->
+            <div class="chat-messages" id="chatMessageFeed" role="log" aria-live="polite" aria-label="Historial de mensajes de chat">
+              <div class="chat-welcome-card">
+                <h3>Bienvenido a MeshCore Web Station</h3>
+                <p>Monitoreo y emisión en tiempo real a través de la malla LoRa.</p>
+              </div>
+            </div>
+
+            <!-- Caja de Entrada de Mensaje -->
+            <form id="chatInputForm" class="chat-composer" aria-label="Formulario de envío de mensajes">
+              <input type="text" id="chatInputText" placeholder="Escribe un mensaje para transmitir por RF..." autocomplete="off" required="" aria-label="Texto del mensaje a transmitir" style="">
+              <button type="submit" class="btn-primary" id="btnSendMsg" aria-label="Enviar mensaje por radio">
+                <span>Enviar</span> <span aria-hidden="true">🚀</span>
+              </button>
+            </form>
+          </div>
+        </section>
+
+        <!-- Pestaña 2: Mapa GPS en Vivo -->
+        <section id="tab-map" class="tab-pane" role="tabpanel" aria-labelledby="navTabMap">
+          <div class="map-container">
+            <div id="liveGpsMap" class="leaflet-map-canvas leaflet-container leaflet-touch leaflet-fade-anim leaflet-grab leaflet-touch-drag leaflet-touch-zoom" role="region" aria-label="Mapa interactivo de nodos en la malla" tabindex="0" style="position: relative;"><div class="leaflet-pane leaflet-map-pane" style="transform: translate3d(0px, 0px, 0px);"><div class="leaflet-pane leaflet-tile-pane"><div class="leaflet-layer " style="z-index: 1; opacity: 1;"><div class="leaflet-tile-container leaflet-zoom-animated" style="z-index: 19; transform: translate3d(0px, 0px, 0px) scale(1);"><img alt="" src="https://c.tile.openstreetmap.org/4/4/7.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(-171px, -24px, 0px); opacity: 1;"></div></div></div><div class="leaflet-pane leaflet-overlay-pane"></div><div class="leaflet-pane leaflet-shadow-pane"></div><div class="leaflet-pane leaflet-marker-pane"></div><div class="leaflet-pane leaflet-tooltip-pane"></div><div class="leaflet-pane leaflet-popup-pane"></div><div class="leaflet-proxy leaflet-zoom-animated" style="transform: translate3d(1194.67px, 1815.68px, 0px) scale(8);"></div></div><div class="leaflet-control-container"><div class="leaflet-top leaflet-left"><div class="leaflet-control-zoom leaflet-bar leaflet-control"><a class="leaflet-control-zoom-in" href="#" title="Zoom in" role="button" aria-label="Zoom in" aria-disabled="false"><span aria-hidden="true">+</span></a><a class="leaflet-control-zoom-out" href="#" title="Zoom out" role="button" aria-label="Zoom out" aria-disabled="false"><span aria-hidden="true">−</span></a></div></div><div class="leaflet-top leaflet-right"></div><div class="leaflet-bottom leaflet-left"></div><div class="leaflet-bottom leaflet-right"><div class="leaflet-control-attribution leaflet-control"><a href="https://leafletjs.com" title="A JavaScript library for interactive maps"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="12" height="8" viewBox="0 0 12 8" class="leaflet-attribution-flag"><path fill="#4C7BE1" d="M0 0h12v4H0z"></path><path fill="#FFD500" d="M0 4h12v3H0z"></path><path fill="#E0BC00" d="M0 7h12v1H0z"></path></svg> Leaflet</a> <span aria-hidden="true">|</span> © OpenStreetMap</div></div></div></div>
+            <div class="map-overlay-info">
+              <h4>Posiciones en Malla LoRa</h4>
+              <div id="mapNodesList" class="map-nodes-feed"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Pestaña 3: Directorio de Nodos & Repetidores -->
+        <section id="tab-nodes" class="tab-pane" role="tabpanel" aria-labelledby="navTabNodes">
+          <div class="nodes-view-container">
+            <div class="pane-header">
+              <h2>Nodos Detectados en la Malla</h2>
+              <button class="btn-secondary" id="btnRefreshNodes" aria-label="Actualizar lista de nodos">🔄 Actualizar</button>
+            </div>
+            <div class="nodes-grid" id="nodesGridUi" role="region" aria-label="Lista de nodos activos">
+      <div class="node-card">
+        <div class="node-header">
+          <span class="node-name">Alpha Field Sensor</span>
+          <span class="badge-tag">1 Saltos</span>
+        </div>
+        <div class="node-key">a1b2c3d4e5f6</div>
+        <div class="node-stats">
+          <div>📶 RSSI: <strong>-72 dBm</strong></div>
+          <div>📡 SNR: <strong>9.8 dB</strong></div>
+          <div>🔋 Batería: <strong>94%</strong></div>
+          <div>📦 Tráfico: <strong>107 pkts</strong></div>
+        </div>
+        <button class="btn-secondary btn-sm" onclick="window.setDmTarget('a1b2c3d4e5f6', 'Alpha Field Sensor')">Enviar DM 💬</button>
+      </div>
+    
+      <div class="node-card">
+        <div class="node-header">
+          <span class="node-name">Bravo Scout Rover</span>
+          <span class="badge-tag">2 Saltos</span>
+        </div>
+        <div class="node-key">d7e8f9012345</div>
+        <div class="node-stats">
+          <div>📶 RSSI: <strong>-81 dBm</strong></div>
+          <div>📡 SNR: <strong>7.2 dB</strong></div>
+          <div>🔋 Batería: <strong>88%</strong></div>
+          <div>📦 Tráfico: <strong>62 pkts</strong></div>
+        </div>
+        <button class="btn-secondary btn-sm" onclick="window.setDmTarget('d7e8f9012345', 'Bravo Scout Rover')">Enviar DM 💬</button>
+      </div>
+    </div>
+
+            <!-- Consola de Comandos de Repetidores Remotos -->
+            <div class="repeater-cmd-box">
+              <h3>Consola de Administración de Repetidores Remotos</h3>
+              <form id="repeaterCmdForm" class="grid-form" aria-label="Enviar comando a repetidor">
+                <div class="form-group">
+                  <label for="repTarget">Nodo / Repetidor Destino:</label>
+                  <input type="text" id="repTarget" placeholder="ej. feedface0001 o alias" required="" style="">
+                </div>
+                <div class="form-group">
+                  <label for="repAction">Comando RF:</label>
+                  <select id="repAction">
+                    <option value="stats-radio">stats-radio (Métricas RF)</option>
+                    <option value="stats-core">stats-core (Estado Core)</option>
+                    <option value="stats-packets">stats-packets (Contador de Paquetes)</option>
+                    <option value="neighbors">neighbors (Vecinos Directos)</option>
+                    <option value="discover.neighbors">discover.neighbors (Sondeo de Malla)</option>
+                    <option value="log start">log start (Activar Packet Sniffer RF)</option>
+                    <option value="log stop">log stop (Desactivar Packet Sniffer)</option>
+                    <option value="advert">advert (Forzar Anuncio)</option>
+                    <option value="reboot">reboot (Reiniciar Repetidor)</option>
+                  </select>
+                </div>
+                <button type="submit" class="btn-primary" aria-label="Emitir comando RF al repetidor">Enviar Comando RF</button>
+              </form>
+              <div class="console-output" id="repConsoleOutput" role="log" aria-live="polite">Esperando comandos...</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Pestaña 4: Sniffer RF & Analizador de Paquetes (0x88) -->
+        <section id="tab-sniffer" class="tab-pane" role="tabpanel" aria-labelledby="navTabSniffer">
+          <div class="sniffer-view-container">
+            <div class="pane-header">
+              <div>
+                <h2>🕵️ RF Packet Sniffer &amp; Analizador Wire</h2>
+                <span class="target-sub">Captura e inspección profunda de tramas LoRa en el aire (Opcode 0x88)</span>
+              </div>
+              <div class="sniffer-controls">
+                <button id="btnToggleSniffer" class="btn-primary" aria-label="Iniciar o detener captura del sniffer">▶ Iniciar Sniffer</button>
+                <button id="btnClearSniffer" class="btn-secondary" aria-label="Limpiar tabla de tramas capturadas">🗑️ Limpiar</button>
+              </div>
+            </div>
+
+            <!-- Barra de Filtros del Sniffer -->
+            <div class="filter-toolbar" role="search" aria-label="Filtros de tramas capturadas">
+              <div class="filter-item">
+                <label for="filterSnifferType">Tipo de Carga Útil:</label>
+                <select id="filterSnifferType">
+                  <option value="ALL">Todos los tipos</option>
+                  <option value="TXT_MSG">TXT_MSG (Mensajes de texto)</option>
+                  <option value="GRP_DATA">GRP_DATA (CayenneLPP / Sensores)</option>
+                  <option value="TELEMETRY">TELEMETRY (Batería / Estado)</option>
+                  <option value="ADVERT">ADVERT (Anuncios de presencia)</option>
+                  <option value="ACK">ACK (Acuses de entrega)</option>
+                  <option value="REQ">REQ / RESP (RPC Remoto)</option>
+                </select>
+              </div>
+              <div class="filter-item">
+                <label for="filterSnifferNode">Filtrar por Nodo:</label>
+                <input type="text" id="filterSnifferNode" placeholder="ej. feedface o broadcast" style="">
+              </div>
+              <div class="filter-item">
+                <label for="filterSnifferRoute">Enrutamiento:</label>
+                <select id="filterSnifferRoute">
+                  <option value="ALL">Todas las rutas</option>
+                  <option value="FLOOD">FLOOD (Inundación)</option>
+                  <option value="DIRECT">DIRECT (Directo)</option>
+                  <option value="DISCOVERY">DISCOVERY (Exploración)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Tabla de Captura en Vivo -->
+            <div class="table-card" role="region" aria-label="Tabla de paquetes capturados en el aire">
+              <table class="data-table" id="snifferDataTable">
+                <thead>
+                  <tr>
+                    <th scope="col">Hora</th>
+                    <th scope="col">Ruta</th>
+                    <th scope="col">Tipo Payload</th>
+                    <th scope="col">Remitente</th>
+                    <th scope="col">Saltos</th>
+                    <th scope="col">Longitud</th>
+                    <th scope="col">RSSI / SNR</th>
+                    <th scope="col">Hex Dump / Contenido</th>
+                  </tr>
+                </thead>
+                <tbody id="snifferTableBody">
+                  <tr class="empty-row"><td colspan="8">Esperando capturas de tramas en el aire...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- Pestaña 5: Métricas Avanzadas y Tops de Rendimiento -->
+        <section id="tab-analytics" class="tab-pane" role="tabpanel" aria-labelledby="navTabAnalytics">
+          <div class="analytics-view-container">
+            <div class="pane-header">
+              <h2>📈 Tablero de Métricas Avanzadas &amp; Estadísticas</h2>
+              <button class="btn-secondary" id="btnRefreshAnalytics" aria-label="Refrescar métricas analíticas">🔄 Actualizar Métricas</button>
+            </div>
+
+            <!-- Tarjetas KPI -->
+            <div class="kpi-grid" role="region" aria-label="Tarjetas de rendimiento clave">
+              <div class="kpi-card">
+                <span class="kpi-title">📦 Total Paquetes (Tráfico)</span>
+                <span class="kpi-value" id="kpiTotalPackets">169</span>
+                <span class="kpi-sub" id="kpiRxTxSplit">RX: 167 | TX: 2</span>
+              </div>
+              <div class="kpi-card">
+                <span class="kpi-title">👥 Nodos Activos</span>
+                <span class="kpi-value" id="kpiActiveNodes">2</span>
+                <span class="kpi-sub">En red mesh</span>
+              </div>
+              <div class="kpi-card">
+                <span class="kpi-title">⚠️ Tasa de Error Global</span>
+                <span class="kpi-value" id="kpiGlobalErrorRate">0%</span>
+                <span class="kpi-sub" id="kpiTotalErrorsCount">0 errores registrados</span>
+              </div>
+              <div class="kpi-card">
+                <span class="kpi-title">📶 Calidad de Enlace Promedio</span>
+                <span class="kpi-value" id="kpiAvgSnr">-- dB</span>
+                <span class="kpi-sub" id="kpiAvgRssi">RSSI Promedio: -- dBm</span>
+              </div>
+            </div>
+
+            <!-- Grids de Tops -->
+            <div class="analytics-split-grid">
+              <!-- Top Nodos por Tráfico -->
+              <div class="card-box">
+                <div class="pane-header">
+                  <h3>🏆 Top 10 Nodos por Tráfico</h3>
+                </div>
+                <div class="leaderboard-list" id="topTrafficNodesList" role="list">
+            <div class="leaderboard-item">
+              <span class="leaderboard-rank">#1</span>
+              <span style="font-weight:600; width:120px;">Alpha Field Sensor</span>
+              <div class="progress-bar-container">
+                <div class="progress-bar-fill" style="width: 100%"></div>
+              </div>
+              <span><strong>107</strong> pkts (RX:105/TX:2)</span>
+            </div>
+          
+            <div class="leaderboard-item">
+              <span class="leaderboard-rank">#2</span>
+              <span style="font-weight:600; width:120px;">Bravo Scout Rover</span>
+              <div class="progress-bar-container">
+                <div class="progress-bar-fill" style="width: 58%"></div>
+              </div>
+              <span><strong>62</strong> pkts (RX:62/TX:0)</span>
+            </div>
+          </div>
+              </div>
+
+              <!-- Top Repetidores por Clientes Conectados -->
+              <div class="card-box">
+                <div class="pane-header">
+                  <h3>🌐 Top Repetidores por Clientes / Vecinos</h3>
+                </div>
+                <div class="leaderboard-list" id="topRepeatersList" role="list">
+          <div class="leaderboard-item">
+            <span class="leaderboard-rank">#1</span>
+            <span style="font-weight:600;">Alpha Field Sensor</span>
+            <span class="badge-tag">0 clientes conectados</span>
+          </div>
+        
+          <div class="leaderboard-item">
+            <span class="leaderboard-rank">#2</span>
+            <span style="font-weight:600;">Bravo Scout Rover</span>
+            <span class="badge-tag">0 clientes conectados</span>
+          </div>
+        </div>
+              </div>
+
+              <!-- Top Calidad de Señal -->
+              <div class="card-box">
+                <div class="pane-header">
+                  <h3>📶 Ranking de Calidad de Señal (SNR / RSSI)</h3>
+                </div>
+                <div class="leaderboard-list" id="topSignalNodesList" role="list">
+          <div class="leaderboard-item">
+            <span class="leaderboard-rank">#1</span>
+            <span>Alpha Field Sensor</span>
+            <span>SNR: <strong>9.8 dB</strong> | RSSI: -72 dBm</span>
+          </div>
+        
+          <div class="leaderboard-item">
+            <span class="leaderboard-rank">#2</span>
+            <span>Bravo Scout Rover</span>
+            <span>SNR: <strong>7.2 dB</strong> | RSSI: -81 dBm</span>
+          </div>
+        </div>
+              </div>
+
+              <!-- Top Errores por Categoría -->
+              <div class="card-box">
+                <div class="pane-header">
+                  <h3>🚨 Desglose de Errores por Categoría</h3>
+                </div>
+                <div class="leaderboard-list" id="topErrorsList" role="list"><div class="empty-state" style="color:var(--accent-emerald)">0 errores detectados. Operación estable al 100%.</div></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Pestaña 6: Sensores Ambientales / CayenneLPP -->
+        <section id="tab-telemetry" class="tab-pane" role="tabpanel" aria-labelledby="navTabTelemetry">
+          <div class="telemetry-view-container">
+            <div class="pane-header">
+              <h2>Telemetría Ambiental (IPSO CayenneLPP)</h2>
+              <span class="badge-tag">Decodificación en Tiempo Real</span>
+            </div>
+            <div class="telemetry-cards-grid" id="telemetryGridUi" role="region" aria-label="Tarjetas de sensores ambientales">
+              <div class="empty-state">Esperando tramas de telemetría en el aire...</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Pestaña 7: Contactos y Gestión de Canales Cifrados -->
+        <section id="tab-contacts" class="tab-pane" role="tabpanel" aria-labelledby="navTabContacts">
+          <div class="contacts-view-container">
+            <div class="split-columns">
+              <!-- Columna Contactos -->
+              <div class="card-box">
+                <div class="pane-header">
+                  <h3>Libreta de Contactos</h3>
+                </div>
+                <form id="addContactForm" class="compact-form" aria-label="Formulario para guardar contacto">
+                  <input type="text" id="contactPubKey" placeholder="Clave Pública Hex (ej. feedfacecafe0001)" required="" aria-label="Clave pública del nodo" style="">
+                  <input type="text" id="contactName" placeholder="Nombre amigable (ej. Base Montaña)" aria-label="Nombre amigable del nodo" style="">
+                  <input type="text" id="contactAlias" placeholder="Alias corto (ej. Repeater_1)" aria-label="Alias del nodo" style="">
+                  <button type="submit" class="btn-primary btn-block">Guardar Contacto</button>
+                </form>
+                <div class="contacts-list" id="contactsListContainer" role="list">
+      <div class="stat-item">
+        <div>
+          <strong>Alpha Field Sensor</strong>
+          <div style="font-size:0.75rem; color:var(--text-muted); font-family:monospace;">a1b2c3d4e5f6</div>
+        </div>
+        <button class="btn-secondary btn-sm" onclick="window.setDmTarget('a1b2c3d4e5f6', 'Alpha Field Sensor')">Chat</button>
+      </div>
+    
+      <div class="stat-item">
+        <div>
+          <strong>Bravo Scout Rover</strong>
+          <div style="font-size:0.75rem; color:var(--text-muted); font-family:monospace;">d7e8f9012345</div>
+        </div>
+        <button class="btn-secondary btn-sm" onclick="window.setDmTarget('d7e8f9012345', 'Bravo Scout Rover')">Chat</button>
+      </div>
+    </div>
+              </div>
+
+              <!-- Columna Canales Cifrados -->
+              <div class="card-box">
+                <div class="pane-header">
+                  <h3>Canales Privados (Cifrado AES)</h3>
+                </div>
+                <form id="addChannelForm" class="compact-form" aria-label="Formulario para configurar canal cifrado">
+                  <select id="chIndexSelect" aria-label="Seleccionar índice de canal">
+                    <option value="1">Canal 1</option>
+                    <option value="2">Canal 2</option>
+                    <option value="3">Canal 3</option>
+                    <option value="4">Canal 4</option>
+                    <option value="5">Canal 5</option>
+                    <option value="6">Canal 6</option>
+                    <option value="7">Canal 7</option>
+                  </select>
+                  <input type="text" id="chNameInput" placeholder="Nombre del Canal (ej. Operaciones)" required="" aria-label="Nombre descriptivo del canal" style="">
+                  <input type="password" id="chPskInput" placeholder="Clave de Cifrado PSK / AES" aria-label="Clave de cifrado PSK o AES" style="">
+                  <button type="submit" class="btn-primary btn-block">Guardar Canal</button>
+                </form>
+                <div class="channels-detail-list" id="channelsDetailContainer" role="list">
+        <div class="stat-item">
+          <span><strong>Ch 0:</strong> Public / Broadcast</span>
+          <span class="badge-tag">Público</span>
+        </div>
+      
+        <div class="stat-item">
+          <span><strong>Ch 1:</strong> Canal Secundario 1</span>
+          <span class="badge-tag">Cifrado</span>
+        </div>
+      
+        <div class="stat-item">
+          <span><strong>Ch 2:</strong> Canal Emergencia</span>
+          <span class="badge-tag">Cifrado</span>
+        </div>
+      </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Pestaña 8: Consola de Logs del Sistema -->
+        <section id="tab-logs" class="tab-pane" role="tabpanel" aria-labelledby="navTabLogs">
+          <div class="logs-view-container">
+            <div class="pane-header">
+              <div>
+                <h2>📜 Consola de Logs del Sistema</h2>
+                <span class="target-sub">Flujo de depuración, transacciones seriales y eventos del bridge en vivo</span>
+              </div>
+              <div class="logs-actions">
+                <button id="btnExportLogs" class="btn-secondary" aria-label="Descargar historial de logs en JSON">📥 Descargar Logs (.json)</button>
+                <button id="btnClearLogs" class="btn-secondary" aria-label="Limpiar pantalla de logs">🗑️ Limpiar</button>
+              </div>
+            </div>
+
+            <!-- Filtros de Logs -->
+            <div class="logs-filter-bar" role="search" aria-label="Filtros de registros de sistema">
+              <div class="level-chips" role="group" aria-label="Filtrar por nivel de log">
+                <button class="chip active" data-level="ALL" aria-pressed="true">TODOS</button>
+                <button class="chip" data-level="INFO" aria-pressed="false">INFO</button>
+                <button class="chip" data-level="WARN" aria-pressed="false">WARN</button>
+                <button class="chip" data-level="ERROR" aria-pressed="false">ERROR</button>
+              </div>
+              <input type="text" id="logSearchInput" placeholder="Buscar en logs..." aria-label="Buscar en contenido de logs" style="">
+              <label class="checkbox-label">
+                <input type="checkbox" id="autoScrollLogs" checked="" style=""> Auto-scroll
+              </label>
+            </div>
+
+            <!-- Ventana Terminal de Logs -->
+            <div class="terminal-window" id="terminalLogFeed" role="log" aria-live="polite" aria-label="Terminal de eventos del sistema"><div class="log-line info"><span class="log-timestamp">[6:32:06 PM]</span> [INFO] Conexión WebSocket establecida con el bridge.</div></div>
+          </div>
+        </section>
+
+        <!-- Pestaña 9: Configuración del Sistema -->
+        <section id="tab-settings" class="tab-pane" role="tabpanel" aria-labelledby="navTabSettings">
+          <div class="settings-view-container">
+            <div class="pane-header">
+              <h2>Parámetros de la Radio y Bridge</h2>
+            </div>
+            <div class="settings-grid">
+              <div class="card-box">
+                <h3>Configuración de Radio Local</h3>
+                <form id="localRadioForm" class="stacked-form" aria-label="Ajustes de radio local">
+                  <div class="form-group">
+                    <label for="localNodeName">Nombre del Nodo Local:</label>
+                    <input type="text" id="localNodeName" placeholder="Heltec_Base_Station" style="">
+                  </div>
+                  <div class="form-group">
+                    <label for="localTxPower">Potencia TX LoRa (dBm):</label>
+                    <input type="number" id="localTxPower" min="2" max="22" value="20" style="">
+                  </div>
+                  <button type="submit" class="btn-primary" aria-label="Guardar parámetros en radio">Guardar en Radio</button>
+                  <button type="button" id="btnRebootRadio" class="btn-danger" style="margin-top: 10px;" aria-label="Reiniciar hardware de radio local">Reiniciar Transceptor LoRa</button>
+                </form>
+              </div>
+
+              <div class="card-box">
+                <h3>Diagnóstico de Salud del Sistema</h3>
+                <div class="system-stats-list" id="systemHealthStats">
+                  <div class="stat-item"><span>Estado:</span> <strong id="diagBridgeStatus">online</strong></div>
+                  <div class="stat-item"><span>Puerto Serial:</span> <strong id="diagSerialPort">AUTO</strong></div>
+                  <div class="stat-item"><span>Conexión MQTT:</span> <strong id="diagMqttConnected">Desconectado</strong></div>
+                  <div class="stat-item"><span>Buffer SQLite Offline:</span> <strong id="diagBufferCount">411</strong></div>
+                  <div class="stat-item"><span>Uptime:</span> <strong id="diagUptime">415s</strong></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+
+
+</body></html>
