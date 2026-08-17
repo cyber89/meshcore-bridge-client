@@ -126,16 +126,7 @@ class MeshCoreWebServer:
 
             # 2. Manejo de CORS Preflight (OPTIONS)
             if method == "OPTIONS":
-                writer.write(
-                    b"HTTP/1.1 204 No Content\r\n"
-                    b"Access-Control-Allow-Origin: *\r\n"
-                    b"Access-Control-Allow-Methods: GET, POST, OPTIONS, DELETE\r\n"
-                    b"Access-Control-Allow-Headers: Content-Type, Authorization\r\n"
-                    b"Access-Control-Max-Age: 86400\r\n"
-                    b"Connection: close\r\n\r\n"
-                )
-                await writer.drain()
-                writer.close()
+                await self._handle_cors_preflight(writer)
                 return
 
             # 3. Leer cuerpo si existe Content-Length (con límite de tamaño para prevenir DoS)
@@ -156,25 +147,10 @@ class MeshCoreWebServer:
 
             # 4. Manejo de API REST con Cabeceras de Seguridad
             if path.startswith("/api/"):
-                status_code, resp_json = await self.router.handle_request(method, path, body_dict)
-                resp_bytes = json.dumps(resp_json, indent=2).encode("utf-8")
-                writer.write(
-                    f"HTTP/1.1 {status_code} OK\r\n"
-                    f"Content-Type: application/json; charset=utf-8\r\n"
-                    f"Content-Length: {len(resp_bytes)}\r\n"
-                    f"Access-Control-Allow-Origin: *\r\n"
-                    f"Access-Control-Allow-Methods: GET, POST, OPTIONS, DELETE\r\n"
-                    f"Access-Control-Allow-Headers: Content-Type\r\n"
-                    f"X-Content-Type-Options: nosniff\r\n"
-                    f"X-Frame-Options: DENY\r\n"
-                    f"Referrer-Policy: strict-origin-when-cross-origin\r\n"
-                    f"Connection: close\r\n\r\n".encode() + resp_bytes
-                )
-                await writer.drain()
-                writer.close()
+                await self._handle_api_response(writer, method, path, body_dict)
                 return
 
-            # 4. Servir archivos estáticos (HTML, CSS, JS)
+            # 5. Servir archivos estáticos (HTML, CSS, JS)
             await self._serve_static_file(writer, path)
 
         except Exception as e:
@@ -183,6 +159,42 @@ class MeshCoreWebServer:
                 writer.close()
             except Exception:
                 pass
+
+    async def _handle_cors_preflight(self, writer: asyncio.StreamWriter) -> None:
+        writer.write(
+            b"HTTP/1.1 204 No Content\r\n"
+            b"Access-Control-Allow-Origin: *\r\n"
+            b"Access-Control-Allow-Methods: GET, POST, OPTIONS, DELETE\r\n"
+            b"Access-Control-Allow-Headers: Content-Type, Authorization\r\n"
+            b"Access-Control-Max-Age: 86400\r\n"
+            b"Connection: close\r\n\r\n"
+        )
+        await writer.drain()
+        writer.close()
+
+    async def _handle_api_response(
+        self,
+        writer: asyncio.StreamWriter,
+        method: str,
+        path: str,
+        body_dict: dict[str, Any],
+    ) -> None:
+        status_code, resp_json = await self.router.handle_request(method, path, body_dict)
+        resp_bytes = json.dumps(resp_json, indent=2).encode("utf-8")
+        writer.write(
+            f"HTTP/1.1 {status_code} OK\r\n"
+            f"Content-Type: application/json; charset=utf-8\r\n"
+            f"Content-Length: {len(resp_bytes)}\r\n"
+            f"Access-Control-Allow-Origin: *\r\n"
+            f"Access-Control-Allow-Methods: GET, POST, OPTIONS, DELETE\r\n"
+            f"Access-Control-Allow-Headers: Content-Type\r\n"
+            f"X-Content-Type-Options: nosniff\r\n"
+            f"X-Frame-Options: DENY\r\n"
+            f"Referrer-Policy: strict-origin-when-cross-origin\r\n"
+            f"Connection: close\r\n\r\n".encode() + resp_bytes
+        )
+        await writer.drain()
+        writer.close()
 
     async def _handle_websocket_handshake(
         self,

@@ -1,6 +1,6 @@
 """
 CayenneLPP Environmental Sensor Decoder for MeshCore Bridge.
-Decodificador determinista y ligero para el estándar IPSO Cayenne Low Power Payload (LPP).
+Decodificador determinista y modular para el estándar IPSO Cayenne Low Power Payload (LPP).
 Soporta canales ambientales: Temperatura, Humedad, Barómetro, Voltaje, GPS y Acelerómetro.
 """
 
@@ -41,8 +41,119 @@ class SensorReading:
     unit: str
 
 
+def _decode_digital_io(stream: io.BytesIO, channel: int, type_val: int, summary: dict[str, Any]) -> SensorReading | None:
+    raw = stream.read(1)
+    if len(raw) < 1:
+        return None
+    val_int = int(raw[0])
+    name = "digital_in" if type_val == LppDataType.DIGITAL_INPUT else "digital_out"
+    summary[f"ch_{channel}_{name}"] = val_int
+    return SensorReading(channel, type_val, name, val_int, "")
+
+
+def _decode_analog_io(stream: io.BytesIO, channel: int, type_val: int, summary: dict[str, Any]) -> SensorReading | None:
+    raw = stream.read(2)
+    if len(raw) < 2:
+        return None
+    raw_val = struct.unpack(">h", raw)[0]
+    val_float = round(raw_val * 0.01, 2)
+    name = "analog_in" if type_val == LppDataType.ANALOG_INPUT else "analog_out"
+    summary[f"ch_{channel}_{name}"] = val_float
+    return SensorReading(channel, type_val, name, val_float, "V")
+
+
+def _decode_scalar_sensors(stream: io.BytesIO, channel: int, type_val: int, summary: dict[str, Any]) -> SensorReading | None:
+    if type_val == LppDataType.ILLUMINANCE:
+        raw = stream.read(2)
+        if len(raw) < 2:
+            return None
+        val_int = int(struct.unpack(">H", raw)[0])
+        summary[f"ch_{channel}_illuminance_lux"] = val_int
+        return SensorReading(channel, type_val, "illuminance", val_int, "lux")
+
+    if type_val == LppDataType.PRESENCE:
+        raw = stream.read(1)
+        if len(raw) < 1:
+            return None
+        val_bool = bool(raw[0] > 0)
+        summary[f"ch_{channel}_presence"] = val_bool
+        return SensorReading(channel, type_val, "presence", val_bool, "")
+
+    if type_val == LppDataType.TEMPERATURE:
+        raw = stream.read(2)
+        if len(raw) < 2:
+            return None
+        val_temp = round(struct.unpack(">h", raw)[0] * 0.1, 1)
+        summary["temperature_c"] = val_temp
+        summary[f"ch_{channel}_temperature_c"] = val_temp
+        return SensorReading(channel, type_val, "temperature", val_temp, "°C")
+
+    if type_val == LppDataType.HUMIDITY:
+        raw = stream.read(1)
+        if len(raw) < 1:
+            return None
+        val_hum = round(raw[0] * 0.5, 1)
+        summary["humidity_pct"] = val_hum
+        summary[f"ch_{channel}_humidity_pct"] = val_hum
+        return SensorReading(channel, type_val, "humidity", val_hum, "%")
+
+    if type_val == LppDataType.BAROMETER:
+        raw = stream.read(2)
+        if len(raw) < 2:
+            return None
+        val_baro = round(struct.unpack(">H", raw)[0] * 0.1, 1)
+        summary["pressure_hpa"] = val_baro
+        summary[f"ch_{channel}_pressure_hpa"] = val_baro
+        return SensorReading(channel, type_val, "barometer", val_baro, "hPa")
+
+    if type_val == LppDataType.VOLTAGE:
+        raw = stream.read(2)
+        if len(raw) < 2:
+            return None
+        val_volt = round(struct.unpack(">H", raw)[0] * 0.01, 2)
+        summary["voltage_v"] = val_volt
+        summary[f"ch_{channel}_voltage_v"] = val_volt
+        return SensorReading(channel, type_val, "voltage", val_volt, "V")
+
+    if type_val == LppDataType.PERCENTAGE:
+        raw = stream.read(1)
+        if len(raw) < 1:
+            return None
+        val_pct = int(raw[0])
+        summary["battery_pct"] = val_pct
+        summary[f"ch_{channel}_percentage"] = val_pct
+        return SensorReading(channel, type_val, "percentage", val_pct, "%")
+
+    return None
+
+
+def _decode_multiaxis_or_gps(stream: io.BytesIO, channel: int, type_val: int, summary: dict[str, Any]) -> SensorReading | None:
+    if type_val == LppDataType.ACCELEROMETER:
+        raw = stream.read(6)
+        if len(raw) < 6:
+            return None
+        x, y, z = struct.unpack(">hhh", raw)
+        val_accel = {"x": round(x * 0.001, 3), "y": round(y * 0.001, 3), "z": round(z * 0.001, 3)}
+        summary[f"ch_{channel}_accel_g"] = val_accel
+        return SensorReading(channel, type_val, "accelerometer", val_accel, "G")
+
+    if type_val == LppDataType.GPS_LOCATION:
+        raw = stream.read(9)
+        if len(raw) < 9:
+            return None
+        lat = round(int.from_bytes(raw[0:3], byteorder="big", signed=True) / 10000.0, 4)
+        lon = round(int.from_bytes(raw[3:6], byteorder="big", signed=True) / 10000.0, 4)
+        alt = round(int.from_bytes(raw[6:9], byteorder="big", signed=True) / 100.0, 2)
+        gps_data = {"latitude": lat, "longitude": lon, "altitude_m": alt}
+        summary["gps"] = gps_data
+        summary[f"ch_{channel}_gps"] = gps_data
+        return SensorReading(channel, type_val, "gps", gps_data, "deg/m")
+
+    return None
+
+
 class CayenneLPPDecoder:
-    """Decodificador de tramas binarias CayenneLPP hacia diccionarios y lecturas tipadas."""
+    """Decodificador modular de tramas binarias CayenneLPP hacia diccionarios y lecturas tipadas."""
 
     @staticmethod
     def decode(data: bytes | bytearray) -> tuple[list[SensorReading], dict[str, Any]]:
@@ -66,127 +177,17 @@ class CayenneLPPDecoder:
             type_val = type_bytes[0]
 
             try:
-                if type_val == LppDataType.DIGITAL_INPUT:
-                    raw = stream.read(1)
-                    if len(raw) < 1:
-                        break
-                    val_int = int(raw[0])
-                    reading = SensorReading(channel, type_val, "digital_in", val_int, "")
-                    summary[f"ch_{channel}_digital_in"] = val_int
-
-                elif type_val == LppDataType.DIGITAL_OUTPUT:
-                    raw = stream.read(1)
-                    if len(raw) < 1:
-                        break
-                    val_int = int(raw[0])
-                    reading = SensorReading(channel, type_val, "digital_out", val_int, "")
-                    summary[f"ch_{channel}_digital_out"] = val_int
-
+                reading: SensorReading | None = None
+                if type_val in (LppDataType.DIGITAL_INPUT, LppDataType.DIGITAL_OUTPUT):
+                    reading = _decode_digital_io(stream, channel, type_val, summary)
                 elif type_val in (LppDataType.ANALOG_INPUT, LppDataType.ANALOG_OUTPUT):
-                    raw = stream.read(2)
-                    if len(raw) < 2:
-                        break
-                    raw_val = struct.unpack(">h", raw)[0]
-                    val_float = round(raw_val * 0.01, 2)
-                    name = "analog_in" if type_val == LppDataType.ANALOG_INPUT else "analog_out"
-                    reading = SensorReading(channel, type_val, name, val_float, "V")
-                    summary[f"ch_{channel}_{name}"] = val_float
-
-                elif type_val == LppDataType.ILLUMINANCE:
-                    raw = stream.read(2)
-                    if len(raw) < 2:
-                        break
-                    val_int = int(struct.unpack(">H", raw)[0])
-                    reading = SensorReading(channel, type_val, "illuminance", val_int, "lux")
-                    summary[f"ch_{channel}_illuminance_lux"] = val_int
-
-                elif type_val == LppDataType.PRESENCE:
-                    raw = stream.read(1)
-                    if len(raw) < 1:
-                        break
-                    val_bool = bool(raw[0] > 0)
-                    reading = SensorReading(channel, type_val, "presence", val_bool, "")
-                    summary[f"ch_{channel}_presence"] = val_bool
-
-                elif type_val == LppDataType.TEMPERATURE:
-                    raw = stream.read(2)
-                    if len(raw) < 2:
-                        break
-                    raw_val = struct.unpack(">h", raw)[0]
-                    val_temp = round(raw_val * 0.1, 1)
-                    reading = SensorReading(channel, type_val, "temperature", val_temp, "°C")
-                    summary["temperature_c"] = val_temp
-                    summary[f"ch_{channel}_temperature_c"] = val_temp
-
-                elif type_val == LppDataType.HUMIDITY:
-                    raw = stream.read(1)
-                    if len(raw) < 1:
-                        break
-                    val_hum = round(raw[0] * 0.5, 1)
-                    reading = SensorReading(channel, type_val, "humidity", val_hum, "%")
-                    summary["humidity_pct"] = val_hum
-                    summary[f"ch_{channel}_humidity_pct"] = val_hum
-
-                elif type_val == LppDataType.BAROMETER:
-                    raw = stream.read(2)
-                    if len(raw) < 2:
-                        break
-                    raw_val = struct.unpack(">H", raw)[0]
-                    val_baro = round(raw_val * 0.1, 1)
-                    reading = SensorReading(channel, type_val, "barometer", val_baro, "hPa")
-                    summary["pressure_hpa"] = val_baro
-                    summary[f"ch_{channel}_pressure_hpa"] = val_baro
-
-                elif type_val == LppDataType.ACCELEROMETER:
-                    raw = stream.read(6)
-                    if len(raw) < 6:
-                        break
-                    x, y, z = struct.unpack(">hhh", raw)
-                    val_accel = {
-                        "x": round(x * 0.001, 3),
-                        "y": round(y * 0.001, 3),
-                        "z": round(z * 0.001, 3),
-                    }
-                    reading = SensorReading(channel, type_val, "accelerometer", val_accel, "G")
-                    summary[f"ch_{channel}_accel_g"] = val_accel
-
-                elif type_val == LppDataType.VOLTAGE:
-                    raw = stream.read(2)
-                    if len(raw) < 2:
-                        break
-                    raw_val = struct.unpack(">H", raw)[0]
-                    val_volt = round(raw_val * 0.01, 2)
-                    reading = SensorReading(channel, type_val, "voltage", val_volt, "V")
-                    summary["voltage_v"] = val_volt
-                    summary[f"ch_{channel}_voltage_v"] = val_volt
-
-                elif type_val == LppDataType.PERCENTAGE:
-                    raw = stream.read(1)
-                    if len(raw) < 1:
-                        break
-                    val_pct = int(raw[0])
-                    reading = SensorReading(channel, type_val, "percentage", val_pct, "%")
-                    summary["battery_pct"] = val_pct
-                    summary[f"ch_{channel}_percentage"] = val_pct
-
-                elif type_val == LppDataType.GPS_LOCATION:
-                    raw = stream.read(9)
-                    if len(raw) < 9:
-                        break
-                    lat_raw = int.from_bytes(raw[0:3], byteorder="big", signed=True)
-                    lon_raw = int.from_bytes(raw[3:6], byteorder="big", signed=True)
-                    alt_raw = int.from_bytes(raw[6:9], byteorder="big", signed=True)
-
-                    gps_data = {
-                        "latitude": round(lat_raw / 10000.0, 4),
-                        "longitude": round(lon_raw / 10000.0, 4),
-                        "altitude_m": round(alt_raw / 100.0, 2),
-                    }
-                    reading = SensorReading(channel, type_val, "gps", gps_data, "deg/m")
-                    summary["gps"] = gps_data
-                    summary[f"ch_{channel}_gps"] = gps_data
-
+                    reading = _decode_analog_io(stream, channel, type_val, summary)
+                elif type_val in (LppDataType.ACCELEROMETER, LppDataType.GPS_LOCATION):
+                    reading = _decode_multiaxis_or_gps(stream, channel, type_val, summary)
                 else:
+                    reading = _decode_scalar_sensors(stream, channel, type_val, summary)
+
+                if reading is None:
                     reading = SensorReading(channel, type_val, "unknown", None, "")
 
                 readings.append(reading)

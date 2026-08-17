@@ -461,56 +461,59 @@ class MeshCoreBridge:
                 battery_pct=bat_pct,
             )
 
-        is_channel_event = "CHANNEL_MSG" in ev_type_str or (text and channel_idx >= 0 and "DIRECT" not in ev_type_str)
-        is_direct_event = "DIRECT_MSG" in ev_type_str
-
-        if is_channel_event:
-            event_type = "public" if channel_idx == 0 else "channel"
-            evt_payload = {
-                "event_type": event_type,
-                "sender": sender,
-                "sender_name": sender_name,
-                "text": text,
-                "metrics": {"rssi": rssi, "snr": snr},
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
-            evt_json = json.dumps(evt_payload)
-            self.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
-            if channel_idx == 0:
-                self.mqtt.publish_safe(config.TOPIC_RX_PUBLIC, evt_json, qos=0)
-            else:
-                self.mqtt.publish_safe(f"{config.TOPIC_RX_CHANNEL}/ch_{channel_idx}", evt_json, qos=0)
-            if self.web_server:
-                self.web_server.broadcast_event(evt_payload)
-
-        elif is_direct_event:
-            evt_payload = {
-                "event_type": "direct",
-                "sender": sender,
-                "sender_name": sender_name,
-                "text": text,
-                "metrics": {"rssi": rssi, "snr": snr},
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
-            evt_json = json.dumps(evt_payload)
-            self.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
-            self.mqtt.publish_safe(f"{config.TOPIC_RX_DIRECT}/{sender}", evt_json, qos=0)
-            if self.web_server:
-                self.web_server.broadcast_event(evt_payload)
-
+        if "CHANNEL_MSG" in ev_type_str or (text and channel_idx >= 0 and "DIRECT" not in ev_type_str):
+            self._handle_mesh_channel_msg(sender, sender_name, text, channel_idx, rssi, snr)
+        elif "DIRECT_MSG" in ev_type_str:
+            self._handle_mesh_direct_msg(sender, sender_name, text, rssi, snr)
         else:
-            # Evento genérico o telemetría (con decodificación CayenneLPP si hay bytes crudos)
-            if "raw_bytes" in payload_dict and isinstance(payload_dict["raw_bytes"], (bytes, bytearray)):
-                _readings, summary = CayenneLPPDecoder.decode(payload_dict["raw_bytes"])
-                payload_dict.update(summary)
+            self._handle_mesh_telemetry_msg(payload_dict)
 
-            payload_dict["timestamp"] = datetime.now(timezone.utc).isoformat()
-            evt_json = json.dumps(payload_dict, sort_keys=True)
-            self.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
-            if "battery" in payload_dict or "voltage" in payload_dict or "temperature" in payload_dict or "temperature_c" in payload_dict:
-                self.mqtt.publish_safe(config.TOPIC_RX_TELEMETRY, evt_json, qos=0)
-            if self.web_server:
-                self.web_server.broadcast_event(payload_dict)
+    def _handle_mesh_channel_msg(self, sender: str, sender_name: str, text: str, channel_idx: int, rssi: Any, snr: Any) -> None:
+        event_type = "public" if channel_idx == 0 else "channel"
+        evt_payload = {
+            "event_type": event_type,
+            "sender": sender,
+            "sender_name": sender_name,
+            "text": text,
+            "metrics": {"rssi": rssi, "snr": snr},
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        evt_json = json.dumps(evt_payload)
+        self.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
+        if channel_idx == 0:
+            self.mqtt.publish_safe(config.TOPIC_RX_PUBLIC, evt_json, qos=0)
+        else:
+            self.mqtt.publish_safe(f"{config.TOPIC_RX_CHANNEL}/ch_{channel_idx}", evt_json, qos=0)
+        if self.web_server:
+            self.web_server.broadcast_event(evt_payload)
+
+    def _handle_mesh_direct_msg(self, sender: str, sender_name: str, text: str, rssi: Any, snr: Any) -> None:
+        evt_payload = {
+            "event_type": "direct",
+            "sender": sender,
+            "sender_name": sender_name,
+            "text": text,
+            "metrics": {"rssi": rssi, "snr": snr},
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        evt_json = json.dumps(evt_payload)
+        self.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
+        self.mqtt.publish_safe(f"{config.TOPIC_RX_DIRECT}/{sender}", evt_json, qos=0)
+        if self.web_server:
+            self.web_server.broadcast_event(evt_payload)
+
+    def _handle_mesh_telemetry_msg(self, payload_dict: dict[str, Any]) -> None:
+        if "raw_bytes" in payload_dict and isinstance(payload_dict["raw_bytes"], (bytes, bytearray)):
+            _readings, summary = CayenneLPPDecoder.decode(payload_dict["raw_bytes"])
+            payload_dict.update(summary)
+
+        payload_dict["timestamp"] = datetime.now(timezone.utc).isoformat()
+        evt_json = json.dumps(payload_dict, sort_keys=True)
+        self.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
+        if "battery" in payload_dict or "voltage" in payload_dict or "temperature" in payload_dict or "temperature_c" in payload_dict:
+            self.mqtt.publish_safe(config.TOPIC_RX_TELEMETRY, evt_json, qos=0)
+        if self.web_server:
+            self.web_server.broadcast_event(payload_dict)
 
     def on_radio_event(self, event: Any) -> None:
         """Alias para on_mesh_event."""
