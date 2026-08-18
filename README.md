@@ -31,7 +31,7 @@ Puente bidireccional asíncrono, resiliente y de grado industrial para conectar 
 - **Store & Forward Transaccional con TTL**: Persistencia en SQLite en modo `WAL` (`Write-Ahead Logging`), purga por expiración y deduplicación LRU en memoria RAM.
 - **LoRa TX Rate Limiter con Cola de Prioridades**: Espaciado adaptativo según el cálculo analítico de tiempo en el aire LoRa de Semtech (`estimate_lora_airtime_ms`).
 - **Serial Watchdog Activo**: Detección automática de bloqueos silenciosos del puerto USB y autorrecuperación suave.
-- **Suite Exhaustiva de 55 Pruebas Automatizadas (100% Superadas)**: Pruebas unitarias, concurrencia multihilo, simulación de flapping de red, fallas de hardware, fuzzing de payloads y endpoints web.
+- **Suite Exhaustiva de 106 Pruebas Automatizadas (100% Superadas)**: Pruebas unitarias, concurrencia multihilo, simulación de flapping de red, fallas de hardware, fuzzing de payloads, endpoints web, WebSocket en vivo y **E2E con Playwright** (escritorio y móvil).
 
 ---
 
@@ -51,12 +51,16 @@ meshcore-bridge/
 ├── src/                              # Código fuente modular de producción
 │   ├── __init__.py                   # Exportaciones públicas de interfaz v3.0
 │   ├── __main__.py                   # Entrypoint 'python -m src'
-│   ├── bridge_core.py                # Orquestador central MeshCoreBridge
+│   ├── admin_handler.py              # Comandos de administración RF y repetidores remotos
+│   ├── bridge_core.py                # Orquestador central MeshCoreBridge (facade/composition root)
 │   ├── contact_manager.py            # Registro dinámico de nodos, métricas top y libreta
+│   ├── health_reporter.py            # Reporte periódico de salud en meshcore/bridge/health
 │   ├── mqtt_client.py                # Cliente MQTT asíncrono puenteado
+│   ├── mqtt_dispatcher.py            # Despachador de mensajes MQTT entrantes (TX/Admin)
 │   ├── protocol_types.py             # Dataclasses inmutables y tipadas con CRC-16
 │   ├── rate_limiter.py               # Rate Limiter con PriorityQueue y LoRa Airtime
 │   ├── repeater_manager.py           # Gestor de repetidores remotos y RF sniffer
+│   ├── rx_router.py                  # Enrutador de eventos LoRa/RF → MQTT + WebSocket
 │   ├── sensor_decoder.py             # Decodificador CayenneLPP para sensores ambientales
 │   ├── serial_driver.py              # Adaptadores de comunicación serial y Watchdog
 │   ├── store_forward.py              # SQLiteStoreAndForward con TTL y deduplicación
@@ -105,16 +109,36 @@ meshcore-bridge/
 ### En Linux (Orange Pi / Raspberry Pi / Ubuntu / Debian):
 ```bash
 sudo bash install.sh
+# Con tooling de desarrollo/auditoría (pytest, mypy, ruff, bandit, playwright):
+sudo bash install.sh --dev
 ```
 
 ### En Windows (PowerShell):
 ```powershell
 .\install.ps1 -InstallDeps -Run
+# Con tooling de desarrollo/auditoría:
+.\install.ps1 -InstallDev
 ```
 
 ### Ejecutar Verificación Completa de Calidad (`bridge_test_runner`):
 ```bash
 python .agents/skills/bridge-test-runner/scripts/run_checks.py
+```
+
+### Ejecutar Auditorías Especializadas (Seguridad, API, Clean Code, Frontend):
+```bash
+python .agents/skills/security-code-auditor/scripts/run_security_audit.py   # Bandit + SQLi + Traversal + XSS
+python .agents/skills/api-design-testing/scripts/validate_api_contract.py   # Contratos REST y códigos HTTP
+python .agents/skills/clean-code-solid/scripts/detect_code_smells.py       # God Class / Too Many Parameters
+python .agents/skills/html-css-modern-js/scripts/lint_frontend_standards.py # HTML5 / CSS3 / JS moderno
+python .agents/skills/python-patterns-typing/scripts/verify_python_standards.py # Tipado estricto
+```
+
+### Verificar comunicación MQTT end-to-end (broker local):
+```bash
+# 1. Iniciar un broker MQTT local (ej. amqtt) en 127.0.0.1:1883
+# 2. Arrancar el bridge: python run_interactive_demo.py
+# 3. Comprobar /api/status -> "mqtt_connected": true y realizar round-trip en meshcore/tx
 ```
 
 ### Ejecutar Simulación Interactiva en Vivo (Con Nodos Alpha, Bravo y Auto-Echo):

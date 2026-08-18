@@ -13,7 +13,7 @@
 
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-muted: #8494a8;
 
   --accent-cyan: #06b6d4;
   --accent-cyan-hover: #0891b2;
@@ -44,7 +44,7 @@
   --border-subtle: #cbd5e1;
   --text-primary: #0f172a;
   --text-secondary: #475569;
-  --text-muted: #64748b;
+  --text-muted: #475569;
   --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
@@ -448,7 +448,7 @@ body {
 
 .btn-danger {
   background-color: var(--accent-rose);
-  color: white;
+  color: #0b0f19;
   border: none;
   border-radius: var(--radius-md);
   padding: 10px 16px;
@@ -872,6 +872,15 @@ body {
   .header-metrics { display: none; }
 }
 
+@media (max-width: 640px) {
+  .app-header { height: auto; flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
+  .chat-header, .pane-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .chat-composer { flex-direction: column; }
+  .chat-composer .btn-primary { width: 100%; justify-content: center; }
+  .logs-filter-bar { flex-direction: column; align-items: stretch; }
+  .sniffer-controls { width: 100%; }
+}
+
 /* ================= Toast Notification System ================= */
 .toast-container {
   position: fixed;
@@ -918,10 +927,10 @@ body {
   line-height: 1.35;
 }
 
-.toast-success { border-left: 4px solid var(--accent-green); }
-.toast-error { border-left: 4px solid var(--accent-red); }
+.toast-success { border-left: 4px solid var(--accent-emerald); }
+.toast-error { border-left: 4px solid var(--accent-rose); }
 .toast-info { border-left: 4px solid var(--accent-cyan); }
-.toast-warning { border-left: 4px solid var(--accent-yellow); }
+.toast-warning { border-left: 4px solid var(--accent-amber); }
 
 @keyframes slideInToast {
   from {

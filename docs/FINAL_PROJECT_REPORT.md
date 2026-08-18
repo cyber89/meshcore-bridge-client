@@ -165,7 +165,7 @@ La estación web (`http://<IP>:8080`) provee **9 paneles operativos**:
 Ejecutada mediante la skill `security-code-auditor` y validada con `bandit`:
 
 1. **Inmunidad contra Inyección SQL**: 100% de sentencias en `src/store_forward.py` usan consultas preparadas parametrizadas (`?`).
-2. **Aislamiento de Rutas (Directory Traversal)**: Validación estricta con `.resolve()` en `src/web/http_server.py` confinando el acceso a `src/web/static/`.
+2. **Aislamiento de Rutas (Directory Traversal)**: Validación estricta con `.resolve()` en `src/web/http_server.py` confinando el acceso a `src/web/static/`. Además, rechazo explícito `403 Forbidden` de rutas con segmentos `..`, barras inversas `\`, marcadores URL-encoded (`%2e`/`%2f`) y patrones `....`.
 3. **Protección contra Ataques DoS**: Límite estricto `MAX_BODY_SIZE = 1 MB` con respuesta `413 Payload Too Large`.
 4. **Cabeceras de Hardening HTTP**: Inclusión de `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` y `Referrer-Policy: strict-origin-when-cross-origin`.
 5. **Sanitización XSS**: Función obligatoria `escapeHtml()` en `src/web/static/js/app.js` neutralizando código malicioso en el DOM.
@@ -184,17 +184,17 @@ Ejecutada mediante la skill `security-code-auditor` y validada con `bandit`:
   Resumen:  0 advertencias / 0 errores de estilo en src/ y tests/.
 
 [✅ PASS] mypy (Static Type Checker)
-  Resumen:  100% tipado estricto (--strict) en los 14 archivos de producción.
+  Resumen:  100% tipado estricto (--strict) en los 19 archivos de producción.
 
 [✅ PASS] pytest / unittest (Test Runner)
-  Resumen:  58/58 pruebas unitarias, de integración y de seguridad superadas.
+  Resumen:  106/106 pruebas unitarias, de integración, E2E y de seguridad superadas.
 
 [✅ PASS] Skills Custom Validation:
   - python-patterns-typing: 100% funciones con anotaciones de tipo completas.
-  - clean-code-solid: Funciones modulares conformes a SOLID.
+  - clean-code-solid: Refactor aplicado (11 code smells → 2 residuales del facade; API pública intacta).
   - api-design-testing: 100% contratos de endpoints REST verificados.
   - html-css-modern-js: Semántica HTML5 y CSS variables conformes.
-  - security-code-auditor: Cero vulnerabilidades Bandit SAST.
+  - security-code-auditor: Cero vulnerabilidades Bandit SAST, SQLi, Traversal y XSS.
 =================================================================
 ```
 

@@ -28,8 +28,12 @@ flowchart TB
         WATCH -.->|Monitorea inactividad| ADAPTER
     end
 
-    subgraph CoreSubsystem["Orquestador Central (/src/bridge_core.py)"]
-        BRIDGE["MeshCoreBridge (Reactor Asíncrono v3.0)"]
+    subgraph CoreSubsystem["Orquestador Central (/src/bridge_core.py + componentes extraídos)"]
+        BRIDGE["MeshCoreBridge (Facade / Composition Root v3.0)"]
+        RX_ROUTER["RxEventRouter (/src/rx_router.py)"]
+        HEALTH["HealthReporter (/src/health_reporter.py)"]
+        ADMIN["AdminCommandHandler (/src/admin_handler.py)"]
+        MQTT_IN["MqttInboundDispatcher (/src/mqtt_dispatcher.py)"]
         REGISTRY["NodeRegistry (/src/contact_manager.py)"]
         REPEATER["RepeaterManager (/src/repeater_manager.py)"]
         LPP_DEC["CayenneLPPDecoder (/src/sensor_decoder.py)"]
@@ -66,9 +70,13 @@ flowchart TB
     end
 
     ADAPTER <==>|Eventos RX / TX Raw / Sniffer 0x88| BRIDGE
-    BRIDGE <==> REGISTRY
-    BRIDGE <==> REPEATER
-    BRIDGE <==> LPP_DEC
+    BRIDGE <==> RX_ROUTER
+    RX_ROUTER <==> REGISTRY
+    RX_ROUTER <==> REPEATER
+    RX_ROUTER <==> LPP_DEC
+    BRIDGE <==> HEALTH
+    BRIDGE <==> ADMIN
+    BRIDGE <==> MQTT_IN
     BRIDGE <==> TYPES
     BRIDGE <==> DEDUP
     BRIDGE <==> SF_DB
@@ -89,6 +97,8 @@ flowchart TB
 - **Servidor HTTP 1.1 Nativo**: Despacha la aplicación de una sola página (SPA) y los endpoints de la API REST sin requerir frameworks pesados.
 - **WebSocket RFC 6455 Hub**: Canal bidireccional en `/ws/live` para streaming continuo de mensajes entrantes, telemetría y tramas capturadas en el aire.
 - **CORS Preflight**: Soporte completo para peticiones `OPTIONS` retornando `204 No Content`.
+- **Endurecimiento anti Directory Traversal**: Rechazo explícito con `403 Forbidden` de rutas con segmentos `..`, barras inversas `\`, marcadores URL-encoded (`%2e`, `%2f`) o patrones `....`, más verificación canónica de defensa en profundidad con `.resolve().is_relative_to()`; cualquier intento de escape del directorio estático se rechaza en lugar de enmascararse con `index.html`.
+- **Cabeceras de Seguridad Obligatorias**: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` y límite de cuerpo `MAX_BODY_SIZE` de 1 MB contra DoS (`413 Payload Too Large`).
 
 ### 2.2 Enrutador REST API (`src/web/api_router.py`)
 Centraliza las operaciones del cliente web y herramientas externas:
@@ -114,6 +124,22 @@ Mantiene una tabla en memoria con los nodos activos detectados en la malla:
 - Resolución de alias y claves públicas en $O(1)$.
 - Métricas RF asociadas: último SNR, RSSI, número de saltos (`hops`), porcentaje de batería y contadores acumulados de paquetes RX/TX y errores.
 - Cálculo de rankings analíticos en tiempo real (`get_analytics_summary`).
+
+### 2.5 Cliente MQTT Resiliente (`src/mqtt_client.py`)
+- **Reconexión Determinista**: El cliente usa `connect_async()` + `loop_start()` con `reconnect_delay_set(1s..30s)`. El bucle de red de Paho (con `retry_first_connection=True`) reintenta la conexión en segundo plano de forma indefinida, de modo que el bridge se conecta automáticamente aunque el broker estuviera caído en el arranque (sin necesidad de reiniciar el proceso).
+- **Last Will & Testament (LWT)**: Publicación retenida de estado `offline` en `meshcore/bridge/state` al desconectarse; al reconectar publica `online` retenido.
+- **Store & Forward automático**: Si el broker no está disponible, `publish_safe` persiste los mensajes en SQLite (`SQLiteStoreAndForward`) y, al restablecerse la conexión, `flush_offline_buffer` drena la cola en lotes de 50 con backoff. Verificado en producción simulada: 1000 mensajes encolados durante una caída fueron drenados automáticamente al reaparecer el broker.
+- **Modo offline comprobado end-to-end**: Round-trip MQTT real verificado (estado retenido, `meshcore/tx` → RF → `meshcore/tx/status` ACK, y eventos `meshcore/rx/*`).
+
+### 2.6 Componentes Extraídos del Orquestador (Clean Code / SRP)
+La clase `MeshCoreBridge` actuaba como *God Class* (46 métodos). Tras el refactor quedó como un **facade/composition root** delgado que delega en cuatro componentes desacoplados (cada uno con su `*Context` dataclass para evitar constructores largos):
+
+- **`RxEventRouter` (`src/rx_router.py`)**: Enruta eventos LoRa/RF hacia MQTT y WebSocket (`handle_event`, `_handle_mesh_channel_msg`, `_handle_mesh_direct_msg`, `_handle_mesh_telemetry_msg`, `_dispatch_parsed_frame`). Incluye `MeshMessageEvent` (agrupa 6 argumentos) y el Protocol `BridgeCounters` para compartir contadores con el bridge.
+- **`HealthReporter` (`src/health_reporter.py`)**: Publica métricas periódicas en `meshcore/bridge/health` con su propio ciclo `start()/stop()` y `build_payload()`.
+- **`AdminCommandHandler` (`src/admin_handler.py`)**: Ejecuta comandos de administración sobre la radio local y repetidores remotos (antes `handle_admin`).
+- **`MqttInboundDispatcher` (`src/mqtt_dispatcher.py`)**: Procesa mensajes MQTT entrantes de los tópicos `meshcore/tx` y `meshcore/admin/*` (TX request, comandos admin y repetidores remotos).
+
+El bridge conserva delegadores y propiedades de compatibilidad (`on_mesh_event`, `handle_admin`, `mqtt_connected`, `tx_queue`, `mc`, contadores) que preservan la API pública para n8n, WebSocket y las 106 pruebas.
 
 ---
 

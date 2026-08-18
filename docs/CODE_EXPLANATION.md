@@ -144,9 +144,11 @@ En redes LoRa Mesh, cuando un nodo emite un paquete, este puede ser recibido dir
 ## 4. Mecanismos de Alta Disponibilidad y Resiliencia
 
 ### A. Store & Forward Persistente en SQLite (Anti-Caídas y Cortes Eléctricos)
-- Si la conexión TCP con Mosquitto se interrumpe, `publish_mqtt_safe()` encola los paquetes recibidos en la base de datos SQLite local (`meshcore_buffer.db`) configurada en modo **WAL (Write-Ahead Logging)** para alta velocidad y concurrencia.
+- Si la conexión TCP con Mosquitto se interrumpe, `publish_safe()` encola los paquetes recibidos en la base de datos SQLite local (`meshcore_buffer.db`) configurada en modo **WAL (Write-Ahead Logging)** para alta velocidad y concurrencia.
 - Los mensajes **sobreviven a reinicios o cortes de energía** de la máquina anfitriona (Raspberry Pi / Servidor).
-- En cuanto se restablece la conexión MQTT, `_flush_offline_buffer()` despacha en lotes todos los paquetes retenidos en orden cronológico estricto FIFO hacia Mosquitto y n8n, garantizando **cero pérdida de datos**.
+- En cuanto se restablece la conexión MQTT, `flush_offline_buffer()` despacha en lotes todos los paquetes retenidos en orden cronológico estricto FIFO hacia Mosquitto y n8n, garantizando **cero pérdida de datos**.
+- **Reconexión automática al arranque**: el cliente MQTT usa `connect_async()` + `loop_start()` con `reconnect_delay_set(1s..30s)`; si el broker estaba caído al iniciar el proceso, Paho reintenta en segundo plano (`retry_first_connection=True`) y el bridge se conecta sin reiniciar, drenando el buffer acumulado.
+- **API asíncrona**: `SQLiteStoreAndForward` expone métodos `async` (`enqueue`, `count`, `dequeue_batch`, `delete_batch`, `purge_expired`, `is_duplicate`) con sentencias parametrizadas, transacciones WAL y deduplicación en RAM.
 
 ### B. Control de Congestión LoRa (TX Rate Limiter)
 - Las transmisiones RF están reguladas por `_tx_worker()`, que procesa los elementos de `self.tx_queue` espaciando cada emisión por `TX_INTERVAL_SEC` (por defecto 1.0s).
@@ -168,16 +170,60 @@ En redes LoRa Mesh, cuando un nodo emite un paquete, este puede ser recibido dir
 
 ## 5. Suite de Pruebas Automatizadas
 
-El proyecto incluye 14 pruebas automatizadas organizadas en:
+El proyecto incluye **106 pruebas** (unitarias, fuzzing, concurrencia, E2E) organizadas en:
 1. **`test_bridge_logic.py`**: Parsing de caracteres `:`, fallback de texto plano en TX y deduplicación.
-2. **`test_store_and_forward.py`**: Retención persistente en SQLite durante caídas de red, supervivencia a reinicios del proceso y vaciado ordenado FIFO.
-3. **`test_tx_rate_limiter.py`**: Espaciado temporal de paquetes LoRa y emisión de ACKs en `meshcore/tx/status`.
-4. **`test_serial_watchdog.py`**: Detección de bloqueos de hardware y reconexión automática.
+2. **`test_store_and_forward.py`** y **`test_store_forward_modular.py`**: Retención persistente en SQLite durante caídas de red, supervivencia a reinicios del proceso y vaciado ordenado FIFO con la API asíncrona.
+3. **`test_tx_rate_limiter.py`** y **`test_rate_limiter_priority.py`**: Espaciado temporal de paquetes LoRa y emisión de ACKs en `meshcore/tx/status`.
+4. **`test_serial_watchdog.py`** y **`test_serial_adapter.py`**: Detección de bloqueos de hardware y reconexión automática.
 5. **`test_e2e_simulation.py`**: Simulación completa End-to-End de nodo, MQTT y flujos n8n.
-6. **`test_stress_flood.py`**: Pruebas de estrés inyectando 500 paquetes RX y 50 órdenes TX en ráfaga.
+6. **`test_e2e_playwright.py`**: E2E en navegador real (Chromium Headless): envío de chat, auto-echo DM, aislamiento de canales, aislamiento multi-DM y auditoría de errores de consola.
+7. **`test_stress_flood.py`** y **`test_fuzzing_and_edge_cases.py`**: Pruebas de estrés (500 paquetes RX / 50 TX) y fuzzing de tramas corruptas, truncadas y CRC inválidos.
+8. **`test_web_server.py`** y **`test_websocket_live.py`**: Contratos REST y streaming WebSocket en vivo.
+9. **`test_security_audit.py`**: Inyección SQL, Directory Traversal, DoS por payload gigante y cabeceras de seguridad.
+10. **`test_virtual_mesh_simulation.py`** y **`test_concurrency_and_flapping.py`**: Malla virtual con Auto-Echo y caídas/flapping de conexión serial.
+11. **`test_n8n_parser_matrix.py`**, **`test_contact_manager.py`**, **`test_protocol_types.py`**, **`test_sensor_decoder.py`** y **`test_repeater_manager.py`**: Contratos de parser, registro de nodos, tipos binarios, CayenneLPP y repetidores.
 
-Para ejecutar toda la suite:
+Para ejecutar toda la suite con verificación completa (pytest + mypy --strict + ruff):
 ```bash
-python -m unittest discover -s tests -p "test_*.py" -v
+python .agents/skills/bridge-test-runner/scripts/run_checks.py
 ```
+
+---
+
+## 6. Refactor de Clean Code: Componentes Extraídos y Nuevas APIs
+
+Como parte de la auditoría de calidad (`clean-code-solid`), la *God Class* `MeshCoreBridge` (46 métodos) se dividió en **cuatro clases de responsabilidad única** más **cuatro Parameter Objects**. La API pública del bridge se conservó intacta mediante delegadores.
+
+### 6.1 Nuevos módulos y clases
+
+| Módulo | Clase(s) | Responsabilidad | Métodos extraídos de `MeshCoreBridge` |
+| :--- | :--- | :--- | :--- |
+| `src/rx_router.py` | `RxEventRouter` | Enrutamiento LoRa/RF → MQTT + WebSocket | `on_mesh_event`, `_handle_mesh_channel_msg`, `_handle_mesh_direct_msg`, `_handle_mesh_telemetry_msg`, `_dispatch_parsed_frame` |
+| `src/health_reporter.py` | `HealthReporter` | Reporte periódico de salud MQTT | `_health_reporter_loop` |
+| `src/admin_handler.py` | `AdminCommandHandler` | Comandos de administración RF/repetidores | `handle_admin` |
+| `src/mqtt_dispatcher.py` | `MqttInboundDispatcher` | Mensajes MQTT entrantes (TX/Admin) | `_process_mqtt_input`, `_handle_tx_request`, `_handle_admin_request` |
+
+Cada componente recibe sus dependencias mediante un **dataclass de contexto** (`RxRouterContext`, `HealthContext`, `AdminContext`, `MqttInboundContext`), evitando constructores con demasiados parámetros.
+
+### 6.2 Parameter Objects introducidos
+
+| Módulo | Dataclass | Firmas refactorizadas |
+| :--- | :--- | :--- |
+| `src/contact_manager.py` | `NodeContactUpdate`, `PacketRecord` | `add_or_update(public_key, update)` (19→2), `record_packet(event)` (7→1) |
+| `src/rate_limiter.py` | `LoRaRadioConfig` | `estimate_lora_airtime_ms(payload_len_bytes, radio)` (8→2); `TxRateLimiter(radio_config=...)` |
+| `src/store_forward.py` | `StoredMessage` | `enqueue(message: StoredMessage)` (7→1) |
+| `src/mqtt_client.py` | `MQTTConfig` | `AsyncBridgeMQTTClient(config: MQTTConfig, ...)` (9→3) |
+| `src/rx_router.py` | `MeshMessageEvent`, `BridgeCounters` (Protocol) | `_handle_mesh_channel_msg(msg)` (7→2), contadores compartidos |
+
+### 6.3 Refactor de métodos largos en `src/web/http_server.py`
+
+- `_handle_websocket_handshake` (72 → ~38 líneas): la lectura de tramas RFC 6455 se extrajo a `_read_websocket_frame(reader) → tuple[int, bytes] | None`.
+- `_serve_static_file` (71 → ~40 líneas): helpers `_is_traversal_attempt`, `_is_within_static_root`, `_build_http_response`, `_write_http_response`. Se mantiene la cabecera `Cache-Control: public, max-age=3600` original.
+
+### 6.4 Nota de mapeo (dónde vive ahora cada lógica)
+
+- El flujo `on_mesh_event` descrito en §2.C ahora ejecuta `MeshCoreBridge.on_mesh_event → RxEventRouter.handle_event`.
+- El bucle de salud de §4.D ahora es `HealthReporter._loop` (arrancado con `start()`, detenido con `stop()`).
+- `handle_admin` de §2.E delega en `AdminCommandHandler.handle`; los tópicos entrantes `meshcore/tx` y `meshcore/admin/*` se procesan en `MqttInboundDispatcher`.
+- Los contadores `rx_count`, `tx_count`, `tx_error_count`, `serial_reconnect_count` siguen expuestos como atributos del bridge y se comparten vía el Protocol `BridgeCounters`.
 

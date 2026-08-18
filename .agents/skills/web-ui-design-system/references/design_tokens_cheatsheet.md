@@ -15,7 +15,7 @@
   /* Textos */
   --text-primary: #f8fafc;    /* Texto principal (Contraste > 12:1) */
   --text-secondary: #94a3b8;  /* Texto secundario / subtítulos */
-  --text-muted: #64748b;      /* Metadatos y marcas de tiempo */
+  --text-muted: #8494a8;      /* Metadatos y marcas de tiempo (WCAG AA 4.5:1) */
 
   /* Acentos Semánticos */
   --accent-cyan: #06b6d4;     /* Primario / RF / Acciones */
