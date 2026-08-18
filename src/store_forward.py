@@ -6,11 +6,16 @@ y filtrado inteligente de paquetes duplicados.
 
 from __future__ import annotations
 
+import asyncio
 import collections
 import hashlib
 import logging
 import sqlite3
 import time
+from collections.abc import Callable
+from typing import Any, TypeVar
+
+_T = TypeVar("_T")
 
 
 class PacketDeduplicator:
@@ -21,7 +26,7 @@ class PacketDeduplicator:
         self.max_entries = max_entries
         self._cache: collections.OrderedDict[str, float] = collections.OrderedDict()
 
-    def is_duplicate(self, key: str) -> bool:
+    async def is_duplicate(self, key: str) -> bool:
         """Verifica si la clave ha sido vista recientemente dentro de la ventana de tiempo."""
         now = time.time()
         self._prune(now)
@@ -107,7 +112,21 @@ class SQLiteStoreAndForward:
         hasher.update(payload.encode("utf-8"))
         return hasher.hexdigest()[:16]
 
-    def enqueue(
+    async def _run_db(self, func: Callable[..., _T], *args: Any) -> _T:
+        return await asyncio.to_thread(func, *args)
+
+    async def enqueue(
+        self,
+        topic: str,
+        payload: str,
+        qos: int = 0,
+        retain: bool = False,
+        msg_hash: str | None = None,
+        ttl_seconds: float | None = None,
+    ) -> bool:
+        return await self._run_db(self._enqueue, topic, payload, qos, retain, msg_hash, ttl_seconds)
+
+    def _enqueue(
         self,
         topic: str,
         payload: str,
@@ -152,7 +171,10 @@ class SQLiteStoreAndForward:
             logging.error(f"Error encolando en SQLite offline buffer: {e}")
             return False
 
-    def dequeue_batch(self, limit: int = 50) -> list[tuple[int, str, str, int, int]]:
+    async def dequeue_batch(self, limit: int = 50) -> list[tuple[int, str, str, int, int]]:
+        return await self._run_db(self._dequeue_batch, limit)
+
+    def _dequeue_batch(self, limit: int = 50) -> list[tuple[int, str, str, int, int]]:
         """Obtiene un lote de mensajes pendientes no expirados en orden FIFO."""
         now = time.time()
         try:
@@ -170,7 +192,10 @@ class SQLiteStoreAndForward:
             logging.error(f"Error leyendo de SQLite offline buffer: {e}")
             return []
 
-    def delete(self, msg_id: int) -> None:
+    async def delete_batch(self, msg_id: int) -> None:
+        await self._run_db(self._delete_batch, msg_id)
+
+    def _delete_batch(self, msg_id: int) -> None:
         """Elimina un mensaje entregado exitosamente."""
         try:
             with self._get_conn() as conn:
@@ -178,7 +203,10 @@ class SQLiteStoreAndForward:
         except Exception as e:
             logging.error(f"Error eliminando mensaje {msg_id} de SQLite: {e}")
 
-    def purge_expired(self) -> int:
+    async def purge_expired(self) -> int:
+        return await self._run_db(self._purge_expired)
+
+    def _purge_expired(self) -> int:
         """Elimina todos los mensajes cuya fecha de expiración haya pasado."""
         now = time.time()
         try:
@@ -190,7 +218,10 @@ class SQLiteStoreAndForward:
             logging.error(f"Error purgando mensajes expirados: {e}")
             return 0
 
-    def get_size(self) -> int:
+    async def count(self) -> int:
+        return await self._run_db(self._count)
+
+    def _count(self) -> int:
         """Retorna la cantidad actual de mensajes pendientes."""
         now = time.time()
         try:
@@ -203,7 +234,10 @@ class SQLiteStoreAndForward:
             logging.error(f"Error obteniendo tamaño del buffer SQLite: {e}")
             return 0
 
-    def clear(self) -> None:
+    async def clear(self) -> None:
+        await self._run_db(self._clear)
+
+    def _clear(self) -> None:
         """Vacía por completo la cola persistente."""
         try:
             with self._get_conn() as conn:

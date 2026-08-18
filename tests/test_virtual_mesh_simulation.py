@@ -70,10 +70,10 @@ class TestVirtualMeshSimulation(unittest.IsolatedAsyncioTestCase):
 
         # Buscar el mensaje de eco en las publicaciones MQTT o mensajes recientes del web router
         recent = list(self.bridge.web_server.router.recent_messages) if self.bridge.web_server else []
-        echo_found = any("Echo de Alpha Field Sensor" in m.get("text", "") for m in recent)
+        echo_found = any("Echo DM de Alpha Field Sensor" in m.get("text", "") for m in recent)
         if not echo_found:
             # Buscar en published_events
-            echo_found = any("Echo de Alpha Field Sensor" in p[1] for p in self.published_events)
+            echo_found = any("Echo DM de Alpha Field Sensor" in p[1] for p in self.published_events)
 
         self.assertTrue(echo_found, "No se recibió la respuesta de eco de Alpha Field Sensor")
 
@@ -91,9 +91,9 @@ class TestVirtualMeshSimulation(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(1.0)
 
         recent = list(self.bridge.web_server.router.recent_messages) if self.bridge.web_server else []
-        echo_found = any("Echo de Bravo Scout Rover" in m.get("text", "") for m in recent)
+        echo_found = any("Echo DM de Bravo Scout Rover" in m.get("text", "") for m in recent)
         if not echo_found:
-            echo_found = any("Echo de Bravo Scout Rover" in p[1] for p in self.published_events)
+            echo_found = any("Echo DM de Bravo Scout Rover" in p[1] for p in self.published_events)
 
         self.assertTrue(echo_found, "No se recibió la respuesta de eco de Bravo Scout Rover")
 

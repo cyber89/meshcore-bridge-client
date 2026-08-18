@@ -15,7 +15,8 @@ from datetime import datetime, timezone
 from typing import Any
 
 try:
-    import paho.mqtt.client as mqtt
+    import paho.mqtt.client as _paho_mqtt
+    mqtt: Any = _paho_mqtt
 except ImportError:
     # Fallback/Mock para desarrollo o entornos sin paho-mqtt
     class _MockClient:
@@ -149,22 +150,35 @@ class AsyncBridgeMQTTClient:
 
         # Fallback a persistencia SQLite
         if self.store_and_forward:
-            self.store_and_forward.enqueue(
-                topic=topic,
-                payload=payload_str,
-                qos=qos,
-                retain=retain,
-                ttl_seconds=ttl_seconds,
-            )
-            logging.debug(f"Mensaje retenido en SQLite (Pendientes: {self.store_and_forward.get_size()})")
+            if self._loop and self._loop.is_running():
+                self._loop.create_task(
+                    self.store_and_forward.enqueue(
+                        topic=topic,
+                        payload=payload_str,
+                        qos=qos,
+                        retain=retain,
+                        ttl_seconds=ttl_seconds,
+                    )
+                )
+            else:
+                asyncio.run(
+                    self.store_and_forward.enqueue(
+                        topic=topic,
+                        payload=payload_str,
+                        qos=qos,
+                        retain=retain,
+                        ttl_seconds=ttl_seconds,
+                    )
+                )
+            logging.debug("Mensaje retenido en SQLite")
         return False
 
-    def flush_offline_buffer(self) -> int:
+    async def flush_offline_buffer(self) -> int:
         """Drena y publica mensajes históricos encolados en SQLite durante caídas."""
         if not self.store_and_forward or not self.is_connected:
             return 0
 
-        pending = self.store_and_forward.get_size()
+        pending = await self.store_and_forward.count()
         if pending == 0:
             return 0
 
@@ -172,7 +186,7 @@ class AsyncBridgeMQTTClient:
         flushed_count = 0
 
         while self.is_connected:
-            batch = self.store_and_forward.dequeue_batch(limit=50)
+            batch = await self.store_and_forward.dequeue_batch(limit=50)
             if not batch:
                 break
 
@@ -181,14 +195,14 @@ class AsyncBridgeMQTTClient:
                     break
                 try:
                     self.client.publish(topic, payload_str, qos=qos, retain=bool(retain))
-                    self.store_and_forward.delete(msg_id)
+                    await self.store_and_forward.delete_batch(msg_id)
                     flushed_count += 1
                     self.total_published += 1
                 except Exception as e:
                     logging.error(f"Error drenando mensaje {msg_id} de SQLite: {e}")
                     return flushed_count
 
-        logging.info(f"Drenado completado ({flushed_count} enviados). Restantes: {self.store_and_forward.get_size()}")
+        logging.info(f"Drenado completado ({flushed_count} enviados).")
         return flushed_count
 
     def _on_connect(self, client: Any, userdata: Any, flags: Any, rc: Any, *args: Any, **kwargs: Any) -> None:
@@ -222,7 +236,10 @@ class AsyncBridgeMQTTClient:
             logging.info(f"Suscrito a: {self.topic_tx} y {self.topic_admin_cmd}")
 
             # Drenar mensajes pendientes
-            self.flush_offline_buffer()
+            if self._loop and self._loop.is_running():
+                self._loop.create_task(self.flush_offline_buffer())
+            else:
+                asyncio.run(self.flush_offline_buffer())
         else:
             self.is_connected = False
             logging.error(f"Fallo de conexión MQTT (rc: {rc})")

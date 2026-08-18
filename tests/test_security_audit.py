@@ -38,7 +38,7 @@ class TestSecurityAudit(unittest.IsolatedAsyncioTestCase):
                 except Exception:
                     pass
 
-    def test_sql_injection_resilience(self) -> None:
+    async def test_sql_injection_resilience(self) -> None:
         """Comprueba que payloads maliciosos de inyección SQL no alteren la base de datos."""
         malicious_payloads = [
             "' OR '1'='1' --",
@@ -48,7 +48,7 @@ class TestSecurityAudit(unittest.IsolatedAsyncioTestCase):
         ]
 
         for payload in malicious_payloads:
-            ok = self.store.enqueue(
+            ok = await self.store.enqueue(
                 topic=f"meshcore/test/{payload}",
                 payload=payload,
                 qos=1,
@@ -56,12 +56,12 @@ class TestSecurityAudit(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(ok)
 
         # La base de datos debe contener exactamente 4 registros almacenados fielmente
-        self.assertEqual(self.store.get_size(), len(malicious_payloads))
-        batch = self.store.dequeue_batch(limit=10)
+        self.assertEqual(await self.store.count(), len(malicious_payloads))
+        batch = await self.store.dequeue_batch(limit=10)
         self.assertEqual(len(batch), len(malicious_payloads))
         self.assertEqual(batch[0][2], malicious_payloads[0])
 
-    def test_directory_traversal_protection(self) -> None:
+    async def test_directory_traversal_protection(self) -> None:
         """Verifica que solicitudes con path traversal no escapen del directorio estático."""
         traversal_attempts = [
             "../../../../etc/passwd",
@@ -71,12 +71,21 @@ class TestSecurityAudit(unittest.IsolatedAsyncioTestCase):
         ]
 
         for attempt in traversal_attempts:
-            clean_path = attempt.split("?")[0].strip("/")
-            target = (self.server.static_dir / clean_path).resolve()
-            is_inside = str(target).startswith(str(self.server.static_dir.resolve()))
-            if not is_inside:
-                target = self.server.static_dir / "index.html"
-            self.assertTrue(str(target).startswith(str(self.server.static_dir.resolve())))
+            mock_reader = AsyncMock()
+            mock_writer = MagicMock()
+
+            mock_reader.readline.side_effect = [
+                f"GET /{attempt} HTTP/1.1\r\n".encode(),
+                b"Host: localhost\r\n",
+                b"\r\n",
+            ]
+
+            await self.server._handle_client(mock_reader, mock_writer)
+
+            mock_writer.write.assert_called()
+            args = mock_writer.write.call_args[0][0]
+            self.assertNotIn(b"200 OK", args)
+            self.assertTrue(b"403 " in args or b"404 " in args or b"400 " in args)
 
     async def test_dos_oversized_payload_protection(self) -> None:
         """Comprueba el límite de tamaño MAX_BODY_SIZE (1 MB) en el servidor HTTP."""

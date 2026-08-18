@@ -26,6 +26,9 @@
     logSearchQuery: "",
   };
 
+  let currentFetchController = null;
+  let wsReconnectAttempt = 0;
+
   // Elementos DOM
   const dom = {
     wsStatus: document.getElementById("wsStatus"),
@@ -118,11 +121,13 @@
         dom.navButtons.forEach((b) => {
           b.classList.remove("active");
           b.setAttribute("aria-selected", "false");
+          b.setAttribute("tabindex", "-1");
         });
         dom.tabPanes.forEach((p) => p.classList.remove("active"));
 
         btn.classList.add("active");
         btn.setAttribute("aria-selected", "true");
+        btn.setAttribute("tabindex", "0");
         const pane = document.getElementById(targetTab);
         if (pane) pane.classList.add("active");
 
@@ -194,6 +199,7 @@
 
       state.ws.onopen = () => {
         state.connected = true;
+        wsReconnectAttempt = 0;
         updateWsBadge(true);
         appendTerminalLog("INFO", "Conexión WebSocket establecida con el bridge.");
       };
@@ -211,7 +217,8 @@
         state.connected = false;
         updateWsBadge(false);
         appendTerminalLog("WARN", "WebSocket desconectado. Reintentando...");
-        setTimeout(connectWebSocket, 3000);
+        setTimeout(connectWebSocket, Math.min(1000 * Math.pow(2, wsReconnectAttempt), 30000));
+        wsReconnectAttempt++;
       };
 
       state.ws.onerror = () => {
@@ -219,7 +226,8 @@
         updateWsBadge(false);
       };
     } catch (e) {
-      setTimeout(connectWebSocket, 3000);
+      setTimeout(connectWebSocket, Math.min(1000 * Math.pow(2, wsReconnectAttempt), 30000));
+      wsReconnectAttempt++;
     }
   }
 
@@ -394,8 +402,9 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ action: action }),
           });
+          if (!res.ok) { showToast("Error del servidor", "error"); return; }
           const json = await res.json();
-          state.snifferActive = json.sniffer_active;
+          state.snifferActive = json.data.sniffer_active;
           dom.btnToggleSniffer.textContent = state.snifferActive ? "⏹ Detener Sniffer" : "▶ Iniciar Sniffer";
           dom.btnToggleSniffer.className = state.snifferActive ? "btn-danger" : "btn-primary";
           appendTerminalLog("INFO", `Sniffer RF ${state.snifferActive ? "ACTIVADO" : "DETENIDO"}`);
@@ -418,13 +427,16 @@
   }
 
   async function fetchSnifferLogs() {
+    if (currentFetchController) currentFetchController.abort();
+    currentFetchController = new AbortController();
     try {
-      const res = await fetch("/api/logs");
+      const res = await fetch("/api/sniffer/logs", { signal: currentFetchController.signal });
+      if (!res.ok) { showToast("Error del servidor", "error"); return; }
       const data = await res.json();
-      state.snifferLogs = data.logs || [];
+      state.snifferLogs = data.data || [];
       renderSnifferTable();
     } catch (e) {
-      console.debug(e);
+      if (e.name !== "AbortError") console.debug(e);
     }
   }
 
@@ -483,13 +495,17 @@
   // Métricas Avanzadas y Tops
   // ================================================================
   async function fetchAnalytics() {
+    if (currentFetchController) currentFetchController.abort();
+    currentFetchController = new AbortController();
     try {
-      const res = await fetch("/api/analytics");
-      const data = await res.json();
+      const res = await fetch("/api/analytics", { signal: currentFetchController.signal });
+      if (!res.ok) { showToast("Error del servidor", "error"); return; }
+      const json = await res.json();
+      const data = json.data;
       state.analytics = data;
       renderAnalyticsDashboard(data);
     } catch (e) {
-      console.debug("Error obteniendo analítica:", e);
+      if (e.name !== "AbortError") console.debug("Error obteniendo analítica:", e);
     }
   }
 
@@ -627,13 +643,16 @@
   }
 
   async function fetchSystemLogs() {
+    if (currentFetchController) currentFetchController.abort();
+    currentFetchController = new AbortController();
     try {
-      const res = await fetch("/api/system/logs");
+      const res = await fetch("/api/system/logs", { signal: currentFetchController.signal });
+      if (!res.ok) { showToast("Error del servidor", "error"); return; }
       const data = await res.json();
-      state.systemLogs = data.system_logs || [];
+      state.systemLogs = data.data || [];
       renderTerminalLogs();
     } catch (e) {
-      console.debug(e);
+      if (e.name !== "AbortError") console.debug(e);
     }
   }
 
@@ -715,12 +734,13 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           });
+          if (!res.ok) { showToast("Error del servidor", "error"); return; }
           const json = await res.json();
           if (json.status === "ok") {
             showToast("success", isDm ? `Mensaje directo enviado a ${state.activeTarget.name}` : `Mensaje transmitido en Canal ${chIdx}`);
           } else {
-            showToast("error", `Error TX: ${json.error || "Fallo en transmisión"}`);
-            appendConsoleLog(`[ERROR TX] ${json.error || "Fallo en transmisión"}`);
+            showToast("error", `Error TX: ${json.message || json.error || "Fallo en transmisión"}`);
+            appendConsoleLog(`[ERROR TX] ${json.message || json.error || "Fallo en transmisión"}`);
           }
         } catch (err) {
           showToast("error", `Error de red: ${err.message}`);
@@ -746,9 +766,10 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ target_node: target, action: action }),
           });
+          if (!res.ok) { showToast("Error del servidor", "error"); return; }
           const json = await res.json();
           showToast("info", `Comando '${action}' enviado a repetidor ${target}`);
-          appendConsoleLog(`[RESP CMD] ${JSON.stringify(json.result || json)}`);
+          appendConsoleLog(`[RESP CMD] ${JSON.stringify(json.data || json)}`);
         } catch (err) {
           showToast("error", `Error en comando: ${err.message}`);
           appendConsoleLog(`[ERROR CMD] ${err.message}`);
@@ -764,15 +785,20 @@
         const alias = document.getElementById("contactAlias").value.trim();
 
         if (!key) return;
-        await fetch("/api/contacts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ public_key: key, name: name, alias: alias }),
-        });
-
-        showToast("success", `Contacto guardado: ${alias || name || key}`);
-        dom.addContactForm.reset();
-        fetchContacts();
+        try {
+          const res = await fetch("/api/contacts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ public_key: key, name: name, alias: alias }),
+          });
+          if (!res.ok) { showToast("Error del servidor", "error"); return; }
+          await res.json();
+          showToast("success", `Contacto guardado: ${alias || name || key}`);
+          dom.addContactForm.reset();
+          fetchContacts();
+        } catch (err) {
+          showToast("error", "Error al guardar contacto");
+        }
       });
     }
 
@@ -783,15 +809,20 @@
         const name = document.getElementById("chNameInput").value.trim();
         const psk = document.getElementById("chPskInput").value.trim();
 
-        await fetch("/api/channels", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ index: idx, name: name, psk: psk }),
-        });
-
-        showToast("success", `Canal ${idx} configurado: ${name}`);
-        dom.addChannelForm.reset();
-        fetchChannels();
+        try {
+          const res = await fetch("/api/channels", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ index: idx, name: name, psk: psk }),
+          });
+          if (!res.ok) { showToast("Error del servidor", "error"); return; }
+          await res.json();
+          showToast("success", `Canal ${idx} configurado: ${name}`);
+          dom.addChannelForm.reset();
+          fetchChannels();
+        } catch (err) {
+          showToast("error", "Error al configurar canal");
+        }
       });
     }
 
@@ -801,33 +832,47 @@
         const name = document.getElementById("localNodeName").value.trim();
         const pwr = parseInt(document.getElementById("localTxPower").value, 10);
 
-        if (name) {
-          await fetch("/api/admin/command", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "set_name", name: name }),
-          });
+        try {
+          if (name) {
+            const res = await fetch("/api/admin/command", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "set_name", name: name }),
+            });
+            if (!res.ok) { showToast("Error del servidor", "error"); return; }
+            await res.json();
+          }
+          if (pwr) {
+            const res2 = await fetch("/api/admin/command", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "set_tx_power", power: pwr }),
+            });
+            if (!res2.ok) { showToast("Error del servidor", "error"); return; }
+            await res2.json();
+          }
+          showToast("success", "Configuración enviada a la radio local");
+        } catch (e) {
+          showToast("error", "Error al configurar radio local");
         }
-        if (pwr) {
-          await fetch("/api/admin/command", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "set_tx_power", power: pwr }),
-          });
-        }
-        showToast("success", "Configuración enviada a la radio local");
       });
     }
 
     if (dom.btnRebootRadio) {
       dom.btnRebootRadio.addEventListener("click", async () => {
         if (confirm("¿Reiniciar transceptor LoRa local?")) {
-          await fetch("/api/admin/command", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "reboot" }),
-          });
-          showToast("warning", "Comando de reinicio enviado");
+          try {
+            const res = await fetch("/api/admin/command", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "reboot" }),
+            });
+            if (!res.ok) { showToast("Error del servidor", "error"); return; }
+            await res.json();
+            showToast("warning", "Comando de reinicio enviado");
+          } catch (e) {
+            showToast("error", "Error al reiniciar");
+          }
         }
       });
     }
@@ -837,51 +882,68 @@
   // Consultas REST
   // ================================================================
   async function fetchInitialData() {
-    await Promise.all([fetchChannels(), fetchNodes(), fetchContacts(), fetchPeriodicStatus(), fetchAnalytics()]);
+    await fetchChannels();
+    await fetchNodes();
+    await fetchContacts();
+    await fetchPeriodicStatus();
+    await fetchAnalytics();
     renderDmList();
     renderChatFeed();
   }
 
   async function fetchChannels() {
+    if (currentFetchController) currentFetchController.abort();
+    currentFetchController = new AbortController();
     try {
-      const res = await fetch("/api/channels");
+      const res = await fetch("/api/channels", { signal: currentFetchController.signal });
+      if (!res.ok) { showToast("Error del servidor", "error"); return; }
       const data = await res.json();
-      state.channels = data.channels || [];
+      state.channels = data.data || [];
       renderChannelList();
     } catch (e) {
-      console.debug(e);
+      if (e.name !== "AbortError") console.debug(e);
     }
   }
 
   async function fetchNodes() {
+    if (currentFetchController) currentFetchController.abort();
+    currentFetchController = new AbortController();
     try {
-      const res = await fetch("/api/nodes");
+      const res = await fetch("/api/nodes", { signal: currentFetchController.signal });
+      if (!res.ok) { showToast("Error del servidor", "error"); return; }
       const data = await res.json();
-      state.nodes = data.nodes || [];
+      state.nodes = data.data || [];
       renderNodesGrid();
       renderDmList();
       if (dom.headerNodeCount) dom.headerNodeCount.textContent = state.nodes.length;
     } catch (e) {
-      console.debug(e);
+      if (e.name !== "AbortError") console.debug(e);
     }
   }
 
   async function fetchContacts() {
+    if (currentFetchController) currentFetchController.abort();
+    currentFetchController = new AbortController();
     try {
-      const res = await fetch("/api/contacts");
+      const res = await fetch("/api/contacts", { signal: currentFetchController.signal });
+      if (!res.ok) { showToast("Error del servidor", "error"); return; }
       const data = await res.json();
-      state.contacts = data.contacts || [];
+      state.contacts = data.data || [];
       renderContactsList();
       renderDmList();
     } catch (e) {
-      console.debug(e);
+      if (e.name !== "AbortError") console.debug(e);
     }
   }
 
   async function fetchPeriodicStatus() {
+    if (currentFetchController) currentFetchController.abort();
+    currentFetchController = new AbortController();
     try {
-      const res = await fetch("/api/status");
-      const data = await res.json();
+      const res = await fetch("/api/status", { signal: currentFetchController.signal });
+      if (!res.ok) { showToast("Error del servidor", "error"); return; }
+      const json = await res.json();
+      const data = json.data;
       if (dom.headerRxCount) dom.headerRxCount.textContent = data.total_rx_packets || 0;
       if (dom.headerTxCount) dom.headerTxCount.textContent = data.total_tx_packets || 0;
       if (dom.headerQueueDepth) dom.headerQueueDepth.textContent = data.tx_queue_depth || 0;
@@ -890,7 +952,7 @@
       if (dom.diagBufferCount) dom.diagBufferCount.textContent = data.offline_buffer_pending || 0;
       if (dom.diagUptime) dom.diagUptime.textContent = `${data.uptime_seconds || 0}s`;
     } catch (e) {
-      console.debug(e);
+      if (e.name !== "AbortError") console.debug(e);
     }
   }
 

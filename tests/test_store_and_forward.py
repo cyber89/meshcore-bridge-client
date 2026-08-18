@@ -24,6 +24,10 @@ class TestStoreAndForward(unittest.TestCase):
         self.bridge = MeshCoreBridge(self.loop, db_path=self.temp_db_path)
         self.bridge.mqtt_client = MagicMock()
 
+    def _run(self, coro):
+        """Ejecuta una corrutina en el bucle de eventos dedicado del test."""
+        return self.loop.run_until_complete(coro)
+
     def tearDown(self):
         self.loop.close()
         try:
@@ -51,14 +55,14 @@ class TestStoreAndForward(unittest.TestCase):
 
         # 2. Comprobar que los mensajes están en la base de datos SQLite
         self.assertEqual(len(published_messages), 0, "No debe publicar mientras MQTT esté offline")
-        self.assertEqual(self.bridge.sqlite_buffer.get_size(), 10, "Los 10 mensajes deben estar guardados en SQLite")
+        self.assertEqual(self._run(self.bridge.sqlite_buffer.count()), 10, "Los 10 mensajes deben estar guardados en SQLite")
 
         # 3. Simular reconexión a MQTT y vaciado
         self.bridge.mqtt_connected = True
-        self.bridge._flush_offline_buffer()
+        self._run(self.bridge._flush_offline_buffer())
 
         # 4. Comprobar que la base de datos quedó vacía y todos se publicaron en orden FIFO
-        self.assertEqual(self.bridge.sqlite_buffer.get_size(), 0, "La DB SQLite debe quedar vacía tras el vaciado")
+        self.assertEqual(self._run(self.bridge.sqlite_buffer.count()), 0, "La DB SQLite debe quedar vacía tras el vaciado")
         self.assertEqual(len(published_messages), 10, "Los 10 mensajes deben haber sido publicados a MQTT")
 
         for i, (topic, payload_str) in enumerate(published_messages):
@@ -73,7 +77,7 @@ class TestStoreAndForward(unittest.TestCase):
         for i in range(5):
             self.bridge.publish_mqtt_safe("meshcore/rx/all", f'{{"reboot_test": {i}}}', qos=0)
 
-        self.assertEqual(self.bridge.sqlite_buffer.get_size(), 5)
+        self.assertEqual(self._run(self.bridge.sqlite_buffer.count()), 5)
 
         # 2. Destruir la instancia actual y crear una NUEVA instancia con la misma BD (simula reinicio)
         new_bridge = MeshCoreBridge(self.loop, db_path=self.temp_db_path)
@@ -81,26 +85,26 @@ class TestStoreAndForward(unittest.TestCase):
         new_bridge.mqtt_client.publish = MagicMock(side_effect=lambda t, p, qos=0, retain=False: new_published.append((t, p)))
 
         # 3. Verificar que los 5 mensajes siguen en disco en la nueva instancia
-        self.assertEqual(new_bridge.sqlite_buffer.get_size(), 5, "Los mensajes deben persistir tras el reinicio")
+        self.assertEqual(self._run(new_bridge.sqlite_buffer.count()), 5, "Los mensajes deben persistir tras el reinicio")
 
         # 4. Conectar MQTT en la nueva instancia y vaciar
         new_bridge.mqtt_connected = True
-        new_bridge._flush_offline_buffer()
+        self._run(new_bridge._flush_offline_buffer())
 
         self.assertEqual(len(new_published), 5, "Todos los mensajes persistidos deben publicarse al reiniciar")
-        self.assertEqual(new_bridge.sqlite_buffer.get_size(), 0)
+        self.assertEqual(self._run(new_bridge.sqlite_buffer.count()), 0)
 
     def test_sqlite_buffer_capacity_limit(self):
         """Verifica que SQLite respete el límite máximo acotado (FIFO) sin crecimiento infinito."""
         db_handler = SQLiteStoreAndForward(db_path=self.temp_db_path, max_size=30)
 
         for i in range(100):
-            db_handler.enqueue("meshcore/rx/all", f'{{"count": {i}}}', qos=0)
+            self._run(db_handler.enqueue("meshcore/rx/all", f'{{"count": {i}}}', qos=0))
 
-        self.assertEqual(db_handler.get_size(), 30, "La tabla SQLite debe recortarse al tamaño máximo (30)")
+        self.assertEqual(self._run(db_handler.count()), 30, "La tabla SQLite debe recortarse al tamaño máximo (30)")
 
         # El lote debe comenzar desde el elemento 70 (los primeros 70 fueron descartados en rotación FIFO)
-        batch = db_handler.dequeue_batch(limit=1)
+        batch = self._run(db_handler.dequeue_batch(limit=1))
         first_payload = json.loads(batch[0][2])
         self.assertEqual(first_payload["count"], 70)
 

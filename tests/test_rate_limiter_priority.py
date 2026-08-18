@@ -29,22 +29,20 @@ class TestRateLimiterPriority(unittest.IsolatedAsyncioTestCase):
             executed_order.append(str(item.payload))
             return {"status": "SENT"}
 
-        limiter = TxRateLimiter(tx_interval_sec=0.05, transmit_callback=_mock_tx)
-        limiter.start()
+        limiter = TxRateLimiter(tx_interval_sec=0.01, transmit_callback=_mock_tx)
 
         # Encolar en orden inverso de prioridad: LOW -> NORMAL -> HIGH
+        # con el worker detenido para garantizar el encolamiento simultáneo
         f_low = await limiter.submit("Telemetry_LOW", priority=TxPriority.LOW)
         f_norm = await limiter.submit("Text_NORMAL", priority=TxPriority.NORMAL)
         f_high = await limiter.submit("ACK_HIGH", priority=TxPriority.HIGH)
+
+        limiter.start()
 
         # Esperar resoluciones
         await asyncio.gather(f_low, f_norm, f_high)
         await limiter.stop()
 
         # HIGH (0) debe ejecutarse antes que NORMAL (1), y NORMAL antes que LOW (2)
-        # Nota: El primer elemento encolado podría haberse extraído de inmediato si la cola estaba vacía,
-        # pero entre los restantes, HIGH debe procesarse antes que LOW.
         self.assertEqual(len(executed_order), 3)
-        self.assertIn("ACK_HIGH", executed_order)
-        self.assertIn("Text_NORMAL", executed_order)
-        self.assertIn("Telemetry_LOW", executed_order)
+        self.assertEqual(executed_order, ["ACK_HIGH", "Text_NORMAL", "Telemetry_LOW"])

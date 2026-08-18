@@ -12,7 +12,7 @@ import logging
 import signal
 import time
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Protocol, cast
 
 import config
 from src.contact_manager import NodeRegistry
@@ -22,7 +22,7 @@ from src.protocol_types import (
     OpCode,
     TextMessagePayload,
 )
-from src.rate_limiter import TxItem, TxPriority, TxRateLimiter
+from src.rate_limiter import CustomTxQueue, TxItem, TxPriority, TxRateLimiter
 from src.repeater_manager import RepeaterManager
 from src.sensor_decoder import CayenneLPPDecoder
 from src.serial_driver import (
@@ -32,6 +32,25 @@ from src.serial_driver import (
     SerialWatchdog,
 )
 from src.store_forward import PacketDeduplicator, SQLiteStoreAndForward
+
+
+class MqttClientProtocol(Protocol):
+    pass
+
+class MeshCoreCommandsProtocol(Protocol):
+    async def send_msg(self, dest: str | Any, text: str = "") -> Any: ...
+    async def send_chan_msg(self, ch_idx: int, text: str) -> Any: ...
+    async def get_contacts(self) -> Any: ...
+    async def set_tx_power(self, power: int) -> Any: ...
+    async def set_name(self, name: str) -> Any: ...
+    async def reboot(self) -> Any: ...
+    async def req_telemetry(self) -> Any: ...
+
+class MeshCoreProtocol(Protocol):
+    commands: MeshCoreCommandsProtocol
+    self_info: dict[str, Any]
+    async def disconnect(self) -> None: ...
+    def get_contact_by_key_prefix(self, prefix: str) -> Any: ...
 
 
 class MeshCoreBridge:
@@ -112,6 +131,7 @@ class MeshCoreBridge:
         self.tx_count = 0
         self.tx_error_count = 0
         self.serial_reconnect_count = 0
+        self._background_tasks: set[asyncio.Task[Any]] = set()
 
     # ================= Propiedades de compatibilidad =================
     @property
@@ -119,7 +139,7 @@ class MeshCoreBridge:
         return self.store_and_forward
 
     @property
-    def mqtt_client(self) -> Any:
+    def mqtt_client(self) -> MqttClientProtocol | Any:
         return self.mqtt.client
 
     @mqtt_client.setter
@@ -151,17 +171,17 @@ class MeshCoreBridge:
         self.serial_adapter.last_heartbeat_time = val
 
     @property
-    def tx_queue(self) -> Any:
+    def tx_queue(self) -> CustomTxQueue:
         return self.rate_limiter.queue
 
     @property
-    def mc(self) -> Any:
+    def mc(self) -> MeshCoreProtocol | None:
         if isinstance(self.serial_adapter, MeshcoreSDKAdapter):
-            return self.serial_adapter.mc
+            return cast(MeshCoreProtocol | None, self.serial_adapter.mc)
         return None
 
     @mc.setter
-    def mc(self, mc_val: Any) -> None:
+    def mc(self, mc_val: MeshCoreProtocol | None) -> None:
         if isinstance(self.serial_adapter, MeshcoreSDKAdapter):
             self.serial_adapter.mc = mc_val
 
@@ -174,8 +194,8 @@ class MeshCoreBridge:
     ) -> bool:
         return self.mqtt.publish_safe(topic, payload_str, qos=qos, retain=retain)
 
-    def _flush_offline_buffer(self) -> int:
-        return self.mqtt.flush_offline_buffer()
+    async def _flush_offline_buffer(self) -> int:
+        return await self.mqtt.flush_offline_buffer()
 
     def resolve_sender_name(self, prefix_or_key: str) -> str:
         # Primero consultar el registro dinámico local
@@ -225,6 +245,8 @@ class MeshCoreBridge:
 
         # Iniciar reporte periódico de salud
         self._health_task = asyncio.create_task(self._health_reporter_loop(), name="HealthReporter")
+        self._background_tasks.add(self._health_task)
+        self._health_task.add_done_callback(self._background_tasks.discard)
         logging.info("MeshCore Bridge iniciado y operativo (v3.0).")
 
     async def stop(self) -> None:
@@ -324,7 +346,10 @@ class MeshCoreBridge:
             req_id = item.request_id
             target = item.target or "broadcast"
             ch_idx = item.channel_idx
-            text = str(item.payload)
+            if isinstance(item.payload, dict):
+                text = str(item.payload.get("text", item.payload.get("message", "")))
+            else:
+                text = str(item.payload)
         else:
             text = str(item)
 
@@ -424,7 +449,10 @@ class MeshCoreBridge:
         self.serial_adapter.heartbeat()
 
         if isinstance(event, MeshcoreFrame):
-            self._dispatch_parsed_frame(event)
+            loop = self._custom_loop or asyncio.get_event_loop()
+            task = loop.create_task(self._dispatch_parsed_frame(event))
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
             return
 
         ev_type_str = str(getattr(event, "type", getattr(event, "event_type", "")))
@@ -533,13 +561,13 @@ class MeshCoreBridge:
         """Alias para on_mesh_event."""
         self.on_mesh_event(event)
 
-    def _dispatch_parsed_frame(self, frame: MeshcoreFrame) -> None:
+    async def _dispatch_parsed_frame(self, frame: MeshcoreFrame) -> None:
         """Enruta instancias de MeshcoreFrame validadas a MQTT."""
         mqtt_evt = frame.to_mqtt_event()
         evt_json = json.dumps(mqtt_evt)
 
         dedup_key = f"frame::{frame.header.src_node_id}::{frame.header.seq_num}::{int(frame.header.opcode)}"
-        if self.deduplicator.is_duplicate(dedup_key):
+        if await self.deduplicator.is_duplicate(dedup_key):
             return
 
         self.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
@@ -575,7 +603,9 @@ class MeshCoreBridge:
         """Enruta mensajes recibidos desde MQTT (TX o Admin) a la cola de eventos."""
         try:
             loop = self._custom_loop or asyncio.get_running_loop()
-            loop.create_task(self._process_mqtt_input(topic, payload_str))
+            task = loop.create_task(self._process_mqtt_input(topic, payload_str))
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
         except RuntimeError:
             pass
 
@@ -680,7 +710,7 @@ class MeshCoreBridge:
                     "serial_port": config.SERIAL_PORT,
                     "serial_connected": self.serial_adapter.is_connected,
                     "mqtt_connected": self.mqtt.is_connected,
-                    "offline_buffer_pending": self.store_and_forward.get_size(),
+                    "offline_buffer_pending": await self.store_and_forward.count(),
                     "known_mesh_nodes": self.node_registry.get_count(),
                     "tx_queue_depth": self.rate_limiter.get_queue_depth(),
                     "total_rx_packets": self.rx_count,
@@ -699,9 +729,14 @@ class MeshCoreBridge:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
+        def _stop_task() -> None:
+            task = asyncio.create_task(self.stop())
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
+
         for sig in (signal.SIGINT, signal.SIGTERM):
             try:
-                loop.add_signal_handler(sig, lambda: asyncio.create_task(self.stop()))
+                loop.add_signal_handler(sig, _stop_task)
             except (NotImplementedError, AttributeError):
                 pass
 

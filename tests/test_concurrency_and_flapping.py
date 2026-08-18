@@ -46,6 +46,10 @@ class TestConcurrencyAndFlapping(unittest.TestCase):
         except Exception:
             pass
 
+    def _run(self, coro):
+        """Ejecuta una corrutina en el bucle de eventos dedicado del test."""
+        return self.loop.run_until_complete(coro)
+
     def test_concurrent_sqlite_writes_multithreaded(self):
         """Prueba 10 hilos concurrentes insertando 50 mensajes cada uno en SQLite (500 total)."""
         buffer = SQLiteStoreAndForward(db_path=self.temp_db_path, max_size=1000)
@@ -54,7 +58,7 @@ class TestConcurrencyAndFlapping(unittest.TestCase):
 
         def worker(thread_idx):
             for i in range(msgs_per_thread):
-                buffer.enqueue("meshcore/rx/all", f'{{"thread": {thread_idx}, "msg": {i}}}', qos=0)
+                asyncio.run(buffer.enqueue("meshcore/rx/all", f'{{"thread": {thread_idx}, "msg": {i}}}', qos=0))
 
         threads = []
         for t in range(num_threads):
@@ -65,7 +69,7 @@ class TestConcurrencyAndFlapping(unittest.TestCase):
         for th in threads:
             th.join()
 
-        self.assertEqual(buffer.get_size(), num_threads * msgs_per_thread, "Todos los 500 mensajes deben estar en SQLite sin bloqueos")
+        self.assertEqual(self._run(buffer.count()), num_threads * msgs_per_thread, "Todos los 500 mensajes deben estar en SQLite sin bloqueos")
 
     def test_mqtt_connection_flapping_during_traffic(self):
         """Simula 10 micro-cortes y reconexiones de MQTT mientras llegan mensajes continuos."""
@@ -82,7 +86,7 @@ class TestConcurrencyAndFlapping(unittest.TestCase):
         # Forzar reconexión final y vaciado completo
         self.bridge.on_mqtt_connect(self.bridge.mqtt_client, None, flags=0, rc=0)
 
-        self.assertEqual(self.bridge.sqlite_buffer.get_size(), 0, "El buffer SQLite debe quedar completamente vacío")
+        self.assertEqual(self._run(self.bridge.sqlite_buffer.count()), 0, "El buffer SQLite debe quedar completamente vacío")
 
         # Filtrar solo los mensajes recibidos en el tópico de datos
         rx_messages = [p for t, p in self.published if t == "meshcore/rx/all"]
@@ -93,9 +97,9 @@ class TestConcurrencyAndFlapping(unittest.TestCase):
         # 1. Inyectar 20 mensajes con MQTT desconectado
         self.bridge.mqtt_connected = False
         for i in range(20):
-            self.bridge.sqlite_buffer.enqueue("meshcore/rx/all", f'{{"item": {i}}}', qos=0)
+            self._run(self.bridge.sqlite_buffer.enqueue("meshcore/rx/all", f'{{"item": {i}}}', qos=0))
 
-        self.assertEqual(self.bridge.sqlite_buffer.get_size(), 20)
+        self.assertEqual(self._run(self.bridge.sqlite_buffer.count()), 20)
 
         # 2. Configurar el mock para que en el mensaje 5 MQTT falle
         publish_count = 0
@@ -112,18 +116,18 @@ class TestConcurrencyAndFlapping(unittest.TestCase):
         self.bridge.mqtt_connected = True
 
         # Ejecutar vaciado (se cortará en el mensaje 5)
-        self.bridge._flush_offline_buffer()
+        self._run(self.bridge._flush_offline_buffer())
 
         # Comprobar que los mensajes restantes siguen a salvo en SQLite
-        remaining = self.bridge.sqlite_buffer.get_size()
+        remaining = self._run(self.bridge.sqlite_buffer.count())
         self.assertTrue(remaining > 0, "Los mensajes no entregados deben permanecer en SQLite")
 
         # 3. Restaurar conexión limpia y terminar el vaciado
         self.bridge.mqtt_client.publish.side_effect = lambda t, p, qos=0, retain=False: self.published.append((t, p))
         self.bridge.mqtt_connected = True
-        self.bridge._flush_offline_buffer()
+        self._run(self.bridge._flush_offline_buffer())
 
-        self.assertEqual(self.bridge.sqlite_buffer.get_size(), 0, "Tras reconectar, la base de datos debe quedar vacía")
+        self.assertEqual(self._run(self.bridge.sqlite_buffer.count()), 0, "Tras reconectar, la base de datos debe quedar vacía")
 
     def test_serial_exception_during_active_tx(self):
         """Verifica que una falla de hardware en el puerto USB durante TX no congele el worker."""

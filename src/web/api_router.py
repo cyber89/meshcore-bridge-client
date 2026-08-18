@@ -77,14 +77,14 @@ class WebAPIRouter:
 
         try:
             if method == "GET" and clean_path == "/api/status":
-                return self._route_status()
+                return await self._route_status()
 
             if method == "GET" and clean_path == "/api/nodes":
                 nodes = self.bridge.node_registry.list_nodes()
-                return 200, {"count": len(nodes), "nodes": nodes}
+                return 200, {"status": "ok", "data": nodes, "count": len(nodes)}
 
             if method == "GET" and clean_path in ("/api/analytics", "/api/metrics/analytics"):
-                return self._route_analytics()
+                return await self._route_analytics()
 
             if clean_path == "/api/contacts":
                 return self._route_contacts(method, req_body)
@@ -109,14 +109,14 @@ class WebAPIRouter:
             if method == "GET" and clean_path in ("/api/messages", "/api/telemetry", "/api/logs", "/api/sniffer/logs", "/api/system/logs"):
                 return self._route_logs(clean_path)
 
-            return 404, {"error": f"Ruta no encontrada: {method} {clean_path}"}
+            return 404, {"status": "error", "message": f"Ruta no encontrada: {method} {clean_path}"}
 
         except Exception as e:
             logging.error(f"Error procesando solicitud REST {method} {clean_path}: {e}", exc_info=True)
             self.log_system_event("ERROR", f"Fallo en API {method} {clean_path}: {e}", source="api")
-            return 500, {"error": str(e)}
+            return 500, {"status": "error", "message": str(e)}
 
-    def _route_status(self) -> tuple[int, dict[str, Any]]:
+    async def _route_status(self) -> tuple[int, dict[str, Any]]:
         status_data = {
             "bridge_status": "online" if getattr(self.bridge, "running", True) else "offline",
             "uptime_seconds": int(time.time() - getattr(self.bridge, "start_time", time.time())),
@@ -127,27 +127,28 @@ class WebAPIRouter:
             "total_tx_packets": getattr(self.bridge, "tx_count", 0),
             "total_tx_errors": getattr(self.bridge, "tx_error_count", 0),
             "tx_queue_depth": self.bridge.rate_limiter.get_queue_depth(),
-            "offline_buffer_pending": self.bridge.store_and_forward.get_size(),
+            "offline_buffer_pending": await self.bridge.store_and_forward.count(),
             "sniffer_active": self.sniffer_active,
         }
-        return 200, status_data
+        return 200, {"status": "ok", "data": status_data}
 
-    def _route_analytics(self) -> tuple[int, dict[str, Any]]:
+    async def _route_analytics(self) -> tuple[int, dict[str, Any]]:
         analytics = self.bridge.node_registry.get_analytics_summary()
         analytics["queue_depth"] = self.bridge.rate_limiter.get_queue_depth()
-        analytics["offline_buffer_size"] = self.bridge.store_and_forward.get_size()
-        return 200, analytics
+        analytics["offline_buffer_size"] = await self.bridge.store_and_forward.count()
+        return 200, {"status": "ok", "data": analytics}
 
     def _route_contacts(self, method: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         if method == "GET":
-            return 200, {"contacts": self.bridge.node_registry.list_nodes()}
+            nodes = self.bridge.node_registry.list_nodes()
+            return 200, {"status": "ok", "data": nodes, "count": len(nodes)}
 
         if method == "POST":
             pubkey = str(req_body.get("public_key", req_body.get("key", ""))).strip()
             name = str(req_body.get("name", "")).strip()
             alias = str(req_body.get("alias", "")).strip()
             if not pubkey:
-                return 400, {"error": "Se requiere 'public_key'"}
+                return 400, {"status": "error", "message": "Se requiere 'public_key'"}
 
             contact = self.bridge.node_registry.add_or_update(
                 public_key=pubkey,
@@ -155,31 +156,38 @@ class WebAPIRouter:
                 alias=alias,
             )
             self.log_system_event("INFO", f"Contacto guardado: {pubkey} ({alias or name})", source="contacts")
-            return 200, {"status": "ok", "contact": contact.to_dict()}
+            return 200, {"status": "ok", "data": contact.to_dict()}
 
-        return 405, {"error": "Método no permitido para /api/contacts"}
+        return 405, {"status": "error", "message": "Método no permitido para /api/contacts"}
 
     def _route_channels(self, method: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         if method == "GET":
-            return 200, {"channels": list(self.channels.values())}
+            channels = list(self.channels.values())
+            return 200, {"status": "ok", "data": channels, "count": len(channels)}
 
         if method == "POST":
-            idx = int(req_body.get("index", 1))
+            try:
+                idx = int(req_body.get("index", 1))
+            except ValueError:
+                return 400, {"status": "error", "message": "Invalid index"}
             name = str(req_body.get("name", f"Canal {idx}"))
             psk = str(req_body.get("psk", ""))
             self.channels[idx] = {"index": idx, "name": name, "psk": psk, "is_public": (idx == 0)}
             self.log_system_event("INFO", f"Canal {idx} actualizado: {name}", source="channels")
-            return 200, {"status": "ok", "channel": self.channels[idx]}
+            return 200, {"status": "ok", "data": self.channels[idx]}
 
-        return 405, {"error": "Método no permitido para /api/channels"}
+        return 405, {"status": "error", "message": "Método no permitido para /api/channels"}
 
     async def _route_tx(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         text = str(req_body.get("text", "")).strip()
         if not text:
-            return 400, {"error": "El campo 'text' no puede estar vacío"}
+            return 400, {"status": "error", "message": "El campo 'text' no puede estar vacío"}
 
         target = req_body.get("to", req_body.get("target", "broadcast"))
-        ch_idx = int(req_body.get("channel_index", req_body.get("channel_idx", 0)))
+        try:
+            ch_idx = int(req_body.get("channel_index", req_body.get("channel_idx", 0)))
+        except ValueError:
+            return 400, {"status": "error", "message": "Invalid channel index"}
         req_id = req_body.get("request_id", f"web_{int(time.time() * 1000)}")
 
         tx_item = {"to": target, "channel_index": ch_idx, "text": text, "request_id": req_id}
@@ -187,7 +195,7 @@ class WebAPIRouter:
         if target != "broadcast":
             self.bridge.node_registry.record_packet(public_key=target, is_rx=False)
         self.log_system_event("INFO", f"Transmisión TX enviada a {target} (Ch {ch_idx})", source="mesh_tx")
-        return 200, {"status": "ok", "result": res}
+        return 200, {"status": "ok", "data": res}
 
     async def _route_sniffer(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         action = str(req_body.get("action", "start")).lower().strip()
@@ -199,13 +207,13 @@ class WebAPIRouter:
         }
         res = await self.bridge.handle_admin(cmd_data)
         self.log_system_event("INFO", f"Control de Sniffer RF: {action.upper()}", source="sniffer")
-        return 200, {"status": "ok", "sniffer_active": self.sniffer_active, "result": res}
+        return 200, {"status": "ok", "data": {"sniffer_active": self.sniffer_active, "result": res}}
 
     async def _route_admin_repeater(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         target_node = str(req_body.get("target_node", req_body.get("repeater", ""))).strip()
         action = str(req_body.get("action", req_body.get("command", "stats-radio")))
         if not target_node:
-            return 400, {"error": "Se requiere 'target_node'"}
+            return 400, {"status": "error", "message": "Se requiere 'target_node'"}
 
         cmd_data = {
             "target_node": target_node,
@@ -215,15 +223,15 @@ class WebAPIRouter:
         }
         res = await self.bridge.handle_admin(cmd_data)
         self.log_system_event("INFO", f"Comando RF a repetidor {target_node}: {action}", source="repeater_admin")
-        return 200, {"status": "ok", "result": res}
+        return 200, {"status": "ok", "data": res}
 
     def _route_logs(self, clean_path: str) -> tuple[int, dict[str, Any]]:
         if clean_path == "/api/messages":
-            return 200, {"messages": list(self.recent_messages)}
+            return 200, {"status": "ok", "data": list(self.recent_messages), "count": len(self.recent_messages)}
         if clean_path == "/api/telemetry":
-            return 200, {"telemetry": list(self.recent_telemetry)}
+            return 200, {"status": "ok", "data": list(self.recent_telemetry), "count": len(self.recent_telemetry)}
         if clean_path in ("/api/logs", "/api/sniffer/logs"):
-            return 200, {"count": len(self.recent_rf_logs), "logs": list(self.recent_rf_logs)}
+            return 200, {"status": "ok", "data": list(self.recent_rf_logs), "count": len(self.recent_rf_logs)}
         if clean_path == "/api/system/logs":
-            return 200, {"count": len(self.recent_system_logs), "system_logs": list(self.recent_system_logs)}
-        return 404, {"error": "Registro no encontrado"}
+            return 200, {"status": "ok", "data": list(self.recent_system_logs), "count": len(self.recent_system_logs)}
+        return 404, {"status": "error", "message": "Registro no encontrado"}

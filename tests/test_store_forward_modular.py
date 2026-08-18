@@ -2,6 +2,7 @@
 Unit tests for modular SQLite Store & Forward, TTL expiration, and Packet Deduplication.
 """
 
+import asyncio
 import os
 import tempfile
 import time
@@ -31,16 +32,20 @@ class TestStoreForwardModular(unittest.TestCase):
                 except Exception:
                     pass
 
+    def _run(self, coro):
+        """Ejecuta una corrutina aislada sobre el buffer Store & Forward asíncrono."""
+        return asyncio.run(coro)
+
     def test_enqueue_and_fifo_batch_dequeue(self) -> None:
         # Encolar 5 mensajes
         for i in range(5):
-            ok = self.sf.enqueue(f"topic/{i}", f"payload_{i}", qos=1)
+            ok = self._run(self.sf.enqueue(f"topic/{i}", f"payload_{i}", qos=1))
             self.assertTrue(ok)
 
-        self.assertEqual(self.sf.get_size(), 5)
+        self.assertEqual(self._run(self.sf.count()), 5)
 
         # Dequeue batch
-        batch = self.sf.dequeue_batch(limit=3)
+        batch = self._run(self.sf.dequeue_batch(limit=3))
         self.assertEqual(len(batch), 3)
         self.assertEqual(batch[0][1], "topic/0")
         self.assertEqual(batch[1][1], "topic/1")
@@ -48,41 +53,41 @@ class TestStoreForwardModular(unittest.TestCase):
 
         # Eliminar procesados
         for item in batch:
-            self.sf.delete(item[0])
+            self._run(self.sf.delete_batch(item[0]))
 
-        self.assertEqual(self.sf.get_size(), 2)
+        self.assertEqual(self._run(self.sf.count()), 2)
 
     def test_capacity_limit_circular_trim(self) -> None:
         # max_size es 10, encolar 15 mensajes
         for i in range(15):
-            self.sf.enqueue("test/topic", f"payload_{i}")
+            self._run(self.sf.enqueue("test/topic", f"payload_{i}"))
 
-        self.assertLessEqual(self.sf.get_size(), 10)
-        batch = self.sf.dequeue_batch(limit=10)
+        self.assertLessEqual(self._run(self.sf.count()), 10)
+        batch = self._run(self.sf.dequeue_batch(limit=10))
         # Los más antiguos deben haberse descartado, quedando del 5 al 14
         self.assertEqual(batch[0][2], "payload_5")
         self.assertEqual(batch[-1][2], "payload_14")
 
     def test_ttl_expiration_purging(self) -> None:
         # Encolar con TTL de 0.5 segundos
-        self.sf.enqueue("fast/expire", "expired_payload", ttl_seconds=0.5)
-        self.assertEqual(self.sf.get_size(), 1)
+        self._run(self.sf.enqueue("fast/expire", "expired_payload", ttl_seconds=0.5))
+        self.assertEqual(self._run(self.sf.count()), 1)
 
         time.sleep(0.6)  # Esperar a que expire
-        purged = self.sf.purge_expired()
+        purged = self._run(self.sf.purge_expired())
         self.assertEqual(purged, 1)
-        self.assertEqual(self.sf.get_size(), 0)
+        self.assertEqual(self._run(self.sf.count()), 0)
 
     def test_packet_deduplicator(self) -> None:
         # Primera vez -> No es duplicado
-        self.assertFalse(self.dedup.is_duplicate("packet_hash_123"))
+        self.assertFalse(self._run(self.dedup.is_duplicate("packet_hash_123")))
 
         # Inmediato -> Es duplicado
-        self.assertTrue(self.dedup.is_duplicate("packet_hash_123"))
+        self.assertTrue(self._run(self.dedup.is_duplicate("packet_hash_123")))
 
         # Otra clave -> No es duplicado
-        self.assertFalse(self.dedup.is_duplicate("packet_hash_456"))
+        self.assertFalse(self._run(self.dedup.is_duplicate("packet_hash_456")))
 
         # Tras ventana de tiempo -> Deja de ser duplicado
         time.sleep(1.1)
-        self.assertFalse(self.dedup.is_duplicate("packet_hash_123"))
+        self.assertFalse(self._run(self.dedup.is_duplicate("packet_hash_123")))

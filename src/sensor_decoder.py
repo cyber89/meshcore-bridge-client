@@ -7,6 +7,7 @@ Soporta canales ambientales: Temperatura, Humedad, Barómetro, Voltaje, GPS y Ac
 from __future__ import annotations
 
 import io
+import logging
 import struct
 from dataclasses import dataclass
 from enum import IntEnum
@@ -192,7 +193,8 @@ class CayenneLPPDecoder:
 
                 readings.append(reading)
 
-            except Exception:
+            except Exception as e:
+                logging.warning(f"Error decoding CayenneLPP payload: {e}", exc_info=True)
                 break
 
         return readings, summary

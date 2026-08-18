@@ -42,8 +42,8 @@ def detect_serial_port() -> str:
                 return str(p.device)
         if ports:
             return str(ports[0].device)
-    except Exception:
-        pass
+    except Exception as e:
+        logging.warning(f"Error detecting serial port: {e}", exc_info=True)
     return "/dev/ttyACM0"
 
 
@@ -140,8 +140,8 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             for ev_type in EventType:
                 try:
                     self.mc.subscribe(ev_type, _on_event)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logging.warning(f"Error subscribing to event {ev_type}: {e}", exc_info=True)
 
     async def send_message(
         self,
@@ -190,8 +190,8 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                 c = self.mc.get_contact_by_key_prefix(name_or_key)
                 if c:
                     return c
-            except Exception:
-                pass
+            except Exception as e:
+                logging.warning(f"Error resolving target '{name_or_key}': {e}", exc_info=True)
         return name_or_key
 
     def resolve_sender_name(self, prefix_or_key: str) -> str:
@@ -204,8 +204,8 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                     name = getattr(c, "name", getattr(c, "alias", None))
                     if isinstance(name, str) and name:
                         return name
-            except Exception:
-                pass
+            except Exception as e:
+                logging.warning(f"Error resolving sender '{prefix_or_key}': {e}", exc_info=True)
         return str(prefix_or_key)
 
 

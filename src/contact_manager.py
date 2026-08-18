@@ -6,13 +6,14 @@ en memoria con soporte de búsqueda O(1), estadísticas de tráfico y análisis 
 
 from __future__ import annotations
 
+import heapq
 import logging
 import time
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class NodeContactInfo:
     """Información consolidada de un nodo o contacto en la malla."""
     public_key: str
@@ -222,14 +223,14 @@ class NodeRegistry:
         nodes_list = [c.to_dict() for c in self._nodes_by_key.values()]
 
         # 1. Top Nodos por Tráfico (RX + TX)
-        top_traffic = sorted(nodes_list, key=lambda n: int(str(n.get("total_packets", 0))), reverse=True)[:10]
+        top_traffic = heapq.nlargest(10, nodes_list, key=lambda n: int(str(n.get("total_packets", 0))))
 
         # 2. Top Nodos por Calidad de Señal (SNR / RSSI)
-        top_best_signal = sorted(nodes_list, key=lambda n: float(str(n.get("last_snr", 0.0))), reverse=True)[:5]
-        top_worst_signal = sorted(nodes_list, key=lambda n: float(str(n.get("last_snr", 0.0))))[:5]
+        top_best_signal = heapq.nlargest(5, nodes_list, key=lambda n: float(str(n.get("last_snr", 0.0))))
+        top_worst_signal = heapq.nsmallest(5, nodes_list, key=lambda n: float(str(n.get("last_snr", 0.0))))
 
         # 3. Top Clientes Conectados por Repetidor
-        top_repeaters = sorted(nodes_list, key=lambda n: int(str(n.get("connected_clients_count", 0))), reverse=True)[:5]
+        top_repeaters = heapq.nlargest(5, nodes_list, key=lambda n: int(str(n.get("connected_clients_count", 0))))
 
         # 4. Top Errores
         error_items: list[dict[str, Any]] = [

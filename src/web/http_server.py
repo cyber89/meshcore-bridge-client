@@ -276,11 +276,39 @@ class MeshCoreWebServer:
         if not clean_path or clean_path in ("", "chat", "map", "nodes", "contacts", "settings", "telemetry"):
             target_file = self.static_dir / "index.html"
         else:
+            # Seguridad: rechazar explícitamente intentos de Directory Traversal (OWASP)
+            normalized = clean_path.replace("\\", "/")
+            low = normalized.lower()
+            if (
+                ".." in normalized.split("/")
+                or "%2e" in low
+                or "%2f" in low
+                or "...." in normalized
+            ):
+                writer.write(
+                    b"HTTP/1.1 403 Forbidden\r\n"
+                    b"Content-Length: 0\r\n"
+                    b"X-Content-Type-Options: nosniff\r\n"
+                    b"X-Frame-Options: DENY\r\n"
+                    b"Connection: close\r\n\r\n"
+                )
+                await writer.drain()
+                writer.close()
+                return
             target_file = (self.static_dir / clean_path).resolve()
 
-        # Seguridad: evitar Directory Traversal
-        if not str(target_file).startswith(str(self.static_dir.resolve())):
-            target_file = self.static_dir / "index.html"
+        # Seguridad: verificación canónica (defensa en profundidad)
+        if not target_file.resolve().is_relative_to(self.static_dir.resolve()):
+            writer.write(
+                b"HTTP/1.1 403 Forbidden\r\n"
+                b"Content-Length: 0\r\n"
+                b"X-Content-Type-Options: nosniff\r\n"
+                b"X-Frame-Options: DENY\r\n"
+                b"Connection: close\r\n\r\n"
+            )
+            await writer.drain()
+            writer.close()
+            return
 
         if not target_file.is_file():
             target_file = self.static_dir / "index.html"

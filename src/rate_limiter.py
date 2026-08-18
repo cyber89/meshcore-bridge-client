@@ -111,10 +111,7 @@ class CustomTxQueue(asyncio.PriorityQueue[Any]):
         super()._put(wrapped)
 
     def _get(self) -> Any:
-        item = super()._get()
-        if isinstance(item, TxItem) and isinstance(item.payload, dict):
-            return item.payload
-        return item
+        return super()._get()
 
 
 class TxRateLimiter:

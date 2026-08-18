@@ -29,7 +29,7 @@ class TestWebServerRouter(unittest.IsolatedAsyncioTestCase):
         self.mock_bridge.rate_limiter = MagicMock()
         self.mock_bridge.rate_limiter.get_queue_depth.return_value = 0
         self.mock_bridge.store_and_forward = MagicMock()
-        self.mock_bridge.store_and_forward.get_size.return_value = 0
+        self.mock_bridge.store_and_forward.count = AsyncMock(return_value=0)
         self.mock_bridge._execute_tx = AsyncMock(return_value={"status": "sent"})
         self.mock_bridge.handle_admin = AsyncMock(return_value={"status": "ok", "action": "set_name"})
 
@@ -38,18 +38,18 @@ class TestWebServerRouter(unittest.IsolatedAsyncioTestCase):
     async def test_get_status_endpoint(self) -> None:
         code, data = await self.router.handle_request("GET", "/api/status")
         self.assertEqual(code, 200)
-        self.assertEqual(data["bridge_status"], "online")
-        self.assertEqual(data["known_mesh_nodes"], 1)
+        self.assertEqual(data["data"]["bridge_status"], "online")
+        self.assertEqual(data["data"]["known_mesh_nodes"], 1)
 
     async def test_get_nodes_and_contacts(self) -> None:
         code, data = await self.router.handle_request("GET", "/api/nodes")
         self.assertEqual(code, 200)
         self.assertEqual(data["count"], 1)
-        self.assertEqual(data["nodes"][0]["alias"], "Base_Station")
+        self.assertEqual(data["data"][0]["alias"], "Base_Station")
 
         code, data = await self.router.handle_request("GET", "/api/contacts")
         self.assertEqual(code, 200)
-        self.assertEqual(len(data["contacts"]), 1)
+        self.assertEqual(len(data["data"]), 1)
 
     async def test_add_contact_endpoint(self) -> None:
         body = {
@@ -60,7 +60,7 @@ class TestWebServerRouter(unittest.IsolatedAsyncioTestCase):
         code, data = await self.router.handle_request("POST", "/api/contacts", body)
         self.assertEqual(code, 200)
         self.assertEqual(data["status"], "ok")
-        self.assertEqual(data["contact"]["alias"], "Repeater_Alpha")
+        self.assertEqual(data["data"]["alias"], "Repeater_Alpha")
 
         # Verificar que se añadió a NodeRegistry
         self.assertEqual(self.mock_bridge.node_registry.get_count(), 2)
@@ -68,12 +68,12 @@ class TestWebServerRouter(unittest.IsolatedAsyncioTestCase):
     async def test_channels_crud(self) -> None:
         code, data = await self.router.handle_request("GET", "/api/channels")
         self.assertEqual(code, 200)
-        self.assertGreaterEqual(len(data["channels"]), 1)
+        self.assertGreaterEqual(len(data["data"]), 1)
 
         new_ch = {"index": 4, "name": "Canal Táctico", "psk": "KEY_12345"}
         code, data = await self.router.handle_request("POST", "/api/channels", new_ch)
         self.assertEqual(code, 200)
-        self.assertEqual(data["channel"]["name"], "Canal Táctico")
+        self.assertEqual(data["data"]["name"], "Canal Táctico")
 
     async def test_tx_message_endpoint(self) -> None:
         body = {
@@ -99,22 +99,22 @@ class TestWebServerRouter(unittest.IsolatedAsyncioTestCase):
     async def test_analytics_endpoint(self) -> None:
         code, data = await self.router.handle_request("GET", "/api/analytics")
         self.assertEqual(code, 200)
-        self.assertIn("top_nodes_by_traffic", data)
-        self.assertEqual(len(data["top_nodes_by_traffic"]), 1)
-        self.assertEqual(data["top_nodes_by_traffic"][0]["public_key"], "feedface0001")
-        self.assertEqual(data["top_nodes_by_traffic"][0]["total_packets"], 20)
+        self.assertIn("top_nodes_by_traffic", data["data"])
+        self.assertEqual(len(data["data"]["top_nodes_by_traffic"]), 1)
+        self.assertEqual(data["data"]["top_nodes_by_traffic"][0]["public_key"], "feedface0001")
+        self.assertEqual(data["data"]["top_nodes_by_traffic"][0]["total_packets"], 20)
 
     async def test_sniffer_control_endpoint(self) -> None:
         code, data = await self.router.handle_request("POST", "/api/sniffer/control", {"action": "start"})
         self.assertEqual(code, 200)
-        self.assertTrue(data["sniffer_active"])
+        self.assertTrue(data["data"]["sniffer_active"])
 
     async def test_system_logs_endpoint(self) -> None:
         self.router.log_system_event("WARN", "Prueba de advertencia en logs", source="test")
         code, data = await self.router.handle_request("GET", "/api/system/logs")
         self.assertEqual(code, 200)
         self.assertGreaterEqual(data["count"], 1)
-        self.assertEqual(data["system_logs"][-1]["level"], "WARN")
+        self.assertEqual(data["data"][-1]["level"], "WARN")
 
 
 if __name__ == "__main__":

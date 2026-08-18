@@ -38,6 +38,7 @@ class VirtualMeshAdapter(BaseSerialAdapter):
             self.set_rx_callback(event_callback)
         self.running = False
         self._sim_task: asyncio.Task[None] | None = None
+        self._background_tasks: set[asyncio.Task[Any]] = set()
         self._tick_counter = 0
 
         # Definición de los 2 nodos clientes remotos
@@ -85,6 +86,8 @@ class VirtualMeshAdapter(BaseSerialAdapter):
 
         # Iniciar ciclo de simulación en segundo plano
         self._sim_task = asyncio.create_task(self._simulation_loop())
+        self._background_tasks.add(self._sim_task)
+        self._sim_task.add_done_callback(self._background_tasks.discard)
         return True
 
     async def disconnect(self) -> None:
@@ -136,7 +139,9 @@ class VirtualMeshAdapter(BaseSerialAdapter):
                 target_node = self.node_alpha
 
         if target_node:
-            asyncio.create_task(self._simulate_echo_reply(target_node, text, channel_idx=channel_idx, is_direct=is_direct))
+            task = asyncio.create_task(self._simulate_echo_reply(target_node, text, channel_idx=channel_idx, is_direct=is_direct))
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
 
         return {
             "status": "ok",
@@ -181,7 +186,9 @@ class VirtualMeshAdapter(BaseSerialAdapter):
             return False
 
         self.heartbeat()
-        asyncio.create_task(self._process_outbound_frame(frame))
+        task = asyncio.create_task(self._process_outbound_frame(frame))
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
         return True
 
     async def _process_outbound_frame(self, frame: MeshcoreFrame) -> None:
