@@ -15,16 +15,14 @@ from datetime import datetime, timezone
 from typing import Any, Protocol, cast
 
 import config
+from src.admin_handler import AdminCommandHandler, AdminContext
 from src.contact_manager import NodeRegistry
-from src.mqtt_client import AsyncBridgeMQTTClient
-from src.protocol_types import (
-    MeshcoreFrame,
-    OpCode,
-    TextMessagePayload,
-)
-from src.rate_limiter import CustomTxQueue, TxItem, TxPriority, TxRateLimiter
+from src.health_reporter import HealthContext, HealthReporter
+from src.mqtt_client import AsyncBridgeMQTTClient, MQTTConfig
+from src.mqtt_dispatcher import MqttInboundContext, MqttInboundDispatcher
+from src.rate_limiter import CustomTxQueue, LoRaRadioConfig, TxItem, TxRateLimiter
 from src.repeater_manager import RepeaterManager
-from src.sensor_decoder import CayenneLPPDecoder
+from src.rx_router import RxEventRouter, RxRouterContext
 from src.serial_driver import (
     BaseSerialAdapter,
     MeshcoreSDKAdapter,
@@ -32,6 +30,7 @@ from src.serial_driver import (
     SerialWatchdog,
 )
 from src.store_forward import PacketDeduplicator, SQLiteStoreAndForward
+from src.web import MeshCoreWebServer
 
 
 class MqttClientProtocol(Protocol):
@@ -83,19 +82,23 @@ class MeshCoreBridge:
         # 3. Capa de Transmisión con Rate Limiting y Airtime
         self.rate_limiter = TxRateLimiter(
             tx_interval_sec=config.TX_INTERVAL_SEC,
-            default_sf=getattr(config, "LORA_DEFAULT_SF", 11),
-            default_bw_khz=getattr(config, "LORA_DEFAULT_BW_KHZ", 250.0),
+            radio_config=LoRaRadioConfig(
+                sf=getattr(config, "LORA_DEFAULT_SF", 11),
+                bw_khz=getattr(config, "LORA_DEFAULT_BW_KHZ", 250.0),
+            ),
             transmit_callback=self._execute_tx_transmission,
         )
 
         # 4. Capa de Comunicación MQTT
         self.mqtt = AsyncBridgeMQTTClient(
-            broker=config.MQTT_BROKER,
-            port=config.MQTT_PORT,
-            username=config.MQTT_USER,
-            password=config.MQTT_PASSWORD,
-            keepalive=config.MQTT_KEEPALIVE,
-            topic_prefix=config.TOPIC_PREFIX,
+            config=MQTTConfig(
+                broker=config.MQTT_BROKER,
+                port=config.MQTT_PORT,
+                username=config.MQTT_USER,
+                password=config.MQTT_PASSWORD,
+                keepalive=config.MQTT_KEEPALIVE,
+                topic_prefix=config.TOPIC_PREFIX,
+            ),
             store_and_forward=self.store_and_forward,
             on_rx_message_callback=self._on_incoming_mqtt_message,
         )
@@ -113,25 +116,77 @@ class MeshCoreBridge:
         )
 
         # 7. Servidor Web Asíncrono y WebSocket Hub
-        web_enabled = getattr(config, "WEB_ENABLED", True)
-        from src.web import MeshCoreWebServer
-        self.web_server: MeshCoreWebServer | None = (
-            MeshCoreWebServer(
-                bridge=self,
-                host=getattr(config, "WEB_HOST", "0.0.0.0"),  # nosec B104
-                port=getattr(config, "WEB_PORT", 8080),
-            )
-            if web_enabled
-            else None
-        )
+        self.web_server: MeshCoreWebServer | None = self._create_web_server()
 
         # Tareas en segundo plano y métricas
-        self._health_task: asyncio.Task[None] | None = None
         self.rx_count = 0
         self.tx_count = 0
         self.tx_error_count = 0
         self.serial_reconnect_count = 0
+        self._health_task: asyncio.Task[None] | None = None
         self._background_tasks: set[asyncio.Task[Any]] = set()
+
+        # 8-11. Componentes con responsabilidades extraídas de la God Class
+        self._build_sub_components()
+
+    def _create_web_server(self) -> MeshCoreWebServer | None:
+        """Crea el servidor HTTP/WebSocket asíncrono si está habilitado por configuración."""
+        if not getattr(config, "WEB_ENABLED", True):
+            return None
+        return MeshCoreWebServer(
+            bridge=self,
+            host=getattr(config, "WEB_HOST", "0.0.0.0"),  # nosec B104
+            port=getattr(config, "WEB_PORT", 8080),
+        )
+
+    def _build_sub_components(self) -> None:
+        """Ensambla los componentes desacoplados del bridge (RX, admin, salud, MQTT)."""
+        self.mqtt_dispatcher = MqttInboundDispatcher(
+            MqttInboundContext(
+                loop=self._custom_loop,
+                background_tasks=self._background_tasks,
+                mqtt=self.mqtt,
+                rate_limiter=self.rate_limiter,
+                handle_admin=self.handle_admin,
+            )
+        )
+
+        self.rx_router = RxEventRouter(
+            RxRouterContext(
+                mqtt=self.mqtt,
+                node_registry=self.node_registry,
+                serial_adapter=self.serial_adapter,
+                deduplicator=self.deduplicator,
+                repeater_manager=self.repeater_manager,
+                web_server=self.web_server,
+                loop=self._custom_loop,
+                background_tasks=self._background_tasks,
+                counters=self,
+            )
+        )
+
+        self.admin_handler = AdminCommandHandler(
+            AdminContext(
+                mc_provider=lambda: self.mc,
+                node_registry=self.node_registry,
+                repeater_manager=self.repeater_manager,
+                mqtt=self.mqtt,
+                execute_tx=self._execute_tx,
+            )
+        )
+
+        self.health_reporter = HealthReporter(
+            HealthContext(
+                mqtt=self.mqtt,
+                serial_adapter=self.serial_adapter,
+                store_and_forward=self.store_and_forward,
+                node_registry=self.node_registry,
+                rate_limiter=self.rate_limiter,
+                counters=self,
+                start_time=self.start_time,
+            ),
+            interval_sec=config.HEALTH_METRICS_INTERVAL_SEC,
+        )
 
     # ================= Propiedades de compatibilidad =================
     @property
@@ -244,7 +299,7 @@ class MeshCoreBridge:
             await self.web_server.start()
 
         # Iniciar reporte periódico de salud
-        self._health_task = asyncio.create_task(self._health_reporter_loop(), name="HealthReporter")
+        self._health_task = self.health_reporter.start()
         self._background_tasks.add(self._health_task)
         self._health_task.add_done_callback(self._background_tasks.discard)
         logging.info("MeshCore Bridge iniciado y operativo (v3.0).")
@@ -257,12 +312,8 @@ class MeshCoreBridge:
         if self.web_server:
             await self.web_server.stop()
 
-        if self._health_task and not self._health_task.done():
-            self._health_task.cancel()
-            try:
-                await self._health_task
-            except asyncio.CancelledError:
-                pass
+        await self.health_reporter.stop()
+        self._health_task = None
 
         await self.watchdog.stop()
         await self.rate_limiter.stop()
@@ -400,191 +451,18 @@ class MeshCoreBridge:
 
     async def handle_admin(self, admin_data: dict[str, Any]) -> dict[str, Any]:
         """Ejecuta comandos de administración sobre la radio o repetidores."""
-        action = str(admin_data.get("action", admin_data.get("command", "")))
-        req_id = admin_data.get("request_id", admin_data.get("id"))
-        target_node = admin_data.get("target_node", admin_data.get("repeater"))
-        res: dict[str, Any] = {"status": "ok", "action": action}
-        if req_id is not None:
-            res["request_id"] = req_id
-
-        if action == "get_config":
-            res["config"] = getattr(self.mc, "self_info", {"name": "Heltec_Router_E2E", "radio_freq": 915.0})
-        elif action == "list_nodes":
-            res["nodes"] = self.node_registry.list_nodes()
-
-        # Si el comando va dirigido a un repetidor remoto
-        if target_node:
-            cmd_text = self.repeater_manager.build_repeater_command_payload(action, admin_data)
-            await self._execute_tx({"to": str(target_node), "text": f"cmd {cmd_text}", "request_id": req_id})
-            res["target_node"] = target_node
-            res["cmd_dispatched"] = cmd_text
-            self.publish_mqtt_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/status", json.dumps(res), qos=1)
-            return res
-
-        if self.mc and hasattr(self.mc, "commands"):
-            try:
-                if action == "set_tx_power" and hasattr(self.mc.commands, "set_tx_power"):
-                    power = int(admin_data.get("power", 20))
-                    await self.mc.commands.set_tx_power(power)
-                elif action == "set_name" and hasattr(self.mc.commands, "set_name"):
-                    name = str(admin_data.get("name", "Node"))
-                    await self.mc.commands.set_name(name)
-                elif action == "reboot" and hasattr(self.mc.commands, "reboot"):
-                    await self.mc.commands.reboot()
-                elif action == "req_telemetry" and hasattr(self.mc.commands, "req_telemetry"):
-                    await self.mc.commands.req_telemetry()
-            except Exception as e:
-                res["status"] = "error"
-                res["error"] = str(e)
-
-        self.publish_mqtt_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
-        return res
+        return await self.admin_handler.handle(admin_data)
 
     # ================================================================
-    # Despachador de Eventos LoRa / Radio -> MQTT / n8n
+    # Despachador de Eventos LoRa / Radio -> MQTT / n8n (RxEventRouter)
     # ================================================================
     def on_mesh_event(self, event: Any) -> None:
         """Procesa y enruta eventos de la red Mesh hacia MQTT y n8n."""
-        self.rx_count += 1
-        self.serial_adapter.heartbeat()
-
-        if isinstance(event, MeshcoreFrame):
-            loop = self._custom_loop or asyncio.get_event_loop()
-            task = loop.create_task(self._dispatch_parsed_frame(event))
-            self._background_tasks.add(task)
-            task.add_done_callback(self._background_tasks.discard)
-            return
-
-        ev_type_str = str(getattr(event, "type", getattr(event, "event_type", "")))
-        payload_obj = getattr(event, "payload", getattr(event, "data", event))
-
-        if isinstance(payload_obj, dict):
-            payload_dict = dict(payload_obj)
-        elif hasattr(payload_obj, "__dict__"):
-            payload_dict = {k: v for k, v in payload_obj.__dict__.items() if not k.startswith("_")}
-        else:
-            payload_dict = {"raw": str(payload_obj)}
-
-        # Caso Sniffer RF (0x88 / LOG_DATA)
-        if "LOG_DATA" in ev_type_str or "rf_log" in ev_type_str:
-            parsed_log = self.repeater_manager.parse_log_packet(payload_dict.get("raw", payload_obj))
-            self.mqtt.publish_safe(config.TOPIC_RX_LOG, json.dumps(parsed_log), qos=0)
-            if self.web_server:
-                self.web_server.broadcast_event(parsed_log)
-            return
-
-        rssi = payload_dict.get("rssi", -80)
-        snr = payload_dict.get("snr", 10.0)
-        sender = str(payload_dict.get("sender", payload_dict.get("pubkey_prefix", "unknown")))
-        sender_name = str(payload_dict.get("sender_name", self.resolve_sender_name(sender)))
-        text = str(payload_dict.get("text", payload_dict.get("message", "")))
-        channel_idx = int(payload_dict.get("channel_idx", payload_dict.get("channel", 0)))
-        hops = int(payload_dict.get("hop_count", payload_dict.get("hops", 0)))
-
-        # Actualizar directorio dinámico de nodos
-        if sender and sender != "unknown":
-            bat_pct = int(payload_dict["battery"]) if "battery" in payload_dict and isinstance(payload_dict["battery"], (int, float)) else None
-            self.node_registry.add_or_update(
-                public_key=sender,
-                name=sender_name,
-                hops=hops,
-                last_rssi=int(rssi) if isinstance(rssi, (int, float)) else -80,
-                last_snr=float(snr) if isinstance(snr, (int, float)) else 10.0,
-                battery_pct=bat_pct,
-            )
-
-        if "CHANNEL_MSG" in ev_type_str or (text and channel_idx >= 0 and "DIRECT" not in ev_type_str):
-            self._handle_mesh_channel_msg(sender, sender_name, text, channel_idx, rssi, snr)
-        elif "DIRECT_MSG" in ev_type_str:
-            self._handle_mesh_direct_msg(sender, sender_name, text, rssi, snr)
-        else:
-            self._handle_mesh_telemetry_msg(payload_dict)
-
-    def _handle_mesh_channel_msg(self, sender: str, sender_name: str, text: str, channel_idx: int, rssi: Any, snr: Any) -> None:
-        event_type = "public" if channel_idx == 0 else "channel"
-        evt_payload = {
-            "event_type": event_type,
-            "sender": sender,
-            "sender_name": sender_name,
-            "text": text,
-            "channel_idx": channel_idx,
-            "channel_index": channel_idx,
-            "metrics": {"rssi": rssi, "snr": snr},
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-        evt_json = json.dumps(evt_payload)
-        self.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
-        if channel_idx == 0:
-            self.mqtt.publish_safe(config.TOPIC_RX_PUBLIC, evt_json, qos=0)
-        else:
-            self.mqtt.publish_safe(f"{config.TOPIC_RX_CHANNEL}/ch_{channel_idx}", evt_json, qos=0)
-        if self.web_server:
-            self.web_server.broadcast_event(evt_payload)
-
-    def _handle_mesh_direct_msg(self, sender: str, sender_name: str, text: str, rssi: Any, snr: Any) -> None:
-        evt_payload = {
-            "event_type": "direct",
-            "sender": sender,
-            "sender_name": sender_name,
-            "text": text,
-            "metrics": {"rssi": rssi, "snr": snr},
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-        evt_json = json.dumps(evt_payload)
-        self.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
-        self.mqtt.publish_safe(f"{config.TOPIC_RX_DIRECT}/{sender}", evt_json, qos=0)
-        if self.web_server:
-            self.web_server.broadcast_event(evt_payload)
-
-    def _handle_mesh_telemetry_msg(self, payload_dict: dict[str, Any]) -> None:
-        if "raw_bytes" in payload_dict and isinstance(payload_dict["raw_bytes"], (bytes, bytearray)):
-            raw_b = bytes(payload_dict["raw_bytes"])
-            _readings, summary = CayenneLPPDecoder.decode(raw_b)
-            payload_dict["raw_hex"] = raw_b.hex()
-            payload_dict.pop("raw_bytes", None)
-            payload_dict.update(summary)
-
-        # Sanitizar cualquier otro campo bytes restante
-        for k, v in list(payload_dict.items()):
-            if isinstance(v, (bytes, bytearray)):
-                payload_dict[k] = bytes(v).hex()
-
-        payload_dict["timestamp"] = datetime.now(timezone.utc).isoformat()
-        evt_json = json.dumps(payload_dict, sort_keys=True)
-        self.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
-        if "battery" in payload_dict or "voltage" in payload_dict or "temperature" in payload_dict or "temperature_c" in payload_dict:
-            self.mqtt.publish_safe(config.TOPIC_RX_TELEMETRY, evt_json, qos=0)
-        if self.web_server:
-            self.web_server.broadcast_event(payload_dict)
+        self.rx_router.handle_event(event)
 
     def on_radio_event(self, event: Any) -> None:
         """Alias para on_mesh_event."""
         self.on_mesh_event(event)
-
-    async def _dispatch_parsed_frame(self, frame: MeshcoreFrame) -> None:
-        """Enruta instancias de MeshcoreFrame validadas a MQTT."""
-        mqtt_evt = frame.to_mqtt_event()
-        evt_json = json.dumps(mqtt_evt)
-
-        dedup_key = f"frame::{frame.header.src_node_id}::{frame.header.seq_num}::{int(frame.header.opcode)}"
-        if await self.deduplicator.is_duplicate(dedup_key):
-            return
-
-        self.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
-
-        if frame.header.opcode == OpCode.TELEMETRY:
-            self.mqtt.publish_safe(config.TOPIC_RX_TELEMETRY, evt_json, qos=0)
-        elif frame.header.opcode == OpCode.NODE_ADVERT:
-            self.mqtt.publish_safe(config.TOPIC_RX_NODES, evt_json, qos=0)
-        elif frame.header.opcode == OpCode.TEXT_MSG:
-            if isinstance(frame.payload, TextMessagePayload):
-                if frame.payload.channel_idx == 0:
-                    self.mqtt.publish_safe(config.TOPIC_RX_PUBLIC, evt_json, qos=0)
-                else:
-                    self.mqtt.publish_safe(f"{config.TOPIC_RX_CHANNEL}/ch_{frame.payload.channel_idx}", evt_json, qos=0)
-
-                src_hex = f"0x{frame.header.src_node_id:04X}"
-                self.mqtt.publish_safe(f"{config.TOPIC_RX_DIRECT}/{src_hex}", evt_json, qos=0)
 
     # ================================================================
     # Despachador de Mensajes MQTT Entrantes (n8n -> Bridge)
@@ -601,128 +479,11 @@ class MeshCoreBridge:
 
     def _on_incoming_mqtt_message(self, topic: str, payload_str: str) -> None:
         """Enruta mensajes recibidos desde MQTT (TX o Admin) a la cola de eventos."""
-        try:
-            loop = self._custom_loop or asyncio.get_running_loop()
-            task = loop.create_task(self._process_mqtt_input(topic, payload_str))
-            self._background_tasks.add(task)
-            task.add_done_callback(self._background_tasks.discard)
-        except RuntimeError:
-            pass
-
-    async def _process_mqtt_input(self, topic: str, payload_str: str) -> None:
-        try:
-            if topic == self.mqtt.topic_tx:
-                await self._handle_tx_request(payload_str)
-            elif topic == self.mqtt.topic_admin_cmd:
-                await self._handle_admin_request(payload_str)
-            elif topic.startswith(config.TOPIC_ADMIN_REPEATER):
-                # Extraer prefijo de nodo: {prefix}/admin/repeater/{target_node}/cmd
-                parts = topic.split("/")
-                target_node = parts[3] if len(parts) > 3 else "repeater"
-                try:
-                    data = json.loads(payload_str)
-                    if isinstance(data, dict):
-                        data["target_node"] = target_node
-                        await self.handle_admin(data)
-                    else:
-                        await self.handle_admin({"action": str(data), "target_node": target_node})
-                except Exception:
-                    await self.handle_admin({"action": payload_str, "target_node": target_node})
-        except Exception as e:
-            logging.error(f"Error procesando mensaje MQTT entrante ({topic}): {e}", exc_info=True)
-
-    async def _handle_tx_request(self, payload_str: str) -> None:
-        """Parsea solicitud de transmisión y la encola en el Rate Limiter."""
-        text = ""
-        target = None
-        channel_idx = 0
-        req_id = None
-        priority = TxPriority.NORMAL
-
-        try:
-            data = json.loads(payload_str)
-            if isinstance(data, dict):
-                text = str(data.get("text", data.get("message", "")))
-                target = data.get("dest_node_id", data.get("target", data.get("to", data.get("recipient"))))
-                raw_ch = data.get("channel_idx", data.get("channel_index", data.get("channel", 0)))
-                channel_idx = int(raw_ch) if raw_ch is not None else 0
-                req_id = data.get("request_id", data.get("id"))
-                prio_val = data.get("priority", 1)
-                priority = TxPriority(prio_val) if prio_val in (0, 1, 2) else TxPriority.NORMAL
-            else:
-                text = str(data)
-        except (json.JSONDecodeError, ValueError):
-            text = payload_str
-
-        if not text:
-            return
-
-        future = await self.rate_limiter.submit(
-            payload=text,
-            priority=priority,
-            target=str(target) if target else None,
-            channel_idx=channel_idx,
-            request_id=str(req_id) if req_id else None,
-        )
-
-        res = await future
-        status_payload = {
-            "status": res.get("status", "sent"),
-            "request_id": req_id,
-            "target": target,
-            "channel_idx": channel_idx,
-            "queue_depth": self.rate_limiter.get_queue_depth(),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-        self.mqtt.publish_safe(config.TOPIC_TX_STATUS, json.dumps(status_payload), qos=1)
-
-    async def _handle_admin_request(self, payload_str: str) -> None:
-        """Ejecuta comandos de administración sobre el hardware."""
-        action = ""
-        params: dict[str, Any] = {}
-        try:
-            data = json.loads(payload_str)
-            if isinstance(data, dict):
-                action = str(data.get("action", data.get("command", "")))
-                params = data.get("params", data)
-            else:
-                action = str(data)
-        except Exception:
-            action = payload_str
-
-        await self.handle_admin(params if isinstance(params, dict) else {"action": action})
+        self.mqtt_dispatcher.handle_incoming(topic, payload_str)
 
     async def _execute_tx_transmission(self, item: TxItem) -> dict[str, Any]:
         """Callback real de emisión hacia el adaptador serial."""
         return await self._execute_tx(item)
-
-    # ================================================================
-    # Reporte Periódico de Salud y Métricas
-    # ================================================================
-    async def _health_reporter_loop(self) -> None:
-        """Publica periódicamente métricas de salud en meshcore/bridge/health."""
-        while self.running:
-            try:
-                await asyncio.sleep(config.HEALTH_METRICS_INTERVAL_SEC)
-                health_payload = {
-                    "status": "healthy" if self.serial_adapter.is_connected else "degraded",
-                    "uptime_seconds": int(time.time() - self.start_time),
-                    "serial_port": config.SERIAL_PORT,
-                    "serial_connected": self.serial_adapter.is_connected,
-                    "mqtt_connected": self.mqtt.is_connected,
-                    "offline_buffer_pending": await self.store_and_forward.count(),
-                    "known_mesh_nodes": self.node_registry.get_count(),
-                    "tx_queue_depth": self.rate_limiter.get_queue_depth(),
-                    "total_rx_packets": self.rx_count,
-                    "total_tx_packets": self.tx_count,
-                    "total_tx_errors": self.tx_error_count,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
-                self.mqtt.publish_safe(config.TOPIC_HEALTH, json.dumps(health_payload), qos=0)
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logging.error(f"Error en reporte de salud: {e}")
 
     def run_forever(self) -> None:
         """Punto de entrada síncrono que corre el bucle asyncio con manejo de señales."""

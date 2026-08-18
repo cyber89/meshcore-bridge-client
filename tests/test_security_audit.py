@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from unittest.mock import AsyncMock, MagicMock
 
-from src.store_forward import SQLiteStoreAndForward
+from src.store_forward import SQLiteStoreAndForward, StoredMessage
 from src.web.http_server import MeshCoreWebServer
 
 
@@ -49,9 +49,11 @@ class TestSecurityAudit(unittest.IsolatedAsyncioTestCase):
 
         for payload in malicious_payloads:
             ok = await self.store.enqueue(
-                topic=f"meshcore/test/{payload}",
-                payload=payload,
-                qos=1,
+                StoredMessage(
+                    topic=f"meshcore/test/{payload}",
+                    payload=payload,
+                    qos=1,
+                )
             )
             self.assertTrue(ok)
 

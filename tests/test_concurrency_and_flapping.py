@@ -12,7 +12,7 @@ import threading
 import unittest
 from unittest.mock import AsyncMock, MagicMock
 
-from meshcore_bridge import MeshCoreBridge, SQLiteStoreAndForward
+from meshcore_bridge import MeshCoreBridge, SQLiteStoreAndForward, StoredMessage
 
 
 class TestConcurrencyAndFlapping(unittest.TestCase):
@@ -58,7 +58,7 @@ class TestConcurrencyAndFlapping(unittest.TestCase):
 
         def worker(thread_idx):
             for i in range(msgs_per_thread):
-                asyncio.run(buffer.enqueue("meshcore/rx/all", f'{{"thread": {thread_idx}, "msg": {i}}}', qos=0))
+                asyncio.run(buffer.enqueue(StoredMessage("meshcore/rx/all", f'{{"thread": {thread_idx}, "msg": {i}}}', qos=0)))
 
         threads = []
         for t in range(num_threads):
@@ -97,7 +97,7 @@ class TestConcurrencyAndFlapping(unittest.TestCase):
         # 1. Inyectar 20 mensajes con MQTT desconectado
         self.bridge.mqtt_connected = False
         for i in range(20):
-            self._run(self.bridge.sqlite_buffer.enqueue("meshcore/rx/all", f'{{"item": {i}}}', qos=0))
+            self._run(self.bridge.sqlite_buffer.enqueue(StoredMessage("meshcore/rx/all", f'{{"item": {i}}}', qos=0)))
 
         self.assertEqual(self._run(self.bridge.sqlite_buffer.count()), 20)
 

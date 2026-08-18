@@ -11,6 +11,8 @@ import logging
 import time
 from typing import Any
 
+from src.contact_manager import NodeContactUpdate, PacketRecord
+
 
 class WebAPIRouter:
     """Enrutador modular de API REST para el cliente web de MeshCore Bridge."""
@@ -56,13 +58,13 @@ class WebAPIRouter:
         elif "telemetry" in ev_type or "temperature_c" in event_data or "battery_pct" in event_data or "battery" in event_data:
             self.recent_telemetry.append(event_data)
             if sender:
-                self.bridge.node_registry.record_packet(public_key=sender, is_rx=True, rssi=rssi, snr=snr, telemetry=event_data)
+                self.bridge.node_registry.record_packet(PacketRecord(public_key=sender, is_rx=True, rssi=rssi, snr=snr, telemetry=event_data))
             self.log_system_event("INFO", f"Telemetría ambiental recibida de nodo {sender}", source="telemetry")
 
         else:
             self.recent_messages.append(event_data)
             if sender:
-                self.bridge.node_registry.record_packet(public_key=sender, is_rx=True, rssi=rssi, snr=snr)
+                self.bridge.node_registry.record_packet(PacketRecord(public_key=sender, is_rx=True, rssi=rssi, snr=snr))
             self.log_system_event("INFO", f"Mensaje RX [{ev_type}] de {sender}: {event_data.get('text', '')[:30]}", source="mesh_rx")
 
     async def handle_request(
@@ -151,9 +153,8 @@ class WebAPIRouter:
                 return 400, {"status": "error", "message": "Se requiere 'public_key'"}
 
             contact = self.bridge.node_registry.add_or_update(
-                public_key=pubkey,
-                name=name or f"Node_{pubkey[:6]}",
-                alias=alias,
+                pubkey,
+                NodeContactUpdate(name=name or f"Node_{pubkey[:6]}", alias=alias),
             )
             self.log_system_event("INFO", f"Contacto guardado: {pubkey} ({alias or name})", source="contacts")
             return 200, {"status": "ok", "data": contact.to_dict()}
@@ -193,7 +194,7 @@ class WebAPIRouter:
         tx_item = {"to": target, "channel_index": ch_idx, "text": text, "request_id": req_id}
         res = await self.bridge._execute_tx(tx_item)
         if target != "broadcast":
-            self.bridge.node_registry.record_packet(public_key=target, is_rx=False)
+            self.bridge.node_registry.record_packet(PacketRecord(public_key=target, is_rx=False))
         self.log_system_event("INFO", f"Transmisión TX enviada a {target} (Ch {ch_idx})", source="mesh_tx")
         return 200, {"status": "ok", "data": res}
 

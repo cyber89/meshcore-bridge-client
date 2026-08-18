@@ -48,7 +48,40 @@ if [[ "${1:-}" == "--uninstall" ]]; then
     exit 0
 fi
 
-# 3. Manejo de Actualización en Caliente (--update)
+# 3.0 Modo Desarrollo / QA (--dev): instala tooling de auditoría y verifica el código
+if [[ "${1:-}" == "--dev" ]]; then
+    echo -e "${CYAN}==================================================================${NC}"
+    echo -e "${YELLOW}    🔬 MODO DESARROLLADOR: INSTALANDO HERRAMIENTAS DE QA Y AUDITORÍA${NC}"
+    echo -e "${CYAN}==================================================================${NC}"
+
+    if [[ ! -d "$INSTALL_DIR" ]]; then
+        echo -e "${RED}[ERROR] No se encontró una instalación previa en ${INSTALL_DIR}.${NC}"
+        echo "Primero ejecuta 'sudo bash install.sh' para instalar MeshCore Bridge."
+        exit 1
+    fi
+
+    echo -e "${BLUE}[1/3] Instalando tooling de desarrollo en el venv...${NC}"
+    "$INSTALL_DIR/venv/bin/pip" install -r "$INSTALL_DIR/requirements-dev.txt" -q
+    "$INSTALL_DIR/venv/bin/pip" install -e "$INSTALL_DIR[dev]" -q 2>/dev/null || true
+
+    echo -e "${BLUE}[2/3] Instalando navegador Chromium para pruebas E2E (Playwright)...${NC}"
+    "$INSTALL_DIR/venv/bin/playwright" install chromium --with-deps 2>/dev/null || \
+        "$INSTALL_DIR/venv/bin/playwright" install chromium
+
+    echo -e "${BLUE}[3/3] Ejecutando verificación estática y unitaria...${NC}"
+    cd "$INSTALL_DIR"
+    "$INSTALL_DIR/venv/bin/python" .agents/skills/bridge-test-runner/scripts/run_checks.py || true
+
+    chown -R "$TARGET_USER:$TARGET_USER" "$INSTALL_DIR"
+    echo ""
+    echo -e "${GREEN}    🎉 ¡MODO DESARROLLADOR CONFIGURADO!${NC}"
+    echo "Herramientas: pytest, mypy --strict, ruff, bandit, playwright (Chromium), amqtt."
+    echo "Re-ejecuta la verificación con: sudo bash install.sh --dev"
+    echo ""
+    exit 0
+fi
+
+# 3.1 Manejo de Actualización en Caliente (--update)
 if [[ "${1:-}" == "--update" ]]; then
     echo -e "${CYAN}==================================================================${NC}"
     echo -e "${YELLOW}    🔄 ACTUALIZANDO INSTALACIÓN EXISTENTE DE MESHCORE BRIDGE${NC}"
@@ -68,11 +101,16 @@ if [[ "${1:-}" == "--update" ]]; then
     cp -f "$CURRENT_DIR/meshcore_bridge.py" "$INSTALL_DIR/"
     cp -f "$CURRENT_DIR/pyproject.toml" "$INSTALL_DIR/" 2>/dev/null || true
     cp -f "$CURRENT_DIR/requirements.txt" "$INSTALL_DIR/"
+    cp -f "$CURRENT_DIR/requirements-dev.txt" "$INSTALL_DIR/" 2>/dev/null || true
     cp -f "$CURRENT_DIR/meshcore-bridge.service" "$INSTALL_DIR/"
     
     # Copiar paquete modular src/
     mkdir -p "$INSTALL_DIR/src"
     cp -rf "$CURRENT_DIR/src/"* "$INSTALL_DIR/src/"
+    
+    # Copiar skills y herramientas de auditoría / QA (necesarias para --dev)
+    mkdir -p "$INSTALL_DIR/.agents"
+    cp -rf "$CURRENT_DIR/.agents/"* "$INSTALL_DIR/.agents/" 2>/dev/null || true
     
     # Copiar documentación
     mkdir -p "$INSTALL_DIR/docs"
@@ -206,10 +244,14 @@ cp -rf "$CURRENT_DIR/config.py" "$INSTALL_DIR/"
 cp -rf "$CURRENT_DIR/meshcore_bridge.py" "$INSTALL_DIR/"
 cp -rf "$CURRENT_DIR/pyproject.toml" "$INSTALL_DIR/" 2>/dev/null || true
 cp -rf "$CURRENT_DIR/requirements.txt" "$INSTALL_DIR/"
+cp -rf "$CURRENT_DIR/requirements-dev.txt" "$INSTALL_DIR/" 2>/dev/null || true
 cp -rf "$CURRENT_DIR/meshcore-bridge.service" "$INSTALL_DIR/"
 
 mkdir -p "$INSTALL_DIR/src"
 cp -rf "$CURRENT_DIR/src/"* "$INSTALL_DIR/src/"
+
+mkdir -p "$INSTALL_DIR/.agents"
+cp -rf "$CURRENT_DIR/.agents/"* "$INSTALL_DIR/.agents/" 2>/dev/null || true
 
 mkdir -p "$INSTALL_DIR/docs"
 cp -rf "$CURRENT_DIR/docs/"* "$INSTALL_DIR/docs/" 2>/dev/null || true

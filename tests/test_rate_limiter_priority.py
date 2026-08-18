@@ -6,6 +6,7 @@ import asyncio
 import unittest
 
 from src.rate_limiter import (
+    LoRaRadioConfig,
     TxItem,
     TxPriority,
     TxRateLimiter,
@@ -16,8 +17,8 @@ from src.rate_limiter import (
 class TestRateLimiterPriority(unittest.IsolatedAsyncioTestCase):
     async def test_lora_airtime_estimation(self) -> None:
         # SF7, 250kHz vs SF11, 250kHz
-        airtime_sf7 = estimate_lora_airtime_ms(payload_len_bytes=32, sf=7, bw_khz=250.0)
-        airtime_sf11 = estimate_lora_airtime_ms(payload_len_bytes=32, sf=11, bw_khz=250.0)
+        airtime_sf7 = estimate_lora_airtime_ms(32, LoRaRadioConfig(sf=7, bw_khz=250.0))
+        airtime_sf11 = estimate_lora_airtime_ms(32, LoRaRadioConfig(sf=11, bw_khz=250.0))
 
         self.assertGreater(airtime_sf7, 0)
         self.assertGreater(airtime_sf11, airtime_sf7, "Mayor SF debe resultar en mayor Airtime")

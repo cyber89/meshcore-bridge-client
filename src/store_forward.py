@@ -13,9 +13,21 @@ import logging
 import sqlite3
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any, TypeVar
 
 _T = TypeVar("_T")
+
+
+@dataclass(slots=True)
+class StoredMessage:
+    """Objeto de parámetro para enqueue: agrupa tópico, payload y opciones de QoS/TTL."""
+    topic: str
+    payload: str
+    qos: int = 0
+    retain: bool = False
+    msg_hash: str | None = None
+    ttl_seconds: float | None = None
 
 
 class PacketDeduplicator:
@@ -115,31 +127,15 @@ class SQLiteStoreAndForward:
     async def _run_db(self, func: Callable[..., _T], *args: Any) -> _T:
         return await asyncio.to_thread(func, *args)
 
-    async def enqueue(
-        self,
-        topic: str,
-        payload: str,
-        qos: int = 0,
-        retain: bool = False,
-        msg_hash: str | None = None,
-        ttl_seconds: float | None = None,
-    ) -> bool:
-        return await self._run_db(self._enqueue, topic, payload, qos, retain, msg_hash, ttl_seconds)
+    async def enqueue(self, message: StoredMessage) -> bool:
+        return await self._run_db(self._enqueue, message)
 
-    def _enqueue(
-        self,
-        topic: str,
-        payload: str,
-        qos: int = 0,
-        retain: bool = False,
-        msg_hash: str | None = None,
-        ttl_seconds: float | None = None,
-    ) -> bool:
+    def _enqueue(self, message: StoredMessage) -> bool:
         """Encola un mensaje en SQLite respetando TTL y límites de capacidad."""
         now = time.time()
-        ttl = ttl_seconds if ttl_seconds is not None else self.default_ttl_seconds
+        ttl = message.ttl_seconds if message.ttl_seconds is not None else self.default_ttl_seconds
         expires_at = now + ttl
-        h = msg_hash or self.compute_hash(topic, payload)
+        h = message.msg_hash or self.compute_hash(message.topic, message.payload)
 
         try:
             with self._get_conn() as conn:
@@ -153,7 +149,7 @@ class SQLiteStoreAndForward:
                     (topic, payload, qos, retain, msg_hash, created_at, expires_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?);
                     """,
-                    (topic, payload, qos, 1 if retain else 0, h, now, expires_at),
+                    (message.topic, message.payload, message.qos, 1 if message.retain else 0, h, now, expires_at),
                 )
 
                 # 3. Mantener tamaño máximo (estrategia circular FIFO)

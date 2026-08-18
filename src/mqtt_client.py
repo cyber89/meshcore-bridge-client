@@ -11,6 +11,7 @@ import json
 import logging
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
@@ -39,7 +40,18 @@ except ImportError:
 
     mqtt = _MockMQTT()
 
-from src.store_forward import SQLiteStoreAndForward
+from src.store_forward import SQLiteStoreAndForward, StoredMessage
+
+
+@dataclass(slots=True)
+class MQTTConfig:
+    """Objeto de configuración MQTT: agrupa credenciales, broker y tópico base."""
+    broker: str = "127.0.0.1"
+    port: int = 1883
+    username: str | None = None
+    password: str | None = None
+    keepalive: int = 60
+    topic_prefix: str = "meshcore"
 
 
 class AsyncBridgeMQTTClient:
@@ -47,21 +59,17 @@ class AsyncBridgeMQTTClient:
 
     def __init__(
         self,
-        broker: str = "127.0.0.1",
-        port: int = 1883,
-        username: str | None = None,
-        password: str | None = None,
-        keepalive: int = 60,
-        topic_prefix: str = "meshcore",
+        config: MQTTConfig,
         store_and_forward: SQLiteStoreAndForward | None = None,
         on_rx_message_callback: Callable[[str, str], None] | None = None,
     ) -> None:
-        self.broker = broker
-        self.port = port
-        self.username = username
-        self.password = password
-        self.keepalive = keepalive
-        self.topic_prefix = topic_prefix.strip("/")
+        self.config = config
+        self.broker = config.broker
+        self.port = config.port
+        self.username = config.username
+        self.password = config.password
+        self.keepalive = config.keepalive
+        self.topic_prefix = config.topic_prefix.strip("/")
         self.store_and_forward = store_and_forward
         self.on_rx_message_callback = on_rx_message_callback
 
@@ -103,12 +111,14 @@ class AsyncBridgeMQTTClient:
         self.client.on_disconnect = self._on_disconnect
         self.client.on_message = self._on_message
 
-        try:
-            logging.info(f"Conectando al Broker MQTT en {self.broker}:{self.port}...")
-            self.client.connect(self.broker, self.port, self.keepalive)
-            self.client.loop_start()
-        except Exception as e:
-            logging.error(f"Error al conectar con Broker MQTT: {e}")
+        # Backoff de reconexión determinista (1s..30s) para resiliencia ante caídas del broker
+        self.client.reconnect_delay_set(min_delay=1, max_delay=30)
+
+        # connect_async + loop_start garantizan reintentos automáticos en segundo plano
+        # aunque el broker esté caído al arrancar (loop_forever con retry_first_connection=True).
+        logging.info(f"Conectando al Broker MQTT en {self.broker}:{self.port}...")
+        self.client.connect_async(self.broker, self.port, self.keepalive)
+        self.client.loop_start()
 
     def stop(self) -> None:
         """Detiene el cliente MQTT y emite estado offline ordenado."""
@@ -153,21 +163,25 @@ class AsyncBridgeMQTTClient:
             if self._loop and self._loop.is_running():
                 self._loop.create_task(
                     self.store_and_forward.enqueue(
-                        topic=topic,
-                        payload=payload_str,
-                        qos=qos,
-                        retain=retain,
-                        ttl_seconds=ttl_seconds,
+                        StoredMessage(
+                            topic=topic,
+                            payload=payload_str,
+                            qos=qos,
+                            retain=retain,
+                            ttl_seconds=ttl_seconds,
+                        )
                     )
                 )
             else:
                 asyncio.run(
                     self.store_and_forward.enqueue(
-                        topic=topic,
-                        payload=payload_str,
-                        qos=qos,
-                        retain=retain,
-                        ttl_seconds=ttl_seconds,
+                        StoredMessage(
+                            topic=topic,
+                            payload=payload_str,
+                            qos=qos,
+                            retain=retain,
+                            ttl_seconds=ttl_seconds,
+                        )
                     )
                 )
             logging.debug("Mensaje retenido en SQLite")

@@ -44,6 +44,39 @@ class NodeContactInfo:
         return d
 
 
+@dataclass(slots=True)
+class NodeContactUpdate:
+    """Objeto de parámetro para add_or_update: evita firmas con 19 argumentos."""
+    name: str | None = None
+    alias: str | None = None
+    hops: int | None = None
+    last_rssi: int | None = None
+    last_snr: float | None = None
+    battery_pct: int | None = None
+    rx_packets: int | None = None
+    tx_packets: int | None = None
+    error_count: int | None = None
+    connected_clients_count: int | None = None
+    neighbors: list[str] | None = None
+    temperature_c: float | None = None
+    humidity_pct: float | None = None
+    pressure_hpa: float | None = None
+    voltage_v: float | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+
+
+@dataclass(slots=True)
+class PacketRecord:
+    """Objeto de parámetro para record_packet: metadatos de un evento de paquete RX/TX."""
+    public_key: str
+    is_rx: bool
+    is_error: bool = False
+    rssi: int | None = None
+    snr: float | None = None
+    telemetry: dict[str, Any] | None = None
+
+
 class NodeRegistry:
     """Directorio en memoria para contactos y resolución de nombres de la red MeshCore."""
 
@@ -60,55 +93,35 @@ class NodeRegistry:
         }
         self.last_sync_timestamp: float = 0.0
 
-    def add_or_update(
-        self,
-        public_key: str,
-        name: str,
-        alias: str = "",
-        hops: int = 0,
-        last_rssi: int = -80,
-        last_snr: float = 10.0,
-        battery_pct: int | None = None,
-        rx_packets: int | None = None,
-        tx_packets: int | None = None,
-        error_count: int | None = None,
-        connected_clients_count: int | None = None,
-        neighbors: list[str] | None = None,
-        temperature_c: float | None = None,
-        humidity_pct: float | None = None,
-        pressure_hpa: float | None = None,
-        voltage_v: float | None = None,
-        latitude: float | None = None,
-        longitude: float | None = None,
-    ) -> NodeContactInfo:
+    def add_or_update(self, public_key: str, update: NodeContactUpdate) -> NodeContactInfo:
         """Añade o actualiza la información de un nodo preservando métricas acumuladas."""
         norm_key = public_key.strip().lower()
         existing = self._nodes_by_key.get(norm_key)
 
-        clean_name = name.strip() or (existing.name if existing else f"Node_{norm_key[:6]}")
-        clean_alias = alias.strip() or (existing.alias if existing else clean_name)
+        clean_name = (update.name or "").strip() or (existing.name if existing else f"Node_{norm_key[:6]}")
+        clean_alias = (update.alias or "").strip() or (existing.alias if existing else clean_name)
         now = time.time()
 
         contact = NodeContactInfo(
             public_key=norm_key,
             name=clean_name,
             alias=clean_alias,
-            hops=hops if hops != 0 or not existing else existing.hops,
-            last_rssi=last_rssi if last_rssi != -80 or not existing else existing.last_rssi,
-            last_snr=last_snr if last_snr != 10.0 or not existing else existing.last_snr,
-            battery_pct=battery_pct if battery_pct is not None or not existing else existing.battery_pct,
+            hops=update.hops if update.hops is not None and (update.hops != 0 or not existing) else (existing.hops if existing else 0),
+            last_rssi=update.last_rssi if update.last_rssi is not None and (update.last_rssi != -80 or not existing) else (existing.last_rssi if existing else -80),
+            last_snr=update.last_snr if update.last_snr is not None and (update.last_snr != 10.0 or not existing) else (existing.last_snr if existing else 10.0),
+            battery_pct=update.battery_pct if update.battery_pct is not None or not existing else existing.battery_pct,
             last_seen=now,
-            rx_packets=rx_packets if rx_packets is not None else (existing.rx_packets if existing else 0),
-            tx_packets=tx_packets if tx_packets is not None else (existing.tx_packets if existing else 0),
-            error_count=error_count if error_count is not None else (existing.error_count if existing else 0),
-            connected_clients_count=connected_clients_count if connected_clients_count is not None else (existing.connected_clients_count if existing else 0),
-            neighbors=neighbors if neighbors is not None else (existing.neighbors if existing else []),
-            temperature_c=temperature_c if temperature_c is not None else (existing.temperature_c if existing else None),
-            humidity_pct=humidity_pct if humidity_pct is not None else (existing.humidity_pct if existing else None),
-            pressure_hpa=pressure_hpa if pressure_hpa is not None else (existing.pressure_hpa if existing else None),
-            voltage_v=voltage_v if voltage_v is not None else (existing.voltage_v if existing else None),
-            latitude=latitude if latitude is not None else (existing.latitude if existing else None),
-            longitude=longitude if longitude is not None else (existing.longitude if existing else None),
+            rx_packets=update.rx_packets if update.rx_packets is not None else (existing.rx_packets if existing else 0),
+            tx_packets=update.tx_packets if update.tx_packets is not None else (existing.tx_packets if existing else 0),
+            error_count=update.error_count if update.error_count is not None else (existing.error_count if existing else 0),
+            connected_clients_count=update.connected_clients_count if update.connected_clients_count is not None else (existing.connected_clients_count if existing else 0),
+            neighbors=update.neighbors if update.neighbors is not None else (existing.neighbors if existing else []),
+            temperature_c=update.temperature_c if update.temperature_c is not None else (existing.temperature_c if existing else None),
+            humidity_pct=update.humidity_pct if update.humidity_pct is not None else (existing.humidity_pct if existing else None),
+            pressure_hpa=update.pressure_hpa if update.pressure_hpa is not None else (existing.pressure_hpa if existing else None),
+            voltage_v=update.voltage_v if update.voltage_v is not None else (existing.voltage_v if existing else None),
+            latitude=update.latitude if update.latitude is not None else (existing.latitude if existing else None),
+            longitude=update.longitude if update.longitude is not None else (existing.longitude if existing else None),
         )
 
         self._nodes_by_key[norm_key] = contact
@@ -118,26 +131,18 @@ class NodeRegistry:
 
         return contact
 
-    def record_packet(
-        self,
-        public_key: str,
-        is_rx: bool,
-        is_error: bool = False,
-        rssi: int | None = None,
-        snr: float | None = None,
-        telemetry: dict[str, Any] | None = None,
-    ) -> None:
+    def record_packet(self, event: PacketRecord) -> None:
         """Registra un evento de paquete para actualizar contadores de tráfico y salud."""
-        norm_key = public_key.strip().lower()
+        norm_key = event.public_key.strip().lower()
         if not norm_key:
             return
 
         existing = self._nodes_by_key.get(norm_key)
-        curr_rx = (existing.rx_packets if existing else 0) + (1 if is_rx else 0)
-        curr_tx = (existing.tx_packets if existing else 0) + (0 if is_rx else 1)
-        curr_err = (existing.error_count if existing else 0) + (1 if is_error else 0)
+        curr_rx = (existing.rx_packets if existing else 0) + (1 if event.is_rx else 0)
+        curr_tx = (existing.tx_packets if existing else 0) + (0 if event.is_rx else 1)
+        curr_err = (existing.error_count if existing else 0) + (1 if event.is_error else 0)
 
-        telem = telemetry or {}
+        telem = event.telemetry or {}
         temp = telem.get("temperature_c", telem.get("temperature"))
         hum = telem.get("humidity_pct", telem.get("humidity"))
         press = telem.get("pressure_hpa", telem.get("pressure"))
@@ -146,21 +151,23 @@ class NodeRegistry:
         gps = telem.get("gps", {})
 
         self.add_or_update(
-            public_key=norm_key,
-            name=existing.name if existing else f"Node_{norm_key[:6]}",
-            alias=existing.alias if existing else "",
-            last_rssi=rssi if rssi is not None else (existing.last_rssi if existing else -80),
-            last_snr=snr if snr is not None else (existing.last_snr if existing else 10.0),
-            battery_pct=int(batt) if batt is not None else (existing.battery_pct if existing else None),
-            rx_packets=curr_rx,
-            tx_packets=curr_tx,
-            error_count=curr_err,
-            temperature_c=float(temp) if temp is not None else None,
-            humidity_pct=float(hum) if hum is not None else None,
-            pressure_hpa=float(press) if press is not None else None,
-            voltage_v=float(volt) if volt is not None else None,
-            latitude=float(gps["latitude"]) if isinstance(gps, dict) and "latitude" in gps else None,
-            longitude=float(gps["longitude"]) if isinstance(gps, dict) and "longitude" in gps else None,
+            norm_key,
+            NodeContactUpdate(
+                name=existing.name if existing else f"Node_{norm_key[:6]}",
+                alias=existing.alias if existing else "",
+                last_rssi=event.rssi if event.rssi is not None else (existing.last_rssi if existing else -80),
+                last_snr=event.snr if event.snr is not None else (existing.last_snr if existing else 10.0),
+                battery_pct=int(batt) if batt is not None else (existing.battery_pct if existing else None),
+                rx_packets=curr_rx,
+                tx_packets=curr_tx,
+                error_count=curr_err,
+                temperature_c=float(temp) if temp is not None else None,
+                humidity_pct=float(hum) if hum is not None else None,
+                pressure_hpa=float(press) if press is not None else None,
+                voltage_v=float(volt) if volt is not None else None,
+                latitude=float(gps["latitude"]) if isinstance(gps, dict) and "latitude" in gps else None,
+                longitude=float(gps["longitude"]) if isinstance(gps, dict) and "longitude" in gps else None,
+            ),
         )
 
     def record_error(self, category: str) -> None:
@@ -178,11 +185,13 @@ class NodeRegistry:
         existing = self._nodes_by_key.get(norm_key)
         if existing:
             self.add_or_update(
-                public_key=norm_key,
-                name=existing.name,
-                alias=existing.alias,
-                neighbors=clean_neighbors,
-                connected_clients_count=len(clean_neighbors),
+                norm_key,
+                NodeContactUpdate(
+                    name=existing.name,
+                    alias=existing.alias,
+                    neighbors=clean_neighbors,
+                    connected_clients_count=len(clean_neighbors),
+                ),
             )
 
     def get_by_key_or_prefix(self, query: str) -> NodeContactInfo | None:

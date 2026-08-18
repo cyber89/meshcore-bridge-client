@@ -11,7 +11,7 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock
 
-from meshcore_bridge import MeshCoreBridge, SQLiteStoreAndForward
+from meshcore_bridge import MeshCoreBridge, SQLiteStoreAndForward, StoredMessage
 
 
 class TestStoreAndForward(unittest.TestCase):
@@ -99,7 +99,7 @@ class TestStoreAndForward(unittest.TestCase):
         db_handler = SQLiteStoreAndForward(db_path=self.temp_db_path, max_size=30)
 
         for i in range(100):
-            self._run(db_handler.enqueue("meshcore/rx/all", f'{{"count": {i}}}', qos=0))
+            self._run(db_handler.enqueue(StoredMessage("meshcore/rx/all", f'{{"count": {i}}}', qos=0)))
 
         self.assertEqual(self._run(db_handler.count()), 30, "La tabla SQLite debe recortarse al tamaño máximo (30)")
 

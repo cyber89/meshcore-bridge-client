@@ -8,7 +8,7 @@ import tempfile
 import time
 import unittest
 
-from src.store_forward import PacketDeduplicator, SQLiteStoreAndForward
+from src.store_forward import PacketDeduplicator, SQLiteStoreAndForward, StoredMessage
 
 
 class TestStoreForwardModular(unittest.TestCase):
@@ -39,7 +39,7 @@ class TestStoreForwardModular(unittest.TestCase):
     def test_enqueue_and_fifo_batch_dequeue(self) -> None:
         # Encolar 5 mensajes
         for i in range(5):
-            ok = self._run(self.sf.enqueue(f"topic/{i}", f"payload_{i}", qos=1))
+            ok = self._run(self.sf.enqueue(StoredMessage(f"topic/{i}", f"payload_{i}", qos=1)))
             self.assertTrue(ok)
 
         self.assertEqual(self._run(self.sf.count()), 5)
@@ -60,7 +60,7 @@ class TestStoreForwardModular(unittest.TestCase):
     def test_capacity_limit_circular_trim(self) -> None:
         # max_size es 10, encolar 15 mensajes
         for i in range(15):
-            self._run(self.sf.enqueue("test/topic", f"payload_{i}"))
+            self._run(self.sf.enqueue(StoredMessage("test/topic", f"payload_{i}")))
 
         self.assertLessEqual(self._run(self.sf.count()), 10)
         batch = self._run(self.sf.dequeue_batch(limit=10))
@@ -70,7 +70,7 @@ class TestStoreForwardModular(unittest.TestCase):
 
     def test_ttl_expiration_purging(self) -> None:
         # Encolar con TTL de 0.5 segundos
-        self._run(self.sf.enqueue("fast/expire", "expired_payload", ttl_seconds=0.5))
+        self._run(self.sf.enqueue(StoredMessage("fast/expire", "expired_payload", ttl_seconds=0.5)))
         self.assertEqual(self._run(self.sf.count()), 1)
 
         time.sleep(0.6)  # Esperar a que expire

@@ -5,7 +5,7 @@ Unit and Integration tests for MeshCore Web Server and REST API Router.
 import unittest
 from unittest.mock import AsyncMock, MagicMock
 
-from src.contact_manager import NodeRegistry
+from src.contact_manager import NodeContactUpdate, NodeRegistry
 from src.web.api_router import WebAPIRouter
 
 
@@ -16,15 +16,17 @@ class TestWebServerRouter(unittest.IsolatedAsyncioTestCase):
         self.mock_bridge.start_time = 1000.0
         self.mock_bridge.node_registry = NodeRegistry()
         self.mock_bridge.node_registry.add_or_update(
-            public_key="feedface0001",
-            name="Heltec_Base",
-            alias="Base_Station",
-            hops=1,
-            last_rssi=-70,
-            last_snr=11.5,
-            battery_pct=90,
-            rx_packets=15,
-            tx_packets=5,
+            "feedface0001",
+            NodeContactUpdate(
+                name="Heltec_Base",
+                alias="Base_Station",
+                hops=1,
+                last_rssi=-70,
+                last_snr=11.5,
+                battery_pct=90,
+                rx_packets=15,
+                tx_packets=5,
+            ),
         )
         self.mock_bridge.rate_limiter = MagicMock()
         self.mock_bridge.rate_limiter.get_queue_depth.return_value = 0

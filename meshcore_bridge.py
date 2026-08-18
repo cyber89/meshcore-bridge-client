@@ -29,11 +29,12 @@ from src.serial_driver import (
     RawSerialFramingAdapter,
     SerialWatchdog,
 )
-from src.store_forward import PacketDeduplicator, SQLiteStoreAndForward
+from src.store_forward import PacketDeduplicator, SQLiteStoreAndForward, StoredMessage
 
 __all__ = [
     "MeshCoreBridge",
     "SQLiteStoreAndForward",
+    "StoredMessage",
     "PacketDeduplicator",
     "TxRateLimiter",
     "TxPriority",

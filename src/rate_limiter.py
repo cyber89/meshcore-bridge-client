@@ -24,35 +24,37 @@ class TxPriority(IntEnum):
     LOW = 2     # Telemetría periódica, Anuncios y Broadcasts
 
 
-def estimate_lora_airtime_ms(
-    payload_len_bytes: int,
-    sf: int = 11,
-    bw_khz: float = 250.0,
-    cr: int = 5,
-    preamble_len: int = 8,
-    has_crc: bool = True,
-    explicit_header: bool = True,
-    low_data_rate_opt: bool = False,
-) -> float:
+@dataclass(frozen=True, slots=True)
+class LoRaRadioConfig:
+    """Parámetros de radio LoRa agrupados para evitar firmas con 8 argumentos."""
+    sf: int = 11
+    bw_khz: float = 250.0
+    cr: int = 5
+    preamble_len: int = 8
+    has_crc: bool = True
+    explicit_header: bool = True
+    low_data_rate_opt: bool = False
+
+
+def estimate_lora_airtime_ms(payload_len_bytes: int, radio: LoRaRadioConfig) -> float:
     """
     Calcula el tiempo de transmisión en el aire (Airtime) en milisegundos
     según la fórmula estándar de modulación LoRa de Semtech.
     """
-    bw_hz = bw_khz * 1000.0
-    t_sym_ms = (2 ** sf) / bw_hz * 1000.0
-    t_preamble_ms = (preamble_len + 4.25) * t_sym_ms
+    bw_hz = radio.bw_khz * 1000.0
+    t_sym_ms = (2 ** radio.sf) / bw_hz * 1000.0
+    t_preamble_ms = (radio.preamble_len + 4.25) * t_sym_ms
 
-    ih = 0 if explicit_header else 1
-    de = 1 if low_data_rate_opt or (sf >= 11 and bw_khz <= 125.0) else 0
-    crc_val = 1 if has_crc else 0
-    cr_denom = cr
+    ih = 0 if radio.explicit_header else 1
+    de = 1 if radio.low_data_rate_opt or (radio.sf >= 11 and radio.bw_khz <= 125.0) else 0
+    crc_val = 1 if radio.has_crc else 0
 
-    term1 = 8 * payload_len_bytes - 4 * sf + 28 + 16 * crc_val - 20 * ih
-    term2 = 4 * (sf - 2 * de)
+    term1 = 8 * payload_len_bytes - 4 * radio.sf + 28 + 16 * crc_val - 20 * ih
+    term2 = 4 * (radio.sf - 2 * de)
     if term2 <= 0:
         term2 = 1
 
-    payload_symbols_num = math.ceil(term1 / term2) * cr_denom
+    payload_symbols_num = math.ceil(term1 / term2) * radio.cr
     symbol_count = 8 + max(payload_symbols_num, 0)
     t_payload_ms = symbol_count * t_sym_ms
 
@@ -123,13 +125,11 @@ class TxRateLimiter:
     def __init__(
         self,
         tx_interval_sec: float = 1.0,
-        default_sf: int = 11,
-        default_bw_khz: float = 250.0,
+        radio_config: LoRaRadioConfig | None = None,
         transmit_callback: Callable[[Any], Awaitable[Any]] | None = None,
     ) -> None:
         self.tx_interval_sec = tx_interval_sec
-        self.default_sf = default_sf
-        self.default_bw_khz = default_bw_khz
+        self.radio_config = radio_config or LoRaRadioConfig()
         self.transmit_callback = transmit_callback
 
         self.queue: CustomTxQueue = CustomTxQueue()
@@ -178,11 +178,7 @@ class TxRateLimiter:
         else:
             plen = 32
 
-        airtime_ms = estimate_lora_airtime_ms(
-            payload_len_bytes=plen,
-            sf=self.default_sf,
-            bw_khz=self.default_bw_khz,
-        )
+        airtime_ms = estimate_lora_airtime_ms(plen, self.radio_config)
 
         self._seq_counter += 1
         item = TxItem(

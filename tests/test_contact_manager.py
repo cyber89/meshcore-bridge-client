@@ -5,7 +5,7 @@ Unit tests for NodeRegistry and Contact Directory.
 import time
 import unittest
 
-from src.contact_manager import NodeRegistry
+from src.contact_manager import NodeContactUpdate, NodeRegistry
 
 
 class TestContactManager(unittest.TestCase):
@@ -14,13 +14,15 @@ class TestContactManager(unittest.TestCase):
 
     def test_add_and_resolve_node(self) -> None:
         self.registry.add_or_update(
-            public_key="feedfacecafe0001",
-            name="Heltec_Router",
-            alias="Router_Principal",
-            hops=1,
-            last_rssi=-75,
-            last_snr=12.0,
-            battery_pct=95,
+            "feedfacecafe0001",
+            NodeContactUpdate(
+                name="Heltec_Router",
+                alias="Router_Principal",
+                hops=1,
+                last_rssi=-75,
+                last_snr=12.0,
+                battery_pct=95,
+            ),
         )
 
         # 1. Búsqueda exacta por clave
@@ -45,8 +47,8 @@ class TestContactManager(unittest.TestCase):
     def test_cleanup_inactive_nodes(self) -> None:
         # Añadir un nodo antiguo
         self.registry.add_or_update(
-            public_key="0011223344556677",
-            name="Old_Node",
+            "0011223344556677",
+            NodeContactUpdate(name="Old_Node"),
         )
         self.assertEqual(self.registry.get_count(), 1)
 

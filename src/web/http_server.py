@@ -202,7 +202,7 @@ class MeshCoreWebServer:
         writer: asyncio.StreamWriter,
         sec_key: str,
     ) -> None:
-        """Ejecuta el handshake RFC 6455 de WebSocket."""
+        """Ejecuta el handshake RFC 6455 de WebSocket y mantiene el bucle de escucha."""
         guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
         # RFC 6455 exige específicamente SHA-1 para el cálculo de Sec-WebSocket-Accept
         accept_key = base64.b64encode(
@@ -231,36 +231,15 @@ class MeshCoreWebServer:
         # Bucle de escucha WebSocket para mantener la conexión activa
         try:
             while self.running:
-                head = await reader.read(2)
-                if len(head) < 2:
+                frame = await self._read_websocket_frame(reader)
+                if frame is None:
                     break
-                b1, b2 = head[0], head[1]
-                opcode = b1 & 0x0F
+                opcode, _payload = frame
                 if opcode == 0x8:  # Close frame
                     break
-
-                masked = bool(b2 & 0x80)
-                length = b2 & 0x7F
-                if length == 126:
-                    len_bytes = await reader.read(2)
-                    length = struct.unpack(">H", len_bytes)[0]
-                elif length == 127:
-                    len_bytes = await reader.read(8)
-                    length = struct.unpack(">Q", len_bytes)[0]
-
-                mask_key = await reader.read(4) if masked else b""
-                payload = await reader.read(length)
-
-                if masked and mask_key:
-                    unmasked = bytearray(len(payload))
-                    for i in range(len(payload)):
-                        unmasked[i] = payload[i] ^ mask_key[i % 4]
-                    payload = bytes(unmasked)
-
                 if opcode == 0x9:  # Ping -> Enviar Pong
                     writer.write(bytearray([0x8A, 0x00]))
                     await writer.drain()
-
         except Exception:
             pass
         finally:
@@ -270,6 +249,87 @@ class MeshCoreWebServer:
             except Exception:
                 pass
 
+    async def _read_websocket_frame(self, reader: asyncio.StreamReader) -> tuple[int, bytes] | None:
+        """Lee una trama WebSocket completa (opcode, payload) o None si la conexión cerró."""
+        head = await reader.read(2)
+        if len(head) < 2:
+            return None
+        b1, b2 = head[0], head[1]
+        opcode = b1 & 0x0F
+        masked = bool(b2 & 0x80)
+        length = b2 & 0x7F
+        if length == 126:
+            len_bytes = await reader.read(2)
+            if len(len_bytes) < 2:
+                return None
+            length = struct.unpack(">H", len_bytes)[0]
+        elif length == 127:
+            len_bytes = await reader.read(8)
+            if len(len_bytes) < 8:
+                return None
+            length = struct.unpack(">Q", len_bytes)[0]
+
+        mask_key = await reader.read(4) if masked else b""
+        payload = await reader.read(length)
+
+        if masked and mask_key:
+            unmasked = bytearray(len(payload))
+            for i in range(len(payload)):
+                unmasked[i] = payload[i] ^ mask_key[i % 4]
+            payload = bytes(unmasked)
+
+        return opcode, payload
+
+    def _is_traversal_attempt(self, clean_path: str) -> bool:
+        """Detecta intentos de Directory Traversal en la ruta solicitada."""
+        normalized = clean_path.replace("\\", "/")
+        low = normalized.lower()
+        return (
+            ".." in normalized.split("/")
+            or "%2e" in low
+            or "%2f" in low
+            or "...." in normalized
+        )
+
+    def _is_within_static_root(self, target_file: Path) -> bool:
+        """Verificación canónica: el archivo debe residir dentro del directorio estático."""
+        return target_file.resolve().is_relative_to(self.static_dir.resolve())
+
+    def _build_http_response(
+        self,
+        status_line: str,
+        body: bytes,
+        content_type: str | None = None,
+        extra_headers: list[str] | None = None,
+    ) -> bytes:
+        """Construye una respuesta HTTP 1.1 con cabeceras de seguridad obligatorias."""
+        headers = [
+            f"Content-Length: {len(body)}",
+            "X-Content-Type-Options: nosniff",
+            "X-Frame-Options: DENY",
+            "Referrer-Policy: strict-origin-when-cross-origin",
+            "Connection: close",
+        ]
+        if extra_headers:
+            headers[0:0] = extra_headers
+        if content_type:
+            headers.insert(0, f"Content-Type: {content_type}")
+        head = f"HTTP/1.1 {status_line}\r\n" + "\r\n".join(headers) + "\r\n\r\n"
+        return head.encode() + body
+
+    async def _write_http_response(
+        self,
+        writer: asyncio.StreamWriter,
+        status_line: str,
+        body: bytes,
+        content_type: str | None = None,
+        extra_headers: list[str] | None = None,
+    ) -> None:
+        """Envía una respuesta HTTP y cierra la conexión."""
+        writer.write(self._build_http_response(status_line, body, content_type, extra_headers))
+        await writer.drain()
+        writer.close()
+
     async def _serve_static_file(self, writer: asyncio.StreamWriter, raw_path: str) -> None:
         """Sirve archivos estáticos locales o devuelve index.html para SPA routing."""
         clean_path = raw_path.split("?")[0].strip("/")
@@ -277,37 +337,14 @@ class MeshCoreWebServer:
             target_file = self.static_dir / "index.html"
         else:
             # Seguridad: rechazar explícitamente intentos de Directory Traversal (OWASP)
-            normalized = clean_path.replace("\\", "/")
-            low = normalized.lower()
-            if (
-                ".." in normalized.split("/")
-                or "%2e" in low
-                or "%2f" in low
-                or "...." in normalized
-            ):
-                writer.write(
-                    b"HTTP/1.1 403 Forbidden\r\n"
-                    b"Content-Length: 0\r\n"
-                    b"X-Content-Type-Options: nosniff\r\n"
-                    b"X-Frame-Options: DENY\r\n"
-                    b"Connection: close\r\n\r\n"
-                )
-                await writer.drain()
-                writer.close()
+            if self._is_traversal_attempt(clean_path):
+                await self._write_http_response(writer, "403 Forbidden", b"")
                 return
             target_file = (self.static_dir / clean_path).resolve()
 
         # Seguridad: verificación canónica (defensa en profundidad)
-        if not target_file.resolve().is_relative_to(self.static_dir.resolve()):
-            writer.write(
-                b"HTTP/1.1 403 Forbidden\r\n"
-                b"Content-Length: 0\r\n"
-                b"X-Content-Type-Options: nosniff\r\n"
-                b"X-Frame-Options: DENY\r\n"
-                b"Connection: close\r\n\r\n"
-            )
-            await writer.drain()
-            writer.close()
+        if not self._is_within_static_root(target_file):
+            await self._write_http_response(writer, "403 Forbidden", b"")
             return
 
         if not target_file.is_file():
@@ -319,26 +356,13 @@ class MeshCoreWebServer:
                 content_type = "text/html" if target_file.suffix == ".html" else "application/octet-stream"
 
             file_bytes = target_file.read_bytes()
-            writer.write(
-                f"HTTP/1.1 200 OK\r\n"
-                f"Content-Type: {content_type}; charset=utf-8\r\n"
-                f"Content-Length: {len(file_bytes)}\r\n"
-                f"Cache-Control: public, max-age=3600\r\n"
-                f"X-Content-Type-Options: nosniff\r\n"
-                f"X-Frame-Options: DENY\r\n"
-                f"Referrer-Policy: strict-origin-when-cross-origin\r\n"
-                f"Connection: close\r\n\r\n".encode() + file_bytes
+            await self._write_http_response(
+                writer,
+                "200 OK",
+                file_bytes,
+                f"{content_type}; charset=utf-8",
+                extra_headers=["Cache-Control: public, max-age=3600"],
             )
         else:
             fallback = b"<h1>MeshCore Web Client</h1><p>Archivos estaticos inicializandose...</p>"
-            writer.write(
-                f"HTTP/1.1 200 OK\r\n"
-                f"Content-Type: text/html; charset=utf-8\r\n"
-                f"Content-Length: {len(fallback)}\r\n"
-                f"X-Content-Type-Options: nosniff\r\n"
-                f"X-Frame-Options: DENY\r\n"
-                f"Connection: close\r\n\r\n".encode() + fallback
-            )
-
-        await writer.drain()
-        writer.close()
+            await self._write_http_response(writer, "200 OK", fallback, "text/html; charset=utf-8")
