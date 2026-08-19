@@ -1830,6 +1830,26 @@ class MeshCoreStationApp {
       return;
     }
 
+    const norm = (target || "").toLowerCase().trim();
+    const localPk = (this.localNodePubkey || "").toLowerCase().trim();
+    const isLocal = Boolean(target === "local") || (localPk && (
+      norm === localPk ||
+      (localPk.length >= 8 && norm.startsWith(localPk.slice(0, 8))) ||
+      (norm.length >= 8 && localPk.startsWith(norm.slice(0, 8)))
+    ));
+    if (isLocal) {
+      this.showToast("No se puede hacer ping a la estación base local", "warning");
+      return;
+    }
+
+    if (this.knownNodes.has(target)) {
+      const nodeInfo = this.knownNodes.get(target);
+      if (nodeInfo && nodeInfo.role === "CLIENT") {
+        this.showToast("Ping Zero está disponible únicamente para repetidores de malla", "warning");
+        return;
+      }
+    }
+
     const password = this.getRepeaterPassword(target);
     this.appendTerminalLine(`> [PING ZERO] Enviando sonda directa de 0 saltos a ${name} (${target.slice(0, 8)})...`, "term-cmd");
 
@@ -3853,6 +3873,18 @@ class MeshCoreStationApp {
   }
 
   openDmConversation(pubkey, name) {
+    const norm = (pubkey || "").toLowerCase().trim();
+    const localPk = (this.localNodePubkey || "").toLowerCase().trim();
+    const isLocal = Boolean(pubkey === "local") || (localPk && (
+      norm === localPk ||
+      (localPk.length >= 8 && norm.startsWith(localPk.slice(0, 8))) ||
+      (norm.length >= 8 && localPk.startsWith(norm.slice(0, 8)))
+    ));
+    if (isLocal) {
+      this.showToast("No se puede iniciar chat directo con la estación base local", "warning");
+      return;
+    }
+
     const navBtn = document.querySelector('.nav-btn[data-tab="tab-chat"]');
     if (navBtn) navBtn.click();
     const canonicalPk = this.resolveCanonicalPubkey(pubkey);
@@ -4606,6 +4638,18 @@ class MeshCoreStationApp {
   }
 
   openTracerouteModal(targetNode, targetName) {
+    const norm = (targetNode || "").toLowerCase().trim();
+    const localPk = (this.localNodePubkey || "").toLowerCase().trim();
+    const isLocal = Boolean(targetNode === "local") || (localPk && (
+      norm === localPk ||
+      (localPk.length >= 8 && norm.startsWith(localPk.slice(0, 8))) ||
+      (norm.length >= 8 && localPk.startsWith(norm.slice(0, 8)))
+    ));
+    if (isLocal) {
+      this.showToast("No se puede trazar ruta hacia la estación base local", "warning");
+      return;
+    }
+
     this.selectedTraceTarget = targetNode;
     this.selectedTraceName = targetName || targetNode.slice(0, 8);
 
@@ -5119,11 +5163,11 @@ class MeshCoreStationApp {
       // 2. Renderizar en la vista unificada "Nodos" (TODOS los nodos con tarjetas adaptativas)
       if (unifiedNodesGrid) {
         const nCard = document.createElement("div");
-        const roleClass = isSensor ? "role-sensor-card" : isRepeater ? "role-repeater-card" : isRoom ? "role-room-card" : "role-client-card";
-        const avatarClass = isSensor ? "avatar-sensor" : isRepeater ? "avatar-repeater" : isRoom ? "avatar-room" : "avatar-client";
-        const avatarIcon = isSensor ? "📡" : isRepeater ? "🏔️" : isRoom ? "🏠" : "👤";
-        const roleLabel = isSensor ? "SENSOR" : isRepeater ? "REPEATER" : isRoom ? "ROOM" : "CLIENT";
-        const roleBadgeClass = isSensor ? "role-sensor" : isRepeater ? "role-repeater" : isRoom ? "role-room" : "role-client";
+        const roleClass = isLocal ? "role-local-card is-local" : (isSensor ? "role-sensor-card" : isRepeater ? "role-repeater-card" : isRoom ? "role-room-card" : "role-client-card");
+        const avatarClass = isLocal ? "avatar-local" : (isSensor ? "avatar-sensor" : isRepeater ? "avatar-repeater" : isRoom ? "avatar-room" : "avatar-client");
+        const avatarIcon = isLocal ? "🏠" : (isSensor ? "📡" : isRepeater ? "🏔️" : isRoom ? "🏠" : "👤");
+        const roleLabel = isLocal ? "LOCAL" : (isSensor ? "SENSOR" : isRepeater ? "REPEATER" : isRoom ? "ROOM" : "CLIENT");
+        const roleBadgeClass = isLocal ? "role-local" : (isSensor ? "role-sensor" : isRepeater ? "role-repeater" : isRoom ? "role-room" : "role-client");
 
         // Calcular estado de conectividad en base a last_seen
         const nowSec = Date.now() / 1000;
@@ -5132,12 +5176,12 @@ class MeshCoreStationApp {
           lastSeenSec = Number(lastSeenSec);
         }
 
-        let statusLabel = "En Línea";
+        let statusLabel = isLocal ? "Estación Base Local" : "En Línea";
         let statusClass = "status-online";
         let statusDot = "🟢";
-        let timeAgoStr = "Ahora";
+        let timeAgoStr = isLocal ? "Enlace USB / Serial Activo" : "Ahora";
 
-        if (lastSeenSec && typeof lastSeenSec === "number" && lastSeenSec > 1000000000) {
+        if (!isLocal && lastSeenSec && typeof lastSeenSec === "number" && lastSeenSec > 1000000000) {
           const diff = nowSec - lastSeenSec;
           if (diff < 1800) {
             statusLabel = "En Línea";
@@ -5167,7 +5211,33 @@ class MeshCoreStationApp {
 
         let bodyHtml = "";
 
-        if (isSensor) {
+        if (isLocal) {
+          const lFreq = this.localNodeConfig?.frequency || this.localNodeConfig?.radio_freq || 915.0;
+          const lPower = this.localNodeConfig?.tx_power != null ? `${this.localNodeConfig.tx_power} dBm` : "20 dBm";
+          const lSf = this.localNodeConfig?.spreading_factor || this.localNodeConfig?.sf || 11;
+          const lBw = this.localNodeConfig?.bandwidth || this.localNodeConfig?.bw || 250;
+          const lPort = this.localNodeConfig?.serial_port || (this.dom.headerPortBadge ? this.dom.headerPortBadge.textContent : "USB / Serial");
+          bodyHtml = `
+            <div class="node-telemetry-panel">
+              <div style="font-size: 12px; color: var(--text-main); font-weight: 600; display: flex; justify-content: space-between;">
+                <span>🏠 Estación Base Transceptora</span>
+                <span style="color: var(--accent-success); font-weight: 700;">Host Bridge</span>
+              </div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+                Puerto: ${this.escapeHtml(lPort)} • Enlace USB Directo
+              </div>
+            </div>
+            <div class="node-rf-strip" style="grid-template-columns: repeat(3, 1fr);">
+              <span class="stat-pill" title="Frecuencia de Operación">📻 <strong>${lFreq} MHz</strong></span>
+              <span class="stat-pill" title="Potencia de Transmisión TX">⚡ <strong>${lPower}</strong></span>
+              <span class="stat-pill" title="Modem LoRa">📡 <strong>SF${lSf}/BW${lBw}</strong></span>
+            </div>
+            <div class="node-actions-bar">
+              <button type="button" class="btn-primary btn-sm btn-node-primary btn-node-local-settings">⚙️ Ajustes de Radio</button>
+              <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-client-qr" title="Ver código QR">📤 QR</button>
+            </div>
+          `;
+        } else if (isSensor) {
           const temp = node.temperature_c != null ? node.temperature_c : (node.temp != null ? node.temp : "--");
           const hum = node.humidity_pct != null ? node.humidity_pct : (node.humidity != null ? node.humidity : "--");
           const press = node.pressure_hpa != null ? node.pressure_hpa : (node.pressure != null ? node.pressure : "--");
@@ -5245,16 +5315,18 @@ class MeshCoreStationApp {
               <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal}</strong></span>
               <span class="stat-pill" title="Intensidad de Señal">📡 <strong>${rssiVal}</strong></span>
               <span class="stat-pill" title="Saltos">🦘 <strong>${hopsVal}</strong></span>
-              ${node.ping_zero_rtt ? `<span class="stat-pill stat-pill-ping" title="Último Ping Zero directo">🎯 <strong>${node.ping_zero_rtt} ms</strong></span>` : ''}
             </div>
             <div class="node-actions-bar">
               <button type="button" class="btn-primary btn-sm btn-node-primary btn-client-dm">💬 Iniciar Chat DM</button>
-              <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-ping-zero" title="Hacer Ping Zero directo (0 saltos)">🎯 Ping 0</button>
               <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
               <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-client-qr" title="Ver código QR">📤 QR</button>
             </div>
           `;
         }
+
+        const batteryChipHtml = isLocal
+          ? (hasRealBat ? `<span class="contact-battery-chip" title="Nivel de batería">🔋 ${batVal}</span>` : '<span class="contact-battery-chip" style="background: rgba(16,185,129,0.15); color: #10b981; border-color: rgba(16,185,129,0.35);">⚡ USB</span>')
+          : `<span class="contact-battery-chip" title="Nivel de batería">🔋 ${batVal}</span>`;
 
         nCard.innerHTML = `
           <div class="node-card-header">
@@ -5272,7 +5344,7 @@ class MeshCoreStationApp {
                 <button type="button" class="btn-copy-pk" title="Copiar clave pública">📋</button>
               </span>
             </div>
-            <span class="contact-battery-chip" title="Nivel de batería">🔋 ${batVal}</span>
+            ${batteryChipHtml}
           </div>
           ${bodyHtml}
         `;
@@ -5283,6 +5355,14 @@ class MeshCoreStationApp {
             e.stopPropagation();
             navigator.clipboard.writeText(node.public_key);
             this.showToast("📋 Clave pública copiada", "success");
+          });
+        }
+
+        const btnLocalSettings = nCard.querySelector(".btn-node-local-settings");
+        if (btnLocalSettings) {
+          btnLocalSettings.addEventListener("click", () => {
+            const navBtn = document.querySelector('.nav-btn[data-tab="tab-settings"]');
+            if (navBtn) navBtn.click();
           });
         }
 
@@ -5319,8 +5399,8 @@ class MeshCoreStationApp {
         const btnQr = nCard.querySelector(".btn-client-qr") || nCard.querySelector(".btn-sensor-qr");
         if (btnQr) {
           btnQr.addEventListener("click", () => {
-            const payload = { type: isSensor ? "sensor" : "contact", public_key: node.public_key, name: cleanName, role: roleLabel };
-            const uri = `meshcore://${isSensor ? "sensor" : "contact"}?pubkey=${encodeURIComponent(node.public_key)}&name=${encodeURIComponent(cleanName)}&role=${roleLabel}`;
+            const payload = { type: isLocal ? "local" : isSensor ? "sensor" : "contact", public_key: node.public_key, name: cleanName, role: roleLabel };
+            const uri = `meshcore://${isLocal ? "local" : isSensor ? "sensor" : "contact"}?pubkey=${encodeURIComponent(node.public_key)}&name=${encodeURIComponent(cleanName)}&role=${roleLabel}`;
             this.renderQrModal(`👥 ${cleanName}`, uri, payload);
           });
         }

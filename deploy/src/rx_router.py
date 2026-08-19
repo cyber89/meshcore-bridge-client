@@ -139,13 +139,19 @@ class RxEventRouter:
                 lat_val = _get_coord(payload_dict, ("lat", "latitude", "gps_lat"))
                 lon_val = _get_coord(payload_dict, ("lon", "longitude", "gps_lon"))
 
+                is_local_sender = self._ctx.node_registry.is_local_key(sender)
+                effective_role = "LOCAL" if is_local_sender else (role_val or "CLIENT")
+                effective_rssi = None if is_local_sender else (int(rssi) if isinstance(rssi, (int, float)) else None)
+                effective_snr = None if is_local_sender else (float(snr) if isinstance(snr, (int, float)) else None)
+                effective_hops = 0 if is_local_sender else hops
+
                 is_new, contact_info = self._ctx.node_registry.discover_node(
                     public_key=sender,
                     name=sender_name if sender_name != sender else None,
-                    role=role_val or "CLIENT",
-                    rssi=int(rssi) if isinstance(rssi, (int, float)) else None,
-                    snr=float(snr) if isinstance(snr, (int, float)) else None,
-                    hops=hops,
+                    role=effective_role,
+                    rssi=effective_rssi,
+                    snr=effective_snr,
+                    hops=effective_hops,
                 )
 
                 if lat_val is not None or lon_val is not None or bat_pct is not None:
@@ -155,10 +161,11 @@ class RxEventRouter:
                             battery_pct=bat_pct,
                             latitude=lat_val,
                             longitude=lon_val,
+                            is_local=is_local_sender,
                         ),
                     )
 
-                if is_new and self._ctx.web_server:
+                if is_new and not is_local_sender and self._ctx.web_server:
                     self._ctx.web_server.broadcast_event({
                         "type": "contact_discovered",
                         "contact": contact_info.to_dict(),

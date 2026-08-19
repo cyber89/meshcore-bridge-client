@@ -923,6 +923,10 @@ body {
   box-shadow: var(--shadow-md);
 }
 
+.node-card.role-local-card {
+  border-left: 3.5px solid #10b981;
+  background: linear-gradient(135deg, var(--bg-card) 0%, rgba(16, 185, 129, 0.05) 100%);
+}
 .node-card.role-sensor-card {
   border-left: 3.5px solid var(--accent-success);
 }
@@ -954,6 +958,10 @@ body {
   flex-shrink: 0;
 }
 
+.node-card-avatar.avatar-local {
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px solid rgba(16, 185, 129, 0.45);
+}
 .node-card-avatar.avatar-sensor {
   background: rgba(16, 185, 129, 0.15);
   border: 1px solid rgba(16, 185, 129, 0.35);
@@ -1003,6 +1011,31 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.3px;
   flex-shrink: 0;
+}
+.node-role-badge.role-local {
+  background: rgba(16, 185, 129, 0.18);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+.node-role-badge.role-client {
+  background: rgba(56, 189, 248, 0.18);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+}
+.node-role-badge.role-repeater {
+  background: rgba(168, 85, 247, 0.18);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.35);
+}
+.node-role-badge.role-sensor {
+  background: rgba(16, 185, 129, 0.18);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+.node-role-badge.role-room {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.35);
 }
 
 .node-card-pubkey {

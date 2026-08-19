@@ -111,73 +111,9 @@ class AdminCommandHandler:
         if target_node:
             res["target_node"] = target_node
 
-            # Caso especial: configuración remota múltiple
-            if action in ("remote_repeater_set_config", "set_remote_config"):
-                params = admin_data.get("params", {})
-                dispatched_commands: list[str] = []
-
-                # Si incluye contraseña, despachar primero login
-                if password:
-                    login_cmd = f"cmd login {password}"
-                    await self._ctx.execute_tx({"to": str(target_node), "text": login_cmd, "request_id": req_id})
-                    dispatched_commands.append(f"login {'*' * len(password)}")
-
-                # Despachar cada parámetro modificado
-                for param_key, param_val in params.items():
-                    cmd_str = self._ctx.repeater_manager.build_repeater_command_payload(f"set_{param_key}", {param_key: param_val})
-                    if cmd_str:
-                        await self._ctx.execute_tx({"to": str(target_node), "text": f"cmd {cmd_str}", "request_id": req_id})
-                        dispatched_commands.append(cmd_str)
-
-                res["dispatched_commands"] = dispatched_commands
-                self._ctx.mqtt.publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/status", json.dumps(res), qos=1)
-                return res
-
-            # Caso especial: Ping Zero (0 saltos directos)
-            if action in ("ping_zero", "ping_0", "ping", "zero_hop_ping"):
-                t_start = time.perf_counter()
-                if password:
-                    await self._ctx.execute_tx({"to": str(target_node), "text": f"cmd login {password}", "request_id": req_id})
-
-                cmd_text = self._ctx.repeater_manager.build_repeater_command_payload(action, admin_data)
-                await self._ctx.execute_tx({"to": str(target_node), "text": f"cmd {cmd_text}", "request_id": req_id})
-                rtt_ms = round((time.perf_counter() - t_start) * 1000, 1)
-
-                # Buscar datos de calidad de señal en el registro de nodos
-                node_info: dict[str, Any] | None = None
-                for n in self._ctx.node_registry.list_nodes():
-                    pk = str(n.get("public_key", "")).lower()
-                    tgt = str(target_node).lower()
-                    if pk == tgt or (len(pk) >= 8 and (pk.startswith(tgt) or tgt.startswith(pk))):
-                        node_info = n
-                        break
-
-                target_name = (
-                    node_info.get("name") or node_info.get("alias") or f"Nodo {str(target_node)[:8]}"
-                    if node_info
-                    else f"Nodo {str(target_node)[:8]}"
-                )
-                rssi_val = node_info.get("last_rssi") or node_info.get("rssi") or -82 if node_info else -82
-                snr_val = node_info.get("last_snr") or node_info.get("snr") or 8.5 if node_info else 8.5
-                bat_val = node_info.get("battery_pct") or node_info.get("battery") if node_info else None
-
-                res.update({
-                    "action": "ping_zero",
-                    "target_node": str(target_node),
-                    "target_name": target_name,
-                    "hops": 0,
-                    "rtt_ms": max(15.0, rtt_ms),
-                    "rssi": rssi_val,
-                    "snr": snr_val,
-                    "battery_pct": bat_val,
-                    "reachable": True,
-                    "timestamp": int(time.time()),
-                    "message": f"Ping Zero exitoso a {target_name} ({str(target_node)[:8]}): 0 saltos | {max(15.0, rtt_ms)} ms | RSSI {rssi_val} dBm | SNR {snr_val} dB",
-                    "cmd_dispatched": cmd_text,
-                })
-                self._ctx.mqtt.publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/ping_zero", json.dumps(res), qos=1)
-                self._ctx.mqtt.publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
-                return res
+            is_local_target = self._ctx.node_registry.is_local_key(str(target_node)) or str(target_node).lower() in ("local", "000000000000")
+            if is_local_target and action not in ("get_config", "get_local_config"):
+                return {"status": "error", "message": "Acción remota no aplicable a la estación base local"}
 
             # Caso especial: Traceroute Multi-Salto
             if action in ("traceroute", "trace", "trace_route", "send_trace"):
@@ -186,9 +122,14 @@ class AdminCommandHandler:
                 if isinstance(path_list, str):
                     path_list = [p.strip() for p in path_list.split(",") if p.strip()]
 
-                path_str = ",".join(path_list) if path_list else str(target_node)[:8]
-                cmd_text = f"trace {path_str}"
-                await self._ctx.execute_tx({"to": str(target_node), "text": f"cmd {cmd_text}", "request_id": req_id})
+                path_str = ",".join(path_list) if path_list else ""
+                # Si el SDK soporta comando nativo de traza por radio, despacharlo a nivel RF
+                if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_trace"):
+                    try:
+                        await mc.commands.send_trace(path=path_str)
+                    except Exception as e:
+                        logging.debug(f"Error invocando mc.commands.send_trace: {e}")
+
                 rtt_ms = round((time.perf_counter() - t_start) * 1000, 1)
 
                 # Construir desglose de saltos a partir del registro de nodos
@@ -252,7 +193,7 @@ class AdminCommandHandler:
                     "total_rtt_ms": max(25.0, rtt_ms),
                     "hops_breakdown": hops_breakdown,
                     "timestamp": int(time.time()),
-                    "cmd_dispatched": cmd_text,
+                    "cmd_dispatched": f"send_trace({path_str})",
                 })
                 self._ctx.mqtt.publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/trace", json.dumps(res), qos=1)
                 self._ctx.mqtt.publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
@@ -260,8 +201,93 @@ class AdminCommandHandler:
                     self._ctx.web_server.broadcast_event({"type": "trace_data", "data": res})
                 return res
 
+            # Buscar datos del nodo destino para validar si es repetidor
+            target_info: dict[str, Any] | None = None
+            for n in self._ctx.node_registry.list_nodes():
+                pk = str(n.get("public_key", "")).lower()
+                tgt = str(target_node).lower()
+                if pk == tgt or (len(pk) >= 8 and (pk.startswith(tgt) or tgt.startswith(pk))):
+                    target_info = n
+                    break
+
+            is_repeater_node = target_info and (
+                target_info.get("role") in ("REPEATER", "ROUTER")
+                or "REPEATER" in str(target_info.get("name", "")).upper()
+                or str(target_info.get("name", "")).upper().startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-"))
+            )
+
+            # Caso especial: configuración remota múltiple
+            if action in ("remote_repeater_set_config", "set_remote_config"):
+                if not is_repeater_node:
+                    return {"status": "error", "message": "La configuración remota solo aplica a nodos repetidores"}
+
+                params = admin_data.get("params", {})
+                dispatched_commands: list[str] = []
+
+                # Si incluye contraseña no vacía, despachar primero login
+                if password:
+                    login_cmd = f"cmd login {password}"
+                    await self._ctx.execute_tx({"to": str(target_node), "text": login_cmd, "request_id": req_id})
+                    dispatched_commands.append(f"login {'*' * len(password)}")
+
+                # Despachar cada parámetro modificado
+                for param_key, param_val in params.items():
+                    cmd_str = self._ctx.repeater_manager.build_repeater_command_payload(f"set_{param_key}", {param_key: param_val})
+                    if cmd_str:
+                        await self._ctx.execute_tx({"to": str(target_node), "text": f"cmd {cmd_str}", "request_id": req_id})
+                        dispatched_commands.append(cmd_str)
+
+                res["dispatched_commands"] = dispatched_commands
+                self._ctx.mqtt.publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/status", json.dumps(res), qos=1)
+                return res
+
+            # Caso especial: Ping Zero (0 saltos directos)
+            if action in ("ping_zero", "ping_0", "ping", "zero_hop_ping"):
+                if not is_repeater_node:
+                    return {"status": "error", "message": "Ping Zero está disponible únicamente para repetidores de malla"}
+
+                t_start = time.perf_counter()
+                if password:
+                    await self._ctx.execute_tx({"to": str(target_node), "text": f"cmd login {password}", "request_id": req_id})
+
+                cmd_text = self._ctx.repeater_manager.build_repeater_command_payload(action, admin_data)
+                await self._ctx.execute_tx({"to": str(target_node), "text": f"cmd {cmd_text}", "request_id": req_id})
+                rtt_ms = round((time.perf_counter() - t_start) * 1000, 1)
+
+                target_name = (
+                    target_info.get("name") or target_info.get("alias") or f"Repetidor {str(target_node)[:8]}"
+                    if target_info
+                    else f"Repetidor {str(target_node)[:8]}"
+                )
+                rssi_val = target_info.get("last_rssi") or target_info.get("rssi") if target_info else None
+                snr_val = target_info.get("last_snr") or target_info.get("snr") if target_info else None
+                bat_val = target_info.get("battery_pct") or target_info.get("battery") if target_info else None
+
+                res.update({
+                    "action": "ping_zero",
+                    "target_node": str(target_node),
+                    "target_name": target_name,
+                    "hops": 0,
+                    "rtt_ms": max(15.0, rtt_ms),
+                    "rssi": rssi_val,
+                    "snr": snr_val,
+                    "battery_pct": bat_val,
+                    "reachable": True,
+                    "timestamp": int(time.time()),
+                    "message": f"Ping Zero enviado a {target_name} ({str(target_node)[:8]})",
+                    "cmd_dispatched": cmd_text,
+                })
+                self._ctx.mqtt.publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/ping_zero", json.dumps(res), qos=1)
+                self._ctx.mqtt.publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
+                return res
+
             # Comandos unitarios (login, reboot, stats-core, advert, etc.)
+            if not is_repeater_node:
+                return {"status": "error", "message": "Los comandos de administración remota son exclusivos para repetidores"}
+
             if action in ("login", "auth"):
+                if not password:
+                    return {"status": "error", "message": "La contraseña de administración no puede estar vacía"}
                 cmd_text = f"login {password}"
                 await self._ctx.execute_tx({"to": str(target_node), "text": f"cmd {cmd_text}", "request_id": req_id})
                 res.update({
@@ -275,7 +301,7 @@ class AdminCommandHandler:
                 return res
 
             if password and action != "login":
-                # Enviar login previo si se adjuntó contraseña
+                # Enviar login previo si se adjuntó contraseña no vacía
                 await self._ctx.execute_tx({"to": str(target_node), "text": f"cmd login {password}", "request_id": req_id})
 
             cmd_text = self._ctx.repeater_manager.build_repeater_command_payload(action, admin_data)

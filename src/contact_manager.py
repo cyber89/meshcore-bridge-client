@@ -85,6 +85,7 @@ class NodeContactInfo:
     bandwidth: float | None = None
     coding_rate: str | None = None
     fixed_position: bool | None = None
+    is_local: bool = False
     auto_discovered: bool = False
     discovery_time: float = 0.0
     verified_identity: bool = False
@@ -95,6 +96,7 @@ class NodeContactInfo:
         d["key_prefix"] = self.public_key[:8] if len(self.public_key) >= 8 else self.public_key
         d["total_packets"] = self.rx_packets + self.tx_packets
         d["error_rate_pct"] = round((self.error_count / (d["total_packets"] or 1)) * 100, 1)
+        d["is_local"] = self.is_local
         return d
 
 
@@ -104,6 +106,7 @@ class NodeContactUpdate:
     name: str | None = None
     alias: str | None = None
     role: str | None = None
+    is_local: bool | None = None
     auto_discovered: bool | None = None
     discovery_time: float | None = None
     verified_identity: bool | None = None
@@ -165,6 +168,7 @@ class NodeRegistry:
     def __init__(self) -> None:
         self._nodes_by_key: dict[str, NodeContactInfo] = {}
         self._nodes_by_name: dict[str, str] = {}  # lower(name) -> public_key
+        self._local_pubkey: str = ""
         self.error_categories: dict[str, int] = {
             "SERIAL_TIMEOUT": 0,
             "TX_BUFFER_OVERFLOW": 0,
@@ -174,6 +178,20 @@ class NodeRegistry:
             "MQTT_DISCONNECT": 0,
         }
         self.last_sync_timestamp: float = 0.0
+
+    def set_local_pubkey(self, pubkey: str) -> None:
+        """Establece la clave pública del nodo local para distinguirlo de nodos remotos."""
+        self._local_pubkey = str(pubkey).strip().lower()
+
+    def is_local_key(self, raw_key: str) -> bool:
+        """Determina si una clave o prefijo corresponde a la estación base local."""
+        norm = str(raw_key).strip().lower()
+        if not norm or norm == "local":
+            return True
+        if not self._local_pubkey:
+            return False
+        loc = self._local_pubkey
+        return norm == loc or (len(loc) >= 8 and norm.startswith(loc[:8])) or (len(norm) >= 8 and loc.startswith(norm[:8]))
 
     def _find_existing_key(self, raw_key: str, name: str | None = None) -> str | None:
         """Encuentra si ya existe una clave exacta o unificada por prefijo/nombre para evitar duplicados."""
@@ -230,14 +248,20 @@ class NodeRegistry:
         clean_alias = (update.alias or "").strip() or (existing.alias if existing else clean_name)
         now = time.time()
 
+        is_local_flag = update.is_local if update.is_local is not None else (
+            existing.is_local if existing else self.is_local_key(canonical_key)
+        )
+        role_default = "LOCAL" if is_local_flag else "CLIENT"
+
         contact = NodeContactInfo(
             public_key=canonical_key,
             name=clean_name,
             alias=clean_alias,
-            role=update.role if update.role is not None else (existing.role if existing else "CLIENT"),
-            hops=update.hops if update.hops is not None else (existing.hops if existing else None),
-            last_rssi=update.last_rssi if update.last_rssi is not None else (existing.last_rssi if existing else None),
-            last_snr=update.last_snr if update.last_snr is not None else (existing.last_snr if existing else None),
+            role=update.role if update.role is not None else (existing.role if existing else role_default),
+            is_local=is_local_flag,
+            hops=0 if is_local_flag else (update.hops if update.hops is not None else (existing.hops if existing else None)),
+            last_rssi=None if is_local_flag else (update.last_rssi if update.last_rssi is not None else (existing.last_rssi if existing else None)),
+            last_snr=None if is_local_flag else (update.last_snr if update.last_snr is not None else (existing.last_snr if existing else None)),
             battery_pct=update.battery_pct if update.battery_pct is not None else (existing.battery_pct if existing else None),
             last_seen=now,
             rx_packets=update.rx_packets if update.rx_packets is not None else (existing.rx_packets if existing else 0),
@@ -318,6 +342,22 @@ class NodeRegistry:
         )
         effective_role = "REPEATER" if ("REPEATER" in name_upper or name_upper.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-"))) else role
 
+        # Si corresponde a la estación base local, marcar como LOCAL y no auto_discovered
+        if self.is_local_key(norm_key):
+            contact = self.add_or_update(
+                norm_key,
+                NodeContactUpdate(
+                    name=clean_name,
+                    role="LOCAL",
+                    is_local=True,
+                    auto_discovered=False,
+                    last_rssi=None,
+                    last_snr=None,
+                    hops=0,
+                ),
+            )
+            return False, contact
+
         existing_key = self._find_existing_key(norm_key, name)
         if existing_key:
             existing = self._nodes_by_key[existing_key]
@@ -355,7 +395,7 @@ class NodeRegistry:
         """Lista los nodos clientes descubiertos automáticamente que no estén en la libreta."""
         results = []
         for c in self._nodes_by_key.values():
-            if c.auto_discovered and (c.role or "").upper() == "CLIENT":
+            if c.auto_discovered and (c.role or "").upper() == "CLIENT" and not c.is_local:
                 results.append(c.to_dict())
         return results
 
@@ -379,6 +419,11 @@ class NodeRegistry:
         norm_key = event.public_key.strip().lower()
         if not norm_key:
             return
+
+        is_local_node = self.is_local_key(norm_key)
+        if is_local_node:
+            event.rssi = None
+            event.snr = None
 
         existing_key = self._find_existing_key(norm_key)
         existing = self._nodes_by_key.get(existing_key) if existing_key else None

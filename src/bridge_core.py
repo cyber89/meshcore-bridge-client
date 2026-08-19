@@ -451,7 +451,20 @@ class MeshCoreBridge:
         # 3. Consultar y cachear configuración del dispositivo
         if hasattr(self.admin_handler, "fetch_device_config"):
             try:
-                await self.admin_handler.fetch_device_config()
+                cfg = await self.admin_handler.fetch_device_config()
+                if cfg and "public_key" in cfg:
+                    local_pk = str(cfg["public_key"]).strip().lower()
+                    self.node_registry.set_local_pubkey(local_pk)
+                    self.node_registry.add_or_update(
+                        local_pk,
+                        NodeContactUpdate(
+                            name=cfg.get("name", "Estación Base"),
+                            role="LOCAL",
+                            is_local=True,
+                            auto_discovered=False,
+                            hops=0,
+                        ),
+                    )
                 logging.info("Configuración de radio y hardware del nodo Heltec sincronizada.")
             except Exception as e:
                 logging.debug(f"Error consultando parámetros de radio del nodo: {e}")

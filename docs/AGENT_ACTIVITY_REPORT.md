@@ -469,16 +469,19 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 - **Contratos / Interfaces Modificadas**: Enriquecimiento de atributos en `NodeContactInfo.to_dict()` (`coding_rate`, `fixed_position`).
 - **Estado**: COMPLETADO
 
-### [TASK-2026-08-19-12] Auditoría y Saneamiento Integral de Valores Nulos/Ficticios y Fortalecimiento de Excepciones
-- **Fecha y Hora**: 2026-08-19 19:05
-- **Agente Responsable**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect), Agente 2 (Bridge Architect), Agente 5 (Security Auditor)
-- **Objetivo**: Auditar todas las vistas de la aplicación web y módulos backend para eliminar valores `null`, `undefined` o datos de medición ficticios (`-80 dBm`, `10 dB`, `-118 dBm`, `0 saltos`, `10 dB dB`, etc.), garantizando que todas las métricas reflejen mediciones reales capturadas o se muestren limpiamente como `--`, y robustecer el control de excepciones con notificaciones Toast informativas y degradación elegante.
+### [TASK-2026-08-19-13] Supresión de DMs Espurios de Comandos y Tratamiento Estricto del Nodo Local
+- **Fecha y Hora**: 2026-08-19 19:15
+- **Agente Responsable**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect), Agente 5 (Security Auditor)
+- **Objetivo**: Corregir el despacho de comandos de administración remota (`cmd login ...`, `cmd ping`, `cmd trace ...`) como mensajes de texto de chat directo (DM) hacia clientes remotos; validar el tipo de nodo objetivo para restringir comandos de administración exclusivamente a repetidores/routers de infraestructura; migrar el traceroute a la llamada nativa por radio del SDK (`mc.commands.send_trace`); e identificar y maquetar la estación base local como nodo propio en la vista de Directorio (sin botones de DM, ping o ruta hacia sí mismo, y sin simulación espuria de mediciones de señal RF sobre sí mismo).
 - **Archivos Modificados / Creados**:
-  - `src/web/static/js/app.js`: Saneamiento de `addSnifferPacket`, `pingZero`, `renderSnifferPacket`, `showPacketDetail`, `renderAnalyticsDashboard`, `fetchLocalNodeConfig`, `appendChatMessage`, `updateHeaderMetrics`, `initHeatmap`, `renderTracerouteGraph`, `renderTracerouteTable`, `renderNodesDirectory` y `updateMapNodes`. Eliminación de literales duplicados y comprobaciones estrictas con `!= null`.
-  - `src/contact_manager.py`: Eliminados valores por defecto ficticios (`-80`, `10.0`) en `discover_node()` y `record_packet()`; en `get_analytics_summary()`, cálculo de mejores y peores señales restringido exclusivamente a nodos con mediciones reales de SNR.
-  - `src/rx_router.py`: Eliminados fallbacks hardcodeados en la extracción de paquetes de radio y mensajes directos.
-  - `src/web/api_router.py`: En `/api/rf/heatmap` y `/api/rf/noise`, retorno estricto de mediciones reales o `None` sin falsear ruido o SNR si no han sido capturados.
-- **Contratos / Interfaces Modificadas**: Ninguno (saneamiento de contratos de datos y eliminación de ruido simulado).
+  - `src/contact_manager.py`: Añadido soporte de `is_local` en `NodeContactInfo`, `NodeContactUpdate` y `NodeRegistry` (`set_local_pubkey`, `is_local_key`); el nodo local se registra con rol `LOCAL`, `hops=0` y sin métricas de señal RF recibida; exclusión de nodos locales en `list_discovered()`.
+  - `src/rx_router.py`: Detección de transmisor local para no asignarle métricas RF de recepción sobre sí mismo ni emitir eventos espurios de nuevo contacto descubierto.
+  - `src/admin_handler.py`: Protección del nodo local contra comandos remotos (`traceroute`, `ping_zero`, `login`); en `traceroute`, invocación del comando nativo de radio `mc.commands.send_trace` sin transmitir mensajes de texto de chat a los clientes; validación de repetidor antes de enviar `ping_zero` o `cmd login`; supresión de `cmd login ` con contraseña vacía.
+  - `src/bridge_core.py`: Registro automático de la clave pública del nodo local en `NodeRegistry` al sincronizar la configuración de hardware Heltec.
+  - `src/web/api_router.py`: Inclusión de `local_node_pubkey` y `local_node_name` en `/api/status`; validación de tipo y propagación de errores HTTP 400 en `/api/repeater/remote/login`, `/api/repeater/remote/config`, `/api/repeater/remote/action` y `/api/repeater/ping_zero`.
+  - `src/web/static/js/app.js`: Identificación de la tarjeta local (`isLocal`) en el Directorio Unificado con avatar `🏠`, rol `LOCAL (Estación Base)`, panel de parámetros de radio (frecuencia, potencia, SF/BW, puerto) y acceso directo a Ajustes; eliminación del botón `Ping 0` en tarjetas de clientes estándar; protección en `openDmConversation`, `openTracerouteModal` y `pingZero` para impedir ejecuciones hacia el nodo local; actualización reactiva de `localNodePubkey` desde `/api/status`.
+  - `src/web/static/css/app.css`: Estilos visuales para `.node-card.role-local-card`, `.node-card-avatar.avatar-local`, `.node-role-badge.role-local` y badges por rol.
+- **Contratos / Interfaces Modificadas**: Inclusión de `local_node_pubkey` y `local_node_name` en `GET /api/status`; campo `is_local: bool` en `NodeContactInfo.to_dict()`.
 - **Estado**: COMPLETADO
 
 ---

@@ -161,8 +161,12 @@ class WebAPIRouter:
                 pwd = str(req_body.get("password", "")).strip()
                 if not target:
                     return 400, {"status": "error", "message": "Se requiere 'target_node'"}
+                if not pwd:
+                    return 400, {"status": "error", "message": "La contraseña de administración no puede estar vacía"}
                 cmd = {"action": "login", "target_node": target, "password": pwd}
                 res = await self.bridge.handle_admin(cmd)
+                if res.get("status") == "error":
+                    return 400, res
                 self.log_system_event("INFO", f"Intento de autenticación enviado a repetidor {target}", source="repeater_admin")
                 return 200, {"status": "ok", "data": res}
 
@@ -179,6 +183,8 @@ class WebAPIRouter:
                     "params": params,
                 }
                 res = await self.bridge.handle_admin(cmd)
+                if res.get("status") == "error":
+                    return 400, res
                 self.log_system_event("INFO", f"Configuración remota despachada a repetidor {target}", source="repeater_admin")
                 return 200, {"status": "ok", "data": res}
 
@@ -195,6 +201,8 @@ class WebAPIRouter:
                     "params": req_body.get("params", {}),
                 }
                 res = await self.bridge.handle_admin(cmd)
+                if res.get("status") == "error":
+                    return 400, res
                 self.log_system_event("INFO", f"Acción remota '{action_name}' despachada a repetidor {target}", source="repeater_admin")
                 return 200, {"status": "ok", "data": res}
 
@@ -209,6 +217,8 @@ class WebAPIRouter:
                     "password": pwd,
                 }
                 res = await self.bridge.handle_admin(cmd)
+                if res.get("status") == "error":
+                    return 400, res
                 self.log_system_event("INFO", f"🎯 Ping Zero (0 saltos) enviado a {target} - RTT: {res.get('rtt_ms')} ms", source="repeater_admin")
                 return 200, {"status": "ok", "data": res}
 
@@ -385,12 +395,16 @@ class WebAPIRouter:
             "connected_clients": getattr(tcp_server, "connected_clients_count", 0) if tcp_server else 0,
         }
 
+        local_cfg = self.bridge.admin_handler.get_local_config() if hasattr(self.bridge, "admin_handler") else {}
+
         status_data = {
             "bridge_status": "online" if getattr(self.bridge, "running", True) else "offline",
             "uptime_seconds": int(time.time() - getattr(self.bridge, "start_time", time.time())),
             "serial_connected": getattr(self.bridge.serial_adapter, "is_connected", False),
             "mqtt_connected": getattr(self.bridge.mqtt, "is_connected", False),
             "tcp_companion": tcp_info,
+            "local_node_pubkey": local_cfg.get("public_key"),
+            "local_node_name": local_cfg.get("name"),
             "known_mesh_nodes": node_cnt,
             "node_count": node_cnt,
             "total_rx_packets": total_rx,
