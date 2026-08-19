@@ -52,15 +52,27 @@ class AdminCommandHandler:
         """Devuelve la configuración consolidada del nodo local."""
         mc = self._ctx.mc_provider()
         cfg = dict(self._local_config)
+        cfg["serial_port"] = getattr(config, "SERIAL_PORT", "/dev/ttyACM0")
         if mc and hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
+            si = mc.self_info
             cfg.update({
-                "name": mc.self_info.get("name", cfg["name"]),
-                "public_key": mc.self_info.get("public_key", mc.self_info.get("pubkey", cfg["public_key"])),
-                "tx_power": mc.self_info.get("tx_power", cfg["tx_power"]),
-                "frequency": mc.self_info.get("radio_freq", mc.self_info.get("freq", cfg["frequency"])),
-                "radio_freq": mc.self_info.get("radio_freq", mc.self_info.get("freq", cfg["frequency"])),
-                "spreading_factor": mc.self_info.get("sf", cfg["spreading_factor"]),
-                "bandwidth": mc.self_info.get("bw", cfg["bandwidth"]),
+                "name": si.get("name", cfg.get("name")),
+                "public_key": si.get("public_key", si.get("pubkey", cfg.get("public_key"))),
+                "owner_info": si.get("owner_info", si.get("owner", cfg.get("owner_info"))),
+                "latitude": si.get("latitude", si.get("lat", cfg.get("latitude"))),
+                "longitude": si.get("longitude", si.get("lon", cfg.get("longitude"))),
+                "altitude": si.get("altitude", si.get("alt", cfg.get("altitude"))),
+                "tx_power": si.get("tx_power", cfg.get("tx_power")),
+                "frequency": si.get("radio_freq", si.get("freq", cfg.get("frequency"))),
+                "radio_freq": si.get("radio_freq", si.get("freq", cfg.get("frequency"))),
+                "spreading_factor": si.get("sf", si.get("spreading_factor", cfg.get("spreading_factor"))),
+                "bandwidth": si.get("bw", si.get("bandwidth", cfg.get("bandwidth"))),
+                "coding_rate": si.get("cr", si.get("coding_rate", cfg.get("coding_rate"))),
+                "hop_limit": si.get("hop_limit", cfg.get("hop_limit")),
+                "repeat": si.get("repeat", cfg.get("repeat", True)),
+                "telemetry_interval": si.get("telemetry_interval", cfg.get("telemetry_interval")),
+                "beacon_interval": si.get("beacon_interval", si.get("advert_interval", cfg.get("beacon_interval"))),
+                "advert_interval": si.get("advert_interval", si.get("beacon_interval", cfg.get("advert_interval"))),
             })
         else:
             cfg["radio_freq"] = cfg.get("frequency", 915.0)

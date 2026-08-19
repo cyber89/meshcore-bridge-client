@@ -2442,10 +2442,96 @@ body {
 .settings-view-container {
   display: flex;
   flex-direction: column;
+  min-height: 100%;
+  padding: 24px;
+  gap: 20px;
+}
+
+#tab-settings.tab-pane.active {
+  display: flex;
+  flex-direction: column;
   height: 100%;
-  padding: 20px;
-  gap: 16px;
   overflow-y: auto;
+}
+
+/* Badges de Mensajes No Leídos */
+.nav-badge-count {
+  margin-left: auto;
+  background: var(--accent-primary, #2563eb);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 10px;
+  line-height: 16px;
+  min-width: 18px;
+  text-align: center;
+  box-shadow: 0 0 8px rgba(37, 99, 235, 0.4);
+}
+
+.nav-badge-count.hidden {
+  display: none !important;
+}
+
+.ch-unread-badge {
+  margin-left: auto;
+  background: var(--accent-primary, #2563eb);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  line-height: 14px;
+  min-width: 16px;
+  text-align: center;
+  box-shadow: 0 0 8px rgba(37, 99, 235, 0.4);
+  animation: unreadPulse 2.5s infinite;
+}
+
+.ch-unread-badge.hidden {
+  display: none !important;
+}
+
+@keyframes unreadPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 8px rgba(37, 99, 235, 0.4);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 14px rgba(37, 99, 235, 0.7);
+  }
+}
+
+/* Delimitador Visual de Mensajes Nuevos en el Chat */
+.chat-unread-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 16px 0;
+  gap: 12px;
+  position: relative;
+}
+
+.unread-divider-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.6), transparent);
+}
+
+.unread-divider-pill {
+  background: var(--accent-primary, #2563eb);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 14px;
+  border-radius: 12px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  box-shadow: 0 2px 10px rgba(37, 99, 235, 0.45);
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .settings-grid {
@@ -3848,37 +3934,57 @@ body {
 }
 
 .local-settings-subtabs {
-  display: flex;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
   background: var(--bg-surface-elevated);
-  padding: 6px;
+  padding: 8px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
-  overflow-x: auto;
+  margin-bottom: 6px;
 }
 
 .local-subtab-btn {
-  background: transparent;
-  border: none;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
   color: var(--text-muted);
-  padding: 8px 14px;
+  padding: 10px 14px;
   border-radius: var(--radius-sm);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  transition: all 0.18s ease;
+  min-height: 42px;
 }
 
 .local-subtab-btn:hover {
-  color: var(--text-main);
+  color: var(--text-bright);
   background: var(--bg-surface-hover);
+  border-color: var(--border-strong);
 }
 
 .local-subtab-btn.active {
   background: var(--accent-primary);
   color: #ffffff;
-  box-shadow: var(--shadow-sm);
+  border-color: var(--accent-primary);
+  box-shadow: 0 2px 10px rgba(37, 99, 235, 0.35);
+}
+
+@media (max-width: 900px) {
+  .local-settings-subtabs {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .local-settings-subtabs {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .local-settings-subpanel {

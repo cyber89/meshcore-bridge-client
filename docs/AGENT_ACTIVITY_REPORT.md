@@ -432,6 +432,16 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
   - `src/contact_manager.py`: En `discover_node()` y `list_discovered()`, exclusión de repetidores/sensores y preservación de `auto_discovered = False` si el nodo ya existe en la libreta de contactos.
   - `src/web/static/js/app.js`: En `fetchDiscoveredContacts()`, filtrado estricto contra `knownNodes`, repetidores y nodo local, ocultando el banner si el conteo de clientes verdaderamente nuevos es 0.
 - **Contratos / Interfaces Modificadas**: Ninguno (depuración y validación de estado de descubrimiento).
+### [TASK-2026-08-19-09] Remaquetación de Subpestañas en Ajustes, Carga Integral de Telemetría y Sistema de Delimitador/Badges de Mensajes No Leídos
+- **Fecha y Hora**: 2026-08-19 18:44
+- **Agente Responsable**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect), Agente 2 (Bridge Architect)
+- **Objetivo**: Remaquetar la barra de subpestañas de Ajustes en una cuadrícula CSS responsiva sin scrollbar horizontal y con scroll vertical fluido; consolidar la carga de todos los datos del nodo local y telemetría de hardware; e implementar un sistema de badges de mensajes no leídos por canal/DM con delimitador visual ("⚡ Mensajes Nuevos") en el feed de chat.
+- **Archivos Modificados / Creados**:
+  - `src/web/static/css/app.css`: Reemplazado `.local-settings-subtabs` por CSS Grid adaptativo (`repeat(auto-fit, minmax(170px, 1fr))`) sin `overflow-x`; ajustado scroll vertical de `.settings-view-container`; añadidos estilos para `.nav-badge-count`, `.ch-unread-badge` (con animación de pulso) y `.chat-unread-divider`.
+  - `src/web/static/index.html`: Añadido span `#globalChatUnreadBadge` en el botón principal de Mensajería.
+  - `src/web/static/js/app.js`: Implementado rastreo de `unreadCounts` y `lastReadTimestamps`; actualización reactiva de badges en canales, DMs y menú global; inserción del delimitador `chat-unread-divider` al ingresar a chats con mensajes no leídos; y enriquecido `fetchLocalNodeConfig()` con datos completos de telemetría y puerto serie.
+  - `src/admin_handler.py`: Consolidación completa de parámetros de hardware, GPS y radio en `get_local_config()`.
+- **Contratos / Interfaces Modificadas**: Ninguno (enriquecimiento de campos de configuración y mejoras de experiencia de usuario en frontend).
 - **Estado**: COMPLETADO
 
 ---

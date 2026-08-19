@@ -225,6 +225,8 @@ class MeshCoreStationApp {
     this.channelFeeds = new Map(); // "ch_0", "ch_1", "dm_publickey"
     this.channelsList = [];
     this.conversationsWithMessages = new Set();
+    this.unreadCounts = new Map(); // feedKey -> number
+    this.lastReadTimestamps = new Map(); // feedKey -> ISO string
 
     this.initElements();
     this.initTheme();
@@ -291,6 +293,7 @@ class MeshCoreStationApp {
       headerTxCount: document.getElementById("headerTxCount"),
       headerErrorRate: document.getElementById("headerErrorRate"),
       headerQueueDepth: document.getElementById("headerQueueDepth"),
+      globalChatUnreadBadge: document.getElementById("globalChatUnreadBadge"),
       themeToggleBtn: document.getElementById("themeToggleBtn"),
       chatMessageFeed: document.getElementById("chatMessageFeed"),
       chatInputForm: document.getElementById("chatInputForm"),
@@ -497,7 +500,9 @@ class MeshCoreStationApp {
         const targetPane = document.getElementById(targetTabId);
         if (targetPane) {
           targetPane.classList.add("active");
-          if (targetTabId === "tab-map") {
+          if (targetTabId === "tab-chat") {
+            this.renderCurrentConversation();
+          } else if (targetTabId === "tab-map") {
             if (!this.map) {
               this.initLeafletMap();
             }
@@ -2153,8 +2158,17 @@ class MeshCoreStationApp {
         isCurrent = !this.activeDmTarget && this.activeChannelIdx === chIdx;
       }
 
-      if (isCurrent) {
+      const isChatTabActive = document.getElementById("tab-chat")?.classList.contains("active");
+
+      if (isCurrent && isChatTabActive) {
         this.appendChatMessage(normalizedMsg);
+        this.lastReadTimestamps.set(feedKey, normalizedMsg.timestamp);
+        this.unreadCounts.set(feedKey, 0);
+        this.updateFeedUnreadBadge(feedKey);
+      } else {
+        const unread = (this.unreadCounts.get(feedKey) || 0) + 1;
+        this.unreadCounts.set(feedKey, unread);
+        this.updateFeedUnreadBadge(feedKey);
       }
 
       if (isDm && senderKey && senderKey !== "unknown") {
@@ -2769,9 +2783,14 @@ class MeshCoreStationApp {
       const advInput = document.getElementById("localAdvertInterval");
       if (advInput && (cfg.advert_interval || cfg.beacon_interval)) advInput.value = String(cfg.advert_interval || cfg.beacon_interval);
 
-      // Resumen y Badges
+      // Badges de Puerto Serie y Rol
       const roleBadge = document.getElementById("localNodeRoleBadge");
       if (roleBadge) roleBadge.textContent = cfg.role || "Estación Base";
+
+      const portBadge = document.getElementById("localNodeSerialPortBadge");
+      if (portBadge && (cfg.serial_port || cfg.port)) {
+        portBadge.textContent = cfg.serial_port || cfg.port;
+      }
 
       const sumFreq = document.getElementById("localSummaryFreq");
       if (sumFreq) sumFreq.textContent = `${cfg.frequency || cfg.radio_freq || 915.0} MHz`;
@@ -2792,7 +2811,7 @@ class MeshCoreStationApp {
         sumPos.textContent = lat && lon ? `${parseFloat(lat).toFixed(4)}, ${parseFloat(lon).toFixed(4)}` : "Sin fijar";
       }
 
-      // Telemetría en Vivo si está presente
+      // Telemetría en Vivo
       if (cfg.battery_pct !== undefined || cfg.battery !== undefined) {
         const batEl = document.getElementById("localBatValue");
         if (batEl) batEl.textContent = `${cfg.battery_pct || cfg.battery}%`;
@@ -2817,6 +2836,25 @@ class MeshCoreStationApp {
         const rssiEl = document.getElementById("localRssiValue");
         if (rssiEl) rssiEl.textContent = `RSSI: ${cfg.last_rssi} dBm`;
       }
+      const clockEl = document.getElementById("localClockValue");
+      if (clockEl) clockEl.textContent = new Date().toLocaleTimeString();
+
+      // Cargar estadísticas en vivo de paquetes y ruido desde /api/status de respaldo
+      try {
+        const stRes = await fetch("/api/status");
+        const stJson = await stRes.json();
+        if (stJson.status === "ok" && stJson.data) {
+          const st = stJson.data;
+          if (st.serial_port && portBadge) portBadge.textContent = st.serial_port;
+          const m = st.metrics || {};
+          const packetsEl = document.getElementById("localPacketsValue");
+          if (packetsEl) packetsEl.textContent = `${m.tx_count ?? m.total_tx_packets ?? 0} / ${m.rx_count ?? m.total_rx_packets ?? 0}`;
+          const errEl = document.getElementById("localPacketErrorsValue");
+          if (errEl) errEl.textContent = `Duplicados: ${m.dup_count ?? 0} | Errores: ${m.err_count ?? 0}`;
+          const noiseEl = document.getElementById("localNoiseValue");
+          if (noiseEl) noiseEl.textContent = `${m.noise_floor_dbm ?? -118} dBm`;
+        }
+      } catch (_) {}
     } catch (err) {
       console.warn("Error cargando configuración local:", err);
     }
@@ -3457,12 +3495,102 @@ class MeshCoreStationApp {
     const messages = this.channelFeeds.get(feedKey) || [];
 
     if (messages.length === 0) {
+      this.unreadCounts.set(feedKey, 0);
+      this.updateFeedUnreadBadge(feedKey);
       return;
     }
 
-    for (const msg of messages) {
-      this.appendChatMessage(msg);
+    const lastReadTimeStr = this.lastReadTimestamps.get(feedKey);
+    const unreadCount = this.unreadCounts.get(feedKey) || 0;
+    let dividerInserted = false;
+
+    let firstUnreadIndex = -1;
+    if (unreadCount > 0) {
+      firstUnreadIndex = Math.max(0, messages.length - unreadCount);
+    } else if (lastReadTimeStr) {
+      const lastReadTs = new Date(lastReadTimeStr).getTime();
+      firstUnreadIndex = messages.findIndex(
+        (m) => !m.is_outgoing && m.timestamp && new Date(m.timestamp).getTime() > lastReadTs
+      );
     }
+
+    for (let i = 0; i < messages.length; i++) {
+      if (firstUnreadIndex !== -1 && i === firstUnreadIndex && !dividerInserted) {
+        const divider = document.createElement("div");
+        divider.className = "chat-unread-divider";
+        divider.id = "chatUnreadDivider";
+        divider.innerHTML = `
+          <div class="unread-divider-line"></div>
+          <span class="unread-divider-pill">⚡ Mensajes Nuevos</span>
+          <div class="unread-divider-line"></div>
+        `;
+        this.dom.chatMessageFeed.appendChild(divider);
+        dividerInserted = true;
+      }
+      this.appendChatMessage(messages[i]);
+    }
+
+    // Marcar conversación como leída
+    const lastMsg = messages[messages.length - 1];
+    this.lastReadTimestamps.set(feedKey, lastMsg?.timestamp || new Date().toISOString());
+    this.unreadCounts.set(feedKey, 0);
+    this.updateFeedUnreadBadge(feedKey);
+
+    // Scroll inteligente: al delimitador de nuevos mensajes si existe, o al fondo
+    const unreadDividerEl = document.getElementById("chatUnreadDivider");
+    if (unreadDividerEl) {
+      unreadDividerEl.scrollIntoView({ behavior: "smooth", block: "center" });
+    } else {
+      this.dom.chatMessageFeed.scrollTop = this.dom.chatMessageFeed.scrollHeight;
+    }
+  }
+
+  updateGlobalUnreadBadge() {
+    let total = 0;
+    for (const count of this.unreadCounts.values()) {
+      total += count;
+    }
+    const badge = this.dom.globalChatUnreadBadge || document.getElementById("globalChatUnreadBadge");
+    if (badge) {
+      badge.textContent = total > 99 ? "99+" : String(total);
+      badge.classList.toggle("hidden", total === 0);
+    }
+  }
+
+  updateFeedUnreadBadge(feedKey) {
+    const count = this.unreadCounts.get(feedKey) || 0;
+    if (feedKey.startsWith("ch_")) {
+      const chIdx = feedKey.replace("ch_", "");
+      const li = this.dom.channelListUi?.querySelector(`li[data-channel-idx="${chIdx}"]`);
+      if (li) {
+        let badge = li.querySelector(".ch-unread-badge");
+        if (!badge) {
+          badge = document.createElement("span");
+          badge.className = "ch-unread-badge";
+          const actions = li.querySelector(".ch-actions");
+          if (actions) li.insertBefore(badge, actions);
+          else li.appendChild(badge);
+        }
+        badge.textContent = count > 99 ? "99+" : String(count);
+        badge.classList.toggle("hidden", count === 0);
+      }
+    } else if (feedKey.startsWith("dm_")) {
+      const pk = feedKey.replace("dm_", "");
+      const li = this.dom.dmListUi?.querySelector(`li[data-pubkey="${pk}"]`);
+      if (li) {
+        let badge = li.querySelector(".ch-unread-badge");
+        if (!badge) {
+          badge = document.createElement("span");
+          badge.className = "ch-unread-badge";
+          const actions = li.querySelector(".ch-actions");
+          if (actions) li.insertBefore(badge, actions);
+          else li.appendChild(badge);
+        }
+        badge.textContent = count > 99 ? "99+" : String(count);
+        badge.classList.toggle("hidden", count === 0);
+      }
+    }
+    this.updateGlobalUnreadBadge();
   }
 
   appendChatMessage(msg) {
@@ -3592,6 +3720,8 @@ class MeshCoreStationApp {
       (this.activeDmTarget.length >= 8 && canonicalPk.length >= 8 && (this.activeDmTarget.startsWith(canonicalPk) || canonicalPk.startsWith(this.activeDmTarget)))
     ));
     const roleIcon = "👤";
+    const unreadCount = this.unreadCounts.get(feedKey) || 0;
+    const unreadBadgeHtml = `<span class="ch-unread-badge ${unreadCount > 0 ? '' : 'hidden'}">${unreadCount}</span>`;
 
     if (!li) {
       li = document.createElement("li");
@@ -3602,6 +3732,7 @@ class MeshCoreStationApp {
       li.innerHTML = `
         <span class="ch-badge">${roleIcon}</span>
         <span class="ch-name" title="${this.escapeHtml(cleanName)}">${this.escapeHtml(cleanName)}</span>
+        ${unreadBadgeHtml}
         <div class="ch-actions">
           <button type="button" class="btn-item-delete" title="Cerrar conversación de la lista" data-del-dm="${canonicalPk}">✕</button>
         </div>
@@ -3614,11 +3745,13 @@ class MeshCoreStationApp {
           e.stopPropagation();
           this.conversationsWithMessages.delete(canonicalPk);
           this.conversationsWithMessages.delete(pubkey);
+          this.unreadCounts.delete(feedKey);
           li.remove();
           if (this.activeDmTarget === canonicalPk || this.activeDmTarget === pubkey) {
             this.switchChannel(0);
           }
           this.updateDmBadgeCount();
+          this.updateGlobalUnreadBadge();
         });
       }
 
@@ -3630,9 +3763,20 @@ class MeshCoreStationApp {
       if (nameEl && cleanName && cleanName !== canonicalPk) {
         nameEl.textContent = cleanName;
       }
+      let badge = li.querySelector(".ch-unread-badge");
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "ch-unread-badge";
+        const actions = li.querySelector(".ch-actions");
+        if (actions) li.insertBefore(badge, actions);
+        else li.appendChild(badge);
+      }
+      badge.textContent = unreadCount > 99 ? "99+" : String(unreadCount);
+      badge.classList.toggle("hidden", unreadCount === 0);
     }
 
     this.updateDmBadgeCount();
+    this.updateGlobalUnreadBadge();
   }
 
   updateDmBadgeCount() {
@@ -4357,9 +4501,13 @@ class MeshCoreStationApp {
         ? `<button type="button" class="btn-item-delete" title="Eliminar canal del dispositivo" data-del-idx="${ch.index}">🗑️</button>`
         : "";
 
+      const unreadCount = this.unreadCounts.get(`ch_${ch.index}`) || 0;
+      const unreadBadgeHtml = `<span class="ch-unread-badge ${unreadCount > 0 ? '' : 'hidden'}">${unreadCount}</span>`;
+
       li.innerHTML = `
         <span class="ch-badge">Ch ${ch.index}</span>
         <span class="ch-name" title="${this.escapeHtml(ch.name)}">${this.escapeHtml(ch.name)}</span>
+        ${unreadBadgeHtml}
         <div class="ch-actions">
           <span class="ch-lock" title="${isPub ? 'Canal Público' : 'Canal Privado'}">${icon}</span>
           ${deleteBtnHtml}
