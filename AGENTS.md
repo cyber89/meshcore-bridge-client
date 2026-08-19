@@ -134,4 +134,5 @@ sequenceDiagram
 - **Type Checker**: `mypy --strict`
 - **Pruebas Automatizadas**: **Suspendidas hasta petición explícita del usuario**.
 - **Sincronización de Despliegue (`/deploy/`)**: Tras cada modificación en producción, scripts o documentación, sincronizar obligatoriamente la carpeta `/deploy/` ejecutando `python scripts/sync_deploy.py`.
+- **Sincronización con GitHub (`origin/main`)**: Tras cada modificación o entrega, realizar obligatoriamente `git add`, `git commit` y `git push origin main` para mantener el repositorio remoto actualizado.
 
