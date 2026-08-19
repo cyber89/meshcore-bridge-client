@@ -6,6 +6,66 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Corrección de Excepción de Inicialización (TypeError) y Blindaje de Elementos DOM en la SPA
+- **Fecha**: 2026-08-19
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Diagnosticó y corrigió la interrupción en la carga de la SPA provocada por referencias nulas a elementos de diagnóstico/discovery en `initPreflight()` e `initHomeAssistant()`.
+- **Contribuciones de Agentes**:
+  1. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - Blindó con comprobaciones de nulidad (*null checks*) estrictas todos los escuchadores de eventos en [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js) (`initPreflight`, `initHomeAssistant`, `initTheme`, `initCommandPalette`, `initChat`).
+     - Restauró el ciclo de vida completo de la aplicación, permitiendo que `initChat()`, `initWebSocket()`, `initLeafletMap()` y `fetchInitialData()` se ejecuten de manera fluida y sin bloqueos.
+     - Restableció la carga automática y continua de nodos de la malla, repetidores y libreta de contactos.
+  2. **Agente 0 (Agente Principal / Orchestrator)**:
+     - Verificación con `node -c src/web/static/js/app.js` y `lint_frontend_standards.py`.
+     - Sincronización del paquete de despliegue en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vía `python scripts/sync_deploy.py`.
+
+---
+
+### Hito: Implementación de Persistencia IndexedDB y Mapas Geográficos Offline con Modo Radar Táctico en la SPA
+- **Fecha**: 2026-08-19
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Coordinó la implementación de la capa de almacenamiento en navegador (`MeshCoreStorage`) con IndexedDB y el sistema integral de capas cartográficas offline y radar táctico para situaciones de emergencia sin conexión a Internet.
+- **Contribuciones de Agentes**:
+  1. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - **Capa de Almacenamiento IndexedDB (`app.js`)**:
+       - Implementó `MeshCoreStorage` gestionando la base de datos `MeshCoreStationDB` con los object stores `chat_messages`, `sniffer_packets` y `app_settings`.
+       - Persistencia automática de mensajes de chat salientes y entrantes por canal y DM, cargando el historial previo de forma asíncrona al iniciar o cambiar de conversación.
+       - Persistencia de tramas interceptadas por el sniffer RF con recarga inmediata en el arranque y limpieza coordinada.
+     - **Mapas Offline & Modo Radar Táctico (`app.js`, `app.css`, `index.html`)**:
+       - Añadió barra de herramientas de capas cartográficas (`.map-layer-switcher`) con soporte para *CartoDB Dark*, *OpenStreetMap*, *Teselas Locales* y *Radar Táctico*.
+       - Implementó el **Modo Radar Táctico / Grícula LoRa**: visualización geoespacial sin dependencia de internet con anillos concéntricos de alcance (1 km, 5 km, 10 km, 25 km), grícula de coordenadas y ejes cardinales centrados en el nodo local.
+       - Detección y conmutación automática (*fallback*) a Radar Táctico ante fallos de conexión a teselas online (`tileerror`).
+       - Añadió panel de gestión en Ajustes (`#local-storage-maps`) para vaciar IndexedDB y configurar la URL del servidor de teselas locales (`localTileUrl`).
+  2. **Agente 2 (Python Bridge Architect Agent)**:
+     - **Telemetría TCP Companion en REST API (`src/web/api_router.py`)**:
+       - Expuso el objeto `tcp_companion` (estado `enabled`, `host`, `port`, `connected_clients`) en el endpoint `/api/status`.
+  3. **Agente 0 (Agente Principal / Orchestrator)**:
+     - Validación con `node -c src/web/static/js/app.js` (0 errores).
+     - Verificación con `lint_frontend_standards.py`, `audit_architecture.py` y `audit_async_concurrency.py` (100% de cumplimiento).
+     - Sincronización del paquete de despliegue en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vía `python scripts/sync_deploy.py`.
+
+---
+
+### Hito: Incorporación de Skills de Ingeniería de Software, Arquitectura Hexagonal, Patrones GoF y Concurrencia Async
+- **Fecha**: 2026-08-19
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Incorporó un conjunto integral de 4 nuevas skills técnicas especializadas con herramientas de análisis estático para blindar la arquitectura, patrones de diseño, concurrencia asíncrona y métricas de código limpio.
+- **Nuevas Skills Incorporadas**:
+  1. **`software-architecture-patterns`** ([`SKILL.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/.agents/skills/software-architecture-patterns/SKILL.md)):
+     - Guía de Arquitectura Hexagonal (Ports & Adapters), Event-Driven Architecture (EDA), Domain-Driven Design (DDD) y patrones de resiliencia (Circuit Breaker, Exponential Backoff, Bulkhead).
+     - Herramienta: `scripts/audit_architecture.py` (auditoría de inversión de dependencias e inmutabilidad del dominio).
+  2. **`gof-design-patterns-expert`** ([`SKILL.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/.agents/skills/gof-design-patterns-expert/SKILL.md)):
+     - Catálogo formal de patrones GoF (Adapter, Factory Method, Strategy, Facade, Observer, State Machine).
+     - Herramienta: `scripts/analyze_design_patterns.py` (mapeo y detección de patrones en el código de producción).
+  3. **`async-concurrency-engineering`** ([`SKILL.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/.agents/skills/async-concurrency-engineering/SKILL.md)):
+     - Directrices para evitar llamadas bloqueantes en el event loop, puente seguro entre hilos/asyncio y graceful shutdown.
+     - Herramienta: `scripts/audit_async_concurrency.py` (detección de bloqueos I/O y patrones inseguros).
+  4. **`refactoring-clean-architecture`** ([`SKILL.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/.agents/skills/refactoring-clean-architecture/SKILL.md)):
+     - Técnicas de refactorización de Martin Fowler y umbrales de métricas (Complejidad Ciclomática $\le 15$, longitud de métodos $\le 45$, parámetros $\le 6$).
+     - Herramienta: `scripts/evaluate_refactoring_metrics.py` (cálculo de complejidad ciclomática de McCabe por función).
+
+---
+
 ### Hito: Normalización Integral de Componentes UI, Optimización de Memoria (RAM), Renderizado por Lotes y Sanitización XSS en Frontend
 - **Fecha**: 2026-08-18
 - **Estado**: ✅ COMPLETADO

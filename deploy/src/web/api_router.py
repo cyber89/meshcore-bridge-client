@@ -279,11 +279,20 @@ class WebAPIRouter:
         node_cnt = self.bridge.node_registry.get_count() if hasattr(self.bridge, "node_registry") and hasattr(self.bridge.node_registry, "get_count") else 0
         q_depth = self.bridge.rate_limiter.get_queue_depth() if hasattr(self.bridge, "rate_limiter") and hasattr(self.bridge.rate_limiter, "get_queue_depth") else 0
 
+        tcp_server = getattr(self.bridge, "tcp_server", None)
+        tcp_info = {
+            "enabled": getattr(tcp_server, "is_running", False) if tcp_server else False,
+            "host": getattr(tcp_server, "host", "0.0.0.0") if tcp_server else "0.0.0.0",
+            "port": getattr(tcp_server, "port", 5000) if tcp_server else 5000,
+            "connected_clients": getattr(tcp_server, "connected_clients_count", 0) if tcp_server else 0,
+        }
+
         status_data = {
             "bridge_status": "online" if getattr(self.bridge, "running", True) else "offline",
             "uptime_seconds": int(time.time() - getattr(self.bridge, "start_time", time.time())),
             "serial_connected": getattr(self.bridge.serial_adapter, "is_connected", False),
             "mqtt_connected": getattr(self.bridge.mqtt, "is_connected", False),
+            "tcp_companion": tcp_info,
             "known_mesh_nodes": node_cnt,
             "node_count": node_cnt,
             "total_rx_packets": total_rx,

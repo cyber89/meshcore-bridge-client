@@ -280,6 +280,12 @@
         <section id="tab-map" class="tab-pane" role="tabpanel" aria-labelledby="navTabMap">
           <div class="map-container">
             <div id="liveGpsMap" class="leaflet-map-canvas" role="region" aria-label="Mapa interactivo de nodos en la malla"></div>
+            <div class="map-layer-switcher" role="toolbar" aria-label="Selector de capas cartográficas">
+              <button type="button" class="map-layer-btn active" data-layer="cartodb" title="CartoDB Dark (Online)">🌙 Oscuro</button>
+              <button type="button" class="map-layer-btn" data-layer="osm" title="OpenStreetMap (Online)">🗺️ Calles</button>
+              <button type="button" class="map-layer-btn" data-layer="local" title="Teselas Locales (Offline)">💾 Local</button>
+              <button type="button" class="map-layer-btn" data-layer="tactical_radar" title="Radar Táctico / Grícula LoRa (Sin Internet)">🎯 Radar</button>
+            </div>
             <div class="map-overlay-info">
               <h4>Nodos en la Malla LoRa (<span id="mapNodesCount">0</span>)</h4>
               <div id="mapNodesList" class="map-nodes-feed"></div>
@@ -592,6 +598,7 @@
               <button type="button" class="local-subtab-btn" data-subtab="local-owner-pos">📍 Identidad & Posición GPS</button>
               <button type="button" class="local-subtab-btn" data-subtab="local-console">💻 Consola Terminal Local</button>
               <button type="button" class="local-subtab-btn" data-subtab="local-actions">⚡ Acciones de Hardware</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-storage-maps">💾 Mapas Offline & Almacenamiento</button>
             </div>
 
             <!-- Subpanel 1: Telemetría & Estado en Tiempo Real -->
@@ -917,6 +924,52 @@
                       <p>Cierra y reabre de forma segura el descriptor USB/Serial con el transceptor.</p>
                     </div>
                     <button type="button" class="btn-secondary btn-sm" id="btnActionReconnectSerial">📻 Reconectar Serial</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Subpanel 6: Mapas Offline & Almacenamiento IndexedDB -->
+            <div id="local-storage-maps" class="local-settings-subpanel">
+              <div class="card-panel">
+                <div class="panel-header-modern">
+                  <div>
+                    <h3>💾 Almacenamiento Local & Mapas Offline</h3>
+                    <p class="panel-desc">Gestiona la base de datos IndexedDB del navegador y la configuración de capas cartográficas fuera de línea.</p>
+                  </div>
+                </div>
+
+                <div class="settings-grid">
+                  <!-- Tarjeta 1: Almacén IndexedDB -->
+                  <div class="settings-card">
+                    <div class="card-title-row">
+                      <h3>🗄️ Persistencia en Navegador (IndexedDB)</h3>
+                      <span class="badge-pill badge-success" id="indexedDbStatusBadge">Activo (MeshCoreStationDB)</span>
+                    </div>
+                    <p class="card-desc">Los mensajes de chat y las tramas del sniffer se almacenan de forma segura y asíncrona en el navegador para no perderse al recargar.</p>
+                    <div class="settings-form">
+                      <div class="form-row">
+                        <button type="button" class="btn-danger btn-sm" id="btnClearIndexedDbStorage">🧹 Vaciar Almacenamiento Local IndexedDB</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Tarjeta 2: Servidor de Mosaicos / Mapas Offline -->
+                  <div class="settings-card">
+                    <div class="card-title-row">
+                      <h3>🗺️ Servidor de Teselas / Mapas Offline</h3>
+                      <span class="badge-pill badge-primary">Soporte PMTiles / MBTiles</span>
+                    </div>
+                    <p class="card-desc">Especifica la URL o endpoint local para cargar mapas sin conexión a Internet (ej. servidor de mosaicos local en Raspberry Pi o PC).</p>
+                    <div class="settings-form">
+                      <div class="form-group">
+                        <label for="inputLocalTileUrl">URL de Servidor de Teselas Locales (formato {z}/{x}/{y})</label>
+                        <input type="text" id="inputLocalTileUrl" class="form-control" placeholder="/api/map/tiles/{z}/{x}/{y}.png" value="/api/map/tiles/{z}/{x}/{y}.png" />
+                      </div>
+                      <div class="form-row">
+                        <button type="button" class="btn-primary btn-sm" id="btnSaveMapSettings">💾 Guardar Configuración de Mapas</button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

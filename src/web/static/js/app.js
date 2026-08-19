@@ -31,8 +31,180 @@ const MAX_RAW_PACKETS = 200;
 const MAX_SYSTEM_LOGS = 300;
 const MAX_FEED_MESSAGES = 100;
 
+/**
+ * Capa de persistencia asíncrona en el navegador mediante IndexedDB.
+ * Permite conservar historial de chat, tramas del sniffer y preferencias tras refrescar la página.
+ */
+class MeshCoreStorage {
+  constructor(dbName = "MeshCoreStationDB", version = 1) {
+    this.dbName = dbName;
+    this.version = version;
+    this.db = null;
+    this.readyPromise = this.init();
+  }
+
+  async init() {
+    if (!("indexedDB" in window)) {
+      console.warn("IndexedDB no soportado en este entorno.");
+      return null;
+    }
+    return new Promise((resolve) => {
+      try {
+        const request = indexedDB.open(this.dbName, this.version);
+        request.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains("chat_messages")) {
+            const chatStore = db.createObjectStore("chat_messages", { keyPath: "id", autoIncrement: true });
+            chatStore.createIndex("by_feed", "feed_key", { unique: false });
+            chatStore.createIndex("by_time", "timestamp", { unique: false });
+          }
+          if (!db.objectStoreNames.contains("sniffer_packets")) {
+            const snifferStore = db.createObjectStore("sniffer_packets", { keyPath: "id", autoIncrement: true });
+            snifferStore.createIndex("by_opcode", "opcode", { unique: false });
+            snifferStore.createIndex("by_time", "timestamp", { unique: false });
+          }
+          if (!db.objectStoreNames.contains("app_settings")) {
+            db.createObjectStore("app_settings", { keyPath: "key" });
+          }
+        };
+        request.onsuccess = (e) => {
+          this.db = e.target.result;
+          resolve(this.db);
+        };
+        request.onerror = (e) => {
+          console.warn("Error abriendo IndexedDB:", e);
+          resolve(null);
+        };
+      } catch (err) {
+        console.warn("Fallo inicializando IndexedDB:", err);
+        resolve(null);
+      }
+    });
+  }
+
+  async saveMessage(feedKey, msg) {
+    await this.readyPromise;
+    if (!this.db) return;
+    try {
+      const tx = this.db.transaction("chat_messages", "readwrite");
+      const store = tx.objectStore("chat_messages");
+      store.add({
+        feed_key: feedKey,
+        sender: msg.sender,
+        sender_name: msg.sender_name,
+        text: msg.text,
+        is_outgoing: !!msg.is_outgoing,
+        channel_idx: msg.channel_idx,
+        dm_target: msg.dm_target,
+        timestamp: msg.timestamp || new Date().toISOString(),
+        metrics: msg.metrics || null,
+      });
+    } catch (_) {}
+  }
+
+  async getMessagesByFeed(feedKey, limit = 100) {
+    await this.readyPromise;
+    if (!this.db) return [];
+    return new Promise((resolve) => {
+      try {
+        const tx = this.db.transaction("chat_messages", "readonly");
+        const store = tx.objectStore("chat_messages");
+        const index = store.index("by_feed");
+        const req = index.getAll(IDBKeyRange.only(feedKey));
+        req.onsuccess = () => {
+          const msgs = req.result || [];
+          resolve(msgs.slice(-limit));
+        };
+        req.onerror = () => resolve([]);
+      } catch (_) {
+        resolve([]);
+      }
+    });
+  }
+
+  async clearFeedMessages(feedKey) {
+    await this.readyPromise;
+    if (!this.db) return;
+    try {
+      const tx = this.db.transaction("chat_messages", "readwrite");
+      const store = tx.objectStore("chat_messages");
+      const index = store.index("by_feed");
+      const req = index.openCursor(IDBKeyRange.only(feedKey));
+      req.onsuccess = (e) => {
+        const cursor = e.target.result;
+        if (cursor) {
+          store.delete(cursor.primaryKey);
+          cursor.continue();
+        }
+      };
+    } catch (_) {}
+  }
+
+  async saveSnifferPacket(pkt) {
+    await this.readyPromise;
+    if (!this.db) return;
+    try {
+      const tx = this.db.transaction("sniffer_packets", "readwrite");
+      const store = tx.objectStore("sniffer_packets");
+      store.add({
+        opcode: String(pkt.opcode || pkt.payload_type || "DATA").toUpperCase(),
+        sender: String(pkt.sender || pkt.src_node_id || pkt.from || "RF"),
+        to: String(pkt.to || pkt.dst_node_id || "0xFFFF"),
+        snr: pkt.metrics?.snr !== undefined ? pkt.metrics.snr : (pkt.snr !== undefined ? pkt.snr : "--"),
+        rssi: pkt.metrics?.rssi !== undefined ? pkt.metrics.rssi : (pkt.rssi !== undefined ? pkt.rssi : "--"),
+        byte_length: pkt.byte_length || pkt.length || (pkt.raw_hex ? Math.floor(pkt.raw_hex.length / 2) : 0),
+        raw_hex: pkt.raw_hex || pkt.raw || "",
+        text: pkt.text || "",
+        timestamp: pkt.timestamp || Date.now(),
+      });
+    } catch (_) {}
+  }
+
+  async getSnifferPackets(limit = 200) {
+    await this.readyPromise;
+    if (!this.db) return [];
+    return new Promise((resolve) => {
+      try {
+        const tx = this.db.transaction("sniffer_packets", "readonly");
+        const store = tx.objectStore("sniffer_packets");
+        const req = store.getAll();
+        req.onsuccess = () => {
+          const pkts = req.result || [];
+          resolve(pkts.slice(-limit));
+        };
+        req.onerror = () => resolve([]);
+      } catch (_) {
+        resolve([]);
+      }
+    });
+  }
+
+  async clearSnifferPackets() {
+    await this.readyPromise;
+    if (!this.db) return;
+    try {
+      const tx = this.db.transaction("sniffer_packets", "readwrite");
+      tx.objectStore("sniffer_packets").clear();
+    } catch (_) {}
+  }
+
+  async clearAll() {
+    await this.readyPromise;
+    if (!this.db) return;
+    try {
+      const tx = this.db.transaction(["chat_messages", "sniffer_packets"], "readwrite");
+      tx.objectStore("chat_messages").clear();
+      tx.objectStore("sniffer_packets").clear();
+    } catch (_) {}
+  }
+}
+
 class MeshCoreStationApp {
   constructor() {
+    this.storage = new MeshCoreStorage();
+    this.mapLayerMode = localStorage.getItem("meshcore_map_layer_mode") || "cartodb";
+    this.localTileUrl = localStorage.getItem("meshcore_local_tile_url") || "/api/map/tiles/{z}/{x}/{y}.png";
+    this.tacticalRadarGroup = null;
     this.ws = null;
     this.wsReconnectTimer = null;
     this.wsReconnectInterval = 3000;
@@ -264,18 +436,20 @@ class MeshCoreStationApp {
       document.body.classList.remove("dark-theme");
       document.body.classList.add("light-theme");
     }
-    this.dom.themeToggleBtn.addEventListener("click", () => {
-      const isDark = document.body.classList.contains("dark-theme");
-      if (isDark) {
-        document.body.classList.remove("dark-theme");
-        document.body.classList.add("light-theme");
-        localStorage.setItem("meshcore_theme", "light");
-      } else {
-        document.body.classList.remove("light-theme");
-        document.body.classList.add("dark-theme");
-        localStorage.setItem("meshcore_theme", "dark");
-      }
-    });
+    if (this.dom.themeToggleBtn) {
+      this.dom.themeToggleBtn.addEventListener("click", () => {
+        const isDark = document.body.classList.contains("dark-theme");
+        if (isDark) {
+          document.body.classList.remove("dark-theme");
+          document.body.classList.add("light-theme");
+          localStorage.setItem("meshcore_theme", "light");
+        } else {
+          document.body.classList.remove("light-theme");
+          document.body.classList.add("dark-theme");
+          localStorage.setItem("meshcore_theme", "dark");
+        }
+      });
+    }
   }
 
   initNavigation() {
@@ -331,20 +505,30 @@ class MeshCoreStationApp {
 
   initCommandPalette() {
     const openModal = () => {
-      this.dom.commandPaletteModal.classList.remove("hidden");
-      this.dom.cmdPaletteInput.value = "";
-      this.dom.cmdPaletteInput.focus();
+      if (this.dom.commandPaletteModal) {
+        this.dom.commandPaletteModal.classList.remove("hidden");
+      }
+      if (this.dom.cmdPaletteInput) {
+        this.dom.cmdPaletteInput.value = "";
+        this.dom.cmdPaletteInput.focus();
+      }
       this.cmdPaletteOpen = true;
     };
     const closeModal = () => {
-      this.dom.commandPaletteModal.classList.add("hidden");
+      if (this.dom.commandPaletteModal) {
+        this.dom.commandPaletteModal.classList.add("hidden");
+      }
       this.cmdPaletteOpen = false;
     };
 
-    this.dom.btnCommandPalette.addEventListener("click", openModal);
-    this.dom.commandPaletteModal.addEventListener("click", (e) => {
-      if (e.target === this.dom.commandPaletteModal) closeModal();
-    });
+    if (this.dom.btnCommandPalette) {
+      this.dom.btnCommandPalette.addEventListener("click", openModal);
+    }
+    if (this.dom.commandPaletteModal) {
+      this.dom.commandPaletteModal.addEventListener("click", (e) => {
+        if (e.target === this.dom.commandPaletteModal) closeModal();
+      });
+    }
 
     document.addEventListener("keydown", (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
@@ -357,28 +541,30 @@ class MeshCoreStationApp {
       }
     });
 
-    this.dom.cmdPaletteResults.querySelectorAll(".cmd-item").forEach((item) => {
-      item.addEventListener("click", () => {
-        const action = item.getAttribute("data-action");
-        closeModal();
-        if (action.startsWith("tab-")) {
-          const navBtn = document.querySelector(`.nav-btn[data-tab="${action}"]`);
-          if (navBtn) navBtn.click();
-        } else if (action === "action-advert") {
-          this.executeAdminCommand("advert", {});
-        } else if (action === "action-ha") {
-          this.publishHomeAssistantDiscovery();
-        } else if (action === "action-diag") {
-          const navBtn = document.querySelector('.nav-btn[data-tab="tab-logs"]');
-          if (navBtn) navBtn.click();
-          this.runQuickDiagnostic();
-        } else if (action === "action-debug-toggle") {
-          this.toggleDebugMode();
-        } else if (action === "action-export-diag") {
-          this.exportDiagnosticReport();
-        }
+    if (this.dom.cmdPaletteResults) {
+      this.dom.cmdPaletteResults.querySelectorAll(".cmd-item").forEach((item) => {
+        item.addEventListener("click", () => {
+          const action = item.getAttribute("data-action");
+          closeModal();
+          if (action.startsWith("tab-")) {
+            const navBtn = document.querySelector(`.nav-btn[data-tab="${action}"]`);
+            if (navBtn) navBtn.click();
+          } else if (action === "action-advert") {
+            this.executeAdminCommand("advert", {});
+          } else if (action === "action-ha") {
+            this.publishHomeAssistantDiscovery();
+          } else if (action === "action-diag") {
+            const navBtn = document.querySelector('.nav-btn[data-tab="tab-logs"]');
+            if (navBtn) navBtn.click();
+            this.runQuickDiagnostic();
+          } else if (action === "action-debug-toggle") {
+            this.toggleDebugMode();
+          } else if (action === "action-export-diag") {
+            this.exportDiagnosticReport();
+          }
+        });
       });
-    });
+    }
   }
 
   initChannelAndContactModals() {
@@ -1418,6 +1604,7 @@ class MeshCoreStationApp {
     if (this.dom.btnClearSniffer) {
       this.dom.btnClearSniffer.addEventListener("click", () => {
         this.rawPackets = [];
+        this.storage.clearSnifferPackets();
         this.dom.snifferTableBody.innerHTML = '<tr><td colspan="8" class="text-center">Historial limpiado.</td></tr>';
         this.updateSnifferStats();
         this.showToast("🧹 Historial del sniffer vaciado", "info");
@@ -1513,6 +1700,15 @@ class MeshCoreStationApp {
         this.dom.packetDetailModal.classList.add("hidden");
       }
     });
+
+    // Cargar tramas del sniffer previamente guardadas en IndexedDB
+    this.storage.getSnifferPackets().then((packets) => {
+      if (packets && packets.length > 0 && this.rawPackets.length === 0) {
+        for (const pkt of packets) {
+          this.renderSnifferPacket(pkt, false);
+        }
+      }
+    });
   }
 
   updateSnifferStats() {
@@ -1554,7 +1750,10 @@ class MeshCoreStationApp {
     });
   }
 
-  renderSnifferPacket(pkt) {
+  renderSnifferPacket(pkt, persist = true) {
+    if (persist) {
+      this.storage.saveSnifferPacket(pkt);
+    }
     this.rawPackets.unshift(pkt);
     if (this.rawPackets.length > MAX_RAW_PACKETS) this.rawPackets.pop();
 
@@ -1746,6 +1945,8 @@ class MeshCoreStationApp {
       const feed = this.channelFeeds.get(feedKey);
       feed.push(normalizedMsg);
       if (feed.length > MAX_FEED_MESSAGES) feed.shift();
+
+      this.storage.saveMessage(feedKey, normalizedMsg);
 
       let isCurrent = false;
       if (isDm) {
@@ -2002,45 +2203,59 @@ class MeshCoreStationApp {
   }
 
   initHomeAssistant() {
-    this.dom.btnPublishHaDiscovery.addEventListener("click", () => {
-      this.publishHomeAssistantDiscovery();
-    });
+    if (this.dom.btnPublishHaDiscovery) {
+      this.dom.btnPublishHaDiscovery.addEventListener("click", () => {
+        this.publishHomeAssistantDiscovery();
+      });
+    }
   }
 
   async publishHomeAssistantDiscovery() {
+    if (!this.dom.btnPublishHaDiscovery) return;
     try {
       this.dom.btnPublishHaDiscovery.disabled = true;
       this.dom.btnPublishHaDiscovery.textContent = "📢 Anunciando...";
       const res = await fetch("/api/ha/publish", { method: "POST" });
       const data = await res.json();
       if (data.status === "ok") {
-        this.dom.haDiscoveredCount.textContent = data.data.published_entities;
+        if (this.dom.haDiscoveredCount) {
+          this.dom.haDiscoveredCount.textContent = data.data.published_entities;
+        }
         alert(`✓ Home Assistant Discovery anunciado con éxito (${data.data.published_entities} entidades).`);
       }
     } catch (e) {
       alert("Error al anunciar Home Assistant Discovery: " + e.message);
     } finally {
-      this.dom.btnPublishHaDiscovery.disabled = false;
-      this.dom.btnPublishHaDiscovery.textContent = "📢 Re-anunciar Discovery en MQTT";
+      if (this.dom.btnPublishHaDiscovery) {
+        this.dom.btnPublishHaDiscovery.disabled = false;
+        this.dom.btnPublishHaDiscovery.textContent = "📢 Re-anunciar Discovery en MQTT";
+      }
     }
   }
 
   initPreflight() {
-    this.dom.btnRunPreflight.addEventListener("click", async () => {
-      this.dom.preflightResults.innerHTML = "Ejecutando comprobaciones de diagnóstico...";
-      try {
-        const res = await fetch("/api/preflight");
-        const data = await res.json();
-        if (data.status === "ok") {
-          this.renderPreflightReport(data.data);
+    if (this.dom.btnRunPreflight) {
+      this.dom.btnRunPreflight.addEventListener("click", async () => {
+        if (this.dom.preflightResults) {
+          this.dom.preflightResults.innerHTML = "Ejecutando comprobaciones de diagnóstico...";
         }
-      } catch (err) {
-        this.dom.preflightResults.innerHTML = `<span class="text-danger">Error: ${err.message}</span>`;
-      }
-    });
+        try {
+          const res = await fetch("/api/preflight");
+          const data = await res.json();
+          if (data.status === "ok") {
+            this.renderPreflightReport(data.data);
+          }
+        } catch (err) {
+          if (this.dom.preflightResults) {
+            this.dom.preflightResults.innerHTML = `<span class="text-danger">Error: ${err.message}</span>`;
+          }
+        }
+      });
+    }
   }
 
   renderPreflightReport(report) {
+    if (!this.dom.preflightResults) return;
     let html = `<div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">`;
     html += `<div style="font-weight: 600; color: ${report.status === "OK" ? "var(--accent-success)" : "var(--accent-warning)"}">Estado General: ${report.status}</div>`;
     for (const c of report.checks) {
@@ -2254,6 +2469,40 @@ class MeshCoreStationApp {
         } finally {
           btnReconnectSerial.disabled = false;
           btnReconnectSerial.textContent = "📻 Reconectar Serial";
+        }
+      });
+    }
+
+    // 9. Manejadores de Almacenamiento IndexedDB y Mapas Offline
+    const btnClearStorage = document.getElementById("btnClearIndexedDbStorage");
+    if (btnClearStorage) {
+      btnClearStorage.addEventListener("click", async () => {
+        if (confirm("¿Estás seguro de vaciar todo el historial de chat y tramas sniffer guardadas en IndexedDB?")) {
+          await this.storage.clearAll();
+          this.channelFeeds.clear();
+          this.rawPackets = [];
+          if (this.dom.chatMessageFeed) this.dom.chatMessageFeed.innerHTML = "";
+          if (this.dom.snifferTableBody) this.dom.snifferTableBody.innerHTML = '<tr><td colspan="8" class="text-center">Historial limpiado.</td></tr>';
+          this.showToast("🧹 Almacenamiento local IndexedDB vaciado", "success");
+        }
+      });
+    }
+
+    const inputLocalTileUrl = document.getElementById("inputLocalTileUrl");
+    const btnSaveMapSettings = document.getElementById("btnSaveMapSettings");
+    if (inputLocalTileUrl) {
+      inputLocalTileUrl.value = this.localTileUrl;
+    }
+    if (btnSaveMapSettings && inputLocalTileUrl) {
+      btnSaveMapSettings.addEventListener("click", () => {
+        const url = inputLocalTileUrl.value.trim();
+        if (url) {
+          this.localTileUrl = url;
+          localStorage.setItem("meshcore_local_tile_url", url);
+          if (this.tileLayers && this.tileLayers.local) {
+            this.tileLayers.local.setUrl(url);
+          }
+          this.showToast("💾 Configuración de servidor de mapas offline guardada", "success");
         }
       });
     }
@@ -2800,67 +3049,76 @@ class MeshCoreStationApp {
   }
 
   initChat() {
-    this.dom.chatInputForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const text = this.dom.chatInputText.value.trim();
-      if (!text) return;
-      this.dom.chatInputText.value = "";
+    if (this.dom.chatInputForm) {
+      this.dom.chatInputForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const text = this.dom.chatInputText ? this.dom.chatInputText.value.trim() : "";
+        if (!text) return;
+        if (this.dom.chatInputText) this.dom.chatInputText.value = "";
 
-      const target = this.activeDmTarget || "broadcast";
-      const outgoingMsg = {
-        sender: "local",
-        sender_name: "Estación Local (Tú)",
-        text: text,
-        is_outgoing: true,
-        channel_idx: this.activeChannelIdx,
-        dm_target: this.activeDmTarget,
-        timestamp: new Date().toISOString(),
-      };
+        const target = this.activeDmTarget || "broadcast";
+        const outgoingMsg = {
+          sender: "local",
+          sender_name: "Estación Local (Tú)",
+          text: text,
+          is_outgoing: true,
+          channel_idx: this.activeChannelIdx,
+          dm_target: this.activeDmTarget,
+          timestamp: new Date().toISOString(),
+        };
 
-      const feedKey = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
-      if (!this.channelFeeds.has(feedKey)) this.channelFeeds.set(feedKey, []);
-      const feed = this.channelFeeds.get(feedKey);
-      feed.push(outgoingMsg);
-      if (feed.length > MAX_FEED_MESSAGES) feed.shift();
+        const feedKey = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
+        if (!this.channelFeeds.has(feedKey)) this.channelFeeds.set(feedKey, []);
+        const feed = this.channelFeeds.get(feedKey);
+        feed.push(outgoingMsg);
+        if (feed.length > MAX_FEED_MESSAGES) feed.shift();
 
-      if (this.activeDmTarget) {
-        this.conversationsWithMessages.add(this.activeDmTarget);
-        this.addDmContact(this.activeDmTarget, this.activeDmName);
-      }
+        this.storage.saveMessage(feedKey, outgoingMsg);
 
-      this.appendChatMessage(outgoingMsg);
+        if (this.activeDmTarget) {
+          this.conversationsWithMessages.add(this.activeDmTarget);
+          this.addDmContact(this.activeDmTarget, this.activeDmName);
+        }
 
-      try {
-        await fetch("/api/tx", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            to: target,
-            channel_index: this.activeChannelIdx,
-            text: text,
-          }),
-        });
-      } catch (err) {
-        console.error("Error transmitiendo mensaje:", err);
-      }
-    });
+        this.appendChatMessage(outgoingMsg);
 
-    this.dom.clearChatBtn.addEventListener("click", () => {
-      const feedKey = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
-      this.channelFeeds.set(feedKey, []);
-      this.dom.chatMessageFeed.innerHTML = "";
-    });
+        try {
+          await fetch("/api/tx", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              to: target,
+              channel_index: this.activeChannelIdx,
+              text: text,
+            }),
+          });
+        } catch (err) {
+          console.error("Error transmitiendo mensaje:", err);
+        }
+      });
+    }
 
-    this.dom.channelListUi.addEventListener("click", (e) => {
-      const li = e.target.closest("li.channel-item");
-      if (li && li.hasAttribute("data-channel-idx")) {
-        const idx = li.getAttribute("data-channel-idx");
-        this.switchChannel(parseInt(idx, 10));
-      }
-    });
+    if (this.dom.clearChatBtn) {
+      this.dom.clearChatBtn.addEventListener("click", () => {
+        const feedKey = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
+        this.channelFeeds.set(feedKey, []);
+        this.storage.clearFeedMessages(feedKey);
+        if (this.dom.chatMessageFeed) this.dom.chatMessageFeed.innerHTML = "";
+      });
+    }
+
+    if (this.dom.channelListUi) {
+      this.dom.channelListUi.addEventListener("click", (e) => {
+        const li = e.target.closest("li.channel-item");
+        if (li && li.hasAttribute("data-channel-idx")) {
+          const idx = li.getAttribute("data-channel-idx");
+          this.switchChannel(parseInt(idx, 10));
+        }
+      });
+    }
   }
 
-  switchChannel(idx) {
+  async switchChannel(idx) {
     this.activeChannelIdx = idx;
     this.activeDmTarget = null;
     this.activeDmName = null;
@@ -2887,10 +3145,10 @@ class MeshCoreStationApp {
       this.dom.chatActiveSub.textContent = `Canal privado • ${chName}`;
     }
 
-    this.renderCurrentConversation();
+    await this.renderCurrentConversation();
   }
 
-  setDmTarget(pubkey, name) {
+  async setDmTarget(pubkey, name) {
     this.activeDmTarget = pubkey;
     this.activeDmName = name || pubkey;
 
@@ -2910,7 +3168,7 @@ class MeshCoreStationApp {
     if (this.dom.chatSecurityChip) this.dom.chatSecurityChip.textContent = "🔒 Privado";
     this.dom.chatActiveSub.textContent = `Mensaje directo punto a punto • ${this.activeDmName}`;
 
-    this.renderCurrentConversation();
+    await this.renderCurrentConversation();
   }
 
   openDmConversation(pubkey, name) {
@@ -2922,9 +3180,17 @@ class MeshCoreStationApp {
     if (this.dom.chatInputText) this.dom.chatInputText.focus();
   }
 
-  renderCurrentConversation() {
+  async renderCurrentConversation() {
     this.dom.chatMessageFeed.innerHTML = "";
     const feedKey = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
+
+    if (!this.channelFeeds.has(feedKey) || this.channelFeeds.get(feedKey).length === 0) {
+      const stored = await this.storage.getMessagesByFeed(feedKey);
+      if (stored && stored.length > 0) {
+        this.channelFeeds.set(feedKey, stored);
+      }
+    }
+
     const messages = this.channelFeeds.get(feedKey) || [];
 
     if (messages.length === 0) {
@@ -3215,25 +3481,44 @@ class MeshCoreStationApp {
         attributionControl: true,
       }).setView([20.15, -75.20], 12);
 
-      // Proveedor primario de mapas oscuros (CartoDB Dark Matter)
-      const primaryLayer = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-        attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        maxZoom: 19,
-        subdomains: "abcd",
-      });
+      this.tileLayers = {
+        cartodb: L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+          attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          maxZoom: 19,
+          subdomains: "abcd",
+        }),
+        osm: L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          maxZoom: 19,
+        }),
+        local: L.tileLayer(this.localTileUrl, {
+          attribution: 'MeshCore Offline Local Tiles',
+          maxZoom: 18,
+          errorTileUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" fill="%230f172a"><rect width="256" height="256"/><text x="128" y="128" fill="%23475569" text-anchor="middle" font-size="11" font-family="sans-serif">Mosaico Local No Disponible</text></svg>',
+        }),
+      };
 
-      primaryLayer.on("tileerror", () => {
-        // Fallback a OpenStreetMap estándar si CartoDB falla
-        if (!this._osmFallbackAdded) {
-          this._osmFallbackAdded = true;
-          L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-            maxZoom: 19,
-          }).addTo(this.map);
+      this.tacticalRadarGroup = L.layerGroup();
+
+      // Detección automática de desconexión / fallo en teselas online
+      this.tileLayers.cartodb.on("tileerror", () => {
+        if (!this._offlineMapFallbackTriggered) {
+          this._offlineMapFallbackTriggered = true;
+          this.showToast("📡 Mapas online no disponibles: Conmutando a modo Radar Táctico / Grícula LoRa", "info", 5000);
+          this.setMapLayer("tactical_radar");
         }
       });
 
-      primaryLayer.addTo(this.map);
+      // Configurar botones de control de capas
+      document.querySelectorAll(".map-layer-switcher .map-layer-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const mode = btn.getAttribute("data-layer");
+          if (mode) this.setMapLayer(mode);
+        });
+      });
+
+      // Activar capa inicial según preferencia persistida
+      this.setMapLayer(this.mapLayerMode || "cartodb");
 
       // Si ya hay nodos conocidos en memoria, renderizarlos inmediatamente en el mapa
       if (this.knownNodes && this.knownNodes.size > 0) {
@@ -3244,8 +3529,111 @@ class MeshCoreStationApp {
     }
   }
 
+  setMapLayer(mode) {
+    if (!this.map) return;
+    this.mapLayerMode = mode;
+    localStorage.setItem("meshcore_map_layer_mode", mode);
+
+    document.querySelectorAll(".map-layer-switcher .map-layer-btn").forEach((btn) => {
+      btn.classList.toggle("active", btn.getAttribute("data-layer") === mode);
+    });
+
+    // Retirar capas activas
+    Object.values(this.tileLayers || {}).forEach((l) => {
+      if (this.map.hasLayer(l)) this.map.removeLayer(l);
+    });
+
+    const mapCanvas = document.getElementById("liveGpsMap");
+
+    if (mode === "tactical_radar") {
+      if (mapCanvas) mapCanvas.classList.add("tactical-radar-mode");
+      if (!this.map.hasLayer(this.tacticalRadarGroup)) {
+        this.tacticalRadarGroup.addTo(this.map);
+      }
+      this.renderTacticalRadarOverlay();
+    } else {
+      if (mapCanvas) mapCanvas.classList.remove("tactical-radar-mode");
+      if (this.tacticalRadarGroup && this.map.hasLayer(this.tacticalRadarGroup)) {
+        this.map.removeLayer(this.tacticalRadarGroup);
+      }
+      const targetLayer = this.tileLayers[mode] || this.tileLayers.cartodb;
+      targetLayer.addTo(this.map);
+    }
+  }
+
+  renderTacticalRadarOverlay() {
+    if (!this.map || !this.tacticalRadarGroup) return;
+    this.tacticalRadarGroup.clearLayers();
+
+    // Obtener centro: coordenadas del nodo local o centro actual del mapa
+    let center = this.map.getCenter();
+    for (const node of this.knownNodes.values()) {
+      if (node.is_local || node.role === "LOCAL") {
+        const lat = parseFloat(node.latitude || node.lat);
+        const lon = parseFloat(node.longitude || node.lon);
+        if (!isNaN(lat) && !isNaN(lon) && lat !== 0) {
+          center = L.latLng(lat, lon);
+          break;
+        }
+      }
+    }
+
+    // Anillos concéntricos de alcance táctico (1km, 5km, 10km, 25km)
+    const ranges = [
+      { radius: 1000, label: "1 km (LoRa Urbana)", color: "#38bdf8" },
+      { radius: 5000, label: "5 km (LoRa Suburbana)", color: "#0ea5e9" },
+      { radius: 10000, label: "10 km (Línea de Vista)", color: "#0284c7" },
+      { radius: 25000, label: "25 km (Largo Alcance RF)", color: "#0369a1" },
+    ];
+
+    for (const r of ranges) {
+      const circle = L.circle(center, {
+        radius: r.radius,
+        color: r.color,
+        weight: 1.2,
+        opacity: 0.7,
+        dashArray: "4, 6",
+        fillColor: r.color,
+        fillOpacity: 0.03,
+      });
+
+      circle.bindTooltip(`🎯 ${r.label}`, {
+        permanent: false,
+        direction: "top",
+        className: "radar-range-tooltip",
+      });
+
+      this.tacticalRadarGroup.addLayer(circle);
+    }
+
+    // Grícula táctica / Ejes cardinales Norte-Sur y Este-Oeste
+    const delta = 0.35; // ~38 km
+    const northSouth = L.polyline([[center.lat - delta, center.lng], [center.lat + delta, center.lng]], {
+      color: "rgba(56, 189, 248, 0.25)",
+      weight: 1,
+      dashArray: "2, 4",
+    });
+    const eastWest = L.polyline([[center.lat, center.lng - delta], [center.lat, center.lng + delta]], {
+      color: "rgba(56, 189, 248, 0.25)",
+      weight: 1,
+      dashArray: "2, 4",
+    });
+
+    this.tacticalRadarGroup.addLayer(northSouth);
+    this.tacticalRadarGroup.addLayer(eastWest);
+  }
+
   async fetchInitialData() {
     await this.fetchLocalNodeConfig();
+
+    // Cargar historial de chat inicial para el canal público 0 desde IndexedDB
+    const initialMsgs = await this.storage.getMessagesByFeed("ch_0");
+    if (initialMsgs && initialMsgs.length > 0) {
+      this.channelFeeds.set("ch_0", initialMsgs);
+      if (this.activeChannelIdx === 0 && !this.activeDmTarget) {
+        await this.renderCurrentConversation();
+      }
+    }
     const loadStatus = async () => {
       try {
         const [statusRes, nodesRes, channelsRes] = await Promise.all([
