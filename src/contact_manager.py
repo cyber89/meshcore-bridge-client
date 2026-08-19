@@ -46,9 +46,9 @@ class NodeContactInfo:
     name: str
     alias: str
     role: str = "CLIENT"
-    hops: int = 0
-    last_rssi: int = -80
-    last_snr: float = 10.0
+    hops: int | None = None
+    last_rssi: int | None = None
+    last_snr: float | None = None
     battery_pct: int | None = None
     last_seen: float = 0.0
     rx_packets: int = 0
@@ -226,10 +226,10 @@ class NodeRegistry:
             name=clean_name,
             alias=clean_alias,
             role=update.role if update.role is not None else (existing.role if existing else "CLIENT"),
-            hops=update.hops if update.hops is not None and (update.hops != 0 or not existing) else (existing.hops if existing else 0),
-            last_rssi=update.last_rssi if update.last_rssi is not None and (update.last_rssi != -80 or not existing) else (existing.last_rssi if existing else -80),
-            last_snr=update.last_snr if update.last_snr is not None and (update.last_snr != 10.0 or not existing) else (existing.last_snr if existing else 10.0),
-            battery_pct=update.battery_pct if update.battery_pct is not None or not existing else existing.battery_pct,
+            hops=update.hops if update.hops is not None else (existing.hops if existing else None),
+            last_rssi=update.last_rssi if update.last_rssi is not None else (existing.last_rssi if existing else None),
+            last_snr=update.last_snr if update.last_snr is not None else (existing.last_snr if existing else None),
+            battery_pct=update.battery_pct if update.battery_pct is not None else (existing.battery_pct if existing else None),
             last_seen=now,
             rx_packets=update.rx_packets if update.rx_packets is not None else (existing.rx_packets if existing else 0),
             tx_packets=update.tx_packets if update.tx_packets is not None else (existing.tx_packets if existing else 0),

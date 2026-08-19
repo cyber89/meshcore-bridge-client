@@ -465,11 +465,23 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                         pk = str(c.get("public_key", c.get("key", ""))).strip()
                         if pk:
                             adv_name = str(c.get("adv_name", c.get("name", c.get("alias", f"Node_{pk[:6]}")))).strip()
+                            raw_type = c.get("type", c.get("adv_type", 1))
+                            name_upper = adv_name.upper()
+                            if raw_type == 2 or name_upper.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-")) or "REPEATER" in name_upper or "ROUTER" in name_upper:
+                                role = "REPEATER"
+                            elif raw_type == 3 or "ROOM" in name_upper or "BBS" in name_upper:
+                                role = "ROOM"
+                            elif raw_type == 4 or "SENSOR" in name_upper:
+                                role = "SENSOR"
+                            else:
+                                role = "CLIENT"
                             imported_contacts.append({
                                 "public_key": pk,
                                 "name": adv_name,
                                 "alias": adv_name,
-                                "role": "CLIENT",
+                                "role": role,
+                                "type": raw_type,
+                                "adv_type": raw_type,
                             })
         except Exception as e:
             logging.warning(f"Fallo sincronizando libreta de contactos del nodo: {e}")

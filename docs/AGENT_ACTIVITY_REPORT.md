@@ -405,6 +405,16 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
   - `src/rate_limiter.py`: Añadido `import collections` a las importaciones del módulo.
   - `src/store_forward.py`: Reemplazado `conn.execute()` por `conn.executescript()` en el método `_init_db()`.
 - **Contratos / Interfaces Modificadas**: Ninguno (corrección de estabilidad y robustez interna).
+### [TASK-2026-08-19-06] Depuración y Filtrado de Contactos, Exclusión de Nodo Local y Métricas RF Reales
+- **Fecha y Hora**: 2026-08-19 18:20
+- **Agente Responsable**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect), Agente 2 (Bridge Architect)
+- **Objetivo**: Eliminar subtítulo obsoleto de memoria flash Heltec en pestaña Contactos, filtrar estrictamente repetidores (`R1-Lee`) para que solo aparezcan estaciones cliente, excluir la estación base local (`Node_34c0c7`) de los contactos remotos, sanear métricas RF evitando valores por defecto ficticios (`-80 dBm/10 dB/0 saltos`) y pulir estados vacíos de la interfaz.
+- **Archivos Modificados / Creados**:
+  - `src/web/static/index.html`: Eliminado subtítulo obsoleto y mejorado placeholder de búsqueda.
+  - `src/web/static/js/app.js`: Guardado de `localNodePubkey`, exclusión de `isLocal` y repetidores en `contactsGrid`, formateo estricto de mediciones reales (`snrVal`, `rssiVal`, `hopsVal`, `batVal`) y manejo elegante de estados vacíos.
+  - `src/contact_manager.py`: Valores por defecto de `last_rssi`, `last_snr`, `hops` establecidos a `None` para no simular métricas no medidas.
+  - `src/serial_driver.py`: Inferencia de rol en `sync_all_contacts()` basada en `type`, `adv_type` y prefijos de nombre (`R1-`, `R-`, etc.).
+- **Contratos / Interfaces Modificadas**: Ninguno (saneamiento de datos y lógica de presentación).
 - **Estado**: COMPLETADO
 
 ---

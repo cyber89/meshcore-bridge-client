@@ -2704,6 +2704,9 @@ class MeshCoreStationApp {
 
       const pubkeyInput = document.getElementById("localNodePubkey");
       if (pubkeyInput) pubkeyInput.value = cfg.public_key || "000000000000";
+      if (cfg.public_key) {
+        this.localNodePubkey = String(cfg.public_key).toLowerCase().trim();
+      }
 
       const ownerInput = document.getElementById("localOwnerInfo");
       if (ownerInput && (cfg.owner_info || cfg.owner)) ownerInput.value = cfg.owner_info || cfg.owner;
@@ -4272,8 +4275,9 @@ class MeshCoreStationApp {
           ...rawNode,
           public_key: canonicalPk,
           battery_pct: rawNode.battery_pct !== undefined && rawNode.battery_pct !== null ? rawNode.battery_pct : (rawNode.battery !== undefined ? rawNode.battery : prev.battery_pct),
-          last_rssi: rawNode.last_rssi !== undefined && rawNode.last_rssi !== -80 ? rawNode.last_rssi : prev.last_rssi,
-          last_snr: rawNode.last_snr !== undefined && rawNode.last_snr !== 10.0 ? rawNode.last_snr : prev.last_snr,
+          last_rssi: rawNode.last_rssi !== undefined && rawNode.last_rssi !== null ? rawNode.last_rssi : prev.last_rssi,
+          last_snr: rawNode.last_snr !== undefined && rawNode.last_snr !== null ? rawNode.last_snr : prev.last_snr,
+          hops: rawNode.hops !== undefined && rawNode.hops !== null ? rawNode.hops : prev.hops,
         };
       } else {
         deduplicatedNodes.push(rawNode);
@@ -4300,9 +4304,12 @@ class MeshCoreStationApp {
       totalCount++;
 
       const roleStr = (node.role || "CLIENT").toUpperCase();
-      const isRepeater = roleStr === "REPEATER" || roleStr === "ROUTER" || node.type === 2 || node.adv_type === 2;
+      const nodeNameUpper = (node.alias || node.name || "").toUpperCase();
+      const isRepeater = roleStr === "REPEATER" || roleStr === "ROUTER" || node.type === 2 || node.adv_type === 2 ||
+        nodeNameUpper.startsWith("R-") || nodeNameUpper.startsWith("R1-") || nodeNameUpper.startsWith("R2-") || nodeNameUpper.startsWith("R3-") || nodeNameUpper.startsWith("REP-") || nodeNameUpper.startsWith("ROUTER-") ||
+        nodeNameUpper.includes("REPEATER") || nodeNameUpper.includes("ROUTER");
       const isSensor = roleStr === "SENSOR" || node.type === 4 || node.adv_type === 4 || !!(node.temperature_c || node.temp || node.humidity_pct || node.humidity);
-      const isRoom = roleStr === "ROOM" || node.type === 3 || node.adv_type === 3;
+      const isRoom = roleStr === "ROOM" || node.type === 3 || node.adv_type === 3 || nodeNameUpper.includes("ROOM") || nodeNameUpper.includes("BBS");
       const isClient = !isRepeater && !isSensor && !isRoom;
 
       if (isRepeater) repeaterCount++;
@@ -4312,20 +4319,35 @@ class MeshCoreStationApp {
 
       const cleanName = node.alias || node.name || `Node_${node.public_key.slice(0, 6)}`;
       const shortPk = node.public_key.length > 16 ? `${node.public_key.slice(0, 10)}...${node.public_key.slice(-4)}` : node.public_key;
-      const snrVal = node.snr !== undefined ? node.snr : (node.last_snr !== undefined ? node.last_snr : "--");
-      const rssiVal = node.rssi !== undefined ? node.rssi : (node.last_rssi !== undefined ? node.last_rssi : "--");
-      const batVal = node.battery !== undefined ? `${node.battery}%` : (node.battery_pct !== undefined && node.battery_pct !== null ? `${node.battery_pct}%` : "--");
 
-      // Si ya hay una conversación con mensajes para este nodo (y es cliente), mantenerlo en la barra lateral de chat
+      const normNodePk = (node.public_key || "").toLowerCase().trim();
+      const localPk = (this.localNodePubkey || "").toLowerCase().trim();
+      const isLocal = (localPk && (
+        normNodePk === localPk ||
+        (localPk.length >= 8 && normNodePk.startsWith(localPk.slice(0, 8))) ||
+        (normNodePk.length >= 8 && localPk.startsWith(normNodePk.slice(0, 8)))
+      )) || Boolean(node.is_local) || node.role === "LOCAL" || normNodePk === "local";
+
+      const hasRealSnr = (node.snr !== undefined && node.snr !== null) || (node.last_snr !== undefined && node.last_snr !== null);
+      const hasRealRssi = (node.rssi !== undefined && node.rssi !== null) || (node.last_rssi !== undefined && node.last_rssi !== null);
+      const hasRealHops = node.hops !== undefined && node.hops !== null;
+      const hasRealBat = (node.battery !== undefined && node.battery !== null) || (node.battery_pct !== undefined && node.battery_pct !== null);
+
+      const snrVal = hasRealSnr ? `${node.snr ?? node.last_snr} dB` : "--";
+      const rssiVal = hasRealRssi ? `${node.rssi ?? node.last_rssi} dBm` : "--";
+      const hopsVal = hasRealHops ? `${node.hops} ${(node.hops === 1 ? 'salto' : 'saltos')}` : "--";
+      const batVal = hasRealBat ? `${node.battery ?? node.battery_pct}%` : "--";
+
+      // Si ya hay una conversación con mensajes para este nodo (y es cliente no local), mantenerlo en la barra lateral de chat
       const feedKey = `dm_${node.public_key}`;
-      if (isClient && (this.conversationsWithMessages.has(node.public_key) ||
+      if (isClient && !isLocal && (this.conversationsWithMessages.has(node.public_key) ||
           (this.channelFeeds.has(feedKey) && this.channelFeeds.get(feedKey).length > 0) ||
           this.activeDmTarget === node.public_key)) {
         this.addDmContact(node.public_key, cleanName, node.role);
       }
 
-      // 1. SOLO renderizar en la libreta de Contactos si es tipo CLIENT
-      if (isClient && contactsGrid) {
+      // 1. SOLO renderizar en la libreta de Contactos si es tipo CLIENT y NO es el nodo local
+      if (isClient && !isLocal && contactsGrid) {
         clientContactCount++;
         const cCard = document.createElement("div");
         cCard.className = "contact-item-card";
@@ -4346,9 +4368,9 @@ class MeshCoreStationApp {
             <span class="contact-battery-chip" title="Nivel de batería">🔋 ${batVal}</span>
           </div>
           <div class="contact-card-chips">
-            <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal} dB</strong></span>
-            <span class="stat-pill" title="Intensidad de Señal">📡 <strong>${rssiVal} dBm</strong></span>
-            <span class="stat-pill" title="Saltos de retransmisión">🦘 <strong>${node.hops !== undefined ? node.hops : 0} ${(node.hops === 1 ? 'salto' : 'saltos')}</strong></span>
+            <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal}</strong></span>
+            <span class="stat-pill" title="Intensidad de Señal">📡 <strong>${rssiVal}</strong></span>
+            <span class="stat-pill" title="Saltos de retransmisión">🦘 <strong>${hopsVal}</strong></span>
           </div>
           <div class="contact-card-actions">
             <button type="button" class="btn-contact-action btn-contact-dm" title="Abrir chat en Mensajería">💬 DM</button>
@@ -4632,7 +4654,6 @@ class MeshCoreStationApp {
       );
 
       const hasGps = lat !== null && lon !== null && lat >= -90.0 && lat <= 90.0 && lon >= -180.0 && lon <= 180.0;
-      const isLocal = (this.localNodePubkey && node.public_key.toLowerCase() === this.localNodePubkey.toLowerCase()) || Boolean(node.is_local) || node.role === "LOCAL" || node.public_key === "local";
       const isSelected = this.selectedMapNodePk === node.public_key;
 
       if (hasGps) {
@@ -4653,7 +4674,7 @@ class MeshCoreStationApp {
               </div>
               <div class="popup-info">
                 <div><span>Rol:</span> <strong>${roleStr}</strong></div>
-                <div><span>SNR:</span> <strong>${snrVal} dB</strong></div>
+                <div><span>SNR:</span> <strong>${snrVal}</strong></div>
                 <div><span>Batería:</span> <strong>${batVal}</strong></div>
                 <div><span>GPS:</span> <code>${lat.toFixed(4)}, ${lon.toFixed(4)}</code> (${node.altitude_m || node.alt || 0}m)</div>
               </div>
@@ -4703,7 +4724,7 @@ class MeshCoreStationApp {
           </div>
           <div class="map-node-coords">
             <span>${coordsText}</span>
-            <span>📶 ${snrVal} dB</span>
+            <span>📶 ${snrVal}</span>
           </div>
         `;
 
@@ -4723,8 +4744,20 @@ class MeshCoreStationApp {
     }
 
     // Volcar fragmentos en el DOM en un único reflow
-    if (contactsGrid) contactsGrid.appendChild(contactsFrag);
-    if (unifiedNodesGrid) unifiedNodesGrid.appendChild(nodesFrag);
+    if (contactsGrid) {
+      if (clientContactCount === 0) {
+        contactsGrid.innerHTML = '<div class="empty-state">No hay otros contactos cliente registrados. Los nodos repetidores y routers se gestionan en la pestaña <strong>Nodos</strong>.</div>';
+      } else {
+        contactsGrid.appendChild(contactsFrag);
+      }
+    }
+    if (unifiedNodesGrid) {
+      if (totalCount === 0) {
+        unifiedNodesGrid.innerHTML = '<div class="empty-state">No se han descubierto nodos en la malla LoRa.</div>';
+      } else {
+        unifiedNodesGrid.appendChild(nodesFrag);
+      }
+    }
     if (mapList) mapList.appendChild(mapFrag);
 
     // Actualizar indicador de conteo en panel lateral del mapa
