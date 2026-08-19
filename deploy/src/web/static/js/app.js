@@ -1199,13 +1199,18 @@ class MeshCoreStationApp {
         this.unlockRepeaterAdminView(canonicalPk);
         this.showToast("🔓 Repetidor autenticado con éxito", "success");
 
-        // Solicitar telemetría fresca tras autenticación
+        // Solicitar telemetría y configuración completa tras autenticación
         try {
-          fetch("/api/repeater/remote/action", {
+          const fetchAction = (act) => fetch("/api/repeater/remote/action", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ target_node: canonicalPk, password: password, action: "stats-core" }),
+            body: JSON.stringify({ target_node: canonicalPk, password: password, action: act }),
           }).catch(() => {});
+
+          fetchAction("stats-core");
+          setTimeout(() => fetchAction("stats-radio"), 600);
+          setTimeout(() => fetchAction("pos"), 1200);
+          setTimeout(() => fetchAction("owner"), 1800);
         } catch (_) {}
 
         return true;
@@ -1244,6 +1249,14 @@ class MeshCoreStationApp {
     // GATING: Comprobar autenticación de sesión o almacenamiento persistente
     if (this.authenticatedRepeaters.has(canonicalPk) || this.authenticatedRepeaters.has(pubkey)) {
       this.unlockRepeaterAdminView(canonicalPk);
+      const pwd = this.getRepeaterPassword(canonicalPk);
+      if (pwd) {
+        fetch("/api/repeater/remote/action", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ target_node: canonicalPk, password: pwd, action: "stats-core" }),
+        }).catch(() => {});
+      }
     } else {
       const savedPwd = this.getStoredRepeaterPassword(canonicalPk);
       if (savedPwd) {
@@ -1286,9 +1299,9 @@ class MeshCoreStationApp {
     }
 
     // 1. Batería & Voltajes
-    const batVal = node.battery_pct !== undefined && node.battery_pct !== null ? node.battery_pct : (node.battery !== undefined ? node.battery : "--");
-    const voltVal = node.voltage_v !== undefined && node.voltage_v !== null ? node.voltage_v : (node.voltage !== undefined ? node.voltage : "--");
-    const solarVal = node.solar_v !== undefined && node.solar_v !== null ? node.solar_v : "--";
+    const batVal = node.battery_pct != null ? node.battery_pct : (node.battery != null ? node.battery : "--");
+    const voltVal = node.voltage_v != null ? node.voltage_v : (node.voltage != null ? node.voltage : "--");
+    const solarVal = node.solar_v != null ? node.solar_v : "--";
 
     const batEl = document.getElementById("repBatValue");
     if (batEl) batEl.textContent = batVal !== "--" ? `${batVal}%` : "-- %";
@@ -1306,46 +1319,66 @@ class MeshCoreStationApp {
     if (seenEl) seenEl.textContent = "Activo en malla LoRa";
 
     // 3. Airtime & Ruido
+    const airtimeVal = node.airtime_ms != null ? node.airtime_ms : (node.airtime != null ? node.airtime : null);
     const airtimeEl = document.getElementById("repAirtimeValue");
-    if (airtimeEl) airtimeEl.textContent = node.airtime_ms !== undefined ? `${node.airtime_ms} ms` : "-- ms";
+    if (airtimeEl) airtimeEl.textContent = airtimeVal != null ? `${airtimeVal} ms` : "-- ms";
     const airtimeDutyEl = document.getElementById("repAirtimeDuty");
-    if (airtimeDutyEl) airtimeDutyEl.textContent = node.airtime_ms !== undefined ? `Duty: ${(node.airtime_ms / 36000).toFixed(2)}%` : "Duty Cycle: --%";
+    if (airtimeDutyEl) airtimeDutyEl.textContent = airtimeVal != null ? `Duty: ${(airtimeVal / 36000).toFixed(2)}%` : "Duty Cycle: --%";
 
+    const noiseVal = node.noise_floor_dbm != null ? node.noise_floor_dbm : (node.noise_floor != null ? node.noise_floor : (node.noise != null ? node.noise : null));
     const noiseEl = document.getElementById("repNoiseValue");
-    if (noiseEl) noiseEl.textContent = node.noise_floor_dbm !== undefined ? `${node.noise_floor_dbm} dBm` : "-- dBm";
+    if (noiseEl) noiseEl.textContent = noiseVal != null ? `${noiseVal} dBm` : "-- dBm";
 
     // 4. Calidad de Señal
+    const snrVal = node.last_snr != null ? node.last_snr : (node.snr != null ? node.snr : null);
+    const rssiVal = node.last_rssi != null ? node.last_rssi : (node.rssi != null ? node.rssi : null);
     const snrEl = document.getElementById("repSnrValue");
-    if (snrEl) snrEl.textContent = `${node.last_snr !== undefined ? node.last_snr : (node.snr !== undefined ? node.snr : 10.0)} dB`;
+    if (snrEl) snrEl.textContent = snrVal != null ? `${snrVal} dB` : "-- dB";
     const rssiEl = document.getElementById("repRssiValue");
-    if (rssiEl) rssiEl.textContent = `RSSI: ${node.last_rssi !== undefined ? node.last_rssi : (node.rssi !== undefined ? node.rssi : -80)} dBm`;
+    if (rssiEl) rssiEl.textContent = rssiVal != null ? `RSSI: ${rssiVal} dBm` : "RSSI: -- dBm";
 
     // 5. Paquetes & Errores
-    const pktsTx = node.packets_sent !== undefined ? node.packets_sent : (node.tx_packets || 0);
-    const pktsRx = node.packets_recv !== undefined ? node.packets_recv : (node.rx_packets || 0);
+    const pktsTx = node.packets_sent != null ? node.packets_sent : (node.tx_packets != null ? node.tx_packets : (node.nb_sent != null ? node.nb_sent : null));
+    const pktsRx = node.packets_recv != null ? node.packets_recv : (node.rx_packets != null ? node.rx_packets : (node.nb_recv != null ? node.nb_recv : null));
     const pktsEl = document.getElementById("repPacketsValue");
-    if (pktsEl) pktsEl.textContent = `${pktsTx} TX / ${pktsRx} RX`;
+    if (pktsEl) {
+      if (pktsTx != null && pktsRx != null) {
+        pktsEl.textContent = `${pktsTx} TX / ${pktsRx} RX`;
+      } else if (pktsTx != null) {
+        pktsEl.textContent = `${pktsTx} TX / -- RX`;
+      } else if (pktsRx != null) {
+        pktsEl.textContent = `-- TX / ${pktsRx} RX`;
+      } else {
+        pktsEl.textContent = "-- / --";
+      }
+    }
 
-    const errsVal = node.packet_errors !== undefined ? node.packet_errors : (node.error_count || 0);
-    const dupsVal = node.duplicate_packets !== undefined ? node.duplicate_packets : 0;
+    const errsVal = node.packet_errors != null ? node.packet_errors : (node.error_count != null ? node.error_count : (node.rx_errors != null ? node.rx_errors : null));
+    const dupsVal = node.duplicate_packets != null ? node.duplicate_packets : (node.duplicates != null ? node.duplicates : (node.direct_dups != null ? (node.direct_dups + (node.flood_dups || 0)) : null));
     const pktsErrEl = document.getElementById("repPacketErrorsValue");
-    if (pktsErrEl) pktsErrEl.textContent = `Duplicados: ${dupsVal} | Errores: ${errsVal}`;
+    if (pktsErrEl) {
+      const dStr = dupsVal != null ? dupsVal : "--";
+      const eStr = errsVal != null ? errsVal : "--";
+      pktsErrEl.textContent = `Duplicados: ${dStr} | Errores: ${eStr}`;
+    }
 
     // 6. Resumen de parámetros
     const sumFreq = document.getElementById("repSummaryFreq");
-    if (sumFreq) sumFreq.textContent = `${node.frequency || node.freq || 915.000} MHz`;
+    if (sumFreq) sumFreq.textContent = node.frequency != null ? `${node.frequency} MHz` : (node.freq != null ? `${node.freq} MHz` : "915.000 MHz");
     const sumPower = document.getElementById("repSummaryPower");
-    if (sumPower) sumPower.textContent = `${node.tx_power || 20} dBm`;
+    if (sumPower) sumPower.textContent = node.tx_power != null ? `${node.tx_power} dBm` : (node.power != null ? `${node.power} dBm` : "20 dBm");
     const sumModem = document.getElementById("repSummaryModem");
-    if (sumModem) sumModem.textContent = `SF${node.spreading_factor || node.sf || 11} / BW${node.bandwidth || node.bw || 250}`;
+    const sfVal = node.spreading_factor != null ? node.spreading_factor : (node.sf != null ? node.sf : 11);
+    const bwVal = node.bandwidth != null ? node.bandwidth : (node.bw != null ? node.bw : 250);
+    if (sumModem) sumModem.textContent = `SF${sfVal} / BW${bwVal}`;
     const sumRepeat = document.getElementById("repSummaryRepeat");
     if (sumRepeat) sumRepeat.textContent = node.repeat_enabled === false ? "Desactivado" : "Activado";
     const sumQueue = document.getElementById("repSummaryQueue");
-    if (sumQueue) sumQueue.textContent = `${node.queue_len || 0} paquetes`;
+    if (sumQueue) sumQueue.textContent = `${node.queue_len != null ? node.queue_len : (node.tx_queue_len != null ? node.tx_queue_len : 0)} paquetes`;
 
     const sumPos = document.getElementById("repSummaryPos");
     if (sumPos) {
-      if (node.latitude && node.longitude) {
+      if (node.latitude != null && node.longitude != null) {
         sumPos.textContent = `${Number(node.latitude).toFixed(4)}, ${Number(node.longitude).toFixed(4)}`;
       } else {
         sumPos.textContent = "No configurada";
@@ -1354,13 +1387,37 @@ class MeshCoreStationApp {
 
     // Llenar formulario de Radio
     const radioFreqInput = document.getElementById("radioFreq");
-    if (radioFreqInput) radioFreqInput.value = node.frequency || node.freq || 915.000;
+    if (radioFreqInput && (node.frequency != null || node.freq != null)) {
+      radioFreqInput.value = node.frequency != null ? node.frequency : node.freq;
+    }
     const radioPowerInput = document.getElementById("radioPower");
-    if (radioPowerInput) radioPowerInput.value = node.tx_power || 20;
+    if (radioPowerInput && (node.tx_power != null || node.power != null)) {
+      radioPowerInput.value = node.tx_power != null ? node.tx_power : node.power;
+    }
     const radioHopLimitInput = document.getElementById("radioHopLimit");
-    if (radioHopLimitInput) radioHopLimitInput.value = node.hops || node.hop_limit || 3;
+    if (radioHopLimitInput && (node.hops != null || node.hop_limit != null)) {
+      radioHopLimitInput.value = node.hops != null ? node.hops : node.hop_limit;
+    }
     const radioBeaconInput = document.getElementById("radioBeaconInterval");
-    if (radioBeaconInput && node.advert_interval) radioBeaconInput.value = node.advert_interval;
+    if (radioBeaconInput && (node.advert_interval != null || node.beacon_interval != null)) {
+      radioBeaconInput.value = node.advert_interval != null ? node.advert_interval : node.beacon_interval;
+    }
+    const radioSf = document.getElementById("radioSf");
+    if (radioSf && (node.spreading_factor != null || node.sf != null)) {
+      radioSf.value = String(node.spreading_factor != null ? node.spreading_factor : node.sf);
+    }
+    const radioBw = document.getElementById("radioBw");
+    if (radioBw && (node.bandwidth != null || node.bw != null)) {
+      radioBw.value = String(node.bandwidth != null ? node.bandwidth : node.bw);
+    }
+    const radioCr = document.getElementById("radioCr");
+    if (radioCr && (node.coding_rate != null || node.cr != null)) {
+      radioCr.value = String(node.coding_rate != null ? node.coding_rate : node.cr);
+    }
+    const radioRepeatMode = document.getElementById("radioRepeatMode");
+    if (radioRepeatMode && node.repeat_enabled !== undefined) {
+      radioRepeatMode.value = node.repeat_enabled === false ? "off" : "on";
+    }
 
     // Llenar formulario de Propietario & Posición
     const ownerNameInput = document.getElementById("repOwnerName");
@@ -1368,11 +1425,15 @@ class MeshCoreStationApp {
     const ownerInfoInput = document.getElementById("repOwnerInfo");
     if (ownerInfoInput) ownerInfoInput.value = node.owner_info || "";
     const posLatInput = document.getElementById("repPosLat");
-    if (posLatInput && node.latitude) posLatInput.value = node.latitude;
+    if (posLatInput && node.latitude != null) posLatInput.value = node.latitude;
     const posLonInput = document.getElementById("repPosLon");
-    if (posLonInput && node.longitude) posLonInput.value = node.longitude;
+    if (posLonInput && node.longitude != null) posLonInput.value = node.longitude;
     const posAltInput = document.getElementById("repPosAlt");
-    if (posAltInput && node.altitude_m) posAltInput.value = node.altitude_m;
+    if (posAltInput && node.altitude_m != null) posAltInput.value = node.altitude_m;
+    const posFixed = document.getElementById("repPosFixed");
+    if (posFixed && node.fixed_position !== undefined) {
+      posFixed.value = node.fixed_position === false ? "0" : "1";
+    }
 
     if (pubkey) this.refreshNeighborsTable(pubkey);
   }
@@ -1629,13 +1690,29 @@ class MeshCoreStationApp {
     // Botones de Telemetría y Reloj
     const btnRefreshTelem = document.getElementById("btnRefreshRepeaterTelem");
     if (btnRefreshTelem) {
-      btnRefreshTelem.addEventListener("click", () => {
+      btnRefreshTelem.addEventListener("click", async () => {
         const target = this.selectedRepeaterTarget;
         if (!target) return;
         const password = this.getRepeaterPassword(target);
-        this.appendTerminalLine(`> [TX] Solicitando telemetría completa a ${target.slice(0, 8)}...`, "term-cmd");
-        this.executeRepeaterCommand(target, "stats-core", {}, password);
-        this.executeRepeaterCommand(target, "stats-radio", {}, password);
+        this.appendTerminalLine(`> [TX] Solicitando telemetría completa y parámetros a ${target.slice(0, 8)}...`, "term-cmd");
+        btnRefreshTelem.disabled = true;
+        btnRefreshTelem.textContent = "🔄 Consultando...";
+        try {
+          await this.executeRepeaterCommand(target, "stats-core", {}, password);
+          await new Promise((r) => setTimeout(r, 400));
+          await this.executeRepeaterCommand(target, "stats-radio", {}, password);
+          await new Promise((r) => setTimeout(r, 400));
+          await this.executeRepeaterCommand(target, "pos", {}, password);
+          await new Promise((r) => setTimeout(r, 400));
+          await this.executeRepeaterCommand(target, "owner", {}, password);
+          this.showToast("📡 Solicitud de telemetría completa transmitida al repetidor", "info");
+        } catch (_) {}
+        finally {
+          setTimeout(() => {
+            btnRefreshTelem.disabled = false;
+            btnRefreshTelem.textContent = "🔄 Actualizar Telemetría Remota (stats-core)";
+          }, 1500);
+        }
       });
     }
 
@@ -2431,6 +2508,22 @@ class MeshCoreStationApp {
           (this.selectedRepeaterTarget.length >= 8 && senderKey.length >= 8 && (this.selectedRepeaterTarget.startsWith(senderKey) || senderKey.startsWith(this.selectedRepeaterTarget)))
         ));
 
+        if (payload.telemetry) {
+          const canonicalPk = this.resolveCanonicalPubkey(senderKey);
+          const existing = this.knownNodes.get(canonicalPk) || this.knownNodes.get(senderKey) || {};
+          const updated = {
+            ...existing,
+            ...payload.telemetry,
+            public_key: existing.public_key || canonicalPk || senderKey,
+            last_seen: Math.floor(Date.now() / 1000),
+          };
+          this.knownNodes.set(canonicalPk, updated);
+          this.knownNodes.set(senderKey, updated);
+          if (isRepeaterTarget) {
+            this.populateRepeaterModalData(updated);
+          }
+        }
+
         if (isRepeaterTarget) {
           if (payload.telemetry?.auth_status === "failed" ||
               rawText.includes("invalid password") ||
@@ -2526,7 +2619,7 @@ class MeshCoreStationApp {
             (this.selectedRepeaterTarget === senderKey || 
              this.selectedRepeaterTarget.startsWith(senderKey) || 
              senderKey.startsWith(this.selectedRepeaterTarget))) {
-          this.openRepeaterAdminModal(this.selectedRepeaterTarget, updated.name || updated.alias);
+          this.populateRepeaterModalData(updated);
         }
       }
     }

@@ -457,6 +457,18 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 - **Contratos / Interfaces Modificadas**: Ninguno (robustecimiento de autenticación RF y experiencia SPA).
 - **Estado**: COMPLETADO
 
+### [TASK-2026-08-19-11] Saneamiento de Telemetría Nula y Carga Integral de Parámetros de Repetidores LoRa
+- **Fecha y Hora**: 2026-08-19 18:58
+- **Agente Responsable**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect), Agente 2 (Bridge Architect)
+- **Objetivo**: Corregir la representación de valores nulos en el Centro de Control RF de repetidores (eliminando textos literales "null ms", "null dBm", "null TX / null RX", "Duplicados: null"), enriquecer el parser de respuestas del firmware con extracción exhaustiva de parámetros de radio (frecuencia, potencia TX, SF, BW, CR, repetición, hops, beacon), propietario y posición fija, y automatizar la solicitud de telemetría completa y configuración al autenticar o actualizar remotamente.
+- **Archivos Modificados / Creados**:
+  - `src/web/static/js/app.js`: Saneamiento de comprobaciones en `populateRepeaterModalData` usando `val != null` y valores de reserva adecuados (`--`); sincronización automática multiconsulta (`stats-core`, `stats-radio`, `pos`, `owner`) en `authenticateRepeater`, `openRepeaterAdminModal` y `btnRefreshRepeaterTelem`; actualización reactiva en vivo en `handleIncomingLiveEvent` para eventos directos y de telemetría.
+  - `src/repeater_manager.py`: Ampliación exhaustiva de expresiones regulares en `parse_repeater_telemetry_or_response()` para soportar todos los formatos de telemetría de repetidores de MeshCore (frecuencia, potencia, SF, BW, CR, modo repetidor, hops, beacon, posición fija, nombre/información de propietario, variantes de voltaje y airtime en segundos o milisegundos).
+  - `src/contact_manager.py`: Incorporación de campos `coding_rate` y `fixed_position` en `NodeContactInfo` y `NodeContactUpdate`.
+  - `src/rx_router.py`: Mapeo completo de todos los atributos de telemetría y radio extraídos hacia `NodeContactUpdate` en `_handle_mesh_direct_msg` y `_handle_mesh_telemetry_msg`.
+- **Contratos / Interfaces Modificadas**: Enriquecimiento de atributos en `NodeContactInfo.to_dict()` (`coding_rate`, `fixed_position`).
+- **Estado**: COMPLETADO
+
 ---
 
 ## 📝 Plantilla de Registro para Nuevas Tareas

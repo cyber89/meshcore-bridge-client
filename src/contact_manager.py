@@ -83,6 +83,8 @@ class NodeContactInfo:
     frequency: float | None = None
     spreading_factor: int | None = None
     bandwidth: float | None = None
+    coding_rate: str | None = None
+    fixed_position: bool | None = None
     auto_discovered: bool = False
     discovery_time: float = 0.0
     verified_identity: bool = False
@@ -142,6 +144,8 @@ class NodeContactUpdate:
     frequency: float | None = None
     spreading_factor: int | None = None
     bandwidth: float | None = None
+    coding_rate: str | None = None
+    fixed_position: bool | None = None
 
 
 @dataclass(slots=True)
@@ -268,6 +272,8 @@ class NodeRegistry:
             frequency=update.frequency if update.frequency is not None else (existing.frequency if existing else None),
             spreading_factor=update.spreading_factor if update.spreading_factor is not None else (existing.spreading_factor if existing else None),
             bandwidth=update.bandwidth if update.bandwidth is not None else (existing.bandwidth if existing else None),
+            coding_rate=update.coding_rate if update.coding_rate is not None else (existing.coding_rate if existing else None),
+            fixed_position=update.fixed_position if update.fixed_position is not None else (existing.fixed_position if existing else None),
             auto_discovered=update.auto_discovered if update.auto_discovered is not None else (existing.auto_discovered if existing else False),
             discovery_time=update.discovery_time if update.discovery_time is not None else (existing.discovery_time if existing else 0.0),
             verified_identity=update.verified_identity if update.verified_identity is not None else (existing.verified_identity if existing else False),

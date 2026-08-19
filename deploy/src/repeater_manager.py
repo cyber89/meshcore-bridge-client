@@ -227,21 +227,20 @@ class RepeaterManager:
         elif any(p in lower_text for p in ("login ok", "logged in", "auth ok", "welcome admin", "access granted", "login success")):
             extracted["auth_status"] = "success"
 
-        # Batería: "Battery: 4120mV (92%)" o "Batt: 4.12V, 95%" o "Battery: 92%"
+        # Batería: "Battery: 4120mV (92%)" o "Batt: 4.12V, 95%" o "Battery: 92%" o "Bat: 92%"
         bat_m = re.search(r'(?:battery|batt|bat)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:mv|v|%)?(?:\s*\((?:(\d+)\s*%)?\))?', text, re.IGNORECASE)
         if bat_m:
             raw_val_str = bat_m.group(1)
             pct_in_paren = bat_m.group(2)
             try:
                 val_num = float(raw_val_str)
-                if "%" in bat_m.group(0) or val_num <= 100.0 and val_num > 4.5:
+                if "%" in bat_m.group(0) or (val_num <= 100.0 and val_num > 4.5):
                     extracted["battery_pct"] = int(val_num)
                 elif val_num > 100.0:  # mV (ej 4120)
                     extracted["voltage_v"] = round(val_num / 1000.0, 2)
                     if pct_in_paren:
                         extracted["battery_pct"] = int(pct_in_paren)
                     else:
-                        # Estimar % para LiPo 3.0V - 4.2V
                         pct = max(0, min(100, int((val_num - 3300) / (4200 - 3300) * 100)))
                         extracted["battery_pct"] = pct
                 else:  # V (ej 4.12)
@@ -254,37 +253,49 @@ class RepeaterManager:
             except Exception:
                 pass
 
-        # Solar / Voltaje de entrada: "Solar: 5.12V"
-        solar_m = re.search(r'solar(?:_v)?\s*[:=]?\s*(\d+(?:\.\d+)?)\s*v?', text, re.IGNORECASE)
+        # Voltaje explícito si no vino en batería: "Voltage: 4.12V" o "VBat: 4.12"
+        if "voltage_v" not in extracted:
+            volt_m = re.search(r'(?:voltage|volt|vbat)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:mv|v)?', text, re.IGNORECASE)
+            if volt_m:
+                try:
+                    v_num = float(volt_m.group(1))
+                    extracted["voltage_v"] = round(v_num / 1000.0, 2) if v_num > 100.0 else round(v_num, 2)
+                except Exception:
+                    pass
+
+        # Solar / Voltaje de entrada: "Solar: 5.12V" o "VIn: 5.12V" o "Solar Volt: 5.12"
+        solar_m = re.search(r'(?:solar(?:_v)?|vin|v_in|vsolar|input(?:_v)?)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*v?', text, re.IGNORECASE)
         if solar_m:
             try:
                 extracted["solar_v"] = round(float(solar_m.group(1)), 2)
             except Exception:
                 pass
 
-        # Clock: "Clock: 2026-08-18 22:15:00" o "Clock: 1787105384"
-        clock_m = re.search(r'clock\s*[:=]?\s*([0-9\-:\s]+)', text, re.IGNORECASE)
+        # Clock / RTC: "Clock: 2026-08-18 22:15:00" o "RTC: 18:52:39" o "Time: 18:52:39"
+        clock_m = re.search(r'(?:clock|rtc|time)\s*[:=]?\s*([0-9\-:\s]+(?:[ap]m)?)', text, re.IGNORECASE)
         if clock_m:
             extracted["clock"] = clock_m.group(1).strip()
 
-        # Uptime: "Uptime: 3d 14h 22m" o "Uptime: 310920s"
-        uptime_m = re.search(r'uptime\s*[:=]?\s*([0-9a-zA-Z\s]+?)(?:,|$|\n)', text, re.IGNORECASE)
+        # Uptime: "Uptime: 3d 14h 22m" o "Uptime: 310920s" o "Up: 142h 30m"
+        uptime_m = re.search(r'(?:uptime|up)\s*[:=]?\s*([0-9a-zA-Z\s]+?)(?:,|$|\n)', text, re.IGNORECASE)
         if uptime_m:
             extracted["uptime"] = uptime_m.group(1).strip()
 
-        # Total Airtime: "Total Airtime: 1420ms (0.24%)"
-        airtime_m = re.search(r'(?:total\s+)?airtime\s*[:=]?\s*(\d+)\s*ms', text, re.IGNORECASE)
+        # Total Airtime: "Total Airtime: 1420ms (0.24%)" o "Airtime: 1420ms" o "Airtime: 1.42s"
+        airtime_m = re.search(r'(?:total\s+)?airtime\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(ms|s)?', text, re.IGNORECASE)
         if airtime_m:
             try:
-                extracted["airtime_ms"] = int(airtime_m.group(1))
+                raw_at = float(airtime_m.group(1))
+                unit = (airtime_m.group(2) or "ms").lower()
+                extracted["airtime_ms"] = int(raw_at * 1000) if unit == "s" else int(raw_at)
             except Exception:
                 pass
 
-        # Noise Floor: "Noise Floor: -118 dBm"
-        noise_m = re.search(r'noise(?:\s*floor)?\s*[:=]?\s*(-?\d+)\s*(?:dbm)?', text, re.IGNORECASE)
+        # Noise Floor: "Noise Floor: -118 dBm" o "Noise: -118dBm" o "Floor: -118 dBm"
+        noise_m = re.search(r'(?:noise(?:\s*floor)?|noisefloor|floor)\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*(?:dbm)?', text, re.IGNORECASE)
         if noise_m:
             try:
-                extracted["noise_floor_dbm"] = int(noise_m.group(1))
+                extracted["noise_floor_dbm"] = int(float(noise_m.group(1)))
             except Exception:
                 pass
 
@@ -303,40 +314,90 @@ class RepeaterManager:
             except Exception:
                 pass
 
-        # Packets Sent / Received / Duplicates / Errors:
-        # "Packets Sent: 1420, Received: 3120, Duplicates: 45, Errors: 2"
-        sent_m = re.search(r'(?:packets?\s+sent|tx\s+packets?)\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
+        # Packets Sent / Received / Duplicates / Errors / Queue:
+        sent_m = re.search(r'(?:packets?\s+sent|tx\s+packets?|sent\s+packets?|nb_sent)\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
         if sent_m:
             try:
                 extracted["packets_sent"] = int(sent_m.group(1))
             except Exception:
                 pass
 
-        recv_m = re.search(r'(?:packets?\s+rec(?:ei)?ved|rx\s+packets?)\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
+        recv_m = re.search(r'(?:packets?\s+rec(?:ei)?ved|rx\s+packets?|rec(?:ei)?ved\s+packets?|nb_recv)\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
         if recv_m:
             try:
                 extracted["packets_recv"] = int(recv_m.group(1))
             except Exception:
                 pass
 
-        dup_m = re.search(r'(?:duplicate\s+packets?(?:\s+seen)?|duplicates?)\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
+        dup_m = re.search(r'(?:duplicate\s+packets?(?:\s+seen)?|duplicates?|direct_dups|flood_dups)\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
         if dup_m:
             try:
                 extracted["duplicate_packets"] = int(dup_m.group(1))
             except Exception:
                 pass
 
-        err_m = re.search(r'(?:rec(?:ei)?ved\s+packet\s+errors?|rx\s+errors?|packet\s+errors?)\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
+        err_m = re.search(r'(?:rec(?:ei)?ved\s+packet\s+errors?|rx\s+errors?|packet\s+errors?|errors?)\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
         if err_m:
             try:
                 extracted["packet_errors"] = int(err_m.group(1))
             except Exception:
                 pass
 
-        queue_m = re.search(r'queue(?:\s+length)?\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
+        queue_m = re.search(r'(?:queue(?:\s+length)?|tx_queue_len)\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
         if queue_m:
             try:
                 extracted["queue_len"] = int(queue_m.group(1))
+            except Exception:
+                pass
+
+        # Radio RF Parameters: Freq, Power, SF, BW, CR, Repeat, Hops, Beacon/Advert
+        freq_m = re.search(r'(?:freq(?:uency)?)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:mhz)?', text, re.IGNORECASE)
+        if freq_m:
+            try:
+                extracted["frequency"] = round(float(freq_m.group(1)), 3)
+            except Exception:
+                pass
+
+        power_m = re.search(r'(?:tx_?power|power|tx)\s*[:=]?\s*(\d+)\s*(?:dbm)?', text, re.IGNORECASE)
+        if power_m:
+            try:
+                extracted["tx_power"] = int(power_m.group(1))
+            except Exception:
+                pass
+
+        sf_m = re.search(r'(?:spreading_?factor|sf)\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
+        if sf_m:
+            try:
+                extracted["spreading_factor"] = int(sf_m.group(1))
+            except Exception:
+                pass
+
+        bw_m = re.search(r'(?:bandwidth|bw)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:khz)?', text, re.IGNORECASE)
+        if bw_m:
+            try:
+                extracted["bandwidth"] = float(bw_m.group(1))
+            except Exception:
+                pass
+
+        cr_m = re.search(r'(?:coding_?rate|cr)\s*[:=]?\s*([0-9/]+)', text, re.IGNORECASE)
+        if cr_m:
+            extracted["coding_rate"] = cr_m.group(1).strip()
+
+        repeat_m = re.search(r'(?:repeat(?:er)?|repeating|mode)\s*[:=]?\s*(on|off|true|false|1|0|enabled|disabled|activa(?:do)?)', text, re.IGNORECASE)
+        if repeat_m:
+            extracted["repeat_enabled"] = repeat_m.group(1).lower() in ("on", "true", "1", "enabled", "activado")
+
+        hops_m = re.search(r'(?:hop_?limit|hops|max_?hops)\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
+        if hops_m:
+            try:
+                extracted["hops"] = int(hops_m.group(1))
+            except Exception:
+                pass
+
+        advert_m = re.search(r'(?:advert(?:_?interval)?|beacon(?:_?interval)?)\s*[:=]?\s*(\d+)\s*s?', text, re.IGNORECASE)
+        if advert_m:
+            try:
+                extracted["advert_interval"] = int(advert_m.group(1))
             except Exception:
                 pass
 
@@ -362,10 +423,18 @@ class RepeaterManager:
             except Exception:
                 pass
 
-        # Owner: "Owner: Repetidor Pico Cristal"
+        fixed_m = re.search(r'fixed(?:\s*pos(?:ition)?)?\s*[:=]?\s*(on|off|1|0|true|false)', text, re.IGNORECASE)
+        if fixed_m:
+            extracted["fixed_position"] = fixed_m.group(1).lower() in ("on", "1", "true")
+
+        # Owner: "Owner: Repetidor Pico Cristal" o "Owner.name: R1-Lee"
         owner_m = re.search(r'owner(?:\.name)?\s*[:=]?\s*([^\n\r,]+)', text, re.IGNORECASE)
         if owner_m:
             extracted["owner_name"] = owner_m.group(1).strip()
+
+        owner_info_m = re.search(r'owner(?:\.info)?\s*[:=]?\s*([^\n\r]+)', text, re.IGNORECASE)
+        if owner_info_m and not owner_info_m.group(0).lower().startswith("owner.name") and not owner_info_m.group(0).lower().startswith("owner:"):
+            extracted["owner_info"] = owner_info_m.group(1).strip()
 
         # Version / Hardware: "Ver: v1.3.4 (Heltec V3 ESP32-S3)"
         ver_m = re.search(r'(?:ver|version|firmware)\s*[:=]?\s*([^\n\r]+)', text, re.IGNORECASE)
