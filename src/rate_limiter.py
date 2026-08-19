@@ -116,6 +116,88 @@ class CustomTxQueue(asyncio.PriorityQueue[Any]):
         return super()._get()
 
 
+@dataclass
+class AirtimeRecord:
+    """Registro temporal de transmisión con tiempo de aire y canal."""
+    timestamp: float
+    airtime_ms: float
+    channel_idx: int = 0
+    target: str | None = None
+
+
+class AirtimeTracker:
+    """
+    Rastreador de tiempo en el aire (Airtime) y cumplimiento de ciclo de trabajo (Duty Cycle)
+    con soporte de ventanas deslizantes de 1 hora y 24 horas.
+    """
+
+    def __init__(self, duty_cycle_limit_pct: float = 1.0) -> None:
+        self.duty_cycle_limit_pct = duty_cycle_limit_pct
+        self._history: collections.deque[AirtimeRecord] = collections.deque()
+        self.total_airtime_ms: float = 0.0
+        self.total_packets: int = 0
+        self._channel_airtime: dict[int, float] = {}
+        self._channel_packets: dict[int, int] = {}
+
+    def record_tx(self, airtime_ms: float, channel_idx: int = 0, target: str | None = None) -> None:
+        """Registra una transmisión realizada."""
+        now = time.time()
+        rec = AirtimeRecord(timestamp=now, airtime_ms=airtime_ms, channel_idx=channel_idx, target=target)
+        self._history.append(rec)
+        self.total_airtime_ms += airtime_ms
+        self.total_packets += 1
+        self._channel_airtime[channel_idx] = self._channel_airtime.get(channel_idx, 0.0) + airtime_ms
+        self._channel_packets[channel_idx] = self._channel_packets.get(channel_idx, 0) + 1
+        self._prune(now)
+
+    def _prune(self, now: float) -> None:
+        """Elimina registros anteriores a 24 horas."""
+        cutoff_24h = now - 86400.0
+        while self._history and self._history[0].timestamp < cutoff_24h:
+            self._history.popleft()
+
+    def get_stats(self) -> dict[str, Any]:
+        """Retorna estadísticas completas de consumo de Airtime y Duty Cycle."""
+        now = time.time()
+        self._prune(now)
+
+        cutoff_1h = now - 3600.0
+        hourly_ms = 0.0
+        daily_ms = 0.0
+        hourly_pkts = 0
+
+        for r in self._history:
+            daily_ms += r.airtime_ms
+            if r.timestamp >= cutoff_1h:
+                hourly_ms += r.airtime_ms
+                hourly_pkts += 1
+
+        # Presupuesto de 1 hora: por ejemplo al 1% = 36,000 ms (36s)
+        hourly_budget_ms = 3600.0 * 1000.0 * (self.duty_cycle_limit_pct / 100.0)
+        duty_cycle_pct = (hourly_ms / 3600000.0) * 100.0
+
+        is_throttled = duty_cycle_pct >= self.duty_cycle_limit_pct if self.duty_cycle_limit_pct > 0 else False
+
+        return {
+            "hourly_used_ms": round(hourly_ms, 1),
+            "hourly_budget_ms": round(hourly_budget_ms, 1),
+            "hourly_duty_cycle_pct": round(duty_cycle_pct, 3),
+            "hourly_limit_pct": self.duty_cycle_limit_pct,
+            "hourly_packets": hourly_pkts,
+            "daily_used_ms": round(daily_ms, 1),
+            "total_airtime_ms": round(self.total_airtime_ms, 1),
+            "total_packets": self.total_packets,
+            "is_throttled": is_throttled,
+            "channel_stats": {
+                ch: {
+                    "airtime_ms": round(self._channel_airtime.get(ch, 0.0), 1),
+                    "packets": self._channel_packets.get(ch, 0),
+                }
+                for ch in self._channel_airtime
+            },
+        }
+
+
 class TxRateLimiter:
     """
     Gestor de tasa de transmisión LoRa con cola de prioridades y espaciado de seguridad.
@@ -127,12 +209,14 @@ class TxRateLimiter:
         tx_interval_sec: float = 1.0,
         radio_config: LoRaRadioConfig | None = None,
         transmit_callback: Callable[[Any], Awaitable[Any]] | None = None,
+        duty_cycle_limit_pct: float = 1.0,
     ) -> None:
         self.tx_interval_sec = tx_interval_sec
         self.radio_config = radio_config or LoRaRadioConfig()
         self.transmit_callback = transmit_callback
 
         self.queue: CustomTxQueue = CustomTxQueue()
+        self.airtime_tracker: AirtimeTracker = AirtimeTracker(duty_cycle_limit_pct=duty_cycle_limit_pct)
         self._seq_counter = 0
         self._worker_task: asyncio.Task[None] | None = None
         self._running = False
@@ -212,15 +296,27 @@ class TxRateLimiter:
                     try:
                         res = await self.transmit_callback(item)
                         self.total_transmitted += 1
-                        if isinstance(item, TxItem) and item.future and not item.future.done():
-                            item.future.set_result(res)
+                        if isinstance(item, TxItem):
+                            self.airtime_tracker.record_tx(
+                                airtime_ms=item.estimated_airtime_ms,
+                                channel_idx=item.channel_idx,
+                                target=item.target,
+                            )
+                            if item.future and not item.future.done():
+                                item.future.set_result(res)
                     except Exception as e:
                         logging.error(f"Error en callback de transmisión: {e}")
                         if isinstance(item, TxItem) and item.future and not item.future.done():
                             item.future.set_exception(e)
                 else:
-                    if isinstance(item, TxItem) and item.future and not item.future.done():
-                        item.future.set_result({"status": "SENT_DRY_RUN", "airtime_ms": item.estimated_airtime_ms})
+                    if isinstance(item, TxItem):
+                        self.airtime_tracker.record_tx(
+                            airtime_ms=item.estimated_airtime_ms,
+                            channel_idx=item.channel_idx,
+                            target=item.target,
+                        )
+                        if item.future and not item.future.done():
+                            item.future.set_result({"status": "SENT_DRY_RUN", "airtime_ms": item.estimated_airtime_ms})
 
                 self.queue.task_done()
 

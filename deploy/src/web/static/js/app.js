@@ -241,6 +241,9 @@ class MeshCoreStationApp {
     this.initChat();
     this.initWebSocket();
     this.initLeafletMap();
+    this.initAirtimeMonitoring();
+    this.initContactDiscovery();
+    this.initTraceroute();
     this.fetchInitialData();
 
     // Exponer funciones globales para compatibilidad y tests E2E
@@ -372,6 +375,22 @@ class MeshCoreStationApp {
       btnModalActionAdvert: document.getElementById("btnModalActionAdvert"),
       btnModalActionClock: document.getElementById("btnModalActionClock"),
       btnCloseRepeaterAdminModal: document.getElementById("btnCloseRepeaterAdminModal"),
+      headerDutyCycle: document.getElementById("headerDutyCycle"),
+      headerAirtimeChip: document.getElementById("headerAirtimeChip"),
+      btnToggleHeatmap: document.getElementById("btnToggleHeatmap"),
+      discoveryBanner: document.getElementById("discoveryBanner"),
+      discoveryCount: document.getElementById("discoveryCount"),
+      btnAcceptAllDiscovered: document.getElementById("btnAcceptAllDiscovered"),
+      tracerouteModal: document.getElementById("tracerouteModal"),
+      tracerouteModalTitle: document.getElementById("tracerouteModalTitle"),
+      traceTargetNameDisplay: document.getElementById("traceTargetNameDisplay"),
+      traceTargetPkDisplay: document.getElementById("traceTargetPkDisplay"),
+      traceCustomPathInput: document.getElementById("traceCustomPathInput"),
+      btnExecuteTrace: document.getElementById("btnExecuteTrace"),
+      traceStatusPill: document.getElementById("traceStatusPill"),
+      traceVisualGraph: document.getElementById("traceVisualGraph"),
+      traceBreakdownTableBody: document.getElementById("traceBreakdownTableBody"),
+      btnCloseTracerouteModal: document.getElementById("btnCloseTracerouteModal"),
       contactsGridUi: document.getElementById("contactsGridUi"),
       btnHeaderAddContact: document.getElementById("btnHeaderAddContact"),
       contactsSearchInput: document.getElementById("contactsSearchInput"),
@@ -2043,6 +2062,36 @@ class MeshCoreStationApp {
       return;
     }
 
+    if (payload.type === "contact_discovered") {
+      this.fetchDiscoveredContacts();
+      const name = payload.contact?.name || payload.contact?.public_key?.slice(0, 8) || "desconocido";
+      this.showToast(`📡 Nuevo nodo descubierto en el aire: ${name}`, "info");
+      return;
+    }
+
+    if (payload.type === "message_delivered") {
+      const msgId = payload.msg_id;
+      const tripTime = payload.trip_time_ms || 0;
+      const row = document.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
+      if (row) {
+        const ackEl = row.querySelector(".msg-ack-status");
+        if (ackEl) {
+          ackEl.className = "msg-ack-status delivered";
+          ackEl.textContent = "✓✓ TX";
+          ackEl.title = `Entregado por radio (${tripTime} ms)`;
+        }
+      }
+      return;
+    }
+
+    if (payload.type === "trace_data" && payload.data) {
+      if (this.dom.tracerouteModal && !this.dom.tracerouteModal.classList.contains("hidden")) {
+        this.renderTracerouteGraph(payload.data.hops_breakdown || []);
+        this.renderTracerouteTable(payload.data.hops_breakdown || []);
+      }
+      return;
+    }
+
     if (payload.event === "metrics_update" || payload.type === "metrics_update" || (payload.rx_count !== undefined && payload.tx_count !== undefined)) {
       this.updateHeaderMetrics(payload);
     } else if (
@@ -3337,12 +3386,18 @@ class MeshCoreStationApp {
     }
 
     const row = document.createElement("div");
-    row.className = `message-bubble-row ${msg.is_outgoing ? "outgoing" : "incoming"}`;
+    row.className = `message-bubble-row ${msg.is_outgoing ? "outgoing" : "incoming"} ${msg.delivered ? "delivered" : ""}`;
+    const msgId = msg.id || msg.msg_id || (msg.is_outgoing && msg.timestamp ? `msg_${Date.parse(msg.timestamp)}` : "");
+    if (msgId) {
+      row.setAttribute("data-msg-id", String(msgId));
+    }
 
     const timeStr = new Date(msg.timestamp || Date.now()).toLocaleTimeString();
     const sender = msg.sender_name || msg.sender || "Anónimo";
     const rssi = msg.metrics?.rssi || msg.rssi;
     const snr = msg.metrics?.snr || msg.snr;
+    const ackSymbol = msg.delivered ? "✓✓ TX" : (msg.is_outgoing ? "✓ TX" : "📥 RX");
+    const ackTitle = msg.delivered ? `Entregado (${msg.trip_time_ms || 0} ms)` : (msg.is_outgoing ? "Transmitido por radio" : "Recibido");
 
     row.innerHTML = `
       <div class="msg-meta">
@@ -3352,7 +3407,7 @@ class MeshCoreStationApp {
       <div class="msg-bubble">${this.escapeHtml(msg.text)}</div>
       <div class="msg-footer">
         ${rssi !== undefined ? `<span class="signal-chip">📶 ${rssi} dBm / ${snr} dB</span>` : ""}
-        <span>${msg.is_outgoing ? "📡 TX" : "📥 RX"}</span>
+        <span class="msg-ack-status ${msg.delivered ? 'delivered' : (msg.is_outgoing ? 'sent' : 'received')}" title="${ackTitle}">${ackSymbol}</span>
       </div>
     `;
 
@@ -3646,6 +3701,12 @@ class MeshCoreStationApp {
         });
       });
 
+      // Configurar botón de Heatmap RF
+      if (this.dom.btnToggleHeatmap) {
+        this.dom.btnToggleHeatmap.addEventListener("click", () => this.toggleRfHeatmap());
+      }
+      this.rfHeatmapGroup = L.layerGroup();
+
       // Activar capa inicial según preferencia persistida
       this.setMapLayer(this.mapLayerMode || "cartodb");
 
@@ -3656,6 +3717,285 @@ class MeshCoreStationApp {
     } catch (err) {
       console.warn("No se pudo inicializar el mapa Leaflet:", err);
     }
+  }
+
+  async toggleRfHeatmap() {
+    if (!this.map) return;
+    this.rfHeatmapActive = !this.rfHeatmapActive;
+    if (this.dom.btnToggleHeatmap) {
+      this.dom.btnToggleHeatmap.classList.toggle("active", this.rfHeatmapActive);
+    }
+
+    if (!this.rfHeatmapActive) {
+      if (this.rfHeatmapGroup) this.rfHeatmapGroup.clearLayers();
+      this.showToast("🔥 Mapa de calor RF desactivado", "info");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/rf/heatmap");
+      const data = await res.json();
+      if (data.status === "ok" && data.data && Array.isArray(data.data.points)) {
+        if (!this.rfHeatmapGroup) this.rfHeatmapGroup = L.layerGroup();
+        this.rfHeatmapGroup.clearLayers();
+
+        data.data.points.forEach((pt) => {
+          const radius = Math.max(400, Math.min(3000, (pt.rssi + 130) * 40));
+          let color = "#ef4444"; // Rojo (débil)
+          if (pt.rssi >= -75) color = "#22c55e"; // Verde (excelente)
+          else if (pt.rssi >= -95) color = "#0ea5e9"; // Azul (bueno)
+          else if (pt.rssi >= -110) color = "#f59e0b"; // Amarillo (regular)
+
+          const circle = L.circle([pt.lat, pt.lon], {
+            radius: radius,
+            color: color,
+            fillColor: color,
+            fillOpacity: 0.28,
+            weight: 2,
+          });
+          circle.bindPopup(`
+            <strong>🔥 Cobertura RF: ${this.escapeHtml(pt.name)}</strong><br/>
+            RSSI: <strong>${pt.rssi} dBm</strong> | SNR: <strong>${pt.snr} dB</strong><br/>
+            Piso de Ruido: <strong>${pt.noise_floor} dBm</strong>
+          `);
+          this.rfHeatmapGroup.addLayer(circle);
+        });
+
+        this.rfHeatmapGroup.addTo(this.map);
+        this.showToast(`🔥 Heatmap RF generado con ${data.data.points.length} puntos de cobertura`, "success");
+      }
+    } catch (err) {
+      this.showToast(`Error cargando Heatmap RF: ${err.message}`, "error");
+    }
+  }
+
+  initAirtimeMonitoring() {
+    this.fetchAirtimeStats();
+    setInterval(() => this.fetchAirtimeStats(), 15000);
+  }
+
+  async fetchAirtimeStats() {
+    try {
+      const res = await fetch("/api/airtime/stats");
+      const data = await res.json();
+      if (data.status === "ok" && data.data) {
+        const stats = data.data;
+        const pct = stats.hourly_duty_cycle_pct || 0.0;
+        const usedSec = (stats.hourly_used_ms / 1000).toFixed(1);
+        const budgetSec = (stats.hourly_budget_ms / 1000).toFixed(0);
+
+        if (this.dom.headerDutyCycle) {
+          this.dom.headerDutyCycle.textContent = `${pct.toFixed(2)}%`;
+        }
+        if (this.dom.headerAirtimeChip) {
+          this.dom.headerAirtimeChip.title = `Duty Cycle: ${pct.toFixed(2)}% (${usedSec}s / ${budgetSec}s presupuestados en 1h)`;
+          if (pct >= stats.hourly_limit_pct) {
+            this.dom.headerAirtimeChip.className = "metric-chip airtime-metric-chip airtime-danger";
+          } else if (pct >= stats.hourly_limit_pct * 0.75) {
+            this.dom.headerAirtimeChip.className = "metric-chip airtime-metric-chip airtime-warning";
+          } else {
+            this.dom.headerAirtimeChip.className = "metric-chip airtime-metric-chip airtime-normal";
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  initContactDiscovery() {
+    this.fetchDiscoveredContacts();
+    if (this.dom.btnAcceptAllDiscovered) {
+      this.dom.btnAcceptAllDiscovered.addEventListener("click", () => this.acceptAllDiscovered());
+    }
+  }
+
+  async fetchDiscoveredContacts() {
+    try {
+      const res = await fetch("/api/contacts/discovered");
+      const data = await res.json();
+      if (data.status === "ok" && data.data) {
+        const count = data.data.count || 0;
+        if (this.dom.discoveryCount) this.dom.discoveryCount.textContent = count;
+        if (this.dom.discoveryBanner) {
+          this.dom.discoveryBanner.classList.toggle("hidden", count === 0);
+        }
+      }
+    } catch (_) {}
+  }
+
+  async acceptAllDiscovered() {
+    try {
+      const res = await fetch("/api/contacts/discovered");
+      const data = await res.json();
+      if (data.status === "ok" && data.data && Array.isArray(data.data.discovered)) {
+        for (const c of data.data.discovered) {
+          await fetch("/api/contacts/accept", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ public_key: c.public_key }),
+          });
+        }
+        this.showToast("✅ Todos los contactos descubiertos han sido aceptados", "success");
+        if (this.dom.discoveryBanner) this.dom.discoveryBanner.classList.add("hidden");
+        this.fetchNodes();
+      }
+    } catch (err) {
+      this.showToast(`Error aceptando contactos: ${err.message}`, "error");
+    }
+  }
+
+  initTraceroute() {
+    if (this.dom.btnCloseTracerouteModal) {
+      this.dom.btnCloseTracerouteModal.addEventListener("click", () => {
+        if (this.dom.tracerouteModal) this.dom.tracerouteModal.classList.add("hidden");
+      });
+    }
+    if (this.dom.tracerouteModal) {
+      this.dom.tracerouteModal.addEventListener("click", (e) => {
+        if (e.target === this.dom.tracerouteModal) {
+          this.dom.tracerouteModal.classList.add("hidden");
+        }
+      });
+    }
+    if (this.dom.btnExecuteTrace) {
+      this.dom.btnExecuteTrace.addEventListener("click", () => {
+        this.executeTraceroute();
+      });
+    }
+  }
+
+  openTracerouteModal(targetNode, targetName) {
+    this.selectedTraceTarget = targetNode;
+    this.selectedTraceName = targetName || targetNode.slice(0, 8);
+
+    if (this.dom.traceTargetNameDisplay) {
+      this.dom.traceTargetNameDisplay.textContent = this.selectedTraceName;
+    }
+    if (this.dom.traceTargetPkDisplay) {
+      this.dom.traceTargetPkDisplay.textContent = targetNode;
+    }
+    if (this.dom.traceCustomPathInput) {
+      this.dom.traceCustomPathInput.value = "";
+    }
+    if (this.dom.traceStatusPill) {
+      this.dom.traceStatusPill.textContent = "Listo para trazar";
+      this.dom.traceStatusPill.className = "trace-status-pill";
+    }
+    if (this.dom.traceVisualGraph) {
+      this.dom.traceVisualGraph.innerHTML = `<div class="trace-empty-hint">Haz clic en "Iniciar Traza" para enviar una sonda multi-salto y mapear los repetidores.</div>`;
+    }
+    if (this.dom.traceBreakdownTableBody) {
+      this.dom.traceBreakdownTableBody.innerHTML = `<tr><td colspan="6" class="text-center">Presiona "Iniciar Traza" para comenzar</td></tr>`;
+    }
+    if (this.dom.tracerouteModal) {
+      this.dom.tracerouteModal.classList.remove("hidden");
+    }
+  }
+
+  async executeTraceroute() {
+    const target = this.selectedTraceTarget;
+    if (!target) return;
+    const customPath = this.dom.traceCustomPathInput ? this.dom.traceCustomPathInput.value.trim() : "";
+
+    if (this.dom.traceStatusPill) {
+      this.dom.traceStatusPill.textContent = "🚀 Trazando ruta multi-salto...";
+      this.dom.traceStatusPill.className = "trace-status-pill trace-measuring";
+    }
+    if (this.dom.btnExecuteTrace) {
+      this.dom.btnExecuteTrace.disabled = true;
+      this.dom.btnExecuteTrace.textContent = "🚀 Trazando...";
+    }
+
+    try {
+      const res = await fetch("/api/traceroute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_node: target, path: customPath }),
+      });
+      const data = await res.json();
+      if (data.status === "ok" && data.data) {
+        const trace = data.data;
+        if (this.dom.traceStatusPill) {
+          this.dom.traceStatusPill.textContent = `🟢 Traza completada: ${trace.total_hops} saltos • ${trace.total_rtt_ms} ms RTT`;
+          this.dom.traceStatusPill.className = "trace-status-pill trace-success";
+        }
+        this.renderTracerouteGraph(trace.hops_breakdown || []);
+        this.renderTracerouteTable(trace.hops_breakdown || []);
+        this.showToast(`🗺️ Traza a ${this.selectedTraceName}: ${trace.total_hops} saltos (${trace.total_rtt_ms} ms)`, "success");
+      } else {
+        const err = data.message || "Timeout esperando eco de ruta";
+        if (this.dom.traceStatusPill) {
+          this.dom.traceStatusPill.textContent = `🔴 Fallo: ${err}`;
+          this.dom.traceStatusPill.className = "trace-status-pill trace-error";
+        }
+        this.showToast(`Error en traceroute: ${err}`, "error");
+      }
+    } catch (err) {
+      if (this.dom.traceStatusPill) {
+        this.dom.traceStatusPill.textContent = `🔴 Error: ${err.message}`;
+      }
+      this.showToast(`Error de red: ${err.message}`, "error");
+    } finally {
+      if (this.dom.btnExecuteTrace) {
+        this.dom.btnExecuteTrace.disabled = false;
+        this.dom.btnExecuteTrace.textContent = "🚀 Iniciar Traza";
+      }
+    }
+  }
+
+  renderTracerouteGraph(hops) {
+    if (!this.dom.traceVisualGraph || !hops || hops.length === 0) return;
+
+    let html = `<div class="trace-nodes-chain">`;
+    hops.forEach((hop, idx) => {
+      const isFirst = idx === 0;
+      const isLast = idx === hops.length - 1;
+      const roleIcon = isFirst ? "🏠" : isLast ? "🎯" : "🏔️";
+      const snrVal = hop.snr_in !== undefined ? hop.snr_in : 10.0;
+      let snrColor = "#22c55e"; // Verde (> 6 dB)
+      if (snrVal < 0) snrColor = "#ef4444"; // Rojo
+      else if (snrVal < 6) snrColor = "#f59e0b"; // Amarillo
+
+      html += `
+        <div class="trace-node-box ${isFirst ? 'trace-node-base' : isLast ? 'trace-node-target' : 'trace-node-hop'}">
+          <div class="trace-node-avatar">${roleIcon}</div>
+          <strong class="trace-node-name">${this.escapeHtml(hop.name || hop.pubkey.slice(0, 8))}</strong>
+          <span class="trace-node-pk font-mono">${this.escapeHtml(hop.pubkey.slice(0, 8))}</span>
+          <span class="trace-node-snr" style="color: ${snrColor};">📶 ${snrVal} dB</span>
+        </div>
+      `;
+
+      if (!isLast) {
+        const nextHop = hops[idx + 1];
+        const segRtt = nextHop.rtt_segment_ms || 0;
+        html += `
+          <div class="trace-link-arrow">
+            <span class="trace-link-rtt">${segRtt} ms</span>
+            <div class="trace-link-line" style="background-color: ${snrColor};"></div>
+            <span class="trace-link-sym">➔</span>
+          </div>
+        `;
+      }
+    });
+    html += `</div>`;
+    this.dom.traceVisualGraph.innerHTML = html;
+  }
+
+  renderTracerouteTable(hops) {
+    if (!this.dom.traceBreakdownTableBody || !hops || hops.length === 0) return;
+    let html = "";
+    hops.forEach((h) => {
+      html += `
+        <tr>
+          <td><strong>#${h.hop_index}</strong></td>
+          <td>${this.escapeHtml(h.name)}</td>
+          <td class="font-mono">${this.escapeHtml(h.pubkey.slice(0, 12))}</td>
+          <td><span class="stat-pill">📶 ${h.snr_in} dB</span></td>
+          <td><span class="stat-pill">📡 ${h.snr_out} dB</span></td>
+          <td>⏱️ ${h.rtt_segment_ms} ms</td>
+        </tr>
+      `;
+    });
+    this.dom.traceBreakdownTableBody.innerHTML = html;
   }
 
   setMapLayer(mode) {
@@ -4101,6 +4441,7 @@ class MeshCoreStationApp {
             <div class="node-actions-bar">
               <button type="button" class="btn-primary btn-sm btn-node-primary btn-manage-node-repeater">🎛️ Administrar</button>
               <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-ping-zero" title="Hacer Ping Zero directo (0 saltos)">🎯 Ping 0</button>
+              <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
             </div>
           `;
         } else if (isRoom) {
@@ -4130,6 +4471,7 @@ class MeshCoreStationApp {
             <div class="node-actions-bar">
               <button type="button" class="btn-primary btn-sm btn-node-primary btn-client-dm">💬 Iniciar Chat DM</button>
               <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-ping-zero" title="Hacer Ping Zero directo (0 saltos)">🎯 Ping 0</button>
+              <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
               <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-client-qr" title="Ver código QR">📤 QR</button>
             </div>
           `;
@@ -4177,6 +4519,14 @@ class MeshCoreStationApp {
           btnPingZero.addEventListener("click", (e) => {
             e.stopPropagation();
             this.pingZero(node.public_key, cleanName);
+          });
+        }
+
+        const btnTrace = nCard.querySelector(".btn-node-traceroute");
+        if (btnTrace) {
+          btnTrace.addEventListener("click", (e) => {
+            e.stopPropagation();
+            this.openTracerouteModal(node.public_key, cleanName);
           });
         }
 

@@ -101,6 +101,16 @@ class SQLiteStoreAndForward:
                         retain INTEGER DEFAULT 0,
                         created_at REAL NOT NULL
                     );
+                    CREATE TABLE IF NOT EXISTS message_receipts (
+                        msg_id TEXT PRIMARY KEY,
+                        sender TEXT,
+                        recipient TEXT,
+                        status TEXT DEFAULT 'pending',
+                        sent_at REAL,
+                        delivered_at REAL,
+                        trip_time_ms REAL DEFAULT 0.0,
+                        signature TEXT
+                    );
                 """)
                 # Migración automática si faltan columnas en bases de datos existentes
                 cursor = conn.cursor()
@@ -115,8 +125,60 @@ class SQLiteStoreAndForward:
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_offline_queue_created ON offline_queue(created_at);")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_offline_queue_expires ON offline_queue(expires_at);")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_offline_queue_hash ON offline_queue(msg_hash);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_receipts_status ON message_receipts(status);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_receipts_recipient ON message_receipts(recipient);")
         except Exception as e:
             logging.error(f"Error inicializando SQLite Store & Forward DB ({self.db_path}): {e}")
+
+    def record_outbound_message(self, msg_id: str, sender: str = "local", recipient: str = "") -> bool:
+        """Registra un mensaje saliente para monitorear su confirmación de entrega."""
+        now = time.time()
+        try:
+            with self._get_conn() as conn:
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO message_receipts (msg_id, sender, recipient, status, sent_at)
+                    VALUES (?, ?, ?, 'sent', ?);
+                    """,
+                    (msg_id, sender, recipient, now),
+                )
+            return True
+        except Exception as e:
+            logging.error(f"Error registrando mensaje saliente {msg_id}: {e}")
+            return False
+
+    def mark_message_delivered(self, msg_id: str, trip_time_ms: float = 0.0, signature: str | None = None) -> bool:
+        """Marca un mensaje como entregado con su tiempo de tránsito (trip time) y firma."""
+        now = time.time()
+        try:
+            with self._get_conn() as conn:
+                conn.execute(
+                    """
+                    UPDATE message_receipts
+                    SET status = 'delivered', delivered_at = ?, trip_time_ms = ?, signature = ?
+                    WHERE msg_id = ?;
+                    """,
+                    (now, trip_time_ms, signature, msg_id),
+                )
+            return True
+        except Exception as e:
+            logging.error(f"Error actualizando estado de entrega para {msg_id}: {e}")
+            return False
+
+    def get_message_status(self, msg_id: str) -> dict[str, Any] | None:
+        """Consulta el estado de entrega de un mensaje específico."""
+        try:
+            with self._get_conn() as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM message_receipts WHERE msg_id = ?;", (msg_id,))
+                row = cursor.fetchone()
+                if row:
+                    return dict(row)
+            return None
+        except Exception as e:
+            logging.error(f"Error consultando recibo {msg_id}: {e}")
+            return None
 
     def compute_hash(self, topic: str, payload: str) -> str:
         """Genera un hash SHA-256 corto del tópico y payload para deduplicación."""

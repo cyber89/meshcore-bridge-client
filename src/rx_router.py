@@ -138,22 +138,58 @@ class RxEventRouter:
                 lat_val = _get_coord(payload_dict, ("lat", "latitude", "gps_lat"))
                 lon_val = _get_coord(payload_dict, ("lon", "longitude", "gps_lon"))
 
-                self._ctx.node_registry.add_or_update(
-                    sender,
-                    NodeContactUpdate(
-                        name=sender_name,
-                        role=role_val,
-                        hops=hops,
-                        last_rssi=int(rssi) if isinstance(rssi, (int, float)) else -80,
-                        last_snr=float(snr) if isinstance(snr, (int, float)) else 10.0,
-                        battery_pct=bat_pct,
-                        latitude=lat_val,
-                        longitude=lon_val,
-                    ),
+                is_new, contact_info = self._ctx.node_registry.discover_node(
+                    public_key=sender,
+                    name=sender_name if sender_name != sender else None,
+                    role=role_val or "CLIENT",
+                    rssi=int(rssi) if isinstance(rssi, (int, float)) else -80,
+                    snr=float(snr) if isinstance(snr, (int, float)) else 10.0,
+                    hops=hops,
                 )
+
+                if lat_val is not None or lon_val is not None or bat_pct is not None:
+                    self._ctx.node_registry.add_or_update(
+                        sender,
+                        NodeContactUpdate(
+                            battery_pct=bat_pct,
+                            latitude=lat_val,
+                            longitude=lon_val,
+                        ),
+                    )
+
+                if is_new and self._ctx.web_server:
+                    self._ctx.web_server.broadcast_event({
+                        "type": "contact_discovered",
+                        "contact": contact_info.to_dict(),
+                    })
 
             ev_upper = ev_type_str.upper()
             p_type_upper = str(payload_dict.get("type", "")).upper()
+
+            # Caso ACK de Entrega E2E (Delivery Receipt)
+            if "ACK" in ev_upper or "ACK" in p_type_upper or payload_dict.get("event_type") == "ack":
+                ack_msg_id = str(payload_dict.get("msg_id", payload_dict.get("id", ""))).strip()
+                trip_time = float(payload_dict.get("trip_time_ms", payload_dict.get("trip_time", payload_dict.get("rtt", 0.0))))
+                if ack_msg_id and getattr(self._ctx, "store_forward", None):
+                    self._ctx.store_forward.mark_message_delivered(ack_msg_id, trip_time)
+                if self._ctx.web_server:
+                    self._ctx.web_server.broadcast_event({
+                        "type": "message_delivered",
+                        "msg_id": ack_msg_id,
+                        "trip_time_ms": trip_time,
+                        "recipient": sender,
+                    })
+                return
+
+            # Caso Trace Path / Traceroute
+            if "TRACE" in ev_upper or "TRACE" in p_type_upper or payload_dict.get("event_type") == "trace":
+                if self._ctx.web_server:
+                    self._ctx.web_server.broadcast_event({
+                        "type": "trace_data",
+                        "data": payload_dict,
+                    })
+                return
+
             is_direct = (
                 "CONTACT" in ev_upper
                 or "DIRECT" in ev_upper

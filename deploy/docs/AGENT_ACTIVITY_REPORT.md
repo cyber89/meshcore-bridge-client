@@ -365,6 +365,30 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 | **MQTT Rx Broker** | `meshcore/rx/all`, `meshcore/rx/ch_<N>` | JSON con `sender`, `text`, `channel_idx`, `is_outgoing: false` | Agente 2 | Activo |
 | **MQTT Tx Broker** | `meshcore/tx` | JSON con `to`, `text`, `channel_idx` | Agente 2 | Activo |
 
+### [TASK-2026-08-19-03] Implementación de 5 Características Avanzadas de MeshCore
+- **Fecha y Hora**: 2026-08-19 18:04
+- **Agente Responsable**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect)
+- **Objetivo**: Integrar 1) Presupuesto de Airtime y Duty Cycle Compliance (1h/24h), 2) Heatmap de Cobertura RF y Matriz de Ruido, 3) Intercambio Automático de Tarjetas de Contacto (Contact Discovery), 4) Confirmaciones Criptográficas E2E (Delivery Receipts con trip_time y doble check ✓✓), y 5) Traceroute Multi-Salto Visual con desglose de saltos, RTT y SNR.
+- **Archivos Modificados / Creados**:
+  - `src/rate_limiter.py`: Añadida clase `AirtimeTracker` y estructura `AirtimeRecord` con cálculo de ventanas deslizantes (1h/24h) y métricas de Duty Cycle %.
+  - `src/contact_manager.py`: Añadidos campos `auto_discovered`, `discovery_time`, `verified_identity`, `is_favorite` y métodos `discover_node()`, `list_discovered()`, `accept_discovered_contact()`.
+  - `src/store_forward.py`: Creada tabla SQLite `message_receipts` con transacciones WAL para registrar mensajes salientes y confirmar entregas con `trip_time_ms`.
+  - `src/rx_router.py`: Detección en tiempo real de eventos `ACK`, balizas desconocidas (Contact Discovery) y tramas de traza multi-salto (`trace_data`).
+  - `src/admin_handler.py`: Implementado manejador de acción `traceroute` (`CMD_SEND_TRACE_PATH = 36`) con desglose de saltos, RTT y SNR.
+  - `src/web/api_router.py`: Nuevos endpoints `GET /api/airtime/stats`, `GET /api/rf/heatmap`, `GET /api/rf/noise`, `GET /api/contacts/discovered`, `POST /api/contacts/accept`, `POST /api/traceroute`.
+  - `src/web/static/index.html`: Badge de Airtime en header, botón `🔥 Heatmap RF` en selector de capas Leaflet, banner de Contact Discovery, y modal de Traceroute Visual (`#tracerouteModal`).
+  - `src/web/static/js/app.js`: Monitoreo en vivo de Airtime/Duty Cycle, renderizado de capa Heatmap sobre Leaflet, banner reactivo de Contact Discovery, recibos de entrega en chat (✓✓ con latencia) y grafo interactivo de Traceroute.
+  - `src/web/static/css/app.css`: Estilos visuales para todos los nuevos componentes, badges, gráficas y animaciones de pulso.
+- **Contratos / Interfaces Modificadas**:
+  - `GET /api/airtime/stats` -> `{ hourly_used_ms, hourly_budget_ms, hourly_duty_cycle_pct, is_throttled }`
+  - `GET /api/rf/heatmap` -> `{ points: [{ lat, lon, rssi, snr, weight, name, noise_floor }] }`
+  - `GET /api/rf/noise` -> `{ matrix: [{ pubkey, name, noise_floor_dbm, snr, rssi, channel, freq }] }`
+  - `GET /api/contacts/discovered` -> `{ discovered: [...], count }`
+  - `POST /api/contacts/accept` -> `{ public_key }`
+  - `POST /api/traceroute` -> `{ target_node, path }`
+  - Eventos WebSocket: `contact_discovered`, `message_delivered`, `trace_data`.
+- **Estado**: COMPLETADO
+
 ---
 
 ## 📝 Plantilla de Registro para Nuevas Tareas

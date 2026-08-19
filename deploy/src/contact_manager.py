@@ -83,6 +83,10 @@ class NodeContactInfo:
     frequency: float | None = None
     spreading_factor: int | None = None
     bandwidth: float | None = None
+    auto_discovered: bool = False
+    discovery_time: float = 0.0
+    verified_identity: bool = False
+    is_favorite: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -98,6 +102,10 @@ class NodeContactUpdate:
     name: str | None = None
     alias: str | None = None
     role: str | None = None
+    auto_discovered: bool | None = None
+    discovery_time: float | None = None
+    verified_identity: bool | None = None
+    is_favorite: bool | None = None
     hops: int | None = None
     last_rssi: int | None = None
     last_snr: float | None = None
@@ -255,6 +263,10 @@ class NodeRegistry:
             frequency=update.frequency if update.frequency is not None else (existing.frequency if existing else None),
             spreading_factor=update.spreading_factor if update.spreading_factor is not None else (existing.spreading_factor if existing else None),
             bandwidth=update.bandwidth if update.bandwidth is not None else (existing.bandwidth if existing else None),
+            auto_discovered=update.auto_discovered if update.auto_discovered is not None else (existing.auto_discovered if existing else False),
+            discovery_time=update.discovery_time if update.discovery_time is not None else (existing.discovery_time if existing else 0.0),
+            verified_identity=update.verified_identity if update.verified_identity is not None else (existing.verified_identity if existing else False),
+            is_favorite=update.is_favorite if update.is_favorite is not None else (existing.is_favorite if existing else False),
         )
 
         self._nodes_by_key[canonical_key] = contact
@@ -263,6 +275,76 @@ class NodeRegistry:
             self._nodes_by_name[clean_alias.lower()] = canonical_key
 
         return contact
+
+    def discover_node(
+        self,
+        public_key: str,
+        name: str | None = None,
+        role: str = "CLIENT",
+        rssi: int = -80,
+        snr: float = 10.0,
+        hops: int = 0,
+    ) -> tuple[bool, NodeContactInfo]:
+        """
+        Descubre un nuevo nodo en el aire si no existía previamente.
+        Retorna (is_new, contact_info).
+        """
+        norm_key = public_key.strip().lower()
+        if not norm_key:
+            raise ValueError("public_key no puede estar vacía")
+
+        existing_key = self._find_existing_key(norm_key, name)
+        if existing_key:
+            existing = self._nodes_by_key[existing_key]
+            updated = self.add_or_update(
+                existing_key,
+                NodeContactUpdate(
+                    last_rssi=rssi,
+                    last_snr=snr,
+                    hops=hops,
+                    name=name if name and name != existing.name else None,
+                ),
+            )
+            return False, updated
+
+        clean_name = (name or f"Node_{norm_key[:6]}").strip()
+        contact = self.add_or_update(
+            norm_key,
+            NodeContactUpdate(
+                name=clean_name,
+                role=role,
+                last_rssi=rssi,
+                last_snr=snr,
+                hops=hops,
+                auto_discovered=True,
+                discovery_time=time.time(),
+                verified_identity=len(norm_key) >= 12,
+            ),
+        )
+        return True, contact
+
+    def list_discovered(self, pending_only: bool = False) -> list[dict[str, Any]]:
+        """Lista los nodos descubiertos automáticamente en la red."""
+        results = []
+        for c in self._nodes_by_key.values():
+            if c.auto_discovered:
+                results.append(c.to_dict())
+        return results
+
+    def accept_discovered_contact(self, public_key: str) -> bool:
+        """Marca un nodo descubierto como contacto permanente aceptado."""
+        norm_key = public_key.strip().lower()
+        existing_key = self._find_existing_key(norm_key)
+        if not existing_key or existing_key not in self._nodes_by_key:
+            return False
+        self.add_or_update(
+            existing_key,
+            NodeContactUpdate(
+                auto_discovered=False,
+                is_favorite=True,
+            ),
+        )
+        return True
 
     def record_packet(self, event: PacketRecord) -> None:
         """Registra un evento de paquete para actualizar contadores de tráfico y salud."""

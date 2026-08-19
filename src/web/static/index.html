@@ -47,6 +47,7 @@
           <span class="metric-chip" title="Nodos Activos en Malla">👥 <strong id="headerNodeCount">0</strong></span>
           <span class="metric-chip" title="Paquetes Recibidos">📥 <strong id="headerRxCount">0</strong></span>
           <span class="metric-chip" title="Paquetes Emitidos">📤 <strong id="headerTxCount">0</strong></span>
+          <span class="metric-chip airtime-metric-chip" id="headerAirtimeChip" title="Presupuesto de Airtime LoRa y Duty Cycle (1h)">⏱️ Airtime: <strong id="headerDutyCycle">0.0%</strong></span>
           <span class="metric-chip" title="Tasa de Error">⚠️ <strong id="headerErrorRate">0.0%</strong></span>
           <span class="metric-chip" title="Cola TX / Buffer">⏱️ <strong id="headerQueueDepth">0</strong></span>
         </div>
@@ -285,6 +286,7 @@
               <button type="button" class="map-layer-btn" data-layer="osm" title="OpenStreetMap (Online)">🗺️ Calles</button>
               <button type="button" class="map-layer-btn" data-layer="local" title="Teselas Locales (Offline)">💾 Local</button>
               <button type="button" class="map-layer-btn" data-layer="tactical_radar" title="Radar Táctico / Grícula LoRa (Sin Internet)">🎯 Radar</button>
+              <button type="button" class="map-layer-btn" id="btnToggleHeatmap" title="Mostrar/Ocultar Mapa de Calor de Cobertura RF">🔥 Heatmap RF</button>
             </div>
             <div class="map-overlay-info">
               <h4>Nodos en la Malla LoRa (<span id="mapNodesCount">0</span>)</h4>
@@ -306,6 +308,21 @@
                 <button class="btn-primary" id="btnHeaderAddContact" aria-label="Agregar nuevo contacto">➕ Agregar Contacto</button>
               </div>
             </div>
+
+            <!-- Banner de Contact Discovery Automático -->
+            <div id="discoveryBanner" class="discovery-banner hidden">
+              <div class="discovery-banner-content">
+                <span class="discovery-icon">📡</span>
+                <div>
+                  <strong>¡Nuevos Nodos Descubiertos en el Aire! (<span id="discoveryCount">0</span>)</strong>
+                  <p>Se han capturado balizas de nuevos nodos en la malla LoRa. Puedes aceptarlos para agregarlos permanentemente.</p>
+                </div>
+              </div>
+              <div class="discovery-banner-actions">
+                <button type="button" class="btn-xs btn-primary" id="btnAcceptAllDiscovered">Aceptar Todos</button>
+              </div>
+            </div>
+
             <div class="contacts-toolbar">
               <input type="search" id="contactsSearchInput" class="search-input" placeholder="🔍 Buscar contacto por nombre, alias o clave pública..." aria-label="Buscar contactos" />
             </div>
@@ -1621,6 +1638,50 @@
                 <button type="button" class="btn-secondary btn-sm" id="btnModalActionVersion">Consultar Versión</button>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+    <!-- Modal: Traceroute Multi-Salto Visual -->
+    <div id="tracerouteModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="tracerouteModalTitle">
+      <div class="modal-card traceroute-modal-card">
+        <div class="modal-header">
+          <div class="header-node-info">
+            <h3 id="tracerouteModalTitle">🗺️ Traceroute Multi-Salto: <span id="traceTargetNameDisplay">Nodo</span></h3>
+            <span class="modal-pubkey-badge font-mono" id="traceTargetPkDisplay">--</span>
+          </div>
+          <button class="btn-icon modal-close" id="btnCloseTracerouteModal" aria-label="Cerrar modal">✕</button>
+        </div>
+        <div class="modal-body traceroute-modal-body">
+          <div class="traceroute-controls">
+            <div class="input-with-action">
+              <input type="text" id="traceCustomPathInput" placeholder="Ruta de repetidores opcional (ej: 23,5f,3a o en blanco para auto)" />
+              <button type="button" class="btn-primary btn-sm" id="btnExecuteTrace">🚀 Iniciar Traza</button>
+            </div>
+            <span class="trace-status-pill" id="traceStatusPill">Listo para trazar</span>
+          </div>
+
+          <!-- Contenedor del Grafo Visual de Saltos -->
+          <div class="trace-visual-container" id="traceVisualGraph">
+            <div class="trace-empty-hint">Ejecuta una traza para visualizar la topología de repetidores y la calidad de señal por salto.</div>
+          </div>
+
+          <!-- Tabla de Desglose de Saltos -->
+          <div class="table-responsive" style="margin-top: 14px;">
+            <table class="data-table trace-breakdown-table">
+              <thead>
+                <tr>
+                  <th>Salto</th>
+                  <th>Nodo / Repetidor</th>
+                  <th>Clave Pública</th>
+                  <th>SNR Entrada</th>
+                  <th>SNR Salida</th>
+                  <th>Latencia Segmento</th>
+                </tr>
+              </thead>
+              <tbody id="traceBreakdownTableBody">
+                <tr><td colspan="6" class="text-center">Sin datos de traza</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

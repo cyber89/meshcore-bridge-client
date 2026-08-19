@@ -212,6 +212,89 @@ class WebAPIRouter:
                 self.log_system_event("INFO", f"🎯 Ping Zero (0 saltos) enviado a {target} - RTT: {res.get('rtt_ms')} ms", source="repeater_admin")
                 return 200, {"status": "ok", "data": res}
 
+            if method == "GET" and clean_path == "/api/airtime/stats":
+                limiter = getattr(self.bridge, "rate_limiter", None)
+                stats = (
+                    limiter.airtime_tracker.get_stats()
+                    if limiter and hasattr(limiter, "airtime_tracker")
+                    else {
+                        "hourly_used_ms": 0.0,
+                        "hourly_budget_ms": 36000.0,
+                        "hourly_duty_cycle_pct": 0.0,
+                        "hourly_limit_pct": 1.0,
+                        "hourly_packets": 0,
+                        "daily_used_ms": 0.0,
+                        "total_airtime_ms": 0.0,
+                        "total_packets": 0,
+                        "is_throttled": False,
+                        "channel_stats": {},
+                    }
+                )
+                return 200, {"status": "ok", "data": stats}
+
+            if method == "GET" and clean_path == "/api/rf/heatmap":
+                nodes = self.bridge.node_registry.list_nodes()
+                heatmap_points = []
+                for n in nodes:
+                    lat = n.get("latitude")
+                    lon = n.get("longitude")
+                    if lat is not None and lon is not None and lat != 0.0 and lon != 0.0:
+                        rssi = n.get("last_rssi") or -80
+                        snr = n.get("last_snr") or 10.0
+                        weight = max(0.1, min(1.0, round((rssi + 120.0) / 70.0, 2)))
+                        heatmap_points.append({
+                            "lat": lat,
+                            "lon": lon,
+                            "rssi": rssi,
+                            "snr": snr,
+                            "name": n.get("name") or n.get("alias") or n.get("public_key", "")[:8],
+                            "role": n.get("role", "CLIENT"),
+                            "weight": weight,
+                            "noise_floor": n.get("noise_floor_dbm", -118),
+                        })
+                return 200, {"status": "ok", "data": {"points": heatmap_points, "count": len(heatmap_points)}}
+
+            if method == "GET" and clean_path == "/api/rf/noise":
+                nodes = self.bridge.node_registry.list_nodes()
+                noise_matrix = []
+                for n in nodes:
+                    noise_matrix.append({
+                        "pubkey": n.get("public_key"),
+                        "name": n.get("name") or n.get("alias"),
+                        "role": n.get("role"),
+                        "noise_floor_dbm": n.get("noise_floor_dbm", -118),
+                        "snr": n.get("last_snr", 10.0),
+                        "rssi": n.get("last_rssi", -80),
+                        "channel": n.get("channel", 0),
+                        "freq": n.get("frequency", 915.0),
+                    })
+                return 200, {"status": "ok", "data": {"matrix": noise_matrix}}
+
+            if method == "GET" and clean_path == "/api/contacts/discovered":
+                discovered = self.bridge.node_registry.list_discovered()
+                return 200, {"status": "ok", "data": {"discovered": discovered, "count": len(discovered)}}
+
+            if method == "POST" and clean_path == "/api/contacts/accept":
+                pubkey = str(req_body.get("public_key", req_body.get("target_node", ""))).strip()
+                if not pubkey:
+                    return 400, {"status": "error", "message": "Se requiere 'public_key'"}
+                success = self.bridge.node_registry.accept_discovered_contact(pubkey)
+                return 200, {"status": "ok" if success else "error", "accepted": success}
+
+            if method == "POST" and clean_path == "/api/traceroute":
+                target = str(req_body.get("target_node", req_body.get("target", ""))).strip()
+                path = req_body.get("path", [])
+                if not target:
+                    return 400, {"status": "error", "message": "Se requiere 'target_node'"}
+                cmd = {
+                    "action": "traceroute",
+                    "target_node": target,
+                    "path": path,
+                }
+                res = await self.bridge.handle_admin(cmd)
+                self.log_system_event("INFO", f"🗺️ Traceroute ejecutado hacia {target} - Saltos: {res.get('total_hops', 0)}", source="repeater_admin")
+                return 200, {"status": "ok", "data": res}
+
             if method == "GET" and clean_path == "/api/ha/status":
                 ha = getattr(self.bridge, "ha_discovery", None)
                 enabled = getattr(ha, "enabled", False) if ha else False
