@@ -6,6 +6,20 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Corrección de Sintaxis de Bash (`!grep`) y Soporte TCP Companion en `install.sh`
+- **Fecha**: 2026-08-19
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Corrigió el error de sintaxis en `install.sh` (`!grep` sin espacio) que provocaba el fallo `!grep: command not found` durante la actualización del software, e integró la migración automática de variables de entorno del servidor TCP Companion (`TCP_SERVER_ENABLED`, `TCP_SERVER_HOST`, `TCP_SERVER_PORT`).
+- **Contribuciones de Agentes**:
+  1. **Agente 2 (Python Bridge Architect Agent)**:
+     - Corrigió la evaluación condicional en [`install.sh`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/install.sh) a `if ! grep -q ...`.
+     - Añadió la sección de auto-inyección de variables para `TCP_SERVER_ENABLED` en `.env` existentes.
+  2. **Agente 0 (Agente Principal / Orchestrator)**:
+     - Sincronización del paquete de despliegue en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vía `python scripts/sync_deploy.py`.
+     - Sincronización completa con GitHub (`origin/main`).
+
+---
+
 ### Hito: Corrección de Excepción de Inicialización (TypeError) y Blindaje de Elementos DOM en la SPA
 - **Fecha**: 2026-08-19
 - **Estado**: ✅ COMPLETADO

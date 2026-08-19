@@ -132,12 +132,20 @@ if [[ "${1:-}" == "--update" ]]; then
             echo "SQLITE_DB_PATH=${INSTALL_DIR}/meshcore_buffer.db" >> "$INSTALL_DIR/.env"
             echo -e "${GREEN}[OK] Variable SQLITE_DB_PATH añadida a tu .env existente.${NC}"
         fi
-        if !grep -q "HA_DISCOVERY_ENABLED" "$INSTALL_DIR/.env"; then
+        if ! grep -q "HA_DISCOVERY_ENABLED" "$INSTALL_DIR/.env"; then
             echo "" >> "$INSTALL_DIR/.env"
             echo "# Integración Home Assistant MQTT Auto-Discovery" >> "$INSTALL_DIR/.env"
             echo "HA_DISCOVERY_ENABLED=true" >> "$INSTALL_DIR/.env"
             echo "HA_TOPIC_PREFIX=homeassistant" >> "$INSTALL_DIR/.env"
             echo -e "${GREEN}[OK] Variables de Home Assistant añadidas a tu .env existente.${NC}"
+        fi
+        if ! grep -q "TCP_SERVER_ENABLED" "$INSTALL_DIR/.env"; then
+            echo "" >> "$INSTALL_DIR/.env"
+            echo "# Servidor TCP/IP Companion para Apps MeshCore (puerto 5000)" >> "$INSTALL_DIR/.env"
+            echo "TCP_SERVER_ENABLED=true" >> "$INSTALL_DIR/.env"
+            echo "TCP_SERVER_HOST=0.0.0.0" >> "$INSTALL_DIR/.env"
+            echo "TCP_SERVER_PORT=5000" >> "$INSTALL_DIR/.env"
+            echo -e "${GREEN}[OK] Variables de Servidor TCP Companion añadidas a tu .env existente.${NC}"
         fi
         if ! grep -q "LOG_FILE_PATH" "$INSTALL_DIR/.env"; then
             echo "" >> "$INSTALL_DIR/.env"
