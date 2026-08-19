@@ -298,6 +298,20 @@ class NodeRegistry:
         if not norm_key:
             raise ValueError("public_key no puede estar vacía")
 
+        clean_name = (name or f"Node_{norm_key[:6]}").strip()
+        name_upper = clean_name.upper()
+        role_upper = (role or "CLIENT").upper()
+        is_infrastructure = (
+            role_upper in ("REPEATER", "ROUTER", "ROOM", "SENSOR")
+            or name_upper.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-"))
+            or "REPEATER" in name_upper
+            or "ROUTER" in name_upper
+            or "SENSOR" in name_upper
+            or "ROOM" in name_upper
+            or "BBS" in name_upper
+        )
+        effective_role = "REPEATER" if ("REPEATER" in name_upper or name_upper.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-"))) else role
+
         existing_key = self._find_existing_key(norm_key, name)
         if existing_key:
             existing = self._nodes_by_key[existing_key]
@@ -308,31 +322,34 @@ class NodeRegistry:
                     last_snr=snr,
                     hops=hops,
                     name=name if name and name != existing.name else None,
+                    role=effective_role if existing.role == "CLIENT" and is_infrastructure else None,
                 ),
             )
             return False, updated
 
-        clean_name = (name or f"Node_{norm_key[:6]}").strip()
+        # Si es un nodo de infraestructura (repetidor, sensor, sala), no marcar como auto_discovered para la libreta
+        is_auto_discovered = not is_infrastructure
+
         contact = self.add_or_update(
             norm_key,
             NodeContactUpdate(
                 name=clean_name,
-                role=role,
+                role=effective_role,
                 last_rssi=rssi,
                 last_snr=snr,
                 hops=hops,
-                auto_discovered=True,
+                auto_discovered=is_auto_discovered,
                 discovery_time=time.time(),
                 verified_identity=len(norm_key) >= 12,
             ),
         )
-        return True, contact
+        return is_auto_discovered, contact
 
     def list_discovered(self, pending_only: bool = False) -> list[dict[str, Any]]:
-        """Lista los nodos descubiertos automáticamente en la red."""
+        """Lista los nodos clientes descubiertos automáticamente que no estén en la libreta."""
         results = []
         for c in self._nodes_by_key.values():
-            if c.auto_discovered:
+            if c.auto_discovered and (c.role or "").upper() == "CLIENT":
                 results.append(c.to_dict())
         return results
 

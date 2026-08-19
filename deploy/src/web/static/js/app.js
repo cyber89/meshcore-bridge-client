@@ -3983,8 +3983,36 @@ class MeshCoreStationApp {
       const res = await fetch("/api/contacts/discovered");
       const data = await res.json();
       if (data.status === "ok" && data.data) {
-        const count = data.data.count || 0;
-        if (this.dom.discoveryCount) this.dom.discoveryCount.textContent = count;
+        const rawList = Array.isArray(data.data.discovered) ? data.data.discovered : [];
+        const trulyNewContacts = rawList.filter((c) => {
+          if (!c || !c.public_key) return false;
+          const canonicalPk = this.resolveCanonicalPubkey(c.public_key);
+          const isLocal = (this.localNodePubkey && (
+            canonicalPk.toLowerCase() === this.localNodePubkey ||
+            (this.localNodePubkey.length >= 8 && canonicalPk.toLowerCase().startsWith(this.localNodePubkey.slice(0, 8))) ||
+            (canonicalPk.length >= 8 && this.localNodePubkey.startsWith(canonicalPk.toLowerCase().slice(0, 8)))
+          )) || canonicalPk.toLowerCase() === "local";
+          if (isLocal) return false;
+
+          const roleStr = (c.role || "CLIENT").toUpperCase();
+          const nameUpper = (c.alias || c.name || "").toUpperCase();
+          const isRepeater = roleStr === "REPEATER" || roleStr === "ROUTER" || c.type === 2 || c.adv_type === 2 ||
+            nameUpper.startsWith("R-") || nameUpper.startsWith("R1-") || nameUpper.startsWith("R2-") || nameUpper.startsWith("R3-") || nameUpper.startsWith("REP-") || nameUpper.startsWith("ROUTER-") ||
+            nameUpper.includes("REPEATER") || nameUpper.includes("ROUTER");
+          const isSensor = roleStr === "SENSOR" || c.type === 4 || c.adv_type === 4;
+          const isRoom = roleStr === "ROOM" || c.type === 3 || c.adv_type === 3;
+          if (isRepeater || isSensor || isRoom) return false;
+
+          // Si el nodo ya está registrado en la libreta de contactos (auto_discovered === false), no reportarlo como nuevo
+          const existing = this.knownNodes.get(canonicalPk) || this.knownNodes.get(c.public_key);
+          if (existing && existing.auto_discovered === false) {
+            return false;
+          }
+          return true;
+        });
+
+        const count = trulyNewContacts.length;
+        if (this.dom.discoveryCount) this.dom.discoveryCount.textContent = String(count);
         if (this.dom.discoveryBanner) {
           this.dom.discoveryBanner.classList.toggle("hidden", count === 0);
         }

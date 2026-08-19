@@ -424,6 +424,14 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
   - `src/rx_router.py`: Normalización de `sender` a la clave canónica antes de despachar eventos MQTT y WebSocket.
   - `src/web/static/js/app.js`: Implementado método `resolveCanonicalPubkey()`, unificación de feeds `dm_${canonicalPk}`, deduplicación estricta de elementos en `#dmListUi` y sincronización bidireccional de conversaciones directas.
 - **Contratos / Interfaces Modificadas**: Ninguno (normalización de identificadores y resolución canónica interna).
+### [TASK-2026-08-19-08] Validación y Supresión de Falsos Positivos en Contact Discovery
+- **Fecha y Hora**: 2026-08-19 18:33
+- **Agente Responsable**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect), Agente 2 (Bridge Architect)
+- **Objetivo**: Evitar que el banner de "Nuevos Nodos Descubiertos en el Aire" se muestre si los nodos capturados ya están registrados en la libreta de contactos, o si corresponden a repetidores, infraestructura o la estación base local.
+- **Archivos Modificados / Creados**:
+  - `src/contact_manager.py`: En `discover_node()` y `list_discovered()`, exclusión de repetidores/sensores y preservación de `auto_discovered = False` si el nodo ya existe en la libreta de contactos.
+  - `src/web/static/js/app.js`: En `fetchDiscoveredContacts()`, filtrado estricto contra `knownNodes`, repetidores y nodo local, ocultando el banner si el conteo de clientes verdaderamente nuevos es 0.
+- **Contratos / Interfaces Modificadas**: Ninguno (depuración y validación de estado de descubrimiento).
 - **Estado**: COMPLETADO
 
 ---
