@@ -227,6 +227,8 @@ class MeshCoreStationApp {
     this.conversationsWithMessages = new Set();
     this.unreadCounts = new Map(); // feedKey -> number
     this.lastReadTimestamps = new Map(); // feedKey -> ISO string
+    this.authenticatedRepeaters = new Set(); // Conjunto de pubkeys autenticados en sesión
+    this.repeaterPasswords = new Map(); // pubkey -> password en memoria
 
     this.initElements();
     this.initTheme();
@@ -364,6 +366,15 @@ class MeshCoreStationApp {
       nodesSearchInput: document.getElementById("nodesSearchInput"),
       btnRefreshAllNodes: document.getElementById("btnRefreshAllNodes"),
       repeaterAdminModal: document.getElementById("repeaterAdminModal"),
+      repeaterAdminModalCard: document.getElementById("repeaterAdminModalCard"),
+      repeaterAuthGate: document.getElementById("repeaterAuthGate"),
+      repeaterGateForm: document.getElementById("repeaterGateForm"),
+      repeaterGatePassword: document.getElementById("repeaterGatePassword"),
+      btnToggleGatePwd: document.getElementById("btnToggleGatePwd"),
+      btnRepeaterGateSubmit: document.getElementById("btnRepeaterGateSubmit"),
+      repeaterGateStatus: document.getElementById("repeaterGateStatus"),
+      repeaterAdminUnlockedContent: document.getElementById("repeaterAdminUnlockedContent"),
+      btnRepeaterLogout: document.getElementById("btnRepeaterLogout"),
       adminModalNodeName: document.getElementById("adminModalNodeName"),
       adminModalNodePk: document.getElementById("adminModalNodePk"),
       adminModalNodePkDisplay: document.getElementById("adminModalNodePkDisplay"),
@@ -1030,36 +1041,231 @@ class MeshCoreStationApp {
     }
   }
 
+  getStoredRepeaterPassword(pubkey) {
+    if (!pubkey) return null;
+    const canonicalPk = this.resolveCanonicalPubkey(pubkey);
+    try {
+      const stored = localStorage.getItem("meshcore_repeater_passwords");
+      if (stored) {
+        const map = JSON.parse(stored);
+        return map[canonicalPk] || map[pubkey] || null;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  setStoredRepeaterPassword(pubkey, password) {
+    if (!pubkey || !password) return;
+    const canonicalPk = this.resolveCanonicalPubkey(pubkey);
+    this.repeaterPasswords = this.repeaterPasswords || new Map();
+    this.repeaterPasswords.set(canonicalPk, password);
+    this.repeaterPasswords.set(pubkey, password);
+    try {
+      const stored = localStorage.getItem("meshcore_repeater_passwords");
+      const map = stored ? JSON.parse(stored) : {};
+      map[canonicalPk] = password;
+      map[pubkey] = password;
+      localStorage.setItem("meshcore_repeater_passwords", JSON.stringify(map));
+    } catch (_) {}
+  }
+
+  clearStoredRepeaterPassword(pubkey) {
+    if (!pubkey) return;
+    const canonicalPk = this.resolveCanonicalPubkey(pubkey);
+    this.authenticatedRepeaters.delete(canonicalPk);
+    this.authenticatedRepeaters.delete(pubkey);
+    if (this.repeaterPasswords) {
+      this.repeaterPasswords.delete(canonicalPk);
+      this.repeaterPasswords.delete(pubkey);
+    }
+    try {
+      const stored = localStorage.getItem("meshcore_repeater_passwords");
+      if (stored) {
+        const map = JSON.parse(stored);
+        delete map[canonicalPk];
+        delete map[pubkey];
+        localStorage.setItem("meshcore_repeater_passwords", JSON.stringify(map));
+      }
+    } catch (_) {}
+  }
+
+  getRepeaterPassword(target) {
+    if (!target) return "";
+    const canonicalPk = this.resolveCanonicalPubkey(target);
+    return this.getStoredRepeaterPassword(canonicalPk) ||
+      this.getStoredRepeaterPassword(target) ||
+      (this.repeaterPasswords && (this.repeaterPasswords.get(canonicalPk) || this.repeaterPasswords.get(target))) ||
+      (this.dom.repeaterGatePassword ? this.dom.repeaterGatePassword.value.trim() : "") ||
+      (this.dom.adminModalPassword ? this.dom.adminModalPassword.value.trim() : "");
+  }
+
+  lockRepeaterAdminView(pubkey, errorMessage = null) {
+    const card = this.dom.repeaterAdminModalCard || document.getElementById("repeaterAdminModalCard");
+    if (card) {
+      card.classList.remove("unlocked");
+      card.classList.add("locked");
+    }
+    const gate = this.dom.repeaterAuthGate || document.getElementById("repeaterAuthGate");
+    if (gate) gate.classList.remove("hidden");
+    const unlocked = this.dom.repeaterAdminUnlockedContent || document.getElementById("repeaterAdminUnlockedContent");
+    if (unlocked) unlocked.classList.add("hidden");
+
+    const statusEl = this.dom.repeaterGateStatus || document.getElementById("repeaterGateStatus");
+    if (statusEl) {
+      if (errorMessage) {
+        statusEl.className = "auth-gate-status error";
+        statusEl.textContent = errorMessage;
+        statusEl.classList.remove("hidden");
+      } else {
+        statusEl.className = "auth-gate-status hidden";
+        statusEl.textContent = "";
+      }
+    }
+
+    const pwdInput = this.dom.repeaterGatePassword || document.getElementById("repeaterGatePassword");
+    if (pwdInput) {
+      pwdInput.disabled = false;
+      setTimeout(() => pwdInput.focus(), 150);
+    }
+    const submitBtn = this.dom.btnRepeaterGateSubmit || document.getElementById("btnRepeaterGateSubmit");
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<span class="btn-icon">🔐</span> Desbloquear & Autenticar Repetidor';
+    }
+  }
+
+  unlockRepeaterAdminView(pubkey) {
+    const card = this.dom.repeaterAdminModalCard || document.getElementById("repeaterAdminModalCard");
+    if (card) {
+      card.classList.remove("locked");
+      card.classList.add("unlocked");
+    }
+    const gate = this.dom.repeaterAuthGate || document.getElementById("repeaterAuthGate");
+    if (gate) gate.classList.add("hidden");
+    const unlocked = this.dom.repeaterAdminUnlockedContent || document.getElementById("repeaterAdminUnlockedContent");
+    if (unlocked) unlocked.classList.remove("hidden");
+
+    const authStatus = this.dom.adminModalAuthStatus || document.getElementById("adminModalAuthStatus");
+    if (authStatus) {
+      authStatus.className = "auth-status-chip authenticated";
+      authStatus.textContent = "🔓 Autenticado";
+    }
+
+    const statusEl = this.dom.repeaterGateStatus || document.getElementById("repeaterGateStatus");
+    if (statusEl) {
+      statusEl.className = "auth-gate-status hidden";
+      statusEl.textContent = "";
+    }
+  }
+
+  handleRepeaterAuthError(pubkey, message = "Contraseña incorrecta o cambiada en el repetidor") {
+    this.showToast(message, "error");
+    this.clearStoredRepeaterPassword(pubkey);
+    this.lockRepeaterAdminView(pubkey, `⚠️ ${message}`);
+  }
+
+  async authenticateRepeater(pubkey, password) {
+    if (!pubkey || !password) {
+      this.handleRepeaterAuthError(pubkey, "Ingresa la contraseña de administración.");
+      return false;
+    }
+
+    const canonicalPk = this.resolveCanonicalPubkey(pubkey);
+    const statusEl = this.dom.repeaterGateStatus || document.getElementById("repeaterGateStatus");
+    const submitBtn = this.dom.btnRepeaterGateSubmit || document.getElementById("btnRepeaterGateSubmit");
+
+    if (statusEl) {
+      statusEl.className = "auth-gate-status loading";
+      statusEl.textContent = "⏳ Verificando credenciales con el repetidor por RF...";
+      statusEl.classList.remove("hidden");
+    }
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="btn-icon">⏳</span> Verificando...';
+    }
+
+    try {
+      const res = await fetch("/api/repeater/remote/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_node: canonicalPk, password: password }),
+      });
+      const data = await res.json();
+
+      if (data.status === "ok") {
+        this.authenticatedRepeaters.add(canonicalPk);
+        this.authenticatedRepeaters.add(pubkey);
+        this.setStoredRepeaterPassword(canonicalPk, password);
+        this.unlockRepeaterAdminView(canonicalPk);
+        this.showToast("🔓 Repetidor autenticado con éxito", "success");
+
+        // Solicitar telemetría fresca tras autenticación
+        try {
+          fetch("/api/repeater/remote/action", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ target_node: canonicalPk, password: password, action: "stats-core" }),
+          }).catch(() => {});
+        } catch (_) {}
+
+        return true;
+      } else {
+        this.handleRepeaterAuthError(canonicalPk, data.message || "Contraseña incorrecta o cambiada en el repetidor");
+        return false;
+      }
+    } catch (err) {
+      this.handleRepeaterAuthError(canonicalPk, `Error de conexión: ${err.message}`);
+      return false;
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<span class="btn-icon">🔐</span> Desbloquear & Autenticar Repetidor';
+      }
+    }
+  }
+
   openRepeaterAdminModal(pubkey, name) {
     this.selectedRepeaterTarget = pubkey;
+    this.selectedRepeaterName = name || pubkey;
+    const canonicalPk = this.resolveCanonicalPubkey(pubkey);
     const modal = this.dom.repeaterAdminModal || document.getElementById("repeaterAdminModal");
     const nameEl = this.dom.adminModalNodeName || document.getElementById("adminModalNodeName");
     const pkInput = this.dom.adminModalNodePk || document.getElementById("adminModalNodePk");
     const pkDisplay = this.dom.adminModalNodePkDisplay || document.getElementById("adminModalNodePkDisplay");
-    const pwdInput = this.dom.adminModalPassword || document.getElementById("adminModalPassword");
-    const authStatus = this.dom.adminModalAuthStatus || document.getElementById("adminModalAuthStatus");
 
     if (nameEl) nameEl.textContent = name || pubkey;
-    if (pkInput) pkInput.value = pubkey;
-    if (pkDisplay) pkDisplay.textContent = pubkey.length > 14 ? `${pubkey.slice(0, 8)}...${pubkey.slice(-4)}` : pubkey;
+    if (pkInput) pkInput.value = canonicalPk;
+    if (pkDisplay) pkDisplay.textContent = canonicalPk.length > 14 ? `${canonicalPk.slice(0, 8)}...${canonicalPk.slice(-4)}` : canonicalPk;
 
-    this.repeaterPasswords = this.repeaterPasswords || new Map();
-    if (this.repeaterPasswords.has(pubkey) && this.repeaterPasswords.get(pubkey)) {
-      if (pwdInput) pwdInput.value = this.repeaterPasswords.get(pubkey);
-      if (authStatus) {
-        authStatus.className = "auth-status-chip authenticated";
-        authStatus.textContent = "🔓 PIN configurado";
-      }
+    // Buscar nodo y poblar telemetría
+    const node = this.knownNodes.get(canonicalPk) || this.knownNodes.get(pubkey) || {};
+    this.populateRepeaterModalData(node);
+
+    // GATING: Comprobar autenticación de sesión o almacenamiento persistente
+    if (this.authenticatedRepeaters.has(canonicalPk) || this.authenticatedRepeaters.has(pubkey)) {
+      this.unlockRepeaterAdminView(canonicalPk);
     } else {
-      if (pwdInput) pwdInput.value = "";
-      if (authStatus) {
-        authStatus.className = "auth-status-chip";
-        authStatus.textContent = "🔒 PIN no ingresado";
+      const savedPwd = this.getStoredRepeaterPassword(canonicalPk);
+      if (savedPwd) {
+        this.lockRepeaterAdminView(canonicalPk);
+        const pwdInput = this.dom.repeaterGatePassword || document.getElementById("repeaterGatePassword");
+        if (pwdInput) pwdInput.value = savedPwd;
+        this.authenticateRepeater(canonicalPk, savedPwd);
+      } else {
+        this.lockRepeaterAdminView(canonicalPk);
+        const pwdInput = this.dom.repeaterGatePassword || document.getElementById("repeaterGatePassword");
+        if (pwdInput) {
+          pwdInput.value = "";
+          setTimeout(() => pwdInput.focus(), 150);
+        }
       }
     }
 
-    // Buscar nodo en el registro local
-    const node = this.knownNodes.get(pubkey) || {};
+    if (modal) modal.classList.remove("hidden");
+  }
+
+  populateRepeaterModalData(node) {
+    const pubkey = node.public_key || this.selectedRepeaterTarget;
 
     // 0. Estado de Ping Zero previo
     if (this.dom.adminModalPingZeroBadge) {
@@ -1168,11 +1374,60 @@ class MeshCoreStationApp {
     const posAltInput = document.getElementById("repPosAlt");
     if (posAltInput && node.altitude_m) posAltInput.value = node.altitude_m;
 
-    this.refreshNeighborsTable(pubkey);
-    if (modal) modal.classList.remove("hidden");
+    if (pubkey) this.refreshNeighborsTable(pubkey);
   }
 
   initRepeaterDashboard() {
+    // Gate de Autenticación
+    const gateForm = document.getElementById("repeaterGateForm");
+    const gateSubmit = document.getElementById("btnRepeaterGateSubmit");
+    const gatePwd = document.getElementById("repeaterGatePassword");
+    const togglePwdBtn = document.getElementById("btnToggleGatePwd");
+    const logoutBtn = document.getElementById("btnRepeaterLogout");
+
+    if (togglePwdBtn && gatePwd) {
+      togglePwdBtn.addEventListener("click", () => {
+        if (gatePwd.type === "password") {
+          gatePwd.type = "text";
+          togglePwdBtn.textContent = "🙈";
+        } else {
+          gatePwd.type = "password";
+          togglePwdBtn.textContent = "👁️";
+        }
+      });
+    }
+
+    const submitAuth = async () => {
+      const target = this.selectedRepeaterTarget;
+      const pwd = gatePwd ? gatePwd.value.trim() : "";
+      if (!target) return;
+      await this.authenticateRepeater(target, pwd);
+    };
+
+    if (gateForm) {
+      gateForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        submitAuth();
+      });
+    }
+    if (gateSubmit) {
+      gateSubmit.addEventListener("click", submitAuth);
+    }
+
+    if (logoutBtn) {
+      logoutBtn.addEventListener("click", () => {
+        const target = this.selectedRepeaterTarget;
+        if (target) {
+          this.clearStoredRepeaterPassword(target);
+          this.lockRepeaterAdminView(target);
+          if (gatePwd) {
+            gatePwd.value = "";
+            gatePwd.focus();
+          }
+          this.showToast("🔒 Sesión de administración cerrada para este repetidor", "info");
+        }
+      });
+    }
     document.querySelectorAll(".repeater-subtabs .subtab-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         document.querySelectorAll(".repeater-subtabs .subtab-btn").forEach((b) => b.classList.remove("active"));
@@ -1215,7 +1470,7 @@ class MeshCoreStationApp {
     if (this.dom.btnModalAuthTest) {
       this.dom.btnModalAuthTest.addEventListener("click", async () => {
         const target = this.selectedRepeaterTarget;
-        const password = this.dom.adminModalPassword ? this.dom.adminModalPassword.value.trim() : "";
+        const password = this.getRepeaterPassword(target);
         if (!target) {
           alert("Selecciona primero un repetidor.");
           return;
@@ -1224,36 +1479,7 @@ class MeshCoreStationApp {
           alert("Ingresa la contraseña o PIN de administración del repetidor.");
           return;
         }
-        this.appendTerminalLine(`> [TX AUTH] Verificando PIN con repetidor ${target.slice(0, 8)}...`, "term-cmd");
-        this.dom.btnModalAuthTest.disabled = true;
-        this.dom.btnModalAuthTest.textContent = "🔐 Verificando...";
-
-        try {
-          const res = await fetch("/api/repeater/remote/login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ target_node: target, password: password }),
-          });
-          const data = await res.json();
-          if (data.status === "ok") {
-            this.repeaterPasswords = this.repeaterPasswords || new Map();
-            this.repeaterPasswords.set(target, password);
-            if (this.dom.adminModalAuthStatus) {
-              this.dom.adminModalAuthStatus.className = "auth-status-chip authenticated";
-              this.dom.adminModalAuthStatus.textContent = "🔓 PIN verificado";
-            }
-            this.appendTerminalLine(`✓ [RX OK] Login transmitido por RF hacia ${target.slice(0, 8)}.`, "term-success");
-            this.showToast("🔐 Autenticación enviada al repetidor", "success");
-          } else {
-            this.appendTerminalLine(`✗ [RX ERROR] ${data.message || data.error}`, "term-error");
-            this.showToast(`Error de autenticación: ${data.message}`, "error");
-          }
-        } catch (e) {
-          this.appendTerminalLine(`✗ [ERROR] ${e.message}`, "term-error");
-        } finally {
-          this.dom.btnModalAuthTest.disabled = false;
-          this.dom.btnModalAuthTest.textContent = "🔐 Autenticar";
-        }
+        await this.authenticateRepeater(target, password);
       });
     }
 
@@ -1267,7 +1493,7 @@ class MeshCoreStationApp {
           alert("Selecciona primero un repetidor objetivo.");
           return;
         }
-        const password = this.dom.adminModalPassword ? this.dom.adminModalPassword.value.trim() : "";
+        const password = this.getRepeaterPassword(target);
         const freq = parseFloat(document.getElementById("radioFreq").value);
         const region = document.getElementById("radioRegion")?.value || "US915";
         const tx_power = parseInt(document.getElementById("radioPower").value, 10);
@@ -1293,7 +1519,11 @@ class MeshCoreStationApp {
             this.showToast("📻 Configuración RF transmitida al repetidor", "success");
           } else {
             this.appendTerminalLine(`✗ [RX ERROR] ${data.message || data.error}`, "term-error");
-            this.showToast(`Error: ${data.message}`, "error");
+            if (data.message && (data.message.toLowerCase().includes("password") || data.message.toLowerCase().includes("auth") || data.message.toLowerCase().includes("pin"))) {
+              this.handleRepeaterAuthError(target, data.message);
+            } else {
+              this.showToast(`Error: ${data.message}`, "error");
+            }
           }
         } catch (err) {
           this.appendTerminalLine(`✗ [ERROR] ${err.message}`, "term-error");
@@ -1311,7 +1541,7 @@ class MeshCoreStationApp {
           alert("Selecciona primero un repetidor.");
           return;
         }
-        const password = this.dom.adminModalPassword ? this.dom.adminModalPassword.value.trim() : "";
+        const password = this.getRepeaterPassword(target);
         const owner_name = document.getElementById("repOwnerName")?.value.trim() || "";
         const owner_info = document.getElementById("repOwnerInfo")?.value.trim() || "";
         const lat = parseFloat(document.getElementById("repPosLat")?.value || "0");
@@ -1334,7 +1564,11 @@ class MeshCoreStationApp {
             this.showToast("📍 Información y posición aplicadas al repetidor", "success");
           } else {
             this.appendTerminalLine(`✗ [RX ERROR] ${data.message || data.error}`, "term-error");
-            this.showToast(`Error: ${data.message}`, "error");
+            if (data.message && (data.message.toLowerCase().includes("password") || data.message.toLowerCase().includes("auth") || data.message.toLowerCase().includes("pin"))) {
+              this.handleRepeaterAuthError(target, data.message);
+            } else {
+              this.showToast(`Error: ${data.message}`, "error");
+            }
           }
         } catch (err) {
           this.appendTerminalLine(`✗ [ERROR] ${err.message}`, "term-error");
@@ -1352,7 +1586,7 @@ class MeshCoreStationApp {
           alert("Selecciona primero un repetidor.");
           return;
         }
-        const password = this.dom.adminModalPassword ? this.dom.adminModalPassword.value.trim() : "";
+        const password = this.getRepeaterPassword(target);
         const admin_password = document.getElementById("secNewAdminPwd")?.value.trim() || "";
         const guest_password = document.getElementById("secNewGuestPwd")?.value.trim() || "";
         const acl_mode = document.getElementById("secAclMode")?.value || "public";
@@ -1373,12 +1607,18 @@ class MeshCoreStationApp {
           });
           const data = await res.json();
           if (data.status === "ok") {
-            if (admin_password) this.repeaterPasswords.set(target, admin_password);
+            if (admin_password) {
+              this.setStoredRepeaterPassword(target, admin_password);
+            }
             this.appendTerminalLine(`✓ [RX OK] Parámetros de seguridad actualizados con éxito.`, "term-success");
             this.showToast("🔐 Seguridad actualizada en el repetidor", "success");
           } else {
             this.appendTerminalLine(`✗ [RX ERROR] ${data.message || data.error}`, "term-error");
-            this.showToast(`Error: ${data.message}`, "error");
+            if (data.message && (data.message.toLowerCase().includes("password") || data.message.toLowerCase().includes("auth") || data.message.toLowerCase().includes("pin"))) {
+              this.handleRepeaterAuthError(target, data.message);
+            } else {
+              this.showToast(`Error: ${data.message}`, "error");
+            }
           }
         } catch (err) {
           this.appendTerminalLine(`✗ [ERROR] ${err.message}`, "term-error");
@@ -1392,7 +1632,7 @@ class MeshCoreStationApp {
       btnRefreshTelem.addEventListener("click", () => {
         const target = this.selectedRepeaterTarget;
         if (!target) return;
-        const password = this.dom.adminModalPassword ? this.dom.adminModalPassword.value.trim() : "";
+        const password = this.getRepeaterPassword(target);
         this.appendTerminalLine(`> [TX] Solicitando telemetría completa a ${target.slice(0, 8)}...`, "term-cmd");
         this.executeRepeaterCommand(target, "stats-core", {}, password);
         this.executeRepeaterCommand(target, "stats-radio", {}, password);
@@ -1412,7 +1652,7 @@ class MeshCoreStationApp {
           alert("Selecciona primero un repetidor.");
           return;
         }
-        const password = this.dom.adminModalPassword ? this.dom.adminModalPassword.value.trim() : "";
+        const password = this.getRepeaterPassword(target);
         this.appendTerminalLine(`> [TX] Sondeando vecinos en la malla desde ${target.slice(0, 8)}...`, "term-cmd");
         await this.executeRepeaterCommand(target, "discover.neighbors", {}, password);
         this.refreshNeighborsTable(target);
@@ -1448,7 +1688,7 @@ class MeshCoreStationApp {
       btnModalActionTelem.addEventListener("click", () => {
         const target = this.selectedRepeaterTarget;
         if (!target) return;
-        const password = this.dom.adminModalPassword ? this.dom.adminModalPassword.value.trim() : "";
+        const password = this.getRepeaterPassword(target);
         this.executeRepeaterCommand(target, "telemetry", {}, password);
       });
     }
@@ -1458,7 +1698,7 @@ class MeshCoreStationApp {
       btnModalActionVer.addEventListener("click", () => {
         const target = this.selectedRepeaterTarget;
         if (!target) return;
-        const password = this.dom.adminModalPassword ? this.dom.adminModalPassword.value.trim() : "";
+        const password = this.getRepeaterPassword(target);
         this.executeRepeaterCommand(target, "ver", {}, password);
         this.executeRepeaterCommand(target, "board", {}, password);
       });
@@ -1472,7 +1712,7 @@ class MeshCoreStationApp {
           this.appendTerminalLine("⚠️ Selecciona primero un repetidor objetivo.", "term-error");
           return;
         }
-        const password = this.dom.adminModalPassword ? this.dom.adminModalPassword.value.trim() : "";
+        const password = this.getRepeaterPassword(target);
         if (cmd === "ping 0" || cmd === "ping") {
           this.pingZero(target, this.selectedRepeaterName);
         } else {
@@ -1492,7 +1732,7 @@ class MeshCoreStationApp {
           return;
         }
         if (this.dom.repeaterTerminalInput) this.dom.repeaterTerminalInput.value = "";
-        const password = this.dom.adminModalPassword ? this.dom.adminModalPassword.value.trim() : "";
+        const password = this.getRepeaterPassword(target);
         if (cmd.toLowerCase() === "ping" || cmd.toLowerCase() === "ping 0" || cmd.toLowerCase() === "pingzero") {
           this.pingZero(target, this.selectedRepeaterName);
         } else {
@@ -1510,7 +1750,7 @@ class MeshCoreStationApp {
       return;
     }
 
-    const password = this.dom.adminModalPassword ? this.dom.adminModalPassword.value.trim() : "";
+    const password = this.getRepeaterPassword(target);
     this.appendTerminalLine(`> [PING ZERO] Enviando sonda directa de 0 saltos a ${name} (${target.slice(0, 8)})...`, "term-cmd");
 
     if (this.dom.adminModalPingZeroBadge) {
@@ -1570,7 +1810,11 @@ class MeshCoreStationApp {
         if (this.dom.repQuickPingResult) {
           this.dom.repQuickPingResult.textContent = `🔴 Fallo: ${errMsg}`;
         }
-        this.showToast(`⚠️ Ping Zero: ${errMsg}`, "error");
+        if (errMsg.toLowerCase().includes("password") || errMsg.toLowerCase().includes("auth") || errMsg.toLowerCase().includes("pin")) {
+          this.handleRepeaterAuthError(target, errMsg);
+        } else {
+          this.showToast(`⚠️ Ping Zero: ${errMsg}`, "error");
+        }
       }
     } catch (err) {
       this.appendTerminalLine(`✗ [PING ZERO ERROR] ${err.message}`, "term-error");
@@ -1597,7 +1841,7 @@ class MeshCoreStationApp {
       alert("Selecciona primero un repetidor.");
       return;
     }
-    const password = this.dom.adminModalPassword ? this.dom.adminModalPassword.value.trim() : "";
+    const password = this.getRepeaterPassword(target);
     this.appendTerminalLine(`> [TX ACTION] Ejecutando acción '${actionName}' en ${target.slice(0, 8)}...`, "term-cmd");
 
     try {
@@ -1612,7 +1856,11 @@ class MeshCoreStationApp {
         this.showToast(`✅ Acción '${actionName}' ejecutada`, "success");
       } else {
         this.appendTerminalLine(`✗ [RX ERROR] ${data.message || data.error}`, "term-error");
-        this.showToast(`Error: ${data.message}`, "error");
+        if (data.message && (data.message.toLowerCase().includes("password") || data.message.toLowerCase().includes("auth") || data.message.toLowerCase().includes("pin"))) {
+          this.handleRepeaterAuthError(target, data.message);
+        } else {
+          this.showToast(`Error: ${data.message}`, "error");
+        }
       }
     } catch (e) {
       this.appendTerminalLine(`✗ [ERROR] ${e.message}`, "term-error");
@@ -2174,6 +2422,38 @@ class MeshCoreStationApp {
       if (isDm && senderKey && senderKey !== "unknown") {
         this.conversationsWithMessages.add(senderKey);
         this.addDmContact(senderKey, senderName);
+
+        // Detección reactiva de autenticación de repetidores
+        const rawText = (payload.text || payload.message || "").toLowerCase();
+        const isRepeaterTarget = Boolean(this.selectedRepeaterTarget && (
+          this.selectedRepeaterTarget === senderKey ||
+          this.selectedRepeaterTarget === rawSenderKey ||
+          (this.selectedRepeaterTarget.length >= 8 && senderKey.length >= 8 && (this.selectedRepeaterTarget.startsWith(senderKey) || senderKey.startsWith(this.selectedRepeaterTarget)))
+        ));
+
+        if (isRepeaterTarget) {
+          if (payload.telemetry?.auth_status === "failed" ||
+              rawText.includes("invalid password") ||
+              rawText.includes("access denied") ||
+              rawText.includes("bad pin") ||
+              rawText.includes("login failed") ||
+              rawText.includes("wrong password") ||
+              rawText.includes("incorrect password") ||
+              rawText.includes("not logged in") ||
+              rawText.includes("permission denied")) {
+            this.handleRepeaterAuthError(senderKey, "Contraseña incorrecta o cambiada en el repetidor");
+          } else if (payload.telemetry?.auth_status === "success" ||
+                     rawText.includes("login ok") ||
+                     rawText.includes("logged in") ||
+                     rawText.includes("auth ok") ||
+                     rawText.includes("welcome admin") ||
+                     payload.telemetry?.battery_pct !== undefined) {
+            if (!this.authenticatedRepeaters.has(senderKey)) {
+              this.authenticatedRepeaters.add(senderKey);
+              this.unlockRepeaterAdminView(senderKey);
+            }
+          }
+        }
       }
     } else if (payload.byte_length !== undefined || payload.event_type === "rf_log" || payload.raw_hex !== undefined) {
       this.renderSnifferPacket(payload);

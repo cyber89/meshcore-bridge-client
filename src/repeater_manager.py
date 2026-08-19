@@ -220,6 +220,13 @@ class RepeaterManager:
         if not text:
             return extracted
 
+        lower_text = text.lower()
+        if any(p in lower_text for p in ("invalid password", "access denied", "bad pin", "login failed", "wrong password", "incorrect password", "not authorized", "unauthorized", "permission denied", "not logged in")):
+            extracted["auth_status"] = "failed"
+            extracted["auth_error"] = text.strip()
+        elif any(p in lower_text for p in ("login ok", "logged in", "auth ok", "welcome admin", "access granted", "login success")):
+            extracted["auth_status"] = "success"
+
         # Batería: "Battery: 4120mV (92%)" o "Batt: 4.12V, 95%" o "Battery: 92%"
         bat_m = re.search(r'(?:battery|batt|bat)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:mv|v|%)?(?:\s*\((?:(\d+)\s*%)?\))?', text, re.IGNORECASE)
         if bat_m:

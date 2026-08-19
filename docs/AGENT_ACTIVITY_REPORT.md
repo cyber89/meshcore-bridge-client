@@ -444,6 +444,19 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 - **Contratos / Interfaces Modificadas**: Ninguno (enriquecimiento de campos de configuración y mejoras de experiencia de usuario en frontend).
 - **Estado**: COMPLETADO
 
+### [TASK-2026-08-19-10] Flujo Estricto de Autenticación, Gating y Gestión Persistente de Contraseñas en Repetidores LoRa
+- **Fecha y Hora**: 2026-08-19 18:50
+- **Agente Responsable**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect), Agente 5 (Security Auditor), Agente 2 (Bridge Architect)
+- **Objetivo**: Implementar un flujo de seguridad estricto para la administración de repetidores MeshCore remotos. Bloqueo total de parámetros y pestañas mediante pantalla de gating `#repeaterAuthGate` hasta autenticación válida; auto-login y persistencia de contraseñas por repetidor en `localStorage` (`meshcore_repeater_passwords`); invalidación inmediata de clave, bloqueo de UI y toast de error si la contraseña es incorrecta o fue modificada en el repetidor.
+- **Archivos Modificados / Creados**:
+  - `src/web/static/index.html`: Estructura HTML de `#repeaterAuthGate` con formulario de contraseña/PIN, botón de visibilidad y contenedor `#repeaterAdminUnlockedContent` con botón de cierre de sesión `#btnRepeaterLogout`.
+  - `src/web/static/css/app.css`: Estilos de seguridad para `.repeater-admin-modal-card.locked`, `.repeater-admin-modal-card.unlocked`, `.repeater-auth-gate`, `.auth-gate-card`, `.auth-gate-shield` y chips de autenticación.
+  - `src/web/static/js/app.js`: Implementación de `getStoredRepeaterPassword()`, `setStoredRepeaterPassword()`, `clearStoredRepeaterPassword()`, `getRepeaterPassword()`, `authenticateRepeater()`, `lockRepeaterAdminView()`, `unlockRepeaterAdminView()`, `handleRepeaterAuthError()`, auto-autenticación en `openRepeaterAdminModal()` y captura reactiva de fallos de credenciales en `handleIncomingLiveEvent()`.
+  - `src/repeater_manager.py`: Detección e inclusión de `auth_status` ("success" / "failed") y `auth_error` en `parse_repeater_telemetry_or_response()`.
+  - `src/admin_handler.py`: Manejo dedicado de la acción `login` con enmascaramiento de contraseña en los logs de comando.
+- **Contratos / Interfaces Modificadas**: Ninguno (robustecimiento de autenticación RF y experiencia SPA).
+- **Estado**: COMPLETADO
+
 ---
 
 ## 📝 Plantilla de Registro para Nuevas Tareas

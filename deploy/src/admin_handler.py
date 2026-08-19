@@ -261,6 +261,19 @@ class AdminCommandHandler:
                 return res
 
             # Comandos unitarios (login, reboot, stats-core, advert, etc.)
+            if action in ("login", "auth"):
+                cmd_text = f"login {password}"
+                await self._ctx.execute_tx({"to": str(target_node), "text": f"cmd {cmd_text}", "request_id": req_id})
+                res.update({
+                    "action": "login",
+                    "target_node": str(target_node),
+                    "authenticated": True,
+                    "message": f"Comando de autenticación transmitido al repetidor {str(target_node)[:8]}",
+                    "cmd_dispatched": f"login {'*' * len(password)}",
+                })
+                self._ctx.mqtt.publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/status", json.dumps(res), qos=1)
+                return res
+
             if password and action != "login":
                 # Enviar login previo si se adjuntó contraseña
                 await self._ctx.execute_tx({"to": str(target_node), "text": f"cmd login {password}", "request_id": req_id})

@@ -1162,7 +1162,7 @@
 
     <!-- Modal: Centro de Control y Administración de Repetidor Remoto -->
     <div id="repeaterAdminModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="repeaterAdminTitle">
-      <div class="modal-card repeater-admin-modal-card">
+      <div class="modal-card repeater-admin-modal-card locked" id="repeaterAdminModalCard">
         <div class="modal-header repeater-admin-modal-header">
           <div class="header-node-info">
             <h3 id="repeaterAdminTitle">🎛️ Centro de Control RF: <span id="adminModalNodeName">Repetidor</span></h3>
@@ -1175,34 +1175,60 @@
           <button class="btn-icon modal-close" id="btnCloseRepeaterAdminModal" aria-label="Cerrar modal">✕</button>
         </div>
 
-        <!-- Barra de Autenticación / PIN de Administración -->
-        <div class="repeater-auth-strip">
-          <div class="auth-strip-left">
-            <span class="auth-icon">🔐</span>
-            <div class="auth-label-group">
-              <label for="adminModalPassword" class="auth-label">PIN / Contraseña de Administración:</label>
-              <span class="auth-hint">Requerida para ejecutar comandos remotos y cambios de configuración RF</span>
-            </div>
-          </div>
-          <div class="auth-strip-right">
-            <div class="input-with-action auth-input-box">
-              <input type="password" id="adminModalPassword" placeholder="PIN / Contraseña del repetidor" autocomplete="current-password" />
-              <button type="button" class="btn-primary btn-sm" id="btnModalAuthTest">🔐 Autenticar</button>
-            </div>
-            <span class="auth-status-chip" id="adminModalAuthStatus">🔒 PIN no ingresado</span>
+        <!-- Tarjeta de Bloqueo / Gate de Autenticación Requerida -->
+        <div class="repeater-auth-gate" id="repeaterAuthGate">
+          <div class="auth-gate-card">
+            <div class="auth-gate-shield">🔐</div>
+            <h4>Acceso de Administración Restringido</h4>
+            <p>Para consultar la telemetría, modificar parámetros RF y despachar comandos remotos a este repetidor, es obligatorio validar la contraseña de administración.</p>
+            
+            <form id="repeaterGateForm" class="auth-gate-form" onsubmit="return false;">
+              <div class="auth-gate-input-wrapper">
+                <label for="repeaterGatePassword" class="auth-gate-label">Contraseña de Administración (PIN):</label>
+                <div class="auth-gate-input-row">
+                  <input type="password" id="repeaterGatePassword" placeholder="PIN / Contraseña del repetidor..." autocomplete="current-password" required />
+                  <button type="button" class="btn-icon btn-toggle-pwd" id="btnToggleGatePwd" title="Mostrar u ocultar contraseña">👁️</button>
+                </div>
+              </div>
+
+              <div class="auth-gate-status hidden" id="repeaterGateStatus"></div>
+
+              <div class="auth-gate-actions">
+                <button type="button" class="btn-primary btn-block" id="btnRepeaterGateSubmit">
+                  <span class="btn-icon">🔐</span> Desbloquear & Autenticar Repetidor
+                </button>
+              </div>
+            </form>
           </div>
         </div>
 
-        <!-- Subpestañas del Repetidor -->
-        <div class="repeater-subtabs">
-          <button class="subtab-btn active" data-subtab="rep-info">📊 Telemetría & Estado</button>
-          <button class="subtab-btn" data-subtab="rep-radio">📻 Configuración RF</button>
-          <button class="subtab-btn" data-subtab="rep-owner-pos">📍 Propietario & Posición</button>
-          <button class="subtab-btn" data-subtab="rep-security">🔐 Seguridad & ACL</button>
-          <button class="subtab-btn" data-subtab="rep-neighbors">🌐 Malla & Vecinos</button>
-          <button class="subtab-btn" data-subtab="rep-console">💻 Terminal RF & Ayuda</button>
-          <button class="subtab-btn" data-subtab="rep-quick">⚡ Acciones</button>
-        </div>
+        <!-- Contenedor Desbloqueado (Solo visible tras autenticación exitosa) -->
+        <div class="repeater-unlocked-container" id="repeaterAdminUnlockedContent">
+          <!-- Barra de Autenticación / PIN de Administración -->
+          <div class="repeater-auth-strip">
+            <div class="auth-strip-left">
+              <span class="auth-icon">🔓</span>
+              <div class="auth-label-group">
+                <label class="auth-label">Sesión de Administración Activa</label>
+                <span class="auth-hint">Credenciales verificadas y guardadas para este repetidor</span>
+              </div>
+            </div>
+            <div class="auth-strip-right">
+              <span class="auth-status-chip authenticated" id="adminModalAuthStatus">🔓 Autenticado</span>
+              <button type="button" class="btn-outline btn-xs" id="btnRepeaterLogout" title="Cerrar sesión y olvidar contraseña de este repetidor">🔒 Cerrar Sesión</button>
+            </div>
+          </div>
+
+          <!-- Subpestañas del Repetidor -->
+          <div class="repeater-subtabs">
+            <button class="subtab-btn active" data-subtab="rep-info">📊 Telemetría & Estado</button>
+            <button class="subtab-btn" data-subtab="rep-radio">📻 Configuración RF</button>
+            <button class="subtab-btn" data-subtab="rep-owner-pos">📍 Propietario & Posición</button>
+            <button class="subtab-btn" data-subtab="rep-security">🔐 Seguridad & ACL</button>
+            <button class="subtab-btn" data-subtab="rep-neighbors">🌐 Malla & Vecinos</button>
+            <button class="subtab-btn" data-subtab="rep-console">💻 Terminal RF & Ayuda</button>
+            <button class="subtab-btn" data-subtab="rep-quick">⚡ Acciones</button>
+          </div>
 
         <div class="modal-body repeater-admin-modal-body">
           <input type="hidden" id="adminModalNodePk" value="" />
@@ -1648,7 +1674,9 @@
             </div>
           </div>
         </div>
+        </div>
       </div>
+    </div>
     <!-- Modal: Traceroute Multi-Salto Visual -->
     <div id="tracerouteModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="tracerouteModalTitle">
       <div class="modal-card traceroute-modal-card">
