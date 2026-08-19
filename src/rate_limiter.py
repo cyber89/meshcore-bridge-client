@@ -7,6 +7,7 @@ del tiempo en el aire (Airtime) según parámetros RF de LoRa (SF, BW, CR).
 from __future__ import annotations
 
 import asyncio
+import collections
 import logging
 import math
 import random

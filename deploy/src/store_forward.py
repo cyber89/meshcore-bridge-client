@@ -92,7 +92,7 @@ class SQLiteStoreAndForward:
     def _init_db(self) -> None:
         try:
             with self._get_conn() as conn:
-                conn.execute("""
+                conn.executescript("""
                     CREATE TABLE IF NOT EXISTS offline_queue (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         topic TEXT NOT NULL,
@@ -122,11 +122,13 @@ class SQLiteStoreAndForward:
                     conn.execute("ALTER TABLE offline_queue ADD COLUMN expires_at REAL DEFAULT 0;")
                     conn.execute("UPDATE offline_queue SET expires_at = created_at + 172800 WHERE expires_at = 0;")
 
-                conn.execute("CREATE INDEX IF NOT EXISTS idx_offline_queue_created ON offline_queue(created_at);")
-                conn.execute("CREATE INDEX IF NOT EXISTS idx_offline_queue_expires ON offline_queue(expires_at);")
-                conn.execute("CREATE INDEX IF NOT EXISTS idx_offline_queue_hash ON offline_queue(msg_hash);")
-                conn.execute("CREATE INDEX IF NOT EXISTS idx_receipts_status ON message_receipts(status);")
-                conn.execute("CREATE INDEX IF NOT EXISTS idx_receipts_recipient ON message_receipts(recipient);")
+                conn.executescript("""
+                    CREATE INDEX IF NOT EXISTS idx_offline_queue_created ON offline_queue(created_at);
+                    CREATE INDEX IF NOT EXISTS idx_offline_queue_expires ON offline_queue(expires_at);
+                    CREATE INDEX IF NOT EXISTS idx_offline_queue_hash ON offline_queue(msg_hash);
+                    CREATE INDEX IF NOT EXISTS idx_receipts_status ON message_receipts(status);
+                    CREATE INDEX IF NOT EXISTS idx_receipts_recipient ON message_receipts(recipient);
+                """)
         except Exception as e:
             logging.error(f"Error inicializando SQLite Store & Forward DB ({self.db_path}): {e}")
 

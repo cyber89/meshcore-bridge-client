@@ -397,6 +397,14 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
   - `src/web/static/js/app.js`: Implementado método `initMapOverlayToggle()` con listener para alternar clases, animaciones y persistencia en `localStorage.getItem("meshcore_map_nodes_minimized")`.
 - **Contratos / Interfaces Modificadas**:
   - Estado local persistido: `meshcore_map_nodes_minimized` ("true" / "false").
+### [TASK-2026-08-19-05] Corrección de Errores de Inicialización en SQLite y collections
+- **Fecha y Hora**: 2026-08-19 18:08
+- **Agente Responsable**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect)
+- **Objetivo**: Corregir error de inicialización en SQLite `sqlite3.ProgrammingError: You can only execute one statement at a time` y `NameError: name 'collections' is not defined` en `AirtimeTracker`.
+- **Archivos Modificados / Creados**:
+  - `src/rate_limiter.py`: Añadido `import collections` a las importaciones del módulo.
+  - `src/store_forward.py`: Reemplazado `conn.execute()` por `conn.executescript()` en el método `_init_db()`.
+- **Contratos / Interfaces Modificadas**: Ninguno (corrección de estabilidad y robustez interna).
 - **Estado**: COMPLETADO
 
 ---
