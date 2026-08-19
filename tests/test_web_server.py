@@ -30,6 +30,10 @@ class TestWebServerRouter(unittest.IsolatedAsyncioTestCase):
         )
         self.mock_bridge.rate_limiter = MagicMock()
         self.mock_bridge.rate_limiter.get_queue_depth.return_value = 0
+        self.mock_bridge.rx_count = 10
+        self.mock_bridge.tx_count = 5
+        self.mock_bridge.tx_error_count = 0
+        self.mock_bridge.err_count = 0
         self.mock_bridge.store_and_forward = MagicMock()
         self.mock_bridge.store_and_forward.count = AsyncMock(return_value=0)
         self.mock_bridge._execute_tx = AsyncMock(return_value={"status": "sent"})
@@ -117,6 +121,38 @@ class TestWebServerRouter(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(code, 200)
         self.assertGreaterEqual(data["count"], 1)
         self.assertEqual(data["data"][-1]["level"], "WARN")
+
+    async def test_ha_endpoints(self) -> None:
+        code, data = await self.router.handle_request("GET", "/api/ha/status")
+        self.assertEqual(code, 200)
+        self.assertIn("enabled", data["data"])
+
+        code, data = await self.router.handle_request("POST", "/api/ha/publish")
+        self.assertEqual(code, 200)
+        self.assertIn("published_entities", data["data"])
+
+    async def test_preflight_endpoint(self) -> None:
+        code, data = await self.router.handle_request("GET", "/api/preflight")
+        self.assertEqual(code, 200)
+        self.assertIn("status", data["data"])
+
+    async def test_trace_endpoint(self) -> None:
+        code, data = await self.router.handle_request("POST", "/api/trace", {"to": "node_alpha", "auth_code": 1234})
+        self.assertEqual(code, 200)
+        self.assertEqual(data["status"], "ok")
+
+    def test_record_incoming_event_ignores_system_log(self) -> None:
+        initial_msg_count = len(self.router.recent_messages)
+        initial_rf_count = len(self.router.recent_rf_logs)
+
+        # 1. system_log no debe entrar en mensajes de chat ni en logs rf
+        self.router.record_incoming_event({"event_type": "system_log", "data": {"message": "Test log"}})
+        self.assertEqual(len(self.router.recent_messages), initial_msg_count)
+        self.assertEqual(len(self.router.recent_rf_logs), initial_rf_count)
+
+        # 2. rf_log debe entrar a recent_rf_logs
+        self.router.record_incoming_event({"event_type": "rf_log", "byte_length": 12, "raw_hex": "010203"})
+        self.assertEqual(len(self.router.recent_rf_logs), initial_rf_count + 1)
 
 
 if __name__ == "__main__":

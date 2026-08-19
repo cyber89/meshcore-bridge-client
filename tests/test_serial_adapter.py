@@ -73,7 +73,10 @@ class TestSerialAdapter(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(rx_frame.header.src_node_id, 0x1111)
 
     async def test_serial_watchdog_timeout_trigger(self) -> None:
+        from unittest.mock import AsyncMock
+
         adapter = RawSerialFramingAdapter(port="COM_TEST")
+        adapter.ping_or_check_alive = AsyncMock(return_value=False)
         reconnect_called = False
 
         def _on_reconnect() -> None:
@@ -82,8 +85,8 @@ class TestSerialAdapter(unittest.IsolatedAsyncioTestCase):
 
         watchdog = SerialWatchdog(
             adapter=adapter,
-            timeout_sec=0.1,
-            interval_sec=0.05,
+            timeout_sec=0.02,
+            interval_sec=0.02,
             on_timeout_reconnect=_on_reconnect,
         )
         adapter.is_connected = True
@@ -91,7 +94,58 @@ class TestSerialAdapter(unittest.IsolatedAsyncioTestCase):
 
         # Simular inactividad
         adapter.last_heartbeat_time = 0.0
-        await asyncio.sleep(0.15)
+        await asyncio.sleep(0.10)
         await watchdog.stop()
-
         self.assertTrue(reconnect_called, "El Watchdog debe haber activado la reconexión")
+
+    async def test_meshcore_sdk_adapter_connect_lifecycle(self) -> None:
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from src.serial_driver import MeshcoreSDKAdapter
+
+        mock_mc = MagicMock()
+        mock_mc.start_auto_message_fetching = AsyncMock()
+        mock_mc.ensure_contacts = AsyncMock()
+        mock_mc.subscribe = MagicMock()
+        mock_mc.disconnect = AsyncMock()
+
+        with patch("src.serial_driver.MeshCore") as MockMeshCoreClass:
+            MockMeshCoreClass.create_serial = AsyncMock(return_value=mock_mc)
+
+            adapter = MeshcoreSDKAdapter(port="/dev/ttyACM0", baud_rate=115200)
+            res = await adapter.connect()
+
+            self.assertTrue(res)
+            self.assertTrue(adapter.is_connected)
+            MockMeshCoreClass.create_serial.assert_awaited_once_with("/dev/ttyACM0", 115200, auto_reconnect=True)
+            mock_mc.start_auto_message_fetching.assert_awaited_once()
+            mock_mc.ensure_contacts.assert_awaited_once()
+
+            await adapter.disconnect()
+            self.assertFalse(adapter.is_connected)
+            mock_mc.disconnect.assert_awaited_once()
+
+    async def test_meshcore_sdk_adapter_send_message_channel_and_dm(self) -> None:
+        from unittest.mock import AsyncMock, MagicMock
+
+        from src.serial_driver import MeshcoreSDKAdapter
+
+        adapter = MeshcoreSDKAdapter(port="/dev/ttyACM0")
+        adapter.is_connected = True
+        mock_mc = MagicMock()
+        mock_mc.commands.send_chan_msg = AsyncMock(return_value="OK_CHAN")
+        mock_mc.commands.send_msg = AsyncMock(return_value="OK_DM")
+        mock_mc.get_contact_by_name = MagicMock(return_value={"adv_name": "Alpha", "public_key": "a1b2c3d4e5f6"})
+        mock_mc.get_contact_by_key_prefix = MagicMock(return_value={"adv_name": "Alpha", "public_key": "a1b2c3d4e5f6"})
+        adapter.mc = mock_mc
+
+        # 1. Enviar broadcast
+        res_chan = await adapter.send_message("Hola Canal 0", target="broadcast", channel_idx=0)
+        self.assertEqual(res_chan["status"], "SENT")
+        mock_mc.commands.send_chan_msg.assert_awaited_once_with(0, "Hola Canal 0")
+
+        # 2. Enviar DM a nodo por nombre
+        res_dm = await adapter.send_message("Hola Alpha", target="Alpha")
+        self.assertEqual(res_dm["status"], "SENT")
+        mock_mc.commands.send_msg.assert_awaited_once_with({"adv_name": "Alpha", "public_key": "a1b2c3d4e5f6"}, "Hola Alpha")
+

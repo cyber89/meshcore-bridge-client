@@ -38,12 +38,14 @@ async def test_e2e_navigation_all_tabs() -> None:
     """Prueba la navegación interactiva cíclica a través de las 9 pestañas."""
     tab_ids = [
         "tab-chat",
+        "tab-repeater",
+        "tab-sniffer",
         "tab-map",
         "tab-nodes",
-        "tab-sniffer",
         "tab-analytics",
         "tab-telemetry",
         "tab-contacts",
+        "tab-ha",
         "tab-logs",
         "tab-settings",
     ]
@@ -68,22 +70,43 @@ async def test_e2e_navigation_all_tabs() -> None:
 
 @pytest.mark.asyncio
 async def test_e2e_send_chat_message_and_feed() -> None:
-    """Prueba el envío de un mensaje de chat y su renderizado en el feed."""
+    """Prueba el envío de un mensaje de chat, nuevo botón 'Enviar' y ausencia de trace route/bienvenida."""
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page(viewport={"width": 1920, "height": 1080})
         await page.goto(BASE_URL, wait_until="domcontentloaded", timeout=15000)
 
-        # Asegurar estar en la pestaña de chat
+        # 1. Asegurar estar en la pestaña de chat
         await page.locator('[data-tab="tab-chat"]').click()
         await page.wait_for_timeout(300)
 
-        # Escribir mensaje de prueba
+        # 2. Verificar que Canales y DMs están dentro del panel de mensajería (chat-channels-panel)
+        channels_panel = page.locator(".chat-channels-panel #channelListUi")
+        assert await channels_panel.count() > 0, "El panel de canales debe estar dentro del chat"
+
+        # 3. Verificar que el botón Trace Route fue eliminado
+        trace_btn = page.locator("#btnTraceRoute")
+        assert await trace_btn.count() == 0, "El botón Trace Route no debe existir"
+
+        # 4. Verificar texto del botón de envío ("Enviar")
+        send_btn_text = await page.locator("#btnSendMsg").inner_text()
+        assert "Enviar" in send_btn_text, "El botón debe llamarse Enviar"
+
+        # 5. Verificar que el subtítulo no tiene 'Hop limit: 3'
+        sub_text = await page.locator("#chatActiveSub").inner_text()
+        assert "Hop limit" not in sub_text
+        assert "Difusión comunitaria" in sub_text
+
+        # 6. Verificar que no hay cuadro de bienvenida invasivo inicial
+        welcome_card = page.locator(".chat-welcome-card")
+        assert await welcome_card.count() == 0, "No debe mostrarse mensaje estático de bienvenida"
+
+        # 7. Escribir mensaje de prueba
         test_msg = "Prueba E2E Automatizada Playwright"
         input_field = page.locator("#chatInputText")
         await input_field.fill(test_msg)
 
-        # Enviar formulario
+        # 8. Enviar formulario
         await page.locator("#chatInputForm").dispatch_event("submit")
         await page.wait_for_timeout(600)
 
@@ -227,6 +250,8 @@ async def test_e2e_console_error_audit() -> None:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page(viewport={"width": 1920, "height": 1080})
 
+        failed_responses: list[str] = []
+        page.on("response", lambda resp: failed_responses.append(f"{resp.status} {resp.url}") if resp.status >= 400 else None)
         page.on("console", lambda msg: console_errors.append(msg.text) if msg.type == "error" else None)
         page.on("pageerror", lambda exc: page_errors.append(str(exc)))
 
@@ -241,6 +266,141 @@ async def test_e2e_console_error_audit() -> None:
         await page.screenshot(path=str(ARTIFACTS_DIR / "desktop_e2e.png"), full_page=True)
 
         assert len(page_errors) == 0, f"Excepciones JS detectadas: {page_errors}"
+        assert len(failed_responses) == 0, f"Peticiones HTTP fallidas: {failed_responses}"
         assert len(console_errors) == 0, f"Errores de consola detectados: {console_errors}"
 
         await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_e2e_repeater_dashboard_interaction() -> None:
+    """Prueba interactiva del Centro de Control de Repetidores LoRa."""
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page(viewport={"width": 1920, "height": 1080})
+        await page.goto(BASE_URL, wait_until="domcontentloaded", timeout=15000)
+
+        # 1. Navegar a pestaña Repetidores
+        await page.locator('[data-tab="tab-repeater"]').click()
+        await page.wait_for_timeout(300)
+
+        # 2. Verificar subtabs (Radio, Vecinos, Consola)
+        await page.locator('[data-subtab="rep-radio"]').click()
+        await page.wait_for_timeout(200)
+        assert await page.locator("#rep-radio").is_visible()
+
+        # Enviar formulario de configuración de radio
+        await page.locator("#radioPower").fill("22")
+        await page.locator('#repRadioForm button[type="submit"]').click()
+        await page.wait_for_timeout(500)
+
+        # 3. Subtab Vecinos
+        await page.locator('[data-subtab="rep-neighbors"]').click()
+        await page.wait_for_timeout(200)
+        assert await page.locator("#rep-neighbors").is_visible()
+
+        # 4. Subtab Consola Terminal
+        await page.locator('[data-subtab="rep-console"]').click()
+        await page.wait_for_timeout(200)
+        assert await page.locator("#rep-console").is_visible()
+
+        # Click en botón de comando rápido
+        btn_quick = page.locator('.rep-quick-cmd[data-cmd="stats-radio"]')
+        if await btn_quick.count() > 0:
+            await btn_quick.click()
+            await page.wait_for_timeout(500)
+
+        # Entrada manual en terminal
+        await page.locator("#repeaterTerminalInput").fill("stats-core")
+        await page.locator("#repeaterTerminalForm button").click()
+        await page.wait_for_timeout(500)
+
+        term_output = await page.locator("#repeaterTerminalOutput").inner_text()
+        assert len(term_output) > 20
+
+        await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_e2e_command_palette_and_preflight() -> None:
+    """Prueba interactiva de la Paleta de Comandos (Ctrl+K) y Diagnósticos Preflight."""
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page(viewport={"width": 1920, "height": 1080})
+        await page.goto(BASE_URL, wait_until="domcontentloaded", timeout=15000)
+
+        # 1. Abrir Command Palette con teclado (Ctrl+K)
+        await page.keyboard.press("Control+k")
+        await page.wait_for_timeout(300)
+        modal = page.locator("#commandPaletteModal")
+        assert not await modal.evaluate("el => el.classList.contains('hidden')")
+
+        # Filtrar comandos
+        await page.locator("#cmdPaletteInput").fill("Repetidores")
+        await page.wait_for_timeout(200)
+
+        # Cerrar con Escape
+        await page.keyboard.press("Escape")
+        await page.wait_for_timeout(200)
+        assert await modal.evaluate("el => el.classList.contains('hidden')")
+
+        # 2. Navegar a Ajustes y ejecutar Preflight
+        await page.locator('[data-tab="tab-settings"]').click()
+        await page.wait_for_timeout(300)
+
+        await page.locator("#btnRunPreflight").click()
+        await page.wait_for_timeout(2000)
+
+        results = await page.locator("#preflightResults").inner_text()
+        assert "OK" in results or "PASS" in results or "diagn" in results.lower()
+
+        await browser.close()
+
+
+@pytest.mark.asyncio
+async def test_e2e_settings_and_remote_repeater_config() -> None:
+    """Prueba interactiva de configuración local y administración remota de repetidores."""
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page(viewport={"width": 1920, "height": 1080})
+        await page.goto(BASE_URL, wait_until="domcontentloaded", timeout=15000)
+
+        # 1. Navegar a Ajustes
+        await page.locator('[data-tab="tab-settings"]').click()
+        await page.wait_for_timeout(300)
+
+        # 2. Modificar parámetros del nodo local
+        name_input = page.locator("#localNodeName")
+        await name_input.fill("Base_Station_Playwright_E2E")
+        await page.locator("#localSf").select_option("10")
+        await page.locator("#localBw").select_option("500")
+
+        # Guardar local
+        page.on("dialog", lambda dialog: dialog.accept())
+        await page.locator("#btnSaveLocalConfig").click()
+        await page.wait_for_timeout(600)
+
+        # 3. Configuración remota de repetidor vecino
+        await page.locator("#remoteTargetNodeManual").fill("a1b2c3d4e5f6")
+        await page.locator("#remoteAdminPassword").fill("secret_pass_123")
+        await page.locator("#remoteRepeaterName").fill("Repeater_Tower_North")
+        await page.locator("#remoteTxPower").fill("22")
+
+        # Aplicar configuración remota
+        await page.locator("#btnApplyRemoteConfig").click()
+        await page.wait_for_timeout(600)
+
+        # Probar login remoto
+        await page.locator("#btnTestRemoteLogin").click()
+        await page.wait_for_timeout(600)
+
+        # Verificar feed de respuestas
+        resp_text = await page.locator("#remoteResponseOutput").inner_text()
+        assert "a1b2c3d4e5f6" in resp_text or "despachado" in resp_text.lower() or "transmitido" in resp_text.lower()
+
+        # Captura de pantalla de la vista de ajustes
+        await page.screenshot(path=str(ARTIFACTS_DIR / "settings_e2e.png"), full_page=True)
+
+        await browser.close()
+
+

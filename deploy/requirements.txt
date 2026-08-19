@@ -1,0 +1,7 @@
+# Dependencias requeridas para MeshCore Bridge v2.1 (Producción)
+paho-mqtt>=2.0.0
+meshcore>=1.17.0
+python-dotenv>=1.0.0
+pyserial>=3.5
+pyserial-asyncio>=0.6
+cryptography>=41.0.0
