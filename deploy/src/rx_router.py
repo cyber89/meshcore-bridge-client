@@ -95,8 +95,8 @@ class RxEventRouter:
             if payload_dict.get("is_outgoing") is True:
                 return
 
-            rssi = payload_dict.get("rssi", payload_dict.get("RSSI", -80))
-            snr = payload_dict.get("snr", payload_dict.get("SNR", 10.0))
+            rssi = payload_dict.get("rssi", payload_dict.get("RSSI"))
+            snr = payload_dict.get("snr", payload_dict.get("SNR"))
             sender_raw = str(payload_dict.get("sender", payload_dict.get("pubkey_prefix", payload_dict.get("public_key", "unknown")))).strip()
             sender = self._ctx.node_registry.get_canonical_key(sender_raw)
             sender_name = str(payload_dict.get("sender_name", self._resolve_sender_name(sender)))
@@ -143,8 +143,8 @@ class RxEventRouter:
                     public_key=sender,
                     name=sender_name if sender_name != sender else None,
                     role=role_val or "CLIENT",
-                    rssi=int(rssi) if isinstance(rssi, (int, float)) else -80,
-                    snr=float(snr) if isinstance(snr, (int, float)) else 10.0,
+                    rssi=int(rssi) if isinstance(rssi, (int, float)) else None,
+                    snr=float(snr) if isinstance(snr, (int, float)) else None,
                     hops=hops,
                 )
 
@@ -261,8 +261,8 @@ class RxEventRouter:
                 NodeContactUpdate(
                     name=msg.sender_name,
                     role="REPEATER",
-                    last_rssi=int(msg.rssi) if isinstance(msg.rssi, (int, float)) else -80,
-                    last_snr=float(msg.snr) if isinstance(msg.snr, (int, float)) else 10.0,
+                    last_rssi=int(msg.rssi) if isinstance(msg.rssi, (int, float)) else extracted_telem.get("last_rssi"),
+                    last_snr=float(msg.snr) if isinstance(msg.snr, (int, float)) else extracted_telem.get("last_snr"),
                     battery_pct=extracted_telem.get("battery_pct"),
                     voltage_v=extracted_telem.get("voltage_v"),
                     solar_v=extracted_telem.get("solar_v"),

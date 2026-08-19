@@ -469,6 +469,18 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 - **Contratos / Interfaces Modificadas**: Enriquecimiento de atributos en `NodeContactInfo.to_dict()` (`coding_rate`, `fixed_position`).
 - **Estado**: COMPLETADO
 
+### [TASK-2026-08-19-12] Auditoría y Saneamiento Integral de Valores Nulos/Ficticios y Fortalecimiento de Excepciones
+- **Fecha y Hora**: 2026-08-19 19:05
+- **Agente Responsable**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect), Agente 2 (Bridge Architect), Agente 5 (Security Auditor)
+- **Objetivo**: Auditar todas las vistas de la aplicación web y módulos backend para eliminar valores `null`, `undefined` o datos de medición ficticios (`-80 dBm`, `10 dB`, `-118 dBm`, `0 saltos`, `10 dB dB`, etc.), garantizando que todas las métricas reflejen mediciones reales capturadas o se muestren limpiamente como `--`, y robustecer el control de excepciones con notificaciones Toast informativas y degradación elegante.
+- **Archivos Modificados / Creados**:
+  - `src/web/static/js/app.js`: Saneamiento de `addSnifferPacket`, `pingZero`, `renderSnifferPacket`, `showPacketDetail`, `renderAnalyticsDashboard`, `fetchLocalNodeConfig`, `appendChatMessage`, `updateHeaderMetrics`, `initHeatmap`, `renderTracerouteGraph`, `renderTracerouteTable`, `renderNodesDirectory` y `updateMapNodes`. Eliminación de literales duplicados y comprobaciones estrictas con `!= null`.
+  - `src/contact_manager.py`: Eliminados valores por defecto ficticios (`-80`, `10.0`) en `discover_node()` y `record_packet()`; en `get_analytics_summary()`, cálculo de mejores y peores señales restringido exclusivamente a nodos con mediciones reales de SNR.
+  - `src/rx_router.py`: Eliminados fallbacks hardcodeados en la extracción de paquetes de radio y mensajes directos.
+  - `src/web/api_router.py`: En `/api/rf/heatmap` y `/api/rf/noise`, retorno estricto de mediciones reales o `None` sin falsear ruido o SNR si no han sido capturados.
+- **Contratos / Interfaces Modificadas**: Ninguno (saneamiento de contratos de datos y eliminación de ruido simulado).
+- **Estado**: COMPLETADO
+
 ---
 
 ## 📝 Plantilla de Registro para Nuevas Tareas

@@ -292,9 +292,9 @@ class NodeRegistry:
         public_key: str,
         name: str | None = None,
         role: str = "CLIENT",
-        rssi: int = -80,
-        snr: float = 10.0,
-        hops: int = 0,
+        rssi: int | None = None,
+        snr: float | None = None,
+        hops: int | None = None,
     ) -> tuple[bool, NodeContactInfo]:
         """
         Descubre un nuevo nodo en el aire si no existía previamente.
@@ -412,8 +412,8 @@ class NodeRegistry:
             NodeContactUpdate(
                 name=existing.name if existing else f"Node_{target_key[:6]}",
                 alias=existing.alias if existing else "",
-                last_rssi=event.rssi if event.rssi is not None else (existing.last_rssi if existing else -80),
-                last_snr=event.snr if event.snr is not None else (existing.last_snr if existing else 10.0),
+                last_rssi=event.rssi if event.rssi is not None else (existing.last_rssi if existing else None),
+                last_snr=event.snr if event.snr is not None else (existing.last_snr if existing else None),
                 battery_pct=batt if batt is not None else (existing.battery_pct if existing else None),
                 rx_packets=curr_rx,
                 tx_packets=curr_tx,
@@ -495,9 +495,10 @@ class NodeRegistry:
         # 1. Top Nodos por Tráfico (RX + TX)
         top_traffic = heapq.nlargest(10, nodes_list, key=lambda n: int(str(n.get("total_packets", 0))))
 
-        # 2. Top Nodos por Calidad de Señal (SNR / RSSI)
-        top_best_signal = heapq.nlargest(5, nodes_list, key=lambda n: float(str(n.get("last_snr", 0.0))))
-        top_worst_signal = heapq.nsmallest(5, nodes_list, key=lambda n: float(str(n.get("last_snr", 0.0))))
+        # 2. Top Nodos por Calidad de Señal (SNR / RSSI) - Solo nodos con mediciones reales
+        measured_nodes = [n for n in nodes_list if n.get("last_snr") is not None]
+        top_best_signal = heapq.nlargest(5, measured_nodes, key=lambda n: float(n.get("last_snr", 0.0)))
+        top_worst_signal = heapq.nsmallest(5, measured_nodes, key=lambda n: float(n.get("last_snr", 0.0)))
 
         # 3. Top Clientes Conectados por Repetidor
         top_repeaters = heapq.nlargest(5, nodes_list, key=lambda n: int(str(n.get("connected_clients_count", 0))))

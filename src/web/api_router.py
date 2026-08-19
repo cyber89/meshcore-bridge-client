@@ -239,9 +239,10 @@ class WebAPIRouter:
                     lat = n.get("latitude")
                     lon = n.get("longitude")
                     if lat is not None and lon is not None and lat != 0.0 and lon != 0.0:
-                        rssi = n.get("last_rssi") or -80
-                        snr = n.get("last_snr") or 10.0
-                        weight = max(0.1, min(1.0, round((rssi + 120.0) / 70.0, 2)))
+                        rssi = n.get("last_rssi")
+                        snr = n.get("last_snr")
+                        rssi_val = rssi if rssi is not None else -100
+                        weight = max(0.1, min(1.0, round((rssi_val + 120.0) / 70.0, 2)))
                         heatmap_points.append({
                             "lat": lat,
                             "lon": lon,
@@ -250,7 +251,7 @@ class WebAPIRouter:
                             "name": n.get("name") or n.get("alias") or n.get("public_key", "")[:8],
                             "role": n.get("role", "CLIENT"),
                             "weight": weight,
-                            "noise_floor": n.get("noise_floor_dbm", -118),
+                            "noise_floor": n.get("noise_floor_dbm"),
                         })
                 return 200, {"status": "ok", "data": {"points": heatmap_points, "count": len(heatmap_points)}}
 
@@ -262,9 +263,9 @@ class WebAPIRouter:
                         "pubkey": n.get("public_key"),
                         "name": n.get("name") or n.get("alias"),
                         "role": n.get("role"),
-                        "noise_floor_dbm": n.get("noise_floor_dbm", -118),
-                        "snr": n.get("last_snr", 10.0),
-                        "rssi": n.get("last_rssi", -80),
+                        "noise_floor_dbm": n.get("noise_floor_dbm"),
+                        "snr": n.get("last_snr"),
+                        "rssi": n.get("last_rssi"),
                         "channel": n.get("channel", 0),
                         "freq": n.get("frequency", 915.0),
                     })

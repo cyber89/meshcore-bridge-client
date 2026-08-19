@@ -150,8 +150,8 @@ class MeshCoreStorage {
         opcode: String(pkt.opcode || pkt.payload_type || "DATA").toUpperCase(),
         sender: String(pkt.sender || pkt.src_node_id || pkt.from || "RF"),
         to: String(pkt.to || pkt.dst_node_id || "0xFFFF"),
-        snr: pkt.metrics?.snr !== undefined ? pkt.metrics.snr : (pkt.snr !== undefined ? pkt.snr : "--"),
-        rssi: pkt.metrics?.rssi !== undefined ? pkt.metrics.rssi : (pkt.rssi !== undefined ? pkt.rssi : "--"),
+        snr: pkt.metrics?.snr != null ? pkt.metrics.snr : (pkt.snr != null ? pkt.snr : "--"),
+        rssi: pkt.metrics?.rssi != null ? pkt.metrics.rssi : (pkt.rssi != null ? pkt.rssi : "--"),
         byte_length: pkt.byte_length || pkt.length || (pkt.raw_hex ? Math.floor(pkt.raw_hex.length / 2) : 0),
         raw_hex: pkt.raw_hex || pkt.raw || "",
         text: pkt.text || "",
@@ -1283,7 +1283,8 @@ class MeshCoreStationApp {
     // 0. Estado de Ping Zero previo
     if (this.dom.adminModalPingZeroBadge) {
       if (node.ping_zero_rtt) {
-        this.dom.adminModalPingZeroBadge.textContent = `🎯 Ping 0: ${node.ping_zero_rtt} ms (${node.last_rssi || -80} dBm)`;
+        const pingRssi = node.last_rssi != null ? ` (${node.last_rssi} dBm)` : "";
+        this.dom.adminModalPingZeroBadge.textContent = `🎯 Ping 0: ${node.ping_zero_rtt} ms${pingRssi}`;
         this.dom.adminModalPingZeroBadge.className = "ping-zero-badge ping-success";
       } else {
         this.dom.adminModalPingZeroBadge.textContent = "🎯 Ping 0: -- ms";
@@ -1292,7 +1293,9 @@ class MeshCoreStationApp {
     }
     if (this.dom.repQuickPingResult) {
       if (node.ping_zero_rtt) {
-        this.dom.repQuickPingResult.textContent = `🟢 RTT ${node.ping_zero_rtt} ms • RSSI ${node.last_rssi || -80} dBm • SNR ${node.last_snr || 10} dB (0 Saltos)`;
+        const rRssi = node.last_rssi != null ? ` • RSSI ${node.last_rssi} dBm` : "";
+        const rSnr = node.last_snr != null ? ` • SNR ${node.last_snr} dB` : "";
+        this.dom.repQuickPingResult.textContent = `🟢 RTT ${node.ping_zero_rtt} ms${rRssi}${rSnr} (0 Saltos)`;
       } else {
         this.dom.repQuickPingResult.textContent = "Sin mediciones recientes";
       }
@@ -1853,18 +1856,21 @@ class MeshCoreStationApp {
       if (data.status === "ok" && data.data) {
         const pingData = data.data;
         const rtt = pingData.rtt_ms || 0;
-        const rssi = pingData.rssi !== undefined ? pingData.rssi : "--";
-        const snr = pingData.snr !== undefined ? pingData.snr : "--";
+        const rssi = pingData.rssi != null ? pingData.rssi : "--";
+        const snr = pingData.snr != null ? pingData.snr : "--";
 
-        const line = `✓ [PONG DIRECTO] RTT: ${rtt} ms | RSSI: ${rssi} dBm | SNR: ${snr} dB | Hops: 0 (Directo)`;
+        const line = `✓ [PONG DIRECTO] RTT: ${rtt} ms | RSSI: ${rssi !== "--" ? `${rssi} dBm` : "--"} | SNR: ${snr !== "--" ? `${snr} dB` : "--"} | Hops: 0 (Directo)`;
         this.appendTerminalLine(line, "term-success");
 
         if (this.dom.adminModalPingZeroBadge) {
-          this.dom.adminModalPingZeroBadge.textContent = `🎯 Ping 0: ${rtt} ms (${rssi} dBm)`;
+          const rssiPart = rssi !== "--" ? ` (${rssi} dBm)` : "";
+          this.dom.adminModalPingZeroBadge.textContent = `🎯 Ping 0: ${rtt} ms${rssiPart}`;
           this.dom.adminModalPingZeroBadge.className = "ping-zero-badge ping-success";
         }
         if (this.dom.repQuickPingResult) {
-          this.dom.repQuickPingResult.textContent = `🟢 RTT ${rtt} ms • RSSI ${rssi} dBm • SNR ${snr} dB (0 Saltos)`;
+          const rPart = rssi !== "--" ? ` • RSSI ${rssi} dBm` : "";
+          const sPart = snr !== "--" ? ` • SNR ${snr} dB` : "";
+          this.dom.repQuickPingResult.textContent = `🟢 RTT ${rtt} ms${rPart}${sPart} (0 Saltos)`;
         }
 
         // Actualizar nodo en knownNodes si existe
@@ -2247,8 +2253,8 @@ class MeshCoreStationApp {
     const opcode = String(pkt.opcode || pkt.payload_type || "DATA").toUpperCase();
     const src = String(pkt.sender || pkt.src_node_id || pkt.from || "RF");
     const dst = String(pkt.to || pkt.dst_node_id || "0xFFFF");
-    const snr = pkt.metrics?.snr !== undefined ? pkt.metrics.snr : (pkt.snr !== undefined ? pkt.snr : "--");
-    const rssi = pkt.metrics?.rssi !== undefined ? pkt.metrics.rssi : (pkt.rssi !== undefined ? pkt.rssi : "--");
+    const snr = pkt.metrics?.snr != null ? pkt.metrics.snr : (pkt.snr != null ? pkt.snr : "--");
+    const rssi = pkt.metrics?.rssi != null ? pkt.metrics.rssi : (pkt.rssi != null ? pkt.rssi : "--");
     const len = pkt.byte_length || pkt.length || (pkt.raw_hex ? Math.floor(pkt.raw_hex.length / 2) : 0);
     const hex = pkt.raw_hex || pkt.raw || "";
 
@@ -2266,12 +2272,15 @@ class MeshCoreStationApp {
     const shortSrc = src.length > 12 ? `${src.slice(0, 8)}...` : src;
     const shortDst = dst.length > 12 ? `${dst.slice(0, 8)}...` : dst;
 
+    const snrText = snr !== "--" ? `${snr} dB` : "--";
+    const rssiText = rssi !== "--" ? `${rssi} dBm` : "--";
+
     tr.innerHTML = `
       <td style="color: var(--text-muted); font-size: 11px;">${new Date().toLocaleTimeString()}</td>
       <td><span class="badge-opcode ${badgeClass}">${this.escapeHtml(opcode)}</span></td>
       <td><code class="font-mono" title="${this.escapeHtml(src)}">${this.escapeHtml(shortSrc)}</code></td>
       <td><code class="font-mono" title="${this.escapeHtml(dst)}">${this.escapeHtml(shortDst)}</code></td>
-      <td><strong>${snr} dB</strong> <span style="color: var(--text-muted); font-size: 11px;">/ ${rssi} dBm</span></td>
+      <td><strong>${snrText}</strong> <span style="color: var(--text-muted); font-size: 11px;">/ ${rssiText}</span></td>
       <td><span class="badge-pill" style="font-size: 10.5px;">${len} B</span></td>
       <td><span class="hex-preview-box" title="${this.escapeHtml(hex)}">${this.escapeHtml(hex.slice(0, 32))}${hex.length > 32 ? "..." : ""}</span></td>
       <td><button type="button" class="btn-xs btn-outline btn-view-pkt">🔍 Ver</button></td>
@@ -2316,8 +2325,8 @@ class MeshCoreStationApp {
     const hex = pkt.raw_hex || pkt.raw || "";
     const src = pkt.sender || pkt.src_node_id || pkt.from || "RF";
     const dst = pkt.to || pkt.dst_node_id || "0xFFFF";
-    const snr = pkt.metrics?.snr !== undefined ? pkt.metrics.snr : (pkt.snr !== undefined ? pkt.snr : "--");
-    const rssi = pkt.metrics?.rssi !== undefined ? pkt.metrics.rssi : (pkt.rssi !== undefined ? pkt.rssi : "--");
+    const snr = pkt.metrics?.snr != null ? pkt.metrics.snr : (pkt.snr != null ? pkt.snr : "--");
+    const rssi = pkt.metrics?.rssi != null ? pkt.metrics.rssi : (pkt.rssi != null ? pkt.rssi : "--");
     const len = pkt.byte_length || pkt.length || (hex ? Math.floor(hex.length / 2) : 0);
 
     // Formatear Hex con Offset estilo Wireshark
@@ -2725,22 +2734,25 @@ class MeshCoreStationApp {
           for (const n of bestSnr) {
             const tr = document.createElement("tr");
             const name = n.alias || n.name || (n.public_key ? `Nodo ${n.public_key.slice(0, 6)}` : "Nodo");
-            const snr = parseFloat(n.last_snr !== undefined ? n.last_snr : (n.snr || 0));
-            const rssi = n.last_rssi !== undefined ? n.last_rssi : (n.rssi || "--");
+            const rawSnr = n.last_snr != null ? n.last_snr : (n.snr != null ? n.snr : null);
+            const rawRssi = n.last_rssi != null ? n.last_rssi : (n.rssi != null ? n.rssi : null);
+            const snr = rawSnr != null ? parseFloat(rawSnr) : null;
+            const rssi = rawRssi != null ? rawRssi : "--";
 
-            const pct = Math.min(Math.max(((snr + 15) / 30) * 100, 10), 100);
-            const qualityClass = snr >= 6 ? "good" : (snr >= 0 ? "medium" : "poor");
+            const snrNum = snr != null ? snr : 0;
+            const pct = Math.min(Math.max(((snrNum + 15) / 30) * 100, 10), 100);
+            const qualityClass = snr != null ? (snr >= 6 ? "good" : (snr >= 0 ? "medium" : "poor")) : "medium";
 
             tr.innerHTML = `
               <td><strong>${this.escapeHtml(name)}</strong></td>
-              <td><strong>${snr.toFixed(1)} dB</strong></td>
-              <td>${rssi} dBm</td>
+              <td><strong>${snr != null ? `${snr.toFixed(1)} dB` : "--"}</strong></td>
+              <td>${rssi !== "--" ? `${rssi} dBm` : "--"}</td>
               <td>
                 <div class="signal-bar-wrap">
                   <div class="signal-bar-bg">
                     <div class="signal-bar-fill ${qualityClass}" style="width: ${pct}%;"></div>
                   </div>
-                  <span style="font-size: 10.5px; color: var(--text-muted);">${qualityClass.toUpperCase()}</span>
+                  <span style="font-size: 10.5px; color: var(--text-muted);">${snr != null ? qualityClass.toUpperCase() : "N/D"}</span>
                 </div>
               </td>
             `;
@@ -2761,15 +2773,15 @@ class MeshCoreStationApp {
           for (const r of repeatersList) {
             const tr = document.createElement("tr");
             const name = r.alias || r.name || (r.public_key ? `Router ${r.public_key.slice(0, 6)}` : "Repetidor");
-            const clientsCount = r.connected_clients_count || (r.neighbors ? r.neighbors.length : 0);
-            const txPower = r.tx_power || 20;
-            const hopLimit = r.hop_limit || 3;
+            const clientsCount = r.connected_clients_count != null ? r.connected_clients_count : (r.neighbors ? r.neighbors.length : 0);
+            const txPower = r.tx_power != null ? `${r.tx_power} dBm` : "--";
+            const hopLimit = r.hop_limit != null ? `${r.hop_limit} saltos` : (r.hops != null ? `${r.hops} saltos` : "--");
 
             tr.innerHTML = `
               <td><strong>${this.escapeHtml(name)}</strong></td>
               <td><span class="badge-pill badge-success">${clientsCount} nodo(s)</span></td>
-              <td>${txPower} dBm</td>
-              <td>${hopLimit} saltos</td>
+              <td>${txPower}</td>
+              <td>${hopLimit}</td>
             `;
             frag.appendChild(tr);
           }
@@ -3185,27 +3197,29 @@ class MeshCoreStationApp {
       }
 
       // Telemetría en Vivo
-      if (cfg.battery_pct !== undefined || cfg.battery !== undefined) {
+      const batVal = cfg.battery_pct != null ? cfg.battery_pct : (cfg.battery != null ? cfg.battery : null);
+      if (batVal != null) {
         const batEl = document.getElementById("localBatValue");
-        if (batEl) batEl.textContent = `${cfg.battery_pct || cfg.battery}%`;
+        if (batEl) batEl.textContent = `${batVal}%`;
       }
-      if (cfg.battery_mv !== undefined || cfg.voltage !== undefined) {
+      const voltVal = cfg.battery_mv != null ? (cfg.battery_mv / 1000).toFixed(2) : (cfg.voltage != null ? Number(cfg.voltage).toFixed(2) : null);
+      if (voltVal != null) {
         const vEl = document.getElementById("localVoltValue");
-        if (vEl) vEl.textContent = `${((cfg.battery_mv || cfg.voltage * 1000) / 1000).toFixed(2)} V`;
+        if (vEl) vEl.textContent = `${voltVal} V`;
       }
-      if (cfg.uptime_str || cfg.uptime) {
+      if (cfg.uptime_str || cfg.uptime != null) {
         const upEl = document.getElementById("localUptimeValue");
         if (upEl) upEl.textContent = cfg.uptime_str || `${cfg.uptime}s`;
       }
-      if (cfg.airtime_ms !== undefined) {
+      if (cfg.airtime_ms != null) {
         const airEl = document.getElementById("localAirtimeValue");
         if (airEl) airEl.textContent = `${cfg.airtime_ms} ms`;
       }
-      if (cfg.last_snr !== undefined) {
+      if (cfg.last_snr != null) {
         const snrEl = document.getElementById("localSnrValue");
         if (snrEl) snrEl.textContent = `${cfg.last_snr} dB`;
       }
-      if (cfg.last_rssi !== undefined) {
+      if (cfg.last_rssi != null) {
         const rssiEl = document.getElementById("localRssiValue");
         if (rssiEl) rssiEl.textContent = `RSSI: ${cfg.last_rssi} dBm`;
       }
@@ -3225,7 +3239,7 @@ class MeshCoreStationApp {
           const errEl = document.getElementById("localPacketErrorsValue");
           if (errEl) errEl.textContent = `Duplicados: ${m.dup_count ?? 0} | Errores: ${m.err_count ?? 0}`;
           const noiseEl = document.getElementById("localNoiseValue");
-          if (noiseEl) noiseEl.textContent = `${m.noise_floor_dbm ?? -118} dBm`;
+          if (noiseEl) noiseEl.textContent = m.noise_floor_dbm != null ? `${m.noise_floor_dbm} dBm` : "-- dBm";
         }
       } catch (_) {}
     } catch (err) {
@@ -3980,10 +3994,19 @@ class MeshCoreStationApp {
 
     const timeStr = new Date(msg.timestamp || Date.now()).toLocaleTimeString();
     const sender = msg.sender_name || msg.sender || "Anónimo";
-    const rssi = msg.metrics?.rssi || msg.rssi;
-    const snr = msg.metrics?.snr || msg.snr;
+    const rssi = msg.metrics?.rssi != null ? msg.metrics.rssi : (msg.rssi != null ? msg.rssi : null);
+    const snr = msg.metrics?.snr != null ? msg.metrics.snr : (msg.snr != null ? msg.snr : null);
     const ackSymbol = msg.delivered ? "✓✓ TX" : (msg.is_outgoing ? "✓ TX" : "📥 RX");
     const ackTitle = msg.delivered ? `Entregado (${msg.trip_time_ms || 0} ms)` : (msg.is_outgoing ? "Transmitido por radio" : "Recibido");
+
+    let signalHtml = "";
+    if (rssi != null && snr != null) {
+      signalHtml = `<span class="signal-chip">📶 ${rssi} dBm / ${snr} dB</span>`;
+    } else if (rssi != null) {
+      signalHtml = `<span class="signal-chip">📶 ${rssi} dBm</span>`;
+    } else if (snr != null) {
+      signalHtml = `<span class="signal-chip">📶 ${snr} dB</span>`;
+    }
 
     row.innerHTML = `
       <div class="msg-meta">
@@ -3992,7 +4015,7 @@ class MeshCoreStationApp {
       </div>
       <div class="msg-bubble">${this.escapeHtml(msg.text)}</div>
       <div class="msg-footer">
-        ${rssi !== undefined ? `<span class="signal-chip">📶 ${rssi} dBm / ${snr} dB</span>` : ""}
+        ${signalHtml}
         <span class="msg-ack-status ${msg.delivered ? 'delivered' : (msg.is_outgoing ? 'sent' : 'received')}" title="${ackTitle}">${ackSymbol}</span>
       </div>
     `;
@@ -4169,23 +4192,23 @@ class MeshCoreStationApp {
     const nodeCount = metrics.node_count ?? metrics.known_mesh_nodes;
     const rxCount = metrics.rx_count ?? metrics.total_rx_packets;
     const txCount = metrics.tx_count ?? metrics.total_tx_packets;
-    const errorRate = metrics.error_rate !== undefined ? metrics.error_rate : (metrics.total_tx_errors !== undefined ? metrics.total_tx_errors : undefined);
+    const errorRate = metrics.error_rate != null ? metrics.error_rate : (metrics.total_tx_errors != null ? metrics.total_tx_errors : null);
     const queueDepth = metrics.queue_depth ?? metrics.tx_queue_depth;
 
-    if (nodeCount !== undefined && this.dom.headerNodeCount) {
+    if (nodeCount != null && this.dom.headerNodeCount) {
       this.dom.headerNodeCount.textContent = nodeCount;
     }
-    if (rxCount !== undefined && this.dom.headerRxCount) {
+    if (rxCount != null && this.dom.headerRxCount) {
       this.dom.headerRxCount.textContent = rxCount;
     }
-    if (txCount !== undefined && this.dom.headerTxCount) {
+    if (txCount != null && this.dom.headerTxCount) {
       this.dom.headerTxCount.textContent = txCount;
     }
-    if (errorRate !== undefined && this.dom.headerErrorRate) {
+    if (errorRate != null && this.dom.headerErrorRate) {
       const errStr = typeof errorRate === "number" ? `${errorRate}%` : `${errorRate}`;
       this.dom.headerErrorRate.textContent = errStr.endsWith("%") ? errStr : `${errStr}%`;
     }
-    if (queueDepth !== undefined && this.dom.headerQueueDepth) {
+    if (queueDepth != null && this.dom.headerQueueDepth) {
       this.dom.headerQueueDepth.textContent = queueDepth;
     }
   }
@@ -4427,11 +4450,12 @@ class MeshCoreStationApp {
         this.rfHeatmapGroup.clearLayers();
 
         data.data.points.forEach((pt) => {
-          const radius = Math.max(400, Math.min(3000, (pt.rssi + 130) * 40));
+          const ptRssi = pt.rssi != null ? pt.rssi : -100;
+          const radius = Math.max(400, Math.min(3000, (ptRssi + 130) * 40));
           let color = "#ef4444"; // Rojo (débil)
-          if (pt.rssi >= -75) color = "#22c55e"; // Verde (excelente)
-          else if (pt.rssi >= -95) color = "#0ea5e9"; // Azul (bueno)
-          else if (pt.rssi >= -110) color = "#f59e0b"; // Amarillo (regular)
+          if (ptRssi >= -75) color = "#22c55e"; // Verde (excelente)
+          else if (ptRssi >= -95) color = "#0ea5e9"; // Azul (bueno)
+          else if (ptRssi >= -110) color = "#f59e0b"; // Amarillo (regular)
 
           const circle = L.circle([pt.lat, pt.lon], {
             radius: radius,
@@ -4440,10 +4464,13 @@ class MeshCoreStationApp {
             fillOpacity: 0.28,
             weight: 2,
           });
+          const rssiPart = pt.rssi != null ? `${pt.rssi} dBm` : "--";
+          const snrPart = pt.snr != null ? `${pt.snr} dB` : "--";
+          const noisePart = pt.noise_floor != null ? `${pt.noise_floor} dBm` : "--";
           circle.bindPopup(`
             <strong>🔥 Cobertura RF: ${this.escapeHtml(pt.name)}</strong><br/>
-            RSSI: <strong>${pt.rssi} dBm</strong> | SNR: <strong>${pt.snr} dB</strong><br/>
-            Piso de Ruido: <strong>${pt.noise_floor} dBm</strong>
+            RSSI: <strong>${rssiPart}</strong> | SNR: <strong>${snrPart}</strong><br/>
+            Piso de Ruido: <strong>${noisePart}</strong>
           `);
           this.rfHeatmapGroup.addLayer(circle);
         });
@@ -4665,26 +4692,31 @@ class MeshCoreStationApp {
       const isFirst = idx === 0;
       const isLast = idx === hops.length - 1;
       const roleIcon = isFirst ? "🏠" : isLast ? "🎯" : "🏔️";
-      const snrVal = hop.snr_in !== undefined ? hop.snr_in : 10.0;
+      const rawSnr = hop.snr_in != null ? hop.snr_in : (hop.snr != null ? hop.snr : null);
+      const snrVal = rawSnr != null ? rawSnr : null;
       let snrColor = "#22c55e"; // Verde (> 6 dB)
-      if (snrVal < 0) snrColor = "#ef4444"; // Rojo
-      else if (snrVal < 6) snrColor = "#f59e0b"; // Amarillo
+      if (snrVal != null) {
+        if (snrVal < 0) snrColor = "#ef4444"; // Rojo
+        else if (snrVal < 6) snrColor = "#f59e0b"; // Amarillo
+      } else {
+        snrColor = "var(--text-muted)";
+      }
 
       html += `
         <div class="trace-node-box ${isFirst ? 'trace-node-base' : isLast ? 'trace-node-target' : 'trace-node-hop'}">
           <div class="trace-node-avatar">${roleIcon}</div>
           <strong class="trace-node-name">${this.escapeHtml(hop.name || hop.pubkey.slice(0, 8))}</strong>
           <span class="trace-node-pk font-mono">${this.escapeHtml(hop.pubkey.slice(0, 8))}</span>
-          <span class="trace-node-snr" style="color: ${snrColor};">📶 ${snrVal} dB</span>
+          <span class="trace-node-snr" style="color: ${snrColor};">📶 ${snrVal != null ? `${snrVal} dB` : "--"}</span>
         </div>
       `;
 
       if (!isLast) {
         const nextHop = hops[idx + 1];
-        const segRtt = nextHop.rtt_segment_ms || 0;
+        const segRtt = nextHop.rtt_segment_ms != null ? `${nextHop.rtt_segment_ms} ms` : "--";
         html += `
           <div class="trace-link-arrow">
-            <span class="trace-link-rtt">${segRtt} ms</span>
+            <span class="trace-link-rtt">${segRtt}</span>
             <div class="trace-link-line" style="background-color: ${snrColor};"></div>
             <span class="trace-link-sym">➔</span>
           </div>
@@ -4699,14 +4731,17 @@ class MeshCoreStationApp {
     if (!this.dom.traceBreakdownTableBody || !hops || hops.length === 0) return;
     let html = "";
     hops.forEach((h) => {
+      const snrInStr = h.snr_in != null ? `${h.snr_in} dB` : "--";
+      const snrOutStr = h.snr_out != null ? `${h.snr_out} dB` : "--";
+      const rttStr = h.rtt_segment_ms != null ? `${h.rtt_segment_ms} ms` : "--";
       html += `
         <tr>
           <td><strong>#${h.hop_index}</strong></td>
           <td>${this.escapeHtml(h.name)}</td>
           <td class="font-mono">${this.escapeHtml(h.pubkey.slice(0, 12))}</td>
-          <td><span class="stat-pill">📶 ${h.snr_in} dB</span></td>
-          <td><span class="stat-pill">📡 ${h.snr_out} dB</span></td>
-          <td>⏱️ ${h.rtt_segment_ms} ms</td>
+          <td><span class="stat-pill">📶 ${snrInStr}</span></td>
+          <td><span class="stat-pill">📡 ${snrOutStr}</span></td>
+          <td>⏱️ ${rttStr}</td>
         </tr>
       `;
     });
@@ -5133,51 +5168,53 @@ class MeshCoreStationApp {
         let bodyHtml = "";
 
         if (isSensor) {
-          const temp = node.temperature_c !== undefined ? node.temperature_c : (node.temp !== undefined ? node.temp : "--");
-          const hum = node.humidity_pct !== undefined ? node.humidity_pct : (node.humidity !== undefined ? node.humidity : "--");
-          const press = node.pressure_hpa !== undefined ? node.pressure_hpa : (node.pressure !== undefined ? node.pressure : "--");
+          const temp = node.temperature_c != null ? node.temperature_c : (node.temp != null ? node.temp : "--");
+          const hum = node.humidity_pct != null ? node.humidity_pct : (node.humidity != null ? node.humidity : "--");
+          const press = node.pressure_hpa != null ? node.pressure_hpa : (node.pressure != null ? node.pressure : "--");
           bodyHtml = `
             <div class="node-telemetry-panel">
               <div class="telemetry-sensors-grid">
                 <div class="sensor-box">
                   <span class="sensor-box-label">Temp</span>
-                  <span class="sensor-box-value sensor-temp-val">${temp}°C</span>
+                  <span class="sensor-box-value sensor-temp-val">${temp !== "--" ? `${temp}°C` : "--"}</span>
                 </div>
                 <div class="sensor-box">
                   <span class="sensor-box-label">Humedad</span>
-                  <span class="sensor-box-value sensor-hum-val">${hum}%</span>
+                  <span class="sensor-box-value sensor-hum-val">${hum !== "--" ? `${hum}%` : "--"}</span>
                 </div>
                 <div class="sensor-box">
                   <span class="sensor-box-label">Presión</span>
-                  <span class="sensor-box-value sensor-press-val">${press} hPa</span>
+                  <span class="sensor-box-value sensor-press-val">${press !== "--" ? `${press} hPa` : "--"}</span>
                 </div>
               </div>
             </div>
             <div class="node-rf-strip">
-              <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal} dB</strong></span>
-              <span class="stat-pill" title="Intensidad de Señal">📡 <strong>${rssiVal} dBm</strong></span>
-              <span class="stat-pill" title="Saltos">🦘 <strong>${node.hops || 0} saltos</strong></span>
+              <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal}</strong></span>
+              <span class="stat-pill" title="Intensidad de Señal">📡 <strong>${rssiVal}</strong></span>
+              <span class="stat-pill" title="Saltos">🦘 <strong>${hopsVal}</strong></span>
             </div>
             <div class="node-actions-bar">
               <button type="button" class="btn-secondary btn-sm btn-node-primary btn-sensor-qr" title="Exportar QR del sensor">📤 QR Telemetría</button>
             </div>
           `;
         } else if (isRepeater) {
+          const txPowerStr = node.tx_power != null ? `${node.tx_power} dBm` : "--";
+          const hopLimitStr = node.hop_limit != null ? node.hop_limit : "--";
           bodyHtml = `
             <div class="node-telemetry-panel">
               <div style="font-size: 12px; display: flex; justify-content: space-between; color: var(--text-main);">
                 <span>🏔️ Router de Malla</span>
-                <strong style="color: #c084fc;">TX: ${node.tx_power || 20} dBm</strong>
+                <strong style="color: #c084fc;">TX: ${txPowerStr}</strong>
               </div>
               <div style="font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between;">
                 <span>Reenvío: Activo</span>
-                <span>Hop Limit: ${node.hop_limit || 3}</span>
+                <span>Hop Limit: ${hopLimitStr}</span>
               </div>
             </div>
             <div class="node-rf-strip">
-              <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal} dB</strong></span>
-              <span class="stat-pill" title="Intensidad de Señal">📡 <strong>${rssiVal} dBm</strong></span>
-              <span class="stat-pill" title="Saltos">🦘 <strong>${node.hops || 0} saltos</strong></span>
+              <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal}</strong></span>
+              <span class="stat-pill" title="Intensidad de Señal">📡 <strong>${rssiVal}</strong></span>
+              <span class="stat-pill" title="Saltos">🦘 <strong>${hopsVal}</strong></span>
               ${node.ping_zero_rtt ? `<span class="stat-pill stat-pill-ping" title="Último Ping Zero directo">🎯 <strong>${node.ping_zero_rtt} ms</strong></span>` : ''}
             </div>
             <div class="node-actions-bar">
@@ -5193,9 +5230,9 @@ class MeshCoreStationApp {
               <div style="font-size: 11px; color: var(--text-muted);">Canal: ${node.channel || "General"}</div>
             </div>
             <div class="node-rf-strip">
-              <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal} dB</strong></span>
-              <span class="stat-pill" title="Intensidad de Señal">📡 <strong>${rssiVal} dBm</strong></span>
-              <span class="stat-pill" title="Saltos">🦘 <strong>${node.hops || 0} saltos</strong></span>
+              <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal}</strong></span>
+              <span class="stat-pill" title="Intensidad de Señal">📡 <strong>${rssiVal}</strong></span>
+              <span class="stat-pill" title="Saltos">🦘 <strong>${hopsVal}</strong></span>
             </div>
             <div class="node-actions-bar">
               <button type="button" class="btn-secondary btn-sm btn-node-primary btn-room-channel">💬 Ver Canal</button>
@@ -5205,9 +5242,9 @@ class MeshCoreStationApp {
           // CLIENT
           bodyHtml = `
             <div class="node-rf-strip" style="margin-top: 4px;">
-              <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal} dB</strong></span>
-              <span class="stat-pill" title="Intensidad de Señal">📡 <strong>${rssiVal} dBm</strong></span>
-              <span class="stat-pill" title="Saltos">🦘 <strong>${node.hops || 0} saltos</strong></span>
+              <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal}</strong></span>
+              <span class="stat-pill" title="Intensidad de Señal">📡 <strong>${rssiVal}</strong></span>
+              <span class="stat-pill" title="Saltos">🦘 <strong>${hopsVal}</strong></span>
               ${node.ping_zero_rtt ? `<span class="stat-pill stat-pill-ping" title="Último Ping Zero directo">🎯 <strong>${node.ping_zero_rtt} ms</strong></span>` : ''}
             </div>
             <div class="node-actions-bar">
@@ -5343,6 +5380,7 @@ class MeshCoreStationApp {
           else if (isRepeater) iconType = "repeater";
           else if (isSensor) iconType = "sensor";
 
+          const altStr = (node.altitude_m != null || node.alt != null) ? ` (${node.altitude_m ?? node.alt}m)` : "";
           const popupContent = `
             <div class="custom-map-popup">
               <div class="popup-title">
@@ -5352,7 +5390,7 @@ class MeshCoreStationApp {
                 <div><span>Rol:</span> <strong>${roleStr}</strong></div>
                 <div><span>SNR:</span> <strong>${snrVal}</strong></div>
                 <div><span>Batería:</span> <strong>${batVal}</strong></div>
-                <div><span>GPS:</span> <code>${lat.toFixed(4)}, ${lon.toFixed(4)}</code> (${node.altitude_m || node.alt || 0}m)</div>
+                <div><span>GPS:</span> <code>${lat.toFixed(4)}, ${lon.toFixed(4)}</code>${altStr}</div>
               </div>
             </div>
           `;
