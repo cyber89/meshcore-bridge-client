@@ -1141,7 +1141,11 @@
         <div class="modal-header repeater-admin-modal-header">
           <div class="header-node-info">
             <h3 id="repeaterAdminTitle">🎛️ Centro de Control RF: <span id="adminModalNodeName">Repetidor</span></h3>
-            <span class="modal-pubkey-badge font-mono" id="adminModalNodePkDisplay">--</span>
+            <div class="header-node-badges">
+              <span class="modal-pubkey-badge font-mono" id="adminModalNodePkDisplay">--</span>
+              <span class="ping-zero-badge" id="adminModalPingZeroBadge" title="Latencia directa de 0 saltos">🎯 Ping 0: -- ms</span>
+              <button type="button" class="btn-xs btn-outline btn-modal-ping-zero" id="btnModalHeaderPingZero" title="Hacer Ping Zero directo (0 saltos)">🎯 Ping Zero</button>
+            </div>
           </div>
           <button class="btn-icon modal-close" id="btnCloseRepeaterAdminModal" aria-label="Cerrar modal">✕</button>
         </div>
@@ -1455,6 +1459,10 @@
                   <button type="button" class="btn-icon btn-xs" id="btnCloseCmdHelp">✕</button>
                 </div>
                 <div class="help-cmd-grid">
+                  <div class="help-cmd-item" data-cmd="ping 0">
+                    <code>ping 0 / ping</code>
+                    <span>Sonda directa de 0 saltos para medir latencia RTT, RSSI y SNR sin saturar la malla.</span>
+                  </div>
                   <div class="help-cmd-item" data-cmd="stats-core">
                     <code>stats-core</code>
                     <span>Consulta telemetría de CPU, batería, solar, uptime y reloj.</span>
@@ -1507,6 +1515,7 @@
               </div>
 
               <div class="terminal-quick-buttons">
+                <button class="btn-xs btn-outline rep-quick-cmd btn-quick-ping-zero" data-cmd="ping 0">🎯 ping 0</button>
                 <button class="btn-xs btn-outline rep-quick-cmd" data-cmd="stats-core">stats-core</button>
                 <button class="btn-xs btn-outline rep-quick-cmd" data-cmd="stats-radio">stats-radio</button>
                 <button class="btn-xs btn-outline rep-quick-cmd" data-cmd="stats-packets">stats-packets</button>
@@ -1523,7 +1532,7 @@
               </div>
               <form id="repeaterTerminalForm" class="terminal-prompt">
                 <span class="prompt-symbol">&gt;</span>
-                <input type="text" id="repeaterTerminalInput" placeholder="Escribe un comando RF (ej: stats-core, neighbors, pos, clock, advert, reboot)..." autocomplete="off" />
+                <input type="text" id="repeaterTerminalInput" placeholder="Escribe un comando RF (ej: ping 0, stats-core, neighbors, pos, clock, advert, reboot)..." autocomplete="off" />
                 <button type="submit" class="btn-primary btn-sm">Ejecutar</button>
               </form>
             </div>
@@ -1532,6 +1541,20 @@
           <!-- Subpanel 7: Acciones Rápidas -->
           <div id="rep-quick" class="repeater-subpanel">
             <div class="quick-actions-grid">
+              <div class="action-card action-card-highlight">
+                <div class="action-card-header">
+                  <span class="action-icon">🎯</span>
+                  <div>
+                    <strong>Ping Zero (0 Saltos Directos)</strong>
+                    <p>Sondea el repetidor directamente sin retransmisión intermedia para medir latencia RTT, RSSI y SNR.</p>
+                  </div>
+                </div>
+                <div class="action-card-footer">
+                  <span class="ping-result-pill" id="repQuickPingResult">Sin mediciones</span>
+                  <button type="button" class="btn-primary btn-sm" id="btnModalActionPingZero">🎯 Ejecutar Ping Zero</button>
+                </div>
+              </div>
+
               <div class="action-card">
                 <div class="action-card-header">
                   <span class="action-icon">🔄</span>

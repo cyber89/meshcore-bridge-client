@@ -58,6 +58,11 @@ class RepeaterManager:
             "get radio",
             "get_radio",
             "reboot",
+            "ping",
+            "ping 0",
+            "ping_zero",
+            "pingzero",
+            "trace 0",
         ):
             if act in ("clear_stats", "clear stats"):
                 return "clear stats"
@@ -73,6 +78,8 @@ class RepeaterManager:
                 return "get identity"
             if act in ("get_radio", "get radio"):
                 return "get radio"
+            if act in ("ping_zero", "pingzero", "ping 0", "trace 0"):
+                return "ping 0"
             return act
 
         # Si ya viene formateado como comando directo "set ...", "cmd ...", "login ..."

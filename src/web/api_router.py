@@ -198,6 +198,20 @@ class WebAPIRouter:
                 self.log_system_event("INFO", f"Acción remota '{action_name}' despachada a repetidor {target}", source="repeater_admin")
                 return 200, {"status": "ok", "data": res}
 
+            if method == "POST" and clean_path in ("/api/repeater/ping_zero", "/api/node/ping_zero"):
+                target = str(req_body.get("target_node", req_body.get("repeater", req_body.get("target", "")))).strip()
+                pwd = str(req_body.get("password", "")).strip()
+                if not target:
+                    return 400, {"status": "error", "message": "Se requiere 'target_node'"}
+                cmd = {
+                    "action": "ping_zero",
+                    "target_node": target,
+                    "password": pwd,
+                }
+                res = await self.bridge.handle_admin(cmd)
+                self.log_system_event("INFO", f"🎯 Ping Zero (0 saltos) enviado a {target} - RTT: {res.get('rtt_ms')} ms", source="repeater_admin")
+                return 200, {"status": "ok", "data": res}
+
             if method == "GET" and clean_path == "/api/ha/status":
                 ha = getattr(self.bridge, "ha_discovery", None)
                 enabled = getattr(ha, "enabled", False) if ha else False

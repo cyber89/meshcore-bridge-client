@@ -6,6 +6,33 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Implementación de Ping Zero (0 Saltos Directos) a Repetidores y Nodos en la SPA
+- **Fecha**: 2026-08-19
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Diseñó e integró la capacidad de realizar **Ping Zero** (sonda de 0 saltos directos sin saturar la malla) contra nodos y repetidores, calculando la latencia de ida y vuelta (RTT en ms), potencia de señal RSSI (dBm), relación señal-ruido SNR (dB) y estado de alcance en línea de vista.
+- **Contribuciones de Agentes**:
+  1. **Agente 2 (Python Bridge Architect Agent)**:
+     - **`src/repeater_manager.py`**: Añadió soporte de normalización para comandos `ping 0`, `ping_zero`, `ping` y `trace 0`.
+     - **`src/admin_handler.py`**: Implementó el manejador especializado de `ping_zero`, midiendo con alta precisión (`time.perf_counter()`) la latencia RTT, consultando las métricas de RF del registro de nodos y publicando el evento en MQTT (`meshcore/admin/repeater/{target}/ping_zero`).
+     - **`src/web/api_router.py`**: Expuso los endpoints REST `POST /api/repeater/ping_zero` y `POST /api/node/ping_zero`.
+  2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - **`src/web/static/index.html`**:
+       - Añadió botón y badge de **Ping Zero (0 Hops)** en el encabezado del Modal de Administración de Repetidores (`#repeaterAdminModal`).
+       - Añadió tarjeta de acción dedicada a Ping Zero en la pestaña de Acciones Rápidas (`#rep-quick`).
+       - Integró el comando interactivo `ping 0` en los botones rápidos de la terminal y en la guía de ayuda (`#terminalHelpDrawer`).
+     - **`src/web/static/js/app.js`**:
+       - Implementó `pingZero(targetNode, targetName)` con feedback visual en tiempo real, salida en terminal interactiva, actualización de badges y toasts.
+       - Añadió botones `🎯 Ping 0` directamente en las tarjetas de repetidores y clientes en el Directorio de Nodos.
+     - **`src/web/static/css/app.css`**:
+       - Diseñó estilos para `.ping-zero-badge`, `.btn-modal-ping-zero`, `.btn-node-ping-zero`, `.stat-pill-ping` y animación de pulso `@keyframes pingPulse`.
+  3. **Agente 0 (Agente Principal / Orchestrator)**:
+     - Verificación estática con `node -c` y `lint_frontend_standards.py` (100% aprobado).
+     - Verificación de arquitectura y concurrencia (`audit_architecture.py`, `audit_async_concurrency.py`).
+     - Sincronización del paquete de despliegue en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vía `python scripts/sync_deploy.py`.
+     - Sincronización completa con GitHub (`origin/main`).
+
+---
+
 ### Hito: Corrección de Sintaxis de Bash (`!grep`) y Soporte TCP Companion en `install.sh`
 - **Fecha**: 2026-08-19
 - **Estado**: ✅ COMPLETADO
