@@ -97,7 +97,8 @@ class RxEventRouter:
 
             rssi = payload_dict.get("rssi", payload_dict.get("RSSI", -80))
             snr = payload_dict.get("snr", payload_dict.get("SNR", 10.0))
-            sender = str(payload_dict.get("sender", payload_dict.get("pubkey_prefix", payload_dict.get("public_key", "unknown")))).strip()
+            sender_raw = str(payload_dict.get("sender", payload_dict.get("pubkey_prefix", payload_dict.get("public_key", "unknown")))).strip()
+            sender = self._ctx.node_registry.get_canonical_key(sender_raw)
             sender_name = str(payload_dict.get("sender_name", self._resolve_sender_name(sender)))
             text = str(payload_dict.get("text", payload_dict.get("message", ""))).strip()
             channel_idx = int(payload_dict.get("channel_idx", payload_dict.get("channel", 0)))

@@ -415,6 +415,15 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
   - `src/contact_manager.py`: Valores por defecto de `last_rssi`, `last_snr`, `hops` establecidos a `None` para no simular métricas no medidas.
   - `src/serial_driver.py`: Inferencia de rol en `sync_all_contacts()` basada en `type`, `adv_type` y prefijos de nombre (`R1-`, `R-`, etc.).
 - **Contratos / Interfaces Modificadas**: Ninguno (saneamiento de datos y lógica de presentación).
+### [TASK-2026-08-19-07] Deduplicación y Normalización Canónica de Claves para Mensajes Directos (DM)
+- **Fecha y Hora**: 2026-08-19 18:28
+- **Agente Responsable**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect), Agente 2 (Bridge Architect)
+- **Objetivo**: Corregir duplicación de clientes en la barra lateral de mensajes directos (DM) provocada por discrepancias entre prefijos de clave pública (`8d5accef1946` de 12 caracteres recibidos en eventos de radio) y claves completas (`8d5accef1946bc...` de 64 caracteres registradas en la libreta).
+- **Archivos Modificados / Creados**:
+  - `src/contact_manager.py`: Agregado método `get_canonical_key()` en `NodeRegistry` para resolver prefijos a claves canónicas conocidas.
+  - `src/rx_router.py`: Normalización de `sender` a la clave canónica antes de despachar eventos MQTT y WebSocket.
+  - `src/web/static/js/app.js`: Implementado método `resolveCanonicalPubkey()`, unificación de feeds `dm_${canonicalPk}`, deduplicación estricta de elementos en `#dmListUi` y sincronización bidireccional de conversaciones directas.
+- **Contratos / Interfaces Modificadas**: Ninguno (normalización de identificadores y resolución canónica interna).
 - **Estado**: COMPLETADO
 
 ---

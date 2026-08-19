@@ -198,6 +198,11 @@ class NodeRegistry:
 
         return None
 
+    def get_canonical_key(self, raw_key: str, name: str | None = None) -> str:
+        """Devuelve la clave pública canónica (más larga o conocida) para una clave o prefijo."""
+        existing = self._find_existing_key(raw_key, name)
+        return existing if existing else raw_key.strip().lower()
+
     def add_or_update(self, public_key: str, update: NodeContactUpdate) -> NodeContactInfo:
         """Añade o actualiza la información de un nodo preservando métricas acumuladas y deduplicando prefijos."""
         norm_key = public_key.strip().lower()

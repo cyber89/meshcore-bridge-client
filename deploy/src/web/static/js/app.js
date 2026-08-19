@@ -2108,11 +2108,23 @@ class MeshCoreStationApp {
     ) {
       const isDm = payload.event_type === "direct" || payload.type === "DIRECT_MSG";
       const chIdx = payload.channel_idx !== undefined ? Number(payload.channel_idx) : (payload.event_type === "channel" ? 1 : 0);
-      const senderKey = payload.sender || payload.pubkey_prefix || "unknown";
-      const senderName = payload.sender_name || payload.name || senderKey;
+      const rawSenderKey = payload.sender || payload.pubkey_prefix || "unknown";
+      const senderKey = isDm ? this.resolveCanonicalPubkey(rawSenderKey) : rawSenderKey;
+
+      let senderName = payload.sender_name || payload.name;
+      if (!senderName || senderName === rawSenderKey || senderName === senderKey) {
+        const known = this.knownNodes.get(senderKey) || this.knownNodes.get(rawSenderKey);
+        senderName = known ? (known.alias || known.name || senderKey) : (senderName || senderKey);
+      }
 
       const feedKey = isDm ? `dm_${senderKey}` : `ch_${chIdx}`;
-      if (!this.channelFeeds.has(feedKey)) this.channelFeeds.set(feedKey, []);
+      if (!this.channelFeeds.has(feedKey)) {
+        if (isDm && rawSenderKey !== senderKey && this.channelFeeds.has(`dm_${rawSenderKey}`)) {
+          this.channelFeeds.set(feedKey, this.channelFeeds.get(`dm_${rawSenderKey}`));
+        } else {
+          this.channelFeeds.set(feedKey, []);
+        }
+      }
 
       const normalizedMsg = {
         sender: senderKey,
@@ -2132,7 +2144,11 @@ class MeshCoreStationApp {
 
       let isCurrent = false;
       if (isDm) {
-        isCurrent = Boolean(this.activeDmTarget && (this.activeDmTarget === senderKey || senderKey.startsWith(this.activeDmTarget) || this.activeDmTarget.startsWith(senderKey)));
+        isCurrent = Boolean(this.activeDmTarget && (
+          this.activeDmTarget === senderKey ||
+          this.activeDmTarget === rawSenderKey ||
+          (this.activeDmTarget.length >= 8 && senderKey.length >= 8 && (this.activeDmTarget.startsWith(senderKey) || senderKey.startsWith(this.activeDmTarget)))
+        ));
       } else {
         isCurrent = !this.activeDmTarget && this.activeChannelIdx === chIdx;
       }
@@ -2142,6 +2158,7 @@ class MeshCoreStationApp {
       }
 
       if (isDm && senderKey && senderKey !== "unknown") {
+        this.conversationsWithMessages.add(senderKey);
         this.addDmContact(senderKey, senderName);
       }
     } else if (payload.byte_length !== undefined || payload.event_type === "rf_log" || payload.raw_hex !== undefined) {
@@ -3241,18 +3258,19 @@ class MeshCoreStationApp {
         if (!text) return;
         if (this.dom.chatInputText) this.dom.chatInputText.value = "";
 
-        const target = this.activeDmTarget || "broadcast";
+        const canonicalTarget = this.activeDmTarget ? this.resolveCanonicalPubkey(this.activeDmTarget) : null;
+        const target = canonicalTarget || "broadcast";
         const outgoingMsg = {
           sender: "local",
           sender_name: "Estación Local (Tú)",
           text: text,
           is_outgoing: true,
           channel_idx: this.activeChannelIdx,
-          dm_target: this.activeDmTarget,
+          dm_target: canonicalTarget,
           timestamp: new Date().toISOString(),
         };
 
-        const feedKey = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
+        const feedKey = canonicalTarget ? `dm_${canonicalTarget}` : `ch_${this.activeChannelIdx}`;
         if (!this.channelFeeds.has(feedKey)) this.channelFeeds.set(feedKey, []);
         const feed = this.channelFeeds.get(feedKey);
         feed.push(outgoingMsg);
@@ -3260,9 +3278,9 @@ class MeshCoreStationApp {
 
         this.storage.saveMessage(feedKey, outgoingMsg);
 
-        if (this.activeDmTarget) {
-          this.conversationsWithMessages.add(this.activeDmTarget);
-          this.addDmContact(this.activeDmTarget, this.activeDmName);
+        if (canonicalTarget) {
+          this.conversationsWithMessages.add(canonicalTarget);
+          this.addDmContact(canonicalTarget, this.activeDmName);
         }
 
         this.appendChatMessage(outgoingMsg);
@@ -3285,7 +3303,8 @@ class MeshCoreStationApp {
 
     if (this.dom.clearChatBtn) {
       this.dom.clearChatBtn.addEventListener("click", () => {
-        const feedKey = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
+        const canonicalTarget = this.activeDmTarget ? this.resolveCanonicalPubkey(this.activeDmTarget) : null;
+        const feedKey = canonicalTarget ? `dm_${canonicalTarget}` : `ch_${this.activeChannelIdx}`;
         this.channelFeeds.set(feedKey, []);
         this.storage.clearFeedMessages(feedKey);
         if (this.dom.chatMessageFeed) this.dom.chatMessageFeed.innerHTML = "";
@@ -3301,6 +3320,47 @@ class MeshCoreStationApp {
         }
       });
     }
+  }
+
+  resolveCanonicalPubkey(rawKey) {
+    if (!rawKey || typeof rawKey !== "string") return rawKey;
+    const norm = rawKey.trim().toLowerCase();
+    if (!norm || norm === "unknown" || norm === "broadcast" || norm === "local") return norm;
+
+    // 1. Buscar en this.knownNodes coincidencia exacta o por prefijo (>= 8 caracteres)
+    for (const [k, node] of this.knownNodes.entries()) {
+      const kNorm = String(k).trim().toLowerCase();
+      if (kNorm === norm) return k;
+      if (kNorm.length >= 8 && norm.length >= 8) {
+        if (kNorm.startsWith(norm) || norm.startsWith(kNorm)) {
+          return kNorm.length >= norm.length ? k : rawKey;
+        }
+      }
+      if (norm.length === 12 && kNorm.startsWith(norm)) return k;
+      if (kNorm.length === 12 && norm.startsWith(kNorm)) return norm.length >= kNorm.length ? rawKey : k;
+    }
+
+    // 2. Buscar en elementos existentes de la lista DM
+    if (this.dom.dmListUi) {
+      const items = this.dom.dmListUi.querySelectorAll("li.channel-item");
+      for (const item of items) {
+        const pk = String(item.getAttribute("data-pubkey") || "").trim().toLowerCase();
+        if (pk === norm) return item.getAttribute("data-pubkey");
+        if (pk.length >= 8 && norm.length >= 8 && (pk.startsWith(norm) || norm.startsWith(pk))) {
+          return pk.length >= norm.length ? item.getAttribute("data-pubkey") : rawKey;
+        }
+      }
+    }
+
+    // 3. Buscar por coincidencia en knownNodes si coinciden
+    for (const node of this.knownNodes.values()) {
+      const nodePk = String(node.public_key || "").trim().toLowerCase();
+      if (nodePk.length >= 8 && norm.length >= 8 && (nodePk.startsWith(norm) || norm.startsWith(nodePk))) {
+        return node.public_key;
+      }
+    }
+
+    return rawKey;
   }
 
   async switchChannel(idx) {
@@ -3334,19 +3394,30 @@ class MeshCoreStationApp {
   }
 
   async setDmTarget(pubkey, name) {
-    this.activeDmTarget = pubkey;
-    this.activeDmName = name || pubkey;
+    const canonicalPk = this.resolveCanonicalPubkey(pubkey);
+    this.activeDmTarget = canonicalPk;
+
+    let cleanName = name;
+    if (!cleanName || cleanName === pubkey || cleanName === canonicalPk) {
+      const known = this.knownNodes.get(canonicalPk) || this.knownNodes.get(pubkey);
+      cleanName = known ? (known.alias || known.name || canonicalPk) : (cleanName || canonicalPk);
+    }
+    this.activeDmName = cleanName;
 
     if (this.dom.sidebarChannelList) {
       this.dom.sidebarChannelList.classList.remove("mobile-open");
     }
 
-    this.addDmContact(pubkey, this.activeDmName);
+    this.addDmContact(canonicalPk, this.activeDmName);
 
     document.querySelectorAll("#channelListUi li").forEach((li) => li.classList.remove("active"));
     document.querySelectorAll("#dmListUi li").forEach((li) => {
-      li.classList.toggle("active", li.getAttribute("data-pubkey") === pubkey);
-      li.setAttribute("aria-selected", String(li.getAttribute("data-pubkey") === pubkey));
+      const itemPk = (li.getAttribute("data-pubkey") || "").trim().toLowerCase();
+      const cPkLower = canonicalPk.toLowerCase();
+      const isMatch = itemPk === cPkLower ||
+        (itemPk.length >= 8 && cPkLower.length >= 8 && (itemPk.startsWith(cPkLower) || cPkLower.startsWith(itemPk)));
+      li.classList.toggle("active", isMatch);
+      li.setAttribute("aria-selected", String(isMatch));
     });
 
     this.dom.chatActiveTitle.textContent = `${this.activeDmName}`;
@@ -3359,20 +3430,27 @@ class MeshCoreStationApp {
   openDmConversation(pubkey, name) {
     const navBtn = document.querySelector('.nav-btn[data-tab="tab-chat"]');
     if (navBtn) navBtn.click();
-    this.conversationsWithMessages.add(pubkey);
-    this.addDmContact(pubkey, name);
-    this.setDmTarget(pubkey, name);
+    const canonicalPk = this.resolveCanonicalPubkey(pubkey);
+    this.conversationsWithMessages.add(canonicalPk);
+    this.addDmContact(canonicalPk, name);
+    this.setDmTarget(canonicalPk, name);
     if (this.dom.chatInputText) this.dom.chatInputText.focus();
   }
 
   async renderCurrentConversation() {
     this.dom.chatMessageFeed.innerHTML = "";
-    const feedKey = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
+    const canonicalTarget = this.activeDmTarget ? this.resolveCanonicalPubkey(this.activeDmTarget) : null;
+    const feedKey = canonicalTarget ? `dm_${canonicalTarget}` : `ch_${this.activeChannelIdx}`;
 
     if (!this.channelFeeds.has(feedKey) || this.channelFeeds.get(feedKey).length === 0) {
       const stored = await this.storage.getMessagesByFeed(feedKey);
       if (stored && stored.length > 0) {
         this.channelFeeds.set(feedKey, stored);
+      } else if (canonicalTarget && this.activeDmTarget && canonicalTarget !== this.activeDmTarget) {
+        const storedOld = await this.storage.getMessagesByFeed(`dm_${this.activeDmTarget}`);
+        if (storedOld && storedOld.length > 0) {
+          this.channelFeeds.set(feedKey, storedOld);
+        }
       }
     }
 
@@ -3453,14 +3531,26 @@ class MeshCoreStationApp {
   addDmContact(pubkey, name, role = "CLIENT") {
     if (!pubkey || pubkey === "unknown" || !this.dom.dmListUi) return;
 
+    const canonicalPk = this.resolveCanonicalPubkey(pubkey);
     const roleStr = (role || "CLIENT").toUpperCase();
     const isClient = roleStr === "CLIENT" || roleStr === "CHAT" || role === "1" || role === 1;
     if (!isClient) return;
 
+    // Excluir nodo local
+    const isLocal = (this.localNodePubkey && (
+      canonicalPk.toLowerCase() === this.localNodePubkey ||
+      (this.localNodePubkey.length >= 8 && canonicalPk.toLowerCase().startsWith(this.localNodePubkey.slice(0, 8))) ||
+      (canonicalPk.length >= 8 && this.localNodePubkey.startsWith(canonicalPk.toLowerCase().slice(0, 8)))
+    )) || canonicalPk.toLowerCase() === "local";
+    if (isLocal) return;
+
     // Solo mostrar si tiene mensajes o si es la conversación actualmente abierta
-    const feedKey = `dm_${pubkey}`;
-    const hasMessages = this.conversationsWithMessages.has(pubkey) ||
+    const feedKey = `dm_${canonicalPk}`;
+    const hasMessages = this.conversationsWithMessages.has(canonicalPk) ||
+      this.conversationsWithMessages.has(pubkey) ||
       (this.channelFeeds.has(feedKey) && this.channelFeeds.get(feedKey).length > 0) ||
+      (this.channelFeeds.has(`dm_${pubkey}`) && this.channelFeeds.get(`dm_${pubkey}`).length > 0) ||
+      this.activeDmTarget === canonicalPk ||
       this.activeDmTarget === pubkey;
 
     if (!hasMessages) return;
@@ -3468,33 +3558,64 @@ class MeshCoreStationApp {
     const emptyHint = this.dom.dmListUi.querySelector(".empty-hint");
     if (emptyHint) emptyHint.remove();
 
-    let li = this.dom.dmListUi.querySelector(`li[data-pubkey="${pubkey}"]`);
-    const cleanName = name || pubkey;
-    const isAct = this.activeDmTarget === pubkey;
+    // Buscar si ya existe un elemento li para esta clave o cualquier prefijo coincidente y deduplicar
+    let li = null;
+    const allItems = this.dom.dmListUi.querySelectorAll("li.channel-item");
+    for (const item of allItems) {
+      const itemPk = (item.getAttribute("data-pubkey") || "").trim().toLowerCase();
+      const cPkLower = canonicalPk.toLowerCase();
+      const isMatch = itemPk === cPkLower ||
+          (itemPk.length >= 8 && cPkLower.length >= 8 && (itemPk.startsWith(cPkLower) || cPkLower.startsWith(itemPk)));
+      if (isMatch) {
+        if (!li) {
+          li = item;
+          if (canonicalPk.length >= itemPk.length) {
+            li.setAttribute("data-pubkey", canonicalPk);
+          }
+        } else {
+          // Elemento duplicado encontrado: eliminarlo del DOM
+          item.remove();
+        }
+      }
+    }
+
+    // Resolver nombre limpio desde knownNodes
+    let cleanName = name;
+    if (!cleanName || cleanName === pubkey || cleanName === canonicalPk) {
+      const known = this.knownNodes.get(canonicalPk) || this.knownNodes.get(pubkey);
+      cleanName = known ? (known.alias || known.name || canonicalPk) : (cleanName || canonicalPk);
+    }
+
+    const isAct = Boolean(this.activeDmTarget && (
+      this.activeDmTarget === canonicalPk ||
+      this.activeDmTarget === pubkey ||
+      (this.activeDmTarget.length >= 8 && canonicalPk.length >= 8 && (this.activeDmTarget.startsWith(canonicalPk) || canonicalPk.startsWith(this.activeDmTarget)))
+    ));
     const roleIcon = "👤";
 
     if (!li) {
       li = document.createElement("li");
       li.className = `channel-item ${isAct ? "active" : ""}`;
-      li.setAttribute("data-pubkey", pubkey);
+      li.setAttribute("data-pubkey", canonicalPk);
       li.setAttribute("role", "option");
       li.setAttribute("aria-selected", String(isAct));
       li.innerHTML = `
         <span class="ch-badge">${roleIcon}</span>
         <span class="ch-name" title="${this.escapeHtml(cleanName)}">${this.escapeHtml(cleanName)}</span>
         <div class="ch-actions">
-          <button type="button" class="btn-item-delete" title="Cerrar conversación de la lista" data-del-dm="${pubkey}">✕</button>
+          <button type="button" class="btn-item-delete" title="Cerrar conversación de la lista" data-del-dm="${canonicalPk}">✕</button>
         </div>
       `;
-      li.addEventListener("click", () => this.setDmTarget(pubkey, cleanName));
+      li.addEventListener("click", () => this.setDmTarget(canonicalPk, cleanName));
 
       const delBtn = li.querySelector(".btn-item-delete");
       if (delBtn) {
         delBtn.addEventListener("click", (e) => {
           e.stopPropagation();
+          this.conversationsWithMessages.delete(canonicalPk);
           this.conversationsWithMessages.delete(pubkey);
           li.remove();
-          if (this.activeDmTarget === pubkey) {
+          if (this.activeDmTarget === canonicalPk || this.activeDmTarget === pubkey) {
             this.switchChannel(0);
           }
           this.updateDmBadgeCount();
@@ -3506,7 +3627,9 @@ class MeshCoreStationApp {
       li.classList.toggle("active", isAct);
       li.setAttribute("aria-selected", String(isAct));
       const nameEl = li.querySelector(".ch-name");
-      if (nameEl) nameEl.textContent = cleanName;
+      if (nameEl && cleanName && cleanName !== canonicalPk) {
+        nameEl.textContent = cleanName;
+      }
     }
 
     this.updateDmBadgeCount();
@@ -4339,11 +4462,15 @@ class MeshCoreStationApp {
       const batVal = hasRealBat ? `${node.battery ?? node.battery_pct}%` : "--";
 
       // Si ya hay una conversación con mensajes para este nodo (y es cliente no local), mantenerlo en la barra lateral de chat
-      const feedKey = `dm_${node.public_key}`;
-      if (isClient && !isLocal && (this.conversationsWithMessages.has(node.public_key) ||
+      const canonicalNodePk = this.resolveCanonicalPubkey(node.public_key);
+      const feedKey = `dm_${canonicalNodePk}`;
+      if (isClient && !isLocal && (this.conversationsWithMessages.has(canonicalNodePk) ||
+          this.conversationsWithMessages.has(node.public_key) ||
           (this.channelFeeds.has(feedKey) && this.channelFeeds.get(feedKey).length > 0) ||
+          (this.channelFeeds.has(`dm_${node.public_key}`) && this.channelFeeds.get(`dm_${node.public_key}`).length > 0) ||
+          this.activeDmTarget === canonicalNodePk ||
           this.activeDmTarget === node.public_key)) {
-        this.addDmContact(node.public_key, cleanName, node.role);
+        this.addDmContact(canonicalNodePk, cleanName, node.role);
       }
 
       // 1. SOLO renderizar en la libreta de Contactos si es tipo CLIENT y NO es el nodo local
