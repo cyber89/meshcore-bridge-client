@@ -2019,21 +2019,44 @@ body {
 /* Panel Flotante Overlay de Nodos GPS */
 .map-overlay-info {
   position: absolute;
-  top: 16px;
-  right: 16px;
+  top: 14px;
+  right: 14px;
   width: 310px;
-  max-width: 88vw;
-  max-height: calc(100% - 32px);
-  background: rgba(11, 17, 33, 0.88);
+  max-width: calc(100vw - 28px);
+  max-height: calc(100% - 28px);
+  background: rgba(11, 17, 33, 0.90);
   backdrop-filter: blur(12px);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
-  padding: 14px;
+  padding: 12px;
   z-index: 1000;
   box-shadow: var(--shadow-xl);
   display: flex;
   flex-direction: column;
   gap: 10px;
+  transition: max-height 0.25s cubic-bezier(0.4, 0, 0.2, 1), width 0.25s cubic-bezier(0.4, 0, 0.2, 1), padding 0.2s ease;
+}
+
+.map-overlay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-subtle);
+  transition: border-color 0.2s ease;
+}
+
+.map-overlay-title-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.map-overlay-icon {
+  font-size: 14px;
 }
 
 .map-overlay-info h4 {
@@ -2041,8 +2064,48 @@ body {
   font-weight: 700;
   color: var(--text-bright);
   margin: 0;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--border-subtle);
+}
+
+.btn-toggle-overlay {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-main);
+  border-radius: var(--radius-sm);
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: bold;
+  line-height: 1;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.btn-toggle-overlay:hover {
+  background: var(--accent-primary);
+  color: #ffffff;
+  border-color: var(--accent-primary);
+}
+
+/* Estado Minimizado */
+.map-overlay-info.minimized {
+  width: auto;
+  min-width: 170px;
+  max-height: 40px;
+  padding: 7px 12px;
+  gap: 0;
+}
+
+.map-overlay-info.minimized .map-overlay-header {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.map-overlay-info.minimized .map-nodes-feed {
+  display: none;
 }
 
 .map-nodes-feed {
@@ -3876,7 +3939,8 @@ body {
 .map-layer-switcher {
   position: absolute;
   top: 14px;
-  right: 14px;
+  left: 56px;
+  right: auto;
   z-index: 1000;
   display: flex;
   gap: 6px;
@@ -3886,6 +3950,17 @@ body {
   border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+@media (max-width: 768px) {
+  .map-layer-switcher {
+    left: 10px;
+    right: 10px;
+    top: auto;
+    bottom: 20px;
+    overflow-x: auto;
+    justify-content: flex-start;
+  }
 }
 
 .map-layer-btn {

@@ -387,6 +387,16 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
   - `POST /api/contacts/accept` -> `{ public_key }`
   - `POST /api/traceroute` -> `{ target_node, path }`
   - Eventos WebSocket: `contact_discovered`, `message_delivered`, `trace_data`.
+### [TASK-2026-08-19-04] Corrección de Superposición y Minimizado de Lista de Nodos en Mapa
+- **Fecha y Hora**: 2026-08-19 18:07
+- **Agente Responsable**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect)
+- **Objetivo**: Corregir superposición espacial entre el selector de capas cartográficas (`.map-layer-switcher`) y la lista flotante de nodos (`.map-overlay-info`), y dotar a la lista de nodos de capacidad interactiva de colapso y minimización con persistencia en `localStorage`.
+- **Archivos Modificados / Creados**:
+  - `src/web/static/index.html`: Agregado encabezado interactivo `#mapOverlayHeader` con botón `#btnToggleMapNodes` (`−`/`＋`) y soporte de accesibilidad `aria-expanded`.
+  - `src/web/static/css/app.css`: Reubicado `.map-layer-switcher` a `left: 56px; top: 14px;` (junto al zoom control), agregados estilos `.map-overlay-header`, `.btn-toggle-overlay` y estado `.minimized`, y soporte responsivo móvil (`<= 768px`).
+  - `src/web/static/js/app.js`: Implementado método `initMapOverlayToggle()` con listener para alternar clases, animaciones y persistencia en `localStorage.getItem("meshcore_map_nodes_minimized")`.
+- **Contratos / Interfaces Modificadas**:
+  - Estado local persistido: `meshcore_map_nodes_minimized` ("true" / "false").
 - **Estado**: COMPLETADO
 
 ---

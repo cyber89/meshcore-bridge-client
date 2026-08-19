@@ -241,6 +241,7 @@ class MeshCoreStationApp {
     this.initChat();
     this.initWebSocket();
     this.initLeafletMap();
+    this.initMapOverlayToggle();
     this.initAirtimeMonitoring();
     this.initContactDiscovery();
     this.initTraceroute();
@@ -378,6 +379,9 @@ class MeshCoreStationApp {
       headerDutyCycle: document.getElementById("headerDutyCycle"),
       headerAirtimeChip: document.getElementById("headerAirtimeChip"),
       btnToggleHeatmap: document.getElementById("btnToggleHeatmap"),
+      mapOverlayInfo: document.getElementById("mapOverlayInfo"),
+      mapOverlayHeader: document.getElementById("mapOverlayHeader"),
+      btnToggleMapNodes: document.getElementById("btnToggleMapNodes"),
       discoveryBanner: document.getElementById("discoveryBanner"),
       discoveryCount: document.getElementById("discoveryCount"),
       btnAcceptAllDiscovered: document.getElementById("btnAcceptAllDiscovered"),
@@ -3716,6 +3720,46 @@ class MeshCoreStationApp {
       }
     } catch (err) {
       console.warn("No se pudo inicializar el mapa Leaflet:", err);
+    }
+  }
+
+  initMapOverlayToggle() {
+    const overlay = this.dom.mapOverlayInfo || document.getElementById("mapOverlayInfo");
+    const btnToggle = this.dom.btnToggleMapNodes || document.getElementById("btnToggleMapNodes");
+    const header = this.dom.mapOverlayHeader || document.getElementById("mapOverlayHeader");
+    if (!overlay) return;
+
+    const setMinimizedState = (minimized) => {
+      overlay.classList.toggle("minimized", minimized);
+      if (btnToggle) {
+        const icon = btnToggle.querySelector(".toggle-icon");
+        if (icon) icon.textContent = minimized ? "＋" : "−";
+        btnToggle.setAttribute("aria-expanded", String(!minimized));
+        btnToggle.title = minimized ? "Expandir lista de nodos" : "Minimizar lista de nodos";
+      }
+      localStorage.setItem("meshcore_map_nodes_minimized", String(minimized));
+    };
+
+    // Restaurar estado persistido en localStorage
+    const savedState = localStorage.getItem("meshcore_map_nodes_minimized");
+    if (savedState === "true") {
+      setMinimizedState(true);
+    }
+
+    if (btnToggle) {
+      btnToggle.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const isCurrentlyMinimized = overlay.classList.contains("minimized");
+        setMinimizedState(!isCurrentlyMinimized);
+      });
+    }
+
+    if (header) {
+      header.addEventListener("click", (e) => {
+        if (e.target.closest("#btnToggleMapNodes")) return;
+        const isCurrentlyMinimized = overlay.classList.contains("minimized");
+        setMinimizedState(!isCurrentlyMinimized);
+      });
     }
   }
 

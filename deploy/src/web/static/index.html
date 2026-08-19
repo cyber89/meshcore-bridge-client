@@ -288,8 +288,16 @@
               <button type="button" class="map-layer-btn" data-layer="tactical_radar" title="Radar Táctico / Grícula LoRa (Sin Internet)">🎯 Radar</button>
               <button type="button" class="map-layer-btn" id="btnToggleHeatmap" title="Mostrar/Ocultar Mapa de Calor de Cobertura RF">🔥 Heatmap RF</button>
             </div>
-            <div class="map-overlay-info">
-              <h4>Nodos en la Malla LoRa (<span id="mapNodesCount">0</span>)</h4>
+            <div class="map-overlay-info" id="mapOverlayInfo">
+              <div class="map-overlay-header" id="mapOverlayHeader">
+                <div class="map-overlay-title-group">
+                  <span class="map-overlay-icon">👥</span>
+                  <h4>Nodos en Malla (<span id="mapNodesCount">0</span>)</h4>
+                </div>
+                <button type="button" class="btn-toggle-overlay" id="btnToggleMapNodes" title="Minimizar / Expandir lista de nodos" aria-label="Minimizar o expandir lista de nodos" aria-expanded="true">
+                  <span class="toggle-icon">−</span>
+                </button>
+              </div>
               <div id="mapNodesList" class="map-nodes-feed"></div>
             </div>
           </div>
