@@ -88,8 +88,9 @@ class MeshCoreStorage {
     try {
       const tx = this.db.transaction("chat_messages", "readwrite");
       const store = tx.objectStore("chat_messages");
-      store.add({
+      const record = {
         feed_key: feedKey,
+        msg_id: msg.msg_id || msg.id || null,
         sender: msg.sender,
         sender_name: msg.sender_name,
         text: msg.text,
@@ -98,7 +99,43 @@ class MeshCoreStorage {
         dm_target: msg.dm_target,
         timestamp: msg.timestamp || new Date().toISOString(),
         metrics: msg.metrics || null,
-      });
+        delivered: !!msg.delivered,
+        expected_ack: msg.expected_ack || null,
+        trip_time_ms: msg.trip_time_ms || 0,
+      };
+      if (typeof msg._db_id === "number") {
+        record.id = msg._db_id;
+        store.put(record);
+      } else {
+        const req = store.add(record);
+        req.onsuccess = (e) => {
+          msg._db_id = e.target.result;
+        };
+      }
+    } catch (_) {}
+  }
+
+  async updateMessageDelivery(msgId, ackCode, tripTime) {
+    await this.readyPromise;
+    if (!this.db) return;
+    try {
+      const tx = this.db.transaction("chat_messages", "readwrite");
+      const store = tx.objectStore("chat_messages");
+      const req = store.openCursor();
+      req.onsuccess = (e) => {
+        const cursor = e.target.result;
+        if (cursor) {
+          const val = cursor.value;
+          const match = (msgId && (val.msg_id === msgId || String(val.id) === String(msgId))) ||
+                        (ackCode && val.expected_ack && val.expected_ack.toLowerCase() === ackCode.toLowerCase());
+          if (match) {
+            val.delivered = true;
+            val.trip_time_ms = tripTime || 0;
+            cursor.update(val);
+          }
+          cursor.continue();
+        }
+      };
     } catch (_) {}
   }
 
@@ -2423,18 +2460,40 @@ class MeshCoreStationApp {
       return;
     }
 
-    if (payload.type === "message_delivered") {
+    if (payload.type === "message_delivered" || payload.event_type === "message_delivered") {
       const msgId = payload.msg_id;
+      const ackCode = (payload.ack_code || "").toLowerCase();
       const tripTime = payload.trip_time_ms || 0;
-      const row = document.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
-      if (row) {
+
+      // 1. Actualizar elementos en el DOM actual
+      let matchedRows = [];
+      if (msgId) {
+        matchedRows = Array.from(document.querySelectorAll(`.message-bubble-row[data-msg-id="${msgId}"]`));
+      }
+      if (matchedRows.length === 0 && ackCode) {
+        matchedRows = Array.from(document.querySelectorAll(`.message-bubble-row[data-ack-code="${ackCode}"]`));
+      }
+      matchedRows.forEach((row) => {
+        row.classList.add("delivered");
         const ackEl = row.querySelector(".msg-ack-status");
         if (ackEl) {
           ackEl.className = "msg-ack-status delivered";
           ackEl.textContent = "✓✓ TX";
           ackEl.title = `Entregado por radio (${tripTime} ms)`;
         }
+      });
+
+      // 2. Actualizar mensajes en memoria (channelFeeds) y en IndexedDB
+      for (const [feedKey, msgs] of this.channelFeeds.entries()) {
+        for (const m of msgs) {
+          if ((msgId && (m.id === msgId || m.msg_id === msgId)) || (ackCode && m.expected_ack && m.expected_ack.toLowerCase() === ackCode)) {
+            m.delivered = true;
+            m.trip_time_ms = tripTime;
+            this.storage.saveMessage(feedKey, m);
+          }
+        }
       }
+      this.storage.updateMessageDelivery(msgId, ackCode, tripTime);
       return;
     }
 
@@ -3700,9 +3759,12 @@ class MeshCoreStationApp {
         if (!text) return;
         if (this.dom.chatInputText) this.dom.chatInputText.value = "";
 
+        const msgId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
         const canonicalTarget = this.activeDmTarget ? this.resolveCanonicalPubkey(this.activeDmTarget) : null;
         const target = canonicalTarget || "broadcast";
         const outgoingMsg = {
+          id: msgId,
+          msg_id: msgId,
           sender: "local",
           sender_name: "Estación Local (Tú)",
           text: text,
@@ -3710,6 +3772,7 @@ class MeshCoreStationApp {
           channel_idx: this.activeChannelIdx,
           dm_target: canonicalTarget,
           timestamp: new Date().toISOString(),
+          delivered: false,
         };
 
         const feedKey = canonicalTarget ? `dm_${canonicalTarget}` : `ch_${this.activeChannelIdx}`;
@@ -3728,15 +3791,25 @@ class MeshCoreStationApp {
         this.appendChatMessage(outgoingMsg);
 
         try {
-          await fetch("/api/tx", {
+          const res = await fetch("/api/tx", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               to: target,
               channel_index: this.activeChannelIdx,
               text: text,
+              request_id: msgId,
             }),
           });
+          const txData = await res.json();
+          if (txData && txData.data && txData.data.expected_ack) {
+            outgoingMsg.expected_ack = txData.data.expected_ack;
+            const bubble = document.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
+            if (bubble) {
+              bubble.setAttribute("data-ack-code", String(txData.data.expected_ack).toLowerCase());
+            }
+            this.storage.saveMessage(feedKey, outgoingMsg);
+          }
         } catch (err) {
           console.error("Error transmitiendo mensaje:", err);
         }
@@ -4019,6 +4092,9 @@ class MeshCoreStationApp {
     const msgId = msg.id || msg.msg_id || (msg.is_outgoing && msg.timestamp ? `msg_${Date.parse(msg.timestamp)}` : "");
     if (msgId) {
       row.setAttribute("data-msg-id", String(msgId));
+    }
+    if (msg.expected_ack) {
+      row.setAttribute("data-ack-code", String(msg.expected_ack).toLowerCase());
     }
 
     const timeStr = new Date(msg.timestamp || Date.now()).toLocaleTimeString();

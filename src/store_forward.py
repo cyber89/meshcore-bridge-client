@@ -109,7 +109,8 @@ class SQLiteStoreAndForward:
                         sent_at REAL,
                         delivered_at REAL,
                         trip_time_ms REAL DEFAULT 0.0,
-                        signature TEXT
+                        signature TEXT,
+                        expected_ack TEXT
                     );
                 """)
                 # Migración automática si faltan columnas en bases de datos existentes
@@ -122,27 +123,40 @@ class SQLiteStoreAndForward:
                     conn.execute("ALTER TABLE offline_queue ADD COLUMN expires_at REAL DEFAULT 0;")
                     conn.execute("UPDATE offline_queue SET expires_at = created_at + 172800 WHERE expires_at = 0;")
 
+                cursor.execute("PRAGMA table_info(message_receipts);")
+                receipt_columns = [row[1] for row in cursor.fetchall()]
+                if "expected_ack" not in receipt_columns:
+                    conn.execute("ALTER TABLE message_receipts ADD COLUMN expected_ack TEXT;")
+
                 conn.executescript("""
                     CREATE INDEX IF NOT EXISTS idx_offline_queue_created ON offline_queue(created_at);
                     CREATE INDEX IF NOT EXISTS idx_offline_queue_expires ON offline_queue(expires_at);
                     CREATE INDEX IF NOT EXISTS idx_offline_queue_hash ON offline_queue(msg_hash);
                     CREATE INDEX IF NOT EXISTS idx_receipts_status ON message_receipts(status);
                     CREATE INDEX IF NOT EXISTS idx_receipts_recipient ON message_receipts(recipient);
+                    CREATE INDEX IF NOT EXISTS idx_receipts_expected_ack ON message_receipts(expected_ack);
                 """)
         except Exception as e:
             logging.error(f"Error inicializando SQLite Store & Forward DB ({self.db_path}): {e}")
 
-    def record_outbound_message(self, msg_id: str, sender: str = "local", recipient: str = "") -> bool:
+    def record_outbound_message(
+        self,
+        msg_id: str,
+        sender: str = "local",
+        recipient: str = "",
+        expected_ack: str | None = None,
+    ) -> bool:
         """Registra un mensaje saliente para monitorear su confirmación de entrega."""
         now = time.time()
+        ack_clean = expected_ack.strip().lower() if expected_ack else None
         try:
             with self._get_conn() as conn:
                 conn.execute(
                     """
-                    INSERT OR REPLACE INTO message_receipts (msg_id, sender, recipient, status, sent_at)
-                    VALUES (?, ?, ?, 'sent', ?);
+                    INSERT OR REPLACE INTO message_receipts (msg_id, sender, recipient, status, sent_at, expected_ack)
+                    VALUES (?, ?, ?, 'sent', ?, ?);
                     """,
-                    (msg_id, sender, recipient, now),
+                    (msg_id, sender, recipient, now, ack_clean),
                 )
             return True
         except Exception as e:
@@ -166,6 +180,26 @@ class SQLiteStoreAndForward:
         except Exception as e:
             logging.error(f"Error actualizando estado de entrega para {msg_id}: {e}")
             return False
+
+    def get_msg_id_by_expected_ack(self, expected_ack: str) -> str | None:
+        """Busca el msg_id asociado a un código de ACK de radio de 4 bytes (hex)."""
+        if not expected_ack:
+            return None
+        ack_clean = expected_ack.strip().lower()
+        try:
+            with self._get_conn() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT msg_id FROM message_receipts WHERE lower(expected_ack) = ? ORDER BY sent_at DESC LIMIT 1;",
+                    (ack_clean,),
+                )
+                row = cursor.fetchone()
+                if row:
+                    return str(row[0])
+            return None
+        except Exception as e:
+            logging.error(f"Error buscando mensaje por expected_ack {expected_ack}: {e}")
+            return None
 
     def get_message_status(self, msg_id: str) -> dict[str, Any] | None:
         """Consulta el estado de entrega de un mensaje específico."""

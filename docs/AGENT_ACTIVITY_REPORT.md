@@ -6,7 +6,38 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
-### Hito: Optimización Integral de UI Responsive, Telemetría Local USB, Consola de Logs, Sniffer RF, Mapa y Anuncios Advert (iOS)
+### Hito: Validación y Confirmación de Entrega de Mensajes E2E (Doble Palomilla `✓✓ TX`)
+- **Fecha**: 2026-08-19
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Diagnosticó e implementó la cadena completa de confirmación de entrega de mensajes (Delivery Receipts). Resolvió la causa raíz por la cual los mensajes transmitidos permanecían indefinidamente en una sola palomilla (`✓ TX`), conectando el código de ACK de 4 bytes de la radio con el ID del mensaje, persistiendo la confirmación en SQLite WAL e IndexedDB, y actualizando la interfaz reactivamente a doble palomilla (`✓✓ TX`).
+- **Contribuciones de Agentes**:
+  1. **Agente 2 (Python Bridge Architect Agent)**:
+     - **`src/store_forward.py`**:
+       - Añadió la columna `expected_ack TEXT` e índice `idx_receipts_expected_ack` a la tabla `message_receipts` de SQLite.
+       - Actualizó `record_outbound_message` para registrar el código de ACK esperado junto al `msg_id` y `recipient`.
+       - Implementó `get_msg_id_by_expected_ack(expected_ack)` para resolver instantáneamente el ID del mensaje a partir del código recibido por radio.
+     - **`src/serial_driver.py`**:
+       - En `PySerialAsyncioAdapter.send_message`, extrajo el `expected_ack` (código hexadecimal de 4 bytes) generado por el firmware en el evento `MSG_SENT` y lo retornó en el resultado.
+     - **`src/bridge_core.py`**:
+       - En `_execute_tx`, capturó `expected_ack` y registró el mensaje saliente en `store_forward.record_outbound_message`.
+       - Incluyó `expected_ack` en la respuesta JSON devuelta a la API REST y en el tópico MQTT `meshcore/tx/status`.
+     - **`src/rx_router.py`**:
+       - En `handle_event`, intercepta los eventos `EventType.ACK` / `PacketType.ACK` extrayendo `ack_code` y `trip_time`.
+       - Resuelve el `msg_id` correspondiente consultando `store_forward.get_msg_id_by_expected_ack(ack_code)`.
+       - Marca el mensaje como entregado en SQLite (`mark_message_delivered`) y emite el evento `message_delivered` a WebSocket y MQTT con `msg_id`, `ack_code`, `trip_time_ms` y `status: "delivered"`.
+  2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - **`src/web/static/js/app.js`**:
+       - En `MeshCoreStorage`, actualizó `saveMessage` y añadió `updateMessageDelivery` para persistir el estado `delivered: true`, `expected_ack` y `trip_time_ms` en `IndexedDB`.
+       - En `initChat`, genera un `msgId` único (`msg_...`), lo envía en `POST /api/tx` como `request_id`, captura el `expected_ack` de retorno y lo asocia como `data-ack-code` en la burbuja del DOM.
+       - En `handleIncomingLiveEvent`, el manejador de `message_delivered` localiza la burbuja por `data-msg-id` o `data-ack-code`, conmuta a `✓✓ TX`, actualiza el tooltip con la latencia RTT y persiste el estado en `this.channelFeeds` e IndexedDB.
+       - En `appendChatMessage`, asigna los atributos `data-msg-id` y `data-ack-code`, renderizando `✓✓ TX` cuando `msg.delivered` es verdadero.
+     - **`src/web/static/css/app.css`**:
+       - Diseñó micro-animación `@keyframes ackPop` y estilos destacados para `.msg-ack-status.delivered` (verde esmeralda con resplandor) y `.msg-ack-status.sent`.
+  3. **Agente 0 (Agente Principal / Orchestrator)**:
+     - Verificación estática con `node -c src/web/static/js/app.js` (código 0, sin errores).
+     - Verificación de compilación Python con `python -m compileall src` (código 0, sin errores).
+     - Sincronización del paquete de despliegue en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vía `python scripts/sync_deploy.py`.
+     - Sincronización de commits con el repositorio GitHub (`origin/main`).
 - **Fecha**: 2026-08-19
 - **Estado**: ✅ COMPLETADO
 - **Agente Principal (Lead Orchestrator)**: Coordinó la resolución integral de las 8 solicitudes de usuario relacionadas con fallas responsive en CSS, renderizado de logs, consolidación de telemetría por USB en Ajustes, eliminación de métricas obsoletas en el Sniffer RF, filtrado de DMs de repetidores, centrado interactivo del mapa geográfico, soporte de anuncios Advert estilo iOS (Hop 0, Flood Routed, Clipboard) y enriquecimiento del Directorio de Nodos.

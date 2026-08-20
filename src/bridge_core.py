@@ -552,10 +552,20 @@ class MeshCoreBridge:
         status_val = "sent"
         error_detail: str | None = None
 
+        expected_ack_hex: str | None = None
         try:
             if self.serial_adapter and self.serial_adapter.is_connected:
                 target_arg = str(target) if target and str(target).lower() not in ("broadcast", "public", "0xffff") and not str(target).lower().startswith("channel") else None
-                await self.serial_adapter.send_message(text=text, target=target_arg, channel_idx=ch_idx)
+                send_res = await self.serial_adapter.send_message(text=text, target=target_arg, channel_idx=ch_idx)
+                if isinstance(send_res, dict):
+                    expected_ack_hex = send_res.get("expected_ack")
+                    res_obj = send_res.get("event")
+                    if res_obj is not None:
+                        ev_type = str(getattr(res_obj, "type", ""))
+                        if ev_type.upper() in ("ERROR", "ERR") or "ERR_" in str(res_obj):
+                            status_val = "error"
+                            self.tx_error_count += 1
+                            error_detail = str(getattr(res_obj, "payload", "Radio returned error event"))
             elif self.mc and hasattr(self.mc, "commands"):
                 res_obj = None
                 target_str = str(target).lower()
@@ -575,6 +585,12 @@ class MeshCoreBridge:
                         status_val = "error"
                         self.tx_error_count += 1
                         error_detail = str(getattr(res_obj, "payload", "Radio returned error event"))
+                    elif hasattr(res_obj, "payload") and isinstance(res_obj.payload, dict):
+                        exp_raw = res_obj.payload.get("expected_ack")
+                        if isinstance(exp_raw, (bytes, bytearray)):
+                            expected_ack_hex = exp_raw.hex().lower()
+                        elif isinstance(exp_raw, str):
+                            expected_ack_hex = exp_raw.lower()
             else:
                 raise ConnectionError("Puerto serial / MeshCore no conectado")
 
@@ -583,12 +599,22 @@ class MeshCoreBridge:
             status_val = "error"
             error_detail = str(e)
 
+        # Registrar mensaje saliente para seguimiento de entrega (ACK receipt)
+        if req_id and self.store_forward and status_val != "error":
+            self.store_forward.record_outbound_message(
+                msg_id=str(req_id),
+                sender="local",
+                recipient=str(target),
+                expected_ack=expected_ack_hex,
+            )
+
         # Publicar ACK de transmisión
         ack_payload: dict[str, Any] = {
             "status": status_val,
             "request_id": req_id,
             "target": target,
             "channel_idx": ch_idx,
+            "expected_ack": expected_ack_hex,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         if error_detail:

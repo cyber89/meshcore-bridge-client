@@ -308,7 +308,20 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             else:
                 raise NotImplementedError("send_chan_msg no soportado en este SDK")
 
-        return {"status": "SENT", "response": str(res)}
+        expected_ack_hex = None
+        if res is not None and hasattr(res, "payload") and isinstance(res.payload, dict):
+            exp_raw = res.payload.get("expected_ack")
+            if isinstance(exp_raw, (bytes, bytearray)):
+                expected_ack_hex = exp_raw.hex().lower()
+            elif isinstance(exp_raw, str):
+                expected_ack_hex = exp_raw.lower()
+
+        return {
+            "status": "SENT",
+            "response": str(res),
+            "event": res,
+            "expected_ack": expected_ack_hex,
+        }
 
     async def send_admin_cmd(self, action: str, params: dict[str, Any]) -> dict[str, Any]:
         if not self.is_connected or not self.mc:

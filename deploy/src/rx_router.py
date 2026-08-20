@@ -173,20 +173,38 @@ class RxEventRouter:
 
             ev_upper = ev_type_str.upper()
             p_type_upper = str(payload_dict.get("type", "")).upper()
+            ev_attrs = getattr(event, "attributes", {}) if hasattr(event, "attributes") and isinstance(event.attributes, dict) else {}
 
             # Caso ACK de Entrega E2E (Delivery Receipt)
-            if "ACK" in ev_upper or "ACK" in p_type_upper or payload_dict.get("event_type") == "ack":
-                ack_msg_id = str(payload_dict.get("msg_id", payload_dict.get("id", ""))).strip()
+            if "ACK" in ev_upper or "ACK" in p_type_upper or payload_dict.get("event_type") == "ack" or "code" in payload_dict or "code" in ev_attrs:
+                ack_code = str(payload_dict.get("code", payload_dict.get("ack_code", ev_attrs.get("code", "")))).strip().lower()
                 trip_time = float(payload_dict.get("trip_time_ms", payload_dict.get("trip_time", payload_dict.get("rtt", 0.0))))
+                ack_msg_id = str(payload_dict.get("msg_id", payload_dict.get("id", ""))).strip()
+
+                if not ack_msg_id and ack_code and getattr(self._ctx, "store_forward", None):
+                    ack_msg_id = self._ctx.store_forward.get_msg_id_by_expected_ack(ack_code) or ""
+
                 if ack_msg_id and getattr(self._ctx, "store_forward", None):
                     self._ctx.store_forward.mark_message_delivered(ack_msg_id, trip_time)
+
+                ack_evt_data = {
+                    "type": "message_delivered",
+                    "event_type": "message_delivered",
+                    "msg_id": ack_msg_id,
+                    "ack_code": ack_code,
+                    "trip_time_ms": trip_time,
+                    "recipient": sender,
+                    "status": "delivered",
+                }
+
                 if self._ctx.web_server:
-                    self._ctx.web_server.broadcast_event({
-                        "type": "message_delivered",
-                        "msg_id": ack_msg_id,
-                        "trip_time_ms": trip_time,
-                        "recipient": sender,
-                    })
+                    self._ctx.web_server.broadcast_event(ack_evt_data)
+
+                self._ctx.mqtt.publish_safe(
+                    config.TOPIC_TX_STATUS,
+                    json.dumps(ack_evt_data),
+                    qos=1,
+                )
                 return
 
             # Caso Trace Path / Traceroute
