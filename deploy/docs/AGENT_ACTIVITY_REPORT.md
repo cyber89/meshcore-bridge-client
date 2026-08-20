@@ -6,6 +6,29 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Optimización de Latencia en Ping Zero a Repetidores (500ms vs 1500ms - Eliminación de Paquetes Redundantes)
+- **Fecha**: 2026-08-20
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Diagnosticó y resolvió la discrepancia de latencia donde el ping a repetidores tardaba ~1500 ms (3x más lento) desde la interfaz web en comparación con la conexión TCP directa del cliente oficial (~500 ms).
+- **Causa Raíz**:
+  1. La interfaz web pasaba innecesariamente contraseñas guardadas en las solicitudes de Ping Zero (`/api/repeater/ping_zero`).
+  2. `src/admin_handler.py` despachaba un paquete previo `cmd login <password>` por RF antes de emitir `cmd ping 0`, y arrancaba el temporizador de medición antes del login, acumulando el tiempo de emisión de dos tramas LoRa consecutivas más el turnaround de radio. En el protocolo MeshCore, las sondas de diagnóstico (`ping`, `ping 0`, `trace`) son de acceso público y no requieren sesión autenticada.
+- **Contribuciones de Agentes**:
+  1. **Agente 2 (Python Bridge Architect Agent)**:
+     - **`src/admin_handler.py`**:
+       - Eliminó el despacho de `cmd login` en la rutina de `ping_zero` / `ping` / `ping_0` / `trace 0` / `zero_hop_ping`.
+       - Reubicó la toma de tiempo `t_start = time.perf_counter()` inmediatamente antes de la emisión del paquete de sonda única.
+     - **`src/web/api_router.py`**:
+       - Limpió el endpoint `/api/repeater/ping_zero` para omitir la extracción y reenvío de contraseñas hacia el manejador de ping.
+  2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - **`src/web/static/js/app.js`**:
+       - En `pingZero(targetNode, targetName)`, removió la inclusión de `password` en el cuerpo de la petición hacia `/api/repeater/ping_zero`, garantizando que la sonda sea despachada como un paquete RF liviano de 0 saltos directo.
+  3. **Agente 0 (Lead Orchestrator)**:
+     - Verificación estática de sintaxis JavaScript con `node -c src/web/static/js/app.js`.
+     - Compilación Python con `python -m compileall src`.
+     - Sincronización del paquete autónomo `/deploy/` (`python scripts/sync_deploy.py`).
+     - Sincronización con el repositorio remoto (`git push origin main`).
+
 ### Hito: Filtrado y Bloqueo de Nodos Fantasma / Desconocidos (`Node_unknow` / Claves Inválidas)
 - **Fecha**: 2026-08-20
 - **Estado**: ✅ COMPLETADO

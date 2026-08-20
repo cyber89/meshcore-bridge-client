@@ -2020,7 +2020,6 @@ class MeshCoreStationApp {
       }
     }
 
-    const password = this.getRepeaterPassword(target);
     this.appendTerminalLine(`> [PING ZERO] Enviando sonda directa de 0 saltos a ${name} (${target.slice(0, 8)})...`, "term-cmd");
 
     if (this.dom.adminModalPingZeroBadge) {
@@ -2040,7 +2039,7 @@ class MeshCoreStationApp {
       const res = await fetch("/api/repeater/ping_zero", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target_node: target, password: password }),
+        body: JSON.stringify({ target_node: target }),
       });
       const data = await res.json();
       if (data.status === "ok" && data.data) {

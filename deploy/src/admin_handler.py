@@ -353,11 +353,8 @@ class AdminCommandHandler:
                         self._ping_waiters[wk] = []
                     self._ping_waiters[wk].append(fut)
 
-                t_start = time.perf_counter()
-                if password:
-                    await self._ctx.execute_tx({"to": str(target_node), "text": f"cmd login {password}", "request_id": req_id})
-
                 cmd_text = self._ctx.repeater_manager.build_repeater_command_payload(action, admin_data)
+                t_start = time.perf_counter()
                 await self._ctx.execute_tx({"to": str(target_node), "text": f"cmd {cmd_text}", "request_id": req_id})
 
                 # Esperar respuesta de radio (ACK, TRACE_DATA o respuesta directa del repetidor)
