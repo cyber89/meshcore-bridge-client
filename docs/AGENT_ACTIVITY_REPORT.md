@@ -6,6 +6,34 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Filtrado Estricto de Mensajes de Comando, Anuncios y Control ("Unknown command") en Canales y DMs
+- **Fecha**: 2026-08-20
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Implementó el aislamiento y filtrado exhaustivo de mensajes no comunes (respuestas CLI del firmware como `"Unknown command"`, telemetría de repetidores, anuncios de baliza / `ADVERT`, respuestas de autenticación y comandos de diagnóstico) en todas las vistas de mensajería (Canal público 0, Canales privados 1..7 y Mensajes directos DM), garantizando que única y exclusivamente el chat común entre usuarios sea emitido y almacenado en las vistas de conversación.
+- **Contribuciones de Agentes**:
+  1. **Agente 2 (Python Bridge Architect Agent)**:
+     - **`src/rx_router.py`**:
+       - Implementó las funciones de validación `is_command_or_system_message(text, txt_type)` e `is_common_chat_message(text, txt_type, event_type)`.
+       - Añadió el campo `txt_type: int = 0` en `MeshMessageEvent`.
+       - En `handle_event`, aisló los paquetes de presencia / anuncio (`ADVERT`, `NODE_ADVERT`, `NEW_CONTACT`) y telemetría ambiental para que no caigan en canales de texto de chat.
+       - En `_handle_mesh_channel_msg`, si un mensaje de canal es una respuesta de comando (`txt_type == 1`, "Unknown command", etc.) o telemetría, se despacha exclusivamente como evento `repeater_response` o telemetría MQTT/WS, omitiendo su difusión a `TOPIC_RX_PUBLIC`, `TOPIC_RX_CHANNEL/ch_X` y eventos de chat WebSocket.
+       - En `_handle_mesh_direct_msg`, aseguró que las respuestas de comando y telemetría no se emitan al tópico de chat directo `TOPIC_RX_DIRECT/{sender}`.
+       - En `_dispatch_parsed_frame`, agregó validación con `is_common_chat_message` antes de despachar tramas `TEXT_MSG`.
+     - **`src/web/api_router.py`**:
+       - En `record_incoming_event`, integró `is_common_chat_message` para evitar que respuestas de comandos y telemetría se guarden en `self.recent_messages`.
+  2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - **`src/web/static/js/app.js`**:
+       - Implementó los métodos `isCommandOrSystemText(text, txtType)` e `isCommonChatMessage(payload)` en la clase `MeshCoreStationApp`.
+       - En `handleIncomingLiveEvent(payload)`, aisló el bloque `repeater_response` para que procese telemetría y terminal sin tocar `channelFeeds`, `chat_messages` ni listas de DM.
+       - En `handleIncomingLiveEvent`, procesa feeds de chat únicamente si `this.isCommonChatMessage(payload)` es verdadero.
+       - En `MeshCoreStorage`, añadió el método `purgeNonCommonMessages(filterFn)` para purgar entradas residuales de comandos de IndexedDB.
+       - En `renderCurrentConversation()` y `fetchInitialData()`, filtró mensajes no comunes al renderizar y al iniciar la aplicación.
+  3. **Agente 0 (Lead Orchestrator)**:
+     - Verificación estática con `node -c src/web/static/js/app.js` (código 0).
+     - Verificación de compilación Python con `python -m compileall src` (código 0).
+     - Sincronización del paquete autónomo `/deploy/` (`python scripts/sync_deploy.py`).
+     - Sincronización con el repositorio remoto (`git push origin main`).
+
 ### Hito: Verificación y Fortalecimiento Integral del Pipeline de Entrega de Mensajes (`✓✓ TX` / Delivery Receipts)
 - **Fecha**: 2026-08-20
 - **Estado**: ✅ COMPLETADO

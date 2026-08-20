@@ -143,6 +143,28 @@ class MeshCoreStorage {
     } catch (_) {}
   }
 
+  async purgeNonCommonMessages(isCommandOrSystemTextFn) {
+    await this.readyPromise;
+    if (!this.db || typeof isCommandOrSystemTextFn !== "function") return;
+    try {
+      const tx = this.db.transaction("chat_messages", "readwrite");
+      const store = tx.objectStore("chat_messages");
+      const req = store.openCursor();
+      req.onsuccess = (e) => {
+        const cursor = e.target.result;
+        if (cursor) {
+          const val = cursor.value;
+          const txt = val.text || val.message || "";
+          const txtType = val.txt_type || 0;
+          if (isCommandOrSystemTextFn(txt, txtType)) {
+            cursor.delete();
+          }
+          cursor.continue();
+        }
+      };
+    } catch (_) {}
+  }
+
   async getMessagesByFeed(feedKey, limit = 100) {
     await this.readyPromise;
     if (!this.db) return [];
@@ -305,6 +327,113 @@ class MeshCoreStationApp {
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
+  }
+
+  isCommandOrSystemText(text, txtType = 0) {
+    if (txtType === 1) return true;
+    if (!text || typeof text !== "string") return true;
+
+    const clean = text.trim();
+    if (!clean) return true;
+
+    let cleanLower = clean.toLowerCase();
+    if (cleanLower.startsWith("->") || cleanLower.startsWith("- >") || cleanLower.startsWith(">")) {
+      cleanLower = cleanLower.replace(/^[- >]+/, "").trim();
+    }
+
+    if (
+      cleanLower.startsWith("unknown command") ||
+      cleanLower.startsWith("error: unknown command") ||
+      cleanLower.startsWith("error unknown command") ||
+      cleanLower.startsWith("invalid command") ||
+      cleanLower.startsWith("cmd ") ||
+      cleanLower.startsWith("login ") ||
+      cleanLower.startsWith("auth ") ||
+      cleanLower.startsWith("stats-") ||
+      cleanLower.startsWith("stats ") ||
+      cleanLower.startsWith("set ") ||
+      cleanLower.startsWith("get ") ||
+      cleanLower.startsWith("log ") ||
+      cleanLower.startsWith("reboot") ||
+      cleanLower.startsWith("logging off") ||
+      cleanLower.startsWith("log erased") ||
+      cleanLower.startsWith("eof") ||
+      cleanLower.startsWith("welcome admin") ||
+      cleanLower.startsWith("access denied") ||
+      cleanLower.startsWith("bad pin") ||
+      cleanLower.startsWith("wrong password") ||
+      cleanLower.startsWith("incorrect password") ||
+      cleanLower.startsWith("permission denied") ||
+      cleanLower.startsWith("not logged in") ||
+      cleanLower === "unknown command" ||
+      cleanLower === "ok" ||
+      cleanLower === "error" ||
+      cleanLower === "success" ||
+      cleanLower === "failed" ||
+      cleanLower === "unauthorized" ||
+      cleanLower === "advert" ||
+      cleanLower === "[advert]" ||
+      cleanLower === "beacon" ||
+      cleanLower === "logging off" ||
+      cleanLower === "log erased" ||
+      cleanLower === "eof" ||
+      cleanLower === "pong" ||
+      cleanLower === "ping"
+    ) {
+      return true;
+    }
+
+    if (clean.startsWith("[Eco ") || clean.startsWith("[Status ") || clean.startsWith("[ACK") ||
+        clean.startsWith("📡 ") || clean.startsWith("⛔ ") || clean.startsWith("📖 ") ||
+        clean.startsWith("⏰ ") || clean.startsWith("📅 ") || clean.startsWith("🏓 ")) {
+      return true;
+    }
+
+    return false;
+  }
+
+  isCommonChatMessage(payload) {
+    if (!payload || typeof payload !== "object") return false;
+
+    const evType = String(payload.event_type || payload.type || "");
+    const nonChatEventTypes = [
+      "repeater_response", "repeater_telemetry", "advert", "node_advert",
+      "node_discovered", "contact_discovered", "contact_updated", "contacts_updated",
+      "channels_updated", "message_delivered", "trace_data", "system_log",
+      "metrics_update", "rf_log", "telemetry", "stats_radio", "stats_core", "ack", "trace"
+    ];
+
+    if (nonChatEventTypes.includes(evType)) {
+      return false;
+    }
+
+    const isChatType = (
+      evType === "public" ||
+      evType === "channel" ||
+      evType === "direct" ||
+      payload.type === "CHANNEL_MSG" ||
+      payload.type === "DIRECT_MSG"
+    );
+
+    if (!isChatType) {
+      return false;
+    }
+
+    const txtType = Number(payload.txt_type ?? payload.text_type ?? 0);
+    if (txtType === 1) {
+      return false;
+    }
+
+    const text = String(payload.text || payload.message || "").trim();
+    if (!text) {
+      return false;
+    }
+
+    if (this.isCommandOrSystemText(text, txtType)) {
+      return false;
+    }
+
+    return true;
   }
 
   showToast(message, type = "info", durationMs = 3500) {
@@ -2555,14 +2684,58 @@ class MeshCoreStationApp {
 
     if (payload.event === "metrics_update" || payload.type === "metrics_update" || (payload.rx_count !== undefined && payload.tx_count !== undefined)) {
       this.updateHeaderMetrics(payload);
-    } else if (
-      payload.event_type === "public" ||
-      payload.event_type === "channel" ||
-      payload.event_type === "direct" ||
-      payload.type === "CHANNEL_MSG" ||
-      payload.type === "DIRECT_MSG" ||
-      (payload.text && (payload.channel_idx !== undefined || payload.sender))
-    ) {
+    } else if (payload.type === "repeater_response" || payload.event_type === "repeater_response") {
+      const senderKey = payload.sender || payload.pubkey_prefix || "unknown";
+      const rawText = (payload.text || payload.message || "").toLowerCase();
+      const isRepeaterTarget = Boolean(this.selectedRepeaterTarget && (
+        this.selectedRepeaterTarget === senderKey ||
+        (this.selectedRepeaterTarget.length >= 8 && senderKey.length >= 8 && (this.selectedRepeaterTarget.startsWith(senderKey) || senderKey.startsWith(this.selectedRepeaterTarget)))
+      ));
+
+      if (payload.telemetry) {
+        const canonicalPk = this.resolveCanonicalPubkey(senderKey);
+        const existing = this.knownNodes.get(canonicalPk) || this.knownNodes.get(senderKey) || {};
+        const updated = {
+          ...existing,
+          ...payload.telemetry,
+          public_key: existing.public_key || canonicalPk || senderKey,
+          last_seen: Math.floor(Date.now() / 1000),
+        };
+        this.knownNodes.set(canonicalPk, updated);
+        this.knownNodes.set(senderKey, updated);
+        if (isRepeaterTarget) {
+          this.populateRepeaterModalData(updated);
+        }
+      }
+
+      if (isRepeaterTarget) {
+        if (payload.telemetry?.auth_status === "failed" ||
+            rawText.includes("invalid password") ||
+            rawText.includes("access denied") ||
+            rawText.includes("bad pin") ||
+            rawText.includes("login failed") ||
+            rawText.includes("wrong password") ||
+            rawText.includes("incorrect password") ||
+            rawText.includes("not logged in") ||
+            rawText.includes("permission denied")) {
+          this.handleRepeaterAuthError(senderKey, "Contraseña incorrecta o cambiada en el repetidor");
+        } else if (payload.telemetry?.auth_status === "success" ||
+                   rawText.includes("login ok") ||
+                   rawText.includes("logged in") ||
+                   rawText.includes("auth ok") ||
+                   rawText.includes("welcome admin") ||
+                   payload.telemetry?.battery_pct !== undefined) {
+          if (!this.authenticatedRepeaters.has(senderKey)) {
+            this.authenticatedRepeaters.add(senderKey);
+            this.unlockRepeaterAdminView(senderKey);
+          }
+        }
+        if (payload.text) {
+          this.appendTerminalLine(`← [RESP] ${payload.text}`, "term-resp");
+        }
+      }
+      return;
+    } else if (this.isCommonChatMessage(payload)) {
       const isDm = payload.event_type === "direct" || payload.type === "DIRECT_MSG";
       const chIdx = payload.channel_idx !== undefined ? Number(payload.channel_idx) : (payload.event_type === "channel" ? 1 : 0);
       const rawSenderKey = payload.sender || payload.pubkey_prefix || "unknown";
@@ -2588,6 +2761,7 @@ class MeshCoreStationApp {
         sender_name: senderName,
         text: payload.text || payload.message || "",
         channel_idx: chIdx,
+        txt_type: Number(payload.txt_type ?? payload.text_type ?? 0),
         is_outgoing: false,
         metrics: payload.metrics || { rssi: payload.rssi || payload.RSSI, snr: payload.snr || payload.SNR },
         timestamp: payload.timestamp || new Date().toISOString(),
@@ -2653,54 +2827,6 @@ class MeshCoreStationApp {
       if (isDm && senderKey && senderKey !== "unknown") {
         this.conversationsWithMessages.add(senderKey);
         this.addDmContact(senderKey, senderName);
-
-        // Detección reactiva de autenticación de repetidores
-        const rawText = (payload.text || payload.message || "").toLowerCase();
-        const isRepeaterTarget = Boolean(this.selectedRepeaterTarget && (
-          this.selectedRepeaterTarget === senderKey ||
-          this.selectedRepeaterTarget === rawSenderKey ||
-          (this.selectedRepeaterTarget.length >= 8 && senderKey.length >= 8 && (this.selectedRepeaterTarget.startsWith(senderKey) || senderKey.startsWith(this.selectedRepeaterTarget)))
-        ));
-
-        if (payload.telemetry) {
-          const canonicalPk = this.resolveCanonicalPubkey(senderKey);
-          const existing = this.knownNodes.get(canonicalPk) || this.knownNodes.get(senderKey) || {};
-          const updated = {
-            ...existing,
-            ...payload.telemetry,
-            public_key: existing.public_key || canonicalPk || senderKey,
-            last_seen: Math.floor(Date.now() / 1000),
-          };
-          this.knownNodes.set(canonicalPk, updated);
-          this.knownNodes.set(senderKey, updated);
-          if (isRepeaterTarget) {
-            this.populateRepeaterModalData(updated);
-          }
-        }
-
-        if (isRepeaterTarget) {
-          if (payload.telemetry?.auth_status === "failed" ||
-              rawText.includes("invalid password") ||
-              rawText.includes("access denied") ||
-              rawText.includes("bad pin") ||
-              rawText.includes("login failed") ||
-              rawText.includes("wrong password") ||
-              rawText.includes("incorrect password") ||
-              rawText.includes("not logged in") ||
-              rawText.includes("permission denied")) {
-            this.handleRepeaterAuthError(senderKey, "Contraseña incorrecta o cambiada en el repetidor");
-          } else if (payload.telemetry?.auth_status === "success" ||
-                     rawText.includes("login ok") ||
-                     rawText.includes("logged in") ||
-                     rawText.includes("auth ok") ||
-                     rawText.includes("welcome admin") ||
-                     payload.telemetry?.battery_pct !== undefined) {
-            if (!this.authenticatedRepeaters.has(senderKey)) {
-              this.authenticatedRepeaters.add(senderKey);
-              this.unlockRepeaterAdminView(senderKey);
-            }
-          }
-        }
       }
     } else if (payload.byte_length !== undefined || payload.event_type === "rf_log" || payload.raw_hex !== undefined) {
       this.renderSnifferPacket(payload);
@@ -4057,18 +4183,22 @@ class MeshCoreStationApp {
     const feedKey = canonicalTarget ? `dm_${canonicalTarget}` : `ch_${this.activeChannelIdx}`;
 
     if (!this.channelFeeds.has(feedKey) || this.channelFeeds.get(feedKey).length === 0) {
-      const stored = await this.storage.getMessagesByFeed(feedKey);
+      let stored = await this.storage.getMessagesByFeed(feedKey);
       if (stored && stored.length > 0) {
+        stored = stored.filter((m) => !this.isCommandOrSystemText(m.text, m.txt_type));
         this.channelFeeds.set(feedKey, stored);
       } else if (canonicalTarget && this.activeDmTarget && canonicalTarget !== this.activeDmTarget) {
-        const storedOld = await this.storage.getMessagesByFeed(`dm_${this.activeDmTarget}`);
+        let storedOld = await this.storage.getMessagesByFeed(`dm_${this.activeDmTarget}`);
         if (storedOld && storedOld.length > 0) {
+          storedOld = storedOld.filter((m) => !this.isCommandOrSystemText(m.text, m.txt_type));
           this.channelFeeds.set(feedKey, storedOld);
         }
       }
     }
 
-    const messages = this.channelFeeds.get(feedKey) || [];
+    const rawMessages = this.channelFeeds.get(feedKey) || [];
+    const messages = rawMessages.filter((m) => !this.isCommandOrSystemText(m.text, m.txt_type));
+    this.channelFeeds.set(feedKey, messages);
 
     if (messages.length === 0) {
       this.unreadCounts.set(feedKey, 0);
@@ -5049,10 +5179,14 @@ class MeshCoreStationApp {
   async fetchInitialData() {
     await this.fetchLocalNodeConfig();
 
+    // Purgar mensajes históricos de sistema (Unknown command, CLI, etc.) de IndexedDB
+    await this.storage.purgeNonCommonMessages((t, tt) => this.isCommandOrSystemText(t, tt));
+
     // Cargar historial de chat inicial para el canal público 0 desde IndexedDB
     const initialMsgs = await this.storage.getMessagesByFeed("ch_0");
     if (initialMsgs && initialMsgs.length > 0) {
-      this.channelFeeds.set("ch_0", initialMsgs);
+      const cleanMsgs = initialMsgs.filter((m) => !this.isCommandOrSystemText(m.text, m.txt_type));
+      this.channelFeeds.set("ch_0", cleanMsgs);
       if (this.activeChannelIdx === 0 && !this.activeDmTarget) {
         await this.renderCurrentConversation();
       }
