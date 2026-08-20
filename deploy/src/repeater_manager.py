@@ -6,6 +6,7 @@ el análisis integral de telemetría y el procesamiento de tramas de sniffer.
 
 from __future__ import annotations
 
+import json
 import re
 import time
 from collections.abc import Callable
@@ -23,45 +24,49 @@ class RepeaterManager:
         """Construye la cadena de comando en texto para enviar al firmware del repetidor."""
         act = action.strip().lower()
 
-        # Comandos directos sin argumentos
+        # Comandos sin argumentos adicionales
         if act in (
-            "stats-core",
-            "stats-radio",
-            "stats-packets",
             "stats",
-            "telemetry",
-            "clear stats",
-            "clear_stats",
-            "neighbors",
-            "discover.neighbors",
-            "discover_neighbors",
-            "advert",
-            "log start",
-            "log stop",
+            "status",
+            "stats-core",
+            "stats_core",
+            "stats-radio",
+            "stats_radio",
+            "stats-packets",
+            "stats_packets",
+            "clock",
+            "get_clock",
+            "get clock",
+            "uptime",
+            "get_uptime",
+            "get uptime",
             "ver",
             "version",
-            "board",
-            "clock",
-            "pos",
-            "get pos",
+            "get_ver",
+            "get version",
+            "clear_stats",
+            "clear stats",
+            "discover_neighbors",
+            "discover.neighbors",
             "get_pos",
-            "owner",
-            "get owner",
+            "get pos",
             "get_owner",
-            "acl",
-            "get acl",
+            "get owner",
             "get_acl",
-            "identity",
-            "get identity",
+            "get acl",
             "get_identity",
-            "radio",
-            "get radio",
+            "get identity",
             "get_radio",
+            "get radio",
             "reboot",
             "ping",
             "ping 0",
             "ping_zero",
             "pingzero",
+            "advert",
+            "log start",
+            "log stop",
+            "board",
             "trace 0",
         ):
             if act in ("clear_stats", "clear stats"):
@@ -137,66 +142,54 @@ class RepeaterManager:
             val = "on" if fixed is True or str(fixed).lower() in ("true", "1", "on") else "off"
             return f"set pos.fixed {val}"
 
-        # 5. Sync Clock
-        if act in ("sync_clock", "set_clock"):
-            epoch_val = params.get("timestamp", params.get("epoch", int(time.time())))
-            return f"set clock {epoch_val}"
-
-        # 6. Access Control (ACL)
-        if act in ("set_acl_mode", "access_control"):
-            mode = params.get("acl_mode", params.get("mode", "public"))
-            return f"set acl.mode {mode}"
-
-        if act in ("acl_add", "add_acl_key"):
-            key = params.get("public_key", params.get("key", ""))
-            return f"acl add {key}"
-
-        if act in ("acl_remove", "remove_acl_key"):
-            key = params.get("public_key", params.get("key", ""))
-            return f"acl remove {key}"
-
-        # 7. Passwords
-        if act in ("set_admin_password", "set_admin_pwd", "admin_password"):
-            pwd = params.get("admin_password", params.get("password", ""))
-            return f"set admin.password {pwd}"
-
-        if act in ("set_guest_password", "set_guest_pwd", "guest_password"):
-            pwd = params.get("guest_password", params.get("password", ""))
-            return f"set guest.password {pwd}"
-
-        # 8. Identity Key
-        if act in ("set_identity_key", "change_identity_key", "identity_key"):
-            key = params.get("identity_key", params.get("key", ""))
-            return f"set identity.key {key}"
-
-        # 9. Radio & Regions
-        if act in ("set_region", "manage_regions", "region"):
-            region = params.get("region", "US915")
-            return f"set region {region}"
-
-        if act in ("set_tx_power", "set_tx", "tx_power"):
-            power = params.get("power", params.get("tx_power", 20))
-            return f"set tx {power}"
-
-        if act == "set_name":
-            name = params.get("name", "Repeater")
-            return f'set name "{name}"' if " " in str(name) else f"set name {name}"
-
-        if act in ("set_freq", "frequency"):
-            freq = params.get("freq", params.get("frequency", 915.0))
+        # 5. Radio Frequency & Power
+        if act in ("set_frequency", "set_freq", "frequency", "freq"):
+            freq = params.get("frequency", params.get("freq", 915.0))
             return f"set freq {freq}"
 
-        if act in ("set_sf", "spreading_factor"):
-            sf = params.get("sf", params.get("spreading_factor", 11))
+        if act in ("set_tx_power", "set_power", "tx_power", "power"):
+            pwr = params.get("tx_power", params.get("power", 20))
+            return f"set tx_power {pwr}"
+
+        # 6. LoRa Modem Parameters
+        if act in ("set_sf", "set_spreading_factor", "sf"):
+            sf = params.get("spreading_factor", params.get("sf", 11))
             return f"set sf {sf}"
 
-        if act in ("set_bw", "bandwidth"):
-            bw = params.get("bw", params.get("bandwidth", 250))
+        if act in ("set_bw", "set_bandwidth", "bandwidth", "bw"):
+            bw = params.get("bandwidth", params.get("bw", 250.0))
             return f"set bw {bw}"
 
-        if act in ("set_cr", "coding_rate"):
-            cr = params.get("cr", params.get("coding_rate", "4/5"))
+        if act in ("set_cr", "set_coding_rate", "coding_rate", "cr"):
+            cr = params.get("coding_rate", params.get("cr", 5))
             return f"set cr {cr}"
+
+        # 7. Access Control Lists (ACL)
+        if act in ("acl_add", "add_acl", "acl.add"):
+            pk = params.get("public_key", params.get("pk", ""))
+            perm = params.get("permission", params.get("perm", "admin"))
+            return f"acl add {pk} {perm}"
+
+        if act in ("acl_remove", "remove_acl", "acl.remove", "acl_del"):
+            pk = params.get("public_key", params.get("pk", ""))
+            return f"acl remove {pk}"
+
+        if act in ("acl_list", "get_acl_list", "acl.list"):
+            return "acl list"
+
+        # 8. Password & Security
+        if act in ("set_admin_password", "set_password", "change_password", "password"):
+            new_pwd = params.get("new_password", params.get("password", ""))
+            return f"set admin.password {new_pwd}"
+
+        if act in ("set_guest_password", "guest_password"):
+            new_pwd = params.get("guest_password", params.get("password", ""))
+            return f"set guest.password {new_pwd}"
+
+        # 9. Clock & Time
+        if act in ("set_clock", "set_time", "sync_time", "clock_sync"):
+            ts = params.get("timestamp", params.get("time", int(time.time())))
+            return f"set clock {ts}"
 
         # 10. Repeat Settings
         if act in ("set_repeat", "repeat_settings", "repeat"):
@@ -226,6 +219,59 @@ class RepeaterManager:
             extracted["auth_error"] = text.strip()
         elif any(p in lower_text for p in ("login ok", "logged in", "auth ok", "welcome admin", "access granted", "login success")):
             extracted["auth_status"] = "success"
+
+        # 0. Parsing directo si la respuesta viene en formato JSON (firmware oficial MeshCore C++ StatsFormatHelper)
+        if text.startswith("{") and text.endswith("}"):
+            try:
+                data_json = json.loads(text)
+                if isinstance(data_json, dict):
+                    # Batería / Voltaje: {"battery_mv": 4120} o {"batt_mv": 4120} o {"battery": 92}
+                    if "battery_mv" in data_json or "batt_mv" in data_json or "battery" in data_json:
+                        raw_bat = data_json.get("battery_mv", data_json.get("batt_mv", data_json.get("battery")))
+                        if isinstance(raw_bat, (int, float)):
+                            if raw_bat > 100:
+                                extracted["voltage_v"] = round(raw_bat / 1000.0, 2)
+                                extracted["battery_pct"] = max(0, min(100, int((raw_bat - 3300) / (4200 - 3300) * 100)))
+                            else:
+                                extracted["battery_pct"] = int(raw_bat)
+                    if "voltage_v" in data_json or "voltage" in data_json:
+                        raw_v = data_json.get("voltage_v", data_json.get("voltage"))
+                        if isinstance(raw_v, (int, float)):
+                            extracted["voltage_v"] = round(float(raw_v), 2)
+                    if "solar_mv" in data_json or "solar_v" in data_json or "solar" in data_json:
+                        raw_sol = data_json.get("solar_mv", data_json.get("solar_v", data_json.get("solar")))
+                        if isinstance(raw_sol, (int, float)):
+                            extracted["solar_v"] = round(raw_sol / 1000.0, 2) if raw_sol > 100 else round(float(raw_sol), 2)
+                    if "uptime_secs" in data_json or "uptime" in data_json:
+                        raw_up = data_json.get("uptime_secs", data_json.get("uptime"))
+                        if isinstance(raw_up, (int, float)):
+                            secs = int(raw_up)
+                            days, rem = divmod(secs, 86400)
+                            hours, rem = divmod(rem, 3600)
+                            mins, s = divmod(rem, 60)
+                            extracted["uptime"] = f"{days}d {hours}h {mins}m" if days > 0 else f"{hours}h {mins}m {s}s"
+                        else:
+                            extracted["uptime"] = str(raw_up)
+                    if "errors" in data_json:
+                        extracted["packet_errors"] = int(data_json["errors"])
+                    if "queue_len" in data_json:
+                        extracted["queue_len"] = int(data_json["queue_len"])
+                    if "noise_floor" in data_json:
+                        extracted["noise_floor_dbm"] = int(data_json["noise_floor"])
+                    if "last_rssi" in data_json:
+                        extracted["last_rssi"] = int(data_json["last_rssi"])
+                    if "last_snr" in data_json:
+                        extracted["last_snr"] = round(float(data_json["last_snr"]), 1)
+                    if "tx_air_secs" in data_json:
+                        extracted["airtime_ms"] = int(float(data_json["tx_air_secs"]) * 1000)
+                    if "sent" in data_json:
+                        extracted["packets_sent"] = int(data_json["sent"])
+                    if "recv" in data_json:
+                        extracted["packets_recv"] = int(data_json["recv"])
+                    if "recv_errors" in data_json:
+                        extracted["packet_errors"] = int(data_json["recv_errors"])
+            except Exception:
+                pass
 
         # Batería: "Battery: 4120mV (92%)" o "Batt: 4.12V, 95%" o "Battery: 92%" o "Bat: 92%"
         bat_m = re.search(r'(?:battery|batt|bat)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:mv|v|%)?(?:\s*\((?:(\d+)\s*%)?\))?', text, re.IGNORECASE)
