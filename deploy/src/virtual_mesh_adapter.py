@@ -368,8 +368,17 @@ class VirtualMeshAdapter(BaseSerialAdapter):
             else:
                 target_node = self.node_alpha
 
+        exp_ack = f"{(int(time.time() * 1000) ^ (hash(text) & 0xffffffff)) & 0xffffffff:08x}" if is_direct else None
         if target_node:
-            task = asyncio.create_task(self._simulate_echo_reply(target_node, text, channel_idx=channel_idx, is_direct=is_direct))
+            task = asyncio.create_task(
+                self._simulate_echo_reply(
+                    target_node,
+                    text,
+                    channel_idx=channel_idx,
+                    is_direct=is_direct,
+                    expected_ack=exp_ack,
+                )
+            )
             self._background_tasks.add(task)
             task.add_done_callback(self._background_tasks.discard)
 
@@ -378,6 +387,7 @@ class VirtualMeshAdapter(BaseSerialAdapter):
             "delivered": True,
             "target": target or "broadcast",
             "channel": channel_idx,
+            "expected_ack": exp_ack,
             "timestamp": int(time.time()),
         }
 
@@ -566,9 +576,23 @@ class VirtualMeshAdapter(BaseSerialAdapter):
         original_text: str,
         channel_idx: int = 0,
         is_direct: bool = True,
+        expected_ack: str | None = None,
     ) -> None:
         """Simula que el nodo remoto procesa el mensaje y responde con un Eco por RF."""
-        await asyncio.sleep(0.4)
+        await asyncio.sleep(0.3)
+
+        if is_direct and expected_ack:
+            ack_event = {
+                "type": "ACK",
+                "event_type": "ack",
+                "code": expected_ack,
+                "sender": str(node["key"]),
+                "trip_time_ms": round(float(node.get("hops", 1)) * 45.0 + 35.0, 1),
+                "rssi": node["rssi"],
+                "snr": node["snr"],
+            }
+            self._dispatch_event(ack_event)
+            await asyncio.sleep(0.2)
 
         if is_direct:
             echo_msg = f"[Echo DM de {node['alias']}]: Recibido: \"{original_text}\" | SNR: {node['snr']}dB RSSI: {node['rssi']}dBm Hops: {node['hops']}"

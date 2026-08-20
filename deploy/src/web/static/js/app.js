@@ -122,12 +122,16 @@ class MeshCoreStorage {
       const tx = this.db.transaction("chat_messages", "readwrite");
       const store = tx.objectStore("chat_messages");
       const req = store.openCursor();
+      const rawAck = (ackCode || "").toLowerCase();
+      const ackClean = rawAck.startsWith("0x") ? rawAck.slice(2) : rawAck;
       req.onsuccess = (e) => {
         const cursor = e.target.result;
         if (cursor) {
           const val = cursor.value;
-          const match = (msgId && (val.msg_id === msgId || String(val.id) === String(msgId))) ||
-                        (ackCode && val.expected_ack && val.expected_ack.toLowerCase() === ackCode.toLowerCase());
+          const valExp = (val.expected_ack || "").toLowerCase();
+          const valExpClean = valExp.startsWith("0x") ? valExp.slice(2) : valExp;
+          const ackMatch = ackClean && valExpClean && valExpClean === ackClean;
+          const match = (msgId && (val.msg_id === msgId || String(val.id) === String(msgId))) || ackMatch;
           if (match) {
             val.delivered = true;
             val.trip_time_ms = tripTime || 0;
@@ -2482,7 +2486,9 @@ class MeshCoreStationApp {
 
     if (payload.type === "message_delivered" || payload.event_type === "message_delivered") {
       const msgId = payload.msg_id;
-      const ackCode = (payload.ack_code || "").toLowerCase();
+      const rawAck = (payload.ack_code || "").toLowerCase();
+      const ackClean = rawAck.startsWith("0x") ? rawAck.slice(2) : rawAck;
+      const ackWithPrefix = `0x${ackClean}`;
       const tripTime = payload.trip_time_ms || 0;
 
       // 1. Actualizar elementos en el DOM actual
@@ -2490,8 +2496,8 @@ class MeshCoreStationApp {
       if (msgId) {
         matchedRows = Array.from(document.querySelectorAll(`.message-bubble-row[data-msg-id="${msgId}"]`));
       }
-      if (matchedRows.length === 0 && ackCode) {
-        matchedRows = Array.from(document.querySelectorAll(`.message-bubble-row[data-ack-code="${ackCode}"]`));
+      if (matchedRows.length === 0 && ackClean) {
+        matchedRows = Array.from(document.querySelectorAll(`.message-bubble-row[data-ack-code="${ackClean}"], .message-bubble-row[data-ack-code="${ackWithPrefix}"]`));
       }
       matchedRows.forEach((row) => {
         row.classList.add("delivered");
@@ -2506,14 +2512,17 @@ class MeshCoreStationApp {
       // 2. Actualizar mensajes en memoria (channelFeeds) y en IndexedDB
       for (const [feedKey, msgs] of this.channelFeeds.entries()) {
         for (const m of msgs) {
-          if ((msgId && (m.id === msgId || m.msg_id === msgId)) || (ackCode && m.expected_ack && m.expected_ack.toLowerCase() === ackCode)) {
+          const mExp = (m.expected_ack || "").toLowerCase();
+          const mExpClean = mExp.startsWith("0x") ? mExp.slice(2) : mExp;
+          const isAckMatch = Boolean(ackClean && mExpClean && mExpClean === ackClean);
+          if ((msgId && (m.id === msgId || m.msg_id === msgId)) || isAckMatch) {
             m.delivered = true;
             m.trip_time_ms = tripTime;
             this.storage.saveMessage(feedKey, m);
           }
         }
       }
-      this.storage.updateMessageDelivery(msgId, ackCode, tripTime);
+      this.storage.updateMessageDelivery(msgId, ackClean, tripTime);
 
       // 3. El nodo destinatario que respondió con ACK está activo en la malla
       if (payload.recipient && payload.recipient !== "local" && payload.recipient !== "broadcast") {

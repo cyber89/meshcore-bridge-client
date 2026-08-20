@@ -6,6 +6,25 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Verificación y Fortalecimiento Integral del Pipeline de Entrega de Mensajes (`✓✓ TX` / Delivery Receipts)
+- **Fecha**: 2026-08-20
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Comprobó y fortaleció el ciclo completo de notificación de entrega de mensajes (Delivery Receipts / ACKs de radio) desde el firmware y adaptador virtual hasta la interfaz de usuario en tiempo real vía WebSockets e IndexedDB.
+- **Contribuciones de Agentes**:
+  1. **Agente 2 (Python Bridge Architect Agent)**:
+     - **`src/store_forward.py`**: Normalizó la consulta de `expected_ack` en SQLite para soportar indistintamente formatos con y sin prefijo `0x` (`ack_clean`, `ack_no_prefix`, `ack_with_prefix`).
+     - **`src/rx_router.py`**: Robusteció la extracción de `ack_code` soportando tipos `bytes` (vía `.hex()`), `int` (vía `hex()`) y cadenas de texto, garantizando el enrutamiento inmediato del evento WebSocket `message_delivered`.
+     - **`src/virtual_mesh_adapter.py`**: Añadió la generación y emisión de paquetes ACK de radio con código hash y cálculo de `trip_time_ms` en mensajes directos simulados.
+  2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - **`src/web/static/js/app.js`**:
+       - Aseguró la normalización de códigos ACK en `handleIncomingLiveEvent` y `updateMessageDelivery` para actualizar el DOM reactivamente (`.message-bubble-row.delivered`, `.msg-ack-status.delivered` -> `✓✓ TX`, `title="Entregado por radio (X ms)"`).
+       - Sincronizó el estado en memoria (`this.channelFeeds`) y almacenamiento persistente en IndexedDB (`chat_messages`).
+  3. **Agente 0 (Lead Orchestrator)**:
+     - Verificación estática con `node -c src/web/static/js/app.js` (código 0).
+     - Verificación de compilación Python con `python -m compileall src` (código 0).
+     - Sincronización del paquete autónomo `/deploy/` (`python scripts/sync_deploy.py`).
+     - Sincronización con el repositorio remoto (`git push origin main`).
+
 ### Hito: Corrección de Excepción JavaScript en Consola Web (`appendLogEntryToDom is not a function`)
 - **Fecha**: 2026-08-20
 - **Estado**: ✅ COMPLETADO

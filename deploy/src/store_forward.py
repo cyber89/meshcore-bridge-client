@@ -185,13 +185,15 @@ class SQLiteStoreAndForward:
         """Busca el msg_id asociado a un código de ACK de radio de 4 bytes (hex)."""
         if not expected_ack:
             return None
-        ack_clean = expected_ack.strip().lower()
+        ack_clean = str(expected_ack).strip().lower()
+        ack_no_prefix = ack_clean[2:] if ack_clean.startswith("0x") else ack_clean
+        ack_with_prefix = f"0x{ack_no_prefix}"
         try:
             with self._get_conn() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    "SELECT msg_id FROM message_receipts WHERE lower(expected_ack) = ? ORDER BY sent_at DESC LIMIT 1;",
-                    (ack_clean,),
+                    "SELECT msg_id FROM message_receipts WHERE lower(expected_ack) IN (?, ?, ?) ORDER BY sent_at DESC LIMIT 1;",
+                    (ack_clean, ack_no_prefix, ack_with_prefix),
                 )
                 row = cursor.fetchone()
                 if row:
