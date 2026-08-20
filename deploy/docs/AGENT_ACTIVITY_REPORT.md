@@ -6,6 +6,25 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Actualización Reactiva de Estado de Actividad de Nodos (En Línea / Inactivo)
+- **Fecha**: 2026-08-19
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Diagnosticó y corrigió el flujo por el cual un nodo remoto con el que se interactúa o del que se recibe un mensaje permanecía erróneamente con estado visual "Inactivo" / "Fuera de línea".
+- **Contribuciones de Agentes**:
+  1. **Agente 2 (Python Bridge Architect Agent)**:
+     - **`src/rx_router.py`**:
+       - En `handle_event`, registra los paquetes de recepción con `node_registry.record_packet` para nodos remotos y emite el evento WebSocket `contact_updated` (o `contact_discovered` para nuevos) conteniendo la información actualizada del contacto (`last_seen`, `last_rssi`, `last_snr`, `hops`), permitiendo que el cliente web reciba la señal de vivacidad en tiempo real.
+  2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - **`src/web/static/js/app.js`**:
+       - Implementó `updateNodeInDom(pubkey, node)` para conmutar inmediatamente el chip de estado a `🟢 En Línea` (`status-online`), actualizar métricas de RF (`RSSI`, `SNR`, `Saltos`) y remover `.node-card-offline` en el DOM sin necesidad de recargar la página.
+       - En `handleIncomingLiveEvent`, actualiza `last_seen` en `this.knownNodes` e invoca `updateNodeInDom` al recibir mensajes ordinarios (DM o canal), confirmaciones de entrega de radio (`message_delivered` para el destinatario) y eventos de actualización (`contact_updated` / `contact_discovered`).
+       - Robusteció el cálculo y normalización de `last_seen` en `renderNodesDirectory` para soportar marcas de tiempo en segundos, milisegundos y formatos de fecha ISO.
+  3. **Agente 0 (Agente Principal / Orchestrator)**:
+     - Verificación estática con `node -c src/web/static/js/app.js` (código 0).
+     - Verificación de compilación Python con `python -m compileall src` (código 0).
+     - Sincronización de `/deploy/` y paquetes comprimidos vía `python scripts/sync_deploy.py`.
+     - Sincronización con el repositorio remoto GitHub (`origin/main`).
+
 ### Hito: Validación y Confirmación de Entrega de Mensajes E2E (Doble Palomilla `✓✓ TX`)
 - **Fecha**: 2026-08-19
 - **Estado**: ✅ COMPLETADO

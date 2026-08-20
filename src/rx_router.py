@@ -155,7 +155,7 @@ class RxEventRouter:
                 )
 
                 if lat_val is not None or lon_val is not None or bat_pct is not None:
-                    self._ctx.node_registry.add_or_update(
+                    contact_info = self._ctx.node_registry.add_or_update(
                         sender,
                         NodeContactUpdate(
                             battery_pct=bat_pct,
@@ -165,11 +165,23 @@ class RxEventRouter:
                         ),
                     )
 
-                if is_new and not is_local_sender and self._ctx.web_server:
-                    self._ctx.web_server.broadcast_event({
-                        "type": "contact_discovered",
-                        "contact": contact_info.to_dict(),
-                    })
+                if not is_local_sender:
+                    self._ctx.node_registry.record_packet(
+                        PacketRecord(
+                            public_key=sender,
+                            is_rx=True,
+                            rssi=effective_rssi,
+                            snr=effective_snr,
+                            hop_count=effective_hops,
+                        )
+                    )
+                    if self._ctx.web_server:
+                        self._ctx.web_server.broadcast_event({
+                            "type": "contact_discovered" if is_new else "contact_updated",
+                            "event_type": "contact_discovered" if is_new else "contact_updated",
+                            "is_new": is_new,
+                            "contact": contact_info.to_dict(),
+                        })
 
             ev_upper = ev_type_str.upper()
             p_type_upper = str(payload_dict.get("type", "")).upper()

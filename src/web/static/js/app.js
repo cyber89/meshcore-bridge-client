@@ -2453,10 +2453,21 @@ class MeshCoreStationApp {
       return;
     }
 
-    if (payload.type === "contact_discovered") {
-      this.fetchDiscoveredContacts();
-      const name = payload.contact?.name || payload.contact?.public_key?.slice(0, 8) || "desconocido";
-      this.showToast(`📡 Nuevo nodo descubierto en el aire: ${name}`, "info");
+    if (payload.type === "contact_discovered" || payload.type === "contact_updated" || payload.event_type === "contact_discovered" || payload.event_type === "contact_updated") {
+      const c = payload.contact || payload.data;
+      if (c && c.public_key) {
+        const canonicalPk = this.resolveCanonicalPubkey(c.public_key);
+        this.knownNodes.set(canonicalPk, c);
+        this.knownNodes.set(c.public_key, c);
+        this.updateNodeInDom(canonicalPk, c);
+        if (payload.is_new) {
+          this.fetchDiscoveredContacts();
+          const name = c.name || canonicalPk.slice(0, 8);
+          this.showToast(`📡 Nuevo nodo descubierto en el aire: ${name}`, "info");
+        }
+      } else {
+        this.fetchNodes();
+      }
       return;
     }
 
@@ -2494,6 +2505,25 @@ class MeshCoreStationApp {
         }
       }
       this.storage.updateMessageDelivery(msgId, ackCode, tripTime);
+
+      // 3. El nodo destinatario que respondió con ACK está activo en la malla
+      if (payload.recipient && payload.recipient !== "local" && payload.recipient !== "broadcast") {
+        const canonicalRecipient = this.resolveCanonicalPubkey(payload.recipient);
+        const existing = this.knownNodes.get(canonicalRecipient) || this.knownNodes.get(payload.recipient) || {
+          public_key: canonicalRecipient || payload.recipient,
+          role: "CLIENT",
+        };
+        const updated = {
+          ...existing,
+          public_key: existing.public_key || canonicalRecipient || payload.recipient,
+          last_seen: Math.floor(Date.now() / 1000),
+        };
+        this.knownNodes.set(canonicalRecipient, updated);
+        if (payload.recipient !== canonicalRecipient) {
+          this.knownNodes.set(payload.recipient, updated);
+        }
+        this.updateNodeInDom(canonicalRecipient, updated);
+      }
       return;
     }
 
@@ -2550,6 +2580,33 @@ class MeshCoreStationApp {
       if (feed.length > MAX_FEED_MESSAGES) feed.shift();
 
       this.storage.saveMessage(feedKey, normalizedMsg);
+
+      // Actualizar vivacidad y estado En Línea del nodo emisor en tiempo real
+      if (senderKey && senderKey !== "unknown" && senderKey !== "local") {
+        const canonicalPk = this.resolveCanonicalPubkey(senderKey);
+        const existing = this.knownNodes.get(canonicalPk) || this.knownNodes.get(senderKey) || {
+          public_key: canonicalPk || senderKey,
+          name: senderName,
+          role: isDm ? "CLIENT" : "CLIENT",
+        };
+        const nowEpoch = Math.floor(Date.now() / 1000);
+        const updatedNode = {
+          ...existing,
+          public_key: existing.public_key || canonicalPk || senderKey,
+          name: existing.name || senderName,
+          alias: existing.alias || (senderName !== senderKey ? senderName : null),
+          last_seen: nowEpoch,
+          last_rssi: payload.rssi != null ? payload.rssi : (payload.metrics?.rssi != null ? payload.metrics.rssi : existing.last_rssi),
+          last_snr: payload.snr != null ? payload.snr : (payload.metrics?.snr != null ? payload.metrics.snr : existing.last_snr),
+          hops: payload.hops != null ? payload.hops : (payload.hop_count != null ? payload.hop_count : existing.hops),
+          ...(payload.telemetry || {}),
+        };
+        this.knownNodes.set(canonicalPk, updatedNode);
+        if (senderKey !== canonicalPk) {
+          this.knownNodes.set(senderKey, updatedNode);
+        }
+        this.updateNodeInDom(canonicalPk, updatedNode);
+      }
 
       let isCurrent = false;
       if (isDm) {
@@ -5052,6 +5109,54 @@ class MeshCoreStationApp {
     }
   }
 
+  updateNodeInDom(pubkey, node) {
+    if (!pubkey || !node) return;
+    const norm = String(pubkey).trim().toLowerCase();
+
+    // 1. Actualizar tarjetas en el grid unificado de nodos
+    const cards = document.querySelectorAll("#nodesUnifiedGridUi .node-card");
+    let found = false;
+
+    cards.forEach((card) => {
+      const cardPk = String(card.getAttribute("data-pk") || "").trim().toLowerCase();
+      const isMatch = cardPk === norm ||
+        (cardPk.length >= 8 && norm.length >= 8 && (cardPk.startsWith(norm) || norm.startsWith(cardPk)));
+
+      if (isMatch) {
+        found = true;
+        // Actualizar chip de estado a En Línea
+        const statusChip = card.querySelector(".node-status-chip");
+        if (statusChip) {
+          statusChip.className = "node-status-chip status-online";
+          statusChip.textContent = "🟢 En Línea";
+          statusChip.title = "Hace un momento";
+        }
+        card.classList.remove("node-card-offline");
+
+        // Actualizar RF stat pills si vienen métricas
+        if (node.last_rssi != null || node.rssi != null) {
+          const rssiVal = node.last_rssi ?? node.rssi;
+          const rssiPill = card.querySelector('.stat-pill[title*="Señal"] strong, .stat-pill[title*="Intensidad"] strong');
+          if (rssiPill) rssiPill.textContent = `${rssiVal} dBm`;
+        }
+        if (node.last_snr != null || node.snr != null) {
+          const snrVal = node.last_snr ?? node.snr;
+          const snrPill = card.querySelector('.stat-pill[title*="Ruido"] strong, .stat-pill[title*="SNR"] strong');
+          if (snrPill) snrPill.textContent = `${snrVal} dB`;
+        }
+        if (node.hops != null) {
+          const hopsPill = card.querySelector('.stat-pill[title*="Saltos"] strong');
+          if (hopsPill) hopsPill.textContent = String(node.hops);
+        }
+      }
+    });
+
+    // 2. Si no se encontró en el DOM y tenemos la lista de nodos, refrescar el directorio
+    if (!found && this.knownNodes && this.knownNodes.size > 0) {
+      this.renderNodesDirectory(Array.from(this.knownNodes.values()));
+    }
+  }
+
   renderNodesDirectory(nodes) {
     const contactsGrid = this.dom.contactsGridUi || document.getElementById("contactsGridUi");
     const unifiedNodesGrid = this.dom.nodesUnifiedGridUi || document.getElementById("nodesUnifiedGridUi");
@@ -5093,18 +5198,19 @@ class MeshCoreStationApp {
 
       if (matchIndex >= 0) {
         const prev = deduplicatedNodes[matchIndex];
-        const canonicalPk = normPk.length >= prev.public_key.length ? normPk : prev.public_key;
         deduplicatedNodes[matchIndex] = {
           ...prev,
           ...rawNode,
-          public_key: canonicalPk,
-          battery_pct: rawNode.battery_pct !== undefined && rawNode.battery_pct !== null ? rawNode.battery_pct : (rawNode.battery !== undefined ? rawNode.battery : prev.battery_pct),
-          last_rssi: rawNode.last_rssi !== undefined && rawNode.last_rssi !== null ? rawNode.last_rssi : prev.last_rssi,
-          last_snr: rawNode.last_snr !== undefined && rawNode.last_snr !== null ? rawNode.last_snr : prev.last_snr,
-          hops: rawNode.hops !== undefined && rawNode.hops !== null ? rawNode.hops : prev.hops,
+          public_key: prev.public_key.length >= rawNode.public_key.length ? prev.public_key : rawNode.public_key,
+          name: prev.name && !prev.name.startsWith("Node_") ? prev.name : (rawNode.name || prev.name),
+          alias: prev.alias || rawNode.alias,
+          last_seen: Math.max(Number(prev.last_seen) || 0, Number(rawNode.last_seen) || 0),
+          last_rssi: rawNode.last_rssi != null ? rawNode.last_rssi : prev.last_rssi,
+          last_snr: rawNode.last_snr != null ? rawNode.last_snr : prev.last_snr,
+          hops: rawNode.hops != null ? rawNode.hops : prev.hops,
         };
       } else {
-        deduplicatedNodes.push(rawNode);
+        deduplicatedNodes.push({ ...rawNode });
       }
     }
 
@@ -5116,6 +5222,7 @@ class MeshCoreStationApp {
     const mapFrag = document.createDocumentFragment();
 
     const mapBounds = [];
+    let geoLocatedCount = 0;
     let clientContactCount = 0;
     let totalCount = 0;
     let repeaterCount = 0;
@@ -5159,34 +5266,21 @@ class MeshCoreStationApp {
 
       const snrVal = hasRealSnr ? `${node.snr ?? node.last_snr} dB` : "--";
       const rssiVal = hasRealRssi ? `${node.rssi ?? node.last_rssi} dBm` : "--";
-      const hopsVal = hasRealHops ? `${node.hops} ${(node.hops === 1 ? 'salto' : 'saltos')}` : "--";
+      const hopsVal = hasRealHops ? String(node.hops) : "--";
       const batVal = hasRealBat ? `${node.battery ?? node.battery_pct}%` : "--";
 
-      // Si ya hay una conversación con mensajes para este nodo (y es cliente no local), mantenerlo en la barra lateral de chat
-      const canonicalNodePk = this.resolveCanonicalPubkey(node.public_key);
-      const feedKey = `dm_${canonicalNodePk}`;
-      if (isClient && !isLocal && (this.conversationsWithMessages.has(canonicalNodePk) ||
-          this.conversationsWithMessages.has(node.public_key) ||
-          (this.channelFeeds.has(feedKey) && this.channelFeeds.get(feedKey).length > 0) ||
-          (this.channelFeeds.has(`dm_${node.public_key}`) && this.channelFeeds.get(`dm_${node.public_key}`).length > 0) ||
-          this.activeDmTarget === canonicalNodePk ||
-          this.activeDmTarget === node.public_key)) {
-        this.addDmContact(canonicalNodePk, cleanName, node.role);
-      }
-
-      // 1. SOLO renderizar en la libreta de Contactos si es tipo CLIENT y NO es el nodo local
-      if (isClient && !isLocal && contactsGrid) {
+      // 1. Renderizar en la pestaña "Contactos" (solo clientes/contactos externos)
+      if (contactsGrid && !isLocal && !isRepeater && !isSensor && !isRoom) {
         clientContactCount++;
         const cCard = document.createElement("div");
-        cCard.className = "contact-item-card";
+        cCard.className = "contact-card";
         cCard.setAttribute("data-pk", node.public_key);
-        const searchData = `${node.alias || ''} ${node.name || ''} ${node.public_key}`.toLowerCase();
-        cCard.setAttribute("data-search", searchData);
+        cCard.setAttribute("data-search", `${cleanName} ${node.public_key}`.toLowerCase());
 
         cCard.innerHTML = `
           <div class="contact-card-header">
             <div class="contact-avatar">👤</div>
-            <div class="contact-meta">
+            <div class="contact-info">
               <span class="contact-name" title="${this.escapeHtml(cleanName)}">${this.escapeHtml(cleanName)}</span>
               <span class="contact-pubkey font-mono" title="${this.escapeHtml(node.public_key)}">
                 ${this.escapeHtml(shortPk)}
@@ -5245,8 +5339,16 @@ class MeshCoreStationApp {
         // Calcular estado de conectividad en base a last_seen
         const nowSec = Date.now() / 1000;
         let lastSeenSec = node.last_seen;
-        if (typeof lastSeenSec === "string" && !isNaN(Number(lastSeenSec))) {
-          lastSeenSec = Number(lastSeenSec);
+        if (typeof lastSeenSec === "string") {
+          if (!isNaN(Number(lastSeenSec))) {
+            lastSeenSec = Number(lastSeenSec);
+          } else {
+            const parsed = Date.parse(lastSeenSec);
+            if (!isNaN(parsed)) lastSeenSec = parsed / 1000;
+          }
+        }
+        if (typeof lastSeenSec === "number" && lastSeenSec > 1e11) {
+          lastSeenSec = lastSeenSec / 1000;
         }
 
         let statusLabel = isLocal ? "Estación Base Local" : "En Línea";
@@ -5254,24 +5356,31 @@ class MeshCoreStationApp {
         let statusDot = "🟢";
         let timeAgoStr = isLocal ? "Enlace USB / Serial Activo" : "Ahora";
 
-        if (!isLocal && lastSeenSec && typeof lastSeenSec === "number" && lastSeenSec > 1000000000) {
-          const diff = nowSec - lastSeenSec;
-          if (diff < 1800) {
-            statusLabel = "En Línea";
-            statusClass = "status-online";
-            statusDot = "🟢";
-            timeAgoStr = diff < 60 ? "Hace un momento" : `Hace ${Math.floor(diff / 60)}m`;
-          } else if (diff < 7200) {
-            statusLabel = "Inactivo";
-            statusClass = "status-idle";
-            statusDot = "🟡";
-            timeAgoStr = `Hace ${Math.floor(diff / 60)}m`;
+        if (!isLocal) {
+          if (lastSeenSec && typeof lastSeenSec === "number" && lastSeenSec > 1000000000) {
+            const diff = Math.max(0, nowSec - lastSeenSec);
+            if (diff < 1800) {
+              statusLabel = "En Línea";
+              statusClass = "status-online";
+              statusDot = "🟢";
+              timeAgoStr = diff < 60 ? "Hace un momento" : `Hace ${Math.floor(diff / 60)}m`;
+            } else if (diff < 7200) {
+              statusLabel = "Inactivo";
+              statusClass = "status-idle";
+              statusDot = "🟡";
+              timeAgoStr = `Hace ${Math.floor(diff / 60)}m`;
+            } else {
+              statusLabel = "Fuera de línea";
+              statusClass = "status-offline";
+              statusDot = "🔴";
+              const hours = Math.floor(diff / 3600);
+              timeAgoStr = hours < 24 ? `Hace ${hours}h` : `Hace ${Math.floor(hours / 24)}d`;
+            }
           } else {
             statusLabel = "Fuera de línea";
             statusClass = "status-offline";
             statusDot = "🔴";
-            const hours = Math.floor(diff / 3600);
-            timeAgoStr = hours < 24 ? `Hace ${hours}h` : `Hace ${Math.floor(hours / 24)}d`;
+            timeAgoStr = "Sin actividad reciente";
           }
         }
 
