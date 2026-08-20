@@ -6,6 +6,7 @@ auto-eco en DMs, visualización de telemetría y sniffer, y ausencia total de er
 
 from __future__ import annotations
 
+import urllib.request
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,17 @@ from playwright.async_api import async_playwright
 BASE_URL = "http://localhost:8080"
 ARTIFACTS_DIR = Path("tests/artifacts")
 ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def check_server_available() -> None:
+    """Verifica si el servidor web está activo en BASE_URL antes de ejecutar pruebas Playwright."""
+    try:
+        req = urllib.request.Request(BASE_URL, headers={"User-Agent": "Playwright-Test-Runner"})
+        with urllib.request.urlopen(req, timeout=1.5):
+            pass
+    except Exception:
+        pytest.skip(f"Servidor web local no activo en {BASE_URL} - Pruebas Playwright omitidas.", allow_module_level=True)
 
 
 @pytest.mark.asyncio

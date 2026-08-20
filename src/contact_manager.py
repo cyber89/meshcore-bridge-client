@@ -157,8 +157,9 @@ class PacketRecord:
     public_key: str
     is_rx: bool
     is_error: bool = False
-    rssi: int | None = None
+    rssi: int | float | None = None
     snr: float | None = None
+    hop_count: int | None = None
     telemetry: dict[str, Any] | None = None
 
 
@@ -457,8 +458,9 @@ class NodeRegistry:
             NodeContactUpdate(
                 name=existing.name if existing else f"Node_{target_key[:6]}",
                 alias=existing.alias if existing else "",
-                last_rssi=event.rssi if event.rssi is not None else (existing.last_rssi if existing else None),
-                last_snr=event.snr if event.snr is not None else (existing.last_snr if existing else None),
+                hops=event.hop_count if event.hop_count is not None else (existing.hops if existing else None),
+                last_rssi=int(event.rssi) if event.rssi is not None else (existing.last_rssi if existing else None),
+                last_snr=float(event.snr) if event.snr is not None else (existing.last_snr if existing else None),
                 battery_pct=batt if batt is not None else (existing.battery_pct if existing else None),
                 rx_packets=curr_rx,
                 tx_packets=curr_tx,
@@ -521,6 +523,10 @@ class NodeRegistry:
                 return contact
 
         return None
+
+    def get_contact(self, query: str) -> NodeContactInfo | None:
+        """Obtiene la información del contacto buscando por clave, prefijo o alias."""
+        return self.get_by_key_or_prefix(query)
 
     def resolve_name(self, query: str) -> str:
         """Resuelve el nombre amigable de un nodo o devuelve el identificador original."""

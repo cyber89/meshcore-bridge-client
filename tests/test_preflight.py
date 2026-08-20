@@ -48,7 +48,7 @@ class TestPreflightChecker(unittest.TestCase):
             )
             self.assertIn("status", report)
             self.assertIn("checks", report)
-            self.assertEqual(len(report["checks"]), 3)
+            self.assertEqual(len(report["checks"]), 4)
         finally:
             for ext in ["", "-wal", "-shm"]:
                 p = db_path + ext

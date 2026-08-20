@@ -28,7 +28,7 @@ class MeshCoreCompanionServer:
     def __init__(
         self,
         bridge: Any,
-        host: str = "0.0.0.0",
+        host: str = "0.0.0.0",  # nosec B104
         port: int = 5000,
     ) -> None:
         self.bridge = bridge

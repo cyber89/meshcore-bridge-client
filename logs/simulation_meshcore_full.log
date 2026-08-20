@@ -1,0 +1,51 @@
+2026-08-19 23:05:33,000 [INFO] [root] Preflight Diagnostics: Estado OK (4 comprobaciones realizadas)
+2026-08-19 23:05:33,001 [DEBUG] [root] TxRateLimiter worker iniciado.
+2026-08-19 23:05:33,001 [INFO] [root] Conectando al Broker MQTT en 127.0.0.1:1883...
+2026-08-19 23:05:33,003 [INFO] [root] ⚡ [USB-HARDWARE] Heltec v4 MeshCore Companion USB inicializado en COM7 (115200 baud).
+2026-08-19 23:05:33,005 [DEBUG] [root] Mensaje retenido en SQLite
+2026-08-19 23:05:33,006 [DEBUG] [root] Mensaje retenido en SQLite
+2026-08-19 23:05:33,008 [DEBUG] [root] Mensaje retenido en SQLite
+2026-08-19 23:05:33,009 [DEBUG] [root] Mensaje retenido en SQLite
+2026-08-19 23:05:33,010 [DEBUG] [root] Mensaje retenido en SQLite
+2026-08-19 23:05:33,011 [DEBUG] [root] Mensaje retenido en SQLite
+2026-08-19 23:05:33,013 [DEBUG] [root] Mensaje retenido en SQLite
+2026-08-19 23:05:33,013 [DEBUG] [root] Mensaje retenido en SQLite
+2026-08-19 23:05:33,014 [DEBUG] [root] Mensaje retenido en SQLite
+2026-08-19 23:05:33,015 [DEBUG] [root] Mensaje retenido en SQLite
+2026-08-19 23:05:33,016 [DEBUG] [root] Mensaje retenido en SQLite
+2026-08-19 23:05:33,017 [DEBUG] [root] Mensaje retenido en SQLite
+2026-08-19 23:05:33,019 [DEBUG] [root] Mensaje retenido en SQLite
+2026-08-19 23:05:33,019 [DEBUG] [root] Mensaje retenido en SQLite
+2026-08-19 23:05:33,021 [DEBUG] [root] Mensaje retenido en SQLite
+2026-08-19 23:05:33,022 [DEBUG] [root] Mensaje retenido en SQLite
+2026-08-19 23:05:33,024 [DEBUG] [root] Mensaje retenido en SQLite
+2026-08-19 23:05:33,025 [DEBUG] [root] Mensaje retenido en SQLite
+2026-08-19 23:05:33,026 [DEBUG] [root] Mensaje retenido en SQLite
+2026-08-19 23:05:33,027 [DEBUG] [root] Mensaje retenido en SQLite
+2026-08-19 23:05:33,033 [INFO] [root] Servidor Web MeshCore activo en http://0.0.0.0:8080
+2026-08-19 23:05:33,034 [INFO] [root] Servidor TCP Companion MeshCore activo en tcp://0.0.0.0:5000 (Listo para App Móvil oficial y meshcore-cli)
+2026-08-19 23:05:33,034 [INFO] [root] Iniciando auto-importación inicial de canales, contactos y configuración del nodo Heltec...
+2026-08-19 23:05:33,036 [INFO] [root] Auto-importados 4 canales desde el transceptor serial.
+2026-08-19 23:05:33,036 [INFO] [root] Auto-importados 10 contactos desde el transceptor serial.
+2026-08-19 23:05:33,036 [INFO] [root] Configuración de radio y hardware del nodo Heltec sincronizada.
+2026-08-19 23:05:33,036 [DEBUG] [root] Mensaje retenido en SQLite
+2026-08-19 23:05:33,036 [DEBUG] [root] Mensaje retenido en SQLite
+2026-08-19 23:05:33,036 [DEBUG] [root] Mensaje retenido en SQLite
+2026-08-19 23:05:33,036 [DEBUG] [root] Mensaje retenido en SQLite
+2026-08-19 23:05:33,036 [INFO] [src.ha_discovery] Home Assistant Discovery publicado para Gateway Bridge (4 sensores)
+2026-08-19 23:05:33,036 [INFO] [root] MeshCore Bridge iniciado y operativo (v3.0).
+2026-08-19 23:05:33,069 [INFO] [root] Conexión exitosa con MQTT Broker (127.0.0.1:1883)
+2026-08-19 23:05:33,070 [INFO] [root] Suscrito a: meshcore/tx y meshcore/admin/cmd
+2026-08-19 23:05:33,304 [INFO] [root] Drenando 24 mensajes del buffer SQLite hacia MQTT...
+2026-08-19 23:05:33,518 [INFO] [root] Drenado completado (24 enviados).
+2026-08-19 23:05:34,949 [INFO] [root] Bot de Eco ejecutado desde nodo virtual Node_Alpha (Alpha Field Sensor) [Direct=False, Ch=0]
+2026-08-19 23:05:36,463 [INFO] [root] Bot de Eco ejecutado desde nodo virtual Node_Alpha (Alpha Field Sensor) [Direct=True, Ch=0]
+2026-08-19 23:05:37,981 [INFO] [root] Bot de Eco ejecutado desde nodo virtual Node_Alpha (Alpha Field Sensor) [Direct=True, Ch=0]
+2026-08-19 23:05:39,897 [INFO] [root] Bot de Eco ejecutado desde nodo virtual Node_Alpha (Alpha Field Sensor) [Direct=True, Ch=0]
+2026-08-19 23:05:49,500 [INFO] [root] Deteniendo MeshCore Bridge...
+2026-08-19 23:05:49,501 [INFO] [root] Servidor TCP Companion MeshCore detenido.
+2026-08-19 23:05:49,501 [DEBUG] [root] TxRateLimiter worker detenido.
+2026-08-19 23:05:49,502 [INFO] [root] Adaptador Virtual LoRa MeshCore desconectado.
+2026-08-19 23:05:49,504 [WARNING] [root] Desconexión de MQTT detectada (rc: DisconnectFlags(is_disconnect_packet_from_server=False)). Activando modo Store & Forward...
+2026-08-19 23:05:49,504 [INFO] [root] Cliente MQTT detenido correctamente.
+2026-08-19 23:05:49,504 [INFO] [root] MeshCore Bridge detenido correctamente.

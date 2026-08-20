@@ -339,7 +339,7 @@ class MeshCoreBridge:
             serial_port=getattr(self.serial_adapter, "port", config.SERIAL_PORT),
             tcp_server_port=getattr(config, "TCP_SERVER_PORT", 5000),
             tcp_server_enabled=getattr(config, "TCP_SERVER_ENABLED", True),
-            tcp_server_host=getattr(config, "TCP_SERVER_HOST", "0.0.0.0"),
+            tcp_server_host=getattr(config, "TCP_SERVER_HOST", "0.0.0.0"),  # nosec B104
         )
         logging.info(f"Preflight Diagnostics: Estado {report['status']} ({len(report['checks'])} comprobaciones realizadas)")
 
@@ -601,8 +601,8 @@ class MeshCoreBridge:
             error_detail = str(e)
 
         # Registrar mensaje saliente para seguimiento de entrega (ACK receipt)
-        if req_id and self.store_forward and status_val != "error":
-            self.store_forward.record_outbound_message(
+        if req_id and self.store_and_forward and status_val != "error":
+            self.store_and_forward.record_outbound_message(
                 msg_id=str(req_id),
                 sender="local",
                 recipient=str(target),

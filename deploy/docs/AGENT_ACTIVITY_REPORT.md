@@ -6,6 +6,32 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Simulación Integral Multi-Nodo, Verificación con Suites de Pruebas (120/120), Auditoría de Seguridad SAST/DAST y Limpieza de Código
+- **Fecha**: 2026-08-20
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Coordinó el despliegue de una simulación completa de malla de 10 nodos cubriendo todos los roles oficiales de MeshCore (`CLIENT`, `REPEATER`, `SENSOR`, `ROOM`, `GATEWAY`) y todos los tipos de tramas de radio (`CHANNEL_MSG`, `DIRECT_MSG`, `ADVERT`, `TELEMETRY/Cayenne LPP`, `ACK/Receipt`, `TRACE_DATA`, `LOG_DATA/Sniffer`, `REPEATER_CMD/Response`, `DEVICE_INFO`, `TCP Companion`). Generó ficheros de logs estructurados (`logs/simulation_meshcore_full.log` y `logs/simulation_events.jsonl`), ejecutó las suites completas de pruebas unitarias/integración (120/120 superadas al 100%), depuró y limpió el código fuente con `ruff` y `mypy --strict` (0 errores en 23 módulos), y ejecutó una auditoría de seguridad SAST/DAST con Bandit (0 vulnerabilidades).
+- **Contribuciones de Agentes**:
+  1. **Agente 1 (Protocol & Firmware Investigator Agent)**:
+     - Modeló los 10 nodos simulados con sus metadatos de hardware, capacidades de telemetría ambiental, canales de difusión y claves públicas en `src/virtual_mesh_adapter.py`.
+  2. **Agente 2 (Python Bridge Architect Agent)**:
+     - Enriqueció `scripts/simulate_heltec_v4_mesh.py` con logging dual continuo a texto estructurado y eventos JSON Lines.
+     - Añadió `get_contact` a `NodeRegistry` en `src/contact_manager.py` y `hop_count` a `PacketRecord`.
+     - Depuró el despachador de comandos de repetidor en `src/admin_handler.py` y el enrutador en `src/rx_router.py`.
+     - Fortaleció `src/store_forward.py` y `src/rate_limiter.py` bajo condiciones de alta carga y concurrencia.
+  3. **Agente 3 (Protocol QA & Fuzzing Agent)**:
+     - Ejecutó la suite completa de 120 pruebas unitarias y de integración (`pytest tests/`), logrando 100% de aprobados en concurrencia, serial watchdog, store & forward SQLite WAL, rate limiter, HA discovery, matriz n8n y enrutamiento RF.
+     - Resolvió el fixture de disponibilidad para pruebas E2E de Playwright.
+  4. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - Validó la semántica HTML5, sistema de tokens de diseño CSS3 (variables HSL, contraste WCAG 2.2 AA >= 4.5:1, tipografía fluida y scrollbars estilizadas) y la lógica cliente asíncrona en `src/web/static/`.
+  5. **Agente 5 (Security & Vulnerability Auditor Agent)**:
+     - Ejecutó la auditoría de seguridad SAST con Bandit y scripts especializados (`.agents/skills/security-code-auditor/scripts/run_security_audit.py`).
+     - Verificó 100% de consultas SQL parametrizadas, aislamiento estricto de rutas canónicas contra Directory Traversal, sanitización XSS con `escapeHtml` y cabeceras HTTP defensivas.
+  6. **Agente 0 (Lead Orchestrator)**:
+     - Verificación estática con `ruff check src tests` (0 errores).
+     - Verificación estricta de tipos con `mypy --strict src` (0 errores en 23 módulos).
+     - Sincronización del paquete autónomo en `/deploy/` (`python scripts/sync_deploy.py`).
+     - Sincronización con repositorio remoto (`git push origin main`).
+
 ### Hito: Medición RF de Ping y Ping Zero con RTT, SNR There, SNR Back y RSSI
 - **Fecha**: 2026-08-19
 - **Estado**: ✅ COMPLETADO

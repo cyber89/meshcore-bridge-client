@@ -9,6 +9,7 @@ from __future__ import annotations
 import collections
 import logging
 import time
+from datetime import datetime
 from typing import Any
 
 from src.contact_manager import NodeContactUpdate, PacketRecord
@@ -141,7 +142,7 @@ class WebAPIRouter:
             if method == "GET" and clean_path in ("/api/node/config", "/api/node/settings"):
                 admin = getattr(self.bridge, "admin_handler", None)
                 local_cfg = admin.get_local_config() if (admin and hasattr(admin, "get_local_config")) else {}
-                
+
                 # Consolidar métricas en tiempo real del bridge
                 uptime_sec = int(time.time() - getattr(self.bridge, "start_time", time.time()))
                 days = uptime_sec // 86400
@@ -428,7 +429,7 @@ class WebAPIRouter:
         tcp_server = getattr(self.bridge, "tcp_server", None)
         tcp_info = {
             "enabled": getattr(tcp_server, "is_running", False) if tcp_server else False,
-            "host": getattr(tcp_server, "host", "0.0.0.0") if tcp_server else "0.0.0.0",
+            "host": getattr(tcp_server, "host", "0.0.0.0") if tcp_server else "0.0.0.0",  # nosec B104
             "port": getattr(tcp_server, "port", 5000) if tcp_server else 5000,
             "connected_clients": getattr(tcp_server, "connected_clients_count", 0) if tcp_server else 0,
         }

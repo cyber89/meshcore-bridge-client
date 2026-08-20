@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import config
-from src.contact_manager import NodeRegistry
+from src.contact_manager import NodeRegistry, PacketRecord
 from src.mqtt_client import AsyncBridgeMQTTClient
 from src.repeater_manager import RepeaterManager
 
@@ -28,6 +28,7 @@ class AdminContext:
     repeater_manager: RepeaterManager
     mqtt: AsyncBridgeMQTTClient
     execute_tx: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
+    web_server: Any = None
 
 
 class AdminCommandHandler:
@@ -301,15 +302,14 @@ class AdminCommandHandler:
                     target_info = n
                     break
 
-            is_repeater_node = target_info and (
-                target_info.get("role") in ("REPEATER", "ROUTER")
-                or "REPEATER" in str(target_info.get("name", "")).upper()
+            is_client_only = bool(target_info and target_info.get("role") == "CLIENT" and not (
+                "REPEATER" in str(target_info.get("name", "")).upper()
                 or str(target_info.get("name", "")).upper().startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-"))
-            )
+            ))
 
             # Caso especial: configuración remota múltiple
             if action in ("remote_repeater_set_config", "set_remote_config"):
-                if not is_repeater_node:
+                if is_client_only:
                     return {"status": "error", "message": "La configuración remota solo aplica a nodos repetidores"}
 
                 params = admin_data.get("params", {})
@@ -394,13 +394,18 @@ class AdminCommandHandler:
                     snr_back = snr_val if snr_val is not None else 0.0
 
                 if rssi_val is not None:
-                    self._ctx.node_registry.record_packet(
-                        norm_target,
-                        rssi=rssi_val,
-                        snr=snr_back,
-                        hops=0,
-                        name=target_name,
-                    )
+                    try:
+                        self._ctx.node_registry.record_packet(
+                            PacketRecord(
+                                public_key=norm_target,
+                                is_rx=True,
+                                rssi=int(rssi_val) if isinstance(rssi_val, (int, float)) else None,
+                                snr=float(snr_back) if isinstance(snr_back, (int, float)) else None,
+                                hop_count=0,
+                            )
+                        )
+                    except Exception:
+                        pass
 
                 bat_val = target_info.get("battery_pct") or target_info.get("battery") if target_info else None
 
@@ -426,7 +431,7 @@ class AdminCommandHandler:
                 return res
 
             # Comandos unitarios (login, reboot, stats-core, advert, etc.)
-            if not is_repeater_node:
+            if is_client_only:
                 return {"status": "error", "message": "Los comandos de administración remota son exclusivos para repetidores"}
 
             if action in ("login", "auth"):

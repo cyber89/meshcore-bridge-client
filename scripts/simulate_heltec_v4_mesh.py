@@ -21,7 +21,8 @@ if hasattr(sys.stdout, "reconfigure"):
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+ROOT_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT_DIR))
 
 import config
 from src.bridge_core import MeshCoreBridge
@@ -212,9 +213,24 @@ async def run_simulation(duration_sec: int = 15) -> None:
     """Ejecuta la simulación completa con Heltec v4, Mosquitto MQTT y Servidor Web."""
     print("=" * 80)
     print(" 📻 MESHCORE BRIDGE - SIMULACIÓN EN VIVO (HELTEC V4 USB + MOSQUITTO MQTT)")
-    # 1. Configurar logging y puertos
+    
+    # 1. Configurar logging y directorios de logs
     config.WEB_PORT = 8080
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    log_dir = ROOT_DIR / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / "simulation_meshcore_full.log"
+    events_jsonl = log_dir / "simulation_events.jsonl"
+
+    if events_jsonl.exists():
+        events_jsonl.unlink()
+
+    # Logging file handler
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+    fh = logging.FileHandler(log_file, mode="w", encoding="utf-8")
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] [%(name)s] %(message)s"))
+    root_logger.addHandler(fh)
 
     # 2. Instanciar Bridge con Adaptador Heltec v4
     bridge = MeshCoreBridge()
@@ -222,6 +238,25 @@ async def run_simulation(duration_sec: int = 15) -> None:
     sim_adapter._bridge_ref = bridge
     bridge.serial_adapter = sim_adapter
     sim_adapter.set_rx_callback(bridge.on_mesh_event)
+
+    # Interceptar eventos para registro JSONL
+    orig_broadcast = bridge.web_server.broadcast_event
+
+    def logging_broadcast(event_data: dict[str, Any]) -> None:
+        try:
+            entry = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "event_type": event_data.get("type") or event_data.get("event_type") or "unknown",
+                "sender": event_data.get("sender") or event_data.get("recipient") or "system",
+                "details": event_data,
+            }
+            with open(events_jsonl, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        except Exception:
+            pass
+        orig_broadcast(event_data)
+
+    bridge.web_server.broadcast_event = logging_broadcast
 
     # 3. Interceptar publicaciones MQTT para monitoreo visual en consola
     mqtt_messages_logged: list[dict[str, Any]] = []
@@ -247,11 +282,20 @@ async def run_simulation(duration_sec: int = 15) -> None:
         # Enviar mensaje de prueba directo vía API / Chat
         await asyncio.sleep(1.5)
         print("\n💬 [TX CHAT] Transmitiendo mensaje desde Estación Base en Canal 0 (Público)...")
-        await bridge._execute_tx({"to": "broadcast", "channel_index": 0, "text": "Hola a todos desde MeshCore Web Station Base"})
+        await bridge._execute_tx({"to": "broadcast", "channel_index": 0, "text": "Hola a todos desde MeshCore Web Station Base", "request_id": "sim_tx_1"})
 
         await asyncio.sleep(1.5)
         print("\n💬 [TX DM] Enviando Mensaje Directo (DM) a 🏔️ Alpha Mountain Repeater...")
-        await bridge._execute_tx({"to": "a1b2c3d4e5f6", "channel_index": 0, "text": "Reporte de estado de repetidor y calidad de enlace"})
+        dm_res = await bridge._execute_tx({"to": "a1b2c3d4e5f6", "channel_index": 0, "text": "Reporte de estado de repetidor y calidad de enlace", "request_id": "sim_tx_2"})
+        print(f"  ✓ Expected ACK code: {dm_res.get('expected_ack')}")
+
+        await asyncio.sleep(1.5)
+        print("\n🎯 [PING ZERO] Ejecutando Ping Zero a 🏔️ Alpha Mountain Repeater...")
+        ping_res = await bridge.admin_handler.handle({
+            "target_node": "a1b2c3d4e5f6",
+            "action": "ping_zero",
+        })
+        print(f"  ✓ Ping Zero Result: Duration={ping_res.get('rtt_ms')} ms, SNR there={ping_res.get('snr_there')}, SNR back={ping_res.get('snr_back')}, RSSI={ping_res.get('rssi')} dBm")
 
         await asyncio.sleep(1.5)
         print("\n🎛️ [REPEATER CMD] Enviando comando 'stats-radio' a repetidor Alpha...")
@@ -281,6 +325,8 @@ async def run_simulation(duration_sec: int = 15) -> None:
         print(f"• Nodos Registrados en Directorio:       {len(bridge.node_registry.list_nodes())}")
         print(f"• Mensajes Publicados en MQTT Mosquitto: {len(mqtt_messages_logged)}")
         print(f"• Entidades Home Assistant Anunciadas:   {len(bridge.ha_discovery._discovered_entities) * 4 + 4}")
+        print(f"• Fichero de Logs Generado:              {log_file}")
+        print(f"• Fichero de Eventos JSONL:              {events_jsonl}")
         print("=" * 80)
 
 

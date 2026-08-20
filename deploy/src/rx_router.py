@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from typing import Any, Protocol
 
 import config
-from src.contact_manager import NodeContactUpdate, NodeRegistry
+from src.contact_manager import NodeContactUpdate, NodeRegistry, PacketRecord
 from src.mqtt_client import AsyncBridgeMQTTClient
 from src.protocol_types import MeshcoreFrame, OpCode, TextMessagePayload
 from src.repeater_manager import RepeaterManager
@@ -28,8 +28,8 @@ class MeshMessageEvent:
     sender_name: str
     text: str
     channel_idx: int
-    rssi: float | int
-    snr: float
+    rssi: float | int | None = None
+    snr: float | None = None
 
 
 class BridgeCounters(Protocol):
@@ -53,6 +53,8 @@ class RxRouterContext:
     background_tasks: set[asyncio.Task[Any]]
     counters: BridgeCounters
     admin_handler: Any = None
+    store_forward: Any = None
+    store_and_forward: Any = None
 
 
 class RxEventRouter:

@@ -187,6 +187,42 @@ class VirtualMeshAdapter(BaseSerialAdapter):
                 "snr": 6.8,
                 "hops": 2,
             },
+            "aabbccddeeff": {
+                "key": "aabbccddeeff",
+                "name": "Node_Ridge",
+                "alias": "⛰️ R3-Ridge Solar Repeater",
+                "role": "REPEATER",
+                "lat": 20.1880,
+                "lon": -75.1740,
+                "alt": 980.0,
+                "temp": 17.5,
+                "humidity": 58.0,
+                "pressure": 1015.5,
+                "battery": 97,
+                "voltage": 4.16,
+                "solar_v": 5.30,
+                "rssi": -68,
+                "snr": 12.0,
+                "hops": 1,
+            },
+            "334455667788": {
+                "key": "334455667788",
+                "name": "Node_Emergency",
+                "alias": "🚨 Emergency Bulletin Mailbox",
+                "role": "ROOM",
+                "lat": 20.1450,
+                "lon": -75.2050,
+                "alt": 110.0,
+                "temp": 22.5,
+                "humidity": 54.0,
+                "pressure": 1013.8,
+                "battery": 100,
+                "voltage": 5.00,
+                "solar_v": 0.0,
+                "rssi": -60,
+                "snr": 13.5,
+                "hops": 0,
+            },
         }
 
         # Canales simulados de inicio (Públicos y Privados)
@@ -415,7 +451,7 @@ class VirtualMeshAdapter(BaseSerialAdapter):
             bw = 250000
             sf = 11
             cr = 5
-            name_bytes = "MeshCore-Bridge-Virtual".encode("utf-8")
+            name_bytes = b"MeshCore-Bridge-Virtual"
 
             resp = bytearray()
             resp.append(5)  # PacketType.SELF_INFO

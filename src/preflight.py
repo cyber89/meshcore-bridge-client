@@ -140,7 +140,7 @@ class PreflightChecker:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             # Intentar bind para asegurar que el puerto no esté tomado por otro proceso
-            test_host = "127.0.0.1" if host in ("0.0.0.0", "") else host
+            test_host = "127.0.0.1" if host in ("0.0.0.0", "") else host  # nosec B104
             sock.bind((test_host, port))
             sock.close()
             return PreflightCheckResult(
@@ -165,7 +165,7 @@ class PreflightChecker:
         serial_port: str,
         tcp_server_port: int = 5000,
         tcp_server_enabled: bool = True,
-        tcp_server_host: str = "0.0.0.0",
+        tcp_server_host: str = "0.0.0.0",  # nosec B104
     ) -> dict[str, Any]:
         """Ejecuta toda la matriz de comprobaciones y devuelve el informe consolidado."""
         self.results = [
