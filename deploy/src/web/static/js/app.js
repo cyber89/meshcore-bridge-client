@@ -3735,6 +3735,18 @@ class MeshCoreStationApp {
     return row;
   }
 
+  appendLogEntryToDom(log) {
+    if (!this.dom.systemLogsFeed) return;
+    if (this.dom.systemLogsFeed.querySelector("div[style]")) {
+      this.dom.systemLogsFeed.innerHTML = "";
+    }
+    const el = this.createLogElement(log);
+    this.dom.systemLogsFeed.appendChild(el);
+    while (this.dom.systemLogsFeed.children.length > MAX_SYSTEM_LOGS) {
+      this.dom.systemLogsFeed.removeChild(this.dom.systemLogsFeed.firstElementChild);
+    }
+  }
+
   async toggleDebugMode() {
     this.isDebugMode = !this.isDebugMode;
     const targetLevel = this.isDebugMode ? "DEBUG" : "INFO";

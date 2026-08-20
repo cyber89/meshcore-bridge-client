@@ -6,6 +6,19 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Corrección de Excepción JavaScript en Consola Web (`appendLogEntryToDom is not a function`)
+- **Fecha**: 2026-08-20
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Diagnosticó y corrigió el error en tiempo de ejecución en la consola del navegador (`TypeError: this.appendLogEntryToDom is not a function`) generado al procesar eventos WebSocket de tipo `system_log` en tiempo real.
+- **Contribuciones de Agentes**:
+  1. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - **`src/web/static/js/app.js`**:
+       - Implementó el método `appendLogEntryToDom(log)` en `MeshCoreStationApp` para renderizar y adjuntar dinámicamente las entradas de log del sistema recibidas por WebSocket, aplicando sanitización HTML (`escapeHtml`), formateo de niveles (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`), eliminación de placeholders de feed vacío y poda de elementos antiguos según el límite `MAX_SYSTEM_LOGS`.
+  2. **Agente 0 (Lead Orchestrator)**:
+     - Verificación estática con `node -c src/web/static/js/app.js` (código 0).
+     - Sincronización del paquete autónomo `/deploy/` (`python scripts/sync_deploy.py`).
+     - Sincronización con el repositorio remoto (`git push origin main`).
+
 ### Hito: Simulación Integral Multi-Nodo, Verificación con Suites de Pruebas (120/120), Auditoría de Seguridad SAST/DAST y Limpieza de Código
 - **Fecha**: 2026-08-20
 - **Estado**: ✅ COMPLETADO

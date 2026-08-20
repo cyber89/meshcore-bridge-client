@@ -107,6 +107,12 @@ class RxEventRouter:
             channel_idx = int(payload_dict.get("channel_idx", payload_dict.get("channel", 0)))
             hops = int(payload_dict.get("hop_count", payload_dict.get("hops", 0)))
 
+            # Normalizar métricas de enlace RF de forma global
+            is_local_sender = bool(sender and sender != "unknown" and self._ctx.node_registry.is_local_key(sender))
+            effective_rssi = None if is_local_sender else (int(rssi) if isinstance(rssi, (int, float)) else None)
+            effective_snr = None if is_local_sender else (float(snr) if isinstance(snr, (int, float)) else None)
+            effective_hops = 0 if is_local_sender else hops
+
             # Actualizar directorio dinámico de nodos
             if sender and sender != "unknown":
                 bat_pct = int(payload_dict["battery"]) if "battery" in payload_dict and isinstance(payload_dict["battery"], (int, float)) else None
@@ -142,11 +148,7 @@ class RxEventRouter:
                 lat_val = _get_coord(payload_dict, ("lat", "latitude", "gps_lat"))
                 lon_val = _get_coord(payload_dict, ("lon", "longitude", "gps_lon"))
 
-                is_local_sender = self._ctx.node_registry.is_local_key(sender)
                 effective_role = "LOCAL" if is_local_sender else (role_val or "CLIENT")
-                effective_rssi = None if is_local_sender else (int(rssi) if isinstance(rssi, (int, float)) else None)
-                effective_snr = None if is_local_sender else (float(snr) if isinstance(snr, (int, float)) else None)
-                effective_hops = 0 if is_local_sender else hops
 
                 is_new, contact_info = self._ctx.node_registry.discover_node(
                     public_key=sender,
@@ -279,9 +281,9 @@ class RxEventRouter:
             )
 
             if is_direct and text:
-                self._handle_mesh_direct_msg(MeshMessageEvent(sender, sender_name, text, channel_idx, rssi, snr))
+                self._handle_mesh_direct_msg(MeshMessageEvent(sender, sender_name, text, channel_idx, effective_rssi, effective_snr))
             elif is_channel and text:
-                self._handle_mesh_channel_msg(MeshMessageEvent(sender, sender_name, text, channel_idx, rssi, snr))
+                self._handle_mesh_channel_msg(MeshMessageEvent(sender, sender_name, text, channel_idx, effective_rssi, effective_snr))
             else:
                 if "event_type" not in payload_dict:
                     payload_dict["event_type"] = "telemetry"
