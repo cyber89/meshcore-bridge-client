@@ -168,7 +168,6 @@
               <div class="header-actions">
                 <div class="live-sync-indicator" title="Los nodos descubiertos por RF se sincronizan y actualizan automáticamente en tiempo real">
                   <span class="pulse-dot"></span>
-                  <span class="sync-text">Sincronización en Tiempo Real</span>
                 </div>
               </div>
             </div>
@@ -222,13 +221,6 @@
                 <div class="stat-content">
                   <span class="stat-label">Estado de Captura</span>
                   <strong class="stat-value text-muted" id="snifferStatusText">En espera</strong>
-                </div>
-              </div>
-              <div class="sniffer-stat-card">
-                <span class="stat-icon">📶</span>
-                <div class="stat-content">
-                  <span class="stat-label">Calidad Señal Promedio</span>
-                  <strong class="stat-value" id="snifferAvgRssi">-- dBm</strong>
                 </div>
               </div>
               <div class="sniffer-stat-card">
@@ -550,9 +542,7 @@
               <div class="pane-actions">
                 <button class="btn-secondary" id="btnToggleDebugMode" title="Alternar nivel de logging DEBUG">🐞 Modo DEBUG</button>
                 <button class="btn-secondary" id="btnQuickDiag" title="Comprobar salud de subsistemas">🩺 Auto-Diagnóstico</button>
-                <button class="btn-primary" id="btnCopyAIDiag" title="Copiar informe de diagnóstico formateado en Markdown para pegar a la IA">📋 Copiar para IA</button>
                 <button class="btn-secondary" id="btnDownloadRawLogs" title="Descargar archivo de logs completo del servidor (.log)">📥 Descargar .log</button>
-                <button class="btn-secondary" id="btnExportDiag" title="Descargar reporte diagnóstico completo en formato JSON">💾 Exportar (.json)</button>
                 <button class="btn-secondary" id="btnClearLogs" title="Limpiar búfer de logs">🧹 Limpiar</button>
               </div>
             </div>
@@ -927,10 +917,28 @@
                   <div class="action-card-item">
                     <div class="action-card-icon">📢</div>
                     <div class="action-card-text">
-                      <h4>Emitir Anuncio de Presencia (Advert)</h4>
-                      <p>Difunde un paquete de presencia por LoRa para que los nodos vecinos actualicen su tabla de rutas.</p>
+                      <h4>Advert Hop (0 Saltos / Vecindario)</h4>
+                      <p>Difunde un anuncio de presencia directo a nodos en alcance visual de 1 salto (flood=off).</p>
                     </div>
-                    <button type="button" class="btn-primary btn-sm" id="btnActionBroadcastAdvert">📢 Emitir Advert</button>
+                    <button type="button" class="btn-primary btn-sm" id="btnActionAdvertHop">📢 Advert Hop (0 Saltos)</button>
+                  </div>
+
+                  <div class="action-card-item">
+                    <div class="action-card-icon">🌊</div>
+                    <div class="action-card-text">
+                      <h4>Advert Flood Routed (Toda la Malla)</h4>
+                      <p>Difunde un anuncio enrutado por inundación para propagarse a través de todos los repetidores.</p>
+                    </div>
+                    <button type="button" class="btn-secondary btn-sm" id="btnActionAdvertFlood">🌊 Advert Flood</button>
+                  </div>
+
+                  <div class="action-card-item">
+                    <div class="action-card-icon">📋</div>
+                    <div class="action-card-text">
+                      <h4>Advert Clipboard (Copiar Tarjeta)</h4>
+                      <p>Copia el enlace de contacto y tarjeta del nodo (URI MeshCore) directamente al portapapeles.</p>
+                    </div>
+                    <button type="button" class="btn-outline btn-sm" id="btnActionAdvertClipboard">📋 Copiar URI</button>
                   </div>
 
                   <div class="action-card-item">
@@ -1021,8 +1029,9 @@
           <div class="cmd-item" data-action="tab-logs">📜 Ver Consola de Logs del Sistema</div>
           <div class="cmd-item" data-action="action-diag">🩺 Ejecutar Auto-Diagnóstico de Subsistemas</div>
           <div class="cmd-item" data-action="action-debug-toggle">🐞 Alternar Modo DEBUG</div>
-          <div class="cmd-item" data-action="action-export-diag">💾 Exportar Reporte de Diagnóstico (.json)</div>
-          <div class="cmd-item" data-action="action-advert">📡 Emitir Anuncio de Presencia (Advert)</div>
+          <div class="cmd-item" data-action="action-advert-hop">📢 Advert Hop (0 Saltos)</div>
+          <div class="cmd-item" data-action="action-advert-flood">🌊 Advert Flood Routed</div>
+          <div class="cmd-item" data-action="action-advert-clipboard">📋 Copiar Advert al Portapapeles</div>
           <div class="cmd-item" data-action="action-ha">📢 Re-anunciar Home Assistant Discovery</div>
         </div>
       </div>

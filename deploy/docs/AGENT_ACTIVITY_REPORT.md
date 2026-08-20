@@ -6,7 +6,42 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
-### Hito: Implementación de Ping Zero (0 Saltos Directos) a Repetidores y Nodos en la SPA
+### Hito: Optimización Integral de UI Responsive, Telemetría Local USB, Consola de Logs, Sniffer RF, Mapa y Anuncios Advert (iOS)
+- **Fecha**: 2026-08-19
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Coordinó la resolución integral de las 8 solicitudes de usuario relacionadas con fallas responsive en CSS, renderizado de logs, consolidación de telemetría por USB en Ajustes, eliminación de métricas obsoletas en el Sniffer RF, filtrado de DMs de repetidores, centrado interactivo del mapa geográfico, soporte de anuncios Advert estilo iOS (Hop 0, Flood Routed, Clipboard) y enriquecimiento del Directorio de Nodos.
+- **Contribuciones de Agentes**:
+  1. **Agente 2 (Python Bridge Architect Agent)**:
+     - **`src/admin_handler.py`**:
+       - Amplió `get_local_config()` y `fetch_device_config()` para consolidar telemetría en tiempo real del transceptor conectado por USB (`battery_pct`, `voltage`, `battery_mv`, `power_source`, reloj RTC, contadores del microcontrolador y estadísticas de radio).
+       - Implementó `broadcast_advert(flood: bool)` para emisión por radio de anuncios en modo vecindario (Hop 0 / `flood=False`) o propagación multi-salto (Flood Routed / `flood=True`).
+     - **`src/web/api_router.py`**:
+       - Enriqueció el endpoint `GET /api/node/config` consolidando métricas calculadas en vivo del bridge (`uptime`, `uptime_str`, `airtime_ms`, `duty_cycle_pct`, contadores de paquetes `tx_count`, `rx_count`, `duplicate_packets`, `packet_errors`, `noise_floor_dbm`, `clock`).
+       - Implementó el endpoint `POST /api/node/advert` recibiendo el flag `flood`.
+     - **`src/rx_router.py`**:
+       - En `_handle_mesh_direct_msg`, detecta si el emisor es un repetidor o si el texto es una respuesta de comando (`"unknown command"`, `"cmd "`, `"login "`, etc.), despachándolo como evento de telemetría/control a MQTT y WebSocket (`event_type: "repeater_response"`), evitando que se inyecte erróneamente como mensaje directo de chat de usuario en la barra lateral.
+  2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - **`src/web/static/css/app.css`**:
+       - Corrigió la regla responsive en `@media (max-width: 900px)`, reemplazando `.app-container` por `.app-body { flex-direction: column; overflow: hidden; }` para que la barra lateral y el contenido principal se adapten fluidamente a pantallas pequeñas sin comprimirse.
+       - Añadió reglas para compactar el header en pantallas `<= 768px` y hacer los grids de nodos y filtros responsive de 1 columna en pantallas `<= 600px`.
+     - **`src/web/static/index.html`**:
+       - Eliminó el texto `"Sincronización en Tiempo Real"` del encabezado de Nodos manteniendo el indicador de pulso.
+       - Removió la tarjeta de `"Calidad Señal Promedio"` (`#snifferAvgRssi`) del Sniffer RF.
+       - Removió los botones `#btnCopyAIDiag` y `#btnExportDiag` de la barra de acciones de logs.
+       - Añadió las 3 acciones de hardware para Anuncios de Presencia estilo iOS: `Advert Hop (0 Saltos / Vecindario)`, `Advert Flood Routed (Toda la Malla)` y `Advert Clipboard (Copiar URI)`.
+     - **`src/web/static/js/app.js`**:
+       - Corrigió el error crítico en `createLogElement(log)` para retornar `row`, restableciendo el renderizado fluido de la Consola de Logs.
+       - Removió referencias a `#snifferAvgRssi`, `#btnCopyAIDiag` y `#btnExportDiag`.
+       - Enlazó la telemetría en tiempo real en `fetchLocalNodeConfig()`, poblando los 8 bloques de Ajustes (batería, voltaje, alimentación USB, reloj RTC, uptime, airtime, señal RF, piso de ruido y contadores TX/RX/dup/err).
+       - Implementó `sendAdvert(flood)` y `copyAdvertToClipboard()`, enlazando botones de hardware y command palette (`action-advert-hop`, `action-advert-flood`, `action-advert-clipboard`).
+       - Enriqueció las tarjetas de nodos con métricas detalladas (`Last RSSI`, `Last SNR`, `Noise Floor`, `Uptime`) y botón interactivo `🗺️ Mapa`.
+       - Implementó `focusNodeOnMap(pubkey)` para centrar el mapa suavemente con `map.flyTo`, resaltar el marcador en rojo y abrir el popup.
+       - Corrigió el cálculo de contadores en las píldoras de filtro en `renderNodesDirectory()`.
+  3. **Agente 0 (Agente Principal / Orchestrator)**:
+     - Verificación estática con `node -c src/web/static/js/app.js` (código 0, sin errores de sintaxis).
+     - Verificación de compilación de código Python con `python -m compileall src` (código 0, sin errores).
+     - Sincronización del paquete de despliegue en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vía `python scripts/sync_deploy.py`.
+     - Actualización y sincronización de commits con el repositorio remoto GitHub (`origin/main`).
 - **Fecha**: 2026-08-19
 - **Estado**: ✅ COMPLETADO
 - **Agente Principal (Lead Orchestrator)**: Diseñó e integró la capacidad de realizar **Ping Zero** (sonda de 0 saltos directos sin saturar la malla) contra nodos y repetidores, calculando la latencia de ida y vuelta (RTT en ms), potencia de señal RSSI (dBm), relación señal-ruido SNR (dB) y estado de alcance en línea de vista.

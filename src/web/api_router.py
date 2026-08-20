@@ -140,15 +140,53 @@ class WebAPIRouter:
 
             if method == "GET" and clean_path in ("/api/node/config", "/api/node/settings"):
                 admin = getattr(self.bridge, "admin_handler", None)
-                if admin and hasattr(admin, "get_local_config"):
-                    return 200, {"status": "ok", "data": admin.get_local_config()}
-                return 200, {"status": "ok", "data": {}}
+                local_cfg = admin.get_local_config() if (admin and hasattr(admin, "get_local_config")) else {}
+                
+                # Consolidar métricas en tiempo real del bridge
+                uptime_sec = int(time.time() - getattr(self.bridge, "start_time", time.time()))
+                days = uptime_sec // 86400
+                hours = (uptime_sec % 86400) // 3600
+                mins = (uptime_sec % 3600) // 60
+                secs = uptime_sec % 60
+                uptime_str = f"{days}d {hours}h {mins}m {secs}s" if days > 0 else (f"{hours}h {mins}m {secs}s" if hours > 0 else f"{mins}m {secs}s")
+
+                limiter = getattr(self.bridge, "rate_limiter", None)
+                airtime_stats = limiter.airtime_tracker.get_stats() if (limiter and hasattr(limiter, "airtime_tracker")) else {}
+
+                rx_val = getattr(self.bridge, "rx_count", 0)
+                tx_val = getattr(self.bridge, "tx_count", 0)
+                err_tx = getattr(self.bridge, "tx_error_count", 0)
+                err_gen = getattr(self.bridge, "err_count", 0)
+
+                local_cfg.update({
+                    "uptime": uptime_sec,
+                    "uptime_str": uptime_str,
+                    "airtime_ms": airtime_stats.get("hourly_used_ms", 0),
+                    "duty_cycle_pct": airtime_stats.get("hourly_duty_cycle_pct", 0.0),
+                    "tx_count": int(tx_val) if isinstance(tx_val, (int, float)) else 0,
+                    "rx_count": int(rx_val) if isinstance(rx_val, (int, float)) else 0,
+                    "duplicate_packets": getattr(self.bridge, "dup_count", 0),
+                    "packet_errors": (int(err_tx) if isinstance(err_tx, (int, float)) else 0) + (int(err_gen) if isinstance(err_gen, (int, float)) else 0),
+                    "noise_floor_dbm": local_cfg.get("noise_floor_dbm", -118),
+                    "clock": datetime.now().strftime("%I:%M:%S %p"),
+                })
+                return 200, {"status": "ok", "data": local_cfg}
 
             if method == "POST" and clean_path in ("/api/node/config", "/api/node/settings"):
                 cmd = {"action": "set_local_config", "params": req_body}
                 res = await self.bridge.handle_admin(cmd)
                 self.log_system_event("INFO", f"Configuración de nodo local actualizada: {list(req_body.keys())}", source="admin")
                 return 200, {"status": "ok", "data": res}
+
+            if method == "POST" and clean_path == "/api/node/advert":
+                flood = bool(req_body.get("flood", False))
+                admin = getattr(self.bridge, "admin_handler", None)
+                if admin and hasattr(admin, "broadcast_advert"):
+                    res = await admin.broadcast_advert(flood=flood)
+                    mode_str = "Flood Routed (toda la malla)" if flood else "Hop 0 (vecindario directo)"
+                    self.log_system_event("INFO", f"📢 Anuncio Advert emitido ({mode_str})", source="admin")
+                    return 200, {"status": "ok", "data": res}
+                return 400, {"status": "error", "message": "Admin handler no disponible"}
 
             if method == "POST" and clean_path == "/api/node/reboot":
                 cmd = {"action": "reboot_local"}

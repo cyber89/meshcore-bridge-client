@@ -301,6 +301,52 @@ class RxEventRouter:
                 ),
             )
 
+        # Verificar si el emisor es un repetidor o si el texto es una respuesta de comando/diagnóstico
+        sender_contact = self._ctx.node_registry.get_contact(msg.sender)
+        is_repeater_sender = (
+            (sender_contact and sender_contact.role in ("REPEATER", "ROUTER"))
+            or bool(extracted_telem)
+            or (msg.sender_name and (
+                msg.sender_name.upper().startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-"))
+                or "REPEATER" in msg.sender_name.upper()
+                or "ROUTER" in msg.sender_name.upper()
+            ))
+        )
+        clean_text_lower = (msg.text or "").strip().lower()
+        is_cmd_response = (
+            is_repeater_sender
+            or clean_text_lower.startswith(("cmd ", "login ", "unknown command", "ok", "error", "auth "))
+            or clean_text_lower in ("unknown command", "ok", "error", "success", "failed", "unauthorized")
+        )
+
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        if is_cmd_response:
+            # Es una respuesta de comando o telemetría de repetidor: NO emitir como chat directo de usuario
+            rep_payload = {
+                "type": "repeater_response",
+                "event_type": "repeater_response",
+                "sender": msg.sender,
+                "sender_name": msg.sender_name,
+                "text": msg.text,
+                "telemetry": extracted_telem if extracted_telem else None,
+                "rssi": msg.rssi,
+                "snr": msg.snr,
+                "timestamp": now_iso,
+            }
+            if extracted_telem:
+                self._ctx.mqtt.publish_safe(config.TOPIC_RX_TELEMETRY, json.dumps({
+                    "event_type": "repeater_telemetry",
+                    "sender": msg.sender,
+                    "sender_name": msg.sender_name,
+                    "telemetry": extracted_telem,
+                    "timestamp": now_iso,
+                }), qos=0)
+            self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, json.dumps(rep_payload, sort_keys=True), qos=0)
+            if self._ctx.web_server:
+                self._ctx.web_server.broadcast_event(rep_payload)
+            return
+
         evt_payload = {
             "event_type": "direct",
             "sender": msg.sender,
@@ -314,21 +360,13 @@ class RxEventRouter:
                 "snr": msg.snr,
             },
             "telemetry": extracted_telem if extracted_telem else None,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_iso,
         }
         evt_json = json.dumps(evt_payload, sort_keys=True)
 
         topic = f"{config.TOPIC_RX_DIRECT}/{msg.sender}"
         self._ctx.mqtt.publish_safe(topic, evt_json, qos=1)
         self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
-        if extracted_telem:
-            self._ctx.mqtt.publish_safe(config.TOPIC_RX_TELEMETRY, json.dumps({
-                "event_type": "repeater_telemetry",
-                "sender": msg.sender,
-                "sender_name": msg.sender_name,
-                "telemetry": extracted_telem,
-                "timestamp": evt_payload["timestamp"],
-            }), qos=0)
 
         if self._ctx.web_server:
             self._ctx.web_server.broadcast_event(evt_payload)

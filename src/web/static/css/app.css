@@ -3318,8 +3318,9 @@ body {
    ============================================================================== */
 
 @media (max-width: 900px) {
-  .app-container {
+  .app-body {
     flex-direction: column;
+    overflow: hidden;
   }
 
   .app-sidebar {
@@ -3327,13 +3328,17 @@ body {
     height: auto;
     border-right: none;
     border-bottom: 1px solid var(--border-subtle);
-    padding: 8px 12px;
+    padding: 6px 10px;
     flex-direction: row;
     overflow-x: auto;
     overflow-y: hidden;
     scrollbar-width: none;
     -ms-overflow-style: none;
     flex-shrink: 0;
+  }
+
+  .app-sidebar .channel-selector-card {
+    display: none;
   }
 
   .app-sidebar::-webkit-scrollbar {
@@ -3349,12 +3354,15 @@ body {
 
   .nav-btn {
     padding: 6px 10px;
-    font-size: 11px;
+    font-size: 11.5px;
     white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .app-main {
-    height: calc(100vh - 120px);
+    flex: 1;
+    height: calc(100vh - var(--header-height) - 52px);
+    overflow-y: auto;
   }
 
   .chat-layout {
@@ -3398,6 +3406,56 @@ body {
 
   .chat-composer {
     padding: 8px 12px;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-header {
+    padding: 0 12px;
+    gap: 8px;
+  }
+
+  .header-center {
+    display: none;
+  }
+
+  .header-metrics {
+    display: none;
+  }
+
+  .logo-title {
+    font-size: 15px;
+  }
+
+  .sniffer-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .nodes-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .nodes-filter-pills {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+  }
+
+  .nodes-filter-pills .filter-pill {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .nodes-unified-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .info-grid-extended {
+    grid-template-columns: 1fr 1fr !important;
   }
 }
 

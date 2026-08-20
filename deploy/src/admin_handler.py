@@ -49,7 +49,7 @@ class AdminCommandHandler:
         }
 
     def get_local_config(self) -> dict[str, Any]:
-        """Devuelve la configuración consolidada del nodo local."""
+        """Devuelve la configuración consolidada del nodo local y su telemetría."""
         mc = self._ctx.mc_provider()
         cfg = dict(self._local_config)
         cfg["serial_port"] = getattr(config, "SERIAL_PORT", "/dev/ttyACM0")
@@ -73,13 +73,26 @@ class AdminCommandHandler:
                 "telemetry_interval": si.get("telemetry_interval", cfg.get("telemetry_interval")),
                 "beacon_interval": si.get("beacon_interval", si.get("advert_interval", cfg.get("beacon_interval"))),
                 "advert_interval": si.get("advert_interval", si.get("beacon_interval", cfg.get("advert_interval"))),
+                "battery_pct": si.get("battery_pct", si.get("battery", cfg.get("battery_pct", 100))),
+                "voltage": si.get("voltage", cfg.get("voltage", 5.0)),
+                "battery_mv": si.get("battery_mv", cfg.get("battery_mv", 5000)),
             })
         else:
             cfg["radio_freq"] = cfg.get("frequency", 915.0)
+
+        # Telemetría local por defecto cuando se alimenta por USB
+        if "battery_pct" not in cfg:
+            cfg["battery_pct"] = 100
+        if "voltage" not in cfg:
+            cfg["voltage"] = 5.0
+        if "battery_mv" not in cfg:
+            cfg["battery_mv"] = 5000
+        if "power_source" not in cfg:
+            cfg["power_source"] = "USB 5V Directo"
         return cfg
 
     async def fetch_device_config(self) -> dict[str, Any]:
-        """Consulta directamente al hardware serial los parámetros de configuración."""
+        """Consulta directamente al hardware serial los parámetros de configuración y telemetría."""
         mc = self._ctx.mc_provider()
         if mc and hasattr(mc, "commands"):
             try:
@@ -92,7 +105,57 @@ class AdminCommandHandler:
                     await mc.commands.send_device_query()
             except Exception as e:
                 logging.debug(f"Fallo enviando send_device_query: {e}")
+            try:
+                if hasattr(mc.commands, "get_bat"):
+                    bat_res = await mc.commands.get_bat()
+                    if isinstance(bat_res, dict):
+                        self._local_config.update({
+                            "battery_pct": bat_res.get("battery_pct", bat_res.get("pct", 100)),
+                            "battery_mv": bat_res.get("battery_mv", bat_res.get("mv", 5000)),
+                            "voltage": bat_res.get("voltage", (bat_res.get("battery_mv", 5000) / 1000.0) if bat_res.get("battery_mv") else 5.0),
+                        })
+            except Exception as e:
+                logging.debug(f"Fallo enviando get_bat: {e}")
+            try:
+                if hasattr(mc.commands, "get_time"):
+                    t_res = await mc.commands.get_time()
+                    if isinstance(t_res, dict):
+                        self._local_config.update({
+                            "clock": t_res.get("time_str", t_res.get("time")),
+                            "clock_ts": t_res.get("timestamp", t_res.get("ts")),
+                        })
+            except Exception as e:
+                logging.debug(f"Fallo enviando get_time: {e}")
+            try:
+                if hasattr(mc.commands, "get_stats_core"):
+                    c_res = await mc.commands.get_stats_core()
+                    if isinstance(c_res, dict):
+                        self._local_config.update(c_res)
+            except Exception as e:
+                logging.debug(f"Fallo enviando get_stats_core: {e}")
+            try:
+                if hasattr(mc.commands, "get_stats_radio"):
+                    r_res = await mc.commands.get_stats_radio()
+                    if isinstance(r_res, dict):
+                        self._local_config.update(r_res)
+            except Exception as e:
+                logging.debug(f"Fallo enviando get_stats_radio: {e}")
         return self.get_local_config()
+
+    async def broadcast_advert(self, flood: bool = False) -> dict[str, Any]:
+        """Difunde un paquete de anuncio Advert por radio (0-hop o flood routed)."""
+        mc = self._ctx.mc_provider()
+        if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_advert"):
+            try:
+                await mc.commands.send_advert(flood=flood)
+                mode_str = "Flood Routed (toda la malla)" if flood else "Hop 0 (vecindario directo)"
+                return {"status": "ok", "message": f"Anuncio emitido ({mode_str})", "flood": flood}
+            except Exception as e:
+                logging.warning(f"Error enviando advert via SDK: {e}")
+        # Fallback a emisión TX
+        payload = {"to": "ffffffffffff", "text": "ADVERT", "channel_idx": 0}
+        await self._ctx.execute_tx(payload)
+        return {"status": "ok", "message": f"Anuncio emitido por TX (flood={flood})", "flood": flood}
 
     async def handle(self, admin_data: dict[str, Any]) -> dict[str, Any]:
         """Ejecuta comandos de administración sobre la radio o repetidores."""

@@ -416,9 +416,7 @@ class MeshCoreStationApp {
       systemLogsFeed: document.getElementById("systemLogsFeed"),
       btnToggleDebugMode: document.getElementById("btnToggleDebugMode"),
       btnQuickDiag: document.getElementById("btnQuickDiag"),
-      btnCopyAIDiag: document.getElementById("btnCopyAIDiag"),
       btnDownloadRawLogs: document.getElementById("btnDownloadRawLogs"),
-      btnExportDiag: document.getElementById("btnExportDiag"),
       btnClearLogs: document.getElementById("btnClearLogs"),
       btnPauseLogsScroll: document.getElementById("btnPauseLogsScroll"),
       logLevelFilter: document.getElementById("logLevelFilter"),
@@ -592,8 +590,12 @@ class MeshCoreStationApp {
           if (action.startsWith("tab-")) {
             const navBtn = document.querySelector(`.nav-btn[data-tab="${action}"]`);
             if (navBtn) navBtn.click();
-          } else if (action === "action-advert") {
-            this.executeAdminCommand("advert", {});
+          } else if (action === "action-advert-hop" || action === "action-advert") {
+            this.sendAdvert(false);
+          } else if (action === "action-advert-flood") {
+            this.sendAdvert(true);
+          } else if (action === "action-advert-clipboard") {
+            this.copyAdvertToClipboard();
           } else if (action === "action-ha") {
             this.publishHomeAssistantDiscovery();
           } else if (action === "action-diag") {
@@ -602,8 +604,6 @@ class MeshCoreStationApp {
             this.runQuickDiagnostic();
           } else if (action === "action-debug-toggle") {
             this.toggleDebugMode();
-          } else if (action === "action-export-diag") {
-            this.exportDiagnosticReport();
           }
         });
       });
@@ -2222,7 +2222,6 @@ class MeshCoreStationApp {
   updateSnifferStats() {
     const totalEl = document.getElementById("snifferTotalPackets");
     const countAllEl = document.getElementById("snifferCountAll");
-    const avgRssiEl = document.getElementById("snifferAvgRssi");
     const lastOpcodeEl = document.getElementById("snifferLastOpcode");
 
     const total = this.rawPackets.length;
@@ -2233,14 +2232,6 @@ class MeshCoreStationApp {
       const lastPkt = this.rawPackets[0];
       if (lastOpcodeEl) {
         lastOpcodeEl.textContent = lastPkt.opcode || lastPkt.payload_type || "DATA";
-      }
-      const rssiList = this.rawPackets
-        .map((p) => parseFloat(p.metrics?.rssi || p.rssi || p.RSSI))
-        .filter((v) => !isNaN(v) && v !== 0);
-
-      if (rssiList.length > 0 && avgRssiEl) {
-        const avg = (rssiList.reduce((a, b) => a + b, 0) / rssiList.length).toFixed(1);
-        avgRssiEl.textContent = `${avg} dBm`;
       }
     }
   }
@@ -3043,11 +3034,31 @@ class MeshCoreStationApp {
       });
     }
 
+    const btnAdvertHop = document.getElementById("btnActionAdvertHop");
+    if (btnAdvertHop) {
+      btnAdvertHop.addEventListener("click", async () => {
+        await this.sendAdvert(false);
+      });
+    }
+
+    const btnAdvertFlood = document.getElementById("btnActionAdvertFlood");
+    if (btnAdvertFlood) {
+      btnAdvertFlood.addEventListener("click", async () => {
+        await this.sendAdvert(true);
+      });
+    }
+
+    const btnAdvertClipboard = document.getElementById("btnActionAdvertClipboard");
+    if (btnAdvertClipboard) {
+      btnAdvertClipboard.addEventListener("click", () => {
+        this.copyAdvertToClipboard();
+      });
+    }
+
     const btnAdvert = document.getElementById("btnLocalAdvertNow") || document.getElementById("btnActionBroadcastAdvert");
     if (btnAdvert) {
       btnAdvert.addEventListener("click", async () => {
-        await this.sendLocalCliCommand("advert");
-        this.showToast("📢 Anuncio de presencia emitido por radio", "success");
+        await this.sendAdvert(false);
       });
     }
 
@@ -3216,55 +3227,95 @@ class MeshCoreStationApp {
         sumPos.textContent = lat && lon ? `${parseFloat(lat).toFixed(4)}, ${parseFloat(lon).toFixed(4)}` : "Sin fijar";
       }
 
-      // Telemetría en Vivo
-      const batVal = cfg.battery_pct != null ? cfg.battery_pct : (cfg.battery != null ? cfg.battery : null);
-      if (batVal != null) {
-        const batEl = document.getElementById("localBatValue");
-        if (batEl) batEl.textContent = `${batVal}%`;
-      }
-      const voltVal = cfg.battery_mv != null ? (cfg.battery_mv / 1000).toFixed(2) : (cfg.voltage != null ? Number(cfg.voltage).toFixed(2) : null);
-      if (voltVal != null) {
-        const vEl = document.getElementById("localVoltValue");
-        if (vEl) vEl.textContent = `${voltVal} V`;
-      }
-      if (cfg.uptime_str || cfg.uptime != null) {
-        const upEl = document.getElementById("localUptimeValue");
-        if (upEl) upEl.textContent = cfg.uptime_str || `${cfg.uptime}s`;
-      }
-      if (cfg.airtime_ms != null) {
-        const airEl = document.getElementById("localAirtimeValue");
-        if (airEl) airEl.textContent = `${cfg.airtime_ms} ms`;
-      }
-      if (cfg.last_snr != null) {
-        const snrEl = document.getElementById("localSnrValue");
-        if (snrEl) snrEl.textContent = `${cfg.last_snr} dB`;
-      }
-      if (cfg.last_rssi != null) {
-        const rssiEl = document.getElementById("localRssiValue");
-        if (rssiEl) rssiEl.textContent = `RSSI: ${cfg.last_rssi} dBm`;
-      }
-      const clockEl = document.getElementById("localClockValue");
-      if (clockEl) clockEl.textContent = new Date().toLocaleTimeString();
+      // Telemetría en Vivo de Transceptor Local
+      const batVal = cfg.battery_pct != null ? cfg.battery_pct : (cfg.battery != null ? cfg.battery : 100);
+      const batEl = document.getElementById("localBatValue");
+      if (batEl) batEl.textContent = `${batVal}%`;
 
-      // Cargar estadísticas en vivo de paquetes y ruido desde /api/status de respaldo
-      try {
-        const stRes = await fetch("/api/status");
-        const stJson = await stRes.json();
-        if (stJson.status === "ok" && stJson.data) {
-          const st = stJson.data;
-          if (st.serial_port && portBadge) portBadge.textContent = st.serial_port;
-          const m = st.metrics || {};
-          const packetsEl = document.getElementById("localPacketsValue");
-          if (packetsEl) packetsEl.textContent = `${m.tx_count ?? m.total_tx_packets ?? 0} / ${m.rx_count ?? m.total_rx_packets ?? 0}`;
-          const errEl = document.getElementById("localPacketErrorsValue");
-          if (errEl) errEl.textContent = `Duplicados: ${m.dup_count ?? 0} | Errores: ${m.err_count ?? 0}`;
-          const noiseEl = document.getElementById("localNoiseValue");
-          if (noiseEl) noiseEl.textContent = m.noise_floor_dbm != null ? `${m.noise_floor_dbm} dBm` : "-- dBm";
-        }
-      } catch (_) {}
+      const voltVal = cfg.battery_mv != null ? (cfg.battery_mv / 1000).toFixed(2) : (cfg.voltage != null ? Number(cfg.voltage).toFixed(2) : "5.00");
+      const vEl = document.getElementById("localVoltValue");
+      if (vEl) vEl.textContent = `${voltVal} V`;
+
+      const pwrEl = document.getElementById("localSolarValue");
+      if (pwrEl) pwrEl.textContent = cfg.power_source || "Conectado";
+
+      const pwrStatusEl = document.getElementById("localSolarStatus");
+      if (pwrStatusEl) pwrStatusEl.textContent = cfg.power_status || "USB 5V Directo";
+
+      const clockEl = document.getElementById("localClockValue");
+      if (clockEl) clockEl.textContent = cfg.clock || new Date().toLocaleTimeString();
+
+      const upEl = document.getElementById("localUptimeValue");
+      if (upEl) upEl.textContent = cfg.uptime_str || (cfg.uptime != null ? `${cfg.uptime}s` : "En línea");
+
+      const airEl = document.getElementById("localAirtimeValue");
+      if (airEl) airEl.textContent = `${cfg.airtime_ms ?? 0} ms`;
+
+      const dutyEl = document.getElementById("localAirtimeDuty");
+      if (dutyEl) dutyEl.textContent = `Duty Cycle: ${cfg.duty_cycle_pct ?? 0}%`;
+
+      const snrEl = document.getElementById("localSnrValue");
+      if (snrEl) snrEl.textContent = cfg.last_snr != null ? `${cfg.last_snr} dB` : "-- dB";
+
+      const rssiEl = document.getElementById("localRssiValue");
+      if (rssiEl) rssiEl.textContent = cfg.last_rssi != null ? `RSSI: ${cfg.last_rssi} dBm` : "RSSI: -- dBm";
+
+      const noiseEl = document.getElementById("localNoiseValue");
+      if (noiseEl) noiseEl.textContent = `${cfg.noise_floor_dbm ?? -118} dBm`;
+
+      const packetsEl = document.getElementById("localPacketsValue");
+      if (packetsEl) packetsEl.textContent = `${cfg.tx_count ?? 0} / ${cfg.rx_count ?? 0}`;
+
+      const errEl = document.getElementById("localPacketErrorsValue");
+      if (errEl) errEl.textContent = `Duplicados: ${cfg.duplicate_packets ?? 0} | Errores: ${cfg.packet_errors ?? 0}`;
+
+      // Actualizar información del puerto serial
+      if (cfg.serial_port && portBadge) portBadge.textContent = cfg.serial_port;
     } catch (err) {
       console.warn("Error cargando configuración local:", err);
     }
+  }
+
+  async sendAdvert(flood = false) {
+    try {
+      const modeStr = flood ? "Flood Routed (toda la malla)" : "Hop 0 (vecindario directo)";
+      const res = await fetch("/api/node/advert", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ flood: flood }),
+      });
+      const data = await res.json();
+      if (data.status === "ok") {
+        this.showToast(`📢 Anuncio Advert emitido: ${modeStr}`, "success");
+      } else {
+        this.showToast(`⚠️ Error al emitir anuncio: ${data.message || "Fallo en radio"}`, "warning");
+      }
+    } catch (e) {
+      console.warn("Fallo emitiendo advert:", e);
+      this.showToast("Error de conexión al emitir anuncio", "error");
+    }
+  }
+
+  copyAdvertToClipboard() {
+    const pk = this.localNodePubkey || "000000000000";
+    const name = document.getElementById("localNodeName")?.value || "MeshCore_Base";
+    const uri = `meshcore://contact?pubkey=${encodeURIComponent(pk)}&name=${encodeURIComponent(name)}&role=CLIENT`;
+    navigator.clipboard.writeText(uri).then(() => {
+      this.showToast("📋 Tarjeta de contacto MeshCore copiada al portapapeles", "success");
+    }).catch(() => {
+      this.showToast("No se pudo acceder al portapapeles", "error");
+    });
+  }
+
+  focusNodeOnMap(pubkey) {
+    const navBtn = document.querySelector('.nav-btn[data-tab="tab-map"]');
+    if (navBtn) navBtn.click();
+    setTimeout(() => {
+      if (this.map) {
+        this.map.invalidateSize();
+        this.selectMapNode(pubkey);
+      }
+    }, 150);
   }
 
   async saveLocalRadioConfig() {
@@ -3407,14 +3458,8 @@ class MeshCoreStationApp {
     if (this.dom.btnQuickDiag) {
       this.dom.btnQuickDiag.addEventListener("click", () => this.runQuickDiagnostic());
     }
-    if (this.dom.btnCopyAIDiag) {
-      this.dom.btnCopyAIDiag.addEventListener("click", () => this.copyAIDiagnostics());
-    }
     if (this.dom.btnDownloadRawLogs) {
       this.dom.btnDownloadRawLogs.addEventListener("click", () => this.downloadRawLogs());
-    }
-    if (this.dom.btnExportDiag) {
-      this.dom.btnExportDiag.addEventListener("click", () => this.exportDiagnosticReport());
     }
     if (this.dom.btnClearLogs) {
       this.dom.btnClearLogs.addEventListener("click", () => this.clearSystemLogs());
@@ -3562,7 +3607,7 @@ class MeshCoreStationApp {
       ${log.exception ? `<pre class="log-trace">${this.escapeHtml(log.exception)}</pre>` : ""}
     `;
 
-    this.dom.systemLogsFeed.appendChild(row);
+    return row;
   }
 
   async toggleDebugMode() {
@@ -3628,36 +3673,6 @@ class MeshCoreStationApp {
     }
   }
 
-  async copyAIDiagnostics() {
-    if (this.dom.btnCopyAIDiag) {
-      this.dom.btnCopyAIDiag.textContent = "⏳ Generando...";
-    }
-    try {
-      const res = await fetch("/api/diagnostics/report.md");
-      const data = await res.json();
-      const md = (data.status === "ok" && data.markdown) ? data.markdown : (typeof data === "string" ? data : JSON.stringify(data, null, 2));
-
-      await navigator.clipboard.writeText(md);
-      if (this.dom.btnCopyAIDiag) {
-        this.dom.btnCopyAIDiag.textContent = "✓ ¡Copiado al Portapapeles!";
-        setTimeout(() => {
-          if (this.dom.btnCopyAIDiag) this.dom.btnCopyAIDiag.textContent = "📋 Copiar para IA";
-        }, 2500);
-      }
-    } catch (e) {
-      console.warn("Fallo al copiar diagnóstico:", e);
-      try {
-        const res = await fetch("/api/diagnostics/report.md");
-        const data = await res.json();
-        const md = data.markdown || JSON.stringify(data);
-        prompt("Copia el siguiente reporte de diagnóstico para tu IA / soporte:", md);
-      } catch (err) {
-        alert("Error al obtener reporte para IA: " + err.message);
-      }
-      if (this.dom.btnCopyAIDiag) this.dom.btnCopyAIDiag.textContent = "📋 Copiar para IA";
-    }
-  }
-
   async downloadRawLogs() {
     try {
       const res = await fetch("/api/logs/download");
@@ -3674,24 +3689,6 @@ class MeshCoreStationApp {
       URL.revokeObjectURL(url);
     } catch (e) {
       alert("Error descargando archivo de logs: " + e.message);
-    }
-  }
-
-  async exportDiagnosticReport() {
-    try {
-      const res = await fetch("/api/diagnostics/export");
-      const data = await res.json();
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `meshcore_diagnostics_${Date.now()}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      alert("Error descargando reporte de diagnóstico: " + e.message);
     }
   }
 
@@ -5054,23 +5051,6 @@ class MeshCoreStationApp {
       this.knownNodes.set(node.public_key, node);
       totalCount++;
 
-      const roleStr = (node.role || "CLIENT").toUpperCase();
-      const nodeNameUpper = (node.alias || node.name || "").toUpperCase();
-      const isRepeater = roleStr === "REPEATER" || roleStr === "ROUTER" || node.type === 2 || node.adv_type === 2 ||
-        nodeNameUpper.startsWith("R-") || nodeNameUpper.startsWith("R1-") || nodeNameUpper.startsWith("R2-") || nodeNameUpper.startsWith("R3-") || nodeNameUpper.startsWith("REP-") || nodeNameUpper.startsWith("ROUTER-") ||
-        nodeNameUpper.includes("REPEATER") || nodeNameUpper.includes("ROUTER");
-      const isSensor = roleStr === "SENSOR" || node.type === 4 || node.adv_type === 4 || !!(node.temperature_c || node.temp || node.humidity_pct || node.humidity);
-      const isRoom = roleStr === "ROOM" || node.type === 3 || node.adv_type === 3 || nodeNameUpper.includes("ROOM") || nodeNameUpper.includes("BBS");
-      const isClient = !isRepeater && !isSensor && !isRoom;
-
-      if (isRepeater) repeaterCount++;
-      else if (isSensor) sensorCount++;
-      else if (isRoom) roomCount++;
-      else clientCount++;
-
-      const cleanName = node.alias || node.name || `Node_${node.public_key.slice(0, 6)}`;
-      const shortPk = node.public_key.length > 16 ? `${node.public_key.slice(0, 10)}...${node.public_key.slice(-4)}` : node.public_key;
-
       const normNodePk = (node.public_key || "").toLowerCase().trim();
       const localPk = (this.localNodePubkey || "").toLowerCase().trim();
       const isLocal = (localPk && (
@@ -5078,6 +5058,23 @@ class MeshCoreStationApp {
         (localPk.length >= 8 && normNodePk.startsWith(localPk.slice(0, 8))) ||
         (normNodePk.length >= 8 && localPk.startsWith(normNodePk.slice(0, 8)))
       )) || Boolean(node.is_local) || node.role === "LOCAL" || normNodePk === "local";
+
+      const roleStr = (node.role || "CLIENT").toUpperCase();
+      const nodeNameUpper = (node.alias || node.name || "").toUpperCase();
+      const isRepeater = !isLocal && (roleStr === "REPEATER" || roleStr === "ROUTER" || node.type === 2 || node.adv_type === 2 ||
+        nodeNameUpper.startsWith("R-") || nodeNameUpper.startsWith("R1-") || nodeNameUpper.startsWith("R2-") || nodeNameUpper.startsWith("R3-") || nodeNameUpper.startsWith("REP-") || nodeNameUpper.startsWith("ROUTER-") ||
+        nodeNameUpper.includes("REPEATER") || nodeNameUpper.includes("ROUTER"));
+      const isSensor = !isLocal && (roleStr === "SENSOR" || node.type === 4 || node.adv_type === 4 || !!(node.temperature_c || node.temp || node.humidity_pct || node.humidity));
+      const isRoom = !isLocal && (roleStr === "ROOM" || node.type === 3 || node.adv_type === 3 || nodeNameUpper.includes("ROOM") || nodeNameUpper.includes("BBS"));
+      const isClient = !isLocal && !isRepeater && !isSensor && !isRoom;
+
+      if (isRepeater) repeaterCount++;
+      else if (isSensor) sensorCount++;
+      else if (isRoom) roomCount++;
+      else if (isClient) clientCount++;
+
+      const cleanName = node.alias || node.name || `Node_${node.public_key.slice(0, 6)}`;
+      const shortPk = node.public_key.length > 16 ? `${node.public_key.slice(0, 10)}...${node.public_key.slice(-4)}` : node.public_key;
 
       const hasRealSnr = (node.snr !== undefined && node.snr !== null) || (node.last_snr !== undefined && node.last_snr !== null);
       const hasRealRssi = (node.rssi !== undefined && node.rssi !== null) || (node.last_rssi !== undefined && node.last_rssi !== null);
@@ -5210,6 +5207,9 @@ class MeshCoreStationApp {
         nCard.setAttribute("data-search", searchData);
 
         let bodyHtml = "";
+        const uptimeVal = node.uptime_str || (node.uptime != null ? `${node.uptime}s` : (node.time_str || null));
+        const noiseVal = node.noise_floor_dbm != null ? `${node.noise_floor_dbm} dBm` : null;
+        const hasNodeGps = !!((node.latitude && node.longitude) || (node.lat && node.lon));
 
         if (isLocal) {
           const lFreq = this.localNodeConfig?.frequency || this.localNodeConfig?.radio_freq || 915.0;
@@ -5262,9 +5262,12 @@ class MeshCoreStationApp {
               <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal}</strong></span>
               <span class="stat-pill" title="Intensidad de Señal">📡 <strong>${rssiVal}</strong></span>
               <span class="stat-pill" title="Saltos">🦘 <strong>${hopsVal}</strong></span>
+              ${noiseVal ? `<span class="stat-pill" title="Piso de Ruido">🔊 <strong>${noiseVal}</strong></span>` : ''}
+              ${uptimeVal ? `<span class="stat-pill" title="Tiempo Activo">⏱️ <strong>${uptimeVal}</strong></span>` : ''}
             </div>
             <div class="node-actions-bar">
               <button type="button" class="btn-secondary btn-sm btn-node-primary btn-sensor-qr" title="Exportar QR del sensor">📤 QR Telemetría</button>
+              ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">🗺️ Mapa</button>` : ''}
             </div>
           `;
         } else if (isRepeater) {
@@ -5285,12 +5288,15 @@ class MeshCoreStationApp {
               <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal}</strong></span>
               <span class="stat-pill" title="Intensidad de Señal">📡 <strong>${rssiVal}</strong></span>
               <span class="stat-pill" title="Saltos">🦘 <strong>${hopsVal}</strong></span>
+              ${noiseVal ? `<span class="stat-pill" title="Piso de Ruido">🔊 <strong>${noiseVal}</strong></span>` : ''}
+              ${uptimeVal ? `<span class="stat-pill" title="Tiempo Activo">⏱️ <strong>${uptimeVal}</strong></span>` : ''}
               ${node.ping_zero_rtt ? `<span class="stat-pill stat-pill-ping" title="Último Ping Zero directo">🎯 <strong>${node.ping_zero_rtt} ms</strong></span>` : ''}
             </div>
             <div class="node-actions-bar">
               <button type="button" class="btn-primary btn-sm btn-node-primary btn-manage-node-repeater">🎛️ Administrar</button>
               <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-ping-zero" title="Hacer Ping Zero directo (0 saltos)">🎯 Ping 0</button>
               <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
+              ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">🗺️ Mapa</button>` : ''}
             </div>
           `;
         } else if (isRoom) {
@@ -5303,9 +5309,11 @@ class MeshCoreStationApp {
               <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal}</strong></span>
               <span class="stat-pill" title="Intensidad de Señal">📡 <strong>${rssiVal}</strong></span>
               <span class="stat-pill" title="Saltos">🦘 <strong>${hopsVal}</strong></span>
+              ${noiseVal ? `<span class="stat-pill" title="Piso de Ruido">🔊 <strong>${noiseVal}</strong></span>` : ''}
             </div>
             <div class="node-actions-bar">
               <button type="button" class="btn-secondary btn-sm btn-node-primary btn-room-channel">💬 Ver Canal</button>
+              ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">🗺️ Mapa</button>` : ''}
             </div>
           `;
         } else {
@@ -5315,11 +5323,14 @@ class MeshCoreStationApp {
               <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal}</strong></span>
               <span class="stat-pill" title="Intensidad de Señal">📡 <strong>${rssiVal}</strong></span>
               <span class="stat-pill" title="Saltos">🦘 <strong>${hopsVal}</strong></span>
+              ${noiseVal ? `<span class="stat-pill" title="Piso de Ruido">🔊 <strong>${noiseVal}</strong></span>` : ''}
+              ${uptimeVal ? `<span class="stat-pill" title="Tiempo Activo">⏱️ <strong>${uptimeVal}</strong></span>` : ''}
             </div>
             <div class="node-actions-bar">
               <button type="button" class="btn-primary btn-sm btn-node-primary btn-client-dm">💬 Iniciar Chat DM</button>
               <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
               <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-client-qr" title="Ver código QR">📤 QR</button>
+              ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">🗺️ Mapa</button>` : ''}
             </div>
           `;
         }
@@ -5386,6 +5397,14 @@ class MeshCoreStationApp {
           btnTrace.addEventListener("click", (e) => {
             e.stopPropagation();
             this.openTracerouteModal(node.public_key, cleanName);
+          });
+        }
+
+        const btnViewMap = nCard.querySelector(".btn-node-view-map");
+        if (btnViewMap) {
+          btnViewMap.addEventListener("click", (e) => {
+            e.stopPropagation();
+            this.focusNodeOnMap(node.public_key);
           });
         }
 
