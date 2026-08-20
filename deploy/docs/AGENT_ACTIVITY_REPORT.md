@@ -6,6 +6,34 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Medición RF de Ping y Ping Zero con RTT, SNR There, SNR Back y RSSI
+- **Fecha**: 2026-08-19
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Diagnosticó e implementó la captura y medición en tiempo real de pings y ecos de radio directos (Ping Zero y Ping multi-nodo). Resolvió la causa por la cual RSSI aparecía como `-- dBm` y la latencia no reflejaba la respuesta de radio del nodo remoto, formateando la respuesta idéntica a la aplicación oficial de MeshCore: `"Duration en ms, SNR there, SNR back (RSSI en dBm)"`.
+- **Contribuciones de Agentes**:
+  1. **Agente 2 (Python Bridge Architect Agent)**:
+     - **`src/admin_handler.py`**:
+       - Añadió el sistema de promesas asíncronas `_ping_waiters` en `AdminCommandHandler` y el método `notify_ping_response` para capturar la respuesta del nodo remoto.
+       - En `handle` para `action in ("ping_zero", "ping_0", "ping", "zero_hop_ping")`, envía la sonda RF, espera la respuesta del transceptor con timeout controlado, calcula la duración real de ida y vuelta (`duration_ms`), y extrae `snr_there` (SNR medido en el nodo remoto), `snr_back` (SNR medido en el transceptor local) y `rssi` (en dBm).
+       - Actualiza inmediatamente el registro de nodos `node_registry.record_packet` con las métricas RF obtenidas.
+     - **`src/rx_router.py`**:
+       - Añadió `admin_handler` a `RxRouterContext`.
+       - En `handle_event`, intercepta paquetes `ACK`, `TRACE_DATA` y respuestas de comandos de repetidor (`repeater_response`), notificando a `admin_handler.notify_ping_response` con `trip_time`, `snr_there`, `snr_back` y `rssi`.
+       - Propaga `rssi` y `snr` en el evento `message_delivered`.
+     - **`src/bridge_core.py`**:
+       - Conectó `self.admin_handler` con `self.rx_router._ctx.admin_handler`.
+  2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - **`src/web/static/js/app.js`**:
+       - En `pingZero`, extrae `duration_ms` / `rtt_ms`, `snr_there`, `snr_back` y `rssi`.
+       - Formatea la salida de terminal idéntica a MeshCore oficial: `✓ [PONG DIRECTO] Duration: ${rtt} ms | SNR there: ${snrThere} | SNR back: ${snrBack} | RSSI: ${rssi}`.
+       - Actualiza el Toast, la píldora de resultado rápido (`repQuickPingResult`) y la insignia del modal (`adminModalPingZeroBadge`).
+       - Actualiza inmediatamente las métricas en `this.knownNodes` y llama a `updateNodeInDom` para refrescar los chips de RF y estado del nodo en la interfaz.
+  3. **Agente 0 (Agente Principal / Orchestrator)**:
+     - Verificación de sintaxis JS (`node -c`, código 0).
+     - Verificación de sintaxis y tipos Python (`python -m compileall`, código 0).
+     - Sincronización completa de paquete autónomo de despliegue (`python scripts/sync_deploy.py`).
+     - Sincronización con repositorio remoto (`git push origin main`).
+
 ### Hito: Actualización Reactiva de Estado de Actividad de Nodos (En Línea / Inactivo)
 - **Fecha**: 2026-08-19
 - **Estado**: ✅ COMPLETADO

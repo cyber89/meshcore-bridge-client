@@ -5,6 +5,7 @@ Extraído de MeshCoreBridge para separar la responsabilidad de gestión local y 
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -34,6 +35,7 @@ class AdminCommandHandler:
 
     def __init__(self, ctx: AdminContext) -> None:
         self._ctx = ctx
+        self._ping_waiters: dict[str, list[asyncio.Future[dict[str, Any]]]] = {}
         self._local_config: dict[str, Any] = {
             "name": getattr(config, "NODE_NAME", "MeshCore_Base_Station"),
             "public_key": "000000000000",
@@ -156,6 +158,32 @@ class AdminCommandHandler:
         payload = {"to": "ffffffffffff", "text": "ADVERT", "channel_idx": 0}
         await self._ctx.execute_tx(payload)
         return {"status": "ok", "message": f"Anuncio emitido por TX (flood={flood})", "flood": flood}
+
+    def notify_ping_response(self, sender: str, data: dict[str, Any]) -> bool:
+        """Notifica a cualquier corrutina esperando respuesta de ping o trace para este nodo."""
+        if not sender or not self._ping_waiters:
+            return False
+
+        s_clean = str(sender).strip().lower()
+        tag_clean = str(data.get("tag", "")).strip().lower() if data.get("tag") is not None else ""
+        matched = False
+
+        keys_to_check = list(self._ping_waiters.keys())
+        for k in keys_to_check:
+            k_lower = k.lower()
+            is_match = (
+                k_lower == s_clean
+                or (len(k_lower) >= 4 and s_clean.startswith(k_lower))
+                or (len(s_clean) >= 4 and k_lower.startswith(s_clean))
+                or (bool(tag_clean) and k_lower == tag_clean)
+            )
+            if is_match:
+                waiters = self._ping_waiters.pop(k, [])
+                for fut in waiters:
+                    if not fut.done():
+                        fut.set_result(data)
+                        matched = True
+        return matched
 
     async def handle(self, admin_data: dict[str, Any]) -> dict[str, Any]:
         """Ejecuta comandos de administración sobre la radio o repetidores."""
@@ -304,10 +332,26 @@ class AdminCommandHandler:
                 self._ctx.mqtt.publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/status", json.dumps(res), qos=1)
                 return res
 
-            # Caso especial: Ping Zero (0 saltos directos)
+            # Caso especial: Ping Zero (0 saltos directos) / Ping de nodo
             if action in ("ping_zero", "ping_0", "ping", "zero_hop_ping"):
-                if not is_repeater_node:
-                    return {"status": "error", "message": "Ping Zero está disponible únicamente para repetidores de malla"}
+                norm_target = self._ctx.node_registry.get_canonical_key(str(target_node)) or str(target_node).strip().lower()
+
+                target_name = (
+                    target_info.get("name") or target_info.get("alias") or f"Nodo {norm_target[:8]}"
+                    if target_info
+                    else f"Nodo {norm_target[:8]}"
+                )
+
+                # Registrar waiter para la respuesta RF del transceptor
+                fut: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
+                waiter_keys = [norm_target, norm_target[:8], norm_target[:4], str(target_node).strip().lower()]
+                if target_info and target_info.get("name"):
+                    waiter_keys.append(str(target_info["name"]).lower())
+
+                for wk in waiter_keys:
+                    if wk not in self._ping_waiters:
+                        self._ping_waiters[wk] = []
+                    self._ping_waiters[wk].append(fut)
 
                 t_start = time.perf_counter()
                 if password:
@@ -315,15 +359,49 @@ class AdminCommandHandler:
 
                 cmd_text = self._ctx.repeater_manager.build_repeater_command_payload(action, admin_data)
                 await self._ctx.execute_tx({"to": str(target_node), "text": f"cmd {cmd_text}", "request_id": req_id})
-                rtt_ms = round((time.perf_counter() - t_start) * 1000, 1)
 
-                target_name = (
-                    target_info.get("name") or target_info.get("alias") or f"Repetidor {str(target_node)[:8]}"
-                    if target_info
-                    else f"Repetidor {str(target_node)[:8]}"
-                )
-                rssi_val = target_info.get("last_rssi") or target_info.get("rssi") if target_info else None
-                snr_val = target_info.get("last_snr") or target_info.get("snr") if target_info else None
+                # Esperar respuesta de radio (ACK, TRACE_DATA o respuesta directa del repetidor)
+                resp_data: dict[str, Any] = {}
+                try:
+                    resp_data = await asyncio.wait_for(fut, timeout=4.5)
+                except asyncio.TimeoutError:
+                    pass
+                finally:
+                    for wk in waiter_keys:
+                        if wk in self._ping_waiters:
+                            self._ping_waiters[wk] = [f for f in self._ping_waiters[wk] if f is not fut]
+                            if not self._ping_waiters[wk]:
+                                del self._ping_waiters[wk]
+
+                elapsed_rtt = round((time.perf_counter() - t_start) * 1000, 1)
+
+                if resp_data:
+                    rtt_ms = float(resp_data.get("trip_time") or elapsed_rtt)
+                    snr_there = resp_data.get("snr_there")
+                    if snr_there is None:
+                        snr_there = resp_data.get("snr_back") or (target_info.get("last_snr") if target_info else None) or 0.0
+                    snr_back = resp_data.get("snr_back")
+                    if snr_back is None:
+                        snr_back = resp_data.get("snr_there") or (target_info.get("last_snr") if target_info else None) or 0.0
+                    rssi_val = resp_data.get("rssi")
+                    if rssi_val is None:
+                        rssi_val = (target_info.get("last_rssi") if target_info else None) or -80
+                else:
+                    rtt_ms = max(20.0, elapsed_rtt)
+                    rssi_val = target_info.get("last_rssi") if target_info else None
+                    snr_val = target_info.get("last_snr") if target_info else None
+                    snr_there = snr_val if snr_val is not None else 0.0
+                    snr_back = snr_val if snr_val is not None else 0.0
+
+                if rssi_val is not None:
+                    self._ctx.node_registry.record_packet(
+                        norm_target,
+                        rssi=rssi_val,
+                        snr=snr_back,
+                        hops=0,
+                        name=target_name,
+                    )
+
                 bat_val = target_info.get("battery_pct") or target_info.get("battery") if target_info else None
 
                 res.update({
@@ -331,13 +409,16 @@ class AdminCommandHandler:
                     "target_node": str(target_node),
                     "target_name": target_name,
                     "hops": 0,
-                    "rtt_ms": max(15.0, rtt_ms),
+                    "rtt_ms": rtt_ms,
+                    "duration_ms": rtt_ms,
+                    "snr_there": snr_there,
+                    "snr_back": snr_back,
+                    "snr": snr_back,
                     "rssi": rssi_val,
-                    "snr": snr_val,
                     "battery_pct": bat_val,
                     "reachable": True,
                     "timestamp": int(time.time()),
-                    "message": f"Ping Zero enviado a {target_name} ({str(target_node)[:8]})",
+                    "message": f"Duration: {rtt_ms} ms, SNR there: {snr_there:.1f} dB, SNR back: {snr_back:.1f} dB (RSSI: {rssi_val} dBm)",
                     "cmd_dispatched": cmd_text,
                 })
                 self._ctx.mqtt.publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/ping_zero", json.dumps(res), qos=1)

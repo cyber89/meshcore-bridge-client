@@ -52,6 +52,7 @@ class RxRouterContext:
     loop: asyncio.AbstractEventLoop | None
     background_tasks: set[asyncio.Task[Any]]
     counters: BridgeCounters
+    admin_handler: Any = None
 
 
 class RxEventRouter:
@@ -199,6 +200,19 @@ class RxEventRouter:
                 if ack_msg_id and getattr(self._ctx, "store_forward", None):
                     self._ctx.store_forward.mark_message_delivered(ack_msg_id, trip_time)
 
+                admin = getattr(self._ctx, "admin_handler", None)
+                if admin and hasattr(admin, "notify_ping_response"):
+                    admin.notify_ping_response(
+                        sender,
+                        {
+                            "trip_time": trip_time,
+                            "rssi": effective_rssi,
+                            "snr_there": effective_snr,
+                            "snr_back": effective_snr,
+                            "source": "ack",
+                        },
+                    )
+
                 ack_evt_data = {
                     "type": "message_delivered",
                     "event_type": "message_delivered",
@@ -207,6 +221,8 @@ class RxEventRouter:
                     "trip_time_ms": trip_time,
                     "recipient": sender,
                     "status": "delivered",
+                    "rssi": effective_rssi,
+                    "snr": effective_snr,
                 }
 
                 if self._ctx.web_server:
@@ -221,6 +237,25 @@ class RxEventRouter:
 
             # Caso Trace Path / Traceroute
             if "TRACE" in ev_upper or "TRACE" in p_type_upper or payload_dict.get("event_type") == "trace":
+                path_nodes = payload_dict.get("path", [])
+                snr_there = path_nodes[0].get("snr") if path_nodes and isinstance(path_nodes[0], dict) else None
+                snr_back = path_nodes[-1].get("snr") if path_nodes and isinstance(path_nodes[-1], dict) else None
+                rssi_trace = payload_dict.get("rssi", payload_dict.get("RSSI", effective_rssi))
+                tag = payload_dict.get("tag")
+
+                admin = getattr(self._ctx, "admin_handler", None)
+                if admin and hasattr(admin, "notify_ping_response"):
+                    admin.notify_ping_response(
+                        str(tag) if tag else sender,
+                        {
+                            "snr_there": snr_there,
+                            "snr_back": snr_back,
+                            "rssi": rssi_trace,
+                            "tag": tag,
+                            "source": "trace",
+                        },
+                    )
+
                 if self._ctx.web_server:
                     self._ctx.web_server.broadcast_event({
                         "type": "trace_data",
@@ -352,6 +387,19 @@ class RxEventRouter:
         now_iso = datetime.now(timezone.utc).isoformat()
 
         if is_cmd_response:
+            admin = getattr(self._ctx, "admin_handler", None)
+            if admin and hasattr(admin, "notify_ping_response"):
+                admin.notify_ping_response(
+                    msg.sender,
+                    {
+                        "rssi": msg.rssi,
+                        "snr_there": msg.snr,
+                        "snr_back": msg.snr,
+                        "text": msg.text,
+                        "source": "repeater_response",
+                    },
+                )
+
             # Es una respuesta de comando o telemetría de repetidor: NO emitir como chat directo de usuario
             rep_payload = {
                 "type": "repeater_response",

@@ -218,6 +218,7 @@ class MeshCoreBridge:
                 execute_tx=self._execute_tx,
             )
         )
+        self.rx_router._ctx.admin_handler = self.admin_handler
 
         self.health_reporter = HealthReporter(
             HealthContext(

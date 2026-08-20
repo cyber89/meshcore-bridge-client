@@ -1912,34 +1912,43 @@ class MeshCoreStationApp {
       const data = await res.json();
       if (data.status === "ok" && data.data) {
         const pingData = data.data;
-        const rtt = pingData.rtt_ms || 0;
-        const rssi = pingData.rssi != null ? pingData.rssi : "--";
-        const snr = pingData.snr != null ? pingData.snr : "--";
+        const rtt = Number(pingData.rtt_ms || pingData.duration_ms || 0);
+        const rssi = pingData.rssi != null ? `${pingData.rssi} dBm` : "--";
+        const snrThere = pingData.snr_there != null ? `${Number(pingData.snr_there).toFixed(1)} dB` : (pingData.snr != null ? `${Number(pingData.snr).toFixed(1)} dB` : "--");
+        const snrBack = pingData.snr_back != null ? `${Number(pingData.snr_back).toFixed(1)} dB` : (pingData.snr != null ? `${Number(pingData.snr).toFixed(1)} dB` : "--");
 
-        const line = `✓ [PONG DIRECTO] RTT: ${rtt} ms | RSSI: ${rssi !== "--" ? `${rssi} dBm` : "--"} | SNR: ${snr !== "--" ? `${snr} dB` : "--"} | Hops: 0 (Directo)`;
+        const line = `✓ [PONG DIRECTO] Duration: ${rtt} ms | SNR there: ${snrThere} | SNR back: ${snrBack} | RSSI: ${rssi}`;
         this.appendTerminalLine(line, "term-success");
 
         if (this.dom.adminModalPingZeroBadge) {
-          const rssiPart = rssi !== "--" ? ` (${rssi} dBm)` : "";
+          const rssiPart = rssi !== "--" ? ` (${rssi})` : "";
           this.dom.adminModalPingZeroBadge.textContent = `🎯 Ping 0: ${rtt} ms${rssiPart}`;
           this.dom.adminModalPingZeroBadge.className = "ping-zero-badge ping-success";
         }
         if (this.dom.repQuickPingResult) {
-          const rPart = rssi !== "--" ? ` • RSSI ${rssi} dBm` : "";
-          const sPart = snr !== "--" ? ` • SNR ${snr} dB` : "";
-          this.dom.repQuickPingResult.textContent = `🟢 RTT ${rtt} ms${rPart}${sPart} (0 Saltos)`;
+          const rPart = rssi !== "--" ? ` • RSSI ${rssi}` : "";
+          const sPart = (snrThere !== "--" || snrBack !== "--") ? ` • SNR ${snrThere}/${snrBack}` : "";
+          this.dom.repQuickPingResult.textContent = `🟢 Duration: ${rtt} ms${sPart}${rPart} (0 Saltos)`;
         }
 
         // Actualizar nodo en knownNodes si existe
-        if (this.knownNodes.has(target)) {
-          const existing = this.knownNodes.get(target);
-          existing.ping_zero_rtt = rtt;
-          if (rssi !== "--") existing.last_rssi = rssi;
-          if (snr !== "--") existing.last_snr = snr;
-          existing.last_seen = Math.floor(Date.now() / 1000);
+        const canonicalTarget = this.resolveCanonicalPubkey(target);
+        const existing = this.knownNodes.get(canonicalTarget) || this.knownNodes.get(target) || {
+          public_key: canonicalTarget || target,
+          name: name,
+        };
+        existing.ping_zero_rtt = rtt;
+        if (pingData.rssi != null) existing.last_rssi = Number(pingData.rssi);
+        if (pingData.snr_back != null) existing.last_snr = Number(pingData.snr_back);
+        else if (pingData.snr != null) existing.last_snr = Number(pingData.snr);
+        existing.last_seen = Math.floor(Date.now() / 1000);
+        this.knownNodes.set(canonicalTarget, existing);
+        if (target !== canonicalTarget) {
+          this.knownNodes.set(target, existing);
         }
+        this.updateNodeInDom(canonicalTarget, existing);
 
-        this.showToast(`🎯 Ping Zero a ${name}: ${rtt} ms (RSSI: ${rssi} dBm)`, "success");
+        this.showToast(`🎯 Ping a ${name}: Duration: ${rtt} ms, SNR there: ${snrThere}, SNR back: ${snrBack} (RSSI: ${rssi})`, "success");
       } else {
         const errMsg = data.message || "Timeout esperando eco de 0 saltos";
         this.appendTerminalLine(`✗ [PING ZERO FALLIDO] ${errMsg}`, "term-error");
