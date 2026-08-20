@@ -92,11 +92,20 @@ class WebAPIRouter:
                 self.bridge.node_registry.record_packet(PacketRecord(public_key=sender, is_rx=True, rssi=rssi, snr=snr, telemetry=event_data))
             self.log_system_event("INFO", f"Telemetría ambiental recibida de nodo {sender}", source="telemetry")
 
-        elif ev_type in ("public", "channel", "direct") or bool(event_data.get("text")):
-            self.recent_messages.append(event_data)
-            if sender and sender != "unknown":
-                self.bridge.node_registry.record_packet(PacketRecord(public_key=sender, is_rx=True, rssi=rssi, snr=snr))
-            self.log_system_event("INFO", f"Mensaje RX [{ev_type}] de {sender}: {str(event_data.get('text', ''))[:30]}", source="mesh_rx")
+        elif ev_type in ("public", "channel", "direct"):
+            text_val = str(event_data.get("text", event_data.get("message", "")))
+            raw_txt_type = event_data.get("txt_type", event_data.get("text_type", 0))
+            try:
+                txt_type = int(raw_txt_type)
+            except (ValueError, TypeError):
+                txt_type = 0
+
+            from src.rx_router import is_common_chat_message
+            if is_common_chat_message(text_val, txt_type=txt_type, event_type=ev_type):
+                self.recent_messages.append(event_data)
+                if sender and sender != "unknown":
+                    self.bridge.node_registry.record_packet(PacketRecord(public_key=sender, is_rx=True, rssi=rssi, snr=snr))
+                self.log_system_event("INFO", f"Mensaje RX [{ev_type}] de {sender}: {text_val[:30]}", source="mesh_rx")
 
     async def handle_request(
         self,
