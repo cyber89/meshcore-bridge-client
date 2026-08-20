@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from typing import Any, Protocol
 
 import config
-from src.contact_manager import NodeContactUpdate, NodeRegistry, PacketRecord
+from src.contact_manager import NodeContactUpdate, NodeRegistry, PacketRecord, is_valid_node_key
 from src.mqtt_client import AsyncBridgeMQTTClient
 from src.protocol_types import MeshcoreFrame, OpCode, TextMessagePayload
 from src.repeater_manager import RepeaterManager
@@ -188,21 +188,21 @@ class RxEventRouter:
 
             rssi = payload_dict.get("rssi", payload_dict.get("RSSI"))
             snr = payload_dict.get("snr", payload_dict.get("SNR"))
-            sender_raw = str(payload_dict.get("sender", payload_dict.get("pubkey_prefix", payload_dict.get("public_key", "unknown")))).strip()
-            sender = self._ctx.node_registry.get_canonical_key(sender_raw)
-            sender_name = str(payload_dict.get("sender_name", self._resolve_sender_name(sender)))
+            sender_raw = str(payload_dict.get("sender", payload_dict.get("pubkey_prefix", payload_dict.get("public_key", "")))).strip()
+            sender = self._ctx.node_registry.get_canonical_key(sender_raw) if is_valid_node_key(sender_raw) else ""
+            sender_name = str(payload_dict.get("sender_name", self._resolve_sender_name(sender))) if sender else ""
             text = str(payload_dict.get("text", payload_dict.get("message", ""))).strip()
             channel_idx = int(payload_dict.get("channel_idx", payload_dict.get("channel", 0)))
             hops = int(payload_dict.get("hop_count", payload_dict.get("hops", 0)))
 
             # Normalizar métricas de enlace RF de forma global
-            is_local_sender = bool(sender and sender != "unknown" and self._ctx.node_registry.is_local_key(sender))
+            is_local_sender = bool(sender and is_valid_node_key(sender) and self._ctx.node_registry.is_local_key(sender))
             effective_rssi = None if is_local_sender else (int(rssi) if isinstance(rssi, (int, float)) else None)
             effective_snr = None if is_local_sender else (float(snr) if isinstance(snr, (int, float)) else None)
             effective_hops = 0 if is_local_sender else hops
 
             # Actualizar directorio dinámico de nodos
-            if sender and sender != "unknown":
+            if sender and is_valid_node_key(sender):
                 bat_pct = int(payload_dict["battery"]) if "battery" in payload_dict and isinstance(payload_dict["battery"], (int, float)) else None
 
                 role_val = payload_dict.get("role")
@@ -240,41 +240,42 @@ class RxEventRouter:
 
                 is_new, contact_info = self._ctx.node_registry.discover_node(
                     public_key=sender,
-                    name=sender_name if sender_name != sender else None,
+                    name=sender_name if sender_name and sender_name != sender else None,
                     role=effective_role,
                     rssi=effective_rssi,
                     snr=effective_snr,
                     hops=effective_hops,
                 )
 
-                if lat_val is not None or lon_val is not None or bat_pct is not None:
-                    contact_info = self._ctx.node_registry.add_or_update(
-                        sender,
-                        NodeContactUpdate(
-                            battery_pct=bat_pct,
-                            latitude=lat_val,
-                            longitude=lon_val,
-                            is_local=is_local_sender,
-                        ),
-                    )
-
-                if not is_local_sender:
-                    self._ctx.node_registry.record_packet(
-                        PacketRecord(
-                            public_key=sender,
-                            is_rx=True,
-                            rssi=effective_rssi,
-                            snr=effective_snr,
-                            hop_count=effective_hops,
+                if is_valid_node_key(contact_info.public_key):
+                    if lat_val is not None or lon_val is not None or bat_pct is not None:
+                        contact_info = self._ctx.node_registry.add_or_update(
+                            sender,
+                            NodeContactUpdate(
+                                battery_pct=bat_pct,
+                                latitude=lat_val,
+                                longitude=lon_val,
+                                is_local=is_local_sender,
+                            ),
                         )
-                    )
-                    if self._ctx.web_server:
-                        self._ctx.web_server.broadcast_event({
-                            "type": "contact_discovered" if is_new else "contact_updated",
-                            "event_type": "contact_discovered" if is_new else "contact_updated",
-                            "is_new": is_new,
-                            "contact": contact_info.to_dict(),
-                        })
+
+                    if not is_local_sender:
+                        self._ctx.node_registry.record_packet(
+                            PacketRecord(
+                                public_key=sender,
+                                is_rx=True,
+                                rssi=effective_rssi,
+                                snr=effective_snr,
+                                hop_count=effective_hops,
+                            )
+                        )
+                        if self._ctx.web_server:
+                            self._ctx.web_server.broadcast_event({
+                                "type": "contact_discovered" if is_new else "contact_updated",
+                                "event_type": "contact_discovered" if is_new else "contact_updated",
+                                "is_new": is_new,
+                                "contact": contact_info.to_dict(),
+                            })
 
             ev_upper = ev_type_str.upper()
             p_type_upper = str(payload_dict.get("type", "")).upper()

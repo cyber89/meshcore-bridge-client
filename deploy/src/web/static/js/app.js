@@ -2597,15 +2597,17 @@ class MeshCoreStationApp {
 
     if (payload.type === "contact_discovered" || payload.type === "contact_updated" || payload.event_type === "contact_discovered" || payload.event_type === "contact_updated") {
       const c = payload.contact || payload.data;
-      if (c && c.public_key) {
+      if (c && c.public_key && this.isValidNodeKey(c.public_key)) {
         const canonicalPk = this.resolveCanonicalPubkey(c.public_key);
-        this.knownNodes.set(canonicalPk, c);
-        this.knownNodes.set(c.public_key, c);
-        this.updateNodeInDom(canonicalPk, c);
-        if (payload.is_new) {
-          this.fetchDiscoveredContacts();
-          const name = c.name || canonicalPk.slice(0, 8);
-          this.showToast(`📡 Nuevo nodo descubierto en el aire: ${name}`, "info");
+        if (this.isValidNodeKey(canonicalPk)) {
+          this.knownNodes.set(canonicalPk, c);
+          this.knownNodes.set(c.public_key, c);
+          this.updateNodeInDom(canonicalPk, c);
+          if (payload.is_new && c.name && !c.name.startsWith("Node_unknow")) {
+            this.fetchDiscoveredContacts();
+            const name = c.name || canonicalPk.slice(0, 8);
+            this.showToast(`📡 Nuevo nodo descubierto en el aire: ${name}`, "info");
+          }
         }
       } else {
         this.fetchNodes();
@@ -2774,7 +2776,7 @@ class MeshCoreStationApp {
       this.storage.saveMessage(feedKey, normalizedMsg);
 
       // Actualizar vivacidad y estado En Línea del nodo emisor en tiempo real
-      if (senderKey && senderKey !== "unknown" && senderKey !== "local") {
+      if (senderKey && this.isValidNodeKey(senderKey) && senderKey !== "local") {
         const canonicalPk = this.resolveCanonicalPubkey(senderKey);
         const existing = this.knownNodes.get(canonicalPk) || this.knownNodes.get(senderKey) || {
           public_key: canonicalPk || senderKey,
@@ -2824,7 +2826,7 @@ class MeshCoreStationApp {
         this.updateFeedUnreadBadge(feedKey);
       }
 
-      if (isDm && senderKey && senderKey !== "unknown") {
+      if (isDm && senderKey && this.isValidNodeKey(senderKey)) {
         this.conversationsWithMessages.add(senderKey);
         this.addDmContact(senderKey, senderName);
       }
@@ -2881,7 +2883,7 @@ class MeshCoreStationApp {
       payload.event_type === "repeater_telemetry"
     ) {
       const senderKey = payload.sender || payload.public_key || payload.pubkey_prefix;
-      if (senderKey && senderKey !== "unknown") {
+      if (senderKey && this.isValidNodeKey(senderKey)) {
         const existing = this.knownNodes.get(senderKey) || {};
         const telemData = payload.telemetry || payload;
         const updated = {
@@ -5273,8 +5275,18 @@ class MeshCoreStationApp {
     }
   }
 
+  isValidNodeKey(key) {
+    if (!key || typeof key !== "string") return false;
+    const norm = key.trim().toLowerCase();
+    if (!norm || norm === "unknown" || norm === "broadcast" || norm === "none" || norm === "null" || norm === "system" || norm === "00000000" || norm === "000000000000" || norm === "ffff" || norm === "0xffff" || norm.startsWith("unknow") || norm.startsWith("broadcast") || norm.startsWith("0x0000") || norm.length < 4) {
+      return false;
+    }
+    return true;
+  }
+
   updateNodeInDom(pubkey, node) {
-    if (!pubkey || !node) return;
+    if (!pubkey || !node || !this.isValidNodeKey(pubkey)) return;
+    if (node.name && (node.name.startsWith("Node_unknow") || node.name.toLowerCase() === "unknown")) return;
     const norm = String(pubkey).trim().toLowerCase();
 
     // 1. Actualizar tarjetas en el grid unificado de nodos
@@ -5327,6 +5339,15 @@ class MeshCoreStationApp {
     const mapList = document.getElementById("mapNodesList");
     if (mapList) mapList.innerHTML = "";
 
+    // Purgar entradas inválidas de knownNodes
+    if (this.knownNodes && this.knownNodes.size > 0) {
+      for (const [k, v] of Array.from(this.knownNodes.entries())) {
+        if (!this.isValidNodeKey(k) || !this.isValidNodeKey(v?.public_key) || (v?.name && v.name.startsWith("Node_unknow"))) {
+          this.knownNodes.delete(k);
+        }
+      }
+    }
+
     if (!nodes || nodes.length === 0) {
       if (contactsGrid) contactsGrid.innerHTML = '<div class="empty-state">No hay contactos registrados en el dispositivo.</div>';
       if (unifiedNodesGrid) unifiedNodesGrid.innerHTML = '<div class="empty-state">No se han descubierto nodos en la malla LoRa.</div>';
@@ -5336,7 +5357,8 @@ class MeshCoreStationApp {
     // Deduplicación inteligente: fusionar entradas que compartan prefijo de clave (>=8 chars) o mismo nombre
     const deduplicatedNodes = [];
     for (const rawNode of nodes) {
-      if (!rawNode || !rawNode.public_key) continue;
+      if (!rawNode || !this.isValidNodeKey(rawNode.public_key)) continue;
+      if (rawNode.name && (rawNode.name.startsWith("Node_unknow") || rawNode.name.toLowerCase() === "unknown")) continue;
       const normPk = String(rawNode.public_key).toLowerCase().trim();
       const normName = String(rawNode.name || rawNode.alias || "").toLowerCase().trim();
 
@@ -5395,6 +5417,7 @@ class MeshCoreStationApp {
     let clientCount = 0;
 
     for (const node of deduplicatedNodes) {
+      if (!this.isValidNodeKey(node.public_key)) continue;
       this.knownNodes.set(node.public_key, node);
       totalCount++;
 

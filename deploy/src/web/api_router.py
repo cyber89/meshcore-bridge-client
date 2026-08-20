@@ -12,7 +12,7 @@ import time
 from datetime import datetime
 from typing import Any
 
-from src.contact_manager import NodeContactUpdate, PacketRecord
+from src.contact_manager import NodeContactUpdate, PacketRecord, is_valid_node_key
 
 
 class WebAPIRouter:
@@ -69,43 +69,50 @@ class WebAPIRouter:
             else:
                 diag.log_handler.debug_count += 1
 
-    def record_incoming_event(self, event_data: dict[str, Any]) -> None:
-        """Almacena eventos recientes para consulta del cliente web y actualiza métricas."""
-        ev_type = str(event_data.get("event_type", ""))
+    def record_incoming_event(self, ev_type_or_data: str | dict[str, Any], event_data: dict[str, Any] | None = None) -> None:
+        """Registra eventos en los buffers circulares en memoria para clientes web."""
+        if isinstance(ev_type_or_data, dict):
+            data = ev_type_or_data
+            ev_type = str(data.get("event_type", data.get("type", "")))
+        else:
+            ev_type = str(ev_type_or_data)
+            data = event_data or {}
+
+        if not data or not isinstance(data, dict):
+            return
         if ev_type in ("system_log", "metrics_update", "status"):
             return
+        sender_raw = str(data.get("sender", data.get("public_key", data.get("pubkey_prefix", ""))))
+        sender = sender_raw.strip().lower() if is_valid_node_key(sender_raw) else ""
+        rssi = data.get("rssi", data.get("RSSI"))
+        snr = data.get("snr", data.get("SNR"))
 
-        sender = str(event_data.get("sender", event_data.get("sender_id", ""))).strip().lower()
-        metrics = event_data.get("metrics", {})
-        rssi = metrics.get("rssi")
-        snr = metrics.get("snr")
-
-        if ev_type == "rf_log" or "sniffer" in ev_type:
-            rf_entry = dict(event_data)
+        if ev_type in ("sniffer_packet", "rf_log") or "raw_hex" in data or "byte_length" in data:
+            rf_entry = dict(data)
             rf_entry["iso_time"] = time.strftime("%H:%M:%S", time.localtime())
             self.recent_rf_logs.append(rf_entry)
             self.log_system_event("INFO", f"RF Sniffer interceptó trama de {rf_entry.get('byte_length', 0)} bytes", source="sniffer")
 
-        elif ev_type in ("telemetry", "telemetry_recv") or "temperature_c" in event_data or "battery_pct" in event_data or "battery" in event_data:
-            self.recent_telemetry.append(event_data)
-            if sender and sender != "unknown":
-                self.bridge.node_registry.record_packet(PacketRecord(public_key=sender, is_rx=True, rssi=rssi, snr=snr, telemetry=event_data))
-            self.log_system_event("INFO", f"Telemetría ambiental recibida de nodo {sender}", source="telemetry")
+        elif ev_type in ("telemetry", "telemetry_recv") or "temperature_c" in data or "battery_pct" in data or "battery" in data:
+            self.recent_telemetry.append(data)
+            if sender and is_valid_node_key(sender):
+                self.bridge.node_registry.record_packet(PacketRecord(public_key=sender, is_rx=True, rssi=rssi, snr=snr, telemetry=data))
+            self.log_system_event("INFO", f"Telemetría ambiental recibida de nodo {sender or 'anónimo'}", source="telemetry")
 
         elif ev_type in ("public", "channel", "direct"):
-            text_val = str(event_data.get("text", event_data.get("message", "")))
-            raw_txt_type = event_data.get("txt_type", event_data.get("text_type", 0))
+            text_val = str(data.get("text", data.get("message", "")))
+            raw_txt_type = data.get("txt_type", data.get("text_type", 0))
             try:
-                txt_type = int(raw_txt_type)
+                txt_type = int(raw_txt_type) if raw_txt_type is not None else 0
             except (ValueError, TypeError):
                 txt_type = 0
 
             from src.rx_router import is_common_chat_message
             if is_common_chat_message(text_val, txt_type=txt_type, event_type=ev_type):
-                self.recent_messages.append(event_data)
-                if sender and sender != "unknown":
+                self.recent_messages.append(data)
+                if sender and is_valid_node_key(sender):
                     self.bridge.node_registry.record_packet(PacketRecord(public_key=sender, is_rx=True, rssi=rssi, snr=snr))
-                self.log_system_event("INFO", f"Mensaje RX [{ev_type}] de {sender}: {text_val[:30]}", source="mesh_rx")
+                self.log_system_event("INFO", f"Mensaje RX [{ev_type}] de {sender or 'anónimo'}: {text_val[:30]}", source="mesh_rx")
 
     async def handle_request(
         self,

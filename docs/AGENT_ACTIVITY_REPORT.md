@@ -6,6 +6,32 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Filtrado y Bloqueo de Nodos Fantasma / Desconocidos (`Node_unknow` / Claves Inválidas)
+- **Fecha**: 2026-08-20
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Diagnosticó y corrigió el problema donde un remitente con clave ausente, broadcast o vacía (`"unknown"`, `"broadcast"`, `"none"`, `""`) era registrado dinámicamente como un nodo activo bajo el identificador y nombre truncado `Node_unknow` en la libreta de contactos y directorio de nodos.
+- **Contribuciones de Agentes**:
+  1. **Agente 2 (Python Bridge Architect Agent)**:
+     - **`src/contact_manager.py`**:
+       - Implementó la función de validación `is_valid_node_key(key)` y el conjunto de claves prohibidas `INVALID_NODE_KEYS = {"unknown", "broadcast", "none", "null", "system", "00000000", "ffff", "0xffff", ""}`.
+       - Protegió `add_or_update`, `discover_node`, `get_canonical_key`, `record_packet` y `_find_existing_key` para descartar o ignorar cualquier clave inválida o de longitud insuficiente (< 4 caracteres).
+       - En `list_nodes()`, añadió un filtro estricto para retornar únicamente nodos con claves válidas y excluir nombres fantasma como `Node_unknow`.
+     - **`src/rx_router.py`**:
+       - Integró `is_valid_node_key` al extraer `sender_raw` en `handle_event`, evitando que eventos con remitente desconocido disparen `discover_node` o `add_or_update`.
+     - **`src/web/api_router.py`**:
+       - En `record_incoming_event`, normalizó la firma para soportar 1 o 2 parámetros y filtró remitentes mediante `is_valid_node_key` antes de registrar paquetes en `NodeRegistry`.
+  2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - **`src/web/static/js/app.js`**:
+       - Implementó el método `isValidNodeKey(key)` en `MeshCoreStationApp`.
+       - En `renderNodesDirectory(nodes)`, añadió filtrado de nodos con claves inválidas o nombres que inicien con `Node_unknow`, y purgó automáticamente entradas residuales de `this.knownNodes`.
+       - En `updateNodeInDom(pubkey, node)`, evitó actualizar o refrescar tarjetas de nodos si la clave es inválida o el nombre es `Node_unknow`.
+       - En `handleIncomingLiveEvent(payload)`, protegió los bloques `contact_discovered`, `contact_updated`, `telemetry` y mensajes de chat para no registrar claves desconocidas en `knownNodes`.
+  3. **Agente 0 (Lead Orchestrator)**:
+     - Verificación estática con `ruff check src` (0 errores).
+     - Verificación de tipado estricto con `mypy --strict src` (0 errores en 23 módulos).
+     - Sincronización del paquete autónomo `/deploy/` (`python scripts/sync_deploy.py`).
+     - Sincronización con el repositorio remoto (`git push origin main`).
+
 ### Hito: Filtrado Estricto de Mensajes de Comando, Anuncios y Control ("Unknown command") en Canales y DMs
 - **Fecha**: 2026-08-20
 - **Estado**: ✅ COMPLETADO

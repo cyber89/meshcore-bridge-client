@@ -163,6 +163,32 @@ class PacketRecord:
     telemetry: dict[str, Any] | None = None
 
 
+INVALID_NODE_KEYS: set[str] = {
+    "unknown",
+    "broadcast",
+    "none",
+    "null",
+    "system",
+    "00000000",
+    "000000000000",
+    "ffff",
+    "0xffff",
+    "",
+}
+
+
+def is_valid_node_key(key: Any) -> bool:
+    """Verifica si una clave pública es válida para registrar o descubrir un nodo."""
+    if not key or not isinstance(key, str):
+        return False
+    norm = key.strip().lower()
+    if not norm or norm in INVALID_NODE_KEYS or len(norm) < 4:
+        return False
+    if norm.startswith("unknow") or norm.startswith("broadcast") or norm.startswith("0x0000"):
+        return False
+    return True
+
+
 class NodeRegistry:
     """Directorio en memoria para contactos y resolución de nombres de la red MeshCore."""
 
@@ -196,9 +222,9 @@ class NodeRegistry:
 
     def _find_existing_key(self, raw_key: str, name: str | None = None) -> str | None:
         """Encuentra si ya existe una clave exacta o unificada por prefijo/nombre para evitar duplicados."""
-        norm = raw_key.strip().lower()
-        if not norm:
+        if not is_valid_node_key(raw_key):
             return None
+        norm = raw_key.strip().lower()
 
         # 1. Coincidencia exacta
         if norm in self._nodes_by_key:
@@ -223,12 +249,20 @@ class NodeRegistry:
 
     def get_canonical_key(self, raw_key: str, name: str | None = None) -> str:
         """Devuelve la clave pública canónica (más larga o conocida) para una clave o prefijo."""
+        if not is_valid_node_key(raw_key):
+            return ""
         existing = self._find_existing_key(raw_key, name)
         return existing if existing else raw_key.strip().lower()
 
     def add_or_update(self, public_key: str, update: NodeContactUpdate) -> NodeContactInfo:
         """Añade o actualiza la información de un nodo preservando métricas acumuladas y deduplicando prefijos."""
         norm_key = public_key.strip().lower()
+        if not is_valid_node_key(norm_key):
+            return NodeContactInfo(
+                public_key="",
+                name="Invalid",
+                alias="Invalid",
+            )
         clean_name_candidate = (update.name or "").strip()
 
         # Buscar si ya existe una entrada para este nodo (evita duplicados de prefijo vs clave completa)
@@ -326,8 +360,8 @@ class NodeRegistry:
         Retorna (is_new, contact_info).
         """
         norm_key = public_key.strip().lower()
-        if not norm_key:
-            raise ValueError("public_key no puede estar vacía")
+        if not is_valid_node_key(norm_key):
+            return False, NodeContactInfo(public_key="", name="Invalid", alias="Invalid")
 
         clean_name = (name or f"Node_{norm_key[:6]}").strip()
         name_upper = clean_name.upper()
@@ -418,7 +452,7 @@ class NodeRegistry:
     def record_packet(self, event: PacketRecord) -> None:
         """Registra un evento de paquete para actualizar contadores de tráfico y salud."""
         norm_key = event.public_key.strip().lower()
-        if not norm_key:
+        if not is_valid_node_key(norm_key):
             return
 
         is_local_node = self.is_local_key(norm_key)
@@ -537,7 +571,11 @@ class NodeRegistry:
 
     def list_nodes(self) -> list[dict[str, Any]]:
         """Retorna la lista de todos los nodos registrados en formato serializable."""
-        return [c.to_dict() for c in self._nodes_by_key.values()]
+        return [
+            c.to_dict()
+            for c in self._nodes_by_key.values()
+            if is_valid_node_key(c.public_key) and not c.name.startswith("Node_unknow")
+        ]
 
     def get_analytics_summary(self) -> dict[str, Any]:
         """Calcula el resumen analítico avanzado (Top Nodos, Top Clientes, Top Errores)."""
