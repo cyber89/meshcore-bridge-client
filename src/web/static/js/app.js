@@ -5654,11 +5654,16 @@ class MeshCoreStationApp {
         } else {
           hopsVal = String(rawHops);
         }
-      } else if (rawRssi !== undefined && rawRssi !== null && rawRssi !== "--") {
+      } else if (node.out_path_len !== undefined && node.out_path_len !== null && node.out_path_len >= 0) {
+        const pLen = Number(node.out_path_len);
+        hopsVal = pLen === 0 ? "0 (Directo)" : (pLen === 1 ? "1 salto" : `${pLen} saltos`);
+      } else if ((rawSnr !== undefined && rawSnr !== null && rawSnr !== "" && rawSnr !== "--") || (rawRssi !== undefined && rawRssi !== null && rawRssi !== "" && rawRssi !== "--")) {
+        // Recepción RF directa en nuestra antena
         hopsVal = "0 (Directo)";
       } else {
-        hopsVal = "1 salto";
+        hopsVal = "N/D";
       }
+
 
       // Calcular Batería
       let batVal = "N/D";
