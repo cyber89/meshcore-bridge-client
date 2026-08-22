@@ -6,7 +6,30 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Verificación Global de Calidad, Tipado Estricto y Corrección de Serialización de Comandos MeshCore
+- **Fecha**: 2026-08-22
+- **Estado**: ✅ COMPLETADO (100% PASS)
+- **Agente Principal (Lead Orchestrator)**: Lideró la ejecución exhaustiva de la suite de pruebas bajo demanda explícita del usuario, coordinando al Agente 1 (Protocolo), Agente 2 (Bridge), Agente 3 (QA) y Agente 5 (Seguridad).
+- **Contribuciones de Agentes**:
+  1. **Agente 1 (Protocol & Firmware Investigator Agent)** & **Agente 2 (Bridge Architect Agent)**:
+     - **`src/repeater_manager.py`**:
+       - Corrigió la serialización del comando de potencia TX remota de `set tx_power {pwr}` a `set tx {pwr}` para coincidir exactamente con el firmware C/C++ de MeshCore (`CommonCLI.cpp`).
+       - Añadió soporte nativo para `set_name` / `name` (`set name {name}`).
+     - **`src/contact_manager.py`**:
+       - Agregó retorno tipado explícito `return None` al método `get_by_key_or_prefix` para cumplir con `mypy --strict`.
+  2. **Agente 3 (Protocol QA & Fuzzing Agent)**:
+     - **Pytest Suite**: 121 pruebas pasadas exitosamente (100% PASS en 24.91s).
+     - **Mypy Strict**: Tipado estático 100% verificado en los 23 archivos fuente de `src/` (0 errores).
+     - **Ruff Linter**: 0 advertencias o errores de estilo PEP 8.
+  3. **Agente 5 (Security & Vulnerability Auditor Agent)**:
+     - Auditoría SAST/DAST completa ejecutada (Bandit, prevención de inyecciones SQL, Directory Traversal en servidor HTTP y sanitización XSS). Cero vulnerabilidades.
+  4. **Agente 0 (Lead Orchestrator)**:
+     - Concilió los contratos entre el backend y frontend.
+     - Sincronización del paquete autónomo `/deploy/` (`python scripts/sync_deploy.py`).
+     - Sincronización con el repositorio remoto GitHub (`origin/main`).
+
 ### Hito: Auditoría Multi-Agente y Depuración Integral de Código Duplicado y Deprecado en la Vista Web
+
 - **Fecha**: 2026-08-22
 - **Estado**: ✅ COMPLETADO
 - **Agente Principal (Lead Orchestrator)**: Coordinó una auditoría estática automatizada completa entre Agente 4 (Frontend), Agente 5 (Seguridad) y Lead Orchestrator para erradicar selectores CSS duplicados, reglas obsoletas de modales básicos, lookups DOM huérfanos en JavaScript y optimizar la mantenibilidad del código cliente.

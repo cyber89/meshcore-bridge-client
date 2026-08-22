@@ -96,7 +96,11 @@ class RepeaterManager:
             password = params.get("password", "")
             return f"login {password}"
 
-        # 2. Owner Info
+        # 2. Node Name & Owner Info
+        if act in ("set_name", "name", "rename"):
+            name = params.get("name", params.get("new_name", "Repeater"))
+            return f"set name {name}"
+
         if act in ("set_owner", "set_owner_name", "owner_info"):
             name = params.get("owner_name", params.get("name", params.get("owner", "Repeater")))
             info = params.get("owner_info", params.get("info", ""))
@@ -147,9 +151,10 @@ class RepeaterManager:
             freq = params.get("frequency", params.get("freq", 915.0))
             return f"set freq {freq}"
 
-        if act in ("set_tx_power", "set_power", "tx_power", "power"):
-            pwr = params.get("tx_power", params.get("power", 20))
-            return f"set tx_power {pwr}"
+        if act in ("set_tx_power", "set_power", "tx_power", "power", "set_tx", "tx"):
+            pwr = params.get("tx_power", params.get("power", params.get("tx", 20)))
+            return f"set tx {pwr}"
+
 
         # 6. LoRa Modem Parameters
         if act in ("set_sf", "set_spreading_factor", "sf"):

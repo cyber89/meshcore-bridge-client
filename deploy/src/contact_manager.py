@@ -556,6 +556,9 @@ class NodeRegistry:
             if key.startswith(q) or q.startswith(key):
                 return contact
 
+        return None
+
+
     def find_by_name(self, name: str) -> NodeContactInfo | None:
         """Busca un nodo registrado por su nombre o alias de forma insensible a mayúsculas."""
         if not name:
