@@ -1,6 +1,76 @@
 {
-  "name": "MeshCore Universal Bridge v2.1 - Complete IoT & LoRa Bot Workflow",
+  "name": "MeshCore Universal Bridge v2.2 - Complete IoT, LoRa Bot & Periodic Weather Status",
   "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0,6,12,18 * * *"
+            }
+          ]
+        }
+      },
+      "id": "12",
+      "name": "Schedule Trigger (Cada 6h - 00:00, 06:00, 12:00, 18:00)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.open-meteo.com/v1/forecast",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "latitude",
+              "value": "26.6254"
+            },
+            {
+              "name": "longitude",
+              "value": "-81.6248"
+            },
+            {
+              "name": "current",
+              "value": "temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m,wind_direction_10m"
+            },
+            {
+              "name": "timezone",
+              "value": "America/New_York"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "13",
+      "name": "Consultar Clima (Lehigh Acres, FL)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ==========================================================\n// Formateador de Reporte Periódico de Estado y Clima\n// Ubicación: Lehigh Acres, FL (Cada 6h: 00:00, 06:00, 12:00, 18:00)\n// ==========================================================\n\nconst WMO_CODES = {\n  0: '☀️ Despejado',\n  1: '🌤️ Mayormente despejado',\n  2: '⛅ Parcialmente nublado',\n  3: '☁️ Nublado',\n  45: '🌫️ Niebla',\n  48: '🌫️ Niebla con escarcha',\n  51: '🌦️ Llovizna ligera',\n  53: '🌦️ Llovizna moderada',\n  55: '🌦️ Llovizna densa',\n  56: '🌧️ Llovizna helada ligera',\n  57: '🌧️ Llovizna helada densa',\n  61: '🌧️ Lluvia ligera',\n  63: '🌧️ Lluvia moderada',\n  65: '🌧️ Lluvia fuerte',\n  66: '🌧️ Lluvia helada ligera',\n  67: '🌧️ Lluvia helada fuerte',\n  71: '❄️ Nieve ligera',\n  73: '❄️ Nieve moderada',\n  75: '❄️ Nieve intensa',\n  77: '❄️ Granos de nieve',\n  80: '🌧️ Chubascos ligeros',\n  81: '🌧️ Chubascos moderados',\n  82: '🌧️ Chubascos violentos',\n  85: '🌨️ Chubascos de nieve ligeros',\n  86: '🌨️ Chubascos de nieve intensos',\n  95: '⛈️ Tormenta eléctrica',\n  96: '⛈️ Tormenta con granizo ligero',\n  99: '⛈️ Tormenta con granizo fuerte'\n};\n\nconst results = [];\n\nfor (const item of $input.all()) {\n  const data = item.json || {};\n  const current = data.current || {};\n\n  // Extraer valores meteorológicos\n  const tempC = current.temperature_2m !== undefined ? current.temperature_2m : 25.0;\n  const tempF = Math.round(((tempC * 9 / 5) + 32) * 10) / 10;\n  const feelsLikeC = current.apparent_temperature !== undefined ? current.apparent_temperature : tempC;\n  const feelsLikeF = Math.round(((feelsLikeC * 9 / 5) + 32) * 10) / 10;\n  const humidity = current.relative_humidity_2m !== undefined ? current.relative_humidity_2m : 60;\n  const windKmh = current.wind_speed_10m !== undefined ? current.wind_speed_10m : 10.0;\n  const windMph = Math.round((windKmh * 0.621371) * 10) / 10;\n  const weatherCode = current.weather_code !== undefined ? current.weather_code : 0;\n  const weatherDesc = WMO_CODES[weatherCode] || '🌤️ Variable';\n  const precip = current.precipitation !== undefined ? current.precipitation : 0;\n\n  // Fecha y hora formateadas en zona horaria local de Lehigh Acres (America/New_York)\n  const now = new Date();\n  const localTimeStr = now.toLocaleString('es-US', {\n    timeZone: 'America/New_York',\n    year: 'numeric',\n    month: '2-digit',\n    day: '2-digit',\n    hour: '2-digit',\n    minute: '2-digit',\n    hour12: false\n  });\n  const utcHourStr = now.toISOString().substring(11, 16);\n\n  // Construir mensaje conciso optimizado para LoRa\n  let statusText = `📡 [Estado Periódico - Lehigh Acres, FL]\\n`;\n  statusText += `📅 ${localTimeStr} (Local) | ${utcHourStr} UTC\\n`;\n  statusText += `🌡️ Temp: ${tempC}°C (${tempF}°F) | ST: ${feelsLikeC}°C (${feelsLikeF}°F)\\n`;\n  statusText += `💧 Hum: ${humidity}% | 💨 Viento: ${windKmh} km/h (${windMph} mph)\\n`;\n  statusText += `🌤️ Clima: ${weatherDesc}`;\n  if (precip > 0) {\n    statusText += ` | 🌧️ Prec: ${precip} mm`;\n  }\n\n  results.push({\n    json: {\n      topic: 'meshcore/tx',\n      request_id: `n8n_periodic_${Date.now()}`,\n      to: 'broadcast',\n      channel_index: 0,\n      text: statusText,\n      metadata: {\n        location: 'Lehigh Acres, FL',\n        coordinates: {\n          latitude: 26.6254,\n          longitude: -81.6248\n        },\n        temperature_c: tempC,\n        temperature_f: tempF,\n        humidity_pct: humidity,\n        wind_kmh: windKmh,\n        weather_code: weatherCode,\n        weather_desc: weatherDesc,\n        precip_mm: precip,\n        timestamp: now.toISOString()\n      }\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "14",
+      "name": "Formatear Reporte Estado y Clima",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        100
+      ]
+    },
     {
       "parameters": {
         "topics": "meshcore/rx/all",
@@ -12,12 +82,12 @@
       "typeVersion": 1,
       "position": [
         200,
-        340
+        420
       ]
     },
     {
       "parameters": {
-        "jsCode": "// ==========================================================\n// Validación, Normalización y Deduplicación de Paquetes Mesh LoRa (v2.1)\n// ==========================================================\n\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.messageCache) {\n  staticData.messageCache = {};\n}\n\nconst now = Date.now();\nconst CACHE_TTL_MS = 30000; // Ventana de 30 segundos\n\n// Limpieza periódica de caché antigua (> 60 segundos)\nfor (const key of Object.keys(staticData.messageCache)) {\n  if (now - staticData.messageCache[key] > 60000) {\n    delete staticData.messageCache[key];\n  }\n}\n\nconst results = [];\n\nfor (const item of $input.all()) {\n  let payload = item.json;\n\n  // Desempaquetar payload si viene encapsulado en message o data\n  if (payload && payload.message !== undefined) {\n    if (typeof payload.message === 'string') {\n      try {\n        payload = JSON.parse(payload.message);\n      } catch (e) {\n        payload = { text: payload.message, event_type: 'public' };\n      }\n    } else if (typeof payload.message === 'object' && payload.message !== null) {\n      payload = payload.message;\n    }\n  } else if (payload && payload.data !== undefined) {\n    if (typeof payload.data === 'string') {\n      try {\n        payload = JSON.parse(payload.data);\n      } catch (e) {\n        payload = { text: payload.data, event_type: 'public' };\n      }\n    }\n  }\n\n  if (!payload || typeof payload !== 'object') {\n    continue;\n  }\n\n  // Filtrar paquetes salientes propios para evitar loops de eco\n  if (payload.is_outgoing === true || payload.sender === 'local' || payload.sender_id === 'local') {\n    continue;\n  }\n\n  let eventType = payload.event_type || 'public';\n  if (payload.temperature_c !== undefined || payload.battery_pct !== undefined || payload.voltage_v !== undefined) {\n    if (!payload.text) eventType = 'telemetry';\n  }\n  if (payload.event_type === 'rf_log') {\n    eventType = 'rf_log';\n  }\n\n  const senderId = payload.sender_id || payload.sender || 'unknown';\n  const senderName = payload.sender_name || senderId;\n  const channelIdx = payload.channel_index !== undefined ? payload.channel_index : (payload.channel_idx !== undefined ? payload.channel_idx : 0);\n  const text = (payload.text || payload.raw_text || '').trim();\n\n  // Si no hay texto y no es telemetría/anuncio/log explícito, ignorar\n  if (!text && eventType !== 'telemetry' && eventType !== 'node_advert' && eventType !== 'rf_log') {\n    continue;\n  }\n\n  // Filtrar respuestas de bots para evitar bucles reflejados\n  if (text.startsWith('[Eco ') || text.startsWith('[Status ') || text.startsWith('[ACK') || text.startsWith('📡 ') || text.startsWith('⛔ ') || text.startsWith('📖 ') || text.startsWith('⏰ ') || text.startsWith('📅 ') || text.startsWith('🏓 ')) {\n    continue;\n  }\n\n  // Generar hash para deduplicación\n  const msgKey = `${eventType}_${senderId}_${channelIdx}_${text}`;\n\n  let isDuplicate = false;\n  if (text.length > 0) {\n    if (staticData.messageCache[msgKey] && (now - staticData.messageCache[msgKey] < CACHE_TTL_MS)) {\n      isDuplicate = true;\n    } else {\n      staticData.messageCache[msgKey] = now;\n    }\n  }\n\n  results.push({\n    json: {\n      ...payload,\n      event_type: eventType,\n      sender_id: senderId,\n      sender_name: senderName,\n      channel_index: channelIdx,\n      text: text,\n      is_duplicate: isDuplicate,\n      processed_at: new Date().toISOString()\n    }\n  });\n}\n\nreturn results;"
+        "jsCode": "// ==========================================================\n// Validación, Normalización y Deduplicación de Paquetes Mesh LoRa (v2.2)\n// ==========================================================\n\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.messageCache) {\n  staticData.messageCache = {};\n}\n\nconst now = Date.now();\nconst CACHE_TTL_MS = 30000; // Ventana de 30 segundos\n\n// Limpieza periódica de caché antigua (> 60 segundos)\nfor (const key of Object.keys(staticData.messageCache)) {\n  if (now - staticData.messageCache[key] > 60000) {\n    delete staticData.messageCache[key];\n  }\n}\n\nconst results = [];\n\nfor (const item of $input.all()) {\n  let payload = item.json;\n\n  // Desempaquetar payload si viene encapsulado en message o data\n  if (payload && payload.message !== undefined) {\n    if (typeof payload.message === 'string') {\n      try {\n        payload = JSON.parse(payload.message);\n      } catch (e) {\n        payload = { text: payload.message, event_type: 'public' };\n      }\n    } else if (typeof payload.message === 'object' && payload.message !== null) {\n      payload = payload.message;\n    }\n  } else if (payload && payload.data !== undefined) {\n    if (typeof payload.data === 'string') {\n      try {\n        payload = JSON.parse(payload.data);\n      } catch (e) {\n        payload = { text: payload.data, event_type: 'public' };\n      }\n    }\n  }\n\n  if (!payload || typeof payload !== 'object') {\n    continue;\n  }\n\n  // Filtrar paquetes salientes propios para evitar loops de eco\n  if (payload.is_outgoing === true || payload.sender === 'local' || payload.sender_id === 'local') {\n    continue;\n  }\n\n  let eventType = payload.event_type || 'public';\n  if (payload.temperature_c !== undefined || payload.battery_pct !== undefined || payload.voltage_v !== undefined) {\n    if (!payload.text) eventType = 'telemetry';\n  }\n  if (payload.event_type === 'rf_log') {\n    eventType = 'rf_log';\n  }\n\n  const senderId = payload.sender_id || payload.sender || 'unknown';\n  const senderName = payload.sender_name || senderId;\n  const channelIdx = payload.channel_index !== undefined ? payload.channel_index : (payload.channel_idx !== undefined ? payload.channel_idx : 0);\n  const text = (payload.text || payload.raw_text || '').trim();\n\n  // Si no hay texto y no es telemetría/anuncio/log explícito, ignorar\n  if (!text && eventType !== 'telemetry' && eventType !== 'node_advert' && eventType !== 'rf_log') {\n    continue;\n  }\n\n  // Filtrar respuestas de bots para evitar bucles reflejados\n  if (text.startsWith('[Eco ') || text.startsWith('[Status ') || text.startsWith('[ACK') || text.startsWith('📡 ') || text.startsWith('⛔ ') || text.startsWith('📖 ') || text.startsWith('⏰ ') || text.startsWith('📅 ') || text.startsWith('🏓 ')) {\n    continue;\n  }\n\n  // Generar hash para deduplicación\n  const msgKey = `${eventType}_${senderId}_${channelIdx}_${text}`;\n\n  let isDuplicate = false;\n  if (text.length > 0) {\n    if (staticData.messageCache[msgKey] && (now - staticData.messageCache[msgKey] < CACHE_TTL_MS)) {\n      isDuplicate = true;\n    } else {\n      staticData.messageCache[msgKey] = now;\n    }\n  }\n\n  results.push({\n    json: {\n      ...payload,\n      event_type: eventType,\n      sender_id: senderId,\n      sender_name: senderName,\n      channel_index: channelIdx,\n      text: text,\n      is_duplicate: isDuplicate,\n      processed_at: new Date().toISOString()\n    }\n  });\n}\n\nreturn results;"
       },
       "id": "2",
       "name": "Deduplicar y Validar",
@@ -25,7 +95,7 @@
       "typeVersion": 2,
       "position": [
         440,
-        340
+        420
       ]
     },
     {
@@ -45,7 +115,7 @@
       "typeVersion": 1,
       "position": [
         680,
-        340
+        420
       ]
     },
     {
@@ -87,12 +157,12 @@
       "typeVersion": 1,
       "position": [
         920,
-        340
+        420
       ]
     },
     {
       "parameters": {
-        "jsCode": "// ==========================================================\n// Procesador de Canal Público (Canal 0)\n// Comandos: /time, /date, /datetime, /ping, /help, /nodes\n// ==========================================================\n\nconst results = [];\n\nfor (const item of $input.all()) {\n  const msg = item.json;\n  const rawText = (msg.text || '').trim();\n  if (!rawText || rawText.startsWith('[Eco ') || rawText.startsWith('[Status ')) {\n    continue;\n  }\n\n  const lower = rawText.toLowerCase();\n  const senderName = msg.sender_name || msg.sender_id || 'Nodo';\n  \n  const now = new Date();\n  let replyText = '';\n\n  if (lower === '/time') {\n    replyText = `⏰ Hora actual: ${now.toTimeString().split(' ')[0]} UTC`;\n  } else if (lower === '/date') {\n    replyText = `📅 Fecha actual: ${now.toISOString().split('T')[0]}`;\n  } else if (lower === '/datetime') {\n    replyText = `📅⏰ Fecha y Hora: ${now.toISOString().replace('T', ' ').substring(0, 19)} UTC`;\n  } else if (lower === '/ping') {\n    replyText = `🏓 Pong desde n8n Bridge! (Nodo: ${senderName})`;\n  } else if (lower === '/help') {\n    replyText = `📖 Comandos MeshCore:\\n/time - Hora UTC\\n/date - Fecha\\n/ping - Comprobar enlace\\n/status - Estado del nodo\\n/admin - Comandos admin`;\n  } else {\n    replyText = `[Eco Pub] ${senderName}: \"${rawText}\"`;\n  }\n\n  results.push({\n    json: {\n      topic: 'meshcore/tx',\n      request_id: `n8n_pub_${Date.now()}`,\n      to: 'broadcast',\n      channel_index: 0,\n      text: replyText\n    }\n  });\n}\n\nreturn results;"
+        "jsCode": "// ==========================================================\n// Procesador de Canal Público (Canal 0)\n// Comandos: /time, /date, /datetime, /ping, /help, /clima, /weather\n// ==========================================================\n\nconst results = [];\n\nfor (const item of $input.all()) {\n  const msg = item.json;\n  const rawText = (msg.text || '').trim();\n  if (!rawText || rawText.startsWith('[Eco ') || rawText.startsWith('[Status ') || rawText.startsWith('📡 ')) {\n    continue;\n  }\n\n  const lower = rawText.toLowerCase();\n  const senderName = msg.sender_name || msg.sender_id || 'Nodo';\n  \n  const now = new Date();\n  let replyText = '';\n\n  if (lower === '/time') {\n    replyText = `⏰ Hora actual: ${now.toTimeString().split(' ')[0]} UTC`;\n  } else if (lower === '/date') {\n    replyText = `📅 Fecha actual: ${now.toISOString().split('T')[0]}`;\n  } else if (lower === '/datetime') {\n    replyText = `📅⏰ Fecha y Hora: ${now.toISOString().replace('T', ' ').substring(0, 19)} UTC`;\n  } else if (lower === '/ping') {\n    replyText = `🏓 Pong desde n8n Bridge! (Nodo: ${senderName})`;\n  } else if (lower === '/clima' || lower === '/weather') {\n    replyText = `🌤️ Consulta meteorológica: Lehigh Acres, FL recibe reporte automático cada 6h (00:00, 06:00, 12:00, 18:00).`;\n  } else if (lower === '/help') {\n    replyText = `📖 Comandos MeshCore:\\n/time - Hora UTC\\n/date - Fecha\\n/clima - Info meteorológica\\n/ping - Comprobar enlace\\n/status - Estado del nodo\\n/admin - Comandos admin`;\n  } else {\n    replyText = `[Eco Pub] ${senderName}: \"${rawText}\"`;\n  }\n\n  results.push({\n    json: {\n      topic: 'meshcore/tx',\n      request_id: `n8n_pub_${Date.now()}`,\n      to: 'broadcast',\n      channel_index: 0,\n      text: replyText\n    }\n  });\n}\n\nreturn results;"
       },
       "id": "5",
       "name": "Procesar Canal Público",
@@ -100,12 +170,12 @@
       "typeVersion": 2,
       "position": [
         1200,
-        140
+        220
       ]
     },
     {
       "parameters": {
-        "jsCode": "// ==========================================================\n// Procesador de Canales Secundarios Cifrados (Canal 1..7)\n// ==========================================================\n\nconst results = [];\n\nfor (const item of $input.all()) {\n  const msg = item.json;\n  const rawText = (msg.text || '').trim();\n  if (!rawText || rawText.startsWith('[Eco ')) {\n    continue;\n  }\n  const senderName = msg.sender_name || msg.sender_id || 'Nodo';\n  const chIdx = msg.channel_index || 1;\n\n  const replyText = `[Eco Ch ${chIdx}] ${senderName}: \"${rawText}\"`;\n\n  results.push({\n    json: {\n      topic: 'meshcore/tx',\n      request_id: `n8n_chan_${Date.now()}`,\n      to: 'broadcast',\n      channel_index: chIdx,\n      text: replyText\n    }\n  });\n}\n\nreturn results;"
+        "jsCode": "// ==========================================================\n// Procesador de Canales Secundarios Cifrados (Canal 1..7)\n// ==========================================================\n\nconst results = [];\n\nfor (const item of $input.all()) {\n  const msg = item.json;\n  const rawText = (msg.text || '').trim();\n  if (!rawText || rawText.startsWith('[Eco ') || rawText.startsWith('📡 ')) {\n    continue;\n  }\n  const senderName = msg.sender_name || msg.sender_id || 'Nodo';\n  const chIdx = msg.channel_index || 1;\n\n  const replyText = `[Eco Ch ${chIdx}] ${senderName}: \"${rawText}\"`;\n\n  results.push({\n    json: {\n      topic: 'meshcore/tx',\n      request_id: `n8n_chan_${Date.now()}`,\n      to: 'broadcast',\n      channel_index: chIdx,\n      text: replyText\n    }\n  });\n}\n\nreturn results;"
       },
       "id": "6",
       "name": "Procesar Canal Secundario",
@@ -113,12 +183,12 @@
       "typeVersion": 2,
       "position": [
         1200,
-        280
+        360
       ]
     },
     {
       "parameters": {
-        "jsCode": "// ==========================================================\n// Procesador de Mensajes Directos (DM), Admin y Repetidores\n// ==========================================================\n\nconst ADMIN_WHITELIST = ['admin_master', 'heltec_admin', 'rak_admin', 'lilygo_admin', '8f3a12bc', 'feedfacecafe0001'];\n\nconst results = [];\n\nfor (const item of $input.all()) {\n  const msg = item.json;\n  const rawText = (msg.text || '').trim();\n  if (!rawText || rawText.startsWith('[Eco ') || rawText.startsWith('[Status ') || rawText.startsWith('⛔ ')) {\n    continue;\n  }\n  const lower = rawText.toLowerCase();\n  const senderId = msg.sender_id || 'unknown';\n  const senderName = msg.sender_name || senderId;\n  const isAdmin = ADMIN_WHITELIST.includes(senderId) || ADMIN_WHITELIST.includes(senderName);\n\n  if (lower === '/status') {\n    const rssiInfo = msg.metrics && msg.metrics.rssi ? ` | RSSI: ${msg.metrics.rssi} dBm` : '';\n    const replyText = `[Status MeshCore v2.1]\\nBridge: Online\\nNodo: ${senderName}${rssiInfo}\\nHora: ${new Date().toISOString().substring(11, 19)} UTC`;\n    \n    results.push({\n      json: {\n        topic: 'meshcore/tx',\n        request_id: `n8n_status_${Date.now()}`,\n        to: senderId,\n        channel_index: 0,\n        text: replyText\n      }\n    });\n    continue;\n  }\n\n  if (lower.startsWith('/admin')) {\n    if (!isAdmin) {\n      results.push({\n        json: {\n          topic: 'meshcore/tx',\n          request_id: `n8n_denied_${Date.now()}`,\n          to: senderId,\n          channel_index: 0,\n          text: '⛔ Acceso denegado: Nodo no autorizado para comandos administrativos.'\n        }\n      });\n      continue;\n    }\n\n    const parts = rawText.split(' ').filter(p => p.length > 0);\n    const subCmd = (parts[1] || '').toLowerCase();\n\n    // Caso 1: Comandos a Repetidores Remotos (/admin repeater <node_id> <cmd>)\n    if (subCmd === 'repeater' && parts[2] && parts[3]) {\n      const targetRepeater = parts[2];\n      const repCmd = parts.slice(3).join(' ');\n      results.push({\n        json: {\n          topic: `meshcore/admin/repeater/${targetRepeater}/cmd`,\n          request_id: `n8n_rep_${Date.now()}`,\n          action: repCmd,\n          target_node: targetRepeater\n        }\n      });\n      results.push({\n        json: {\n          topic: 'meshcore/tx',\n          request_id: `n8n_ack_${Date.now()}`,\n          to: senderId,\n          text: `📡 Enviando comando \"${repCmd}\" a repetidor ${targetRepeater}...`\n        }\n      });\n      continue;\n    }\n\n    // Caso 2: Comandos Locales\n    let actionName = null;\n    let ackNotice = '';\n    let extraData = {};\n\n    if (subCmd === 'get_config' || subCmd === 'config') {\n      actionName = 'get_config';\n      ackNotice = '⚙️ Consultando configuración del nodo...';\n    } else if (subCmd === 'list_nodes' || subCmd === 'nodes') {\n      actionName = 'list_nodes';\n      ackNotice = '📖 Consultando registro de nodos activos...';\n    } else if (subCmd === 'set_name' && parts[2]) {\n      actionName = 'set_name';\n      extraData.name = parts.slice(2).join(' ');\n      ackNotice = `✏️ Cambiando nombre a: ${extraData.name}`;\n    } else if (subCmd === 'set_power' && parts[2]) {\n      actionName = 'set_tx_power';\n      extraData.power = parseInt(parts[2], 10);\n      ackNotice = `📶 Ajustando potencia TX a: ${extraData.power} dBm`;\n    } else if (subCmd === 'reboot') {\n      actionName = 'reboot';\n      ackNotice = '🔄 Reiniciando radio local...';\n    } else {\n      ackNotice = '❓ Comando admin no reconocido. Uso: /admin [config|nodes|set_name <n>|set_power <p>|repeater <id> <cmd>]';\n    }\n\n    results.push({\n      json: {\n        topic: 'meshcore/tx',\n        request_id: `n8n_adm_ack_${Date.now()}`,\n        to: senderId,\n        channel_index: 0,\n        text: ackNotice\n      }\n    });\n\n    if (actionName) {\n      results.push({\n        json: {\n          topic: 'meshcore/admin/cmd',\n          request_id: `n8n_adm_${Date.now()}`,\n          action: actionName,\n          ...extraData\n        }\n      });\n    }\n    continue;\n  }\n\n  // Eco DM\n  results.push({\n    json: {\n      topic: 'meshcore/tx',\n      request_id: `n8n_dm_${Date.now()}`,\n      to: senderId,\n      channel_index: 0,\n      text: `[Eco DM] Recibido: \"${rawText}\"`\n    }\n  });\n}\n\nreturn results;"
+        "jsCode": "// ==========================================================\n// Procesador de Mensajes Directos (DM), Admin y Repetidores\n// ==========================================================\n\nconst ADMIN_WHITELIST = ['admin_master', 'heltec_admin', 'rak_admin', 'lilygo_admin', '8f3a12bc', 'feedfacecafe0001'];\n\nconst results = [];\n\nfor (const item of $input.all()) {\n  const msg = item.json;\n  const rawText = (msg.text || '').trim();\n  if (!rawText || rawText.startsWith('[Eco ') || rawText.startsWith('[Status ') || rawText.startsWith('⛔ ') || rawText.startsWith('📡 ')) {\n    continue;\n  }\n  const lower = rawText.toLowerCase();\n  const senderId = msg.sender_id || 'unknown';\n  const senderName = msg.sender_name || senderId;\n  const isAdmin = ADMIN_WHITELIST.includes(senderId) || ADMIN_WHITELIST.includes(senderName);\n\n  if (lower === '/status') {\n    const rssiInfo = msg.metrics && msg.metrics.rssi ? ` | RSSI: ${msg.metrics.rssi} dBm` : '';\n    const replyText = `[Status MeshCore v2.2]\\nBridge: Online\\nNodo: ${senderName}${rssiInfo}\\nHora: ${new Date().toISOString().substring(11, 19)} UTC`;\n    \n    results.push({\n      json: {\n        topic: 'meshcore/tx',\n        request_id: `n8n_status_${Date.now()}`,\n        to: senderId,\n        channel_index: 0,\n        text: replyText\n      }\n    });\n    continue;\n  }\n\n  if (lower.startsWith('/admin')) {\n    if (!isAdmin) {\n      results.push({\n        json: {\n          topic: 'meshcore/tx',\n          request_id: `n8n_denied_${Date.now()}`,\n          to: senderId,\n          channel_index: 0,\n          text: '⛔ Acceso denegado: Nodo no autorizado para comandos administrativos.'\n        }\n      });\n      continue;\n    }\n\n    const parts = rawText.split(' ').filter(p => p.length > 0);\n    const subCmd = (parts[1] || '').toLowerCase();\n\n    // Caso 1: Comandos a Repetidores Remotos (/admin repeater <node_id> <cmd>)\n    if (subCmd === 'repeater' && parts[2] && parts[3]) {\n      const targetRepeater = parts[2];\n      const repCmd = parts.slice(3).join(' ');\n      results.push({\n        json: {\n          topic: `meshcore/admin/repeater/${targetRepeater}/cmd`,\n          request_id: `n8n_rep_${Date.now()}`,\n          action: repCmd,\n          target_node: targetRepeater\n        }\n      });\n      results.push({\n        json: {\n          topic: 'meshcore/tx',\n          request_id: `n8n_ack_${Date.now()}`,\n          to: senderId,\n          text: `📡 Enviando comando \"${repCmd}\" a repetidor ${targetRepeater}...`\n        }\n      });\n      continue;\n    }\n\n    // Caso 2: Comandos Locales\n    let actionName = null;\n    let ackNotice = '';\n    let extraData = {};\n\n    if (subCmd === 'get_config' || subCmd === 'config') {\n      actionName = 'get_config';\n      ackNotice = '⚙️ Consultando configuración del nodo...';\n    } else if (subCmd === 'list_nodes' || subCmd === 'nodes') {\n      actionName = 'list_nodes';\n      ackNotice = '📖 Consultando registro de nodos activos...';\n    } else if (subCmd === 'set_name' && parts[2]) {\n      actionName = 'set_name';\n      extraData.name = parts.slice(2).join(' ');\n      ackNotice = `✏️ Cambiando nombre a: ${extraData.name}`;\n    } else if (subCmd === 'set_power' && parts[2]) {\n      actionName = 'set_tx_power';\n      extraData.power = parseInt(parts[2], 10);\n      ackNotice = `📶 Ajustando potencia TX a: ${extraData.power} dBm`;\n    } else if (subCmd === 'reboot') {\n      actionName = 'reboot';\n      ackNotice = '🔄 Reiniciando radio local...';\n    } else {\n      ackNotice = '❓ Comando admin no reconocido. Uso: /admin [config|nodes|set_name <n>|set_power <p>|repeater <id> <cmd>]';\n    }\n\n    results.push({\n      json: {\n        topic: 'meshcore/tx',\n        request_id: `n8n_adm_ack_${Date.now()}`,\n        to: senderId,\n        channel_index: 0,\n        text: ackNotice\n      }\n    });\n\n    if (actionName) {\n      results.push({\n        json: {\n          topic: 'meshcore/admin/cmd',\n          request_id: `n8n_adm_${Date.now()}`,\n          action: actionName,\n          ...extraData\n        }\n      });\n    }\n    continue;\n  }\n\n  // Eco DM\n  results.push({\n    json: {\n      topic: 'meshcore/tx',\n      request_id: `n8n_dm_${Date.now()}`,\n      to: senderId,\n      channel_index: 0,\n      text: `[Eco DM] Recibido: \"${rawText}\"`\n    }\n  });\n}\n\nreturn results;"
       },
       "id": "7",
       "name": "Procesar DMs y Admin",
@@ -126,7 +196,7 @@
       "typeVersion": 2,
       "position": [
         1200,
-        420
+        500
       ]
     },
     {
@@ -139,7 +209,7 @@
       "typeVersion": 2,
       "position": [
         1200,
-        560
+        640
       ]
     },
     {
@@ -152,7 +222,7 @@
       "typeVersion": 2,
       "position": [
         1200,
-        700
+        780
       ]
     },
     {
@@ -165,7 +235,7 @@
       "typeVersion": 2,
       "position": [
         1200,
-        840
+        920
       ]
     },
     {
@@ -185,6 +255,39 @@
     }
   ],
   "connections": {
+    "Schedule Trigger (Cada 6h - 00:00, 06:00, 12:00, 18:00)": {
+      "main": [
+        [
+          {
+            "node": "Consultar Clima (Lehigh Acres, FL)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Clima (Lehigh Acres, FL)": {
+      "main": [
+        [
+          {
+            "node": "Formatear Reporte Estado y Clima",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear Reporte Estado y Clima": {
+      "main": [
+        [
+          {
+            "node": "Publicar a MQTT (TX / Admin)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "MQTT Trigger (MeshCore RX)": {
       "main": [
         [

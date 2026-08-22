@@ -108,6 +108,61 @@ class N8nSimulator:
         })
         return results
 
+    def format_periodic_weather_status(self, weather_data: dict, fixed_dt_str: str = "2026-08-22 18:00") -> dict:
+        """Simula la lógica del nodo JavaScript 'Formatear Reporte Estado y Clima'."""
+        wmo_codes = {
+            0: "☀️ Despejado",
+            1: "🌤️ Mayormente despejado",
+            2: "⛅ Parcialmente nublado",
+            3: "☁️ Nublado",
+            45: "🌫️ Niebla",
+            51: "🌦️ Llovizna ligera",
+            61: "🌧️ Lluvia ligera",
+            71: "❄️ Nieve ligera",
+            80: "🌧️ Chubascos ligeros",
+            95: "⛈️ Tormenta eléctrica",
+        }
+
+        current = weather_data.get("current", {})
+        temp_c = float(current.get("temperature_2m", 25.0))
+        temp_f = round((temp_c * 9.0 / 5.0) + 32.0, 1)
+        feels_like_c = float(current.get("apparent_temperature", temp_c))
+        feels_like_f = round((feels_like_c * 9.0 / 5.0) + 32.0, 1)
+        humidity = int(current.get("relative_humidity_2m", 60))
+        wind_kmh = float(current.get("wind_speed_10m", 10.0))
+        wind_mph = round(wind_kmh * 0.621371, 1)
+        code = int(current.get("weather_code", 0))
+        desc = wmo_codes.get(code, "🌤️ Variable")
+        precip = float(current.get("precipitation", 0.0))
+
+        status_text = (
+            f"📡 [Estado Periódico - Lehigh Acres, FL]\n"
+            f"📅 {fixed_dt_str} (Local)\n"
+            f"🌡️ Temp: {temp_c}°C ({temp_f}°F) | ST: {feels_like_c}°C ({feels_like_f}°F)\n"
+            f"💧 Hum: {humidity}% | 💨 Viento: {wind_kmh} km/h ({wind_mph} mph)\n"
+            f"🌤️ Clima: {desc}"
+        )
+        if precip > 0:
+            status_text += f" | 🌧️ Prec: {precip} mm"
+
+        return {
+            "topic": "meshcore/tx",
+            "request_id": f"n8n_periodic_{int(time.time())}",
+            "to": "broadcast",
+            "channel_index": 0,
+            "text": status_text,
+            "metadata": {
+                "location": "Lehigh Acres, FL",
+                "temperature_c": temp_c,
+                "temperature_f": temp_f,
+                "humidity_pct": humidity,
+                "wind_kmh": wind_kmh,
+                "weather_code": code,
+                "weather_desc": desc,
+            }
+        }
+
+
 
 class TestN8nParserMatrix(unittest.TestCase):
     def setUp(self):
@@ -172,6 +227,32 @@ class TestN8nParserMatrix(unittest.TestCase):
         self.assertEqual(out2[1]["topic"], "meshcore/admin/cmd")
         self.assertEqual(out2[1]["action"], "get_config")
 
+    def test_n8n_periodic_weather_formatting(self):
+        """Verifica la generación del reporte meteorológico para Lehigh Acres."""
+        sample_weather = {
+            "current": {
+                "temperature_2m": 28.5,
+                "apparent_temperature": 32.0,
+                "relative_humidity_2m": 72,
+                "weather_code": 1,
+                "wind_speed_10m": 12.5,
+                "precipitation": 0.0,
+            }
+        }
+        res = self.sim.format_periodic_weather_status(sample_weather, fixed_dt_str="2026-08-22 18:00")
+        self.assertEqual(res["topic"], "meshcore/tx")
+        self.assertEqual(res["to"], "broadcast")
+        self.assertEqual(res["channel_index"], 0)
+        self.assertIn("Lehigh Acres, FL", res["text"])
+        self.assertIn("28.5°C (83.3°F)", res["text"])
+        self.assertIn("ST: 32.0°C (89.6°F)", res["text"])
+        self.assertIn("💧 Hum: 72%", res["text"])
+        self.assertIn("🌤️ Mayormente despejado", res["text"])
+        self.assertEqual(res["metadata"]["location"], "Lehigh Acres, FL")
+        self.assertEqual(res["metadata"]["temperature_c"], 28.5)
+        self.assertEqual(res["metadata"]["temperature_f"], 83.3)
+
 
 if __name__ == "__main__":
     unittest.main()
+

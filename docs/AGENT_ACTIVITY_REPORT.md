@@ -6,6 +6,24 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Flujo Periódico n8n Cada 6h con Estado, Fecha/Hora y Clima de Lehigh Acres, FL
+- **Fecha**: 2026-08-22
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Diseñó e integró la tarea programada recurrente en el flujo universal de automatización n8n (`n8n_workflow_meshcore.json`) para emitir periódicamente cada 6 horas (iniciando a las 12:00 AM / 00:00, 06:00, 12:00, 18:00) un reporte completo de estado a la red MeshCore con fecha, hora y el pronóstico meteorológico en tiempo real para Lehigh Acres, Florida.
+- **Contribuciones de Agentes**:
+  1. **Agente 2 (Python Bridge Architect Agent)**:
+     - **`n8n_workflow_meshcore.json`**:
+       - Integró el nodo `Schedule Trigger` (`0 0,6,12,18 * * *`) para ejecución cíclica cada 6 horas comenzando a las 12:00 AM.
+       - Integró el nodo `HTTP Request` para consultar la API meteorológica Open-Meteo para Lehigh Acres, FL (`lat: 26.6254`, `lon: -81.6248`, `timezone: America/New_York`).
+       - Diseñó el nodo de código JavaScript para transformar códigos WMO a emojis/descripciones en español, calcular temperaturas en °C y °F, sensación térmica, humedad, viento y construir el paquete MQTT de difusión (`meshcore/tx`, canal 0 broadcast).
+       - Conectó el flujo de reporte meteorológico directamente al nodo emisor MQTT.
+     - **`tests/test_n8n_parser_matrix.py`**:
+       - Añadió el método de simulación `format_periodic_weather_status` en `N8nSimulator`.
+       - Integró la prueba unitaria `test_n8n_periodic_weather_formatting` para validar la construcción y exactitud de los reportes.
+  2. **Agente 0 (Lead Orchestrator)**:
+     - Sincronización completa de `/deploy/` y regeneración de bundles comprimidos (`.tar.gz`, `.zip`) y sumas SHA256 (`python scripts/sync_deploy.py`).
+     - Sincronización y commit con el repositorio remoto GitHub (`origin/main`).
+
 ### Hito: Optimización de Latencia en Ping Zero a Repetidores (500ms vs 1500ms - Eliminación de Paquetes Redundantes)
 - **Fecha**: 2026-08-20
 - **Estado**: ✅ COMPLETADO
