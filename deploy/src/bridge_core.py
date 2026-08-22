@@ -206,8 +206,11 @@ class MeshCoreBridge:
                 loop=self._custom_loop,
                 background_tasks=self._background_tasks,
                 counters=self,
+                store_forward=self.store_and_forward,
+                store_and_forward=self.store_and_forward,
             )
         )
+
 
         self.admin_handler = AdminCommandHandler(
             AdminContext(

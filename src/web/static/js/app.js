@@ -5819,22 +5819,40 @@ class MeshCoreStationApp {
           });
         }
 
-        cCard.querySelector(".btn-contact-dm").addEventListener("click", () => {
+        const btnDm = cCard.querySelector(".btn-contact-dm");
+        if (btnDm) {
+          btnDm.addEventListener("click", (e) => {
+            e.stopPropagation();
+            this.openDmConversation(node.public_key, cleanName);
+          });
+        }
+
+        const btnQr = cCard.querySelector(".btn-contact-qr");
+        if (btnQr) {
+          btnQr.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const payload = { type: "contact", public_key: node.public_key, name: cleanName, role: "CLIENT" };
+            const uri = `meshcore://contact?pubkey=${encodeURIComponent(node.public_key)}&name=${encodeURIComponent(cleanName)}&role=CLIENT`;
+            this.renderQrModal(`👥 Contacto: ${cleanName}`, uri, payload);
+          });
+        }
+
+        const btnDel = cCard.querySelector(".btn-contact-del");
+        if (btnDel) {
+          btnDel.addEventListener("click", (e) => {
+            e.stopPropagation();
+            this.deleteContact(node.public_key, cleanName);
+          });
+        }
+
+        cCard.addEventListener("click", () => {
           this.openDmConversation(node.public_key, cleanName);
         });
-
-        cCard.querySelector(".btn-contact-qr").addEventListener("click", () => {
-          const payload = { type: "contact", public_key: node.public_key, name: cleanName, role: "CLIENT" };
-          const uri = `meshcore://contact?pubkey=${encodeURIComponent(node.public_key)}&name=${encodeURIComponent(cleanName)}&role=CLIENT`;
-          this.renderQrModal(`👥 Contacto: ${cleanName}`, uri, payload);
-        });
-
-        cCard.querySelector(".btn-contact-del").addEventListener("click", () => {
-          this.deleteContact(node.public_key, cleanName);
-        });
+        cCard.style.cursor = "pointer";
 
         contactsFrag.appendChild(cCard);
       }
+
 
       // 2. Renderizar en la vista unificada "Nodos" (TODOS los nodos con tarjetas adaptativas y uniformes)
       if (unifiedNodesGrid) {

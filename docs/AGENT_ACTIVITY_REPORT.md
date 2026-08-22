@@ -6,7 +6,33 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Corrección de Recepción de Confirmaciones de Entrega (ACKs), Interactividad de Tarjetas de Contactos y Simulación E2E con Playwright
+- **Fecha**: 2026-08-22
+- **Estado**: ✅ COMPLETADO (100% PASS - 122 Tests)
+- **Agente Principal (Lead Orchestrator)**: Coordinó al Agente 2 (Bridge), Agente 4 (Frontend) y Agente 3 (QA) para resolver el enrutamiento de confirmaciones de entrega E2E, habilitar la interactividad completa de las tarjetas de contactos y crear la suite de simulación E2E automatizada con Playwright en Chromium headless.
+- **Contribuciones de Agentes**:
+  1. **Agente 2 (Python Bridge Architect Agent)**:
+     - **`src/bridge_core.py`**:
+       - Inyectó explícitamente `store_forward` y `store_and_forward` en `RxRouterContext` durante la inicialización del bridge, permitiendo que `RxEventRouter` consulte la base de datos de recibos de entrega.
+     - **`src/rx_router.py`**:
+       - Aseguró la búsqueda robusta de `msg_id` a través de `get_msg_id_by_expected_ack(ack_code)` y el marcado de entrega con `mark_message_delivered(ack_msg_id, trip_time)`.
+  2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - **`src/web/static/js/app.js`**:
+       - Añadió `stopPropagation` a todos los botones de acción interna de la tarjeta de contacto (`.btn-contact-dm`, `.btn-contact-qr`, `.btn-contact-del`, `.btn-copy-pk`).
+       - Habilitó el evento de clic en toda la superficie de la tarjeta `.contact-card` con `cursor: pointer` para abrir directamente la conversación privada (DM) con el nodo seleccionado.
+  3. **Agente 3 (Protocol QA & Fuzzing Agent)**:
+     - **`tests/test_playwright_e2e_simulation.py`**:
+       - Creó la suite automatizada E2E con Playwright que lanza un bridge virtual completo, navega por la UI web, selecciona un contacto, abre el chat DM, transmite un mensaje, recibe el ACK por radio simulado y valida que el indicador de estado cambie a `"✓✓ TX"` (entregado).
+     - **Resultados de Verificación**:
+       - Pytest: 122 pruebas aprobadas (100% PASS).
+       - Mypy: 0 errores en los 23 módulos de producción (`--strict`).
+       - Ruff: 0 errores de formato / estilo.
+  4. **Agente 0 (Lead Orchestrator)**:
+     - Sincronización del paquete de producción `/deploy/` (`python scripts/sync_deploy.py`).
+     - Sincronización con el repositorio remoto GitHub (`origin/main`).
+
 ### Hito: Verificación Global de Calidad, Tipado Estricto y Corrección de Serialización de Comandos MeshCore
+
 - **Fecha**: 2026-08-22
 - **Estado**: ✅ COMPLETADO (100% PASS)
 - **Agente Principal (Lead Orchestrator)**: Lideró la ejecución exhaustiva de la suite de pruebas bajo demanda explícita del usuario, coordinando al Agente 1 (Protocolo), Agente 2 (Bridge), Agente 3 (QA) y Agente 5 (Seguridad).

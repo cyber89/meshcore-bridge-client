@@ -322,11 +322,13 @@ class RxEventRouter:
                 trip_time = float(payload_dict.get("trip_time_ms", payload_dict.get("trip_time", payload_dict.get("rtt", 0.0))))
                 ack_msg_id = str(payload_dict.get("msg_id", payload_dict.get("id", ""))).strip()
 
-                if not ack_msg_id and ack_code and getattr(self._ctx, "store_forward", None):
-                    ack_msg_id = self._ctx.store_forward.get_msg_id_by_expected_ack(ack_code) or ""
+                sf = getattr(self._ctx, "store_forward", getattr(self._ctx, "store_and_forward", None))
+                if not ack_msg_id and ack_code and sf:
+                    ack_msg_id = sf.get_msg_id_by_expected_ack(ack_code) or ""
 
-                if ack_msg_id and getattr(self._ctx, "store_forward", None):
-                    self._ctx.store_forward.mark_message_delivered(ack_msg_id, trip_time)
+                if ack_msg_id and sf:
+                    sf.mark_message_delivered(ack_msg_id, trip_time)
+
 
                 admin = getattr(self._ctx, "admin_handler", None)
                 if admin and hasattr(admin, "notify_ping_response"):
