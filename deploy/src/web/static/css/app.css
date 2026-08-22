@@ -1033,7 +1033,7 @@ body {
 .nodes-unified-grid,
 .nodes-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(295px, 1fr));
   gap: 16px;
   align-items: stretch;
   width: 100%;
@@ -1049,7 +1049,7 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 235px;
+  min-height: 232px;
   height: 100%;
   box-sizing: border-box;
   box-shadow: var(--shadow-sm);
@@ -1102,6 +1102,13 @@ body {
   margin-bottom: 10px;
 }
 
+.node-card-avatar-wrapper {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+}
+
 .node-card-avatar,
 .contact-avatar {
   font-size: 17px;
@@ -1112,6 +1119,28 @@ body {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+
+.avatar-status-dot {
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-surface-elevated, #0f172a);
+  box-sizing: border-box;
+}
+.avatar-status-dot.status-online {
+  background-color: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.7);
+}
+.avatar-status-dot.status-idle {
+  background-color: #f59e0b;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.7);
+}
+.avatar-status-dot.status-offline {
+  background-color: #64748b;
 }
 
 .node-card-avatar.avatar-local { background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.5); }
@@ -1126,7 +1155,7 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -1135,19 +1164,26 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
 }
 
 .node-card-name,
 .contact-name {
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text-bright);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   flex: 1;
+}
+
+.node-card-badges-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
 }
 
 .node-card-sub-row {
@@ -1168,44 +1204,16 @@ body {
   gap: 3px;
 }
 
-.node-card-badges-group {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-.node-status-chip {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 1.5px 6.5px;
-  border-radius: 9999px;
+.node-card-activity {
+  font-size: 10.5px;
+  color: var(--text-dim);
   white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  border: 1px solid transparent;
-}
-.node-status-chip.status-online {
-  background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
-  border-color: rgba(34, 197, 94, 0.35);
-}
-.node-status-chip.status-idle {
-  background: rgba(245, 158, 11, 0.15);
-  color: #f59e0b;
-  border-color: rgba(245, 158, 11, 0.35);
-}
-.node-status-chip.status-offline {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
-  border-color: rgba(239, 68, 68, 0.35);
 }
 
 .node-role-badge {
   font-size: 9.5px;
   font-weight: 700;
-  padding: 1.5px 6px;
+  padding: 1.5px 6.5px;
   border-radius: 9999px;
   text-transform: uppercase;
   letter-spacing: 0.3px;
@@ -1350,6 +1358,7 @@ body {
   flex: 0 0 auto;
   padding: 0 9px;
 }
+
 
 
 /* ==============================================================================

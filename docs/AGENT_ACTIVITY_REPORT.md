@@ -18,10 +18,8 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
        - Estandarizó `.node-telemetry-panel` a una altura fija de `44px` con tipografía de precisión (`.node-meta-row`, `.node-meta-title`, `.node-meta-highlight`, `.node-meta-sub`).
        - Unificó `.node-rf-strip` y `.contact-card-chips` en 3 columnas iguales (`grid-template-columns: repeat(3, 1fr)`) con pills de `26px`.
        - Estandarizó `.node-actions-bar` y `.contact-card-actions` con botones de `32px` (`.btn-node-primary` flexible y `.btn-node-secondary` fijos).
-       - Eliminó más de 200 líneas de reglas CSS redundantes y obsoletas de `.contact-card`.
-       - Estandarizó la generación de HTML en `renderNodesDirectory()` tanto para la pestaña **Contactos** como para el directorio unificado de **Nodos**.
-       - Añadió un panel de metadatos simétrico para los nodos de tipo `CLIENT` (`📱 Dispositivo Cliente MeshCore` / `Punto a Punto`).
-       - Simplificó el chip de estado del nodo local a `🟢 En Línea` para evitar redundancias con el badge adyacente `LOCAL`.
+       - Eliminó el chip de texto `🟢 En Línea` y lo reemplazó por un indicador circular `avatar-status-dot` integrado en el avatar con pulso de luz según el estado en vivo.
+       - Alineó la cuadrícula de matriz en `auto-fill, minmax(295px, 1fr)` con `min-height: 232px` para simetría absoluta en filas y columnas.
   2. **Agente 0 (Lead Orchestrator)**:
      - Validación estática JavaScript con `node -c src/web/static/js/app.js` (código 0).
      - Validación de compilación Python con `python -m compileall src` (código 0).

@@ -5796,21 +5796,24 @@ class MeshCoreStationApp {
 
         cCard.innerHTML = `
           <div class="contact-card-header">
-            <div class="contact-avatar avatar-client">👤</div>
+            <div class="node-card-avatar-wrapper">
+              <div class="contact-avatar avatar-client">👤</div>
+              <span class="avatar-status-dot ${statusClass}" title="${timeAgoStr}"></span>
+            </div>
             <div class="contact-info">
               <div class="contact-title-row">
                 <span class="contact-name" title="${this.escapeHtml(cleanName)}">${this.escapeHtml(cleanName)}</span>
-                ${batChipHtml}
+                <div class="node-card-badges-group">
+                  <span class="node-role-badge role-client">CLIENT</span>
+                  ${batChipHtml}
+                </div>
               </div>
               <div class="node-card-sub-row">
                 <span class="contact-pubkey font-mono" title="${this.escapeHtml(node.public_key)}">
                   ${this.escapeHtml(shortPk)}
                   <button type="button" class="btn-copy-pk" title="Copiar clave pública">📋</button>
                 </span>
-                <div class="node-card-badges-group">
-                  <span class="node-status-chip ${statusClass}" title="${timeAgoStr}">${statusDot} ${statusLabel}</span>
-                  <span class="node-role-badge role-client">CLIENT</span>
-                </div>
+                <span class="node-card-activity" title="${timeAgoStr}">${timeAgoStr}</span>
               </div>
             </div>
           </div>
@@ -6014,24 +6017,28 @@ class MeshCoreStationApp {
 
         nCard.innerHTML = `
           <div class="node-card-header">
-            <div class="node-card-avatar ${avatarClass}">${avatarIcon}</div>
+            <div class="node-card-avatar-wrapper">
+              <div class="node-card-avatar ${avatarClass}">${avatarIcon}</div>
+              <span class="avatar-status-dot ${statusClass}" title="${timeAgoStr}"></span>
+            </div>
             <div class="node-card-info">
               <div class="node-card-top-row">
                 <span class="node-card-name" title="${this.escapeHtml(cleanName)}">${this.escapeHtml(cleanName)}</span>
-                ${batteryChipHtml}
+                <div class="node-card-badges-group">
+                  <span class="node-role-badge ${roleBadgeClass}">${roleLabel}</span>
+                  ${batteryChipHtml}
+                </div>
               </div>
               <div class="node-card-sub-row">
                 <span class="node-card-pubkey font-mono" title="${this.escapeHtml(node.public_key)}">
                   ${this.escapeHtml(shortPk)}
                   <button type="button" class="btn-copy-pk" title="Copiar clave pública">📋</button>
                 </span>
-                <div class="node-card-badges-group">
-                  <span class="node-status-chip ${statusClass}" title="${timeAgoStr}">${statusDot} ${statusLabel}</span>
-                  <span class="node-role-badge ${roleBadgeClass}">${roleLabel}</span>
-                </div>
+                <span class="node-card-activity" title="${timeAgoStr}">${timeAgoStr}</span>
               </div>
             </div>
           </div>
+
           <div class="node-telemetry-panel">
             ${middlePanelHtml}
           </div>
