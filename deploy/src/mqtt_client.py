@@ -160,33 +160,24 @@ class AsyncBridgeMQTTClient:
 
         # Fallback a persistencia SQLite
         if self.store_and_forward:
-            if self._loop and self._loop.is_running():
-                asyncio.run_coroutine_threadsafe(
-                    self.store_and_forward.enqueue(
-                        StoredMessage(
-                            topic=topic,
-                            payload=payload_str,
-                            qos=qos,
-                            retain=retain,
-                            ttl_seconds=ttl_seconds,
-                        )
-                    ),
-                    self._loop,
-                )
-            else:
-                asyncio.run(
-                    self.store_and_forward.enqueue(
-                        StoredMessage(
-                            topic=topic,
-                            payload=payload_str,
-                            qos=qos,
-                            retain=retain,
-                            ttl_seconds=ttl_seconds,
-                        )
-                    )
-                )
+            msg = StoredMessage(
+                topic=topic,
+                payload=payload_str,
+                qos=qos,
+                retain=retain,
+                ttl_seconds=ttl_seconds,
+            )
+            try:
+                running_loop = asyncio.get_running_loop()
+                running_loop.create_task(self.store_and_forward.enqueue(msg))
+            except RuntimeError:
+                if self._loop and self._loop.is_running():
+                    asyncio.run_coroutine_threadsafe(self.store_and_forward.enqueue(msg), self._loop)
+                else:
+                    asyncio.run(self.store_and_forward.enqueue(msg))
             logging.debug("Mensaje retenido en SQLite")
         return False
+
 
     async def flush_offline_buffer(self) -> int:
         """Drena y publica mensajes históricos encolados en SQLite durante caídas."""

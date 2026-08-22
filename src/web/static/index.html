@@ -511,31 +511,145 @@
           <div class="ha-view-container">
             <div class="pane-header">
               <div class="header-title-group">
-                <h2>Integración Home Assistant (MQTT Auto-Discovery)</h2>
-                <p class="header-subtitle">Exposición automática de sensores de batería, voltaje, SNR, RSSI y estado de enlace.</p>
+                <h2>🏠 Integración Home Assistant (MQTT Auto-Discovery)</h2>
+                <p class="header-subtitle">Exposición automática de telemetría de nodos, sensores ambientales, calidad de enlace RF y geolocalización en Home Assistant.</p>
               </div>
-              <button class="btn-primary" id="btnPublishHaDiscovery">📢 Re-anunciar Discovery en MQTT</button>
+              <div class="header-actions">
+                <button type="button" class="btn-primary btn-sm" id="btnPublishHaDiscovery">📢 Re-anunciar Discovery en MQTT</button>
+              </div>
             </div>
 
-            <div class="ha-status-card">
-              <div class="ha-card-header">
-                <span class="ha-badge">🏠 Home Assistant Discovery</span>
-                <span class="badge-pill badge-success" id="haStatusBadge">Activo</span>
-              </div>
-              <p>MeshCore Bridge publica metadatos estándar compatibles con la integración MQTT de Home Assistant en el prefijo <code>homeassistant/sensor/#</code>.</p>
-              <div class="ha-entities-summary">
-                <div class="ha-stat-box">
-                  <span class="ha-stat-num" id="haDiscoveredCount">0</span>
-                  <span class="ha-stat-label">Nodos Anunciados</span>
+            <!-- KPIs de Integración Home Assistant -->
+            <div class="analytics-kpi-grid ha-kpi-grid">
+              <div class="analytics-kpi-card">
+                <div class="kpi-icon">🏠</div>
+                <div class="kpi-data">
+                  <span class="kpi-label">Auto-Discovery MQTT</span>
+                  <strong class="kpi-value" id="haStatusBadge">Activo (HASS)</strong>
+                  <span class="kpi-sub">Prefijo: <code>homeassistant/sensor/#</code></span>
                 </div>
-                <div class="ha-stat-box">
-                  <span class="ha-stat-num" id="haSensorsCount">0</span>
-                  <span class="ha-stat-label">Entidades Sensores</span>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-icon">👥</div>
+                <div class="kpi-data">
+                  <span class="kpi-label">Nodos Anunciados</span>
+                  <strong class="kpi-value" id="haDiscoveredCount">0</strong>
+                  <span class="kpi-sub">Dispositivos en malla LoRa</span>
+                </div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-icon">📊</div>
+                <div class="kpi-data">
+                  <span class="kpi-label">Entidades Sensores</span>
+                  <strong class="kpi-value" id="haSensorsCount">0</strong>
+                  <span class="kpi-sub">Telemetrías expuestas</span>
+                </div>
+              </div>
+              <div class="analytics-kpi-card">
+                <div class="kpi-icon">📡</div>
+                <div class="kpi-data">
+                  <span class="kpi-label">Broker MQTT</span>
+                  <strong class="kpi-value" style="color: var(--accent-success);">En Línea</strong>
+                  <span class="kpi-sub">QoS 1 • Retain Activo</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Secciones Detalladas de Home Assistant -->
+            <div class="analytics-sections-grid">
+              <!-- Tarjeta 1: Entidades y Sensores Generados -->
+              <div class="analytics-card">
+                <div class="analytics-card-header">
+                  <span class="card-icon">⚡</span>
+                  <div>
+                    <h3>Entidades Expuestas Automáticamente</h3>
+                    <p>Tipos de datos y clases de dispositivo MQTT publicadas</p>
+                  </div>
+                </div>
+                <div class="table-responsive">
+                  <table class="data-table analytics-table">
+                    <thead>
+                      <tr>
+                        <th>Sensor / Entidad</th>
+                        <th>Device Class</th>
+                        <th>Unidad</th>
+                        <th>Frecuencia</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><strong>🔋 Nivel de Batería</strong></td>
+                        <td><code>battery</code></td>
+                        <td>%</td>
+                        <td>Por evento / advert</td>
+                      </tr>
+                      <tr>
+                        <td><strong>⚡ Voltaje de Celda</strong></td>
+                        <td><code>voltage</code></td>
+                        <td>V</td>
+                        <td>Telemetría periódica</td>
+                      </tr>
+                      <tr>
+                        <td><strong>📶 Calidad SNR</strong></td>
+                        <td><code>signal_strength</code></td>
+                        <td>dB</td>
+                        <td>Por paquete RF</td>
+                      </tr>
+                      <tr>
+                        <td><strong>📡 Intensidad RSSI</strong></td>
+                        <td><code>signal_strength</code></td>
+                        <td>dBm</td>
+                        <td>Por paquete RF</td>
+                      </tr>
+                      <tr>
+                        <td><strong>🌡️ Temperatura Ambiente</strong></td>
+                        <td><code>temperature</code></td>
+                        <td>°C</td>
+                        <td>CayenneLPP / Telemetría</td>
+                      </tr>
+                      <tr>
+                        <td><strong>💧 Humedad Relativa</strong></td>
+                        <td><code>humidity</code></td>
+                        <td>%</td>
+                        <td>CayenneLPP / Telemetría</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Tarjeta 2: Configuración y Tópicos MQTT -->
+              <div class="analytics-card">
+                <div class="analytics-card-header">
+                  <span class="card-icon">⚙️</span>
+                  <div>
+                    <h3>Esquema de Tópicos MQTT</h3>
+                    <p>Estructura de mensajes y descubrimiento para n8n y Home Assistant</p>
+                  </div>
+                </div>
+                <div class="stat-rows-detailed">
+                  <div class="detailed-stat-row">
+                    <span>Discovery Config:</span>
+                    <strong class="font-mono">homeassistant/sensor/{node_id}/{sensor}/config</strong>
+                  </div>
+                  <div class="detailed-stat-row">
+                    <span>Estado / State Topic:</span>
+                    <strong class="font-mono">meshcore/rx/telemetry/{node_id}</strong>
+                  </div>
+                  <div class="detailed-stat-row">
+                    <span>Disponibilidad / LWT:</span>
+                    <strong class="font-mono">meshcore/bridge/status</strong>
+                  </div>
+                  <div class="detailed-stat-row">
+                    <span>Mensajería Bidireccional:</span>
+                    <strong class="font-mono">meshcore/tx y meshcore/rx/all</strong>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </section>
+
 
         <!-- Pestaña 9: Logs del Sistema y Diagnóstico -->
         <section id="tab-logs" class="tab-pane" role="tabpanel" aria-labelledby="navTabLogs">

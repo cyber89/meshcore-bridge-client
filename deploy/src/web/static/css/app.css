@@ -1014,16 +1014,12 @@ body {
   font-weight: 600;
 }
 
-.nodes-unified-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 12px;
-  align-items: stretch;
 /* ==============================================================================
    Tarjetas Unificadas de Alta Precisión (Nodos y Contactos) - UI/UX Pro Max
    ============================================================================== */
 .nodes-unified-grid,
 .nodes-grid {
+
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(295px, 1fr));
   gap: 16px;
@@ -2612,6 +2608,18 @@ body {
   color: var(--text-muted);
 }
 
+/* ==============================================================================
+   Vista Home Assistant
+   ============================================================================== */
+.ha-view-container {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  height: 100%;
+  overflow-y: auto;
+}
+
 /* Home Assistant Card */
 .ha-status-card {
   background: var(--bg-surface);
@@ -2622,6 +2630,7 @@ body {
   flex-direction: column;
   gap: 16px;
 }
+
 
 .ha-entities-summary {
   display: flex;
