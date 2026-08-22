@@ -222,30 +222,30 @@ class NodeRegistry:
 
     def _find_existing_key(self, raw_key: str, name: str | None = None) -> str | None:
         """Encuentra si ya existe una clave exacta o unificada por prefijo/nombre para evitar duplicados."""
-        if not is_valid_node_key(raw_key):
-            return None
-        norm = raw_key.strip().lower()
+        norm = raw_key.strip().lower() if raw_key and isinstance(raw_key, str) else ""
 
-        # 1. Coincidencia exacta
-        if norm in self._nodes_by_key:
+        # 1. Coincidencia exacta por clave pública
+        if norm and norm in self._nodes_by_key:
             return norm
 
-        # 2. Coincidencia por prefijo (>= 8 caracteres comunes)
-        for k in self._nodes_by_key:
-            if (len(k) >= 8 and len(norm) >= 8 and (k.startswith(norm) or norm.startswith(k))) or \
-               (len(norm) == 12 and k.startswith(norm[:12])) or \
-               (len(k) == 12 and norm.startswith(k[:12])):
-                return k
+        # 2. Coincidencia por prefijo (>= 6 caracteres comunes)
+        if norm and is_valid_node_key(norm):
+            for k in self._nodes_by_key:
+                if (len(k) >= 6 and len(norm) >= 6 and (k.startswith(norm) or norm.startswith(k))) or \
+                   (len(norm) >= 8 and len(k) >= 8 and (k.startswith(norm[:8]) or norm.startswith(k[:8]))):
+                    return k
 
-        # 3. Coincidencia por nombre exacto si el prefijo de 6 caracteres coincide
+        # 3. Coincidencia por nombre exacto o alias si no es un nombre genérico
         if name:
             n_clean = name.strip().lower()
-            if n_clean in self._nodes_by_name:
-                cand_key = self._nodes_by_name[n_clean]
-                if cand_key.startswith(norm[:6]) or norm.startswith(cand_key[:6]):
-                    return cand_key
+            if n_clean and not n_clean.startswith("node_") and not n_clean.startswith("unknow") and len(n_clean) >= 2:
+                for k, node in self._nodes_by_key.items():
+                    if (node.name and node.name.strip().lower() == n_clean) or \
+                       (node.alias and node.alias.strip().lower() == n_clean):
+                        return k
 
         return None
+
 
     def get_canonical_key(self, raw_key: str, name: str | None = None) -> str:
         """Devuelve la clave pública canónica (más larga o conocida) para una clave o prefijo."""

@@ -6,6 +6,26 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Deduplicación Robusta de Contactos y Eliminación de Falsos Positivos en Banner de Descubrimiento
+- **Fecha**: 2026-08-22
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Diagnosticó y corrigió la causa por la cual un contacto ya registrado en la libreta o transceptor de radio volvía a disparar la alerta de *"¡Nuevos Nodos Descubiertos en el Aire!"*. Se optimizó la resolución de claves canónicas (`_find_existing_key`) para coincidir por nombre/alias exacto y prefijos (`>= 6` caracteres), se garantizó que los contactos sincronizados desde el dispositivo inicien como `auto_discovered=False`, y se filtraron en el frontend (`fetchDiscoveredContacts` y evento WebSocket) las coincidencias de contactos guardados.
+- **Contribuciones de Agentes**:
+  1. **Agente 2 (Python Bridge Architect Agent)**:
+     - **`src/contact_manager.py`**:
+       - Mejoró `_find_existing_key` para buscar primero por coincidencia exacta de clave pública, prefijos comunes y por nombre/alias registrado en `_nodes_by_key`.
+     - **`src/bridge_core.py`**:
+       - En `sync_all_contacts()`, marcó explícitamente los contactos importados desde el hardware con `auto_discovered=False` e `is_favorite=True`.
+  2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - **`src/web/static/js/app.js`**:
+       - En `fetchDiscoveredContacts()`, implementó el descarte de nodos descubiertos si coinciden con cualquier contacto existente en la libreta (`auto_discovered === false`).
+       - En el manejador WebSocket `contact_discovered`, añadió la verificación previa para suprimir el toast y la actualización del banner si el contacto ya pertenece a la libreta de contactos.
+  3. **Agente 0 (Lead Orchestrator)**:
+     - Validación estática JavaScript con `node -c src/web/static/js/app.js` (código 0).
+     - Validación de compilación Python con `python -m compileall src` (código 0).
+     - Sincronización del paquete autónomo `/deploy/` (`python scripts/sync_deploy.py`).
+     - Sincronización con el repositorio remoto GitHub (`origin/main`).
+
 ### Hito: Rediseño Integral de la Estación Web con el Skill UI/UX Pro Max (Dark Tech & Operations Dashboard)
 - **Fecha**: 2026-08-22
 - **Estado**: ✅ COMPLETADO

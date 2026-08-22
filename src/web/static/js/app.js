@@ -2682,12 +2682,26 @@ class MeshCoreStationApp {
         if (this.isValidNodeKey(canonicalPk)) {
           this.knownNodes.set(canonicalPk, c);
           this.knownNodes.set(c.public_key, c);
-          this.updateNodeInDom(canonicalPk, c);
-          if (payload.is_new && c.name && !c.name.startsWith("Node_unknow")) {
+          let isAlreadySaved = false;
+          const cNameClean = (c.name || c.alias || "").trim().toLowerCase();
+          for (const [k, node] of this.knownNodes.entries()) {
+            if (!node) continue;
+            const nodePk = String(node.public_key || "").toLowerCase();
+            const nodeName = String(node.alias || node.name || "").trim().toLowerCase();
+            const isMatchPk = nodePk === canonicalPk.toLowerCase() ||
+              (nodePk.length >= 6 && canonicalPk.toLowerCase().length >= 6 && (nodePk.startsWith(canonicalPk.toLowerCase()) || canonicalPk.toLowerCase().startsWith(nodePk)));
+            const isMatchName = cNameClean && !cNameClean.startsWith("node_") && !cNameClean.startsWith("unknow") && (nodeName === cNameClean);
+            if ((isMatchPk || isMatchName) && node.auto_discovered === false) {
+              isAlreadySaved = true;
+              break;
+            }
+          }
+          if (payload.is_new && !isAlreadySaved && c.name && !c.name.startsWith("Node_unknow")) {
             this.fetchDiscoveredContacts();
             const name = c.name || canonicalPk.slice(0, 8);
             this.showToast(`📡 Nuevo nodo descubierto en el aire: ${name}`, "info");
           }
+
         }
       } else {
         this.fetchNodes();
@@ -4980,12 +4994,21 @@ class MeshCoreStationApp {
           const isRoom = roleStr === "ROOM" || c.type === 3 || c.adv_type === 3;
           if (isRepeater || isSensor || isRoom) return false;
 
-          // Si el nodo ya está registrado en la libreta de contactos (auto_discovered === false), no reportarlo como nuevo
-          const existing = this.knownNodes.get(canonicalPk) || this.knownNodes.get(c.public_key);
-          if (existing && existing.auto_discovered === false) {
-            return false;
+          // Si el nodo ya está registrado en la libreta de contactos (auto_discovered === false) o coincide con un contacto guardado
+          const cNameClean = (c.alias || c.name || "").trim().toLowerCase();
+          for (const [k, node] of this.knownNodes.entries()) {
+            if (!node) continue;
+            const nodePk = String(node.public_key || "").toLowerCase();
+            const nodeName = String(node.alias || node.name || "").trim().toLowerCase();
+            const isMatchPk = nodePk === canonicalPk.toLowerCase() ||
+              (nodePk.length >= 6 && canonicalPk.toLowerCase().length >= 6 && (nodePk.startsWith(canonicalPk.toLowerCase()) || canonicalPk.toLowerCase().startsWith(nodePk)));
+            const isMatchName = cNameClean && !cNameClean.startsWith("node_") && !cNameClean.startsWith("unknow") && (nodeName === cNameClean);
+            if ((isMatchPk || isMatchName) && node.auto_discovered === false) {
+              return false;
+            }
           }
           return true;
+
         });
 
         const count = trulyNewContacts.length;

@@ -440,11 +440,14 @@ class MeshCoreBridge:
                             self.node_registry.add_or_update(
                                 pk,
                                 NodeContactUpdate(
-                                    name=c.get("name"),
+                                    name=c.get("name") or c.get("adv_name"),
                                     alias=c.get("alias"),
                                     role=c.get("role", "CLIENT"),
+                                    auto_discovered=False,
+                                    is_favorite=True,
                                 ),
                             )
+
                     logging.info(f"Auto-importados {len(imported_contacts)} contactos desde el transceptor serial.")
             except Exception as e:
                 logging.debug(f"Error en auto-importación de contactos: {e}")
