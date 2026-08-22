@@ -5796,18 +5796,33 @@ class MeshCoreStationApp {
 
         cCard.innerHTML = `
           <div class="contact-card-header">
-            <div class="contact-avatar">👤</div>
+            <div class="contact-avatar avatar-client">👤</div>
             <div class="contact-info">
               <div class="contact-title-row">
                 <span class="contact-name" title="${this.escapeHtml(cleanName)}">${this.escapeHtml(cleanName)}</span>
-                <span class="node-status-chip ${statusClass}" title="${timeAgoStr}">${statusDot} ${statusLabel}</span>
+                ${batChipHtml}
               </div>
-              <span class="contact-pubkey font-mono" title="${this.escapeHtml(node.public_key)}">
-                ${this.escapeHtml(shortPk)}
-                <button type="button" class="btn-copy-pk" title="Copiar clave pública">📋</button>
-              </span>
+              <div class="node-card-sub-row">
+                <span class="contact-pubkey font-mono" title="${this.escapeHtml(node.public_key)}">
+                  ${this.escapeHtml(shortPk)}
+                  <button type="button" class="btn-copy-pk" title="Copiar clave pública">📋</button>
+                </span>
+                <div class="node-card-badges-group">
+                  <span class="node-status-chip ${statusClass}" title="${timeAgoStr}">${statusDot} ${statusLabel}</span>
+                  <span class="node-role-badge role-client">CLIENT</span>
+                </div>
+              </div>
             </div>
-            ${batChipHtml}
+          </div>
+          <div class="node-telemetry-panel">
+            <div class="node-meta-row">
+              <span class="node-meta-title">📱 Dispositivo Cliente MeshCore</span>
+              <span class="node-meta-highlight color-cyan">Punto a Punto</span>
+            </div>
+            <div class="node-meta-sub">
+              <span>Actividad: ${timeAgoStr}</span>
+              <span>Enlace: RF Directo</span>
+            </div>
           </div>
           <div class="contact-card-chips">
             <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal}</strong></span>
@@ -5815,9 +5830,9 @@ class MeshCoreStationApp {
             <span class="stat-pill" title="Saltos de retransmisión">🦘 <strong>${hopsVal}</strong></span>
           </div>
           <div class="contact-card-actions">
-            <button type="button" class="btn-contact-action btn-contact-dm" title="Abrir chat en Mensajería">💬 DM</button>
-            <button type="button" class="btn-contact-action btn-contact-qr" title="Exportar tarjeta o código QR">📤 QR</button>
-            <button type="button" class="btn-contact-action btn-contact-del" title="Eliminar del dispositivo">🗑️</button>
+            <button type="button" class="btn-primary btn-sm btn-contact-dm" title="Abrir chat en Mensajería">💬 Iniciar Chat DM</button>
+            <button type="button" class="btn-secondary btn-sm btn-contact-qr" title="Exportar tarjeta o código QR">📤 QR</button>
+            <button type="button" class="btn-secondary btn-sm btn-contact-del" title="Eliminar del dispositivo">🗑️</button>
           </div>
         `;
 
@@ -5847,7 +5862,7 @@ class MeshCoreStationApp {
         contactsFrag.appendChild(cCard);
       }
 
-      // 2. Renderizar en la vista unificada "Nodos" (TODOS los nodos con tarjetas adaptativas)
+      // 2. Renderizar en la vista unificada "Nodos" (TODOS los nodos con tarjetas adaptativas y uniformes)
       if (unifiedNodesGrid) {
         const nCard = document.createElement("div");
         const roleClass = isLocal ? "role-local-card is-local" : (isSensor ? "role-sensor-card" : isRepeater ? "role-repeater-card" : isRoom ? "role-room-card" : "role-client-card");
@@ -5862,7 +5877,9 @@ class MeshCoreStationApp {
         const searchData = `${node.alias || ''} ${node.name || ''} ${node.public_key} ${roleLabel}`.toLowerCase();
         nCard.setAttribute("data-search", searchData);
 
-        let bodyHtml = "";
+        let middlePanelHtml = "";
+        let rfStripHtml = "";
+        let actionsHtml = "";
         const hasNodeGps = !!((node.latitude && node.longitude) || (node.lat && node.lon));
 
         if (isLocal) {
@@ -5871,25 +5888,25 @@ class MeshCoreStationApp {
           const lSf = this.localNodeConfig?.spreading_factor || this.localNodeConfig?.sf || 11;
           const lBw = this.localNodeConfig?.bandwidth || this.localNodeConfig?.bw || 250;
           const lPort = this.localNodeConfig?.serial_port || (this.dom.headerPortBadge ? this.dom.headerPortBadge.textContent : "USB / Serial");
-          bodyHtml = `
-            <div class="node-telemetry-panel">
-              <div style="font-size: 12px; color: var(--text-main); font-weight: 600; display: flex; justify-content: space-between;">
-                <span>🏠 Estación Base Transceptora</span>
-                <span style="color: var(--accent-success); font-weight: 700;">Host Bridge</span>
-              </div>
-              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
-                Puerto: ${this.escapeHtml(lPort)} • Enlace USB Directo
-              </div>
+          
+          middlePanelHtml = `
+            <div class="node-meta-row">
+              <span class="node-meta-title">🏠 Estación Base Transceptora</span>
+              <span class="node-meta-highlight color-success">Host Bridge</span>
             </div>
-            <div class="node-rf-strip" style="grid-template-columns: repeat(3, 1fr);">
-              <span class="stat-pill" title="Frecuencia de Operación">📻 <strong>${lFreq} MHz</strong></span>
-              <span class="stat-pill" title="Potencia de Transmisión TX">⚡ <strong>${lPower}</strong></span>
-              <span class="stat-pill" title="Modem LoRa">📡 <strong>SF${lSf}/BW${lBw}</strong></span>
+            <div class="node-meta-sub">
+              <span>Puerto: ${this.escapeHtml(lPort)}</span>
+              <span>Enlace USB Directo</span>
             </div>
-            <div class="node-actions-bar">
-              <button type="button" class="btn-primary btn-sm btn-node-primary btn-node-local-settings">⚙️ Ajustes de Radio</button>
-              <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-client-qr" title="Ver código QR">📤 QR</button>
-            </div>
+          `;
+          rfStripHtml = `
+            <span class="stat-pill" title="Frecuencia de Operación">📻 <strong>${lFreq} MHz</strong></span>
+            <span class="stat-pill" title="Potencia de Transmisión TX">⚡ <strong>${lPower}</strong></span>
+            <span class="stat-pill" title="Modem LoRa">📡 <strong>SF${lSf}/BW${lBw}</strong></span>
+          `;
+          actionsHtml = `
+            <button type="button" class="btn-primary btn-sm btn-node-primary btn-node-local-settings">⚙️ Ajustes de Radio</button>
+            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-client-qr" title="Ver código QR">📤 QR</button>
           `;
         } else if (isSensor) {
           const rawTemp = node.temperature_c ?? node.temp ?? node.temperature ?? node.telemetry?.temperature_c ?? (node.telemetry?.temp != null ? node.telemetry.temp : null);
@@ -5898,99 +5915,96 @@ class MeshCoreStationApp {
           const tempStr = (rawTemp !== undefined && rawTemp !== null && rawTemp !== "" && rawTemp !== "--") ? `${Number(rawTemp).toFixed(1)}°C` : "N/D";
           const humStr = (rawHum !== undefined && rawHum !== null && rawHum !== "" && rawHum !== "--") ? `${Math.round(Number(rawHum))}%` : "N/D";
           const pressStr = (rawPress !== undefined && rawPress !== null && rawPress !== "" && rawPress !== "--") ? `${Math.round(Number(rawPress))} hPa` : "N/D";
-          bodyHtml = `
-            <div class="node-telemetry-panel">
-              <div class="telemetry-sensors-grid">
-                <div class="sensor-box">
-                  <span class="sensor-box-label">Temp</span>
-                  <span class="sensor-box-value sensor-temp-val">${tempStr}</span>
-                </div>
-                <div class="sensor-box">
-                  <span class="sensor-box-label">Humedad</span>
-                  <span class="sensor-box-value sensor-hum-val">${humStr}</span>
-                </div>
-                <div class="sensor-box">
-                  <span class="sensor-box-label">Presión</span>
-                  <span class="sensor-box-value sensor-press-val">${pressStr}</span>
-                </div>
-              </div>
+          
+          middlePanelHtml = `
+            <div class="node-meta-row">
+              <span class="node-meta-title">📡 Sensor de Telemetría</span>
+              <span class="node-meta-highlight color-green">${tempStr}</span>
             </div>
-            <div class="node-rf-strip">
-              <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal}</strong></span>
-              <span class="stat-pill" title="Intensidad de Señal">📡 <strong>${rssiVal}</strong></span>
-              <span class="stat-pill" title="Saltos">🦘 <strong>${hopsVal}</strong></span>
-              ${noiseVal ? `<span class="stat-pill" title="Piso de Ruido">🔊 <strong>${noiseVal}</strong></span>` : ''}
-              ${uptimeVal ? `<span class="stat-pill" title="Tiempo Activo">⏱️ <strong>${uptimeVal}</strong></span>` : ''}
+            <div class="node-meta-sub">
+              <span>Humedad: ${humStr}</span>
+              <span>Presión: ${pressStr}</span>
             </div>
-            <div class="node-actions-bar">
-              <button type="button" class="btn-secondary btn-sm btn-node-primary btn-sensor-qr" title="Exportar QR del sensor">📤 QR Telemetría</button>
-              ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">🗺️ Mapa</button>` : ''}
-            </div>
+          `;
+          rfStripHtml = `
+            <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal}</strong></span>
+            <span class="stat-pill" title="Intensidad de Señal">📡 <strong>${rssiVal}</strong></span>
+            <span class="stat-pill" title="Saltos">🦘 <strong>${hopsVal}</strong></span>
+          `;
+          actionsHtml = `
+            <button type="button" class="btn-primary btn-sm btn-node-primary btn-sensor-qr" title="Exportar QR del sensor">📤 QR Telemetría</button>
+            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
+            ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">🗺️ Mapa</button>` : ''}
           `;
         } else if (isRepeater) {
           const rawTxPower = node.tx_power ?? 20;
           const txPowerStr = `${rawTxPower} dBm`;
           const rawHopLimit = node.hop_limit ?? 3;
           const hopLimitStr = `${rawHopLimit} saltos`;
-          bodyHtml = `
-            <div class="node-telemetry-panel">
-              <div style="font-size: 12px; display: flex; justify-content: space-between; color: var(--text-main); font-weight: 600;">
-                <span>🏔️ Router de Malla</span>
-                <strong style="color: #c084fc;">TX: ${txPowerStr}</strong>
-              </div>
-              <div style="font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between; margin-top: 2px;">
-                <span>Reenvío: Activo</span>
-                <span>Hop Limit: ${hopLimitStr}</span>
-              </div>
+          
+          middlePanelHtml = `
+            <div class="node-meta-row">
+              <span class="node-meta-title">🏔️ Router de Malla LoRa</span>
+              <span class="node-meta-highlight color-purple">TX: ${txPowerStr}</span>
             </div>
-            <div class="node-rf-strip">
-              <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal}</strong></span>
-              <span class="stat-pill" title="Intensidad de Señal">📡 <strong>${rssiVal}</strong></span>
-              <span class="stat-pill" title="Saltos">🦘 <strong>${hopsVal}</strong></span>
-              ${noiseVal ? `<span class="stat-pill" title="Piso de Ruido">🔊 <strong>${noiseVal}</strong></span>` : ''}
-              ${uptimeVal ? `<span class="stat-pill" title="Tiempo Activo">⏱️ <strong>${uptimeVal}</strong></span>` : ''}
-              ${node.ping_zero_rtt ? `<span class="stat-pill stat-pill-ping" title="Último Ping Zero directo">🎯 <strong>${node.ping_zero_rtt} ms</strong></span>` : ''}
-            </div>
-            <div class="node-actions-bar">
-              <button type="button" class="btn-primary btn-sm btn-node-primary btn-manage-node-repeater">🎛️ Administrar</button>
-              <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-ping-zero" title="Hacer Ping Zero directo (0 saltos)">🎯 Ping 0</button>
-              <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
-              ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">🗺️ Mapa</button>` : ''}
+            <div class="node-meta-sub">
+              <span>Reenvío: Activo</span>
+              <span>Hop Limit: ${hopLimitStr}</span>
             </div>
           `;
+          rfStripHtml = `
+            <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal}</strong></span>
+            <span class="stat-pill" title="Intensidad de Señal">📡 <strong>${rssiVal}</strong></span>
+            <span class="stat-pill" title="Saltos">🦘 <strong>${hopsVal}</strong></span>
+          `;
+          actionsHtml = `
+            <button type="button" class="btn-primary btn-sm btn-node-primary btn-manage-node-repeater">🎛️ Administrar</button>
+            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-ping-zero" title="Hacer Ping Zero directo (0 saltos)">🎯 Ping 0</button>
+            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
+            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-client-qr" title="Ver código QR">📤 QR</button>
+          `;
         } else if (isRoom) {
-          bodyHtml = `
-            <div class="node-telemetry-panel">
-              <div style="font-size: 12px; color: var(--text-main); font-weight: 600;">🏠 Servidor de Sala / BBS</div>
-              <div style="font-size: 11px; color: var(--text-muted);">Canal: ${node.channel || "General"}</div>
+          middlePanelHtml = `
+            <div class="node-meta-row">
+              <span class="node-meta-title">🏠 Servidor de Sala / BBS</span>
+              <span class="node-meta-highlight color-amber">Canal: ${node.channel || "General"}</span>
             </div>
-            <div class="node-rf-strip">
-              <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal}</strong></span>
-              <span class="stat-pill" title="Intensidad de Señal">📡 <strong>${rssiVal}</strong></span>
-              <span class="stat-pill" title="Saltos">🦘 <strong>${hopsVal}</strong></span>
-              ${noiseVal ? `<span class="stat-pill" title="Piso de Ruido">🔊 <strong>${noiseVal}</strong></span>` : ''}
+            <div class="node-meta-sub">
+              <span>Mensajería Comunitaria</span>
+              <span>Visto: ${timeAgoStr}</span>
             </div>
-            <div class="node-actions-bar">
-              <button type="button" class="btn-secondary btn-sm btn-node-primary btn-room-channel">💬 Ver Canal</button>
-              ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">🗺️ Mapa</button>` : ''}
-            </div>
+          `;
+          rfStripHtml = `
+            <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal}</strong></span>
+            <span class="stat-pill" title="Intensidad de Señal">📡 <strong>${rssiVal}</strong></span>
+            <span class="stat-pill" title="Saltos">🦘 <strong>${hopsVal}</strong></span>
+          `;
+          actionsHtml = `
+            <button type="button" class="btn-primary btn-sm btn-node-primary btn-room-channel">💬 Ver Canal</button>
+            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
+            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-client-qr" title="Ver código QR">📤 QR</button>
           `;
         } else {
           // CLIENT
-          bodyHtml = `
-            <div class="node-rf-strip" style="margin-top: 4px;">
-              <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal}</strong></span>
-              <span class="stat-pill" title="Intensidad de Señal">📡 <strong>${rssiVal}</strong></span>
-              <span class="stat-pill" title="Saltos">🦘 <strong>${hopsVal}</strong></span>
-              ${noiseVal ? `<span class="stat-pill" title="Piso de Ruido">🔊 <strong>${noiseVal}</strong></span>` : ''}
-              ${uptimeVal ? `<span class="stat-pill" title="Tiempo Activo">⏱️ <strong>${uptimeVal}</strong></span>` : ''}
+          middlePanelHtml = `
+            <div class="node-meta-row">
+              <span class="node-meta-title">📱 Dispositivo Cliente MeshCore</span>
+              <span class="node-meta-highlight color-cyan">Punto a Punto</span>
             </div>
-            <div class="node-actions-bar">
-              <button type="button" class="btn-primary btn-sm btn-node-primary btn-client-dm">💬 Iniciar Chat DM</button>
-              <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
-              <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-client-qr" title="Ver código QR">📤 QR</button>
-              ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">🗺️ Mapa</button>` : ''}
+            <div class="node-meta-sub">
+              <span>Actividad: ${timeAgoStr}</span>
+              <span>Enlace: RF Directo</span>
             </div>
+          `;
+          rfStripHtml = `
+            <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal}</strong></span>
+            <span class="stat-pill" title="Intensidad de Señal">📡 <strong>${rssiVal}</strong></span>
+            <span class="stat-pill" title="Saltos">🦘 <strong>${hopsVal}</strong></span>
+          `;
+          actionsHtml = `
+            <button type="button" class="btn-primary btn-sm btn-node-primary btn-client-dm">💬 Iniciar Chat DM</button>
+            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
+            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-client-qr" title="Ver código QR">📤 QR</button>
           `;
         }
 
@@ -6002,22 +6016,33 @@ class MeshCoreStationApp {
           <div class="node-card-header">
             <div class="node-card-avatar ${avatarClass}">${avatarIcon}</div>
             <div class="node-card-info">
-              <div class="node-card-title-row">
+              <div class="node-card-top-row">
                 <span class="node-card-name" title="${this.escapeHtml(cleanName)}">${this.escapeHtml(cleanName)}</span>
-                <div style="display: flex; gap: 4px; align-items: center;">
+                ${batteryChipHtml}
+              </div>
+              <div class="node-card-sub-row">
+                <span class="node-card-pubkey font-mono" title="${this.escapeHtml(node.public_key)}">
+                  ${this.escapeHtml(shortPk)}
+                  <button type="button" class="btn-copy-pk" title="Copiar clave pública">📋</button>
+                </span>
+                <div class="node-card-badges-group">
                   <span class="node-status-chip ${statusClass}" title="${timeAgoStr}">${statusDot} ${statusLabel}</span>
                   <span class="node-role-badge ${roleBadgeClass}">${roleLabel}</span>
                 </div>
               </div>
-              <span class="node-card-pubkey font-mono" title="${this.escapeHtml(node.public_key)}">
-                ${this.escapeHtml(shortPk)}
-                <button type="button" class="btn-copy-pk" title="Copiar clave pública">📋</button>
-              </span>
             </div>
-            ${batteryChipHtml}
           </div>
-          ${bodyHtml}
+          <div class="node-telemetry-panel">
+            ${middlePanelHtml}
+          </div>
+          <div class="node-rf-strip">
+            ${rfStripHtml}
+          </div>
+          <div class="node-actions-bar">
+            ${actionsHtml}
+          </div>
         `;
+
 
 
         const copyBtn = nCard.querySelector(".btn-copy-pk");

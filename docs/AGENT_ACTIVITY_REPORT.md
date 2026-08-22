@@ -6,6 +6,28 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Estandarización Geométrica y Visual Total de Tarjetas (Nodos y Contactos)
+- **Fecha**: 2026-08-22
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Diseñó e implementó una arquitectura simétrica y uniforme para todas las tarjetas del sistema (Clientes, Repetidores, Sensores, Salas y Estación Base Local). Se resolvieron los truncamientos prematuros de nombres, el salto de línea en badges de estado (`🟢 En Línea`), la asimetría de alturas mediante un panel central de metadatos estandarizado (`44px`), la alineación estricta de la cuadrícula de 3 métricas RF y la fijación inferior de la barra de acciones.
+- **Contribuciones de Agentes**:
+  1. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - **`src/web/static/css/app.css`**:
+       - Rediseñó `.node-card`, `.contact-card` y `.contact-item-card` con `min-height: 235px`, `padding: 14px 16px`, bordes de 4px por rol y sombras con resplandor cyan al hover.
+       - Creó `.node-card-top-row` y `.node-card-sub-row` para separar el nombre/batería de la clave pública/badges, eliminando el colapso del texto de estado (`white-space: nowrap`).
+       - Estandarizó `.node-telemetry-panel` a una altura fija de `44px` con tipografía de precisión (`.node-meta-row`, `.node-meta-title`, `.node-meta-highlight`, `.node-meta-sub`).
+       - Unificó `.node-rf-strip` y `.contact-card-chips` en 3 columnas iguales (`grid-template-columns: repeat(3, 1fr)`) con pills de `26px`.
+       - Estandarizó `.node-actions-bar` y `.contact-card-actions` con botones de `32px` (`.btn-node-primary` flexible y `.btn-node-secondary` fijos).
+       - Eliminó más de 200 líneas de reglas CSS redundantes y obsoletas de `.contact-card`.
+     - **`src/web/static/js/app.js`**:
+       - Estandarizó la generación de HTML en `renderNodesDirectory()` tanto para la pestaña **Contactos** como para el directorio unificado de **Nodos**.
+       - Añadió un panel de metadatos simétrico para los nodos de tipo `CLIENT` (`📱 Dispositivo Cliente MeshCore` / `Punto a Punto`).
+  2. **Agente 0 (Lead Orchestrator)**:
+     - Validación estática JavaScript con `node -c src/web/static/js/app.js` (código 0).
+     - Validación de compilación Python con `python -m compileall src` (código 0).
+     - Sincronización del paquete autónomo `/deploy/` (`python scripts/sync_deploy.py`).
+     - Sincronización con el repositorio remoto GitHub (`origin/main`).
+
 ### Hito: Deduplicación Robusta de Contactos y Eliminación de Falsos Positivos en Banner de Descubrimiento
 - **Fecha**: 2026-08-22
 - **Estado**: ✅ COMPLETADO
