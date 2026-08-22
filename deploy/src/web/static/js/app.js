@@ -185,7 +185,58 @@ class MeshCoreStorage {
     });
   }
 
+  async getDmConversations() {
+    await this.readyPromise;
+    if (!this.db) return [];
+    return new Promise((resolve) => {
+      try {
+        const tx = this.db.transaction("chat_messages", "readonly");
+        const store = tx.objectStore("chat_messages");
+        const req = store.getAll();
+        req.onsuccess = () => {
+          const allMsgs = req.result || [];
+          const threadsMap = new Map();
+
+          for (const msg of allMsgs) {
+            const feedKey = msg.feed_key || "";
+            if (!feedKey.startsWith("dm_")) continue;
+            const pubkey = feedKey.slice(3).trim();
+            if (!pubkey || pubkey.toLowerCase() === "unknown" || pubkey.toLowerCase() === "local") continue;
+
+            if (!threadsMap.has(pubkey)) {
+              threadsMap.set(pubkey, {
+                pubkey: pubkey,
+                name: msg.sender_name || (msg.dm_target && msg.dm_target !== pubkey ? msg.dm_target : pubkey),
+                lastMessage: msg.text || "",
+                lastTimestamp: msg.timestamp || "",
+                role: "CLIENT",
+                messages: []
+              });
+            }
+            const thread = threadsMap.get(pubkey);
+            thread.messages.push(msg);
+            if (!msg.is_outgoing && msg.sender_name && msg.sender_name.toLowerCase() !== "unknown" && msg.sender_name !== pubkey) {
+              thread.name = msg.sender_name;
+            }
+            if (msg.timestamp && (!thread.lastTimestamp || new Date(msg.timestamp) > new Date(thread.lastTimestamp))) {
+              thread.lastTimestamp = msg.timestamp;
+              thread.lastMessage = msg.text || "";
+            }
+          }
+
+          const threads = Array.from(threadsMap.values());
+          threads.sort((a, b) => new Date(b.lastTimestamp || 0) - new Date(a.lastTimestamp || 0));
+          resolve(threads);
+        };
+        req.onerror = () => resolve([]);
+      } catch (_) {
+        resolve([]);
+      }
+    });
+  }
+
   async clearFeedMessages(feedKey) {
+
     await this.readyPromise;
     if (!this.db) return;
     try {
@@ -329,7 +380,37 @@ class MeshCoreStationApp {
       .replace(/'/g, "&#039;");
   }
 
+  extractSenderAndText(text, currentSenderName = null) {
+    if (!text || typeof text !== "string") {
+      return { senderName: currentSenderName || "Anónimo", cleanText: text || "" };
+    }
+    const trimmed = text.trim();
+    const match = trimmed.match(/^([a-zA-Z0-9_\-\.]{2,32}):\s*([\s\S]*)$/);
+    if (match) {
+      const candidateName = match[1].trim();
+      const actualText = match[2].trim();
+      const lowerCandidate = candidateName.toLowerCase();
+      if (!["http", "https", "ftp", "ws", "wss", "json", "data", "cmd", "r", "ack", "req", "res", "echo", "status"].includes(lowerCandidate)) {
+        const isUnknown = !currentSenderName ||
+          currentSenderName.toLowerCase() === "unknown" ||
+          currentSenderName.toLowerCase() === "anónimo" ||
+          currentSenderName.toLowerCase() === "anonimo" ||
+          currentSenderName.startsWith("Node_unknow") ||
+          currentSenderName.length >= 12;
+        return {
+          senderName: isUnknown ? candidateName : currentSenderName,
+          cleanText: actualText || trimmed
+        };
+      }
+    }
+    return {
+      senderName: currentSenderName && currentSenderName.toLowerCase() !== "unknown" ? currentSenderName : "Anónimo",
+      cleanText: trimmed
+    };
+  }
+
   isCommandOrSystemText(text, txtType = 0) {
+
     if (txtType === 1) return true;
     if (!text || typeof text !== "string") return true;
 
@@ -2742,13 +2823,22 @@ class MeshCoreStationApp {
       const rawSenderKey = payload.sender || payload.pubkey_prefix || "unknown";
       const senderKey = isDm ? this.resolveCanonicalPubkey(rawSenderKey) : rawSenderKey;
 
+      const rawText = payload.text || payload.message || "";
       let senderName = payload.sender_name || payload.name;
-      if (!senderName || senderName === rawSenderKey || senderName === senderKey) {
+      const extracted = this.extractSenderAndText(rawText, senderName);
+      if (extracted.senderName && (!senderName || senderName === rawSenderKey || senderName === senderKey || senderName.toLowerCase() === "unknown" || senderName.startsWith("Node_unknow"))) {
+        senderName = extracted.senderName;
+      }
+      if (!senderName || senderName === rawSenderKey || senderName === senderKey || senderName.toLowerCase() === "unknown") {
         const known = this.knownNodes.get(senderKey) || this.knownNodes.get(rawSenderKey);
         senderName = known ? (known.alias || known.name || senderKey) : (senderName || senderKey);
       }
+      if (senderName && (senderName.toLowerCase() === "unknown" || senderName.startsWith("Node_unknow"))) {
+        senderName = extracted.senderName || (senderKey && this.isValidNodeKey(senderKey) ? senderKey : "Anónimo");
+      }
 
       const feedKey = isDm ? `dm_${senderKey}` : `ch_${chIdx}`;
+
       if (!this.channelFeeds.has(feedKey)) {
         if (isDm && rawSenderKey !== senderKey && this.channelFeeds.has(`dm_${rawSenderKey}`)) {
           this.channelFeeds.set(feedKey, this.channelFeeds.get(`dm_${rawSenderKey}`));
@@ -4316,11 +4406,31 @@ class MeshCoreStationApp {
     }
 
     const timeStr = new Date(msg.timestamp || Date.now()).toLocaleTimeString();
-    const sender = msg.sender_name || msg.sender || "Anónimo";
+    let sender = msg.sender_name || msg.sender || "Anónimo";
+    const rawText = msg.text || "";
+
+    const extracted = this.extractSenderAndText(rawText, sender);
+    if (!sender || sender.toLowerCase() === "unknown" || sender.toLowerCase() === "anónimo" || sender.toLowerCase() === "anonimo" || sender.startsWith("Node_unknow") || sender === msg.sender) {
+      if (extracted.senderName && extracted.senderName.toLowerCase() !== "unknown") {
+        sender = extracted.senderName;
+      }
+    }
+    if (msg.sender && this.knownNodes) {
+      const canonical = this.resolveCanonicalPubkey(msg.sender);
+      const known = this.knownNodes.get(canonical) || this.knownNodes.get(msg.sender);
+      if (known && (known.alias || known.name) && !known.name.startsWith("Node_unknow")) {
+        sender = known.alias || known.name;
+      }
+    }
+    if (!sender || sender.toLowerCase() === "unknown") {
+      sender = extracted.senderName || "Anónimo";
+    }
+
     const rssi = msg.metrics?.rssi != null ? msg.metrics.rssi : (msg.rssi != null ? msg.rssi : null);
     const snr = msg.metrics?.snr != null ? msg.metrics.snr : (msg.snr != null ? msg.snr : null);
     const ackSymbol = msg.delivered ? "✓✓ TX" : (msg.is_outgoing ? "✓ TX" : "📥 RX");
     const ackTitle = msg.delivered ? `Entregado (${msg.trip_time_ms || 0} ms)` : (msg.is_outgoing ? "Transmitido por radio" : "Recibido");
+
 
     let signalHtml = "";
     if (rssi != null && snr != null) {
@@ -5192,6 +5302,34 @@ class MeshCoreStationApp {
         await this.renderCurrentConversation();
       }
     }
+
+    // Cargar y restaurar todas las conversaciones de mensajes directos activas desde IndexedDB (estilo WhatsApp)
+    try {
+      const dmThreads = await this.storage.getDmConversations();
+      if (dmThreads && dmThreads.length > 0) {
+        for (const thread of dmThreads) {
+          const canonicalPk = this.resolveCanonicalPubkey(thread.pubkey);
+          this.conversationsWithMessages.add(canonicalPk);
+          if (thread.pubkey !== canonicalPk) {
+            this.conversationsWithMessages.add(thread.pubkey);
+          }
+          const cleanMsgs = (thread.messages || []).filter((m) => !this.isCommandOrSystemText(m.text, m.txt_type));
+          this.channelFeeds.set(`dm_${canonicalPk}`, cleanMsgs);
+
+          let displayName = thread.name;
+          const known = this.knownNodes.get(canonicalPk) || this.knownNodes.get(thread.pubkey);
+          if (known && (known.alias || known.name) && !known.name.startsWith("Node_unknow")) {
+            displayName = known.alias || known.name;
+          }
+          this.addDmContact(canonicalPk, displayName || canonicalPk, thread.role || "CLIENT");
+        }
+        this.updateDmBadgeCount();
+        this.updateGlobalUnreadBadge();
+      }
+    } catch (err) {
+      console.warn("Error restaurando hilos DM desde IndexedDB:", err);
+    }
+
     const loadStatus = async () => {
       try {
         const [statusRes, nodesRes, channelsRes] = await Promise.all([
@@ -5420,7 +5558,28 @@ class MeshCoreStationApp {
       this.knownNodes.set(node.public_key, node);
       totalCount++;
 
+      // Actualizar nombre amigable en la lista de DMs activos si coincide con este nodo
+      if (this.dom.dmListUi) {
+        const canonicalKey = this.resolveCanonicalPubkey(node.public_key);
+        const dmItems = this.dom.dmListUi.querySelectorAll("li.channel-item");
+        for (const dmItem of dmItems) {
+          const itemPk = (dmItem.getAttribute("data-pubkey") || "").trim().toLowerCase();
+          const cPkLower = canonicalKey.toLowerCase();
+          const isMatch = itemPk === cPkLower ||
+            (itemPk.length >= 8 && cPkLower.length >= 8 && (itemPk.startsWith(cPkLower) || cPkLower.startsWith(itemPk)));
+          if (isMatch) {
+            const nameEl = dmItem.querySelector(".ch-name");
+            const cleanNameCand = node.alias || node.name;
+            if (nameEl && cleanNameCand && !cleanNameCand.startsWith("Node_unknow") && cleanNameCand.toLowerCase() !== "unknown") {
+              nameEl.textContent = cleanNameCand;
+              nameEl.title = cleanNameCand;
+            }
+          }
+        }
+      }
+
       const normNodePk = (node.public_key || "").toLowerCase().trim();
+
       const localPk = (this.localNodePubkey || "").toLowerCase().trim();
       const isLocal = (localPk && (
         normNodePk === localPk ||

@@ -556,9 +556,25 @@ class NodeRegistry:
             if key.startswith(q) or q.startswith(key):
                 return contact
 
+    def find_by_name(self, name: str) -> NodeContactInfo | None:
+        """Busca un nodo registrado por su nombre o alias de forma insensible a mayúsculas."""
+        if not name:
+            return None
+        n_clean = name.strip().lower()
+        if n_clean in self._nodes_by_name:
+            cand_key = self._nodes_by_name[n_clean]
+            res = self._nodes_by_key.get(cand_key)
+            if res:
+                return res
+        for contact in self._nodes_by_key.values():
+            c_name = (contact.name or "").strip().lower()
+            c_alias = (contact.alias or "").strip().lower()
+            if c_name == n_clean or c_alias == n_clean:
+                return contact
         return None
 
     def get_contact(self, query: str) -> NodeContactInfo | None:
+
         """Obtiene la información del contacto buscando por clave, prefijo o alias."""
         return self.get_by_key_or_prefix(query)
 

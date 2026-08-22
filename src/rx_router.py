@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Protocol
@@ -19,6 +20,22 @@ from src.protocol_types import MeshcoreFrame, OpCode, TextMessagePayload
 from src.repeater_manager import RepeaterManager
 from src.sensor_decoder import CayenneLPPDecoder
 from src.store_forward import PacketDeduplicator
+
+_SENDER_PREFIX_RE = re.compile(r"^([a-zA-Z0-9_\-\.]{2,32}):\s*(.*)$", re.DOTALL)
+
+
+def extract_sender_from_text(text: str) -> tuple[str | None, str]:
+    """Extrae el nombre del remitente si el texto tiene el prefijo 'Nombre: Mensaje'."""
+    if not text or not isinstance(text, str):
+        return None, text
+    m = _SENDER_PREFIX_RE.match(text.strip())
+    if m:
+        candidate_name = m.group(1).strip()
+        actual_text = m.group(2).strip()
+        if candidate_name.lower() not in ("http", "https", "ftp", "ws", "wss", "json", "data", "cmd", "r", "ack", "req", "res", "echo", "status"):
+            return candidate_name, actual_text
+    return None, text
+
 
 
 @dataclass(slots=True)
@@ -195,7 +212,18 @@ class RxEventRouter:
             channel_idx = int(payload_dict.get("channel_idx", payload_dict.get("channel", 0)))
             hops = int(payload_dict.get("hop_count", payload_dict.get("hops", 0)))
 
+            # Extracción inteligente de nombre desde el cuerpo del texto si viene en formato 'Nombre: Mensaje'
+            extracted_name, _ = extract_sender_from_text(text)
+            if extracted_name:
+                if not sender_name or sender_name.lower() in ("unknown", "anónimo", "anonimo", "") or sender_name == sender:
+                    sender_name = extracted_name
+                if not sender or not is_valid_node_key(sender):
+                    found_c = self._ctx.node_registry.find_by_name(extracted_name)
+                    if found_c and is_valid_node_key(found_c.public_key):
+                        sender = found_c.public_key
+
             # Normalizar métricas de enlace RF de forma global
+
             is_local_sender = bool(sender and is_valid_node_key(sender) and self._ctx.node_registry.is_local_key(sender))
             effective_rssi = None if is_local_sender else (int(rssi) if isinstance(rssi, (int, float)) else None)
             effective_snr = None if is_local_sender else (float(snr) if isinstance(snr, (int, float)) else None)

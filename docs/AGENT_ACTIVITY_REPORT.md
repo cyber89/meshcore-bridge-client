@@ -6,6 +6,30 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Extracción Inteligente de Nombres de Remitente y Persistencia de Chats Directos Estilo WhatsApp al Refrescar
+- **Fecha**: 2026-08-22
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Diagnosticó e implementó la resolución automática de nombres de remitente para evitar que se muestren como `unknown` en el encabezado de las burbujas de mensaje cuando el emisor incluye su identificador en el texto (`Nombre: Mensaje`) o se encuentra en la libreta de contactos. Asimismo, implementó la persistencia y recuperación automática de todas las conversaciones de mensajes directos (`MENSAJES DIRECTOS`) desde IndexedDB al recargar la página (F5), emulando la experiencia de usuario de WhatsApp/Telegram.
+- **Contribuciones de Agentes**:
+  1. **Agente 2 (Python Bridge Architect Agent)**:
+     - **`src/contact_manager.py`**:
+       - Añadió el método `find_by_name(name: str)` en `NodeRegistry` para resolver nodos por nombre/alias de forma insensible a mayúsculas.
+     - **`src/rx_router.py`**:
+       - Implementó la función `extract_sender_from_text(text: str)` para detectar prefijos `^([a-zA-Z0-9_\-\.]{2,32}):\s*(.*)$`.
+       - En `handle_event`, si `sender_name` es desconocido o genérico, extrae el nombre del texto, resuelve la clave pública mediante `node_registry.find_by_name` y propaga `sender_name` a los eventos MQTT y WebSockets.
+  2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - **`src/web/static/js/app.js`**:
+       - Añadió el método `getDmConversations()` en `MeshCoreStorage` para recuperar todos los hilos DM almacenados en IndexedDB (`chat_messages`), agrupándolos y ordenándolos por fecha reciente.
+       - En `fetchInitialData()`, restaura automáticamente todas las conversaciones de mensajes directos en la barra lateral (`#dmListUi`), registra los feeds en `this.channelFeeds`, añade las claves a `conversationsWithMessages` y actualiza badges y contadores al recargar la página.
+       - Implementó `extractSenderAndText(text, currentSenderName)` para extraer y asociar el nombre del remitente en tiempo real.
+       - En `appendChatMessage(msg)`, garantiza que el encabezado del mensaje muestre el nombre real del contacto (ej. `Cu1.mobilUnit`) y nunca `unknown` cuando haya un nombre presente o registrado.
+       - En `renderNodesDirectory()`, refresca dinámicamente los nombres de contactos en la lista activa de DMs en la barra lateral.
+  3. **Agente 0 (Lead Orchestrator)**:
+     - Validación estática JavaScript con `node -c src/web/static/js/app.js` (código 0).
+     - Validación de compilación Python con `python -m compileall src` (código 0).
+     - Sincronización del paquete autónomo `/deploy/` (`python scripts/sync_deploy.py`).
+     - Sincronización con el repositorio remoto GitHub (`origin/main`).
+
 ### Hito: Flujo Periódico n8n Cada 6h con Estado, Fecha/Hora y Clima de Lehigh Acres, FL
 - **Fecha**: 2026-08-22
 - **Estado**: ✅ COMPLETADO
