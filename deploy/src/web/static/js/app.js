@@ -5747,10 +5747,10 @@ class MeshCoreStationApp {
         lastSeenSec = lastSeenSec / 1000;
       }
 
-      let statusLabel = isLocal ? "Estación Base Local" : "En Línea";
+      let statusLabel = "En Línea";
       let statusClass = "status-online";
       let statusDot = "🟢";
-      let timeAgoStr = isLocal ? "Enlace USB / Serial Activo" : "Ahora";
+      let timeAgoStr = isLocal ? "Enlace USB / Serial" : "Ahora";
 
       if (!isLocal) {
         if (lastSeenSec && typeof lastSeenSec === "number" && lastSeenSec > 1000000000) {

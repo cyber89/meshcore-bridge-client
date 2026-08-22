@@ -19,9 +19,9 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
        - Unificó `.node-rf-strip` y `.contact-card-chips` en 3 columnas iguales (`grid-template-columns: repeat(3, 1fr)`) con pills de `26px`.
        - Estandarizó `.node-actions-bar` y `.contact-card-actions` con botones de `32px` (`.btn-node-primary` flexible y `.btn-node-secondary` fijos).
        - Eliminó más de 200 líneas de reglas CSS redundantes y obsoletas de `.contact-card`.
-     - **`src/web/static/js/app.js`**:
        - Estandarizó la generación de HTML en `renderNodesDirectory()` tanto para la pestaña **Contactos** como para el directorio unificado de **Nodos**.
        - Añadió un panel de metadatos simétrico para los nodos de tipo `CLIENT` (`📱 Dispositivo Cliente MeshCore` / `Punto a Punto`).
+       - Simplificó el chip de estado del nodo local a `🟢 En Línea` para evitar redundancias con el badge adyacente `LOCAL`.
   2. **Agente 0 (Lead Orchestrator)**:
      - Validación estática JavaScript con `node -c src/web/static/js/app.js` (código 0).
      - Validación de compilación Python con `python -m compileall src` (código 0).
