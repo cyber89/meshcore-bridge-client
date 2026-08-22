@@ -3519,43 +3519,54 @@ body {
 /* Tarjetas de Contacto en la Libreta de Contactos */
 .nodes-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
   align-items: stretch;
+  width: 100%;
 }
 
+.contact-card,
 .contact-item-card {
   background-color: var(--bg-surface);
   border: 1px solid var(--border-subtle);
+  border-left: 3.5px solid var(--accent-primary);
   border-radius: var(--radius-md);
-  padding: 14px 16px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  min-height: 180px;
   height: 100%;
   box-sizing: border-box;
   box-shadow: var(--shadow-sm);
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+  position: relative;
+  overflow: hidden;
 }
 
+.contact-card:hover,
 .contact-item-card:hover {
   border-color: var(--border-strong);
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
 }
 
+.contact-card.contact-card-offline {
+  opacity: 0.85;
+}
+
 .contact-card-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 10px;
+  margin-bottom: 8px;
 }
 
 .contact-avatar {
-  font-size: 18px;
-  width: 38px;
-  height: 38px;
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(3, 105, 161, 0.08));
+  font-size: 16px;
+  width: 32px;
+  height: 32px;
+  background: rgba(56, 189, 248, 0.15);
   border: 1px solid rgba(56, 189, 248, 0.35);
   border-radius: 50%;
   display: flex;
@@ -3564,6 +3575,7 @@ body {
   flex-shrink: 0;
 }
 
+.contact-info,
 .contact-meta {
   flex: 1;
   display: flex;
@@ -3572,8 +3584,15 @@ body {
   min-width: 0;
 }
 
+.contact-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
 .contact-name {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-bright);
   white-space: nowrap;
@@ -3582,11 +3601,11 @@ body {
 }
 
 .contact-pubkey {
-  font-size: 11px;
+  font-size: 10.5px;
   color: var(--text-muted);
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
 
 .btn-copy-pk {
@@ -3605,31 +3624,38 @@ body {
 }
 
 .contact-battery-chip {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 600;
   color: #10b981;
   background-color: rgba(16, 185, 129, 0.12);
-  border: 1px solid rgba(16, 185, 129, 0.25);
-  padding: 2px 8px;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  padding: 2px 7px;
   border-radius: 9999px;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   gap: 3px;
+  white-space: nowrap;
+}
+
+.contact-battery-chip.bat-unknown {
+  color: var(--text-muted);
+  background-color: rgba(148, 163, 184, 0.1);
+  border-color: rgba(148, 163, 184, 0.2);
 }
 
 .contact-card-chips {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-  margin-bottom: 14px;
+  gap: 4px;
+  margin-bottom: 8px;
 }
 
 .stat-pill {
-  font-size: 11px;
+  font-size: 10.5px;
   color: var(--text-muted);
   background-color: var(--bg-surface-elevated);
-  padding: 5px 4px;
+  padding: 4px 6px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-subtle);
   display: flex;
@@ -3639,7 +3665,9 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  gap: 2px;
+  gap: 3px;
+  min-height: 26px;
+  box-sizing: border-box;
 }
 
 .stat-pill strong {
@@ -3650,15 +3678,15 @@ body {
 .contact-card-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   margin-top: auto;
   padding-top: 4px;
 }
 
 .btn-contact-action {
-  height: 32px;
+  height: 28px;
   border-radius: var(--radius-sm);
-  font-size: 12px;
+  font-size: 11.5px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -3698,11 +3726,11 @@ body {
 }
 
 .btn-contact-del {
-  flex: 0 0 34px;
+  flex: 0 0 30px;
   background: var(--bg-surface-elevated);
   border: 1px solid var(--border-subtle);
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .btn-contact-del:hover {
@@ -3711,6 +3739,7 @@ body {
   background: rgba(239, 68, 68, 0.12);
   transform: translateY(-1px);
 }
+
 
 /* ==============================================================================
    Vista Sniffer & Inspector RF

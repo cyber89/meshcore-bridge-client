@@ -6,6 +6,32 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Unificación Estética de Tarjetas (Contactos y Nodos) y Resolución Integral de Métricas RF/Batería (-- a N/D)
+- **Fecha**: 2026-08-22
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Diagnosticó y corrigió las discrepancias de diseño y formato en las tarjetas de las vistas de "Contactos" y "Nodos". Corrigió la falta de estilos base por discrepancia de selectores CSS (`.contact-item-card` vs `.contact-card`, `.contact-meta` vs `.contact-info`), el fallo en la búsqueda de contactos por selector desfasado, y resolvió el mapeo de métricas (SNR, RSSI, Saltos, Batería, Voltaje, Uptime y Ruido) para evitar cadenas `--` descontextualizadas, proporcionando valores calculados precisos (`0 (Directo)`, `USB 5V`, `+12.5 dB`, `N/D`).
+- **Contribuciones de Agentes**:
+  1. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - **`src/web/static/css/app.css`**:
+       - Unificó las reglas de grilla y contenedores para `.nodes-grid` y `.nodes-unified-grid` (`minmax(280px, 1fr)` y gap de `14px`).
+       - Alineó `.contact-card` y `.contact-item-card` con el estándar de diseño de `.node-card`: borde lateral temático (`3.5px solid var(--accent-primary)`), fondo elevado, `padding: 12px 14px`, `min-height: 180px`, flexbox de distribución vertical y microanimación hover.
+       - Corrigió selectores `.contact-info`, `.contact-title-row`, `.contact-avatar` y `.contact-battery-chip` (`.bat-unknown`).
+       - Rediseñó la botonera de acciones `.btn-contact-action` (`.btn-contact-dm`, `.btn-contact-qr`, `.btn-contact-del`) con altura estándar de `28px` y tipografía unificada.
+     - **`src/web/static/js/app.js`**:
+       - Enriqueció la resolución de métricas en `renderNodesDirectory`:
+         - **SNR**: extracción jerárquica (`snr`, `last_snr`, `metrics.snr`, `telemetry.snr`, `SNR`), formato numérico con signo (`+X.X dB`) o `Host USB` para el nodo local, o `N/D` amigable.
+         - **RSSI**: extracción jerárquica (`last_rssi`, `rssi`, `metrics.rssi`, `RSSI`), redondeo exacto (`-XX dBm`) o `Directo` para nodo local.
+         - **Saltos**: mapeo contextual (`0 (Directo)`, `1 salto`, `X saltos`, `0 (Host)`).
+         - **Batería/Voltaje**: resolución de porcentaje y conversión automática de voltaje litio (`3.2V - 4.2V` -> porcentaje estimado con voltaje auxiliar ej. `85% (4.1V)`), y `USB 5V` para base local.
+         - **Sensores y Repetidores**: formateo de temperatura, humedad y presión con unidades claras y fallback `N/D`, y potencia TX/Hop Limit consistentes.
+       - Añadió chip de estado en línea dinámico (`🟢 En Línea` / `🟡 Inactivo` / `🔴 Fuera de línea`) con tooltip de tiempo relativo en las tarjetas de contactos.
+       - En `updateNodeCardLiveState`: integró actualización en tiempo real tanto para `.node-card` como para `.contact-card`.
+       - En `filterContactsGrid`: corrigió la consulta de tarjetas (`.contact-card, .contact-item-card`) restaurando la búsqueda en tiempo real de contactos.
+  2. **Agente 0 (Lead Orchestrator)**:
+     - Validación estática JavaScript (`node -c`) y compilación Python (`python -m compileall src`).
+     - Sincronización del paquete autónomo `/deploy/` (`python scripts/sync_deploy.py`).
+     - Sincronización y commit con el repositorio remoto GitHub (`origin/main`).
+
 ### Hito: Extracción Inteligente de Nombres de Remitente y Persistencia de Chats Directos Estilo WhatsApp al Refrescar
 - **Fecha**: 2026-08-22
 - **Estado**: ✅ COMPLETADO

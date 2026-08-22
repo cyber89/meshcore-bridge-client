@@ -5427,7 +5427,7 @@ class MeshCoreStationApp {
     const norm = String(pubkey).trim().toLowerCase();
 
     // 1. Actualizar tarjetas en el grid unificado de nodos
-    const cards = document.querySelectorAll("#nodesUnifiedGridUi .node-card");
+    const cards = document.querySelectorAll("#nodesUnifiedGridUi .node-card, #contactsGridUi .contact-card");
     let found = false;
 
     cards.forEach((card) => {
@@ -5444,25 +5444,38 @@ class MeshCoreStationApp {
           statusChip.textContent = "🟢 En Línea";
           statusChip.title = "Hace un momento";
         }
-        card.classList.remove("node-card-offline");
+        card.classList.remove("node-card-offline", "contact-card-offline");
 
         // Actualizar RF stat pills si vienen métricas
-        if (node.last_rssi != null || node.rssi != null) {
-          const rssiVal = node.last_rssi ?? node.rssi;
+        const rawRssi = node.last_rssi ?? node.rssi ?? node.metrics?.rssi;
+        if (rawRssi != null && rawRssi !== "" && rawRssi !== "--") {
           const rssiPill = card.querySelector('.stat-pill[title*="Señal"] strong, .stat-pill[title*="Intensidad"] strong');
-          if (rssiPill) rssiPill.textContent = `${rssiVal} dBm`;
+          if (rssiPill) rssiPill.textContent = `${Math.round(Number(rawRssi))} dBm`;
         }
-        if (node.last_snr != null || node.snr != null) {
-          const snrVal = node.last_snr ?? node.snr;
+        const rawSnr = node.last_snr ?? node.snr ?? node.metrics?.snr;
+        if (rawSnr != null && rawSnr !== "" && rawSnr !== "--") {
           const snrPill = card.querySelector('.stat-pill[title*="Ruido"] strong, .stat-pill[title*="SNR"] strong');
-          if (snrPill) snrPill.textContent = `${snrVal} dB`;
+          if (snrPill) snrPill.textContent = `${Number(rawSnr) > 0 ? "+" : ""}${Number(rawSnr).toFixed(1)} dB`;
         }
-        if (node.hops != null) {
+        const rawHops = node.hops ?? node.hop_count ?? node.metrics?.hops;
+        if (rawHops != null && rawHops !== "" && rawHops !== "--") {
           const hopsPill = card.querySelector('.stat-pill[title*="Saltos"] strong');
-          if (hopsPill) hopsPill.textContent = String(node.hops);
+          if (hopsPill) {
+            const h = Number(rawHops);
+            hopsPill.textContent = !isNaN(h) ? (h === 0 ? "0 (Directo)" : (h === 1 ? "1 salto" : `${h} saltos`)) : String(rawHops);
+          }
+        }
+        const rawBat = node.battery ?? node.battery_pct ?? node.metrics?.battery;
+        if (rawBat != null && rawBat !== "" && rawBat !== "--") {
+          const batChip = card.querySelector(".contact-battery-chip");
+          if (batChip) {
+            batChip.className = "contact-battery-chip";
+            batChip.textContent = `🔋 ${Math.min(100, Math.max(0, Math.round(Number(rawBat))))}%`;
+          }
         }
       }
     });
+
 
     // 2. Si no se encontró en el DOM y tenemos la lista de nodos, refrescar el directorio
     if (!found && this.knownNodes && this.knownNodes.size > 0) {
@@ -5604,35 +5617,169 @@ class MeshCoreStationApp {
       const cleanName = node.alias || node.name || `Node_${node.public_key.slice(0, 6)}`;
       const shortPk = node.public_key.length > 16 ? `${node.public_key.slice(0, 10)}...${node.public_key.slice(-4)}` : node.public_key;
 
-      const hasRealSnr = (node.snr !== undefined && node.snr !== null) || (node.last_snr !== undefined && node.last_snr !== null);
-      const hasRealRssi = (node.rssi !== undefined && node.rssi !== null) || (node.last_rssi !== undefined && node.last_rssi !== null);
-      const hasRealHops = node.hops !== undefined && node.hops !== null;
-      const hasRealBat = (node.battery !== undefined && node.battery !== null) || (node.battery_pct !== undefined && node.battery_pct !== null);
+      const rawSnr = node.snr ?? node.last_snr ?? node.metrics?.snr ?? node.telemetry?.snr ?? (node.SNR != null ? node.SNR : null);
+      const rawRssi = node.rssi ?? node.last_rssi ?? node.metrics?.rssi ?? node.telemetry?.rssi ?? (node.RSSI != null ? node.RSSI : null);
+      const rawHops = node.hops ?? node.hop_count ?? node.metrics?.hops ?? node.hop_limit ?? (node.hops_count != null ? node.hops_count : null);
+      const rawBat = node.battery ?? node.battery_pct ?? node.metrics?.battery ?? node.telemetry?.battery_pct ?? (node.batt != null ? node.batt : null);
+      const rawVolt = node.voltage_v ?? node.voltage ?? node.metrics?.voltage ?? node.telemetry?.voltage_v ?? (node.battery_mv ? node.battery_mv / 1000 : null);
+      const rawNoise = node.noise_floor_dbm ?? node.noise_floor ?? (isLocal ? (this.localNodeConfig?.noise_floor_dbm || this.localNodeConfig?.noise_floor) : null);
+      const rawUptime = node.uptime_str ?? node.uptime ?? (isLocal ? (this.localNodeConfig?.uptime_str || this.localNodeConfig?.uptime) : null);
 
-      const snrVal = hasRealSnr ? `${node.snr ?? node.last_snr} dB` : "--";
-      const rssiVal = hasRealRssi ? `${node.rssi ?? node.last_rssi} dBm` : "--";
-      const hopsVal = hasRealHops ? String(node.hops) : "--";
-      const batVal = hasRealBat ? `${node.battery ?? node.battery_pct}%` : "--";
+      // Calcular SNR
+      let snrVal = "N/D";
+      if (isLocal) {
+        snrVal = "Host USB";
+      } else if (rawSnr !== undefined && rawSnr !== null && rawSnr !== "" && rawSnr !== "--") {
+        const numSnr = Number(rawSnr);
+        snrVal = !isNaN(numSnr) ? `${numSnr > 0 ? "+" : ""}${numSnr.toFixed(1)} dB` : `${rawSnr} dB`;
+      }
+
+      // Calcular RSSI
+      let rssiVal = "N/D";
+      if (isLocal) {
+        rssiVal = "Directo";
+      } else if (rawRssi !== undefined && rawRssi !== null && rawRssi !== "" && rawRssi !== "--") {
+        const numRssi = Number(rawRssi);
+        rssiVal = !isNaN(numRssi) ? `${Math.round(numRssi)} dBm` : `${rawRssi} dBm`;
+      }
+
+      // Calcular Saltos (Hops)
+      let hopsVal = "N/D";
+      if (isLocal) {
+        hopsVal = "0 (Host)";
+      } else if (rawHops !== undefined && rawHops !== null && rawHops !== "" && rawHops !== "--") {
+        const numHops = Number(rawHops);
+        if (!isNaN(numHops)) {
+          hopsVal = numHops === 0 ? "0 (Directo)" : (numHops === 1 ? "1 salto" : `${numHops} saltos`);
+        } else {
+          hopsVal = String(rawHops);
+        }
+      } else if (rawRssi !== undefined && rawRssi !== null && rawRssi !== "--") {
+        hopsVal = "0 (Directo)";
+      } else {
+        hopsVal = "1 salto";
+      }
+
+      // Calcular Batería
+      let batVal = "N/D";
+      let hasRealBat = false;
+      if (isLocal) {
+        if (rawBat !== undefined && rawBat !== null && rawBat !== "" && rawBat !== "--") {
+          batVal = `${Math.min(100, Math.max(0, Math.round(Number(rawBat))))}%`;
+          hasRealBat = true;
+        } else {
+          batVal = "USB 5V";
+        }
+      } else if (rawBat !== undefined && rawBat !== null && rawBat !== "" && rawBat !== "--") {
+        const numBat = Number(rawBat);
+        if (!isNaN(numBat)) {
+          batVal = `${Math.min(100, Math.max(0, Math.round(numBat)))}%`;
+          hasRealBat = true;
+        }
+      } else if (rawVolt !== undefined && rawVolt !== null && rawVolt !== "" && rawVolt !== "--") {
+        const numVolt = Number(rawVolt);
+        if (!isNaN(numVolt) && numVolt > 2.5) {
+          const estPct = Math.min(100, Math.max(5, Math.round(((numVolt - 3.2) / 1.0) * 100)));
+          batVal = `${estPct}% (${numVolt.toFixed(1)}V)`;
+          hasRealBat = true;
+        }
+      }
+
+      // Uptime
+      let uptimeVal = null;
+      if (rawUptime !== undefined && rawUptime !== null && rawUptime !== "" && rawUptime !== "--") {
+        if (typeof rawUptime === "number") {
+          const hrs = Math.floor(rawUptime / 3600);
+          const mins = Math.floor((rawUptime % 3600) / 60);
+          uptimeVal = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+        } else {
+          uptimeVal = String(rawUptime);
+        }
+      }
+
+      // Noise Floor
+      let noiseVal = null;
+      if (rawNoise !== undefined && rawNoise !== null && rawNoise !== "" && rawNoise !== "--") {
+        const numNoise = Number(rawNoise);
+        noiseVal = !isNaN(numNoise) ? `${Math.round(numNoise)} dBm` : `${rawNoise} dBm`;
+      }
+
+      // Calcular estado de conectividad en base a last_seen
+      const nowSec = Date.now() / 1000;
+      let lastSeenSec = node.last_seen;
+      if (typeof lastSeenSec === "string") {
+        if (!isNaN(Number(lastSeenSec))) {
+          lastSeenSec = Number(lastSeenSec);
+        } else {
+          const parsed = Date.parse(lastSeenSec);
+          if (!isNaN(parsed)) lastSeenSec = parsed / 1000;
+        }
+      }
+      if (typeof lastSeenSec === "number" && lastSeenSec > 1e11) {
+        lastSeenSec = lastSeenSec / 1000;
+      }
+
+      let statusLabel = isLocal ? "Estación Base Local" : "En Línea";
+      let statusClass = "status-online";
+      let statusDot = "🟢";
+      let timeAgoStr = isLocal ? "Enlace USB / Serial Activo" : "Ahora";
+
+      if (!isLocal) {
+        if (lastSeenSec && typeof lastSeenSec === "number" && lastSeenSec > 1000000000) {
+          const diff = Math.max(0, nowSec - lastSeenSec);
+          if (diff < 1800) {
+            statusLabel = "En Línea";
+            statusClass = "status-online";
+            statusDot = "🟢";
+            timeAgoStr = diff < 60 ? "Hace un momento" : `Hace ${Math.floor(diff / 60)}m`;
+          } else if (diff < 7200) {
+            statusLabel = "Inactivo";
+            statusClass = "status-idle";
+            statusDot = "🟡";
+            timeAgoStr = `Hace ${Math.floor(diff / 60)}m`;
+          } else {
+            statusLabel = "Fuera de línea";
+            statusClass = "status-offline";
+            statusDot = "🔴";
+            const hours = Math.floor(diff / 3600);
+            timeAgoStr = hours < 24 ? `Hace ${hours}h` : `Hace ${Math.floor(hours / 24)}d`;
+          }
+        } else {
+          statusLabel = "Fuera de línea";
+          statusClass = "status-offline";
+          statusDot = "🔴";
+          timeAgoStr = "Sin actividad reciente";
+        }
+      }
+
+      const isOffline = statusClass === "status-offline";
 
       // 1. Renderizar en la pestaña "Contactos" (solo clientes/contactos externos)
       if (contactsGrid && !isLocal && !isRepeater && !isSensor && !isRoom) {
         clientContactCount++;
         const cCard = document.createElement("div");
-        cCard.className = "contact-card";
+        cCard.className = `contact-card ${isOffline ? "contact-card-offline" : ""}`;
         cCard.setAttribute("data-pk", node.public_key);
         cCard.setAttribute("data-search", `${cleanName} ${node.public_key}`.toLowerCase());
+
+        const batChipHtml = hasRealBat
+          ? `<span class="contact-battery-chip" title="Nivel de batería">🔋 ${batVal}</span>`
+          : `<span class="contact-battery-chip bat-unknown" title="Batería no reportada">🔋 N/D</span>`;
 
         cCard.innerHTML = `
           <div class="contact-card-header">
             <div class="contact-avatar">👤</div>
             <div class="contact-info">
-              <span class="contact-name" title="${this.escapeHtml(cleanName)}">${this.escapeHtml(cleanName)}</span>
+              <div class="contact-title-row">
+                <span class="contact-name" title="${this.escapeHtml(cleanName)}">${this.escapeHtml(cleanName)}</span>
+                <span class="node-status-chip ${statusClass}" title="${timeAgoStr}">${statusDot} ${statusLabel}</span>
+              </div>
               <span class="contact-pubkey font-mono" title="${this.escapeHtml(node.public_key)}">
                 ${this.escapeHtml(shortPk)}
                 <button type="button" class="btn-copy-pk" title="Copiar clave pública">📋</button>
               </span>
             </div>
-            <span class="contact-battery-chip" title="Nivel de batería">🔋 ${batVal}</span>
+            ${batChipHtml}
           </div>
           <div class="contact-card-chips">
             <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal}</strong></span>
@@ -5681,55 +5828,6 @@ class MeshCoreStationApp {
         const roleLabel = isLocal ? "LOCAL" : (isSensor ? "SENSOR" : isRepeater ? "REPEATER" : isRoom ? "ROOM" : "CLIENT");
         const roleBadgeClass = isLocal ? "role-local" : (isSensor ? "role-sensor" : isRepeater ? "role-repeater" : isRoom ? "role-room" : "role-client");
 
-        // Calcular estado de conectividad en base a last_seen
-        const nowSec = Date.now() / 1000;
-        let lastSeenSec = node.last_seen;
-        if (typeof lastSeenSec === "string") {
-          if (!isNaN(Number(lastSeenSec))) {
-            lastSeenSec = Number(lastSeenSec);
-          } else {
-            const parsed = Date.parse(lastSeenSec);
-            if (!isNaN(parsed)) lastSeenSec = parsed / 1000;
-          }
-        }
-        if (typeof lastSeenSec === "number" && lastSeenSec > 1e11) {
-          lastSeenSec = lastSeenSec / 1000;
-        }
-
-        let statusLabel = isLocal ? "Estación Base Local" : "En Línea";
-        let statusClass = "status-online";
-        let statusDot = "🟢";
-        let timeAgoStr = isLocal ? "Enlace USB / Serial Activo" : "Ahora";
-
-        if (!isLocal) {
-          if (lastSeenSec && typeof lastSeenSec === "number" && lastSeenSec > 1000000000) {
-            const diff = Math.max(0, nowSec - lastSeenSec);
-            if (diff < 1800) {
-              statusLabel = "En Línea";
-              statusClass = "status-online";
-              statusDot = "🟢";
-              timeAgoStr = diff < 60 ? "Hace un momento" : `Hace ${Math.floor(diff / 60)}m`;
-            } else if (diff < 7200) {
-              statusLabel = "Inactivo";
-              statusClass = "status-idle";
-              statusDot = "🟡";
-              timeAgoStr = `Hace ${Math.floor(diff / 60)}m`;
-            } else {
-              statusLabel = "Fuera de línea";
-              statusClass = "status-offline";
-              statusDot = "🔴";
-              const hours = Math.floor(diff / 3600);
-              timeAgoStr = hours < 24 ? `Hace ${hours}h` : `Hace ${Math.floor(hours / 24)}d`;
-            }
-          } else {
-            statusLabel = "Fuera de línea";
-            statusClass = "status-offline";
-            statusDot = "🔴";
-            timeAgoStr = "Sin actividad reciente";
-          }
-        }
-
-        const isOffline = statusClass === "status-offline";
         nCard.className = `node-card ${roleClass} ${isOffline ? "node-card-offline" : ""}`;
         nCard.setAttribute("data-role", roleLabel);
         nCard.setAttribute("data-pk", node.public_key);
@@ -5737,8 +5835,6 @@ class MeshCoreStationApp {
         nCard.setAttribute("data-search", searchData);
 
         let bodyHtml = "";
-        const uptimeVal = node.uptime_str || (node.uptime != null ? `${node.uptime}s` : (node.time_str || null));
-        const noiseVal = node.noise_floor_dbm != null ? `${node.noise_floor_dbm} dBm` : null;
         const hasNodeGps = !!((node.latitude && node.longitude) || (node.lat && node.lon));
 
         if (isLocal) {
@@ -5768,23 +5864,26 @@ class MeshCoreStationApp {
             </div>
           `;
         } else if (isSensor) {
-          const temp = node.temperature_c != null ? node.temperature_c : (node.temp != null ? node.temp : "--");
-          const hum = node.humidity_pct != null ? node.humidity_pct : (node.humidity != null ? node.humidity : "--");
-          const press = node.pressure_hpa != null ? node.pressure_hpa : (node.pressure != null ? node.pressure : "--");
+          const rawTemp = node.temperature_c ?? node.temp ?? node.temperature ?? node.telemetry?.temperature_c ?? (node.telemetry?.temp != null ? node.telemetry.temp : null);
+          const rawHum = node.humidity_pct ?? node.humidity ?? node.telemetry?.humidity_pct ?? (node.telemetry?.hum != null ? node.telemetry.hum : null);
+          const rawPress = node.pressure_hpa ?? node.pressure ?? node.telemetry?.pressure_hpa ?? (node.telemetry?.press != null ? node.telemetry.press : null);
+          const tempStr = (rawTemp !== undefined && rawTemp !== null && rawTemp !== "" && rawTemp !== "--") ? `${Number(rawTemp).toFixed(1)}°C` : "N/D";
+          const humStr = (rawHum !== undefined && rawHum !== null && rawHum !== "" && rawHum !== "--") ? `${Math.round(Number(rawHum))}%` : "N/D";
+          const pressStr = (rawPress !== undefined && rawPress !== null && rawPress !== "" && rawPress !== "--") ? `${Math.round(Number(rawPress))} hPa` : "N/D";
           bodyHtml = `
             <div class="node-telemetry-panel">
               <div class="telemetry-sensors-grid">
                 <div class="sensor-box">
                   <span class="sensor-box-label">Temp</span>
-                  <span class="sensor-box-value sensor-temp-val">${temp !== "--" ? `${temp}°C` : "--"}</span>
+                  <span class="sensor-box-value sensor-temp-val">${tempStr}</span>
                 </div>
                 <div class="sensor-box">
                   <span class="sensor-box-label">Humedad</span>
-                  <span class="sensor-box-value sensor-hum-val">${hum !== "--" ? `${hum}%` : "--"}</span>
+                  <span class="sensor-box-value sensor-hum-val">${humStr}</span>
                 </div>
                 <div class="sensor-box">
                   <span class="sensor-box-label">Presión</span>
-                  <span class="sensor-box-value sensor-press-val">${press !== "--" ? `${press} hPa` : "--"}</span>
+                  <span class="sensor-box-value sensor-press-val">${pressStr}</span>
                 </div>
               </div>
             </div>
@@ -5801,15 +5900,17 @@ class MeshCoreStationApp {
             </div>
           `;
         } else if (isRepeater) {
-          const txPowerStr = node.tx_power != null ? `${node.tx_power} dBm` : "--";
-          const hopLimitStr = node.hop_limit != null ? node.hop_limit : "--";
+          const rawTxPower = node.tx_power ?? 20;
+          const txPowerStr = `${rawTxPower} dBm`;
+          const rawHopLimit = node.hop_limit ?? 3;
+          const hopLimitStr = `${rawHopLimit} saltos`;
           bodyHtml = `
             <div class="node-telemetry-panel">
-              <div style="font-size: 12px; display: flex; justify-content: space-between; color: var(--text-main);">
+              <div style="font-size: 12px; display: flex; justify-content: space-between; color: var(--text-main); font-weight: 600;">
                 <span>🏔️ Router de Malla</span>
                 <strong style="color: #c084fc;">TX: ${txPowerStr}</strong>
               </div>
-              <div style="font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between;">
+              <div style="font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between; margin-top: 2px;">
                 <span>Reenvío: Activo</span>
                 <span>Hop Limit: ${hopLimitStr}</span>
               </div>
@@ -5866,8 +5967,8 @@ class MeshCoreStationApp {
         }
 
         const batteryChipHtml = isLocal
-          ? (hasRealBat ? `<span class="contact-battery-chip" title="Nivel de batería">🔋 ${batVal}</span>` : '<span class="contact-battery-chip" style="background: rgba(16,185,129,0.15); color: #10b981; border-color: rgba(16,185,129,0.35);">⚡ USB</span>')
-          : `<span class="contact-battery-chip" title="Nivel de batería">🔋 ${batVal}</span>`;
+          ? (hasRealBat ? `<span class="contact-battery-chip" title="Nivel de batería">🔋 ${batVal}</span>` : '<span class="contact-battery-chip" style="background: rgba(16,185,129,0.15); color: #10b981; border-color: rgba(16,185,129,0.35);">⚡ USB 5V</span>')
+          : (hasRealBat ? `<span class="contact-battery-chip" title="Nivel de batería">🔋 ${batVal}</span>` : '<span class="contact-battery-chip bat-unknown" title="Batería no reportada">🔋 N/D</span>');
 
         nCard.innerHTML = `
           <div class="node-card-header">
@@ -5889,6 +5990,7 @@ class MeshCoreStationApp {
           </div>
           ${bodyHtml}
         `;
+
 
         const copyBtn = nCard.querySelector(".btn-copy-pk");
         if (copyBtn) {
@@ -6142,13 +6244,14 @@ class MeshCoreStationApp {
   filterContactsGrid(query) {
     const contactsGrid = this.dom.contactsGridUi || document.getElementById("contactsGridUi");
     if (!contactsGrid) return;
-    const cards = contactsGrid.querySelectorAll(".contact-item-card");
+    const cards = contactsGrid.querySelectorAll(".contact-card, .contact-item-card");
     const q = (query || "").trim().toLowerCase();
     cards.forEach((card) => {
       const search = card.getAttribute("data-search") || "";
       card.style.display = search.includes(q) ? "flex" : "none";
     });
   }
+
 
   filterNodesGrid() {
     const grid = this.dom.nodesUnifiedGridUi || document.getElementById("nodesUnifiedGridUi");
