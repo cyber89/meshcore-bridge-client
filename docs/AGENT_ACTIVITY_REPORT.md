@@ -6,7 +6,28 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Auditoría Multi-Agente y Depuración Integral de Código Duplicado y Deprecado en la Vista Web
+- **Fecha**: 2026-08-22
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Coordinó una auditoría estática automatizada completa entre Agente 4 (Frontend), Agente 5 (Seguridad) y Lead Orchestrator para erradicar selectores CSS duplicados, reglas obsoletas de modales básicos, lookups DOM huérfanos en JavaScript y optimizar la mantenibilidad del código cliente.
+- **Contribuciones de Agentes**:
+  1. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - **`src/web/static/css/app.css`**:
+       - Eliminó definiciones preliminares y redundantes de `.msg-ack-status` (consolidando la versión completa con keyframe `ackPop`).
+       - Eliminó más de 80 líneas de definiciones básicas obsoletas de modales (`.modal-overlay`, `.modal-card`, `.modal-header`, `.modal-body`, `.modal-footer`) que entraban en conflicto con el sistema moderno de glassmorphism (`backdrop-filter: blur(14px)`).
+     - **`src/web/static/js/app.js`**:
+       - Purgó más de 20 lookups DOM huérfanos y obsoletos en `this.dom` heredados de formularios antiguos de repetidor (`remoteRepeaterConfigForm`, `remoteTargetNodeSelect`, `remoteAdminPassword`, etc.) y controles deprecados (`btnAddContact`, `btnRefreshAllNodes`, `nodesGridUi`, `btnRunPreflight`, `snifferFilterOpcode`).
+       - Refactorizó `populateRepeaterDropdown()` eliminando comprobaciones muertas.
+  2. **Agente 5 (Security & Vulnerability Auditor Agent)**:
+     - Verificó que la purga de selectores y elementos del DOM preservó el 100% de los mecanismos de sanitización XSS (`escapeHtml`) y los flujos de autenticación segura del PIN del repetidor (`repeaterGatePassword`).
+  3. **Agente 0 (Lead Orchestrator)**:
+     - Validación estática JavaScript con `node -c src/web/static/js/app.js` (código 0).
+     - Verificación de compilación Python con `python -m compileall src` (código 0).
+     - Sincronización del paquete autónomo `/deploy/` (`python scripts/sync_deploy.py`).
+     - Sincronización con el repositorio remoto GitHub (`origin/main`).
+
 ### Hito: Estandarización Geométrica y Visual Total de Tarjetas (Nodos y Contactos)
+
 - **Fecha**: 2026-08-22
 - **Estado**: ✅ COMPLETADO
 - **Agente Principal (Lead Orchestrator)**: Diseñó e implementó una arquitectura simétrica y uniforme para todas las tarjetas del sistema (Clientes, Repetidores, Sensores, Salas y Estación Base Local). Se resolvieron los truncamientos prematuros de nombres, el salto de línea en badges de estado (`🟢 En Línea`), la asimetría de alturas mediante un panel central de metadatos estandarizado (`44px`), la alineación estricta de la cuadrícula de 3 métricas RF y la fijación inferior de la barra de acciones.

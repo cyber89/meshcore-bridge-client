@@ -759,16 +759,8 @@ body {
   font-size: 10px;
 }
 
-.msg-ack-status {
-  font-weight: 600;
-  font-size: 10.5px;
-}
-
-.msg-ack-status.delivered {
-  color: #34d399;
-}
-
 .chat-composer {
+
   background-color: var(--bg-surface);
   border-top: 1px solid var(--border-subtle);
   padding: 12px 18px;
@@ -3168,80 +3160,7 @@ body {
    Modales y Diálogos Emergentes (Canales, Contactos, QR e Importación)
    ============================================================================== */
 
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background-color: rgba(10, 15, 29, 0.78);
-  backdrop-filter: blur(5px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 16px;
-}
 
-.modal-overlay.hidden {
-  display: none !important;
-}
-
-.modal-card {
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-xl);
-  width: 100%;
-  max-width: 500px;
-  max-height: 90vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.modal-header {
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border-subtle);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.modal-header h3 {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-bright);
-  margin: 0;
-}
-
-.modal-close {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  font-size: 18px;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  transition: color 0.15s ease;
-}
-
-.modal-close:hover {
-  color: var(--text-bright);
-  background: var(--bg-surface-hover);
-}
-
-.modal-body {
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.modal-footer {
-  padding: 14px 20px;
-  border-top: 1px solid var(--border-subtle);
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
 
 .qr-modal-card {
   max-width: 580px;

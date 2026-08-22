@@ -560,8 +560,8 @@ class MeshCoreStationApp {
       clearChatBtn: document.getElementById("clearChatBtn"),
       btnAddChannel: document.getElementById("btnAddChannel"),
       btnImportData: document.getElementById("btnImportData"),
-      btnAddContact: document.getElementById("btnAddContact"),
       btnShareTargetQr: document.getElementById("btnShareTargetQr"),
+
       btnToggleChannelsMobile: document.getElementById("btnToggleChannelsMobile"),
       sidebarChannelList: document.getElementById("sidebarChannelList"),
 
@@ -606,16 +606,13 @@ class MeshCoreStationApp {
       btnToggleSniffer: document.getElementById("btnToggleSniffer"),
       btnClearSniffer: document.getElementById("btnClearSniffer"),
       snifferTableBody: document.getElementById("snifferTableBody"),
-      snifferFilterOpcode: document.getElementById("snifferFilterOpcode"),
       snifferSearch: document.getElementById("snifferSearch"),
       btnPublishHaDiscovery: document.getElementById("btnPublishHaDiscovery"),
       haStatusBadge: document.getElementById("haStatusBadge"),
       haDiscoveredCount: document.getElementById("haDiscoveredCount"),
-      btnRunPreflight: document.getElementById("btnRunPreflight"),
-      nodesGridUi: document.getElementById("nodesGridUi"),
       nodesUnifiedGridUi: document.getElementById("nodesUnifiedGridUi"),
       nodesSearchInput: document.getElementById("nodesSearchInput"),
-      btnRefreshAllNodes: document.getElementById("btnRefreshAllNodes"),
+
       repeaterAdminModal: document.getElementById("repeaterAdminModal"),
       repeaterAdminModalCard: document.getElementById("repeaterAdminModalCard"),
       repeaterAuthGate: document.getElementById("repeaterAuthGate"),
@@ -680,37 +677,11 @@ class MeshCoreStationApp {
       chipDbHealth: document.getElementById("chipDbHealth"),
       chipTxHealth: document.getElementById("chipTxHealth"),
       chipErrorsCount: document.getElementById("chipErrorsCount"),
-      localNodeConfigForm: document.getElementById("localNodeConfigForm"),
-      localNodeName: document.getElementById("localNodeName"),
-      localNodePubkey: document.getElementById("localNodePubkey"),
-      localTxPower: document.getElementById("localTxPower"),
-      localTxPowerVal: document.getElementById("localTxPowerVal"),
-      localFreq: document.getElementById("localFreq"),
-      localSf: document.getElementById("localSf"),
-      localBw: document.getElementById("localBw"),
-      localHopLimit: document.getElementById("localHopLimit"),
       localTelemetryInterval: document.getElementById("localTelemetryInterval"),
-      btnSaveLocalConfig: document.getElementById("btnSaveLocalConfig"),
-      btnRebootLocalNode: document.getElementById("btnRebootLocalNode"),
       localNodeRoleBadge: document.getElementById("localNodeRoleBadge"),
-      remoteRepeaterConfigForm: document.getElementById("remoteRepeaterConfigForm"),
-      btnApplyRemoteConfig: document.getElementById("btnApplyRemoteConfig"),
-      remoteTargetNodeSelect: document.getElementById("remoteTargetNodeSelect"),
-      remoteTargetNodeManual: document.getElementById("remoteTargetNodeManual"),
-      remoteAdminPassword: document.getElementById("remoteAdminPassword"),
-      btnTestRemoteLogin: document.getElementById("btnTestRemoteLogin"),
-      remoteRepeaterName: document.getElementById("remoteRepeaterName"),
-      remoteTxPower: document.getElementById("remoteTxPower"),
-      remoteRepeatMode: document.getElementById("remoteRepeatMode"),
-      remoteHopLimit: document.getElementById("remoteHopLimit"),
-      remoteNewAdminPassword: document.getElementById("remoteNewAdminPassword"),
-      btnApplyRemoteConfig: document.getElementById("btnApplyRemoteConfig"),
-      btnRemoteReboot: document.getElementById("btnRemoteReboot"),
-      btnRemoteClearStats: document.getElementById("btnRemoteClearStats"),
-      btnRemoteDiscover: document.getElementById("btnRemoteDiscover"),
-      remoteResponseOutput: document.getElementById("remoteResponseOutput"),
-      btnClearRemoteResponse: document.getElementById("btnClearRemoteResponse"),
+
       commandPaletteModal: document.getElementById("commandPaletteModal"),
+
       btnCommandPalette: document.getElementById("btnCommandPalette"),
       cmdPaletteInput: document.getElementById("cmdPaletteInput"),
       cmdPaletteResults: document.getElementById("cmdPaletteResults"),
@@ -6345,21 +6316,9 @@ class MeshCoreStationApp {
         this.onRepeaterSelected();
       }
     }
-
-    if (this.dom.remoteTargetNodeSelect) {
-      const currentVal = this.dom.remoteTargetNodeSelect.value;
-      this.dom.remoteTargetNodeSelect.innerHTML = '<option value="">-- Selecciona un repetidor o ingresa clave manual --</option>';
-      for (const node of nodes) {
-        const opt = document.createElement("option");
-        opt.value = node.public_key;
-        const isRep = node.role === "Repeater" || node.type === 2 || (node.name || "").toLowerCase().includes("rep");
-        opt.textContent = `${isRep ? "🏔️ [Repetidor] " : "📻 "}${node.alias || node.name || node.public_key} (${node.public_key.slice(0, 8)})`;
-        this.dom.remoteTargetNodeSelect.appendChild(opt);
-      }
-      if (currentVal) this.dom.remoteTargetNodeSelect.value = currentVal;
-    }
   }
 }
+
 
 document.addEventListener("DOMContentLoaded", () => {
   window.app = new MeshCoreStationApp();
