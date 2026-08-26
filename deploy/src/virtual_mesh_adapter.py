@@ -770,25 +770,25 @@ class VirtualMeshAdapter(BaseSerialAdapter):
         """Bucle continuo que emite telemetría ambiental, posiciones GPS y tramas de sniffer."""
         while self.running:
             try:
-                await asyncio.sleep(5.0)
+                await asyncio.sleep(15.0)
                 self._tick_counter += 1
                 self.heartbeat()
 
                 self._update_node_states()
 
-                # 1. Emitir Telemetría CayenneLPP de Nodo Alpha
-                if self._tick_counter % 1 == 0:
+                # 1. Emitir Telemetría CayenneLPP de Nodo Alpha (cada 30s)
+                if self._tick_counter % 2 == 0:
                     self._emit_cayennelpp_telemetry(self.node_alpha)
 
-                # 2. Emitir Telemetría CayenneLPP de Nodo Bravo
-                if self._tick_counter % 2 == 0:
+                # 2. Emitir Telemetría CayenneLPP de Nodo Bravo (cada 45s)
+                if self._tick_counter % 3 == 0:
                     self._emit_cayennelpp_telemetry(self.node_bravo)
 
-                # 3. Inyectar trama de RF Packet Sniffer (0x88 LOG_DATA)
-                if self._tick_counter % 2 == 0:
+                # 3. Inyectar trama de RF Packet Sniffer (0x88 LOG_DATA cada 30s)
+                if self._tick_counter % 2 == 1:
                     self._emit_sniffer_wire_packet()
 
-                # 4. Anuncios de presencia de red periódicos
+                # 4. Anuncios de presencia de red periódicos (cada 60s)
                 if self._tick_counter % 4 == 0:
                     self._emit_node_presence(self.node_alpha)
                     self._emit_node_presence(self.node_bravo)
@@ -813,7 +813,10 @@ class VirtualMeshAdapter(BaseSerialAdapter):
             "type": "ADVERTISEMENT",
             "event_type": "node_discovered",
             "sender": node["key"],
+            "public_key": node["key"],
             "sender_name": node["alias"],
+            "alias": node["alias"],
+            "name": node["name"],
             "hops": node["hops"],
             "rssi": node["rssi"],
             "snr": node["snr"],
@@ -858,7 +861,10 @@ class VirtualMeshAdapter(BaseSerialAdapter):
             "type": "TELEMETRY_RESPONSE",
             "event_type": "telemetry",
             "sender": node["key"],
+            "public_key": node["key"],
             "sender_name": node["alias"],
+            "alias": node["alias"],
+            "name": node["name"],
             "raw_bytes": raw_bytes,
             "metrics": {
                 "rssi": node["rssi"],

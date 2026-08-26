@@ -6,6 +6,24 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Identificación Exhaustiva de Nodos y Lecturas Ambientales en Logs de Telemetría
+- **Fecha**: 2026-08-25
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Coordinó al Agente 2 (Bridge Architect) y Agente 5 (Seguridad/Auditoría) para resolver la causa raíz de los logs "nodo anónimo" y optimizar la cadencia de telemetría:
+  1. **Agente 2 (Python Bridge Architect Agent)**:
+     - **`src/web/api_router.py` (`record_incoming_event`)**:
+       - Extracción exhaustiva de identificadores de emisor (`sender`, `public_key`, `pubkey`, `pubkey_prefix`, `from_node`, `from`, `source`, `node_id`, `contact.public_key`, `payload.sender`).
+       - Extracción exhaustiva de nombres y alias (`sender_name`, `alias`, `name`, `node_alias`, `node_name`, `contact.name`, `contact.alias`).
+       - Resolución automática contra `NodeRegistry` (`get_by_key_or_prefix` y `find_by_name`), asociando el nombre de contacto conocido y su prefijo de clave pública canónica.
+       - Enriquecimiento del mensaje de log con lecturas ambientales en vivo (`🌡️ Temp`, `💧 Humedad`, `🌀 Presión`, `🔋 Batería`, `⚡ Voltaje`, `📶 SNR`, `📡 RSSI`).
+     - **`src/virtual_mesh_adapter.py`**:
+       - Inclusión explícita de `sender`, `public_key`, `sender_name`, `alias` y `name` en el payload de telemetría.
+       - Ajuste de la cadencia de simulación de telemetría a intervalos realistas de red LoRa (30s / 45s / 60s) para evitar saturación de logs y airtime.
+  2. **Agente 0 (Lead Orchestrator)**:
+     - Verificación de compilación Python (`python -m compileall src` $\to$ código 0).
+     - Sincronización del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
+     - Sincronización con GitHub `origin/main`.
+
 ### Hito: Homogeneización Visual de Ajustes y Repetidores, Consolas Terminal Linux con Historial, Renombrado Ping, Buscador de Contactos y Persistencia de Chat
 - **Fecha**: 2026-08-25
 - **Estado**: ✅ COMPLETADO

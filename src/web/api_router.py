@@ -82,8 +82,63 @@ class WebAPIRouter:
             return
         if ev_type in ("system_log", "metrics_update", "status"):
             return
-        sender_raw = str(data.get("sender", data.get("public_key", data.get("pubkey_prefix", ""))))
-        sender = sender_raw.strip().lower() if is_valid_node_key(sender_raw) else ""
+
+        # Extracción exhaustiva del identificador y nombre del emisor
+        sender_cand = (
+            data.get("sender")
+            or data.get("public_key")
+            or data.get("pubkey")
+            or data.get("pubkey_prefix")
+            or data.get("from_node")
+            or data.get("from")
+            or data.get("source")
+            or data.get("node_id")
+            or data.get("origin")
+            or (data.get("contact", {}) if isinstance(data.get("contact"), dict) else {}).get("public_key")
+            or (data.get("payload", {}) if isinstance(data.get("payload"), dict) else {}).get("sender")
+            or ""
+        )
+        sender_raw = str(sender_cand).strip()
+
+        name_cand = (
+            data.get("sender_name")
+            or data.get("alias")
+            or data.get("name")
+            or data.get("node_alias")
+            or data.get("node_name")
+            or (data.get("contact", {}) if isinstance(data.get("contact"), dict) else {}).get("name")
+            or (data.get("contact", {}) if isinstance(data.get("contact"), dict) else {}).get("alias")
+            or (data.get("payload", {}) if isinstance(data.get("payload"), dict) else {}).get("sender_name")
+            or ""
+        )
+        sender_name = str(name_cand).strip()
+
+        # Resolver información en NodeRegistry
+        node_info = None
+        if hasattr(self.bridge, "node_registry") and self.bridge.node_registry:
+            if sender_raw:
+                node_info = self.bridge.node_registry.get_by_key_or_prefix(sender_raw)
+            if not node_info and sender_name:
+                node_info = self.bridge.node_registry.find_by_name(sender_name)
+
+        if node_info:
+            node_label = node_info.alias or node_info.name or (node_info.public_key[:8] if node_info.public_key else "desconocido")
+            pk_short = node_info.public_key[:8] if node_info.public_key else ""
+            sender_id_str = f"nodo '{node_label}' ({pk_short})" if pk_short and pk_short != node_label else f"nodo '{node_label}'"
+            canonical_sender = node_info.public_key
+        elif sender_name and sender_raw:
+            sender_id_str = f"nodo '{sender_name}' ({sender_raw[:8]})"
+            canonical_sender = sender_raw
+        elif sender_name:
+            sender_id_str = f"nodo '{sender_name}'"
+            canonical_sender = sender_name
+        elif sender_raw:
+            sender_id_str = f"nodo [{sender_raw[:8]}]"
+            canonical_sender = sender_raw
+        else:
+            sender_id_str = "nodo anónimo"
+            canonical_sender = ""
+
         rssi = data.get("rssi", data.get("RSSI"))
         snr = data.get("snr", data.get("SNR"))
 
@@ -93,11 +148,35 @@ class WebAPIRouter:
             self.recent_rf_logs.append(rf_entry)
             self.log_system_event("INFO", f"RF Sniffer interceptó trama de {rf_entry.get('byte_length', 0)} bytes", source="sniffer")
 
-        elif ev_type in ("telemetry", "telemetry_recv") or "temperature_c" in data or "battery_pct" in data or "battery" in data:
+        elif ev_type in ("telemetry", "telemetry_recv", "telemetry_response") or "temperature_c" in data or "battery_pct" in data or "battery" in data or "voltage_v" in data or "temp" in data:
             self.recent_telemetry.append(data)
-            if sender and is_valid_node_key(sender):
-                self.bridge.node_registry.record_packet(PacketRecord(public_key=sender, is_rx=True, rssi=rssi, snr=snr, telemetry=data))
-            self.log_system_event("INFO", f"Telemetría ambiental recibida de nodo {sender or 'anónimo'}", source="telemetry")
+            if canonical_sender and is_valid_node_key(canonical_sender):
+                self.bridge.node_registry.record_packet(PacketRecord(public_key=canonical_sender, is_rx=True, rssi=rssi, snr=snr, telemetry=data))
+
+            # Resumen de lecturas ambientales detalladas
+            readings = []
+            temp = data.get("temperature_c", data.get("temp", data.get("temperature")))
+            if temp is not None:
+                readings.append(f"🌡️ {temp}°C")
+            hum = data.get("humidity_pct", data.get("humidity", data.get("hum")))
+            if hum is not None:
+                readings.append(f"💧 {hum}%")
+            press = data.get("pressure_hpa", data.get("pressure", data.get("press")))
+            if press is not None:
+                readings.append(f"🌀 {press} hPa")
+            bat = data.get("battery_pct", data.get("battery", data.get("bat")))
+            if bat is not None:
+                readings.append(f"🔋 {bat}%")
+            volt = data.get("voltage_v", data.get("voltage"))
+            if volt is not None:
+                readings.append(f"⚡ {volt}V")
+            if snr is not None:
+                readings.append(f"📶 SNR {snr}dB")
+            if rssi is not None:
+                readings.append(f"📡 {rssi}dBm")
+
+            detail_str = f" [{', '.join(readings)}]" if readings else ""
+            self.log_system_event("INFO", f"Telemetría recibida de {sender_id_str}{detail_str}", source="telemetry")
 
         elif ev_type in ("public", "channel", "direct"):
             text_val = str(data.get("text", data.get("message", "")))
@@ -110,9 +189,9 @@ class WebAPIRouter:
             from src.rx_router import is_common_chat_message
             if is_common_chat_message(text_val, txt_type=txt_type, event_type=ev_type):
                 self.recent_messages.append(data)
-                if sender and is_valid_node_key(sender):
-                    self.bridge.node_registry.record_packet(PacketRecord(public_key=sender, is_rx=True, rssi=rssi, snr=snr))
-                self.log_system_event("INFO", f"Mensaje RX [{ev_type}] de {sender or 'anónimo'}: {text_val[:30]}", source="mesh_rx")
+                if canonical_sender and is_valid_node_key(canonical_sender):
+                    self.bridge.node_registry.record_packet(PacketRecord(public_key=canonical_sender, is_rx=True, rssi=rssi, snr=snr))
+                self.log_system_event("INFO", f"Mensaje RX [{ev_type}] de {sender_id_str}: {text_val[:30]}", source="mesh_rx")
 
     async def handle_request(
         self,
