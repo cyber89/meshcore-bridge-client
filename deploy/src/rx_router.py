@@ -522,18 +522,22 @@ class RxEventRouter:
 
         if is_cmd_response:
             admin = getattr(self._ctx, "admin_handler", None)
-            if admin and hasattr(admin, "notify_ping_response"):
-                admin.notify_ping_response(
-                    msg.sender,
-                    {
-                        "rssi": msg.rssi,
-                        "snr_there": msg.snr,
-                        "snr_back": msg.snr,
-                        "text": msg.text,
-                        "channel_idx": msg.channel_idx,
-                        "source": "repeater_response",
-                    },
-                )
+            if admin:
+                cmd_resp_payload = {
+                    "rssi": msg.rssi,
+                    "snr_there": msg.snr,
+                    "snr_back": msg.snr,
+                    "snr": msg.snr,
+                    "text": msg.text,
+                    "message": msg.text,
+                    "channel_idx": msg.channel_idx,
+                    "telemetry": extracted_telem,
+                    "source": "repeater_response",
+                }
+                if hasattr(admin, "notify_command_response"):
+                    admin.notify_command_response(msg.sender, cmd_resp_payload)
+                elif hasattr(admin, "notify_ping_response"):
+                    admin.notify_ping_response(msg.sender, cmd_resp_payload)
 
             # Es una respuesta de comando o telemetría: NO emitir como mensaje de canal de chat
             rep_payload = {
@@ -653,17 +657,21 @@ class RxEventRouter:
 
         if is_cmd_response:
             admin = getattr(self._ctx, "admin_handler", None)
-            if admin and hasattr(admin, "notify_ping_response"):
-                admin.notify_ping_response(
-                    msg.sender,
-                    {
-                        "rssi": msg.rssi,
-                        "snr_there": msg.snr,
-                        "snr_back": msg.snr,
-                        "text": msg.text,
-                        "source": "repeater_response",
-                    },
-                )
+            if admin:
+                cmd_resp_payload = {
+                    "rssi": msg.rssi,
+                    "snr_there": msg.snr,
+                    "snr_back": msg.snr,
+                    "snr": msg.snr,
+                    "text": msg.text,
+                    "message": msg.text,
+                    "telemetry": extracted_telem,
+                    "source": "repeater_response",
+                }
+                if hasattr(admin, "notify_command_response"):
+                    admin.notify_command_response(msg.sender, cmd_resp_payload)
+                elif hasattr(admin, "notify_ping_response"):
+                    admin.notify_ping_response(msg.sender, cmd_resp_payload)
 
             # Es una respuesta de comando o telemetría de repetidor: NO emitir como chat directo de usuario
             rep_payload = {

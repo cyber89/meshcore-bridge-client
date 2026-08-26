@@ -2272,8 +2272,10 @@ class MeshCoreStationApp {
 
   formatRemoteCliResponse(action, resObj) {
     if (!resObj || typeof resObj !== "object") return String(resObj || "✓ Comando ejecutado");
-    if (typeof resObj.message === "string") return `✓ ${resObj.message}`;
-    if (typeof resObj.result === "string") return `✓ ${resObj.result}`;
+    if (typeof resObj.response === "string" && resObj.response) return resObj.response.startsWith("✓") ? resObj.response : `✓ ${resObj.response}`;
+    if (typeof resObj.text === "string" && resObj.text) return `← [RESP] ${resObj.text}`;
+    if (typeof resObj.message === "string" && resObj.message) return `✓ ${resObj.message}`;
+    if (typeof resObj.result === "string" && resObj.result) return `✓ ${resObj.result}`;
     if (Array.isArray(resObj.dispatched_commands) && resObj.dispatched_commands.length > 0) {
       return `✓ Comando transmitido por RF: ${resObj.dispatched_commands.join(", ")}`;
     }
@@ -2284,8 +2286,8 @@ class MeshCoreStationApp {
   }
 
   async executeRepeaterCommand(target, action, params = {}, password = "") {
-    const pwd = password || (this.dom.adminModalPassword ? this.dom.adminModalPassword.value.trim() : "");
-    this.appendTerminalLine(`> Enviando a ${target.slice(0, 8)}: ${action}`, "term-cmd");
+    const pwd = password || this.getRepeaterPassword(target) || "";
+    this.appendTerminalLine(`meshcore@remote:~$ ${action}`, "term-cmd");
     try {
       const res = await fetch("/api/repeater/remote/action", {
         method: "POST",
@@ -2298,6 +2300,9 @@ class MeshCoreStationApp {
         this.appendTerminalLine(respText, "term-success");
       } else {
         this.appendTerminalLine(`✗ Error: ${data.message || data.error}`, "term-error");
+        if (data.message && (data.message.toLowerCase().includes("password") || data.message.toLowerCase().includes("auth") || data.message.toLowerCase().includes("pin"))) {
+          this.handleRepeaterAuthError(target, data.message);
+        }
       }
     } catch (err) {
       this.appendTerminalLine(`✗ Error de red: ${err.message}`, "term-error");
@@ -2774,9 +2779,13 @@ class MeshCoreStationApp {
     } else if (payload.type === "repeater_response" || payload.event_type === "repeater_response") {
       const senderKey = payload.sender || payload.pubkey_prefix || "unknown";
       const rawText = (payload.text || payload.message || "").toLowerCase();
+      const canonSender = (this.resolveCanonicalPubkey(senderKey) || senderKey).toLowerCase();
+      const canonSelected = (this.resolveCanonicalPubkey(this.selectedRepeaterTarget) || this.selectedRepeaterTarget || "").toLowerCase();
       const isRepeaterTarget = Boolean(this.selectedRepeaterTarget && (
-        this.selectedRepeaterTarget === senderKey ||
-        (this.selectedRepeaterTarget.length >= 8 && senderKey.length >= 8 && (this.selectedRepeaterTarget.startsWith(senderKey) || senderKey.startsWith(this.selectedRepeaterTarget)))
+        this.selectedRepeaterTarget.toLowerCase() === senderKey.toLowerCase() ||
+        canonSender === canonSelected ||
+        (canonSelected.length >= 4 && canonSender.length >= 4 && (canonSelected.startsWith(canonSender) || canonSender.startsWith(canonSelected))) ||
+        (this.selectedRepeaterTarget.length >= 4 && senderKey.length >= 4 && (this.selectedRepeaterTarget.toLowerCase().startsWith(senderKey.toLowerCase()) || senderKey.toLowerCase().startsWith(this.selectedRepeaterTarget.toLowerCase())))
       ));
 
       if (payload.telemetry) {
@@ -2795,7 +2804,7 @@ class MeshCoreStationApp {
         }
       }
 
-      if (isRepeaterTarget) {
+      if (isRepeaterTarget || (this.dom.repeaterAdminModal && !this.dom.repeaterAdminModal.classList.contains("hidden"))) {
         if (payload.telemetry?.auth_status === "failed" ||
             rawText.includes("invalid password") ||
             rawText.includes("access denied") ||

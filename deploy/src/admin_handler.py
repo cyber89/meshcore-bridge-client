@@ -37,6 +37,7 @@ class AdminCommandHandler:
     def __init__(self, ctx: AdminContext) -> None:
         self._ctx = ctx
         self._ping_waiters: dict[str, list[asyncio.Future[dict[str, Any]]]] = {}
+        self._cmd_waiters: dict[str, list[asyncio.Future[dict[str, Any]]]] = {}
         self._local_config: dict[str, Any] = {
             "name": getattr(config, "NODE_NAME", "MeshCore_Base_Station"),
             "public_key": "000000000000",
@@ -180,6 +181,32 @@ class AdminCommandHandler:
             )
             if is_match:
                 waiters = self._ping_waiters.pop(k, [])
+                for fut in waiters:
+                    if not fut.done():
+                        fut.set_result(data)
+                        matched = True
+        return matched
+
+    def notify_command_response(self, sender: str, data: dict[str, Any]) -> bool:
+        """Notifica a cualquier corrutina esperando respuesta de comando RF para este nodo."""
+        matched = self.notify_ping_response(sender, data)
+        if not sender or not self._cmd_waiters:
+            return matched
+
+        s_clean = str(sender).strip().lower()
+        tag_clean = str(data.get("tag", "")).strip().lower() if data.get("tag") is not None else ""
+
+        keys_to_check = list(self._cmd_waiters.keys())
+        for k in keys_to_check:
+            k_lower = k.lower()
+            is_match = (
+                k_lower == s_clean
+                or (len(k_lower) >= 4 and s_clean.startswith(k_lower))
+                or (len(s_clean) >= 4 and k_lower.startswith(s_clean))
+                or (bool(tag_clean) and k_lower == tag_clean)
+            )
+            if is_match:
+                waiters = self._cmd_waiters.pop(k, [])
                 for fut in waiters:
                     if not fut.done():
                         fut.set_result(data)
@@ -450,20 +477,52 @@ class AdminCommandHandler:
                 self._ctx.mqtt.publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
                 return res
 
-            # Comandos unitarios (login, reboot, stats-core, advert, etc.)
+            # Comandos unitarios (login, reboot, stats-core, advert, ver, bat, pos, etc.)
             if is_client_only:
                 return {"status": "error", "message": "Los comandos de administración remota son exclusivos para repetidores"}
 
+            norm_target = self._ctx.node_registry.get_canonical_key(str(target_node)) or str(target_node).strip().lower()
+            fut: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
+            waiter_keys = [norm_target, norm_target[:8], norm_target[:4], str(target_node).strip().lower()]
+            if target_info and target_info.get("name"):
+                waiter_keys.append(str(target_info["name"]).lower())
+
+            for wk in waiter_keys:
+                if wk not in self._cmd_waiters:
+                    self._cmd_waiters[wk] = []
+                self._cmd_waiters[wk].append(fut)
+
+            t_start = time.perf_counter()
+
             if action in ("login", "auth"):
                 if not password:
+                    for wk in waiter_keys:
+                        if wk in self._cmd_waiters:
+                            self._cmd_waiters[wk] = [f for f in self._cmd_waiters[wk] if f is not fut]
                     return {"status": "error", "message": "La contraseña de administración no puede estar vacía"}
                 cmd_text = f"login {password}"
-                await self._ctx.execute_tx({"to": str(target_node), "text": f"cmd {cmd_text}", "request_id": req_id})
+                await self._ctx.execute_tx({"to": str(target_node), "text": cmd_text, "request_id": req_id})
+                
+                resp_data: dict[str, Any] = {}
+                try:
+                    resp_data = await asyncio.wait_for(fut, timeout=3.5)
+                except asyncio.TimeoutError:
+                    pass
+                finally:
+                    for wk in waiter_keys:
+                        if wk in self._cmd_waiters:
+                            self._cmd_waiters[wk] = [f for f in self._cmd_waiters[wk] if f is not fut]
+                            if not self._cmd_waiters[wk]:
+                                del self._cmd_waiters[wk]
+
+                resp_text = resp_data.get("text") or resp_data.get("message")
                 res.update({
                     "action": "login",
                     "target_node": str(target_node),
                     "authenticated": True,
-                    "message": f"Comando de autenticación transmitido al repetidor {str(target_node)[:8]}",
+                    "response": resp_text or f"Comando de autenticación transmitido al repetidor {str(target_node)[:8]}",
+                    "text": resp_text,
+                    "message": resp_text or f"Comando de autenticación transmitido al repetidor {str(target_node)[:8]}",
                     "cmd_dispatched": f"login {'*' * len(password)}",
                 })
                 self._ctx.mqtt.publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/status", json.dumps(res), qos=1)
@@ -471,11 +530,45 @@ class AdminCommandHandler:
 
             if password and action != "login":
                 # Enviar login previo si se adjuntó contraseña no vacía
-                await self._ctx.execute_tx({"to": str(target_node), "text": f"cmd login {password}", "request_id": req_id})
+                await self._ctx.execute_tx({"to": str(target_node), "text": f"login {password}", "request_id": req_id})
+                await asyncio.sleep(0.25)
 
             cmd_text = self._ctx.repeater_manager.build_repeater_command_payload(action, admin_data)
-            await self._ctx.execute_tx({"to": str(target_node), "text": f"cmd {cmd_text}", "request_id": req_id})
+            await self._ctx.execute_tx({"to": str(target_node), "text": cmd_text, "request_id": req_id})
+
+            resp_data_cmd: dict[str, Any] = {}
+            try:
+                resp_data_cmd = await asyncio.wait_for(fut, timeout=3.5)
+            except asyncio.TimeoutError:
+                pass
+            finally:
+                for wk in waiter_keys:
+                    if wk in self._cmd_waiters:
+                        self._cmd_waiters[wk] = [f for f in self._cmd_waiters[wk] if f is not fut]
+                        if not self._cmd_waiters[wk]:
+                            del self._cmd_waiters[wk]
+
+            elapsed_rtt = round((time.perf_counter() - t_start) * 1000, 1)
+            resp_text = resp_data_cmd.get("text") or resp_data_cmd.get("message")
+            resp_telem = resp_data_cmd.get("telemetry")
+
             res["cmd_dispatched"] = cmd_text
+            if resp_text:
+                res["response"] = resp_text
+                res["text"] = resp_text
+                res["message"] = resp_text
+            else:
+                res["response"] = f"Comando '{cmd_text}' transmitido por RF a {str(target_node)[:8]}"
+                res["message"] = f"Comando '{cmd_text}' transmitido por RF a {str(target_node)[:8]}"
+
+            if resp_telem:
+                res["telemetry"] = resp_telem
+            if resp_data_cmd.get("rssi") is not None:
+                res["rssi"] = resp_data_cmd.get("rssi")
+            if resp_data_cmd.get("snr") is not None:
+                res["snr"] = resp_data_cmd.get("snr")
+            res["rtt_ms"] = elapsed_rtt
+
             self._ctx.mqtt.publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/status", json.dumps(res), qos=1)
             return res
 
