@@ -156,26 +156,34 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                         await self.mc.connect()
             else:
                 logging.info(f"Iniciando conexión MeshCore SDK en puerto {self.port} ({self.baud_rate} baud)...")
-                # Intentar conexión con retardo de arranque seguro cx_dly=1.5s para transceptores USB-CDC / ESP32-S3
-                if hasattr(MeshCore, "create_serial"):
-                    try:
-                        self.mc = await MeshCore.create_serial(self.port, self.baud_rate, auto_reconnect=True, cx_dly=1.5)
-                    except TypeError:
-                        self.mc = await MeshCore.create_serial(self.port, self.baud_rate, auto_reconnect=True)
-                    
-                    if self.mc is None:
-                        logging.info("Reintentando inicialización de sesión serie con transceptor...")
-                        await asyncio.sleep(1.0)
-                        try:
-                            self.mc = await MeshCore.create_serial(self.port, self.baud_rate, auto_reconnect=True, cx_dly=2.0)
-                        except TypeError:
-                            self.mc = await MeshCore.create_serial(self.port, self.baud_rate, auto_reconnect=True)
-                else:
+                # Conexión resiliente: Dar tiempo de estabilización (2.0s) al microcontrolador ESP32-S3 tras la apertura del puerto USB
+                try:
                     from meshcore.serial_cx import SerialConnection
-                    cx = SerialConnection(self.port, self.baud_rate, cx_dly=1.5)
-                    self.mc = MeshCore(cx, auto_reconnect=True)
-                    if hasattr(self.mc, "connect"):
-                        await self.mc.connect()
+                    cx = SerialConnection(self.port, self.baud_rate, cx_dly=2.0)
+                    mc = MeshCore(cx, auto_reconnect=True)
+                    await mc.dispatcher.start()
+                    res_cx = await mc.connection_manager.connect()
+                    if res_cx is not None:
+                        # Esperar a que el firmware termine su secuencia de arranque
+                        await asyncio.sleep(2.0)
+                        res_app = await mc.commands.send_appstart()
+                        if res_app and getattr(res_app, "type", None) != EventType.ERROR:
+                            self.mc = mc
+                        else:
+                            logging.debug("Reintentando send_appstart tras segundo pulso de sincronización...")
+                            await asyncio.sleep(0.5)
+                            res_app2 = await mc.commands.send_appstart()
+                            if res_app2 and getattr(res_app2, "type", None) != EventType.ERROR:
+                                self.mc = mc
+                            else:
+                                await mc.disconnect()
+                except Exception as ex_init:
+                    logging.debug(f"Apertura directa con retardo post-boot falló: {ex_init}, probando fallback create_serial...")
+                    if hasattr(MeshCore, "create_serial"):
+                        try:
+                            self.mc = await MeshCore.create_serial(self.port, self.baud_rate, auto_reconnect=True)
+                        except Exception:
+                            self.mc = None
 
             if self.mc is None:
                 logging.error(f"No se pudo establecer conexión con el transceptor MeshCore en {self.port}.")
