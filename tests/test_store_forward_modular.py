@@ -14,24 +14,24 @@ class TestPacketDeduplicator(unittest.TestCase):
 
     def test_deduplication_basic(self) -> None:
         # Primer paquete no debe ser duplicado
-        self.assertFalse(self.dedup.is_duplicate("pkt_001"))
+        self.assertFalse(self.dedup.is_duplicate_sync("pkt_001"))
         # El mismo paquete inmediatamente debe ser detectado como duplicado
-        self.assertTrue(self.dedup.is_duplicate("pkt_001"))
+        self.assertTrue(self.dedup.is_duplicate_sync("pkt_001"))
 
     def test_deduplication_ttl_expiration(self) -> None:
-        self.assertFalse(self.dedup.is_duplicate("pkt_expiring"))
-        self.assertTrue(self.dedup.is_duplicate("pkt_expiring"))
+        self.assertFalse(self.dedup.is_duplicate_sync("pkt_expiring"))
+        self.assertTrue(self.dedup.is_duplicate_sync("pkt_expiring"))
 
         # Esperar a que expire la ventana TTL
         time.sleep(1.1)
 
         # Tras expirar el TTL, debe aceptarse nuevamente
-        self.assertFalse(self.dedup.is_duplicate("pkt_expiring"))
+        self.assertFalse(self.dedup.is_duplicate_sync("pkt_expiring"))
 
     def test_deduplication_capacity_eviction(self) -> None:
         # Llenar más allá del límite de historial (10)
         for i in range(15):
-            self.assertFalse(self.dedup.is_duplicate(f"pkt_batch_{i}"))
+            self.assertFalse(self.dedup.is_duplicate_sync(f"pkt_batch_{i}"))
 
         self.assertLessEqual(len(self.dedup), 10)
 

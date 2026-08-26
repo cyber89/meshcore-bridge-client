@@ -23,9 +23,9 @@ class TestStoreAndForward(unittest.TestCase):
     def test_ram_deduplication_basic(self):
         """Verifica que el deduplicador en RAM identifique y descarte duplicados."""
         dedup = PacketDeduplicator(ttl_seconds=2.0, max_history=100)
-        self.assertFalse(dedup.is_duplicate("hash_msg_1"))
-        self.assertTrue(dedup.is_duplicate("hash_msg_1"))
-        self.assertFalse(dedup.is_duplicate("hash_msg_2"))
+        self.assertFalse(dedup.is_duplicate_sync("hash_msg_1"))
+        self.assertTrue(dedup.is_duplicate_sync("hash_msg_1"))
+        self.assertFalse(dedup.is_duplicate_sync("hash_msg_2"))
 
     def test_bridge_initialization_stateless(self):
         """Verifica que el bridge inicialice correctamente en memoria sin crear base de datos en disco."""

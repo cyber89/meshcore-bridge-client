@@ -1,4 +1,4 @@
-﻿"""
+"""
 In-Memory Packet Deduplication Layer for MeshCore Bridge.
 Filtro de deduplicación de alta velocidad en memoria RAM con ventana deslizante.
 """
@@ -13,10 +13,19 @@ import time
 class PacketDeduplicator:
     """Filtro de deduplicación de alta velocidad en memoria RAM con ventana deslizante."""
 
-    def __init__(self, window_seconds: float = 60.0, max_entries: int = 5000) -> None:
-        self.window_seconds = window_seconds
-        self.max_entries = max_entries
+    def __init__(
+        self,
+        window_seconds: float = 60.0,
+        max_entries: int = 5000,
+        ttl_seconds: float | None = None,
+        max_history: int | None = None,
+    ) -> None:
+        self.window_seconds = ttl_seconds if ttl_seconds is not None else window_seconds
+        self.max_entries = max_history if max_history is not None else max_entries
         self._cache: collections.OrderedDict[str, float] = collections.OrderedDict()
+
+    def __len__(self) -> int:
+        return len(self._cache)
 
     async def is_duplicate(self, key: str) -> bool:
         """Verifica si la clave ha sido vista recientemente dentro de la ventana de tiempo."""

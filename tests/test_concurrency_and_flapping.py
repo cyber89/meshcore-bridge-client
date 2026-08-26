@@ -39,7 +39,7 @@ class TestConcurrencyAndFlapping(unittest.TestCase):
 
         def worker(thread_idx):
             for i in range(ops_per_thread):
-                dedup.is_duplicate(f"pkt_{thread_idx}_{i}")
+                dedup.is_duplicate_sync(f"pkt_{thread_idx}_{i}")
 
         threads = []
         for t in range(num_threads):

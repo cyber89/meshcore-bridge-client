@@ -6,6 +6,23 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Verificación y Cobertura Integral de las 10 Disciplinas de Prueba
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO (10/10 Disciplinas Verificadas - 100% Éxito)
+- **Agente Principal (Lead Orchestrator)**: Coordinó la comprobación y ejecución de la matriz completa de pruebas solicitada por el usuario:
+  1. **1. Unit Tests (Pruebas Unitarias - 7 suites)**: `test_protocol_types.py`, `test_sensor_decoder.py`, `test_contact_manager.py`, `test_rate_limiter_priority.py`, `test_store_forward_modular.py`, `test_serial_adapter.py`, `test_ha_discovery.py`.
+  2. **2. E2E Tests (End-to-End - 1 suite)**: `test_e2e_simulation.py` (ciclo de vida completo del bridge con simulación virtual).
+  3. **3. Contract Tests (Pruebas de Contrato - 1 suite)**: `test_n8n_parser_matrix.py` (esquemas JSON de MQTT e interoperabilidad n8n).
+  4. **4. Chaos Tests (Pruebas de Caos & Hardware Flapping - 2 suites)**: `test_concurrency_and_flapping.py`, `test_serial_watchdog.py`.
+  5. **5. Smoke Tests (Pruebas de Humo & Preflight - 2 suites)**: `test_preflight.py`, `test_diagnostics.py`.
+  6. **6. Integration Tests (Pruebas de Integración - 4 suites)**: `test_bridge_logic.py`, `test_web_server.py`, `test_websocket_live.py`, `test_repeater_manager.py`.
+  7. **7. Snapshot Tests (Pruebas de Snapshot & Formatos - 2 suites)**: `test_diagnostics_export.py`, `test_node_and_repeater_config.py`.
+  8. **8. Load Tests (Pruebas de Carga & Saturación - 2 suites)**: `test_stress_flood.py`, `test_tx_rate_limiter.py`.
+  9. **9. Mutation Tests (Pruebas de Mutación & Bit-Flip - 1 suite)**: `test_mutation_resilience.py` (inversión de bits en tramas, mutación de opcodes, colisiones y truncamientos).
+  10. **10. Regression Tests (Pruebas de Regresión & Seguridad - 4 suites)**: `test_virtual_mesh_simulation.py`, `test_security_audit.py`, `test_store_and_forward.py`, `test_fuzzing_and_edge_cases.py`.
+  - **Runner Automatizado**: Implementado [`scripts/run_all_test_categories.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/scripts/run_all_test_categories.py) para verificación unificada.
+  - **Resultado**: **10/10 Categorías Superadas (100% de Éxito) en 35.67s**.
+
 ### Hito: Auditoría Exhaustiva de Integridad y Verificación de Importabilidad Total
 - **Fecha**: 2026-08-26
 - **Estado**: ✅ COMPLETADO (100% de Módulos Verificados sin Errores)

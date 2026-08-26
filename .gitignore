@@ -7,7 +7,7 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-.coverage
+.coverage*
 htmlcov/
 
 # Environment and secrets
@@ -21,6 +21,10 @@ htmlcov/
 *.sqlite
 *.sqlite3
 meshcore_buffer.db*
+
+# Logs
+logs/
+*.log
 
 # Virtual environments
 venv/

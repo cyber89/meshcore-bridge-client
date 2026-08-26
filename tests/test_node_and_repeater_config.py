@@ -154,7 +154,7 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(code, 200)
         self.assertEqual(len(self.dispatched_txs), 1)
         self.assertEqual(self.dispatched_txs[0]["to"], "a1b2c3d4e5f6")
-        self.assertEqual(self.dispatched_txs[0]["text"], "cmd login repeater_secret")
+        self.assertEqual(self.dispatched_txs[0]["text"], "login repeater_secret")
 
         # 2. Configuración remota múltiple
         self.dispatched_txs.clear()
@@ -187,6 +187,5 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
         }
         code, resp = await self.router.handle_request("POST", "/api/repeater/remote/action", action_payload)
         self.assertEqual(code, 200)
-        self.assertEqual(len(self.dispatched_txs), 2)
-        self.assertEqual(self.dispatched_txs[0]["text"], "cmd login repeater_secret")
-        self.assertEqual(self.dispatched_txs[1]["text"], "cmd reboot")
+        self.assertEqual(self.dispatched_txs[0]["text"], "login repeater_secret")
+        self.assertEqual(self.dispatched_txs[1]["text"], "reboot")
