@@ -3635,7 +3635,7 @@ class MeshCoreStationApp {
 
       // Badges de Puerto Serie y Rol
       const roleBadge = document.getElementById("localNodeRoleBadge");
-      if (roleBadge) roleBadge.textContent = cfg.role || "Estación Base";
+      if (roleBadge) roleBadge.textContent = cfg.role || "Base Station";
 
       const portBadge = document.getElementById("localNodeSerialPortBadge");
       if (portBadge && (cfg.serial_port || cfg.port)) {
