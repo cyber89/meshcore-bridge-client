@@ -2264,6 +2264,55 @@ class MeshCoreStationApp {
     this.dom.repeaterTerminalOutput.scrollTop = this.dom.repeaterTerminalOutput.scrollHeight;
   }
 
+  formatCliResponseObject(obj) {
+    if (!obj || typeof obj !== "object") return String(obj || "✓ OK");
+    if (obj.message && typeof obj.message === "string") return obj.message;
+    if (obj.result && typeof obj.result === "string") return obj.result;
+    if (obj.response && typeof obj.response === "string") return obj.response;
+
+    const parts = [];
+    if (obj.battery_pct != null || obj.pct != null) {
+      parts.push(`🔋 Batería: ${obj.battery_pct ?? obj.pct}%`);
+    }
+    if (obj.battery_mv != null || obj.mv != null) {
+      parts.push(`⚡ Voltaje: ${((obj.battery_mv ?? obj.mv) / 1000).toFixed(2)}V`);
+    }
+    if (obj.radio_freq != null || obj.frequency != null || obj.freq != null) {
+      parts.push(`📻 Frecuencia: ${obj.radio_freq ?? obj.frequency ?? obj.freq} MHz`);
+    }
+    if (obj.tx_power != null || obj.power != null) {
+      parts.push(`📡 Potencia TX: ${obj.tx_power ?? obj.power} dBm`);
+    }
+    if (obj.snr != null || obj.last_snr != null) {
+      parts.push(`📶 SNR: ${obj.snr ?? obj.last_snr} dB`);
+    }
+    if (obj.rssi != null || obj.last_rssi != null) {
+      parts.push(`📶 RSSI: ${obj.rssi ?? obj.last_rssi} dBm`);
+    }
+    if (obj.uptime != null || obj.uptime_str != null) {
+      parts.push(`⏱️ Uptime: ${obj.uptime_str ?? obj.uptime + 's'}`);
+    }
+    if (parts.length > 0) return parts.join(" | ");
+
+    if (obj.status === "ok" || obj.status === "OK") {
+      return "✓ Operación completada exitosamente";
+    }
+    return JSON.stringify(obj);
+  }
+
+  formatRemoteCliResponse(action, resObj) {
+    if (!resObj || typeof resObj !== "object") return String(resObj || "✓ Comando ejecutado");
+    if (typeof resObj.message === "string") return `✓ ${resObj.message}`;
+    if (typeof resObj.result === "string") return `✓ ${resObj.result}`;
+    if (Array.isArray(resObj.dispatched_commands) && resObj.dispatched_commands.length > 0) {
+      return `✓ Comando transmitido por RF: ${resObj.dispatched_commands.join(", ")}`;
+    }
+    if (resObj.cmd_dispatched) {
+      return `✓ Comando transmitido por RF: ${resObj.cmd_dispatched}`;
+    }
+    return this.formatCliResponseObject(resObj);
+  }
+
   async executeRepeaterCommand(target, action, params = {}, password = "") {
     const pwd = password || (this.dom.adminModalPassword ? this.dom.adminModalPassword.value.trim() : "");
     this.appendTerminalLine(`> Enviando a ${target.slice(0, 8)}: ${action}`, "term-cmd");
@@ -2275,7 +2324,8 @@ class MeshCoreStationApp {
       });
       const data = await res.json();
       if (data.status === "ok") {
-        this.appendTerminalLine(`✓ Respuesta: ${JSON.stringify(data.data || data.result || data)}`, "term-success");
+        const respText = this.formatRemoteCliResponse(action, data.data || data.result || data);
+        this.appendTerminalLine(respText, "term-success");
       } else {
         this.appendTerminalLine(`✗ Error: ${data.message || data.error}`, "term-error");
       }
@@ -3751,8 +3801,21 @@ class MeshCoreStationApp {
       });
       const data = await res.json();
       if (data.status === "ok") {
-        const resultStr = typeof data.result === "object" ? JSON.stringify(data.result, null, 2) : String(data.result || "OK");
+        let resultStr = "";
+        if (typeof data.result === "string") {
+          resultStr = data.result;
+        } else if (data.result && typeof data.result === "object") {
+          resultStr = this.formatCliResponseObject(data.result);
+        } else {
+          resultStr = "✓ OK";
+        }
         appendTerm(`< ${resultStr}`);
+
+        // Si fue comando de cambio o telemetría, refrescar datos locales
+        const cmdLower = cmdText.toLowerCase().trim();
+        if (cmdLower.startsWith("set") || cmdLower.includes("clock") || cmdLower.includes("stats") || cmdLower.includes("bat") || cmdLower.includes("radio")) {
+          this.fetchLocalNodeConfig();
+        }
       } else {
         appendTerm(`! ERROR: ${data.message || data.error || "Fallo en comando"}`);
       }
@@ -4772,13 +4835,9 @@ class MeshCoreStationApp {
 
       this.tacticalRadarGroup = L.layerGroup();
 
-      // Detección automática de desconexión / fallo en teselas online
-      this.tileLayers.cartodb.on("tileerror", () => {
-        if (!this._offlineMapFallbackTriggered) {
-          this._offlineMapFallbackTriggered = true;
-          this.showToast("📡 Mapas online no disponibles: Conmutando a modo Radar Táctico / Grícula LoRa", "info", 5000);
-          this.setMapLayer("tactical_radar");
-        }
+      // Monitor de teselas online
+      this.tileLayers.cartodb.on("tileerror", (e) => {
+        console.debug("CartoDB tile load notice:", e);
       });
 
       // Configurar botones de control de capas

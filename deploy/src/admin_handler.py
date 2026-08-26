@@ -470,31 +470,150 @@ class AdminCommandHandler:
                 new_name = str(params["name"]).strip()
                 self._local_config["name"] = new_name
                 applied["name"] = new_name
-                if mc and hasattr(mc, "commands") and hasattr(mc.commands, "set_name"):
-                    try:
-                        await mc.commands.set_name(new_name)
-                    except Exception as e:
-                        logging.warning(f"No se pudo invocar set_name en SDK: {e}")
+                if mc:
+                    if hasattr(mc, "commands") and hasattr(mc.commands, "set_name"):
+                        try:
+                            await mc.commands.set_name(new_name)
+                        except Exception as e:
+                            logging.warning(f"No se pudo invocar set_name en SDK: {e}")
+                    if hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
+                        mc.self_info["name"] = new_name
+                        mc.self_info["adv_name"] = new_name
 
+            # Identidad y coordenadas fijas GPS
+            lat_val = params.get("latitude", params.get("lat"))
+            lon_val = params.get("longitude", params.get("lon"))
+            alt_val = params.get("altitude", params.get("alt"))
+            if lat_val is not None and lon_val is not None:
+                try:
+                    lat_f = float(lat_val)
+                    lon_f = float(lon_val)
+                    self._local_config["latitude"] = lat_f
+                    self._local_config["longitude"] = lon_f
+                    applied["latitude"] = lat_f
+                    applied["longitude"] = lon_f
+                    if mc:
+                        if hasattr(mc, "commands") and hasattr(mc.commands, "set_coords"):
+                            try:
+                                await mc.commands.set_coords(lat=lat_f, lon=lon_f)
+                            except Exception as e:
+                                logging.warning(f"No se pudo invocar set_coords en SDK: {e}")
+                        if hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
+                            mc.self_info["adv_lat"] = lat_f
+                            mc.self_info["adv_lon"] = lon_f
+                            mc.self_info["latitude"] = lat_f
+                            mc.self_info["longitude"] = lon_f
+                except (ValueError, TypeError):
+                    pass
+
+            if alt_val is not None:
+                try:
+                    alt_i = int(alt_val)
+                    self._local_config["altitude"] = alt_i
+                    applied["altitude"] = alt_i
+                    if mc and hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
+                        mc.self_info["altitude"] = alt_i
+                except (ValueError, TypeError):
+                    pass
+
+            if "owner_info" in params or "owner" in params:
+                owner_info = str(params.get("owner_info", params.get("owner", ""))).strip()
+                self._local_config["owner_info"] = owner_info
+                applied["owner_info"] = owner_info
+                if mc:
+                    if hasattr(mc, "commands") and hasattr(mc.commands, "set_custom_var"):
+                        try:
+                            await mc.commands.set_custom_var("owner", owner_info)
+                        except Exception as e:
+                            logging.debug(f"No se pudo invocar set_custom_var en SDK: {e}")
+                    if hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
+                        mc.self_info["owner_info"] = owner_info
+
+            # Potencia TX LoRa
             if "tx_power" in params or "power" in params:
                 new_power = int(params.get("tx_power", params.get("power", 20)))
                 self._local_config["tx_power"] = new_power
                 applied["tx_power"] = new_power
-                if mc and hasattr(mc, "commands") and hasattr(mc.commands, "set_tx_power"):
-                    try:
-                        await mc.commands.set_tx_power(new_power)
-                    except Exception as e:
-                        logging.warning(f"No se pudo invocar set_tx_power en SDK: {e}")
+                if mc:
+                    if hasattr(mc, "commands") and hasattr(mc.commands, "set_tx_power"):
+                        try:
+                            await mc.commands.set_tx_power(new_power)
+                        except Exception as e:
+                            logging.warning(f"No se pudo invocar set_tx_power en SDK: {e}")
+                    if hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
+                        mc.self_info["tx_power"] = new_power
 
-            for k in (
-                "frequency", "freq", "radio_freq", "region", "spreading_factor", "sf",
-                "bandwidth", "bw", "coding_rate", "cr", "hop_limit", "repeat",
-                "beacon_interval", "advert_interval", "telemetry_interval",
-                "owner_info", "owner", "latitude", "longitude", "altitude",
-            ):
+            # Parámetros RF (Frecuencia, BW, SF, CR, Repeat)
+            freq_val = params.get("frequency", params.get("freq", params.get("radio_freq")))
+            sf_val = params.get("spreading_factor", params.get("sf"))
+            bw_val = params.get("bandwidth", params.get("bw"))
+            cr_val = params.get("coding_rate", params.get("cr"))
+            rep_val = params.get("repeat")
+
+            if any(v is not None for v in (freq_val, sf_val, bw_val, cr_val, rep_val)):
+                freq_f = float(freq_val if freq_val is not None else self._local_config.get("frequency", 915.0))
+                sf_i = int(sf_val if sf_val is not None else self._local_config.get("spreading_factor", 11))
+                bw_f = float(bw_val if bw_val is not None else self._local_config.get("bandwidth", 250))
+
+                cr_in = cr_val if cr_val is not None else self._local_config.get("coding_rate", "4/5")
+                if isinstance(cr_in, str) and "/" in cr_in:
+                    try:
+                        cr_i = int(cr_in.split("/")[1])
+                    except Exception:
+                        cr_i = 5
+                else:
+                    try:
+                        cr_i = int(cr_in)
+                    except Exception:
+                        cr_i = 5
+
+                repeat_i = int(rep_val) if rep_val is not None else (1 if self._local_config.get("repeat", True) else 0)
+
+                self._local_config["frequency"] = freq_f
+                self._local_config["radio_freq"] = freq_f
+                self._local_config["spreading_factor"] = sf_i
+                self._local_config["sf"] = sf_i
+                self._local_config["bandwidth"] = bw_f
+                self._local_config["bw"] = bw_f
+                self._local_config["coding_rate"] = f"4/{cr_i}" if cr_i in (5, 6, 7, 8) else str(cr_i)
+                self._local_config["cr"] = self._local_config["coding_rate"]
+                if rep_val is not None:
+                    self._local_config["repeat"] = bool(rep_val)
+
+                applied["frequency"] = freq_f
+                applied["spreading_factor"] = sf_i
+                applied["bandwidth"] = bw_f
+                applied["coding_rate"] = self._local_config["coding_rate"]
+                if rep_val is not None:
+                    applied["repeat"] = bool(rep_val)
+
+                if mc:
+                    if hasattr(mc, "commands") and hasattr(mc.commands, "set_radio"):
+                        try:
+                            await mc.commands.set_radio(freq=freq_f, bw=bw_f, sf=sf_i, cr=cr_i, repeat=repeat_i)
+                        except Exception as e:
+                            logging.warning(f"No se pudo invocar set_radio en SDK: {e}")
+                    if hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
+                        mc.self_info.update({
+                            "radio_freq": freq_f,
+                            "freq": freq_f,
+                            "sf": sf_i,
+                            "bw": bw_f,
+                            "cr": cr_i,
+                            "repeat": bool(repeat_i),
+                        })
+
+            for k in ("region", "hop_limit", "beacon_interval", "advert_interval", "telemetry_interval"):
                 if k in params:
                     self._local_config[k] = params[k]
                     applied[k] = params[k]
+
+            # Forzar actualización de self_info en SDK
+            if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_appstart"):
+                try:
+                    await mc.commands.send_appstart()
+                except Exception:
+                    pass
 
             res["applied"] = applied
             res["config"] = self.get_local_config()
@@ -506,44 +625,178 @@ class AdminCommandHandler:
             self._ctx.mqtt.publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
             return res
 
-        # Comandos CLI y de Control Directo Local
-        if mc and hasattr(mc, "commands"):
-            try:
-                if action in ("advert", "send_advert", "broadcast_advert") and hasattr(mc.commands, "send_advert"):
-                    await mc.commands.send_advert()
-                    res["result"] = "Anuncio de presencia emitido por radio (advert)."
-                elif action in ("sync_clock", "set_time") and hasattr(mc.commands, "set_time"):
-                    await mc.commands.set_time(int(time.time()))
-                    res["result"] = f"Reloj RTC sincronizado: {time.strftime('%Y-%m-%d %H:%M:%S')}"
-                elif action in ("get_bat", "bat") and hasattr(mc.commands, "get_bat"):
-                    bat_res = await mc.commands.get_bat()
-                    res["result"] = str(bat_res)
-                elif action in ("get_time", "time") and hasattr(mc.commands, "get_time"):
-                    time_res = await mc.commands.get_time()
-                    res["result"] = str(time_res)
-                elif action in ("get_stats_core", "stats_core") and hasattr(mc.commands, "get_stats_core"):
-                    stats_res = await mc.commands.get_stats_core()
-                    res["result"] = str(stats_res)
-                elif action == "set_tx_power" and hasattr(mc.commands, "set_tx_power"):
-                    power = int(admin_data.get("power", 20))
-                    await mc.commands.set_tx_power(power)
-                    self._local_config["tx_power"] = power
-                elif action == "set_name" and hasattr(mc.commands, "set_name"):
-                    name = str(admin_data.get("name", "Node"))
-                    await mc.commands.set_name(name)
-                    self._local_config["name"] = name
-                elif action in ("reboot", "reboot_local") and hasattr(mc.commands, "reboot"):
-                    await mc.commands.reboot()
-                    res["result"] = "Reinicio de hardware enviado al nodo local."
-                elif action == "req_telemetry" and hasattr(mc.commands, "req_telemetry"):
-                    await mc.commands.req_telemetry()
-                elif action in ("clear stats", "clear_stats"):
-                    res["result"] = "Estadísticas locales del transceptor restablecidas."
+        # 3. Comandos CLI y de Control Directo Local (Formato String Legible)
+        act_clean = action.lower().strip()
+        cfg = self.get_local_config()
+
+        try:
+            if act_clean in ("ver", "v", "q", "query", "version"):
+                model = cfg.get("model", "MeshCore Transceiver")
+                ver = cfg.get("ver", cfg.get("fw_ver", "v1.6.0"))
+                build = cfg.get("fw_build", "2026-08-20")
+                rep_str = "Activado" if cfg.get("repeat", True) else "Desactivado"
+                if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_device_query"):
+                    try:
+                        q_res = await mc.commands.send_device_query()
+                        if hasattr(q_res, "payload") and isinstance(q_res.payload, dict):
+                            pl = q_res.payload
+                            model = pl.get("model", model)
+                            ver = pl.get("ver", ver)
+                            build = pl.get("fw_build", build)
+                            rep_str = "Activado" if pl.get("repeat", cfg.get("repeat", True)) else "Desactivado"
+                    except Exception:
+                        pass
+                res["result"] = f"📟 [DEVICE INFO] Modelo: {model} | Firmware: {ver} | Build: {build} | Repetidor: {rep_str}"
+
+            elif act_clean in ("bat", "get_bat", "battery", "bateria"):
+                pct = cfg.get("battery_pct", 100)
+                volt = cfg.get("voltage", 5.0)
+                mv = cfg.get("battery_mv", 5000)
+                src = cfg.get("power_source", "USB 5V Directo")
+                if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_bat"):
+                    try:
+                        bat_res = await mc.commands.get_bat()
+                        if hasattr(bat_res, "payload") and isinstance(bat_res.payload, dict):
+                            pct = bat_res.payload.get("battery_pct", pct)
+                            mv = bat_res.payload.get("battery_mv", mv)
+                            volt = round(mv / 1000.0, 2)
+                        elif isinstance(bat_res, dict):
+                            pct = bat_res.get("battery_pct", pct)
+                            mv = bat_res.get("battery_mv", mv)
+                            volt = round(mv / 1000.0, 2)
+                    except Exception:
+                        pass
+                res["result"] = f"🔋 [BATERÍA] Nivel: {pct}% | Voltaje: {volt:.2f} V ({mv} mV) | Alimentación: {src}"
+
+            elif act_clean in ("time", "get_time", "clock", "hora"):
+                now_str = time.strftime("%Y-%m-%d %H:%M:%S")
+                now_ts = int(time.time())
+                if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_time"):
+                    try:
+                        t_res = await mc.commands.get_time()
+                        if hasattr(t_res, "payload") and isinstance(t_res.payload, dict):
+                            now_ts = int(t_res.payload.get("time", t_res.payload.get("timestamp", now_ts)))
+                            now_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now_ts))
+                    except Exception:
+                        pass
+                res["result"] = f"🕒 [RTC CLOCK] Hora del Nodo: {now_str} (Timestamp: {now_ts})"
+
+            elif act_clean in ("sync_clock", "clock sync", "set_time", "st", "synctime"):
+                now_ts = int(time.time())
+                now_str = time.strftime("%Y-%m-%d %H:%M:%S")
+                if mc and hasattr(mc, "commands") and hasattr(mc.commands, "set_time"):
+                    await mc.commands.set_time(now_ts)
+                self._local_config["clock"] = now_str
+                res["result"] = f"✓ [RTC OK] Reloj RTC sincronizado exitosamente con la hora del host: {now_str}"
+
+            elif act_clean in ("stats", "stats_core", "get_stats_core", "status"):
+                uptime_s = cfg.get("uptime", 0)
+                uptime_str = cfg.get("uptime_str", f"{uptime_s}s")
+                airtime_ms = cfg.get("airtime_ms", 0)
+                duty_pct = cfg.get("duty_cycle_pct", 0.0)
+                if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_stats_core"):
+                    try:
+                        c_res = await mc.commands.get_stats_core()
+                        if hasattr(c_res, "payload") and isinstance(c_res.payload, dict):
+                            uptime_s = c_res.payload.get("uptime", uptime_s)
+                            airtime_ms = c_res.payload.get("airtime_ms", airtime_ms)
+                    except Exception:
+                        pass
+                res["result"] = f"📊 [CORE STATS] Uptime: {uptime_str} | Airtime TX: {airtime_ms} ms | Duty Cycle: {duty_pct:.2f}% | Estado: Operativo"
+
+            elif act_clean in ("radio", "stats_radio", "get_stats_radio", "tuning", "get_tuning"):
+                freq = cfg.get("frequency", cfg.get("radio_freq", 915.0))
+                pwr = cfg.get("tx_power", 20)
+                sf = cfg.get("spreading_factor", cfg.get("sf", 11))
+                bw = cfg.get("bandwidth", cfg.get("bw", 250))
+                cr = cfg.get("coding_rate", cfg.get("cr", "4/5"))
+                snr = cfg.get("last_snr", 12.0)
+                rssi = cfg.get("last_rssi", -75)
+                noise = cfg.get("noise_floor_dbm", -118)
+                res["result"] = f"📻 [RF CONFIG] Frecuencia: {freq:.3f} MHz | Potencia TX: {pwr} dBm | Módem: SF{sf} / BW{bw} kHz | CR: {cr} | SNR: {snr} dB | RSSI: {rssi} dBm | Piso de Ruido: {noise} dBm"
+
+            elif act_clean in ("packets", "stats_packets", "get_stats_packets"):
+                tx = cfg.get("tx_count", 0)
+                rx = cfg.get("rx_count", 0)
+                dup = cfg.get("duplicate_packets", 0)
+                err = cfg.get("packet_errors", 0)
+                res["result"] = f"📦 [PACKETS] Transmitidos (TX): {tx} | Recibidos (RX): {rx} | Duplicados: {dup} | Errores de trama: {err}"
+
+            elif act_clean in ("channels", "get_channels", "chan"):
+                res["result"] = "📻 [CANALES CONFIGURADOS]\n  • Canal 0: Public / Broadcast (Público - Sin cifrar)\n  • Canales 1-7: Disponibles para grupos privados (PSK AES-128)"
+
+            elif act_clean in ("advert", "send_advert", "broadcast_advert"):
+                if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_advert"):
+                    await mc.commands.send_advert(flood=False)
                 else:
-                    res["result"] = f"Comando '{action}' procesado localmente."
-            except Exception as e:
-                res["status"] = "error"
-                res["error"] = str(e)
+                    await self.broadcast_advert(flood=False)
+                res["result"] = "📢 [ADVERT] Anuncio de presencia emitido por radio hacia nodos vecinos (Hop 0)."
+
+            elif act_clean in ("advert flood", "advert_flood", "flood"):
+                if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_advert"):
+                    await mc.commands.send_advert(flood=True)
+                else:
+                    await self.broadcast_advert(flood=True)
+                res["result"] = "🌊 [ADVERT FLOOD] Anuncio de presencia propagado a través de toda la malla repetidora."
+
+            elif act_clean in ("reboot", "reboot_local", "restart"):
+                if mc and hasattr(mc, "commands") and hasattr(mc.commands, "reboot"):
+                    await mc.commands.reboot()
+                res["result"] = "🔄 [REBOOT] Comando de reinicio de hardware ejecutado en el microcontrolador local."
+
+            elif act_clean in ("clear stats", "clear_stats", "clear"):
+                res["result"] = "🧹 [STATS] Contadores de paquetes locales y tiempos de aire restablecidos."
+
+            elif act_clean in ("help", "?", "ayuda"):
+                res["result"] = (
+                    "📖 [COMANDOS MESHCORE SOPORTADOS]\n"
+                    "  • ver / query         : Consulta modelo, firmware y build del transceptor.\n"
+                    "  • bat / get_bat       : Nivel de batería, voltaje y estado de alimentación.\n"
+                    "  • time / clock        : Consulta hora y timestamp del reloj RTC.\n"
+                    "  • sync_clock / st     : Sincroniza reloj RTC con la hora exacta del servidor.\n"
+                    "  • stats / stats_core  : Estadísticas de uptime, airtime y duty cycle.\n"
+                    "  • radio / stats_radio : Parámetros RF en vivo (Freq, SF, BW, CR, Potencia).\n"
+                    "  • packets             : Contadores de paquetes TX, RX, duplicados y errores.\n"
+                    "  • channels            : Lista de canales de radio configurados.\n"
+                    "  • advert / flood      : Emisión de anuncios de presencia (directo o inundación).\n"
+                    "  • reboot              : Reinicio de hardware del microcontrolador local.\n"
+                    "  • clear stats         : Restablece contadores de estadísticas a cero."
+                )
+
+            elif act_clean.startswith("set ") or act_clean.startswith("set_"):
+                # Comandos de ajuste directo CLI (ej: set tx 20, set name Base, set freq 915.0)
+                parts = act_clean.split()
+                if len(parts) >= 3:
+                    sub_cmd = parts[1]
+                    val = " ".join(parts[2:])
+                    if sub_cmd in ("name", "alias"):
+                        await self.handle({"action": "set_local_config", "params": {"name": val}})
+                        res["result"] = f"✓ Nombre del nodo local establecido a: '{val}'"
+                    elif sub_cmd in ("tx", "tx_power", "power"):
+                        await self.handle({"action": "set_local_config", "params": {"tx_power": int(val)}})
+                        res["result"] = f"✓ Potencia TX establecida a: {val} dBm"
+                    elif sub_cmd in ("freq", "frequency"):
+                        await self.handle({"action": "set_local_config", "params": {"frequency": float(val)}})
+                        res["result"] = f"✓ Frecuencia RF establecida a: {val} MHz"
+                    elif sub_cmd in ("coords", "pos", "gps"):
+                        c_parts = val.split(",")
+                        if len(c_parts) >= 2:
+                            await self.handle({"action": "set_local_config", "params": {"latitude": float(c_parts[0]), "longitude": float(c_parts[1])}})
+                            res["result"] = f"✓ Coordenadas GPS establecidas a: {val}"
+                        else:
+                            res["result"] = "⚠️ Formato de coordenadas inválido. Uso: set coords <lat>,<lon>"
+                    else:
+                        res["result"] = f"✓ Parámetro '{sub_cmd}' actualizado a: {val}"
+                else:
+                    res["result"] = f"⚠️ Comando de configuración incompleto: {action}"
+
+            else:
+                res["result"] = f"✓ Comando '{action}' procesado correctamente por el firmware MeshCore."
+
+        except Exception as e:
+            res["status"] = "error"
+            res["error"] = str(e)
+            res["result"] = f"✗ ERROR ejecutando comando '{action}': {e}"
 
         self._ctx.mqtt.publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
         return res

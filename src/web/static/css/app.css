@@ -4243,6 +4243,109 @@ body {
   gap: 14px;
 }
 
+/* Barra Compacta de Acciones de Hardware en Telemetría y Estado */
+.hardware-actions-section {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.section-micro-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.section-micro-header .micro-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-bright);
+  letter-spacing: 0.3px;
+}
+
+.section-micro-header .micro-subtitle {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.hardware-actions-toolbar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.btn-compact-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--text-normal);
+  transition: all 0.15s ease;
+  min-height: 36px;
+  white-space: nowrap;
+}
+
+.btn-compact-action:hover {
+  transform: translateY(-1px);
+  border-color: var(--border-strong);
+  color: var(--text-bright);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.btn-compact-action:active {
+  transform: translateY(0);
+}
+
+.btn-compact-action .btn-compact-icon {
+  font-size: 13px;
+}
+
+.btn-compact-primary {
+  background: rgba(37, 99, 235, 0.15);
+  border-color: rgba(37, 99, 235, 0.4);
+  color: var(--accent-primary);
+}
+
+.btn-compact-primary:hover {
+  background: var(--accent-primary);
+  color: #ffffff;
+  border-color: var(--accent-primary);
+  box-shadow: 0 2px 10px rgba(37, 99, 235, 0.4);
+}
+
+.btn-compact-secondary {
+  background: var(--bg-surface);
+}
+
+.btn-compact-secondary:hover {
+  background: var(--bg-surface-hover);
+}
+
+.btn-compact-danger {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: var(--accent-danger);
+}
+
+.btn-compact-danger:hover {
+  background: var(--accent-danger);
+  color: #ffffff;
+  border-color: var(--accent-danger);
+  box-shadow: 0 2px 10px rgba(239, 68, 68, 0.4);
+}
+
 .action-card-item {
   background: var(--bg-surface-elevated);
   border: 1px solid var(--border-subtle);

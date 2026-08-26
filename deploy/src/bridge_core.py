@@ -278,14 +278,16 @@ class MeshCoreBridge:
         return self.rate_limiter.queue
 
     @property
-    def mc(self) -> MeshCoreProtocol | None:
+    def mc(self) -> MeshCoreProtocol | Any | None:
         if isinstance(self.serial_adapter, MeshcoreSDKAdapter):
             return cast(MeshCoreProtocol | None, self.serial_adapter.mc)
+        if hasattr(self.serial_adapter, "mc"):
+            return getattr(self.serial_adapter, "mc", None)
         return None
 
     @mc.setter
-    def mc(self, mc_val: MeshCoreProtocol | None) -> None:
-        if isinstance(self.serial_adapter, MeshcoreSDKAdapter):
+    def mc(self, mc_val: MeshCoreProtocol | Any | None) -> None:
+        if hasattr(self.serial_adapter, "mc"):
             self.serial_adapter.mc = mc_val
 
     def publish_mqtt_safe(

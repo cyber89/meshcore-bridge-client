@@ -23,6 +23,139 @@ from src.sensor_decoder import LppDataType
 from src.serial_driver import BaseSerialAdapter
 
 
+class VirtualMeshCoreCommands:
+    """Implementa comandos mock compatibles con MeshCore SDK para simulación."""
+
+    def __init__(self, adapter: VirtualMeshAdapter) -> None:
+        self._adapter = adapter
+
+    async def send_appstart(self) -> dict[str, Any]:
+        return {"status": "ok", "self_info": self._adapter.mc.self_info}
+
+    async def send_device_query(self) -> Any:
+        class MockEvent:
+            type = "DEVICE_INFO"
+            payload = {
+                "model": "MeshCore Virtual Transceiver",
+                "ver": "v1.6.0-sim",
+                "fw ver": 3,
+                "fw_build": "2026-08-25",
+                "repeat": True,
+            }
+        return MockEvent()
+
+    async def get_bat(self) -> dict[str, Any]:
+        return {
+            "battery_pct": self._adapter.mc.self_info.get("battery_pct", 100),
+            "battery_mv": self._adapter.mc.self_info.get("battery_mv", 5000),
+            "voltage": self._adapter.mc.self_info.get("voltage", 5.0),
+        }
+
+    async def get_time(self) -> dict[str, Any]:
+        ts = int(time.time())
+        return {
+            "time": ts,
+            "timestamp": ts,
+            "time_str": time.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+
+    async def set_time(self, val: int) -> dict[str, Any]:
+        return {"status": "ok", "time": val}
+
+    async def set_name(self, name: str) -> dict[str, Any]:
+        self._adapter.mc.self_info["name"] = name
+        self._adapter.mc.self_info["adv_name"] = name
+        return {"status": "ok", "name": name}
+
+    async def set_coords(self, lat: float, lon: float) -> dict[str, Any]:
+        self._adapter.mc.self_info["latitude"] = lat
+        self._adapter.mc.self_info["longitude"] = lon
+        self._adapter.mc.self_info["adv_lat"] = lat
+        self._adapter.mc.self_info["adv_lon"] = lon
+        return {"status": "ok", "lat": lat, "lon": lon}
+
+    async def set_tx_power(self, val: int) -> dict[str, Any]:
+        self._adapter.mc.self_info["tx_power"] = val
+        return {"status": "ok", "tx_power": val}
+
+    async def set_radio(self, freq: float, bw: float, sf: int, cr: int, repeat: Any = None) -> dict[str, Any]:
+        self._adapter.mc.self_info.update({
+            "frequency": freq,
+            "radio_freq": freq,
+            "bandwidth": bw,
+            "bw": bw,
+            "spreading_factor": sf,
+            "sf": sf,
+            "coding_rate": f"4/{cr}" if cr in (5, 6, 7, 8) else str(cr),
+            "cr": cr,
+            "repeat": bool(repeat) if repeat is not None else True,
+        })
+        return {"status": "ok"}
+
+    async def send_advert(self, flood: bool = False) -> dict[str, Any]:
+        return {"status": "ok", "flood": flood}
+
+    async def reboot(self) -> dict[str, Any]:
+        return {"status": "ok"}
+
+    async def get_stats_core(self) -> dict[str, Any]:
+        return {
+            "uptime": int(time.time() - getattr(self._adapter, "_start_time", time.time())),
+            "airtime_ms": 120,
+        }
+
+    async def get_stats_radio(self) -> dict[str, Any]:
+        return {
+            "last_snr": 12.0,
+            "last_rssi": -72,
+            "noise_floor_dbm": -118,
+        }
+
+    async def set_custom_var(self, key: str, val: str) -> dict[str, Any]:
+        self._adapter.mc.self_info[key] = val
+        return {"status": "ok"}
+
+    async def get_channels(self) -> list[dict[str, Any]]:
+        return [
+            {"index": 0, "name": "Public / Broadcast", "psk": "", "is_public": True},
+        ]
+
+
+class VirtualMeshCoreMock:
+    """Mock de MeshCore SDK para VirtualMeshAdapter."""
+
+    def __init__(self, adapter: VirtualMeshAdapter) -> None:
+        self.self_info: dict[str, Any] = {
+            "name": "MeshCore_Base_Station",
+            "public_key": "000000000000",
+            "role": "Base Station",
+            "owner_info": "Operador Estación Base / TG-0",
+            "latitude": 20.1500,
+            "longitude": -75.2000,
+            "adv_lat": 20.1500,
+            "adv_lon": -75.2000,
+            "altitude": 50,
+            "tx_power": 20,
+            "frequency": 915.0,
+            "radio_freq": 915.0,
+            "spreading_factor": 11,
+            "sf": 11,
+            "bandwidth": 250,
+            "bw": 250,
+            "coding_rate": "4/5",
+            "cr": 5,
+            "repeat": True,
+            "battery_pct": 100,
+            "battery_mv": 5000,
+            "voltage": 5.0,
+            "power_source": "USB 5V Directo",
+            "model": "MeshCore Virtual Transceiver",
+            "ver": "v1.6.0-sim",
+            "fw_build": "2026-08-25",
+        }
+        self.commands = VirtualMeshCoreCommands(adapter)
+
+
 class VirtualMeshAdapter(BaseSerialAdapter):
     """Adaptador de simulación que emula un nodo hardware MeshCore y una red de clientes."""
 
@@ -37,6 +170,8 @@ class VirtualMeshAdapter(BaseSerialAdapter):
         if event_callback:
             self.set_rx_callback(event_callback)
         self.running = False
+        self._start_time = time.time()
+        self.mc = VirtualMeshCoreMock(self)
         self._sim_task: asyncio.Task[None] | None = None
         self._background_tasks: set[asyncio.Task[Any]] = set()
         self._tick_counter = 0

@@ -157,7 +157,15 @@ class WebAPIRouter:
 
             if method == "GET" and clean_path in ("/api/node/config", "/api/node/settings"):
                 admin = getattr(self.bridge, "admin_handler", None)
-                local_cfg = admin.get_local_config() if (admin and hasattr(admin, "get_local_config")) else {}
+                if admin and hasattr(admin, "fetch_device_config"):
+                    try:
+                        local_cfg = await admin.fetch_device_config()
+                    except Exception:
+                        local_cfg = admin.get_local_config()
+                elif admin and hasattr(admin, "get_local_config"):
+                    local_cfg = admin.get_local_config()
+                else:
+                    local_cfg = {}
 
                 # Consolidar métricas en tiempo real del bridge
                 uptime_sec = int(time.time() - getattr(self.bridge, "start_time", time.time()))

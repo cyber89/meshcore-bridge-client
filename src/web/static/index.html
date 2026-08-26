@@ -815,9 +815,46 @@
                 <div class="summary-pill"><span>Posición:</span> <strong id="localSummaryPos">--</strong></div>
               </div>
 
-              <div class="panel-actions-row">
-                <button type="button" class="btn-secondary btn-sm" id="btnRefreshLocalTelem">🔄 Consultar Telemetría del Hardware (stats-core)</button>
-                <button type="button" class="btn-outline btn-sm" id="btnSyncLocalClock">🕒 Sincronizar Reloj RTC con Host</button>
+              <!-- Barra Compacta de Acciones de Hardware en Telemetría y Estado -->
+              <div class="hardware-actions-section">
+                <div class="section-micro-header">
+                  <span class="micro-title">⚡ Acciones Rápidas de Hardware</span>
+                  <span class="micro-subtitle">Comandos de ejecución y control directo sobre el microcontrolador y transceptor LoRa</span>
+                </div>
+                <div class="hardware-actions-toolbar">
+                  <button type="button" class="btn-compact-action btn-compact-primary" id="btnActionAdvertHop" title="Difunde anuncio directo a nodos vecinos en alcance visual de 1 salto (0 saltos)">
+                    <span class="btn-compact-icon">📢</span>
+                    <span class="btn-compact-label">Advert Hop 0</span>
+                  </button>
+                  <button type="button" class="btn-compact-action btn-compact-secondary" id="btnActionAdvertFlood" title="Difunde anuncio enrutado por inundación a toda la malla">
+                    <span class="btn-compact-icon">🌊</span>
+                    <span class="btn-compact-label">Advert Flood</span>
+                  </button>
+                  <button type="button" class="btn-compact-action btn-compact-secondary" id="btnRefreshLocalTelem" title="Consulta telemetría y contadores de hardware en tiempo real">
+                    <span class="btn-compact-icon">🔄</span>
+                    <span class="btn-compact-label">Stats Hardware</span>
+                  </button>
+                  <button type="button" class="btn-compact-action btn-compact-secondary" id="btnSyncLocalClock" title="Ajusta el reloj de tiempo real RTC del nodo con la hora del host">
+                    <span class="btn-compact-icon">🕒</span>
+                    <span class="btn-compact-label">Sincronizar RTC</span>
+                  </button>
+                  <button type="button" class="btn-compact-action btn-compact-secondary" id="btnActionAdvertClipboard" title="Copia el enlace de contacto y tarjeta del nodo (URI MeshCore) al portapapeles">
+                    <span class="btn-compact-icon">📋</span>
+                    <span class="btn-compact-label">Copiar URI</span>
+                  </button>
+                  <button type="button" class="btn-compact-action btn-compact-secondary" id="btnActionClearLocalStats" title="Restablece contadores de paquetes, duplicados y tiempos de aire">
+                    <span class="btn-compact-icon">🧹</span>
+                    <span class="btn-compact-label">Limpiar Stats</span>
+                  </button>
+                  <button type="button" class="btn-compact-action btn-compact-secondary" id="btnActionReconnectSerial" title="Cierra y reabre de forma segura la conexión USB/Serial con el transceptor">
+                    <span class="btn-compact-icon">📻</span>
+                    <span class="btn-compact-label">Reconectar Serial</span>
+                  </button>
+                  <button type="button" class="btn-compact-action btn-compact-danger" id="btnActionRebootLocal" title="Envía comando de reinicio de hardware al microcontrolador ESP32/nRF52">
+                    <span class="btn-compact-icon">🔄</span>
+                    <span class="btn-compact-label">Reiniciar Nodo</span>
+                  </button>
+                </div>
               </div>
             </div>
 

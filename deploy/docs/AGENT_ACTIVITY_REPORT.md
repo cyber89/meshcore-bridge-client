@@ -6,7 +6,56 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Optimización Integral de Ajustes, Telemetría Real, Parámetros RF/GPS Bidireccionales, Consolas en String y Acciones Compactas
+- **Fecha**: 2026-08-25
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Coordinó al Agente 1 (Protocolo), Agente 2 (Bridge) y Agente 4 (Frontend) para la auditoría, optimización y resolución integral de los casos de uso de la vista Ajustes:
+  1. **Agente 2 (Python Bridge Architect Agent)**:
+     - **`src/admin_handler.py`**:
+       - Sincronización real de parámetros RF (`set_radio`, `set_tx_power`, `send_appstart`) y guardado de coordenadas GPS e identidad (`set_coords`, `set_name`, `set_custom_var`).
+       - Motor de formateo CLI textual enriquecido que transforma todas las respuestas de comandos en strings limpios y comprensibles (`[DEVICE INFO]`, `🔋 [BATERÍA]`, `🕒 [RTC CLOCK]`, `📊 [CORE STATS]`, `📻 [RF CONFIG]`, `📦 [PACKETS]`, `📢 [ADVERT]`, `🔄 [REBOOT]`, `🧹 [STATS]`, `📖 [COMANDOS]`).
+       - Soporte para comandos CLI directos en terminal (`ver`, `bat`, `time`, `clock`, `stats`, `radio`, `packets`, `channels`, `advert`, `flood`, `reboot`, `clear stats`, `set name`, `set tx`, `set freq`, `set coords`).
+     - **`src/virtual_mesh_adapter.py`**:
+       - Implementó `VirtualMeshCoreMock` y `VirtualMeshCoreCommands` para emulación 100% fidedigna de comandos de hardware y telemetría en tiempo real.
+     - **`src/bridge_core.py`**:
+       - Habilitó el acceso bidireccional al objeto `mc` desde cualquier adaptador (SDK o Virtual).
+     - **`src/web/api_router.py`**:
+       - En `GET /api/node/config`, incorporó consulta activa en tiempo real de telemetría de hardware con `fetch_device_config()`.
+  2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - **`src/web/static/index.html` & `src/web/static/css/app.css`**:
+       - Diseñó e integró la barra compacta `.hardware-actions-toolbar` con micro-botones de acción tácticos dentro de la subpestaña *Telemetría & Estado*.
+       - Configuración predeterminada del selector de capas cartográficas en modo online (CartoDB Dark / OSM).
+     - **`src/web/static/js/app.js`**:
+       - Implementó `formatCliResponseObject()` y `formatRemoteCliResponse()` para formatear respuestas de consola en ambas terminales (local y repetidores remotos) en cadenas legibles y limpias, eliminando volcados JSON crudos.
+       - Desactivó el fallback intrusivo a radar táctico ante errores aislados de teselas individuales.
+  3. **Agente 0 (Lead Orchestrator)**:
+     - Validación estática JavaScript con `node -c` (código 0).
+     - Verificación de compilación Python con `python -m compileall src` (código 0).
+     - Sincronización del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
+     - Sincronización con GitHub `origin/main`.
+
+### Hito: Auditoría Visual Completa de Todas las Vistas, Reparación de Llave CSS Desbalanceada y Rediseño de Home Assistant
+- **Fecha**: 2026-08-22
+- **Estado**: ✅ COMPLETADO (100% PASS - 122 Tests)
+- **Agente Principal (Lead Orchestrator)**: Coordinó al Agente 4 (Frontend), Agente 2 (Bridge) y Agente 3 (QA) tras detectar vistas con pérdida de estilos debido a una regla CSS huérfana no cerrada.
+- **Contribuciones de Agentes**:
+  1. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - **Causa Raíz de Estilos Incompletos**: La regla `.nodes-unified-grid {` en la línea 1017 de `src/web/static/css/app.css` no tenía llave de cierre `}`, lo que invalidaba en cascada más de 3.600 líneas de CSS posterior, dejando sin estilos a las vistas de Métricas/Analítica, Home Assistant, Consolas y Ajustes.
+     - **Corrección en `app.css`**: Se eliminó la regla duplicada e incompleta, restableciendo el balance exacto de llaves (`count = 0`).
+     - **Rediseño de Pestaña Home Assistant (`tab-ha`)**: Se maquetó un panel visual completo con KPIs (Auto-Discovery MQTT, Nodos Anunciados, Entidades Expuestas, Broker MQTT), tabla de entidades soportadas (Batería, Voltaje, SNR, RSSI, Temperatura, Humedad) y tarjeta de tópicos MQTT.
+  2. **Agente 2 (Python Bridge Architect Agent)**:
+     - **`src/mqtt_client.py`**:
+       - Corrigió `publish_safe` para evitar `RuntimeError: asyncio.run() cannot be called from a running event loop` cuando se invoca desde un bucle asíncrono activo, usando `asyncio.get_running_loop().create_task()`.
+  3. **Agente 3 (Protocol QA & Fuzzing Agent)**:
+     - **`scripts/inspect_all_views.py`**:
+       - Inspección visual automatizada de las 9 pestañas principales y las 6 subpestañas de Ajustes con Playwright, validando que todas las vistas cargan con el tema visual UI/UX Pro Max completo.
+     - **Verificación Global**: 122/122 pruebas en Pytest (100% PASS), Mypy strict (0 errores) y Ruff (0 warnings).
+  4. **Agente 0 (Lead Orchestrator)**:
+     - Sincronización del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
+     - Sincronización con GitHub `origin/main`.
+
 ### Hito: Corrección de Recepción de Confirmaciones de Entrega (ACKs), Interactividad de Tarjetas de Contactos y Simulación E2E con Playwright
+
 - **Fecha**: 2026-08-22
 - **Estado**: ✅ COMPLETADO (100% PASS - 122 Tests)
 - **Agente Principal (Lead Orchestrator)**: Coordinó al Agente 2 (Bridge), Agente 4 (Frontend) y Agente 3 (QA) para resolver el enrutamiento de confirmaciones de entrega E2E, habilitar la interactividad completa de las tarjetas de contactos y crear la suite de simulación E2E automatizada con Playwright en Chromium headless.

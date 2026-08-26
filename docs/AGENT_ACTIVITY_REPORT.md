@@ -6,6 +6,34 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Optimización Integral de Ajustes, Telemetría Real, Parámetros RF/GPS Bidireccionales, Consolas en String y Acciones Compactas
+- **Fecha**: 2026-08-25
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Coordinó al Agente 1 (Protocolo), Agente 2 (Bridge) y Agente 4 (Frontend) para la auditoría, optimización y resolución integral de los casos de uso de la vista Ajustes:
+  1. **Agente 2 (Python Bridge Architect Agent)**:
+     - **`src/admin_handler.py`**:
+       - Sincronización real de parámetros RF (`set_radio`, `set_tx_power`, `send_appstart`) y guardado de coordenadas GPS e identidad (`set_coords`, `set_name`, `set_custom_var`).
+       - Motor de formateo CLI textual enriquecido que transforma todas las respuestas de comandos en strings limpios y comprensibles (`[DEVICE INFO]`, `🔋 [BATERÍA]`, `🕒 [RTC CLOCK]`, `📊 [CORE STATS]`, `📻 [RF CONFIG]`, `📦 [PACKETS]`, `📢 [ADVERT]`, `🔄 [REBOOT]`, `🧹 [STATS]`, `📖 [COMANDOS]`).
+       - Soporte para comandos CLI directos en terminal (`ver`, `bat`, `time`, `clock`, `stats`, `radio`, `packets`, `channels`, `advert`, `flood`, `reboot`, `clear stats`, `set name`, `set tx`, `set freq`, `set coords`).
+     - **`src/virtual_mesh_adapter.py`**:
+       - Implementó `VirtualMeshCoreMock` y `VirtualMeshCoreCommands` para emulación 100% fidedigna de comandos de hardware y telemetría en tiempo real.
+     - **`src/bridge_core.py`**:
+       - Habilitó el acceso bidireccional al objeto `mc` desde cualquier adaptador (SDK o Virtual).
+     - **`src/web/api_router.py`**:
+       - En `GET /api/node/config`, incorporó consulta activa en tiempo real de telemetría de hardware con `fetch_device_config()`.
+  2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - **`src/web/static/index.html` & `src/web/static/css/app.css`**:
+       - Diseñó e integró la barra compacta `.hardware-actions-toolbar` con micro-botones de acción tácticos dentro de la subpestaña *Telemetría & Estado*.
+       - Configuración predeterminada del selector de capas cartográficas en modo online (CartoDB Dark / OSM).
+     - **`src/web/static/js/app.js`**:
+       - Implementó `formatCliResponseObject()` y `formatRemoteCliResponse()` para formatear respuestas de consola en ambas terminales (local y repetidores remotos) en cadenas legibles y limpias, eliminando volcados JSON crudos.
+       - Desactivó el fallback intrusivo a radar táctico ante errores aislados de teselas individuales.
+  3. **Agente 0 (Lead Orchestrator)**:
+     - Validación estática JavaScript con `node -c` (código 0).
+     - Verificación de compilación Python con `python -m compileall src` (código 0).
+     - Sincronización del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
+     - Sincronización con GitHub `origin/main`.
+
 ### Hito: Auditoría Visual Completa de Todas las Vistas, Reparación de Llave CSS Desbalanceada y Rediseño de Home Assistant
 - **Fecha**: 2026-08-22
 - **Estado**: ✅ COMPLETADO (100% PASS - 122 Tests)
