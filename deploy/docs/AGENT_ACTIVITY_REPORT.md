@@ -6,6 +6,25 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Homogeneización Visual de Ajustes y Repetidores, Consolas Terminal Linux con Historial, Renombrado Ping, Buscador de Contactos y Persistencia de Chat
+- **Fecha**: 2026-08-25
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Coordinó al Agente 4 (Frontend), Agente 2 (Bridge) y Agente 5 (Seguridad) para la unificación integral de vistas, emulación de terminal Linux y persistencia robusta:
+  1. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - **Unificación de Ajustes y Modal de Repetidores**: Homogeneización total de los esquemas de telemetría (8 tarjetas con franja de resumen rápido), formularios RF/GPS y barras de acciones tácticas `.hardware-actions-toolbar` con micro-botones.
+     - **Consolas Linux Terminal (`.linux-term-window`)**: Implementó ventana estilo Linux con botones de ventana (🔴🟡🟢), títulos `meshcore@base:~` y `meshcore@repeater:~`, prompts interactivos `meshcore@base:~$ ` y `meshcore@remote:~$ `, tipografía monoespaciada e historial interactivo con teclas $\uparrow$ / $\downarrow$.
+     - **Eliminación de Secciones Redundantes**: Purgó subpaneles obsoletos (`local-actions` en Ajustes y `rep-quick` en Administración de Repetidores).
+     - **Renombrado de Ping**: Cambió todas las instancias de "Ping 0" / "Ping Zero" a "Ping" en badges, botones de nodo, modales y mensajes.
+     - **Buscador y Filtros de Contactos**: Añadió barra de búsqueda unificada y píldoras de filtro (`Todos`, `⭐ Favoritos`, `🟢 En Línea`, `📍 Con Posición`) sincronizadas con contadores en tiempo real.
+     - **Persistencia de Mensajería**: Refinó `isCommandOrSystemText` para que palabras comunes de chat nunca sean descartadas, asegurando hidratación completa en IndexedDB.
+  2. **Agente 2 (Python Bridge Architect Agent)**:
+     - Verificación de la simulación continua multi-nodo en `VirtualMeshAdapter` con emisión de tramas de sniffer (0x88 `LOG_DATA`), telemetría CayenneLPP y eco interactivo.
+  3. **Agente 0 (Lead Orchestrator)**:
+     - Validación estática JavaScript con `node -c` (código 0).
+     - Verificación de compilación Python con `python -m compileall src` (código 0).
+     - Sincronización del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
+     - Sincronización con GitHub `origin/main`.
+
 ### Hito: Optimización Integral de Ajustes, Telemetría Real, Parámetros RF/GPS Bidireccionales, Consolas en String y Acciones Compactas
 - **Fecha**: 2026-08-25
 - **Estado**: ✅ COMPLETADO

@@ -4793,3 +4793,202 @@ body {
   color: #ffffff;
   border-color: #a855f7;
 }
+
+/* ==============================================================================
+   💻 LINUX TERMINAL STYLES (Local & Remote Console)
+   ============================================================================== */
+.linux-term-window {
+  background: #080c14;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+}
+
+.linux-term-header {
+  background: #0f172a;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  user-select: none;
+}
+
+.linux-term-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.linux-term-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.linux-term-dot.dot-red {
+  background: #ef4444;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
+}
+
+.linux-term-dot.dot-yellow {
+  background: #f59e0b;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.4);
+}
+
+.linux-term-dot.dot-green {
+  background: #10b981;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
+}
+
+.linux-term-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+  letter-spacing: 0.3px;
+  flex: 1;
+  text-align: center;
+}
+
+.linux-term-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-outline-term {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #cbd5e1;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-outline-term:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.linux-term-body {
+  background: #050811;
+  padding: 14px 16px;
+  min-height: 240px;
+  max-height: 420px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #e2e8f0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.linux-term-body .term-sys {
+  color: #64748b;
+  font-style: italic;
+}
+
+.linux-term-body .term-cmd {
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.linux-term-body .term-success {
+  color: #4ade80;
+}
+
+.linux-term-body .term-error {
+  color: #f87171;
+}
+
+.linux-term-body .term-info {
+  color: #94a3b8;
+}
+
+.linux-term-input-bar {
+  background: #0a0f1d;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.linux-term-prompt {
+  color: #34d399;
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.linux-term-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #f8fafc;
+  font-family: inherit;
+  font-size: 12.5px;
+  outline: none;
+  padding: 4px 6px;
+}
+
+.linux-term-input::placeholder {
+  color: #475569;
+}
+
+.btn-term-send {
+  background: var(--accent-primary, #2563eb);
+  color: #ffffff;
+  border: none;
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-term-send:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+/* ==============================================================================
+   👥 CONTACTS TOOLBAR & FILTER PILLS
+   ============================================================================== */
+.contacts-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+@media (min-width: 768px) {
+  .contacts-toolbar {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.contacts-filter-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}

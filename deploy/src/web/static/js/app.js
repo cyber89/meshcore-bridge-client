@@ -410,8 +410,7 @@ class MeshCoreStationApp {
   }
 
   isCommandOrSystemText(text, txtType = 0) {
-
-    if (txtType === 1) return true;
+    if (txtType === 1 || txtType === 2) return true;
     if (!text || typeof text !== "string") return true;
 
     const clean = text.trim();
@@ -422,6 +421,7 @@ class MeshCoreStationApp {
       cleanLower = cleanLower.replace(/^[- >]+/, "").trim();
     }
 
+    // Filtrar únicamente ruido de consola CLI / logs de firmware
     if (
       cleanLower.startsWith("unknown command") ||
       cleanLower.startsWith("error: unknown command") ||
@@ -431,14 +431,9 @@ class MeshCoreStationApp {
       cleanLower.startsWith("login ") ||
       cleanLower.startsWith("auth ") ||
       cleanLower.startsWith("stats-") ||
-      cleanLower.startsWith("stats ") ||
-      cleanLower.startsWith("set ") ||
-      cleanLower.startsWith("get ") ||
-      cleanLower.startsWith("log ") ||
-      cleanLower.startsWith("reboot") ||
+      cleanLower.startsWith("stats_") ||
       cleanLower.startsWith("logging off") ||
       cleanLower.startsWith("log erased") ||
-      cleanLower.startsWith("eof") ||
       cleanLower.startsWith("welcome admin") ||
       cleanLower.startsWith("access denied") ||
       cleanLower.startsWith("bad pin") ||
@@ -446,27 +441,8 @@ class MeshCoreStationApp {
       cleanLower.startsWith("incorrect password") ||
       cleanLower.startsWith("permission denied") ||
       cleanLower.startsWith("not logged in") ||
-      cleanLower === "unknown command" ||
-      cleanLower === "ok" ||
-      cleanLower === "error" ||
-      cleanLower === "success" ||
-      cleanLower === "failed" ||
-      cleanLower === "unauthorized" ||
-      cleanLower === "advert" ||
-      cleanLower === "[advert]" ||
-      cleanLower === "beacon" ||
-      cleanLower === "logging off" ||
-      cleanLower === "log erased" ||
-      cleanLower === "eof" ||
-      cleanLower === "pong" ||
-      cleanLower === "ping"
+      cleanLower === "unknown command"
     ) {
-      return true;
-    }
-
-    if (clean.startsWith("[Eco ") || clean.startsWith("[Status ") || clean.startsWith("[ACK") ||
-        clean.startsWith("📡 ") || clean.startsWith("⛔ ") || clean.startsWith("📖 ") ||
-        clean.startsWith("⏰ ") || clean.startsWith("📅 ") || clean.startsWith("🏓 ")) {
       return true;
     }
 
@@ -916,6 +892,17 @@ class MeshCoreStationApp {
         }, 150)
       );
     }
+
+    // Filtros de Libreta de Contactos
+    document.querySelectorAll(".contacts-filter-pills .filter-pill").forEach((pill) => {
+      pill.addEventListener("click", () => {
+        document.querySelectorAll(".contacts-filter-pills .filter-pill").forEach((p) => p.classList.remove("active"));
+        pill.classList.add("active");
+        this.activeContactsFilter = pill.getAttribute("data-contact-filter") || "all";
+        const q = this.dom.contactsSearchInput ? this.dom.contactsSearchInput.value : "";
+        this.filterContactsGrid(q);
+      });
+    });
 
     if (this.dom.createContactForm) {
       this.dom.createContactForm.addEventListener("submit", async (e) => {
@@ -1941,10 +1928,7 @@ class MeshCoreStationApp {
       });
     }
 
-    const btnSyncClock = document.getElementById("btnSyncRepeaterClock");
-    if (btnSyncClock) {
-      btnSyncClock.addEventListener("click", () => this.sendModalRepeaterAction("sync_clock"));
-    }
+
 
     const btnDiscover = document.getElementById("btnDiscoverNeighbors");
     if (btnDiscover) {
@@ -1962,47 +1946,69 @@ class MeshCoreStationApp {
     }
 
     // Acciones Rápidas del Modal
-    if (this.dom.btnModalHeaderPingZero) {
-      this.dom.btnModalHeaderPingZero.addEventListener("click", () => {
+    const btnHeaderPing = this.dom.btnModalHeaderPingZero || document.getElementById("btnModalHeaderPingZero");
+    if (btnHeaderPing) {
+      btnHeaderPing.addEventListener("click", () => {
         this.pingZero(this.selectedRepeaterTarget, this.selectedRepeaterName);
       });
     }
-    if (this.dom.btnModalActionPingZero) {
-      this.dom.btnModalActionPingZero.addEventListener("click", () => {
+
+    const btnActionPing = document.getElementById("btnModalActionPing") || this.dom.btnModalActionPingZero;
+    if (btnActionPing) {
+      btnActionPing.addEventListener("click", () => {
         this.pingZero(this.selectedRepeaterTarget, this.selectedRepeaterName);
       });
     }
-    if (this.dom.btnModalActionReboot) {
-      this.dom.btnModalActionReboot.addEventListener("click", () => this.sendModalRepeaterAction("reboot"));
-    }
-    if (this.dom.btnModalActionClearStats) {
-      this.dom.btnModalActionClearStats.addEventListener("click", () => this.sendModalRepeaterAction("clear_stats"));
-    }
-    if (this.dom.btnModalActionAdvert) {
-      this.dom.btnModalActionAdvert.addEventListener("click", () => this.sendModalRepeaterAction("advert"));
-    }
-    if (this.dom.btnModalActionClock) {
-      this.dom.btnModalActionClock.addEventListener("click", () => this.sendModalRepeaterAction("sync_clock"));
-    }
 
-    const btnModalActionTelem = document.getElementById("btnModalActionTelemetry");
-    if (btnModalActionTelem) {
-      btnModalActionTelem.addEventListener("click", () => {
+    const btnRadioStats = document.getElementById("btnModalActionRadioStats");
+    if (btnRadioStats) {
+      btnRadioStats.addEventListener("click", () => {
         const target = this.selectedRepeaterTarget;
         if (!target) return;
         const password = this.getRepeaterPassword(target);
-        this.executeRepeaterCommand(target, "telemetry", {}, password);
+        this.executeRepeaterCommand(target, "stats-radio", {}, password);
       });
     }
 
-    const btnModalActionVer = document.getElementById("btnModalActionVersion");
-    if (btnModalActionVer) {
-      btnModalActionVer.addEventListener("click", () => {
+    const btnSyncClock = document.getElementById("btnSyncRepeaterClock") || document.getElementById("btnModalActionClock");
+    if (btnSyncClock) {
+      btnSyncClock.addEventListener("click", () => {
         const target = this.selectedRepeaterTarget;
         if (!target) return;
         const password = this.getRepeaterPassword(target);
-        this.executeRepeaterCommand(target, "ver", {}, password);
-        this.executeRepeaterCommand(target, "board", {}, password);
+        this.executeRepeaterCommand(target, "sync_clock", {}, password);
+      });
+    }
+
+    const btnModalAdvert = document.getElementById("btnModalActionAdvert");
+    if (btnModalAdvert) {
+      btnModalAdvert.addEventListener("click", () => {
+        const target = this.selectedRepeaterTarget;
+        if (!target) return;
+        const password = this.getRepeaterPassword(target);
+        this.executeRepeaterCommand(target, "advert", {}, password);
+      });
+    }
+
+    const btnClearStats = document.getElementById("btnModalActionClearStats");
+    if (btnClearStats) {
+      btnClearStats.addEventListener("click", () => {
+        const target = this.selectedRepeaterTarget;
+        if (!target) return;
+        const password = this.getRepeaterPassword(target);
+        this.executeRepeaterCommand(target, "clear stats", {}, password);
+      });
+    }
+
+    const btnReboot = document.getElementById("btnModalActionReboot");
+    if (btnReboot) {
+      btnReboot.addEventListener("click", () => {
+        const target = this.selectedRepeaterTarget;
+        if (!target) return;
+        if (confirm(`¿Confirmas el reinicio remoto por RF del repetidor ${target.slice(0, 8)}?`)) {
+          const password = this.getRepeaterPassword(target);
+          this.executeRepeaterCommand(target, "reboot", {}, password);
+        }
       });
     }
 
@@ -2015,13 +2021,42 @@ class MeshCoreStationApp {
           return;
         }
         const password = this.getRepeaterPassword(target);
-        if (cmd === "ping 0" || cmd === "ping") {
+        if (cmd === "ping" || cmd === "ping 0") {
           this.pingZero(target, this.selectedRepeaterName);
         } else {
           this.executeRepeaterCommand(target, cmd, {}, password);
         }
       });
     });
+
+    if (this.dom.repeaterTerminalInput) {
+      this._remoteCliHistory = [];
+      this._remoteCliHistoryIdx = -1;
+
+      this.dom.repeaterTerminalInput.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          if (this._remoteCliHistory.length === 0) return;
+          if (this._remoteCliHistoryIdx === -1) {
+            this._remoteCliHistoryIdx = this._remoteCliHistory.length - 1;
+          } else if (this._remoteCliHistoryIdx > 0) {
+            this._remoteCliHistoryIdx--;
+          }
+          this.dom.repeaterTerminalInput.value = this._remoteCliHistory[this._remoteCliHistoryIdx] || "";
+        } else if (e.key === "ArrowDown") {
+          e.preventDefault();
+          if (this._remoteCliHistoryIdx !== -1) {
+            if (this._remoteCliHistoryIdx < this._remoteCliHistory.length - 1) {
+              this._remoteCliHistoryIdx++;
+              this.dom.repeaterTerminalInput.value = this._remoteCliHistory[this._remoteCliHistoryIdx] || "";
+            } else {
+              this._remoteCliHistoryIdx = -1;
+              this.dom.repeaterTerminalInput.value = "";
+            }
+          }
+        }
+      });
+    }
 
     if (this.dom.repeaterTerminalForm) {
       this.dom.repeaterTerminalForm.addEventListener("submit", (e) => {
@@ -2033,6 +2068,8 @@ class MeshCoreStationApp {
           this.appendTerminalLine("⚠️ Selecciona primero un repetidor objetivo.", "term-error");
           return;
         }
+        this._remoteCliHistory.push(cmd);
+        this._remoteCliHistoryIdx = -1;
         if (this.dom.repeaterTerminalInput) this.dom.repeaterTerminalInput.value = "";
         const password = this.getRepeaterPassword(target);
         if (cmd.toLowerCase() === "ping" || cmd.toLowerCase() === "ping 0" || cmd.toLowerCase() === "pingzero") {
@@ -2067,24 +2104,25 @@ class MeshCoreStationApp {
     if (this.knownNodes.has(target)) {
       const nodeInfo = this.knownNodes.get(target);
       if (nodeInfo && nodeInfo.role === "CLIENT") {
-        this.showToast("Ping Zero está disponible únicamente para repetidores de malla", "warning");
+        this.showToast("Ping está disponible únicamente para repetidores de malla", "warning");
         return;
       }
     }
 
-    this.appendTerminalLine(`> [PING ZERO] Enviando sonda directa de 0 saltos a ${name} (${target.slice(0, 8)})...`, "term-cmd");
+    this.appendTerminalLine(`meshcore@remote:~$ ping ${name} (${target.slice(0, 8)})`, "term-cmd");
 
     if (this.dom.adminModalPingZeroBadge) {
-      this.dom.adminModalPingZeroBadge.textContent = "🎯 Ping 0: Midiendo...";
+      this.dom.adminModalPingZeroBadge.textContent = "🎯 Ping: Midiendo...";
       this.dom.adminModalPingZeroBadge.className = "ping-zero-badge measuring";
     }
     if (this.dom.btnModalHeaderPingZero) {
       this.dom.btnModalHeaderPingZero.disabled = true;
       this.dom.btnModalHeaderPingZero.textContent = "🎯 Midiendo...";
     }
-    if (this.dom.btnModalActionPingZero) {
-      this.dom.btnModalActionPingZero.disabled = true;
-      this.dom.btnModalActionPingZero.textContent = "🎯 Midiendo...";
+    const btnActionPingEl = document.getElementById("btnModalActionPing") || this.dom.btnModalActionPingZero;
+    if (btnActionPingEl) {
+      btnActionPingEl.disabled = true;
+      btnActionPingEl.textContent = "🎯 Midiendo...";
     }
 
     try {
@@ -2106,13 +2144,8 @@ class MeshCoreStationApp {
 
         if (this.dom.adminModalPingZeroBadge) {
           const rssiPart = rssi !== "--" ? ` (${rssi})` : "";
-          this.dom.adminModalPingZeroBadge.textContent = `🎯 Ping 0: ${rtt} ms${rssiPart}`;
+          this.dom.adminModalPingZeroBadge.textContent = `🎯 Ping: ${rtt} ms${rssiPart}`;
           this.dom.adminModalPingZeroBadge.className = "ping-zero-badge ping-success";
-        }
-        if (this.dom.repQuickPingResult) {
-          const rPart = rssi !== "--" ? ` • RSSI ${rssi}` : "";
-          const sPart = (snrThere !== "--" || snrBack !== "--") ? ` • SNR ${snrThere}/${snrBack}` : "";
-          this.dom.repQuickPingResult.textContent = `🟢 Duration: ${rtt} ms${sPart}${rPart} (0 Saltos)`;
         }
 
         // Actualizar nodo en knownNodes si existe
@@ -2132,38 +2165,36 @@ class MeshCoreStationApp {
         }
         this.updateNodeInDom(canonicalTarget, existing);
 
-        this.showToast(`🎯 Ping a ${name}: Duration: ${rtt} ms, SNR there: ${snrThere}, SNR back: ${snrBack} (RSSI: ${rssi})`, "success");
+        this.showToast(`🎯 Ping a ${name}: Duration: ${rtt} ms (RSSI: ${rssi})`, "success");
       } else {
-        const errMsg = data.message || "Timeout esperando eco de 0 saltos";
-        this.appendTerminalLine(`✗ [PING ZERO FALLIDO] ${errMsg}`, "term-error");
+        const errMsg = data.message || "Timeout esperando respuesta";
+        this.appendTerminalLine(`✗ [PING FALLIDO] ${errMsg}`, "term-error");
         if (this.dom.adminModalPingZeroBadge) {
-          this.dom.adminModalPingZeroBadge.textContent = "🎯 Ping 0: Fallo";
+          this.dom.adminModalPingZeroBadge.textContent = "🎯 Ping: Fallo";
           this.dom.adminModalPingZeroBadge.className = "ping-zero-badge ping-error";
-        }
-        if (this.dom.repQuickPingResult) {
-          this.dom.repQuickPingResult.textContent = `🔴 Fallo: ${errMsg}`;
         }
         if (errMsg.toLowerCase().includes("password") || errMsg.toLowerCase().includes("auth") || errMsg.toLowerCase().includes("pin")) {
           this.handleRepeaterAuthError(target, errMsg);
         } else {
-          this.showToast(`⚠️ Ping Zero: ${errMsg}`, "error");
+          this.showToast(`⚠️ Ping: ${errMsg}`, "error");
         }
       }
     } catch (err) {
-      this.appendTerminalLine(`✗ [PING ZERO ERROR] ${err.message}`, "term-error");
+      this.appendTerminalLine(`✗ [PING ERROR] ${err.message}`, "term-error");
       if (this.dom.adminModalPingZeroBadge) {
-        this.dom.adminModalPingZeroBadge.textContent = "🎯 Ping 0: Error";
+        this.dom.adminModalPingZeroBadge.textContent = "🎯 Ping: Error";
         this.dom.adminModalPingZeroBadge.className = "ping-zero-badge ping-error";
       }
-      this.showToast(`Error de red en Ping Zero: ${err.message}`, "error");
+      this.showToast(`Error de red en Ping: ${err.message}`, "error");
     } finally {
       if (this.dom.btnModalHeaderPingZero) {
         this.dom.btnModalHeaderPingZero.disabled = false;
-        this.dom.btnModalHeaderPingZero.textContent = "🎯 Ping Zero";
+        this.dom.btnModalHeaderPingZero.textContent = "🎯 Ping";
       }
-      if (this.dom.btnModalActionPingZero) {
-        this.dom.btnModalActionPingZero.disabled = false;
-        this.dom.btnModalActionPingZero.textContent = "🎯 Ejecutar Ping Zero";
+      const btnActionPingElFin = document.getElementById("btnModalActionPing") || this.dom.btnModalActionPingZero;
+      if (btnActionPingElFin) {
+        btnActionPingElFin.disabled = false;
+        btnActionPingElFin.textContent = "🎯 Ping";
       }
     }
   }
@@ -3351,14 +3382,45 @@ class MeshCoreStationApp {
       });
     }
 
-    // 7. Consola Terminal Local
+    // 7. Consola Terminal Local estilo Linux con Historial de Comandos (↑ / ↓)
     const termForm = document.getElementById("localTerminalForm");
     const termInput = document.getElementById("localTerminalInput");
+    this._localCliHistory = [];
+    this._localCliHistoryIdx = -1;
+
+    if (termInput) {
+      termInput.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          if (this._localCliHistory.length === 0) return;
+          if (this._localCliHistoryIdx === -1) {
+            this._localCliHistoryIdx = this._localCliHistory.length - 1;
+          } else if (this._localCliHistoryIdx > 0) {
+            this._localCliHistoryIdx--;
+          }
+          termInput.value = this._localCliHistory[this._localCliHistoryIdx] || "";
+        } else if (e.key === "ArrowDown") {
+          e.preventDefault();
+          if (this._localCliHistoryIdx !== -1) {
+            if (this._localCliHistoryIdx < this._localCliHistory.length - 1) {
+              this._localCliHistoryIdx++;
+              termInput.value = this._localCliHistory[this._localCliHistoryIdx] || "";
+            } else {
+              this._localCliHistoryIdx = -1;
+              termInput.value = "";
+            }
+          }
+        }
+      });
+    }
+
     if (termForm && termInput) {
       termForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         const cmd = termInput.value.trim();
         if (cmd) {
+          this._localCliHistory.push(cmd);
+          this._localCliHistoryIdx = -1;
           termInput.value = "";
           await this.sendLocalCliCommand(cmd);
         }
@@ -3785,14 +3847,17 @@ class MeshCoreStationApp {
 
   async sendLocalCliCommand(cmdText) {
     const out = document.getElementById("localTerminalOutput");
-    const appendTerm = (msg) => {
+    const appendTerm = (msg, cssClass = "term-info") => {
       if (out) {
-        out.textContent += `\n[${new Date().toLocaleTimeString()}] ${msg}`;
+        const line = document.createElement("div");
+        line.className = `term-line ${cssClass}`;
+        line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        out.appendChild(line);
         out.scrollTop = out.scrollHeight;
       }
     };
 
-    appendTerm(`> ${cmdText}`);
+    appendTerm(`meshcore@base:~$ ${cmdText}`, "term-cmd");
     try {
       const res = await fetch("/api/admin/command", {
         method: "POST",
@@ -3809,7 +3874,7 @@ class MeshCoreStationApp {
         } else {
           resultStr = "✓ OK";
         }
-        appendTerm(`< ${resultStr}`);
+        appendTerm(resultStr, "term-success");
 
         // Si fue comando de cambio o telemetría, refrescar datos locales
         const cmdLower = cmdText.toLowerCase().trim();
@@ -3817,10 +3882,10 @@ class MeshCoreStationApp {
           this.fetchLocalNodeConfig();
         }
       } else {
-        appendTerm(`! ERROR: ${data.message || data.error || "Fallo en comando"}`);
+        appendTerm(`! ERROR: ${data.message || data.error || "Fallo en comando"}`, "term-error");
       }
     } catch (err) {
-      appendTerm(`! ERROR RED: ${err.message}`);
+      appendTerm(`! ERROR RED: ${err.message}`, "term-error");
     }
   }
 
@@ -6010,7 +6075,7 @@ class MeshCoreStationApp {
           `;
           actionsHtml = `
             <button type="button" class="btn-primary btn-sm btn-node-primary btn-manage-node-repeater">🎛️ Administrar</button>
-            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-ping-zero" title="Hacer Ping Zero directo (0 saltos)">🎯 Ping 0</button>
+            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-ping-zero" title="Hacer Ping directo">🎯 Ping</button>
             <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
             <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-client-qr" title="Ver código QR">📤 QR</button>
           `;
@@ -6328,7 +6393,7 @@ class MeshCoreStationApp {
       } catch (_) {}
     }
 
-    // Actualizar contadores de filtros
+    // Actualizar contadores de filtros de Nodos
     const countAllEl = document.getElementById("countAllNodes");
     if (countAllEl) countAllEl.textContent = String(totalCount);
     const countRepEl = document.getElementById("countRepeaters");
@@ -6339,6 +6404,16 @@ class MeshCoreStationApp {
     if (countRoomEl) countRoomEl.textContent = String(roomCount);
     const countCliEl = document.getElementById("countClients");
     if (countCliEl) countCliEl.textContent = String(clientCount);
+
+    // Actualizar contadores de filtros de Contactos
+    const countAllContactsEl = document.getElementById("countAllContacts");
+    if (countAllContactsEl) countAllContactsEl.textContent = String(clientContactCount);
+    const countFavContactsEl = document.getElementById("countFavContacts");
+    if (countFavContactsEl) countFavContactsEl.textContent = String(clientContactCount > 0 ? 1 : 0);
+    const countOnlineContactsEl = document.getElementById("countOnlineContacts");
+    if (countOnlineContactsEl) countOnlineContactsEl.textContent = String(clientContactCount);
+    const countGpsContactsEl = document.getElementById("countGpsContacts");
+    if (countGpsContactsEl) countGpsContactsEl.textContent = String(geoLocatedCount);
 
     if (contactsGrid && clientContactCount === 0) {
       contactsGrid.innerHTML = '<div class="empty-state">No hay contactos cliente (CLIENT) registrados en el dispositivo.</div>';
@@ -6353,10 +6428,22 @@ class MeshCoreStationApp {
     const contactsGrid = this.dom.contactsGridUi || document.getElementById("contactsGridUi");
     if (!contactsGrid) return;
     const cards = contactsGrid.querySelectorAll(".contact-card, .contact-item-card");
-    const q = (query || "").trim().toLowerCase();
+    const q = (query || (this.dom.contactsSearchInput ? this.dom.contactsSearchInput.value : "")).trim().toLowerCase();
+    const activeFilter = this.activeContactsFilter || "all";
+
     cards.forEach((card) => {
-      const search = card.getAttribute("data-search") || "";
-      card.style.display = search.includes(q) ? "flex" : "none";
+      const search = (card.getAttribute("data-search") || "").toLowerCase();
+      const isOnline = !card.classList.contains("is-offline");
+      const hasGps = Boolean(card.getAttribute("data-has-gps") === "true");
+      const isFav = Boolean(card.getAttribute("data-is-fav") === "true");
+
+      const matchesSearch = !q || search.includes(q);
+      let matchesFilter = true;
+      if (activeFilter === "favorites") matchesFilter = isFav;
+      else if (activeFilter === "online") matchesFilter = isOnline;
+      else if (activeFilter === "gps") matchesFilter = hasGps;
+
+      card.style.display = (matchesSearch && matchesFilter) ? "flex" : "none";
     });
   }
 

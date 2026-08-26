@@ -331,6 +331,12 @@
 
             <div class="contacts-toolbar">
               <input type="search" id="contactsSearchInput" class="search-input" placeholder="🔍 Buscar contacto por nombre o clave pública..." aria-label="Buscar contactos" />
+              <div class="contacts-filter-pills" role="radiogroup" aria-label="Filtrar contactos">
+                <button type="button" class="filter-pill active" data-contact-filter="all">Todos (<span id="countAllContacts">0</span>)</button>
+                <button type="button" class="filter-pill" data-contact-filter="favorites">⭐ Favoritos (<span id="countFavContacts">0</span>)</button>
+                <button type="button" class="filter-pill" data-contact-filter="online">🟢 En Línea (<span id="countOnlineContacts">0</span>)</button>
+                <button type="button" class="filter-pill" data-contact-filter="gps">📍 Con Posición (<span id="countGpsContacts">0</span>)</button>
+              </div>
             </div>
             <div class="nodes-grid" id="contactsGridUi" role="region" aria-label="Lista de contactos">
               <div class="empty-state">Buscando contactos en el dispositivo...</div>
@@ -731,8 +737,7 @@
               <button type="button" class="local-subtab-btn active" data-subtab="local-telemetry">📊 Telemetría & Estado</button>
               <button type="button" class="local-subtab-btn" data-subtab="local-radio">📻 Parámetros RF & Radio</button>
               <button type="button" class="local-subtab-btn" data-subtab="local-owner-pos">📍 Identidad & Posición GPS</button>
-              <button type="button" class="local-subtab-btn" data-subtab="local-console">💻 Consola Terminal Local</button>
-              <button type="button" class="local-subtab-btn" data-subtab="local-actions">⚡ Acciones de Hardware</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-console">💻 Consola Terminal Linux</button>
               <button type="button" class="local-subtab-btn" data-subtab="local-storage-maps">💾 Mapas Offline & Almacenamiento</button>
             </div>
 
@@ -979,14 +984,19 @@
               </div>
             </div>
 
-            <!-- Subpanel 4: Consola Terminal Local con Guía de Ayuda -->
+            <!-- Subpanel 4: Consola Terminal Local estilo Linux -->
             <div id="local-console" class="local-settings-subpanel">
-              <div class="terminal-container modal-terminal-container">
-                <div class="terminal-header">
-                  <span>📟 Consola Serial Directa con Firmware MeshCore</span>
-                  <div class="terminal-header-actions">
-                    <button type="button" class="btn-xs btn-secondary" id="btnToggleLocalCmdHelp">❓ Guía de Comandos (help)</button>
-                    <button type="button" class="btn-xs btn-outline" id="btnClearLocalTerminal">🧹 Limpiar</button>
+              <div class="linux-term-window">
+                <div class="linux-term-header">
+                  <div class="linux-term-dots">
+                    <span class="linux-term-dot dot-red"></span>
+                    <span class="linux-term-dot dot-yellow"></span>
+                    <span class="linux-term-dot dot-green"></span>
+                  </div>
+                  <span class="linux-term-title">meshcore@base:~ (Consola Serial Directa)</span>
+                  <div class="linux-term-actions">
+                    <button type="button" class="btn-xs btn-outline-term" id="btnToggleLocalCmdHelp">❓ Ayuda (help)</button>
+                    <button type="button" class="btn-xs btn-outline-term" id="btnClearLocalTerminal">🧹 Limpiar</button>
                   </div>
                 </div>
 
@@ -997,37 +1007,33 @@
                     <button type="button" class="btn-icon btn-xs" id="btnCloseLocalHelpDrawer">✕</button>
                   </div>
                   <div class="help-drawer-grid">
-                    <div class="help-cmd-item" data-cmd="get_bat">
-                      <code>get_bat</code>
+                    <div class="help-cmd-item" data-cmd="bat">
+                      <code>bat / get_bat</code>
                       <span>Consulta nivel de batería y voltaje en mV</span>
                     </div>
-                    <div class="help-cmd-item" data-cmd="get_time">
-                      <code>get_time</code>
+                    <div class="help-cmd-item" data-cmd="time">
+                      <code>time / get_time</code>
                       <span>Consulta hora y timestamp del reloj RTC</span>
                     </div>
-                    <div class="help-cmd-item" data-cmd="get_stats_core">
-                      <code>get_stats_core</code>
+                    <div class="help-cmd-item" data-cmd="stats">
+                      <code>stats / get_stats_core</code>
                       <span>Estadísticas de uptime, memoria y airtime</span>
                     </div>
-                    <div class="help-cmd-item" data-cmd="get_stats_radio">
-                      <code>get_stats_radio</code>
+                    <div class="help-cmd-item" data-cmd="radio">
+                      <code>radio / get_stats_radio</code>
                       <span>Métricas de RF, SNR, RSSI y piso de ruido</span>
                     </div>
-                    <div class="help-cmd-item" data-cmd="get_stats_packets">
-                      <code>get_stats_packets</code>
+                    <div class="help-cmd-item" data-cmd="packets">
+                      <code>packets / get_stats_packets</code>
                       <span>Contadores de paquetes TX, RX, dup y errores</span>
                     </div>
                     <div class="help-cmd-item" data-cmd="advert">
-                      <code>advert</code>
+                      <code>advert / flood</code>
                       <span>Emite un anuncio de presencia inmediato por radio</span>
                     </div>
-                    <div class="help-cmd-item" data-cmd="get_channels">
-                      <code>get_channels</code>
+                    <div class="help-cmd-item" data-cmd="channels">
+                      <code>channels / get_channels</code>
                       <span>Lista los canales configurados en la radio</span>
-                    </div>
-                    <div class="help-cmd-item" data-cmd="get_tuning">
-                      <code>get_tuning</code>
-                      <span>Consulta frecuencia, SF, BW y parámetros de módem</span>
                     </div>
                     <div class="help-cmd-item" data-cmd="reboot">
                       <code>reboot</code>
@@ -1036,86 +1042,16 @@
                   </div>
                 </div>
 
-                <div class="terminal-output" id="localTerminalOutput">
-[Sistema] Conexión establecida con el transceptor MeshCore local.
-[Sistema] Escribe un comando (ej: get_bat, get_stats_core, advert) o pulsa en la Guía de Comandos.
+                <div class="linux-term-body" id="localTerminalOutput" role="log">
+                  <div class="term-line term-sys">meshcore-base v3.0.0 (Linux x86_64 / ESP32-S3 Serial Direct)</div>
+                  <div class="term-line term-sys">Conexión serial establecida. Escribe 'help' o presiona ↑ / ↓ para navegar el historial de comandos.</div>
                 </div>
 
-                <form id="localTerminalForm" class="terminal-input-bar">
-                  <span class="terminal-prompt">&gt;</span>
-                  <input type="text" id="localTerminalInput" placeholder="Escribe comando MeshCore (ej: get_bat, get_time, advert, help)..." autocomplete="off" />
-                  <button type="submit" class="btn-primary btn-sm" id="btnSendLocalTerminal">Enviar</button>
+                <form id="localTerminalForm" class="linux-term-input-bar">
+                  <span class="linux-term-prompt">meshcore@base:~$</span>
+                  <input type="text" id="localTerminalInput" class="linux-term-input" placeholder="Escribe comando (ej: bat, stats, radio, time, help)..." autocomplete="off" spellcheck="false" />
+                  <button type="submit" class="btn-term-send" id="btnSendLocalTerminal">↵ Ejecutar</button>
                 </form>
-              </div>
-            </div>
-
-            <!-- Subpanel 5: Acciones Rápidas de Hardware -->
-            <div id="local-actions" class="local-settings-subpanel">
-              <div class="card-panel">
-                <div class="actions-grid-modern">
-                  <div class="action-card-item">
-                    <div class="action-card-icon">🔄</div>
-                    <div class="action-card-text">
-                      <h4>Reiniciar Transceptor (Reboot)</h4>
-                      <p>Envía comando de reinicio de hardware al microcontrolador ESP32/nRF52.</p>
-                    </div>
-                    <button type="button" class="btn-danger btn-sm" id="btnActionRebootLocal">🔄 Reiniciar</button>
-                  </div>
-
-                  <div class="action-card-item">
-                    <div class="action-card-icon">🕒</div>
-                    <div class="action-card-text">
-                      <h4>Sincronizar Reloj RTC</h4>
-                      <p>Ajusta el reloj de tiempo real del nodo con la hora exacta del servidor.</p>
-                    </div>
-                    <button type="button" class="btn-secondary btn-sm" id="btnActionSyncClock">🕒 Sincronizar Reloj</button>
-                  </div>
-
-                  <div class="action-card-item">
-                    <div class="action-card-icon">📢</div>
-                    <div class="action-card-text">
-                      <h4>Advert Hop (0 Saltos / Vecindario)</h4>
-                      <p>Difunde un anuncio de presencia directo a nodos en alcance visual de 1 salto (flood=off).</p>
-                    </div>
-                    <button type="button" class="btn-primary btn-sm" id="btnActionAdvertHop">📢 Advert Hop (0 Saltos)</button>
-                  </div>
-
-                  <div class="action-card-item">
-                    <div class="action-card-icon">🌊</div>
-                    <div class="action-card-text">
-                      <h4>Advert Flood Routed (Toda la Malla)</h4>
-                      <p>Difunde un anuncio enrutado por inundación para propagarse a través de todos los repetidores.</p>
-                    </div>
-                    <button type="button" class="btn-secondary btn-sm" id="btnActionAdvertFlood">🌊 Advert Flood</button>
-                  </div>
-
-                  <div class="action-card-item">
-                    <div class="action-card-icon">📋</div>
-                    <div class="action-card-text">
-                      <h4>Advert Clipboard (Copiar Tarjeta)</h4>
-                      <p>Copia el enlace de contacto y tarjeta del nodo (URI MeshCore) directamente al portapapeles.</p>
-                    </div>
-                    <button type="button" class="btn-outline btn-sm" id="btnActionAdvertClipboard">📋 Copiar URI</button>
-                  </div>
-
-                  <div class="action-card-item">
-                    <div class="action-card-icon">🧹</div>
-                    <div class="action-card-text">
-                      <h4>Limpiar Estadísticas Locales</h4>
-                      <p>Restablece contadores de paquetes, duplicados y tiempos de aire acumulados.</p>
-                    </div>
-                    <button type="button" class="btn-secondary btn-sm" id="btnActionClearLocalStats">🧹 Limpiar Stats</button>
-                  </div>
-
-                  <div class="action-card-item">
-                    <div class="action-card-icon">📻</div>
-                    <div class="action-card-text">
-                      <h4>Reconectar Puerto Serial</h4>
-                      <p>Cierra y reabre de forma segura el descriptor USB/Serial con el transceptor.</p>
-                    </div>
-                    <button type="button" class="btn-secondary btn-sm" id="btnActionReconnectSerial">📻 Reconectar Serial</button>
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -1334,8 +1270,8 @@
             <h3 id="repeaterAdminTitle">🎛️ Centro de Control RF: <span id="adminModalNodeName">Repetidor</span></h3>
             <div class="header-node-badges">
               <span class="modal-pubkey-badge font-mono" id="adminModalNodePkDisplay">--</span>
-              <span class="ping-zero-badge" id="adminModalPingZeroBadge" title="Latencia directa de 0 saltos">🎯 Ping 0: -- ms</span>
-              <button type="button" class="btn-xs btn-outline btn-modal-ping-zero" id="btnModalHeaderPingZero" title="Hacer Ping Zero directo (0 saltos)">🎯 Ping Zero</button>
+              <span class="ping-zero-badge" id="adminModalPingZeroBadge" title="Latencia directa de medición de enlace">🎯 Ping: -- ms</span>
+              <button type="button" class="btn-xs btn-outline btn-modal-ping-zero" id="btnModalHeaderPingZero" title="Hacer Ping directo al repetidor">🎯 Ping</button>
             </div>
           </div>
           <button class="btn-icon modal-close" id="btnCloseRepeaterAdminModal" aria-label="Cerrar modal">✕</button>
@@ -1392,8 +1328,7 @@
             <button class="subtab-btn" data-subtab="rep-owner-pos">📍 Propietario & Posición</button>
             <button class="subtab-btn" data-subtab="rep-security">🔐 Seguridad & ACL</button>
             <button class="subtab-btn" data-subtab="rep-neighbors">🌐 Malla & Vecinos</button>
-            <button class="subtab-btn" data-subtab="rep-console">💻 Terminal RF & Ayuda</button>
-            <button class="subtab-btn" data-subtab="rep-quick">⚡ Acciones</button>
+            <button class="subtab-btn" data-subtab="rep-console">💻 Terminal RF Linux</button>
           </div>
 
         <div class="modal-body repeater-admin-modal-body">
@@ -1478,9 +1413,46 @@
               <div class="summary-pill"><span>Posición:</span> <strong id="repSummaryPos">--</strong></div>
             </div>
 
-            <div class="panel-actions-row">
-              <button type="button" class="btn-secondary btn-sm" id="btnRefreshRepeaterTelem">🔄 Actualizar Telemetría Remota (stats-core)</button>
-              <button type="button" class="btn-outline btn-sm" id="btnSyncRepeaterClock">🕒 Sincronizar Reloj con Estación Base</button>
+            <!-- Barra Compacta de Acciones de Hardware en Telemetría y Estado -->
+            <div class="hardware-actions-section">
+              <div class="section-micro-header">
+                <span class="micro-title">⚡ Acciones Rápidas de Control Remoto</span>
+                <span class="micro-subtitle">Comandos de ejecución y sondeo directo por RF sobre el repetidor</span>
+              </div>
+              <div class="hardware-actions-toolbar">
+                <button type="button" class="btn-compact-action btn-compact-primary" id="btnModalActionPing" title="Sonda de enlace directo para medir RTT, RSSI y SNR">
+                  <span class="btn-compact-icon">🎯</span>
+                  <span class="btn-compact-label">Ping</span>
+                </button>
+                <button type="button" class="btn-compact-action btn-compact-secondary" id="btnRefreshRepeaterTelem" title="Consulta telemetría de CPU, batería, solar y reloj">
+                  <span class="btn-compact-icon">🔄</span>
+                  <span class="btn-compact-label">Stats Core</span>
+                </button>
+                <button type="button" class="btn-compact-action btn-compact-secondary" id="btnModalActionRadioStats" title="Consulta métricas de calidad de radio RF (RSSI, SNR, Airtime)">
+                  <span class="btn-compact-icon">📻</span>
+                  <span class="btn-compact-label">Stats Radio</span>
+                </button>
+                <button type="button" class="btn-compact-action btn-compact-secondary" id="btnSyncRepeaterClock" title="Ajusta el reloj RTC del repetidor con la hora de la estación base">
+                  <span class="btn-compact-icon">🕒</span>
+                  <span class="btn-compact-label">Sincronizar RTC</span>
+                </button>
+                <button type="button" class="btn-compact-action btn-compact-secondary" id="btnModalActionAdvert" title="Emite un anuncio de presencia del repetidor en la malla">
+                  <span class="btn-compact-icon">📢</span>
+                  <span class="btn-compact-label">Advert</span>
+                </button>
+                <button type="button" class="btn-compact-action btn-compact-secondary" id="btnDiscoverNeighbors" title="Sondea y actualiza la tabla de vecinos del repetidor">
+                  <span class="btn-compact-icon">🌐</span>
+                  <span class="btn-compact-label">Vecinos</span>
+                </button>
+                <button type="button" class="btn-compact-action btn-compact-secondary" id="btnModalActionClearStats" title="Pone a cero los contadores de paquetes y estadísticas">
+                  <span class="btn-compact-icon">🧹</span>
+                  <span class="btn-compact-label">Limpiar Stats</span>
+                </button>
+                <button type="button" class="btn-compact-action btn-compact-danger" id="btnModalActionReboot" title="Reinicia el microcontrolador del repetidor por RF">
+                  <span class="btn-compact-icon">🔄</span>
+                  <span class="btn-compact-label">Reiniciar</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1659,13 +1631,21 @@
             </div>
           </div>
 
-          <!-- Subpanel 6: Consola Terminal Interactiva con Guía de Ayuda (Help) -->
+          <!-- Subpanel 6: Consola Terminal RF Remota estilo Linux -->
           <div id="rep-console" class="repeater-subpanel">
-            <div class="terminal-container modal-terminal-container">
-              <div class="terminal-header">
-                <span>📟 Consola RF Remota & Comandos MeshCore</span>
-                <div class="terminal-header-actions">
-                  <button type="button" class="btn-xs btn-secondary" id="btnToggleCmdHelp">❓ Guía de Comandos (help)</button>
+            <div class="linux-term-window">
+              <div class="linux-term-header">
+                <div class="linux-term-dots">
+                  <span class="linux-term-dot dot-red"></span>
+                  <span class="linux-term-dot dot-yellow"></span>
+                  <span class="linux-term-dot dot-green"></span>
+                </div>
+                <span class="linux-term-title">meshcore@repeater:~ (Consola RF Remota)</span>
+                <div class="linux-term-actions">
+                  <button type="button" class="btn-xs btn-outline-term" id="btnToggleCmdHelp">❓ Ayuda (help)</button>
+                  <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="ping">🎯 ping</button>
+                  <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="stats-core">stats-core</button>
+                  <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="stats-radio">stats-radio</button>
                 </div>
               </div>
 
@@ -1676,9 +1656,9 @@
                   <button type="button" class="btn-icon btn-xs" id="btnCloseCmdHelp">✕</button>
                 </div>
                 <div class="help-cmd-grid">
-                  <div class="help-cmd-item" data-cmd="ping 0">
-                    <code>ping 0 / ping</code>
-                    <span>Sonda directa de 0 saltos para medir latencia RTT, RSSI y SNR sin saturar la malla.</span>
+                  <div class="help-cmd-item" data-cmd="ping">
+                    <code>ping</code>
+                    <span>Sonda directa de enlace para medir latencia RTT, RSSI y SNR sin saturar la malla.</span>
                   </div>
                   <div class="help-cmd-item" data-cmd="stats-core">
                     <code>stats-core</code>
@@ -1716,10 +1696,6 @@
                     <code>ver</code>
                     <span>Consulta la versión de firmware instalada.</span>
                   </div>
-                  <div class="help-cmd-item" data-cmd="board">
-                    <code>board</code>
-                    <span>Identifica la placa de hardware (Heltec, T-Beam, etc.).</span>
-                  </div>
                   <div class="help-cmd-item" data-cmd="clear stats">
                     <code>clear stats</code>
                     <span>Pone a cero los contadores de estadísticas y errores.</span>
@@ -1731,112 +1707,16 @@
                 </div>
               </div>
 
-              <div class="terminal-quick-buttons">
-                <button class="btn-xs btn-outline rep-quick-cmd btn-quick-ping-zero" data-cmd="ping 0">🎯 ping 0</button>
-                <button class="btn-xs btn-outline rep-quick-cmd" data-cmd="stats-core">stats-core</button>
-                <button class="btn-xs btn-outline rep-quick-cmd" data-cmd="stats-radio">stats-radio</button>
-                <button class="btn-xs btn-outline rep-quick-cmd" data-cmd="stats-packets">stats-packets</button>
-                <button class="btn-xs btn-outline rep-quick-cmd" data-cmd="neighbors">neighbors</button>
-                <button class="btn-xs btn-outline rep-quick-cmd" data-cmd="advert">advert</button>
-                <button class="btn-xs btn-outline rep-quick-cmd" data-cmd="clock">clock</button>
-                <button class="btn-xs btn-outline rep-quick-cmd" data-cmd="pos">pos</button>
-                <button class="btn-xs btn-outline rep-quick-cmd" data-cmd="ver">ver</button>
-                <button class="btn-xs btn-outline rep-quick-cmd" data-cmd="reboot">reboot</button>
+              <div class="linux-term-body" id="repeaterTerminalOutput" role="log">
+                <div class="term-line term-sys">meshcore-remote-admin v3.0.0 (RF LoRa / Mesh Protocol)</div>
+                <div class="term-line term-sys">Consola remota lista. Envía comandos RF o presiona ↑ / ↓ para navegar el historial.</div>
               </div>
 
-              <div class="terminal-body modal-terminal-body" id="repeaterTerminalOutput" role="log">
-                <div class="term-line term-info">Consola lista. Envía comandos RF al repetidor seleccionado. Haz clic en "❓ Guía de Comandos" para ver la sintaxis de todos los comandos.</div>
-              </div>
-              <form id="repeaterTerminalForm" class="terminal-prompt">
-                <span class="prompt-symbol">&gt;</span>
-                <input type="text" id="repeaterTerminalInput" placeholder="Escribe un comando RF (ej: ping 0, stats-core, neighbors, pos, clock, advert, reboot)..." autocomplete="off" />
-                <button type="submit" class="btn-primary btn-sm">Ejecutar</button>
+              <form id="repeaterTerminalForm" class="linux-term-input-bar">
+                <span class="linux-term-prompt">meshcore@remote:~$</span>
+                <input type="text" id="repeaterTerminalInput" class="linux-term-input" placeholder="Escribe comando RF (ej: ping, stats-core, neighbors, clock, advert)..." autocomplete="off" spellcheck="false" />
+                <button type="submit" class="btn-term-send">↵ Ejecutar</button>
               </form>
-            </div>
-          </div>
-
-          <!-- Subpanel 7: Acciones Rápidas -->
-          <div id="rep-quick" class="repeater-subpanel">
-            <div class="quick-actions-grid">
-              <div class="action-card action-card-highlight">
-                <div class="action-card-header">
-                  <span class="action-icon">🎯</span>
-                  <div>
-                    <strong>Ping Zero (0 Saltos Directos)</strong>
-                    <p>Sondea el repetidor directamente sin retransmisión intermedia para medir latencia RTT, RSSI y SNR.</p>
-                  </div>
-                </div>
-                <div class="action-card-footer">
-                  <span class="ping-result-pill" id="repQuickPingResult">Sin mediciones</span>
-                  <button type="button" class="btn-primary btn-sm" id="btnModalActionPingZero">🎯 Ejecutar Ping Zero</button>
-                </div>
-              </div>
-
-              <div class="action-card">
-                <div class="action-card-header">
-                  <span class="action-icon">🔄</span>
-                  <div>
-                    <strong>Reinicio Remoto</strong>
-                    <p>Reinicia el microcontrolador del repetidor por RF.</p>
-                  </div>
-                </div>
-                <button type="button" class="btn-secondary btn-sm" id="btnModalActionReboot">Ejecutar Reboot</button>
-              </div>
-
-              <div class="action-card">
-                <div class="action-card-header">
-                  <span class="action-icon">🕒</span>
-                  <div>
-                    <strong>Sincronizar Reloj</strong>
-                    <p>Sincroniza la hora Unix del repetidor con la estación base.</p>
-                  </div>
-                </div>
-                <button type="button" class="btn-secondary btn-sm" id="btnModalActionClock">Sincronizar Reloj</button>
-              </div>
-
-              <div class="action-card">
-                <div class="action-card-header">
-                  <span class="action-icon">📢</span>
-                  <div>
-                    <strong>Forzar Anuncio (Advert)</strong>
-                    <p>Emite un paquete de broadcast para actualizar vecinos.</p>
-                  </div>
-                </div>
-                <button type="button" class="btn-secondary btn-sm" id="btnModalActionAdvert">Emitir Advert</button>
-              </div>
-
-              <div class="action-card">
-                <div class="action-card-header">
-                  <span class="action-icon">📊</span>
-                  <div>
-                    <strong>Solicitar Telemetría</strong>
-                    <p>Pide el reporte completo de batería, sensores y radio.</p>
-                  </div>
-                </div>
-                <button type="button" class="btn-secondary btn-sm" id="btnModalActionTelemetry">Pedir Telemetría</button>
-              </div>
-
-              <div class="action-card">
-                <div class="action-card-header">
-                  <span class="action-icon">🧹</span>
-                  <div>
-                    <strong>Limpiar Estadísticas</strong>
-                    <p>Resetea los contadores de paquetes y errores.</p>
-                  </div>
-                </div>
-                <button type="button" class="btn-secondary btn-sm" id="btnModalActionClearStats">Limpiar Stats</button>
-              </div>
-
-              <div class="action-card">
-                <div class="action-card-header">
-                  <span class="action-icon">ℹ️</span>
-                  <div>
-                    <strong>Consultar Versión & Placa</strong>
-                    <p>Obtiene versión de firmware y modelo de hardware.</p>
-                  </div>
-                </div>
-                <button type="button" class="btn-secondary btn-sm" id="btnModalActionVersion">Consultar Versión</button>
-              </div>
             </div>
           </div>
         </div>
