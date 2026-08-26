@@ -6,6 +6,27 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Verificación y Sincronización Integral de Posicionamiento GPS, Persistencia y Visualización en Mapa
+- **Fecha**: 2026-08-25
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Coordinó al Agente 2 (Bridge Architect) y Agente 4 (Frontend) para garantizar la correcta obtención, serialización, guardado, recuperación y renderizado en vivo de posiciones geográficas en mapa:
+  1. **Agente 2 (Python Bridge Architect Agent)**:
+     - **`src/admin_handler.py`**:
+       - En `set_local_config`: Tras actualizar latitud, longitud, altitud y propietario, sincroniza inmediatamente el nodo local en `NodeRegistry` (`NodeContactUpdate`) y emite actualización hacia el servidor web / WebSockets.
+       - En `remote_repeater_set_config`: Tras despachar tramas RF `set pos` / `set owner`, actualiza de inmediato el registro canónico del nodo repetidor en `NodeRegistry` para persistencia en base de datos SQLite y recuperación instantánea.
+     - **`src/contact_manager.py`**:
+       - Validación y parsing tolerante de coordenadas (`_safe_float`) desde telemetría ambiental, advertencias de presencia (`advert`), beacons LoRa y diccionarios anidados (`gps.latitude`, `position.latitude`, etc.).
+  2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - **`src/web/static/js/app.js`**:
+       - **Formularios de Edición**: Parsing robusto (`rawLat !== ""` y `!isNaN`) en `saveLocalIdentityAndPosition` y en el diálogo de repetidores remotos (`repOwnerPosForm`), evitando conversiones erróneas a 0.0 cuando se dejan vacíos.
+       - **Sincronización Inmediata en Memoria**: Actualización directa de `knownNodes` y re-renderizado instantáneo del directorio y marcadores del mapa Leaflet (`renderNodesDirectory`) al guardar coordenadas.
+       - **Interacción y Centrado en Mapa**: Mejora en `selectMapNode` y `focusNodeOnMap` para asegurar la creación del marcador, centrado con animación suave (`flyTo`), apertura de popup enriquecido y feedback visual si el nodo no tiene fijación GPS.
+  3. **Agente 0 (Lead Orchestrator)**:
+     - Verificación de tipos y sintaxis JavaScript (`node -c` $\to$ código 0).
+     - Verificación de compilación Python (`python -m compileall src` $\to$ código 0).
+     - Sincronización del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
+     - Sincronización con GitHub `origin/main`.
+
 ### Hito: Estandarización de Terminales (Local y Repetidores) con Conjunto de Comandos Oficiales MeshCore
 - **Fecha**: 2026-08-25
 - **Estado**: ✅ COMPLETADO

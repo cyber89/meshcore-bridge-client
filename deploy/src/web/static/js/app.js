@@ -1636,12 +1636,23 @@ class MeshCoreStationApp {
     if (ownerNameInput) ownerNameInput.value = node.owner_name || node.alias || node.name || "";
     const ownerInfoInput = document.getElementById("repOwnerInfo");
     if (ownerInfoInput) ownerInfoInput.value = node.owner_info || "";
+
+    const extractNum = (...keys) => {
+      for (const k of keys) {
+        if (k !== undefined && k !== null && k !== "") {
+          const num = parseFloat(k);
+          if (!isNaN(num)) return num;
+        }
+      }
+      return "";
+    };
+
     const posLatInput = document.getElementById("repPosLat");
-    if (posLatInput && node.latitude != null) posLatInput.value = node.latitude;
+    if (posLatInput) posLatInput.value = extractNum(node.latitude, node.lat, node.gps_lat, node.gps?.latitude, node.position?.latitude);
     const posLonInput = document.getElementById("repPosLon");
-    if (posLonInput && node.longitude != null) posLonInput.value = node.longitude;
+    if (posLonInput) posLonInput.value = extractNum(node.longitude, node.lon, node.gps_lon, node.gps?.longitude, node.position?.longitude);
     const posAltInput = document.getElementById("repPosAlt");
-    if (posAltInput && node.altitude_m != null) posAltInput.value = node.altitude_m;
+    if (posAltInput) posAltInput.value = extractNum(node.altitude_m, node.alt, node.altitude, node.gps?.altitude);
     const posFixed = document.getElementById("repPosFixed");
     if (posFixed && node.fixed_position !== undefined) {
       posFixed.value = node.fixed_position === false ? "0" : "1";
@@ -1817,13 +1828,16 @@ class MeshCoreStationApp {
         const password = this.getRepeaterPassword(target);
         const owner_name = document.getElementById("repOwnerName")?.value.trim() || "";
         const owner_info = document.getElementById("repOwnerInfo")?.value.trim() || "";
-        const lat = parseFloat(document.getElementById("repPosLat")?.value || "0");
-        const lon = parseFloat(document.getElementById("repPosLon")?.value || "0");
-        const alt = parseFloat(document.getElementById("repPosAlt")?.value || "0");
+        const rawLat = document.getElementById("repPosLat")?.value.trim();
+        const rawLon = document.getElementById("repPosLon")?.value.trim();
+        const rawAlt = document.getElementById("repPosAlt")?.value.trim();
+        const lat = rawLat !== undefined && rawLat !== "" && !isNaN(parseFloat(rawLat)) ? parseFloat(rawLat) : null;
+        const lon = rawLon !== undefined && rawLon !== "" && !isNaN(parseFloat(rawLon)) ? parseFloat(rawLon) : null;
+        const alt = rawAlt !== undefined && rawAlt !== "" && !isNaN(parseFloat(rawAlt)) ? parseFloat(rawAlt) : null;
         const fixed = document.getElementById("repPosFixed")?.value === "1";
 
         const params = { owner_name, owner_info, lat, lon, alt, fixed };
-        this.appendTerminalLine(`> [TX OWNER/POS] Configurando propietario '${owner_name}' y posición (${lat}, ${lon}) en ${target.slice(0, 8)}...`, "term-cmd");
+        this.appendTerminalLine(`> [TX OWNER/POS] Configurando propietario '${owner_name}' y posición (${lat ?? '--'}, ${lon ?? '--'}) en ${target.slice(0, 8)}...`, "term-cmd");
 
         try {
           const res = await fetch("/api/repeater/remote/config", {
@@ -1835,6 +1849,18 @@ class MeshCoreStationApp {
           if (data.status === "ok") {
             this.appendTerminalLine(`✓ [RX OK] Información y coordenadas guardadas en repetidor ${target.slice(0, 8)}.`, "term-success");
             this.showToast("📍 Información y posición aplicadas al repetidor", "success");
+
+            // Sincronizar de inmediato en memoria y refrescar mapa
+            const existing = this.knownNodes.get(target);
+            if (existing) {
+              if (owner_name) { existing.name = owner_name; existing.alias = owner_name; existing.owner_name = owner_name; }
+              if (owner_info) existing.owner_info = owner_info;
+              if (lat !== null) existing.latitude = lat;
+              if (lon !== null) existing.longitude = lon;
+              if (alt !== null) existing.altitude_m = alt;
+              existing.fixed_position = fixed;
+            }
+            this.renderNodesDirectory(Array.from(this.knownNodes.values()));
           } else {
             this.appendTerminalLine(`✗ [RX ERROR] ${data.message || data.error}`, "term-error");
             if (data.message && (data.message.toLowerCase().includes("password") || data.message.toLowerCase().includes("auth") || data.message.toLowerCase().includes("pin"))) {
@@ -3795,12 +3821,16 @@ class MeshCoreStationApp {
   }
 
   async saveLocalIdentityAndPosition() {
+    const rawLat = document.getElementById("localGpsLat")?.value.trim();
+    const rawLon = document.getElementById("localGpsLon")?.value.trim();
+    const rawAlt = document.getElementById("localGpsAlt")?.value.trim();
+
     const payload = {
       name: document.getElementById("localNodeName")?.value.trim() || "MeshCore_Base",
       owner_info: document.getElementById("localOwnerInfo")?.value.trim() || "",
-      latitude: parseFloat(document.getElementById("localGpsLat")?.value) || null,
-      longitude: parseFloat(document.getElementById("localGpsLon")?.value) || null,
-      altitude: parseInt(document.getElementById("localGpsAlt")?.value, 10) || null,
+      latitude: rawLat !== undefined && rawLat !== "" && !isNaN(parseFloat(rawLat)) ? parseFloat(rawLat) : null,
+      longitude: rawLon !== undefined && rawLon !== "" && !isNaN(parseFloat(rawLon)) ? parseFloat(rawLon) : null,
+      altitude: rawAlt !== undefined && rawAlt !== "" && !isNaN(parseInt(rawAlt, 10)) ? parseInt(rawAlt, 10) : null,
     };
 
     const btn = document.getElementById("btnSaveLocalIdentityPos");
@@ -3818,6 +3848,18 @@ class MeshCoreStationApp {
       if (data.status === "ok") {
         this.showToast("✓ Identidad y posición geográfica guardadas", "success");
         await this.fetchLocalNodeConfig();
+
+        // Sincronizar de inmediato en memoria y refrescar mapa
+        const localPk = this.localNodePubkey || "local";
+        const existing = this.knownNodes.get(localPk) || this.knownNodes.get("local");
+        if (existing) {
+          if (payload.name) { existing.name = payload.name; existing.alias = payload.name; }
+          if (payload.owner_info) existing.owner_info = payload.owner_info;
+          if (payload.latitude !== null) existing.latitude = payload.latitude;
+          if (payload.longitude !== null) existing.longitude = payload.longitude;
+          if (payload.altitude !== null) existing.altitude_m = payload.altitude;
+        }
+        this.renderNodesDirectory(Array.from(this.knownNodes.values()));
       } else {
         alert("Error guardando identidad: " + (data.message || data.error));
       }
@@ -4788,7 +4830,16 @@ class MeshCoreStationApp {
   }
 
   selectMapNode(pubkey) {
-    if (!this.map || !this.mapMarkers.has(pubkey)) return;
+    if (!this.map) return;
+    if (!this.mapMarkers.has(pubkey) && this.knownNodes && this.knownNodes.size > 0) {
+      this.renderNodesDirectory(Array.from(this.knownNodes.values()));
+    }
+    if (!this.mapMarkers.has(pubkey)) {
+      const node = this.knownNodes?.get(pubkey);
+      const cleanName = node?.alias || node?.name || (pubkey ? pubkey.slice(0, 8) : "desconocido");
+      this.showToast(`El nodo '${cleanName}' no tiene coordenadas GPS válidas fijadas`, "warning");
+      return;
+    }
     this.selectedMapNodePk = pubkey;
 
     // 1. Actualizar iconos de todos los marcadores en el mapa

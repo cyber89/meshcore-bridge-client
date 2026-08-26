@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import config
-from src.contact_manager import NodeRegistry, PacketRecord
+from src.contact_manager import NodeContactUpdate, NodeRegistry, PacketRecord
 from src.mqtt_client import AsyncBridgeMQTTClient
 from src.repeater_manager import RepeaterManager
 
@@ -328,6 +328,29 @@ class AdminCommandHandler:
                         await self._ctx.execute_tx({"to": str(target_node), "text": f"cmd {cmd_str}", "request_id": req_id})
                         dispatched_commands.append(cmd_str)
 
+                # Actualizar inmediatamente en el registro de nodos local
+                canon_target = self._ctx.node_registry.get_canonical_key(str(target_node)) or str(target_node).strip().lower()
+                lat_val = params.get("lat", params.get("latitude"))
+                lon_val = params.get("lon", params.get("longitude"))
+                alt_val = params.get("alt", params.get("altitude"))
+                owner_n = params.get("owner_name", params.get("name"))
+                owner_i = params.get("owner_info")
+                fix_pos = params.get("fixed", params.get("fixed_position"))
+
+                self._ctx.node_registry.add_or_update(
+                    canon_target,
+                    NodeContactUpdate(
+                        name=str(owner_n) if owner_n else None,
+                        alias=str(owner_n) if owner_n else None,
+                        owner_name=str(owner_n) if owner_n else None,
+                        owner_info=str(owner_i) if owner_i else None,
+                        latitude=float(lat_val) if lat_val is not None else None,
+                        longitude=float(lon_val) if lon_val is not None else None,
+                        altitude_m=float(alt_val) if alt_val is not None else None,
+                        fixed_position=bool(fix_pos) if fix_pos is not None else None,
+                    ),
+                )
+
                 res["dispatched_commands"] = dispatched_commands
                 self._ctx.mqtt.publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/status", json.dumps(res), qos=1)
                 return res
@@ -614,6 +637,24 @@ class AdminCommandHandler:
                     await mc.commands.send_appstart()
                 except Exception:
                     pass
+
+            # Sincronizar nodo local en el registro de contactos
+            local_pk = str(self._local_config.get("public_key", "")).strip().lower()
+            if local_pk and local_pk != "000000000000":
+                self._ctx.node_registry.add_or_update(
+                    local_pk,
+                    NodeContactUpdate(
+                        name=self._local_config.get("name"),
+                        alias=self._local_config.get("name"),
+                        role="LOCAL",
+                        latitude=self._local_config.get("latitude"),
+                        longitude=self._local_config.get("longitude"),
+                        altitude_m=self._local_config.get("altitude"),
+                        owner_name=self._local_config.get("name"),
+                        owner_info=self._local_config.get("owner_info"),
+                        fixed_position=True,
+                    ),
+                )
 
             res["applied"] = applied
             res["config"] = self.get_local_config()
