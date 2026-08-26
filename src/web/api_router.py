@@ -203,6 +203,13 @@ class WebAPIRouter:
                 nodes = self.bridge.node_registry.list_nodes()
                 return 200, {"status": "ok", "data": nodes, "count": len(nodes)}
 
+            if method == "GET" and clean_path in ("/api/lqi", "/api/link_quality"):
+                if hasattr(self.bridge, "node_registry") and hasattr(self.bridge.node_registry, "get_all_lqi_metrics"):
+                    lqi_data = self.bridge.node_registry.get_all_lqi_metrics()
+                else:
+                    lqi_data = []
+                return 200, {"status": "ok", "data": lqi_data, "count": len(lqi_data)}
+
             if method == "GET" and clean_path in ("/api/analytics", "/api/metrics/analytics"):
                 return await self._route_analytics()
 

@@ -1053,7 +1053,17 @@ class AdminCommandHandler:
                     n_rssi = n.get("last_rssi", "--")
                     n_snr = n.get("last_snr", "--")
                     n_hops = n.get("hops", 0)
-                    lines.append(f"  {idx}. {n_name} ({n_pk}) | Hops: {n_hops} | SNR: {n_snr} dB | RSSI: {n_rssi} dBm")
+                    n_lqi = n.get("lqi_score", 0.0)
+                    n_stat = n.get("lqi_status", "UNKNOWN")
+                    lines.append(f"  {idx}. {n_name} ({n_pk}) | LQI: {n_lqi}% [{n_stat}] | Hops: {n_hops} | SNR: {n_snr} dB | RSSI: {n_rssi} dBm")
+                res["result"] = "\n".join(lines)
+
+            elif act_clean in ("lqi", "get_lqi", "link_quality", "lqi_topology"):
+                lqi_metrics = self._ctx.node_registry.get_all_lqi_metrics() if hasattr(self._ctx.node_registry, "get_all_lqi_metrics") else []
+                res["lqi_metrics"] = lqi_metrics
+                lines = [f"📶 [CALIDAD DE ENLACE LQI] Nodos Evaluados: {len(lqi_metrics)}"]
+                for idx, m in enumerate(lqi_metrics, start=1):
+                    lines.append(f"  {idx}. {m.get('name')} ({m.get('key_prefix')}) -> LQI: {m.get('lqi_score')}% [{m.get('lqi_status')}] | Ruta: {m.get('best_route')} | SNR: {m.get('last_snr')} dB | RSSI: {m.get('last_rssi')} dBm")
                 res["result"] = "\n".join(lines)
 
             elif act_clean in ("acl", "get_acl", "get acl", "acl list", "acl_list"):

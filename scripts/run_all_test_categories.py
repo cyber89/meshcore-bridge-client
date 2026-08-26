@@ -36,6 +36,7 @@ TEST_CATEGORIES = {
         "tests/test_store_forward_modular.py",
         "tests/test_serial_adapter.py",
         "tests/test_ha_discovery.py",
+        "tests/test_lqi_routing.py",
     ],
     "2. E2E Tests (End-to-End)": [
         "tests/test_e2e_simulation.py",

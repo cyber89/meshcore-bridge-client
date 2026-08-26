@@ -20,6 +20,7 @@ from src.protocol_types import MeshcoreFrame, OpCode, TextMessagePayload
 from src.repeater_manager import RepeaterManager
 from src.sensor_decoder import CayenneLPPDecoder
 from src.deduplicator import PacketDeduplicator
+from src.lqi_engine import LinkQualityEngine
 
 _SENDER_PREFIX_RE = re.compile(r"^([a-zA-Z0-9_\-\.]{2,32}):\s*(.*)$", re.DOTALL)
 
@@ -619,6 +620,9 @@ class RxEventRouter:
             return
 
         event_type = "public" if msg.channel_idx == 0 else "channel"
+        lqi_val = LinkQualityEngine.compute_instant_lqi(msg.snr, msg.rssi, 0)
+        lqi_stat = LinkQualityEngine.classify_lqi_status(lqi_val)
+
         evt_payload = {
             "event_type": event_type,
             "sender": msg.sender,
@@ -629,9 +633,13 @@ class RxEventRouter:
             "txt_type": msg.txt_type,
             "rssi": msg.rssi,
             "snr": msg.snr,
+            "lqi_score": lqi_val,
+            "lqi_status": lqi_stat,
             "metrics": {
                 "rssi": msg.rssi,
                 "snr": msg.snr,
+                "lqi_score": lqi_val,
+                "lqi_status": lqi_stat,
             },
             "timestamp": now_iso,
         }
@@ -648,7 +656,7 @@ class RxEventRouter:
 
         logging.info(
             f"[RX-CANAL] De: {msg.sender_name or msg.sender} -> Para: Canal #{msg.channel_idx} | "
-            f"Texto: '{msg.text}' | RSSI: {msg.rssi} dBm, SNR: {msg.snr} dB"
+            f"Texto: '{msg.text}' | LQI: {lqi_val}% [{lqi_stat}] | RSSI: {msg.rssi} dBm, SNR: {msg.snr} dB"
         )
 
     def _handle_mesh_direct_msg(self, msg: MeshMessageEvent) -> None:
@@ -755,6 +763,9 @@ class RxEventRouter:
                 self._ctx.web_server.broadcast_event(rep_payload)
             return
 
+        lqi_val = LinkQualityEngine.compute_instant_lqi(msg.snr, msg.rssi, 0)
+        lqi_stat = LinkQualityEngine.classify_lqi_status(lqi_val)
+
         evt_payload = {
             "event_type": "direct",
             "sender": msg.sender,
@@ -764,9 +775,13 @@ class RxEventRouter:
             "txt_type": msg.txt_type,
             "rssi": msg.rssi,
             "snr": msg.snr,
+            "lqi_score": lqi_val,
+            "lqi_status": lqi_stat,
             "metrics": {
                 "rssi": msg.rssi,
                 "snr": msg.snr,
+                "lqi_score": lqi_val,
+                "lqi_status": lqi_stat,
             },
             "telemetry": extracted_telem if extracted_telem else None,
             "timestamp": now_iso,
@@ -782,7 +797,7 @@ class RxEventRouter:
 
         logging.info(
             f"[RX-DM] De: {msg.sender_name or msg.sender} -> Para: Estación Base Local | "
-            f"Texto: '{msg.text}' | RSSI: {msg.rssi} dBm, SNR: {msg.snr} dB"
+            f"Texto: '{msg.text}' | LQI: {lqi_val}% [{lqi_stat}] | RSSI: {msg.rssi} dBm, SNR: {msg.snr} dB"
         )
 
     def _handle_mesh_telemetry_msg(self, payload_dict: dict[str, Any]) -> None:

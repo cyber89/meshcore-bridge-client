@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 MeshCore Bridge - Master All-Message-Types Real-Time 20s Simulator
 Simula TODOS los tipos de mensajes y eventos de MeshCore con:
@@ -361,6 +361,9 @@ async def run_master_20s_simulation() -> bool:
                 "rssi": -64,
             })
             msg_type_counters["6. Traceroute Multi-Salto"] += 1
+
+            # Evaluación de Calidad de Enlace LQI y Rutas
+            await admin_handler.handle({"action": "get_lqi"})
 
             await asyncio.sleep(1.0)
 

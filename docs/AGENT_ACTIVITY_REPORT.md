@@ -6,6 +6,25 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Implementación de Enrutamiento Dinámico por Calidad de Enlace (LQI) y Selección Inteligente de Rutas
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO (124 Tests en pytest - 100% Suites Pasadas - 0 Fallos)
+- **Agente Principal (Lead Orchestrator)**: Diseñó e implementó el motor de métricas de calidad de enlace LQI (Link Quality Index) y selección automática de ruta directa vs repetidor:
+  1. **Motor LQI ([`src/lqi_engine.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/lqi_engine.py))**:
+     - Cálculo normalizado de calidad física de señal (65% SNR + 35% RSSI).
+     - Penalización por saltos multi-hop (15% por salto).
+     - Suavizado exponencial EMA ($\alpha = 0.3$) y decaimiento temporal tras 3 minutos de inactividad (10% por minuto adicional).
+     - Clasificación categórica de enlace: `EXCELLENT` ($\ge 80\%$), `GOOD` ($\ge 60\%$), `FAIR` ($\ge 40\%$), `POOR` ($> 0\%$), `UNREACHABLE` ($0\%$).
+     - Algoritmo `select_best_route()` para conmutación transparente entre enlace `DIRECT` o `VIA_<REPEATER_PK>` según la calidad comparada.
+  2. **Integración con Contact Manager y Pipeline Asíncrono**:
+     - Actualizado [`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py) con campos `lqi_score`, `lqi_status`, `best_route` y método `get_all_lqi_metrics()`.
+     - Actualizado [`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py) incorporando métricas LQI en los payloads de eventos MQTT/WebSockets y logging estructurado `[LQI: XX% [STATUS]]`.
+     - Creado endpoint REST `GET /api/lqi` en [`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py).
+     - Añadido comando CLI `get_lqi` en [`src/admin_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin_handler.py).
+  3. **Suite de Pruebas Automatizadas ([`tests/test_lqi_routing.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/tests/test_lqi_routing.py))**:
+     - 7 tests exhaustivos de normalización, suavizado EMA, decaimiento temporal, penalización de saltos, selección de rutas e integración con `NodeRegistry`.
+     - Total de tests en suite global: **124 tests pasados (0 fallos)** en 21.22s. Matriz de 10 disciplinas superada al 100%.
+
 ### Hito: Auditoría Exhaustiva de Código y Cobertura de Pruebas Total (100% Módulos / 117 Tests)
 - **Fecha**: 2026-08-26
 - **Estado**: ✅ COMPLETADO (29 Suites de Prueba - 117 Tests Superados - 100% Éxito)
