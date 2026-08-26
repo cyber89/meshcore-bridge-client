@@ -133,6 +133,10 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             logging.warning("SDK meshcore_py no disponible en el entorno.")
             return False
 
+        if self.mc is not None or self.is_connected:
+            await self.disconnect()
+            await asyncio.sleep(0.5)
+
         try:
             # Re-detectar puerto dinámicamente si no está fijado estáticamente
             if not self.port.startswith("tcp://") and (str(self.port).upper() in ("AUTO", "DETECT", "DEFAULT", "") or not self.port):
@@ -152,11 +156,23 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                         await self.mc.connect()
             else:
                 logging.info(f"Iniciando conexión MeshCore SDK en puerto {self.port} ({self.baud_rate} baud)...")
+                # Intentar conexión con retardo de arranque seguro cx_dly=1.5s para transceptores USB-CDC / ESP32-S3
                 if hasattr(MeshCore, "create_serial"):
-                    self.mc = await MeshCore.create_serial(self.port, self.baud_rate, auto_reconnect=True)
+                    try:
+                        self.mc = await MeshCore.create_serial(self.port, self.baud_rate, auto_reconnect=True, cx_dly=1.5)
+                    except TypeError:
+                        self.mc = await MeshCore.create_serial(self.port, self.baud_rate, auto_reconnect=True)
+                    
+                    if self.mc is None:
+                        logging.info("Reintentando inicialización de sesión serie con transceptor...")
+                        await asyncio.sleep(1.0)
+                        try:
+                            self.mc = await MeshCore.create_serial(self.port, self.baud_rate, auto_reconnect=True, cx_dly=2.0)
+                        except TypeError:
+                            self.mc = await MeshCore.create_serial(self.port, self.baud_rate, auto_reconnect=True)
                 else:
                     from meshcore.serial_cx import SerialConnection
-                    cx = SerialConnection(self.port, self.baud_rate)
+                    cx = SerialConnection(self.port, self.baud_rate, cx_dly=1.5)
                     self.mc = MeshCore(cx, auto_reconnect=True)
                     if hasattr(self.mc, "connect"):
                         await self.mc.connect()
