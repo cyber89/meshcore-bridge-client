@@ -187,7 +187,6 @@ class DiagnosticManager:
         """Recolecta un resumen de salud y rendimiento de todos los subsistemas."""
         serial_adapter = getattr(self.bridge, "serial_adapter", None)
         mqtt_client = getattr(self.bridge, "mqtt", None)
-        store_forward = getattr(self.bridge, "store_and_forward", None)
         rate_limiter = getattr(self.bridge, "rate_limiter", None)
         node_registry = getattr(self.bridge, "node_registry", None)
 
@@ -212,9 +211,6 @@ class DiagnosticManager:
             "subsystems": {
                 "serial_companion": serial_status,
                 "mqtt_broker": mqtt_status,
-                "database_wal": {
-                    "path": getattr(store_forward, "db_path", "none") if store_forward else "none",
-                },
                 "rate_limiter": {
                     "queue_depth": rate_limiter.get_queue_depth() if rate_limiter else 0,
                 },

@@ -33,7 +33,7 @@ const MAX_FEED_MESSAGES = 100;
 
 /**
  * Capa de persistencia asíncrona en el navegador mediante IndexedDB.
- * Permite conservar historial de chat, tramas del sniffer y preferencias tras refrescar la página.
+ * Permite conservar historial de chat y preferencias tras refrescar la página.
  */
 class MeshCoreStorage {
   constructor(dbName = "MeshCoreStationDB", version = 1) {
@@ -57,11 +57,6 @@ class MeshCoreStorage {
             const chatStore = db.createObjectStore("chat_messages", { keyPath: "id", autoIncrement: true });
             chatStore.createIndex("by_feed", "feed_key", { unique: false });
             chatStore.createIndex("by_time", "timestamp", { unique: false });
-          }
-          if (!db.objectStoreNames.contains("sniffer_packets")) {
-            const snifferStore = db.createObjectStore("sniffer_packets", { keyPath: "id", autoIncrement: true });
-            snifferStore.createIndex("by_opcode", "opcode", { unique: false });
-            snifferStore.createIndex("by_time", "timestamp", { unique: false });
           }
           if (!db.objectStoreNames.contains("app_settings")) {
             db.createObjectStore("app_settings", { keyPath: "key" });
@@ -254,61 +249,12 @@ class MeshCoreStorage {
     } catch (_) {}
   }
 
-  async saveSnifferPacket(pkt) {
-    await this.readyPromise;
-    if (!this.db) return;
-    try {
-      const tx = this.db.transaction("sniffer_packets", "readwrite");
-      const store = tx.objectStore("sniffer_packets");
-      store.add({
-        opcode: String(pkt.opcode || pkt.payload_type || "DATA").toUpperCase(),
-        sender: String(pkt.sender || pkt.src_node_id || pkt.from || "RF"),
-        to: String(pkt.to || pkt.dst_node_id || "0xFFFF"),
-        snr: pkt.metrics?.snr != null ? pkt.metrics.snr : (pkt.snr != null ? pkt.snr : "--"),
-        rssi: pkt.metrics?.rssi != null ? pkt.metrics.rssi : (pkt.rssi != null ? pkt.rssi : "--"),
-        byte_length: pkt.byte_length || pkt.length || (pkt.raw_hex ? Math.floor(pkt.raw_hex.length / 2) : 0),
-        raw_hex: pkt.raw_hex || pkt.raw || "",
-        text: pkt.text || "",
-        timestamp: pkt.timestamp || Date.now(),
-      });
-    } catch (_) {}
-  }
-
-  async getSnifferPackets(limit = 200) {
-    await this.readyPromise;
-    if (!this.db) return [];
-    return new Promise((resolve) => {
-      try {
-        const tx = this.db.transaction("sniffer_packets", "readonly");
-        const store = tx.objectStore("sniffer_packets");
-        const req = store.getAll();
-        req.onsuccess = () => {
-          const pkts = req.result || [];
-          resolve(pkts.slice(-limit));
-        };
-        req.onerror = () => resolve([]);
-      } catch (_) {
-        resolve([]);
-      }
-    });
-  }
-
-  async clearSnifferPackets() {
-    await this.readyPromise;
-    if (!this.db) return;
-    try {
-      const tx = this.db.transaction("sniffer_packets", "readwrite");
-      tx.objectStore("sniffer_packets").clear();
-    } catch (_) {}
-  }
-
   async clearAll() {
     await this.readyPromise;
     if (!this.db) return;
     try {
-      const tx = this.db.transaction(["chat_messages", "sniffer_packets"], "readwrite");
+      const tx = this.db.transaction("chat_messages", "readwrite");
       tx.objectStore("chat_messages").clear();
-      tx.objectStore("sniffer_packets").clear();
     } catch (_) {}
   }
 }
@@ -325,7 +271,6 @@ class MeshCoreStationApp {
     this.activeChannelIdx = 0;
     this.activeDmTarget = null;
     this.activeDmName = null;
-    this.snifferActive = false;
     this.map = null;
     this.mapMarkers = new Map();
     this.knownNodes = new Map();
@@ -350,9 +295,7 @@ class MeshCoreStationApp {
     this.initCommandPalette();
     this.initChannelAndContactModals();
     this.initRepeaterDashboard();
-    this.initSniffer();
     this.initAnalytics();
-    this.initHomeAssistant();
     this.initPreflight();
     this.initSettingsDashboard();
     this.initLogsConsole();
@@ -578,13 +521,6 @@ class MeshCoreStationApp {
       repeaterTerminalForm: document.getElementById("repeaterTerminalForm"),
       repeaterTerminalInput: document.getElementById("repeaterTerminalInput"),
       repeaterTerminalOutput: document.getElementById("repeaterTerminalOutput"),
-      btnToggleSniffer: document.getElementById("btnToggleSniffer"),
-      btnClearSniffer: document.getElementById("btnClearSniffer"),
-      snifferTableBody: document.getElementById("snifferTableBody"),
-      snifferSearch: document.getElementById("snifferSearch"),
-      btnPublishHaDiscovery: document.getElementById("btnPublishHaDiscovery"),
-      haStatusBadge: document.getElementById("haStatusBadge"),
-      haDiscoveredCount: document.getElementById("haDiscoveredCount"),
       nodesUnifiedGridUi: document.getElementById("nodesUnifiedGridUi"),
       nodesSearchInput: document.getElementById("nodesSearchInput"),
 
@@ -644,7 +580,6 @@ class MeshCoreStationApp {
       btnCloseQuickDiag: document.getElementById("btnCloseQuickDiag"),
       chipSerialHealth: document.getElementById("chipSerialHealth"),
       chipMqttHealth: document.getElementById("chipMqttHealth"),
-      chipDbHealth: document.getElementById("chipDbHealth"),
       chipTxHealth: document.getElementById("chipTxHealth"),
       chipErrorsCount: document.getElementById("chipErrorsCount"),
       localTelemetryInterval: document.getElementById("localTelemetryInterval"),
@@ -655,9 +590,6 @@ class MeshCoreStationApp {
       btnCommandPalette: document.getElementById("btnCommandPalette"),
       cmdPaletteInput: document.getElementById("cmdPaletteInput"),
       cmdPaletteResults: document.getElementById("cmdPaletteResults"),
-      packetDetailModal: document.getElementById("packetDetailModal"),
-      btnClosePacketModal: document.getElementById("btnClosePacketModal"),
-      packetModalBody: document.getElementById("packetModalBody"),
     };
   }
 
@@ -788,8 +720,6 @@ class MeshCoreStationApp {
             this.sendAdvert(true);
           } else if (action === "action-advert-clipboard") {
             this.copyAdvertToClipboard();
-          } else if (action === "action-ha") {
-            this.publishHomeAssistantDiscovery();
           } else if (action === "action-diag") {
             const navBtn = document.querySelector('.nav-btn[data-tab="tab-logs"]');
             if (navBtn) navBtn.click();
@@ -2332,333 +2262,6 @@ class MeshCoreStationApp {
     }
   }
 
-  initSniffer() {
-    this.snifferPaused = false;
-    this.snifferFilterOpcode = "all";
-    this.snifferSearchQuery = "";
-    this.currentInspectedPacket = null;
-
-    if (this.dom.btnToggleSniffer) {
-      this.dom.btnToggleSniffer.addEventListener("click", async () => {
-        this.snifferActive = !this.snifferActive;
-        const statusEl = document.getElementById("snifferStatusText");
-
-        if (this.snifferActive) {
-          this.dom.btnToggleSniffer.textContent = "⏹ Detener Sniffer";
-          this.dom.btnToggleSniffer.className = "btn-secondary btn-sniffer-active";
-          if (statusEl) {
-            statusEl.textContent = "Capturando (0x88)";
-            statusEl.className = "stat-value text-success";
-          }
-          this.showToast("🕵️ Sniffer de tramas LoRa activado", "info");
-        } else {
-          this.dom.btnToggleSniffer.textContent = "▶ Iniciar Sniffer (0x88)";
-          this.dom.btnToggleSniffer.className = "btn-primary";
-          if (statusEl) {
-            statusEl.textContent = "Detenido";
-            statusEl.className = "stat-value text-muted";
-          }
-          this.showToast("⏹ Sniffer detenido", "info");
-        }
-
-        try {
-          await fetch("/api/sniffer/control", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: this.snifferActive ? "start" : "stop" }),
-          });
-        } catch (err) {
-          console.warn("Fallo controlando el sniffer:", err);
-        }
-      });
-    }
-
-    if (this.dom.btnClearSniffer) {
-      this.dom.btnClearSniffer.addEventListener("click", () => {
-        this.rawPackets = [];
-        this.storage.clearSnifferPackets();
-        this.dom.snifferTableBody.innerHTML = '<tr><td colspan="8" class="text-center">Historial limpiado.</td></tr>';
-        this.updateSnifferStats();
-        this.showToast("🧹 Historial del sniffer vaciado", "info");
-      });
-    }
-
-    const btnExport = document.getElementById("btnExportSniffer");
-    if (btnExport) {
-      btnExport.addEventListener("click", () => {
-        if (!this.rawPackets || this.rawPackets.length === 0) {
-          alert("No hay tramas capturadas para exportar.");
-          return;
-        }
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.rawPackets, null, 2));
-        const a = document.createElement("a");
-        a.setAttribute("href", dataStr);
-        a.setAttribute("download", `meshcore_sniffer_capture_${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        this.showToast("💾 Captura de tramas exportada a JSON", "success");
-      });
-    }
-
-    const btnToggleScroll = document.getElementById("btnToggleSnifferScroll");
-    if (btnToggleScroll) {
-      btnToggleScroll.addEventListener("click", () => {
-        this.snifferPaused = !this.snifferPaused;
-        btnToggleScroll.textContent = this.snifferPaused ? "▶" : "⏸";
-        btnToggleScroll.title = this.snifferPaused ? "Reanudar desplazamiento automático" : "Pausar desplazamiento automático";
-        this.showToast(this.snifferPaused ? "⏸ Auto-scroll del sniffer pausado" : "▶ Auto-scroll reanudado", "info");
-      });
-    }
-
-    // Filtros de Opcode
-    document.querySelectorAll(".sniffer-filter-pills .filter-pill").forEach((pill) => {
-      pill.addEventListener("click", () => {
-        document.querySelectorAll(".sniffer-filter-pills .filter-pill").forEach((p) => p.classList.remove("active"));
-        pill.classList.add("active");
-        this.snifferFilterOpcode = pill.getAttribute("data-opcode") || "all";
-        this.filterSnifferTable();
-      });
-    });
-
-    const searchInput = document.getElementById("snifferSearch");
-    if (searchInput) {
-      searchInput.addEventListener(
-        "input",
-        debounce((e) => {
-          this.snifferSearchQuery = (e.target.value || "").trim().toLowerCase();
-          this.filterSnifferTable();
-        }, 150)
-      );
-    }
-
-    // Modal de Paquete
-    if (this.dom.btnClosePacketModal) {
-      this.dom.btnClosePacketModal.addEventListener("click", () => {
-        this.dom.packetDetailModal.classList.add("hidden");
-      });
-    }
-
-    const btnCloseFooter = document.getElementById("btnClosePacketModalFooter");
-    if (btnCloseFooter) {
-      btnCloseFooter.addEventListener("click", () => {
-        this.dom.packetDetailModal.classList.add("hidden");
-      });
-    }
-
-    const btnCopyHex = document.getElementById("btnCopyPacketHex");
-    if (btnCopyHex) {
-      btnCopyHex.addEventListener("click", () => {
-        if (this.currentInspectedPacket) {
-          const hex = this.currentInspectedPacket.raw_hex || this.currentInspectedPacket.raw || "";
-          navigator.clipboard.writeText(hex);
-          this.showToast("📋 Hexadecimal copiado al portapapeles", "success");
-        }
-      });
-    }
-
-    const btnCopyJson = document.getElementById("btnCopyPacketJson");
-    if (btnCopyJson) {
-      btnCopyJson.addEventListener("click", () => {
-        if (this.currentInspectedPacket) {
-          navigator.clipboard.writeText(JSON.stringify(this.currentInspectedPacket, null, 2));
-          this.showToast("📋 JSON del paquete copiado al portapapeles", "success");
-        }
-      });
-    }
-
-    this.dom.packetDetailModal.addEventListener("click", (e) => {
-      if (e.target === this.dom.packetDetailModal) {
-        this.dom.packetDetailModal.classList.add("hidden");
-      }
-    });
-
-    // Cargar tramas del sniffer previamente guardadas en IndexedDB
-    this.storage.getSnifferPackets().then((packets) => {
-      if (packets && packets.length > 0 && this.rawPackets.length === 0) {
-        for (const pkt of packets) {
-          this.renderSnifferPacket(pkt, false);
-        }
-      }
-    });
-  }
-
-  updateSnifferStats() {
-    const totalEl = document.getElementById("snifferTotalPackets");
-    const countAllEl = document.getElementById("snifferCountAll");
-    const lastOpcodeEl = document.getElementById("snifferLastOpcode");
-
-    const total = this.rawPackets.length;
-    if (totalEl) totalEl.textContent = String(total);
-    if (countAllEl) countAllEl.textContent = String(total);
-
-    if (total > 0) {
-      const lastPkt = this.rawPackets[0];
-      if (lastOpcodeEl) {
-        lastOpcodeEl.textContent = lastPkt.opcode || lastPkt.payload_type || "DATA";
-      }
-    }
-  }
-
-  filterSnifferTable() {
-    const rows = this.dom.snifferTableBody.querySelectorAll("tr[data-opcode]");
-    rows.forEach((tr) => {
-      const op = tr.getAttribute("data-opcode") || "";
-      const searchData = tr.getAttribute("data-search") || "";
-
-      let matchOpcode = this.snifferFilterOpcode === "all" || op.toUpperCase().includes(this.snifferFilterOpcode.toUpperCase());
-      let matchQuery = !this.snifferSearchQuery || searchData.includes(this.snifferSearchQuery);
-
-      tr.style.display = matchOpcode && matchQuery ? "" : "none";
-    });
-  }
-
-  renderSnifferPacket(pkt, persist = true) {
-    if (persist) {
-      this.storage.saveSnifferPacket(pkt);
-    }
-    this.rawPackets.unshift(pkt);
-    if (this.rawPackets.length > MAX_RAW_PACKETS) this.rawPackets.pop();
-
-    if (this.dom.snifferTableBody.querySelector("td[colspan]")) {
-      this.dom.snifferTableBody.innerHTML = "";
-    }
-
-    const tr = document.createElement("tr");
-    const opcode = String(pkt.opcode || pkt.payload_type || "DATA").toUpperCase();
-    const src = String(pkt.sender || pkt.src_node_id || pkt.from || "RF");
-    const dst = String(pkt.to || pkt.dst_node_id || "0xFFFF");
-    const snr = pkt.metrics?.snr != null ? pkt.metrics.snr : (pkt.snr != null ? pkt.snr : "--");
-    const rssi = pkt.metrics?.rssi != null ? pkt.metrics.rssi : (pkt.rssi != null ? pkt.rssi : "--");
-    const len = pkt.byte_length || pkt.length || (pkt.raw_hex ? Math.floor(pkt.raw_hex.length / 2) : 0);
-    const hex = pkt.raw_hex || pkt.raw || "";
-
-    let badgeClass = "opcode-raw";
-    if (opcode.includes("TEXT") || opcode.includes("MSG") || opcode.includes("CHAT")) badgeClass = "opcode-text";
-    else if (opcode.includes("TELEM") || opcode.includes("SENSOR")) badgeClass = "opcode-telemetry";
-    else if (opcode.includes("ADV") || opcode.includes("BEACON")) badgeClass = "opcode-advert";
-    else if (opcode.includes("ACK")) badgeClass = "opcode-ack";
-    else if (opcode.includes("ROUT") || opcode.includes("HOP") || opcode.includes("PATH")) badgeClass = "opcode-routing";
-
-    tr.setAttribute("data-opcode", opcode);
-    const searchString = `${opcode} ${src} ${dst} ${hex} ${pkt.text || ""}`.toLowerCase();
-    tr.setAttribute("data-search", searchString);
-
-    const shortSrc = src.length > 12 ? `${src.slice(0, 8)}...` : src;
-    const shortDst = dst.length > 12 ? `${dst.slice(0, 8)}...` : dst;
-
-    const snrText = snr !== "--" ? `${snr} dB` : "--";
-    const rssiText = rssi !== "--" ? `${rssi} dBm` : "--";
-
-    tr.innerHTML = `
-      <td style="color: var(--text-muted); font-size: 11px;">${new Date().toLocaleTimeString()}</td>
-      <td><span class="badge-opcode ${badgeClass}">${this.escapeHtml(opcode)}</span></td>
-      <td><code class="font-mono" title="${this.escapeHtml(src)}">${this.escapeHtml(shortSrc)}</code></td>
-      <td><code class="font-mono" title="${this.escapeHtml(dst)}">${this.escapeHtml(shortDst)}</code></td>
-      <td><strong>${snrText}</strong> <span style="color: var(--text-muted); font-size: 11px;">/ ${rssiText}</span></td>
-      <td><span class="badge-pill" style="font-size: 10.5px;">${len} B</span></td>
-      <td><span class="hex-preview-box" title="${this.escapeHtml(hex)}">${this.escapeHtml(hex.slice(0, 32))}${hex.length > 32 ? "..." : ""}</span></td>
-      <td><button type="button" class="btn-xs btn-outline btn-view-pkt">🔍 Ver</button></td>
-    `;
-
-    tr.querySelector(".btn-view-pkt").addEventListener("click", () => {
-      this.showPacketDetail(pkt);
-    });
-
-    if (this.dom.snifferTableBody.firstChild) {
-      this.dom.snifferTableBody.insertBefore(tr, this.dom.snifferTableBody.firstChild);
-    } else {
-      this.dom.snifferTableBody.appendChild(tr);
-    }
-
-    // Podar filas DOM sobrantes para evitar consumo innecesario de memoria en el navegador
-    while (this.dom.snifferTableBody.children.length > MAX_RAW_PACKETS) {
-      this.dom.snifferTableBody.removeChild(this.dom.snifferTableBody.lastChild);
-    }
-
-    this.updateSnifferStats();
-
-    // Aplicar filtros en tiempo real
-    const op = opcode;
-    let matchOpcode = this.snifferFilterOpcode === "all" || op.includes(this.snifferFilterOpcode.toUpperCase());
-    let matchQuery = !this.snifferSearchQuery || searchString.includes(this.snifferSearchQuery);
-    tr.style.display = matchOpcode && matchQuery ? "" : "none";
-
-    // Auto-scroll si no está pausado
-    if (!this.snifferPaused && this.dom.snifferTableBody.parentElement) {
-      const container = this.dom.snifferTableBody.parentElement.parentElement;
-      if (container) container.scrollTop = 0;
-    }
-  }
-
-  showPacketDetail(pkt) {
-    this.currentInspectedPacket = pkt;
-    const badgeEl = document.getElementById("packetDetailOpcodeBadge");
-    const opcode = String(pkt.opcode || pkt.payload_type || "DATA").toUpperCase();
-    if (badgeEl) badgeEl.textContent = opcode;
-
-    const hex = pkt.raw_hex || pkt.raw || "";
-    const src = pkt.sender || pkt.src_node_id || pkt.from || "RF";
-    const dst = pkt.to || pkt.dst_node_id || "0xFFFF";
-    const snr = pkt.metrics?.snr != null ? pkt.metrics.snr : (pkt.snr != null ? pkt.snr : "--");
-    const rssi = pkt.metrics?.rssi != null ? pkt.metrics.rssi : (pkt.rssi != null ? pkt.rssi : "--");
-    const len = pkt.byte_length || pkt.length || (hex ? Math.floor(hex.length / 2) : 0);
-
-    // Formatear Hex con Offset estilo Wireshark
-    let formattedHex = "";
-    if (hex) {
-      const cleanHex = hex.replace(/[^0-9a-fA-F]/g, "");
-      for (let i = 0; i < cleanHex.length; i += 32) {
-        const chunk = cleanHex.slice(i, i + 32);
-        const offset = i.toString(16).padStart(4, "0");
-        let bytesGroup = "";
-        for (let j = 0; j < chunk.length; j += 2) {
-          bytesGroup += chunk.slice(j, j + 2) + " ";
-        }
-        formattedHex += `0x${offset}:  ${bytesGroup.padEnd(48, " ")}\n`;
-      }
-    } else {
-      formattedHex = "No hay volcado hexadecimal disponible para este paquete.";
-    }
-
-    this.dom.packetModalBody.innerHTML = `
-      <div class="packet-meta-grid">
-        <div class="packet-meta-item">
-          <span>Tipo / OpCode</span>
-          <strong>${this.escapeHtml(opcode)}</strong>
-        </div>
-        <div class="packet-meta-item">
-          <span>Origen</span>
-          <strong class="font-mono">${this.escapeHtml(src)}</strong>
-        </div>
-        <div class="packet-meta-item">
-          <span>Destino</span>
-          <strong class="font-mono">${this.escapeHtml(dst)}</strong>
-        </div>
-        <div class="packet-meta-item">
-          <span>Calidad RF</span>
-          <strong>${snr} dB / ${rssi} dBm</strong>
-        </div>
-        <div class="packet-meta-item">
-          <span>Longitud</span>
-          <strong>${len} Bytes</strong>
-        </div>
-        <div class="packet-meta-item">
-          <span>Hora de Captura</span>
-          <strong>${new Date().toLocaleTimeString()}</strong>
-        </div>
-      </div>
-
-      <div class="packet-section-title">📦 Volcado Hexadecimal (Raw Hex Dump)</div>
-      <div class="packet-hex-dump">${this.escapeHtml(formattedHex)}</div>
-
-      <div class="packet-section-title">🔍 Campos Decodificados (JSON Schema)</div>
-      <div class="packet-json-dump">${this.escapeHtml(JSON.stringify(pkt, null, 2))}</div>
-    `;
-
-    this.dom.packetDetailModal.classList.remove("hidden");
-  }
-
   handleIncomingLiveEvent(payload) {
     if (!payload || typeof payload !== "object") return;
 
@@ -3185,37 +2788,6 @@ class MeshCoreStationApp {
     }
   }
 
-  initHomeAssistant() {
-    if (this.dom.btnPublishHaDiscovery) {
-      this.dom.btnPublishHaDiscovery.addEventListener("click", () => {
-        this.publishHomeAssistantDiscovery();
-      });
-    }
-  }
-
-  async publishHomeAssistantDiscovery() {
-    if (!this.dom.btnPublishHaDiscovery) return;
-    try {
-      this.dom.btnPublishHaDiscovery.disabled = true;
-      this.dom.btnPublishHaDiscovery.textContent = "📢 Anunciando...";
-      const res = await fetch("/api/ha/publish", { method: "POST" });
-      const data = await res.json();
-      if (data.status === "ok") {
-        if (this.dom.haDiscoveredCount) {
-          this.dom.haDiscoveredCount.textContent = data.data.published_entities;
-        }
-        alert(`✓ Home Assistant Discovery anunciado con éxito (${data.data.published_entities} entidades).`);
-      }
-    } catch (e) {
-      alert("Error al anunciar Home Assistant Discovery: " + e.message);
-    } finally {
-      if (this.dom.btnPublishHaDiscovery) {
-        this.dom.btnPublishHaDiscovery.disabled = false;
-        this.dom.btnPublishHaDiscovery.textContent = "📢 Re-anunciar Discovery en MQTT";
-      }
-    }
-  }
-
   initPreflight() {
     if (this.dom.btnRunPreflight) {
       this.dom.btnRunPreflight.addEventListener("click", async () => {
@@ -3497,12 +3069,11 @@ class MeshCoreStationApp {
     const btnClearStorage = document.getElementById("btnClearIndexedDbStorage");
     if (btnClearStorage) {
       btnClearStorage.addEventListener("click", async () => {
-        if (confirm("¿Estás seguro de vaciar todo el historial de chat y tramas sniffer guardadas en IndexedDB?")) {
+        if (confirm("¿Estás seguro de vaciar el historial de chat guardado en el navegador (IndexedDB)?")) {
           await this.storage.clearAll();
           this.channelFeeds.clear();
           this.rawPackets = [];
           if (this.dom.chatMessageFeed) this.dom.chatMessageFeed.innerHTML = "";
-          if (this.dom.snifferTableBody) this.dom.snifferTableBody.innerHTML = '<tr><td colspan="8" class="text-center">Historial limpiado.</td></tr>';
           this.showToast("🧹 Almacenamiento local IndexedDB vaciado", "success");
         }
       });
@@ -3975,11 +3546,6 @@ class MeshCoreStationApp {
         el.textContent = isMqttOk ? `Online (${brokerName})` : "Offline";
         el.className = `val ${isMqttOk ? "ok" : "err"}`;
       }
-    }
-
-    if (this.dom.chipDbHealth) {
-      const el = this.dom.chipDbHealth.querySelector(".val");
-      if (el) el.textContent = "WAL OK";
     }
 
     if (this.dom.chipTxHealth) {

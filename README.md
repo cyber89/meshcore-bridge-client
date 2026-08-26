@@ -1,6 +1,6 @@
 # MeshCore Universal Bridge & Web Station v3.0
 
-Puente bidireccional asíncrono, resiliente y de grado industrial para conectar nodos de radio **MeshCore Companion USB / TCP (v1.17+)** (**Heltec v2/v3/v4**, **LilyGO TTGO**, **RAKwireless WisBlock**, **Seeed Studio**, **Raspberry Pi RP2040**) con **MQTT (Mosquitto)**, integración nativa de **Home Assistant (MQTT Auto-Discovery)**, flujos de automatización en **n8n** y una **Interfaz Web SPA Moderna (HTML5, Vanilla CSS, ES6+)** con **Centro de Control de Repetidores**, **RF Packet Sniffer** y **Paleta de Comandos (`Ctrl+K`)**.
+Puente bidireccional asíncrono, resiliente y de grado industrial para conectar nodos de radio **MeshCore Companion USB / TCP (v1.17+)** (**Heltec v2/v3/v4**, **LilyGO TTGO**, **RAKwireless WisBlock**, **Seeed Studio**, **Raspberry Pi RP2040**) con **MQTT (Mosquitto)**, flujos de automatización en **n8n** y una **Interfaz Web SPA Moderna (HTML5, Vanilla CSS, ES6+)** con **Centro de Control de Repetidores** y **Paleta de Comandos (`Ctrl+K`)**.
 
 ---
 
@@ -28,19 +28,15 @@ Puente bidireccional asíncrono, resiliente y de grado industrial para conectar 
     - 💻 *Consola Terminal Interactiva*: Stream en vivo y botones de comando rápido (`stats-radio`, `stats-core`, `stats-packets`, `neighbors`, `reboot`).
   - **Chat Multi-Canal y DMs Aislados**: Canal Público 0, Canales Privados 1..7 (Cifrado AES) y Mensajes Directos (DMs) sin mezcla de conversaciones.
   - **Mapa GPS Interactivo** (Leaflet) con detección de coordenadas en tiempo real de nodos y routers.
-  - **🕵️ RF Packet Sniffer & Analizador Wire (`0x88 LOG_DATA`)**: Captura e inspección profunda de tramas LoRa en el aire con modal de volcado hexadecimal y JSON estructurado.
   - **📈 Tablero de Métricas Avanzadas & Estadísticas**: Top Nodos por Tráfico, Top Repetidores por Calidad de Enlace y Rendimiento del Puente.
-- **🏠 Integración Home Assistant (MQTT Auto-Discovery)**:
-  - Generación y publicación automática de entidades estándar en `homeassistant/sensor/#` y `homeassistant/binary_sensor/#` (Batería, Voltaje Solar, SNR, RSSI, Saltos y Salud del Puente).
 - **🩺 Motor de Diagnósticos Preflight (`src/preflight.py`)**:
-  - Verificaciones automáticas previas al arranque (Broker Mosquitto TCP, Base de datos SQLite WAL, Puerto Serial / TCP).
+  - Verificaciones automáticas previas al arranque (Broker Mosquitto TCP, Puerto Serial / TCP, Servidor Companion).
 - **🔌 API REST JSON & WebSocket Hub**: Endpoints completos con soporte CORS preflight `OPTIONS` y WebSockets en tiempo real.
 - **Decodificador Nativo CayenneLPP (`src/sensor_decoder.py`)**: Deserialización determinista de telemetría ambiental (temperatura, humedad, presión, GPS, acelerómetro y voltaje).
 - **Directorio Dinámico de Nodos (`src/contact_manager.py`)**: Registro en memoria `NodeRegistry` con resolución de alias y claves públicas en $O(1)$.
-- **Store & Forward Transaccional con TTL**: Persistencia en SQLite en modo `WAL` (`Write-Ahead Logging`), purga por expiración y deduplicación LRU en memoria RAM.
+- **Deduplicación en Memoria RAM (`src/deduplicator.py`)**: Ventana deslizante TTL de alta velocidad (`OrderedDict`) para filtrado instantáneo de ecos y duplicados RF.
 - **LoRa TX Rate Limiter con Cola de Prioridades**: Espaciado adaptativo según el cálculo analítico de tiempo en el aire LoRa de Semtech (`estimate_lora_airtime_ms`).
 - **Serial Watchdog Activo**: Detección automática de bloqueos silenciosos del puerto USB y autorrecuperación suave.
-- **Suite Exhaustiva de 117 Pruebas Automatizadas (100% Superadas)**: Pruebas unitarias, concurrencia multihilo, simulación de flapping de red, fallas de hardware, fuzzing de payloads, endpoints web, WebSocket en vivo y **E2E con Playwright** (escritorio y móvil).
 
 ---
 
@@ -63,41 +59,42 @@ meshcore-bridge/
 │   ├── admin_handler.py              # Comandos de administración RF y repetidores remotos
 │   ├── bridge_core.py                # Orquestador central MeshCoreBridge (facade/composition root)
 │   ├── contact_manager.py            # Registro dinámico de nodos, métricas top y libreta
-│   ├── ha_discovery.py               # Generador de MQTT Auto-Discovery para Home Assistant
+│   ├── deduplicator.py               # Deduplicador de paquetes en RAM con ventana deslizante TTL
 │   ├── health_reporter.py            # Reporte periódico de salud en meshcore/bridge/health
-│   ├── mqtt_client.py                # Cliente MQTT asíncrono puenteado con Store & Forward
+│   ├── mqtt_client.py                # Cliente MQTT asíncrono
 │   ├── mqtt_dispatcher.py            # Despachador de mensajes MQTT entrantes (TX/Admin)
 │   ├── preflight.py                  # Motor de diagnósticos previos al arranque
 │   ├── protocol_types.py             # Dataclasses inmutables y tipadas con CRC-16 y OpCodes
 │   ├── rate_limiter.py               # Rate Limiter con PriorityQueue y LoRa Airtime
-│   ├── repeater_manager.py           # Gestor de repetidores remotos y RF sniffer
+│   ├── repeater_manager.py           # Gestor de repetidores remotos y telemetría
 │   ├── rx_router.py                  # Enrutador de eventos LoRa/RF → MQTT + WebSocket
 │   ├── sensor_decoder.py             # Decodificador CayenneLPP para sensores ambientales
 │   ├── serial_driver.py              # Adaptadores de comunicación serial, TCP y Watchdog
-│   ├── store_forward.py              # SQLiteStoreAndForward con transacciones WAL y deduplicación
-│   ├── virtual_mesh_adapter.py       # Emulador de hardware Heltec v4 y topología de 8 nodos
+│   ├── virtual_mesh_adapter.py       # Emulador de hardware Heltec v4 y topología de nodos
 │   └── web/                          # Subsistema del Servidor Web y Cliente SPA
 │       ├── __init__.py               # Exportaciones de MeshCoreWebServer y WebAPIRouter
-│       ├── api_router.py             # Enrutador REST API para contactos, canales, repetidores y HA
+│       ├── api_router.py             # Enrutador REST API para contactos, canales y repetidores
 │       ├── http_server.py            # Servidor HTTP 1.1 y WebSocket Hub asíncrono
 │       └── static/                   # Assets estáticos de la interfaz web
 │           ├── index.html            # Maquetación semántica SPA accesible (WCAG 2.2)
 │           ├── css/app.css           # Sistema de diseño Cyberpunk Slate en Vanilla CSS
 │           └── js/app.js             # Lógica reactiva Vanilla JS y WebSocket
 ├── scripts/                          # Herramientas y simuladores
+│   ├── simulate_mesh_network.py      # Simulación determinista multi-nodo de red LoRa
 │   ├── simulate_heltec_v4_mesh.py    # Simulador en vivo de hardware Heltec v4 y red LoRa
 │   └── inspect_web.py                # Automatización de capturas Playwright Desktop/Mobile
 ├── docs/                             # Documentación técnica completa
 │   ├── ARCHITECTURE.md               # Diagramas Mermaid v3.0, clases y flujos
 │   ├── PROTOCOL_SPEC.md              # Especificación de tramas binarias y contratos JSON
+│   ├── AGENT_ACTIVITY_REPORT.md      # Registro de actividad y cambios multi-agente
 │   └── reference_analysis/           # Análisis técnico de repositorios MeshCore
 ├── reference/                        # Repositorios de referencia analizados (SSoT)
-└── tests/                            # 117 Pruebas unitarias, fuzzing, concurrencia y E2E
+└── tests/                            # Pruebas automatizadas (bajo demanda)
 ```
 
 ---
 
-## 📡 Mapa de Tópicos MQTT para n8n y Home Assistant
+## 📡 Mapa de Tópicos MQTT para n8n
 
 | Tópico | Tipo | Dirección | Descripción |
 | :--- | :--- | :--- | :--- |
@@ -109,15 +106,12 @@ meshcore-bridge/
 | `meshcore/rx/direct/<sender_id>`| RX | Bridge ➔ Broker | Mensajes directos (DMs) recibidos. |
 | `meshcore/rx/telemetry` | Telemetría | Bridge ➔ Broker | Batería, voltaje, CayenneLPP (temp, hum, baro, GPS). |
 | `meshcore/rx/nodes` | Anuncios | Bridge ➔ Broker | Nodos descubiertos y presencia en la malla. |
-| `meshcore/rx/log` | Sniffer | Bridge ➔ Broker | Streaming de paquetes LoRa capturados en el aire. |
 | `meshcore/tx` | TX | n8n ➔ Bridge | Petición para transmitir mensaje por RF. |
 | `meshcore/tx/status` | ACK | Bridge ➔ n8n | Confirmación de transmisión RF (`sent`/`error`). |
 | `meshcore/admin/cmd` | Admin | n8n ➔ Bridge | Comandos locales (`get_config`, `set_name`, `list_nodes`). |
 | `meshcore/admin/status`| Admin | Bridge ➔ n8n | Resultado de comandos administrativos locales. |
 | `meshcore/admin/repeater/<id>/cmd` | Admin | n8n ➔ Bridge | Comandos remotos a repetidores (`stats-radio`, `neighbors`). |
 | `meshcore/admin/repeater/<id>/status`| Admin | Bridge ➔ n8n | Acuse y resultado del comando remoto a repetidor. |
-| `homeassistant/sensor/#` | Auto-Discovery | Bridge ➔ HA | Configuración MQTT Discovery de sensores de nodos. |
-| `homeassistant/binary_sensor/#` | Auto-Discovery | Bridge ➔ HA | Sensor de conectividad Online/Offline del Bridge. |
 
 ---
 

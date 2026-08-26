@@ -6,7 +6,31 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
-### Hito: Sincronización de Contactos de Hardware, Estabilización de Watchdog y Filtrado de Nodo Local en DM
+### Hito: Refactorización y Eliminación de Store & Forward SQLite, Sniffer RF y Home Assistant Discovery
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO (100% de Pruebas y Simulaciones Superadas)
+- **Agente Principal (Lead Orchestrator)**: Coordinó la refactorización arquitectónica para simplificar y optimizar el bridge a una arquitectura *Stateless en Memoria RAM*:
+  1. **Eliminación de Store & Forward en SQLite**:
+     - Eliminado `src/store_forward.py` y base de datos `meshcore_store_forward.db`.
+     - Implementado nuevo módulo `src/deduplicator.py` con `PacketDeduplicator` basado en `collections.OrderedDict` y ventana deslizante TTL para deduplicación ultra-rápida en memoria RAM ($O(1)$) sin I/O en disco.
+     - Adaptado `src/rx_router.py`, `src/bridge_core.py`, `src/mqtt_client.py`, `src/diagnostics.py`, `src/health_reporter.py` y `src/preflight.py` para operar sin dependencias de base de datos ni colas offline en disco.
+  2. **Eliminación de RF Packet Sniffer**:
+     - Eliminadas rutas API REST `/api/sniffer/*` en `src/web/api_router.py`.
+     - Eliminada pestaña `<section id="tab-sniffer">` y modal `#packetDetailModal` en `src/web/static/index.html`.
+     - Eliminados métodos `initSniffer()`, `renderSnifferPacket()`, `updateSnifferStats()`, `filterSnifferTable()` y almacén `sniffer_packets` en IndexedDB en `src/web/static/js/app.js`.
+     - Eliminado procesamiento de tramas `0x88 LOG_DATA` en `src/repeater_manager.py` y `src/virtual_mesh_adapter.py`.
+  3. **Eliminación de Integración Home Assistant Discovery**:
+     - Eliminado módulo `src/ha_discovery.py` y rutas `/api/ha/*`.
+     - Eliminada pestaña `<section id="tab-ha">` y botones de auto-discovery en `src/web/static/index.html` y `src/web/static/js/app.js`.
+     - Eliminados tópicos `homeassistant/#` de la especificación MQTT.
+  4. **Simulación y Verificación**:
+     - `python -m compileall src scripts`: Compilación sin errores (0 advertencias).
+     - `node -c src/web/static/js/app.js`: Sintaxis JavaScript validada (0 errores).
+     - `python scripts/simulate_mesh_network.py`: 100% superado (5 fases multi-nodo, sincronización de contactos, mensajería DM/broadcast, ACK, comandos remotos CLI y configuración).
+     - `python scripts/simulate_heltec_v4_mesh.py`: Simulación de tráfico en vivo con transceptor y Mosquitto superada.
+  5. **Actualización Integral de Documentación**:
+     - Actualizados `README.md`, `docs/ARCHITECTURE.md`, `docs/PROTOCOL_SPEC.md` y `docs/AGENT_ACTIVITY_REPORT.md`.
+     - Despliegue `/deploy/` congelado según instrucción explícita del usuario.
 - **Fecha**: 2026-08-26
 - **Estado**: ✅ COMPLETADO
 - **Agente Principal (Lead Orchestrator)**: Coordinó a los Agentes 1, 2 y 4 para resolver el descubrimiento de contactos, prevenir desconexiones del watchdog y aislar el nodo local en la vista de mensajería:

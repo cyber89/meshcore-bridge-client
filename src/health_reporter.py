@@ -19,7 +19,6 @@ from src.mqtt_client import AsyncBridgeMQTTClient
 from src.rate_limiter import TxRateLimiter
 from src.rx_router import BridgeCounters
 from src.serial_driver import BaseSerialAdapter
-from src.store_forward import SQLiteStoreAndForward
 
 
 @dataclass(slots=True)
@@ -27,7 +26,6 @@ class HealthContext:
     """Dependencias necesarias para construir y publicar el payload de salud."""
     mqtt: AsyncBridgeMQTTClient
     serial_adapter: BaseSerialAdapter
-    store_and_forward: SQLiteStoreAndForward
     node_registry: NodeRegistry
     rate_limiter: TxRateLimiter
     counters: BridgeCounters
@@ -65,7 +63,6 @@ class HealthReporter:
             "serial_port": config.SERIAL_PORT,
             "serial_connected": self._ctx.serial_adapter.is_connected,
             "mqtt_connected": self._ctx.mqtt.is_connected,
-            "offline_buffer_pending": await self._ctx.store_and_forward.count(),
             "known_mesh_nodes": self._ctx.node_registry.get_count(),
             "tx_queue_depth": self._ctx.rate_limiter.get_queue_depth(),
             "total_rx_packets": self._ctx.counters.rx_count,

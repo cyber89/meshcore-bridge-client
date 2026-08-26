@@ -74,11 +74,8 @@ TOPIC_ADMIN_STAT  = f"{TOPIC_PREFIX}/admin/status"     # Respuesta de comandos d
 TOPIC_ADMIN_REPEATER = f"{TOPIC_PREFIX}/admin/repeater" # Gestión remota de repetidores por RF
 
 # ================= Parámetros de Resiliencia y Control =================
-SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", str(Path(__file__).resolve().parent / "meshcore_buffer.db"))
 TX_INTERVAL_SEC = _safe_float("TX_INTERVAL_SEC", 1.0)                 # Espaciado de transmisión RF (LoRa Rate Limiter)
-OFFLINE_BUFFER_MAX_SIZE = _safe_int("OFFLINE_BUFFER_MAX_SIZE", 1000)   # Capacidad máxima del buffer offline SQLite
-OFFLINE_BUFFER_TTL_HOURS = _safe_float("OFFLINE_BUFFER_TTL_HOURS", 48.0) # TTL máximo para retención de telemetría (horas)
-DEDUPLICATION_WINDOW_SEC = _safe_float("DEDUPLICATION_WINDOW_SEC", 60.0) # Ventana temporal de deduplicación de paquetes (segundos)
+DEDUPLICATION_WINDOW_SEC = _safe_float("DEDUPLICATION_WINDOW_SEC", 60.0) # Ventana temporal de deduplicación de paquetes en RAM (segundos)
 WATCHDOG_INTERVAL_SEC = _safe_float("WATCHDOG_INTERVAL_SEC", 60.0)     # Intervalo de supervisión de vivacidad serial
 HEALTH_METRICS_INTERVAL_SEC = _safe_float("HEALTH_METRICS_INTERVAL_SEC", 60.0) # Intervalo de reporte de salud
 
@@ -97,10 +94,6 @@ WEB_PORT = _safe_int("WEB_PORT", 8080)
 TCP_SERVER_ENABLED = os.getenv("TCP_SERVER_ENABLED", "true").lower() in ("true", "1", "yes")
 TCP_SERVER_HOST = os.getenv("TCP_SERVER_HOST", "0.0.0.0")
 TCP_SERVER_PORT = _safe_int("TCP_SERVER_PORT", 5000)
-
-# ================= Integración Home Assistant MQTT Discovery =================
-HA_DISCOVERY_ENABLED = os.getenv("HA_DISCOVERY_ENABLED", "true").lower() in ("true", "1", "yes")
-HA_TOPIC_PREFIX = os.getenv("HA_TOPIC_PREFIX", "homeassistant").strip("/")
 
 # ================= Logging Persistente y Rotación de Archivos =================
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()

@@ -1,7 +1,7 @@
 """
-Web API Router and REST Controller for MeshCore Web Client.
-Procesa solicitudes HTTP REST para mensajería, gestión de contactos, canales cifrados,
-telemetría, sniffer de paquetes RF, métricas analíticas avanzadas y consola de logs.
+Web API Router and Dispatcher for MeshCore Bridge Web Interface.
+Gestiona el enrutamiento y procesamiento de peticiones REST para canales, contactos,
+telemetría, métricas analíticas avanzadas y consola de logs.
 """
 
 from __future__ import annotations
@@ -25,9 +25,7 @@ class WebAPIRouter:
         }
         self.recent_messages: collections.deque[dict[str, Any]] = collections.deque(maxlen=200)
         self.recent_telemetry: collections.deque[dict[str, Any]] = collections.deque(maxlen=200)
-        self.recent_rf_logs: collections.deque[dict[str, Any]] = collections.deque(maxlen=300)
         self.recent_system_logs: collections.deque[dict[str, Any]] = collections.deque(maxlen=300)
-        self.sniffer_active = False
 
     def log_system_event(self, level: str, message: str, source: str = "bridge") -> None:
         """Registra un evento interno en el búfer de logs del sistema."""
@@ -142,13 +140,7 @@ class WebAPIRouter:
         rssi = data.get("rssi", data.get("RSSI"))
         snr = data.get("snr", data.get("SNR"))
 
-        if ev_type in ("sniffer_packet", "rf_log") or "raw_hex" in data or "byte_length" in data:
-            rf_entry = dict(data)
-            rf_entry["iso_time"] = time.strftime("%H:%M:%S", time.localtime())
-            self.recent_rf_logs.append(rf_entry)
-            self.log_system_event("INFO", f"RF Sniffer interceptó trama de {rf_entry.get('byte_length', 0)} bytes", source="sniffer")
-
-        elif ev_type in ("telemetry", "telemetry_recv", "telemetry_response") or "temperature_c" in data or "battery_pct" in data or "battery" in data or "voltage_v" in data or "temp" in data:
+        if ev_type in ("telemetry", "telemetry_recv", "telemetry_response") or "temperature_c" in data or "battery_pct" in data or "battery" in data or "voltage_v" in data or "temp" in data:
             self.recent_telemetry.append(data)
             if canonical_sender and is_valid_node_key(canonical_sender):
                 self.bridge.node_registry.record_packet(PacketRecord(public_key=canonical_sender, is_rx=True, rssi=rssi, snr=snr, telemetry=data))
@@ -222,9 +214,6 @@ class WebAPIRouter:
 
             if method == "POST" and clean_path == "/api/tx":
                 return await self._route_tx(req_body)
-
-            if method == "POST" and clean_path == "/api/sniffer/control":
-                return await self._route_sniffer(req_body)
 
             if method == "POST" and clean_path == "/api/admin/command":
                 res = await self.bridge.handle_admin(req_body)
@@ -446,16 +435,6 @@ class WebAPIRouter:
                 self.log_system_event("INFO", f"🗺️ Traceroute ejecutado hacia {target} - Saltos: {res.get('total_hops', 0)}", source="repeater_admin")
                 return 200, {"status": "ok", "data": res}
 
-            if method == "GET" and clean_path == "/api/ha/status":
-                ha = getattr(self.bridge, "ha_discovery", None)
-                enabled = getattr(ha, "enabled", False) if ha else False
-                count = len(getattr(ha, "_discovered_entities", set())) if ha else 0
-                return 200, {"status": "ok", "data": {"enabled": enabled, "discovered_nodes": count}}
-
-            if method == "POST" and clean_path == "/api/ha/publish":
-                published = await self._trigger_ha_publish()
-                return 200, {"status": "ok", "data": {"published_entities": published}}
-
             if method == "GET" and clean_path == "/api/preflight":
                 report = self._run_preflight_diagnostics()
                 return 200, {"status": "ok", "data": report}
@@ -497,8 +476,6 @@ class WebAPIRouter:
                 "/api/messages",
                 "/api/telemetry",
                 "/api/logs",
-                "/api/sniffer/logs",
-                "/api/sniffer/packets",
                 "/api/system/logs",
                 "/api/diagnostics/report.md",
                 "/api/diagnostics/report",
@@ -555,15 +532,12 @@ class WebAPIRouter:
             "error_rate": error_rate,
             "tx_queue_depth": q_depth,
             "queue_depth": q_depth,
-            "offline_buffer_pending": await self.bridge.store_and_forward.count(),
-            "sniffer_active": self.sniffer_active,
         }
         return 200, {"status": "ok", "data": status_data}
 
     async def _route_analytics(self) -> tuple[int, dict[str, Any]]:
         analytics = self.bridge.node_registry.get_analytics_summary()
         analytics["queue_depth"] = self.bridge.rate_limiter.get_queue_depth()
-        analytics["offline_buffer_size"] = await self.bridge.store_and_forward.count()
         return 200, {"status": "ok", "data": analytics}
 
     async def _route_contacts(self, path: str, method: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -740,18 +714,6 @@ class WebAPIRouter:
         self.log_system_event("INFO", f"Transmisión TX enviada a {target} (Ch {ch_idx})", source="mesh_tx")
         return 200, {"status": "ok", "data": res}
 
-    async def _route_sniffer(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-        action = str(req_body.get("action", "start")).lower().strip()
-        self.sniffer_active = (action == "start")
-        cmd_data = {
-            "target_node": req_body.get("target_node", "local"),
-            "action": f"log {action}",
-            "request_id": f"web_sniff_{int(time.time())}",
-        }
-        res = await self.bridge.handle_admin(cmd_data)
-        self.log_system_event("INFO", f"Control de Sniffer RF: {action.upper()}", source="sniffer")
-        return 200, {"status": "ok", "data": {"sniffer_active": self.sniffer_active, "result": res}}
-
     async def _route_admin_repeater(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         target_node = str(req_body.get("target_node", req_body.get("repeater", ""))).strip()
         action = str(req_body.get("action", req_body.get("command", "stats-radio")))
@@ -773,8 +735,6 @@ class WebAPIRouter:
             return 200, {"status": "ok", "data": list(self.recent_messages), "count": len(self.recent_messages)}
         if clean_path == "/api/telemetry":
             return 200, {"status": "ok", "data": list(self.recent_telemetry), "count": len(self.recent_telemetry)}
-        if clean_path in ("/api/logs", "/api/sniffer/logs", "/api/sniffer/packets"):
-            return 200, {"status": "ok", "data": list(self.recent_rf_logs), "count": len(self.recent_rf_logs)}
         if clean_path == "/api/system/logs":
             level = None
             search = None
@@ -860,16 +820,6 @@ class WebAPIRouter:
 
         return 404, {"status": "error", "message": "Registro no encontrado"}
 
-    async def _trigger_ha_publish(self) -> int:
-        ha = getattr(self.bridge, "ha_discovery", None)
-        if not ha:
-            return 0
-        total: int = ha.publish_discovery_for_bridge(self.bridge.mqtt.publish_safe)
-        for node in self.bridge.node_registry.list_nodes():
-            total += int(ha.publish_discovery_for_node(node, self.bridge.mqtt.publish_safe))
-        self.log_system_event("INFO", f"Home Assistant Discovery anunciado ({total} entidades)", source="ha")
-        return int(total)
-
     def _run_preflight_diagnostics(self) -> dict[str, Any]:
         checker = getattr(self.bridge, "preflight", None)
         if checker and hasattr(checker, "run_all"):
@@ -877,7 +827,6 @@ class WebAPIRouter:
             res = checker.run_all(
                 mqtt_host=config.MQTT_BROKER,
                 mqtt_port=config.MQTT_PORT,
-                db_path=config.SQLITE_DB_PATH,
                 serial_port=getattr(self.bridge.serial_adapter, "port", config.SERIAL_PORT),
             )
             if isinstance(res, dict):

@@ -17,7 +17,7 @@ from typing import Any
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.contact_manager import NodeRegistry, NodeContactUpdate, PacketRecord
-from src.store_forward import SQLiteStoreAndForward, StoredMessage, PacketDeduplicator
+from src.deduplicator import PacketDeduplicator
 from src.repeater_manager import RepeaterManager
 from src.rate_limiter import TxRateLimiter
 from src.admin_handler import AdminCommandHandler, AdminContext
@@ -112,9 +112,6 @@ async def run_mesh_simulation() -> bool:
         ),
     )
 
-    db_path = ":memory:"
-    store_forward = SQLiteStoreAndForward(db_path=db_path)
-
     repeater_mgr = RepeaterManager()
     deduplicator = PacketDeduplicator()
     rate_limiter = TxRateLimiter()
@@ -156,7 +153,6 @@ async def run_mesh_simulation() -> bool:
     rx_ctx = RxRouterContext(
         node_registry=node_registry,
         repeater_manager=repeater_mgr,
-        store_forward=store_forward,
         mqtt=mqtt_client,
         web_server=web_server,
         serial_adapter=serial_adapter,
@@ -291,17 +287,13 @@ async def run_mesh_simulation() -> bool:
     print("  ✓ Mensaje DM entrante de Alice procesado y almacenado.")
 
     exp_ack = "e2e_ack_99"
-    await store_forward.enqueue(
-        StoredMessage(
-            topic=f"meshcore/tx/{alice_pk}",
-            payload=json.dumps({"text": "Fuerte y claro Alice!", "target": alice_pk, "expected_ack": exp_ack}),
-            qos=1,
-        )
+    tx_res = await serial_adapter.send_message(
+        text="Fuerte y claro Alice!",
+        target=alice_pk,
+        channel_idx=0,
     )
-    print("  ✓ Mensaje DM saliente encolado en SQLite Store & Forward.")
-
-    pending_count = await store_forward.count()
-    assert pending_count >= 1, "Fallo: El mensaje no fue guardado en SQLite Store & Forward"
+    assert tx_res.get("status") == "sent", "Fallo: El mensaje no fue transmitido"
+    print("  ✓ Mensaje DM saliente transmitido exitosamente.")
 
     rx_ack = {
         "type": "ACK",

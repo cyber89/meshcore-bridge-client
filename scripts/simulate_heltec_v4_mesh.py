@@ -324,7 +324,6 @@ async def run_simulation(duration_sec: int = 15) -> None:
         print(f"• Total Paquetes TX Transmitidos:        {bridge.tx_count}")
         print(f"• Nodos Registrados en Directorio:       {len(bridge.node_registry.list_nodes())}")
         print(f"• Mensajes Publicados en MQTT Mosquitto: {len(mqtt_messages_logged)}")
-        print(f"• Entidades Home Assistant Anunciadas:   {len(bridge.ha_discovery._discovered_entities) * 4 + 4}")
         print(f"• Fichero de Logs Generado:              {log_file}")
         print(f"• Fichero de Eventos JSONL:              {events_jsonl}")
         print("=" * 80)

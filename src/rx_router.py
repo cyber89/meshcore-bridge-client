@@ -19,7 +19,7 @@ from src.mqtt_client import AsyncBridgeMQTTClient
 from src.protocol_types import MeshcoreFrame, OpCode, TextMessagePayload
 from src.repeater_manager import RepeaterManager
 from src.sensor_decoder import CayenneLPPDecoder
-from src.store_forward import PacketDeduplicator
+from src.deduplicator import PacketDeduplicator
 
 _SENDER_PREFIX_RE = re.compile(r"^([a-zA-Z0-9_\-\.]{2,32}):\s*(.*)$", re.DOTALL)
 
@@ -158,8 +158,6 @@ class RxRouterContext:
     background_tasks: set[asyncio.Task[Any]]
     counters: BridgeCounters
     admin_handler: Any = None
-    store_forward: Any = None
-    store_and_forward: Any = None
 
 
 class RxEventRouter:
@@ -190,15 +188,6 @@ class RxEventRouter:
                 payload_dict = {k: v for k, v in payload_obj.__dict__.items() if not k.startswith("_")}
             else:
                 payload_dict = {"raw": str(payload_obj)}
-
-            # Caso Sniffer RF (0x88 / LOG_DATA / RX_LOG_DATA)
-            if "LOG_DATA" in ev_type_str.upper() or "rf_log" in ev_type_str.lower():
-                raw_target = payload_dict.get("raw", payload_obj)
-                parsed_log = self._ctx.repeater_manager.parse_log_packet(raw_target)
-                self._ctx.mqtt.publish_safe(config.TOPIC_RX_LOG, json.dumps(parsed_log), qos=0)
-                if self._ctx.web_server:
-                    self._ctx.web_server.broadcast_event(parsed_log)
-                return
 
             if payload_dict.get("is_outgoing") is True:
                 return
@@ -382,14 +371,6 @@ class RxEventRouter:
 
                 trip_time = float(payload_dict.get("trip_time_ms", payload_dict.get("trip_time", payload_dict.get("rtt", 0.0))))
                 ack_msg_id = str(payload_dict.get("msg_id", payload_dict.get("id", ""))).strip()
-
-                sf = getattr(self._ctx, "store_forward", getattr(self._ctx, "store_and_forward", None))
-                if not ack_msg_id and ack_code and sf:
-                    ack_msg_id = sf.get_msg_id_by_expected_ack(ack_code) or ""
-
-                if ack_msg_id and sf:
-                    sf.mark_message_delivered(ack_msg_id, trip_time)
-
 
                 admin = getattr(self._ctx, "admin_handler", None)
                 if admin and hasattr(admin, "notify_ping_response"):

@@ -25,7 +25,7 @@ from src.serial_driver import (
     RawSerialFramingAdapter,
     SerialWatchdog,
 )
-from src.store_forward import PacketDeduplicator, SQLiteStoreAndForward
+from src.deduplicator import PacketDeduplicator
 from src.tcp_companion_server import MeshCoreCompanionServer
 from src.virtual_mesh_adapter import VirtualMeshAdapter
 from src.web.api_router import WebAPIRouter
@@ -40,7 +40,6 @@ __all__ = [
     "WebAPIRouter",
     "VirtualMeshAdapter",
     "AsyncBridgeMQTTClient",
-    "SQLiteStoreAndForward",
     "PacketDeduplicator",
     "TxRateLimiter",
     "TxPriority",
