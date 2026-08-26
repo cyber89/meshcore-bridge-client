@@ -338,10 +338,10 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
         return {"status": "UNKNOWN_ACTION", "action": action}
 
-    def _resolve_target(self, name_or_key: str) -> Any:
+    def _resolve_target(self, name_or_key: str, min_hex_len: int = 12) -> Any:
         if not self.mc or not name_or_key:
             return name_or_key
-        if isinstance(name_or_key, dict):
+        if isinstance(name_or_key, dict) or hasattr(name_or_key, "public_key"):
             return name_or_key
         name_str = str(name_or_key).strip()
         if hasattr(self.mc, "get_contact_by_name"):
@@ -358,6 +358,12 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                     return c
             except Exception:
                 pass
+        if hasattr(self.mc, "contacts") and isinstance(self.mc.contacts, dict):
+            for pk, contact in self.mc.contacts.items():
+                if pk.lower().startswith(name_str.lower()) or name_str.lower().startswith(pk.lower()[:8]):
+                    return contact
+        if len(name_str) < min_hex_len and all(c in "0123456789abcdefABCDEF" for c in name_str):
+            return (name_str + "0" * min_hex_len)[:min_hex_len]
         return name_str
 
     async def get_channels(self) -> list[dict[str, Any]]:

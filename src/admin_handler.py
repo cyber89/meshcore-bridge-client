@@ -218,34 +218,59 @@ class AdminCommandHandler:
                         matched = True
         return matched
 
-    def _resolve_target(self, name_or_key: str) -> Any:
+    def _resolve_target(self, name_or_key: str, min_hex_len: int = 12) -> Any:
         mc = self._ctx.mc_provider()
-        if not mc or not name_or_key:
+        if not name_or_key:
             return name_or_key
+        if isinstance(name_or_key, dict) or hasattr(name_or_key, "public_key"):
+            return name_or_key
+
         name_str = str(name_or_key).strip()
-        if hasattr(mc, "get_contact_by_name"):
-            try:
-                c = mc.get_contact_by_name(name_str)
-                if c:
-                    return c
-            except Exception:
-                pass
-        if hasattr(mc, "get_contact_by_key_prefix"):
-            try:
-                c = mc.get_contact_by_key_prefix(name_str)
-                if c:
-                    return c
-            except Exception:
-                pass
-        c_info = self._ctx.node_registry.get_by_key_or_prefix(name_str)
-        if c_info and hasattr(mc, "get_contact_by_key_prefix"):
-            try:
-                c = mc.get_contact_by_key_prefix(c_info.public_key)
-                if c:
-                    return c
-            except Exception:
-                pass
-            return c_info.public_key
+
+        # 1. Buscar en MeshCore SDK por objeto Contacto
+        if mc:
+            if hasattr(mc, "get_contact_by_key_prefix"):
+                try:
+                    c = mc.get_contact_by_key_prefix(name_str)
+                    if c:
+                        return c
+                except Exception:
+                    pass
+            if hasattr(mc, "get_contact_by_name"):
+                try:
+                    c = mc.get_contact_by_name(name_str)
+                    if c:
+                        return c
+                except Exception:
+                    pass
+            if hasattr(mc, "contacts") and isinstance(mc.contacts, dict):
+                for pk, contact in mc.contacts.items():
+                    if pk.lower().startswith(name_str.lower()) or name_str.lower().startswith(pk.lower()[:8]):
+                        return contact
+
+        # 2. Buscar en NodeRegistry
+        c_info = self._ctx.node_registry.get_contact(name_str)
+        if not c_info:
+            for pk, node in getattr(self._ctx.node_registry, "_nodes_by_key", {}).items():
+                if pk.lower().startswith(name_str.lower()) or name_str.lower().startswith(pk.lower()[:8]):
+                    c_info = node
+                    break
+
+        if c_info:
+            if mc and hasattr(mc, "get_contact_by_key_prefix") and getattr(c_info, "public_key", None):
+                try:
+                    c = mc.get_contact_by_key_prefix(c_info.public_key[:12])
+                    if c:
+                        return c
+                except Exception:
+                    pass
+            if getattr(c_info, "public_key", None) and len(c_info.public_key) >= min_hex_len:
+                return c_info.public_key
+
+        # 3. Si es una clave hex corta, asegurar longitud mínima para _validate_destination (mínimo 12 hex chars = 6 bytes)
+        if len(name_str) < min_hex_len and all(c in "0123456789abcdefABCDEF" for c in name_str):
+            return (name_str + "0" * min_hex_len)[:min_hex_len]
+
         return name_str
 
     async def _wait_for_repeater_response(
@@ -540,7 +565,8 @@ class AdminCommandHandler:
             if is_client_only:
                 return {"status": "error", "message": "Los comandos de administración remota son exclusivos para repetidores"}
 
-            dest_target = self._resolve_target(str(target_node))
+            dest_target = self._resolve_target(str(target_node), min_hex_len=12)
+            dest_login_target = self._resolve_target(str(target_node), min_hex_len=64)
             norm_target = self._ctx.node_registry.get_canonical_key(str(target_node)) or str(target_node).strip().lower()
             fut: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
             waiter_keys = [norm_target, norm_target[:8], norm_target[:4], str(target_node).strip().lower()]
@@ -551,6 +577,20 @@ class AdminCommandHandler:
                 if wk not in self._cmd_waiters:
                     self._cmd_waiters[wk] = []
                 self._cmd_waiters[wk].append(fut)
+
+            # Asegurar contacto en la tabla de rutas de la radio
+            if mc and hasattr(mc, "commands") and hasattr(mc.commands, "add_contact"):
+                try:
+                    if isinstance(dest_target, dict):
+                        await mc.commands.add_contact(dest_target)
+                    elif hasattr(dest_target, "to_radio_dict"):
+                        await mc.commands.add_contact(dest_target.to_radio_dict())
+                    elif hasattr(dest_target, "public_key"):
+                        await mc.commands.add_contact({"public_key": dest_target.public_key, "name": getattr(dest_target, "name", "Repeater")})
+                    elif isinstance(dest_target, str) and len(dest_target) >= 12:
+                        await mc.commands.add_contact({"public_key": (dest_target + "0" * 64)[:64], "name": "Repeater"})
+                except Exception as e:
+                    logging.debug(f"Asegurando contacto en radio: {e}")
 
             t_start = time.perf_counter()
 
@@ -564,7 +604,7 @@ class AdminCommandHandler:
                 cmd_text = f"login {password}"
                 if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_login"):
                     try:
-                        await mc.commands.send_login(dest_target, password)
+                        await mc.commands.send_login(dest_login_target, password)
                     except Exception as e:
                         logging.debug(f"Fallo enviando send_login: {e}")
                         await self._ctx.execute_tx({"to": str(target_node), "text": cmd_text, "request_id": req_id})
@@ -602,7 +642,7 @@ class AdminCommandHandler:
                 # Enviar login previo si se adjuntó contraseña no vacía
                 if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_login"):
                     try:
-                        await mc.commands.send_login(dest_target, password)
+                        await mc.commands.send_login(dest_login_target, password)
                     except Exception:
                         await self._ctx.execute_tx({"to": str(target_node), "text": f"login {password}", "request_id": req_id})
                 elif mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_cmd"):
