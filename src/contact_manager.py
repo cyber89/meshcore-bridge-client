@@ -102,6 +102,8 @@ class NodeContactInfo:
         d["total_packets"] = self.rx_packets + self.tx_packets
         d["error_rate_pct"] = round((self.error_count / (d["total_packets"] or 1)) * 100, 1)
         d["is_local"] = self.is_local
+        d["lat"] = self.latitude
+        d["lon"] = self.longitude
         d["lqi_score"] = round(self.lqi_score, 1)
         d["lqi_status"] = self.lqi_status
         d["best_route"] = self.best_route
@@ -542,15 +544,15 @@ class NodeRegistry:
         batt = _safe_int(telem.get("battery_pct", telem.get("battery", telem.get("batt"))))
 
         gps = telem.get("gps", {})
-        lat_raw = telem.get("lat", telem.get("latitude"))
+        lat_raw = telem.get("lat", telem.get("latitude", telem.get("gps_lat", telem.get("adv_lat"))))
         if lat_raw is None and isinstance(gps, dict):
             lat_raw = gps.get("latitude", gps.get("lat"))
-        lon_raw = telem.get("lon", telem.get("longitude"))
+        lon_raw = telem.get("lon", telem.get("longitude", telem.get("gps_lon", telem.get("adv_lon"))))
         if lon_raw is None and isinstance(gps, dict):
             lon_raw = gps.get("longitude", gps.get("lon"))
-        alt_raw = telem.get("alt", telem.get("altitude"))
+        alt_raw = telem.get("alt", telem.get("altitude", telem.get("altitude_m")))
         if alt_raw is None and isinstance(gps, dict):
-            alt_raw = gps.get("altitude", gps.get("alt"))
+            alt_raw = gps.get("altitude", gps.get("alt", gps.get("altitude_m")))
 
         self.add_or_update(
             target_key,

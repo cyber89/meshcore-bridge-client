@@ -6,6 +6,25 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Corrección Integral de Transmisión TX (Mensajes Públicos y Directos) y Posicionamiento Cartográfico GPS en Mapa Leaflet
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO (Resolución de Nombres en DM, Casting de Canales, Auto-registro de Contactos en Radio y Persistencia de GPS)
+- **Agente Principal (Lead Orchestrator)**: Diagnosticó y corrigió las fallas en el pipeline de transmisión TX y la ubicación de nodos en el mapa:
+  1. **Resolución Robusta de Destinatarios en Mensajes Directos (DM)**:
+     - En [`src/serial_driver.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/serial_driver.py) y [`src/bridge_core.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/bridge_core.py), se integró `NodeRegistry` en `MeshcoreSDKAdapter` y se amplió `_resolve_target()` para resolver nombres/alias (ej. `"Alice"`, `"Sensor_Meteo"`), prefijos de 6 a 12 caracteres y claves públicas completas de 64 caracteres.
+     - Se previno el crash por `ValueError: Invalid public key hex string` cuando se utilizaban nombres de contactos en lugar de cadenas hexadecimales.
+     - Auto-registro proactivo de contactos en la tabla de ruteo de la radio mediante `mc.commands.add_contact()` previo a la llamada de transmisión `send_msg()`.
+  2. **Tipado Estricto de Canales y Difusión Pública**:
+     - Forzado de tipo entero `safe_ch = int(channel_idx)` en [`src/serial_driver.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/serial_driver.py) y [`src/bridge_core.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/bridge_core.py) para prevenir excepciones `AttributeError: 'str' object has no attribute 'to_bytes'` provenientes del framing binario de `meshcore_py`.
+     - Tratamiento explícito de `target` (`"broadcast"`, `"public"`, `"0xffff"`, `"all"`, `"none"`, `""`) para enrutar directamente a canal secundario o broadcast sin confusión con mensajes directos.
+  3. **Manejo de Respuestas de TX y Retroalimentación Inmediata**:
+     - En [`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py) y [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js), se añadió verificación de estado de error (`res.status === "error"`) para marcar de forma inmediata mensajes fallidos en la UI con la causa real y ofrecer botón de reintento, en lugar de esperar el timeout ciego de 8s.
+  4. **Posicionamiento Cartográfico GPS en Mapa Leaflet**:
+     - En [`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py), se añadieron alias `lat` y `lon` en `NodeContactInfo.to_dict()` y extracción universal de coordenadas en `record_packet()` (`lat`, `latitude`, `gps_lat`, `adv_lat`).
+     - En [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js), se corrigió la deduplicación de nodos en `renderNodesDirectory()` para preservar las coordenadas geográficas existentes cuando un nodo envía paquetes sin GPS.
+     - Enriquecido `extractCoord()` para extraer coordenadas desde todos los campos posibles (`node.latitude`, `node.lat`, `node.gps_lat`, `node.adv_lat`, `node.telemetry.*`) y excluir únicamente coordenadas nulas o `(0.0, 0.0)`.
+     - Actualización y re-renderizado en tiempo real del mapa ante eventos entrantes de telemetría por WebSockets.
+
 ### Hito: Normalización Exhaustiva de Telemetría, Resolución Canónica de Emisor y Logs Estructurados
 - **Fecha**: 2026-08-26
 - **Estado**: ✅ COMPLETADO (Extracción Universal LPP / Stats, Resolución de Prefijos y Formato Rico de Logs)

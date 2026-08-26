@@ -290,6 +290,8 @@ class MeshCoreBridge:
 
     def resolve_recipient_target(self, name_or_key: str) -> Any:
         contact = self.node_registry.get_by_key_or_prefix(name_or_key)
+        if not contact:
+            contact = self.node_registry.find_by_name(name_or_key)
         target_key = contact.public_key if contact else name_or_key
         if isinstance(self.serial_adapter, MeshcoreSDKAdapter):
             return self.serial_adapter._resolve_target(target_key)
@@ -302,6 +304,7 @@ class MeshCoreBridge:
                 port=config.SERIAL_PORT,
                 baud_rate=config.BAUD_RATE,
                 timeout_sec=config.SERIAL_TIMEOUT,
+                node_registry=self.node_registry,
             )
         except Exception:
             return RawSerialFramingAdapter(

@@ -2644,28 +2644,50 @@ class MeshCoreStationApp {
       payload.voltage !== undefined ||
       payload.voltage_v !== undefined ||
       payload.solar_v !== undefined ||
+      payload.latitude !== undefined ||
+      payload.lat !== undefined ||
       payload.event_type === "node_discovered" ||
       payload.event_type === "advert" ||
       payload.event_type === "telemetry" ||
-      payload.event_type === "repeater_telemetry"
+      payload.event_type === "telemetry_response" ||
+      payload.event_type === "repeater_telemetry" ||
+      payload.event_type === "stats_core" ||
+      payload.event_type === "stats_radio" ||
+      payload.event_type === "stats_packets" ||
+      payload.type === "TELEMETRY_RESPONSE" ||
+      payload.type === "STATS_CORE"
     ) {
-      const senderKey = payload.sender || payload.public_key || payload.pubkey_prefix;
+      const rawSenderKey = payload.sender || payload.public_key || payload.pubkey || payload.pubkey_pre || payload.pubkey_prefix || payload.from_node || payload.from || payload.source;
+      const senderKey = rawSenderKey ? (this.resolveCanonicalPubkey(rawSenderKey) || rawSenderKey) : null;
       if (senderKey && this.isValidNodeKey(senderKey)) {
-        const existing = this.knownNodes.get(senderKey) || {};
+        const existing = this.knownNodes.get(senderKey) || this.knownNodes.get(rawSenderKey) || {};
         const telemData = payload.telemetry || payload;
+        const latVal = payload.latitude ?? payload.lat ?? payload.gps_lat ?? telemData.latitude ?? telemData.lat ?? telemData.gps_lat ?? telemData.gps?.latitude ?? telemData.gps?.lat ?? existing.latitude;
+        const lonVal = payload.longitude ?? payload.lon ?? payload.gps_lon ?? telemData.longitude ?? telemData.lon ?? telemData.gps_lon ?? telemData.gps?.longitude ?? telemData.gps?.lon ?? existing.longitude;
+        const altVal = payload.altitude_m ?? payload.altitude ?? payload.alt ?? telemData.altitude_m ?? telemData.altitude ?? telemData.alt ?? existing.altitude_m;
+
         const updated = {
           ...existing,
           ...payload,
           ...telemData,
           public_key: existing.public_key || senderKey,
+          latitude: latVal != null && !isNaN(parseFloat(latVal)) ? parseFloat(latVal) : existing.latitude,
+          longitude: lonVal != null && !isNaN(parseFloat(lonVal)) ? parseFloat(lonVal) : existing.longitude,
+          altitude_m: altVal != null && !isNaN(parseFloat(altVal)) ? parseFloat(altVal) : existing.altitude_m,
+          lat: latVal != null && !isNaN(parseFloat(latVal)) ? parseFloat(latVal) : existing.lat,
+          lon: lonVal != null && !isNaN(parseFloat(lonVal)) ? parseFloat(lonVal) : existing.lon,
           last_seen: Math.floor(Date.now() / 1000),
         };
         this.knownNodes.set(senderKey, updated);
+        if (rawSenderKey && rawSenderKey !== senderKey) {
+          this.knownNodes.set(rawSenderKey, updated);
+        }
         this.renderNodesDirectory(Array.from(this.knownNodes.values()));
 
         // Si el modal de administración de este repetidor está abierto, actualizar métricas en vivo
         if (this.selectedRepeaterTarget && 
             (this.selectedRepeaterTarget === senderKey || 
+             this.selectedRepeaterTarget === rawSenderKey ||
              this.selectedRepeaterTarget.startsWith(senderKey) || 
              senderKey.startsWith(this.selectedRepeaterTarget))) {
           this.populateRepeaterModalData(updated);
@@ -3964,7 +3986,7 @@ class MeshCoreStationApp {
         }),
       });
       const txData = await res.json();
-      if (txData && txData.status === "ok") {
+      if (res.ok && txData && txData.status === "ok" && txData.data?.status !== "error") {
         targetMsg.status = "sent";
         if (row) {
           row.classList.remove("queued");
@@ -4002,10 +4024,25 @@ class MeshCoreStationApp {
           this.pendingOutgoingAcks.delete(msgId);
         }, 8000);
         this.pendingOutgoingAcks.set(msgId, { timer, msgData: targetMsg, feedKey: targetFeedKey });
+      } else {
+        const errMsg = txData?.message || txData?.data?.error || "Fallo en transmisión LoRa";
+        targetMsg.status = "failed";
+        if (row) {
+          row.classList.remove("sent", "queued");
+          row.classList.add("failed");
+          const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
+          if (ackEl) {
+            ackEl.className = "ack-indicator ack-failed";
+            ackEl.innerHTML = `❌ Falló <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button>`;
+          }
+        }
+        this.storage.saveMessage(targetFeedKey, targetMsg);
+        this.showToast(`⚠️ ${errMsg}`, "warning");
       }
     } catch (err) {
       targetMsg.status = "failed";
       if (row) {
+        row.classList.remove("sent", "queued");
         row.classList.add("failed");
         const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
         if (ackEl) {
@@ -4013,6 +4050,9 @@ class MeshCoreStationApp {
           ackEl.innerHTML = `❌ Falló <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button>`;
         }
       }
+      this.storage.saveMessage(targetFeedKey, targetMsg);
+      this.showToast("❌ Error de red transmitiendo mensaje", "error");
+    }
     }
   }
 
@@ -4142,7 +4182,7 @@ class MeshCoreStationApp {
             }),
           });
           const txData = await res.json();
-          if (txData && txData.status === "ok") {
+          if (res.ok && txData && txData.status === "ok" && txData.data?.status !== "error") {
             outgoingMsg.status = "sent";
             const row = document.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
             if (row) {
@@ -4181,10 +4221,12 @@ class MeshCoreStationApp {
             }, 8000);
             this.pendingOutgoingAcks.set(msgId, { timer, msgData: outgoingMsg, feedKey });
           } else {
+            const errMsg = txData?.message || txData?.data?.error || "Fallo en transmisión LoRa";
             outgoingMsg.status = "failed";
             this.storage.saveMessage(feedKey, outgoingMsg);
             const row = document.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
             if (row) {
+              row.classList.remove("sent", "queued");
               row.classList.add("failed");
               const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
               if (ackEl) {
@@ -4192,6 +4234,7 @@ class MeshCoreStationApp {
                 ackEl.innerHTML = `❌ Falló <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button>`;
               }
             }
+            this.showToast(`⚠️ ${errMsg}`, "warning");
           }
         } catch (err) {
           console.error("Error transmitiendo mensaje:", err);
@@ -4199,6 +4242,7 @@ class MeshCoreStationApp {
           this.storage.saveMessage(feedKey, outgoingMsg);
           const row = document.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
           if (row) {
+            row.classList.remove("sent", "queued");
             row.classList.add("failed");
             const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
             if (ackEl) {
@@ -4206,6 +4250,7 @@ class MeshCoreStationApp {
               ackEl.innerHTML = `❌ Falló <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button>`;
             }
           }
+          this.showToast("❌ Error de red transmitiendo mensaje", "error");
         }
       });
     }
@@ -5725,16 +5770,31 @@ class MeshCoreStationApp {
 
       if (matchIndex >= 0) {
         const prev = deduplicatedNodes[matchIndex];
+        const mergedLat = (rawNode.latitude != null ? rawNode.latitude : (rawNode.lat != null ? rawNode.lat : (rawNode.gps?.latitude ?? rawNode.position?.latitude ?? rawNode.telemetry?.latitude ?? rawNode.telemetry?.lat))) ?? prev.latitude ?? prev.lat;
+        const mergedLon = (rawNode.longitude != null ? rawNode.longitude : (rawNode.lon != null ? rawNode.lon : (rawNode.gps?.longitude ?? rawNode.position?.longitude ?? rawNode.telemetry?.longitude ?? rawNode.telemetry?.lon))) ?? prev.longitude ?? prev.lon;
+        const mergedAlt = (rawNode.altitude_m != null ? rawNode.altitude_m : (rawNode.alt != null ? rawNode.alt : (rawNode.gps?.altitude_m ?? rawNode.position?.altitude_m ?? rawNode.telemetry?.altitude_m ?? rawNode.telemetry?.alt))) ?? prev.altitude_m ?? prev.alt;
+
         deduplicatedNodes[matchIndex] = {
           ...prev,
           ...rawNode,
           public_key: prev.public_key.length >= rawNode.public_key.length ? prev.public_key : rawNode.public_key,
           name: prev.name && !prev.name.startsWith("Node_") ? prev.name : (rawNode.name || prev.name),
           alias: prev.alias || rawNode.alias,
+          latitude: mergedLat,
+          longitude: mergedLon,
+          altitude_m: mergedAlt,
+          lat: mergedLat,
+          lon: mergedLon,
           last_seen: Math.max(Number(prev.last_seen) || 0, Number(rawNode.last_seen) || 0),
           last_rssi: rawNode.last_rssi != null ? rawNode.last_rssi : prev.last_rssi,
           last_snr: rawNode.last_snr != null ? rawNode.last_snr : prev.last_snr,
           hops: rawNode.hops != null ? rawNode.hops : prev.hops,
+          telemetry: {
+            ...(prev.telemetry || {}),
+            ...(rawNode.telemetry || {}),
+            ...(mergedLat != null ? { latitude: mergedLat, lat: mergedLat } : {}),
+            ...(mergedLon != null ? { longitude: mergedLon, lon: mergedLon } : {}),
+          },
         };
       } else {
         deduplicatedNodes.push({ ...rawNode });
@@ -6328,7 +6388,7 @@ class MeshCoreStationApp {
         for (const v of vals) {
           if (v !== undefined && v !== null && v !== "") {
             const num = parseFloat(v);
-            if (!isNaN(num) && num !== 0.0) return num;
+            if (!isNaN(num)) return num;
           }
         }
         return null;
@@ -6338,22 +6398,34 @@ class MeshCoreStationApp {
         node.latitude,
         node.lat,
         node.gps_lat,
+        node.adv_lat,
         node.gps?.latitude,
         node.gps?.lat,
         node.position?.latitude,
-        node.position?.lat
+        node.position?.lat,
+        node.telemetry?.latitude,
+        node.telemetry?.lat,
+        node.telemetry?.gps_lat,
+        node.telemetry?.gps?.latitude,
+        node.telemetry?.gps?.lat
       );
       const lon = extractCoord(
         node.longitude,
         node.lon,
         node.gps_lon,
+        node.adv_lon,
         node.gps?.longitude,
         node.gps?.lon,
         node.position?.longitude,
-        node.position?.lon
+        node.position?.lon,
+        node.telemetry?.longitude,
+        node.telemetry?.lon,
+        node.telemetry?.gps_lon,
+        node.telemetry?.gps?.longitude,
+        node.telemetry?.gps?.lon
       );
 
-      const hasGps = lat !== null && lon !== null && lat >= -90.0 && lat <= 90.0 && lon >= -180.0 && lon <= 180.0;
+      const hasGps = lat !== null && lon !== null && lat >= -90.0 && lat <= 90.0 && lon >= -180.0 && lon <= 180.0 && !(lat === 0.0 && lon === 0.0);
       const isSelected = this.selectedMapNodePk === node.public_key;
 
       if (hasGps) {
