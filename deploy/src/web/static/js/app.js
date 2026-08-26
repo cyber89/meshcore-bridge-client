@@ -575,7 +575,6 @@ class MeshCoreStationApp {
       btnCloseImportModal: document.getElementById("btnCloseImportModal"),
       btnCancelImport: document.getElementById("btnCancelImport"),
 
-      activeRepeaterSelect: document.getElementById("activeRepeaterSelect"),
       repeaterTerminalForm: document.getElementById("repeaterTerminalForm"),
       repeaterTerminalInput: document.getElementById("repeaterTerminalInput"),
       repeaterTerminalOutput: document.getElementById("repeaterTerminalOutput"),
@@ -602,17 +601,14 @@ class MeshCoreStationApp {
       adminModalNodeName: document.getElementById("adminModalNodeName"),
       adminModalNodePk: document.getElementById("adminModalNodePk"),
       adminModalNodePkDisplay: document.getElementById("adminModalNodePkDisplay"),
-      adminModalPassword: document.getElementById("adminModalPassword"),
-      btnModalAuthTest: document.getElementById("btnModalAuthTest"),
       adminModalAuthStatus: document.getElementById("adminModalAuthStatus"),
       btnModalHeaderPingZero: document.getElementById("btnModalHeaderPingZero"),
       adminModalPingZeroBadge: document.getElementById("adminModalPingZeroBadge"),
-      btnModalActionPingZero: document.getElementById("btnModalActionPingZero"),
-      repQuickPingResult: document.getElementById("repQuickPingResult"),
+      btnModalActionPing: document.getElementById("btnModalActionPing"),
       btnModalActionReboot: document.getElementById("btnModalActionReboot"),
       btnModalActionClearStats: document.getElementById("btnModalActionClearStats"),
       btnModalActionAdvert: document.getElementById("btnModalActionAdvert"),
-      btnModalActionClock: document.getElementById("btnModalActionClock"),
+      btnSyncRepeaterClock: document.getElementById("btnSyncRepeaterClock"),
       btnCloseRepeaterAdminModal: document.getElementById("btnCloseRepeaterAdminModal"),
       headerDutyCycle: document.getElementById("headerDutyCycle"),
       headerAirtimeChip: document.getElementById("headerAirtimeChip"),
@@ -1979,7 +1975,7 @@ class MeshCoreStationApp {
       });
     }
 
-    const btnActionPing = document.getElementById("btnModalActionPing") || this.dom.btnModalActionPingZero;
+    const btnActionPing = document.getElementById("btnModalActionPing");
     if (btnActionPing) {
       btnActionPing.addEventListener("click", () => {
         this.pingZero(this.selectedRepeaterTarget, this.selectedRepeaterName);
@@ -1996,7 +1992,7 @@ class MeshCoreStationApp {
       });
     }
 
-    const btnSyncClock = document.getElementById("btnSyncRepeaterClock") || document.getElementById("btnModalActionClock");
+    const btnSyncClock = document.getElementById("btnSyncRepeaterClock");
     if (btnSyncClock) {
       btnSyncClock.addEventListener("click", () => {
         const target = this.selectedRepeaterTarget;
@@ -2145,7 +2141,7 @@ class MeshCoreStationApp {
       this.dom.btnModalHeaderPingZero.disabled = true;
       this.dom.btnModalHeaderPingZero.textContent = "🎯 Midiendo...";
     }
-    const btnActionPingEl = document.getElementById("btnModalActionPing") || this.dom.btnModalActionPingZero;
+    const btnActionPingEl = document.getElementById("btnModalActionPing");
     if (btnActionPingEl) {
       btnActionPingEl.disabled = true;
       btnActionPingEl.textContent = "🎯 Midiendo...";
@@ -2217,7 +2213,7 @@ class MeshCoreStationApp {
         this.dom.btnModalHeaderPingZero.disabled = false;
         this.dom.btnModalHeaderPingZero.textContent = "🎯 Ping";
       }
-      const btnActionPingElFin = document.getElementById("btnModalActionPing") || this.dom.btnModalActionPingZero;
+      const btnActionPingElFin = document.getElementById("btnModalActionPing");
       if (btnActionPingElFin) {
         btnActionPingElFin.disabled = false;
         btnActionPingElFin.textContent = "🎯 Ping";
@@ -2255,33 +2251,6 @@ class MeshCoreStationApp {
     } catch (e) {
       this.appendTerminalLine(`✗ [ERROR] ${e.message}`, "term-error");
     }
-  }
-
-  onRepeaterSelected() {
-    const pubkey = this.dom.activeRepeaterSelect.value;
-    if (!pubkey) return;
-    const node = this.knownNodes.get(pubkey) || {
-      battery: 98,
-      solar_v: 5.12,
-      snr: 12.4,
-      rssi: -65,
-      uptime: "142h 30m",
-      last_seen: "Ahora",
-    };
-    const batEl = document.getElementById("repBatteryValue");
-    if (batEl) batEl.textContent = `${node.battery || 95}%`;
-    const solarEl = document.getElementById("repSolarValue");
-    if (solarEl) solarEl.textContent = `${node.solar_v || node.voltage || 4.8} V`;
-    const snrEl = document.getElementById("repSnrValue");
-    if (snrEl) snrEl.textContent = `${node.snr || 12.0} dB`;
-    const rssiEl = document.getElementById("repRssiValue");
-    if (rssiEl) rssiEl.textContent = `RSSI: ${node.rssi || -68} dBm`;
-    const uptimeEl = document.getElementById("repUptimeValue");
-    if (uptimeEl) uptimeEl.textContent = node.uptime || "142h 30m";
-    const seenEl = document.getElementById("repLastSeenValue");
-    if (seenEl) seenEl.textContent = "Activo en malla LoRa";
-
-    this.refreshNeighborsTable(pubkey);
   }
 
   refreshNeighborsTable(pubkey) {
@@ -5499,7 +5468,6 @@ class MeshCoreStationApp {
 
         if (nodesRes.status === "ok" && nodesRes.data) {
           this.renderNodesDirectory(nodesRes.data);
-          this.populateRepeaterDropdown(nodesRes.data);
         }
 
         if (channelsRes.status === "ok" && channelsRes.data && channelsRes.data.length > 0) {
@@ -6509,24 +6477,6 @@ class MeshCoreStationApp {
       const matchesFilter = activeFilter === "all" || role === activeFilter;
       card.style.display = (matchesSearch && matchesFilter) ? "flex" : "none";
     });
-  }
-
-  populateRepeaterDropdown(nodes) {
-    if (this.dom.activeRepeaterSelect) {
-      this.dom.activeRepeaterSelect.innerHTML = '<option value="">Selecciona un repetidor...</option>';
-      for (const node of nodes) {
-        const opt = document.createElement("option");
-        opt.value = node.public_key;
-        opt.textContent = `${node.alias || node.name || node.public_key.slice(0, 8)} (${node.public_key.slice(0, 6)})`;
-        this.dom.activeRepeaterSelect.appendChild(opt);
-      }
-
-      // Auto-seleccionar primer repetidor si está vacío
-      if (!this.dom.activeRepeaterSelect.value && nodes.length > 0) {
-        this.dom.activeRepeaterSelect.value = nodes[0].public_key;
-        this.onRepeaterSelected();
-      }
-    }
   }
 }
 

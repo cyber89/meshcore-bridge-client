@@ -6,6 +6,31 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Auditoría Multi-Agente Integral, Optimización de Rendimiento y Limpieza de Código Muerto
+- **Fecha**: 2026-08-25
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Coordinó a los Agentes 1, 2, 4 y 5 en una auditoría y refactorización integral del sistema frente a la pila oficial MeshCore (`/reference/meshcore/` y `/reference/meshcore_py/`):
+  1. **Agente 1 (Protocol & Firmware Investigator Agent)**:
+     - Comprobación de tipos, constantes de framing (SOF `0xAA`, EOF `0x55`, ESC `0x1B`), offsets de paquetes y CRC-16-CCITT en `src/protocol_types.py`.
+     - Validación 1:1 de `FirmwareCommandType`, `FirmwarePushCode`, `FirmwarePayloadType` y `FirmwareRouteType` con los headers oficiales C/C++ (`Packet.h`, `AdvertDataHelpers.h`).
+  2. **Agente 2 (Python Bridge Architect Agent)**:
+     - Auditoría y saneamiento de dependencias en `src/admin_handler.py`, `src/repeater_manager.py`, `src/contact_manager.py`, `src/rx_router.py` y `src/web/api_router.py`.
+     - Optimización de transacciones SQLite WAL en `store_forward.py` y `contact_manager.py`.
+  3. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - Auditoría profunda de `src/web/static/js/app.js`:
+       - Eliminación de selectores DOM huérfanos (`activeRepeaterSelect`, `adminModalPassword`, `btnModalAuthTest`, `btnModalActionPingZero`, `repQuickPingResult`, `btnModalActionClock`).
+       - Eliminación de métodos redundantes en desuso (`populateRepeaterDropdown`, `onRepeaterSelected`).
+       - Optimización de listeners en acciones rápidas de repetidor (`btnModalActionPing`, `btnSyncRepeaterClock`).
+     - Verificación de consistencia visual en `src/web/static/css/app.css` e `index.html`.
+  4. **Agente 5 (Security & Vulnerability Auditor Agent)**:
+     - Parametrización estricta de consultas SQLite.
+     - Sanitización obligatoria `escapeHtml` en todas las proyecciones dinámicas de datos de malla hacia el DOM.
+  5. **Agente 0 (Lead Orchestrator)**:
+     - Verificación estática JavaScript (`node -c src/web/static/js/app.js` $\to$ 0 errores).
+     - Verificación de compilación Python (`python -m compileall src` $\to$ 0 errores).
+     - Sincronización del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
+     - Sincronización con GitHub `origin/main`.
+
 ### Hito: Verificación y Sincronización Integral de Posicionamiento GPS, Persistencia y Visualización en Mapa
 - **Fecha**: 2026-08-25
 - **Estado**: ✅ COMPLETADO
