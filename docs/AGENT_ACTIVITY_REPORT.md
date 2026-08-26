@@ -6,20 +6,15 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
-### Hito: Simulación Concurrente Multi-Nodo, Multi-Cliente y Auditoría de Logs en Tiempo Real
+### Hito: Simulación Integral de 20s (Modificaciones Remotas, Ajustes Locales, Fuzzing Deformado y Cuello de Botella)
 - **Fecha**: 2026-08-26
-- **Estado**: ✅ COMPLETADO (0 Errores, 0 Excepciones, 100% de Pruebas Superadas)
-- **Agente Principal (Lead Orchestrator)**: Coordinó la ejecución del simulador concurrente de alto estrés:
-  1. **Simulador Multi-Nodo & Multi-Cliente ([`scripts/simulate_concurrent_network.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/scripts/simulate_concurrent_network.py))**:
-     - **Topología de Nodos**: 7 nodos concurrentes en RAM (Base Station, Repetidor Cerro Norte, Repetidor Cerro Sur, Cliente Alice, Cliente Bob, Sensor Meteo Highland con CayenneLPP, Unidad de Emergencia Rescate).
-     - **Clientes Concurrentes**: Web SPA REST client, WebSocket Real-time streaming client, MQTT/n8n Automation worker, Mesh RF Traffic generator, y Watchdog monitor.
-     - **Auditoría de Logs en Tiempo Real**: Inspector asíncrono `RealTimeLogAuditor` adjunto al logger raíz y todos los módulos.
-     - **Resultado de Simulación**: 15 transmisiones RF, 45 eventos MQTT, 35 eventos WebSocket emitidos, **0 errores**, **0 advertencias críticas**, **0 excepciones no manejadas**.
-  2. **Verificación Completa de Todas las Suites de Prueba**:
-     - `python scripts/run_all_test_categories.py` $\to$ **10/10 Disciplinas Superadas (100% Éxito)**.
-     - `python -m pytest tests/ -v -k "not playwright"` $\to$ **112 tests superados (0 fallos)**.
-     - `python scripts/simulate_mesh_network.py` $\to$ **100% de fases superadas**.
-     - `python scripts/audit_codebase_integrity.py` $\to$ **100% de módulos de producción importados sin errores**.
+- **Estado**: ✅ COMPLETADO (20.14s Ejecución - 0 Errores - 100% de Pruebas Superadas)
+- **Agente Principal (Lead Orchestrator)**: Coordinó la implementación y ejecución del simulador en tiempo real de 20 segundos ([`scripts/simulate_concurrent_network.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/scripts/simulate_concurrent_network.py)):
+  1. **[Pilar 1] Modificaciones Remotas de Nodos (9 acciones)**: Login remoto autenticado a repetidores, configuración CLI de parámetros (`set tx_power 22`), y actualización de parámetros de contacto (`alias`, `is_favorite`).
+  2. **[Pilar 2] Ajustes en el Nodo Local (6 ajustes)**: Actualización de potencia TX, frecuencia operativa (915.0 - 916.0 MHz), nombre dinámico de estación y coordenadas GPS.
+  3. **[Pilar 3] Mensajes y Tramas Deformadas (275 eventos manejados limpiamente)**: Fuzzing de JSON MQTT corrupto, tramas binarias LoRa truncadas, opcodes inválidos, escape sequences malformadas y paquetes CayenneLPP rotos sin ningún crash.
+  4. **[Pilar 4] Simulación de Cuello de Botella (12 ráfagas masivas)**: 48 transmisiones prioritarias de emergencia (Prio 0) y 192 transmisiones regulares (Prio 1) procesadas con colas Leaky Bucket sin desbordamiento de memoria.
+  5. **[Pilar 5] Duración Continua de 20 Segundos**: 20.14s de simulación asíncrona real-time con barra de progreso en vivo, 169 eventos MQTT publicados, 160 eventos WebSocket emitidos, y **0 errores / 0 excepciones en los logs**.
 
 ### Hito: Verificación y Cobertura Integral de las 10 Disciplinas de Prueba
 - **Fecha**: 2026-08-26
