@@ -6,6 +6,18 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Limpieza de Elementos Ping en Encabezado de Modal de Administración de Repetidores
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Coordinó al Agente 4 (Frontend) para simplificar el encabezado del modal de administración de repetidores:
+  1. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - **`src/web/static/index.html`**: Eliminados la insignia `🎯 Ping: -- ms` (`adminModalPingZeroBadge`) y el botón `🎯 Ping` (`btnModalHeaderPingZero`) del encabezado superior del diálogo `#repeaterAdminModal`, dejando el título y la clave pública limpios.
+     - **`src/web/static/js/app.js`**: Purgadas las referencias y listeners huérfanos a dichos elementos, manteniendo la funcionalidad de ping activa en la pestaña Terminal y botones de acción rápida.
+  2. **Agente 0 (Lead Orchestrator)**:
+     - Verificación estática JavaScript (`node -c src/web/static/js/app.js` $\to$ 0 errores).
+     - Sincronización del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
+     - Sincronización con GitHub `origin/main`.
+
 ### Hito: Auditoría Multi-Agente Integral, Optimización de Rendimiento y Limpieza de Código Muerto
 - **Fecha**: 2026-08-25
 - **Estado**: ✅ COMPLETADO

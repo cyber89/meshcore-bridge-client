@@ -602,8 +602,6 @@ class MeshCoreStationApp {
       adminModalNodePk: document.getElementById("adminModalNodePk"),
       adminModalNodePkDisplay: document.getElementById("adminModalNodePkDisplay"),
       adminModalAuthStatus: document.getElementById("adminModalAuthStatus"),
-      btnModalHeaderPingZero: document.getElementById("btnModalHeaderPingZero"),
-      adminModalPingZeroBadge: document.getElementById("adminModalPingZeroBadge"),
       btnModalActionPing: document.getElementById("btnModalActionPing"),
       btnModalActionReboot: document.getElementById("btnModalActionReboot"),
       btnModalActionClearStats: document.getElementById("btnModalActionClearStats"),
@@ -1485,27 +1483,6 @@ class MeshCoreStationApp {
   populateRepeaterModalData(node) {
     const pubkey = node.public_key || this.selectedRepeaterTarget;
 
-    // 0. Estado de Ping previo
-    if (this.dom.adminModalPingZeroBadge) {
-      if (node.ping_zero_rtt) {
-        const pingRssi = node.last_rssi != null ? ` (${node.last_rssi} dBm)` : "";
-        this.dom.adminModalPingZeroBadge.textContent = `🎯 Ping: ${node.ping_zero_rtt} ms${pingRssi}`;
-        this.dom.adminModalPingZeroBadge.className = "ping-zero-badge ping-success";
-      } else {
-        this.dom.adminModalPingZeroBadge.textContent = "🎯 Ping: -- ms";
-        this.dom.adminModalPingZeroBadge.className = "ping-zero-badge";
-      }
-    }
-    if (this.dom.repQuickPingResult) {
-      if (node.ping_zero_rtt) {
-        const rRssi = node.last_rssi != null ? ` • RSSI ${node.last_rssi} dBm` : "";
-        const rSnr = node.last_snr != null ? ` • SNR ${node.last_snr} dB` : "";
-        this.dom.repQuickPingResult.textContent = `🟢 RTT ${node.ping_zero_rtt} ms${rRssi}${rSnr} (0 Saltos)`;
-      } else {
-        this.dom.repQuickPingResult.textContent = "Sin mediciones recientes";
-      }
-    }
-
     // 1. Batería & Voltajes
     const batVal = node.battery_pct != null ? node.battery_pct : (node.battery != null ? node.battery : "--");
     const voltVal = node.voltage_v != null ? node.voltage_v : (node.voltage != null ? node.voltage : "--");
@@ -1968,13 +1945,6 @@ class MeshCoreStationApp {
     }
 
     // Acciones Rápidas del Modal
-    const btnHeaderPing = this.dom.btnModalHeaderPingZero || document.getElementById("btnModalHeaderPingZero");
-    if (btnHeaderPing) {
-      btnHeaderPing.addEventListener("click", () => {
-        this.pingZero(this.selectedRepeaterTarget, this.selectedRepeaterName);
-      });
-    }
-
     const btnActionPing = document.getElementById("btnModalActionPing");
     if (btnActionPing) {
       btnActionPing.addEventListener("click", () => {
@@ -2133,14 +2103,6 @@ class MeshCoreStationApp {
 
     this.appendTerminalLine(`meshcore@remote:~$ ping ${name} (${target.slice(0, 8)})`, "term-cmd");
 
-    if (this.dom.adminModalPingZeroBadge) {
-      this.dom.adminModalPingZeroBadge.textContent = "🎯 Ping: Midiendo...";
-      this.dom.adminModalPingZeroBadge.className = "ping-zero-badge measuring";
-    }
-    if (this.dom.btnModalHeaderPingZero) {
-      this.dom.btnModalHeaderPingZero.disabled = true;
-      this.dom.btnModalHeaderPingZero.textContent = "🎯 Midiendo...";
-    }
     const btnActionPingEl = document.getElementById("btnModalActionPing");
     if (btnActionPingEl) {
       btnActionPingEl.disabled = true;
@@ -2164,12 +2126,6 @@ class MeshCoreStationApp {
         const line = `✓ [PONG DIRECTO] Duration: ${rtt} ms | SNR there: ${snrThere} | SNR back: ${snrBack} | RSSI: ${rssi}`;
         this.appendTerminalLine(line, "term-success");
 
-        if (this.dom.adminModalPingZeroBadge) {
-          const rssiPart = rssi !== "--" ? ` (${rssi})` : "";
-          this.dom.adminModalPingZeroBadge.textContent = `🎯 Ping: ${rtt} ms${rssiPart}`;
-          this.dom.adminModalPingZeroBadge.className = "ping-zero-badge ping-success";
-        }
-
         // Actualizar nodo en knownNodes si existe
         const canonicalTarget = this.resolveCanonicalPubkey(target);
         const existing = this.knownNodes.get(canonicalTarget) || this.knownNodes.get(target) || {
@@ -2191,10 +2147,6 @@ class MeshCoreStationApp {
       } else {
         const errMsg = data.message || "Timeout esperando respuesta";
         this.appendTerminalLine(`✗ [PING FALLIDO] ${errMsg}`, "term-error");
-        if (this.dom.adminModalPingZeroBadge) {
-          this.dom.adminModalPingZeroBadge.textContent = "🎯 Ping: Fallo";
-          this.dom.adminModalPingZeroBadge.className = "ping-zero-badge ping-error";
-        }
         if (errMsg.toLowerCase().includes("password") || errMsg.toLowerCase().includes("auth") || errMsg.toLowerCase().includes("pin")) {
           this.handleRepeaterAuthError(target, errMsg);
         } else {
@@ -2203,16 +2155,8 @@ class MeshCoreStationApp {
       }
     } catch (err) {
       this.appendTerminalLine(`✗ [PING ERROR] ${err.message}`, "term-error");
-      if (this.dom.adminModalPingZeroBadge) {
-        this.dom.adminModalPingZeroBadge.textContent = "🎯 Ping: Error";
-        this.dom.adminModalPingZeroBadge.className = "ping-zero-badge ping-error";
-      }
       this.showToast(`Error de red en Ping: ${err.message}`, "error");
     } finally {
-      if (this.dom.btnModalHeaderPingZero) {
-        this.dom.btnModalHeaderPingZero.disabled = false;
-        this.dom.btnModalHeaderPingZero.textContent = "🎯 Ping";
-      }
       const btnActionPingElFin = document.getElementById("btnModalActionPing");
       if (btnActionPingElFin) {
         btnActionPingElFin.disabled = false;
