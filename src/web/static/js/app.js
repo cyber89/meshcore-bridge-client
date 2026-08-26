@@ -3496,13 +3496,6 @@ class MeshCoreStationApp {
       });
     }
 
-    const btnAdvert = document.getElementById("btnLocalAdvertNow") || document.getElementById("btnActionBroadcastAdvert");
-    if (btnAdvert) {
-      btnAdvert.addEventListener("click", async () => {
-        await this.sendAdvert(false);
-      });
-    }
-
     const btnReboot = document.getElementById("btnActionRebootLocal");
     if (btnReboot) {
       btnReboot.addEventListener("click", async () => {
