@@ -956,7 +956,8 @@ body {
   filter: grayscale(0%);
 }
 
-.nodes-toolbar {
+.nodes-toolbar,
+.contacts-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -966,9 +967,13 @@ body {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   padding: 8px 12px;
+  margin-bottom: 16px;
 }
 
-.nodes-toolbar .search-input {
+.nodes-toolbar .search-input,
+.contacts-toolbar .search-input,
+#nodesSearchInput,
+#contactsSearchInput {
   flex: 1 1 240px;
   min-width: 200px;
   max-width: 380px;
@@ -978,9 +983,20 @@ body {
   background: var(--bg-surface-elevated);
   color: var(--text-main);
   font-size: 12px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.nodes-filter-pills {
+.nodes-toolbar .search-input:focus,
+.contacts-toolbar .search-input:focus,
+#nodesSearchInput:focus,
+#contactsSearchInput:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+}
+
+.nodes-filter-pills,
+.contacts-filter-pills {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -3595,18 +3611,21 @@ body {
     align-items: stretch;
   }
 
-  .nodes-toolbar {
+  .nodes-toolbar,
+  .contacts-toolbar {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .nodes-filter-pills {
+  .nodes-filter-pills,
+  .contacts-filter-pills {
     overflow-x: auto;
     flex-wrap: nowrap;
     padding-bottom: 4px;
   }
 
-  .nodes-filter-pills .filter-pill {
+  .nodes-filter-pills .filter-pill,
+  .contacts-filter-pills .filter-pill {
     white-space: nowrap;
     flex-shrink: 0;
   }
@@ -4967,28 +4986,3 @@ body {
   transform: translateY(-1px);
 }
 
-/* ==============================================================================
-   👥 CONTACTS TOOLBAR & FILTER PILLS
-   ============================================================================== */
-.contacts-toolbar {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 16px;
-}
-
-@media (min-width: 768px) {
-  .contacts-toolbar {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
-}
-
-.contacts-filter-pills {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-}
