@@ -144,8 +144,21 @@
               <!-- Feed de Mensajes Limpio -->
               <div class="chat-messages" id="chatMessageFeed" role="log" aria-live="polite" aria-label="Historial de mensajes de chat"></div>
 
+              <!-- Banner de Respuesta Activa (Reply Context) -->
+              <div class="chat-reply-bar hidden" id="chatReplyBar" aria-live="polite">
+                <div class="reply-bar-content">
+                  <span class="reply-icon">↩️</span>
+                  <div class="reply-text-group">
+                    <strong class="reply-author" id="replyTargetAuthor">@Usuario</strong>
+                    <span class="reply-snippet" id="replyTargetSnippet">Mensaje citado...</span>
+                  </div>
+                </div>
+                <button type="button" class="btn-icon btn-cancel-reply" id="btnCancelReply" title="Cancelar respuesta" aria-label="Cancelar respuesta">✕</button>
+              </div>
+
               <!-- Caja de Entrada de Mensaje -->
               <form id="chatInputForm" class="chat-composer" aria-label="Formulario de envío de mensajes">
+                <button type="button" class="btn-icon btn-chat-tool" id="btnShareLocation" title="Compartir mi ubicación GPS actual en el chat" aria-label="Compartir ubicación GPS">📍</button>
                 <input type="text" id="chatInputText" placeholder="Escribe un mensaje para transmitir por RF..." autocomplete="off" required aria-label="Texto del mensaje a transmitir" />
                 <button type="submit" class="btn-primary" id="btnSendMsg" aria-label="Enviar mensaje por radio">
                   <span>Enviar</span> <span aria-hidden="true">📤</span>
@@ -852,14 +865,20 @@
                 </div>
 
                 <div class="settings-grid">
-                  <!-- Tarjeta 1: Almacén IndexedDB -->
+                  <!-- Tarjeta 1: Almacén IndexedDB y Notificaciones -->
                   <div class="settings-card">
                     <div class="card-title-row">
-                      <h3>🗄️ Persistencia en Navegador (IndexedDB)</h3>
+                      <h3>🗄️ Persistencia & Alertas de Chat</h3>
                       <span class="badge-pill badge-success" id="indexedDbStatusBadge">Activo (MeshCoreStationDB)</span>
                     </div>
                     <p class="card-desc">Los mensajes de chat y el estado de la estación se almacenan de forma segura y asíncrona en el navegador para no perderse al recargar.</p>
                     <div class="settings-form">
+                      <div class="form-group" style="margin-bottom: 12px;">
+                        <label class="checkbox-label" for="chkChatSoundAlerts" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                          <input type="checkbox" id="chkChatSoundAlerts" checked />
+                          <span>🔔 Reproducir timbre de audio al recibir mensajes nuevos (Web Audio API)</span>
+                        </label>
+                      </div>
                       <div class="form-row">
                         <button type="button" class="btn-danger btn-sm" id="btnClearIndexedDbStorage">🧹 Vaciar Almacenamiento Local IndexedDB</button>
                       </div>

@@ -95,8 +95,11 @@ class MeshCoreStorage {
         timestamp: msg.timestamp || new Date().toISOString(),
         metrics: msg.metrics || null,
         delivered: !!msg.delivered,
+        status: msg.status || (msg.delivered ? "delivered" : (msg.is_outgoing ? "sent" : "received")),
         expected_ack: msg.expected_ack || null,
         trip_time_ms: msg.trip_time_ms || 0,
+        quote: msg.quote || null,
+        location: msg.location || null,
       };
       if (typeof msg._db_id === "number") {
         record.id = msg._db_id;
@@ -129,7 +132,30 @@ class MeshCoreStorage {
           const match = (msgId && (val.msg_id === msgId || String(val.id) === String(msgId))) || ackMatch;
           if (match) {
             val.delivered = true;
+            val.status = "delivered";
             val.trip_time_ms = tripTime || 0;
+            cursor.update(val);
+          }
+          cursor.continue();
+        }
+      };
+    } catch (_) {}
+  }
+
+  async updateMessageStatus(msgId, status) {
+    await this.readyPromise;
+    if (!this.db) return;
+    try {
+      const tx = this.db.transaction("chat_messages", "readwrite");
+      const store = tx.objectStore("chat_messages");
+      const req = store.openCursor();
+      req.onsuccess = (e) => {
+        const cursor = e.target.result;
+        if (cursor) {
+          const val = cursor.value;
+          if (msgId && (val.msg_id === msgId || String(val.id) === String(msgId))) {
+            val.status = status;
+            if (status === "delivered") val.delivered = true;
             cursor.update(val);
           }
           cursor.continue();
@@ -288,6 +314,12 @@ class MeshCoreStationApp {
     this.lastReadTimestamps = new Map(); // feedKey -> ISO string
     this.authenticatedRepeaters = new Set(); // Conjunto de pubkeys autenticados en sesión
     this.repeaterPasswords = new Map(); // pubkey -> password en memoria
+
+    // Estado interactivo de Chat & Mensajería
+    this.activeReplyTarget = null; // { id, sender, text }
+    this.pendingOutgoingAcks = new Map(); // msgId -> { timer, msgData, feedKey }
+    this.chatSoundEnabled = localStorage.getItem("meshcore_chat_sound_enabled") !== "false";
+    this._audioCtx = null;
 
     this.initElements();
     this.initTheme();
@@ -468,6 +500,12 @@ class MeshCoreStationApp {
       globalChatUnreadBadge: document.getElementById("globalChatUnreadBadge"),
       themeToggleBtn: document.getElementById("themeToggleBtn"),
       chatMessageFeed: document.getElementById("chatMessageFeed"),
+      chatReplyBar: document.getElementById("chatReplyBar"),
+      replyTargetAuthor: document.getElementById("replyTargetAuthor"),
+      replyTargetSnippet: document.getElementById("replyTargetSnippet"),
+      btnCancelReply: document.getElementById("btnCancelReply"),
+      btnShareLocation: document.getElementById("btnShareLocation"),
+      chkChatSoundAlerts: document.getElementById("chkChatSoundAlerts"),
       chatInputForm: document.getElementById("chatInputForm"),
       chatInputText: document.getElementById("chatInputText"),
       chatActiveTitle: document.getElementById("chatActiveTitle"),
@@ -2323,6 +2361,13 @@ class MeshCoreStationApp {
       const ackClean = rawAck.startsWith("0x") ? rawAck.slice(2) : rawAck;
       const ackWithPrefix = `0x${ackClean}`;
       const tripTime = payload.trip_time_ms || 0;
+      const snr = payload.snr != null ? payload.snr : null;
+
+      // Cancelar timer de timeout pendiente
+      if (msgId && this.pendingOutgoingAcks.has(msgId)) {
+        clearTimeout(this.pendingOutgoingAcks.get(msgId).timer);
+        this.pendingOutgoingAcks.delete(msgId);
+      }
 
       // 1. Actualizar elementos en el DOM actual
       let matchedRows = [];
@@ -2333,13 +2378,18 @@ class MeshCoreStationApp {
         matchedRows = Array.from(document.querySelectorAll(`.message-bubble-row[data-ack-code="${ackClean}"], .message-bubble-row[data-ack-code="${ackWithPrefix}"]`));
       }
       matchedRows.forEach((row) => {
+        row.classList.remove("failed", "queued", "sent");
         row.classList.add("delivered");
-        const ackEl = row.querySelector(".msg-ack-status");
+        const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
         if (ackEl) {
-          ackEl.className = "msg-ack-status delivered";
-          ackEl.textContent = "✓✓ TX";
-          ackEl.title = `Entregado por radio (${tripTime} ms)`;
+          ackEl.className = "ack-indicator ack-delivered";
+          const snrText = snr != null ? ` | SNR: ${snr} dB` : "";
+          const rttText = tripTime > 0 ? `${tripTime}ms` : "TX";
+          ackEl.textContent = `✓✓ ${rttText}`;
+          ackEl.title = `Confirmado por ACK (${tripTime} ms${snrText})`;
         }
+        const retryBtn = row.querySelector(".btn-retry-msg, .btn-msg-retry");
+        if (retryBtn) retryBtn.remove();
       });
 
       // 2. Actualizar mensajes en memoria (channelFeeds) y en IndexedDB
@@ -2350,6 +2400,7 @@ class MeshCoreStationApp {
           const isAckMatch = Boolean(ackClean && mExpClean && mExpClean === ackClean);
           if ((msgId && (m.id === msgId || m.msg_id === msgId)) || isAckMatch) {
             m.delivered = true;
+            m.status = "delivered";
             m.trip_time_ms = tripTime;
             this.storage.saveMessage(feedKey, m);
           }
@@ -2530,6 +2581,9 @@ class MeshCoreStationApp {
 
       const isChatTabActive = document.getElementById("tab-chat")?.classList.contains("active");
 
+      // Reproducir timbre auditivo táctico LoRa
+      this.playNotificationChime();
+
       if (isCurrent && isChatTabActive) {
         this.appendChatMessage(normalizedMsg);
         this.lastReadTimestamps.set(feedKey, normalizedMsg.timestamp);
@@ -2545,8 +2599,6 @@ class MeshCoreStationApp {
         this.conversationsWithMessages.add(senderKey);
         this.addDmContact(senderKey, senderName);
       }
-    } else if (payload.byte_length !== undefined || payload.event_type === "rf_log" || payload.raw_hex !== undefined) {
-      this.renderSnifferPacket(payload);
     } else if (payload.event_type === "system_log" && payload.data) {
       const log = payload.data;
       this.systemLogs.push(log);
@@ -3065,7 +3117,21 @@ class MeshCoreStationApp {
       });
     }
 
-    // 9. Manejadores de Almacenamiento IndexedDB y Mapas Offline
+    // 9. Manejadores de Almacenamiento IndexedDB y Alertas Sonoras
+    if (this.dom.chkChatSoundAlerts) {
+      this.dom.chkChatSoundAlerts.checked = this.chatSoundEnabled;
+      this.dom.chkChatSoundAlerts.addEventListener("change", (e) => {
+        this.chatSoundEnabled = e.target.checked;
+        localStorage.setItem("meshcore_chat_sound_enabled", String(this.chatSoundEnabled));
+        if (this.chatSoundEnabled) {
+          this.playNotificationChime();
+          this.showToast("🔔 Alertas sonoras de chat activadas", "info");
+        } else {
+          this.showToast("🔕 Alertas sonoras de chat desactivadas", "info");
+        }
+      });
+    }
+
     const btnClearStorage = document.getElementById("btnClearIndexedDbStorage");
     if (btnClearStorage) {
       btnClearStorage.addEventListener("click", async () => {
@@ -3713,28 +3779,340 @@ class MeshCoreStationApp {
     }
   }
 
+  playNotificationChime() {
+    if (!this.chatSoundEnabled) return;
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      if (!this._audioCtx) {
+        this._audioCtx = new AudioCtx();
+      }
+      if (this._audioCtx.state === "suspended") {
+        this._audioCtx.resume();
+      }
+      const now = this._audioCtx.currentTime;
+
+      // Generar tono sutil táctico LoRa (880Hz y 1320Hz)
+      const osc1 = this._audioCtx.createOscillator();
+      const gain1 = this._audioCtx.createGain();
+      osc1.type = "sine";
+      osc1.frequency.setValueAtTime(880, now);
+      gain1.gain.setValueAtTime(0.06, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+      osc1.connect(gain1);
+      gain1.connect(this._audioCtx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.12);
+
+      const osc2 = this._audioCtx.createOscillator();
+      const gain2 = this._audioCtx.createGain();
+      osc2.type = "sine";
+      osc2.frequency.setValueAtTime(1320, now + 0.09);
+      gain2.gain.setValueAtTime(0.07, now + 0.09);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.26);
+      osc2.connect(gain2);
+      gain2.connect(this._audioCtx.destination);
+      osc2.start(now + 0.09);
+      osc2.stop(now + 0.26);
+    } catch (_) {}
+  }
+
+  setReplyTarget(msgId, senderName, textSnippet) {
+    const cleanSnippet = (textSnippet || "").replace(/\n/g, " ").trim();
+    this.activeReplyTarget = {
+      id: msgId,
+      sender: senderName || "Anónimo",
+      text: cleanSnippet.length > 60 ? cleanSnippet.slice(0, 60) + "..." : cleanSnippet,
+    };
+    if (this.dom.chatReplyBar) {
+      if (this.dom.replyTargetAuthor) this.dom.replyTargetAuthor.textContent = `@${this.activeReplyTarget.sender}`;
+      if (this.dom.replyTargetSnippet) this.dom.replyTargetSnippet.textContent = this.activeReplyTarget.text;
+      this.dom.chatReplyBar.classList.remove("hidden");
+    }
+    if (this.dom.chatInputText) {
+      this.dom.chatInputText.focus();
+    }
+  }
+
+  cancelReplyTarget() {
+    this.activeReplyTarget = null;
+    if (this.dom.chatReplyBar) {
+      this.dom.chatReplyBar.classList.add("hidden");
+    }
+  }
+
+  async shareCurrentLocation() {
+    let lat = null;
+    let lon = null;
+
+    // 1. Intentar desde inputs de configuración local de estación
+    const latInp = document.getElementById("localNodeLatitude");
+    const lonInp = document.getElementById("localNodeLongitude");
+    if (latInp && lonInp && latInp.value && lonInp.value) {
+      const pLat = parseFloat(latInp.value);
+      const pLon = parseFloat(lonInp.value);
+      if (!isNaN(pLat) && !isNaN(pLon) && (pLat !== 0 || pLon !== 0)) {
+        lat = pLat;
+        lon = pLon;
+      }
+    }
+
+    // 2. Fallback a geolocalización HTML5 del navegador
+    if (lat == null && "geolocation" in navigator) {
+      try {
+        const pos = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 4000, enableHighAccuracy: true });
+        });
+        if (pos && pos.coords) {
+          lat = pos.coords.latitude;
+          lon = pos.coords.longitude;
+        }
+      } catch (_) {}
+    }
+
+    if (lat == null || lon == null) {
+      this.showToast("⚠️ Configura las coordenadas en Ajustes o permite la geolocalización del navegador.", "warning");
+      return;
+    }
+
+    const locationText = `📍 Mi ubicación: ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+    if (this.dom.chatInputText) {
+      this.dom.chatInputText.value = locationText;
+      if (this.dom.chatInputForm) {
+        this.dom.chatInputForm.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+      }
+    }
+  }
+
+  focusLocationOnMap(lat, lon, label) {
+    const pLat = parseFloat(lat);
+    const pLon = parseFloat(lon);
+    if (isNaN(pLat) || isNaN(pLon)) return;
+
+    // 1. Conmutar a la pestaña Mapa
+    const navMapBtn = document.querySelector('.nav-btn[data-tab="tab-map"]');
+    if (navMapBtn) navMapBtn.click();
+
+    // 2. Centrar Leaflet con animación suave
+    setTimeout(() => {
+      if (this.map && typeof this.map.flyTo === "function") {
+        this.map.invalidateSize();
+        this.map.flyTo([pLat, pLon], 16, { animate: true, duration: 1.2 });
+        if (typeof L !== "undefined" && L.popup) {
+          L.popup()
+            .setLatLng([pLat, pLon])
+            .setContent(`
+              <div style="font-family: var(--font-sans, sans-serif); font-size: 13px;">
+                <strong style="color: #0284c7;">📍 ${this.escapeHtml(label || "Ubicación compartida")}</strong><br>
+                <code style="font-family: monospace; font-size: 11px; background: rgba(0,0,0,0.1); padding: 2px 4px; border-radius: 3px;">
+                  ${pLat.toFixed(5)}, ${pLon.toFixed(5)}
+                </code>
+              </div>
+            `)
+            .openOn(this.map);
+        }
+      }
+      this.showToast(`📍 Mapa centrado en (${pLat.toFixed(4)}, ${pLon.toFixed(4)})`, "info");
+    }, 200);
+  }
+
+  async retryMessage(msgId) {
+    let targetMsg = null;
+    let targetFeedKey = null;
+
+    for (const [feedKey, msgs] of this.channelFeeds.entries()) {
+      const found = msgs.find((m) => m.id === msgId || m.msg_id === msgId);
+      if (found) {
+        targetMsg = found;
+        targetFeedKey = feedKey;
+        break;
+      }
+    }
+
+    if (!targetMsg) {
+      this.showToast("⚠️ Mensaje no encontrado para reintento", "warning");
+      return;
+    }
+
+    targetMsg.status = "queued";
+    targetMsg.delivered = false;
+    this.storage.saveMessage(targetFeedKey, targetMsg);
+
+    const row = document.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
+    if (row) {
+      row.classList.remove("failed", "delivered");
+      row.classList.add("queued");
+      const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
+      if (ackEl) {
+        ackEl.className = "ack-indicator ack-queued";
+        ackEl.textContent = "🕒 Reintentando...";
+      }
+    }
+
+    const canonicalTarget = targetMsg.dm_target ? this.resolveCanonicalPubkey(targetMsg.dm_target) : null;
+    const target = canonicalTarget || "broadcast";
+
+    try {
+      const res = await fetch("/api/tx", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: target,
+          channel_index: targetMsg.channel_idx,
+          text: targetMsg.text,
+          request_id: msgId,
+        }),
+      });
+      const txData = await res.json();
+      if (txData && txData.status === "ok") {
+        targetMsg.status = "sent";
+        if (row) {
+          row.classList.remove("queued");
+          row.classList.add("sent");
+          const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
+          if (ackEl) {
+            ackEl.className = "ack-indicator ack-sent";
+            ackEl.textContent = "✓ TX";
+          }
+        }
+        if (txData.data && txData.data.expected_ack) {
+          targetMsg.expected_ack = txData.data.expected_ack;
+          if (row) row.setAttribute("data-ack-code", String(txData.data.expected_ack).toLowerCase());
+        }
+        this.storage.saveMessage(targetFeedKey, targetMsg);
+
+        // Timeout de espera de ACK (8s)
+        if (this.pendingOutgoingAcks.has(msgId)) {
+          clearTimeout(this.pendingOutgoingAcks.get(msgId).timer);
+        }
+        const timer = setTimeout(() => {
+          if (targetMsg.status !== "delivered") {
+            targetMsg.status = "failed";
+            this.storage.saveMessage(targetFeedKey, targetMsg);
+            if (row) {
+              row.classList.remove("sent", "queued");
+              row.classList.add("failed");
+              const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
+              if (ackEl) {
+                ackEl.className = "ack-indicator ack-failed";
+                ackEl.innerHTML = `❌ Falló <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button>`;
+              }
+            }
+          }
+          this.pendingOutgoingAcks.delete(msgId);
+        }, 8000);
+        this.pendingOutgoingAcks.set(msgId, { timer, msgData: targetMsg, feedKey: targetFeedKey });
+      }
+    } catch (err) {
+      targetMsg.status = "failed";
+      if (row) {
+        row.classList.add("failed");
+        const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
+        if (ackEl) {
+          ackEl.className = "ack-indicator ack-failed";
+          ackEl.innerHTML = `❌ Falló <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button>`;
+        }
+      }
+    }
+  }
+
   initChat() {
+    if (this.dom.btnCancelReply) {
+      this.dom.btnCancelReply.addEventListener("click", () => this.cancelReplyTarget());
+    }
+
+    if (this.dom.btnShareLocation) {
+      this.dom.btnShareLocation.addEventListener("click", () => this.shareCurrentLocation());
+    }
+
+    // Delegación de eventos interactivos en el feed de chat
+    if (this.dom.chatMessageFeed) {
+      this.dom.chatMessageFeed.addEventListener("click", (e) => {
+        // 1. Ver en Mapa
+        const btnMap = e.target.closest(".btn-view-on-map");
+        if (btnMap) {
+          const lat = btnMap.getAttribute("data-lat");
+          const lon = btnMap.getAttribute("data-lon");
+          const sender = btnMap.getAttribute("data-sender");
+          this.focusLocationOnMap(lat, lon, sender);
+          return;
+        }
+
+        // 2. Responder a mensaje
+        const btnReply = e.target.closest(".btn-msg-reply");
+        if (btnReply) {
+          const row = btnReply.closest(".message-bubble-row");
+          if (row) {
+            const msgId = row.getAttribute("data-msg-id");
+            const sender = row.querySelector(".msg-meta strong")?.textContent || "Anónimo";
+            const text = row.querySelector(".msg-text-content")?.textContent || row.querySelector(".msg-bubble")?.textContent || "";
+            this.setReplyTarget(msgId, sender, text);
+          }
+          return;
+        }
+
+        // 3. Copiar texto de mensaje
+        const btnCopy = e.target.closest(".btn-msg-copy");
+        if (btnCopy) {
+          const row = btnCopy.closest(".message-bubble-row");
+          if (row) {
+            const text = row.querySelector(".msg-text-content")?.textContent || row.querySelector(".msg-bubble")?.textContent || "";
+            if (navigator.clipboard) {
+              navigator.clipboard.writeText(text).then(() => {
+                this.showToast("📋 Texto copiado al portapapeles", "info");
+              });
+            }
+          }
+          return;
+        }
+
+        // 4. Reintentar mensaje fallido
+        const btnRetry = e.target.closest(".btn-retry-msg, .btn-msg-retry");
+        if (btnRetry) {
+          const msgId = btnRetry.getAttribute("data-retry-id") || btnRetry.closest(".message-bubble-row")?.getAttribute("data-msg-id");
+          if (msgId) {
+            this.retryMessage(msgId);
+          }
+          return;
+        }
+      });
+    }
+
     if (this.dom.chatInputForm) {
       this.dom.chatInputForm.addEventListener("submit", async (e) => {
         e.preventDefault();
-        const text = this.dom.chatInputText ? this.dom.chatInputText.value.trim() : "";
-        if (!text) return;
+        const rawInput = this.dom.chatInputText ? this.dom.chatInputText.value.trim() : "";
+        if (!rawInput) return;
         if (this.dom.chatInputText) this.dom.chatInputText.value = "";
+
+        const quoteData = this.activeReplyTarget ? { sender: this.activeReplyTarget.sender, text: this.activeReplyTarget.text } : null;
+        this.cancelReplyTarget();
 
         const msgId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
         const canonicalTarget = this.activeDmTarget ? this.resolveCanonicalPubkey(this.activeDmTarget) : null;
         const target = canonicalTarget || "broadcast";
+
+        // Detección de mensaje de coordenadas
+        let locationData = null;
+        const locMatch = rawInput.match(/📍\s*Mi ubicación:\s*(-?\d+\.\d+),\s*(-?\d+\.\d+)/i) || rawInput.match(/LOC:\s*(-?\d+\.\d+),\s*(-?\d+\.\d+)/i);
+        if (locMatch) {
+          locationData = { lat: parseFloat(locMatch[1]), lon: parseFloat(locMatch[2]) };
+        }
+
         const outgoingMsg = {
           id: msgId,
           msg_id: msgId,
           sender: "local",
           sender_name: "Estación Local (Tú)",
-          text: text,
+          text: rawInput,
           is_outgoing: true,
           channel_idx: this.activeChannelIdx,
           dm_target: canonicalTarget,
           timestamp: new Date().toISOString(),
           delivered: false,
+          status: "queued",
+          quote: quoteData,
+          location: locationData,
         };
 
         const feedKey = canonicalTarget ? `dm_${canonicalTarget}` : `ch_${this.activeChannelIdx}`;
@@ -3759,21 +4137,75 @@ class MeshCoreStationApp {
             body: JSON.stringify({
               to: target,
               channel_index: this.activeChannelIdx,
-              text: text,
+              text: rawInput,
               request_id: msgId,
             }),
           });
           const txData = await res.json();
-          if (txData && txData.data && txData.data.expected_ack) {
-            outgoingMsg.expected_ack = txData.data.expected_ack;
-            const bubble = document.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
-            if (bubble) {
-              bubble.setAttribute("data-ack-code", String(txData.data.expected_ack).toLowerCase());
+          if (txData && txData.status === "ok") {
+            outgoingMsg.status = "sent";
+            const row = document.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
+            if (row) {
+              row.classList.remove("queued");
+              row.classList.add("sent");
+              const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
+              if (ackEl) {
+                ackEl.className = "ack-indicator ack-sent";
+                ackEl.textContent = "✓ TX";
+              }
+            }
+            if (txData.data && txData.data.expected_ack) {
+              outgoingMsg.expected_ack = txData.data.expected_ack;
+              if (row) {
+                row.setAttribute("data-ack-code", String(txData.data.expected_ack).toLowerCase());
+              }
             }
             this.storage.saveMessage(feedKey, outgoingMsg);
+
+            // Timeout de espera de ACK (8 segundos)
+            const timer = setTimeout(() => {
+              if (outgoingMsg.status !== "delivered") {
+                outgoingMsg.status = "failed";
+                this.storage.saveMessage(feedKey, outgoingMsg);
+                if (row) {
+                  row.classList.remove("sent", "queued");
+                  row.classList.add("failed");
+                  const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
+                  if (ackEl) {
+                    ackEl.className = "ack-indicator ack-failed";
+                    ackEl.innerHTML = `❌ Falló <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button>`;
+                  }
+                }
+              }
+              this.pendingOutgoingAcks.delete(msgId);
+            }, 8000);
+            this.pendingOutgoingAcks.set(msgId, { timer, msgData: outgoingMsg, feedKey });
+          } else {
+            outgoingMsg.status = "failed";
+            this.storage.saveMessage(feedKey, outgoingMsg);
+            const row = document.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
+            if (row) {
+              row.classList.add("failed");
+              const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
+              if (ackEl) {
+                ackEl.className = "ack-indicator ack-failed";
+                ackEl.innerHTML = `❌ Falló <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button>`;
+              }
+            }
           }
         } catch (err) {
           console.error("Error transmitiendo mensaje:", err);
+          outgoingMsg.status = "failed";
+          this.storage.saveMessage(feedKey, outgoingMsg);
+          const row = document.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
+          if (row) {
+            row.classList.add("failed");
+            const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
+            if (ackEl) {
+              ackEl.className = "ack-indicator ack-failed";
+              ackEl.innerHTML = `❌ Falló <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button>`;
+            }
+          }
         }
       });
     }
@@ -4003,13 +4435,14 @@ class MeshCoreStationApp {
   updateGlobalUnreadBadge() {
     let total = 0;
     for (const count of this.unreadCounts.values()) {
-      total += count;
+      total += count || 0;
     }
     const badge = this.dom.globalChatUnreadBadge || document.getElementById("globalChatUnreadBadge");
     if (badge) {
       badge.textContent = total > 99 ? "99+" : String(total);
       badge.classList.toggle("hidden", total === 0);
     }
+    document.title = total > 0 ? `(${total}) MeshCore Web Client` : "MeshCore Web Client - Base Station & RF Command Center";
   }
 
   updateFeedUnreadBadge(feedKey) {
@@ -4054,7 +4487,8 @@ class MeshCoreStationApp {
     }
 
     const row = document.createElement("div");
-    row.className = `message-bubble-row ${msg.is_outgoing ? "outgoing" : "incoming"} ${msg.delivered ? "delivered" : ""}`;
+    const statusClass = msg.status || (msg.delivered ? "delivered" : (msg.is_outgoing ? "sent" : ""));
+    row.className = `message-bubble-row chat-msg-row ${msg.is_outgoing ? "outgoing" : "incoming"} ${statusClass} ${msg.delivered ? "delivered" : ""}`;
     const msgId = msg.id || msg.msg_id || (msg.is_outgoing && msg.timestamp ? `msg_${Date.parse(msg.timestamp)}` : "");
     if (msgId) {
       row.setAttribute("data-msg-id", String(msgId));
@@ -4086,10 +4520,62 @@ class MeshCoreStationApp {
 
     const rssi = msg.metrics?.rssi != null ? msg.metrics.rssi : (msg.rssi != null ? msg.rssi : null);
     const snr = msg.metrics?.snr != null ? msg.metrics.snr : (msg.snr != null ? msg.snr : null);
-    const ackSymbol = msg.delivered ? "✓✓ TX" : (msg.is_outgoing ? "✓ TX" : "📥 RX");
-    const ackTitle = msg.delivered ? `Entregado (${msg.trip_time_ms || 0} ms)` : (msg.is_outgoing ? "Transmitido por radio" : "Recibido");
 
+    // 1. Renderizado de Cita / Respuesta previa
+    let quoteHtml = "";
+    if (msg.quote && msg.quote.text) {
+      quoteHtml = `
+        <div class="chat-quote-block">
+          <div class="quote-author">@${this.escapeHtml(msg.quote.sender || "Usuario")}</div>
+          <div class="quote-text">${this.escapeHtml(msg.quote.text)}</div>
+        </div>
+      `;
+    }
 
+    // 2. Renderizado de Tarjeta de Ubicación GPS
+    let locationCardHtml = "";
+    let locLat = msg.location?.lat;
+    let locLon = msg.location?.lon;
+    if (locLat == null || locLon == null) {
+      const locMatch = rawText.match(/📍\s*Mi ubicación:\s*(-?\d+\.\d+),\s*(-?\d+\.\d+)/i) || rawText.match(/LOC:\s*(-?\d+\.\d+),\s*(-?\d+\.\d+)/i);
+      if (locMatch) {
+        locLat = parseFloat(locMatch[1]);
+        locLon = parseFloat(locMatch[2]);
+      }
+    }
+    if (locLat != null && locLon != null && !isNaN(locLat) && !isNaN(locLon)) {
+      locationCardHtml = `
+        <div class="chat-location-card">
+          <div class="loc-card-header">
+            <span>📍 Ubicación Geográfica</span>
+            <span class="loc-coords-badge">${locLat.toFixed(5)}, ${locLon.toFixed(5)}</span>
+          </div>
+          <button type="button" class="btn-view-on-map" data-lat="${locLat}" data-lon="${locLon}" data-sender="${this.escapeHtml(sender)}">
+            🗺️ Ver en Mapa
+          </button>
+        </div>
+      `;
+    }
+
+    // 3. Indicador de Estado de Entrega (ACK)
+    let ackHtml = "";
+    if (msg.is_outgoing) {
+      const st = msg.status || (msg.delivered ? "delivered" : "sent");
+      if (st === "delivered" || msg.delivered) {
+        const rttText = msg.trip_time_ms ? `${msg.trip_time_ms}ms` : "TX";
+        ackHtml = `<span class="ack-indicator ack-delivered" title="Confirmado por ACK (${msg.trip_time_ms || 0} ms)">✓✓ ${rttText}</span>`;
+      } else if (st === "failed") {
+        ackHtml = `<span class="ack-indicator ack-failed" title="Fallo de entrega / Sin ACK">❌ Falló <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button></span>`;
+      } else if (st === "queued") {
+        ackHtml = `<span class="ack-indicator ack-queued" title="Encolado en cola de prioridad">🕒 En cola</span>`;
+      } else {
+        ackHtml = `<span class="ack-indicator ack-sent" title="Transmitido por radio LoRa">✓ TX</span>`;
+      }
+    } else {
+      ackHtml = `<span class="ack-indicator ack-received" title="Mensaje recibido por radio LoRa">📥 RX</span>`;
+    }
+
+    // 4. Chip de Señal RF
     let signalHtml = "";
     if (rssi != null && snr != null) {
       signalHtml = `<span class="signal-chip">📶 ${rssi} dBm / ${snr} dB</span>`;
@@ -4099,15 +4585,29 @@ class MeshCoreStationApp {
       signalHtml = `<span class="signal-chip">📶 ${snr} dB</span>`;
     }
 
+    // 5. Botones de acción rápida flotantes (Hover)
+    const hoverActionsHtml = `
+      <div class="msg-hover-actions">
+        <button type="button" class="btn-msg-action btn-msg-reply" title="Responder a este mensaje">↩️</button>
+        <button type="button" class="btn-msg-action btn-msg-copy" title="Copiar texto">📋</button>
+        ${msg.is_outgoing && (msg.status === "failed" || !msg.delivered) ? `<button type="button" class="btn-msg-action btn-msg-retry" title="Reintentar transmisión">🔄</button>` : ""}
+      </div>
+    `;
+
     row.innerHTML = `
+      ${hoverActionsHtml}
       <div class="msg-meta">
         <strong>${this.escapeHtml(sender)}</strong>
         <span>${timeStr}</span>
       </div>
-      <div class="msg-bubble">${this.escapeHtml(msg.text)}</div>
+      <div class="msg-bubble">
+        ${quoteHtml}
+        <div class="msg-text-content">${this.escapeHtml(msg.text)}</div>
+        ${locationCardHtml}
+      </div>
       <div class="msg-footer">
         ${signalHtml}
-        <span class="msg-ack-status ${msg.delivered ? 'delivered' : (msg.is_outgoing ? 'sent' : 'received')}" title="${ackTitle}">${ackSymbol}</span>
+        ${ackHtml}
       </div>
     `;
 

@@ -6,7 +6,28 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
-### Hito: Refactorización y Eliminación de Store & Forward SQLite, Sniffer RF y Home Assistant Discovery
+### Hito: Experiencia Avanzada de Chat y Mensajería (Ticks ACK, Compartir GPS con Mapa y Respuestas)
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO (100% de Pruebas Superadas)
+- **Agente Principal (Lead Orchestrator)**: Coordinó al Agente 4 (Web UI/UX & Frontend Architect) para implementar las nuevas capacidades interactivas de mensajería:
+  1. **Sistema de Estados de Entrega (ACK Ticks)**:
+     - Ticks visuales: 🕒 Encolado $\to$ ✓ Emitido por radio $\to$ ✓✓ Confirmado por ACK (con RTT en ms y SNR) $\to$ ❌ Falló con botón interactivo de 1 click para reintentar (`retryMessage`).
+     - Timeout automático de 8 segundos para transicionar mensajes sin acuse a estado fallido.
+     - Persistencia de estados ACK y tiempos RTT en IndexedDB (`chat_messages`).
+  2. **Compartir Ubicación GPS y Centrado Táctico en Mapa**:
+     - Botón `📍` en el composer de chat (`shareCurrentLocation`).
+     - Detección automática de coordenadas desde la configuración de la estación o geolocalización del navegador.
+     - Renderizado de tarjeta táctica con coordenadas y botón `"🗺️ Ver en Mapa"`, que conmuta a la pestaña Mapa y centra Leaflet (`flyTo`) con animación y popup destacado.
+  3. **Respuestas a Mensajes (Reply Threading)**:
+     - Botón `↩️` en cada mensaje que despliega un banner contextual flotante `#chatReplyBar` sobre el input.
+     - Renderizado de bloques de cita (`.chat-quote-block`) con autor y texto citado en la burbuja.
+  4. **Alertas Sonoras y Contador de No Leídos**:
+     - Notificación auditiva sintetizada mediante `Web Audio API` (0 dependencias externas) al recibir mensajes entrantes, con control de activación en Ajustes.
+     - Contador dinámico de mensajes no leídos en el título de la pestaña del navegador `(N) MeshCore Web Client`.
+  5. **Verificación y Pruebas**:
+     - `node -c src/web/static/js/app.js`: 0 errores.
+     - `python -m compileall src scripts`: 0 errores.
+     - `python scripts/simulate_mesh_network.py`: 100% superado.
 - **Fecha**: 2026-08-26
 - **Estado**: ✅ COMPLETADO (100% de Pruebas y Simulaciones Superadas)
 - **Agente Principal (Lead Orchestrator)**: Coordinó la refactorización arquitectónica para simplificar y optimizar el bridge a una arquitectura *Stateless en Memoria RAM*:
