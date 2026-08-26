@@ -6015,7 +6015,6 @@ class MeshCoreStationApp {
           `;
           actionsHtml = `
             <button type="button" class="btn-primary btn-sm btn-node-primary btn-node-local-settings">⚙️ Ajustes de Radio</button>
-            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-client-qr" title="Ver código QR">📤 QR</button>
           `;
         } else if (isSensor) {
           const rawTemp = node.temperature_c ?? node.temp ?? node.temperature ?? node.telemetry?.temperature_c ?? (node.telemetry?.temp != null ? node.telemetry.temp : null);
@@ -6041,7 +6040,6 @@ class MeshCoreStationApp {
             <span class="stat-pill" title="Saltos">🦘 <strong>${hopsVal}</strong></span>
           `;
           actionsHtml = `
-            <button type="button" class="btn-primary btn-sm btn-node-primary btn-sensor-qr" title="Exportar QR del sensor">📤 QR Telemetría</button>
             <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
             ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">🗺️ Mapa</button>` : ''}
           `;
@@ -6070,7 +6068,6 @@ class MeshCoreStationApp {
             <button type="button" class="btn-primary btn-sm btn-node-primary btn-manage-node-repeater">🎛️ Administrar</button>
             <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-ping-zero" title="Hacer Ping directo">🎯 Ping</button>
             <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
-            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-client-qr" title="Ver código QR">📤 QR</button>
           `;
         } else if (isRoom) {
           middlePanelHtml = `
@@ -6091,7 +6088,6 @@ class MeshCoreStationApp {
           actionsHtml = `
             <button type="button" class="btn-primary btn-sm btn-node-primary btn-room-channel">💬 Ver Canal</button>
             <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
-            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-client-qr" title="Ver código QR">📤 QR</button>
           `;
         } else {
           // CLIENT
@@ -6113,7 +6109,6 @@ class MeshCoreStationApp {
           actionsHtml = `
             <button type="button" class="btn-primary btn-sm btn-node-primary btn-client-dm">💬 Iniciar Chat DM</button>
             <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
-            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-client-qr" title="Ver código QR">📤 QR</button>
           `;
         }
 
@@ -6213,13 +6208,28 @@ class MeshCoreStationApp {
           });
         }
 
-        const btnQr = nCard.querySelector(".btn-client-qr") || nCard.querySelector(".btn-sensor-qr");
-        if (btnQr) {
-          btnQr.addEventListener("click", () => {
-            const payload = { type: isLocal ? "local" : isSensor ? "sensor" : "contact", public_key: node.public_key, name: cleanName, role: roleLabel };
-            const uri = `meshcore://${isLocal ? "local" : isSensor ? "sensor" : "contact"}?pubkey=${encodeURIComponent(node.public_key)}&name=${encodeURIComponent(cleanName)}&role=${roleLabel}`;
-            this.renderQrModal(`👥 ${cleanName}`, uri, payload);
-          });
+        const openNodeQrModal = (e) => {
+          e.stopPropagation();
+          const payload = {
+            type: isLocal ? "local" : isSensor ? "sensor" : "contact",
+            public_key: node.public_key,
+            name: cleanName,
+            role: roleLabel,
+          };
+          const uri = `meshcore://${isLocal ? "local" : isSensor ? "sensor" : "contact"}?pubkey=${encodeURIComponent(node.public_key)}&name=${encodeURIComponent(cleanName)}&role=${roleLabel}`;
+          this.renderQrModal(`👥 ${cleanName}`, uri, payload);
+        };
+
+        const cardNameEl = nCard.querySelector(".node-card-name");
+        if (cardNameEl) {
+          cardNameEl.addEventListener("click", openNodeQrModal);
+          cardNameEl.setAttribute("title", `Ver código QR de ${cleanName}`);
+        }
+
+        const cardAvatarEl = nCard.querySelector(".node-card-avatar");
+        if (cardAvatarEl) {
+          cardAvatarEl.addEventListener("click", openNodeQrModal);
+          cardAvatarEl.setAttribute("title", `Ver código QR de ${cleanName}`);
         }
 
         const btnRoom = nCard.querySelector(".btn-room-channel");

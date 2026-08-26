@@ -1095,6 +1095,13 @@ body {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  cursor: pointer;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.node-card-avatar:hover {
+  transform: scale(1.08);
+  filter: brightness(1.2);
 }
 
 .avatar-status-dot {
@@ -1153,6 +1160,13 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   flex: 1;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.node-card-name:hover {
+  color: var(--accent-primary, #38bdf8);
+  text-decoration: underline;
 }
 
 .node-card-badges-group {
