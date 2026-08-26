@@ -22,6 +22,7 @@ from src.protocol_types import (
     TelemetryPayload,
     TextMessagePayload,
 )
+from src.deduplicator import PacketDeduplicator
 from src.rate_limiter import TxPriority, TxRateLimiter
 from src.serial_driver import (
     BaseSerialAdapter,
@@ -29,12 +30,9 @@ from src.serial_driver import (
     RawSerialFramingAdapter,
     SerialWatchdog,
 )
-from src.store_forward import PacketDeduplicator, SQLiteStoreAndForward, StoredMessage
 
 __all__ = [
     "MeshCoreBridge",
-    "SQLiteStoreAndForward",
-    "StoredMessage",
     "PacketDeduplicator",
     "TxRateLimiter",
     "TxPriority",

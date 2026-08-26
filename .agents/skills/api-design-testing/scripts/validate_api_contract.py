@@ -27,17 +27,17 @@ ROOT_DIR = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT_DIR))
 
 from src.contact_manager import NodeRegistry
+from src.deduplicator import PacketDeduplicator
 from src.rate_limiter import TxRateLimiter
-from src.store_forward import SQLiteStoreAndForward
 from src.web.api_router import WebAPIRouter
 
 
 class MockBridge:
-    def __init__(self, db_path: str) -> None:
+    def __init__(self, db_path: str = ":memory:") -> None:
         self.running = True
         self.start_time = 1000.0
         self.node_registry = NodeRegistry()
-        self.store_and_forward = SQLiteStoreAndForward(db_path=db_path)
+        self.deduplicator = PacketDeduplicator()
         self.rate_limiter = TxRateLimiter()
         self.channels: dict[int, dict[str, str]] = {0: {"name": "Public", "psk": ""}}
         self.serial_adapter = MagicMock(is_connected=True)
