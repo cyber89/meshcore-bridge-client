@@ -3954,23 +3954,25 @@ class MeshCoreStationApp {
   }
 
   updateHealthChips(diag) {
-    if (!diag || !diag.subsystems) return;
-    const sub = diag.subsystems;
+    if (!diag) return;
+    const sub = diag.subsystems || {};
 
     if (this.dom.chipSerialHealth) {
-      const isSerOk = sub.serial_companion?.connected;
+      const isSerOk = sub.serial_companion?.connected ?? diag.serial_connected ?? false;
+      const portName = sub.serial_companion?.port || document.getElementById("localNodeSerialPort")?.value || "/dev/ttyACM0";
       const el = this.dom.chipSerialHealth.querySelector(".val");
       if (el) {
-        el.textContent = isSerOk ? `Conectado (${sub.serial_companion.port})` : "Desconectado";
+        el.textContent = isSerOk ? `Conectado (${portName})` : "Desconectado";
         el.className = `val ${isSerOk ? "ok" : "err"}`;
       }
     }
 
     if (this.dom.chipMqttHealth) {
-      const isMqttOk = sub.mqtt_broker?.connected;
+      const isMqttOk = sub.mqtt_broker?.connected ?? diag.mqtt_connected ?? false;
+      const brokerName = sub.mqtt_broker?.broker || "MQTT";
       const el = this.dom.chipMqttHealth.querySelector(".val");
       if (el) {
-        el.textContent = isMqttOk ? `Online (${sub.mqtt_broker.broker})` : "Offline";
+        el.textContent = isMqttOk ? `Online (${brokerName})` : "Offline";
         el.className = `val ${isMqttOk ? "ok" : "err"}`;
       }
     }
@@ -5449,6 +5451,7 @@ class MeshCoreStationApp {
 
         if (statusRes.status === "ok" && statusRes.data) {
           this.updateHeaderMetrics(statusRes.data);
+          this.updateHealthChips(statusRes.data);
         }
 
         if (nodesRes.status === "ok" && nodesRes.data) {
