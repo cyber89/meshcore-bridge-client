@@ -56,6 +56,7 @@ TEST_CATEGORIES = {
         "tests/test_web_server.py",
         "tests/test_websocket_live.py",
         "tests/test_repeater_manager.py",
+        "tests/test_tcp_companion_server.py",
     ],
     "7. Snapshot Tests (Pruebas de Snapshot & Formatos)": [
         "tests/test_diagnostics_export.py",
