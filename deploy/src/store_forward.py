@@ -81,11 +81,19 @@ class SQLiteStoreAndForward:
         self.max_size = max_size
         self.default_ttl_seconds = default_ttl_hours * 3600.0
         self._db_lock = threading.Lock()
+        self._persistent_mem_conn: sqlite3.Connection | None = None
+        if self.db_path == ":memory:":
+            self._persistent_mem_conn = sqlite3.connect(
+                "file:meshcore_mem_db?mode=memory&cache=shared", uri=True, timeout=10.0, check_same_thread=False
+            )
         self._init_db()
 
     def _get_conn(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path, timeout=10.0)
-        conn.execute("PRAGMA journal_mode=WAL;")
+        if self.db_path == ":memory:":
+            conn = sqlite3.connect("file:meshcore_mem_db?mode=memory&cache=shared", uri=True, timeout=10.0)
+        else:
+            conn = sqlite3.connect(self.db_path, timeout=10.0)
+            conn.execute("PRAGMA journal_mode=WAL;")
         conn.execute("PRAGMA synchronous=NORMAL;")
         return conn
 
@@ -99,7 +107,9 @@ class SQLiteStoreAndForward:
                         payload TEXT NOT NULL,
                         qos INTEGER DEFAULT 0,
                         retain INTEGER DEFAULT 0,
-                        created_at REAL NOT NULL
+                        msg_hash TEXT,
+                        created_at REAL NOT NULL,
+                        expires_at REAL DEFAULT 0
                     );
                     CREATE TABLE IF NOT EXISTS message_receipts (
                         msg_id TEXT PRIMARY KEY,

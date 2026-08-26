@@ -207,7 +207,7 @@ class RxEventRouter:
             snr = payload_dict.get("snr", payload_dict.get("SNR"))
             sender_raw = str(payload_dict.get("sender", payload_dict.get("pubkey_prefix", payload_dict.get("public_key", "")))).strip()
             sender = self._ctx.node_registry.get_canonical_key(sender_raw) if is_valid_node_key(sender_raw) else ""
-            sender_name = str(payload_dict.get("sender_name", self._resolve_sender_name(sender))) if sender else ""
+            sender_name = str(payload_dict.get("sender_name", payload_dict.get("adv_name", payload_dict.get("name", self._resolve_sender_name(sender))))) if sender else ""
             text = str(payload_dict.get("text", payload_dict.get("message", ""))).strip()
             channel_idx = int(payload_dict.get("channel_idx", payload_dict.get("channel", 0)))
             hops = int(payload_dict.get("hop_count", payload_dict.get("hops", 0)))
@@ -308,6 +308,67 @@ class RxEventRouter:
             ev_upper = ev_type_str.upper()
             p_type_upper = str(payload_dict.get("type", "")).upper()
             ev_attrs = getattr(event, "attributes", {}) if hasattr(event, "attributes") and isinstance(event.attributes, dict) else {}
+
+            # Caso Descubrimiento / Importación de Contacto (CONTACT, NEXT_CONTACT, CONTACTS, ADVERTISEMENT)
+            if "CONTACT" in ev_upper or "ADVERT" in ev_upper or "ADVERTISEMENT" in ev_upper:
+                c_items: list[dict[str, Any]] = []
+                if isinstance(payload_obj, list):
+                    c_items = [x for x in payload_obj if isinstance(x, dict)]
+                elif isinstance(payload_obj, dict):
+                    if "contacts" in payload_obj and isinstance(payload_obj["contacts"], list):
+                        c_items = [x for x in payload_obj["contacts"] if isinstance(x, dict)]
+                    else:
+                        c_items = [payload_obj]
+
+                for c_item in c_items:
+                    c_pk = str(c_item.get("public_key", c_item.get("key", c_item.get("pubkey", "")))).strip().lower()
+                    if not c_pk or not is_valid_node_key(c_pk):
+                        continue
+
+                    c_name = str(c_item.get("adv_name", c_item.get("name", c_item.get("alias", f"Node_{c_pk[:6]}")))).strip()
+                    c_raw_type = c_item.get("type", c_item.get("adv_type", 1))
+                    c_name_upper = c_name.upper()
+                    if c_raw_type == 2 or c_name_upper.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-")) or "REPEATER" in c_name_upper or "ROUTER" in c_name_upper:
+                        c_role = "REPEATER"
+                    elif c_raw_type == 3 or "ROOM" in c_name_upper or "BBS" in c_name_upper:
+                        c_role = "ROOM"
+                    elif c_raw_type == 4 or "SENSOR" in c_name_upper:
+                        c_role = "SENSOR"
+                    else:
+                        c_role = "CLIENT"
+
+                    c_lat = _get_coord(c_item, ("adv_lat", "lat", "latitude", "gps_lat"))
+                    c_lon = _get_coord(c_item, ("adv_lon", "lon", "longitude", "gps_lon"))
+                    c_bat = _safe_int(c_item.get("battery_pct", c_item.get("battery", c_item.get("batt"))))
+
+                    is_c_new, c_contact_info = self._ctx.node_registry.discover_node(
+                        public_key=c_pk,
+                        name=c_name,
+                        role=c_role,
+                        rssi=effective_rssi,
+                        snr=effective_snr,
+                        hops=effective_hops,
+                    )
+                    self._ctx.node_registry.add_or_update(
+                        c_pk,
+                        NodeContactUpdate(
+                            name=c_name,
+                            alias=c_name,
+                            role=c_role,
+                            latitude=c_lat,
+                            longitude=c_lon,
+                            battery_pct=c_bat,
+                            auto_discovered=False,
+                            is_favorite=True,
+                        ),
+                    )
+                    if self._ctx.web_server:
+                        self._ctx.web_server.broadcast_event({
+                            "type": "contact_discovered" if is_c_new else "contact_updated",
+                            "event_type": "contact_discovered" if is_c_new else "contact_updated",
+                            "is_new": is_c_new,
+                            "contact": c_contact_info.to_dict(),
+                        })
 
             # Caso ACK de Entrega E2E (Delivery Receipt)
             if "ACK" in ev_upper or "ACK" in p_type_upper or payload_dict.get("event_type") == "ack" or "code" in payload_dict or "code" in ev_attrs:

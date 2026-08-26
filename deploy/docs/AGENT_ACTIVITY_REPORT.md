@@ -111,6 +111,23 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
      - Sincronización del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
      - Sincronización con GitHub `origin/main`.
 
+### Hito: Validación Multi-Nodo Integral y Auto-Sincronización de Contactos de Hardware
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Coordinó al Agente 1 (Protocolo), Agente 2 (Bridge) y Agente 4 (Frontend) para resolver la causa raíz por la cual los contactos de hardware no se importaban y validar toda la red con un simulador multi-nodo:
+  1. **Agente 1 (Protocol & Firmware Investigator Agent)**:
+     - **Causa Raíz Identificada**: En el SDK oficial `meshcore_py` (`meshcore.py` L331), `contacts` es un método/función (`def contacts(self): return self._contacts`), no una propiedad. `getattr(self.mc, "contacts")` devolvía la función bound, haciendo que las comprobaciones `isinstance(dict)` fallaran silenciosamente.
+  2. **Agente 2 (Python Bridge Architect Agent)**:
+     - **`src/serial_driver.py`**: Adaptado `sync_all_contacts` para invocar `raw_contacts()` si es callable y extraer el diccionario `_contacts`.
+     - **`src/rx_router.py`**: Añadido soporte nativo para eventos `CONTACT`, `NEXT_CONTACT`, `CONTACTS` y `ADVERTISEMENT`, integrando de inmediato cualquier contacto recibido por radio/serie en `NodeRegistry`.
+     - **`src/admin_handler.py`**: Flexibilizado `notify_command_response` para aceptar payloads unificados y notificar a corrutinas esperando respuestas de comandos CLI remotos.
+     - **`src/store_forward.py`**: Mejorado soporte de SQLite `:memory:` para compartir cache (`file:meshcore_mem_db?mode=memory&cache=shared`) entre hilos asíncronos.
+  3. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - **`src/web/static/js/app.js`**: Auto-sincronización activa con la libreta de contactos serie (`/api/contacts/sync`) si el directorio de nodos locales está vacío al inicio.
+  4. **Simulación Multi-Nodo (`scripts/simulate_mesh_network.py`)**:
+     - Creado y ejecutado simulador con 7 nodos heterogéneos (Estación Base, 2 Repetidores, 2 Clientes, 1 Sensor ambiental, 1 Sala BBS).
+     - Validación del 100% de flujos: Descubrimiento de nodos con coordenadas/batería, mensajería de difusión y DMs, acuses de recibo ACK E2E, comandos CLI remotos (`ver`, `pos`, `ping_zero`) y actualización/persistencia de parámetros.
+
 ### Hito: Estandarización de Terminales (Local y Repetidores) con Conjunto de Comandos Oficiales MeshCore
 - **Fecha**: 2026-08-25
 - **Estado**: ✅ COMPLETADO

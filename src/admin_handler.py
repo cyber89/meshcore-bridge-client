@@ -202,8 +202,15 @@ class AdminCommandHandler:
                         matched = True
         return matched
 
-    def notify_command_response(self, sender: str, data: dict[str, Any]) -> bool:
+    def notify_command_response(self, sender_or_data: Any, data: dict[str, Any] | None = None) -> bool:
         """Notifica a cualquier corrutina esperando respuesta de comando RF para este nodo."""
+        if isinstance(sender_or_data, dict) and data is None:
+            data = sender_or_data
+            sender = str(data.get("sender", data.get("public_key", data.get("from", ""))))
+        else:
+            sender = str(sender_or_data)
+            data = data or {}
+
         matched = self.notify_ping_response(sender, data)
         if not sender or not self._cmd_waiters:
             return matched

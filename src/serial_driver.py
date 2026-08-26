@@ -496,6 +496,14 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                     logging.debug(f"Comando get_contacts emitido: {ex}")
 
             raw_contacts = getattr(self.mc, "contacts", None)
+            if callable(raw_contacts):
+                try:
+                    raw_contacts = raw_contacts()
+                except Exception:
+                    raw_contacts = getattr(self.mc, "_contacts", None)
+            elif raw_contacts is None and hasattr(self.mc, "_contacts"):
+                raw_contacts = getattr(self.mc, "_contacts", None)
+
             if raw_contacts and isinstance(raw_contacts, (dict, list)):
                 c_list = raw_contacts.values() if isinstance(raw_contacts, dict) else raw_contacts
                 for c in c_list:

@@ -5455,6 +5455,18 @@ class MeshCoreStationApp {
         }
 
         if (nodesRes.status === "ok" && nodesRes.data) {
+          if (nodesRes.data.length <= 1) {
+            // Intentar sincronización activa con la libreta de contactos del transceptor serie
+            fetch("/api/contacts/sync", { method: "POST" })
+              .then((r) => r.json())
+              .then((sRes) => {
+                if (sRes.status === "ok" && sRes.data && sRes.data.length > 0) {
+                  this.renderNodesDirectory(sRes.data);
+                  this.purgeLocalNodeFromDmList();
+                }
+              })
+              .catch(() => {});
+          }
           this.renderNodesDirectory(nodesRes.data);
           this.purgeLocalNodeFromDmList();
         }
@@ -5478,6 +5490,7 @@ class MeshCoreStationApp {
         const json = await res.json();
         if (json.status === "ok" && json.data) {
           this.updateHeaderMetrics(json.data);
+          this.updateHealthChips(json.data);
         }
       } catch (_) {}
     }, 4000);
