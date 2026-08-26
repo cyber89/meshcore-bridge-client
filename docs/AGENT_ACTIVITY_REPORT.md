@@ -6,6 +6,20 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Verificación Integral de Conexión del Cliente Web, REST APIs y Streaming WebSocket (Playwright PASS)
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO (Playwright Chromium Headless [PASS] - 0 Excepciones JS, 0 Peticiones Fallidas, WebSockets 100% Funcionales)
+- **Agente Principal (Lead Orchestrator)**: Llevó a cabo la verificación funcional y visual del cliente web SPA y su integración con el backend:
+  1. **Inspección de Conexión y Navegación Web ([`scripts/inspect_web.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/scripts/inspect_web.py))**:
+     - Ejecutada auditoría en Chromium Headless en resoluciones Desktop (1920x1080) y Mobile (390x844).
+     - Resultado: **`[PASS]` con 0 excepciones JavaScript no capturadas, 0 errores de consola y 0 peticiones de red fallidas**.
+     - DOM completamente renderizado con todos los paneles principales (`#tab-chat`, `#tab-map`, `#tab-nodes`, `#tab-analytics`, `#tab-logs`).
+  2. **Verificación de Protocolo WebSocket RFC 6455 ([`src/web/http_server.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/http_server.py))**:
+     - Comprobado handshake HTTP `101 Switching Protocols`, recepción inmediata del evento `ws_connected`, emisión periódica de `metrics_update` y streaming bidireccional en caliente de eventos de telemetría y mensajes.
+  3. **Corrección de Robustez en Endpoints REST ([`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py))**:
+     - Implementado acceso defensivo para atributos `serial_adapter` y `mqtt` en `GET /api/status`, evitando excepciones cuando los subsistemas no están instanciados.
+     - Verificados endpoints `/api/status`, `/api/nodes`, `/api/contacts`, `/api/channels`, `/api/analytics`, `/api/lqi` con código HTTP 200.
+
 ### Hito: Corrección de Excepción AttributeError en `NodeRegistry.get_local_pubkey`
 - **Fecha**: 2026-08-26
 - **Estado**: ✅ COMPLETADO (Implementación de getter/property de `local_pubkey` y defensa en `rx_router.py`)

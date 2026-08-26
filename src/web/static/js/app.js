@@ -4053,7 +4053,6 @@ class MeshCoreStationApp {
       this.storage.saveMessage(targetFeedKey, targetMsg);
       this.showToast("❌ Error de red transmitiendo mensaje", "error");
     }
-    }
   }
 
   initChat() {

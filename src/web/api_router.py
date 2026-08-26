@@ -543,11 +543,16 @@ class WebAPIRouter:
 
         local_cfg = self.bridge.admin_handler.get_local_config() if hasattr(self.bridge, "admin_handler") else {}
 
+        ser_adapter = getattr(self.bridge, "serial_adapter", None)
+        serial_connected = getattr(ser_adapter, "is_connected", False) if ser_adapter else False
+        mqtt_client = getattr(self.bridge, "mqtt", None)
+        mqtt_connected = getattr(mqtt_client, "is_connected", False) if mqtt_client else False
+
         status_data = {
             "bridge_status": "online" if getattr(self.bridge, "running", True) else "offline",
             "uptime_seconds": int(time.time() - getattr(self.bridge, "start_time", time.time())),
-            "serial_connected": getattr(self.bridge.serial_adapter, "is_connected", False),
-            "mqtt_connected": getattr(self.bridge.mqtt, "is_connected", False),
+            "serial_connected": serial_connected,
+            "mqtt_connected": mqtt_connected,
             "tcp_companion": tcp_info,
             "local_node_pubkey": local_cfg.get("public_key"),
             "local_node_name": local_cfg.get("name"),
