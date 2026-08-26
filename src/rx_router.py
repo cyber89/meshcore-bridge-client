@@ -397,6 +397,11 @@ class RxEventRouter:
                     "snr": effective_snr,
                 }
 
+                logging.info(
+                    f"[RX-ACK] De: {sender or 'Red Mesh'} -> Para: Estación Base Local | "
+                    f"Código: '{ack_code}' | RTT: {trip_time} ms | RSSI: {effective_rssi} dBm, SNR: {effective_snr} dB"
+                )
+
                 if self._ctx.web_server:
                     self._ctx.web_server.broadcast_event(ack_evt_data)
 
@@ -414,6 +419,11 @@ class RxEventRouter:
                 snr_back = path_nodes[-1].get("snr") if path_nodes and isinstance(path_nodes[-1], dict) else None
                 rssi_trace = payload_dict.get("rssi", payload_dict.get("RSSI", effective_rssi))
                 tag = payload_dict.get("tag")
+
+                logging.info(
+                    f"[RX-TRACE] De: {sender or 'Desconocido'} -> Para: Estación Base Local | "
+                    f"Saltos: {len(path_nodes)} | Tag: {tag}"
+                )
 
                 admin = getattr(self._ctx, "admin_handler", None)
                 if admin and hasattr(admin, "notify_ping_response"):
@@ -636,6 +646,11 @@ class RxEventRouter:
         if self._ctx.web_server:
             self._ctx.web_server.broadcast_event(evt_payload)
 
+        logging.info(
+            f"[RX-CANAL] De: {msg.sender_name or msg.sender} -> Para: Canal #{msg.channel_idx} | "
+            f"Texto: '{msg.text}' | RSSI: {msg.rssi} dBm, SNR: {msg.snr} dB"
+        )
+
     def _handle_mesh_direct_msg(self, msg: MeshMessageEvent) -> None:
         # Analizar si el mensaje de texto contiene telemetría o respuestas de comandos del repetidor
         extracted_telem = self._ctx.repeater_manager.parse_repeater_telemetry_or_response(msg.text)
@@ -765,6 +780,11 @@ class RxEventRouter:
         if self._ctx.web_server:
             self._ctx.web_server.broadcast_event(evt_payload)
 
+        logging.info(
+            f"[RX-DM] De: {msg.sender_name or msg.sender} -> Para: Estación Base Local | "
+            f"Texto: '{msg.text}' | RSSI: {msg.rssi} dBm, SNR: {msg.snr} dB"
+        )
+
     def _handle_mesh_telemetry_msg(self, payload_dict: dict[str, Any]) -> None:
         if "raw_bytes" in payload_dict and isinstance(payload_dict["raw_bytes"], (bytes, bytearray)):
             raw_b = bytes(payload_dict["raw_bytes"])
@@ -830,6 +850,13 @@ class RxEventRouter:
         if self._ctx.web_server:
             self._ctx.web_server.broadcast_event(payload_dict)
 
+        ev_name = payload_dict.get("event_type", "telemetry")
+        sender_label = str(payload_dict.get("sender_name") or payload_dict.get("sender") or payload_dict.get("name") or "Desconocido")
+        logging.info(
+            f"[RX-TELEMETRÍA] De: {sender_label} -> Para: Gateway/MQTT | "
+            f"Tipo: {ev_name} | RSSI: {payload_dict.get('rssi')} dBm, SNR: {payload_dict.get('snr')} dB"
+        )
+
     async def _dispatch_parsed_frame(self, frame: MeshcoreFrame) -> None:
         """Enruta instancias de MeshcoreFrame validadas a MQTT."""
         mqtt_evt = frame.to_mqtt_event()
@@ -856,3 +883,8 @@ class RxEventRouter:
 
                 src_hex = f"0x{frame.header.src_node_id:04X}"
                 self._ctx.mqtt.publish_safe(f"{config.TOPIC_RX_DIRECT}/{src_hex}", evt_json, qos=0)
+
+        logging.info(
+            f"[RX-FRAME] De: 0x{frame.header.src_node_id:04X} -> Para: 0x{frame.header.dst_node_id:04X} | "
+            f"OpCode: {frame.header.opcode.name} | Seq: {frame.header.seq_num} | Válido: {frame.is_valid}"
+        )

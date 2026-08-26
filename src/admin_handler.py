@@ -335,6 +335,7 @@ class AdminCommandHandler:
         # 1. Comandos dirigidos a un repetidor remoto
         if target_node:
             res["target_node"] = target_node
+            logging.info(f"[TX-ADMIN] De: Estación Base Local -> Para: {target_node} | Acción: '{action}' | ReqID: {req_id}")
 
             is_local_target = self._ctx.node_registry.is_local_key(str(target_node)) or str(target_node).lower() in ("local", "000000000000")
             if is_local_target and action not in ("get_config", "get_local_config"):

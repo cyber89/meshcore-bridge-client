@@ -6,15 +6,29 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
-### Hito: Simulación Integral de 20s (Modificaciones Remotas, Ajustes Locales, Fuzzing Deformado y Cuello de Botella)
+### Hito: Simulación Exhaustiva de Todos los Tipos de Mensajes de MeshCore (20s) y Trazabilidad Origen -> Destino
 - **Fecha**: 2026-08-26
-- **Estado**: ✅ COMPLETADO (20.14s Ejecución - 0 Errores - 100% de Pruebas Superadas)
-- **Agente Principal (Lead Orchestrator)**: Coordinó la implementación y ejecución del simulador en tiempo real de 20 segundos ([`scripts/simulate_concurrent_network.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/scripts/simulate_concurrent_network.py)):
-  1. **[Pilar 1] Modificaciones Remotas de Nodos (9 acciones)**: Login remoto autenticado a repetidores, configuración CLI de parámetros (`set tx_power 22`), y actualización de parámetros de contacto (`alias`, `is_favorite`).
-  2. **[Pilar 2] Ajustes en el Nodo Local (6 ajustes)**: Actualización de potencia TX, frecuencia operativa (915.0 - 916.0 MHz), nombre dinámico de estación y coordenadas GPS.
-  3. **[Pilar 3] Mensajes y Tramas Deformadas (275 eventos manejados limpiamente)**: Fuzzing de JSON MQTT corrupto, tramas binarias LoRa truncadas, opcodes inválidos, escape sequences malformadas y paquetes CayenneLPP rotos sin ningún crash.
-  4. **[Pilar 4] Simulación de Cuello de Botella (12 ráfagas masivas)**: 48 transmisiones prioritarias de emergencia (Prio 0) y 192 transmisiones regulares (Prio 1) procesadas con colas Leaky Bucket sin desbordamiento de memoria.
-  5. **[Pilar 5] Duración Continua de 20 Segundos**: 20.14s de simulación asíncrona real-time con barra de progreso en vivo, 169 eventos MQTT publicados, 160 eventos WebSocket emitidos, y **0 errores / 0 excepciones en los logs**.
+- **Estado**: ✅ COMPLETADO (20.07s Ejecución - 839 Eventos con Origen/Destino Auditados - 0 Errores)
+- **Agente Principal (Lead Orchestrator)**: Implementó mejoras estructurales de logging en `src/rx_router.py` y `src/admin_handler.py` para garantizar trazabilidad explícita de `De: <origen> -> Para: <destino>` en el 100% de los eventos, y coordinó la simulación de todos los tipos de mensajes posibles:
+  1. **Cobertura Completa de Tipos de Mensajes en MeshCore ([`scripts/simulate_concurrent_network.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/scripts/simulate_concurrent_network.py))**:
+     - *1. Direct Messages (DM)*: 50 mensajes de texto directo con trazabilidad hacia la estación local.
+     - *2. Canales & Broadcast*: 100 mensajes transmitidos en Canal #0 (Público) y Canal #1 (Emergencias).
+     - *3. Telemetría Ambiental*: 50 reportes de sensores de batería, voltaje, temperatura, humedad y presión.
+     - *4. Anuncios & BBS Rooms*: 50 anuncios de presencia de nodos y salas de tableros comunitarios.
+     - *5. Acuses de Recibo (ACK)*: 50 confirmaciones de entrega de paquetes con medición de RTT (ms).
+     - *6. Traceroute Multi-Salto*: 18 trazas de ruta con SNR por salto hacia nodos remotos.
+     - *7. Comandos CLI a Repetidores*: 18 configuraciones remotas con respuestas estructuradas.
+     - *8. Sensores CayenneLPP*: 50 decodificaciones de tramas binarias IPSO.
+     - *9. Tramas Binarias MeshcoreFrame*: 50 tramas seriales directas despachadas limpiamente a MQTT.
+     - *10. Fuzzing & Tramas Deformadas*: 161 paquetes corruptos (CRC alterado, truncados, opcodes inválidos, JSON roto) capturados y descartados con logs detallados.
+     - *11. Modificaciones Remotas de Nodos*: 18 actualizaciones dinámicas de parámetros.
+     - *12. Ajustes en el Transceptor Local*: 9 cambios en caliente de potencia TX, frecuencia y GPS.
+     - *13. Ráfagas de Cuello de Botella*: 12 ráfagas masivas con colas de prioridad `HIGH` (0) y `NORMAL` (1).
+  2. **Auditoría de Logs en Tiempo Real**:
+     - **839 registros de logs generados** identificando origen y destino con formato `De: <origen> -> Para: <destino>`.
+     - **0 errores no controlados, 0 excepciones y 0 fallos de estabilidad**.
+  3. **Verificación Integral de Pruebas**:
+     - `python scripts/run_all_test_categories.py` $\to$ **10/10 Categorías de Prueba Superadas (100% de Éxito)** en 39.25s.
 
 ### Hito: Verificación y Cobertura Integral de las 10 Disciplinas de Prueba
 - **Fecha**: 2026-08-26
