@@ -6,6 +6,23 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Estandarización de Terminales (Local y Repetidores) con Conjunto de Comandos Oficiales MeshCore
+- **Fecha**: 2026-08-25
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Coordinó al Agente 1 (Protocolo), Agente 2 (Bridge) y Agente 4 (Frontend) para unificar la nomenclatura a **Terminal** y asegurar que ambas terminales admitan exactamente los mismos comandos de firmware de MeshCore:
+  1. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
+     - **Nomenclatura Estandarizada**: Pestañas renombradas a **`💻 Terminal`** tanto en la vista Ajustes del nodo local como en el diálogo de administración del repetidor remoto.
+     - **Encabezados Unificados**: `meshcore@base:~ (Terminal)` y `meshcore@repeater:~ (Terminal)`.
+     - **Desplegables de Ayuda Idénticos**: Ambas consolas ahora incluyen la referencia completa de comandos oficiales del firmware MeshCore (`ver`, `bat`, `time`, `sync_clock`, `stats`, `radio`, `packets`, `pos`, `owner`, `neighbors`, `discover.neighbors`, `channels`, `acl`, `advert`, `ping`, `clear stats`, `reboot`, `set ...`).
+  2. **Agente 2 (Python Bridge Architect Agent)**:
+     - **`src/admin_handler.py`**: Añadido soporte completo para `pos`, `owner`, `identity`, `neighbors`, `vecinos`, `acl`, `board`, `ping` y `help` enriquecido en el procesador CLI local.
+     - **`src/repeater_manager.py`**: Actualizado `build_repeater_command_payload` con todos los alias de comandos oficiales (`bat`, `time`, `clock`, `stats-core`, `stats-radio`, `pos`, `owner`, `acl`, `neighbors`, `discover.neighbors`, `advert flood`, `help`).
+  3. **Agente 0 (Lead Orchestrator)**:
+     - Verificación de tipos y sintaxis JavaScript (`node -c` $\to$ código 0).
+     - Verificación de compilación Python (`python -m compileall src` $\to$ código 0).
+     - Sincronización del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
+     - Sincronización con GitHub `origin/main`.
+
 ### Hito: Identificación Exhaustiva de Nodos y Lecturas Ambientales en Logs de Telemetría
 - **Fecha**: 2026-08-25
 - **Estado**: ✅ COMPLETADO

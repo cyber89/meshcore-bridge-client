@@ -730,7 +730,7 @@
               <button type="button" class="local-subtab-btn active" data-subtab="local-telemetry">📊 Telemetría & Estado</button>
               <button type="button" class="local-subtab-btn" data-subtab="local-radio">📻 Parámetros RF & Radio</button>
               <button type="button" class="local-subtab-btn" data-subtab="local-owner-pos">📍 Identidad & Posición GPS</button>
-              <button type="button" class="local-subtab-btn" data-subtab="local-console">💻 Consola Terminal Linux</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-console">💻 Terminal</button>
               <button type="button" class="local-subtab-btn" data-subtab="local-storage-maps">💾 Mapas Offline & Almacenamiento</button>
             </div>
 
@@ -982,7 +982,7 @@
                     <span class="linux-term-dot dot-yellow"></span>
                     <span class="linux-term-dot dot-green"></span>
                   </div>
-                  <span class="linux-term-title">meshcore@base:~ (Consola Serial Directa)</span>
+                  <span class="linux-term-title">meshcore@base:~ (Terminal)</span>
                   <div class="linux-term-actions">
                     <button type="button" class="btn-xs btn-outline-term" id="btnToggleLocalCmdHelp">❓ Ayuda (help)</button>
                     <button type="button" class="btn-xs btn-outline-term" id="btnClearLocalTerminal">🧹 Limpiar</button>
@@ -992,41 +992,73 @@
                 <!-- Desplegable interactivo de ayuda de comandos -->
                 <div id="localTerminalHelpDrawer" class="terminal-help-drawer hidden">
                   <div class="help-drawer-header">
-                    <strong>📖 Referencia Rápida de Comandos MeshCore</strong>
+                    <strong>📖 Referencia Oficial de Comandos MeshCore</strong>
                     <button type="button" class="btn-icon btn-xs" id="btnCloseLocalHelpDrawer">✕</button>
                   </div>
                   <div class="help-drawer-grid">
+                    <div class="help-cmd-item" data-cmd="ver">
+                      <code>ver / query</code>
+                      <span>Modelo, firmware, build y estado repetidor</span>
+                    </div>
                     <div class="help-cmd-item" data-cmd="bat">
                       <code>bat / get_bat</code>
-                      <span>Consulta nivel de batería y voltaje en mV</span>
+                      <span>Nivel de batería, voltaje (mV/V) y alimentación</span>
                     </div>
                     <div class="help-cmd-item" data-cmd="time">
-                      <code>time / get_time</code>
-                      <span>Consulta hora y timestamp del reloj RTC</span>
+                      <code>time / clock</code>
+                      <span>Hora actual y timestamp del reloj RTC</span>
+                    </div>
+                    <div class="help-cmd-item" data-cmd="sync_clock">
+                      <code>sync_clock / st</code>
+                      <span>Sincroniza RTC con la hora exacta del host</span>
                     </div>
                     <div class="help-cmd-item" data-cmd="stats">
-                      <code>stats / get_stats_core</code>
+                      <code>stats / stats_core</code>
                       <span>Estadísticas de uptime, memoria y airtime</span>
                     </div>
                     <div class="help-cmd-item" data-cmd="radio">
-                      <code>radio / get_stats_radio</code>
-                      <span>Métricas de RF, SNR, RSSI y piso de ruido</span>
+                      <code>radio / stats_radio</code>
+                      <span>Parámetros RF, SNR, RSSI y piso de ruido</span>
                     </div>
                     <div class="help-cmd-item" data-cmd="packets">
-                      <code>packets / get_stats_packets</code>
+                      <code>packets / stats_packets</code>
                       <span>Contadores de paquetes TX, RX, dup y errores</span>
+                    </div>
+                    <div class="help-cmd-item" data-cmd="pos">
+                      <code>pos / get_pos</code>
+                      <span>Consulta coordenadas GPS y posición fija</span>
+                    </div>
+                    <div class="help-cmd-item" data-cmd="owner">
+                      <code>owner / identity</code>
+                      <span>Identidad del nodo y datos del propietario</span>
+                    </div>
+                    <div class="help-cmd-item" data-cmd="neighbors">
+                      <code>neighbors / vecinos</code>
+                      <span>Tabla de nodos vecinos y rutas de malla</span>
+                    </div>
+                    <div class="help-cmd-item" data-cmd="channels">
+                      <code>channels</code>
+                      <span>Lista de canales configurados en la radio</span>
+                    </div>
+                    <div class="help-cmd-item" data-cmd="acl">
+                      <code>acl / get_acl</code>
+                      <span>Lista de control de acceso y permisos</span>
                     </div>
                     <div class="help-cmd-item" data-cmd="advert">
                       <code>advert / flood</code>
-                      <span>Emite un anuncio de presencia inmediato por radio</span>
+                      <span>Emite anuncio de presencia (Hop 0 / Flood)</span>
                     </div>
-                    <div class="help-cmd-item" data-cmd="channels">
-                      <code>channels / get_channels</code>
-                      <span>Lista los canales configurados en la radio</span>
+                    <div class="help-cmd-item" data-cmd="ping">
+                      <code>ping</code>
+                      <span>Sonda directa de enlace y respuesta de radio</span>
+                    </div>
+                    <div class="help-cmd-item" data-cmd="clear stats">
+                      <code>clear stats</code>
+                      <span>Restablece contadores de estadísticas a cero</span>
                     </div>
                     <div class="help-cmd-item" data-cmd="reboot">
                       <code>reboot</code>
-                      <span>Reinicia el microcontrolador local</span>
+                      <span>Reinicia el microcontrolador de hardware</span>
                     </div>
                   </div>
                 </div>
@@ -1629,7 +1661,7 @@
                   <span class="linux-term-dot dot-yellow"></span>
                   <span class="linux-term-dot dot-green"></span>
                 </div>
-                <span class="linux-term-title">meshcore@repeater:~ (Consola RF Remota)</span>
+                <span class="linux-term-title">meshcore@repeater:~ (Terminal)</span>
                 <div class="linux-term-actions">
                   <button type="button" class="btn-xs btn-outline-term" id="btnToggleCmdHelp">❓ Ayuda (help)</button>
                   <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="ping">🎯 ping</button>
@@ -1641,57 +1673,73 @@
               <!-- Desplegable interactivo de ayuda de comandos -->
               <div id="terminalHelpDrawer" class="terminal-help-drawer hidden">
                 <div class="help-drawer-header">
-                  <strong>📚 Comandos RF Soportados por el Firmware MeshCore:</strong>
+                  <strong>📖 Referencia Oficial de Comandos MeshCore (RF Remoto)</strong>
                   <button type="button" class="btn-icon btn-xs" id="btnCloseCmdHelp">✕</button>
                 </div>
                 <div class="help-cmd-grid">
-                  <div class="help-cmd-item" data-cmd="ping">
-                    <code>ping</code>
-                    <span>Sonda directa de enlace para medir latencia RTT, RSSI y SNR sin saturar la malla.</span>
+                  <div class="help-cmd-item" data-cmd="ver">
+                    <code>ver / query</code>
+                    <span>Modelo, firmware, build y estado repetidor</span>
+                  </div>
+                  <div class="help-cmd-item" data-cmd="bat">
+                    <code>bat / get_bat</code>
+                    <span>Nivel de batería, voltaje (mV/V) y panel solar</span>
+                  </div>
+                  <div class="help-cmd-item" data-cmd="clock">
+                    <code>clock / time</code>
+                    <span>Hora actual y timestamp del reloj RTC</span>
+                  </div>
+                  <div class="help-cmd-item" data-cmd="sync_clock">
+                    <code>sync_clock / st</code>
+                    <span>Sincroniza RTC con la hora exacta del host</span>
                   </div>
                   <div class="help-cmd-item" data-cmd="stats-core">
-                    <code>stats-core</code>
-                    <span>Consulta telemetría de CPU, batería, solar, uptime y reloj.</span>
+                    <code>stats-core / stats</code>
+                    <span>Estadísticas de CPU, memoria, solar y airtime</span>
                   </div>
                   <div class="help-cmd-item" data-cmd="stats-radio">
-                    <code>stats-radio</code>
-                    <span>Métricas de radio RF: RSSI, SNR, Airtime y piso de ruido.</span>
+                    <code>stats-radio / radio</code>
+                    <span>Parámetros RF, SNR, RSSI y piso de ruido</span>
                   </div>
                   <div class="help-cmd-item" data-cmd="stats-packets">
-                    <code>stats-packets</code>
-                    <span>Contadores de paquetes TX, RX, duplicados y cola.</span>
+                    <code>stats-packets / packets</code>
+                    <span>Contadores de paquetes TX, RX, dup y errores</span>
+                  </div>
+                  <div class="help-cmd-item" data-cmd="pos">
+                    <code>pos / get_pos</code>
+                    <span>Consulta coordenadas GPS y posición fija</span>
+                  </div>
+                  <div class="help-cmd-item" data-cmd="owner">
+                    <code>owner / identity</code>
+                    <span>Identidad del repetidor y datos del propietario</span>
                   </div>
                   <div class="help-cmd-item" data-cmd="neighbors">
-                    <code>neighbors</code>
-                    <span>Lista la tabla de vecinos y calidad de enlace RF.</span>
+                    <code>neighbors / vecinos</code>
+                    <span>Tabla de nodos vecinos y rutas de malla</span>
                   </div>
                   <div class="help-cmd-item" data-cmd="discover.neighbors">
                     <code>discover.neighbors</code>
-                    <span>Fuerza un escaneo activo de vecinos en la malla.</span>
+                    <span>Fuerza escaneo activo de vecinos en la malla</span>
                   </div>
-                  <div class="help-cmd-item" data-cmd="clock">
-                    <code>clock</code>
-                    <span>Muestra la hora actual del RTC del repetidor.</span>
-                  </div>
-                  <div class="help-cmd-item" data-cmd="pos">
-                    <code>pos</code>
-                    <span>Consulta la posición actual (Lat, Lon, Alt).</span>
+                  <div class="help-cmd-item" data-cmd="acl">
+                    <code>acl / get_acl</code>
+                    <span>Lista de control de acceso y permisos</span>
                   </div>
                   <div class="help-cmd-item" data-cmd="advert">
-                    <code>advert</code>
-                    <span>Emite un anuncio inmediato del nodo en la red.</span>
+                    <code>advert / flood</code>
+                    <span>Emite anuncio de presencia (Hop 0 / Flood)</span>
                   </div>
-                  <div class="help-cmd-item" data-cmd="ver">
-                    <code>ver</code>
-                    <span>Consulta la versión de firmware instalada.</span>
+                  <div class="help-cmd-item" data-cmd="ping">
+                    <code>ping</code>
+                    <span>Sonda directa de enlace y respuesta de radio</span>
                   </div>
                   <div class="help-cmd-item" data-cmd="clear stats">
                     <code>clear stats</code>
-                    <span>Pone a cero los contadores de estadísticas y errores.</span>
+                    <span>Restablece contadores de estadísticas a cero</span>
                   </div>
                   <div class="help-cmd-item" data-cmd="reboot">
                     <code>reboot</code>
-                    <span>Reinicia el microcontrolador del repetidor por RF.</span>
+                    <span>Reinicia el microcontrolador del repetidor por RF</span>
                   </div>
                 </div>
               </div>

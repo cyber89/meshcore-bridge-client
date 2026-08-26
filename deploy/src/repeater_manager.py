@@ -37,6 +37,13 @@ class RepeaterManager:
             "clock",
             "get_clock",
             "get clock",
+            "time",
+            "get_time",
+            "get time",
+            "bat",
+            "get_bat",
+            "get bat",
+            "battery",
             "uptime",
             "get_uptime",
             "get uptime",
@@ -44,47 +51,79 @@ class RepeaterManager:
             "version",
             "get_ver",
             "get version",
+            "query",
+            "q",
             "clear_stats",
             "clear stats",
+            "clear",
+            "neighbors",
+            "vecinos",
             "discover_neighbors",
             "discover.neighbors",
+            "pos",
             "get_pos",
             "get pos",
+            "position",
+            "owner",
             "get_owner",
             "get owner",
-            "get_acl",
-            "get acl",
+            "identity",
             "get_identity",
             "get identity",
+            "acl",
+            "get_acl",
+            "get acl",
+            "channels",
+            "chan",
             "get_radio",
             "get radio",
+            "radio",
             "reboot",
+            "restart",
             "ping",
             "ping 0",
             "ping_zero",
             "pingzero",
             "advert",
+            "flood",
+            "advert flood",
+            "advert_flood",
             "log start",
             "log stop",
             "board",
             "trace 0",
+            "help",
+            "?",
+            "ayuda",
         ):
-            if act in ("clear_stats", "clear stats"):
+            if act in ("clear_stats", "clear stats", "clear"):
                 return "clear stats"
-            if act in ("discover_neighbors", "discover.neighbors"):
+            if act in ("neighbors", "vecinos", "discover_neighbors", "discover.neighbors"):
                 return "discover.neighbors"
-            if act in ("get_pos", "get pos"):
+            if act in ("pos", "get_pos", "get pos", "position"):
                 return "get pos"
-            if act in ("get_owner", "get owner"):
+            if act in ("owner", "get_owner", "get owner", "identity", "get_identity", "get identity"):
                 return "get owner"
-            if act in ("get_acl", "get acl"):
+            if act in ("acl", "get_acl", "get acl"):
                 return "get acl"
-            if act in ("get_identity", "get identity"):
-                return "get identity"
-            if act in ("get_radio", "get radio"):
+            if act in ("get_radio", "get radio", "radio"):
                 return "get radio"
-            if act in ("ping_zero", "pingzero", "ping 0", "trace 0"):
+            if act in ("stats_core", "stats-core", "stats", "status"):
+                return "stats-core"
+            if act in ("stats_radio", "stats-radio"):
+                return "stats-radio"
+            if act in ("stats_packets", "stats-packets"):
+                return "stats-packets"
+            if act in ("bat", "get_bat", "get bat", "battery"):
+                return "get bat"
+            if act in ("clock", "get_clock", "get clock", "time", "get_time", "get time"):
+                return "clock"
+            if act in ("ping_zero", "pingzero", "ping 0", "trace 0", "ping"):
                 return "ping 0"
+            if act in ("flood", "advert flood", "advert_flood"):
+                return "advert flood"
+            if act in ("help", "?", "ayuda"):
+                return "help"
             return act
 
         # Si ya viene formateado como comando directo "set ...", "cmd ...", "login ..."

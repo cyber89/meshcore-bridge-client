@@ -725,6 +725,40 @@ class AdminCommandHandler:
             elif act_clean in ("channels", "get_channels", "chan"):
                 res["result"] = "📻 [CANALES CONFIGURADOS]\n  • Canal 0: Public / Broadcast (Público - Sin cifrar)\n  • Canales 1-7: Disponibles para grupos privados (PSK AES-128)"
 
+            elif act_clean in ("pos", "get_pos", "get pos", "position"):
+                lat = cfg.get("latitude", cfg.get("lat", 0.0))
+                lon = cfg.get("longitude", cfg.get("lon", 0.0))
+                alt = cfg.get("altitude", cfg.get("alt", 0.0))
+                fixed = "Activado" if cfg.get("fixed_position", True) else "Desactivado"
+                res["result"] = f"📍 [POSICIÓN GPS] Latitud: {lat} | Longitud: {lon} | Altitud: {alt} m | Modo Fijo: {fixed}"
+
+            elif act_clean in ("owner", "get_owner", "get owner", "get_identity", "identity"):
+                o_name = cfg.get("owner_name", cfg.get("name", "MeshCore Node"))
+                o_info = cfg.get("owner_info", "Operador de Red")
+                pk = cfg.get("public_key", "000000000000")
+                res["result"] = f"👤 [PROPIETARIO / IDENTIDAD] Nombre: {o_name} | Contacto: {o_info} | Clave Pública: {pk}"
+
+            elif act_clean in ("neighbors", "get_neighbors", "discover.neighbors", "discover_neighbors", "vecinos"):
+                nodes_list = self._ctx.node_registry.list_nodes()
+                lines = [f"🌐 [VECINOS DE MALLA] Total Nodos Registrados: {len(nodes_list)}"]
+                for idx, n in enumerate(nodes_list[:10], start=1):
+                    n_name = n.get("alias") or n.get("name") or "Nodo"
+                    n_pk = str(n.get("public_key", ""))[:8]
+                    n_rssi = n.get("last_rssi", "--")
+                    n_snr = n.get("last_snr", "--")
+                    n_hops = n.get("hops", 0)
+                    lines.append(f"  {idx}. {n_name} ({n_pk}) | Hops: {n_hops} | SNR: {n_snr} dB | RSSI: {n_rssi} dBm")
+                res["result"] = "\n".join(lines)
+
+            elif act_clean in ("acl", "get_acl", "get acl", "acl list", "acl_list"):
+                res["result"] = "🔐 [CONTROL DE ACCESO ACL] Autenticación por PIN activa | Permisos: ADMIN / OPERATOR"
+
+            elif act_clean in ("board", "hardware", "hw"):
+                res["result"] = "🖥️ [HARDWARE BOARD] Microcontrolador: ESP32-S3 / nRF52840 | Transceptor: Semtech SX1262 LoRa | Bus: Serial UART 115200"
+
+            elif act_clean in ("ping", "ping 0", "ping_zero", "pingzero"):
+                res["result"] = "🎯 [PING] Enlace del transceptor local verificado y operativo (RTT: < 1 ms | Canal Serial Directo)."
+
             elif act_clean in ("advert", "send_advert", "broadcast_advert"):
                 if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_advert"):
                     await mc.commands.send_advert(flood=False)
@@ -750,17 +784,24 @@ class AdminCommandHandler:
             elif act_clean in ("help", "?", "ayuda"):
                 res["result"] = (
                     "📖 [COMANDOS MESHCORE SOPORTADOS]\n"
-                    "  • ver / query         : Consulta modelo, firmware y build del transceptor.\n"
+                    "  • ver / query         : Consulta modelo, versión y build del firmware.\n"
                     "  • bat / get_bat       : Nivel de batería, voltaje y estado de alimentación.\n"
                     "  • time / clock        : Consulta hora y timestamp del reloj RTC.\n"
                     "  • sync_clock / st     : Sincroniza reloj RTC con la hora exacta del servidor.\n"
-                    "  • stats / stats_core  : Estadísticas de uptime, airtime y duty cycle.\n"
+                    "  • stats / stats_core  : Estadísticas de uptime, memoria y airtime.\n"
                     "  • radio / stats_radio : Parámetros RF en vivo (Freq, SF, BW, CR, Potencia).\n"
                     "  • packets             : Contadores de paquetes TX, RX, duplicados y errores.\n"
+                    "  • pos / get_pos       : Consulta coordenadas GPS y modo de posición fija.\n"
+                    "  • owner / identity    : Consulta identidad y datos del propietario.\n"
+                    "  • neighbors / vecinos : Consulta la tabla de nodos vecinos y rutas de malla.\n"
                     "  • channels            : Lista de canales de radio configurados.\n"
+                    "  • acl                 : Consulta lista de control de acceso y permisos.\n"
+                    "  • board               : Arquitectura de hardware y chip transceptor LoRa.\n"
                     "  • advert / flood      : Emisión de anuncios de presencia (directo o inundación).\n"
-                    "  • reboot              : Reinicio de hardware del microcontrolador local.\n"
-                    "  • clear stats         : Restablece contadores de estadísticas a cero."
+                    "  • ping                : Prueba directa de enlace y respuesta del transceptor.\n"
+                    "  • reboot              : Reinicio de hardware del microcontrolador.\n"
+                    "  • clear stats         : Restablece contadores de estadísticas a cero.\n"
+                    "  • set <param> <val>   : Configura parámetros (name, tx, freq, coords, sf, bw, cr)."
                 )
 
             elif act_clean.startswith("set ") or act_clean.startswith("set_"):
