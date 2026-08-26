@@ -36,7 +36,6 @@ ROOT_FILES = [
     "install.ps1",
     "meshcore-bridge.service",
     "n8n_workflow_meshcore.json",
-    "README.md",
 ]
 
 # Directorios de producción a copiar íntegramente

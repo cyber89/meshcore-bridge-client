@@ -228,23 +228,12 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         if not self.is_connected or not self.mc:
             return False
         try:
-            if hasattr(self.mc, "commands"):
-                if hasattr(self.mc.commands, "get_bat"):
-                    res = await asyncio.wait_for(self.mc.commands.get_bat(), timeout=3.0)
-                    if res is not None:
-                        self.heartbeat()
-                        return True
-                elif hasattr(self.mc.commands, "get_time"):
-                    res = await asyncio.wait_for(self.mc.commands.get_time(), timeout=3.0)
-                    if res is not None:
-                        self.heartbeat()
-                        return True
-            # Comprobar si el socket o conexión serial de transporte permanece abierta
+            # Comprobar si el socket o conexión serial de transporte permanece abierta a nivel OS
             if hasattr(self.mc, "connection"):
                 cx = self.mc.connection
                 if hasattr(cx, "is_open") and not cx.is_open:
                     return False
-                if hasattr(cx, "transport") and cx.transport and cx.transport.is_closing():
+                if hasattr(cx, "transport") and cx.transport and hasattr(cx.transport, "is_closing") and cx.transport.is_closing():
                     return False
             self.heartbeat()
             return True
