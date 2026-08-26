@@ -1489,14 +1489,14 @@ class MeshCoreStationApp {
   populateRepeaterModalData(node) {
     const pubkey = node.public_key || this.selectedRepeaterTarget;
 
-    // 0. Estado de Ping Zero previo
+    // 0. Estado de Ping previo
     if (this.dom.adminModalPingZeroBadge) {
       if (node.ping_zero_rtt) {
         const pingRssi = node.last_rssi != null ? ` (${node.last_rssi} dBm)` : "";
-        this.dom.adminModalPingZeroBadge.textContent = `🎯 Ping 0: ${node.ping_zero_rtt} ms${pingRssi}`;
+        this.dom.adminModalPingZeroBadge.textContent = `🎯 Ping: ${node.ping_zero_rtt} ms${pingRssi}`;
         this.dom.adminModalPingZeroBadge.className = "ping-zero-badge ping-success";
       } else {
-        this.dom.adminModalPingZeroBadge.textContent = "🎯 Ping 0: -- ms";
+        this.dom.adminModalPingZeroBadge.textContent = "🎯 Ping: -- ms";
         this.dom.adminModalPingZeroBadge.className = "ping-zero-badge";
       }
     }
