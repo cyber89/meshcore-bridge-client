@@ -5,7 +5,12 @@ Unit tests and fuzzing for CayenneLPP Environmental Sensor Decoder.
 import struct
 import unittest
 
-from src.sensor_decoder import CayenneLPPDecoder, LppDataType
+from src.sensor_decoder import (
+    CayenneLPPDecoder,
+    LppDataType,
+    extract_telemetry_fields,
+    format_telemetry_summary,
+)
 
 
 class TestSensorDecoder(unittest.TestCase):
@@ -44,6 +49,56 @@ class TestSensorDecoder(unittest.TestCase):
         self.assertEqual(summary["gps"]["latitude"], 40.7128)
         self.assertEqual(summary["gps"]["longitude"], -74.0060)
         self.assertEqual(summary["gps"]["altitude_m"], 15.5)
+
+    def test_extract_telemetry_fields_dict_and_lpp(self) -> None:
+        # Prueba con estructura LPP list de meshcore_py
+        raw_lpp_data = {
+            "lpp": [
+                {"channel": 1, "type": "temperature", "value": 24.8},
+                {"channel": 2, "type": "relative_humidity", "value": 58.2},
+                {"channel": 3, "type": "barometer", "value": 1012.4},
+                {"channel": 4, "type": "voltage", "value": 4.14},
+                {"channel": 5, "type": "percentage", "value": 92},
+            ],
+            "battery_mv": 4140,
+            "uptime_secs": 86450,
+            "errors": 0,
+            "queue_len": 2,
+            "noise_floor": -105,
+        }
+        extracted = extract_telemetry_fields(raw_lpp_data)
+        self.assertEqual(extracted["temperature_c"], 24.8)
+        self.assertEqual(extracted["humidity_pct"], 58.2)
+        self.assertEqual(extracted["pressure_hpa"], 1012.4)
+        self.assertEqual(extracted["voltage_v"], 4.14)
+        self.assertEqual(extracted["battery_pct"], 92)
+        self.assertEqual(extracted["battery_mv"], 4140)
+        self.assertEqual(extracted["uptime_secs"], 86450)
+        self.assertIn("1d 0h 0m", extracted["uptime"])
+        self.assertEqual(extracted["packet_errors"], 0)
+        self.assertEqual(extracted["queue_len"], 2)
+        self.assertEqual(extracted["noise_floor_dbm"], -105)
+
+        summary_str = format_telemetry_summary(extracted)
+        self.assertIn("24.8°C", summary_str)
+        self.assertIn("58.2%", summary_str)
+        self.assertIn("1012.4 hPa", summary_str)
+        self.assertIn("92% (4.14V)", summary_str)
+        self.assertIn("Cola: 2", summary_str)
+        self.assertIn("0 err", summary_str)
+
+    def test_extract_telemetry_fields_battery_mv_conversion(self) -> None:
+        # Si solo viene battery_mv (ej: 4050 mV de stats_core)
+        data = {"battery_mv": 4050, "uptime_secs": 3665}
+        extracted = extract_telemetry_fields(data)
+        self.assertEqual(extracted["battery_mv"], 4050)
+        self.assertEqual(extracted["voltage_v"], 4.05)
+        self.assertTrue(0 <= extracted["battery_pct"] <= 100)
+        self.assertEqual(extracted["uptime"], "1h 1m 5s")
+
+        summary_str = format_telemetry_summary(data)
+        self.assertIn("4.05V", summary_str)
+        self.assertIn("1h 1m 5s", summary_str)
 
     def test_fuzzing_truncated_and_corrupt_payloads(self) -> None:
         # Casos truncados o corruptos no deben lanzar excepciones

@@ -449,6 +449,46 @@ async def run_master_20s_simulation() -> bool:
             })
             msg_type_counters["3. Telemetría Ambiental"] += 1
 
+            # Telemetría tipo STATS_CORE de repetidor con pubkey_pre
+            rx_router.handle_event({
+                "type": "STATS_CORE",
+                "pubkey_pre": NODES["repeater_north"]["pk"][:12],
+                "battery_mv": 4120,
+                "uptime_secs": 12345 + seq * 10,
+                "errors": 0,
+                "queue_len": 0,
+                "rssi": -65,
+                "snr": 8.5,
+            })
+            msg_type_counters["3. Telemetría Ambiental"] += 1
+
+            # Telemetría tipo STATS_RADIO de repetidor
+            rx_router.handle_event({
+                "type": "STATS_RADIO",
+                "pubkey_pre": NODES["repeater_north"]["pk"][:12],
+                "noise_floor": -104,
+                "last_rssi": -66,
+                "last_snr": 8.8,
+                "tx_air_secs": 12,
+                "rx_air_secs": 45,
+            })
+            msg_type_counters["3. Telemetría Ambiental"] += 1
+
+            # Telemetría de nodo con prefijo (sin nombre previo registrado)
+            rx_router.handle_event({
+                "type": "TELEMETRY_RESPONSE",
+                "pubkey_pre": "8d5accef196f",
+                "lpp": [
+                    {"channel": 1, "type": "temperature", "value": 22.4},
+                    {"channel": 2, "type": "relative_humidity", "value": 55.0},
+                    {"channel": 3, "type": "barometer", "value": 1014.2},
+                ],
+                "battery_mv": 4150,
+                "rssi": -68,
+                "snr": 7.5,
+            })
+            msg_type_counters["3. Telemetría Ambiental"] += 1
+
             # Sensores CayenneLPP Binarios (Temperatura 25.0C + Humedad 50%)
             raw_lpp = bytes.fromhex("016700FA026864")
             CayenneLPPDecoder.decode(raw_lpp)

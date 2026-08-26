@@ -6,6 +6,25 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Normalización Exhaustiva de Telemetría, Resolución Canónica de Emisor y Logs Estructurados
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO (Extracción Universal LPP / Stats, Resolución de Prefijos y Formato Rico de Logs)
+- **Agente Principal (Lead Orchestrator)**: Analizó la causa raíz de logs con `De: Desconocido`, `nodo anónimo` y `RSSI/SNR: None`, refactorizando integralmente el pipeline de extracción y resolución:
+  1. **Motor de Extracción Universal de Sensores ([`src/sensor_decoder.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/sensor_decoder.py))**:
+     - Creada función `extract_telemetry_fields()` capaz de procesar listas LPP nativas de MeshCore Python SDK, bytes binarios CayenneLPP, respuestas estructuradas (`battery_mv`, `voltage_v`, `solar_v`, `uptime_secs`, `noise_floor`, `queue_len`, `packet_errors`, GPS).
+     - Conversión automática de `battery_mv` a `voltage_v` y cálculo proporcional de `battery_pct`.
+     - Creada función `format_telemetry_summary()` para generar resúmenes informativos claros (ej: `🌡️ 24.5°C | 💧 60% | 🌀 1013.2 hPa | 🔋 85% (4.12V) | ⏱️ 3h 25m | ⚠️ 0 err`).
+  2. **Resolución Canónica y Logging en Enrutador RX ([`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py))**:
+     - Fusión automática de `event.attributes` con `event.payload` para capturar `pubkey_prefix` y atributos de RF.
+     - Extracción exhaustiva de remitente considerando claves: `pubkey_pre`, `pubkey_prefix`, `public_key`, `target_node`, `from_node`, `node_id`, `source`.
+     - Resolución contra `NodeRegistry.get_by_key_or_prefix` para asociar prefijos de 6 a 12 caracteres hex (`31d03b1f...`, `8d5accef...`) a sus alias o nombres de repetidor.
+     - Normalización de RSSI/SNR eliminando `None dBm` en favor de valores legibles o `N/A`.
+  3. **Buffer de Logs y Web API Router ([`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py))**:
+     - Actualizado `record_incoming_event` para resolver remitentes por prefijo y mostrar `nodo '<alias>' (<pk[:8]>)` o `nodo [<prefix>]` en lugar de `nodo anónimo`.
+     - Integración de `extract_telemetry_fields()` en `api_router` garantizando que los logs del sistema desglosen lecturas completas.
+  4. **Pruebas Automatizadas**:
+     - Actualizado [`tests/test_sensor_decoder.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/tests/test_sensor_decoder.py) y [`tests/test_node_and_repeater_config.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/tests/test_node_and_repeater_config.py) con casos de validación para `extract_telemetry_fields`, `format_telemetry_summary` y resolución de telemetría de repetidores registrados y nodos con prefijo.
+
 ### Hito: Implementación de Enrutamiento Dinámico por Calidad de Enlace (LQI) y Selección Inteligente de Rutas
 - **Fecha**: 2026-08-26
 - **Estado**: ✅ COMPLETADO (124 Tests en pytest - 100% Suites Pasadas - 0 Fallos)

@@ -11,8 +11,8 @@ import logging
 import time
 from datetime import datetime
 from typing import Any
-
 from src.contact_manager import NodeContactUpdate, PacketRecord, is_valid_node_key
+from src.sensor_decoder import extract_telemetry_fields
 
 
 class WebAPIRouter:
@@ -42,22 +42,9 @@ class WebAPIRouter:
         }
         self.recent_system_logs.append(entry)
 
+        # Actualizar contadores del gestor de diagnósticos
         diag = getattr(self.bridge, "diagnostics", None)
-        if diag and getattr(diag, "log_handler", None):
-            from src.diagnostics import SystemLogRecord
-
-            rec = SystemLogRecord(
-                timestamp=now_ts,
-                iso_time=now_iso,
-                level=lvl_upper,
-                logger_name=f"bridge.{source}",
-                module=source,
-                func_name="log_system_event",
-                line_no=0,
-                message=message,
-                source=source,
-            )
-            diag.log_handler.buffer.append(rec)
+        if diag and hasattr(diag, "log_handler") and diag.log_handler:
             if lvl_upper in ("ERROR", "CRITICAL"):
                 diag.log_handler.error_count += 1
             elif lvl_upper in ("WARNING", "WARN"):
@@ -86,14 +73,23 @@ class WebAPIRouter:
             data.get("sender")
             or data.get("public_key")
             or data.get("pubkey")
+            or data.get("pubkey_pre")
             or data.get("pubkey_prefix")
+            or data.get("target_node")
+            or data.get("target")
             or data.get("from_node")
             or data.get("from")
             or data.get("source")
+            or data.get("src")
+            or data.get("src_node")
+            or data.get("src_node_id")
             or data.get("node_id")
             or data.get("origin")
             or (data.get("contact", {}) if isinstance(data.get("contact"), dict) else {}).get("public_key")
+            or (data.get("contact", {}) if isinstance(data.get("contact"), dict) else {}).get("pubkey_prefix")
             or (data.get("payload", {}) if isinstance(data.get("payload"), dict) else {}).get("sender")
+            or (data.get("payload", {}) if isinstance(data.get("payload"), dict) else {}).get("pubkey_prefix")
+            or (data.get("payload", {}) if isinstance(data.get("payload"), dict) else {}).get("pubkey_pre")
             or ""
         )
         sender_raw = str(sender_cand).strip()
@@ -133,35 +129,61 @@ class WebAPIRouter:
         elif sender_raw:
             sender_id_str = f"nodo [{sender_raw[:8]}]"
             canonical_sender = sender_raw
+        elif ev_type in ("self_info", "battery", "device_info"):
+            sender_id_str = "Estación Base Local"
+            canonical_sender = getattr(self.bridge.node_registry, "get_local_pubkey", lambda: "")() if hasattr(self.bridge, "node_registry") else ""
         else:
             sender_id_str = "nodo anónimo"
             canonical_sender = ""
 
-        rssi = data.get("rssi", data.get("RSSI"))
-        snr = data.get("snr", data.get("SNR"))
+        rssi = data.get("rssi", data.get("RSSI", data.get("last_rssi")))
+        snr = data.get("snr", data.get("SNR", data.get("last_snr")))
 
-        if ev_type in ("telemetry", "telemetry_recv", "telemetry_response") or "temperature_c" in data or "battery_pct" in data or "battery" in data or "voltage_v" in data or "temp" in data:
+        # Extraer lecturas completas de sensores y telemetría
+        extracted_telem = extract_telemetry_fields(data)
+
+        if (
+            ev_type in ("telemetry", "telemetry_recv", "telemetry_response", "stats_core", "stats_radio", "stats_packets", "battery", "battery_info", "device_info", "repeater_telemetry")
+            or any(k in data for k in ("temperature_c", "battery_pct", "battery", "battery_mv", "voltage_v", "voltage", "temp", "uptime_secs", "uptime", "lpp"))
+            or bool(extracted_telem)
+        ):
             self.recent_telemetry.append(data)
             if canonical_sender and is_valid_node_key(canonical_sender):
                 self.bridge.node_registry.record_packet(PacketRecord(public_key=canonical_sender, is_rx=True, rssi=rssi, snr=snr, telemetry=data))
 
-            # Resumen de lecturas ambientales detalladas
+            # Resumen de lecturas ambientales y de estado detalladas
             readings = []
-            temp = data.get("temperature_c", data.get("temp", data.get("temperature")))
-            if temp is not None:
-                readings.append(f"🌡️ {temp}°C")
-            hum = data.get("humidity_pct", data.get("humidity", data.get("hum")))
-            if hum is not None:
-                readings.append(f"💧 {hum}%")
-            press = data.get("pressure_hpa", data.get("pressure", data.get("press")))
-            if press is not None:
-                readings.append(f"🌀 {press} hPa")
-            bat = data.get("battery_pct", data.get("battery", data.get("bat")))
-            if bat is not None:
+            if "temperature_c" in extracted_telem:
+                readings.append(f"🌡️ {extracted_telem['temperature_c']}°C")
+            if "humidity_pct" in extracted_telem:
+                readings.append(f"💧 {extracted_telem['humidity_pct']}%")
+            if "pressure_hpa" in extracted_telem:
+                readings.append(f"🌀 {extracted_telem['pressure_hpa']} hPa")
+
+            bat = extracted_telem.get("battery_pct")
+            volt = extracted_telem.get("voltage_v")
+            bat_mv = extracted_telem.get("battery_mv")
+            if bat is not None and volt is not None:
+                readings.append(f"🔋 {bat}% ({volt}V)")
+            elif bat is not None:
                 readings.append(f"🔋 {bat}%")
-            volt = data.get("voltage_v", data.get("voltage"))
-            if volt is not None:
+            elif volt is not None:
                 readings.append(f"⚡ {volt}V")
+            elif bat_mv is not None:
+                readings.append(f"🔋 {bat_mv}mV")
+
+            if "solar_v" in extracted_telem:
+                readings.append(f"☀️ {extracted_telem['solar_v']}V")
+            if "uptime" in extracted_telem:
+                readings.append(f"⏱️ {extracted_telem['uptime']}")
+            elif "uptime_secs" in extracted_telem:
+                readings.append(f"⏱️ {extracted_telem['uptime_secs']}s")
+
+            if "packet_errors" in extracted_telem:
+                readings.append(f"⚠️ {extracted_telem['packet_errors']} err")
+            if "queue_len" in extracted_telem:
+                readings.append(f"📦 Cola: {extracted_telem['queue_len']}")
+
             if snr is not None:
                 readings.append(f"📶 SNR {snr}dB")
             if rssi is not None:

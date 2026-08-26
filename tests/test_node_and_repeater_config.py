@@ -189,3 +189,54 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(code, 200)
         self.assertEqual(self.dispatched_txs[0]["text"], "login repeater_secret")
         self.assertEqual(self.dispatched_txs[1]["text"], "reboot")
+
+    def test_record_incoming_telemetry_with_known_and_unknown_nodes(self) -> None:
+        """Verifica que la telemetría identifique al repetidor por nombre o prefijo y registre todas las métricas."""
+        # 1. Caso con repetidor registrado en NodeRegistry
+        mock_contact = MagicMock()
+        mock_contact.public_key = "31d03b1f47d5affaea5052d392e3dfec4e1c35e75b62822309a5d68eba15df42"
+        mock_contact.name = "Repetidor_Norte"
+        mock_contact.alias = "Repetidor_Norte"
+        self.mock_registry.get_by_key_or_prefix.side_effect = lambda key: mock_contact if "31d03b1f" in str(key) else None
+
+        telem_data = {
+            "pubkey_pre": "31d03b1f47d5",
+            "battery_mv": 4120,
+            "uptime_secs": 12345,
+            "errors": 0,
+            "queue_len": 0,
+            "rssi": -65,
+            "snr": 8.5,
+        }
+        self.router.record_incoming_event("telemetry_response", telem_data)
+
+        # Verificar logs del sistema
+        logs = list(self.router.recent_system_logs)
+        last_log = logs[-1]
+        self.assertEqual(last_log["source"], "telemetry")
+        self.assertIn("Repetidor_Norte (31d03b1f)", last_log["message"])
+        self.assertIn("4.12V", last_log["message"])
+        self.assertIn("12345s", last_log["message"])
+        self.assertIn("SNR 8.5dB", last_log["message"])
+        self.assertIn("-65dBm", last_log["message"])
+        self.assertNotIn("nodo anónimo", last_log["message"])
+
+        # 2. Caso con nodo anónimo pero con prefijo conocido
+        anon_data = {
+            "pubkey_pre": "8d5accef196f",
+            "temperature_c": 22.4,
+            "humidity_pct": 55.0,
+            "rssi": -72,
+            "snr": 6.0,
+        }
+        self.router.record_incoming_event("telemetry", anon_data)
+        logs = list(self.router.recent_system_logs)
+        last_log = logs[-1]
+        self.assertIn("nodo [8d5accef]", last_log["message"])
+        self.assertIn("22.4°C", last_log["message"])
+        self.assertIn("55.0%", last_log["message"])
+        self.assertNotIn("nodo anónimo", last_log["message"])
+
+
+if __name__ == "__main__":
+    unittest.main()
