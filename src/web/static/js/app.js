@@ -2272,10 +2272,19 @@ class MeshCoreStationApp {
 
   formatRemoteCliResponse(action, resObj) {
     if (!resObj || typeof resObj !== "object") return String(resObj || "✓ Comando ejecutado");
-    if (typeof resObj.response === "string" && resObj.response) return resObj.response.startsWith("✓") ? resObj.response : `✓ ${resObj.response}`;
-    if (typeof resObj.text === "string" && resObj.text) return `← [RESP] ${resObj.text}`;
-    if (typeof resObj.message === "string" && resObj.message) return `✓ ${resObj.message}`;
-    if (typeof resObj.result === "string" && resObj.result) return `✓ ${resObj.result}`;
+    if (typeof resObj.text === "string" && resObj.text.trim()) {
+      const txt = resObj.text.trim();
+      return txt.startsWith("←") || txt.startsWith("✓") ? txt : `← [RESP] ${txt}`;
+    }
+    if (typeof resObj.response === "string" && resObj.response.trim()) {
+      const resp = resObj.response.trim();
+      if (resp.startsWith("Comando '") && resp.includes("transmitido por RF")) {
+        return `ℹ [TX] ${resp}`;
+      }
+      return resp.startsWith("✓") || resp.startsWith("←") || resp.startsWith("ℹ") ? resp : `← [RESP] ${resp}`;
+    }
+    if (typeof resObj.result === "string" && resObj.result.trim()) return `✓ ${resObj.result}`;
+    if (typeof resObj.message === "string" && resObj.message.trim()) return `✓ ${resObj.message}`;
     if (Array.isArray(resObj.dispatched_commands) && resObj.dispatched_commands.length > 0) {
       return `✓ Comando transmitido por RF: ${resObj.dispatched_commands.join(", ")}`;
     }

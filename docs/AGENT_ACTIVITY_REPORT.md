@@ -12,13 +12,15 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 - **Agente Principal (Lead Orchestrator)**: Coordinó a los Agentes 1, 2 y 4 para asegurar la emisión y captura completa de respuestas en todos los comandos de terminal (`ver`, `bat`, `time`, `sync_clock`, `stats-core`, `stats-radio`, `pos`, `owner`, `neighbors`, `channels`, `acl`, `board`, `ping`, etc.):
   1. **Agente 1 & 2 (Investigator & Bridge Architect)**:
      - **`src/admin_handler.py`**:
-       - Eliminado el prefijo redundante `"cmd "` en la carga útil RF para cumplir con la sintaxis nativa esperada por el firmware de los repetidores (`ver`, `bat`, `get pos`, `login <pwd>`, etc.).
-       - Implementado `_cmd_waiters` y `notify_command_response` para registrar futuros asíncronos y esperar la respuesta RF del repetidor en `handle()`. Si el repetidor responde dentro de la ventana de tiempo, el resultado textual y telemetría se retornan de forma síncrona en la API REST.
+       - Integración nativa con `mc.commands.send_cmd` (`txt_type = 1`) y `mc.commands.send_login` del SDK oficial MeshCore para que los nodos repetidores interpreten las solicitudes como comandos administrativos CLI y no como mensajes de chat planos (`txt_type = 0`).
+       - Implementado `_resolve_target` con resolución de contactos por nombre y prefijo de clave pública para enrutar con precisión a los nodos repetidores en la memoria de la radio.
+       - Implementado `_wait_for_repeater_response` con bombeo activo (`get_msg`) sobre la cola de hardware del transceptor y un timeout ampliado a 6.0s adecuado para propagación LoRa en mallas multi-salto.
+       - Implementado saneamiento de prefijos de firmware (`> `) en los textos de respuesta devueltos.
      - **`src/rx_router.py`**:
        - Conexión de `notify_command_response` en el enrutador de recepción tanto para mensajes directos de contacto como para eventos de radio, asegurando la resolución inmediata de futuros en espera.
   2. **Agente 4 (Web UI/UX & Frontend Architect)**:
      - **`src/web/static/js/app.js`**:
-       - Mejorado `formatRemoteCliResponse` para priorizar e imprimir directamente respuestas de texto devueltas por la API REST.
+       - Mejorado `formatRemoteCliResponse` para formatear claramente las respuestas recibidas (`← [RESP] ...`) y diferenciar los acuses de transmisión (`ℹ [TX] ...`).
        - Enriquecido el listener WebSocket de `repeater_response` con resolución canónica tolerante de claves públicas y visualización garantizada en la consola (`← [RESP] ...`) cuando el diálogo de administración está abierto.
   3. **Agente 0 (Lead Orchestrator)**:
      - Verificación estática JavaScript (`node -c` $\to$ 0 errores).
