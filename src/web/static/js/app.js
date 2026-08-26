@@ -3662,8 +3662,26 @@ class MeshCoreStationApp {
 
       // Actualizar información del puerto serial
       if (cfg.serial_port && portBadge) portBadge.textContent = cfg.serial_port;
+
+      this.purgeLocalNodeFromDmList();
     } catch (err) {
       console.warn("Error cargando configuración local:", err);
+    }
+  }
+
+  purgeLocalNodeFromDmList() {
+    if (!this.dom.dmListUi) return;
+    const localInputVal = (document.getElementById("localNodePubkey")?.value || "").toLowerCase().trim();
+    const activeLocalPk = (this.localNodePubkey || localInputVal || "").toLowerCase().trim();
+    if (!activeLocalPk) return;
+    const allItems = this.dom.dmListUi.querySelectorAll("li.channel-item");
+    for (const item of allItems) {
+      const itemPk = (item.getAttribute("data-pubkey") || "").trim().toLowerCase();
+      if (!itemPk || itemPk === "local" || itemPk === activeLocalPk ||
+          (activeLocalPk.length >= 8 && itemPk.startsWith(activeLocalPk.slice(0, 8))) ||
+          (itemPk.length >= 8 && activeLocalPk.startsWith(itemPk.slice(0, 8)))) {
+        item.remove();
+      }
     }
   }
 
@@ -4565,12 +4583,17 @@ class MeshCoreStationApp {
     const isClient = roleStr === "CLIENT" || roleStr === "CHAT" || role === "1" || role === 1;
     if (!isClient) return;
 
-    // Excluir nodo local
-    const isLocal = (this.localNodePubkey && (
-      canonicalPk.toLowerCase() === this.localNodePubkey ||
-      (this.localNodePubkey.length >= 8 && canonicalPk.toLowerCase().startsWith(this.localNodePubkey.slice(0, 8))) ||
-      (canonicalPk.length >= 8 && this.localNodePubkey.startsWith(canonicalPk.toLowerCase().slice(0, 8)))
-    )) || canonicalPk.toLowerCase() === "local";
+    // Excluir nodo local (por clave pública activa o prefijo)
+    const localInputVal = (document.getElementById("localNodePubkey")?.value || "").toLowerCase().trim();
+    const activeLocalPk = (this.localNodePubkey || localInputVal || "").toLowerCase().trim();
+    const isLocal = Boolean(
+      canonicalPk.toLowerCase() === "local" ||
+      (activeLocalPk && (
+        canonicalPk.toLowerCase() === activeLocalPk ||
+        (activeLocalPk.length >= 8 && canonicalPk.toLowerCase().startsWith(activeLocalPk.slice(0, 8))) ||
+        (canonicalPk.length >= 8 && activeLocalPk.startsWith(canonicalPk.toLowerCase().slice(0, 8)))
+      ))
+    );
     if (isLocal) return;
 
     // Solo mostrar si tiene mensajes o si es la conversación actualmente abierta
@@ -5430,6 +5453,7 @@ class MeshCoreStationApp {
 
         if (nodesRes.status === "ok" && nodesRes.data) {
           this.renderNodesDirectory(nodesRes.data);
+          this.purgeLocalNodeFromDmList();
         }
 
         if (channelsRes.status === "ok" && channelsRes.data && channelsRes.data.length > 0) {

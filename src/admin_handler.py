@@ -57,21 +57,36 @@ class AdminCommandHandler:
         mc = self._ctx.mc_provider()
         cfg = dict(self._local_config)
         cfg["serial_port"] = getattr(config, "SERIAL_PORT", "/dev/ttyACM0")
-        if mc and hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
-            si = mc.self_info
+
+        si = None
+        if mc:
+            raw_si = getattr(mc, "self_info", None)
+            if callable(raw_si):
+                try:
+                    si = raw_si()
+                except Exception:
+                    si = getattr(mc, "_self_info", None)
+            elif isinstance(raw_si, dict):
+                si = raw_si
+            elif hasattr(mc, "_self_info") and isinstance(mc._self_info, dict):
+                si = mc._self_info
+
+        if isinstance(si, dict) and si:
+            pk = si.get("public_key") or si.get("pubkey")
+            if pk:
+                cfg["public_key"] = str(pk).lower().strip()
             cfg.update({
                 "name": si.get("name", cfg.get("name")),
-                "public_key": si.get("public_key", si.get("pubkey", cfg.get("public_key"))),
                 "owner_info": si.get("owner_info", si.get("owner", cfg.get("owner_info"))),
-                "latitude": si.get("latitude", si.get("lat", cfg.get("latitude"))),
-                "longitude": si.get("longitude", si.get("lon", cfg.get("longitude"))),
+                "latitude": si.get("adv_lat", si.get("latitude", si.get("lat", cfg.get("latitude")))),
+                "longitude": si.get("adv_lon", si.get("longitude", si.get("lon", cfg.get("longitude")))),
                 "altitude": si.get("altitude", si.get("alt", cfg.get("altitude"))),
                 "tx_power": si.get("tx_power", cfg.get("tx_power")),
                 "frequency": si.get("radio_freq", si.get("freq", cfg.get("frequency"))),
                 "radio_freq": si.get("radio_freq", si.get("freq", cfg.get("frequency"))),
-                "spreading_factor": si.get("sf", si.get("spreading_factor", cfg.get("spreading_factor"))),
-                "bandwidth": si.get("bw", si.get("bandwidth", cfg.get("bandwidth"))),
-                "coding_rate": si.get("cr", si.get("coding_rate", cfg.get("coding_rate"))),
+                "spreading_factor": si.get("sf", si.get("radio_sf", si.get("spreading_factor", cfg.get("spreading_factor")))),
+                "bandwidth": si.get("bw", si.get("radio_bw", si.get("bandwidth", cfg.get("bandwidth")))),
+                "coding_rate": si.get("cr", si.get("radio_cr", si.get("coding_rate", cfg.get("coding_rate")))),
                 "hop_limit": si.get("hop_limit", cfg.get("hop_limit")),
                 "repeat": si.get("repeat", cfg.get("repeat", True)),
                 "telemetry_interval": si.get("telemetry_interval", cfg.get("telemetry_interval")),

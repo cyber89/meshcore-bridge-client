@@ -6,6 +6,30 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Sincronización de Contactos de Hardware, Estabilización de Watchdog y Filtrado de Nodo Local en DM
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: Coordinó a los Agentes 1, 2 y 4 para resolver el descubrimiento de contactos, prevenir desconexiones del watchdog y aislar el nodo local en la vista de mensajería:
+  1. **Agente 1 & 2 (Investigator & Bridge Architect)**:
+     - **`src/serial_driver.py`**:
+       - Corregido `sync_all_contacts`: adaptado para extraer atributos de instancias de `Contact` (y diccionarios) en `mc.contacts`, permitiendo importar con éxito todos los contactos almacenados en la memoria de la radio al `NodeRegistry`.
+       - Mejorado `resolve_sender_name` para resolver objetos `Contact` devueltos por el SDK.
+       - Añadido retardo de arranque seguro `cx_dly=1.5s` y reintento con 2.0s en `MeshcoreSDKAdapter.connect()` para permitir al hardware USB-CDC (ESP32-S3/nRF52) completar su secuencia de boot tras el reset de DTR antes de enviar `CMD_APP_START`.
+     - **`src/bridge_core.py`**:
+       - Eliminado bucle de desconexión espuria en `_watchdog_loop` que establecía `self.mc = None` tras 1.0s de inactividad, delegando la supervisión al `SerialWatchdog` oficial no destructivo.
+       - Sincronización de coordenadas GPS y telemetría de contactos al arrancar.
+     - **`src/admin_handler.py`**:
+       - Corregido acceso a `mc.self_info`: manejado como método invocable `mc.self_info()` para extraer de forma fiable la clave pública local, nombre y coordenadas de la estación base.
+  2. **Agente 4 (Web UI/UX & Frontend Architect)**:
+     - **`src/web/static/js/app.js`**:
+       - Añadido método `purgeLocalNodeFromDmList()` para eliminar cualquier entrada del nodo local de la lista de chats directos.
+       - Fortalecido el filtro `isLocal` en `addDmContact` utilizando tanto `this.localNodePubkey` como el valor del input del DOM `#localNodePubkey` y el prefijo de clave.
+  3. **Agente 0 (Lead Orchestrator)**:
+     - Verificación estática JavaScript (`node -c` $\to$ 0 errores).
+     - Verificación de compilación Python (`python -m compileall src` $\to$ 0 errores).
+     - Sincronización del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
+     - Sincronización con GitHub `origin/main`.
+
 ### Hito: Pipeline Bidireccional de Comandos y Corrección de Ping Zero en Terminal Remota
 - **Fecha**: 2026-08-26
 - **Estado**: ✅ COMPLETADO

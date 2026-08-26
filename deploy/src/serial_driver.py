@@ -490,34 +490,53 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         imported_contacts: list[dict[str, Any]] = []
         try:
             if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "get_contacts"):
-                await self.mc.commands.get_contacts(timeout=3)
+                try:
+                    await self.mc.commands.get_contacts(timeout=3)
+                except Exception as ex:
+                    logging.debug(f"Comando get_contacts emitido: {ex}")
 
             raw_contacts = getattr(self.mc, "contacts", None)
             if raw_contacts and isinstance(raw_contacts, (dict, list)):
                 c_list = raw_contacts.values() if isinstance(raw_contacts, dict) else raw_contacts
                 for c in c_list:
+                    pk = ""
+                    adv_name = ""
+                    raw_type = 1
+                    adv_lat = None
+                    adv_lon = None
                     if isinstance(c, dict):
                         pk = str(c.get("public_key", c.get("key", ""))).strip()
-                        if pk:
-                            adv_name = str(c.get("adv_name", c.get("name", c.get("alias", f"Node_{pk[:6]}")))).strip()
-                            raw_type = c.get("type", c.get("adv_type", 1))
-                            name_upper = adv_name.upper()
-                            if raw_type == 2 or name_upper.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-")) or "REPEATER" in name_upper or "ROUTER" in name_upper:
-                                role = "REPEATER"
-                            elif raw_type == 3 or "ROOM" in name_upper or "BBS" in name_upper:
-                                role = "ROOM"
-                            elif raw_type == 4 or "SENSOR" in name_upper:
-                                role = "SENSOR"
-                            else:
-                                role = "CLIENT"
-                            imported_contacts.append({
-                                "public_key": pk,
-                                "name": adv_name,
-                                "alias": adv_name,
-                                "role": role,
-                                "type": raw_type,
-                                "adv_type": raw_type,
-                            })
+                        adv_name = str(c.get("adv_name", c.get("name", c.get("alias", f"Node_{pk[:6]}")))).strip()
+                        raw_type = c.get("type", c.get("adv_type", 1))
+                        adv_lat = c.get("adv_lat", c.get("latitude"))
+                        adv_lon = c.get("adv_lon", c.get("longitude"))
+                    elif hasattr(c, "public_key") or hasattr(c, "adv_name") or hasattr(c, "name"):
+                        pk = str(getattr(c, "public_key", "")).strip()
+                        adv_name = str(getattr(c, "adv_name", getattr(c, "name", getattr(c, "alias", f"Node_{pk[:6]}")))).strip()
+                        raw_type = getattr(c, "adv_type", getattr(c, "type", 1))
+                        adv_lat = getattr(c, "adv_lat", getattr(c, "latitude", None))
+                        adv_lon = getattr(c, "adv_lon", getattr(c, "longitude", None))
+
+                    if pk:
+                        name_upper = adv_name.upper()
+                        if raw_type == 2 or name_upper.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-")) or "REPEATER" in name_upper or "ROUTER" in name_upper:
+                            role = "REPEATER"
+                        elif raw_type == 3 or "ROOM" in name_upper or "BBS" in name_upper:
+                            role = "ROOM"
+                        elif raw_type == 4 or "SENSOR" in name_upper:
+                            role = "SENSOR"
+                        else:
+                            role = "CLIENT"
+                        imported_contacts.append({
+                            "public_key": pk,
+                            "name": adv_name,
+                            "alias": adv_name,
+                            "role": role,
+                            "type": raw_type,
+                            "adv_type": raw_type,
+                            "latitude": adv_lat,
+                            "longitude": adv_lon,
+                        })
         except Exception as e:
             logging.warning(f"Fallo sincronizando libreta de contactos del nodo: {e}")
 
@@ -535,8 +554,8 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                         name = c.get("adv_name") or c.get("name") or c.get("alias")
                         if name:
                             return str(name)
-                    else:
-                        name = getattr(c, "name", getattr(c, "alias", getattr(c, "adv_name", None)))
+                    elif hasattr(c, "adv_name") or hasattr(c, "name") or hasattr(c, "alias"):
+                        name = getattr(c, "adv_name", getattr(c, "name", getattr(c, "alias", None)))
                         if name:
                             return str(name)
             except Exception:

@@ -507,17 +507,6 @@ class MeshCoreBridge:
         """Bucle de supervisión del Watchdog para compatibilidad de tests."""
         while getattr(self, "running", True):
             await asyncio.sleep(config.WATCHDOG_INTERVAL_SEC)
-            idle_sec = time.time() - self.last_serial_activity
-            if idle_sec >= config.SERIAL_TIMEOUT or idle_sec >= 1.0:
-                if self.mc and hasattr(self.mc, "commands") and hasattr(self.mc.commands, "get_contacts"):
-                    try:
-                        await asyncio.wait_for(self.mc.commands.get_contacts(), timeout=0.01)
-                    except Exception:
-                        self.serial_reconnect_count += 1
-                        self.mc = None
-                else:
-                    self.serial_reconnect_count += 1
-                    self.mc = None
 
     async def _tx_worker(self) -> None:
         """Bucle worker de transmisión para compatibilidad con suites de pruebas."""
