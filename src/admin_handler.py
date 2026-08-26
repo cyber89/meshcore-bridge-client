@@ -467,7 +467,9 @@ class AdminCommandHandler:
                 return res
 
             # Caso especial: Ping Zero (0 saltos directos) / Ping de nodo
+            # Caso especial: Ping Zero (0 saltos directos) / Ping de repetidor o nodo
             if action in ("ping_zero", "ping_0", "ping", "zero_hop_ping"):
+                dest_target = self._resolve_target(str(target_node), min_hex_len=12)
                 norm_target = self._ctx.node_registry.get_canonical_key(str(target_node)) or str(target_node).strip().lower()
 
                 target_name = (
@@ -486,80 +488,102 @@ class AdminCommandHandler:
                     if wk not in self._ping_waiters:
                         self._ping_waiters[wk] = []
                     self._ping_waiters[wk].append(fut)
+                    if wk not in self._cmd_waiters:
+                        self._cmd_waiters[wk] = []
+                    self._cmd_waiters[wk].append(fut)
 
-                cmd_text = self._ctx.repeater_manager.build_repeater_command_payload(action, admin_data)
+                # Asegurar contacto en la tabla de rutas de la radio
+                if mc and hasattr(mc, "commands") and hasattr(mc.commands, "add_contact"):
+                    try:
+                        if isinstance(dest_target, dict):
+                            await mc.commands.add_contact(dest_target)
+                        elif hasattr(dest_target, "to_radio_dict"):
+                            await mc.commands.add_contact(dest_target.to_radio_dict())
+                        elif hasattr(dest_target, "public_key"):
+                            await mc.commands.add_contact({"public_key": dest_target.public_key, "name": getattr(dest_target, "name", "Repeater")})
+                        elif isinstance(dest_target, str) and len(dest_target) >= 12:
+                            await mc.commands.add_contact({"public_key": (dest_target + "0" * 64)[:64], "name": target_name})
+                    except Exception as e:
+                        logging.debug(f"Asegurando contacto en radio para ping: {e}")
+
+                cmd_text = "ping 0"
                 t_start = time.perf_counter()
-                await self._ctx.execute_tx({"to": str(target_node), "text": f"cmd {cmd_text}", "request_id": req_id})
 
-                # Esperar respuesta de radio (ACK, TRACE_DATA o respuesta directa del repetidor)
-                resp_data: dict[str, Any] = {}
-                try:
-                    resp_data = await asyncio.wait_for(fut, timeout=4.5)
-                except asyncio.TimeoutError:
-                    pass
-                finally:
-                    for wk in waiter_keys:
-                        if wk in self._ping_waiters:
-                            self._ping_waiters[wk] = [f for f in self._ping_waiters[wk] if f is not fut]
-                            if not self._ping_waiters[wk]:
-                                del self._ping_waiters[wk]
+                # Enviar comando ping como comando de radio CLI oficial (txt_type = 1)
+                if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_cmd"):
+                    try:
+                        await mc.commands.send_cmd(dest_target, cmd_text)
+                    except Exception as e:
+                        logging.debug(f"Fallo enviando send_cmd ping: {e}")
+                        await self._ctx.execute_tx({"to": str(target_node), "text": cmd_text, "request_id": req_id})
+                else:
+                    await self._ctx.execute_tx({"to": str(target_node), "text": cmd_text, "request_id": req_id})
+
+                # Esperar respuesta de radio activa con bombeo get_msg
+                resp_data = await self._wait_for_repeater_response(mc, fut, timeout=5.0) or {}
+                for wk in waiter_keys:
+                    if wk in self._ping_waiters:
+                        self._ping_waiters[wk] = [f for f in self._ping_waiters[wk] if f is not fut]
+                        if not self._ping_waiters[wk]:
+                            del self._ping_waiters[wk]
+                    if wk in self._cmd_waiters:
+                        self._cmd_waiters[wk] = [f for f in self._cmd_waiters[wk] if f is not fut]
+                        if not self._cmd_waiters[wk]:
+                            del self._cmd_waiters[wk]
 
                 elapsed_rtt = round((time.perf_counter() - t_start) * 1000, 1)
 
                 if resp_data:
-                    rtt_ms = float(resp_data.get("trip_time") or elapsed_rtt)
+                    rtt_ms = float(resp_data.get("trip_time") or resp_data.get("rtt_ms") or elapsed_rtt)
                     snr_there = resp_data.get("snr_there")
                     if snr_there is None:
-                        snr_there = resp_data.get("snr_back") or (target_info.get("last_snr") if target_info else None) or 0.0
+                        snr_there = resp_data.get("snr_back") or resp_data.get("snr") or 0.0
                     snr_back = resp_data.get("snr_back")
                     if snr_back is None:
-                        snr_back = resp_data.get("snr_there") or (target_info.get("last_snr") if target_info else None) or 0.0
+                        snr_back = resp_data.get("snr_there") or resp_data.get("snr") or 0.0
                     rssi_val = resp_data.get("rssi")
-                    if rssi_val is None:
-                        rssi_val = (target_info.get("last_rssi") if target_info else None) or -80
+                    if rssi_val is None and target_info:
+                        rssi_val = target_info.get("last_rssi")
+                    
+                    bat_val = target_info.get("battery_pct") if target_info else None
+
+                    res.update({
+                        "status": "ok",
+                        "action": "ping_zero",
+                        "target_node": str(target_node),
+                        "target_name": target_name,
+                        "hops": 0,
+                        "rtt_ms": rtt_ms,
+                        "duration_ms": rtt_ms,
+                        "snr_there": float(snr_there),
+                        "snr_back": float(snr_back),
+                        "snr": float(snr_back),
+                        "rssi": rssi_val,
+                        "battery_pct": bat_val,
+                        "reachable": True,
+                        "timestamp": int(time.time()),
+                        "message": f"Duration: {rtt_ms:.1f} ms, SNR there: {float(snr_there):.1f} dB, SNR back: {float(snr_back):.1f} dB" + (f" (RSSI: {rssi_val} dBm)" if rssi_val is not None else ""),
+                        "cmd_dispatched": cmd_text,
+                    })
+                    self._ctx.mqtt.publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/ping_zero", json.dumps(res), qos=1)
+                    self._ctx.mqtt.publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
+                    return res
                 else:
-                    rtt_ms = max(20.0, elapsed_rtt)
-                    rssi_val = target_info.get("last_rssi") if target_info else None
-                    snr_val = target_info.get("last_snr") if target_info else None
-                    snr_there = snr_val if snr_val is not None else 0.0
-                    snr_back = snr_val if snr_val is not None else 0.0
-
-                if rssi_val is not None:
-                    try:
-                        self._ctx.node_registry.record_packet(
-                            PacketRecord(
-                                public_key=norm_target,
-                                is_rx=True,
-                                rssi=int(rssi_val) if isinstance(rssi_val, (int, float)) else None,
-                                snr=float(snr_back) if isinstance(snr_back, (int, float)) else None,
-                                hop_count=0,
-                            )
-                        )
-                    except Exception:
-                        pass
-
-                bat_val = target_info.get("battery_pct") or target_info.get("battery") if target_info else None
-
-                res.update({
-                    "action": "ping_zero",
-                    "target_node": str(target_node),
-                    "target_name": target_name,
-                    "hops": 0,
-                    "rtt_ms": rtt_ms,
-                    "duration_ms": rtt_ms,
-                    "snr_there": snr_there,
-                    "snr_back": snr_back,
-                    "snr": snr_back,
-                    "rssi": rssi_val,
-                    "battery_pct": bat_val,
-                    "reachable": True,
-                    "timestamp": int(time.time()),
-                    "message": f"Duration: {rtt_ms} ms, SNR there: {snr_there:.1f} dB, SNR back: {snr_back:.1f} dB (RSSI: {rssi_val} dBm)",
-                    "cmd_dispatched": cmd_text,
-                })
-                self._ctx.mqtt.publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/ping_zero", json.dumps(res), qos=1)
-                self._ctx.mqtt.publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
-                return res
+                    # No hubo respuesta de radio en la ventana de tiempo
+                    res.update({
+                        "status": "error",
+                        "action": "ping_zero",
+                        "target_node": str(target_node),
+                        "target_name": target_name,
+                        "hops": 0,
+                        "reachable": False,
+                        "timeout": True,
+                        "timestamp": int(time.time()),
+                        "message": f"Sin respuesta de radio tras {elapsed_rtt:.0f} ms (el nodo no respondió al ping directo)",
+                        "cmd_dispatched": cmd_text,
+                    })
+                    self._ctx.mqtt.publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/ping_zero", json.dumps(res), qos=1)
+                    return res
 
             # Comandos unitarios (login, reboot, stats-core, advert, ver, bat, pos, etc.)
             if is_client_only:

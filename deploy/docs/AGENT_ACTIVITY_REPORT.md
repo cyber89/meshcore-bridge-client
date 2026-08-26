@@ -6,13 +6,14 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
-### Hito: Pipeline Bidireccional de Comandos y Respuestas en Terminal Remota de Repetidores
+### Hito: Pipeline Bidireccional de Comandos y Corrección de Ping Zero en Terminal Remota
 - **Fecha**: 2026-08-26
 - **Estado**: ✅ COMPLETADO
 - **Agente Principal (Lead Orchestrator)**: Coordinó a los Agentes 1, 2 y 4 para asegurar la emisión y captura completa de respuestas en todos los comandos de terminal (`ver`, `bat`, `time`, `sync_clock`, `stats-core`, `stats-radio`, `pos`, `owner`, `neighbors`, `channels`, `acl`, `board`, `ping`, etc.):
   1. **Agente 1 & 2 (Investigator & Bridge Architect)**:
      - **`src/admin_handler.py`**:
        - Integración nativa con `mc.commands.send_cmd` (`txt_type = 1`) y `mc.commands.send_login` del SDK oficial MeshCore para que los nodos repetidores interpreten las solicitudes como comandos administrativos CLI y no como mensajes de chat planos (`txt_type = 0`).
+       - Corrección en `ping_zero`: sustituido el envío como texto plano por `send_cmd(dest_target, "ping 0")` con bombeo activo de `get_msg`, eliminando el falso positivo que calculaba el tiempo transcurrido del timeout como un Pong exitoso de 19.5s.
        - Implementado `_resolve_target` con resolución de contactos por nombre y prefijo de clave pública para enrutar con precisión a los nodos repetidores en la memoria de la radio.
        - Implementado `_wait_for_repeater_response` con bombeo activo (`get_msg`) sobre la cola de hardware del transceptor y un timeout ampliado a 6.0s adecuado para propagación LoRa en mallas multi-salto.
        - Implementado saneamiento de prefijos de firmware (`> `) en los textos de respuesta devueltos.
