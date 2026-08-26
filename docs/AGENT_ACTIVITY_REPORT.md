@@ -6,6 +6,14 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Corrección de Excepción AttributeError en `NodeRegistry.get_local_pubkey`
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO (Implementación de getter/property de `local_pubkey` y defensa en `rx_router.py`)
+- **Agente Principal (Lead Orchestrator)**: Diagnosticó y corrigió el error `AttributeError: 'NodeRegistry' object has no attribute 'get_local_pubkey'`:
+  1. En [`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py), se implementó el método `get_local_pubkey(self) -> str` y la propiedad `@property def local_pubkey(self) -> str` en la clase `NodeRegistry`.
+  2. En [`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py), se aplicó acceso defensivo con `getattr()` y fallback al atributo interno.
+  3. En [`tests/test_contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/tests/test_contact_manager.py), se agregaron pruebas unitarias para la gestión y consulta de la clave pública del nodo local.
+
 ### Hito: Corrección Integral de Transmisión TX (Mensajes Públicos y Directos) y Posicionamiento Cartográfico GPS en Mapa Leaflet
 - **Fecha**: 2026-08-26
 - **Estado**: ✅ COMPLETADO (Resolución de Nombres en DM, Casting de Canales, Auto-registro de Contactos en Radio y Persistencia de GPS)

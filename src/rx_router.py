@@ -283,7 +283,11 @@ class RxEventRouter:
             ev_upper_cand = ev_type_str.upper()
             if not sender:
                 if any(k in ev_upper_cand for k in ("SELF", "BATTERY", "DEVICE_INFO", "LOCAL")):
-                    local_pk = self._ctx.node_registry.get_local_pubkey()
+                    local_pk = (
+                        self._ctx.node_registry.get_local_pubkey()
+                        if hasattr(self._ctx.node_registry, "get_local_pubkey")
+                        else getattr(self._ctx.node_registry, "_local_pubkey", "")
+                    )
                     sender = local_pk or "LOCAL"
                     sender_name = "Estación Base Local"
                 elif sender_raw:

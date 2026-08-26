@@ -67,6 +67,20 @@ class TestContactManager(unittest.TestCase):
         self.assertEqual(deleted, 1)
         self.assertEqual(self.registry.get_count(), 0)
 
+    def test_local_pubkey_management(self) -> None:
+        self.assertEqual(self.registry.get_local_pubkey(), "")
+        self.assertEqual(self.registry.local_pubkey, "")
+
+        self.registry.set_local_pubkey("A1B2C3D4E5F600112233445566778899A1B2C3D4E5F600112233445566778899")
+        expected = "a1b2c3d4e5f600112233445566778899a1b2c3d4e5f600112233445566778899"
+        self.assertEqual(self.registry.get_local_pubkey(), expected)
+        self.assertEqual(self.registry.local_pubkey, expected)
+
+        self.assertTrue(self.registry.is_local_key("local"))
+        self.assertTrue(self.registry.is_local_key(expected))
+        self.assertTrue(self.registry.is_local_key("a1b2c3d4e5f6"))
+        self.assertFalse(self.registry.is_local_key("feedfacecafe"))
+
 
 if __name__ == "__main__":
     unittest.main()

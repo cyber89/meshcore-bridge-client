@@ -223,6 +223,15 @@ class NodeRegistry:
         """Establece la clave pública del nodo local para distinguirlo de nodos remotos."""
         self._local_pubkey = str(pubkey).strip().lower()
 
+    def get_local_pubkey(self) -> str:
+        """Devuelve la clave pública del nodo local."""
+        return self._local_pubkey
+
+    @property
+    def local_pubkey(self) -> str:
+        """Propiedad de acceso a la clave pública del nodo local."""
+        return self._local_pubkey
+
     def is_local_key(self, raw_key: str) -> bool:
         """Determina si una clave o prefijo corresponde a la estación base local."""
         norm = str(raw_key).strip().lower()
