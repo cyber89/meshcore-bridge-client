@@ -1471,31 +1471,31 @@ Cada vez que un agente comience o finalice una tarea, agregarÃ¡ una entrada en
   - 	ests/test_tx_rate_limiter.py, 	ests/test_stress_flood.py: Fixes para compatibilidad por eliminaciÃ³n del worker obsoleto.
 - **Contratos / Interfaces Modificadas**: APIs internas cambiaron en su firma de asincronÃ­a (broadcast_event). Las interfaces externas (MQTT, REST, TCP) mantienen contratos previos.
 - **Estado**: COMPLETADO
-# #   A g e n t e   1   -   P r o t o c o l   &   T y p e s   S p e c i a l i s t 
- 
- * * C a m b i o s   I m p l e m e n t a d o s : * * 
- -   * * Q U A L - 0 0 1 * * :   S e   c a m b i ó   ` N o d e C o n t a c t I n f o . n e i g h b o r s `   d e   ` l i s t [ s t r ] `   a   ` t u p l e [ s t r ,   . . . ] `   y   s e   a c t u a l i z ó   s u   i n s t a n c i a c i ó n   p a s a n d o   ` t u p l e ( . . . ) ` . 
- -   * * Q U A L - 0 0 2 * * :   S e   a g r e g a r o n   l o s   m é t o d o s   c o n c r e t o s   d e l   c l i e n t e   p a h o - m q t t   e n   ` M q t t C l i e n t P r o t o c o l `   ( b r i d g e _ c o r e . p y ) . 
- -   * * Q U A L - 0 0 6 * * :   S e   a g r e g ó   e l   m o d o   e s t r i c t o   e n   ` p a r s e _ r a w _ p a c k e t `   e n   ` p r o t o c o l _ t y p e s . p y `   y   s e   u s a   c o n   ` s t r i c t = T r u e `   e n   ` s e r i a l _ d r i v e r . p y `   e m i t i e n d o   w a r n i n g s   s i   l a   t r a m a   e s   r e c h a z a d a . 
- -   * * Q U A L - 0 0 7   /   Q U A L - 0 1 5 * * :   S e   a ñ a d i ó   y   s e   i n v o c ó   a l   f i n a l   d e   ` c o n f i g . p y `   l a   v a l i d a c i ó n   p a r a   p u e r t o s ,   b a u d   r a t e s ,   S F ,   a n c h o s   d e   b a n d a   y   t i e m p o s   d e   e s p e r a . 
- -   * * R O B - 0 1 1 * * :   S e   i n c l u y ó   u n   c o m e n t a r i o   d o c u m e n t a n d o   e l   e n d i a n n e s s   d e   C R C   e n   ` p r o t o c o l _ t y p e s . p y ` . 
-  
- 
- # # #   [ T A S K - 2 0 2 6 - 0 8 - 2 6 - 0 2 ]   Q U A L   R e f a c t o r i n g   ( e v e n t _ u t i l s ,   c o n n e c t ,   r x _ r o u t e r _ c o m m o n ) 
- -   * * F e c h a   y   H o r a * * :   2 0 2 6 - 0 8 - 2 6   2 3 : 1 3 
- -   * * A g e n t e   R e s p o n s a b l e * * :   A g e n t e   2   ( R e f a c t o r i n g   &   A r c h i t e c t u r e   S p e c i a l i s t ) 
- -   * * O b j e t i v o * * :   I m p l e m e n t a r   m e j o r a s   d e   c a l i d a d   y   r e f a c t o r i z a c i ó n   s o l i c i t a d a s   ( Q U A L - 0 0 3 ,   Q U A L - 0 0 9 ,   Q U A L - 0 1 1 ) . 
- -   * * A r c h i v o s   M o d i f i c a d o s   /   C r e a d o s * * : 
-     -   s r c / e v e n t _ u t i l s . p y :   C r e a d o   a r c h i v o   n u e v o   c o n   \ e x t r a c t _ s e n d e r _ f r o m _ p a y l o a d \   ( S S o T   p a r a   r e m i t e n t e s )   [ Q U A L - 0 0 3 ] . 
-     -   s r c / r x _ r o u t e r . p y :   U s a d a   \ e x t r a c t _ s e n d e r _ f r o m _ p a y l o a d \ .   R e f a c t o r i z a d a   l ó g i c a   c o m ú n   e n t r e   \ _ h a n d l e _ m e s h _ c h a n n e l _ m s g \   y   \ _ h a n d l e _ m e s h _ d i r e c t _ m s g \   a   \ _ h a n d l e _ m e s h _ m s g _ c o m m o n \   [ Q U A L - 0 1 1 ] .   L l a m a d a s   a s í n c r o n a s   a d a p t a d a s   e n   \ h a n d l e _ e v e n t \ . 
-     -   s r c / w e b / a p i _ r o u t e r . p y :   U s a d a   \ e x t r a c t _ s e n d e r _ f r o m _ p a y l o a d \   [ Q U A L - 0 0 3 ] . 
-     -   s r c / s e r i a l _ d r i v e r . p y :   R e f a c t o r i z a d o   m é t o d o   \ c o n n e c t ( ) \   p a r a   s e r   n o   b l o q u e a n t e   y   d i s p a r a r   p r o c e s o   e n   b a c k g r o u n d   ( \ _ c o n n e c t _ w i t h _ s t a b i l i z a t i o n \ )   [ Q U A L - 0 0 9 ] . 
- -   * * C o n t r a t o s   /   I n t e r f a c e s   M o d i f i c a d a s * * :   S e   m o v i ó   l ó g i c a   e s t a n d a r i z a d a   a   u n   m ó d u l o   n u e v o .   \ c o n n e c t \   a h o r a   r e t o r n a   i n s t a n t á n e a m e n t e . 
- -   * * A c c i o n e s   R e q u e r i d a s   p o r   e l   A g e n t e   P r i n c i p a l * * :   
-     -   ( N o t a :   Q U A L - 0 1 0   y   Q U A L - 0 1 3   s e   o m i t i e r o n   y a   q u e   \ c o n t a c t _ m a n a g e r . p y \   y   \ h t t p _ s e r v e r . p y \   e s t a b a n   e s t r i c t a m e n t e   p r o h i b i d o s   p o r   S y s t e m   I n s t r u c t i o n s ) . 
- -   * * E s t a d o * * :   C O M P L E T A D O 
-  
- 
+## Agente 1 - Protocol & Types Specialist
+
+**Cambios Implementados:**
+- **QUAL-001**: Se cambió `NodeContactInfo.neighbors` de `list[str]` a `tuple[str, ...]` y se actualizó su instanciación pasando `tuple(...)`.
+- **QUAL-002**: Se agregaron los métodos concretos del cliente paho-mqtt en `MqttClientProtocol` (bridge_core.py).
+- **QUAL-006**: Se agregó el modo estricto en `parse_raw_packet` en `protocol_types.py` y se usa con `strict=True` en `serial_driver.py` emitiendo warnings si la trama es rechazada.
+- **QUAL-007 / QUAL-015**: Se añadió y se invocó al final de `config.py` la validación para puertos, baud rates, SF, anchos de banda y tiempos de espera.
+- **ROB-011**: Se incluyó un comentario documentando el endianness de CRC en `protocol_types.py`.
+
+
+### [TASK-2026-08-26-02] QUAL Refactoring (event_utils, connect, rx_router_common)
+- **Fecha y Hora**: 2026-08-26 23:13
+- **Agente Responsable**: Agente 2 (Refactoring & Architecture Specialist)
+- **Objetivo**: Implementar mejoras de calidad y refactorización solicitadas (QUAL-003, QUAL-009, QUAL-011).
+- **Archivos Modificados / Creados**:
+  - src/event_utils.py: Creado archivo nuevo con \extract_sender_from_payload\ (SSoT para remitentes) [QUAL-003].
+  - src/rx_router.py: Usada \extract_sender_from_payload\. Refactorizada lógica común entre \_handle_mesh_channel_msg\ y \_handle_mesh_direct_msg\ a \_handle_mesh_msg_common\ [QUAL-011]. Llamadas asíncronas adaptadas en \handle_event\.
+  - src/web/api_router.py: Usada \extract_sender_from_payload\ [QUAL-003].
+  - src/serial_driver.py: Refactorizado método \connect()\ para ser no bloqueante y disparar proceso en background (\_connect_with_stabilization\) [QUAL-009].
+- **Contratos / Interfaces Modificadas**: Se movió lógica estandarizada a un módulo nuevo. \connect\ ahora retorna instantáneamente.
+- **Acciones Requeridas por el Agente Principal**: 
+  - (Nota: QUAL-010 y QUAL-013 se omitieron ya que \contact_manager.py\ y \http_server.py\ estaban estrictamente prohibidos por System Instructions).
+- **Estado**: COMPLETADO
+
+
 ### [TASK-2026-08-26-03] Frontend Fixes & UX/Reliability Updates
 - **Fecha y Hora**: 2026-08-26 23:13
 - **Agente Responsable**: Agente 4 (Web UI/UX & Frontend Specialist)
@@ -1510,5 +1510,4 @@ Cada vez que un agente comience o finalice una tarea, agregarÃ¡ una entrada en
   - config.py: DefiniciÃ³n SQLITE_DB_PATH apuntando a data/meshcore_buffer.db.
   - .gitignore: Ignorar la carpeta data y db local.
 - **Estado**: COMPLETADO
-F a s e   5   -   C O M P A T - 0 0 1   t o   C O M P A T - 0 1 2   t e r m i n a d o s  
- 
+Fase 5 - COMPAT-001 to COMPAT-012 terminados
