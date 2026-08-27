@@ -6,6 +6,24 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Eliminación de Logs Duplicados y Clasificación Limpia de Configuración de la Estación Local
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect).
+- **Problema Reportado**:
+  - Los eventos `self_info` y `device_info` de la estación base local se registraban por duplicado (primero en `serial_driver` como volcado crudo y un milisegundo después en `rx_router` como `[RX-TELEMETRÍA]`).
+- **Causa Raíz Identificada**:
+  1. **Doble Emisión de Logs INFO**:
+     - `serial_driver` emitía `logging.info("Self info: ...")` y `logging.info("Device info: ...")` en callbacks de bajo nivel.
+  2. **Tratamiento como Telemetría de Malla LoRa en `rx_router.py`**:
+     - `_handle_mesh_telemetry_msg()` trataba la configuración interna del hardware local como paquetes de telemetría aérea entrante (`[RX-TELEMETRÍA] De: Estación Base Local -> Para: Gateway/MQTT`), generando ruido y duplicación.
+- **Acciones Realizadas**:
+  1. **Nivel Debug en Controlador Serial (`src/serial_driver.py`)**:
+     - Los callbacks del driver (`_handle_self_info`, `_handle_device_info`, `_handle_new_contact`, `_handle_contact_deleted`) ahora emiten a nivel `DEBUG`.
+  2. **Formato Exclusivo y Sintético en `rx_router.py`**:
+     - Los eventos de estación base se formatean de manera limpia y clara con el tag `[ESTACIÓN LOCAL]` (ej: `[ESTACIÓN LOCAL] Configuración: Cu2.USB.HomeCentral (34c0c753) | Freq: 910.525 MHz, SF7/BW62.5/CR5, TX: 4 dBm` y `[ESTACIÓN LOCAL] Hardware: Heltec V4 OLED v1.17.1-d929643 (Build: 14-Aug-2026, Contactos Máx: 350)`), evitando que se dispare el log de telemetría de malla.
+- **Módulos Modificados**: `src/serial_driver.py`, `src/rx_router.py`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Establecimiento de Restricciones Inmutables de Contactos, Repetidores y Mensajería según la Pila MeshCore
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO

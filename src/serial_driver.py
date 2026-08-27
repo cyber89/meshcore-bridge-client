@@ -517,7 +517,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
     async def _handle_device_info(self, data: Any) -> None:
         """Maneja información del dispositivo."""
-        logging.info(f"Device info: {data}")
+        logging.debug(f"Device info: {data}")
         if self.rx_callback:
             self.rx_callback(data)
 
@@ -535,19 +535,19 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
     async def _handle_new_contact(self, data: Any) -> None:
         """Maneja un nuevo contacto descubierto."""
-        logging.info(f"New contact discovered: {data}")
+        logging.debug(f"New contact discovered: {data}")
         if self.rx_callback:
             self.rx_callback(data)
 
     async def _handle_self_info(self, data: Any) -> None:
         """Maneja información del nodo local."""
-        logging.info(f"Self info: {data}")
+        logging.debug(f"Self info: {data}")
         if self.rx_callback:
             self.rx_callback(data)
 
     async def _handle_contact_deleted(self, data: Any) -> None:
         """Maneja eliminación de contacto."""
-        logging.info(f"Contact deleted: {data}")
+        logging.debug(f"Contact deleted: {data}")
         if self.rx_callback:
             self.rx_callback(data)
 

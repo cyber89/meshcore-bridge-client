@@ -893,7 +893,32 @@ class RxEventRouter:
         if self._ctx.web_server:
             asyncio.create_task(self._ctx.web_server.broadcast_event(payload_dict))
 
-        ev_name = payload_dict.get("event_type", "telemetry")
+        ev_name = str(payload_dict.get("event_type", payload_dict.get("type", "telemetry")))
+
+        # Si el evento corresponde a configuración o hardware del nodo local, registrar con formato limpio [ESTACIÓN LOCAL]
+        if ev_name in ("self_info", "SELF_INFO", "self"):
+            node_name = payload_dict.get("name") or "Estación Base"
+            pk_short = str(payload_dict.get("public_key", sender))[:8]
+            freq = payload_dict.get("radio_freq", "--")
+            sf = payload_dict.get("radio_sf", "--")
+            bw = payload_dict.get("radio_bw", "--")
+            cr = payload_dict.get("radio_cr", "--")
+            tx_p = payload_dict.get("tx_power", "--")
+            logging.info(
+                f"[ESTACIÓN LOCAL] Configuración: {node_name} ({pk_short}) | Freq: {freq} MHz, SF{sf}/BW{bw}/CR{cr}, TX: {tx_p} dBm"
+            )
+            return
+
+        if ev_name in ("device_info", "DEVICE_INFO", "device"):
+            model = payload_dict.get("model") or "LoRa Device"
+            ver = payload_dict.get("ver") or payload_dict.get("firmware_version") or ""
+            build = payload_dict.get("fw_build") or ""
+            max_c = payload_dict.get("max_contacts", "--")
+            logging.info(
+                f"[ESTACIÓN LOCAL] Hardware: {model} {ver} (Build: {build}, Contactos Máx: {max_c})"
+            )
+            return
+
         sender_name_val = payload_dict.get("sender_name")
         if sender and sender_name_val and sender_name_val != sender and len(sender) >= 8:
             sender_label = f"{sender_name_val} ({sender[:8]})"
