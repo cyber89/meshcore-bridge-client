@@ -631,6 +631,7 @@ class RxEventRouter:
                     coding_rate=extracted_telem.get("coding_rate"),
                     repeat_enabled=extracted_telem.get("repeat_enabled"),
                     advert_interval=extracted_telem.get("advert_interval"),
+                    hop_limit=extracted_telem.get("hop_limit"),
                     hops=extracted_telem.get("hops"),
                 ),
             )
@@ -814,6 +815,7 @@ class RxEventRouter:
                     coding_rate=payload_dict.get("coding_rate"),
                     repeat_enabled=payload_dict.get("repeat_enabled"),
                     advert_interval=payload_dict.get("advert_interval"),
+                    hop_limit=payload_dict.get("hop_limit"),
                     hops=payload_dict.get("hops"),
                 ),
             )

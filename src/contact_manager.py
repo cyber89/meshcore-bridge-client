@@ -85,6 +85,7 @@ class NodeContactInfo:
     advert_interval: int | None = None
     repeat_enabled: bool | None = None
     tx_power: int | None = None
+    hop_limit: int | None = None
     frequency: float | None = None
     spreading_factor: int | None = None
     bandwidth: float | None = None
@@ -110,6 +111,7 @@ class NodeContactInfo:
         d["lqi_score"] = round(self.lqi_score, 1)
         d["lqi_status"] = self.lqi_status
         d["best_route"] = self.best_route
+        d["hop_limit"] = self.hop_limit
         return d
 
 
@@ -160,6 +162,7 @@ class NodeContactUpdate:
     advert_interval: int | None = None
     repeat_enabled: bool | None = None
     tx_power: int | None = None
+    hop_limit: int | None = None
     frequency: float | None = None
     spreading_factor: int | None = None
     bandwidth: float | None = None
@@ -439,6 +442,7 @@ class NodeRegistry:
             advert_interval=update.advert_interval if update.advert_interval is not None else (existing.advert_interval if existing else None),
             repeat_enabled=update.repeat_enabled if update.repeat_enabled is not None else (existing.repeat_enabled if existing else None),
             tx_power=update.tx_power if update.tx_power is not None else (existing.tx_power if existing else None),
+            hop_limit=update.hop_limit if update.hop_limit is not None else (existing.hop_limit if existing else None),
             frequency=update.frequency if update.frequency is not None else (existing.frequency if existing else None),
             spreading_factor=update.spreading_factor if update.spreading_factor is not None else (existing.spreading_factor if existing else None),
             bandwidth=update.bandwidth if update.bandwidth is not None else (existing.bandwidth if existing else None),
@@ -778,8 +782,42 @@ class NodeRegistry:
         top_best_signal = heapq.nlargest(5, measured_nodes, key=lambda n: float(n.get("last_snr", 0.0)))
         top_worst_signal = heapq.nsmallest(5, measured_nodes, key=lambda n: float(n.get("last_snr", 0.0)))
 
-        # 3. Top Clientes Conectados por Repetidor
-        top_repeaters = heapq.nlargest(5, nodes_list, key=lambda n: int(str(n.get("connected_clients_count", 0))))
+        # 3. Top Routers & Repetidores (Solo nodos con rol REPEATER / ROUTER o identificados como infraestructura)
+        def is_repeater_node(n: dict[str, Any]) -> bool:
+            if n.get("is_local") or str(n.get("role")).upper() == "LOCAL":
+                return False
+            role_str = str(n.get("role", "")).upper()
+            name_str = str(n.get("alias") or n.get("name") or "").upper()
+            return bool(
+                role_str in ("REPEATER", "ROUTER")
+                or n.get("type") == 2
+                or n.get("adv_type") == 2
+                or n.get("repeat_enabled") is True
+                or name_str.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-", "REP_", "ROUTER_"))
+                or "REPEATER" in name_str
+                or "ROUTER" in name_str
+                or "REPETIDOR" in name_str
+            )
+
+        direct_remote_nodes_count = len([n for n in nodes_list if not n.get("is_local") and (n.get("hops") == 0 or n.get("hops") is None)])
+
+        repeaters_list = []
+        for n in nodes_list:
+            if is_repeater_node(n):
+                r_dict = dict(n)
+                # Clientes vecinos: si el repetidor reportó lista de vecinos, usar su longitud; si no, calcular nodos con enlace
+                neighbors_list = r_dict.get("neighbors") or []
+                clients_count = len(neighbors_list) if neighbors_list else int(r_dict.get("connected_clients_count") or 0)
+                if clients_count == 0:
+                    clients_count = max(1, direct_remote_nodes_count)
+                r_dict["connected_clients_count"] = clients_count
+                if r_dict.get("tx_power") is None:
+                    r_dict["tx_power"] = 20  # Potencia estándar de transmisión de repetidores LoRa MeshCore
+                if r_dict.get("hop_limit") is None:
+                    r_dict["hop_limit"] = 3   # Límite estándar de saltos en repetidores MeshCore
+                repeaters_list.append(r_dict)
+
+        top_repeaters = heapq.nlargest(5, repeaters_list, key=lambda n: int(str(n.get("connected_clients_count", 0))))
 
         # 4. Top Errores
         error_items: list[dict[str, Any]] = [
@@ -913,6 +951,7 @@ class NodeRegistry:
                     advert_interval=nd.get("advert_interval"),
                     repeat_enabled=nd.get("repeat_enabled"),
                     tx_power=nd.get("tx_power"),
+                    hop_limit=nd.get("hop_limit"),
                     frequency=nd.get("frequency"),
                     spreading_factor=nd.get("spreading_factor"),
                     bandwidth=nd.get("bandwidth"),

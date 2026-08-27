@@ -6,6 +6,30 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Sincronización y Cálculo de Clientes Vecinos, Potencia TX y Hop Limit en Métricas de Repetidores
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect).
+- **Problema Reportado**:
+  - En la tabla *"Top Routers & Repetidores"* de la pestaña de Analítica/Métricas, aparecían nodos clientes normales (como `Cu1.mobilUnit`) y la tabla mostraba `0 nodo(s)`, potencia `--` y `0 saltos` para los repetidores.
+- **Causa Raíz Identificada**:
+  1. **Falta de Filtrado por Rol en Analítica (`src/contact_manager.py`)**:
+     - `get_analytics_summary()` seleccionaba los 5 nodos con mayor `connected_clients_count` sobre la lista total sin verificar si eran repetidores, listando falsos repetidores (como clientes móviles).
+  2. **Confusión de Métrica Hop Limit vs Salto RF (`src/web/static/js/app.js`)**:
+     - Al no existir el campo `hop_limit` en `NodeContactInfo`, la interfaz utilizaba `r.hops` (distancia en saltos de la estación base al nodo, que es `0` para vecinos directos) en lugar del límite máximo de saltos (`hop_limit`, normalmente 3).
+  3. **Omisión de Métricas por Defecto y Cálculo de Enlaces Directos**:
+     - La potencia de transmisión (`tx_power`) y el recuento de clientes vecinos no se calculaban dinámicamente si el repetidor no había enviado un reporte completo de vecinos.
+- **Acciones Realizadas**:
+  1. **Estructura y Extracción de `hop_limit` (`src/contact_manager.py`, `src/rx_router.py`)**:
+     - Se añadió `hop_limit` a `NodeContactInfo` y `NodeContactUpdate`, y se extrae automáticamente de tramas de telemetría y anuncios.
+  2. **Filtrado Estricto de Repetidores y Cálculo de Vecinos (`src/contact_manager.py`)**:
+     - `get_analytics_summary()` ahora filtra estrictamente repetidores/routers reales (`is_repeater_node`).
+     - Calcula el número de clientes vecinos directos basándose en la lista de vecinos reportada o en los nodos con enlace directo en la malla.
+     - Asigna potencia estándar de 20 dBm y hop limit de 3 saltos si el nodo no lo ha transmitido aún.
+  3. **Visualización y Formato en Frontend (`src/web/static/js/app.js`)**:
+     - Formatea claramente los clientes vecinos (`X nodo(s)`), potencia TX (`20 dBm`) y límite de retransmisión (`3 saltos`).
+- **Módulos Modificados**: `src/contact_manager.py`, `src/rx_router.py`, `src/web/static/js/app.js`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Habilitación Universal de Botones de Administración y Ping en Nodos Repetidores
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO

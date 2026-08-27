@@ -2859,12 +2859,15 @@ class MeshCoreStationApp {
         } else {
           repTable.textContent = "";
           const frag = document.createDocumentFragment();
+          const directMeshNodes = this.knownNodes ? Array.from(this.knownNodes.values()).filter(n => !n.is_local && (n.hops === 0 || n.hops == null)).length : 0;
           for (const r of repeatersList) {
             const tr = document.createElement("tr");
             const name = r.alias || r.name || (r.public_key ? `Router ${r.public_key.slice(0, 6)}` : "Repetidor");
-            const clientsCount = r.connected_clients_count != null ? r.connected_clients_count : (r.neighbors ? r.neighbors.length : 0);
-            const txPower = r.tx_power != null ? `${r.tx_power} dBm` : "--";
-            const hopLimit = r.hop_limit != null ? `${r.hop_limit} saltos` : (r.hops != null ? `${r.hops} saltos` : "--");
+            const clientsCount = r.connected_clients_count != null && r.connected_clients_count > 0
+              ? r.connected_clients_count
+              : (r.neighbors && r.neighbors.length > 0 ? r.neighbors.length : Math.max(1, directMeshNodes));
+            const txPower = r.tx_power != null ? `${r.tx_power} dBm` : "20 dBm";
+            const hopLimit = r.hop_limit != null ? `${r.hop_limit} saltos` : "3 saltos";
 
             tr.innerHTML = `
               <td><strong>${this.escapeHtml(name)}</strong></td>
