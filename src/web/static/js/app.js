@@ -345,6 +345,15 @@ class MeshCoreStationApp {
     window.switchChannel = (idx) => this.switchChannel(idx);
   }
 
+  getAuthHeaders(customHeaders = {}) {
+    const headers = { "Content-Type": "application/json", ...customHeaders };
+    const apiKey = (localStorage.getItem("meshcore_bridge_api_key") || "").trim();
+    if (apiKey) {
+      headers["X-Api-Key"] = apiKey;
+    }
+    return headers;
+  }
+
   escapeHtml(str) {
     if (str === null || str === undefined) return "";
     return String(str)
@@ -3187,6 +3196,47 @@ class MeshCoreStationApp {
         }
       });
     }
+
+    // 10. Gestión de API Key del Bridge
+    const apiKeyInput = document.getElementById("inputBridgeApiKey");
+    const btnSaveApiKey = document.getElementById("btnSaveBridgeApiKey");
+    const btnClearApiKey = document.getElementById("btnClearBridgeApiKey");
+    const apiKeyStatus = document.getElementById("apiKeyStatusHint");
+
+    if (apiKeyInput) {
+      apiKeyInput.value = localStorage.getItem("meshcore_bridge_api_key") || "";
+    }
+    if (btnSaveApiKey && apiKeyInput) {
+      btnSaveApiKey.addEventListener("click", () => {
+        const val = apiKeyInput.value.trim();
+        if (val) {
+          localStorage.setItem("meshcore_bridge_api_key", val);
+          if (apiKeyStatus) {
+            apiKeyStatus.classList.remove("hidden");
+            apiKeyStatus.textContent = "✓ API Key guardada con éxito en este navegador";
+          }
+          this.showToast("🔑 API Key guardada en el navegador", "success");
+        } else {
+          localStorage.removeItem("meshcore_bridge_api_key");
+          if (apiKeyStatus) {
+            apiKeyStatus.classList.remove("hidden");
+            apiKeyStatus.textContent = "ℹ️ Clave eliminada (modo sin autenticación)";
+          }
+          this.showToast("ℹ️ API Key eliminada", "info");
+        }
+      });
+    }
+    if (btnClearApiKey && apiKeyInput) {
+      btnClearApiKey.addEventListener("click", () => {
+        apiKeyInput.value = "";
+        localStorage.removeItem("meshcore_bridge_api_key");
+        if (apiKeyStatus) {
+          apiKeyStatus.classList.remove("hidden");
+          apiKeyStatus.textContent = "ℹ️ API Key eliminada";
+        }
+        this.showToast("ℹ️ API Key eliminada de este navegador", "info");
+      });
+    }
   }
 
   async fetchLocalNodeConfig() {
@@ -3979,7 +4029,7 @@ class MeshCoreStationApp {
     try {
       const res = await fetch("/api/tx", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: this.getAuthHeaders(),
         body: JSON.stringify({
           to: target,
           channel_index: targetMsg.channel_idx,
@@ -3988,46 +4038,64 @@ class MeshCoreStationApp {
         }),
       });
       const txData = await res.json();
-      if (res.ok && txData && txData.status === "ok" && txData.data?.status !== "error") {
+      if (res.status === 401) {
+        this.showToast("🔒 Error 401: API Key no autorizada o ausente. Configúrala en Ajustes.", "warning");
+      }
+      if (res.ok && txData && (txData.status === "ok" || txData.data?.status === "sent") && txData.data?.status !== "error") {
         targetMsg.status = "sent";
-        if (row) {
-          row.classList.remove("queued");
-          row.classList.add("sent");
-          const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
-          if (ackEl) {
-            ackEl.className = "ack-indicator ack-sent";
-            ackEl.textContent = "✓ TX";
-          }
-        }
-        if (txData.data && txData.data.expected_ack) {
-          targetMsg.expected_ack = txData.data.expected_ack;
-          if (row) row.setAttribute("data-ack-code", String(txData.data.expected_ack).toLowerCase());
-        }
-        this.storage.saveMessage(targetFeedKey, targetMsg);
-
-        // Timeout de espera de ACK (8s)
-        if (this.pendingOutgoingAcks.has(msgId)) {
-          clearTimeout(this.pendingOutgoingAcks.get(msgId).timer);
-        }
-        const timer = setTimeout(() => {
-          if (targetMsg.status !== "delivered") {
-            targetMsg.status = "failed";
-            this.storage.saveMessage(targetFeedKey, targetMsg);
-            if (row) {
-              row.classList.remove("sent", "queued");
-              row.classList.add("failed");
-              const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
-              if (ackEl) {
-                ackEl.className = "ack-indicator ack-failed";
-                ackEl.innerHTML = `❌ Falló <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button>`;
-              }
+        if (!canonicalTarget) {
+          // En canal público / broadcast, la emisión es inmediata y no requiere ACK de un nodo individual
+          targetMsg.delivered = true;
+          if (row) {
+            row.classList.remove("queued", "failed");
+            row.classList.add("sent");
+            const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
+            if (ackEl) {
+              ackEl.className = "ack-indicator ack-sent";
+              ackEl.textContent = "✓ TX";
             }
           }
-          this.pendingOutgoingAcks.delete(msgId);
-        }, 8000);
-        this.pendingOutgoingAcks.set(msgId, { timer, msgData: targetMsg, feedKey: targetFeedKey });
+          this.storage.saveMessage(targetFeedKey, targetMsg);
+        } else {
+          // En Mensaje Directo (DM), esperar ACK del receptor por radio (timeout 25s)
+          if (row) {
+            row.classList.remove("queued", "failed");
+            row.classList.add("sent");
+            const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
+            if (ackEl) {
+              ackEl.className = "ack-indicator ack-sent";
+              ackEl.textContent = "✓ TX";
+            }
+          }
+          if (txData.data && txData.data.expected_ack) {
+            targetMsg.expected_ack = txData.data.expected_ack;
+            if (row) row.setAttribute("data-ack-code", String(txData.data.expected_ack).toLowerCase());
+          }
+          this.storage.saveMessage(targetFeedKey, targetMsg);
+
+          if (this.pendingOutgoingAcks.has(msgId)) {
+            clearTimeout(this.pendingOutgoingAcks.get(msgId).timer);
+          }
+          const timer = setTimeout(() => {
+            if (targetMsg.status !== "delivered") {
+              targetMsg.status = "failed";
+              this.storage.saveMessage(targetFeedKey, targetMsg);
+              if (row) {
+                row.classList.remove("sent", "queued");
+                row.classList.add("failed");
+                const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
+                if (ackEl) {
+                  ackEl.className = "ack-indicator ack-failed";
+                  ackEl.innerHTML = `❌ Sin ACK <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button>`;
+                }
+              }
+            }
+            this.pendingOutgoingAcks.delete(msgId);
+          }, 25000);
+          this.pendingOutgoingAcks.set(msgId, { timer, msgData: targetMsg, feedKey: targetFeedKey });
+        }
       } else {
-        const errMsg = txData?.message || txData?.data?.error || "Fallo en transmisión LoRa";
+        const errMsg = txData?.message || txData?.data?.error || txData?.error || "Fallo en transmisión LoRa";
         targetMsg.status = "failed";
         if (row) {
           row.classList.remove("sent", "queued");
@@ -4174,7 +4242,7 @@ class MeshCoreStationApp {
         try {
           const res = await fetch("/api/tx", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: this.getAuthHeaders(),
             body: JSON.stringify({
               to: target,
               channel_index: this.activeChannelIdx,
@@ -4183,46 +4251,64 @@ class MeshCoreStationApp {
             }),
           });
           const txData = await res.json();
-          if (res.ok && txData && txData.status === "ok" && txData.data?.status !== "error") {
+          if (res.status === 401) {
+            this.showToast("🔒 Error 401: API Key no autorizada o ausente. Configúrala en Ajustes.", "warning");
+          }
+          if (res.ok && txData && (txData.status === "ok" || txData.data?.status === "sent") && txData.data?.status !== "error") {
             outgoingMsg.status = "sent";
             const row = document.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
-            if (row) {
-              row.classList.remove("queued");
-              row.classList.add("sent");
-              const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
-              if (ackEl) {
-                ackEl.className = "ack-indicator ack-sent";
-                ackEl.textContent = "✓ TX";
-              }
-            }
-            if (txData.data && txData.data.expected_ack) {
-              outgoingMsg.expected_ack = txData.data.expected_ack;
+            if (!canonicalTarget) {
+              // En canal público / broadcast, la emisión es inmediata y no requiere ACK de un peer individual
+              outgoingMsg.delivered = true;
               if (row) {
-                row.setAttribute("data-ack-code", String(txData.data.expected_ack).toLowerCase());
-              }
-            }
-            this.storage.saveMessage(feedKey, outgoingMsg);
-
-            // Timeout de espera de ACK (8 segundos)
-            const timer = setTimeout(() => {
-              if (outgoingMsg.status !== "delivered") {
-                outgoingMsg.status = "failed";
-                this.storage.saveMessage(feedKey, outgoingMsg);
-                if (row) {
-                  row.classList.remove("sent", "queued");
-                  row.classList.add("failed");
-                  const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
-                  if (ackEl) {
-                    ackEl.className = "ack-indicator ack-failed";
-                    ackEl.innerHTML = `❌ Falló <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button>`;
-                  }
+                row.classList.remove("queued", "failed");
+                row.classList.add("sent");
+                const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
+                if (ackEl) {
+                  ackEl.className = "ack-indicator ack-sent";
+                  ackEl.textContent = "✓ TX";
                 }
               }
-              this.pendingOutgoingAcks.delete(msgId);
-            }, 8000);
-            this.pendingOutgoingAcks.set(msgId, { timer, msgData: outgoingMsg, feedKey });
+              this.storage.saveMessage(feedKey, outgoingMsg);
+            } else {
+              // En Mensaje Directo (DM), esperar ACK del receptor por radio (timeout 25s)
+              if (row) {
+                row.classList.remove("queued", "failed");
+                row.classList.add("sent");
+                const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
+                if (ackEl) {
+                  ackEl.className = "ack-indicator ack-sent";
+                  ackEl.textContent = "✓ TX";
+                }
+              }
+              if (txData.data && txData.data.expected_ack) {
+                outgoingMsg.expected_ack = txData.data.expected_ack;
+                if (row) {
+                  row.setAttribute("data-ack-code", String(txData.data.expected_ack).toLowerCase());
+                }
+              }
+              this.storage.saveMessage(feedKey, outgoingMsg);
+
+              const timer = setTimeout(() => {
+                if (outgoingMsg.status !== "delivered") {
+                  outgoingMsg.status = "failed";
+                  this.storage.saveMessage(feedKey, outgoingMsg);
+                  if (row) {
+                    row.classList.remove("sent", "queued");
+                    row.classList.add("failed");
+                    const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
+                    if (ackEl) {
+                      ackEl.className = "ack-indicator ack-failed";
+                      ackEl.innerHTML = `❌ Sin ACK <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button>`;
+                    }
+                  }
+                }
+                this.pendingOutgoingAcks.delete(msgId);
+              }, 25000);
+              this.pendingOutgoingAcks.set(msgId, { timer, msgData: outgoingMsg, feedKey });
+            }
           } else {
-            const errMsg = txData?.message || txData?.data?.error || "Fallo en transmisión LoRa";
+            const errMsg = txData?.message || txData?.data?.error || txData?.error || "Fallo en transmisión LoRa";
             outgoingMsg.status = "failed";
             this.storage.saveMessage(feedKey, outgoingMsg);
             const row = document.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
@@ -5795,23 +5881,49 @@ class MeshCoreStationApp {
       const normPk = String(rawNode.public_key).toLowerCase().trim();
       const normName = String(rawNode.name || rawNode.alias || "").toLowerCase().trim();
 
+      const isThisLocal = rawNode.is_local ||
+        (rawNode.role && String(rawNode.role).toUpperCase() === "LOCAL") ||
+        (this.localNodePubkey && (
+          normPk === this.localNodePubkey.toLowerCase() ||
+          (this.localNodePubkey.length >= 8 && normPk.startsWith(this.localNodePubkey.slice(0, 8).toLowerCase())) ||
+          (normPk.length >= 8 && this.localNodePubkey.toLowerCase().startsWith(normPk.slice(0, 8)))
+        )) ||
+        (this.localNodeName && normName && normName === this.localNodeName.toLowerCase().trim());
+
       let matchIndex = -1;
-      for (let i = 0; i < deduplicatedNodes.length; i++) {
-        const existing = deduplicatedNodes[i];
-        const exPk = String(existing.public_key).toLowerCase().trim();
-        const exName = String(existing.name || existing.alias || "").toLowerCase().trim();
 
-        const pkMatch = exPk === normPk ||
-          (exPk.length >= 8 && normPk.length >= 8 && (exPk.startsWith(normPk) || normPk.startsWith(exPk))) ||
-          (normPk.length === 12 && exPk.startsWith(normPk.slice(0, 12))) ||
-          (exPk.length === 12 && normPk.startsWith(exPk.slice(0, 12)));
+      // Si es la estación base local, fusionar con cualquier entrada previa de la estación local
+      if (isThisLocal) {
+        matchIndex = deduplicatedNodes.findIndex((n) =>
+          n.is_local ||
+          (n.role && String(n.role).toUpperCase() === "LOCAL") ||
+          (this.localNodePubkey && (
+            String(n.public_key).toLowerCase().trim() === this.localNodePubkey.toLowerCase() ||
+            (this.localNodePubkey.length >= 8 && String(n.public_key).toLowerCase().startsWith(this.localNodePubkey.slice(0, 8).toLowerCase())) ||
+            (String(n.public_key).length >= 8 && this.localNodePubkey.toLowerCase().startsWith(String(n.public_key).slice(0, 8).toLowerCase()))
+          )) ||
+          (this.localNodeName && String(n.name || n.alias || "").toLowerCase().trim() === this.localNodeName.toLowerCase().trim())
+        );
+      }
 
-        const nameMatch = normName && exName === normName &&
-          (exPk.startsWith(normPk.slice(0, 6)) || normPk.startsWith(exPk.slice(0, 6)));
+      if (matchIndex < 0) {
+        for (let i = 0; i < deduplicatedNodes.length; i++) {
+          const existing = deduplicatedNodes[i];
+          const exPk = String(existing.public_key).toLowerCase().trim();
+          const exName = String(existing.name || existing.alias || "").toLowerCase().trim();
 
-        if (pkMatch || nameMatch) {
-          matchIndex = i;
-          break;
+          const pkMatch = exPk === normPk ||
+            (exPk.length >= 8 && normPk.length >= 8 && (exPk.startsWith(normPk) || normPk.startsWith(exPk))) ||
+            (normPk.length === 12 && exPk.startsWith(normPk.slice(0, 12))) ||
+            (exPk.length === 12 && normPk.startsWith(exPk.slice(0, 12)));
+
+          const nameMatch = normName && exName === normName &&
+            (exPk.startsWith(normPk.slice(0, 6)) || normPk.startsWith(exPk.slice(0, 6)));
+
+          if (pkMatch || nameMatch) {
+            matchIndex = i;
+            break;
+          }
         }
       }
 
@@ -5824,8 +5936,10 @@ class MeshCoreStationApp {
         deduplicatedNodes[matchIndex] = {
           ...prev,
           ...rawNode,
+          is_local: isThisLocal || prev.is_local,
+          role: isThisLocal ? "LOCAL" : (rawNode.role || prev.role || "CLIENT"),
           public_key: prev.public_key.length >= rawNode.public_key.length ? prev.public_key : rawNode.public_key,
-          name: prev.name && !prev.name.startsWith("Node_") ? prev.name : (rawNode.name || prev.name),
+          name: isThisLocal ? (this.localNodeName || prev.name || rawNode.name) : (prev.name && !prev.name.startsWith("Node_") ? prev.name : (rawNode.name || prev.name)),
           alias: prev.alias || rawNode.alias,
           latitude: mergedLat,
           longitude: mergedLon,
@@ -5833,9 +5947,9 @@ class MeshCoreStationApp {
           lat: mergedLat,
           lon: mergedLon,
           last_seen: Math.max(Number(prev.last_seen) || 0, Number(rawNode.last_seen) || 0),
-          last_rssi: rawNode.last_rssi != null ? rawNode.last_rssi : prev.last_rssi,
-          last_snr: rawNode.last_snr != null ? rawNode.last_snr : prev.last_snr,
-          hops: rawNode.hops != null ? rawNode.hops : prev.hops,
+          last_rssi: isThisLocal ? null : (rawNode.last_rssi != null ? rawNode.last_rssi : prev.last_rssi),
+          last_snr: isThisLocal ? null : (rawNode.last_snr != null ? rawNode.last_snr : prev.last_snr),
+          hops: isThisLocal ? 0 : (rawNode.hops != null ? rawNode.hops : prev.hops),
           telemetry: {
             ...(prev.telemetry || {}),
             ...(rawNode.telemetry || {}),
@@ -5844,7 +5958,12 @@ class MeshCoreStationApp {
           },
         };
       } else {
-        deduplicatedNodes.push({ ...rawNode });
+        deduplicatedNodes.push({
+          ...rawNode,
+          is_local: isThisLocal,
+          role: isThisLocal ? "LOCAL" : (rawNode.role || "CLIENT"),
+          hops: isThisLocal ? 0 : (rawNode.hops || 0),
+        });
       }
     }
 

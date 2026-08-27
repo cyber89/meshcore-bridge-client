@@ -509,6 +509,7 @@
               <button type="button" class="local-subtab-btn" data-subtab="local-owner-pos">📍 Identidad & Posición GPS</button>
               <button type="button" class="local-subtab-btn" data-subtab="local-console">💻 Terminal</button>
               <button type="button" class="local-subtab-btn" data-subtab="local-storage-maps">💾 Mapas Offline & Almacenamiento</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-security">🔐 Seguridad & API</button>
             </div>
 
             <!-- Subpanel 1: Telemetría & Estado en Tiempo Real -->
@@ -898,6 +899,34 @@
                       </div>
                       <div class="form-row">
                         <button type="button" class="btn-primary btn-sm" id="btnSaveMapSettings">💾 Guardar Configuración de Mapas</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Subpanel 6: Autenticación & API Key del Bridge -->
+            <div id="local-security" class="local-settings-subpanel">
+              <div class="settings-content-layout">
+                <div class="settings-cards-col" style="max-width: 800px;">
+                  <div class="settings-card">
+                    <div class="card-title-row">
+                      <h3>🔐 Autenticación & API Key del Bridge</h3>
+                      <span class="badge-pill badge-primary">Control de Acceso</span>
+                    </div>
+                    <p class="card-desc">
+                      Si has configurado <code>BRIDGE_API_KEY</code> en tu archivo <code>.env</code> para restringir la transmisión RF por radio y comandos de administración, introduce tu clave aquí para autorizar este navegador.
+                    </p>
+                    <div class="settings-form">
+                      <div class="form-group">
+                        <label for="inputBridgeApiKey">API Key del Bridge (Cabecera X-Api-Key)</label>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                          <input type="password" id="inputBridgeApiKey" class="form-control" placeholder="Ingresa tu clave secreta de BRIDGE_API_KEY..." autocomplete="off" />
+                          <button type="button" class="btn-primary btn-sm" id="btnSaveBridgeApiKey">Guardar</button>
+                          <button type="button" class="btn-secondary btn-sm" id="btnClearBridgeApiKey">Limpiar</button>
+                        </div>
+                        <span id="apiKeyStatusHint" class="text-success text-xs hidden" style="margin-top: 8px; display: inline-block;">✓ API Key guardada con éxito en este navegador</span>
                       </div>
                     </div>
                   </div>

@@ -291,8 +291,19 @@ class NodeRegistry:
         clean_name_candidate = (update.name or "").strip()
 
         # Buscar si ya existe una entrada para este nodo (evita duplicados de prefijo vs clave completa)
+        is_local_flag = update.is_local if update.is_local is not None else self.is_local_key(norm_key)
+        if update.role and str(update.role).upper() == "LOCAL":
+            is_local_flag = True
+
         existing_key = self._find_existing_key(norm_key, clean_name_candidate)
         existing: NodeContactInfo | None = None
+
+        if is_local_flag:
+            for k, node in list(self._nodes_by_key.items()):
+                if node.is_local or self.is_local_key(k):
+                    existing_key = k
+                    existing = node
+                    break
 
         # Determinar clave canónica (preferir la más larga de 64 caracteres)
         canonical_key = norm_key
@@ -301,17 +312,16 @@ class NodeRegistry:
             if existing and len(existing_key) > len(norm_key):
                 canonical_key = existing_key
             elif existing_key != norm_key and existing_key in self._nodes_by_key:
-                # Migrar de la clave corta a la clave larga
                 del self._nodes_by_key[existing_key]
 
         clean_name = clean_name_candidate or (existing.name if existing else f"Node_{canonical_key[:6]}")
         clean_alias = (update.alias or "").strip() or (existing.alias if existing else clean_name)
         now = time.time()
 
-        is_local_flag = update.is_local if update.is_local is not None else (
-            existing.is_local if existing else self.is_local_key(canonical_key)
-        )
-        role_default = "LOCAL" if is_local_flag else "CLIENT"
+        if is_local_flag:
+            role_default = "LOCAL"
+        else:
+            role_default = "CLIENT"
 
         # Cálculo / Suavizado de LQI
         eff_snr = None if is_local_flag else (update.last_snr if update.last_snr is not None else (existing.last_snr if existing else None))
@@ -679,12 +689,31 @@ class NodeRegistry:
         return prefix
 
     def list_nodes(self) -> list[dict[str, Any]]:
-        """Retorna la lista de todos los nodos registrados en formato serializable."""
-        return [
-            c.to_dict()
-            for c in self._nodes_by_key.values()
-            if is_valid_node_key(c.public_key) and not c.name.startswith("Node_unknow")
-        ]
+        """Retorna la lista de todos los nodos registrados en formato serializable sin duplicados."""
+        seen_keys: set[str] = set()
+        local_included = False
+        result: list[dict[str, Any]] = []
+
+        for c in self._nodes_by_key.values():
+            if not is_valid_node_key(c.public_key) or c.name.startswith("Node_unknow"):
+                continue
+
+            # Deduplicar estrictamente el nodo local
+            if c.is_local or self.is_local_key(c.public_key) or str(c.role).upper() == "LOCAL":
+                if local_included:
+                    continue
+                local_included = True
+
+            norm_pk = c.public_key.strip().lower()
+            prefix = norm_pk[:8] if len(norm_pk) >= 8 else norm_pk
+            if prefix in seen_keys or norm_pk in seen_keys:
+                continue
+            seen_keys.add(prefix)
+            seen_keys.add(norm_pk)
+
+            result.append(c.to_dict())
+
+        return result
 
     def get_analytics_summary(self) -> dict[str, Any]:
         """Calcula el resumen analítico avanzado (Top Nodos, Top Clientes, Top Errores)."""
