@@ -33,7 +33,7 @@ const MAX_FEED_MESSAGES = 100;
 
 /**
  * Capa de persistencia asíncrona en el navegador mediante IndexedDB.
- * Permite conservar historial de chat, tramas del sniffer y preferencias tras refrescar la página.
+ * Permite conservar historial de chat y preferencias tras refrescar la página.
  */
 class MeshCoreStorage {
   constructor(dbName = "MeshCoreStationDB", version = 1) {
@@ -57,11 +57,6 @@ class MeshCoreStorage {
             const chatStore = db.createObjectStore("chat_messages", { keyPath: "id", autoIncrement: true });
             chatStore.createIndex("by_feed", "feed_key", { unique: false });
             chatStore.createIndex("by_time", "timestamp", { unique: false });
-          }
-          if (!db.objectStoreNames.contains("sniffer_packets")) {
-            const snifferStore = db.createObjectStore("sniffer_packets", { keyPath: "id", autoIncrement: true });
-            snifferStore.createIndex("by_opcode", "opcode", { unique: false });
-            snifferStore.createIndex("by_time", "timestamp", { unique: false });
           }
           if (!db.objectStoreNames.contains("app_settings")) {
             db.createObjectStore("app_settings", { keyPath: "key" });
@@ -100,8 +95,11 @@ class MeshCoreStorage {
         timestamp: msg.timestamp || new Date().toISOString(),
         metrics: msg.metrics || null,
         delivered: !!msg.delivered,
+        status: msg.status || (msg.delivered ? "delivered" : (msg.is_outgoing ? "sent" : "received")),
         expected_ack: msg.expected_ack || null,
         trip_time_ms: msg.trip_time_ms || 0,
+        quote: msg.quote || null,
+        location: msg.location || null,
       };
       if (typeof msg._db_id === "number") {
         record.id = msg._db_id;
@@ -134,7 +132,30 @@ class MeshCoreStorage {
           const match = (msgId && (val.msg_id === msgId || String(val.id) === String(msgId))) || ackMatch;
           if (match) {
             val.delivered = true;
+            val.status = "delivered";
             val.trip_time_ms = tripTime || 0;
+            cursor.update(val);
+          }
+          cursor.continue();
+        }
+      };
+    } catch (_) {}
+  }
+
+  async updateMessageStatus(msgId, status) {
+    await this.readyPromise;
+    if (!this.db) return;
+    try {
+      const tx = this.db.transaction("chat_messages", "readwrite");
+      const store = tx.objectStore("chat_messages");
+      const req = store.openCursor();
+      req.onsuccess = (e) => {
+        const cursor = e.target.result;
+        if (cursor) {
+          const val = cursor.value;
+          if (msgId && (val.msg_id === msgId || String(val.id) === String(msgId))) {
+            val.status = status;
+            if (status === "delivered") val.delivered = true;
             cursor.update(val);
           }
           cursor.continue();
@@ -254,61 +275,12 @@ class MeshCoreStorage {
     } catch (_) {}
   }
 
-  async saveSnifferPacket(pkt) {
-    await this.readyPromise;
-    if (!this.db) return;
-    try {
-      const tx = this.db.transaction("sniffer_packets", "readwrite");
-      const store = tx.objectStore("sniffer_packets");
-      store.add({
-        opcode: String(pkt.opcode || pkt.payload_type || "DATA").toUpperCase(),
-        sender: String(pkt.sender || pkt.src_node_id || pkt.from || "RF"),
-        to: String(pkt.to || pkt.dst_node_id || "0xFFFF"),
-        snr: pkt.metrics?.snr != null ? pkt.metrics.snr : (pkt.snr != null ? pkt.snr : "--"),
-        rssi: pkt.metrics?.rssi != null ? pkt.metrics.rssi : (pkt.rssi != null ? pkt.rssi : "--"),
-        byte_length: pkt.byte_length || pkt.length || (pkt.raw_hex ? Math.floor(pkt.raw_hex.length / 2) : 0),
-        raw_hex: pkt.raw_hex || pkt.raw || "",
-        text: pkt.text || "",
-        timestamp: pkt.timestamp || Date.now(),
-      });
-    } catch (_) {}
-  }
-
-  async getSnifferPackets(limit = 200) {
-    await this.readyPromise;
-    if (!this.db) return [];
-    return new Promise((resolve) => {
-      try {
-        const tx = this.db.transaction("sniffer_packets", "readonly");
-        const store = tx.objectStore("sniffer_packets");
-        const req = store.getAll();
-        req.onsuccess = () => {
-          const pkts = req.result || [];
-          resolve(pkts.slice(-limit));
-        };
-        req.onerror = () => resolve([]);
-      } catch (_) {
-        resolve([]);
-      }
-    });
-  }
-
-  async clearSnifferPackets() {
-    await this.readyPromise;
-    if (!this.db) return;
-    try {
-      const tx = this.db.transaction("sniffer_packets", "readwrite");
-      tx.objectStore("sniffer_packets").clear();
-    } catch (_) {}
-  }
-
   async clearAll() {
     await this.readyPromise;
     if (!this.db) return;
     try {
-      const tx = this.db.transaction(["chat_messages", "sniffer_packets"], "readwrite");
+      const tx = this.db.transaction("chat_messages", "readwrite");
       tx.objectStore("chat_messages").clear();
-      tx.objectStore("sniffer_packets").clear();
     } catch (_) {}
   }
 }
@@ -325,7 +297,6 @@ class MeshCoreStationApp {
     this.activeChannelIdx = 0;
     this.activeDmTarget = null;
     this.activeDmName = null;
-    this.snifferActive = false;
     this.map = null;
     this.mapMarkers = new Map();
     this.knownNodes = new Map();
@@ -344,15 +315,19 @@ class MeshCoreStationApp {
     this.authenticatedRepeaters = new Set(); // Conjunto de pubkeys autenticados en sesión
     this.repeaterPasswords = new Map(); // pubkey -> password en memoria
 
+    // Estado interactivo de Chat & Mensajería
+    this.activeReplyTarget = null; // { id, sender, text }
+    this.pendingOutgoingAcks = new Map(); // msgId -> { timer, msgData, feedKey }
+    this.chatSoundEnabled = localStorage.getItem("meshcore_chat_sound_enabled") !== "false";
+    this._audioCtx = null;
+
     this.initElements();
     this.initTheme();
     this.initNavigation();
     this.initCommandPalette();
     this.initChannelAndContactModals();
     this.initRepeaterDashboard();
-    this.initSniffer();
     this.initAnalytics();
-    this.initHomeAssistant();
     this.initPreflight();
     this.initSettingsDashboard();
     this.initLogsConsole();
@@ -525,6 +500,12 @@ class MeshCoreStationApp {
       globalChatUnreadBadge: document.getElementById("globalChatUnreadBadge"),
       themeToggleBtn: document.getElementById("themeToggleBtn"),
       chatMessageFeed: document.getElementById("chatMessageFeed"),
+      chatReplyBar: document.getElementById("chatReplyBar"),
+      replyTargetAuthor: document.getElementById("replyTargetAuthor"),
+      replyTargetSnippet: document.getElementById("replyTargetSnippet"),
+      btnCancelReply: document.getElementById("btnCancelReply"),
+      btnShareLocation: document.getElementById("btnShareLocation"),
+      chkChatSoundAlerts: document.getElementById("chkChatSoundAlerts"),
       chatInputForm: document.getElementById("chatInputForm"),
       chatInputText: document.getElementById("chatInputText"),
       chatActiveTitle: document.getElementById("chatActiveTitle"),
@@ -578,13 +559,6 @@ class MeshCoreStationApp {
       repeaterTerminalForm: document.getElementById("repeaterTerminalForm"),
       repeaterTerminalInput: document.getElementById("repeaterTerminalInput"),
       repeaterTerminalOutput: document.getElementById("repeaterTerminalOutput"),
-      btnToggleSniffer: document.getElementById("btnToggleSniffer"),
-      btnClearSniffer: document.getElementById("btnClearSniffer"),
-      snifferTableBody: document.getElementById("snifferTableBody"),
-      snifferSearch: document.getElementById("snifferSearch"),
-      btnPublishHaDiscovery: document.getElementById("btnPublishHaDiscovery"),
-      haStatusBadge: document.getElementById("haStatusBadge"),
-      haDiscoveredCount: document.getElementById("haDiscoveredCount"),
       nodesUnifiedGridUi: document.getElementById("nodesUnifiedGridUi"),
       nodesSearchInput: document.getElementById("nodesSearchInput"),
 
@@ -644,7 +618,6 @@ class MeshCoreStationApp {
       btnCloseQuickDiag: document.getElementById("btnCloseQuickDiag"),
       chipSerialHealth: document.getElementById("chipSerialHealth"),
       chipMqttHealth: document.getElementById("chipMqttHealth"),
-      chipDbHealth: document.getElementById("chipDbHealth"),
       chipTxHealth: document.getElementById("chipTxHealth"),
       chipErrorsCount: document.getElementById("chipErrorsCount"),
       localTelemetryInterval: document.getElementById("localTelemetryInterval"),
@@ -655,9 +628,6 @@ class MeshCoreStationApp {
       btnCommandPalette: document.getElementById("btnCommandPalette"),
       cmdPaletteInput: document.getElementById("cmdPaletteInput"),
       cmdPaletteResults: document.getElementById("cmdPaletteResults"),
-      packetDetailModal: document.getElementById("packetDetailModal"),
-      btnClosePacketModal: document.getElementById("btnClosePacketModal"),
-      packetModalBody: document.getElementById("packetModalBody"),
     };
   }
 
@@ -788,8 +758,6 @@ class MeshCoreStationApp {
             this.sendAdvert(true);
           } else if (action === "action-advert-clipboard") {
             this.copyAdvertToClipboard();
-          } else if (action === "action-ha") {
-            this.publishHomeAssistantDiscovery();
           } else if (action === "action-diag") {
             const navBtn = document.querySelector('.nav-btn[data-tab="tab-logs"]');
             if (navBtn) navBtn.click();
@@ -1395,7 +1363,7 @@ class MeshCoreStationApp {
       });
       const data = await res.json();
 
-      if (data.status === "ok") {
+      if (res.ok && data.status === "ok" && data.data?.authenticated === true) {
         this.authenticatedRepeaters.add(canonicalPk);
         this.authenticatedRepeaters.add(pubkey);
         this.setStoredRepeaterPassword(canonicalPk, password);
@@ -1418,7 +1386,8 @@ class MeshCoreStationApp {
 
         return true;
       } else {
-        this.handleRepeaterAuthError(canonicalPk, data.message || "Contraseña incorrecta o cambiada en el repetidor");
+        const errorDetail = data.message || data.data?.message || "Contraseña incorrecta o el repetidor no respondió";
+        this.handleRepeaterAuthError(canonicalPk, errorDetail);
         return false;
       }
     } catch (err) {
@@ -2332,333 +2301,6 @@ class MeshCoreStationApp {
     }
   }
 
-  initSniffer() {
-    this.snifferPaused = false;
-    this.snifferFilterOpcode = "all";
-    this.snifferSearchQuery = "";
-    this.currentInspectedPacket = null;
-
-    if (this.dom.btnToggleSniffer) {
-      this.dom.btnToggleSniffer.addEventListener("click", async () => {
-        this.snifferActive = !this.snifferActive;
-        const statusEl = document.getElementById("snifferStatusText");
-
-        if (this.snifferActive) {
-          this.dom.btnToggleSniffer.textContent = "⏹ Detener Sniffer";
-          this.dom.btnToggleSniffer.className = "btn-secondary btn-sniffer-active";
-          if (statusEl) {
-            statusEl.textContent = "Capturando (0x88)";
-            statusEl.className = "stat-value text-success";
-          }
-          this.showToast("🕵️ Sniffer de tramas LoRa activado", "info");
-        } else {
-          this.dom.btnToggleSniffer.textContent = "▶ Iniciar Sniffer (0x88)";
-          this.dom.btnToggleSniffer.className = "btn-primary";
-          if (statusEl) {
-            statusEl.textContent = "Detenido";
-            statusEl.className = "stat-value text-muted";
-          }
-          this.showToast("⏹ Sniffer detenido", "info");
-        }
-
-        try {
-          await fetch("/api/sniffer/control", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: this.snifferActive ? "start" : "stop" }),
-          });
-        } catch (err) {
-          console.warn("Fallo controlando el sniffer:", err);
-        }
-      });
-    }
-
-    if (this.dom.btnClearSniffer) {
-      this.dom.btnClearSniffer.addEventListener("click", () => {
-        this.rawPackets = [];
-        this.storage.clearSnifferPackets();
-        this.dom.snifferTableBody.innerHTML = '<tr><td colspan="8" class="text-center">Historial limpiado.</td></tr>';
-        this.updateSnifferStats();
-        this.showToast("🧹 Historial del sniffer vaciado", "info");
-      });
-    }
-
-    const btnExport = document.getElementById("btnExportSniffer");
-    if (btnExport) {
-      btnExport.addEventListener("click", () => {
-        if (!this.rawPackets || this.rawPackets.length === 0) {
-          alert("No hay tramas capturadas para exportar.");
-          return;
-        }
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.rawPackets, null, 2));
-        const a = document.createElement("a");
-        a.setAttribute("href", dataStr);
-        a.setAttribute("download", `meshcore_sniffer_capture_${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        this.showToast("💾 Captura de tramas exportada a JSON", "success");
-      });
-    }
-
-    const btnToggleScroll = document.getElementById("btnToggleSnifferScroll");
-    if (btnToggleScroll) {
-      btnToggleScroll.addEventListener("click", () => {
-        this.snifferPaused = !this.snifferPaused;
-        btnToggleScroll.textContent = this.snifferPaused ? "▶" : "⏸";
-        btnToggleScroll.title = this.snifferPaused ? "Reanudar desplazamiento automático" : "Pausar desplazamiento automático";
-        this.showToast(this.snifferPaused ? "⏸ Auto-scroll del sniffer pausado" : "▶ Auto-scroll reanudado", "info");
-      });
-    }
-
-    // Filtros de Opcode
-    document.querySelectorAll(".sniffer-filter-pills .filter-pill").forEach((pill) => {
-      pill.addEventListener("click", () => {
-        document.querySelectorAll(".sniffer-filter-pills .filter-pill").forEach((p) => p.classList.remove("active"));
-        pill.classList.add("active");
-        this.snifferFilterOpcode = pill.getAttribute("data-opcode") || "all";
-        this.filterSnifferTable();
-      });
-    });
-
-    const searchInput = document.getElementById("snifferSearch");
-    if (searchInput) {
-      searchInput.addEventListener(
-        "input",
-        debounce((e) => {
-          this.snifferSearchQuery = (e.target.value || "").trim().toLowerCase();
-          this.filterSnifferTable();
-        }, 150)
-      );
-    }
-
-    // Modal de Paquete
-    if (this.dom.btnClosePacketModal) {
-      this.dom.btnClosePacketModal.addEventListener("click", () => {
-        this.dom.packetDetailModal.classList.add("hidden");
-      });
-    }
-
-    const btnCloseFooter = document.getElementById("btnClosePacketModalFooter");
-    if (btnCloseFooter) {
-      btnCloseFooter.addEventListener("click", () => {
-        this.dom.packetDetailModal.classList.add("hidden");
-      });
-    }
-
-    const btnCopyHex = document.getElementById("btnCopyPacketHex");
-    if (btnCopyHex) {
-      btnCopyHex.addEventListener("click", () => {
-        if (this.currentInspectedPacket) {
-          const hex = this.currentInspectedPacket.raw_hex || this.currentInspectedPacket.raw || "";
-          navigator.clipboard.writeText(hex);
-          this.showToast("📋 Hexadecimal copiado al portapapeles", "success");
-        }
-      });
-    }
-
-    const btnCopyJson = document.getElementById("btnCopyPacketJson");
-    if (btnCopyJson) {
-      btnCopyJson.addEventListener("click", () => {
-        if (this.currentInspectedPacket) {
-          navigator.clipboard.writeText(JSON.stringify(this.currentInspectedPacket, null, 2));
-          this.showToast("📋 JSON del paquete copiado al portapapeles", "success");
-        }
-      });
-    }
-
-    this.dom.packetDetailModal.addEventListener("click", (e) => {
-      if (e.target === this.dom.packetDetailModal) {
-        this.dom.packetDetailModal.classList.add("hidden");
-      }
-    });
-
-    // Cargar tramas del sniffer previamente guardadas en IndexedDB
-    this.storage.getSnifferPackets().then((packets) => {
-      if (packets && packets.length > 0 && this.rawPackets.length === 0) {
-        for (const pkt of packets) {
-          this.renderSnifferPacket(pkt, false);
-        }
-      }
-    });
-  }
-
-  updateSnifferStats() {
-    const totalEl = document.getElementById("snifferTotalPackets");
-    const countAllEl = document.getElementById("snifferCountAll");
-    const lastOpcodeEl = document.getElementById("snifferLastOpcode");
-
-    const total = this.rawPackets.length;
-    if (totalEl) totalEl.textContent = String(total);
-    if (countAllEl) countAllEl.textContent = String(total);
-
-    if (total > 0) {
-      const lastPkt = this.rawPackets[0];
-      if (lastOpcodeEl) {
-        lastOpcodeEl.textContent = lastPkt.opcode || lastPkt.payload_type || "DATA";
-      }
-    }
-  }
-
-  filterSnifferTable() {
-    const rows = this.dom.snifferTableBody.querySelectorAll("tr[data-opcode]");
-    rows.forEach((tr) => {
-      const op = tr.getAttribute("data-opcode") || "";
-      const searchData = tr.getAttribute("data-search") || "";
-
-      let matchOpcode = this.snifferFilterOpcode === "all" || op.toUpperCase().includes(this.snifferFilterOpcode.toUpperCase());
-      let matchQuery = !this.snifferSearchQuery || searchData.includes(this.snifferSearchQuery);
-
-      tr.style.display = matchOpcode && matchQuery ? "" : "none";
-    });
-  }
-
-  renderSnifferPacket(pkt, persist = true) {
-    if (persist) {
-      this.storage.saveSnifferPacket(pkt);
-    }
-    this.rawPackets.unshift(pkt);
-    if (this.rawPackets.length > MAX_RAW_PACKETS) this.rawPackets.pop();
-
-    if (this.dom.snifferTableBody.querySelector("td[colspan]")) {
-      this.dom.snifferTableBody.innerHTML = "";
-    }
-
-    const tr = document.createElement("tr");
-    const opcode = String(pkt.opcode || pkt.payload_type || "DATA").toUpperCase();
-    const src = String(pkt.sender || pkt.src_node_id || pkt.from || "RF");
-    const dst = String(pkt.to || pkt.dst_node_id || "0xFFFF");
-    const snr = pkt.metrics?.snr != null ? pkt.metrics.snr : (pkt.snr != null ? pkt.snr : "--");
-    const rssi = pkt.metrics?.rssi != null ? pkt.metrics.rssi : (pkt.rssi != null ? pkt.rssi : "--");
-    const len = pkt.byte_length || pkt.length || (pkt.raw_hex ? Math.floor(pkt.raw_hex.length / 2) : 0);
-    const hex = pkt.raw_hex || pkt.raw || "";
-
-    let badgeClass = "opcode-raw";
-    if (opcode.includes("TEXT") || opcode.includes("MSG") || opcode.includes("CHAT")) badgeClass = "opcode-text";
-    else if (opcode.includes("TELEM") || opcode.includes("SENSOR")) badgeClass = "opcode-telemetry";
-    else if (opcode.includes("ADV") || opcode.includes("BEACON")) badgeClass = "opcode-advert";
-    else if (opcode.includes("ACK")) badgeClass = "opcode-ack";
-    else if (opcode.includes("ROUT") || opcode.includes("HOP") || opcode.includes("PATH")) badgeClass = "opcode-routing";
-
-    tr.setAttribute("data-opcode", opcode);
-    const searchString = `${opcode} ${src} ${dst} ${hex} ${pkt.text || ""}`.toLowerCase();
-    tr.setAttribute("data-search", searchString);
-
-    const shortSrc = src.length > 12 ? `${src.slice(0, 8)}...` : src;
-    const shortDst = dst.length > 12 ? `${dst.slice(0, 8)}...` : dst;
-
-    const snrText = snr !== "--" ? `${snr} dB` : "--";
-    const rssiText = rssi !== "--" ? `${rssi} dBm` : "--";
-
-    tr.innerHTML = `
-      <td style="color: var(--text-muted); font-size: 11px;">${new Date().toLocaleTimeString()}</td>
-      <td><span class="badge-opcode ${badgeClass}">${this.escapeHtml(opcode)}</span></td>
-      <td><code class="font-mono" title="${this.escapeHtml(src)}">${this.escapeHtml(shortSrc)}</code></td>
-      <td><code class="font-mono" title="${this.escapeHtml(dst)}">${this.escapeHtml(shortDst)}</code></td>
-      <td><strong>${snrText}</strong> <span style="color: var(--text-muted); font-size: 11px;">/ ${rssiText}</span></td>
-      <td><span class="badge-pill" style="font-size: 10.5px;">${len} B</span></td>
-      <td><span class="hex-preview-box" title="${this.escapeHtml(hex)}">${this.escapeHtml(hex.slice(0, 32))}${hex.length > 32 ? "..." : ""}</span></td>
-      <td><button type="button" class="btn-xs btn-outline btn-view-pkt">🔍 Ver</button></td>
-    `;
-
-    tr.querySelector(".btn-view-pkt").addEventListener("click", () => {
-      this.showPacketDetail(pkt);
-    });
-
-    if (this.dom.snifferTableBody.firstChild) {
-      this.dom.snifferTableBody.insertBefore(tr, this.dom.snifferTableBody.firstChild);
-    } else {
-      this.dom.snifferTableBody.appendChild(tr);
-    }
-
-    // Podar filas DOM sobrantes para evitar consumo innecesario de memoria en el navegador
-    while (this.dom.snifferTableBody.children.length > MAX_RAW_PACKETS) {
-      this.dom.snifferTableBody.removeChild(this.dom.snifferTableBody.lastChild);
-    }
-
-    this.updateSnifferStats();
-
-    // Aplicar filtros en tiempo real
-    const op = opcode;
-    let matchOpcode = this.snifferFilterOpcode === "all" || op.includes(this.snifferFilterOpcode.toUpperCase());
-    let matchQuery = !this.snifferSearchQuery || searchString.includes(this.snifferSearchQuery);
-    tr.style.display = matchOpcode && matchQuery ? "" : "none";
-
-    // Auto-scroll si no está pausado
-    if (!this.snifferPaused && this.dom.snifferTableBody.parentElement) {
-      const container = this.dom.snifferTableBody.parentElement.parentElement;
-      if (container) container.scrollTop = 0;
-    }
-  }
-
-  showPacketDetail(pkt) {
-    this.currentInspectedPacket = pkt;
-    const badgeEl = document.getElementById("packetDetailOpcodeBadge");
-    const opcode = String(pkt.opcode || pkt.payload_type || "DATA").toUpperCase();
-    if (badgeEl) badgeEl.textContent = opcode;
-
-    const hex = pkt.raw_hex || pkt.raw || "";
-    const src = pkt.sender || pkt.src_node_id || pkt.from || "RF";
-    const dst = pkt.to || pkt.dst_node_id || "0xFFFF";
-    const snr = pkt.metrics?.snr != null ? pkt.metrics.snr : (pkt.snr != null ? pkt.snr : "--");
-    const rssi = pkt.metrics?.rssi != null ? pkt.metrics.rssi : (pkt.rssi != null ? pkt.rssi : "--");
-    const len = pkt.byte_length || pkt.length || (hex ? Math.floor(hex.length / 2) : 0);
-
-    // Formatear Hex con Offset estilo Wireshark
-    let formattedHex = "";
-    if (hex) {
-      const cleanHex = hex.replace(/[^0-9a-fA-F]/g, "");
-      for (let i = 0; i < cleanHex.length; i += 32) {
-        const chunk = cleanHex.slice(i, i + 32);
-        const offset = i.toString(16).padStart(4, "0");
-        let bytesGroup = "";
-        for (let j = 0; j < chunk.length; j += 2) {
-          bytesGroup += chunk.slice(j, j + 2) + " ";
-        }
-        formattedHex += `0x${offset}:  ${bytesGroup.padEnd(48, " ")}\n`;
-      }
-    } else {
-      formattedHex = "No hay volcado hexadecimal disponible para este paquete.";
-    }
-
-    this.dom.packetModalBody.innerHTML = `
-      <div class="packet-meta-grid">
-        <div class="packet-meta-item">
-          <span>Tipo / OpCode</span>
-          <strong>${this.escapeHtml(opcode)}</strong>
-        </div>
-        <div class="packet-meta-item">
-          <span>Origen</span>
-          <strong class="font-mono">${this.escapeHtml(src)}</strong>
-        </div>
-        <div class="packet-meta-item">
-          <span>Destino</span>
-          <strong class="font-mono">${this.escapeHtml(dst)}</strong>
-        </div>
-        <div class="packet-meta-item">
-          <span>Calidad RF</span>
-          <strong>${snr} dB / ${rssi} dBm</strong>
-        </div>
-        <div class="packet-meta-item">
-          <span>Longitud</span>
-          <strong>${len} Bytes</strong>
-        </div>
-        <div class="packet-meta-item">
-          <span>Hora de Captura</span>
-          <strong>${new Date().toLocaleTimeString()}</strong>
-        </div>
-      </div>
-
-      <div class="packet-section-title">📦 Volcado Hexadecimal (Raw Hex Dump)</div>
-      <div class="packet-hex-dump">${this.escapeHtml(formattedHex)}</div>
-
-      <div class="packet-section-title">🔍 Campos Decodificados (JSON Schema)</div>
-      <div class="packet-json-dump">${this.escapeHtml(JSON.stringify(pkt, null, 2))}</div>
-    `;
-
-    this.dom.packetDetailModal.classList.remove("hidden");
-  }
-
   handleIncomingLiveEvent(payload) {
     if (!payload || typeof payload !== "object") return;
 
@@ -2720,6 +2362,13 @@ class MeshCoreStationApp {
       const ackClean = rawAck.startsWith("0x") ? rawAck.slice(2) : rawAck;
       const ackWithPrefix = `0x${ackClean}`;
       const tripTime = payload.trip_time_ms || 0;
+      const snr = payload.snr != null ? payload.snr : null;
+
+      // Cancelar timer de timeout pendiente
+      if (msgId && this.pendingOutgoingAcks.has(msgId)) {
+        clearTimeout(this.pendingOutgoingAcks.get(msgId).timer);
+        this.pendingOutgoingAcks.delete(msgId);
+      }
 
       // 1. Actualizar elementos en el DOM actual
       let matchedRows = [];
@@ -2730,13 +2379,18 @@ class MeshCoreStationApp {
         matchedRows = Array.from(document.querySelectorAll(`.message-bubble-row[data-ack-code="${ackClean}"], .message-bubble-row[data-ack-code="${ackWithPrefix}"]`));
       }
       matchedRows.forEach((row) => {
+        row.classList.remove("failed", "queued", "sent");
         row.classList.add("delivered");
-        const ackEl = row.querySelector(".msg-ack-status");
+        const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
         if (ackEl) {
-          ackEl.className = "msg-ack-status delivered";
-          ackEl.textContent = "✓✓ TX";
-          ackEl.title = `Entregado por radio (${tripTime} ms)`;
+          ackEl.className = "ack-indicator ack-delivered";
+          const snrText = snr != null ? ` | SNR: ${snr} dB` : "";
+          const rttText = tripTime > 0 ? `${tripTime}ms` : "TX";
+          ackEl.textContent = `✓✓ ${rttText}`;
+          ackEl.title = `Confirmado por ACK (${tripTime} ms${snrText})`;
         }
+        const retryBtn = row.querySelector(".btn-retry-msg, .btn-msg-retry");
+        if (retryBtn) retryBtn.remove();
       });
 
       // 2. Actualizar mensajes en memoria (channelFeeds) y en IndexedDB
@@ -2747,6 +2401,7 @@ class MeshCoreStationApp {
           const isAckMatch = Boolean(ackClean && mExpClean && mExpClean === ackClean);
           if ((msgId && (m.id === msgId || m.msg_id === msgId)) || isAckMatch) {
             m.delivered = true;
+            m.status = "delivered";
             m.trip_time_ms = tripTime;
             this.storage.saveMessage(feedKey, m);
           }
@@ -2829,7 +2484,8 @@ class MeshCoreStationApp {
                    rawText.includes("logged in") ||
                    rawText.includes("auth ok") ||
                    rawText.includes("welcome admin") ||
-                   payload.telemetry?.battery_pct !== undefined) {
+                   rawText.includes("access granted") ||
+                   rawText.includes("login success")) {
           if (!this.authenticatedRepeaters.has(senderKey)) {
             this.authenticatedRepeaters.add(senderKey);
             this.unlockRepeaterAdminView(senderKey);
@@ -2927,6 +2583,9 @@ class MeshCoreStationApp {
 
       const isChatTabActive = document.getElementById("tab-chat")?.classList.contains("active");
 
+      // Reproducir timbre auditivo táctico LoRa
+      this.playNotificationChime();
+
       if (isCurrent && isChatTabActive) {
         this.appendChatMessage(normalizedMsg);
         this.lastReadTimestamps.set(feedKey, normalizedMsg.timestamp);
@@ -2942,8 +2601,6 @@ class MeshCoreStationApp {
         this.conversationsWithMessages.add(senderKey);
         this.addDmContact(senderKey, senderName);
       }
-    } else if (payload.byte_length !== undefined || payload.event_type === "rf_log" || payload.raw_hex !== undefined) {
-      this.renderSnifferPacket(payload);
     } else if (payload.event_type === "system_log" && payload.data) {
       const log = payload.data;
       this.systemLogs.push(log);
@@ -2989,28 +2646,50 @@ class MeshCoreStationApp {
       payload.voltage !== undefined ||
       payload.voltage_v !== undefined ||
       payload.solar_v !== undefined ||
+      payload.latitude !== undefined ||
+      payload.lat !== undefined ||
       payload.event_type === "node_discovered" ||
       payload.event_type === "advert" ||
       payload.event_type === "telemetry" ||
-      payload.event_type === "repeater_telemetry"
+      payload.event_type === "telemetry_response" ||
+      payload.event_type === "repeater_telemetry" ||
+      payload.event_type === "stats_core" ||
+      payload.event_type === "stats_radio" ||
+      payload.event_type === "stats_packets" ||
+      payload.type === "TELEMETRY_RESPONSE" ||
+      payload.type === "STATS_CORE"
     ) {
-      const senderKey = payload.sender || payload.public_key || payload.pubkey_prefix;
+      const rawSenderKey = payload.sender || payload.public_key || payload.pubkey || payload.pubkey_pre || payload.pubkey_prefix || payload.from_node || payload.from || payload.source;
+      const senderKey = rawSenderKey ? (this.resolveCanonicalPubkey(rawSenderKey) || rawSenderKey) : null;
       if (senderKey && this.isValidNodeKey(senderKey)) {
-        const existing = this.knownNodes.get(senderKey) || {};
+        const existing = this.knownNodes.get(senderKey) || this.knownNodes.get(rawSenderKey) || {};
         const telemData = payload.telemetry || payload;
+        const latVal = payload.latitude ?? payload.lat ?? payload.gps_lat ?? telemData.latitude ?? telemData.lat ?? telemData.gps_lat ?? telemData.gps?.latitude ?? telemData.gps?.lat ?? existing.latitude;
+        const lonVal = payload.longitude ?? payload.lon ?? payload.gps_lon ?? telemData.longitude ?? telemData.lon ?? telemData.gps_lon ?? telemData.gps?.longitude ?? telemData.gps?.lon ?? existing.longitude;
+        const altVal = payload.altitude_m ?? payload.altitude ?? payload.alt ?? telemData.altitude_m ?? telemData.altitude ?? telemData.alt ?? existing.altitude_m;
+
         const updated = {
           ...existing,
           ...payload,
           ...telemData,
           public_key: existing.public_key || senderKey,
+          latitude: latVal != null && !isNaN(parseFloat(latVal)) ? parseFloat(latVal) : existing.latitude,
+          longitude: lonVal != null && !isNaN(parseFloat(lonVal)) ? parseFloat(lonVal) : existing.longitude,
+          altitude_m: altVal != null && !isNaN(parseFloat(altVal)) ? parseFloat(altVal) : existing.altitude_m,
+          lat: latVal != null && !isNaN(parseFloat(latVal)) ? parseFloat(latVal) : existing.lat,
+          lon: lonVal != null && !isNaN(parseFloat(lonVal)) ? parseFloat(lonVal) : existing.lon,
           last_seen: Math.floor(Date.now() / 1000),
         };
         this.knownNodes.set(senderKey, updated);
+        if (rawSenderKey && rawSenderKey !== senderKey) {
+          this.knownNodes.set(rawSenderKey, updated);
+        }
         this.renderNodesDirectory(Array.from(this.knownNodes.values()));
 
         // Si el modal de administración de este repetidor está abierto, actualizar métricas en vivo
         if (this.selectedRepeaterTarget && 
             (this.selectedRepeaterTarget === senderKey || 
+             this.selectedRepeaterTarget === rawSenderKey ||
              this.selectedRepeaterTarget.startsWith(senderKey) || 
              senderKey.startsWith(this.selectedRepeaterTarget))) {
           this.populateRepeaterModalData(updated);
@@ -3182,37 +2861,6 @@ class MeshCoreStationApp {
 
     } catch (err) {
       console.warn("Error cargando analítica de malla:", err);
-    }
-  }
-
-  initHomeAssistant() {
-    if (this.dom.btnPublishHaDiscovery) {
-      this.dom.btnPublishHaDiscovery.addEventListener("click", () => {
-        this.publishHomeAssistantDiscovery();
-      });
-    }
-  }
-
-  async publishHomeAssistantDiscovery() {
-    if (!this.dom.btnPublishHaDiscovery) return;
-    try {
-      this.dom.btnPublishHaDiscovery.disabled = true;
-      this.dom.btnPublishHaDiscovery.textContent = "📢 Anunciando...";
-      const res = await fetch("/api/ha/publish", { method: "POST" });
-      const data = await res.json();
-      if (data.status === "ok") {
-        if (this.dom.haDiscoveredCount) {
-          this.dom.haDiscoveredCount.textContent = data.data.published_entities;
-        }
-        alert(`✓ Home Assistant Discovery anunciado con éxito (${data.data.published_entities} entidades).`);
-      }
-    } catch (e) {
-      alert("Error al anunciar Home Assistant Discovery: " + e.message);
-    } finally {
-      if (this.dom.btnPublishHaDiscovery) {
-        this.dom.btnPublishHaDiscovery.disabled = false;
-        this.dom.btnPublishHaDiscovery.textContent = "📢 Re-anunciar Discovery en MQTT";
-      }
     }
   }
 
@@ -3493,16 +3141,29 @@ class MeshCoreStationApp {
       });
     }
 
-    // 9. Manejadores de Almacenamiento IndexedDB y Mapas Offline
+    // 9. Manejadores de Almacenamiento IndexedDB y Alertas Sonoras
+    if (this.dom.chkChatSoundAlerts) {
+      this.dom.chkChatSoundAlerts.checked = this.chatSoundEnabled;
+      this.dom.chkChatSoundAlerts.addEventListener("change", (e) => {
+        this.chatSoundEnabled = e.target.checked;
+        localStorage.setItem("meshcore_chat_sound_enabled", String(this.chatSoundEnabled));
+        if (this.chatSoundEnabled) {
+          this.playNotificationChime();
+          this.showToast("🔔 Alertas sonoras de chat activadas", "info");
+        } else {
+          this.showToast("🔕 Alertas sonoras de chat desactivadas", "info");
+        }
+      });
+    }
+
     const btnClearStorage = document.getElementById("btnClearIndexedDbStorage");
     if (btnClearStorage) {
       btnClearStorage.addEventListener("click", async () => {
-        if (confirm("¿Estás seguro de vaciar todo el historial de chat y tramas sniffer guardadas en IndexedDB?")) {
+        if (confirm("¿Estás seguro de vaciar el historial de chat guardado en el navegador (IndexedDB)?")) {
           await this.storage.clearAll();
           this.channelFeeds.clear();
           this.rawPackets = [];
           if (this.dom.chatMessageFeed) this.dom.chatMessageFeed.innerHTML = "";
-          if (this.dom.snifferTableBody) this.dom.snifferTableBody.innerHTML = '<tr><td colspan="8" class="text-center">Historial limpiado.</td></tr>';
           this.showToast("🧹 Almacenamiento local IndexedDB vaciado", "success");
         }
       });
@@ -3977,11 +3638,6 @@ class MeshCoreStationApp {
       }
     }
 
-    if (this.dom.chipDbHealth) {
-      const el = this.dom.chipDbHealth.querySelector(".val");
-      if (el) el.textContent = "WAL OK";
-    }
-
     if (this.dom.chipTxHealth) {
       const depth = sub.rate_limiter?.queue_depth || 0;
       const el = this.dom.chipTxHealth.querySelector(".val");
@@ -4147,28 +3803,357 @@ class MeshCoreStationApp {
     }
   }
 
+  playNotificationChime() {
+    if (!this.chatSoundEnabled) return;
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      if (!this._audioCtx) {
+        this._audioCtx = new AudioCtx();
+      }
+      if (this._audioCtx.state === "suspended") {
+        this._audioCtx.resume();
+      }
+      const now = this._audioCtx.currentTime;
+
+      // Generar tono sutil táctico LoRa (880Hz y 1320Hz)
+      const osc1 = this._audioCtx.createOscillator();
+      const gain1 = this._audioCtx.createGain();
+      osc1.type = "sine";
+      osc1.frequency.setValueAtTime(880, now);
+      gain1.gain.setValueAtTime(0.06, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+      osc1.connect(gain1);
+      gain1.connect(this._audioCtx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.12);
+
+      const osc2 = this._audioCtx.createOscillator();
+      const gain2 = this._audioCtx.createGain();
+      osc2.type = "sine";
+      osc2.frequency.setValueAtTime(1320, now + 0.09);
+      gain2.gain.setValueAtTime(0.07, now + 0.09);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.26);
+      osc2.connect(gain2);
+      gain2.connect(this._audioCtx.destination);
+      osc2.start(now + 0.09);
+      osc2.stop(now + 0.26);
+    } catch (_) {}
+  }
+
+  setReplyTarget(msgId, senderName, textSnippet) {
+    const cleanSnippet = (textSnippet || "").replace(/\n/g, " ").trim();
+    this.activeReplyTarget = {
+      id: msgId,
+      sender: senderName || "Anónimo",
+      text: cleanSnippet.length > 60 ? cleanSnippet.slice(0, 60) + "..." : cleanSnippet,
+    };
+    if (this.dom.chatReplyBar) {
+      if (this.dom.replyTargetAuthor) this.dom.replyTargetAuthor.textContent = `@${this.activeReplyTarget.sender}`;
+      if (this.dom.replyTargetSnippet) this.dom.replyTargetSnippet.textContent = this.activeReplyTarget.text;
+      this.dom.chatReplyBar.classList.remove("hidden");
+    }
+    if (this.dom.chatInputText) {
+      this.dom.chatInputText.focus();
+    }
+  }
+
+  cancelReplyTarget() {
+    this.activeReplyTarget = null;
+    if (this.dom.chatReplyBar) {
+      this.dom.chatReplyBar.classList.add("hidden");
+    }
+  }
+
+  async shareCurrentLocation() {
+    let lat = null;
+    let lon = null;
+
+    // 1. Intentar desde inputs de configuración local de estación
+    const latInp = document.getElementById("localNodeLatitude");
+    const lonInp = document.getElementById("localNodeLongitude");
+    if (latInp && lonInp && latInp.value && lonInp.value) {
+      const pLat = parseFloat(latInp.value);
+      const pLon = parseFloat(lonInp.value);
+      if (!isNaN(pLat) && !isNaN(pLon) && (pLat !== 0 || pLon !== 0)) {
+        lat = pLat;
+        lon = pLon;
+      }
+    }
+
+    // 2. Fallback a geolocalización HTML5 del navegador
+    if (lat == null && "geolocation" in navigator) {
+      try {
+        const pos = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 4000, enableHighAccuracy: true });
+        });
+        if (pos && pos.coords) {
+          lat = pos.coords.latitude;
+          lon = pos.coords.longitude;
+        }
+      } catch (_) {}
+    }
+
+    if (lat == null || lon == null) {
+      this.showToast("⚠️ Configura las coordenadas en Ajustes o permite la geolocalización del navegador.", "warning");
+      return;
+    }
+
+    const locationText = `📍 Mi ubicación: ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+    if (this.dom.chatInputText) {
+      this.dom.chatInputText.value = locationText;
+      if (this.dom.chatInputForm) {
+        this.dom.chatInputForm.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+      }
+    }
+  }
+
+  focusLocationOnMap(lat, lon, label) {
+    const pLat = parseFloat(lat);
+    const pLon = parseFloat(lon);
+    if (isNaN(pLat) || isNaN(pLon)) return;
+
+    // 1. Conmutar a la pestaña Mapa
+    const navMapBtn = document.querySelector('.nav-btn[data-tab="tab-map"]');
+    if (navMapBtn) navMapBtn.click();
+
+    // 2. Centrar Leaflet con animación suave
+    setTimeout(() => {
+      if (this.map && typeof this.map.flyTo === "function") {
+        this.map.invalidateSize();
+        this.map.flyTo([pLat, pLon], 16, { animate: true, duration: 1.2 });
+        if (typeof L !== "undefined" && L.popup) {
+          L.popup()
+            .setLatLng([pLat, pLon])
+            .setContent(`
+              <div style="font-family: var(--font-sans, sans-serif); font-size: 13px;">
+                <strong style="color: #0284c7;">📍 ${this.escapeHtml(label || "Ubicación compartida")}</strong><br>
+                <code style="font-family: monospace; font-size: 11px; background: rgba(0,0,0,0.1); padding: 2px 4px; border-radius: 3px;">
+                  ${pLat.toFixed(5)}, ${pLon.toFixed(5)}
+                </code>
+              </div>
+            `)
+            .openOn(this.map);
+        }
+      }
+      this.showToast(`📍 Mapa centrado en (${pLat.toFixed(4)}, ${pLon.toFixed(4)})`, "info");
+    }, 200);
+  }
+
+  async retryMessage(msgId) {
+    let targetMsg = null;
+    let targetFeedKey = null;
+
+    for (const [feedKey, msgs] of this.channelFeeds.entries()) {
+      const found = msgs.find((m) => m.id === msgId || m.msg_id === msgId);
+      if (found) {
+        targetMsg = found;
+        targetFeedKey = feedKey;
+        break;
+      }
+    }
+
+    if (!targetMsg) {
+      this.showToast("⚠️ Mensaje no encontrado para reintento", "warning");
+      return;
+    }
+
+    targetMsg.status = "queued";
+    targetMsg.delivered = false;
+    this.storage.saveMessage(targetFeedKey, targetMsg);
+
+    const row = document.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
+    if (row) {
+      row.classList.remove("failed", "delivered");
+      row.classList.add("queued");
+      const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
+      if (ackEl) {
+        ackEl.className = "ack-indicator ack-queued";
+        ackEl.textContent = "🕒 Reintentando...";
+      }
+    }
+
+    const canonicalTarget = targetMsg.dm_target ? this.resolveCanonicalPubkey(targetMsg.dm_target) : null;
+    const target = canonicalTarget || "broadcast";
+
+    try {
+      const res = await fetch("/api/tx", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: target,
+          channel_index: targetMsg.channel_idx,
+          text: targetMsg.text,
+          request_id: msgId,
+        }),
+      });
+      const txData = await res.json();
+      if (res.ok && txData && txData.status === "ok" && txData.data?.status !== "error") {
+        targetMsg.status = "sent";
+        if (row) {
+          row.classList.remove("queued");
+          row.classList.add("sent");
+          const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
+          if (ackEl) {
+            ackEl.className = "ack-indicator ack-sent";
+            ackEl.textContent = "✓ TX";
+          }
+        }
+        if (txData.data && txData.data.expected_ack) {
+          targetMsg.expected_ack = txData.data.expected_ack;
+          if (row) row.setAttribute("data-ack-code", String(txData.data.expected_ack).toLowerCase());
+        }
+        this.storage.saveMessage(targetFeedKey, targetMsg);
+
+        // Timeout de espera de ACK (8s)
+        if (this.pendingOutgoingAcks.has(msgId)) {
+          clearTimeout(this.pendingOutgoingAcks.get(msgId).timer);
+        }
+        const timer = setTimeout(() => {
+          if (targetMsg.status !== "delivered") {
+            targetMsg.status = "failed";
+            this.storage.saveMessage(targetFeedKey, targetMsg);
+            if (row) {
+              row.classList.remove("sent", "queued");
+              row.classList.add("failed");
+              const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
+              if (ackEl) {
+                ackEl.className = "ack-indicator ack-failed";
+                ackEl.innerHTML = `❌ Falló <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button>`;
+              }
+            }
+          }
+          this.pendingOutgoingAcks.delete(msgId);
+        }, 8000);
+        this.pendingOutgoingAcks.set(msgId, { timer, msgData: targetMsg, feedKey: targetFeedKey });
+      } else {
+        const errMsg = txData?.message || txData?.data?.error || "Fallo en transmisión LoRa";
+        targetMsg.status = "failed";
+        if (row) {
+          row.classList.remove("sent", "queued");
+          row.classList.add("failed");
+          const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
+          if (ackEl) {
+            ackEl.className = "ack-indicator ack-failed";
+            ackEl.innerHTML = `❌ Falló <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button>`;
+          }
+        }
+        this.storage.saveMessage(targetFeedKey, targetMsg);
+        this.showToast(`⚠️ ${errMsg}`, "warning");
+      }
+    } catch (err) {
+      targetMsg.status = "failed";
+      if (row) {
+        row.classList.remove("sent", "queued");
+        row.classList.add("failed");
+        const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
+        if (ackEl) {
+          ackEl.className = "ack-indicator ack-failed";
+          ackEl.innerHTML = `❌ Falló <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button>`;
+        }
+      }
+      this.storage.saveMessage(targetFeedKey, targetMsg);
+      this.showToast("❌ Error de red transmitiendo mensaje", "error");
+    }
+  }
+
   initChat() {
+    if (this.dom.btnCancelReply) {
+      this.dom.btnCancelReply.addEventListener("click", () => this.cancelReplyTarget());
+    }
+
+    if (this.dom.btnShareLocation) {
+      this.dom.btnShareLocation.addEventListener("click", () => this.shareCurrentLocation());
+    }
+
+    // Delegación de eventos interactivos en el feed de chat
+    if (this.dom.chatMessageFeed) {
+      this.dom.chatMessageFeed.addEventListener("click", (e) => {
+        // 1. Ver en Mapa
+        const btnMap = e.target.closest(".btn-view-on-map");
+        if (btnMap) {
+          const lat = btnMap.getAttribute("data-lat");
+          const lon = btnMap.getAttribute("data-lon");
+          const sender = btnMap.getAttribute("data-sender");
+          this.focusLocationOnMap(lat, lon, sender);
+          return;
+        }
+
+        // 2. Responder a mensaje
+        const btnReply = e.target.closest(".btn-msg-reply");
+        if (btnReply) {
+          const row = btnReply.closest(".message-bubble-row");
+          if (row) {
+            const msgId = row.getAttribute("data-msg-id");
+            const sender = row.querySelector(".msg-meta strong")?.textContent || "Anónimo";
+            const text = row.querySelector(".msg-text-content")?.textContent || row.querySelector(".msg-bubble")?.textContent || "";
+            this.setReplyTarget(msgId, sender, text);
+          }
+          return;
+        }
+
+        // 3. Copiar texto de mensaje
+        const btnCopy = e.target.closest(".btn-msg-copy");
+        if (btnCopy) {
+          const row = btnCopy.closest(".message-bubble-row");
+          if (row) {
+            const text = row.querySelector(".msg-text-content")?.textContent || row.querySelector(".msg-bubble")?.textContent || "";
+            if (navigator.clipboard) {
+              navigator.clipboard.writeText(text).then(() => {
+                this.showToast("📋 Texto copiado al portapapeles", "info");
+              });
+            }
+          }
+          return;
+        }
+
+        // 4. Reintentar mensaje fallido
+        const btnRetry = e.target.closest(".btn-retry-msg, .btn-msg-retry");
+        if (btnRetry) {
+          const msgId = btnRetry.getAttribute("data-retry-id") || btnRetry.closest(".message-bubble-row")?.getAttribute("data-msg-id");
+          if (msgId) {
+            this.retryMessage(msgId);
+          }
+          return;
+        }
+      });
+    }
+
     if (this.dom.chatInputForm) {
       this.dom.chatInputForm.addEventListener("submit", async (e) => {
         e.preventDefault();
-        const text = this.dom.chatInputText ? this.dom.chatInputText.value.trim() : "";
-        if (!text) return;
+        const rawInput = this.dom.chatInputText ? this.dom.chatInputText.value.trim() : "";
+        if (!rawInput) return;
         if (this.dom.chatInputText) this.dom.chatInputText.value = "";
+
+        const quoteData = this.activeReplyTarget ? { sender: this.activeReplyTarget.sender, text: this.activeReplyTarget.text } : null;
+        this.cancelReplyTarget();
 
         const msgId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
         const canonicalTarget = this.activeDmTarget ? this.resolveCanonicalPubkey(this.activeDmTarget) : null;
         const target = canonicalTarget || "broadcast";
+
+        // Detección de mensaje de coordenadas
+        let locationData = null;
+        const locMatch = rawInput.match(/📍\s*Mi ubicación:\s*(-?\d+\.\d+),\s*(-?\d+\.\d+)/i) || rawInput.match(/LOC:\s*(-?\d+\.\d+),\s*(-?\d+\.\d+)/i);
+        if (locMatch) {
+          locationData = { lat: parseFloat(locMatch[1]), lon: parseFloat(locMatch[2]) };
+        }
+
         const outgoingMsg = {
           id: msgId,
           msg_id: msgId,
           sender: "local",
           sender_name: "Estación Local (Tú)",
-          text: text,
+          text: rawInput,
           is_outgoing: true,
           channel_idx: this.activeChannelIdx,
           dm_target: canonicalTarget,
           timestamp: new Date().toISOString(),
           delivered: false,
+          status: "queued",
+          quote: quoteData,
+          location: locationData,
         };
 
         const feedKey = canonicalTarget ? `dm_${canonicalTarget}` : `ch_${this.activeChannelIdx}`;
@@ -4193,21 +4178,80 @@ class MeshCoreStationApp {
             body: JSON.stringify({
               to: target,
               channel_index: this.activeChannelIdx,
-              text: text,
+              text: rawInput,
               request_id: msgId,
             }),
           });
           const txData = await res.json();
-          if (txData && txData.data && txData.data.expected_ack) {
-            outgoingMsg.expected_ack = txData.data.expected_ack;
-            const bubble = document.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
-            if (bubble) {
-              bubble.setAttribute("data-ack-code", String(txData.data.expected_ack).toLowerCase());
+          if (res.ok && txData && txData.status === "ok" && txData.data?.status !== "error") {
+            outgoingMsg.status = "sent";
+            const row = document.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
+            if (row) {
+              row.classList.remove("queued");
+              row.classList.add("sent");
+              const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
+              if (ackEl) {
+                ackEl.className = "ack-indicator ack-sent";
+                ackEl.textContent = "✓ TX";
+              }
+            }
+            if (txData.data && txData.data.expected_ack) {
+              outgoingMsg.expected_ack = txData.data.expected_ack;
+              if (row) {
+                row.setAttribute("data-ack-code", String(txData.data.expected_ack).toLowerCase());
+              }
             }
             this.storage.saveMessage(feedKey, outgoingMsg);
+
+            // Timeout de espera de ACK (8 segundos)
+            const timer = setTimeout(() => {
+              if (outgoingMsg.status !== "delivered") {
+                outgoingMsg.status = "failed";
+                this.storage.saveMessage(feedKey, outgoingMsg);
+                if (row) {
+                  row.classList.remove("sent", "queued");
+                  row.classList.add("failed");
+                  const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
+                  if (ackEl) {
+                    ackEl.className = "ack-indicator ack-failed";
+                    ackEl.innerHTML = `❌ Falló <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button>`;
+                  }
+                }
+              }
+              this.pendingOutgoingAcks.delete(msgId);
+            }, 8000);
+            this.pendingOutgoingAcks.set(msgId, { timer, msgData: outgoingMsg, feedKey });
+          } else {
+            const errMsg = txData?.message || txData?.data?.error || "Fallo en transmisión LoRa";
+            outgoingMsg.status = "failed";
+            this.storage.saveMessage(feedKey, outgoingMsg);
+            const row = document.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
+            if (row) {
+              row.classList.remove("sent", "queued");
+              row.classList.add("failed");
+              const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
+              if (ackEl) {
+                ackEl.className = "ack-indicator ack-failed";
+                ackEl.innerHTML = `❌ Falló <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button>`;
+              }
+            }
+            this.showToast(`⚠️ ${errMsg}`, "warning");
           }
         } catch (err) {
           console.error("Error transmitiendo mensaje:", err);
+          outgoingMsg.status = "failed";
+          this.storage.saveMessage(feedKey, outgoingMsg);
+          const row = document.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
+          if (row) {
+            row.classList.remove("sent", "queued");
+            row.classList.add("failed");
+            const ackEl = row.querySelector(".msg-ack-status, .ack-indicator");
+            if (ackEl) {
+              ackEl.className = "ack-indicator ack-failed";
+              ackEl.innerHTML = `❌ Falló <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button>`;
+            }
+          }
+          this.showToast("❌ Error de red transmitiendo mensaje", "error");
         }
       });
     }
@@ -4437,13 +4481,14 @@ class MeshCoreStationApp {
   updateGlobalUnreadBadge() {
     let total = 0;
     for (const count of this.unreadCounts.values()) {
-      total += count;
+      total += count || 0;
     }
     const badge = this.dom.globalChatUnreadBadge || document.getElementById("globalChatUnreadBadge");
     if (badge) {
       badge.textContent = total > 99 ? "99+" : String(total);
       badge.classList.toggle("hidden", total === 0);
     }
+    document.title = total > 0 ? `(${total}) MeshCore Web Client` : "MeshCore Web Client - Base Station & RF Command Center";
   }
 
   updateFeedUnreadBadge(feedKey) {
@@ -4488,7 +4533,8 @@ class MeshCoreStationApp {
     }
 
     const row = document.createElement("div");
-    row.className = `message-bubble-row ${msg.is_outgoing ? "outgoing" : "incoming"} ${msg.delivered ? "delivered" : ""}`;
+    const statusClass = msg.status || (msg.delivered ? "delivered" : (msg.is_outgoing ? "sent" : ""));
+    row.className = `message-bubble-row chat-msg-row ${msg.is_outgoing ? "outgoing" : "incoming"} ${statusClass} ${msg.delivered ? "delivered" : ""}`;
     const msgId = msg.id || msg.msg_id || (msg.is_outgoing && msg.timestamp ? `msg_${Date.parse(msg.timestamp)}` : "");
     if (msgId) {
       row.setAttribute("data-msg-id", String(msgId));
@@ -4520,10 +4566,62 @@ class MeshCoreStationApp {
 
     const rssi = msg.metrics?.rssi != null ? msg.metrics.rssi : (msg.rssi != null ? msg.rssi : null);
     const snr = msg.metrics?.snr != null ? msg.metrics.snr : (msg.snr != null ? msg.snr : null);
-    const ackSymbol = msg.delivered ? "✓✓ TX" : (msg.is_outgoing ? "✓ TX" : "📥 RX");
-    const ackTitle = msg.delivered ? `Entregado (${msg.trip_time_ms || 0} ms)` : (msg.is_outgoing ? "Transmitido por radio" : "Recibido");
 
+    // 1. Renderizado de Cita / Respuesta previa
+    let quoteHtml = "";
+    if (msg.quote && msg.quote.text) {
+      quoteHtml = `
+        <div class="chat-quote-block">
+          <div class="quote-author">@${this.escapeHtml(msg.quote.sender || "Usuario")}</div>
+          <div class="quote-text">${this.escapeHtml(msg.quote.text)}</div>
+        </div>
+      `;
+    }
 
+    // 2. Renderizado de Tarjeta de Ubicación GPS
+    let locationCardHtml = "";
+    let locLat = msg.location?.lat;
+    let locLon = msg.location?.lon;
+    if (locLat == null || locLon == null) {
+      const locMatch = rawText.match(/📍\s*Mi ubicación:\s*(-?\d+\.\d+),\s*(-?\d+\.\d+)/i) || rawText.match(/LOC:\s*(-?\d+\.\d+),\s*(-?\d+\.\d+)/i);
+      if (locMatch) {
+        locLat = parseFloat(locMatch[1]);
+        locLon = parseFloat(locMatch[2]);
+      }
+    }
+    if (locLat != null && locLon != null && !isNaN(locLat) && !isNaN(locLon)) {
+      locationCardHtml = `
+        <div class="chat-location-card">
+          <div class="loc-card-header">
+            <span>📍 Ubicación Geográfica</span>
+            <span class="loc-coords-badge">${locLat.toFixed(5)}, ${locLon.toFixed(5)}</span>
+          </div>
+          <button type="button" class="btn-view-on-map" data-lat="${locLat}" data-lon="${locLon}" data-sender="${this.escapeHtml(sender)}">
+            🗺️ Ver en Mapa
+          </button>
+        </div>
+      `;
+    }
+
+    // 3. Indicador de Estado de Entrega (ACK)
+    let ackHtml = "";
+    if (msg.is_outgoing) {
+      const st = msg.status || (msg.delivered ? "delivered" : "sent");
+      if (st === "delivered" || msg.delivered) {
+        const rttText = msg.trip_time_ms ? `${msg.trip_time_ms}ms` : "TX";
+        ackHtml = `<span class="ack-indicator ack-delivered" title="Confirmado por ACK (${msg.trip_time_ms || 0} ms)">✓✓ ${rttText}</span>`;
+      } else if (st === "failed") {
+        ackHtml = `<span class="ack-indicator ack-failed" title="Fallo de entrega / Sin ACK">❌ Falló <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button></span>`;
+      } else if (st === "queued") {
+        ackHtml = `<span class="ack-indicator ack-queued" title="Encolado en cola de prioridad">🕒 En cola</span>`;
+      } else {
+        ackHtml = `<span class="ack-indicator ack-sent" title="Transmitido por radio LoRa">✓ TX</span>`;
+      }
+    } else {
+      ackHtml = `<span class="ack-indicator ack-received" title="Mensaje recibido por radio LoRa">📥 RX</span>`;
+    }
+
+    // 4. Chip de Señal RF
     let signalHtml = "";
     if (rssi != null && snr != null) {
       signalHtml = `<span class="signal-chip">📶 ${rssi} dBm / ${snr} dB</span>`;
@@ -4533,15 +4631,29 @@ class MeshCoreStationApp {
       signalHtml = `<span class="signal-chip">📶 ${snr} dB</span>`;
     }
 
+    // 5. Botones de acción rápida flotantes (Hover)
+    const hoverActionsHtml = `
+      <div class="msg-hover-actions">
+        <button type="button" class="btn-msg-action btn-msg-reply" title="Responder a este mensaje">↩️</button>
+        <button type="button" class="btn-msg-action btn-msg-copy" title="Copiar texto">📋</button>
+        ${msg.is_outgoing && (msg.status === "failed" || !msg.delivered) ? `<button type="button" class="btn-msg-action btn-msg-retry" title="Reintentar transmisión">🔄</button>` : ""}
+      </div>
+    `;
+
     row.innerHTML = `
+      ${hoverActionsHtml}
       <div class="msg-meta">
         <strong>${this.escapeHtml(sender)}</strong>
         <span>${timeStr}</span>
       </div>
-      <div class="msg-bubble">${this.escapeHtml(msg.text)}</div>
+      <div class="msg-bubble">
+        ${quoteHtml}
+        <div class="msg-text-content">${this.escapeHtml(msg.text)}</div>
+        ${locationCardHtml}
+      </div>
       <div class="msg-footer">
         ${signalHtml}
-        <span class="msg-ack-status ${msg.delivered ? 'delivered' : (msg.is_outgoing ? 'sent' : 'received')}" title="${ackTitle}">${ackSymbol}</span>
+        ${ackHtml}
       </div>
     `;
 
@@ -5659,16 +5771,31 @@ class MeshCoreStationApp {
 
       if (matchIndex >= 0) {
         const prev = deduplicatedNodes[matchIndex];
+        const mergedLat = (rawNode.latitude != null ? rawNode.latitude : (rawNode.lat != null ? rawNode.lat : (rawNode.gps?.latitude ?? rawNode.position?.latitude ?? rawNode.telemetry?.latitude ?? rawNode.telemetry?.lat))) ?? prev.latitude ?? prev.lat;
+        const mergedLon = (rawNode.longitude != null ? rawNode.longitude : (rawNode.lon != null ? rawNode.lon : (rawNode.gps?.longitude ?? rawNode.position?.longitude ?? rawNode.telemetry?.longitude ?? rawNode.telemetry?.lon))) ?? prev.longitude ?? prev.lon;
+        const mergedAlt = (rawNode.altitude_m != null ? rawNode.altitude_m : (rawNode.alt != null ? rawNode.alt : (rawNode.gps?.altitude_m ?? rawNode.position?.altitude_m ?? rawNode.telemetry?.altitude_m ?? rawNode.telemetry?.alt))) ?? prev.altitude_m ?? prev.alt;
+
         deduplicatedNodes[matchIndex] = {
           ...prev,
           ...rawNode,
           public_key: prev.public_key.length >= rawNode.public_key.length ? prev.public_key : rawNode.public_key,
           name: prev.name && !prev.name.startsWith("Node_") ? prev.name : (rawNode.name || prev.name),
           alias: prev.alias || rawNode.alias,
+          latitude: mergedLat,
+          longitude: mergedLon,
+          altitude_m: mergedAlt,
+          lat: mergedLat,
+          lon: mergedLon,
           last_seen: Math.max(Number(prev.last_seen) || 0, Number(rawNode.last_seen) || 0),
           last_rssi: rawNode.last_rssi != null ? rawNode.last_rssi : prev.last_rssi,
           last_snr: rawNode.last_snr != null ? rawNode.last_snr : prev.last_snr,
           hops: rawNode.hops != null ? rawNode.hops : prev.hops,
+          telemetry: {
+            ...(prev.telemetry || {}),
+            ...(rawNode.telemetry || {}),
+            ...(mergedLat != null ? { latitude: mergedLat, lat: mergedLat } : {}),
+            ...(mergedLon != null ? { longitude: mergedLon, lon: mergedLon } : {}),
+          },
         };
       } else {
         deduplicatedNodes.push({ ...rawNode });
@@ -6262,7 +6389,7 @@ class MeshCoreStationApp {
         for (const v of vals) {
           if (v !== undefined && v !== null && v !== "") {
             const num = parseFloat(v);
-            if (!isNaN(num) && num !== 0.0) return num;
+            if (!isNaN(num)) return num;
           }
         }
         return null;
@@ -6272,22 +6399,34 @@ class MeshCoreStationApp {
         node.latitude,
         node.lat,
         node.gps_lat,
+        node.adv_lat,
         node.gps?.latitude,
         node.gps?.lat,
         node.position?.latitude,
-        node.position?.lat
+        node.position?.lat,
+        node.telemetry?.latitude,
+        node.telemetry?.lat,
+        node.telemetry?.gps_lat,
+        node.telemetry?.gps?.latitude,
+        node.telemetry?.gps?.lat
       );
       const lon = extractCoord(
         node.longitude,
         node.lon,
         node.gps_lon,
+        node.adv_lon,
         node.gps?.longitude,
         node.gps?.lon,
         node.position?.longitude,
-        node.position?.lon
+        node.position?.lon,
+        node.telemetry?.longitude,
+        node.telemetry?.lon,
+        node.telemetry?.gps_lon,
+        node.telemetry?.gps?.longitude,
+        node.telemetry?.gps?.lon
       );
 
-      const hasGps = lat !== null && lon !== null && lat >= -90.0 && lat <= 90.0 && lon >= -180.0 && lon <= 180.0;
+      const hasGps = lat !== null && lon !== null && lat >= -90.0 && lat <= 90.0 && lon >= -180.0 && lon <= 180.0 && !(lat === 0.0 && lon === 0.0);
       const isSelected = this.selectedMapNodePk === node.public_key;
 
       if (hasGps) {

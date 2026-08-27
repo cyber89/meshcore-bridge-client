@@ -6,6 +6,26 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Fase 1 Seguridad - SEC-001/002/004/005/006/007/009/010/011
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO
+- **Agente 5 (Security & Vulnerability Auditor)**: 
+  - **`src/web/http_server.py`**:
+    - SEC-001: Implementado middleware con verificación del header `X-Api-Key` contra `BRIDGE_API_KEY` para proteger rutas administrativas (`/api/node/reboot`, `/api/admin/`, `/api/tx`, `/api/repeater/`).
+    - SEC-004: Reemplazado CORS wildcard `Access-Control-Allow-Origin: *` por orígenes específicos definidos en `BRIDGE_ALLOWED_ORIGINS`.
+    - SEC-009: Validación explícita del header `Origin` antes de aceptar el handshake WebSocket.
+    - SEC-011: Validación de Path Traversal ejecutada estrictamente antes del upgrade WebSocket.
+    - SEC-005: Incorporada cabecera `Content-Security-Policy` estricta para la entrega de archivos `.html`.
+  - **`src/tcp_companion_server.py`**:
+    - SEC-002: Implementado límite máximo de conexiones concurrentes (`MAX_COMPANION_CLIENTS`) y cierre proactivo.
+    - SEC-007: Implementado handshake de autenticación obligatoria (`COMPANION_TOKEN`) con timeout de 5s y validación de orígenes por IP (`COMPANION_ALLOWED_IPS`).
+  - **`src/serial_driver.py`**:
+    - SEC-006: Reforzada validación de tipos, rangos y sintaxis (regex `^[a-fA-F0-9]{0,64}$`) en el comando `set_channel()`.
+  - **`config.py` y `.env.example`**:
+    - SEC-010: Creada variable `MQTT_PASSWORD_MASKED` para ofuscación segura en logs.
+    - Registradas las nuevas variables de entorno de seguridad (`BRIDGE_API_KEY`, `BRIDGE_ALLOWED_ORIGINS`, `MAX_COMPANION_CLIENTS`, `COMPANION_TOKEN`, etc).
+
+
 ### Hito: Corrección de `NameError: name '_safe_int' is not defined` en `rx_router.py`
 - **Fecha**: 2026-08-26
 - **Estado**: ✅ COMPLETADO

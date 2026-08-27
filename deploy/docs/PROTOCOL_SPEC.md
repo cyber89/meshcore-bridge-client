@@ -23,13 +23,12 @@ graph TD
     subgraph "Capa de Aplicación y Clientes"
         WebStation["MeshCore Web Station (SPA)"]
         N8N["Automatización n8n / REST API"]
-        HomeAssistant["Home Assistant (MQTT Discovery)"]
     end
 
     subgraph "Puente de Integración (MeshCore Bridge)"
         BridgeCore["Bridge Core (Python asyncio)"]
         RxRouter["Rx Event Router"]
-        StoreForward["Store & Forward (SQLite WAL)"]
+        Dedup["Deduplicador RAM (Sliding Window TTL)"]
         RateLimiter["Leaky Bucket Rate Limiter"]
     end
 
@@ -47,9 +46,8 @@ graph TD
 
     WebStation <-->|WebSockets & REST| BridgeCore
     N8N <-->|MQTT Topics JSON| BridgeCore
-    HomeAssistant <-->|MQTT Discovery / Telemetry| BridgeCore
     BridgeCore <--> RxRouter
-    BridgeCore <--> StoreForward
+    RxRouter <--> Dedup
     BridgeCore <--> RateLimiter
     BridgeCore <-->|Serial UART 115200 8N1| Heltec
     Heltec <-->|Tramas LoRa Multi-Hop| Router1

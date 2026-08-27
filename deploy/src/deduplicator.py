@@ -20,55 +20,48 @@ class PacketDeduplicator:
         ttl_seconds: float | None = None,
         max_history: int | None = None,
     ) -> None:
-        import asyncio
-        import threading
         self.window_seconds = ttl_seconds if ttl_seconds is not None else window_seconds
         self.max_entries = max_history if max_history is not None else max_entries
         self._cache: collections.OrderedDict[str, float] = collections.OrderedDict()
-        self._async_lock = asyncio.Lock()
-        self._thread_lock = threading.Lock()
 
     def __len__(self) -> int:
         return len(self._cache)
 
     async def is_duplicate(self, key: str) -> bool:
         """Verifica si la clave ha sido vista recientemente dentro de la ventana de tiempo."""
-        async with self._async_lock:
-            with self._thread_lock:
-                now = time.time()
-                self._prune(now)
+        now = time.time()
+        self._prune(now)
 
-                if key in self._cache:
-                    last_seen = self._cache[key]
-                    if (now - last_seen) < self.window_seconds:
-                        return True
+        if key in self._cache:
+            last_seen = self._cache[key]
+            if (now - last_seen) < self.window_seconds:
+                return True
 
-                self._cache[key] = now
-                self._cache.move_to_end(key)
+        self._cache[key] = now
+        self._cache.move_to_end(key)
 
-                if len(self._cache) > self.max_entries:
-                    self._cache.popitem(last=False)
+        if len(self._cache) > self.max_entries:
+            self._cache.popitem(last=False)
 
-                return False
+        return False
 
     def is_duplicate_sync(self, key: str) -> bool:
         """Versión síncrona para comprobaciones directas."""
-        with self._thread_lock:
-            now = time.time()
-            self._prune(now)
+        now = time.time()
+        self._prune(now)
 
-            if key in self._cache:
-                last_seen = self._cache[key]
-                if (now - last_seen) < self.window_seconds:
-                    return True
+        if key in self._cache:
+            last_seen = self._cache[key]
+            if (now - last_seen) < self.window_seconds:
+                return True
 
-            self._cache[key] = now
-            self._cache.move_to_end(key)
+        self._cache[key] = now
+        self._cache.move_to_end(key)
 
-            if len(self._cache) > self.max_entries:
-                self._cache.popitem(last=False)
+        if len(self._cache) > self.max_entries:
+            self._cache.popitem(last=False)
 
-            return False
+        return False
 
     def _prune(self, now: float) -> None:
         """Elimina entradas expiradas desde el inicio del OrderedDict."""

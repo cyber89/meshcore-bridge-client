@@ -393,12 +393,12 @@ class RxEventRouter:
                             )
                         )
                         if self._ctx.web_server:
-                            self._ctx.web_server.broadcast_event({
+                            import asyncio; asyncio.create_task(self._ctx.web_server.broadcast_event({
                                 "type": "contact_discovered" if is_new else "contact_updated",
                                 "event_type": "contact_discovered" if is_new else "contact_updated",
                                 "is_new": is_new,
                                 "contact": contact_info.to_dict(),
-                            })
+                            }))
 
             ev_upper = ev_type_str.upper()
             p_type_upper = str(payload_dict.get("type", "")).upper()
@@ -458,12 +458,12 @@ class RxEventRouter:
                         ),
                     )
                     if self._ctx.web_server:
-                        self._ctx.web_server.broadcast_event({
+                        import asyncio; asyncio.create_task(self._ctx.web_server.broadcast_event({
                             "type": "contact_discovered" if is_c_new else "contact_updated",
                             "event_type": "contact_discovered" if is_c_new else "contact_updated",
                             "is_new": is_c_new,
                             "contact": c_contact_info.to_dict(),
-                        })
+                        }))
 
             # Caso ACK de Entrega E2E (Delivery Receipt)
             if "ACK" in ev_upper or "ACK" in p_type_upper or payload_dict.get("event_type") == "ack" or "code" in payload_dict or "code" in ev_attrs:
@@ -509,7 +509,7 @@ class RxEventRouter:
                 )
 
                 if self._ctx.web_server:
-                    self._ctx.web_server.broadcast_event(ack_evt_data)
+                    import asyncio; asyncio.create_task(self._ctx.web_server.broadcast_event(ack_evt_data))
 
                 self._ctx.mqtt.publish_safe(
                     config.TOPIC_TX_STATUS,
@@ -545,10 +545,10 @@ class RxEventRouter:
                     )
 
                 if self._ctx.web_server:
-                    self._ctx.web_server.broadcast_event({
+                    import asyncio; asyncio.create_task(self._ctx.web_server.broadcast_event({
                         "type": "trace_data",
                         "data": payload_dict,
-                    })
+                    }))
                 return
 
             raw_txt_type = payload_dict.get("txt_type", payload_dict.get("text_type", 0))
@@ -721,7 +721,7 @@ class RxEventRouter:
                 }), qos=0)
             self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, json.dumps(rep_payload, sort_keys=True), qos=0)
             if self._ctx.web_server:
-                self._ctx.web_server.broadcast_event(rep_payload)
+                import asyncio; asyncio.create_task(self._ctx.web_server.broadcast_event(rep_payload))
             return
 
         event_type = "public" if msg.channel_idx == 0 else "channel"
@@ -757,7 +757,7 @@ class RxEventRouter:
 
         self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
         if self._ctx.web_server:
-            self._ctx.web_server.broadcast_event(evt_payload)
+            import asyncio; asyncio.create_task(self._ctx.web_server.broadcast_event(evt_payload))
 
         logging.info(
             f"[RX-CANAL] De: {msg.sender_name or msg.sender} -> Para: Canal #{msg.channel_idx} | "
@@ -865,7 +865,7 @@ class RxEventRouter:
                 }), qos=0)
             self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, json.dumps(rep_payload, sort_keys=True), qos=0)
             if self._ctx.web_server:
-                self._ctx.web_server.broadcast_event(rep_payload)
+                import asyncio; asyncio.create_task(self._ctx.web_server.broadcast_event(rep_payload))
             return
 
         lqi_val = LinkQualityEngine.compute_instant_lqi(msg.snr, msg.rssi, 0)
@@ -898,7 +898,7 @@ class RxEventRouter:
         self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
 
         if self._ctx.web_server:
-            self._ctx.web_server.broadcast_event(evt_payload)
+            import asyncio; asyncio.create_task(self._ctx.web_server.broadcast_event(evt_payload))
 
         logging.info(
             f"[RX-DM] De: {msg.sender_name or msg.sender} -> Para: Estación Base Local | "
@@ -974,7 +974,7 @@ class RxEventRouter:
         if any(k in payload_dict for k in ("battery", "battery_pct", "battery_mv", "voltage", "voltage_v", "temperature", "temperature_c", "humidity_pct", "pressure_hpa", "solar_v")):
             self._ctx.mqtt.publish_safe(config.TOPIC_RX_TELEMETRY, evt_json, qos=0)
         if self._ctx.web_server:
-            self._ctx.web_server.broadcast_event(payload_dict)
+            import asyncio; asyncio.create_task(self._ctx.web_server.broadcast_event(payload_dict))
 
         ev_name = payload_dict.get("event_type", "telemetry")
         sender_name_val = payload_dict.get("sender_name")

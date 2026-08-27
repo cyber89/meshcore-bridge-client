@@ -80,7 +80,7 @@ class MeshCoreWebServer:
                     node_cnt = self.bridge.node_registry.get_count() if hasattr(self.bridge, "node_registry") else 0
                     q_depth = self.bridge.rate_limiter.get_queue_depth() if hasattr(self.bridge, "rate_limiter") else 0
 
-                    self.broadcast_event({
+                    await self.broadcast_event({
                         "event": "metrics_update",
                         "type": "metrics_update",
                         "node_count": node_cnt,
@@ -94,7 +94,7 @@ class MeshCoreWebServer:
             except Exception as e:
                 logging.debug(f"Error en bucle de métricas WS: {e}")
 
-    def broadcast_event(self, event_data: dict[str, Any]) -> None:
+    async def broadcast_event(self, event_data: dict[str, Any]) -> None:
         """Emite un evento a todos los clientes WebSocket conectados."""
         self.router.record_incoming_event(event_data)
         if not self.active_websockets:
@@ -106,8 +106,19 @@ class MeshCoreWebServer:
         for writer in list(self.active_websockets):
             try:
                 writer.write(frame)
+                await asyncio.wait_for(writer.drain(), timeout=2.0)
+            except asyncio.TimeoutError:
+                self.active_websockets.discard(writer)
+                try:
+                    writer.close()
+                except:
+                    pass
             except Exception:
                 self.active_websockets.discard(writer)
+                try:
+                    writer.close()
+                except:
+                    pass
 
     def _build_websocket_frame(self, data: bytes) -> bytes:
         """Construye una trama WebSocket de texto (Opcode 0x1, sin máscara desde el servidor)."""
@@ -153,14 +164,28 @@ class MeshCoreWebServer:
                     k, v = h_str.split(":", 1)
                     headers[k.strip().lower()] = v.strip()
 
+            clean_path = path.split("?")[0].strip("/")
+            if self._is_traversal_attempt(clean_path):
+                await self._write_http_response(writer, "403 Forbidden", b"")
+                return
+
+            import os
+            allowed_origins_env = os.getenv("BRIDGE_ALLOWED_ORIGINS", "http://localhost:8080,http://127.0.0.1:8080")
+            allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
+            req_origin = headers.get("origin", "")
+            cors_origin = req_origin if req_origin in allowed_origins else ""
+
             # 1. Comprobar si es solicitud de Upgrade a WebSocket
             if headers.get("upgrade", "").lower() == "websocket" and "sec-websocket-key" in headers:
+                if req_origin and req_origin not in allowed_origins:
+                    await self._write_http_response(writer, "403 Forbidden", b"")
+                    return
                 await self._handle_websocket_handshake(reader, writer, headers["sec-websocket-key"])
                 return
 
             # 2. Manejo de CORS Preflight (OPTIONS)
             if method == "OPTIONS":
-                await self._handle_cors_preflight(writer)
+                await self._handle_cors_preflight(writer, cors_origin)
                 return
 
             # 3. Leer cuerpo si existe Content-Length (con límite de tamaño para prevenir DoS)
@@ -181,11 +206,11 @@ class MeshCoreWebServer:
 
             # 4. Manejo de API REST con Cabeceras de Seguridad
             if path.startswith("/api/"):
-                await self._handle_api_response(writer, method, path, body_dict)
+                await self._handle_api_response(writer, method, path, headers, body_dict, cors_origin)
                 return
 
             # 5. Servir archivos estáticos (HTML, CSS, JS)
-            await self._serve_static_file(writer, path)
+            await self._serve_static_file(writer, path, cors_origin)
 
         except Exception as e:
             logging.debug(f"Excepción en cliente HTTP/WS: {e}")
@@ -194,12 +219,13 @@ class MeshCoreWebServer:
             except Exception:
                 pass
 
-    async def _handle_cors_preflight(self, writer: asyncio.StreamWriter) -> None:
+    async def _handle_cors_preflight(self, writer: asyncio.StreamWriter, cors_origin: str) -> None:
+        cors_headers = f"Access-Control-Allow-Origin: {cors_origin}\r\n" if cors_origin else ""
         writer.write(
             b"HTTP/1.1 204 No Content\r\n"
-            b"Access-Control-Allow-Origin: *\r\n"
+            + cors_headers.encode() +
             b"Access-Control-Allow-Methods: GET, POST, OPTIONS, DELETE\r\n"
-            b"Access-Control-Allow-Headers: Content-Type, Authorization\r\n"
+            b"Access-Control-Allow-Headers: Content-Type, Authorization, X-Api-Key\r\n"
             b"Access-Control-Max-Age: 86400\r\n"
             b"Connection: close\r\n\r\n"
         )
@@ -211,24 +237,31 @@ class MeshCoreWebServer:
         writer: asyncio.StreamWriter,
         method: str,
         path: str,
+        headers: dict[str, str],
         body_dict: dict[str, Any],
+        cors_origin: str,
     ) -> None:
+        import os
+        api_key = os.getenv("BRIDGE_API_KEY", "")
+        protected_prefixes = ("/api/node/reboot", "/api/admin/", "/api/tx", "/api/repeater/")
+        needs_auth = False
+        if any(path.startswith(p) for p in protected_prefixes):
+            if not (path.startswith("/api/nodes") and method == "GET"):
+                needs_auth = True
+        
+        if needs_auth:
+            if not api_key:
+                logging.warning("BRIDGE_API_KEY no configurada, omitiendo autenticación (modo desarrollo)")
+            else:
+                req_api_key = headers.get("x-api-key", "")
+                if req_api_key != api_key:
+                    resp_bytes = json.dumps({"error": "Unauthorized"}).encode("utf-8")
+                    await self._write_http_response(writer, "401 Unauthorized", resp_bytes, "application/json", cors_origin=cors_origin)
+                    return
+
         status_code, resp_json = await self.router.handle_request(method, path, body_dict)
         resp_bytes = json.dumps(resp_json, indent=2).encode("utf-8")
-        writer.write(
-            f"HTTP/1.1 {status_code} OK\r\n"
-            f"Content-Type: application/json; charset=utf-8\r\n"
-            f"Content-Length: {len(resp_bytes)}\r\n"
-            f"Access-Control-Allow-Origin: *\r\n"
-            f"Access-Control-Allow-Methods: GET, POST, OPTIONS, DELETE\r\n"
-            f"Access-Control-Allow-Headers: Content-Type\r\n"
-            f"X-Content-Type-Options: nosniff\r\n"
-            f"X-Frame-Options: DENY\r\n"
-            f"Referrer-Policy: strict-origin-when-cross-origin\r\n"
-            f"Connection: close\r\n\r\n".encode() + resp_bytes
-        )
-        await writer.drain()
-        writer.close()
+        await self._write_http_response(writer, f"{status_code} OK", resp_bytes, "application/json", cors_origin=cors_origin)
 
     async def _handle_websocket_handshake(
         self,
@@ -304,26 +337,31 @@ class MeshCoreWebServer:
 
     async def _read_websocket_frame(self, reader: asyncio.StreamReader) -> tuple[int, bytes] | None:
         """Lee una trama WebSocket completa (opcode, payload) o None si la conexión cerró."""
-        head = await reader.read(2)
-        if len(head) < 2:
-            return None
-        b1, b2 = head[0], head[1]
-        opcode = b1 & 0x0F
-        masked = bool(b2 & 0x80)
-        length = b2 & 0x7F
-        if length == 126:
-            len_bytes = await reader.read(2)
-            if len(len_bytes) < 2:
+        import os
+        timeout_sec = float(os.getenv("WS_IDLE_TIMEOUT_SEC", "30.0"))
+        try:
+            head = await asyncio.wait_for(reader.read(2), timeout=timeout_sec)
+            if len(head) < 2:
                 return None
-            length = struct.unpack(">H", len_bytes)[0]
-        elif length == 127:
-            len_bytes = await reader.read(8)
-            if len(len_bytes) < 8:
-                return None
-            length = struct.unpack(">Q", len_bytes)[0]
+            b1, b2 = head[0], head[1]
+            opcode = b1 & 0x0F
+            masked = bool(b2 & 0x80)
+            length = b2 & 0x7F
+            if length == 126:
+                len_bytes = await asyncio.wait_for(reader.read(2), timeout=timeout_sec)
+                if len(len_bytes) < 2:
+                    return None
+                length = struct.unpack(">H", len_bytes)[0]
+            elif length == 127:
+                len_bytes = await asyncio.wait_for(reader.read(8), timeout=timeout_sec)
+                if len(len_bytes) < 8:
+                    return None
+                length = struct.unpack(">Q", len_bytes)[0]
 
-        mask_key = await reader.read(4) if masked else b""
-        payload = await reader.read(length)
+            mask_key = await asyncio.wait_for(reader.read(4), timeout=timeout_sec) if masked else b""
+            payload = await asyncio.wait_for(reader.read(length), timeout=timeout_sec)
+        except asyncio.TimeoutError:
+            return None
 
         if masked and mask_key:
             unmasked = bytearray(len(payload))
@@ -354,6 +392,7 @@ class MeshCoreWebServer:
         body: bytes,
         content_type: str | None = None,
         extra_headers: list[str] | None = None,
+        cors_origin: str = "",
     ) -> bytes:
         """Construye una respuesta HTTP 1.1 con cabeceras de seguridad obligatorias."""
         headers = [
@@ -367,6 +406,12 @@ class MeshCoreWebServer:
             headers[0:0] = extra_headers
         if content_type:
             headers.insert(0, f"Content-Type: {content_type}")
+            if "text/html" in content_type:
+                headers.append("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; frame-ancestors 'none'; img-src 'self' data: https:")
+        if cors_origin:
+            headers.append(f"Access-Control-Allow-Origin: {cors_origin}")
+            headers.append("Access-Control-Allow-Methods: GET, POST, OPTIONS, DELETE")
+            headers.append("Access-Control-Allow-Headers: Content-Type, X-Api-Key")
         head = f"HTTP/1.1 {status_line}\r\n" + "\r\n".join(headers) + "\r\n\r\n"
         return head.encode() + body
 
@@ -377,27 +422,24 @@ class MeshCoreWebServer:
         body: bytes,
         content_type: str | None = None,
         extra_headers: list[str] | None = None,
+        cors_origin: str = "",
     ) -> None:
         """Envía una respuesta HTTP y cierra la conexión."""
-        writer.write(self._build_http_response(status_line, body, content_type, extra_headers))
+        writer.write(self._build_http_response(status_line, body, content_type, extra_headers, cors_origin))
         await writer.drain()
         writer.close()
 
-    async def _serve_static_file(self, writer: asyncio.StreamWriter, raw_path: str) -> None:
+    async def _serve_static_file(self, writer: asyncio.StreamWriter, raw_path: str, cors_origin: str = "") -> None:
         """Sirve archivos estáticos locales o devuelve index.html para SPA routing."""
         clean_path = raw_path.split("?")[0].strip("/")
         if not clean_path or clean_path in ("", "chat", "map", "nodes", "contacts", "settings", "telemetry"):
             target_file = self.static_dir / "index.html"
         else:
-            # Seguridad: rechazar explícitamente intentos de Directory Traversal (OWASP)
-            if self._is_traversal_attempt(clean_path):
-                await self._write_http_response(writer, "403 Forbidden", b"")
-                return
             target_file = (self.static_dir / clean_path).resolve()
 
         # Seguridad: verificación canónica (defensa en profundidad)
         if not self._is_within_static_root(target_file):
-            await self._write_http_response(writer, "403 Forbidden", b"")
+            await self._write_http_response(writer, "403 Forbidden", b"", cors_origin=cors_origin)
             return
 
         if not target_file.is_file():
@@ -416,7 +458,8 @@ class MeshCoreWebServer:
                 file_bytes,
                 f"{content_type}; charset=utf-8",
                 extra_headers=[cache_header],
+                cors_origin=cors_origin
             )
         else:
             fallback = b"<h1>MeshCore Web Client</h1><p>Archivos estaticos inicializandose...</p>"
-            await self._write_http_response(writer, "200 OK", fallback, "text/html; charset=utf-8")
+            await self._write_http_response(writer, "200 OK", fallback, "text/html; charset=utf-8", cors_origin=cors_origin)

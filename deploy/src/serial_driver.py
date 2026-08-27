@@ -124,8 +124,15 @@ class BaseSerialAdapter(abc.ABC):
 class MeshcoreSDKAdapter(BaseSerialAdapter):
     """Adaptador principal basado en el SDK oficial meshcore_py."""
 
-    def __init__(self, port: str, baud_rate: int = 115200, timeout_sec: float = 30.0) -> None:
+    def __init__(
+        self,
+        port: str,
+        baud_rate: int = 115200,
+        timeout_sec: float = 30.0,
+        node_registry: Any = None,
+    ) -> None:
         super().__init__(port, baud_rate, timeout_sec)
+        self.node_registry = node_registry
         self.mc: Any = None
 
     async def connect(self) -> bool:
@@ -302,20 +309,37 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             raise ConnectionError("MeshCore SDK no conectado")
 
         target_clean = str(target).strip() if target else ""
-        is_dm = bool(target_clean and target_clean.upper() not in ("0xFFFF", "BROADCAST", "PUBLIC") and not target_clean.lower().startswith("channel"))
+        is_dm = bool(
+            target_clean
+            and target_clean.upper() not in ("0xFFFF", "BROADCAST", "PUBLIC", "ALL", "GLOBAL", "NONE", "")
+            and not target_clean.lower().startswith("channel")
+        )
+        safe_ch = int(channel_idx) if channel_idx is not None else 0
 
         # Canal público vs mensaje directo (DM)
         if is_dm:
             dest_target = self._resolve_target(target_clean)
+
+            # Asegurar contacto en la radio antes de transmitir
+            if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "add_contact"):
+                try:
+                    if isinstance(dest_target, str) and len(dest_target) >= 12:
+                        target_name = target_clean if target_clean != dest_target else f"Node_{dest_target[:6]}"
+                        await self.mc.commands.add_contact({"public_key": (dest_target + "0" * 64)[:64], "name": target_name})
+                    elif isinstance(dest_target, dict):
+                        await self.mc.commands.add_contact(dest_target)
+                except Exception as e_ac:
+                    logging.debug(f"Asegurando contacto en radio para TX: {e_ac}")
+
             if hasattr(self.mc.commands, "send_msg"):
                 res = await self.mc.commands.send_msg(dest_target, text)
             else:
                 raise NotImplementedError("send_msg no soportado en este SDK")
         else:
             if hasattr(self.mc.commands, "send_chan_msg"):
-                res = await self.mc.commands.send_chan_msg(channel_idx, text)
+                res = await self.mc.commands.send_chan_msg(safe_ch, text)
             elif hasattr(self.mc.commands, "send_channel_msg"):
-                res = await self.mc.commands.send_channel_msg(channel_idx, text)
+                res = await self.mc.commands.send_channel_msg(safe_ch, text)
             elif hasattr(self.mc.commands, "send_msg"):
                 res = await self.mc.commands.send_msg(text)
             else:
@@ -357,26 +381,46 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         if isinstance(name_or_key, dict) or hasattr(name_or_key, "public_key"):
             return name_or_key
         name_str = str(name_or_key).strip()
+
+        # 1. Buscar en NodeRegistry si está provisto
+        if self.node_registry:
+            contact = self.node_registry.get_by_key_or_prefix(name_str)
+            if not contact:
+                contact = self.node_registry.find_by_name(name_str)
+            if contact and contact.public_key:
+                return contact.public_key
+
+        # 2. Buscar en SDK contacts
         if hasattr(self.mc, "get_contact_by_name"):
             try:
                 c = self.mc.get_contact_by_name(name_str)
                 if c:
-                    return c
+                    return getattr(c, "public_key", c)
             except Exception:
                 pass
         if hasattr(self.mc, "get_contact_by_key_prefix"):
             try:
                 c = self.mc.get_contact_by_key_prefix(name_str)
                 if c:
-                    return c
+                    return getattr(c, "public_key", c)
             except Exception:
                 pass
         if hasattr(self.mc, "contacts") and isinstance(self.mc.contacts, dict):
             for pk, contact in self.mc.contacts.items():
-                if pk.lower().startswith(name_str.lower()) or name_str.lower().startswith(pk.lower()[:8]):
-                    return contact
-        if len(name_str) < min_hex_len and all(c in "0123456789abcdefABCDEF" for c in name_str):
+                c_name = getattr(contact, "name", contact.get("name") if isinstance(contact, dict) else "")
+                if pk.lower().startswith(name_str.lower()) or (c_name and str(c_name).lower() == name_str.lower()):
+                    return pk
+
+        # 3. Si es cadena hex pero menor a min_hex_len (ej. 8 chars), rellenar con ceros
+        is_hex = all(c in "0123456789abcdefABCDEF" for c in name_str)
+        if is_hex and len(name_str) < min_hex_len:
             return (name_str + "0" * min_hex_len)[:min_hex_len]
+
+        # 4. Si no es hex (ej: "Alice" no encontrada), evitar crash en bytes.fromhex
+        if not is_hex:
+            logging.warning(f"Target '{name_str}' no es una clave hex válida ni se encontró en contactos.")
+            raise ValueError(f"Destinatario no encontrado o clave pública inválida: '{name_str}'")
+
         return name_str
 
     async def get_channels(self) -> list[dict[str, Any]]:
@@ -419,6 +463,14 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
     async def set_channel(self, index: int, name: str, psk: str) -> dict[str, Any]:
         """Configura un canal en el firmware del transceptor serial."""
+        import re
+        if not re.match(r'^[a-fA-F0-9]{0,64}$', psk):
+            raise ValueError("Invalid PSK format")
+        if not (0 <= index <= 15):
+            raise ValueError("Channel index out of range (0-15)")
+        if len(name) > 32 or any(ord(c) < 0x20 for c in name):
+            raise ValueError("Invalid channel name")
+
         if not self.is_connected or not self.mc:
             return {"status": "LOCAL_SAVED", "index": index, "name": name}
 

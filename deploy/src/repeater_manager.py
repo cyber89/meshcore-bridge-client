@@ -1,7 +1,7 @@
 """
-Repeater Remote Management & Packet Sniffer for MeshCore Bridge.
-Gestiona el enrutamiento de comandos administrativos remotos hacia repetidores,
-el análisis integral de telemetría y el procesamiento de tramas de sniffer.
+Repeater Remote Management for MeshCore Bridge.
+Gestiona el enrutamiento de comandos administrativos remotos hacia repetidores
+y el análisis integral de su telemetría.
 """
 
 from __future__ import annotations
@@ -14,11 +14,10 @@ from typing import Any
 
 
 class RepeaterManager:
-    """Administrador de comandos remotos a repetidores y decodificador de tramas de sniffer."""
+    """Administrador de comandos remotos a repetidores y analizador de telemetría."""
 
     def __init__(self, transmit_callback: Callable[[str, str, int], Any] | None = None) -> None:
         self.transmit_callback = transmit_callback
-        self._active_sniffers: set[str] = set()
 
     def build_repeater_command_payload(self, action: str, params: dict[str, Any]) -> str:
         """Construye la cadena de comando en texto para enviar al firmware del repetidor."""
@@ -536,62 +535,4 @@ class RepeaterManager:
             extracted["hardware_board"] = board_m.group(1).strip()
 
         return extracted
-
-    def parse_log_packet(self, log_payload: Any) -> dict[str, Any]:
-        """
-        Parsea un evento push 0x88 (LOG_DATA / RX_LOG_DATA) emitido por un repetidor o sniffer.
-        Extrae encabezados, tipo de ruta, saltos y calidad RF de dicts, bytes o cadenas.
-        """
-        now = time.time()
-
-        # 1. Si ya es un diccionario (MeshCore SDK o deserializado)
-        if isinstance(log_payload, dict):
-            parsed = dict(log_payload)
-            parsed["event_type"] = "rf_log"
-            if "timestamp" not in parsed:
-                parsed["timestamp"] = now
-            for k, v in list(parsed.items()):
-                if isinstance(v, (bytes, bytearray, memoryview)):
-                    parsed[k] = bytes(v).hex()
-            if "raw_hex" not in parsed and "payload" in parsed:
-                if isinstance(parsed["payload"], str):
-                    parsed["raw_hex"] = parsed["payload"]
-            return parsed
-
-        # 2. Si es una cadena de texto
-        if isinstance(log_payload, str):
-            return {
-                "event_type": "rf_log",
-                "raw_text": log_payload,
-                "timestamp": now,
-            }
-
-        # 3. Si son bytes / bytearray / memoryview o convertible
-        try:
-            if isinstance(log_payload, (bytes, bytearray, memoryview)):
-                raw_bytes = bytes(log_payload)
-            else:
-                raw_bytes = bytes(str(log_payload), "utf-8", "ignore")
-        except Exception:
-            raw_bytes = b""
-
-        data_len = len(raw_bytes)
-        parsed_bytes: dict[str, Any] = {
-            "event_type": "rf_log",
-            "byte_length": data_len,
-            "raw_hex": raw_bytes.hex(),
-            "timestamp": now,
-        }
-
-        if data_len >= 1:
-            header_byte = raw_bytes[0]
-            route_type = header_byte & 0x03
-            payload_type = (header_byte >> 2) & 0x0F
-            version = (header_byte >> 6) & 0x03
-
-            parsed_bytes["route_type_id"] = route_type
-            parsed_bytes["payload_type_id"] = payload_type
-            parsed_bytes["version"] = version
-
-        return parsed_bytes
 

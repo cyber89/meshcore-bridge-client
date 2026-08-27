@@ -463,6 +463,14 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
     async def set_channel(self, index: int, name: str, psk: str) -> dict[str, Any]:
         """Configura un canal en el firmware del transceptor serial."""
+        import re
+        if not re.match(r'^[a-fA-F0-9]{0,64}$', psk):
+            raise ValueError("Invalid PSK format")
+        if not (0 <= index <= 15):
+            raise ValueError("Channel index out of range (0-15)")
+        if len(name) > 32 or any(ord(c) < 0x20 for c in name):
+            raise ValueError("Invalid channel name")
+
         if not self.is_connected or not self.mc:
             return {"status": "LOCAL_SAVED", "index": index, "name": name}
 

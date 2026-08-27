@@ -51,6 +51,7 @@ MQTT_BROKER = os.getenv("MQTT_BROKER", "127.0.0.1")
 MQTT_PORT = _safe_int("MQTT_PORT", 1883)
 MQTT_USER = os.getenv("MQTT_USER", "").strip() or None
 MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "").strip() or None
+MQTT_PASSWORD_MASKED = "****" if MQTT_PASSWORD else ""
 MQTT_KEEPALIVE = _safe_int("MQTT_KEEPALIVE", 60)
 
 # ================= Tópicos MQTT =================
@@ -74,13 +75,15 @@ TOPIC_ADMIN_STAT  = f"{TOPIC_PREFIX}/admin/status"     # Respuesta de comandos d
 TOPIC_ADMIN_REPEATER = f"{TOPIC_PREFIX}/admin/repeater" # Gestión remota de repetidores por RF
 
 # ================= Parámetros de Resiliencia y Control =================
-SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", str(Path(__file__).resolve().parent / "meshcore_buffer.db"))
 TX_INTERVAL_SEC = _safe_float("TX_INTERVAL_SEC", 1.0)                 # Espaciado de transmisión RF (LoRa Rate Limiter)
-OFFLINE_BUFFER_MAX_SIZE = _safe_int("OFFLINE_BUFFER_MAX_SIZE", 1000)   # Capacidad máxima del buffer offline SQLite
-OFFLINE_BUFFER_TTL_HOURS = _safe_float("OFFLINE_BUFFER_TTL_HOURS", 48.0) # TTL máximo para retención de telemetría (horas)
-DEDUPLICATION_WINDOW_SEC = _safe_float("DEDUPLICATION_WINDOW_SEC", 60.0) # Ventana temporal de deduplicación de paquetes (segundos)
+DEDUPLICATION_WINDOW_SEC = _safe_float("DEDUPLICATION_WINDOW_SEC", 60.0) # Ventana temporal de deduplicación de paquetes en RAM (segundos)
 WATCHDOG_INTERVAL_SEC = _safe_float("WATCHDOG_INTERVAL_SEC", 60.0)     # Intervalo de supervisión de vivacidad serial
 HEALTH_METRICS_INTERVAL_SEC = _safe_float("HEALTH_METRICS_INTERVAL_SEC", 60.0) # Intervalo de reporte de salud
+
+# ================= Parámetros de Concurrencia (Nuevos) =================
+MAX_TX_QUEUE_SIZE = _safe_int("MAX_TX_QUEUE_SIZE", 500)
+MAX_RX_CONCURRENCY = _safe_int("MAX_RX_CONCURRENCY", 20)
+WS_IDLE_TIMEOUT_SEC = _safe_float("WS_IDLE_TIMEOUT_SEC", 30.0)
 
 # ================= Parámetros de Radio y Airtime LoRa =================
 LORA_DEFAULT_SF = _safe_int("LORA_DEFAULT_SF", 11)                     # Spreading Factor por defecto (SF7..SF12)
@@ -92,15 +95,16 @@ LORA_PREAMBLE_LEN = _safe_int("LORA_PREAMBLE_LEN", 8)                 # Símbolo
 WEB_ENABLED = os.getenv("WEB_ENABLED", "true").lower() in ("true", "1", "yes")
 WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")
 WEB_PORT = _safe_int("WEB_PORT", 8080)
+BRIDGE_API_KEY = os.getenv("BRIDGE_API_KEY", "")
+BRIDGE_ALLOWED_ORIGINS = os.getenv("BRIDGE_ALLOWED_ORIGINS", "http://localhost:8080,http://127.0.0.1:8080")
 
 # ================= Servidor TCP Companion (App Móvil Oficial / CLI) =================
 TCP_SERVER_ENABLED = os.getenv("TCP_SERVER_ENABLED", "true").lower() in ("true", "1", "yes")
 TCP_SERVER_HOST = os.getenv("TCP_SERVER_HOST", "0.0.0.0")
 TCP_SERVER_PORT = _safe_int("TCP_SERVER_PORT", 5000)
-
-# ================= Integración Home Assistant MQTT Discovery =================
-HA_DISCOVERY_ENABLED = os.getenv("HA_DISCOVERY_ENABLED", "true").lower() in ("true", "1", "yes")
-HA_TOPIC_PREFIX = os.getenv("HA_TOPIC_PREFIX", "homeassistant").strip("/")
+MAX_COMPANION_CLIENTS = _safe_int("MAX_COMPANION_CLIENTS", 8)
+COMPANION_ALLOWED_IPS = os.getenv("COMPANION_ALLOWED_IPS", "")
+COMPANION_TOKEN = os.getenv("COMPANION_TOKEN", "")
 
 # ================= Logging Persistente y Rotación de Archivos =================
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()

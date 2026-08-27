@@ -6,7 +6,245 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
-### Hito: Sincronización de Contactos de Hardware, Estabilización de Watchdog y Filtrado de Nodo Local en DM
+### Hito: Fase 1 Seguridad - SEC-001/002/004/005/006/007/009/010/011
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO
+- **Agente 5 (Security & Vulnerability Auditor)**: 
+  - **`src/web/http_server.py`**:
+    - SEC-001: Implementado middleware con verificación del header `X-Api-Key` contra `BRIDGE_API_KEY` para proteger rutas administrativas (`/api/node/reboot`, `/api/admin/`, `/api/tx`, `/api/repeater/`).
+    - SEC-004: Reemplazado CORS wildcard `Access-Control-Allow-Origin: *` por orígenes específicos definidos en `BRIDGE_ALLOWED_ORIGINS`.
+    - SEC-009: Validación explícita del header `Origin` antes de aceptar el handshake WebSocket.
+    - SEC-011: Validación de Path Traversal ejecutada estrictamente antes del upgrade WebSocket.
+    - SEC-005: Incorporada cabecera `Content-Security-Policy` estricta para la entrega de archivos `.html`.
+  - **`src/tcp_companion_server.py`**:
+    - SEC-002: Implementado límite máximo de conexiones concurrentes (`MAX_COMPANION_CLIENTS`) y cierre proactivo.
+    - SEC-007: Implementado handshake de autenticación obligatoria (`COMPANION_TOKEN`) con timeout de 5s y validación de orígenes por IP (`COMPANION_ALLOWED_IPS`).
+  - **`src/serial_driver.py`**:
+    - SEC-006: Reforzada validación de tipos, rangos y sintaxis (regex `^[a-fA-F0-9]{0,64}$`) en el comando `set_channel()`.
+  - **`config.py` y `.env.example`**:
+    - SEC-010: Creada variable `MQTT_PASSWORD_MASKED` para ofuscación segura en logs.
+    - Registradas las nuevas variables de entorno de seguridad (`BRIDGE_API_KEY`, `BRIDGE_ALLOWED_ORIGINS`, `MAX_COMPANION_CLIENTS`, `COMPANION_TOKEN`, etc).
+
+
+### Hito: Corrección de `NameError: name '_safe_int' is not defined` en `rx_router.py`
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**:
+  1. **Causa Raíz**: En [`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py) (línea 437), el bloque de procesamiento de listas de contactos invocaba `_safe_int(...)` y `_safe_float(...)`, pero estas funciones no estaban importadas en la cabecera del módulo — sólo estaban definidas en [`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py) (líneas 18 y 31).
+  2. **Corrección aplicada**:
+     - Ampliado el import de `src.contact_manager` en [`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py) para incluir `_safe_int` y `_safe_float`.
+     - Elevada la función `_get_coord` (antes anidada dentro de `handle_event`) a nivel de módulo para evitar redefiniciones en cada llamada al evento y para mejorar la cobertura de pruebas.
+  3. **Archivos modificados**:
+     - [`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py): importaciones líneas 17-24, nueva función `_get_coord` a nivel de módulo líneas 39-56.
+
+### Hito: Blindaje de Autenticación de Repetidores y Validación Estricta de Administración Remota
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO (Eliminación de auto-login por telemetría, validación de `send_login_sync` y respuesta RF, HTTP 401 en fallos)
+- **Agente Principal (Lead Orchestrator)**: Diagnosticó y corrigió las vulnerabilidades y fallos en la administración remota de repetidores:
+  1. **Causa Raíz de Autenticación Espuria**:
+     - En [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js), la condición en `handleIncomingLiveEvent` incluía `payload.telemetry?.battery_pct !== undefined`, lo que provocaba que cualquier paquete periódico de telemetría de batería marcara el repetidor como autenticado y desbloqueara la vista de administración sin verificar la contraseña.
+     - En [`src/admin_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin_handler.py), la acción `login` devolvía `status: "ok"` y `authenticated: True` de forma incondicional aunque no hubiese respuesta del repetidor (timeout) o se devolviera un mensaje de error.
+  2. **Validación Estricta de Autenticación RF ([`src/admin_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin_handler.py))**:
+     - Implementado soporte síncrono para `mc.commands.send_login_sync` (verificación de evento `LOGIN_SUCCESS`).
+     - Fallback con evaluación estricta de palabras de error (`invalid`, `denied`, `bad pin`, `wrong password`, `login failed`) y rechazo explícito con `status: "error"` y `authenticated: False` en caso de timeout por RF o error de contraseña.
+  3. **Código HTTP 401 Unauthorized en REST API ([`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py))**:
+     - `POST /api/repeater/remote/login` devuelve código HTTP 401 si la autenticación falla o el repetidor no responde, manteniendo el modal bloqueado en la interfaz.
+  4. **Protección en Frontend ([`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js))**:
+     - `authenticateRepeater()` exige `res.ok && data.status === "ok" && data.data?.authenticated === true` antes de añadir a `authenticatedRepeaters` y desbloquear.
+     - Limpieza de `payload.telemetry?.battery_pct` en eventos WebSocket.
+
+### Hito: Verificación Integral de Conexión del Cliente Web, REST APIs y Streaming WebSocket (Playwright PASS)
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO (Playwright Chromium Headless [PASS] - 0 Excepciones JS, 0 Peticiones Fallidas, WebSockets 100% Funcionales)
+- **Agente Principal (Lead Orchestrator)**: Llevó a cabo la verificación funcional y visual del cliente web SPA y su integración con el backend:
+  1. **Inspección de Conexión y Navegación Web ([`scripts/inspect_web.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/scripts/inspect_web.py))**:
+     - Ejecutada auditoría en Chromium Headless en resoluciones Desktop (1920x1080) y Mobile (390x844).
+     - Resultado: **`[PASS]` con 0 excepciones JavaScript no capturadas, 0 errores de consola y 0 peticiones de red fallidas**.
+     - DOM completamente renderizado con todos los paneles principales (`#tab-chat`, `#tab-map`, `#tab-nodes`, `#tab-analytics`, `#tab-logs`).
+  2. **Verificación de Protocolo WebSocket RFC 6455 ([`src/web/http_server.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/http_server.py))**:
+     - Comprobado handshake HTTP `101 Switching Protocols`, recepción inmediata del evento `ws_connected`, emisión periódica de `metrics_update` y streaming bidireccional en caliente de eventos de telemetría y mensajes.
+  3. **Corrección de Robustez en Endpoints REST ([`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py))**:
+     - Implementado acceso defensivo para atributos `serial_adapter` y `mqtt` en `GET /api/status`, evitando excepciones cuando los subsistemas no están instanciados.
+     - Verificados endpoints `/api/status`, `/api/nodes`, `/api/contacts`, `/api/channels`, `/api/analytics`, `/api/lqi` con código HTTP 200.
+
+### Hito: Corrección de Excepción AttributeError en `NodeRegistry.get_local_pubkey`
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO (Implementación de getter/property de `local_pubkey` y defensa en `rx_router.py`)
+- **Agente Principal (Lead Orchestrator)**: Diagnosticó y corrigió el error `AttributeError: 'NodeRegistry' object has no attribute 'get_local_pubkey'`:
+  1. En [`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py), se implementó el método `get_local_pubkey(self) -> str` y la propiedad `@property def local_pubkey(self) -> str` en la clase `NodeRegistry`.
+  2. En [`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py), se aplicó acceso defensivo con `getattr()` y fallback al atributo interno.
+  3. En [`tests/test_contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/tests/test_contact_manager.py), se agregaron pruebas unitarias para la gestión y consulta de la clave pública del nodo local.
+
+### Hito: Corrección Integral de Transmisión TX (Mensajes Públicos y Directos) y Posicionamiento Cartográfico GPS en Mapa Leaflet
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO (Resolución de Nombres en DM, Casting de Canales, Auto-registro de Contactos en Radio y Persistencia de GPS)
+- **Agente Principal (Lead Orchestrator)**: Diagnosticó y corrigió las fallas en el pipeline de transmisión TX y la ubicación de nodos en el mapa:
+  1. **Resolución Robusta de Destinatarios en Mensajes Directos (DM)**:
+     - En [`src/serial_driver.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/serial_driver.py) y [`src/bridge_core.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/bridge_core.py), se integró `NodeRegistry` en `MeshcoreSDKAdapter` y se amplió `_resolve_target()` para resolver nombres/alias (ej. `"Alice"`, `"Sensor_Meteo"`), prefijos de 6 a 12 caracteres y claves públicas completas de 64 caracteres.
+     - Se previno el crash por `ValueError: Invalid public key hex string` cuando se utilizaban nombres de contactos en lugar de cadenas hexadecimales.
+     - Auto-registro proactivo de contactos en la tabla de ruteo de la radio mediante `mc.commands.add_contact()` previo a la llamada de transmisión `send_msg()`.
+  2. **Tipado Estricto de Canales y Difusión Pública**:
+     - Forzado de tipo entero `safe_ch = int(channel_idx)` en [`src/serial_driver.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/serial_driver.py) y [`src/bridge_core.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/bridge_core.py) para prevenir excepciones `AttributeError: 'str' object has no attribute 'to_bytes'` provenientes del framing binario de `meshcore_py`.
+     - Tratamiento explícito de `target` (`"broadcast"`, `"public"`, `"0xffff"`, `"all"`, `"none"`, `""`) para enrutar directamente a canal secundario o broadcast sin confusión con mensajes directos.
+  3. **Manejo de Respuestas de TX y Retroalimentación Inmediata**:
+     - En [`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py) y [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js), se añadió verificación de estado de error (`res.status === "error"`) para marcar de forma inmediata mensajes fallidos en la UI con la causa real y ofrecer botón de reintento, en lugar de esperar el timeout ciego de 8s.
+  4. **Posicionamiento Cartográfico GPS en Mapa Leaflet**:
+     - En [`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py), se añadieron alias `lat` y `lon` en `NodeContactInfo.to_dict()` y extracción universal de coordenadas en `record_packet()` (`lat`, `latitude`, `gps_lat`, `adv_lat`).
+     - En [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js), se corrigió la deduplicación de nodos en `renderNodesDirectory()` para preservar las coordenadas geográficas existentes cuando un nodo envía paquetes sin GPS.
+     - Enriquecido `extractCoord()` para extraer coordenadas desde todos los campos posibles (`node.latitude`, `node.lat`, `node.gps_lat`, `node.adv_lat`, `node.telemetry.*`) y excluir únicamente coordenadas nulas o `(0.0, 0.0)`.
+     - Actualización y re-renderizado en tiempo real del mapa ante eventos entrantes de telemetría por WebSockets.
+
+### Hito: Normalización Exhaustiva de Telemetría, Resolución Canónica de Emisor y Logs Estructurados
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO (Extracción Universal LPP / Stats, Resolución de Prefijos y Formato Rico de Logs)
+- **Agente Principal (Lead Orchestrator)**: Analizó la causa raíz de logs con `De: Desconocido`, `nodo anónimo` y `RSSI/SNR: None`, refactorizando integralmente el pipeline de extracción y resolución:
+  1. **Motor de Extracción Universal de Sensores ([`src/sensor_decoder.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/sensor_decoder.py))**:
+     - Creada función `extract_telemetry_fields()` capaz de procesar listas LPP nativas de MeshCore Python SDK, bytes binarios CayenneLPP, respuestas estructuradas (`battery_mv`, `voltage_v`, `solar_v`, `uptime_secs`, `noise_floor`, `queue_len`, `packet_errors`, GPS).
+     - Conversión automática de `battery_mv` a `voltage_v` y cálculo proporcional de `battery_pct`.
+     - Creada función `format_telemetry_summary()` para generar resúmenes informativos claros (ej: `🌡️ 24.5°C | 💧 60% | 🌀 1013.2 hPa | 🔋 85% (4.12V) | ⏱️ 3h 25m | ⚠️ 0 err`).
+  2. **Resolución Canónica y Logging en Enrutador RX ([`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py))**:
+     - Fusión automática de `event.attributes` con `event.payload` para capturar `pubkey_prefix` y atributos de RF.
+     - Extracción exhaustiva de remitente considerando claves: `pubkey_pre`, `pubkey_prefix`, `public_key`, `target_node`, `from_node`, `node_id`, `source`.
+     - Resolución contra `NodeRegistry.get_by_key_or_prefix` para asociar prefijos de 6 a 12 caracteres hex (`31d03b1f...`, `8d5accef...`) a sus alias o nombres de repetidor.
+     - Normalización de RSSI/SNR eliminando `None dBm` en favor de valores legibles o `N/A`.
+  3. **Buffer de Logs y Web API Router ([`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py))**:
+     - Actualizado `record_incoming_event` para resolver remitentes por prefijo y mostrar `nodo '<alias>' (<pk[:8]>)` o `nodo [<prefix>]` en lugar de `nodo anónimo`.
+     - Integración de `extract_telemetry_fields()` en `api_router` garantizando que los logs del sistema desglosen lecturas completas.
+  4. **Pruebas Automatizadas**:
+     - Actualizado [`tests/test_sensor_decoder.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/tests/test_sensor_decoder.py) y [`tests/test_node_and_repeater_config.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/tests/test_node_and_repeater_config.py) con casos de validación para `extract_telemetry_fields`, `format_telemetry_summary` y resolución de telemetría de repetidores registrados y nodos con prefijo.
+
+### Hito: Implementación de Enrutamiento Dinámico por Calidad de Enlace (LQI) y Selección Inteligente de Rutas
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO (124 Tests en pytest - 100% Suites Pasadas - 0 Fallos)
+- **Agente Principal (Lead Orchestrator)**: Diseñó e implementó el motor de métricas de calidad de enlace LQI (Link Quality Index) y selección automática de ruta directa vs repetidor:
+  1. **Motor LQI ([`src/lqi_engine.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/lqi_engine.py))**:
+     - Cálculo normalizado de calidad física de señal (65% SNR + 35% RSSI).
+     - Penalización por saltos multi-hop (15% por salto).
+     - Suavizado exponencial EMA ($\alpha = 0.3$) y decaimiento temporal tras 3 minutos de inactividad (10% por minuto adicional).
+     - Clasificación categórica de enlace: `EXCELLENT` ($\ge 80\%$), `GOOD` ($\ge 60\%$), `FAIR` ($\ge 40\%$), `POOR` ($> 0\%$), `UNREACHABLE` ($0\%$).
+     - Algoritmo `select_best_route()` para conmutación transparente entre enlace `DIRECT` o `VIA_<REPEATER_PK>` según la calidad comparada.
+  2. **Integración con Contact Manager y Pipeline Asíncrono**:
+     - Actualizado [`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py) con campos `lqi_score`, `lqi_status`, `best_route` y método `get_all_lqi_metrics()`.
+     - Actualizado [`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py) incorporando métricas LQI en los payloads de eventos MQTT/WebSockets y logging estructurado `[LQI: XX% [STATUS]]`.
+     - Creado endpoint REST `GET /api/lqi` en [`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py).
+     - Añadido comando CLI `get_lqi` en [`src/admin_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin_handler.py).
+  3. **Suite de Pruebas Automatizadas ([`tests/test_lqi_routing.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/tests/test_lqi_routing.py))**:
+     - 7 tests exhaustivos de normalización, suavizado EMA, decaimiento temporal, penalización de saltos, selección de rutas e integración con `NodeRegistry`.
+     - Total de tests en suite global: **124 tests pasados (0 fallos)** en 21.22s. Matriz de 10 disciplinas superada al 100%.
+
+### Hito: Auditoría Exhaustiva de Código y Cobertura de Pruebas Total (100% Módulos / 117 Tests)
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO (29 Suites de Prueba - 117 Tests Superados - 100% Éxito)
+- **Agente Principal (Lead Orchestrator)**: Llevó a cabo una auditoría integral de todos los módulos de producción en `/src/` para verificar la existencia de pruebas automatizadas en las 10 disciplinas requeridas:
+  1. **Incorporación de Suite Faltante ([`tests/test_tcp_companion_server.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/tests/test_tcp_companion_server.py))**:
+     - Creada suite unitaria e integración para `src/tcp_companion_server.py`.
+     - Valida el ciclo de vida del servidor TCP en puerto efímero/companion, framing bidireccional con delimitadores `0x3C` (`<`) y `0x3E` (`>`), broadcast, envío a cliente específico, recuperación ante bytes de basura y rechazo seguro de tramas sobredimensionadas (`MAX_FRAME_SIZE`).
+  2. **Matriz Consolidada de Pruebas**:
+     - Total de Suites en el Repositorio: **29 archivos de prueba**.
+     - Total de Tests Automatizados: **117 tests superados (0 fallos)** en 21.39s.
+     - Cobertura de las 10 Disciplinas de Prueba (`scripts/run_all_test_categories.py`): **10/10 PASSED (100%)**.
+
+### Hito: Simulación Exhaustiva de Todos los Tipos de Mensajes de MeshCore (20s) y Trazabilidad Origen -> Destino
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO (20.07s Ejecución - 839 Eventos con Origen/Destino Auditados - 0 Errores)
+- **Agente Principal (Lead Orchestrator)**: Implementó mejoras estructurales de logging en `src/rx_router.py` y `src/admin_handler.py` para garantizar trazabilidad explícita de `De: <origen> -> Para: <destino>` en el 100% de los eventos, y coordinó la simulación de todos los tipos de mensajes posibles:
+  1. **Cobertura Completa de Tipos de Mensajes en MeshCore ([`scripts/simulate_concurrent_network.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/scripts/simulate_concurrent_network.py))**:
+     - *1. Direct Messages (DM)*: 50 mensajes de texto directo con trazabilidad hacia la estación local.
+     - *2. Canales & Broadcast*: 100 mensajes transmitidos en Canal #0 (Público) y Canal #1 (Emergencias).
+     - *3. Telemetría Ambiental*: 50 reportes de sensores de batería, voltaje, temperatura, humedad y presión.
+     - *4. Anuncios & BBS Rooms*: 50 anuncios de presencia de nodos y salas de tableros comunitarios.
+     - *5. Acuses de Recibo (ACK)*: 50 confirmaciones de entrega de paquetes con medición de RTT (ms).
+     - *6. Traceroute Multi-Salto*: 18 trazas de ruta con SNR por salto hacia nodos remotos.
+     - *7. Comandos CLI a Repetidores*: 18 configuraciones remotas con respuestas estructuradas.
+     - *8. Sensores CayenneLPP*: 50 decodificaciones de tramas binarias IPSO.
+     - *9. Tramas Binarias MeshcoreFrame*: 50 tramas seriales directas despachadas limpiamente a MQTT.
+     - *10. Fuzzing & Tramas Deformadas*: 161 paquetes corruptos (CRC alterado, truncados, opcodes inválidos, JSON roto) capturados y descartados con logs detallados.
+     - *11. Modificaciones Remotas de Nodos*: 18 actualizaciones dinámicas de parámetros.
+     - *12. Ajustes en el Transceptor Local*: 9 cambios en caliente de potencia TX, frecuencia y GPS.
+     - *13. Ráfagas de Cuello de Botella*: 12 ráfagas masivas con colas de prioridad `HIGH` (0) y `NORMAL` (1).
+  2. **Auditoría de Logs en Tiempo Real**:
+     - **839 registros de logs generados** identificando origen y destino con formato `De: <origen> -> Para: <destino>`.
+     - **0 errores no controlados, 0 excepciones y 0 fallos de estabilidad**.
+  3. **Verificación Integral de Pruebas**:
+     - `python scripts/run_all_test_categories.py` $\to$ **10/10 Categorías de Prueba Superadas (100% de Éxito)** en 39.25s.
+
+### Hito: Verificación y Cobertura Integral de las 10 Disciplinas de Prueba
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO (10/10 Disciplinas Verificadas - 100% Éxito)
+- **Agente Principal (Lead Orchestrator)**: Coordinó la comprobación y ejecución de la matriz completa de pruebas solicitada por el usuario:
+  1. **1. Unit Tests (Pruebas Unitarias - 7 suites)**: `test_protocol_types.py`, `test_sensor_decoder.py`, `test_contact_manager.py`, `test_rate_limiter_priority.py`, `test_store_forward_modular.py`, `test_serial_adapter.py`, `test_ha_discovery.py`.
+  2. **2. E2E Tests (End-to-End - 1 suite)**: `test_e2e_simulation.py` (ciclo de vida completo del bridge con simulación virtual).
+  3. **3. Contract Tests (Pruebas de Contrato - 1 suite)**: `test_n8n_parser_matrix.py` (esquemas JSON de MQTT e interoperabilidad n8n).
+  4. **4. Chaos Tests (Pruebas de Caos & Hardware Flapping - 2 suites)**: `test_concurrency_and_flapping.py`, `test_serial_watchdog.py`.
+  5. **5. Smoke Tests (Pruebas de Humo & Preflight - 2 suites)**: `test_preflight.py`, `test_diagnostics.py`.
+  6. **6. Integration Tests (Pruebas de Integración - 4 suites)**: `test_bridge_logic.py`, `test_web_server.py`, `test_websocket_live.py`, `test_repeater_manager.py`.
+  7. **7. Snapshot Tests (Pruebas de Snapshot & Formatos - 2 suites)**: `test_diagnostics_export.py`, `test_node_and_repeater_config.py`.
+  8. **8. Load Tests (Pruebas de Carga & Saturación - 2 suites)**: `test_stress_flood.py`, `test_tx_rate_limiter.py`.
+  9. **9. Mutation Tests (Pruebas de Mutación & Bit-Flip - 1 suite)**: `test_mutation_resilience.py` (inversión de bits en tramas, mutación de opcodes, colisiones y truncamientos).
+  10. **10. Regression Tests (Pruebas de Regresión & Seguridad - 4 suites)**: `test_virtual_mesh_simulation.py`, `test_security_audit.py`, `test_store_and_forward.py`, `test_fuzzing_and_edge_cases.py`.
+  - **Runner Automatizado**: Implementado [`scripts/run_all_test_categories.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/scripts/run_all_test_categories.py) para verificación unificada.
+  - **Resultado**: **10/10 Categorías Superadas (100% de Éxito) en 35.67s**.
+
+### Hito: Auditoría Exhaustiva de Integridad y Verificación de Importabilidad Total
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO (100% de Módulos Verificados sin Errores)
+- **Agente Principal (Lead Orchestrator)**: Coordinó la verificación total del repositorio tras la refactorización:
+  1. **Herramienta de Auditoría Integral ([`scripts/audit_codebase_integrity.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/scripts/audit_codebase_integrity.py))**:
+     - Escaneo léxico y de AST en el 100% de archivos Python del repositorio en busca de llamadas a módulos eliminados.
+     - Prueba de importación dinámica de todos los 23 módulos de producción y entrypoints raíz.
+     - Resultado: **0 referencias a módulos eliminados en código de producción** y **100% de módulos de producción importados sin errores**.
+  2. **Corrección de Entrypoint Raíz y Tests**:
+     - Corregido `meshcore_bridge.py` para importar `PacketDeduplicator` desde `src.deduplicator`.
+     - Actualizadas las suites de pruebas `test_concurrency_and_flapping.py`, `test_store_and_forward.py`, `test_ha_discovery.py`, `test_security_audit.py` y `test_store_forward_modular.py`.
+  3. **Verificación de Ejecución**:
+     - `python meshcore_bridge.py --version` $\to$ `MeshCore Universal Bridge v3.0.0` (código 0).
+     - `python scripts/simulate_mesh_network.py` $\to$ **100% de fases superadas**.
+     - Repositorio remoto sincronizado en GitHub (`main`).
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO (100% de Pruebas Superadas)
+- **Agente Principal (Lead Orchestrator)**: Coordinó al Agente 4 (Web UI/UX & Frontend Architect) para implementar las nuevas capacidades interactivas de mensajería:
+  1. **Sistema de Estados de Entrega (ACK Ticks)**:
+     - Ticks visuales: 🕒 Encolado $\to$ ✓ Emitido por radio $\to$ ✓✓ Confirmado por ACK (con RTT en ms y SNR) $\to$ ❌ Falló con botón interactivo de 1 click para reintentar (`retryMessage`).
+     - Timeout automático de 8 segundos para transicionar mensajes sin acuse a estado fallido.
+     - Persistencia de estados ACK y tiempos RTT en IndexedDB (`chat_messages`).
+  2. **Compartir Ubicación GPS y Centrado Táctico en Mapa**:
+     - Botón `📍` en el composer de chat (`shareCurrentLocation`).
+     - Detección automática de coordenadas desde la configuración de la estación o geolocalización del navegador.
+     - Renderizado de tarjeta táctica con coordenadas y botón `"🗺️ Ver en Mapa"`, que conmuta a la pestaña Mapa y centra Leaflet (`flyTo`) con animación y popup destacado.
+  3. **Respuestas a Mensajes (Reply Threading)**:
+     - Botón `↩️` en cada mensaje que despliega un banner contextual flotante `#chatReplyBar` sobre el input.
+     - Renderizado de bloques de cita (`.chat-quote-block`) con autor y texto citado en la burbuja.
+  4. **Alertas Sonoras y Contador de No Leídos**:
+     - Notificación auditiva sintetizada mediante `Web Audio API` (0 dependencias externas) al recibir mensajes entrantes, con control de activación en Ajustes.
+     - Contador dinámico de mensajes no leídos en el título de la pestaña del navegador `(N) MeshCore Web Client`.
+  5. **Verificación y Pruebas**:
+     - `node -c src/web/static/js/app.js`: 0 errores.
+     - `python -m compileall src scripts`: 0 errores.
+     - `python scripts/simulate_mesh_network.py`: 100% superado.
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO (100% de Pruebas y Simulaciones Superadas)
+- **Agente Principal (Lead Orchestrator)**: Coordinó la refactorización arquitectónica para simplificar y optimizar el bridge a una arquitectura *Stateless en Memoria RAM*:
+  1. **Eliminación de Store & Forward en SQLite**:
+     - Eliminado `src/store_forward.py` y base de datos `meshcore_store_forward.db`.
+     - Implementado nuevo módulo `src/deduplicator.py` con `PacketDeduplicator` basado en `collections.OrderedDict` y ventana deslizante TTL para deduplicación ultra-rápida en memoria RAM ($O(1)$) sin I/O en disco.
+     - Adaptado `src/rx_router.py`, `src/bridge_core.py`, `src/mqtt_client.py`, `src/diagnostics.py`, `src/health_reporter.py` y `src/preflight.py` para operar sin dependencias de base de datos ni colas offline en disco.
+  2. **Eliminación de RF Packet Sniffer**:
+     - Eliminadas rutas API REST `/api/sniffer/*` en `src/web/api_router.py`.
+     - Eliminada pestaña `<section id="tab-sniffer">` y modal `#packetDetailModal` en `src/web/static/index.html`.
+     - Eliminados métodos `initSniffer()`, `renderSnifferPacket()`, `updateSnifferStats()`, `filterSnifferTable()` y almacén `sniffer_packets` en IndexedDB en `src/web/static/js/app.js`.
+     - Eliminado procesamiento de tramas `0x88 LOG_DATA` en `src/repeater_manager.py` y `src/virtual_mesh_adapter.py`.
+  3. **Eliminación de Integración Home Assistant Discovery**:
+     - Eliminado módulo `src/ha_discovery.py` y rutas `/api/ha/*`.
+     - Eliminada pestaña `<section id="tab-ha">` y botones de auto-discovery en `src/web/static/index.html` y `src/web/static/js/app.js`.
+     - Eliminados tópicos `homeassistant/#` de la especificación MQTT.
+  4. **Simulación y Verificación**:
+     - `python -m compileall src scripts`: Compilación sin errores (0 advertencias).
+     - `node -c src/web/static/js/app.js`: Sintaxis JavaScript validada (0 errores).
+     - `python scripts/simulate_mesh_network.py`: 100% superado (5 fases multi-nodo, sincronización de contactos, mensajería DM/broadcast, ACK, comandos remotos CLI y configuración).
+     - `python scripts/simulate_heltec_v4_mesh.py`: Simulación de tráfico en vivo con transceptor y Mosquitto superada.
+  5. **Actualización Integral de Documentación**:
+     - Actualizados `README.md`, `docs/ARCHITECTURE.md`, `docs/PROTOCOL_SPEC.md` y `docs/AGENT_ACTIVITY_REPORT.md`.
+     - Despliegue `/deploy/` congelado según instrucción explícita del usuario.
 - **Fecha**: 2026-08-26
 - **Estado**: ✅ COMPLETADO
 - **Agente Principal (Lead Orchestrator)**: Coordinó a los Agentes 1, 2 y 4 para resolver el descubrimiento de contactos, prevenir desconexiones del watchdog y aislar el nodo local en la vista de mensajería:

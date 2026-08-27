@@ -28,6 +28,9 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
         self.mock_mc.commands.set_name = AsyncMock()
         self.mock_mc.commands.set_tx_power = AsyncMock()
         self.mock_mc.commands.reboot = AsyncMock()
+        # Forzar fallback a execute_tx: send_login/send_cmd deben fallar
+        self.mock_mc.commands.send_login = AsyncMock(side_effect=Exception("SDK not available"))
+        self.mock_mc.commands.send_cmd = AsyncMock(side_effect=Exception("SDK not available"))
 
         self.mock_registry = MagicMock()
         self.mock_registry.list_nodes.return_value = []
@@ -223,9 +226,9 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
         logs = list(self.router.recent_system_logs)
         last_log = logs[-1]
         self.assertEqual(last_log["source"], "telemetry")
-        self.assertIn("Repetidor_Norte (31d03b1f)", last_log["message"])
+        self.assertIn("nodo 'Repetidor_Norte' (31d03b1f)", last_log["message"])
         self.assertIn("4.12V", last_log["message"])
-        self.assertIn("12345s", last_log["message"])
+        self.assertIn("3h 25m 45s", last_log["message"])
         self.assertIn("SNR 8.5dB", last_log["message"])
         self.assertIn("-65dBm", last_log["message"])
         self.assertNotIn("nodo anónimo", last_log["message"])

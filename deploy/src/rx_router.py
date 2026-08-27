@@ -14,14 +14,46 @@ from datetime import datetime, timezone
 from typing import Any, Protocol
 
 import config
-from src.contact_manager import NodeContactUpdate, NodeRegistry, PacketRecord, is_valid_node_key
+from src.contact_manager import (
+    NodeContactUpdate,
+    NodeRegistry,
+    PacketRecord,
+    is_valid_node_key,
+    _safe_int,
+    _safe_float,
+)
 from src.mqtt_client import AsyncBridgeMQTTClient
 from src.protocol_types import MeshcoreFrame, OpCode, TextMessagePayload
 from src.repeater_manager import RepeaterManager
-from src.sensor_decoder import CayenneLPPDecoder
-from src.store_forward import PacketDeduplicator
+from src.sensor_decoder import (
+    CayenneLPPDecoder,
+    extract_telemetry_fields,
+    format_telemetry_summary,
+)
+from src.deduplicator import PacketDeduplicator
+from src.lqi_engine import LinkQualityEngine
 
 _SENDER_PREFIX_RE = re.compile(r"^([a-zA-Z0-9_\-\.]{2,32}):\s*(.*)$", re.DOTALL)
+
+
+def _get_coord(d: dict[str, Any], keys: tuple[str, ...]) -> float | None:
+    """Extrae coordenadas GPS válidas evitando tuplas nulas o ceros."""
+    if not isinstance(d, dict):
+        return None
+    for k in keys:
+        if k in d and d[k] is not None:
+            try:
+                v = float(d[k])
+                if v != 0.0:
+                    return v
+            except (ValueError, TypeError):
+                pass
+    for sub in ("gps", "position", "pos", "location", "telemetry"):
+        if sub in d and isinstance(d[sub], dict):
+            res = _get_coord(d[sub], keys)
+            if res is not None:
+                return res
+    return None
 
 
 def extract_sender_from_text(text: str) -> tuple[str | None, str]:
@@ -158,8 +190,6 @@ class RxRouterContext:
     background_tasks: set[asyncio.Task[Any]]
     counters: BridgeCounters
     admin_handler: Any = None
-    store_forward: Any = None
-    store_and_forward: Any = None
 
 
 class RxEventRouter:
@@ -183,6 +213,7 @@ class RxEventRouter:
 
             ev_type_str = str(getattr(event, "type", getattr(event, "event_type", "")))
             payload_obj = getattr(event, "payload", getattr(event, "data", event))
+            attributes = getattr(event, "attributes", None)
 
             if isinstance(payload_obj, dict):
                 payload_dict = dict(payload_obj)
@@ -191,23 +222,76 @@ class RxEventRouter:
             else:
                 payload_dict = {"raw": str(payload_obj)}
 
-            # Caso Sniffer RF (0x88 / LOG_DATA / RX_LOG_DATA)
-            if "LOG_DATA" in ev_type_str.upper() or "rf_log" in ev_type_str.lower():
-                raw_target = payload_dict.get("raw", payload_obj)
-                parsed_log = self._ctx.repeater_manager.parse_log_packet(raw_target)
-                self._ctx.mqtt.publish_safe(config.TOPIC_RX_LOG, json.dumps(parsed_log), qos=0)
-                if self._ctx.web_server:
-                    self._ctx.web_server.broadcast_event(parsed_log)
-                return
+            # Fusionar atributos del evento (ej. MeshCore Event)
+            if isinstance(attributes, dict):
+                for ak, av in attributes.items():
+                    if ak not in payload_dict or payload_dict[ak] is None:
+                        payload_dict[ak] = av
 
             if payload_dict.get("is_outgoing") is True:
                 return
 
-            rssi = payload_dict.get("rssi", payload_dict.get("RSSI"))
-            snr = payload_dict.get("snr", payload_dict.get("SNR"))
-            sender_raw = str(payload_dict.get("sender", payload_dict.get("pubkey_prefix", payload_dict.get("public_key", "")))).strip()
-            sender = self._ctx.node_registry.get_canonical_key(sender_raw) if is_valid_node_key(sender_raw) else ""
-            sender_name = str(payload_dict.get("sender_name", payload_dict.get("adv_name", payload_dict.get("name", self._resolve_sender_name(sender))))) if sender else ""
+            # Extracción exhaustiva del identificador del emisor
+            sender_cand = (
+                payload_dict.get("sender")
+                or payload_dict.get("public_key")
+                or payload_dict.get("pubkey")
+                or payload_dict.get("pubkey_pre")
+                or payload_dict.get("pubkey_prefix")
+                or payload_dict.get("target_node")
+                or payload_dict.get("target")
+                or payload_dict.get("from_node")
+                or payload_dict.get("from")
+                or payload_dict.get("source")
+                or payload_dict.get("src")
+                or payload_dict.get("src_node")
+                or payload_dict.get("src_node_id")
+                or payload_dict.get("node_id")
+                or payload_dict.get("origin")
+                or (payload_dict.get("contact", {}) if isinstance(payload_dict.get("contact"), dict) else {}).get("public_key")
+                or (payload_dict.get("contact", {}) if isinstance(payload_dict.get("contact"), dict) else {}).get("pubkey_prefix")
+                or (payload_dict.get("payload", {}) if isinstance(payload_dict.get("payload"), dict) else {}).get("sender")
+                or (payload_dict.get("payload", {}) if isinstance(payload_dict.get("payload"), dict) else {}).get("pubkey_prefix")
+                or (payload_dict.get("payload", {}) if isinstance(payload_dict.get("payload"), dict) else {}).get("pubkey_pre")
+                or ""
+            )
+            sender_raw = str(sender_cand).strip()
+
+            sender = ""
+            sender_name = ""
+
+            # 1. Resolver emisor contra NodeRegistry por clave o prefijo
+            if sender_raw:
+                contact = self._ctx.node_registry.get_by_key_or_prefix(sender_raw)
+                if contact and contact.public_key:
+                    sender = contact.public_key
+                    sender_name = contact.alias or contact.name
+                elif is_valid_node_key(sender_raw):
+                    sender = self._ctx.node_registry.get_canonical_key(sender_raw)
+                    resolved = self._resolve_sender_name(sender)
+                    if resolved and resolved != sender:
+                        sender_name = resolved
+                    else:
+                        sender_name = f"Nodo [{sender_raw[:8]}]"
+                else:
+                    sender_name = f"Nodo [{sender_raw[:8]}]"
+
+            name_cand = (
+                payload_dict.get("sender_name")
+                or payload_dict.get("adv_name")
+                or payload_dict.get("name")
+                or payload_dict.get("node_name")
+                or payload_dict.get("alias")
+                or (payload_dict.get("contact", {}) if isinstance(payload_dict.get("contact"), dict) else {}).get("name")
+                or (payload_dict.get("contact", {}) if isinstance(payload_dict.get("contact"), dict) else {}).get("alias")
+            )
+            if name_cand:
+                sender_name = str(name_cand).strip()
+                if not sender:
+                    found_c = self._ctx.node_registry.find_by_name(sender_name)
+                    if found_c and found_c.public_key:
+                        sender = found_c.public_key
+
             text = str(payload_dict.get("text", payload_dict.get("message", ""))).strip()
             channel_idx = int(payload_dict.get("channel_idx", payload_dict.get("channel", 0)))
             hops = int(payload_dict.get("hop_count", payload_dict.get("hops", 0)))
@@ -222,12 +306,39 @@ class RxEventRouter:
                     if found_c and is_valid_node_key(found_c.public_key):
                         sender = found_c.public_key
 
+            # Si no hay emisor pero el evento proviene del transceptor local o consulta interna
+            ev_upper_cand = ev_type_str.upper()
+            if not sender:
+                if any(k in ev_upper_cand for k in ("SELF", "BATTERY", "DEVICE_INFO", "LOCAL")):
+                    local_pk = (
+                        self._ctx.node_registry.get_local_pubkey()
+                        if hasattr(self._ctx.node_registry, "get_local_pubkey")
+                        else getattr(self._ctx.node_registry, "_local_pubkey", "")
+                    )
+                    sender = local_pk or "LOCAL"
+                    sender_name = "Estación Base Local"
+                elif sender_raw:
+                    sender = sender_raw
+                    sender_name = f"Nodo [{sender_raw[:8]}]"
+
             # Normalizar métricas de enlace RF de forma global
+            rssi = payload_dict.get("rssi", payload_dict.get("RSSI", payload_dict.get("last_rssi")))
+            snr = payload_dict.get("snr", payload_dict.get("SNR", payload_dict.get("last_snr")))
 
             is_local_sender = bool(sender and is_valid_node_key(sender) and self._ctx.node_registry.is_local_key(sender))
             effective_rssi = None if is_local_sender else (int(rssi) if isinstance(rssi, (int, float)) else None)
             effective_snr = None if is_local_sender else (float(snr) if isinstance(snr, (int, float)) else None)
             effective_hops = 0 if is_local_sender else hops
+
+            # Re-inyectar en payload_dict para coherencia en downstream
+            if sender:
+                payload_dict["sender"] = sender
+            if sender_name:
+                payload_dict["sender_name"] = sender_name
+            if effective_rssi is not None:
+                payload_dict["rssi"] = effective_rssi
+            if effective_snr is not None:
+                payload_dict["snr"] = effective_snr
 
             # Actualizar directorio dinámico de nodos
             if sender and is_valid_node_key(sender):
@@ -244,22 +355,6 @@ class RxEventRouter:
                         role_val = "SENSOR"
                     elif raw_type == 1 or raw_type == "CHAT" or raw_type == "CLIENT":
                         role_val = "CLIENT"
-
-                def _get_coord(d: dict[str, Any], keys: tuple[str, ...]) -> float | None:
-                    for k in keys:
-                        if k in d and d[k] is not None:
-                            try:
-                                v = float(d[k])
-                                if v != 0.0:
-                                    return v
-                            except (ValueError, TypeError):
-                                pass
-                    for sub in ("gps", "position", "pos", "location"):
-                        if sub in d and isinstance(d[sub], dict):
-                            res = _get_coord(d[sub], keys)
-                            if res is not None:
-                                return res
-                    return None
 
                 lat_val = _get_coord(payload_dict, ("lat", "latitude", "gps_lat"))
                 lon_val = _get_coord(payload_dict, ("lon", "longitude", "gps_lon"))
@@ -298,12 +393,12 @@ class RxEventRouter:
                             )
                         )
                         if self._ctx.web_server:
-                            self._ctx.web_server.broadcast_event({
+                            import asyncio; asyncio.create_task(self._ctx.web_server.broadcast_event({
                                 "type": "contact_discovered" if is_new else "contact_updated",
                                 "event_type": "contact_discovered" if is_new else "contact_updated",
                                 "is_new": is_new,
                                 "contact": contact_info.to_dict(),
-                            })
+                            }))
 
             ev_upper = ev_type_str.upper()
             p_type_upper = str(payload_dict.get("type", "")).upper()
@@ -363,12 +458,12 @@ class RxEventRouter:
                         ),
                     )
                     if self._ctx.web_server:
-                        self._ctx.web_server.broadcast_event({
+                        import asyncio; asyncio.create_task(self._ctx.web_server.broadcast_event({
                             "type": "contact_discovered" if is_c_new else "contact_updated",
                             "event_type": "contact_discovered" if is_c_new else "contact_updated",
                             "is_new": is_c_new,
                             "contact": c_contact_info.to_dict(),
-                        })
+                        }))
 
             # Caso ACK de Entrega E2E (Delivery Receipt)
             if "ACK" in ev_upper or "ACK" in p_type_upper or payload_dict.get("event_type") == "ack" or "code" in payload_dict or "code" in ev_attrs:
@@ -382,14 +477,6 @@ class RxEventRouter:
 
                 trip_time = float(payload_dict.get("trip_time_ms", payload_dict.get("trip_time", payload_dict.get("rtt", 0.0))))
                 ack_msg_id = str(payload_dict.get("msg_id", payload_dict.get("id", ""))).strip()
-
-                sf = getattr(self._ctx, "store_forward", getattr(self._ctx, "store_and_forward", None))
-                if not ack_msg_id and ack_code and sf:
-                    ack_msg_id = sf.get_msg_id_by_expected_ack(ack_code) or ""
-
-                if ack_msg_id and sf:
-                    sf.mark_message_delivered(ack_msg_id, trip_time)
-
 
                 admin = getattr(self._ctx, "admin_handler", None)
                 if admin and hasattr(admin, "notify_ping_response"):
@@ -416,8 +503,13 @@ class RxEventRouter:
                     "snr": effective_snr,
                 }
 
+                logging.info(
+                    f"[RX-ACK] De: {sender or 'Red Mesh'} -> Para: Estación Base Local | "
+                    f"Código: '{ack_code}' | RTT: {trip_time} ms | RSSI: {effective_rssi} dBm, SNR: {effective_snr} dB"
+                )
+
                 if self._ctx.web_server:
-                    self._ctx.web_server.broadcast_event(ack_evt_data)
+                    import asyncio; asyncio.create_task(self._ctx.web_server.broadcast_event(ack_evt_data))
 
                 self._ctx.mqtt.publish_safe(
                     config.TOPIC_TX_STATUS,
@@ -434,6 +526,11 @@ class RxEventRouter:
                 rssi_trace = payload_dict.get("rssi", payload_dict.get("RSSI", effective_rssi))
                 tag = payload_dict.get("tag")
 
+                logging.info(
+                    f"[RX-TRACE] De: {sender or 'Desconocido'} -> Para: Estación Base Local | "
+                    f"Saltos: {len(path_nodes)} | Tag: {tag}"
+                )
+
                 admin = getattr(self._ctx, "admin_handler", None)
                 if admin and hasattr(admin, "notify_ping_response"):
                     admin.notify_ping_response(
@@ -448,10 +545,10 @@ class RxEventRouter:
                     )
 
                 if self._ctx.web_server:
-                    self._ctx.web_server.broadcast_event({
+                    import asyncio; asyncio.create_task(self._ctx.web_server.broadcast_event({
                         "type": "trace_data",
                         "data": payload_dict,
-                    })
+                    }))
                 return
 
             raw_txt_type = payload_dict.get("txt_type", payload_dict.get("text_type", 0))
@@ -624,10 +721,13 @@ class RxEventRouter:
                 }), qos=0)
             self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, json.dumps(rep_payload, sort_keys=True), qos=0)
             if self._ctx.web_server:
-                self._ctx.web_server.broadcast_event(rep_payload)
+                import asyncio; asyncio.create_task(self._ctx.web_server.broadcast_event(rep_payload))
             return
 
         event_type = "public" if msg.channel_idx == 0 else "channel"
+        lqi_val = LinkQualityEngine.compute_instant_lqi(msg.snr, msg.rssi, 0)
+        lqi_stat = LinkQualityEngine.classify_lqi_status(lqi_val)
+
         evt_payload = {
             "event_type": event_type,
             "sender": msg.sender,
@@ -638,9 +738,13 @@ class RxEventRouter:
             "txt_type": msg.txt_type,
             "rssi": msg.rssi,
             "snr": msg.snr,
+            "lqi_score": lqi_val,
+            "lqi_status": lqi_stat,
             "metrics": {
                 "rssi": msg.rssi,
                 "snr": msg.snr,
+                "lqi_score": lqi_val,
+                "lqi_status": lqi_stat,
             },
             "timestamp": now_iso,
         }
@@ -653,7 +757,12 @@ class RxEventRouter:
 
         self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
         if self._ctx.web_server:
-            self._ctx.web_server.broadcast_event(evt_payload)
+            import asyncio; asyncio.create_task(self._ctx.web_server.broadcast_event(evt_payload))
+
+        logging.info(
+            f"[RX-CANAL] De: {msg.sender_name or msg.sender} -> Para: Canal #{msg.channel_idx} | "
+            f"Texto: '{msg.text}' | LQI: {lqi_val}% [{lqi_stat}] | RSSI: {msg.rssi} dBm, SNR: {msg.snr} dB"
+        )
 
     def _handle_mesh_direct_msg(self, msg: MeshMessageEvent) -> None:
         # Analizar si el mensaje de texto contiene telemetría o respuestas de comandos del repetidor
@@ -756,8 +865,11 @@ class RxEventRouter:
                 }), qos=0)
             self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, json.dumps(rep_payload, sort_keys=True), qos=0)
             if self._ctx.web_server:
-                self._ctx.web_server.broadcast_event(rep_payload)
+                import asyncio; asyncio.create_task(self._ctx.web_server.broadcast_event(rep_payload))
             return
+
+        lqi_val = LinkQualityEngine.compute_instant_lqi(msg.snr, msg.rssi, 0)
+        lqi_stat = LinkQualityEngine.classify_lqi_status(lqi_val)
 
         evt_payload = {
             "event_type": "direct",
@@ -768,9 +880,13 @@ class RxEventRouter:
             "txt_type": msg.txt_type,
             "rssi": msg.rssi,
             "snr": msg.snr,
+            "lqi_score": lqi_val,
+            "lqi_status": lqi_stat,
             "metrics": {
                 "rssi": msg.rssi,
                 "snr": msg.snr,
+                "lqi_score": lqi_val,
+                "lqi_status": lqi_stat,
             },
             "telemetry": extracted_telem if extracted_telem else None,
             "timestamp": now_iso,
@@ -782,59 +898,70 @@ class RxEventRouter:
         self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
 
         if self._ctx.web_server:
-            self._ctx.web_server.broadcast_event(evt_payload)
+            import asyncio; asyncio.create_task(self._ctx.web_server.broadcast_event(evt_payload))
+
+        logging.info(
+            f"[RX-DM] De: {msg.sender_name or msg.sender} -> Para: Estación Base Local | "
+            f"Texto: '{msg.text}' | LQI: {lqi_val}% [{lqi_stat}] | RSSI: {msg.rssi} dBm, SNR: {msg.snr} dB"
+        )
 
     def _handle_mesh_telemetry_msg(self, payload_dict: dict[str, Any]) -> None:
-        if "raw_bytes" in payload_dict and isinstance(payload_dict["raw_bytes"], (bytes, bytearray)):
-            raw_b = bytes(payload_dict["raw_bytes"])
-            _readings, summary = CayenneLPPDecoder.decode(raw_b)
-            payload_dict["raw_hex"] = raw_b.hex()
-            payload_dict.pop("raw_bytes", None)
-            payload_dict.update(summary)
+        # Extraer y normalizar exhaustivamente todas las lecturas de telemetría/sensores
+        extracted_fields = extract_telemetry_fields(payload_dict)
+        payload_dict.update(extracted_fields)
 
         # Si el payload contiene texto de telemetría de repetidor
         raw_text_cand = payload_dict.get("text", payload_dict.get("raw_text", payload_dict.get("message", "")))
         if isinstance(raw_text_cand, str) and raw_text_cand.strip():
-            extracted = self._ctx.repeater_manager.parse_repeater_telemetry_or_response(raw_text_cand)
-            if extracted:
-                payload_dict.update(extracted)
-                sender = str(payload_dict.get("sender", payload_dict.get("public_key", "")))
-                if sender:
-                    self._ctx.node_registry.add_or_update(
-                        sender,
-                        NodeContactUpdate(
-                            name=str(payload_dict.get("sender_name", self._resolve_sender_name(sender))),
-                            role="REPEATER",
-                            battery_pct=extracted.get("battery_pct"),
-                            voltage_v=extracted.get("voltage_v"),
-                            solar_v=extracted.get("solar_v"),
-                            latitude=extracted.get("latitude"),
-                            longitude=extracted.get("longitude"),
-                            altitude_m=extracted.get("altitude_m"),
-                            fixed_position=extracted.get("fixed_position"),
-                            uptime=extracted.get("uptime"),
-                            clock=extracted.get("clock"),
-                            airtime_ms=extracted.get("airtime_ms"),
-                            noise_floor_dbm=extracted.get("noise_floor_dbm"),
-                            packets_sent=extracted.get("packets_sent"),
-                            packets_recv=extracted.get("packets_recv"),
-                            duplicate_packets=extracted.get("duplicate_packets"),
-                            packet_errors=extracted.get("packet_errors"),
-                            queue_len=extracted.get("queue_len"),
-                            owner_name=extracted.get("owner_name"),
-                            owner_info=extracted.get("owner_info"),
-                            firmware_version=extracted.get("firmware_version"),
-                            hardware_board=extracted.get("hardware_board"),
-                            frequency=extracted.get("frequency"),
-                            tx_power=extracted.get("tx_power"),
-                            spreading_factor=extracted.get("spreading_factor"),
-                            bandwidth=extracted.get("bandwidth"),
-                            coding_rate=extracted.get("coding_rate"),
-                            repeat_enabled=extracted.get("repeat_enabled"),
-                            advert_interval=extracted.get("advert_interval"),
-                            hops=extracted.get("hops"),
-                        ),
-                    )
+            extracted_rep = self._ctx.repeater_manager.parse_repeater_telemetry_or_response(raw_text_cand)
+            if extracted_rep:
+                payload_dict.update(extracted_rep)
+
+        # Resolver emisor si aún no está resuelto
+        sender = str(payload_dict.get("sender", payload_dict.get("public_key", "")))
+        if not sender and payload_dict.get("pubkey_prefix"):
+            contact = self._ctx.node_registry.get_by_key_or_prefix(str(payload_dict["pubkey_prefix"]))
+            if contact and contact.public_key:
+                sender = contact.public_key
+                payload_dict["sender"] = sender
+                payload_dict["sender_name"] = contact.alias or contact.name
+
+        if sender and is_valid_node_key(sender):
+            self._ctx.node_registry.add_or_update(
+                sender,
+                NodeContactUpdate(
+                    name=str(payload_dict.get("sender_name", self._resolve_sender_name(sender))),
+                    role=payload_dict.get("role", "REPEATER" if "uptime" in payload_dict or "packet_errors" in payload_dict else "SENSOR"),
+                    battery_pct=payload_dict.get("battery_pct"),
+                    voltage_v=payload_dict.get("voltage_v"),
+                    solar_v=payload_dict.get("solar_v"),
+                    latitude=payload_dict.get("latitude"),
+                    longitude=payload_dict.get("longitude"),
+                    altitude_m=payload_dict.get("altitude_m"),
+                    fixed_position=payload_dict.get("fixed_position"),
+                    uptime=payload_dict.get("uptime"),
+                    clock=payload_dict.get("clock"),
+                    airtime_ms=payload_dict.get("airtime_ms"),
+                    noise_floor_dbm=payload_dict.get("noise_floor_dbm"),
+                    packets_sent=payload_dict.get("packets_sent"),
+                    packets_recv=payload_dict.get("packets_recv"),
+                    duplicate_packets=payload_dict.get("duplicate_packets"),
+                    packet_errors=payload_dict.get("packet_errors"),
+                    queue_len=payload_dict.get("queue_len"),
+                    owner_name=payload_dict.get("owner_name"),
+                    owner_info=payload_dict.get("owner_info"),
+                    firmware_version=payload_dict.get("firmware_version"),
+                    hardware_board=payload_dict.get("hardware_board"),
+                    frequency=payload_dict.get("frequency"),
+                    tx_power=payload_dict.get("tx_power"),
+                    spreading_factor=payload_dict.get("spreading_factor"),
+                    bandwidth=payload_dict.get("bandwidth"),
+                    coding_rate=payload_dict.get("coding_rate"),
+                    repeat_enabled=payload_dict.get("repeat_enabled"),
+                    advert_interval=payload_dict.get("advert_interval"),
+                    hops=payload_dict.get("hops"),
+                ),
+            )
 
         # Sanitizar cualquier otro campo bytes restante
         for k, v in list(payload_dict.items()):
@@ -844,10 +971,42 @@ class RxEventRouter:
         payload_dict["timestamp"] = datetime.now(timezone.utc).isoformat()
         evt_json = json.dumps(payload_dict, sort_keys=True)
         self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
-        if "battery" in payload_dict or "battery_pct" in payload_dict or "voltage" in payload_dict or "temperature" in payload_dict or "temperature_c" in payload_dict:
+        if any(k in payload_dict for k in ("battery", "battery_pct", "battery_mv", "voltage", "voltage_v", "temperature", "temperature_c", "humidity_pct", "pressure_hpa", "solar_v")):
             self._ctx.mqtt.publish_safe(config.TOPIC_RX_TELEMETRY, evt_json, qos=0)
         if self._ctx.web_server:
-            self._ctx.web_server.broadcast_event(payload_dict)
+            import asyncio; asyncio.create_task(self._ctx.web_server.broadcast_event(payload_dict))
+
+        ev_name = payload_dict.get("event_type", "telemetry")
+        sender_name_val = payload_dict.get("sender_name")
+        if sender and sender_name_val and sender_name_val != sender and len(sender) >= 8:
+            sender_label = f"{sender_name_val} ({sender[:8]})"
+        elif sender_name_val:
+            sender_label = str(sender_name_val)
+        elif sender and len(sender) >= 8:
+            sender_label = f"Nodo [{sender[:8]}]"
+        elif payload_dict.get("pubkey_prefix"):
+            sender_label = f"Nodo [{str(payload_dict['pubkey_prefix'])[:8]}]"
+        else:
+            sender_label = "Estación Base Local" if ev_name in ("self_info", "battery", "device_info") else "Desconocido"
+
+        rssi_val = payload_dict.get("rssi", payload_dict.get("RSSI", payload_dict.get("last_rssi")))
+        snr_val = payload_dict.get("snr", payload_dict.get("SNR", payload_dict.get("last_snr")))
+        rssi_str = f"{rssi_val} dBm" if rssi_val is not None else "N/A"
+        snr_str = f"{snr_val} dB" if snr_val is not None else "N/A"
+
+        lqi_part = ""
+        if rssi_val is not None and snr_val is not None:
+            instant_lqi = LinkQualityEngine.compute_instant_lqi(float(snr_val), float(rssi_val), hops=int(payload_dict.get("hops", 0)))
+            lqi_stat = LinkQualityEngine.classify_lqi_status(instant_lqi)
+            lqi_part = f" | LQI: {instant_lqi:.1f}% [{lqi_stat}]"
+            payload_dict["lqi_score"] = instant_lqi
+            payload_dict["lqi_status"] = lqi_stat
+
+        telem_summary = format_telemetry_summary(payload_dict)
+        logging.info(
+            f"[RX-TELEMETRÍA] De: {sender_label} -> Para: Gateway/MQTT | "
+            f"Tipo: {ev_name} | {telem_summary} | RSSI: {rssi_str}, SNR: {snr_str}{lqi_part}"
+        )
 
     async def _dispatch_parsed_frame(self, frame: MeshcoreFrame) -> None:
         """Enruta instancias de MeshcoreFrame validadas a MQTT."""
@@ -875,3 +1034,8 @@ class RxEventRouter:
 
                 src_hex = f"0x{frame.header.src_node_id:04X}"
                 self._ctx.mqtt.publish_safe(f"{config.TOPIC_RX_DIRECT}/{src_hex}", evt_json, qos=0)
+
+        logging.info(
+            f"[RX-FRAME] De: 0x{frame.header.src_node_id:04X} -> Para: 0x{frame.header.dst_node_id:04X} | "
+            f"OpCode: {frame.header.opcode.name} | Seq: {frame.header.seq_num} | Válido: {frame.is_valid}"
+        )

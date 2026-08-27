@@ -1,7 +1,7 @@
 """
 Core Orchestrator and Lifecycle Manager for MeshCore Universal Bridge.
-Integra el adaptador serial, cliente MQTT, Store & Forward en SQLite, Rate Limiter con PriorityQueue,
-Registro Dinámico de Nodos, Decodificador CayenneLPP y Gestión Remota de Repetidores para n8n.
+Integra el adaptador serial, cliente MQTT asíncrono, Rate Limiter con PriorityQueue,
+Deduplicación en Memoria RAM, Registro Dinámico de Nodos y Gestión Remota de Repetidores.
 """
 
 from __future__ import annotations
@@ -17,8 +17,8 @@ from typing import Any, Protocol, cast
 import config
 from src.admin_handler import AdminCommandHandler, AdminContext
 from src.contact_manager import NodeContactUpdate, NodeRegistry
+from src.deduplicator import PacketDeduplicator
 from src.diagnostics import DiagnosticManager, SystemLogHandler
-from src.ha_discovery import HomeAssistantDiscovery
 from src.health_reporter import HealthContext, HealthReporter
 from src.mqtt_client import AsyncBridgeMQTTClient, MQTTConfig
 from src.mqtt_dispatcher import MqttInboundContext, MqttInboundDispatcher
@@ -32,7 +32,6 @@ from src.serial_driver import (
     RawSerialFramingAdapter,
     SerialWatchdog,
 )
-from src.store_forward import PacketDeduplicator, SQLiteStoreAndForward
 from src.tcp_companion_server import MeshCoreCompanionServer
 from src.web import MeshCoreWebServer
 
@@ -67,20 +66,14 @@ class MeshCoreBridge:
         self.running = True
         self.start_time = time.time()
         self._custom_loop = loop
-        actual_db_path = db_path or config.SQLITE_DB_PATH
 
-        self._init_storage_and_network(actual_db_path)
+        self._init_storage_and_network()
         self._init_adapters_and_watchdog()
         self._init_metrics_and_tasks()
         self._build_sub_components()
 
-    def _init_storage_and_network(self, db_path: str) -> None:
-        """Inicializa persistencia SQLite, deduplicador, registros y rate limiter."""
-        self.store_and_forward = SQLiteStoreAndForward(
-            db_path=db_path,
-            max_size=config.OFFLINE_BUFFER_MAX_SIZE,
-            default_ttl_hours=getattr(config, "OFFLINE_BUFFER_TTL_HOURS", 48.0),
-        )
+    def _init_storage_and_network(self) -> None:
+        """Inicializa deduplicador en RAM, registros y rate limiter."""
         self.deduplicator = PacketDeduplicator(
             window_seconds=getattr(config, "DEDUPLICATION_WINDOW_SEC", 60.0),
         )
@@ -103,13 +96,7 @@ class MeshCoreBridge:
                 keepalive=config.MQTT_KEEPALIVE,
                 topic_prefix=config.TOPIC_PREFIX,
             ),
-            store_and_forward=self.store_and_forward,
             on_rx_message_callback=self._on_incoming_mqtt_message,
-        )
-        self.ha_discovery = HomeAssistantDiscovery(
-            topic_prefix=config.TOPIC_PREFIX,
-            ha_prefix=getattr(config, "HA_TOPIC_PREFIX", "homeassistant"),
-            enabled=getattr(config, "HA_DISCOVERY_ENABLED", True),
         )
         self.preflight = PreflightChecker()
 
@@ -138,13 +125,13 @@ class MeshCoreBridge:
         """Difunde logs en tiempo real vía WebSocket a la interfaz web."""
         web = getattr(self, "web_server", None)
         if web is not None and getattr(self, "running", False):
-            web.broadcast_event(payload)
+            import asyncio; asyncio.create_task(web.broadcast_event(payload))
 
     def _on_raw_companion_frame_rx(self, payload: bytes) -> None:
         """Difunde tramas binarias de la radio hacia clientes TCP Companion conectados (App Móvil / CLI)."""
         tcp_srv = getattr(self, "tcp_server", None)
         if tcp_srv is not None and getattr(self, "running", False):
-            tcp_srv.broadcast_companion_frame(payload)
+            import asyncio; asyncio.create_task(tcp_srv.broadcast_companion_frame(payload))
 
     async def handle_tcp_companion_command(self, payload: bytes, client_writer: Any) -> None:
         """Maneja comandos binarios enviados por apps móviles o CLI a través del socket TCP Companion."""
@@ -206,11 +193,8 @@ class MeshCoreBridge:
                 loop=self._custom_loop,
                 background_tasks=self._background_tasks,
                 counters=self,
-                store_forward=self.store_and_forward,
-                store_and_forward=self.store_and_forward,
             )
         )
-
 
         self.admin_handler = AdminCommandHandler(
             AdminContext(
@@ -227,7 +211,6 @@ class MeshCoreBridge:
             HealthContext(
                 mqtt=self.mqtt,
                 serial_adapter=self.serial_adapter,
-                store_and_forward=self.store_and_forward,
                 node_registry=self.node_registry,
                 rate_limiter=self.rate_limiter,
                 counters=self,
@@ -237,10 +220,6 @@ class MeshCoreBridge:
         )
 
     # ================= Propiedades de compatibilidad =================
-    @property
-    def sqlite_buffer(self) -> SQLiteStoreAndForward:
-        return self.store_and_forward
-
     @property
     def mqtt_client(self) -> MqttClientProtocol | Any:
         return self.mqtt.client
@@ -311,6 +290,8 @@ class MeshCoreBridge:
 
     def resolve_recipient_target(self, name_or_key: str) -> Any:
         contact = self.node_registry.get_by_key_or_prefix(name_or_key)
+        if not contact:
+            contact = self.node_registry.find_by_name(name_or_key)
         target_key = contact.public_key if contact else name_or_key
         if isinstance(self.serial_adapter, MeshcoreSDKAdapter):
             return self.serial_adapter._resolve_target(target_key)
@@ -323,6 +304,7 @@ class MeshCoreBridge:
                 port=config.SERIAL_PORT,
                 baud_rate=config.BAUD_RATE,
                 timeout_sec=config.SERIAL_TIMEOUT,
+                node_registry=self.node_registry,
             )
         except Exception:
             return RawSerialFramingAdapter(
@@ -340,7 +322,6 @@ class MeshCoreBridge:
         report = self.preflight.run_all(
             mqtt_host=config.MQTT_BROKER,
             mqtt_port=config.MQTT_PORT,
-            db_path=config.SQLITE_DB_PATH,
             serial_port=getattr(self.serial_adapter, "port", config.SERIAL_PORT),
             tcp_server_port=getattr(config, "TCP_SERVER_PORT", 5000),
             tcp_server_enabled=getattr(config, "TCP_SERVER_ENABLED", True),
@@ -367,8 +348,7 @@ class MeshCoreBridge:
         # Auto-importación en arranque: canales, contactos y configuración del hardware Heltec
         await self._auto_bootstrap_heltec_state()
 
-        # Iniciar reporte periódico de salud y Home Assistant Discovery
-        self.ha_discovery.publish_discovery_for_bridge(self.mqtt.publish_safe)
+        # Iniciar reporte periódico de salud
         self._health_task = self.health_reporter.start()
         self._background_tasks.add(self._health_task)
         self._health_task.add_done_callback(self._background_tasks.discard)
@@ -596,15 +576,6 @@ class MeshCoreBridge:
             self.tx_error_count += 1
             status_val = "error"
             error_detail = str(e)
-
-        # Registrar mensaje saliente para seguimiento de entrega (ACK receipt)
-        if req_id and self.store_and_forward and status_val != "error":
-            self.store_and_forward.record_outbound_message(
-                msg_id=str(req_id),
-                sender="local",
-                recipient=str(target),
-                expected_ack=expected_ack_hex,
-            )
 
         # Publicar ACK de transmisión
         ack_payload: dict[str, Any] = {

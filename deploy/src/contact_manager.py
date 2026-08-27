@@ -12,6 +12,8 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from src.lqi_engine import LinkQualityEngine, LQIStatus
+
 
 def _safe_int(val: Any) -> int | None:
     """Convierte de forma segura valores de batería o contadores a entero."""
@@ -90,6 +92,9 @@ class NodeContactInfo:
     discovery_time: float = 0.0
     verified_identity: bool = False
     is_favorite: bool = False
+    lqi_score: float = 0.0
+    lqi_status: str = "UNKNOWN"
+    best_route: str = "DIRECT"
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -97,6 +102,11 @@ class NodeContactInfo:
         d["total_packets"] = self.rx_packets + self.tx_packets
         d["error_rate_pct"] = round((self.error_count / (d["total_packets"] or 1)) * 100, 1)
         d["is_local"] = self.is_local
+        d["lat"] = self.latitude
+        d["lon"] = self.longitude
+        d["lqi_score"] = round(self.lqi_score, 1)
+        d["lqi_status"] = self.lqi_status
+        d["best_route"] = self.best_route
         return d
 
 
@@ -111,6 +121,9 @@ class NodeContactUpdate:
     discovery_time: float | None = None
     verified_identity: bool | None = None
     is_favorite: bool | None = None
+    lqi_score: float | None = None
+    lqi_status: str | None = None
+    best_route: str | None = None
     hops: int | None = None
     last_rssi: int | None = None
     last_snr: float | None = None
@@ -210,6 +223,15 @@ class NodeRegistry:
         """Establece la clave pública del nodo local para distinguirlo de nodos remotos."""
         self._local_pubkey = str(pubkey).strip().lower()
 
+    def get_local_pubkey(self) -> str:
+        """Devuelve la clave pública del nodo local."""
+        return self._local_pubkey
+
+    @property
+    def local_pubkey(self) -> str:
+        """Propiedad de acceso a la clave pública del nodo local."""
+        return self._local_pubkey
+
     def is_local_key(self, raw_key: str) -> bool:
         """Determina si una clave o prefijo corresponde a la estación base local."""
         norm = str(raw_key).strip().lower()
@@ -288,15 +310,40 @@ class NodeRegistry:
         )
         role_default = "LOCAL" if is_local_flag else "CLIENT"
 
+        # Cálculo / Suavizado de LQI
+        eff_snr = None if is_local_flag else (update.last_snr if update.last_snr is not None else (existing.last_snr if existing else None))
+        eff_rssi = None if is_local_flag else (update.last_rssi if update.last_rssi is not None else (existing.last_rssi if existing else None))
+        eff_hops = 0 if is_local_flag else (update.hops if update.hops is not None else (existing.hops if existing else 0))
+
+        if update.lqi_score is not None:
+            calc_lqi = float(update.lqi_score)
+            calc_status = update.lqi_status or LinkQualityEngine.classify_lqi_status(calc_lqi)
+        elif is_local_flag:
+            calc_lqi = 100.0
+            calc_status = LQIStatus.EXCELLENT.value
+        elif eff_snr is not None or eff_rssi is not None:
+            instant_lqi = LinkQualityEngine.compute_instant_lqi(eff_snr, eff_rssi, eff_hops or 0)
+            prev_lqi = existing.lqi_score if existing else 0.0
+            calc_lqi = LinkQualityEngine.update_ema_lqi(prev_lqi, instant_lqi)
+            calc_status = LinkQualityEngine.classify_lqi_status(calc_lqi)
+        else:
+            calc_lqi = existing.lqi_score if existing else 0.0
+            calc_status = existing.lqi_status if existing else "UNKNOWN"
+
+        calc_route = update.best_route if update.best_route is not None else (existing.best_route if existing else "DIRECT")
+
         contact = NodeContactInfo(
             public_key=canonical_key,
             name=clean_name,
             alias=clean_alias,
             role=update.role if update.role is not None else (existing.role if existing else role_default),
             is_local=is_local_flag,
-            hops=0 if is_local_flag else (update.hops if update.hops is not None else (existing.hops if existing else None)),
-            last_rssi=None if is_local_flag else (update.last_rssi if update.last_rssi is not None else (existing.last_rssi if existing else None)),
-            last_snr=None if is_local_flag else (update.last_snr if update.last_snr is not None else (existing.last_snr if existing else None)),
+            hops=eff_hops if not is_local_flag else 0,
+            last_rssi=eff_rssi,
+            last_snr=eff_snr,
+            lqi_score=calc_lqi,
+            lqi_status=calc_status,
+            best_route=calc_route,
             battery_pct=update.battery_pct if update.battery_pct is not None else (existing.battery_pct if existing else None),
             last_seen=now,
             rx_packets=update.rx_packets if update.rx_packets is not None else (existing.rx_packets if existing else 0),
@@ -345,6 +392,35 @@ class NodeRegistry:
             self._nodes_by_name[clean_alias.lower()] = canonical_key
 
         return contact
+
+    def get_all_lqi_metrics(self) -> list[dict[str, Any]]:
+        """Retorna las métricas LQI y estado de enlace de todos los nodos registrados."""
+        now = time.time()
+        results = []
+        for contact in self._nodes_by_key.values():
+            if contact.is_local:
+                decayed_lqi = 100.0
+                status = LQIStatus.EXCELLENT.value
+            else:
+                decayed_lqi = LinkQualityEngine.apply_time_decay(contact.lqi_score, contact.last_seen or now, now)
+                status = LinkQualityEngine.classify_lqi_status(decayed_lqi)
+
+            results.append({
+                "public_key": contact.public_key,
+                "key_prefix": contact.public_key[:8] if len(contact.public_key) >= 8 else contact.public_key,
+                "name": contact.name,
+                "alias": contact.alias,
+                "role": contact.role,
+                "lqi_score": round(decayed_lqi, 1),
+                "lqi_status": status,
+                "best_route": contact.best_route,
+                "last_snr": contact.last_snr,
+                "last_rssi": contact.last_rssi,
+                "hops": contact.hops,
+                "is_local": contact.is_local,
+                "last_seen_seconds_ago": round(max(0.0, now - contact.last_seen), 1) if contact.last_seen else None,
+            })
+        return results
 
     def discover_node(
         self,
@@ -477,15 +553,15 @@ class NodeRegistry:
         batt = _safe_int(telem.get("battery_pct", telem.get("battery", telem.get("batt"))))
 
         gps = telem.get("gps", {})
-        lat_raw = telem.get("lat", telem.get("latitude"))
+        lat_raw = telem.get("lat", telem.get("latitude", telem.get("gps_lat", telem.get("adv_lat"))))
         if lat_raw is None and isinstance(gps, dict):
             lat_raw = gps.get("latitude", gps.get("lat"))
-        lon_raw = telem.get("lon", telem.get("longitude"))
+        lon_raw = telem.get("lon", telem.get("longitude", telem.get("gps_lon", telem.get("adv_lon"))))
         if lon_raw is None and isinstance(gps, dict):
             lon_raw = gps.get("longitude", gps.get("lon"))
-        alt_raw = telem.get("alt", telem.get("altitude"))
+        alt_raw = telem.get("alt", telem.get("altitude", telem.get("altitude_m")))
         if alt_raw is None and isinstance(gps, dict):
-            alt_raw = gps.get("altitude", gps.get("alt"))
+            alt_raw = gps.get("altitude", gps.get("alt", gps.get("altitude_m")))
 
         self.add_or_update(
             target_key,

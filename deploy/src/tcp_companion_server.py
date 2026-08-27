@@ -82,7 +82,7 @@ class MeshCoreCompanionServer:
         """Retorna el número de clientes TCP conectados actualmente."""
         return len(self.active_clients)
 
-    def broadcast_companion_frame(self, payload: bytes) -> None:
+    async def broadcast_companion_frame(self, payload: bytes) -> None:
         """
         Emite una trama de respuesta o evento ('>' + len:2 + payload)
         a todos los clientes móviles/CLI conectados.
@@ -102,8 +102,14 @@ class MeshCoreCompanionServer:
         dead_writers: list[asyncio.StreamWriter] = []
         for writer in list(self.active_clients):
             try:
+                if writer.transport.get_write_buffer_size() > 65536:
+                    dead_writers.append(writer)
+                    continue
                 writer.write(pkt)
+                await asyncio.wait_for(writer.drain(), timeout=2.0)
                 self._tx_bytes_total += len(pkt)
+            except asyncio.TimeoutError:
+                dead_writers.append(writer)
             except Exception as e:
                 logging.debug(f"Error escribiendo a cliente TCP Companion: {e}")
                 dead_writers.append(writer)
@@ -115,7 +121,7 @@ class MeshCoreCompanionServer:
             except Exception:
                 pass
 
-    def send_frame_to_client(self, writer: asyncio.StreamWriter, payload: bytes) -> None:
+    async def send_frame_to_client(self, writer: asyncio.StreamWriter, payload: bytes) -> None:
         """Envía una trama específica a un único cliente StreamWriter."""
         if not self.running or writer not in self.active_clients or not payload:
             return
@@ -127,7 +133,10 @@ class MeshCoreCompanionServer:
         header = bytearray([FRAME_RADIO_TO_APP, frame_len & 0xFF, (frame_len >> 8) & 0xFF])
         pkt = bytes(header) + payload
         try:
+            if writer.transport.get_write_buffer_size() > 65536:
+                raise Exception("Write buffer exceeded")
             writer.write(pkt)
+            await asyncio.wait_for(writer.drain(), timeout=2.0)
             self._tx_bytes_total += len(pkt)
         except Exception as e:
             logging.debug(f"Error enviando trama a cliente TCP: {e}")
@@ -143,9 +152,39 @@ class MeshCoreCompanionServer:
         writer: asyncio.StreamWriter,
     ) -> None:
         """Maneja el ciclo de vida y el de-framing continuo de un cliente TCP conectado."""
+        import os
+        max_clients = int(os.getenv("MAX_COMPANION_CLIENTS", "8"))
+        if len(self.active_clients) >= max_clients:
+            writer.close()
+            return
+            
         peer = writer.get_extra_info("peername")
         peer_str = f"{peer[0]}:{peer[1]}" if peer else "desconocido"
+        
+        allowed_ips = [ip.strip() for ip in os.getenv("COMPANION_ALLOWED_IPS", "").split(",") if ip.strip()]
+        if allowed_ips and peer and peer[0] not in allowed_ips:
+            writer.close()
+            return
+
+        token = os.getenv("COMPANION_TOKEN", "")
+        if token:
+            writer.write(b"AUTH_REQUIRED\n")
+            await writer.drain()
+            try:
+                auth_line = await asyncio.wait_for(reader.readline(), timeout=5.0)
+                if auth_line.decode("utf-8", errors="ignore").strip() != f"TOKEN:{token}":
+                    writer.write(b"AUTH_FAILED\n")
+                    await writer.drain()
+                    writer.close()
+                    return
+            except asyncio.TimeoutError:
+                writer.write(b"AUTH_FAILED\n")
+                await writer.drain()
+                writer.close()
+                return
+
         logging.info(f"Cliente TCP Companion conectado desde {peer_str}")
+        writer.transport.set_write_buffer_limits(high=65536)
         self.active_clients.add(writer)
 
         buffer = bytearray()

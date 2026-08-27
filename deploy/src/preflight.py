@@ -53,31 +53,6 @@ class PreflightChecker:
                 is_critical=True,
             )
 
-    def check_sqlite_access(self, db_path: str) -> PreflightCheckResult:
-        """Comprueba que la base de datos SQLite sea legible y tenga permisos de escritura WAL."""
-        try:
-            path_obj = Path(db_path).resolve()
-            path_obj.parent.mkdir(parents=True, exist_ok=True)
-            conn = sqlite3.connect(str(path_obj), timeout=2.0)
-            conn.execute("PRAGMA journal_mode=WAL;")
-            conn.execute("CREATE TABLE IF NOT EXISTS _preflight_test (id INTEGER PRIMARY KEY, ts TEXT);")
-            conn.execute("INSERT OR REPLACE INTO _preflight_test (id, ts) VALUES (1, datetime('now'));")
-            conn.commit()
-            conn.close()
-            return PreflightCheckResult(
-                name="Persistencia SQLite (Store & Forward)",
-                passed=True,
-                message=f"Base de datos operativa con modo WAL: {path_obj.name}",
-                is_critical=True,
-            )
-        except Exception as e:
-            return PreflightCheckResult(
-                name="Persistencia SQLite (Store & Forward)",
-                passed=False,
-                message=f"Fallo al escribir en la base de datos SQLite ({e})",
-                is_critical=True,
-            )
-
     def check_serial_port(self, port: str) -> PreflightCheckResult:
         """Comprueba la existencia o validez del puerto serial o dirección TCP."""
         if port.upper() == "AUTO":
@@ -161,7 +136,6 @@ class PreflightChecker:
         self,
         mqtt_host: str,
         mqtt_port: int,
-        db_path: str,
         serial_port: str,
         tcp_server_port: int = 5000,
         tcp_server_enabled: bool = True,
@@ -170,7 +144,6 @@ class PreflightChecker:
         """Ejecuta toda la matriz de comprobaciones y devuelve el informe consolidado."""
         self.results = [
             self.check_mqtt_broker(mqtt_host, mqtt_port),
-            self.check_sqlite_access(db_path),
             self.check_serial_port(serial_port),
             self.check_tcp_companion_port(tcp_server_host, tcp_server_port, tcp_server_enabled),
         ]

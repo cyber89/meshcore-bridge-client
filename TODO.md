@@ -400,3 +400,37 @@
 >
 > *Generado por el Agente Orquestador (Agente 0) de MeshCore Bridge.*
 > *Actualizar `docs/AGENT_ACTIVITY_REPORT.md` tras implementar cada ítem.*
+
+--- 
+
+## 🟡 TEST FAILURES — Known Issues from Latest Test Run
+
+### FT-001 · `test_record_incoming_telemetry_with_known_and_unknown_nodes` — Log format mismatch
+- **Archivo**: `tests/test_node_and_repeater_config.py`
+- **Problema**: El test espera que el mensaje de log contenga el patrón `"Repetidor_Norte (31d03b1f)"` pero el formato actual del log es `"Telemetría recibida de nodo 'Repetidor_Norte' (31d03b1f)"` — diferencia en mayúsculas/minúsculas y formato de paréntesis.
+- **Impacto**: Test falla por cambio de formato de logging, no por lógica de negocio.
+- **Solución**: Actualizar el test para que coincida con el formato actual del log, o estandarizar el formato del mensaje en `rx_router.py`.
+- [ ] Corregir test para que coincida con formato actual: `"Telemetría recibida de nodo 'Repetidor_Norte' (31d03b1f)"`
+- [ ] O estandarizar formato de log en rx_router.py para incluir el patrón esperado
+
+---
+
+### FT-002 · `test_playwright_web_e2e_simulation` — E2E test infrastructure
+- **Archivo**: `tests/test_playwright_e2e_simulation.py`
+- **Problema**: Fallo en entorno de integración completa — probablemente requiere servidor bridge en ejecución y dependencias de navegador Playwright.
+- **Impacto**: Test de integración end-to-end que falla por ambiente, no por lógica de código.
+- **Solución**: Verificar que el bridge esté corriendo en `127.0.0.1:8080` y que Playwright esté instalado (`pip install playwright && playwright install`). Este test requiere entorno de ejecución completo.
+- [ ] Verificar servidor bridge en ejecución para tests E2E
+- [ ] Instalar/actualizar dependencias Playwright: `playwright install`
+- [ ] Validar que el test funcione en ambiente CI limpio
+
+---
+
+> **Estado actual de pruebas**: 127 passed, 10 skipped, 2 failed (FT-001, FT-002). 
+> FT-001 es un formato de log que necesita actualización. FT-002 requiere ambiente de ejecución E2E.
+
+> **Próximos pasos**: Comenzar por los 6 ítems CRITICAL (SEC-001 a SEC-006).
+> Luego abordar los HIGH de concurrencia (CONC-001 a CONC-009) para estabilidad en producción prolongada.
+>
+> *Generado por el Agente Orquestador (Agente 0) de MeshCore Bridge.*
+> *Actualizar `docs/AGENT_ACTIVITY_REPORT.md` tras implementar cada ítem.*

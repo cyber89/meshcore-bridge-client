@@ -1,7 +1,7 @@
 """
-Web API Router and REST Controller for MeshCore Web Client.
-Procesa solicitudes HTTP REST para mensajería, gestión de contactos, canales cifrados,
-telemetría, sniffer de paquetes RF, métricas analíticas avanzadas y consola de logs.
+Web API Router and Dispatcher for MeshCore Bridge Web Interface.
+Gestiona el enrutamiento y procesamiento de peticiones REST para canales, contactos,
+telemetría, métricas analíticas avanzadas y consola de logs.
 """
 
 from __future__ import annotations
@@ -11,8 +11,8 @@ import logging
 import time
 from datetime import datetime
 from typing import Any
-
 from src.contact_manager import NodeContactUpdate, PacketRecord, is_valid_node_key
+from src.sensor_decoder import extract_telemetry_fields
 
 
 class WebAPIRouter:
@@ -25,9 +25,7 @@ class WebAPIRouter:
         }
         self.recent_messages: collections.deque[dict[str, Any]] = collections.deque(maxlen=200)
         self.recent_telemetry: collections.deque[dict[str, Any]] = collections.deque(maxlen=200)
-        self.recent_rf_logs: collections.deque[dict[str, Any]] = collections.deque(maxlen=300)
         self.recent_system_logs: collections.deque[dict[str, Any]] = collections.deque(maxlen=300)
-        self.sniffer_active = False
 
     def log_system_event(self, level: str, message: str, source: str = "bridge") -> None:
         """Registra un evento interno en el búfer de logs del sistema."""
@@ -44,22 +42,9 @@ class WebAPIRouter:
         }
         self.recent_system_logs.append(entry)
 
+        # Actualizar contadores del gestor de diagnósticos
         diag = getattr(self.bridge, "diagnostics", None)
-        if diag and getattr(diag, "log_handler", None):
-            from src.diagnostics import SystemLogRecord
-
-            rec = SystemLogRecord(
-                timestamp=now_ts,
-                iso_time=now_iso,
-                level=lvl_upper,
-                logger_name=f"bridge.{source}",
-                module=source,
-                func_name="log_system_event",
-                line_no=0,
-                message=message,
-                source=source,
-            )
-            diag.log_handler.buffer.append(rec)
+        if diag and hasattr(diag, "log_handler") and diag.log_handler:
             if lvl_upper in ("ERROR", "CRITICAL"):
                 diag.log_handler.error_count += 1
             elif lvl_upper in ("WARNING", "WARN"):
@@ -88,14 +73,23 @@ class WebAPIRouter:
             data.get("sender")
             or data.get("public_key")
             or data.get("pubkey")
+            or data.get("pubkey_pre")
             or data.get("pubkey_prefix")
+            or data.get("target_node")
+            or data.get("target")
             or data.get("from_node")
             or data.get("from")
             or data.get("source")
+            or data.get("src")
+            or data.get("src_node")
+            or data.get("src_node_id")
             or data.get("node_id")
             or data.get("origin")
             or (data.get("contact", {}) if isinstance(data.get("contact"), dict) else {}).get("public_key")
+            or (data.get("contact", {}) if isinstance(data.get("contact"), dict) else {}).get("pubkey_prefix")
             or (data.get("payload", {}) if isinstance(data.get("payload"), dict) else {}).get("sender")
+            or (data.get("payload", {}) if isinstance(data.get("payload"), dict) else {}).get("pubkey_prefix")
+            or (data.get("payload", {}) if isinstance(data.get("payload"), dict) else {}).get("pubkey_pre")
             or ""
         )
         sender_raw = str(sender_cand).strip()
@@ -135,41 +129,61 @@ class WebAPIRouter:
         elif sender_raw:
             sender_id_str = f"nodo [{sender_raw[:8]}]"
             canonical_sender = sender_raw
+        elif ev_type in ("self_info", "battery", "device_info"):
+            sender_id_str = "Estación Base Local"
+            canonical_sender = getattr(self.bridge.node_registry, "get_local_pubkey", lambda: "")() if hasattr(self.bridge, "node_registry") else ""
         else:
             sender_id_str = "nodo anónimo"
             canonical_sender = ""
 
-        rssi = data.get("rssi", data.get("RSSI"))
-        snr = data.get("snr", data.get("SNR"))
+        rssi = data.get("rssi", data.get("RSSI", data.get("last_rssi")))
+        snr = data.get("snr", data.get("SNR", data.get("last_snr")))
 
-        if ev_type in ("sniffer_packet", "rf_log") or "raw_hex" in data or "byte_length" in data:
-            rf_entry = dict(data)
-            rf_entry["iso_time"] = time.strftime("%H:%M:%S", time.localtime())
-            self.recent_rf_logs.append(rf_entry)
-            self.log_system_event("INFO", f"RF Sniffer interceptó trama de {rf_entry.get('byte_length', 0)} bytes", source="sniffer")
+        # Extraer lecturas completas de sensores y telemetría
+        extracted_telem = extract_telemetry_fields(data)
 
-        elif ev_type in ("telemetry", "telemetry_recv", "telemetry_response") or "temperature_c" in data or "battery_pct" in data or "battery" in data or "voltage_v" in data or "temp" in data:
+        if (
+            ev_type in ("telemetry", "telemetry_recv", "telemetry_response", "stats_core", "stats_radio", "stats_packets", "battery", "battery_info", "device_info", "repeater_telemetry")
+            or any(k in data for k in ("temperature_c", "battery_pct", "battery", "battery_mv", "voltage_v", "voltage", "temp", "uptime_secs", "uptime", "lpp"))
+            or bool(extracted_telem)
+        ):
             self.recent_telemetry.append(data)
             if canonical_sender and is_valid_node_key(canonical_sender):
                 self.bridge.node_registry.record_packet(PacketRecord(public_key=canonical_sender, is_rx=True, rssi=rssi, snr=snr, telemetry=data))
 
-            # Resumen de lecturas ambientales detalladas
+            # Resumen de lecturas ambientales y de estado detalladas
             readings = []
-            temp = data.get("temperature_c", data.get("temp", data.get("temperature")))
-            if temp is not None:
-                readings.append(f"🌡️ {temp}°C")
-            hum = data.get("humidity_pct", data.get("humidity", data.get("hum")))
-            if hum is not None:
-                readings.append(f"💧 {hum}%")
-            press = data.get("pressure_hpa", data.get("pressure", data.get("press")))
-            if press is not None:
-                readings.append(f"🌀 {press} hPa")
-            bat = data.get("battery_pct", data.get("battery", data.get("bat")))
-            if bat is not None:
+            if "temperature_c" in extracted_telem:
+                readings.append(f"🌡️ {extracted_telem['temperature_c']}°C")
+            if "humidity_pct" in extracted_telem:
+                readings.append(f"💧 {extracted_telem['humidity_pct']}%")
+            if "pressure_hpa" in extracted_telem:
+                readings.append(f"🌀 {extracted_telem['pressure_hpa']} hPa")
+
+            bat = extracted_telem.get("battery_pct")
+            volt = extracted_telem.get("voltage_v")
+            bat_mv = extracted_telem.get("battery_mv")
+            if bat is not None and volt is not None:
+                readings.append(f"🔋 {bat}% ({volt}V)")
+            elif bat is not None:
                 readings.append(f"🔋 {bat}%")
-            volt = data.get("voltage_v", data.get("voltage"))
-            if volt is not None:
+            elif volt is not None:
                 readings.append(f"⚡ {volt}V")
+            elif bat_mv is not None:
+                readings.append(f"🔋 {bat_mv}mV")
+
+            if "solar_v" in extracted_telem:
+                readings.append(f"☀️ {extracted_telem['solar_v']}V")
+            if "uptime" in extracted_telem:
+                readings.append(f"⏱️ {extracted_telem['uptime']}")
+            elif "uptime_secs" in extracted_telem:
+                readings.append(f"⏱️ {extracted_telem['uptime_secs']}s")
+
+            if "packet_errors" in extracted_telem:
+                readings.append(f"⚠️ {extracted_telem['packet_errors']} err")
+            if "queue_len" in extracted_telem:
+                readings.append(f"📦 Cola: {extracted_telem['queue_len']}")
+
             if snr is not None:
                 readings.append(f"📶 SNR {snr}dB")
             if rssi is not None:
@@ -211,6 +225,13 @@ class WebAPIRouter:
                 nodes = self.bridge.node_registry.list_nodes()
                 return 200, {"status": "ok", "data": nodes, "count": len(nodes)}
 
+            if method == "GET" and clean_path in ("/api/lqi", "/api/link_quality"):
+                if hasattr(self.bridge, "node_registry") and hasattr(self.bridge.node_registry, "get_all_lqi_metrics"):
+                    lqi_data = self.bridge.node_registry.get_all_lqi_metrics()
+                else:
+                    lqi_data = []
+                return 200, {"status": "ok", "data": lqi_data, "count": len(lqi_data)}
+
             if method == "GET" and clean_path in ("/api/analytics", "/api/metrics/analytics"):
                 return await self._route_analytics()
 
@@ -222,9 +243,6 @@ class WebAPIRouter:
 
             if method == "POST" and clean_path == "/api/tx":
                 return await self._route_tx(req_body)
-
-            if method == "POST" and clean_path == "/api/sniffer/control":
-                return await self._route_sniffer(req_body)
 
             if method == "POST" and clean_path == "/api/admin/command":
                 res = await self.bridge.handle_admin(req_body)
@@ -307,9 +325,10 @@ class WebAPIRouter:
                     return 400, {"status": "error", "message": "La contraseña de administración no puede estar vacía"}
                 cmd = {"action": "login", "target_node": target, "password": pwd}
                 res = await self.bridge.handle_admin(cmd)
-                if res.get("status") == "error":
-                    return 400, res
-                self.log_system_event("INFO", f"Intento de autenticación enviado a repetidor {target}", source="repeater_admin")
+                if res.get("status") == "error" or not res.get("authenticated", False):
+                    self.log_system_event("WARN", f"Fallo de autenticación con repetidor {target}: {res.get('message', 'Contraseña incorrecta o sin respuesta')}", source="repeater_admin")
+                    return 401, {"status": "error", "message": res.get("message", "Contraseña incorrecta o sin respuesta del repetidor"), "data": res}
+                self.log_system_event("INFO", f"Autenticación exitosa con repetidor {target}", source="repeater_admin")
                 return 200, {"status": "ok", "data": res}
 
             if method == "POST" and clean_path == "/api/repeater/remote/config":
@@ -446,16 +465,6 @@ class WebAPIRouter:
                 self.log_system_event("INFO", f"🗺️ Traceroute ejecutado hacia {target} - Saltos: {res.get('total_hops', 0)}", source="repeater_admin")
                 return 200, {"status": "ok", "data": res}
 
-            if method == "GET" and clean_path == "/api/ha/status":
-                ha = getattr(self.bridge, "ha_discovery", None)
-                enabled = getattr(ha, "enabled", False) if ha else False
-                count = len(getattr(ha, "_discovered_entities", set())) if ha else 0
-                return 200, {"status": "ok", "data": {"enabled": enabled, "discovered_nodes": count}}
-
-            if method == "POST" and clean_path == "/api/ha/publish":
-                published = await self._trigger_ha_publish()
-                return 200, {"status": "ok", "data": {"published_entities": published}}
-
             if method == "GET" and clean_path == "/api/preflight":
                 report = self._run_preflight_diagnostics()
                 return 200, {"status": "ok", "data": report}
@@ -497,8 +506,6 @@ class WebAPIRouter:
                 "/api/messages",
                 "/api/telemetry",
                 "/api/logs",
-                "/api/sniffer/logs",
-                "/api/sniffer/packets",
                 "/api/system/logs",
                 "/api/diagnostics/report.md",
                 "/api/diagnostics/report",
@@ -537,11 +544,16 @@ class WebAPIRouter:
 
         local_cfg = self.bridge.admin_handler.get_local_config() if hasattr(self.bridge, "admin_handler") else {}
 
+        ser_adapter = getattr(self.bridge, "serial_adapter", None)
+        serial_connected = getattr(ser_adapter, "is_connected", False) if ser_adapter else False
+        mqtt_client = getattr(self.bridge, "mqtt", None)
+        mqtt_connected = getattr(mqtt_client, "is_connected", False) if mqtt_client else False
+
         status_data = {
             "bridge_status": "online" if getattr(self.bridge, "running", True) else "offline",
             "uptime_seconds": int(time.time() - getattr(self.bridge, "start_time", time.time())),
-            "serial_connected": getattr(self.bridge.serial_adapter, "is_connected", False),
-            "mqtt_connected": getattr(self.bridge.mqtt, "is_connected", False),
+            "serial_connected": serial_connected,
+            "mqtt_connected": mqtt_connected,
             "tcp_companion": tcp_info,
             "local_node_pubkey": local_cfg.get("public_key"),
             "local_node_name": local_cfg.get("name"),
@@ -555,15 +567,12 @@ class WebAPIRouter:
             "error_rate": error_rate,
             "tx_queue_depth": q_depth,
             "queue_depth": q_depth,
-            "offline_buffer_pending": await self.bridge.store_and_forward.count(),
-            "sniffer_active": self.sniffer_active,
         }
         return 200, {"status": "ok", "data": status_data}
 
     async def _route_analytics(self) -> tuple[int, dict[str, Any]]:
         analytics = self.bridge.node_registry.get_analytics_summary()
         analytics["queue_depth"] = self.bridge.rate_limiter.get_queue_depth()
-        analytics["offline_buffer_size"] = await self.bridge.store_and_forward.count()
         return 200, {"status": "ok", "data": analytics}
 
     async def _route_contacts(self, path: str, method: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -617,7 +626,7 @@ class WebAPIRouter:
             # Notificar a los clientes WebSocket en tiempo real
             web = getattr(self.bridge, "web_server", None)
             if web:
-                web.broadcast_event({"type": "contacts_updated", "data": self.bridge.node_registry.list_nodes()})
+                import asyncio; asyncio.create_task(web.broadcast_event({"type": "contacts_updated", "data": self.bridge.node_registry.list_nodes()}))
 
             self.log_system_event("INFO", f"Contacto guardado: {pubkey} ({alias or name})", source="contacts")
             return 200, {"status": "ok", "data": contact.to_dict()}
@@ -635,7 +644,7 @@ class WebAPIRouter:
                 del self.bridge.node_registry._nodes_by_key[pubkey]
                 web = getattr(self.bridge, "web_server", None)
                 if web:
-                    web.broadcast_event({"type": "contacts_updated", "data": self.bridge.node_registry.list_nodes()})
+                    import asyncio; asyncio.create_task(web.broadcast_event({"type": "contacts_updated", "data": self.bridge.node_registry.list_nodes()}))
                 return 200, {"status": "ok", "message": f"Contacto {pubkey} eliminado"}
             return 404, {"status": "error", "message": "Contacto no encontrado"}
 
@@ -693,7 +702,7 @@ class WebAPIRouter:
 
             web = getattr(self.bridge, "web_server", None)
             if web:
-                web.broadcast_event({"type": "channels_updated", "data": list(self.channels.values())})
+                import asyncio; asyncio.create_task(web.broadcast_event({"type": "channels_updated", "data": list(self.channels.values())}))
 
             self.log_system_event("INFO", f"Canal {idx} configurado: {name}", source="channels")
             return 200, {"status": "ok", "data": self.channels[idx]}
@@ -715,7 +724,7 @@ class WebAPIRouter:
                         logging.debug(f"Error limpiando canal en transceptor serial: {e}")
                 web = getattr(self.bridge, "web_server", None)
                 if web:
-                    web.broadcast_event({"type": "channels_updated", "data": list(self.channels.values())})
+                    import asyncio; asyncio.create_task(web.broadcast_event({"type": "channels_updated", "data": list(self.channels.values())}))
                 return 200, {"status": "ok", "message": f"Canal {idx} eliminado"}
             return 404, {"status": "error", "message": "Canal no encontrado"}
 
@@ -735,22 +744,15 @@ class WebAPIRouter:
 
         tx_item = {"to": target, "channel_index": ch_idx, "text": text, "request_id": req_id}
         res = await self.bridge._execute_tx(tx_item)
-        if target != "broadcast":
-            self.bridge.node_registry.record_packet(PacketRecord(public_key=target, is_rx=False))
+        if isinstance(res, dict) and res.get("status") == "error":
+            err_msg = res.get("error") or "Error en transmisión por radio LoRa"
+            self.log_system_event("ERROR", f"Fallo en TX hacia {target}: {err_msg}", source="mesh_tx")
+            return 400, {"status": "error", "message": err_msg, "data": res}
+
+        if target and str(target).lower() not in ("broadcast", "public", "0xffff"):
+            self.bridge.node_registry.record_packet(PacketRecord(public_key=str(target), is_rx=False))
         self.log_system_event("INFO", f"Transmisión TX enviada a {target} (Ch {ch_idx})", source="mesh_tx")
         return 200, {"status": "ok", "data": res}
-
-    async def _route_sniffer(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-        action = str(req_body.get("action", "start")).lower().strip()
-        self.sniffer_active = (action == "start")
-        cmd_data = {
-            "target_node": req_body.get("target_node", "local"),
-            "action": f"log {action}",
-            "request_id": f"web_sniff_{int(time.time())}",
-        }
-        res = await self.bridge.handle_admin(cmd_data)
-        self.log_system_event("INFO", f"Control de Sniffer RF: {action.upper()}", source="sniffer")
-        return 200, {"status": "ok", "data": {"sniffer_active": self.sniffer_active, "result": res}}
 
     async def _route_admin_repeater(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         target_node = str(req_body.get("target_node", req_body.get("repeater", ""))).strip()
@@ -773,8 +775,6 @@ class WebAPIRouter:
             return 200, {"status": "ok", "data": list(self.recent_messages), "count": len(self.recent_messages)}
         if clean_path == "/api/telemetry":
             return 200, {"status": "ok", "data": list(self.recent_telemetry), "count": len(self.recent_telemetry)}
-        if clean_path in ("/api/logs", "/api/sniffer/logs", "/api/sniffer/packets"):
-            return 200, {"status": "ok", "data": list(self.recent_rf_logs), "count": len(self.recent_rf_logs)}
         if clean_path == "/api/system/logs":
             level = None
             search = None
@@ -860,16 +860,6 @@ class WebAPIRouter:
 
         return 404, {"status": "error", "message": "Registro no encontrado"}
 
-    async def _trigger_ha_publish(self) -> int:
-        ha = getattr(self.bridge, "ha_discovery", None)
-        if not ha:
-            return 0
-        total: int = ha.publish_discovery_for_bridge(self.bridge.mqtt.publish_safe)
-        for node in self.bridge.node_registry.list_nodes():
-            total += int(ha.publish_discovery_for_node(node, self.bridge.mqtt.publish_safe))
-        self.log_system_event("INFO", f"Home Assistant Discovery anunciado ({total} entidades)", source="ha")
-        return int(total)
-
     def _run_preflight_diagnostics(self) -> dict[str, Any]:
         checker = getattr(self.bridge, "preflight", None)
         if checker and hasattr(checker, "run_all"):
@@ -877,7 +867,6 @@ class WebAPIRouter:
             res = checker.run_all(
                 mqtt_host=config.MQTT_BROKER,
                 mqtt_port=config.MQTT_PORT,
-                db_path=config.SQLITE_DB_PATH,
                 serial_port=getattr(self.bridge.serial_adapter, "port", config.SERIAL_PORT),
             )
             if isinstance(res, dict):

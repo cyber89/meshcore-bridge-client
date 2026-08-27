@@ -125,13 +125,13 @@ class MeshCoreBridge:
         """Difunde logs en tiempo real vía WebSocket a la interfaz web."""
         web = getattr(self, "web_server", None)
         if web is not None and getattr(self, "running", False):
-            web.broadcast_event(payload)
+            import asyncio; asyncio.create_task(web.broadcast_event(payload))
 
     def _on_raw_companion_frame_rx(self, payload: bytes) -> None:
         """Difunde tramas binarias de la radio hacia clientes TCP Companion conectados (App Móvil / CLI)."""
         tcp_srv = getattr(self, "tcp_server", None)
         if tcp_srv is not None and getattr(self, "running", False):
-            tcp_srv.broadcast_companion_frame(payload)
+            import asyncio; asyncio.create_task(tcp_srv.broadcast_companion_frame(payload))
 
     async def handle_tcp_companion_command(self, payload: bytes, client_writer: Any) -> None:
         """Maneja comandos binarios enviados por apps móviles o CLI a través del socket TCP Companion."""

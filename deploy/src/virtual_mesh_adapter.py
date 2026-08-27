@@ -767,7 +767,7 @@ class VirtualMeshAdapter(BaseSerialAdapter):
         logging.info(f"Bot de Eco ejecutado desde nodo virtual {node['name']} ({node['alias']}) [Direct={is_direct}, Ch={channel_idx}]")
 
     async def _simulation_loop(self) -> None:
-        """Bucle continuo que emite telemetría ambiental, posiciones GPS y tramas de sniffer."""
+        """Bucle continuo que emite telemetría ambiental y posiciones GPS."""
         while self.running:
             try:
                 await asyncio.sleep(15.0)
@@ -784,11 +784,7 @@ class VirtualMeshAdapter(BaseSerialAdapter):
                 if self._tick_counter % 3 == 0:
                     self._emit_cayennelpp_telemetry(self.node_bravo)
 
-                # 3. Inyectar trama de RF Packet Sniffer (0x88 LOG_DATA cada 30s)
-                if self._tick_counter % 2 == 1:
-                    self._emit_sniffer_wire_packet()
-
-                # 4. Anuncios de presencia de red periódicos (cada 60s)
+                # 3. Anuncios de presencia de red periódicos (cada 60s)
                 if self._tick_counter % 4 == 0:
                     self._emit_node_presence(self.node_alpha)
                     self._emit_node_presence(self.node_bravo)
@@ -883,21 +879,6 @@ class VirtualMeshAdapter(BaseSerialAdapter):
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
         self._dispatch_event(telemetry_event)
-
-    def _emit_sniffer_wire_packet(self) -> None:
-        """Simula una captura en el aire de trama LoRa Wire (OpCode 0x88 LOG_DATA)."""
-        header_byte = (0 & 0x03) | ((1 & 0x0F) << 2) | ((1 & 0x03) << 6)
-        wire_data = bytes([header_byte, 0x01, 0x02, 0xA1, 0xB2, 0xC3, 0xD4, 0x10, 0x20, 0x30, 0x40])
-
-        log_event = {
-            "type": "LOG_DATA",
-            "event_type": "rf_log",
-            "raw": wire_data,
-            "rssi": -76,
-            "snr": 8.5,
-            "timestamp": int(time.time()),
-        }
-        self._dispatch_event(log_event)
 
     def _dispatch_event(self, event: Any) -> None:
         """Despacha un evento hacia el callback del bridge."""

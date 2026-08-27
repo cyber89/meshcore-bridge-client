@@ -424,7 +424,7 @@ class AdminCommandHandler:
                 self._ctx.mqtt.publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/trace", json.dumps(res), qos=1)
                 self._ctx.mqtt.publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
                 if self._ctx.web_server:
-                    self._ctx.web_server.broadcast_event({"type": "trace_data", "data": res})
+                    import asyncio; asyncio.create_task(self._ctx.web_server.broadcast_event({"type": "trace_data", "data": res}))
                 return res
 
             # Buscar datos del nodo destino para validar si es repetidor

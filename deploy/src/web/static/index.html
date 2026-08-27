@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="MeshCore Web Station - Estación base para mensajería, telemetría LoRa, sniffer de paquetes RF, administración de repetidores y Home Assistant Discovery.">
+  <meta name="description" content="MeshCore Web Station - Estación base para mensajería, telemetría LoRa, administración de repetidores y puente asíncrono MQTT.">
   <meta name="theme-color" content="#070b14">
   <title>MeshCore Web Client - Base Station & RF Command Center</title>
   
@@ -79,14 +79,8 @@
           <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-map" id="navTabMap" data-tab="tab-map">
             <span class="nav-icon">🗺️</span> <span>Mapa</span>
           </button>
-          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-sniffer" id="navTabSniffer" data-tab="tab-sniffer">
-            <span class="nav-icon">🕵️</span> <span>Sniffer</span>
-          </button>
           <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-analytics" id="navTabAnalytics" data-tab="tab-analytics">
             <span class="nav-icon">📈</span> <span>Métricas</span>
-          </button>
-          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-ha" id="navTabHa" data-tab="tab-ha">
-            <span class="nav-icon">🏠</span> <span>Home Assistant</span>
           </button>
           <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-logs" id="navTabLogs" data-tab="tab-logs">
             <span class="nav-icon">📜</span> <span>Logs Sistema</span>
@@ -150,8 +144,21 @@
               <!-- Feed de Mensajes Limpio -->
               <div class="chat-messages" id="chatMessageFeed" role="log" aria-live="polite" aria-label="Historial de mensajes de chat"></div>
 
+              <!-- Banner de Respuesta Activa (Reply Context) -->
+              <div class="chat-reply-bar hidden" id="chatReplyBar" aria-live="polite">
+                <div class="reply-bar-content">
+                  <span class="reply-icon">↩️</span>
+                  <div class="reply-text-group">
+                    <strong class="reply-author" id="replyTargetAuthor">@Usuario</strong>
+                    <span class="reply-snippet" id="replyTargetSnippet">Mensaje citado...</span>
+                  </div>
+                </div>
+                <button type="button" class="btn-icon btn-cancel-reply" id="btnCancelReply" title="Cancelar respuesta" aria-label="Cancelar respuesta">✕</button>
+              </div>
+
               <!-- Caja de Entrada de Mensaje -->
               <form id="chatInputForm" class="chat-composer" aria-label="Formulario de envío de mensajes">
+                <button type="button" class="btn-icon btn-chat-tool" id="btnShareLocation" title="Compartir mi ubicación GPS actual en el chat" aria-label="Compartir ubicación GPS">📍</button>
                 <input type="text" id="chatInputText" placeholder="Escribe un mensaje para transmitir por RF..." autocomplete="off" required aria-label="Texto del mensaje a transmitir" />
                 <button type="submit" class="btn-primary" id="btnSendMsg" aria-label="Enviar mensaje por radio">
                   <span>Enviar</span> <span aria-hidden="true">📤</span>
@@ -188,85 +195,6 @@
             <!-- Grilla Dinámica de Nodos -->
             <div class="nodes-unified-grid" id="nodesUnifiedGridUi" role="region" aria-label="Directorio de nodos">
               <div class="empty-state">Descubriendo nodos en la malla LoRa...</div>
-            </div>
-          </div>
-        </section>
-
-        <!-- Pestaña 3: Sniffer de Paquetes RF & Inspector Raw -->
-        <section id="tab-sniffer" class="tab-pane" role="tabpanel" aria-labelledby="navTabSniffer">
-          <div class="sniffer-view-container">
-            <div class="pane-header">
-              <div class="header-title-group">
-                <h2>🕵️ Packet Sniffer & Inspector RF</h2>
-                <p class="header-subtitle">Monitoreo promiscuo en tiempo real de tramas LoRa (0x88), análisis hexadecimal, desglose de OpCodes y calidad de señal.</p>
-              </div>
-              <div class="sniffer-controls">
-                <button class="btn-primary" id="btnToggleSniffer">▶ Iniciar Sniffer (0x88)</button>
-                <button class="btn-secondary" id="btnClearSniffer" title="Limpiar búfer de captura de tramas">🧹 Limpiar</button>
-                <button class="btn-outline" id="btnExportSniffer" title="Exportar tramas capturadas a JSON">💾 Exportar JSON</button>
-                <button class="btn-icon" id="btnToggleSnifferScroll" title="Pausar / Reanudar desplazamiento automático">⏸</button>
-              </div>
-            </div>
-
-            <!-- Tarjetas de Métricas del Sniffer -->
-            <div class="sniffer-stats-grid">
-              <div class="sniffer-stat-card">
-                <span class="stat-icon">📦</span>
-                <div class="stat-content">
-                  <span class="stat-label">Tramas Capturadas</span>
-                  <strong class="stat-value" id="snifferTotalPackets">0</strong>
-                </div>
-              </div>
-              <div class="sniffer-stat-card">
-                <span class="stat-icon">⚡</span>
-                <div class="stat-content">
-                  <span class="stat-label">Estado de Captura</span>
-                  <strong class="stat-value text-muted" id="snifferStatusText">En espera</strong>
-                </div>
-              </div>
-              <div class="sniffer-stat-card">
-                <span class="stat-icon">🏷️</span>
-                <div class="stat-content">
-                  <span class="stat-label">Último OpCode</span>
-                  <strong class="stat-value" id="snifferLastOpcode">--</strong>
-                </div>
-              </div>
-            </div>
-
-            <!-- Barra de Herramientas y Filtros del Sniffer -->
-            <div class="sniffer-toolbar">
-              <div class="sniffer-search-box">
-                <input type="search" id="snifferSearch" class="search-input" placeholder="🔍 Filtrar tramas por hex, clave pública, nombre o texto..." aria-label="Filtrar tramas" />
-              </div>
-              <div class="sniffer-filter-pills" role="radiogroup" aria-label="Filtrar tramas por tipo">
-                <button type="button" class="filter-pill active" data-opcode="all">Todos (<span id="snifferCountAll">0</span>)</button>
-                <button type="button" class="filter-pill" data-opcode="TEXT">💬 Mensajes</button>
-                <button type="button" class="filter-pill" data-opcode="TELEMETRY">📊 Telemetría</button>
-                <button type="button" class="filter-pill" data-opcode="ADVERT">📢 Anuncios</button>
-                <button type="button" class="filter-pill" data-opcode="ACK">⚡ ACK</button>
-                <button type="button" class="filter-pill" data-opcode="ROUTING">🔀 Rutas</button>
-              </div>
-            </div>
-
-            <!-- Tabla de Captura de Tramas -->
-            <div class="table-responsive sniffer-table-container">
-              <table class="data-table sniffer-table">
-                <thead>
-                  <tr>
-                    <th>Hora</th>
-                    <th>Tipo / OpCode</th>
-                    <th>Origen (Src)</th>
-                    <th>Destino (Dst)</th>
-                    <th>Calidad RF</th>
-                    <th>Bytes</th>
-                    <th>Hex Dump Preview</th>
-                    <th>Acción</th>
-                  </tr>
-                </thead>
-                <tbody id="snifferTableBody">
-                  <tr><td colspan="8" class="text-center">El sniffer está inactivo. Haz clic en "▶ Iniciar Sniffer (0x88)" para comenzar la captura en vivo.</td></tr>
-                </tbody>
-              </table>
             </div>
           </div>
         </section>
@@ -381,11 +309,11 @@
                 </div>
               </div>
               <div class="analytics-kpi-card">
-                <div class="kpi-icon">💾</div>
+                <div class="kpi-icon">⚡</div>
                 <div class="kpi-data">
-                  <span class="kpi-label">Buffer Store & Forward</span>
-                  <strong class="kpi-value" id="kpiOfflineBuffer">0 msgs</strong>
-                  <span class="kpi-sub" id="kpiQueueDepth">Cola TX: 0 paquetes</span>
+                  <span class="kpi-label">Cola de Transmisión TX</span>
+                  <strong class="kpi-value" id="kpiQueueDepth">0 paquetes</strong>
+                  <span class="kpi-sub" id="kpiTxRate">Prioridad Dinámica</span>
                 </div>
               </div>
             </div>
@@ -482,12 +410,8 @@
                 </div>
                 <div class="stat-rows-detailed">
                   <div class="detailed-stat-row">
-                    <span>Persistencia SQLite (WAL):</span>
-                    <strong id="statSqliteStatus">Activa (Store & Forward)</strong>
-                  </div>
-                  <div class="detailed-stat-row">
-                    <span>Mensajes en Buffer Offline:</span>
-                    <strong id="statBufferOffline">0 msgs</strong>
+                    <span>Deduplicación de Paquetes:</span>
+                    <strong id="statDeduplication">En RAM (Ventana Deslizante)</strong>
                   </div>
                   <div class="detailed-stat-row">
                     <span>Profundidad de Cola Rate Limiter:</span>
@@ -507,152 +431,7 @@
           </div>
         </section>
 
-        <!-- Pestaña 9: Integración Home Assistant -->
-        <section id="tab-ha" class="tab-pane" role="tabpanel" aria-labelledby="navTabHa">
-          <div class="ha-view-container">
-            <div class="pane-header">
-              <div class="header-title-group">
-                <h2>🏠 Integración Home Assistant (MQTT Auto-Discovery)</h2>
-                <p class="header-subtitle">Exposición automática de telemetría de nodos, sensores ambientales, calidad de enlace RF y geolocalización en Home Assistant.</p>
-              </div>
-              <div class="header-actions">
-                <button type="button" class="btn-primary btn-sm" id="btnPublishHaDiscovery">📢 Re-anunciar Discovery en MQTT</button>
-              </div>
-            </div>
-
-            <!-- KPIs de Integración Home Assistant -->
-            <div class="analytics-kpi-grid ha-kpi-grid">
-              <div class="analytics-kpi-card">
-                <div class="kpi-icon">🏠</div>
-                <div class="kpi-data">
-                  <span class="kpi-label">Auto-Discovery MQTT</span>
-                  <strong class="kpi-value" id="haStatusBadge">Activo (HASS)</strong>
-                  <span class="kpi-sub">Prefijo: <code>homeassistant/sensor/#</code></span>
-                </div>
-              </div>
-              <div class="analytics-kpi-card">
-                <div class="kpi-icon">👥</div>
-                <div class="kpi-data">
-                  <span class="kpi-label">Nodos Anunciados</span>
-                  <strong class="kpi-value" id="haDiscoveredCount">0</strong>
-                  <span class="kpi-sub">Dispositivos en malla LoRa</span>
-                </div>
-              </div>
-              <div class="analytics-kpi-card">
-                <div class="kpi-icon">📊</div>
-                <div class="kpi-data">
-                  <span class="kpi-label">Entidades Sensores</span>
-                  <strong class="kpi-value" id="haSensorsCount">0</strong>
-                  <span class="kpi-sub">Telemetrías expuestas</span>
-                </div>
-              </div>
-              <div class="analytics-kpi-card">
-                <div class="kpi-icon">📡</div>
-                <div class="kpi-data">
-                  <span class="kpi-label">Broker MQTT</span>
-                  <strong class="kpi-value" style="color: var(--accent-success);">En Línea</strong>
-                  <span class="kpi-sub">QoS 1 • Retain Activo</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Secciones Detalladas de Home Assistant -->
-            <div class="analytics-sections-grid">
-              <!-- Tarjeta 1: Entidades y Sensores Generados -->
-              <div class="analytics-card">
-                <div class="analytics-card-header">
-                  <span class="card-icon">⚡</span>
-                  <div>
-                    <h3>Entidades Expuestas Automáticamente</h3>
-                    <p>Tipos de datos y clases de dispositivo MQTT publicadas</p>
-                  </div>
-                </div>
-                <div class="table-responsive">
-                  <table class="data-table analytics-table">
-                    <thead>
-                      <tr>
-                        <th>Sensor / Entidad</th>
-                        <th>Device Class</th>
-                        <th>Unidad</th>
-                        <th>Frecuencia</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td><strong>🔋 Nivel de Batería</strong></td>
-                        <td><code>battery</code></td>
-                        <td>%</td>
-                        <td>Por evento / advert</td>
-                      </tr>
-                      <tr>
-                        <td><strong>⚡ Voltaje de Celda</strong></td>
-                        <td><code>voltage</code></td>
-                        <td>V</td>
-                        <td>Telemetría periódica</td>
-                      </tr>
-                      <tr>
-                        <td><strong>📶 Calidad SNR</strong></td>
-                        <td><code>signal_strength</code></td>
-                        <td>dB</td>
-                        <td>Por paquete RF</td>
-                      </tr>
-                      <tr>
-                        <td><strong>📡 Intensidad RSSI</strong></td>
-                        <td><code>signal_strength</code></td>
-                        <td>dBm</td>
-                        <td>Por paquete RF</td>
-                      </tr>
-                      <tr>
-                        <td><strong>🌡️ Temperatura Ambiente</strong></td>
-                        <td><code>temperature</code></td>
-                        <td>°C</td>
-                        <td>CayenneLPP / Telemetría</td>
-                      </tr>
-                      <tr>
-                        <td><strong>💧 Humedad Relativa</strong></td>
-                        <td><code>humidity</code></td>
-                        <td>%</td>
-                        <td>CayenneLPP / Telemetría</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <!-- Tarjeta 2: Configuración y Tópicos MQTT -->
-              <div class="analytics-card">
-                <div class="analytics-card-header">
-                  <span class="card-icon">⚙️</span>
-                  <div>
-                    <h3>Esquema de Tópicos MQTT</h3>
-                    <p>Estructura de mensajes y descubrimiento para n8n y Home Assistant</p>
-                  </div>
-                </div>
-                <div class="stat-rows-detailed">
-                  <div class="detailed-stat-row">
-                    <span>Discovery Config:</span>
-                    <strong class="font-mono">homeassistant/sensor/{node_id}/{sensor}/config</strong>
-                  </div>
-                  <div class="detailed-stat-row">
-                    <span>Estado / State Topic:</span>
-                    <strong class="font-mono">meshcore/rx/telemetry/{node_id}</strong>
-                  </div>
-                  <div class="detailed-stat-row">
-                    <span>Disponibilidad / LWT:</span>
-                    <strong class="font-mono">meshcore/bridge/status</strong>
-                  </div>
-                  <div class="detailed-stat-row">
-                    <span>Mensajería Bidireccional:</span>
-                    <strong class="font-mono">meshcore/tx y meshcore/rx/all</strong>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-
-        <!-- Pestaña 9: Logs del Sistema y Diagnóstico -->
+        <!-- Pestaña: Logs del Sistema y Diagnóstico -->
         <section id="tab-logs" class="tab-pane" role="tabpanel" aria-labelledby="navTabLogs">
           <div class="logs-view-container">
             <div class="pane-header">
@@ -672,7 +451,6 @@
             <div class="subsystems-health-bar" id="subsystemsHealthBar">
               <span class="health-chip" id="chipSerialHealth">📻 Serial: <strong class="val">Comprobando...</strong></span>
               <span class="health-chip" id="chipMqttHealth">📡 MQTT: <strong class="val">Comprobando...</strong></span>
-              <span class="health-chip" id="chipDbHealth">🗄️ SQLite: <strong class="val">WAL Activo</strong></span>
               <span class="health-chip" id="chipTxHealth">⏱️ TX Queue: <strong class="val">0</strong></span>
               <span class="health-chip" id="chipErrorsCount">⚠️ Errores: <strong class="val">0</strong></span>
             </div>
@@ -1087,14 +865,20 @@
                 </div>
 
                 <div class="settings-grid">
-                  <!-- Tarjeta 1: Almacén IndexedDB -->
+                  <!-- Tarjeta 1: Almacén IndexedDB y Notificaciones -->
                   <div class="settings-card">
                     <div class="card-title-row">
-                      <h3>🗄️ Persistencia en Navegador (IndexedDB)</h3>
+                      <h3>🗄️ Persistencia & Alertas de Chat</h3>
                       <span class="badge-pill badge-success" id="indexedDbStatusBadge">Activo (MeshCoreStationDB)</span>
                     </div>
-                    <p class="card-desc">Los mensajes de chat y las tramas del sniffer se almacenan de forma segura y asíncrona en el navegador para no perderse al recargar.</p>
+                    <p class="card-desc">Los mensajes de chat y el estado de la estación se almacenan de forma segura y asíncrona en el navegador para no perderse al recargar.</p>
                     <div class="settings-form">
+                      <div class="form-group" style="margin-bottom: 12px;">
+                        <label class="checkbox-label" for="chkChatSoundAlerts" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                          <input type="checkbox" id="chkChatSoundAlerts" checked />
+                          <span>🔔 Reproducir timbre de audio al recibir mensajes nuevos (Web Audio API)</span>
+                        </label>
+                      </div>
                       <div class="form-row">
                         <button type="button" class="btn-danger btn-sm" id="btnClearIndexedDbStorage">🧹 Vaciar Almacenamiento Local IndexedDB</button>
                       </div>
@@ -1138,7 +922,6 @@
           <div class="cmd-item" data-action="tab-chat">💬 Ir a Mensajería</div>
           <div class="cmd-item" data-action="tab-contacts">👥 Ir a Contactos</div>
           <div class="cmd-item" data-action="tab-nodes">🌐 Ir a Nodos</div>
-          <div class="cmd-item" data-action="tab-sniffer">🕵️ Abrir Packet Sniffer</div>
           <div class="cmd-item" data-action="tab-map">🗺️ Abrir Mapa</div>
           <div class="cmd-item" data-action="tab-logs">📜 Ver Consola de Logs del Sistema</div>
           <div class="cmd-item" data-action="action-diag">🩺 Ejecutar Auto-Diagnóstico de Subsistemas</div>
@@ -1146,26 +929,6 @@
           <div class="cmd-item" data-action="action-advert-hop">📢 Advert Hop (0 Saltos)</div>
           <div class="cmd-item" data-action="action-advert-flood">🌊 Advert Flood Routed</div>
           <div class="cmd-item" data-action="action-advert-clipboard">📋 Copiar Advert al Portapapeles</div>
-          <div class="cmd-item" data-action="action-ha">📢 Re-anunciar Home Assistant Discovery</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Modal: Detalle de Paquete Raw -->
-    <div id="packetDetailModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="packetDetailTitle">
-      <div class="modal-card packet-detail-modal-card">
-        <div class="modal-header">
-          <div class="header-title-group">
-            <h3 id="packetDetailTitle">🔍 Inspector de Trama Binaria RF</h3>
-            <span class="modal-pubkey-badge font-mono" id="packetDetailOpcodeBadge">OPCODE</span>
-          </div>
-          <button class="btn-icon modal-close" id="btnClosePacketModal" aria-label="Cerrar modal">✕</button>
-        </div>
-        <div class="modal-body packet-modal-body" id="packetModalBody"></div>
-        <div class="modal-footer">
-          <button type="button" class="btn-secondary btn-sm" id="btnCopyPacketHex">📋 Copiar Hex</button>
-          <button type="button" class="btn-secondary btn-sm" id="btnCopyPacketJson">📋 Copiar JSON</button>
-          <button type="button" class="btn-primary btn-sm" id="btnClosePacketModalFooter">Cerrar</button>
         </div>
       </div>
     </div>

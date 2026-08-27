@@ -40,8 +40,6 @@ except ImportError:
 
     mqtt = _MockMQTT()
 
-from src.store_forward import SQLiteStoreAndForward, StoredMessage
-
 
 @dataclass(slots=True)
 class MQTTConfig:
@@ -55,12 +53,11 @@ class MQTTConfig:
 
 
 class AsyncBridgeMQTTClient:
-    """Cliente MQTT asíncrono puenteado con soporte Store & Forward."""
+    """Cliente MQTT asíncrono puenteado con reconexión automática."""
 
     def __init__(
         self,
         config: MQTTConfig,
-        store_and_forward: SQLiteStoreAndForward | None = None,
         on_rx_message_callback: Callable[[str, str], None] | None = None,
     ) -> None:
         self.config = config
@@ -70,7 +67,6 @@ class AsyncBridgeMQTTClient:
         self.password = config.password
         self.keepalive = config.keepalive
         self.topic_prefix = config.topic_prefix.strip("/")
-        self.store_and_forward = store_and_forward
         self.on_rx_message_callback = on_rx_message_callback
 
         self.topic_state = f"{self.topic_prefix}/bridge/state"
@@ -88,28 +84,31 @@ class AsyncBridgeMQTTClient:
 
         # Inicialización de cliente con compatibilidad de versiones paho
         if hasattr(mqtt, "CallbackAPIVersion"):
-            self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+            self.client = mqtt.Client(
+                mqtt.CallbackAPIVersion.VERSION2,
+                client_id=f"meshcore_bridge_{int(time.time())}",
+                protocol=mqtt.MQTTv311,
+            )
         else:
-            self.client = mqtt.Client()
+            self.client = mqtt.Client(client_id=f"meshcore_bridge_{int(time.time())}", protocol=mqtt.MQTTv311)
 
-    def start(self, loop: asyncio.AbstractEventLoop | None = None) -> None:
-        """Configura credenciales, LWT e inicia el bucle de red MQTT en hilo dedicado."""
-        self._loop = loop or asyncio.get_event_loop()
-
-        if self.username and self.password:
+        if self.username:
             self.client.username_pw_set(self.username, self.password)
 
-        # Configuración LWT (Last Will & Testament) retenido
         lwt_payload = json.dumps({
             "status": "offline",
-            "timestamp": int(time.time()),
-            "iso_time": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "reason": "unexpected_disconnect",
         })
-        self.client.will_set(topic=self.topic_state, payload=lwt_payload, qos=1, retain=True)
+        self.client.will_set(self.topic_state, lwt_payload, qos=1, retain=True)
 
         self.client.on_connect = self._on_connect
         self.client.on_disconnect = self._on_disconnect
         self.client.on_message = self._on_message
+
+    def start(self, loop: asyncio.AbstractEventLoop | None = None) -> None:
+        """Configura credenciales, LWT e inicia el bucle de red MQTT en hilo dedicado."""
+        self._loop = loop or asyncio.get_event_loop()
 
         # Backoff de reconexión determinista (1s..30s) para resiliencia ante caídas del broker
         self.client.reconnect_delay_set(min_delay=1, max_delay=30)
@@ -149,67 +148,16 @@ class AsyncBridgeMQTTClient:
         retain: bool = False,
         ttl_seconds: float | None = None,
     ) -> bool:
-        """Publica directamente en MQTT o encola en SQLite si MQTT está desconectado."""
+        """Publica directamente en MQTT."""
         if self.is_connected:
             try:
                 self.client.publish(topic, payload_str, qos=qos, retain=retain)
                 self.total_published += 1
                 return True
             except Exception as e:
-                logging.warning(f"Fallo al publicar en MQTT ({e}). Guardando en Store & Forward...")
-
-        # Fallback a persistencia SQLite
-        if self.store_and_forward:
-            msg = StoredMessage(
-                topic=topic,
-                payload=payload_str,
-                qos=qos,
-                retain=retain,
-                ttl_seconds=ttl_seconds,
-            )
-            try:
-                running_loop = asyncio.get_running_loop()
-                running_loop.create_task(self.store_and_forward.enqueue(msg))
-            except RuntimeError:
-                if self._loop and self._loop.is_running():
-                    asyncio.run_coroutine_threadsafe(self.store_and_forward.enqueue(msg), self._loop)
-                else:
-                    asyncio.run(self.store_and_forward.enqueue(msg))
-            logging.debug("Mensaje retenido en SQLite")
+                logging.warning(f"Fallo al publicar en MQTT ({e})")
+                return False
         return False
-
-
-    async def flush_offline_buffer(self) -> int:
-        """Drena y publica mensajes históricos encolados en SQLite durante caídas."""
-        if not self.store_and_forward or not self.is_connected:
-            return 0
-
-        pending = await self.store_and_forward.count()
-        if pending == 0:
-            return 0
-
-        logging.info(f"Drenando {pending} mensajes del buffer SQLite hacia MQTT...")
-        flushed_count = 0
-
-        while self.is_connected:
-            batch = await self.store_and_forward.dequeue_batch(limit=50)
-            if not batch:
-                break
-
-            for msg_id, topic, payload_str, qos, retain in batch:
-                if not self.is_connected:
-                    break
-                try:
-                    self.client.publish(topic, payload_str, qos=qos, retain=bool(retain))
-                    await self.store_and_forward.delete_batch(msg_id)
-                    flushed_count += 1
-                    self.total_published += 1
-                except Exception as e:
-                    logging.error(f"Error drenando mensaje {msg_id} de SQLite: {e}")
-                    return flushed_count
-
-        logging.info(f"Drenado completado ({flushed_count} enviados).")
-        return flushed_count
 
     def _on_connect(self, client: Any, userdata: Any, flags: Any, rc: Any, *args: Any, **kwargs: Any) -> None:
         """Callback ejecutado al establecer conexión con el broker."""
@@ -240,12 +188,6 @@ class AsyncBridgeMQTTClient:
             # Suscribir a tópicos de entrada
             self.client.subscribe([(self.topic_tx, 1), (self.topic_admin_cmd, 1)])
             logging.info(f"Suscrito a: {self.topic_tx} y {self.topic_admin_cmd}")
-
-            # Drenar mensajes pendientes (thread-safe: paho-mqtt llama desde hilo propio)
-            if self._loop and self._loop.is_running():
-                asyncio.run_coroutine_threadsafe(self.flush_offline_buffer(), self._loop)
-            else:
-                asyncio.run(self.flush_offline_buffer())
         else:
             self.is_connected = False
             logging.error(f"Fallo de conexión MQTT (rc: {rc})")
@@ -254,7 +196,7 @@ class AsyncBridgeMQTTClient:
         """Callback ejecutado al perder la conexión MQTT."""
         self.is_connected = False
         if rc != 0:
-            logging.warning(f"Desconexión de MQTT detectada (rc: {rc}). Activando modo Store & Forward...")
+            logging.warning(f"Desconexión de MQTT detectada (rc: {rc}). El cliente intentará reconectar automáticamente...")
 
     def _on_message(self, client: Any, userdata: Any, msg: Any) -> None:
         """Callback ejecutado al recibir un mensaje suscrito en MQTT."""

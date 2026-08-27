@@ -626,7 +626,7 @@ class WebAPIRouter:
             # Notificar a los clientes WebSocket en tiempo real
             web = getattr(self.bridge, "web_server", None)
             if web:
-                web.broadcast_event({"type": "contacts_updated", "data": self.bridge.node_registry.list_nodes()})
+                import asyncio; asyncio.create_task(web.broadcast_event({"type": "contacts_updated", "data": self.bridge.node_registry.list_nodes()}))
 
             self.log_system_event("INFO", f"Contacto guardado: {pubkey} ({alias or name})", source="contacts")
             return 200, {"status": "ok", "data": contact.to_dict()}
@@ -644,7 +644,7 @@ class WebAPIRouter:
                 del self.bridge.node_registry._nodes_by_key[pubkey]
                 web = getattr(self.bridge, "web_server", None)
                 if web:
-                    web.broadcast_event({"type": "contacts_updated", "data": self.bridge.node_registry.list_nodes()})
+                    import asyncio; asyncio.create_task(web.broadcast_event({"type": "contacts_updated", "data": self.bridge.node_registry.list_nodes()}))
                 return 200, {"status": "ok", "message": f"Contacto {pubkey} eliminado"}
             return 404, {"status": "error", "message": "Contacto no encontrado"}
 
@@ -702,7 +702,7 @@ class WebAPIRouter:
 
             web = getattr(self.bridge, "web_server", None)
             if web:
-                web.broadcast_event({"type": "channels_updated", "data": list(self.channels.values())})
+                import asyncio; asyncio.create_task(web.broadcast_event({"type": "channels_updated", "data": list(self.channels.values())}))
 
             self.log_system_event("INFO", f"Canal {idx} configurado: {name}", source="channels")
             return 200, {"status": "ok", "data": self.channels[idx]}
@@ -724,7 +724,7 @@ class WebAPIRouter:
                         logging.debug(f"Error limpiando canal en transceptor serial: {e}")
                 web = getattr(self.bridge, "web_server", None)
                 if web:
-                    web.broadcast_event({"type": "channels_updated", "data": list(self.channels.values())})
+                    import asyncio; asyncio.create_task(web.broadcast_event({"type": "channels_updated", "data": list(self.channels.values())}))
                 return 200, {"status": "ok", "message": f"Canal {idx} eliminado"}
             return 404, {"status": "error", "message": "Canal no encontrado"}
 

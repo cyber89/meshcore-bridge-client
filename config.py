@@ -51,6 +51,7 @@ MQTT_BROKER = os.getenv("MQTT_BROKER", "127.0.0.1")
 MQTT_PORT = _safe_int("MQTT_PORT", 1883)
 MQTT_USER = os.getenv("MQTT_USER", "").strip() or None
 MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "").strip() or None
+MQTT_PASSWORD_MASKED = "****" if MQTT_PASSWORD else ""
 MQTT_KEEPALIVE = _safe_int("MQTT_KEEPALIVE", 60)
 
 # ================= Tópicos MQTT =================
@@ -79,6 +80,11 @@ DEDUPLICATION_WINDOW_SEC = _safe_float("DEDUPLICATION_WINDOW_SEC", 60.0) # Venta
 WATCHDOG_INTERVAL_SEC = _safe_float("WATCHDOG_INTERVAL_SEC", 60.0)     # Intervalo de supervisión de vivacidad serial
 HEALTH_METRICS_INTERVAL_SEC = _safe_float("HEALTH_METRICS_INTERVAL_SEC", 60.0) # Intervalo de reporte de salud
 
+# ================= Parámetros de Concurrencia (Nuevos) =================
+MAX_TX_QUEUE_SIZE = _safe_int("MAX_TX_QUEUE_SIZE", 500)
+MAX_RX_CONCURRENCY = _safe_int("MAX_RX_CONCURRENCY", 20)
+WS_IDLE_TIMEOUT_SEC = _safe_float("WS_IDLE_TIMEOUT_SEC", 30.0)
+
 # ================= Parámetros de Radio y Airtime LoRa =================
 LORA_DEFAULT_SF = _safe_int("LORA_DEFAULT_SF", 11)                     # Spreading Factor por defecto (SF7..SF12)
 LORA_DEFAULT_BW_KHZ = _safe_float("LORA_DEFAULT_BW_KHZ", 250.0)       # Ancho de banda en kHz (125, 250, 500)
@@ -89,11 +95,16 @@ LORA_PREAMBLE_LEN = _safe_int("LORA_PREAMBLE_LEN", 8)                 # Símbolo
 WEB_ENABLED = os.getenv("WEB_ENABLED", "true").lower() in ("true", "1", "yes")
 WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")
 WEB_PORT = _safe_int("WEB_PORT", 8080)
+BRIDGE_API_KEY = os.getenv("BRIDGE_API_KEY", "")
+BRIDGE_ALLOWED_ORIGINS = os.getenv("BRIDGE_ALLOWED_ORIGINS", "http://localhost:8080,http://127.0.0.1:8080")
 
 # ================= Servidor TCP Companion (App Móvil Oficial / CLI) =================
 TCP_SERVER_ENABLED = os.getenv("TCP_SERVER_ENABLED", "true").lower() in ("true", "1", "yes")
 TCP_SERVER_HOST = os.getenv("TCP_SERVER_HOST", "0.0.0.0")
 TCP_SERVER_PORT = _safe_int("TCP_SERVER_PORT", 5000)
+MAX_COMPANION_CLIENTS = _safe_int("MAX_COMPANION_CLIENTS", 8)
+COMPANION_ALLOWED_IPS = os.getenv("COMPANION_ALLOWED_IPS", "")
+COMPANION_TOKEN = os.getenv("COMPANION_TOKEN", "")
 
 # ================= Logging Persistente y Rotación de Archivos =================
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
