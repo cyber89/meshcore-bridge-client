@@ -459,7 +459,11 @@ class MeshCoreWebServer:
             return
 
         if not target_file.is_file():
-            target_file = self.static_dir / "index.html"
+            if not target_file.suffix:
+                target_file = self.static_dir / "index.html"
+            else:
+                await self._write_http_response(writer, "404 Not Found", b"404 Not Found", cors_origin=cors_origin)
+                return
 
         if target_file.is_file():
             content_type, _ = mimetypes.guess_type(str(target_file))
