@@ -286,6 +286,53 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
         # Debe normalizar a 2 bytes (4 hex chars por salto) y flags=1
         self.mock_mc.commands.send_trace.assert_awaited_once_with(path="1122,aabb", flags=1)
 
+    async def test_neighbors_command_excludes_local_node(self) -> None:
+        """Verifica que el comando 'neighbors' excluya la estación base local y reporte solo vecinos remotos."""
+        self.mock_mc.self_info = {
+            "name": "Estación Base Heltec",
+            "public_key": "34c0c75300000000",
+        }
+        self.mock_registry.is_local_key.side_effect = lambda key: "34c0c753" in str(key).lower()
+        self.mock_registry.list_nodes.return_value = [
+            {"public_key": "8d5accef11223344", "name": "Cu1.mobilUnit", "role": "CLIENT", "is_local": False, "last_rssi": -11, "last_snr": 12.5, "hops": 0, "lqi_score": 100.0, "lqi_status": "EXCELLENT"},
+            {"public_key": "31d03b1f55667788", "name": "R1-Lee", "role": "REPEATER", "is_local": False, "last_rssi": None, "last_snr": 12.0, "hops": 0, "lqi_score": 82.5, "lqi_status": "EXCELLENT"},
+            {"public_key": "34c0c75300000000", "name": "Estación Base Heltec", "role": "LOCAL", "is_local": True, "last_rssi": None, "last_snr": None, "hops": 0, "lqi_score": 100.0, "lqi_status": "EXCELLENT"},
+        ]
+
+        res = await self.admin_handler.handle({
+            "target_node": "local",
+            "action": "neighbors",
+        })
+        self.assertEqual(res["status"], "ok")
+        result_text = res.get("result", "")
+        # Debe reportar 2 vecinos (no 3)
+        self.assertIn("Total Nodos Vecinos Descubiertos: 2", result_text)
+        self.assertIn("Cu1.mobilUnit", result_text)
+        self.assertIn("R1-Lee", result_text)
+        self.assertNotIn("34c0c753", result_text)
+
+    async def test_nodes_command_lists_all_with_local_tag(self) -> None:
+        """Verifica que el comando 'nodes' liste todos los nodos y distinga la estación base local."""
+        self.mock_mc.self_info = {
+            "name": "Estación Base Heltec",
+            "public_key": "34c0c75300000000",
+        }
+        self.mock_registry.is_local_key.side_effect = lambda key: "34c0c753" in str(key).lower()
+        self.mock_registry.list_nodes.return_value = [
+            {"public_key": "8d5accef11223344", "name": "Cu1.mobilUnit", "role": "CLIENT", "is_local": False, "last_rssi": -11, "last_snr": 12.5, "hops": 0},
+            {"public_key": "34c0c75300000000", "name": "Estación Base Heltec", "role": "LOCAL", "is_local": True, "last_rssi": None, "last_snr": None, "hops": 0},
+        ]
+
+        res = await self.admin_handler.handle({
+            "target_node": "local",
+            "action": "nodes",
+        })
+        self.assertEqual(res["status"], "ok")
+        result_text = res.get("result", "")
+        self.assertIn("Total Nodos Registrados: 2", result_text)
+        self.assertIn("[ESTACIÓN BASE LOCAL]", result_text)
+        self.assertIn("Cu1.mobilUnit", result_text)
+
 
 if __name__ == "__main__":
     unittest.main()

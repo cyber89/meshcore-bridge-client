@@ -6,6 +6,26 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Exclusión Estricta de la Estación Base Local en Comandos de Vecinos (`neighbors`) y Calidad de Enlace (`lqi`)
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 3 (Protocol QA Specialist).
+- **Problema Reportado**:
+  - Al ejecutar el comando de terminal CLI `neighbors` (o `vecinos`), la salida incluía la estación base local como uno de los vecinos de malla (ej: `3. Nodo [34c0c753] (34c0c753) | LQI: 100.0% | SNR: None dB | RSSI: None dBm`).
+  - La estación base no es un nodo vecino remoto, sino el transceptor local conectado por bus serie UART.
+- **Acciones Realizadas**:
+  1. **Filtrado Estricto de Vecinos Remotos en AdminCommandHandler** (`src/admin_handler.py`):
+     - El comando `neighbors` / `vecinos` ahora filtra rigurosamente la lista de nodos para excluir entradas donde `is_local=True`, `role="LOCAL"`, claves que coincidan con `is_local_key()`, prefijos coincidentes con la clave pública local, nombres reservados (`Estación Base`, `Nodo Local`, etc.) y el nombre local configurado.
+     - Si no hay vecinos remotos en alcance directo, retorna un mensaje descriptivo claro con `Total Nodos Vecinos Descubiertos: 0`.
+  2. **Filtrado en Métricas LQI de Enlace** (`src/admin_handler.py`):
+     - El comando `lqi` / `link_quality` excluye igualmente el nodo local, evaluando únicamente la calidad de enlace RF con vecinos remotos.
+  3. **Comando `nodes` / `list_nodes` para Directorio Global Completo** (`src/admin_handler.py`):
+     - Se añadió el comando `nodes` / `list_nodes` / `nodos` que lista el directorio completo de la malla, etiquetando explícitamente a la estación base con el distintivo `[ESTACIÓN BASE LOCAL]` y a los demás con su rol (`[CLIENT]`, `[REPEATER]`).
+  4. **Suites de Pruebas Unitarias** (`tests/test_node_and_repeater_config.py`):
+     - `test_neighbors_command_excludes_local_node`: Verifica que `neighbors` liste única y exclusivamente los 2 vecinos remotos (`Cu1.mobilUnit`, `R1-Lee`) y excluya a `34c0c753`.
+     - `test_nodes_command_lists_all_with_local_tag`: Verifica que `nodes` liste ambos nodos y etiquete la estación base local.
+- **Módulos Modificados**: `src/admin_handler.py`, `docs/AGENT_ACTIVITY_REPORT.md`, `tests/test_node_and_repeater_config.py`.
+
 ### Hito: Corrección de Formato de Ruta en Traceroute y Eliminación de Error "Invalid path format: unknown path_hash_len 0"
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO

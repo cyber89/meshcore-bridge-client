@@ -332,149 +332,146 @@ class AdminCommandHandler:
 
         mc = self._ctx.mc_provider()
 
-        # 1. Comandos dirigidos a un repetidor remoto
-        if target_node:
+        # 1. Caso especial: Traceroute Multi-Salto (se ejecuta con o sin target_node)
+        if action in ("traceroute", "trace", "trace_route", "send_trace"):
+            t_start = time.perf_counter()
+            raw_path = admin_data.get("path")
+            if raw_path is None and isinstance(admin_data.get("params"), dict):
+                raw_path = admin_data.get("params", {}).get("path")
+
+            path_list: list[str] = []
+            if isinstance(raw_path, str):
+                path_list = [p.strip() for p in raw_path.split(",") if p.strip()]
+            elif isinstance(raw_path, (list, tuple)):
+                path_list = [str(p).strip() for p in raw_path if str(p).strip()]
+
+            # Normalizar los saltos a hashes hexadecimales válidos para el protocolo MeshCore (1, 2, 4 u 8 bytes)
+            formatted_hops: list[str] = []
+            trace_flags: int = 0
+            trace_path_arg: str | None = None
+
+            if path_list:
+                for p in path_list:
+                    clean_p = p.lower().strip()
+                    if clean_p.startswith("0x"):
+                        clean_p = clean_p[2:]
+                    clean_hex = "".join(c for c in clean_p if c in "0123456789abcdef")
+                    if not clean_hex:
+                        found_node = self._ctx.node_registry.get_by_key_or_prefix(clean_p)
+                        if found_node:
+                            clean_hex = found_node.public_key.lower()[:4]
+
+                    if clean_hex:
+                        if len(clean_hex) >= 16:
+                            formatted_hops.append(clean_hex[:4])  # 2 bytes estándar
+                        elif len(clean_hex) >= 8:
+                            formatted_hops.append(clean_hex[:8])  # 4 bytes
+                        elif len(clean_hex) >= 4:
+                            formatted_hops.append(clean_hex[:4])  # 2 bytes
+                        elif len(clean_hex) >= 2:
+                            formatted_hops.append(clean_hex[:2])  # 1 byte
+
+                if formatted_hops:
+                    if all(len(h) == 4 for h in formatted_hops):
+                        trace_path_arg = ",".join(formatted_hops)
+                        trace_flags = 1  # 2 bytes por salto (1 << 1)
+                    elif all(len(h) == 8 for h in formatted_hops):
+                        trace_path_arg = ",".join(formatted_hops)
+                        trace_flags = 2  # 4 bytes por salto (1 << 2)
+                    elif all(len(h) == 16 for h in formatted_hops):
+                        trace_path_arg = ",".join(formatted_hops)
+                        trace_flags = 3  # 8 bytes por salto (1 << 3)
+                    else:
+                        trace_path_arg = ",".join(h[:2] for h in formatted_hops)
+                        trace_flags = 0  # 1 byte por salto (1 << 0)
+
+            # Si el SDK soporta comando nativo de traza por radio, despacharlo a nivel RF
+            if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_trace"):
+                try:
+                    if trace_path_arg:
+                        await mc.commands.send_trace(path=trace_path_arg, flags=trace_flags)
+                    else:
+                        # NUNCA pasar path="" porque len("")/2=0 provoca "unknown path_hash_len 0"
+                        await mc.commands.send_trace(path=None, flags=0)
+                except Exception as e:
+                    logging.debug(f"Error invocando mc.commands.send_trace: {e}")
+
+            rtt_ms = round((time.perf_counter() - t_start) * 1000, 1)
+
+            # Construir desglose de saltos a partir del registro de nodos
+            hops_breakdown: list[dict[str, Any]] = []
+            # Salto 0: Estación Base Local
+            cfg = self.get_local_config()
+            hops_breakdown.append({
+                "hop_index": 0,
+                "pubkey": cfg.get("public_key", "local"),
+                "name": cfg.get("name", "Estación Base"),
+                "snr_in": 12.0,
+                "snr_out": 12.0,
+                "rtt_segment_ms": 0.0,
+            })
+
+            # Saltos intermedios
+            for idx, hop_key in enumerate(path_list, start=1):
+                node_info = None
+                for n in self._ctx.node_registry.list_nodes():
+                    pk = str(n.get("public_key", "")).lower()
+                    tgt = str(hop_key).lower()
+                    if pk == tgt or (len(pk) >= 8 and (pk.startswith(tgt) or tgt.startswith(pk))):
+                        node_info = n
+                        break
+                h_name = node_info.get("name") or node_info.get("alias") if node_info else f"Repetidor {hop_key[:6]}"
+                h_snr = node_info.get("last_snr") or 8.5 if node_info else 8.5
+                hops_breakdown.append({
+                    "hop_index": idx,
+                    "pubkey": hop_key,
+                    "name": h_name,
+                    "snr_in": h_snr,
+                    "snr_out": max(2.0, h_snr - 1.5),
+                    "rtt_segment_ms": round(rtt_ms / (len(path_list) + 1), 1),
+                })
+
+            # Destino final si no estaba ya en el path
+            if not path_list or path_list[-1] != str(target_node):
+                dest_info = None
+                for n in self._ctx.node_registry.list_nodes():
+                    pk = str(n.get("public_key", "")).lower()
+                    tgt = str(target_node).lower()
+                    if pk == tgt or (len(pk) >= 8 and (pk.startswith(tgt) or tgt.startswith(pk))):
+                        dest_info = n
+                        break
+                d_name = dest_info.get("name") or dest_info.get("alias") if dest_info else f"Destino {str(target_node)[:8]}"
+                d_snr = dest_info.get("last_snr") or 7.0 if dest_info else 7.0
+                hops_breakdown.append({
+                    "hop_index": len(hops_breakdown),
+                    "pubkey": str(target_node),
+                    "name": d_name,
+                    "snr_in": d_snr,
+                    "snr_out": d_snr,
+                    "rtt_segment_ms": round(rtt_ms / (len(hops_breakdown)), 1),
+                })
+
+            res.update({
+                "action": "traceroute",
+                "target_node": str(target_node),
+                "path": path_list,
+                "total_hops": len(hops_breakdown) - 1,
+                "total_rtt_ms": max(25.0, rtt_ms),
+                "hops_breakdown": hops_breakdown,
+                "timestamp": int(time.time()),
+                "cmd_dispatched": f"send_trace({trace_path_arg or ''})",
+            })
+            self._ctx.mqtt.publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/trace", json.dumps(res), qos=1)
+            self._ctx.mqtt.publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
+            if self._ctx.web_server:
+                asyncio.create_task(self._ctx.web_server.broadcast_event({"type": "trace_data", "data": res}))
+            return res
+
+        # 2. Comandos dirigidos a un repetidor remoto (solo si target_node no es la estación local)
+        is_local_target = bool(target_node and (self._ctx.node_registry.is_local_key(str(target_node)) or str(target_node).lower() in ("local", "000000000000")))
+        if target_node and not is_local_target:
             res["target_node"] = target_node
             logging.info(f"[TX-ADMIN] De: Estación Base Local -> Para: {target_node} | Acción: '{action}' | ReqID: {req_id}")
-
-            is_local_target = self._ctx.node_registry.is_local_key(str(target_node)) or str(target_node).lower() in ("local", "000000000000")
-            if is_local_target and action not in ("get_config", "get_local_config"):
-                return {"status": "error", "message": "Acción remota no aplicable a la estación base local"}
-
-            # Caso especial: Traceroute Multi-Salto
-            if action in ("traceroute", "trace", "trace_route", "send_trace"):
-                t_start = time.perf_counter()
-                raw_path = admin_data.get("path")
-                if raw_path is None and isinstance(admin_data.get("params"), dict):
-                    raw_path = admin_data.get("params", {}).get("path")
-
-                path_list: list[str] = []
-                if isinstance(raw_path, str):
-                    path_list = [p.strip() for p in raw_path.split(",") if p.strip()]
-                elif isinstance(raw_path, (list, tuple)):
-                    path_list = [str(p).strip() for p in raw_path if str(p).strip()]
-
-                # Normalizar los saltos a hashes hexadecimales válidos para el protocolo MeshCore (1, 2, 4 u 8 bytes)
-                formatted_hops: list[str] = []
-                trace_flags: int = 0
-                trace_path_arg: str | None = None
-
-                if path_list:
-                    for p in path_list:
-                        clean_p = p.lower().strip()
-                        if clean_p.startswith("0x"):
-                            clean_p = clean_p[2:]
-                        clean_hex = "".join(c for c in clean_p if c in "0123456789abcdef")
-                        if not clean_hex:
-                            found_node = self._ctx.node_registry.get_by_key_or_prefix(clean_p)
-                            if found_node:
-                                clean_hex = found_node.public_key.lower()[:4]
-
-                        if clean_hex:
-                            if len(clean_hex) >= 16:
-                                formatted_hops.append(clean_hex[:4])  # 2 bytes estándar
-                            elif len(clean_hex) >= 8:
-                                formatted_hops.append(clean_hex[:8])  # 4 bytes
-                            elif len(clean_hex) >= 4:
-                                formatted_hops.append(clean_hex[:4])  # 2 bytes
-                            elif len(clean_hex) >= 2:
-                                formatted_hops.append(clean_hex[:2])  # 1 byte
-
-                    if formatted_hops:
-                        if all(len(h) == 4 for h in formatted_hops):
-                            trace_path_arg = ",".join(formatted_hops)
-                            trace_flags = 1  # 2 bytes por salto (1 << 1)
-                        elif all(len(h) == 8 for h in formatted_hops):
-                            trace_path_arg = ",".join(formatted_hops)
-                            trace_flags = 2  # 4 bytes por salto (1 << 2)
-                        elif all(len(h) == 16 for h in formatted_hops):
-                            trace_path_arg = ",".join(formatted_hops)
-                            trace_flags = 3  # 8 bytes por salto (1 << 3)
-                        else:
-                            trace_path_arg = ",".join(h[:2] for h in formatted_hops)
-                            trace_flags = 0  # 1 byte por salto (1 << 0)
-
-                # Si el SDK soporta comando nativo de traza por radio, despacharlo a nivel RF
-                if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_trace"):
-                    try:
-                        if trace_path_arg:
-                            await mc.commands.send_trace(path=trace_path_arg, flags=trace_flags)
-                        else:
-                            # NUNCA pasar path="" porque len("")/2=0 provoca "unknown path_hash_len 0"
-                            await mc.commands.send_trace(path=None, flags=0)
-                    except Exception as e:
-                        logging.debug(f"Error invocando mc.commands.send_trace: {e}")
-
-                rtt_ms = round((time.perf_counter() - t_start) * 1000, 1)
-
-                # Construir desglose de saltos a partir del registro de nodos
-                hops_breakdown: list[dict[str, Any]] = []
-                # Salto 0: Estación Base Local
-                cfg = self.get_local_config()
-                hops_breakdown.append({
-                    "hop_index": 0,
-                    "pubkey": cfg.get("public_key", "local"),
-                    "name": cfg.get("name", "Estación Base"),
-                    "snr_in": 12.0,
-                    "snr_out": 12.0,
-                    "rtt_segment_ms": 0.0,
-                })
-
-                # Saltos intermedios
-                for idx, hop_key in enumerate(path_list, start=1):
-                    node_info = None
-                    for n in self._ctx.node_registry.list_nodes():
-                        pk = str(n.get("public_key", "")).lower()
-                        tgt = str(hop_key).lower()
-                        if pk == tgt or (len(pk) >= 8 and (pk.startswith(tgt) or tgt.startswith(pk))):
-                            node_info = n
-                            break
-                    h_name = node_info.get("name") or node_info.get("alias") if node_info else f"Repetidor {hop_key[:6]}"
-                    h_snr = node_info.get("last_snr") or 8.5 if node_info else 8.5
-                    hops_breakdown.append({
-                        "hop_index": idx,
-                        "pubkey": hop_key,
-                        "name": h_name,
-                        "snr_in": h_snr,
-                        "snr_out": max(2.0, h_snr - 1.5),
-                        "rtt_segment_ms": round(rtt_ms / (len(path_list) + 1), 1),
-                    })
-
-                # Destino final si no estaba ya en el path
-                if not path_list or path_list[-1] != str(target_node):
-                    dest_info = None
-                    for n in self._ctx.node_registry.list_nodes():
-                        pk = str(n.get("public_key", "")).lower()
-                        tgt = str(target_node).lower()
-                        if pk == tgt or (len(pk) >= 8 and (pk.startswith(tgt) or tgt.startswith(pk))):
-                            dest_info = n
-                            break
-                    d_name = dest_info.get("name") or dest_info.get("alias") if dest_info else f"Destino {str(target_node)[:8]}"
-                    d_snr = dest_info.get("last_snr") or 7.0 if dest_info else 7.0
-                    hops_breakdown.append({
-                        "hop_index": len(hops_breakdown),
-                        "pubkey": str(target_node),
-                        "name": d_name,
-                        "snr_in": d_snr,
-                        "snr_out": d_snr,
-                        "rtt_segment_ms": round(rtt_ms / (len(hops_breakdown)), 1),
-                    })
-
-                res.update({
-                    "action": "traceroute",
-                    "target_node": str(target_node),
-                    "path": path_list,
-                    "total_hops": len(hops_breakdown) - 1,
-                    "total_rtt_ms": max(25.0, rtt_ms),
-                    "hops_breakdown": hops_breakdown,
-                    "timestamp": int(time.time()),
-                    "cmd_dispatched": f"send_trace({trace_path_arg or ''})",
-                })
-                self._ctx.mqtt.publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/trace", json.dumps(res), qos=1)
-                self._ctx.mqtt.publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
-                if self._ctx.web_server:
-                    asyncio.create_task(self._ctx.web_server.broadcast_event({"type": "trace_data", "data": res}))
-                return res
 
             # Buscar datos del nodo destino para validar si es repetidor
             target_info: dict[str, Any] | None = None
@@ -1033,6 +1030,8 @@ class AdminCommandHandler:
         # 3. Comandos CLI y de Control Directo Local (Formato String Legible)
         act_clean = action.lower().strip()
         cfg = self.get_local_config()
+        local_pk = str(cfg.get("public_key", "")).lower().strip()
+        local_name = str(cfg.get("name", "")).lower().strip()
 
         try:
             if act_clean in ("ver", "v", "q", "query", "version"):
@@ -1146,26 +1145,75 @@ class AdminCommandHandler:
                 res["result"] = f"👤 [PROPIETARIO / IDENTIDAD] Nombre: {o_name} | Contacto: {o_info} | Clave Pública: {pk}"
 
             elif act_clean in ("neighbors", "get_neighbors", "discover.neighbors", "discover_neighbors", "vecinos"):
-                nodes_list = self._ctx.node_registry.list_nodes()
-                lines = [f"🌐 [VECINOS DE MALLA] Total Nodos Registrados: {len(nodes_list)}"]
-                for idx, n in enumerate(nodes_list[:10], start=1):
-                    n_name = n.get("alias") or n.get("name") or "Nodo"
+                all_nodes = self._ctx.node_registry.list_nodes()
+                local_pk = str(cfg.get("public_key", "")).lower().strip()
+                local_name = str(cfg.get("name", "")).lower().strip()
+
+                # Filtrar estrictamente para excluir la estación base local
+                remote_neighbors = [
+                    n for n in all_nodes
+                    if not n.get("is_local")
+                    and str(n.get("role", "")).upper() != "LOCAL"
+                    and not self._ctx.node_registry.is_local_key(str(n.get("public_key", "")))
+                    and str(n.get("public_key", "")).lower() != "local"
+                    and not (local_pk and (str(n.get("public_key", "")).lower().startswith(local_pk[:6]) or local_pk.startswith(str(n.get("public_key", "")).lower()[:6])))
+                    and str(n.get("name", "")).strip().lower() not in ("estación base", "estacion base", "nodo local", local_name)
+                ]
+
+                if not remote_neighbors:
+                    res["result"] = (
+                        "🌐 [VECINOS DE MALLA] Total Nodos Vecinos Descubiertos: 0\n"
+                        "  (No se han detectado nodos vecinos remotos en alcance directo)"
+                    )
+                else:
+                    lines = [f"🌐 [VECINOS DE MALLA] Total Nodos Vecinos Descubiertos: {len(remote_neighbors)}"]
+                    for idx, n in enumerate(remote_neighbors[:15], start=1):
+                        n_name = n.get("alias") or n.get("name") or f"Nodo [{str(n.get('public_key', ''))[:8]}]"
+                        n_pk = str(n.get("public_key", ""))[:8]
+                        n_rssi = f"{n.get('last_rssi')} dBm" if n.get("last_rssi") is not None else "--"
+                        n_snr = f"{n.get('last_snr')} dB" if n.get("last_snr") is not None else "--"
+                        n_hops = n.get("hops", 0)
+                        n_lqi = n.get("lqi_score", 0.0)
+                        n_stat = n.get("lqi_status", "UNKNOWN")
+                        lines.append(f"  {idx}. {n_name} ({n_pk}) | LQI: {n_lqi}% [{n_stat}] | Hops: {n_hops} | SNR: {n_snr} | RSSI: {n_rssi}")
+                    res["result"] = "\n".join(lines)
+
+            elif act_clean in ("nodes", "list_nodes", "get_nodes", "nodos"):
+                all_nodes = self._ctx.node_registry.list_nodes()
+                lines = [f"📋 [DIRECTORIO DE MALLA] Total Nodos Registrados: {len(all_nodes)}"]
+                for idx, n in enumerate(all_nodes[:20], start=1):
+                    is_loc = bool(
+                        n.get("is_local")
+                        or str(n.get("role", "")).upper() == "LOCAL"
+                        or self._ctx.node_registry.is_local_key(str(n.get("public_key", "")))
+                        or (local_pk and (str(n.get("public_key", "")).lower().startswith(local_pk[:6]) or local_pk.startswith(str(n.get("public_key", "")).lower()[:6])))
+                    )
+                    tag = " [ESTACIÓN BASE LOCAL]" if is_loc else f" [{n.get('role', 'CLIENT')}]"
+                    n_name = (cfg.get("name") if is_loc else None) or n.get("alias") or n.get("name") or f"Nodo [{str(n.get('public_key', ''))[:8]}]"
                     n_pk = str(n.get("public_key", ""))[:8]
-                    n_rssi = n.get("last_rssi", "--")
-                    n_snr = n.get("last_snr", "--")
-                    n_hops = n.get("hops", 0)
-                    n_lqi = n.get("lqi_score", 0.0)
-                    n_stat = n.get("lqi_status", "UNKNOWN")
-                    lines.append(f"  {idx}. {n_name} ({n_pk}) | LQI: {n_lqi}% [{n_stat}] | Hops: {n_hops} | SNR: {n_snr} dB | RSSI: {n_rssi} dBm")
+                    n_rssi = f"{n.get('last_rssi')} dBm" if n.get("last_rssi") is not None else ("Local" if is_loc else "--")
+                    n_snr = f"{n.get('last_snr')} dB" if n.get("last_snr") is not None else ("Local" if is_loc else "--")
+                    n_hops = 0 if is_loc else n.get("hops", 0)
+                    lines.append(f"  {idx}. {n_name} ({n_pk}){tag} | Hops: {n_hops} | SNR: {n_snr} | RSSI: {n_rssi}")
                 res["result"] = "\n".join(lines)
 
             elif act_clean in ("lqi", "get_lqi", "link_quality", "lqi_topology"):
                 lqi_metrics = self._ctx.node_registry.get_all_lqi_metrics() if hasattr(self._ctx.node_registry, "get_all_lqi_metrics") else []
-                res["lqi_metrics"] = lqi_metrics
-                lines = [f"📶 [CALIDAD DE ENLACE LQI] Nodos Evaluados: {len(lqi_metrics)}"]
-                for idx, m in enumerate(lqi_metrics, start=1):
-                    lines.append(f"  {idx}. {m.get('name')} ({m.get('key_prefix')}) -> LQI: {m.get('lqi_score')}% [{m.get('lqi_status')}] | Ruta: {m.get('best_route')} | SNR: {m.get('last_snr')} dB | RSSI: {m.get('last_rssi')} dBm")
-                res["result"] = "\n".join(lines)
+                local_pk = str(cfg.get("public_key", "")).lower().strip()
+                remote_lqi = [
+                    m for m in lqi_metrics
+                    if not self._ctx.node_registry.is_local_key(str(m.get("public_key", m.get("key_prefix", ""))))
+                    and str(m.get("role", "")).upper() != "LOCAL"
+                    and not (local_pk and (str(m.get("key_prefix", "")).lower().startswith(local_pk[:6]) or local_pk.startswith(str(m.get("key_prefix", "")).lower()[:6])))
+                ]
+                res["lqi_metrics"] = remote_lqi
+                if not remote_lqi:
+                    res["result"] = "📶 [CALIDAD DE ENLACE LQI] Nodos Vecinos Evaluados: 0\n  (No hay métricas LQI de nodos vecinos remotos)"
+                else:
+                    lines = [f"📶 [CALIDAD DE ENLACE LQI] Nodos Vecinos Evaluados: {len(remote_lqi)}"]
+                    for idx, m in enumerate(remote_lqi, start=1):
+                        lines.append(f"  {idx}. {m.get('name')} ({m.get('key_prefix')}) -> LQI: {m.get('lqi_score')}% [{m.get('lqi_status')}] | Ruta: {m.get('best_route')} | SNR: {m.get('last_snr')} dB | RSSI: {m.get('last_rssi')} dBm")
+                    res["result"] = "\n".join(lines)
 
             elif act_clean in ("acl", "get_acl", "get acl", "acl list", "acl_list"):
                 res["result"] = "🔐 [CONTROL DE ACCESO ACL] Autenticación por PIN activa | Permisos: ADMIN / OPERATOR"
@@ -1210,7 +1258,8 @@ class AdminCommandHandler:
                     "  • packets             : Contadores de paquetes TX, RX, duplicados y errores.\n"
                     "  • pos / get_pos       : Consulta coordenadas GPS y modo de posición fija.\n"
                     "  • owner / identity    : Consulta identidad y datos del propietario.\n"
-                    "  • neighbors / vecinos : Consulta la tabla de nodos vecinos y rutas de malla.\n"
+                    "  • neighbors / vecinos : Consulta la tabla de nodos vecinos remotos en alcance RF.\n"
+                    "  • nodes / list_nodes  : Lista completa de nodos de la malla incluyendo la estación base.\n"
                     "  • channels            : Lista de canales de radio configurados.\n"
                     "  • acl                 : Consulta lista de control de acceso y permisos.\n"
                     "  • board               : Arquitectura de hardware y chip transceptor LoRa.\n"
