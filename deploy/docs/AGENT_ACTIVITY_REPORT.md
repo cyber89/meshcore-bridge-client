@@ -6,6 +6,44 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Alineación con Protocolo Oficial MeshCore - Correcciones Críticas de Compatibilidad
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 5 (Security Auditor).
+- **Acciones Realizadas**:
+  1. **Unificación de Namespace de Tipos de Protocolo** (`src/protocol_types.py`):
+     - Renombrado `OpCode` a `PacketType` alineado con SDK oficial (`packets.py`).
+     - Agregados 28 tipos de paquete faltantes (OK, ERROR, CONTACT_START, CONTACT, CONTACT_END, SELF_INFO, MSG_SENT, etc.).
+     - Agregados 19 comandos faltantes en `CommandType` (SET_TUNING_PARAMS, EXPORT_PRIVATE_KEY, SIGN_START, etc.).
+     - Agregados `BinaryReqType` y `ControlType` enums del SDK.
+     - Mantenido alias legacy `OpCode = PacketType` para compatibilidad.
+  2. **Corrección de Parsing de Telemetría** (`src/protocol_types.py`):
+     - Marcado `TelemetryPayload` como LEGACY (no existe en firmware real).
+     - Renombrado `parse_telemetry_from_sdk()` a `parse_status_response()` alineado con SDK.
+     - Actualizado `FrameHeader` para usar `packet_type` en lugar de `opcode`.
+     - Actualizado `MeshcoreFrame.parse_raw_packet()` para usar `PacketType.TELEMETRY_RESPONSE`.
+  3. **Expansión del Manejador de Eventos SDK** (`src/serial_driver.py`):
+     - Implementado manejadores para 35+ tipos de eventos del SDK (antes solo 4).
+     - Agregados handlers: STATUS_RESPONSE, TELEMETRY_RESPONSE, STATS_CORE/RADIO/PACKETS, BATTERY, DEVICE_INFO, CONTACTS, MSG_SENT, ACK, LOGIN_SUCCESS/FAILED, BINARY_RESPONSE, TRACE_DATA, RAW_DATA, LOG_DATA, CONTROL_DATA, etc.
+     - Cada handler incluye logging estructurado y forward al rx_callback.
+  4. **Agregado Parsing MMA y ACL** (`src/sensor_decoder.py`):
+     - Implementado `parse_mma_data()` para datos Min/Max/Avg de sensores LPP.
+     - Implementado `parse_acl_data()` para listas de control de acceso.
+     - Agregados diccionarios de tipos LPP (`LPP_TYPE_SIZES`, `LPP_TYPE_NAMES`).
+     - Implementado `_decode_lpp_value()` para decodificar valores por tipo.
+  5. **Correcciones de Seguridad** (`src/web/http_server.py`):
+     - Importado `hmac` para comparaciones timing-safe.
+     - Reemplazado `req_api_key != api_key` con `hmac.compare_digest()` (SEC-015).
+  6. **Documentación de Incompatibilidades**:
+     - Generado `REPORT5.md` con análisis completo de incompatibilidades vs SDK oficial.
+     - Identificadas 17 categorías de incompatibilidad con severidad y recomendaciones.
+- **Módulos Modificados**: `src/protocol_types.py`, `src/serial_driver.py`, `src/sensor_decoder.py`, `src/web/http_server.py`
+- **Contratos de Interfaz Cambiados**:
+  - `FrameHeader.opcode` → `FrameHeader.packet_type` (con property legacy)
+  - `get_opcode_name()` → `get_packet_type_name()` (con alias legacy)
+  - `TelemetryPayload` marcado como LEGACY
+  - `parse_telemetry_from_sdk()` → `parse_status_response()` (con alias legacy)
+
 ### Hito: Saneamiento de `.env`, Actualización Global de Documentación, Deduplicación de Nodo Local y Corrección de Transmisión Web
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO

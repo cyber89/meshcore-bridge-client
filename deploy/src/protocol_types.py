@@ -2,6 +2,8 @@
 Protocol Types and Binary Data Contracts for MeshCore Bridge.
 Define dataclasses inmutables y tipadas con validación y serialización estricta.
 Single Source of Truth para el bridge y suites de pruebas.
+
+Aligned with official MeshCore SDK (meshcore_py/src/meshcore/packets.py).
 """
 
 from __future__ import annotations
@@ -23,15 +25,61 @@ HEADER_SIZE_BYTES: int = 9
 CRC_SIZE_BYTES: int = 2
 
 
-class OpCode(IntEnum):
-    """Códigos de Operación del protocolo binario MeshCore."""
-    TELEMETRY = 0x01
-    TEXT_MSG = 0x02
-    NODE_ADVERT = 0x03
-    ROUTING_INFO = 0x04
-    ADMIN_CMD = 0x05
-    ADMIN_RESP = 0x06
-    ACK = 0x07
+class PacketType(IntEnum):
+    """Tipos de paquete/respuesta del protocolo MeshCore (SDK packets.py).
+    Nota: Este enum reemplaza al antiguo OpCode que era incompatible."""
+    OK = 0
+    ERROR = 1
+    CONTACT_START = 2
+    CONTACT = 3
+    CONTACT_END = 4
+    SELF_INFO = 5
+    MSG_SENT = 6
+    CONTACT_MSG_RECV = 7
+    CHANNEL_MSG_RECV = 8
+    CURRENT_TIME = 9
+    NO_MORE_MSGS = 10
+    CONTACT_URI = 11
+    BATTERY = 12
+    DEVICE_INFO = 13
+    PRIVATE_KEY = 14
+    DISABLED = 15
+    CONTACT_MSG_RECV_V3 = 16
+    CHANNEL_MSG_RECV_V3 = 17
+    CHANNEL_INFO = 18
+    SIGN_START = 19
+    SIGNATURE = 20
+    CUSTOM_VARS = 21
+    ADVERT_PATH = 22
+    TUNING_PARAMS = 23
+    STATS = 24
+    AUTOADD_CONFIG = 25
+    ALLOWED_REPEAT_FREQ = 26
+    CHANNEL_DATA_RECV = 27
+    DEFAULT_FLOOD_SCOPE = 28
+
+    # Push notifications (0x80-0x90)
+    ADVERTISEMENT = 0x80
+    PATH_UPDATE = 0x81
+    ACK = 0x82
+    MESSAGES_WAITING = 0x83
+    RAW_DATA = 0x84
+    LOGIN_SUCCESS = 0x85
+    LOGIN_FAILED = 0x86
+    STATUS_RESPONSE = 0x87
+    LOG_DATA = 0x88
+    TRACE_DATA = 0x89
+    NEW_ADVERT = 0x8A
+    TELEMETRY_RESPONSE = 0x8B
+    BINARY_RESPONSE = 0x8C
+    PATH_DISCOVERY_RESPONSE = 0x8D
+    CONTROL_DATA = 0x8E
+    CONTACT_DELETED = 0x8F
+    CONTACTS_FULL = 0x90
+
+
+# Legacy alias for backward compatibility
+OpCode = PacketType
 
 
 class FirmwareRouteType(IntEnum):
@@ -68,8 +116,9 @@ class FirmwareAdvertType(IntEnum):
     SENSOR = 4     # Nodo Sensor de Telemetría
 
 
-class FirmwareCommandType(IntEnum):
-    """OpCodes de comandos Host -> Radio del SDK oficial (packets.py)."""
+class CommandType(IntEnum):
+    """OpCodes de comandos Host -> Radio del SDK oficial (packets.py).
+    Aligned with meshcore_py/src/meshcore/packets.py CommandType."""
     APP_START = 1
     SEND_TXT_MSG = 2
     SEND_CHANNEL_TXT_MSG = 3
@@ -90,38 +139,66 @@ class FirmwareCommandType(IntEnum):
     IMPORT_CONTACT = 18
     REBOOT = 19
     GET_BATT_AND_STORAGE = 20
+    SET_TUNING_PARAMS = 21
     DEVICE_QUERY = 22
+    EXPORT_PRIVATE_KEY = 23
+    IMPORT_PRIVATE_KEY = 24
     SEND_RAW_DATA = 25
     SEND_LOGIN = 26
+    SEND_STATUS_REQ = 27
+    HAS_CONNECTION = 28
     LOGOUT = 29
     GET_CONTACT_BY_KEY = 30
     GET_CHANNEL = 31
     SET_CHANNEL = 32
+    SIGN_START = 33
+    SIGN_DATA = 34
+    SIGN_FINISH = 35
     SEND_TRACE_PATH = 36
+    SET_DEVICE_PIN = 37
+    SET_OTHER_PARAMS = 38
     SEND_TELEMETRY_REQ = 39
+    GET_CUSTOM_VARS = 40
+    SET_CUSTOM_VAR = 41
+    GET_ADVERT_PATH = 42
+    GET_TUNING_PARAMS = 43
     BINARY_REQ = 50
+    FACTORY_RESET = 51
+    PATH_DISCOVERY = 52
+    SET_FLOOD_SCOPE = 54
+    SEND_CONTROL_DATA = 55
     GET_STATS = 56
+    SEND_ANON_REQ = 57
+    SET_AUTOADD_CONFIG = 58
+    GET_AUTOADD_CONFIG = 59
+    GET_ALLOWED_REPEAT_FREQ = 60
+    SET_PATH_HASH_MODE = 61
+    SET_DEFAULT_FLOOD_SCOPE = 63
+    GET_DEFAULT_FLOOD_SCOPE = 64
 
 
-class FirmwarePushCode(IntEnum):
-    """Códigos de notificaciones Push asíncronas Radio -> Host (packets.py)."""
-    ADVERTISEMENT = 0x80
-    PATH_UPDATE = 0x81
-    ACK = 0x82
-    MESSAGES_WAITING = 0x83
-    RAW_DATA = 0x84
-    LOGIN_SUCCESS = 0x85
-    LOGIN_FAILED = 0x86
-    STATUS_RESPONSE = 0x87
-    LOG_DATA = 0x88
-    TRACE_DATA = 0x89
-    NEW_ADVERT = 0x8A
-    TELEMETRY_RESPONSE = 0x8B
-    BINARY_RESPONSE = 0x8C
-    PATH_DISCOVERY_RESPONSE = 0x8D
-    CONTROL_DATA = 0x8E
-    CONTACT_DELETED = 0x8F
-    CONTACTS_FULL = 0x90
+# Legacy alias
+FirmwareCommandType = CommandType
+
+
+class BinaryReqType(IntEnum):
+    """Tipos de solicitud binaria (SDK packets.py)."""
+    STATUS = 0x01
+    KEEP_ALIVE = 0x02
+    TELEMETRY = 0x03
+    MMA = 0x04
+    ACL = 0x05
+    NEIGHBOURS = 0x06
+
+
+class ControlType(IntEnum):
+    """Tipos de control (SDK packets.py)."""
+    NODE_DISCOVER_REQ = 0x80
+    NODE_DISCOVER_RESP = 0x90
+
+
+# Legacy alias
+FirmwarePushCode = PacketType
 
 
 class HardwareModel(IntEnum):
@@ -152,39 +229,34 @@ def compute_crc16_ccitt(data: bytes, init: int = 0xFFFF, poly: int = 0x1021) -> 
     return crc
 
 
-def get_opcode_name(opcode: int) -> str:
-    """Retorna el nombre legible de un OpCode de protocolo."""
+def get_packet_type_name(ptype: int) -> str:
+    """Retorna el nombre legible de un tipo de paquete."""
     try:
-        return OpCode(opcode).name
+        return PacketType(ptype).name
     except ValueError:
-        return f"UNKNOWN_0x{opcode:02X}"
+        return f"UNKNOWN_0x{ptype:02X}"
 
 
-def get_payload_type_name(ptype: int) -> str:
-    """Retorna el nombre legible de un FirmwarePayloadType."""
-    try:
-        return FirmwarePayloadType(ptype).name
-    except ValueError:
-        return f"RAW_0x{ptype:02X}"
-
-
-def get_push_code_name(code: int) -> str:
-    """Retorna el nombre legible de una notificación Push."""
-    try:
-        return FirmwarePushCode(code).name
-    except ValueError:
-        return f"PUSH_0x{code:02X}"
+# Legacy aliases
+get_opcode_name = get_packet_type_name
+get_payload_type_name = get_packet_type_name
+get_push_code_name = get_packet_type_name
 
 
 @dataclass(frozen=True)
 class FrameHeader:
     """Cabecera de 9 Bytes de trama binaria MeshCore."""
-    opcode: OpCode
+    packet_type: PacketType
     seq_num: int
     src_node_id: int
     dst_node_id: int
     hop_limit: int
     payload_len: int
+
+    @property
+    def opcode(self) -> PacketType:
+        """Legacy property for backward compatibility."""
+        return self.packet_type
 
     def __post_init__(self) -> None:
         if not (0 <= self.seq_num <= 0xFF):
@@ -202,7 +274,7 @@ class FrameHeader:
         """Serializa la cabecera en 9 bytes binarios (Little-Endian)."""
         return struct.pack(
             "<BBHHBH",
-            int(self.opcode),
+            int(self.packet_type),
             self.seq_num,
             self.src_node_id,
             self.dst_node_id,
@@ -215,9 +287,9 @@ class FrameHeader:
         """Deserializa 9 bytes binarios a una instancia de FrameHeader."""
         if len(data) < HEADER_SIZE_BYTES:
             raise ValueError(f"Datos insuficientes para cabecera: {len(data)}B < {HEADER_SIZE_BYTES}B")
-        opcode_raw, seq, src, dst, hop, plen = struct.unpack("<BBHHBH", data[:HEADER_SIZE_BYTES])
+        ptype_raw, seq, src, dst, hop, plen = struct.unpack("<BBHHBH", data[:HEADER_SIZE_BYTES])
         return cls(
-            opcode=OpCode(opcode_raw),
+            packet_type=PacketType(ptype_raw),
             seq_num=seq,
             src_node_id=src,
             dst_node_id=dst,
@@ -245,7 +317,10 @@ class MeshCoreSDKProtocol(Protocol):
 
 @dataclass(frozen=True)
 class TelemetryPayload:
-    """Payload estructurado de métricas y telemetría de nodo (OpCode 0x01)."""
+    """LEGACY: Payload estructurado de métricas y telemetría de nodo.
+    NOTA: Este formato NO existe en el firmware real. El firmware envía
+    STATUS_RESPONSE (0x87) con el formato de parse_status_response().
+    Mantenido solo para compatibilidad con código existente."""
     battery_mv: int
     solar_mv: int
     temperature_c: float
@@ -290,17 +365,22 @@ class TelemetryPayload:
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
-def parse_telemetry_from_sdk(data: bytes, pubkey_prefix: str | None = None) -> dict[str, Any]:
+
+def parse_status_response(data: bytes, pubkey_prefix: str | None = None, offset: int = 0) -> dict[str, Any]:
     """
-    Decodifica telemetría usando el layout de parse_status() del SDK oficial.
-    NOTE: TelemetryPayload es el formato interno heredado del bridge.
-    Esta función es para leer datos del firmware real.
+    Parsea STATUS_RESPONSE (0x87) del firmware real.
+    Formato: 1 type + 1 reserved + 6 pubkey + 52 status fields
+    Basado en SDK: meshcore_py/src/meshcore/parsing.py parse_status()
     """
-    res = {}
-    offset = 0
+    res: dict[str, Any] = {}
+    
+    # Handle pubkey
     if pubkey_prefix is None:
-        res["pubkey_pre"] = data[2:8].hex()
-        offset = 8
+        if len(data) >= 8:
+            res["pubkey_pre"] = data[2:8].hex()
+            offset = 8
+        else:
+            return res
     else:
         res["pubkey_pre"] = pubkey_prefix
 
@@ -330,7 +410,7 @@ def parse_telemetry_from_sdk(data: bytes, pubkey_prefix: str | None = None) -> d
     else:
         res["recv_errors"] = None
 
-    # Alias estándar para el bridge
+    # Standard aliases for bridge
     res["battery_mv"] = res["bat"]
     res["queue_len"] = res["tx_queue_len"]
     res["noise_floor_dbm"] = res["noise_floor"]
@@ -338,6 +418,10 @@ def parse_telemetry_from_sdk(data: bytes, pubkey_prefix: str | None = None) -> d
     res["uptime_secs"] = res["uptime"]
 
     return res
+
+
+# Legacy alias
+parse_telemetry_from_sdk = parse_status_response
 
 
 @dataclass(frozen=True)
@@ -497,13 +581,13 @@ class MeshcoreFrame:
         payload_data = data_to_crc[HEADER_SIZE_BYTES: HEADER_SIZE_BYTES + header.payload_len]
 
         payload: ParsedPayload
-        if header.opcode == OpCode.TELEMETRY:
+        if header.packet_type == PacketType.TELEMETRY_RESPONSE:
             payload = TelemetryPayload.unpack(payload_data)
-        elif header.opcode == OpCode.TEXT_MSG:
+        elif header.packet_type == PacketType.CHANNEL_MSG_RECV:
             payload = TextMessagePayload.unpack(payload_data)
-        elif header.opcode == OpCode.NODE_ADVERT:
+        elif header.packet_type == PacketType.CONTACT:
             payload = NodeAdvertisement.unpack(payload_data)
-        elif header.opcode == OpCode.ACK:
+        elif header.packet_type == PacketType.ACK:
             payload = AckPayload.unpack(payload_data)
         else:
             payload = payload_data
@@ -525,8 +609,8 @@ class MeshcoreFrame:
             payload_data = {"raw_hex": self.raw_payload.hex().upper()}
 
         return {
-            "event_type": self.header.opcode.name,
-            "opcode": int(self.header.opcode),
+            "event_type": self.header.packet_type.name,
+            "packet_type": int(self.header.packet_type),
             "seq_num": self.header.seq_num,
             "sender": {
                 "node_id": f"0x{self.header.src_node_id:04X}",

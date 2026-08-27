@@ -572,3 +572,139 @@ def format_telemetry_summary(data: dict[str, Any]) -> str:
 
     return " | ".join(badges) if badges else "Sin lecturas adicionales"
 
+
+# ================= MMA (Min/Max/Avg) Parsing =================
+
+# LPP type sizes for MMA parsing
+LPP_TYPE_SIZES: dict[int, int] = {
+    0: 1,   # DIGITAL_INPUT
+    1: 1,   # DIGITAL_OUTPUT
+    2: 2,   # ANALOG_INPUT
+    3: 2,   # ANALOG_OUTPUT
+    101: 2, # ILLUMINANCE
+    102: 1, # PRESENCE
+    103: 2, # TEMPERATURE
+    104: 1, # HUMIDITY
+    113: 6, # ACCELEROMETER
+    115: 2, # BAROMETER
+    116: 2, # VOLTAGE
+    120: 1, # PERCENTAGE
+    134: 6, # GYROSCOPE
+    136: 9, # GPS_LOCATION
+}
+
+LPP_TYPE_NAMES: dict[int, str] = {
+    0: "digital_in",
+    1: "digital_out",
+    2: "analog_in",
+    3: "analog_out",
+    101: "illuminance",
+    102: "presence",
+    103: "temperature",
+    104: "humidity",
+    113: "accelerometer",
+    115: "barometer",
+    116: "voltage",
+    120: "percentage",
+    134: "gyroscope",
+    136: "gps",
+}
+
+
+def _decode_lpp_value(type_val: int, raw: bytes) -> Any:
+    """Decodifica un valor LPP según su tipo."""
+    if type_val in (0, 1, 102, 120):  # 1 byte
+        return raw[0]
+    elif type_val in (2, 3, 101, 103, 115, 116):  # 2 bytes
+        val = int.from_bytes(raw[:2], byteorder="big", signed=True)
+        if type_val == 103:  # Temperature
+            return round(val * 0.1, 1)
+        elif type_val == 115:  # Barometer
+            return round(val * 0.1, 1)
+        elif type_val in (2, 3, 116):  # Analog/Voltage
+            return round(val * 0.01, 2)
+        return val
+    elif type_val == 113:  # Accelerometer (6 bytes)
+        x = int.from_bytes(raw[0:2], byteorder="big", signed=True)
+        y = int.from_bytes(raw[2:4], byteorder="big", signed=True)
+        z = int.from_bytes(raw[4:6], byteorder="big", signed=True)
+        return {"x": round(x * 0.001, 3), "y": round(y * 0.001, 3), "z": round(z * 0.001, 3)}
+    elif type_val == 134:  # Gyroscope (6 bytes)
+        x = int.from_bytes(raw[0:2], byteorder="big", signed=True)
+        y = int.from_bytes(raw[2:4], byteorder="big", signed=True)
+        z = int.from_bytes(raw[4:6], byteorder="big", signed=True)
+        return {"x": round(x * 0.01, 2), "y": round(y * 0.01, 2), "z": round(z * 0.01, 2)}
+    elif type_val == 136:  # GPS (9 bytes)
+        lat = int.from_bytes(raw[0:3], byteorder="big", signed=True) / 10000.0
+        lon = int.from_bytes(raw[3:6], byteorder="big", signed=True) / 10000.0
+        alt = int.from_bytes(raw[6:9], byteorder="big", signed=True) / 100.0
+        return {"latitude": round(lat, 4), "longitude": round(lon, 4), "altitude_m": round(alt, 2)}
+    return raw.hex()
+
+
+def parse_mma_data(buf: bytes) -> list[dict[str, Any]]:
+    """
+    Parse MMA (Min/Max/Avg) data from binary buffer.
+    Format: channel(1) + type(1) + min(size) + max(size) + avg(size) per reading
+    Based on SDK: meshcore_py/src/meshcore/parsing.py lpp_parse_mma()
+    """
+    result: list[dict[str, Any]] = []
+    i = 0
+    
+    while i < len(buf) and buf[i] != 0:
+        if i + 1 >= len(buf):
+            break
+            
+        chan = buf[i]
+        i += 1
+        type_val = buf[i]
+        i += 1
+        
+        size = LPP_TYPE_SIZES.get(type_val)
+        if size is None:
+            logging.warning(f"Unknown LPP type in MMA: {type_val}")
+            break
+        
+        # Need 3 * size bytes for min, max, avg
+        if i + 3 * size > len(buf):
+            break
+        
+        min_val = _decode_lpp_value(type_val, buf[i:i+size])
+        i += size
+        max_val = _decode_lpp_value(type_val, buf[i:i+size])
+        i += size
+        avg_val = _decode_lpp_value(type_val, buf[i:i+size])
+        i += size
+        
+        result.append({
+            "channel": chan,
+            "type": type_val,
+            "type_name": LPP_TYPE_NAMES.get(type_val, f"unknown_{type_val}"),
+            "min": min_val,
+            "max": max_val,
+            "avg": avg_val,
+        })
+    
+    return result
+
+
+def parse_acl_data(buf: bytes) -> list[dict[str, Any]]:
+    """
+    Parse ACL (Access Control List) data from binary buffer.
+    Format: key(6 bytes) + permission(1 byte) per entry
+    Based on SDK: meshcore_py/src/meshcore/parsing.py parse_acl()
+    """
+    result: list[dict[str, Any]] = []
+    i = 0
+    
+    while i + 7 <= len(buf):
+        key = buf[i:i+6].hex()
+        perm = buf[i+6]
+        i += 7
+        
+        # Skip null keys
+        if key != "000000000000":
+            result.append({"key": key, "perm": perm})
+    
+    return result
+

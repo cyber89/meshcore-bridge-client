@@ -1,8 +1,0 @@
-# Dependencias requeridas para MeshCore Bridge v3.0 (Producción)
-paho-mqtt>=2.1.0
-meshcore>=2.3.0
-python-dotenv>=1.0.0
-pyserial>=3.5
-pyserial-asyncio>=0.6
-cryptography>=42.0.0
-pycayennelpp>=2.0.0

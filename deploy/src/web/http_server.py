@@ -9,12 +9,11 @@ from __future__ import annotations
 import asyncio
 import base64
 import hashlib
+import hmac
 import json
 import logging
-import mimetypes
-import struct
+import os
 import time
-from pathlib import Path
 from typing import Any
 
 from src.web.api_router import WebAPIRouter
@@ -257,7 +256,7 @@ class MeshCoreWebServer:
                 logging.warning("BRIDGE_API_KEY no configurada, omitiendo autenticación (modo desarrollo)")
             else:
                 req_api_key = headers.get("x-api-key", "")
-                if req_api_key != api_key:
+                if not hmac.compare_digest(req_api_key, api_key):
                     resp_bytes = json.dumps({"error": "Unauthorized"}).encode("utf-8")
                     await self._write_http_response(writer, "401 Unauthorized", resp_bytes, "application/json", cors_origin=cors_origin)
                     return

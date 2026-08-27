@@ -358,30 +358,244 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                 except Exception as e:
                     logging.debug(f"Suscripción a evento {ev_type}: {e}")
 
-    async def _on_sdk_event(self, event_type: int, data: Any) -> None:
+    async def _on_sdk_event(self, event_type: Any, data: Any) -> None:
+        """Maneja eventos del SDK MeshCore y los despacha a los callbacks apropiados."""
         self.heartbeat()
-        if event_type == getattr(EventType, "CONTACT_MSG_RECV", 7):
+        
+        event_name = getattr(event_type, "value", str(event_type))
+        
+        # Messages
+        if event_type == getattr(EventType, "CONTACT_MSG_RECV", None):
             await self._handle_direct_message(data)
-        elif event_type == getattr(EventType, "CHANNEL_MSG_RECV", 8):
+        elif event_type == getattr(EventType, "CHANNEL_MSG_RECV", None):
             await self._handle_channel_message(data)
-        elif event_type == getattr(EventType, "CURRENT_TIME", 9):
-            # Procesar/loguear tiempo actual
-            pass
-        elif event_type == getattr(EventType, "STATS", 24):
-            # Publicar estadísticas
-            pass
+        elif event_type == getattr(EventType, "CHANNEL_DATA_RECV", None):
+            await self._handle_channel_data(data)
+        
+        # Status & Telemetry
+        elif event_type == getattr(EventType, "STATUS_RESPONSE", None):
+            await self._handle_status_response(data)
+        elif event_type == getattr(EventType, "TELEMETRY_RESPONSE", None):
+            await self._handle_telemetry_response(data)
+        elif event_type == getattr(EventType, "STATS_CORE", None):
+            await self._handle_stats("core", data)
+        elif event_type == getattr(EventType, "STATS_RADIO", None):
+            await self._handle_stats("radio", data)
+        elif event_type == getattr(EventType, "STATS_PACKETS", None):
+            await self._handle_stats("packets", data)
+        elif event_type == getattr(EventType, "BATTERY", None):
+            await self._handle_battery(data)
+        elif event_type == getattr(EventType, "DEVICE_INFO", None):
+            await self._handle_device_info(data)
+        
+        # Contacts
+        elif event_type == getattr(EventType, "CONTACTS", None):
+            await self._handle_contacts_list(data)
+        elif event_type == getattr(EventType, "NEXT_CONTACT", None):
+            await self._handle_contact(data)
+        elif event_type == getattr(EventType, "NEW_CONTACT", None):
+            await self._handle_new_contact(data)
+        elif event_type == getattr(EventType, "SELF_INFO", None):
+            await self._handle_self_info(data)
+        elif event_type == getattr(EventType, "CONTACT_DELETED", None):
+            await self._handle_contact_deleted(data)
+        elif event_type == getattr(EventType, "CONTACTS_FULL", None):
+            logging.warning("Contactos llenos en el dispositivo")
+        
+        # ACK & Messages
+        elif event_type == getattr(EventType, "MSG_SENT", None):
+            await self._handle_msg_sent(data)
+        elif event_type == getattr(EventType, "ACK", None):
+            await self._handle_ack(data)
+        elif event_type == getattr(EventType, "MESSAGES_WAITING", None):
+            logging.debug("Mensajes esperando en cola")
+        
+        # Time
+        elif event_type == getattr(EventType, "CURRENT_TIME", None):
+            logging.debug(f"Tiempo del dispositivo: {data}")
+        
+        # Login
+        elif event_type == getattr(EventType, "LOGIN_SUCCESS", None):
+            await self._handle_login_result(data, success=True)
+        elif event_type == getattr(EventType, "LOGIN_FAILED", None):
+            await self._handle_login_result(data, success=False)
+        
+        # Binary responses
+        elif event_type == getattr(EventType, "BINARY_RESPONSE", None):
+            await self._handle_binary_response(data)
+        elif event_type == getattr(EventType, "TRACE_DATA", None):
+            await self._handle_trace_data(data)
+        elif event_type == getattr(EventType, "RAW_DATA", None):
+            await self._handle_raw_data(data)
+        elif event_type == getattr(EventType, "LOG_DATA", None):
+            await self._handle_log_data(data)
+        
+        # Path & Discovery
+        elif event_type == getattr(EventType, "PATH_UPDATE", None):
+            logging.debug(f"Path update: {data}")
+        elif event_type == getattr(EventType, "PATH_RESPONSE", None):
+            logging.debug(f"Path response: {data}")
+        elif event_type == getattr(EventType, "ADVERT_PATH", None):
+            logging.debug(f"Advert path: {data}")
+        elif event_type == getattr(EventType, "DISCOVER_RESPONSE", None):
+            logging.debug(f"Discover response: {data}")
+        elif event_type == getattr(EventType, "NEIGHBOURS_RESPONSE", None):
+            logging.debug(f"Neighbours response: {data}")
+        
+        # Control
+        elif event_type == getattr(EventType, "CONTROL_DATA", None):
+            await self._handle_control_data(data)
+        elif event_type == getattr(EventType, "ADVERTISEMENT", None):
+            logging.debug(f"Advertisement received: {data}")
+        
+        # Channel info
+        elif event_type == getattr(EventType, "CHANNEL_INFO", None):
+            logging.debug(f"Channel info: {data}")
+        
+        # Errors
+        elif event_type == getattr(EventType, "ERROR", None):
+            logging.warning(f"SDK Error: {data}")
+        
+        # Connection events
+        elif event_type == getattr(EventType, "CONNECTED", None):
+            logging.info("SDK connected")
+        elif event_type == getattr(EventType, "DISCONNECTED", None):
+            logging.warning("SDK disconnected")
+        
+        # Other events - forward to generic handler
         else:
             await self._handle_generic_event(event_type, data)
 
     async def _handle_direct_message(self, data: Any) -> None:
+        """Maneja mensajes directos recibidos."""
         if self.rx_callback:
             self.rx_callback(data)
 
     async def _handle_channel_message(self, data: Any) -> None:
+        """Maneja mensajes de canal recibidos."""
         if self.rx_callback:
             self.rx_callback(data)
 
-    async def _handle_generic_event(self, event_type: int, data: Any) -> None:
+    async def _handle_channel_data(self, data: Any) -> None:
+        """Maneja datos binarios de canal."""
+        logging.debug(f"Channel data received: {data}")
+        if self.rx_callback:
+            self.rx_callback(data)
+
+    async def _handle_status_response(self, data: Any) -> None:
+        """Maneja respuestas de status del dispositivo."""
+        logging.debug(f"Status response: {data}")
+        if self.rx_callback:
+            self.rx_callback(data)
+
+    async def _handle_telemetry_response(self, data: Any) -> None:
+        """Maneja respuestas de telemetría LPP."""
+        logging.debug(f"Telemetry response: {data}")
+        if self.rx_callback:
+            self.rx_callback(data)
+
+    async def _handle_stats(self, stats_type: str, data: Any) -> None:
+        """Maneja respuestas de estadísticas."""
+        logging.debug(f"Stats ({stats_type}): {data}")
+        if self.rx_callback:
+            self.rx_callback(data)
+
+    async def _handle_battery(self, data: Any) -> None:
+        """Maneja información de batería."""
+        logging.debug(f"Battery info: {data}")
+        if self.rx_callback:
+            self.rx_callback(data)
+
+    async def _handle_device_info(self, data: Any) -> None:
+        """Maneja información del dispositivo."""
+        logging.info(f"Device info: {data}")
+        if self.rx_callback:
+            self.rx_callback(data)
+
+    async def _handle_contacts_list(self, data: Any) -> None:
+        """Maneja lista completa de contactos."""
+        logging.debug(f"Contacts list received: {len(data) if isinstance(data, dict) else '?'} contacts")
+        if self.rx_callback:
+            self.rx_callback(data)
+
+    async def _handle_contact(self, data: Any) -> None:
+        """Maneja un contacto individual."""
+        logging.debug(f"Contact received: {data}")
+        if self.rx_callback:
+            self.rx_callback(data)
+
+    async def _handle_new_contact(self, data: Any) -> None:
+        """Maneja un nuevo contacto descubierto."""
+        logging.info(f"New contact discovered: {data}")
+        if self.rx_callback:
+            self.rx_callback(data)
+
+    async def _handle_self_info(self, data: Any) -> None:
+        """Maneja información del nodo local."""
+        logging.info(f"Self info: {data}")
+        if self.rx_callback:
+            self.rx_callback(data)
+
+    async def _handle_contact_deleted(self, data: Any) -> None:
+        """Maneja eliminación de contacto."""
+        logging.info(f"Contact deleted: {data}")
+        if self.rx_callback:
+            self.rx_callback(data)
+
+    async def _handle_msg_sent(self, data: Any) -> None:
+        """Maneja confirmación de mensaje enviado."""
+        logging.debug(f"Message sent confirmation: {data}")
+        if self.rx_callback:
+            self.rx_callback(data)
+
+    async def _handle_ack(self, data: Any) -> None:
+        """Maneja ACK recibido."""
+        logging.debug(f"ACK received: {data}")
+        if self.rx_callback:
+            self.rx_callback(data)
+
+    async def _handle_login_result(self, data: Any, success: bool) -> None:
+        """Maneja resultado de login."""
+        if success:
+            logging.info(f"Login successful: {data}")
+        else:
+            logging.warning(f"Login failed: {data}")
+        if self.rx_callback:
+            self.rx_callback(data)
+
+    async def _handle_binary_response(self, data: Any) -> None:
+        """Maneja respuestas binarias."""
+        logging.debug(f"Binary response: {data}")
+        if self.rx_callback:
+            self.rx_callback(data)
+
+    async def _handle_trace_data(self, data: Any) -> None:
+        """Maneja datos de trace."""
+        logging.debug(f"Trace data: {data}")
+        if self.rx_callback:
+            self.rx_callback(data)
+
+    async def _handle_raw_data(self, data: Any) -> None:
+        """Maneja datos raw."""
+        logging.debug(f"Raw data: {data}")
+        if self.rx_callback:
+            self.rx_callback(data)
+
+    async def _handle_log_data(self, data: Any) -> None:
+        """Maneja datos de log RF."""
+        logging.debug(f"Log data: {data}")
+        if self.rx_callback:
+            self.rx_callback(data)
+
+    async def _handle_control_data(self, data: Any) -> None:
+        """Maneja datos de control."""
+        logging.debug(f"Control data: {data}")
+        if self.rx_callback:
+            self.rx_callback(data)
+
+    async def _handle_generic_event(self, event_type: Any, data: Any) -> None:
+        """Maneja eventos genéricos no categorizados."""
+        logging.debug(f"Generic event {event_type}: {data}")
         if self.rx_callback:
             self.rx_callback(data)
 
