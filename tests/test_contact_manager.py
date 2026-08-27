@@ -81,6 +81,62 @@ class TestContactManager(unittest.TestCase):
         self.assertTrue(self.registry.is_local_key("a1b2c3d4e5f6"))
         self.assertFalse(self.registry.is_local_key("feedfacecafe"))
 
+    def test_local_node_never_duplicated(self) -> None:
+        """Verifica que el nodo local nunca se duplica bajo ningún escenario de registro o prefijo."""
+        full_pk = "a1b2c3d4e5f600112233445566778899a1b2c3d4e5f600112233445566778899"
+
+        # 1. Registrar primero con clave parcial o 'local'
+        self.registry.add_or_update(
+            "local",
+            NodeContactUpdate(name="Estación Base", role="LOCAL", is_local=True),
+        )
+        self.assertEqual(self.registry.get_count(), 1)
+
+        # 2. Configurar la clave oficial del hardware
+        self.registry.set_local_pubkey(full_pk)
+        self.assertEqual(self.registry.get_count(), 1)
+        self.assertEqual(self.registry.get_local_pubkey(), full_pk)
+
+        # 3. Recibir una trama proveniente del prefijo del propio nodo local
+        self.registry.add_or_update(
+            "a1b2c3d4e5f6",
+            NodeContactUpdate(name="Estación Base Heltec", role="LOCAL", is_local=True),
+        )
+        self.assertEqual(self.registry.get_count(), 1)
+
+        # 4. Añadir 3 nodos remotos reales
+        self.registry.add_or_update("1111222233334444", NodeContactUpdate(name="Remoto_1", role="CLIENT"))
+        self.registry.add_or_update("5555666677778888", NodeContactUpdate(name="Remoto_2", role="SENSOR"))
+        self.registry.add_or_update("9999aaaabbbbcccc", NodeContactUpdate(name="Remoto_3", role="REPEATER"))
+
+        # El conteo total DEBE ser exactamente 4 (1 local + 3 remotos)
+        self.assertEqual(self.registry.get_count(), 4)
+        all_nodes = self.registry.list_nodes()
+        self.assertEqual(len(all_nodes), 4)
+
+        local_nodes = [n for n in all_nodes if n.get("is_local") or n.get("role") == "LOCAL"]
+        self.assertEqual(len(local_nodes), 1)
+        self.assertEqual(local_nodes[0]["public_key"], full_pk)
+
+    def test_prefix_and_name_deduplication(self) -> None:
+        """Verifica que nodos remotos con prefijos o nombres coincidentes se fusionan limpiamente."""
+        # Insertar nodo con prefijo de 8 caracteres
+        self.registry.add_or_update("feedface11223344", NodeContactUpdate(name="Nodo_Remoto", last_rssi=-80))
+        self.assertEqual(self.registry.get_count(), 1)
+
+        # Actualizar con clave completa de 64 caracteres compartiendo prefijo
+        full_remote_pk = "feedface112233445566778899aabbccddeeff00112233445566778899aabbcc"
+        self.registry.add_or_update(full_remote_pk, NodeContactUpdate(name="Nodo_Remoto", last_snr=10.5))
+
+        # Debe mantenerse exactamente en 1 nodo fusionado
+        self.assertEqual(self.registry.get_count(), 1)
+        node = self.registry.get_by_key_or_prefix("feedface11223344")
+        self.assertIsNotNone(node)
+        if node:
+            self.assertEqual(node.public_key, full_remote_pk)
+            self.assertEqual(node.last_rssi, -80)
+            self.assertEqual(node.last_snr, 10.5)
+
 
 if __name__ == "__main__":
     unittest.main()

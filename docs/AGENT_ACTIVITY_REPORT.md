@@ -6,6 +6,27 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Invariante de Unicidad Absoluta del Nodo Local, Deduplicación de Prefijos y Conteo Exacto de Nodos en Malla
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 3 (Protocol QA Specialist), Agente 4 (Web UI/UX Architect), Agente 5 (Security Auditor).
+- **Acciones Realizadas**:
+  1. **Consolidación y Unicidad de la Estación Base Local en NodeRegistry** (`src/contact_manager.py`):
+     - Refactorizado `set_local_pubkey()` para purgar automáticamente cualquier entrada local previa (`is_local`, rol `LOCAL`, prefijos coincidentes ≥ 6 caracteres o nombres `Estación Base`) y reinsertar única y exclusivamente la entrada canónica.
+     - Refactorizado `add_or_update()` para que, ante cualquier actualización marcada como local, purgue entradas residuales garantizando que `_nodes_by_key` contenga como máximo 1 registro local.
+     - Modificado `get_count()` para retornar `len(self.list_nodes())` (SSoT), asegurando que el conteo en métricas coincida exactamente con la lista deduplicada sin inflar el total.
+     - Actualizado `save_to_file()` para serializar únicamente `self.list_nodes()` y `load_from_file()` para consolidar `set_local_pubkey()` tras la carga JSON.
+  2. **Deduplicación Reactiva y Sincronización en Frontend** (`src/web/static/js/app.js`):
+     - `this.knownNodes` ahora almacena exclusivamente claves canónicas (`this.resolveCanonicalPubkey()`), eliminando el almacenamiento duplicado de alias o prefijos que inflaba `.size`.
+     - `renderNodesDirectory()` limpia y reconstruye `this.knownNodes` con las entidades limpias, fusiona la estación local contra `localNodePubkey` / `localNodeName` y sincroniza `#headerNodeCount` y los filtros con el conteo real de nodos únicos.
+     - `updateHeaderMetrics()` captura `local_node_pubkey` y `local_node_name` del backend y mantiene el conteo consistente.
+  3. **Identificación de Contacto Local en Sincronización Serial** (`src/serial_driver.py`):
+     - En `sync_all_contacts()`, se evalúa si los contactos descargados de la EEPROM/Flash de la radio coinciden con la clave pública local, marcándolos como `is_local=True` y rol `LOCAL` para evitar su inserción como un nodo remoto duplicado.
+  4. **Suites de Pruebas Unitarias** (`tests/test_contact_manager.py`):
+     - Añadido test `test_local_node_never_duplicated`: Valida que el nodo local nunca se duplica tras recibir múltiples actualizaciones por prefijo o 'local', y que con 3 nodos remotos el conteo es exactamente 4.
+     - Añadido test `test_prefix_and_name_deduplication`: Valida fusión de prefijos y claves de 64 caracteres.
+- **Módulos Modificados**: `src/contact_manager.py`, `src/serial_driver.py`, `src/web/static/js/app.js`, `docs/ARCHITECTURE.md`, `tests/test_contact_manager.py`.
+
 ### Hito: Corrección de Bloqueo CSP para Mapas Leaflet / Fuentes, Sincronización de Chip de Radio y Accesibilidad de Formularios
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO

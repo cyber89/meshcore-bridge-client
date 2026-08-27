@@ -140,6 +140,13 @@ Centraliza las operaciones del cliente web y herramientas externas con soporte d
 ### 2.7 Registro Dinámico de Nodos (`src/contact_manager.py`)
 - Mantiene una tabla en memoria con los nodos activos detectados en la malla con resolución $O(1)$, deduplicación unificada de la estación base local y cálculo de métricas LQI (Link Quality Index).
 
+#### 2.7.1 Invariante de Unicidad y Conteo de Nodos (Anti-Duplicación de Nodo Local)
+Para garantizar que el conteo de nodos en la malla refleje con fidelidad absoluta los nodos físicos sin duplicar la estación base local:
+1. **Unicidad de Clave Canónica**: `NodeRegistry` mantiene un único registro para la estación local bajo `_local_pubkey`. Cuando se actualiza la clave pública local (`set_local_pubkey`) o se reciben tramas con prefijos del propio hardware (`is_local_key`), cualquier entrada previa se fusiona de inmediato y las claves residuales se purgan de `_nodes_by_key`.
+2. **Conteo SSoT**: El método `get_count()` delega obligatoriamente en `len(list_nodes())`, aplicando las mismas reglas de deduplicación de prefijos ($\ge 6$ caracteres) y unicidad local que la API REST y el streaming WebSocket.
+3. **Persistencia Limpia**: Al guardar en disco (`save_to_file`), únicamente se serializan los nodos devueltos por `list_nodes()`, evitando que duplicados efímeros queden fijados en `data/node_registry.json`.
+4. **Deduplicación Reactiva en Frontend**: `app.js` (`renderNodesDirectory`) centraliza en `this.knownNodes` únicamente claves canónicas resueltas, fusiona la estación local contra `localNodePubkey` / `localNodeName` y sincroniza el chip `#headerNodeCount` y los filtros de cuadrícula con el conteo deduplicado real.
+
 ### 2.8 Cliente MQTT Resiliente (`src/mqtt_client.py`)
 - Conexión asíncrona compatible con `paho-mqtt` 2.x y `ReasonCode`.
 - Reconexión indefinida de 1s a 30s.

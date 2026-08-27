@@ -2335,10 +2335,9 @@ class MeshCoreStationApp {
     if (payload.type === "contact_discovered" || payload.type === "contact_updated" || payload.event_type === "contact_discovered" || payload.event_type === "contact_updated") {
       const c = payload.contact || payload.data;
       if (c && c.public_key && this.isValidNodeKey(c.public_key)) {
-        const canonicalPk = this.resolveCanonicalPubkey(c.public_key);
+        const canonicalPk = this.resolveCanonicalPubkey(c.public_key) || c.public_key.toLowerCase().trim();
         if (this.isValidNodeKey(canonicalPk)) {
-          this.knownNodes.set(canonicalPk, c);
-          this.knownNodes.set(c.public_key, c);
+          this.knownNodes.set(canonicalPk, { ...c, public_key: canonicalPk });
           let isAlreadySaved = false;
           const cNameClean = (c.name || c.alias || "").trim().toLowerCase();
           for (const [k, node] of this.knownNodes.entries()) {
@@ -2421,20 +2420,17 @@ class MeshCoreStationApp {
 
       // 3. El nodo destinatario que respondió con ACK está activo en la malla
       if (payload.recipient && payload.recipient !== "local" && payload.recipient !== "broadcast") {
-        const canonicalRecipient = this.resolveCanonicalPubkey(payload.recipient);
-        const existing = this.knownNodes.get(canonicalRecipient) || this.knownNodes.get(payload.recipient) || {
-          public_key: canonicalRecipient || payload.recipient,
+        const canonicalRecipient = this.resolveCanonicalPubkey(payload.recipient) || payload.recipient.toLowerCase().trim();
+        const existing = this.knownNodes.get(canonicalRecipient) || {
+          public_key: canonicalRecipient,
           role: "CLIENT",
         };
         const updated = {
           ...existing,
-          public_key: existing.public_key || canonicalRecipient || payload.recipient,
+          public_key: canonicalRecipient,
           last_seen: Math.floor(Date.now() / 1000),
         };
         this.knownNodes.set(canonicalRecipient, updated);
-        if (payload.recipient !== canonicalRecipient) {
-          this.knownNodes.set(payload.recipient, updated);
-        }
         this.updateNodeInDom(canonicalRecipient, updated);
       }
       return;
@@ -2469,16 +2465,15 @@ class MeshCoreStationApp {
       ));
 
       if (payload.telemetry) {
-        const canonicalPk = this.resolveCanonicalPubkey(senderKey);
-        const existing = this.knownNodes.get(canonicalPk) || this.knownNodes.get(senderKey) || {};
+        const canonicalPk = this.resolveCanonicalPubkey(senderKey) || senderKey.toLowerCase().trim();
+        const existing = this.knownNodes.get(canonicalPk) || {};
         const updated = {
           ...existing,
           ...payload.telemetry,
-          public_key: existing.public_key || canonicalPk || senderKey,
+          public_key: canonicalPk,
           last_seen: Math.floor(Date.now() / 1000),
         };
         this.knownNodes.set(canonicalPk, updated);
-        this.knownNodes.set(senderKey, updated);
         if (isRepeaterTarget) {
           this.populateRepeaterModalData(updated);
         }
@@ -2561,16 +2556,16 @@ class MeshCoreStationApp {
 
       // Actualizar vivacidad y estado En Línea del nodo emisor en tiempo real
       if (senderKey && this.isValidNodeKey(senderKey) && senderKey !== "local") {
-        const canonicalPk = this.resolveCanonicalPubkey(senderKey);
-        const existing = this.knownNodes.get(canonicalPk) || this.knownNodes.get(senderKey) || {
-          public_key: canonicalPk || senderKey,
+        const canonicalPk = this.resolveCanonicalPubkey(senderKey) || senderKey.toLowerCase().trim();
+        const existing = this.knownNodes.get(canonicalPk) || {
+          public_key: canonicalPk,
           name: senderName,
-          role: isDm ? "CLIENT" : "CLIENT",
+          role: "CLIENT",
         };
         const nowEpoch = Math.floor(Date.now() / 1000);
         const updatedNode = {
           ...existing,
-          public_key: existing.public_key || canonicalPk || senderKey,
+          public_key: canonicalPk,
           name: existing.name || senderName,
           alias: existing.alias || (senderName !== senderKey ? senderName : null),
           last_seen: nowEpoch,
@@ -2580,9 +2575,6 @@ class MeshCoreStationApp {
           ...(payload.telemetry || {}),
         };
         this.knownNodes.set(canonicalPk, updatedNode);
-        if (senderKey !== canonicalPk) {
-          this.knownNodes.set(senderKey, updatedNode);
-        }
         this.updateNodeInDom(canonicalPk, updatedNode);
       }
 
@@ -2676,9 +2668,9 @@ class MeshCoreStationApp {
       payload.type === "STATS_CORE"
     ) {
       const rawSenderKey = payload.sender || payload.public_key || payload.pubkey || payload.pubkey_pre || payload.pubkey_prefix || payload.from_node || payload.from || payload.source;
-      const senderKey = rawSenderKey ? (this.resolveCanonicalPubkey(rawSenderKey) || rawSenderKey) : null;
+      const senderKey = rawSenderKey ? (this.resolveCanonicalPubkey(rawSenderKey) || String(rawSenderKey).toLowerCase().trim()) : null;
       if (senderKey && this.isValidNodeKey(senderKey)) {
-        const existing = this.knownNodes.get(senderKey) || this.knownNodes.get(rawSenderKey) || {};
+        const existing = this.knownNodes.get(senderKey) || {};
         const telemData = payload.telemetry || payload;
         const latVal = payload.latitude ?? payload.lat ?? payload.gps_lat ?? telemData.latitude ?? telemData.lat ?? telemData.gps_lat ?? telemData.gps?.latitude ?? telemData.gps?.lat ?? existing.latitude;
         const lonVal = payload.longitude ?? payload.lon ?? payload.gps_lon ?? telemData.longitude ?? telemData.lon ?? telemData.gps_lon ?? telemData.gps?.longitude ?? telemData.gps?.lon ?? existing.longitude;
@@ -2688,7 +2680,7 @@ class MeshCoreStationApp {
           ...existing,
           ...payload,
           ...telemData,
-          public_key: existing.public_key || senderKey,
+          public_key: senderKey,
           latitude: latVal != null && !isNaN(parseFloat(latVal)) ? parseFloat(latVal) : existing.latitude,
           longitude: lonVal != null && !isNaN(parseFloat(lonVal)) ? parseFloat(lonVal) : existing.longitude,
           altitude_m: altVal != null && !isNaN(parseFloat(altVal)) ? parseFloat(altVal) : existing.altitude_m,
@@ -2697,9 +2689,6 @@ class MeshCoreStationApp {
           last_seen: Math.floor(Date.now() / 1000),
         };
         this.knownNodes.set(senderKey, updated);
-        if (rawSenderKey && rawSenderKey !== senderKey) {
-          this.knownNodes.set(rawSenderKey, updated);
-        }
         this.renderNodesDirectory(Array.from(this.knownNodes.values()));
 
         // Si el modal de administración de este repetidor está abierto, actualizar métricas en vivo
@@ -4985,11 +4974,17 @@ class MeshCoreStationApp {
 
   updateHeaderMetrics(metrics) {
     if (!metrics) return;
+    if (metrics.local_node_pubkey) {
+      this.localNodePubkey = String(metrics.local_node_pubkey).toLowerCase().trim();
+    }
+    if (metrics.local_node_name) {
+      this.localNodeName = String(metrics.local_node_name).trim();
+    }
     if (metrics.serial_connected !== undefined || metrics.radio_connected !== undefined) {
       const isRadioOk = Boolean(metrics.serial_connected ?? metrics.radio_connected);
       this.updateRadioBadge(isRadioOk);
     }
-    const nodeCount = metrics.node_count ?? metrics.known_mesh_nodes;
+    const nodeCount = (this.knownNodes && this.knownNodes.size > 0) ? this.knownNodes.size : (metrics.node_count ?? metrics.known_mesh_nodes);
     const rxCount = metrics.rx_count ?? metrics.total_rx_packets;
     const txCount = metrics.tx_count ?? metrics.total_tx_packets;
     const errorRate = metrics.error_rate != null ? metrics.error_rate : (metrics.total_tx_errors != null ? metrics.total_tx_errors : null);
@@ -5899,7 +5894,7 @@ class MeshCoreStationApp {
       return;
     }
 
-    // Deduplicación inteligente: fusionar entradas que compartan prefijo de clave (>=8 chars) o mismo nombre
+    // Deduplicación inteligente: fusionar entradas que compartan prefijo de clave (>=6 chars), mismo nombre o estación base local
     const deduplicatedNodes = [];
     for (const rawNode of nodes) {
       if (!rawNode || !this.isValidNodeKey(rawNode.public_key)) continue;
@@ -5907,26 +5902,28 @@ class MeshCoreStationApp {
       const normPk = String(rawNode.public_key).toLowerCase().trim();
       const normName = String(rawNode.name || rawNode.alias || "").toLowerCase().trim();
 
-      const isThisLocal = rawNode.is_local ||
+      const isThisLocal = Boolean(rawNode.is_local) ||
         (rawNode.role && String(rawNode.role).toUpperCase() === "LOCAL") ||
+        normPk === "local" ||
         (this.localNodePubkey && (
           normPk === this.localNodePubkey.toLowerCase() ||
+          (this.localNodePubkey.length >= 6 && normPk.length >= 6 && (this.localNodePubkey.startsWith(normPk) || normPk.startsWith(this.localNodePubkey))) ||
           (this.localNodePubkey.length >= 8 && normPk.startsWith(this.localNodePubkey.slice(0, 8).toLowerCase())) ||
           (normPk.length >= 8 && this.localNodePubkey.toLowerCase().startsWith(normPk.slice(0, 8)))
         )) ||
-        (this.localNodeName && normName && normName === this.localNodeName.toLowerCase().trim());
+        (this.localNodeName && normName && (normName === this.localNodeName.toLowerCase().trim() || normName === "estación base" || normName === "estacion base" || normName === "nodo local"));
 
       let matchIndex = -1;
 
       // Si es la estación base local, fusionar con cualquier entrada previa de la estación local
       if (isThisLocal) {
         matchIndex = deduplicatedNodes.findIndex((n) =>
-          n.is_local ||
+          Boolean(n.is_local) ||
           (n.role && String(n.role).toUpperCase() === "LOCAL") ||
+          String(n.public_key).toLowerCase().trim() === "local" ||
           (this.localNodePubkey && (
             String(n.public_key).toLowerCase().trim() === this.localNodePubkey.toLowerCase() ||
-            (this.localNodePubkey.length >= 8 && String(n.public_key).toLowerCase().startsWith(this.localNodePubkey.slice(0, 8).toLowerCase())) ||
-            (String(n.public_key).length >= 8 && this.localNodePubkey.toLowerCase().startsWith(String(n.public_key).slice(0, 8).toLowerCase()))
+            (this.localNodePubkey.length >= 6 && String(n.public_key).length >= 6 && (this.localNodePubkey.startsWith(String(n.public_key).toLowerCase()) || String(n.public_key).toLowerCase().startsWith(this.localNodePubkey)))
           )) ||
           (this.localNodeName && String(n.name || n.alias || "").toLowerCase().trim() === this.localNodeName.toLowerCase().trim())
         );
@@ -5939,7 +5936,7 @@ class MeshCoreStationApp {
           const exName = String(existing.name || existing.alias || "").toLowerCase().trim();
 
           const pkMatch = exPk === normPk ||
-            (exPk.length >= 8 && normPk.length >= 8 && (exPk.startsWith(normPk) || normPk.startsWith(exPk))) ||
+            (exPk.length >= 6 && normPk.length >= 6 && (exPk.startsWith(normPk) || normPk.startsWith(exPk))) ||
             (normPk.length === 12 && exPk.startsWith(normPk.slice(0, 12))) ||
             (exPk.length === 12 && normPk.startsWith(exPk.slice(0, 12)));
 
@@ -5964,7 +5961,7 @@ class MeshCoreStationApp {
           ...rawNode,
           is_local: isThisLocal || prev.is_local,
           role: isThisLocal ? "LOCAL" : (rawNode.role || prev.role || "CLIENT"),
-          public_key: prev.public_key.length >= rawNode.public_key.length ? prev.public_key : rawNode.public_key,
+          public_key: isThisLocal ? (this.localNodePubkey || (prev.public_key.length >= rawNode.public_key.length ? prev.public_key : rawNode.public_key)) : (prev.public_key.length >= rawNode.public_key.length ? prev.public_key : rawNode.public_key),
           name: isThisLocal ? (this.localNodeName || prev.name || rawNode.name) : (prev.name && !prev.name.startsWith("Node_") ? prev.name : (rawNode.name || prev.name)),
           alias: prev.alias || rawNode.alias,
           latitude: mergedLat,
@@ -6009,9 +6006,13 @@ class MeshCoreStationApp {
     let roomCount = 0;
     let clientCount = 0;
 
+    // Limpiar y reconstruir this.knownNodes únicamente con las entidades deduplicadas
+    this.knownNodes.clear();
+
     for (const node of deduplicatedNodes) {
       if (!this.isValidNodeKey(node.public_key)) continue;
-      this.knownNodes.set(node.public_key, node);
+      const canonicalKey = this.resolveCanonicalPubkey(node.public_key) || node.public_key.toLowerCase().trim();
+      this.knownNodes.set(canonicalKey, node);
       totalCount++;
 
       // Actualizar nombre amigable en la lista de DMs activos si coincide con este nodo
@@ -6740,7 +6741,8 @@ class MeshCoreStationApp {
       } catch (_) {}
     }
 
-    // Actualizar contadores de filtros de Nodos
+    // Actualizar contadores de filtros de Nodos y chip de cabecera
+    if (this.dom.headerNodeCount) this.dom.headerNodeCount.textContent = String(totalCount);
     const countAllEl = document.getElementById("countAllNodes");
     if (countAllEl) countAllEl.textContent = String(totalCount);
     const countRepEl = document.getElementById("countRepeaters");

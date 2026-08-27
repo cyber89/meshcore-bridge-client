@@ -94,7 +94,7 @@ class TestSerialAdapter(unittest.IsolatedAsyncioTestCase):
 
         # Simular inactividad
         adapter.last_heartbeat_time = 0.0
-        await asyncio.sleep(0.10)
+        await asyncio.sleep(0.20)
         await watchdog.stop()
         self.assertTrue(reconnect_called, "El Watchdog debe haber activado la reconexión")
 

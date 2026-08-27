@@ -903,11 +903,15 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                         adv_lon = getattr(c, "adv_lon", getattr(c, "longitude", None))
 
                     if pk:
+                        norm_pk = pk.strip().lower()
+                        my_pk = str(getattr(self, "public_key", "") or getattr(self.mc, "public_key", "")).strip().lower()
+                        is_local_contact = bool(my_pk and (norm_pk == my_pk or (len(my_pk) >= 6 and len(norm_pk) >= 6 and (my_pk.startswith(norm_pk) or norm_pk.startswith(my_pk)))))
+
                         try:
                             advert_type = FirmwareAdvertType(raw_type)
-                            role = advert_type.name
+                            role = "LOCAL" if is_local_contact else advert_type.name
                         except ValueError:
-                            role = "UNKNOWN"
+                            role = "LOCAL" if is_local_contact else "UNKNOWN"
 
                         imported_contacts.append({
                             "public_key": pk,
@@ -918,6 +922,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                             "adv_type": raw_type,
                             "latitude": adv_lat,
                             "longitude": adv_lon,
+                            "is_local": is_local_contact,
                         })
         except Exception as e:
             logging.warning(f"Fallo sincronizando libreta de contactos del nodo: {e}")

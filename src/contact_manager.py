@@ -11,7 +11,7 @@ import json
 import logging
 import os
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -223,8 +223,46 @@ class NodeRegistry:
         self.last_sync_timestamp: float = 0.0
 
     def set_local_pubkey(self, pubkey: str) -> None:
-        """Establece la clave pública del nodo local para distinguirlo de nodos remotos."""
+        """Establece la clave pública del nodo local y consolida entradas existentes para evitar duplicados."""
         self._local_pubkey = str(pubkey).strip().lower()
+        if not self._local_pubkey:
+            return
+
+        # Consolidar y purgar cualquier entrada local previa bajo la clave canónica oficial
+        local_entries = [
+            (k, node) for k, node in list(self._nodes_by_key.items())
+            if node.is_local or self.is_local_key(k) or str(node.role).upper() == "LOCAL"
+        ]
+
+        if local_entries:
+            # Encontrar la entrada local con datos más completos
+            primary_k, primary_node = local_entries[0]
+            for k, node in local_entries:
+                if len(k) > len(primary_k) or (node.name and not node.name.startswith("Node_")):
+                    primary_k, primary_node = k, node
+
+            # Eliminar todas las entradas locales detectadas
+            for k, node in local_entries:
+                if k in self._nodes_by_key:
+                    del self._nodes_by_key[k]
+                if node.name:
+                    self._nodes_by_name.pop(node.name.lower(), None)
+                if node.alias:
+                    self._nodes_by_name.pop(node.alias.lower(), None)
+
+            # Reinsertar única y exclusivamente bajo la clave canónica local
+            consolidated = replace(
+                primary_node,
+                public_key=self._local_pubkey,
+                is_local=True,
+                role="LOCAL",
+                hops=0,
+            )
+            self._nodes_by_key[self._local_pubkey] = consolidated
+            if consolidated.name:
+                self._nodes_by_name[consolidated.name.lower()] = self._local_pubkey
+            if consolidated.alias:
+                self._nodes_by_name[consolidated.alias.lower()] = self._local_pubkey
 
     def get_local_pubkey(self) -> str:
         """Devuelve la clave pública del nodo local."""
@@ -243,7 +281,7 @@ class NodeRegistry:
         if not self._local_pubkey:
             return False
         loc = self._local_pubkey
-        return norm == loc or (len(loc) >= 8 and norm.startswith(loc[:8])) or (len(norm) >= 8 and loc.startswith(norm[:8]))
+        return norm == loc or (len(loc) >= 6 and len(norm) >= 6 and (loc.startswith(norm) or norm.startswith(loc)))
 
     def _find_existing_key(self, raw_key: str, name: str | None = None) -> str | None:
         """Encuentra si ya existe una clave exacta o unificada por prefijo/nombre para evitar duplicados."""
@@ -300,19 +338,32 @@ class NodeRegistry:
 
         if is_local_flag:
             for k, node in list(self._nodes_by_key.items()):
-                if node.is_local or self.is_local_key(k):
+                if node.is_local or self.is_local_key(k) or str(node.role).upper() == "LOCAL":
                     existing_key = k
                     existing = node
                     break
+            if self._local_pubkey and len(self._local_pubkey) >= len(norm_key):
+                canonical_key = self._local_pubkey
+            else:
+                canonical_key = norm_key
 
-        # Determinar clave canónica (preferir la más larga de 64 caracteres)
-        canonical_key = norm_key
-        if existing_key:
-            existing = self._nodes_by_key.get(existing_key)
-            if existing and len(existing_key) > len(norm_key):
-                canonical_key = existing_key
-            elif existing_key != norm_key and existing_key in self._nodes_by_key:
-                del self._nodes_by_key[existing_key]
+            # Purgar cualquier otra entrada local residual
+            for k, node in list(self._nodes_by_key.items()):
+                if k != canonical_key and (node.is_local or self.is_local_key(k) or str(node.role).upper() == "LOCAL"):
+                    del self._nodes_by_key[k]
+                    if node.name:
+                        self._nodes_by_name.pop(node.name.lower(), None)
+                    if node.alias:
+                        self._nodes_by_name.pop(node.alias.lower(), None)
+        else:
+            # Determinar clave canónica para nodos remotos (preferir la más larga)
+            canonical_key = norm_key
+            if existing_key:
+                existing = self._nodes_by_key.get(existing_key)
+                if existing and len(existing_key) > len(norm_key):
+                    canonical_key = existing_key
+                elif existing_key != norm_key and existing_key in self._nodes_by_key:
+                    del self._nodes_by_key[existing_key]
 
         clean_name = clean_name_candidate or (existing.name if existing else f"Node_{canonical_key[:6]}")
         clean_alias = (update.alias or "").strip() or (existing.alias if existing else clean_name)
@@ -760,7 +811,8 @@ class NodeRegistry:
         }
 
     def get_count(self) -> int:
-        return len(self._nodes_by_key)
+        """Retorna el conteo exacto de nodos únicos registrados deduplicando el nodo local y colisiones."""
+        return len(self.list_nodes())
 
     def cleanup_inactive(self, max_idle_seconds: float = 86400.0 * 7) -> int:
         """Elimina nodos inactivos que no hayan transmitido durante el período especificado."""
@@ -780,22 +832,23 @@ class NodeRegistry:
         return len(to_remove)
 
     def save_to_file(self, filepath: str | Path | None = None) -> bool:
-        """Guarda la libreta de contactos y estado de nodos en un archivo JSON."""
+        """Guarda la libreta de contactos y estado de nodos en un archivo JSON sin duplicados."""
         target_str = str(filepath or os.getenv("NODE_REGISTRY_STORAGE_PATH") or os.path.join("data", "node_registry.json"))
         target_path = Path(target_str)
         try:
             target_path.parent.mkdir(parents=True, exist_ok=True)
+            nodes_list = self.list_nodes()
             data = {
                 "local_pubkey": self._local_pubkey,
                 "saved_at": time.time(),
-                "nodes": [c.to_dict() for c in self._nodes_by_key.values()],
+                "nodes": nodes_list,
                 "error_categories": self.error_categories,
             }
             tmp_path = target_path.with_suffix(".tmp")
             with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
             tmp_path.replace(target_path)
-            logging.debug(f"NodeRegistry guardado exitosamente en {target_path} ({len(self._nodes_by_key)} nodos)")
+            logging.debug(f"NodeRegistry guardado exitosamente en {target_path} ({len(nodes_list)} nodos)")
             return True
         except Exception as e:
             logging.warning(f"Error guardando NodeRegistry en {target_path}: {e}")
@@ -882,7 +935,9 @@ class NodeRegistry:
                 loaded_count += 1
 
             if "local_pubkey" in data and data["local_pubkey"]:
-                self._local_pubkey = data["local_pubkey"]
+                self.set_local_pubkey(data["local_pubkey"])
+            elif self._local_pubkey:
+                self.set_local_pubkey(self._local_pubkey)
             if "error_categories" in data and isinstance(data["error_categories"], dict):
                 self.error_categories.update(data["error_categories"])
 
