@@ -1029,7 +1029,7 @@ class MeshCoreStationApp {
         psk: ch.psk || "",
       };
       const uri = `meshcore://channel?idx=${ch.index}&name=${encodeURIComponent(ch.name)}&psk=${encodeURIComponent(ch.psk || "")}`;
-      this.renderQrModal(`📻 Canal ${ch.index}: ${ch.name}`, uri, payload);
+      this.renderQrModal(`📻 Canal ${ch.index}: ${this.escapeHtml(ch.name)}`, uri, payload);
     }
   }
 
@@ -2183,7 +2183,7 @@ class MeshCoreStationApp {
         <td><span class="badge-pill badge-success">${n.snr || 10.5} dB</span></td>
         <td>${n.hops || 1} salto(s)</td>
         <td>${new Date().toLocaleTimeString()}</td>
-        <td><button class="btn-xs btn-outline btn-rep-dm" data-pk="${n.public_key}" data-name="${this.escapeHtml(n.name || n.alias)}">💬 DM</button></td>
+        <td><button class="btn-xs btn-outline btn-rep-dm" data-pk="${this.escapeHtml(n.public_key)}" data-name="${this.escapeHtml(n.name || n.alias)}">💬 DM</button></td>
       `;
       tr.querySelector(".btn-rep-dm").addEventListener("click", () => {
         const navBtn = document.querySelector('.nav-btn[data-tab="tab-chat"]');
@@ -2617,7 +2617,7 @@ class MeshCoreStationApp {
         if (levelFilter === "DEBUG" && log.level !== "DEBUG") matches = false;
       }
       if (searchQuery && matches) {
-        const text = `${log.message} ${log.module} ${log.logger} ${log.exception || ""}`.toLowerCase();
+        const text = `${this.escapeHtml(log.message)} ${log.module} ${log.logger} ${log.exception || ""}`.toLowerCase();
         if (!text.includes(searchQuery)) matches = false;
       }
 
@@ -3667,7 +3667,7 @@ class MeshCoreStationApp {
         if (levelFilter === "DEBUG" && log.level !== "DEBUG") return false;
       }
       if (searchQuery) {
-        const text = `${log.message} ${log.module} ${log.logger} ${log.exception || ""}`.toLowerCase();
+        const text = `${this.escapeHtml(log.message)} ${log.module} ${log.logger} ${log.exception || ""}`.toLowerCase();
         if (!text.includes(searchQuery)) return false;
       }
       return true;
@@ -4661,23 +4661,41 @@ class MeshCoreStationApp {
     this.dom.chatMessageFeed.scrollTop = this.dom.chatMessageFeed.scrollHeight;
   }
 
+  updateConnectionBadge(state) {
+    const badge = document.getElementById('ws-status');
+    if (!badge) return;
+    const states = {
+        connected: { cls: 'ws-badge--connected', text: '⬤ Conectado' },
+        reconnecting: { cls: 'ws-badge--reconnecting', text: '⬤ Reconectando…' },
+        disconnected: { cls: 'ws-badge--disconnected', text: '⬤ Sin conexión' },
+    };
+    const s = states[state] || states.disconnected;
+    badge.className = `ws-badge ${s.cls}`;
+    badge.textContent = s.text;
+  }
+
   initWebSocket() {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${window.location.host}/ws`;
 
+    if (!this.wsReconnectDelay) this.wsReconnectDelay = 1000;
+    const WS_MAX_DELAY = 30000;
+
     this.ws = new WebSocket(wsUrl);
 
     this.ws.onopen = () => {
-      this.dom.wsStatus.querySelector(".status-dot").className = "status-dot connected";
-      this.dom.wsStatus.querySelector(".status-text").textContent = "En línea (WS)";
+      this.wsReconnectDelay = 1000;
+      this.updateConnectionBadge('connected');
     };
 
     this.ws.onclose = () => {
-      this.dom.wsStatus.querySelector(".status-dot").className = "status-dot disconnected";
-      this.dom.wsStatus.querySelector(".status-text").textContent = "Reconectando...";
+      this.updateConnectionBadge('reconnecting');
       clearTimeout(this.wsReconnectTimer);
-      this.wsReconnectTimer = setTimeout(() => this.initWebSocket(), this.wsReconnectInterval);
+      this.wsReconnectTimer = setTimeout(() => this.initWebSocket(), this.wsReconnectDelay);
+      this.wsReconnectDelay = Math.min(this.wsReconnectDelay * 2, WS_MAX_DELAY);
     };
+
+    this.ws.onerror = (e) => console.warn('WS error:', e);
 
     this.ws.onmessage = (event) => {
       try {

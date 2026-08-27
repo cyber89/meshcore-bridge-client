@@ -114,6 +114,9 @@ LOG_ERROR_FILE_PATH = os.getenv("LOG_ERROR_FILE_PATH", os.path.join(LOG_DIR, "me
 LOG_MAX_BYTES = _safe_int("LOG_MAX_BYTES", 5 * 1024 * 1024)       # 5 MB por archivo antes de rotar
 LOG_BACKUP_COUNT = _safe_int("LOG_BACKUP_COUNT", 3)                # Mantener hasta 3 copias históricas (.1, .2, .3)
 
+# ================= Base de Datos =================
+SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", "data/meshcore_buffer.db")
+
 def _validate_config() -> None:
     import sys
     errors: list[str] = []

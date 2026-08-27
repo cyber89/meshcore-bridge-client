@@ -1,0 +1,57 @@
+1304: submitBtn.innerHTML = '<span class="btn-icon">🔐</span> Desbloquear & Autenticar Repetidor';
+1355: submitBtn.innerHTML = '<span class="btn-icon">⏳</span> Verificando...';
+1399: submitBtn.innerHTML = '<span class="btn-icon">🔐</span> Desbloquear & Autenticar Repetidor';
+2172: tbody.innerHTML = "";
+2175: tbody.innerHTML = '<tr><td colspan="6" class="text-center">No hay vecinos registrados aún.</td></tr>';
+2180: tr.innerHTML = `
+2626: this.dom.systemLogsFeed.innerHTML = "";
+2764: topTrafficTable.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No hay actividad de tráfico registrada aún.</td></tr>';
+2766: topTrafficTable.innerHTML = "";
+2776: tr.innerHTML = `
+2794: signalTable.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Esperando mediciones de SNR/RSSI de la malla...</td></tr>';
+2796: signalTable.innerHTML = "";
+2810: tr.innerHTML = `
+2833: repTable.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No se han detectado repetidores en la malla.</td></tr>';
+2835: repTable.innerHTML = "";
+2844: tr.innerHTML = `
+2871: this.dom.preflightResults.innerHTML = "Ejecutando comprobaciones de diagnóstico...";
+2881: this.dom.preflightResults.innerHTML = `<span class="text-danger">Error: ${err.message}</span>`;
+2901: this.dom.preflightResults.innerHTML = html;
+3166: if (this.dom.chatMessageFeed) this.dom.chatMessageFeed.innerHTML = "";
+3676: this.dom.systemLogsFeed.innerHTML = "";
+3678: this.dom.systemLogsFeed.innerHTML = '<div style="color: var(--text-muted); padding: 14px; text-align: center;">No hay logs que coincidan con los filtros actuales.</div>';
+3701: row.innerHTML = `
+3715: this.dom.systemLogsFeed.innerHTML = "";
+3774: this.dom.quickDiagBody.innerHTML = "Ejecutando auto-diagnóstico de subsistemas...";
+3779: this.dom.quickDiagBody.innerHTML = `<pre>${this.escapeHtml(JSON.stringify(data.data, null, 2))}</pre>`;
+3783: this.dom.quickDiagBody.innerHTML = `<span style="color: var(--accent-danger)">Error: ${this.escapeHtml(e.message)}</span>`;
+4022: ackEl.innerHTML = `❌ Falló <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button>`;
+4038: ackEl.innerHTML = `❌ Falló <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button>`;
+4052: ackEl.innerHTML = `❌ Falló <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button>`;
+4217: ackEl.innerHTML = `❌ Falló <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button>`;
+4235: ackEl.innerHTML = `❌ Falló <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button>`;
+4251: ackEl.innerHTML = `❌ Falló <button type="button" class="btn-retry-msg" data-retry-id="${msgId}">🔄 Reintentar</button>`;
+4265: if (this.dom.chatMessageFeed) this.dom.chatMessageFeed.innerHTML = "";
+4408: this.dom.chatMessageFeed.innerHTML = "";
+4455: divider.innerHTML = `
+4532: this.dom.chatMessageFeed.innerHTML = "";
+4643: row.innerHTML = `
+4788: li.innerHTML = `
+5312: this.dom.traceVisualGraph.innerHTML = `<div class="trace-empty-hint">Haz clic en "Iniciar Traza" para enviar una sonda multi-salto y mapear los repetidores.</div>`;
+5315: this.dom.traceBreakdownTableBody.innerHTML = `<tr><td colspan="6" class="text-center">Presiona "Iniciar Traza" para comenzar</td></tr>`;
+5413: this.dom.traceVisualGraph.innerHTML = html;
+5434: this.dom.traceBreakdownTableBody.innerHTML = html;
+5632: this.dom.channelListUi.innerHTML = "";
+5647: li.innerHTML = `
+5745: if (mapList) mapList.innerHTML = "";
+5757: if (contactsGrid) contactsGrid.innerHTML = '<div class="empty-state">No hay contactos registrados en el dispositivo.</div>';
+5758: if (unifiedNodesGrid) unifiedNodesGrid.innerHTML = '<div class="empty-state">No se han descubierto nodos en la malla LoRa.</div>';
+5823: if (contactsGrid) contactsGrid.innerHTML = "";
+5824: if (unifiedNodesGrid) unifiedNodesGrid.innerHTML = "";
+6044: cCard.innerHTML = `
+6278: nCard.innerHTML = `
+6511: item.innerHTML = `
+6541: contactsGrid.innerHTML = '<div class="empty-state">No hay otros contactos cliente registrados. Los nodos repetidores y routers se gestionan en la pestaña <strong>Nodos</strong>.</div>';
+6548: unifiedNodesGrid.innerHTML = '<div class="empty-state">No se han descubierto nodos en la malla LoRa.</div>';
+6593: contactsGrid.innerHTML = '<div class="empty-state">No hay contactos cliente (CLIENT) registrados en el dispositivo.</div>';
+6597: unifiedNodesGrid.innerHTML = '<div class="empty-state">No se han descubierto nodos en la malla LoRa.</div>';

@@ -5246,3 +5246,8 @@ body {
   transform: translateY(-1px);
 }
 
+
+.ws-badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 12px; font-weight: 600; }
+.ws-badge--connected { background: #22c55e22; color: #22c55e; }
+.ws-badge--reconnecting { background: #f59e0b22; color: #f59e0b; }
+.ws-badge--disconnected { background: #ef444422; color: #ef4444; }

@@ -651,6 +651,10 @@ class MeshCoreBridge:
         """Punto de entrada síncrono que corre el bucle asyncio con manejo de señales."""
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
+        
+        if getattr(config, "LOG_LEVEL", "INFO") == "DEBUG":
+            loop.set_debug(True)
+            logging.getLogger("asyncio").setLevel(logging.DEBUG)
 
         def _stop_task() -> None:
             task = asyncio.create_task(self.stop())

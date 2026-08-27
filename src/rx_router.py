@@ -233,34 +233,9 @@ class RxEventRouter:
             if payload_dict.get("is_outgoing") is True:
                 return
 
-            # Extracción exhaustiva del identificador del emisor
-            sender_cand = (
-                payload_dict.get("sender")
-                or payload_dict.get("public_key")
-                or payload_dict.get("pubkey")
-                or payload_dict.get("pubkey_pre")
-                or payload_dict.get("pubkey_prefix")
-                or payload_dict.get("target_node")
-                or payload_dict.get("target")
-                or payload_dict.get("from_node")
-                or payload_dict.get("from")
-                or payload_dict.get("source")
-                or payload_dict.get("src")
-                or payload_dict.get("src_node")
-                or payload_dict.get("src_node_id")
-                or payload_dict.get("node_id")
-                or payload_dict.get("origin")
-                or (payload_dict.get("contact", {}) if isinstance(payload_dict.get("contact"), dict) else {}).get("public_key")
-                or (payload_dict.get("contact", {}) if isinstance(payload_dict.get("contact"), dict) else {}).get("pubkey_prefix")
-                or (payload_dict.get("payload", {}) if isinstance(payload_dict.get("payload"), dict) else {}).get("sender")
-                or (payload_dict.get("payload", {}) if isinstance(payload_dict.get("payload"), dict) else {}).get("pubkey_prefix")
-                or (payload_dict.get("payload", {}) if isinstance(payload_dict.get("payload"), dict) else {}).get("pubkey_pre")
-                or ""
-            )
-            sender_raw = str(sender_cand).strip()
-
+            from src.event_utils import extract_sender_from_payload
+            sender_raw, sender_name = extract_sender_from_payload(payload_dict)
             sender = ""
-            sender_name = ""
 
             # 1. Resolver emisor contra NodeRegistry por clave o prefijo
             if sender_raw:
@@ -278,17 +253,7 @@ class RxEventRouter:
                 else:
                     sender_name = f"Nodo [{sender_raw[:8]}]"
 
-            name_cand = (
-                payload_dict.get("sender_name")
-                or payload_dict.get("adv_name")
-                or payload_dict.get("name")
-                or payload_dict.get("node_name")
-                or payload_dict.get("alias")
-                or (payload_dict.get("contact", {}) if isinstance(payload_dict.get("contact"), dict) else {}).get("name")
-                or (payload_dict.get("contact", {}) if isinstance(payload_dict.get("contact"), dict) else {}).get("alias")
-            )
-            if name_cand:
-                sender_name = str(name_cand).strip()
+            if sender_name:
                 if not sender:
                     found_c = self._ctx.node_registry.find_by_name(sender_name)
                     if found_c and found_c.public_key:
@@ -601,9 +566,15 @@ class RxEventRouter:
             )
 
             if is_direct and text:
-                self._handle_mesh_direct_msg(MeshMessageEvent(sender, sender_name, text, channel_idx, effective_rssi, effective_snr, txt_type))
+                loop = self._ctx.loop or asyncio.get_running_loop()
+                task = loop.create_task(self._handle_mesh_direct_msg(MeshMessageEvent(sender, sender_name, text, channel_idx, effective_rssi, effective_snr, txt_type)))
+                self._ctx.background_tasks.add(task)
+                task.add_done_callback(self._ctx.background_tasks.discard)
             elif is_channel and text:
-                self._handle_mesh_channel_msg(MeshMessageEvent(sender, sender_name, text, channel_idx, effective_rssi, effective_snr, txt_type))
+                loop = self._ctx.loop or asyncio.get_running_loop()
+                task = loop.create_task(self._handle_mesh_channel_msg(MeshMessageEvent(sender, sender_name, text, channel_idx, effective_rssi, effective_snr, txt_type)))
+                self._ctx.background_tasks.add(task)
+                task.add_done_callback(self._ctx.background_tasks.discard)
             else:
                 if "event_type" not in payload_dict:
                     payload_dict["event_type"] = "telemetry"
@@ -620,8 +591,7 @@ class RxEventRouter:
             return local_name
         return str(self._ctx.serial_adapter.resolve_sender_name(prefix_or_key))
 
-    def _handle_mesh_channel_msg(self, msg: MeshMessageEvent) -> None:
-        # Analizar si el mensaje de canal contiene telemetría o respuestas de comandos
+    async def _handle_mesh_msg_common(self, msg: MeshMessageEvent, event_type_str: str) -> dict | None:
         extracted_telem = self._ctx.repeater_manager.parse_repeater_telemetry_or_response(msg.text)
         if extracted_telem:
             self._ctx.node_registry.add_or_update(
@@ -699,7 +669,6 @@ class RxEventRouter:
                 elif hasattr(admin, "notify_ping_response"):
                     admin.notify_ping_response(msg.sender, cmd_resp_payload)
 
-            # Es una respuesta de comando o telemetría: NO emitir como mensaje de canal de chat
             rep_payload = {
                 "type": "repeater_response",
                 "event_type": "repeater_response",
@@ -724,14 +693,13 @@ class RxEventRouter:
             self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, json.dumps(rep_payload, sort_keys=True), qos=0)
             if self._ctx.web_server:
                 import asyncio; asyncio.create_task(self._ctx.web_server.broadcast_event(rep_payload))
-            return
+            return None
 
-        event_type = "public" if msg.channel_idx == 0 else "channel"
         lqi_val = LinkQualityEngine.compute_instant_lqi(msg.snr, msg.rssi, 0)
         lqi_stat = LinkQualityEngine.classify_lqi_status(lqi_val)
 
         evt_payload = {
-            "event_type": event_type,
+            "event_type": event_type_str,
             "sender": msg.sender,
             "sender_name": msg.sender_name,
             "text": msg.text,
@@ -748,163 +716,45 @@ class RxEventRouter:
                 "lqi_score": lqi_val,
                 "lqi_status": lqi_stat,
             },
+            "telemetry": extracted_telem if extracted_telem else None,
             "timestamp": now_iso,
         }
+        
         evt_json = json.dumps(evt_payload, sort_keys=True)
+        self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
+        if self._ctx.web_server:
+            import asyncio; asyncio.create_task(self._ctx.web_server.broadcast_event(evt_payload))
+            
+        return evt_payload
 
+    async def _handle_mesh_channel_msg(self, msg: MeshMessageEvent) -> None:
+        evt_payload = await self._handle_mesh_msg_common(msg, "public" if msg.channel_idx == 0 else "channel")
+        if not evt_payload:
+            return
+
+        evt_json = json.dumps(evt_payload, sort_keys=True)
         if msg.channel_idx == 0:
             self._ctx.mqtt.publish_safe(config.TOPIC_RX_PUBLIC, evt_json, qos=0)
         else:
             self._ctx.mqtt.publish_safe(f"{config.TOPIC_RX_CHANNEL}/ch_{msg.channel_idx}", evt_json, qos=0)
 
-        self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
-        if self._ctx.web_server:
-            import asyncio; asyncio.create_task(self._ctx.web_server.broadcast_event(evt_payload))
-
         logging.info(
             f"[RX-CANAL] De: {msg.sender_name or msg.sender} -> Para: Canal #{msg.channel_idx} | "
-            f"Texto: '{msg.text}' | LQI: {lqi_val}% [{lqi_stat}] | RSSI: {msg.rssi} dBm, SNR: {msg.snr} dB"
+            f"Texto: '{msg.text}' | LQI: {evt_payload['lqi_score']}% [{evt_payload['lqi_status']}] | RSSI: {msg.rssi} dBm, SNR: {msg.snr} dB"
         )
 
-    def _handle_mesh_direct_msg(self, msg: MeshMessageEvent) -> None:
-        # Analizar si el mensaje de texto contiene telemetría o respuestas de comandos del repetidor
-        extracted_telem = self._ctx.repeater_manager.parse_repeater_telemetry_or_response(msg.text)
-        if extracted_telem:
-            self._ctx.node_registry.add_or_update(
-                msg.sender,
-                NodeContactUpdate(
-                    name=msg.sender_name,
-                    role="REPEATER",
-                    last_rssi=int(msg.rssi) if isinstance(msg.rssi, (int, float)) else extracted_telem.get("last_rssi"),
-                    last_snr=float(msg.snr) if isinstance(msg.snr, (int, float)) else extracted_telem.get("last_snr"),
-                    battery_pct=extracted_telem.get("battery_pct"),
-                    voltage_v=extracted_telem.get("voltage_v"),
-                    solar_v=extracted_telem.get("solar_v"),
-                    latitude=extracted_telem.get("latitude"),
-                    longitude=extracted_telem.get("longitude"),
-                    altitude_m=extracted_telem.get("altitude_m"),
-                    fixed_position=extracted_telem.get("fixed_position"),
-                    uptime=extracted_telem.get("uptime"),
-                    clock=extracted_telem.get("clock"),
-                    airtime_ms=extracted_telem.get("airtime_ms"),
-                    noise_floor_dbm=extracted_telem.get("noise_floor_dbm"),
-                    packets_sent=extracted_telem.get("packets_sent"),
-                    packets_recv=extracted_telem.get("packets_recv"),
-                    duplicate_packets=extracted_telem.get("duplicate_packets"),
-                    packet_errors=extracted_telem.get("packet_errors"),
-                    queue_len=extracted_telem.get("queue_len"),
-                    owner_name=extracted_telem.get("owner_name"),
-                    owner_info=extracted_telem.get("owner_info"),
-                    firmware_version=extracted_telem.get("firmware_version"),
-                    hardware_board=extracted_telem.get("hardware_board"),
-                    frequency=extracted_telem.get("frequency"),
-                    tx_power=extracted_telem.get("tx_power"),
-                    spreading_factor=extracted_telem.get("spreading_factor"),
-                    bandwidth=extracted_telem.get("bandwidth"),
-                    coding_rate=extracted_telem.get("coding_rate"),
-                    repeat_enabled=extracted_telem.get("repeat_enabled"),
-                    advert_interval=extracted_telem.get("advert_interval"),
-                    hops=extracted_telem.get("hops"),
-                ),
-            )
-
-        # Verificar si el emisor es un repetidor o si el texto es una respuesta de comando/diagnóstico
-        sender_contact = self._ctx.node_registry.get_contact(msg.sender)
-        is_repeater_sender = (
-            (sender_contact and sender_contact.role in ("REPEATER", "ROUTER"))
-            or bool(extracted_telem)
-            or (msg.sender_name and (
-                msg.sender_name.upper().startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-"))
-                or "REPEATER" in msg.sender_name.upper()
-                or "ROUTER" in msg.sender_name.upper()
-            ))
-        )
-        is_cmd_response = (
-            msg.txt_type == 1
-            or is_repeater_sender
-            or is_command_or_system_message(msg.text, msg.txt_type)
-        )
-
-        now_iso = datetime.now(timezone.utc).isoformat()
-
-        if is_cmd_response:
-            admin = getattr(self._ctx, "admin_handler", None)
-            if admin:
-                cmd_resp_payload = {
-                    "rssi": msg.rssi,
-                    "snr_there": msg.snr,
-                    "snr_back": msg.snr,
-                    "snr": msg.snr,
-                    "text": msg.text,
-                    "message": msg.text,
-                    "telemetry": extracted_telem,
-                    "source": "repeater_response",
-                }
-                if hasattr(admin, "notify_command_response"):
-                    admin.notify_command_response(msg.sender, cmd_resp_payload)
-                elif hasattr(admin, "notify_ping_response"):
-                    admin.notify_ping_response(msg.sender, cmd_resp_payload)
-
-            # Es una respuesta de comando o telemetría de repetidor: NO emitir como chat directo de usuario
-            rep_payload = {
-                "type": "repeater_response",
-                "event_type": "repeater_response",
-                "sender": msg.sender,
-                "sender_name": msg.sender_name,
-                "text": msg.text,
-                "telemetry": extracted_telem if extracted_telem else None,
-                "rssi": msg.rssi,
-                "snr": msg.snr,
-                "timestamp": now_iso,
-            }
-            if extracted_telem:
-                self._ctx.mqtt.publish_safe(config.TOPIC_RX_TELEMETRY, json.dumps({
-                    "event_type": "repeater_telemetry",
-                    "sender": msg.sender,
-                    "sender_name": msg.sender_name,
-                    "telemetry": extracted_telem,
-                    "timestamp": now_iso,
-                }), qos=0)
-            self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, json.dumps(rep_payload, sort_keys=True), qos=0)
-            if self._ctx.web_server:
-                import asyncio; asyncio.create_task(self._ctx.web_server.broadcast_event(rep_payload))
+    async def _handle_mesh_direct_msg(self, msg: MeshMessageEvent) -> None:
+        evt_payload = await self._handle_mesh_msg_common(msg, "direct")
+        if not evt_payload:
             return
 
-        lqi_val = LinkQualityEngine.compute_instant_lqi(msg.snr, msg.rssi, 0)
-        lqi_stat = LinkQualityEngine.classify_lqi_status(lqi_val)
-
-        evt_payload = {
-            "event_type": "direct",
-            "sender": msg.sender,
-            "sender_name": msg.sender_name,
-            "text": msg.text,
-            "channel_idx": msg.channel_idx,
-            "txt_type": msg.txt_type,
-            "rssi": msg.rssi,
-            "snr": msg.snr,
-            "lqi_score": lqi_val,
-            "lqi_status": lqi_stat,
-            "metrics": {
-                "rssi": msg.rssi,
-                "snr": msg.snr,
-                "lqi_score": lqi_val,
-                "lqi_status": lqi_stat,
-            },
-            "telemetry": extracted_telem if extracted_telem else None,
-            "timestamp": now_iso,
-        }
         evt_json = json.dumps(evt_payload, sort_keys=True)
-
         topic = f"{config.TOPIC_RX_DIRECT}/{msg.sender}"
         self._ctx.mqtt.publish_safe(topic, evt_json, qos=1)
-        self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
-
-        if self._ctx.web_server:
-            import asyncio; asyncio.create_task(self._ctx.web_server.broadcast_event(evt_payload))
 
         logging.info(
             f"[RX-DM] De: {msg.sender_name or msg.sender} -> Para: Estación Base Local | "
-            f"Texto: '{msg.text}' | LQI: {lqi_val}% [{lqi_stat}] | RSSI: {msg.rssi} dBm, SNR: {msg.snr} dB"
+            f"Texto: '{msg.text}' | LQI: {evt_payload['lqi_score']}% [{evt_payload['lqi_status']}] | RSSI: {msg.rssi} dBm, SNR: {msg.snr} dB"
         )
 
     def _handle_mesh_telemetry_msg(self, payload_dict: dict[str, Any]) -> None:

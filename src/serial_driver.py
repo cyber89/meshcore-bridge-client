@@ -140,6 +140,13 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             logging.warning("SDK meshcore_py no disponible en el entorno.")
             return False
 
+        if getattr(self, "_connect_task", None) and not self._connect_task.done():
+            self._connect_task.cancel()
+
+        self._connect_task = asyncio.create_task(self._connect_with_stabilization())
+        return True
+
+    async def _connect_with_stabilization(self) -> None:
         if self.mc is not None or self.is_connected:
             await self.disconnect()
             await asyncio.sleep(0.5)
@@ -195,7 +202,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             if self.mc is None:
                 logging.error(f"No se pudo establecer conexión con el transceptor MeshCore en {self.port}.")
                 self.is_connected = False
-                return False
+                return
 
             self._register_event_handlers()
             if hasattr(self.mc, "start_auto_message_fetching"):
@@ -209,11 +216,11 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             self.is_connected = True
             self.heartbeat()
             logging.info("MeshCore SDK conectado e iniciado exitosamente.")
-            return True
+        except asyncio.CancelledError:
+            pass
         except Exception as e:
             logging.error(f"Error conectando con MeshCore SDK: {e}", exc_info=True)
             self.is_connected = False
-            return False
 
     async def disconnect(self) -> None:
         if self.mc:

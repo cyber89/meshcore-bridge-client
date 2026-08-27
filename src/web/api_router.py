@@ -68,44 +68,8 @@ class WebAPIRouter:
         if ev_type in ("system_log", "metrics_update", "status"):
             return
 
-        # Extracción exhaustiva del identificador y nombre del emisor
-        sender_cand = (
-            data.get("sender")
-            or data.get("public_key")
-            or data.get("pubkey")
-            or data.get("pubkey_pre")
-            or data.get("pubkey_prefix")
-            or data.get("target_node")
-            or data.get("target")
-            or data.get("from_node")
-            or data.get("from")
-            or data.get("source")
-            or data.get("src")
-            or data.get("src_node")
-            or data.get("src_node_id")
-            or data.get("node_id")
-            or data.get("origin")
-            or (data.get("contact", {}) if isinstance(data.get("contact"), dict) else {}).get("public_key")
-            or (data.get("contact", {}) if isinstance(data.get("contact"), dict) else {}).get("pubkey_prefix")
-            or (data.get("payload", {}) if isinstance(data.get("payload"), dict) else {}).get("sender")
-            or (data.get("payload", {}) if isinstance(data.get("payload"), dict) else {}).get("pubkey_prefix")
-            or (data.get("payload", {}) if isinstance(data.get("payload"), dict) else {}).get("pubkey_pre")
-            or ""
-        )
-        sender_raw = str(sender_cand).strip()
-
-        name_cand = (
-            data.get("sender_name")
-            or data.get("alias")
-            or data.get("name")
-            or data.get("node_alias")
-            or data.get("node_name")
-            or (data.get("contact", {}) if isinstance(data.get("contact"), dict) else {}).get("name")
-            or (data.get("contact", {}) if isinstance(data.get("contact"), dict) else {}).get("alias")
-            or (data.get("payload", {}) if isinstance(data.get("payload"), dict) else {}).get("sender_name")
-            or ""
-        )
-        sender_name = str(name_cand).strip()
+        from src.event_utils import extract_sender_from_payload
+        sender_raw, sender_name = extract_sender_from_payload(data)
 
         # Resolver información en NodeRegistry
         node_info = None
@@ -222,8 +186,31 @@ class WebAPIRouter:
                 return await self._route_status()
 
             if method == "GET" and clean_path == "/api/nodes":
-                nodes = self.bridge.node_registry.list_nodes()
-                return 200, {"status": "ok", "data": nodes, "count": len(nodes)}
+                all_nodes = self.bridge.node_registry.list_nodes()
+                
+                limit = int(req_body.get('limit', 100)) if 'limit' in req_body else 100
+                offset = int(req_body.get('offset', 0)) if 'offset' in req_body else 0
+                
+                # Check for query params if not in body
+                if "?" in path:
+                    query_str = path.split("?", 1)[1]
+                    for part in query_str.split("&"):
+                        if "=" in part:
+                            k, v = part.split("=", 1)
+                            if k.lower() == "limit" and v.isdigit():
+                                limit = int(v)
+                            elif k.lower() == "offset" and v.isdigit():
+                                offset = int(v)
+
+                nodes_page = all_nodes[offset:offset+limit]
+                return 200, {
+                    "status": "ok", 
+                    "data": nodes_page, 
+                    "count": len(nodes_page),
+                    "total_count": len(all_nodes),
+                    "limit": limit,
+                    "offset": offset
+                }
 
             if method == "GET" and clean_path in ("/api/lqi", "/api/link_quality"):
                 if hasattr(self.bridge, "node_registry") and hasattr(self.bridge.node_registry, "get_all_lqi_metrics"):
@@ -771,10 +758,40 @@ class WebAPIRouter:
         return 200, {"status": "ok", "data": res}
 
     def _route_logs(self, raw_path: str, clean_path: str) -> tuple[int, dict[str, Any]]:
+        limit = 100
+        offset = 0
+        if "?" in raw_path:
+            query_str = raw_path.split("?", 1)[1]
+            for part in query_str.split("&"):
+                if "=" in part:
+                    k, v = part.split("=", 1)
+                    if k.lower() == "limit" and v.isdigit():
+                        limit = int(v)
+                    elif k.lower() == "offset" and v.isdigit():
+                        offset = int(v)
+
         if clean_path == "/api/messages":
-            return 200, {"status": "ok", "data": list(self.recent_messages), "count": len(self.recent_messages)}
+            all_messages = list(self.recent_messages)
+            msgs_page = all_messages[offset:offset+limit]
+            return 200, {
+                "status": "ok", 
+                "data": msgs_page, 
+                "count": len(msgs_page),
+                "total_count": len(all_messages),
+                "limit": limit,
+                "offset": offset
+            }
         if clean_path == "/api/telemetry":
-            return 200, {"status": "ok", "data": list(self.recent_telemetry), "count": len(self.recent_telemetry)}
+            all_telemetry = list(self.recent_telemetry)
+            telem_page = all_telemetry[offset:offset+limit]
+            return 200, {
+                "status": "ok", 
+                "data": telem_page, 
+                "count": len(telem_page),
+                "total_count": len(all_telemetry),
+                "limit": limit,
+                "offset": offset
+            }
         if clean_path == "/api/system/logs":
             level = None
             search = None
