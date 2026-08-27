@@ -697,6 +697,8 @@ class WebAPIRouter:
                                 ),
                             )
                             imported_count += 1
+                    if hasattr(self.bridge.node_registry, "save_to_file"):
+                        self.bridge.node_registry.save_to_file()
                 except Exception as e:
                     logging.warning(f"Error sincronizando contactos con el nodo: {e}")
             nodes = self.bridge.node_registry.list_nodes()
@@ -744,6 +746,9 @@ class WebAPIRouter:
                 pubkey,
                 NodeContactUpdate(name=name or f"Node_{pubkey[:6]}", alias=alias, role=role),
             )
+            if hasattr(self.bridge.node_registry, "save_to_file"):
+                self.bridge.node_registry.save_to_file()
+
             # Sincronizar hacia el transceptor serial
             ser = getattr(self.bridge, "serial_adapter", None)
             if ser and hasattr(ser, "add_contact"):
@@ -769,6 +774,8 @@ class WebAPIRouter:
 
             if pubkey and pubkey in self.bridge.node_registry._nodes_by_key:
                 del self.bridge.node_registry._nodes_by_key[pubkey]
+                if hasattr(self.bridge.node_registry, "save_to_file"):
+                    self.bridge.node_registry.save_to_file()
                 self._notify_web_clients({"type": "contacts_updated", "data": self.bridge.node_registry.list_nodes()})
                 return 200, {"status": "ok", "message": f"Contacto {pubkey} eliminado"}
             return 404, {"status": "error", "message": "Contacto no encontrado"}
