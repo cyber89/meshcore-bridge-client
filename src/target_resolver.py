@@ -37,7 +37,13 @@ class TargetResolver:
     def _get_mc(self) -> Any:
         """Obtiene la instancia del SDK MeshCore."""
         if callable(self._mc_provider):
-            return self._mc_provider()
+            # Si es un mock o instancia que ya tiene comandos/contactos, no invocar
+            if hasattr(self._mc_provider, "commands") or hasattr(self._mc_provider, "contacts") or hasattr(self._mc_provider, "get_contact_by_name"):
+                return self._mc_provider
+            try:
+                return self._mc_provider()
+            except Exception:
+                return self._mc_provider
         return self._mc_provider
 
     def resolve(
@@ -49,7 +55,7 @@ class TargetResolver:
         """Resuelve un identificador de destino a clave pública o contacto SDK.
 
         La búsqueda sigue este orden de prioridad:
-        1. SDK MeshCore: get_contact_by_key_prefix → get_contact_by_name → contacts dict
+        1. SDK MeshCore: get_contact_by_name (si no-hex) / get_contact_by_key_prefix → contacts dict
         2. NodeRegistry local: get_contact → _nodes_by_key prefix scan
         3. Padding de clave hex corta a min_hex_len caracteres
         4. Retorno directo si es hex válido, ValueError si no lo es
@@ -114,6 +120,17 @@ class TargetResolver:
         Returns:
             Contacto SDK si se encontró, None si no.
         """
+        is_hex = all(c in "0123456789abcdefABCDEF" for c in name_str) and len(name_str) >= 2
+
+        # Si no parece una clave hexadecimal, buscar primero por nombre
+        if not is_hex and hasattr(mc, "get_contact_by_name"):
+            try:
+                c = mc.get_contact_by_name(name_str)
+                if c:
+                    return c
+            except Exception:
+                pass
+
         # Búsqueda por prefijo de clave
         if hasattr(mc, "get_contact_by_key_prefix"):
             try:
@@ -123,8 +140,8 @@ class TargetResolver:
             except Exception:
                 pass
 
-        # Búsqueda por nombre
-        if hasattr(mc, "get_contact_by_name"):
+        # Búsqueda por nombre (fallback si era hex o no se buscó antes)
+        if is_hex and hasattr(mc, "get_contact_by_name"):
             try:
                 c = mc.get_contact_by_name(name_str)
                 if c:
