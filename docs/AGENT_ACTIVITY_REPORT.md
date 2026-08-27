@@ -6,6 +6,20 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Restricción del Botón Ping Directo Exclusivamente a Nodos Repetidores Compatibles
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect).
+- **Problema / Requerimiento**:
+  - En la vista Nodos y Contactos, el botón `🎯 Ping` aparecía en todos los tipos de dispositivos (incluidos dispositivos de usuario `CLIENT`, sensores `SENSOR` y salas `ROOM`), a pesar de que solo los repetidores de infraestructura procesan respuestas al comando CLI `ping 0`.
+- **Acciones Realizadas**:
+  - Se removió el botón `🎯 Ping` de las tarjetas de clientes en la libreta de Contactos (`#tab-contacts`).
+  - En la vista unificada Nodos (`#unifiedNodesGridUi`), se restringió la presencia del botón `🎯 Ping (Hop 0)` para que aparezca **únicamente en tarjetas con rol `REPEATER` / `ROUTER`**.
+  - Los nodos `CLIENT`, `SENSOR` y `ROOM` conservan sus acciones funcionales (`💬 Iniciar Chat DM`, `🗺️ Ruta`, `🗺️ Mapa`, `📤 QR`, etc.) sin saturar con botones no soportados por el firmware de esos dispositivos.
+- **Módulos Modificados**: `src/web/static/js/app.js`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
+
+
 ### Hito: Persistencia de Canales a Disco y Corrección de Formato de Clave Secreta PSK en SerialDriver
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO

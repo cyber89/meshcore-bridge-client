@@ -6342,7 +6342,6 @@ class MeshCoreStationApp {
           </div>
           <div class="contact-card-actions">
             <button type="button" class="btn-primary btn-sm btn-contact-dm" title="Abrir chat en Mensajería">💬 Iniciar Chat DM</button>
-            <button type="button" class="btn-secondary btn-sm btn-node-ping-zero" title="Hacer Ping directo (Hop 0)">🎯 Ping</button>
             <button type="button" class="btn-secondary btn-sm btn-contact-qr" title="Exportar tarjeta o código QR">📤 QR</button>
             <button type="button" class="btn-secondary btn-sm btn-contact-del" title="Eliminar del dispositivo">🗑️</button>
           </div>
@@ -6354,14 +6353,6 @@ class MeshCoreStationApp {
             e.stopPropagation();
             navigator.clipboard.writeText(node.public_key);
             this.showToast("📋 Clave pública copiada", "success");
-          });
-        }
-
-        const btnPingContact = cCard.querySelector(".btn-node-ping-zero");
-        if (btnPingContact) {
-          btnPingContact.addEventListener("click", (e) => {
-            e.stopPropagation();
-            this.pingZero(node.public_key, cleanName);
           });
         }
 
@@ -6499,7 +6490,6 @@ class MeshCoreStationApp {
             <span class="stat-pill" title="Saltos">🦘 <strong>${hopsVal}</strong></span>
           `;
           actionsHtml = `
-            <button type="button" class="btn-primary btn-sm btn-node-primary btn-node-ping-zero" title="Hacer Ping directo (Hop 0)">🎯 Ping</button>
             <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
             <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-client-dm" title="Abrir chat en Mensajería">💬 Chat</button>
             ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">🗺️ Mapa</button>` : ''}
@@ -6522,7 +6512,6 @@ class MeshCoreStationApp {
           `;
           actionsHtml = `
             <button type="button" class="btn-primary btn-sm btn-node-primary btn-room-channel">💬 Ver Canal</button>
-            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-ping-zero" title="Hacer Ping directo (Hop 0)">🎯 Ping</button>
             <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
             ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">🗺️ Mapa</button>` : ''}
           `;
@@ -6545,7 +6534,6 @@ class MeshCoreStationApp {
           `;
           actionsHtml = `
             <button type="button" class="btn-primary btn-sm btn-node-primary btn-client-dm">💬 Iniciar Chat DM</button>
-            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-ping-zero" title="Hacer Ping directo (Hop 0)">🎯 Ping</button>
             <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
             ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">🗺️ Mapa</button>` : ''}
           `;
