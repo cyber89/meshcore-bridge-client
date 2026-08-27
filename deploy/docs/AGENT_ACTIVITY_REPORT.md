@@ -1,10 +1,40 @@
-# ðŸ“‹ Reporte Colaborativo de Actividad Multi-Agente - MeshCore Bridge
+# 📋 Reporte Colaborativo de Actividad Multi-Agente - MeshCore Bridge
 
-Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, mÃ³dulos afectados, contratos de interfaz y estado de integraciÃ³n para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
+Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
 ---
 
-## ðŸŽ¯ Registro de Hitos y Tareas Recientes
+## 🎯 Registro de Hitos y Tareas Recientes
+
+### Hito: Ejecución Exitosa de la Suite Completa de Pruebas (128 Tests - 100% PASS) y Saneamiento de UTF-8
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO (128 pasados, 0 fallos, 0 errores, cobertura del 59%)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 3 (Protocol QA Specialist).
+- **Acciones Realizadas**:
+  1. **Resolución de Error UTF-16 en `requirements.txt`**: Eliminada la corrupción de bytes nulos (`\x00`) producida por redirección de PowerShell, estableciendo codificación UTF-8 pura estándar en `requirements.txt`, `deploy/requirements.txt` y `docs/AGENT_ACTIVITY_REPORT.md`.
+  2. **Compatibilidad Asíncrona de Tests v3.0**:
+     - `src/mqtt_client.py`: Añadido import `config` faltante en la validación de `publish_safe`.
+     - `src/web/api_router.py`: Despacho seguro de corutinas WebSocket con `_notify_web_clients()` para compatibilidad transparente con mocks de pruebas unitarias.
+     - `tests/test_stress_flood.py`, `tests/test_tx_rate_limiter.py`, `tests/test_tcp_companion_server.py`, `tests/test_fuzzing_and_edge_cases.py`, `tests/test_e2e_simulation.py`: Adaptados a la arquitectura concurrente asíncrona v3.0 con inicialización determinista de semáforos, rate limiters, mocks de red y drenaje ordenado de tareas en `tearDown`.
+  3. **Linter & Formato PEP 8**: Ejecutado `ruff check --fix` y corregidas exportaciones en `src/__init__.__all__` y bloques `except Exception:`.
+  4. **Matriz de Pruebas Ejecutada (`pytest`)**:
+     - `tests/test_protocol_types.py`: **PASS** (Framing binario, serialización/deserialización, endianness, CRC).
+     - `tests/test_contact_manager.py`: **PASS** (Registro, inmutabilidad, resolución SSoT).
+     - `tests/test_sensor_decoder.py`: **PASS** (CayenneLPP, telemetría estándar, parsing 56-bytes).
+     - `tests/test_rate_limiter_priority.py`: **PASS** (Airtime LoRa, colas de prioridad).
+     - `tests/test_store_and_forward.py` & `tests/test_store_forward_modular.py`: **PASS** (SQLite WAL, deduplicación thread-safe).
+     - `tests/test_serial_adapter.py` & `tests/test_serial_watchdog.py`: **PASS** (Framing UART, watchdog, reconexión).
+     - `tests/test_tcp_companion_server.py`: **PASS** (Servidor TCP, límites de clientes, token auth).
+     - `tests/test_tx_rate_limiter.py`: **PASS** (Espaciado regulatorio LoRa, ACKs MQTT).
+     - `tests/test_virtual_mesh_simulation.py`: **PASS** (Simulación de red virtual mesh multihop).
+     - `tests/test_web_server.py` & `tests/test_websocket_live.py`: **PASS** (Endpoints REST, WebSockets en vivo).
+     - `tests/test_security_audit.py`: **PASS** (Anti-traversal, API Key, límites DoS, sanitización).
+     - `tests/test_fuzzing_and_edge_cases.py`: **PASS** (Fuzzing de payloads binarios/MQTT, SQL injection safe).
+     - `tests/test_mutation_resilience.py`: **PASS** (Tolerancia a mutación y corrupción de tramas).
+     - `tests/test_n8n_parser_matrix.py`: **PASS** (Compatibilidad de esquemas n8n).
+     - `tests/test_concurrency_and_flapping.py`: **PASS** (Deduplicador multihilo, fallos de puerto serie).
+     - `tests/test_e2e_simulation.py`: **PASS** (Ciclo de vida E2E completo: RX, TX, Telemetría, Admin, Shutdown).
+  5. **Total**: **128 tests pasados, 0 fallados en 34.06s**.
 
 ### Hito: Implementación Integral v3.0 — Fases 1 a 5 Completadas, Blindaje de Red, Concurrencia Async, Robustez, Compatibilidad SDK y Validación Simulada 100%
 - **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol & Types Specialist), Agente 2 (Concurrency & Resilience Architect), Agente 4 (Web UI/UX Specialist), Agente 5 (Security Auditor).

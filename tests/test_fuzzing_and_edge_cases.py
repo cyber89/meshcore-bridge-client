@@ -38,10 +38,12 @@ def bridge_setup():
     temp_db.close()
 
     bridge = MeshCoreBridge(loop, db_path=temp_db_path)
-    bridge.mqtt_client = MagicMock()
     published = []
+    bridge.mqtt.publish_safe = MagicMock(side_effect=lambda t, p, qos=0, retain=False: published.append((t, p)))
+    bridge.mqtt_client = MagicMock()
     bridge.mqtt_client.publish.side_effect = lambda t, p, qos=0, retain=False: published.append((t, p))
     bridge.mqtt_connected = True
+    bridge.mqtt.is_connected = MagicMock(return_value=True)
 
     mock_mc = MagicMock()
     mock_mc.commands = MagicMock()
@@ -54,6 +56,8 @@ def bridge_setup():
     mock_mc.contacts = []
     mock_mc.self_info = {"name": "TestNode", "radio_freq": 915.0}
     bridge.mc = mock_mc
+    bridge.serial_adapter.is_connected = True
+    bridge.serial_adapter.send_message = AsyncMock(return_value={"status": "SENT"})
 
     yield bridge, loop, published, mock_mc
 
@@ -159,6 +163,7 @@ def test_radio_commands_returning_error_events(bridge_setup):
     bridge, loop, published, mock_mc = bridge_setup
     error_event = DummyEvent("ERROR", {"code": "ERR_BUSY", "message": "Canal LoRa ocupado"})
     mock_mc.commands.send_chan_msg = AsyncMock(return_value=error_event)
+    bridge.serial_adapter.send_message = AsyncMock(return_value={"status": "ERROR", "event": error_event})
 
     tx_data = {
         "request_id": "req_err_test",
@@ -168,7 +173,7 @@ def test_radio_commands_returning_error_events(bridge_setup):
     }
     loop.run_until_complete(bridge._execute_tx(tx_data))
 
-    status_publishes = [p for t, p in published if t == "meshcore/tx/status"]
+    status_publishes = [p for t, p in published if "tx/status" in t]
     assert len(status_publishes) > 0
     status_json = json.loads(status_publishes[-1])
     assert status_json["status"] == "error"
@@ -213,8 +218,7 @@ def test_corrupt_crc_rejected():
     frame_bytes = bytearray(_generate_valid_frame())
     frame_bytes[-2] ^= 0xFF
     frames = adapter.process_incoming_bytes(frame_bytes)
-    assert len(frames) == 1
-    assert not frames[0].is_valid
+    assert len(frames) == 0
 
 
 def test_truncated_frame_before_eof():

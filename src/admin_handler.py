@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import config
-from src.contact_manager import NodeContactUpdate, NodeRegistry, PacketRecord
+from src.contact_manager import NodeContactUpdate, NodeRegistry
 from src.mqtt_client import AsyncBridgeMQTTClient
 from src.repeater_manager import RepeaterManager
 
@@ -567,7 +567,7 @@ class AdminCommandHandler:
                     rssi_val = resp_data.get("rssi")
                     if rssi_val is None and target_info:
                         rssi_val = target_info.get("last_rssi")
-                    
+
                     bat_val = target_info.get("battery_pct") if target_info else None
 
                     res.update({
@@ -752,7 +752,7 @@ class AdminCommandHandler:
                 await asyncio.sleep(0.35)
 
             cmd_text = self._ctx.repeater_manager.build_repeater_command_payload(action, admin_data)
-            
+
             if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_cmd"):
                 try:
                     await mc.commands.send_cmd(dest_target, cmd_text)

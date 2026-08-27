@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 from src.web.http_server import MeshCoreWebServer
 
 
-class TestWebSocketLive(unittest.TestCase):
+class TestWebSocketLive(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         self.mock_bridge = MagicMock()
         self.mock_bridge.node_registry = MagicMock()
@@ -28,14 +28,14 @@ class TestWebSocketLive(unittest.TestCase):
         # Contenido
         self.assertEqual(frame[2:], payload)
 
-    def test_broadcast_event_queues_to_router(self) -> None:
+    async def test_broadcast_event_queues_to_router(self) -> None:
         event = {
             "event_type": "public",
             "sender": "feedface0001",
             "text": "Mensaje de prueba",
             "timestamp": "2026-08-17T20:00:00Z",
         }
-        self.server.broadcast_event(event)
+        await self.server.broadcast_event(event)
 
         # Debe registrarse en recent_messages del router
         self.assertEqual(len(self.server.router.recent_messages), 1)

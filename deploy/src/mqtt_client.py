@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
+import config
+
 try:
     import paho.mqtt.client as _paho_mqtt
     mqtt: Any = _paho_mqtt

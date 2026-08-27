@@ -167,8 +167,7 @@ class CayenneLPPDecoder:
         Retorna al decoder manual si hay problemas o para compatibilidad.
         """
         try:
-            from cayennelpp import LppFrame, LppData
-            import json
+            from cayennelpp import LppData
             # Verificación rápida con la librería oficial
             i = 0
             buf = bytes(data)

@@ -2,7 +2,9 @@
 Utilidades comunes para procesamiento de eventos MeshCore Bridge.
 """
 from __future__ import annotations
+
 from typing import Any
+
 
 def extract_sender_from_payload(data: dict[str, Any]) -> tuple[str, str]:
     """Extrae el (sender_key, sender_name) de un payload de evento.
@@ -32,7 +34,7 @@ def extract_sender_from_payload(data: dict[str, Any]) -> tuple[str, str]:
         or (data.get("payload", {}) if isinstance(data.get("payload"), dict) else {}).get("pubkey_pre")
         or ""
     )
-    
+
     name_cand = (
         data.get("sender_name")
         or data.get("adv_name")
@@ -45,5 +47,5 @@ def extract_sender_from_payload(data: dict[str, Any]) -> tuple[str, str]:
         or (data.get("payload", {}) if isinstance(data.get("payload"), dict) else {}).get("sender_name")
         or ""
     )
-    
+
     return str(sender_cand).strip(), str(name_cand).strip()

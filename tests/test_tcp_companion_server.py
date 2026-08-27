@@ -1,4 +1,4 @@
-﻿"""
+"""
 Unit and Integration tests for MeshCoreCompanionServer (TCP Companion Protocol).
 Valida el ciclo de vida del servidor TCP en el puerto companion, de-framing
 con delimitadores 0x3C y 0x3E, gestión de clientes concurrentes, descarte de basura
@@ -98,7 +98,7 @@ class TestMeshCoreCompanionServer(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0.05)
 
         out_payload = b"\x10\x20\x30\x40"
-        self.server.broadcast_companion_frame(out_payload)
+        await self.server.broadcast_companion_frame(out_payload)
 
         # Leer respuesta esperada '>' (0x3E) + len uint16 + payload
         resp_hdr = await reader.readexactly(3)
@@ -112,7 +112,7 @@ class TestMeshCoreCompanionServer(unittest.IsolatedAsyncioTestCase):
         # Probar send_frame_to_client
         active_writer = next(iter(self.server.active_clients))
         direct_payload = b"\x99\x88\x77"
-        self.server.send_frame_to_client(active_writer, direct_payload)
+        await self.server.send_frame_to_client(active_writer, direct_payload)
 
         direct_hdr = await reader.readexactly(3)
         self.assertEqual(direct_hdr[0], FRAME_RADIO_TO_APP)

@@ -9,6 +9,8 @@ from __future__ import annotations
 import abc
 import asyncio
 import logging
+import os
+import re
 import time
 from collections.abc import Callable
 from typing import Any
@@ -18,9 +20,9 @@ from src.protocol_types import (
     ESC_BYTE,
     ESC_MASK,
     SOF_BYTE,
+    FirmwareAdvertType,
     MeshcoreFrame,
     MeshCoreSDKProtocol,
-    FirmwareAdvertType,
 )
 
 try:
@@ -174,11 +176,8 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             logging.warning("SDK meshcore_py no disponible en el entorno.")
             return False
 
-        if getattr(self, "_connect_task", None) and not self._connect_task.done():
-            self._connect_task.cancel()
-
-        self._connect_task = asyncio.create_task(self._connect_with_stabilization())
-        return True
+        await self._connect_with_stabilization()
+        return self.is_connected
 
     async def _connect_with_stabilization(self) -> None:
         if self.mc is not None or self.is_connected:
@@ -534,7 +533,6 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
     async def set_channel(self, index: int, name: str, psk: str) -> dict[str, Any]:
         """Configura un canal en el firmware del transceptor serial."""
-        import re
         if not re.match(r'^[a-fA-F0-9]{0,64}$', psk):
             raise ValueError("Invalid PSK format")
         if not (0 <= index <= 15):
@@ -651,7 +649,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                             role = advert_type.name
                         except ValueError:
                             role = "UNKNOWN"
-                        
+
                         imported_contacts.append({
                             "public_key": pk,
                             "name": adv_name,

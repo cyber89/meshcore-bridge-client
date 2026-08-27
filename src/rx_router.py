@@ -18,20 +18,18 @@ from src.contact_manager import (
     NodeContactUpdate,
     NodeRegistry,
     PacketRecord,
-    is_valid_node_key,
     _safe_int,
-    _safe_float,
+    is_valid_node_key,
 )
+from src.deduplicator import PacketDeduplicator
+from src.lqi_engine import LinkQualityEngine
 from src.mqtt_client import AsyncBridgeMQTTClient
 from src.protocol_types import MeshcoreFrame, OpCode, TextMessagePayload
 from src.repeater_manager import RepeaterManager
 from src.sensor_decoder import (
-    CayenneLPPDecoder,
     extract_telemetry_fields,
     format_telemetry_summary,
 )
-from src.deduplicator import PacketDeduplicator
-from src.lqi_engine import LinkQualityEngine
 
 _SENDER_PREFIX_RE = re.compile(r"^([a-zA-Z0-9_\-\.]{2,32}):\s*(.*)$", re.DOTALL)
 
@@ -719,12 +717,12 @@ class RxEventRouter:
             "telemetry": extracted_telem if extracted_telem else None,
             "timestamp": now_iso,
         }
-        
+
         evt_json = json.dumps(evt_payload, sort_keys=True)
         self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
         if self._ctx.web_server:
             asyncio.create_task(self._ctx.web_server.broadcast_event(evt_payload))
-            
+
         return evt_payload
 
     async def _handle_mesh_channel_msg(self, msg: MeshMessageEvent) -> None:

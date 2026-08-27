@@ -667,7 +667,7 @@ class MeshCoreBridge:
         """Punto de entrada síncrono que corre el bucle asyncio con manejo de señales."""
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        
+
         if getattr(config, "LOG_LEVEL", "INFO") == "DEBUG":
             loop.set_debug(True)
             logging.getLogger("asyncio").setLevel(logging.DEBUG)
@@ -689,11 +689,11 @@ class MeshCoreBridge:
             logging.info("Interrupción por usuario recibida.")
         finally:
             loop.run_until_complete(self.stop())
-            
+
             pending = [t for t in asyncio.all_tasks(loop) if not t.done()]
             if pending:
                 for task in pending:
                     task.cancel()
                 loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-                
+
             loop.close()

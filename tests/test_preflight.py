@@ -2,8 +2,6 @@
 Unit tests for Preflight Diagnostics Engine.
 """
 
-import os
-import tempfile
 import unittest
 
 from src.preflight import PreflightChecker

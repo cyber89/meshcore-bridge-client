@@ -6,11 +6,13 @@ telemetría, métricas analíticas avanzadas y consola de logs.
 
 from __future__ import annotations
 
+import asyncio
 import collections
 import logging
 import time
 from datetime import datetime
 from typing import Any
+
 from src.contact_manager import NodeContactUpdate, PacketRecord, is_valid_node_key
 from src.sensor_decoder import extract_telemetry_fields
 
@@ -26,6 +28,14 @@ class WebAPIRouter:
         self.recent_messages: collections.deque[dict[str, Any]] = collections.deque(maxlen=200)
         self.recent_telemetry: collections.deque[dict[str, Any]] = collections.deque(maxlen=200)
         self.recent_system_logs: collections.deque[dict[str, Any]] = collections.deque(maxlen=300)
+
+    def _notify_web_clients(self, event: dict[str, Any]) -> None:
+        """Emite eventos en tiempo real a clientes WebSocket manejando corutinas y mocks síncronos."""
+        web = getattr(self.bridge, "web_server", None)
+        if web and hasattr(web, "broadcast_event"):
+            res = web.broadcast_event(event)
+            if asyncio.iscoroutine(res):
+                asyncio.create_task(res)
 
     def log_system_event(self, level: str, message: str, source: str = "bridge") -> None:
         """Registra un evento interno en el búfer de logs del sistema."""
@@ -187,10 +197,10 @@ class WebAPIRouter:
 
             if method == "GET" and clean_path == "/api/nodes":
                 all_nodes = self.bridge.node_registry.list_nodes()
-                
+
                 limit = int(req_body.get('limit', 100)) if 'limit' in req_body else 100
                 offset = int(req_body.get('offset', 0)) if 'offset' in req_body else 0
-                
+
                 # Check for query params if not in body
                 if "?" in path:
                     query_str = path.split("?", 1)[1]
@@ -204,8 +214,8 @@ class WebAPIRouter:
 
                 nodes_page = all_nodes[offset:offset+limit]
                 return 200, {
-                    "status": "ok", 
-                    "data": nodes_page, 
+                    "status": "ok",
+                    "data": nodes_page,
                     "count": len(nodes_page),
                     "total_count": len(all_nodes),
                     "limit": limit,
@@ -646,9 +656,7 @@ class WebAPIRouter:
                     logging.debug(f"Error enviando contacto al transceptor serial: {e}")
 
             # Notificar a los clientes WebSocket en tiempo real
-            web = getattr(self.bridge, "web_server", None)
-            if web:
-                asyncio.create_task(web.broadcast_event({"type": "contacts_updated", "data": self.bridge.node_registry.list_nodes()}))
+            self._notify_web_clients({"type": "contacts_updated", "data": self.bridge.node_registry.list_nodes()})
 
             self.log_system_event("INFO", f"Contacto guardado: {pubkey} ({alias or name})", source="contacts")
             return 200, {"status": "ok", "data": contact.to_dict()}
@@ -664,9 +672,7 @@ class WebAPIRouter:
 
             if pubkey and pubkey in self.bridge.node_registry._nodes_by_key:
                 del self.bridge.node_registry._nodes_by_key[pubkey]
-                web = getattr(self.bridge, "web_server", None)
-                if web:
-                    asyncio.create_task(web.broadcast_event({"type": "contacts_updated", "data": self.bridge.node_registry.list_nodes()}))
+                self._notify_web_clients({"type": "contacts_updated", "data": self.bridge.node_registry.list_nodes()})
                 return 200, {"status": "ok", "message": f"Contacto {pubkey} eliminado"}
             return 404, {"status": "error", "message": "Contacto no encontrado"}
 
@@ -722,9 +728,7 @@ class WebAPIRouter:
                 except Exception as e:
                     logging.debug(f"Error despachando canal al transceptor serial: {e}")
 
-            web = getattr(self.bridge, "web_server", None)
-            if web:
-                asyncio.create_task(web.broadcast_event({"type": "channels_updated", "data": list(self.channels.values())}))
+            self._notify_web_clients({"type": "channels_updated", "data": list(self.channels.values())})
 
             self.log_system_event("INFO", f"Canal {idx} configurado: {name}", source="channels")
             return 200, {"status": "ok", "data": self.channels[idx]}
@@ -744,9 +748,7 @@ class WebAPIRouter:
                         await ser.set_channel(idx, "", "")
                     except Exception as e:
                         logging.debug(f"Error limpiando canal en transceptor serial: {e}")
-                web = getattr(self.bridge, "web_server", None)
-                if web:
-                    asyncio.create_task(web.broadcast_event({"type": "channels_updated", "data": list(self.channels.values())}))
+                self._notify_web_clients({"type": "channels_updated", "data": list(self.channels.values())})
                 return 200, {"status": "ok", "message": f"Canal {idx} eliminado"}
             return 404, {"status": "error", "message": "Canal no encontrado"}
 
@@ -809,8 +811,8 @@ class WebAPIRouter:
             all_messages = list(self.recent_messages)
             msgs_page = all_messages[offset:offset+limit]
             return 200, {
-                "status": "ok", 
-                "data": msgs_page, 
+                "status": "ok",
+                "data": msgs_page,
                 "count": len(msgs_page),
                 "total_count": len(all_messages),
                 "limit": limit,
@@ -820,8 +822,8 @@ class WebAPIRouter:
             all_telemetry = list(self.recent_telemetry)
             telem_page = all_telemetry[offset:offset+limit]
             return 200, {
-                "status": "ok", 
-                "data": telem_page, 
+                "status": "ok",
+                "data": telem_page,
                 "count": len(telem_page),
                 "total_count": len(all_telemetry),
                 "limit": limit,

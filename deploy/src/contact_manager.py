@@ -10,9 +10,9 @@ import heapq
 import json
 import logging
 import os
-from pathlib import Path
 import time
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any
 
 from src.lqi_engine import LinkQualityEngine, LQIStatus
@@ -777,7 +777,7 @@ class NodeRegistry:
         if not target_path.is_file():
             return 0
         try:
-            with open(target_path, "r", encoding="utf-8") as f:
+            with open(target_path, encoding="utf-8") as f:
                 data = json.load(f)
             loaded_count = 0
             raw_nodes = data.get("nodes", [])
@@ -788,7 +788,7 @@ class NodeRegistry:
                 # Asegurar que neighbors sea una tupla
                 raw_neighbors = nd.get("neighbors", ())
                 neighbors_tuple = tuple(raw_neighbors) if isinstance(raw_neighbors, (list, tuple)) else ()
-                
+
                 # Construir campos de NodeContactInfo
                 contact = NodeContactInfo(
                     public_key=str(pk).strip().lower(),

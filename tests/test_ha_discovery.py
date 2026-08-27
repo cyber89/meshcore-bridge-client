@@ -4,7 +4,8 @@ Verifies telemetry tracking in RAM.
 """
 
 import unittest
-from src.contact_manager import NodeRegistry, NodeContactUpdate
+
+from src.contact_manager import NodeContactUpdate, NodeRegistry
 
 
 class TestNodeRegistryTelemetry(unittest.TestCase):

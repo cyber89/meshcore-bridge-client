@@ -4,11 +4,10 @@ Valida el cálculo de LQI instantáneo, suavizado EMA, decaimiento por inactivid
 clasificación cualitativa, selección óptima de ruta e integración con NodeRegistry.
 """
 
-import time
 import unittest
 
 from src.contact_manager import NodeContactUpdate, NodeRegistry
-from src.lqi_engine import LinkMetrics, LinkQualityEngine, LQIStatus
+from src.lqi_engine import LinkQualityEngine, LQIStatus
 
 
 class TestLinkQualityEngine(unittest.TestCase):

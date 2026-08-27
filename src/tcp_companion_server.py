@@ -157,10 +157,10 @@ class MeshCoreCompanionServer:
         if len(self.active_clients) >= max_clients:
             writer.close()
             return
-            
+
         peer = writer.get_extra_info("peername")
         peer_str = f"{peer[0]}:{peer[1]}" if peer else "desconocido"
-        
+
         allowed_ips = [ip.strip() for ip in os.getenv("COMPANION_ALLOWED_IPS", "").split(",") if ip.strip()]
         if allowed_ips and peer and peer[0] not in allowed_ips:
             writer.close()

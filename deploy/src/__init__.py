@@ -5,6 +5,7 @@ Puente determinista y asíncrono entre hardware LoRa MeshCore, MQTT/n8n y Servid
 
 from src.bridge_core import MeshCoreBridge
 from src.contact_manager import NodeContactInfo, NodeRegistry
+from src.deduplicator import PacketDeduplicator
 from src.mqtt_client import AsyncBridgeMQTTClient
 from src.protocol_types import (
     AckPayload,
@@ -31,7 +32,6 @@ from src.serial_driver import (
     RawSerialFramingAdapter,
     SerialWatchdog,
 )
-from src.deduplicator import PacketDeduplicator
 from src.tcp_companion_server import MeshCoreCompanionServer
 from src.virtual_mesh_adapter import VirtualMeshAdapter
 from src.web.api_router import WebAPIRouter
@@ -59,6 +59,8 @@ __all__ = [
     "CayenneLPPDecoder",
     "LppDataType",
     "SensorReading",
+    "extract_telemetry_fields",
+    "format_telemetry_summary",
     "OpCode",
     "HardwareModel",
     "FrameHeader",

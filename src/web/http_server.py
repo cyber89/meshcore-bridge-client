@@ -111,13 +111,13 @@ class MeshCoreWebServer:
                 self.active_websockets.discard(writer)
                 try:
                     writer.close()
-                except:
+                except Exception:
                     pass
             except Exception:
                 self.active_websockets.discard(writer)
                 try:
                     writer.close()
-                except:
+                except Exception:
                     pass
 
     def _build_websocket_frame(self, data: bytes) -> bytes:
@@ -248,7 +248,7 @@ class MeshCoreWebServer:
         if any(path.startswith(p) for p in protected_prefixes):
             if not (path.startswith("/api/nodes") and method == "GET"):
                 needs_auth = True
-        
+
         if needs_auth:
             if not api_key:
                 logging.warning("BRIDGE_API_KEY no configurada, omitiendo autenticación (modo desarrollo)")

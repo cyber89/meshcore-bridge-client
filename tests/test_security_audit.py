@@ -4,8 +4,6 @@ Verifica resistencia contra SQL Injection, Directory Traversal, DoS por Payload 
 XSS y presencia de cabeceras de seguridad HTTP.
 """
 
-import os
-import tempfile
 import unittest
 from unittest.mock import AsyncMock, MagicMock
 

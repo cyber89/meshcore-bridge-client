@@ -4,24 +4,16 @@ Verifica que el sistema detecte y rechace mutaciones de tramas, inversión de bi
 mutaciones de opcodes, corrupción de checksums y alteración de secuencias de escape.
 """
 
-import struct
 import unittest
 
+from src.deduplicator import PacketDeduplicator
 from src.protocol_types import (
-    AckPayload,
-    EOF_BYTE,
     ESC_BYTE,
     FrameHeader,
-    HardwareModel,
     MeshcoreFrame,
-    NodeAdvertisement,
     OpCode,
-    SOF_BYTE,
-    TelemetryPayload,
     TextMessagePayload,
-    compute_crc16_ccitt,
 )
-from src.deduplicator import PacketDeduplicator
 from src.sensor_decoder import CayenneLPPDecoder
 
 
