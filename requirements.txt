@@ -5,4 +5,4 @@ python-dotenv>=1.0.0
 pyserial>=3.5
 pyserial-asyncio>=0.6
 cryptography>=41.0.0
-cayennelpp>=1.1.0
+pycayennelpp>=1.1.0
