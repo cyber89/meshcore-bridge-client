@@ -4233,6 +4233,30 @@ class MeshCoreStationApp {
 
         const msgId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
         const canonicalTarget = this.activeDmTarget ? this.resolveCanonicalPubkey(this.activeDmTarget) : null;
+        if (canonicalTarget) {
+          const normTarget = canonicalTarget.toLowerCase().trim();
+          const localPk = (this.localNodePubkey || "").toLowerCase().trim();
+          const isLocalTarget = Boolean(canonicalTarget === "local") || (localPk && (
+            normTarget === localPk ||
+            (localPk.length >= 8 && normTarget.startsWith(localPk.slice(0, 8))) ||
+            (normTarget.length >= 8 && localPk.startsWith(normTarget.slice(0, 8)))
+          ));
+          if (isLocalTarget) {
+            this.showToast("No se puede enviar mensajes de chat hacia el nodo local", "warning");
+            return;
+          }
+
+          const targetNode = this.knownNodes.get(canonicalTarget) || this.knownNodes.get(normTarget);
+          const targetNameUpper = (targetNode?.alias || targetNode?.name || "").toUpperCase();
+          const isRepeaterTarget = targetNode?.role === "REPEATER" || targetNode?.role === "ROUTER" || targetNode?.type === 2 || targetNode?.adv_type === 2 ||
+            targetNameUpper.startsWith("R-") || targetNameUpper.startsWith("R1-") || targetNameUpper.startsWith("R2-") || targetNameUpper.startsWith("R3-") ||
+            targetNameUpper.startsWith("REP-") || targetNameUpper.startsWith("ROUTER-") || targetNameUpper.startsWith("REP_") || targetNameUpper.startsWith("ROUTER_") ||
+            targetNameUpper.includes("REPEATER") || targetNameUpper.includes("ROUTER") || targetNameUpper.includes("REPETIDOR");
+          if (isRepeaterTarget) {
+            this.showToast("Los repetidores son infraestructura de red y no admiten mensajería de chat", "warning");
+            return;
+          }
+        }
         const target = canonicalTarget || "broadcast";
 
         // Detección de mensaje de coordenadas
@@ -4515,9 +4539,21 @@ class MeshCoreStationApp {
       return;
     }
 
+    const canonicalPk = this.resolveCanonicalPubkey(pubkey);
+    const targetNode = this.knownNodes.get(canonicalPk) || this.knownNodes.get(norm);
+    const targetNameUpper = (name || targetNode?.alias || targetNode?.name || "").toUpperCase();
+    const isRepeater = targetNode?.role === "REPEATER" || targetNode?.role === "ROUTER" || targetNode?.type === 2 || targetNode?.adv_type === 2 ||
+      targetNameUpper.startsWith("R-") || targetNameUpper.startsWith("R1-") || targetNameUpper.startsWith("R2-") || targetNameUpper.startsWith("R3-") ||
+      targetNameUpper.startsWith("REP-") || targetNameUpper.startsWith("ROUTER-") || targetNameUpper.startsWith("REP_") || targetNameUpper.startsWith("ROUTER_") ||
+      targetNameUpper.includes("REPEATER") || targetNameUpper.includes("ROUTER") || targetNameUpper.includes("REPETIDOR");
+
+    if (isRepeater) {
+      this.showToast("Los repetidores son infraestructura de red y no admiten mensajería de chat", "warning");
+      return;
+    }
+
     const navBtn = document.querySelector('.nav-btn[data-tab="tab-chat"]');
     if (navBtn) navBtn.click();
-    const canonicalPk = this.resolveCanonicalPubkey(pubkey);
     this.conversationsWithMessages.add(canonicalPk);
     this.addDmContact(canonicalPk, name);
     this.setDmTarget(canonicalPk, name);
@@ -6305,21 +6341,21 @@ class MeshCoreStationApp {
       const hasGps = lat !== null && lon !== null && lat >= -90.0 && lat <= 90.0 && lon >= -180.0 && lon <= 180.0 && !(lat === 0.0 && lon === 0.0);
       const isSelected = this.selectedMapNodePk === node.public_key;
 
-      // 1. Renderizar en la pestaña "Contactos" (todos los nodos remotos de la libreta)
-      if (contactsGrid && !isLocal) {
+      // 1. Renderizar en la pestaña "Contactos" (SOLO clientes de mensajería; NUNCA repetidores ni nodo local)
+      if (contactsGrid && !isLocal && !isRepeater && !isRoom && !isSensor) {
         clientContactCount++;
         const cCard = document.createElement("div");
         cCard.className = `contact-card ${isOffline ? "contact-card-offline" : ""}`;
         cCard.setAttribute("data-pk", node.public_key);
-        cCard.setAttribute("data-search", `${cleanName} ${node.public_key} ${roleStr}`.toLowerCase());
+        cCard.setAttribute("data-search", `${cleanName} ${node.public_key} CLIENT`.toLowerCase());
         cCard.setAttribute("data-has-gps", String(hasGps));
         cCard.setAttribute("data-is-fav", String(Boolean(node.is_favorite)));
 
-        const avatarClass = isSensor ? "avatar-sensor" : (isRepeater ? "avatar-repeater" : (isRoom ? "avatar-room" : "avatar-client"));
-        const avatarIcon = isSensor ? "📡" : (isRepeater ? "🏔️" : (isRoom ? "🏠" : "👤"));
-        const roleLabel = isSensor ? "SENSOR" : (isRepeater ? "REPEATER" : (isRoom ? "ROOM" : "CLIENT"));
-        const roleBadgeClass = isSensor ? "role-sensor" : (isRepeater ? "role-repeater" : (isRoom ? "role-room" : "role-client"));
-        const typeDesc = isSensor ? "📡 Sensor de Telemetría" : (isRepeater ? "🏔️ Router de Malla LoRa" : (isRoom ? "🏠 Servidor de Sala" : "📱 Dispositivo Cliente MeshCore"));
+        const avatarClass = "avatar-client";
+        const avatarIcon = "👤";
+        const roleLabel = "CLIENT";
+        const roleBadgeClass = "role-client";
+        const typeDesc = "📱 Dispositivo Cliente MeshCore";
 
         const batChipHtml = hasRealBat
           ? `<span class="contact-battery-chip" title="Nivel de batería">🔋 ${batVal}</span>`
@@ -6354,8 +6390,8 @@ class MeshCoreStationApp {
               <span class="node-meta-highlight color-cyan">${hasGps ? `GPS: ${lat.toFixed(3)}, ${lon.toFixed(3)}` : 'Punto a Punto'}</span>
             </div>
             <div class="node-meta-sub">
-              <span>Actividad: ${timeAgoStr}</span>
-              <span>Enlace: RF Directo</span>
+              <span>Ruta: ${this.escapeHtml(node.best_route || 'Directa')}</span>
+              <span>LQI: ${Math.round(node.lqi_score || 100)}%</span>
             </div>
           </div>
           <div class="contact-card-chips">
@@ -6364,7 +6400,6 @@ class MeshCoreStationApp {
             <span class="stat-pill" title="Saltos de retransmisión">🦘 <strong>${hopsVal}</strong></span>
           </div>
           <div class="contact-card-actions">
-            ${isRepeater ? '<button type="button" class="btn-primary btn-sm btn-manage-node-repeater" title="Administrar parámetros del repetidor">🎛️ Administrar</button>' : ''}
             <button type="button" class="btn-primary btn-sm btn-contact-dm" title="Abrir chat en Mensajería">💬 Iniciar Chat DM</button>
             <button type="button" class="btn-secondary btn-sm btn-node-ping-zero" title="Hacer Ping directo (Hop 0)">🎯 Ping</button>
             <button type="button" class="btn-secondary btn-sm btn-contact-qr" title="Exportar tarjeta o código QR">📤 QR</button>
@@ -6381,11 +6416,6 @@ class MeshCoreStationApp {
           });
         }
 
-        const btnManageContact = cCard.querySelector(".btn-manage-node-repeater");
-        if (btnManageContact) {
-          btnManageContact.addEventListener("click", (e) => {
-            e.stopPropagation();
-            this.openRepeaterAdminModal(node.public_key, cleanName);
           });
         }
 
@@ -6505,7 +6535,6 @@ class MeshCoreStationApp {
             <button type="button" class="btn-primary btn-sm btn-node-primary btn-manage-node-repeater">🎛️ Administrar</button>
             <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-ping-zero" title="Hacer Ping directo (Hop 0)">🎯 Ping</button>
             <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
-            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-client-dm" title="Abrir chat en Mensajería">💬 Chat</button>
             ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">🗺️ Mapa</button>` : ''}
           `;
         } else if (isSensor) {

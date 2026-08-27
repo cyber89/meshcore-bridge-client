@@ -17,6 +17,23 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
 
 ---
 
+## 1.1 Reglas y Restricciones Inmutables de Protocolo, Contactos y Mensajería (SSoT)
+
+1. **Restricción Estricta de Dispositivos Repetidores (`REPEATER` / `ROUTER`)**:
+   - **NUNCA** incluir un dispositivo de tipo repetidor en la libreta de **Contactos** (`#tab-contacts` / `NodeRegistry.list_client_contacts()`). Los repetidores son nodos de infraestructura de red que pertenecen exclusivamente a la vista unificada **Nodos** (`#unifiedNodesGridUi`) y a la **Analítica**.
+   - **NUNCA** permitir el envío de mensajería de chat (ni por canales broadcast ni por mensajería directa DM) hacia un repetidor. Los repetidores no poseen interfaz de chat de usuario ni procesan mensajería de texto; su interacción es exclusivamente administrativa (`🎛️ Administrar`, `🎯 Ping (Hop 0)`, `🗺️ Traceroute`, telemetría y comandos remotos).
+2. **Restricción Estricta del Nodo Local (`LOCAL` / Estación Base Host)**:
+   - **NUNCA** incluir la estación base o transceptor local en la libreta de **Contactos** ni duplicarlo como vecino de la malla.
+   - **NUNCA** permitir el envío de mensajería de ningún tipo dirigida a la propia clave pública del nodo local (bucle local prohibido).
+3. **Identificación Canónica basada en la Pila Oficial MeshCore**:
+   - Utilizar **SIEMPRE la especificación binaria y de opcodes de la pila oficial de MeshCore** (`reference/meshcore/`, `AdvertDataHelpers.h`, `FirmwareAdvertType`, `protocol_types.py`) para clasificar e identificar cada dispositivo en la red:
+     - `FirmwareAdvertType.NONE (0)` / `CHAT (1)` $\to$ Rol `CLIENT` (Dispositivo de usuario / Mensajería).
+     - `FirmwareAdvertType.REPEATER (2)` $\to$ Rol `REPEATER` (Router / Repetidor de infraestructura).
+     - `FirmwareAdvertType.ROOM (3)` $\to$ Rol `ROOM` (Servidor de sala comunitaria / BBS).
+     - `FirmwareAdvertType.SENSOR (4)` $\to$ Rol `SENSOR` (Dispositivo de telemetría).
+
+---
+
 ## 2. Orquestación y Definición de Agentes
 
 ### Agente 0: Lead Orchestrator & System Architect Agent (Agente Principal)

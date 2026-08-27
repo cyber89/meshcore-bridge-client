@@ -6,6 +6,27 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Establecimiento de Restricciones Inmutables de Contactos, Repetidores y Mensajería según la Pila MeshCore
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect).
+- **Requerimiento del Usuario**:
+  - Un dispositivo repetidor **NUNCA** será incluido en Contactos y **NUNCA** se le podrá enviar mensajería (ni por canales ni directa DM).
+  - Un nodo local **NUNCA** aparecerá en Contactos y **NUNCA** se puede usar mensajería hacia sí mismo.
+  - Utilizar **SIEMPRE la pila oficial de MeshCore** (`reference/meshcore/`, `AdvertDataHelpers.h`, `FirmwareAdvertType`) para identificar los distintos tipos de dispositivos.
+- **Acciones y Restricciones Formalizadas**:
+  1. **Documentación Formal SSoT**:
+     - Actualizados `AGENTS.md` (Sección 1.1), `docs/PROTOCOL_SPEC.md` (Sección 12) y `docs/ARCHITECTURE.md` (Sección 2.7.2).
+  2. **Aislamiento en `NodeRegistry` (`src/contact_manager.py`)**:
+     - Métodos `is_repeater_key()` y `list_client_contacts()` para garantizar que la libreta cliente contenga única y exclusivamente nodos `CLIENT`.
+  3. **Blindaje de Transmisión en Backend (`src/bridge_core.py`)**:
+     - `_execute_tx` rechaza intentos de enviar mensajes de chat hacia repetidores o hacia la estación base local.
+  4. **Blindaje de Interfaz Web SPA (`src/web/static/js/app.js`)**:
+     - La pestaña `#tab-contacts` filtra estrictamente clientes (`!isRepeater && !isLocal && !isRoom && !isSensor`).
+     - En la vista `#unifiedNodesGridUi`, las tarjetas de repetidor disponen de `🎛️ Administrar`, `🎯 Ping` y `🗺️ Ruta`, habiéndose eliminado el botón `💬 Chat`.
+     - `openDmConversation` y el formulario de chat bloquean el inicio o envío de mensajes a repetidores y al nodo local con avisos Toast explicativos.
+- **Módulos Modificados**: `AGENTS.md`, `docs/PROTOCOL_SPEC.md`, `docs/ARCHITECTURE.md`, `src/contact_manager.py`, `src/bridge_core.py`, `src/web/static/js/app.js`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Protección Estricta de Rol de Repetidor y Conversión Universal de Telemetría de Batería
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO

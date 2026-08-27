@@ -147,6 +147,15 @@ Para garantizar que el conteo de nodos en la malla refleje con fidelidad absolut
 3. **Persistencia Limpia**: Al guardar en disco (`save_to_file`), únicamente se serializan los nodos devueltos por `list_nodes()`, evitando que duplicados efímeros queden fijados en `data/node_registry.json`.
 4. **Deduplicación Reactiva en Frontend**: `app.js` (`renderNodesDirectory`) centraliza en `this.knownNodes` únicamente claves canónicas resueltas, fusiona la estación local contra `localNodePubkey` / `localNodeName` y sincroniza el chip `#headerNodeCount` y los filtros de cuadrícula con el conteo deduplicado real.
 
+#### 2.7.2 Fronteras de Rol y Restricciones Inmutables de Contactos y Mensajería
+1. **Aislamiento de Repetidores de la Libreta de Contactos**:
+   - Los repetidores son infraestructura de transporte y **nunca se registran en la libreta cliente de Contactos (`#tab-contacts`)**.
+   - **Prohibición de Chat**: Queda prohibido el envío de mensajes de texto / chat (DM o Canales) hacia repetidores. Su interacción está limitada a gestión administrativa (`🎛️ Administrar`), sondeo de enlace (`🎯 Ping`), trazado multi-salto (`🗺️ Ruta`) y telemetría.
+2. **Aislamiento del Nodo Local**:
+   - La estación base local nunca aparece en la libreta de Contactos ni admite el envío de mensajería hacia su propia clave pública.
+3. **Mapeo Canónico con la Pila Oficial MeshCore**:
+   - Todo dispositivo se clasifica de acuerdo con `FirmwareAdvertType` (`NONE/CHAT` = `CLIENT`, `REPEATER` = `REPEATER`, `ROOM` = `ROOM`, `SENSOR` = `SENSOR`), garantizando que la telemetría periódica no degrade el rol de repetidores de infraestructura.
+
 ### 2.8 Cliente MQTT Resiliente (`src/mqtt_client.py`)
 - Conexión asíncrona compatible con `paho-mqtt` 2.x y `ReasonCode`.
 - Reconexión indefinida de 1s a 30s.

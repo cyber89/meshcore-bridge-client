@@ -792,6 +792,32 @@ class NodeRegistry:
 
         return result
 
+    def is_repeater_key(self, public_key: str) -> bool:
+        """Determina si una clave pública corresponde a un repetidor/router de infraestructura."""
+        if not public_key:
+            return False
+        contact = self.get_by_key_or_prefix(public_key)
+        if not contact:
+            return False
+        if contact.is_local or str(contact.role).upper() == "LOCAL":
+            return False
+        name_upper = (contact.alias or contact.name or "").upper()
+        role_upper = str(contact.role).upper()
+        return bool(
+            role_upper in ("REPEATER", "ROUTER")
+            or name_upper.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-", "REP_", "ROUTER_"))
+            or "REPEATER" in name_upper or "ROUTER" in name_upper or "REPETIDOR" in name_upper
+        )
+
+    def list_client_contacts(self) -> list[dict[str, Any]]:
+        """Retorna únicamente los contactos de tipo CLIENT (excluye repetidores, infraestructura y nodo local)."""
+        return [
+            n for n in self.list_nodes()
+            if not n.get("is_local")
+            and str(n.get("role", "")).upper() == "CLIENT"
+            and not self.is_repeater_key(str(n.get("public_key", "")))
+        ]
+
     def get_analytics_summary(self) -> dict[str, Any]:
         """Calcula el resumen analítico avanzado (Top Nodos, Top Clientes, Top Errores)."""
         nodes_list = [c.to_dict() for c in self._nodes_by_key.values()]

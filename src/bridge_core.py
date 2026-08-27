@@ -559,6 +559,26 @@ class MeshCoreBridge:
         else:
             text = str(item)
 
+        target_str = str(target).lower().strip()
+        is_broadcast = target_str in ("broadcast", "public", "0xffff", "") or target_str.startswith("channel")
+
+        # Validación de reglas inmutables de destinatario
+        if not is_broadcast:
+            if self.node_registry.is_local_key(target_str):
+                return {
+                    "status": "error",
+                    "error": "No se puede enviar mensajes de chat hacia el nodo local.",
+                    "request_id": req_id,
+                }
+            clean_txt = text.strip().lower()
+            is_admin_cmd = clean_txt.startswith(("login", "cmd", "set", "get", "reboot", "ping", "trace", "ver", "status", "info"))
+            if not is_admin_cmd and self.node_registry.is_repeater_key(target_str):
+                return {
+                    "status": "error",
+                    "error": "Los repetidores son nodos de infraestructura y no admiten mensajería de chat.",
+                    "request_id": req_id,
+                }
+
         async with self._tx_metrics_lock:
             self.tx_count += 1
         status_val = "sent"
@@ -567,7 +587,7 @@ class MeshCoreBridge:
         expected_ack_hex: str | None = None
         try:
             if self.serial_adapter and self.serial_adapter.is_connected:
-                target_arg = str(target) if target and str(target).lower() not in ("broadcast", "public", "0xffff") and not str(target).lower().startswith("channel") else None
+                target_arg = str(target) if not is_broadcast else None
                 send_res = await self.serial_adapter.send_message(text=text, target=target_arg, channel_idx=ch_idx)
                 if isinstance(send_res, dict):
                     expected_ack_hex = send_res.get("expected_ack")

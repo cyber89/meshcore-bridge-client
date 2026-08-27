@@ -297,3 +297,28 @@ MeshCore empaqueta lecturas de sensores ambientales utilizando el estándar bina
 | `meshcore/tx` | n8n $\to$ Bridge | Solicitud de transmisión: `{"text": "hola", "target": "broadcast", "channel_idx": 0}` |
 | `meshcore/tx/status` | Bridge $\to$ MQTT | ACK de envío: `{"status": "sent", "request_id": "req-1", "timestamp": "..."}` |
 | `meshcore/admin/cmd` | n8n $\to$ Bridge | Comando de administración: `{"action": "stats-radio", "target_node": "a1b2c3..."}` |
+
+---
+
+## 12. Reglas Inmutables de Tipología de Dispositivos, Contactos y Mensajería (SSoT)
+
+En total conformidad con el firmware oficial de MeshCore en C/C++ (`reference/meshcore/` y `AdvertDataHelpers.h`):
+
+### 12.1 Identificación Canónica según la Pila MeshCore
+Cada nodo de la red se clasifica formalmente por su tipo de anuncio (`FirmwareAdvertType` / `type` en el struct binario de 147 bytes):
+- **`FirmwareAdvertType.NONE (0)` / `CHAT (1)` $\to$ Rol `CLIENT`**: Dispositivos de usuario final capaces de intercambiar mensajes de texto directos (DM) y participar en canales.
+- **`FirmwareAdvertType.REPEATER (2)` $\to$ Rol `REPEATER`**: Nodos de infraestructura dedicados exclusivamente al enrutamiento de paquetes LoRa, retransmisión multi-salto y gestión remota.
+- **`FirmwareAdvertType.ROOM (3)` $\to$ Rol `ROOM`**: Servidores de sala comunitaria o BBS.
+- **`FirmwareAdvertType.SENSOR (4)` $\to$ Rol `SENSOR`**: Nodos de captura y telemetría ambiental (CayenneLPP).
+
+### 12.2 Restricción Estricta para Repetidores (`REPEATER`)
+1. **Exclusión Absoluta de la Libreta de Contactos**:
+   - Un repetidor **NUNCA debe ser incluido en la pestaña de Contactos (`#tab-contacts`)**. Los repetidores pertenecen exclusivamente a la vista global de **Nodos (`#unifiedNodesGridUi`)** y al panel de **Analítica**.
+2. **Prohibición Total de Mensajería de Chat**:
+   - **NUNCA se puede enviar mensajería de chat (ni directa DM ni por canales) hacia un repetidor**. Los repetidores carecen de interfaz de usuario de chat; su interacción se realiza únicamente a través de tramas de administración (`🎛️ Administrar`), sondeo de enlace (`🎯 Ping`), trazado de rutas (`🗺️ Traceroute`) y comandos CLI remotos (`login`, `cmd`).
+
+### 12.3 Restricción Estricta para el Nodo Local (`LOCAL`)
+1. **Exclusión de Contactos y Deduplicación**:
+   - El transceptor o estación base local **NUNCA aparecerá en la libreta de Contactos** ni como vecino remoto.
+2. **Prohibición de Mensajería hacia Sí Mismo**:
+   - **NUNCA se puede enviar mensajería de chat hacia la propia clave pública del nodo local** (bloqueo preventivo de bucle local).
