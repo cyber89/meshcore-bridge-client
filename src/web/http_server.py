@@ -386,6 +386,15 @@ class MeshCoreWebServer:
         """Verificación canónica: el archivo debe residir dentro del directorio estático."""
         return target_file.resolve().is_relative_to(self.static_dir.resolve())
 
+    HTTP_STATUS_TEXTS: dict[int, str] = {
+        200: "OK", 201: "Created", 204: "No Content",
+        301: "Moved Permanently", 304: "Not Modified",
+        400: "Bad Request", 401: "Unauthorized", 403: "Forbidden",
+        404: "Not Found", 405: "Method Not Allowed", 409: "Conflict",
+        413: "Payload Too Large", 422: "Unprocessable Entity", 429: "Too Many Requests",
+        500: "Internal Server Error", 503: "Service Unavailable",
+    }
+
     def _build_http_response(
         self,
         status_line: str,
@@ -395,6 +404,13 @@ class MeshCoreWebServer:
         cors_origin: str = "",
     ) -> bytes:
         """Construye una respuesta HTTP 1.1 con cabeceras de seguridad obligatorias."""
+        try:
+            status_code = int(status_line.split(" ")[0])
+            reason = self.HTTP_STATUS_TEXTS.get(status_code, "Unknown")
+            status_line = f"{status_code} {reason}"
+        except Exception:
+            pass
+
         headers = [
             f"Content-Length: {len(body)}",
             "X-Content-Type-Options: nosniff",

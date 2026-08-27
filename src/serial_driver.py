@@ -663,12 +663,12 @@ class RawSerialFramingAdapter(BaseSerialAdapter):
                     self._in_frame = False
                     if len(self._rx_buffer) >= 11:  # Min header (9) + CRC (2)
                         try:
-                            frame = MeshcoreFrame.parse_raw_packet(bytes(self._rx_buffer))
+                            frame = MeshcoreFrame.parse_raw_packet(bytes(self._rx_buffer), strict=True)
                             frames.append(frame)
                             if self.rx_callback:
                                 self.rx_callback(frame)
                         except Exception as e:
-                            logging.debug(f"Error parseando trama raw: {e}")
+                            logging.warning(f"Error parseando trama raw (frame rechazado): {e}")
                     self._rx_buffer.clear()
                 elif b == SOF_BYTE:
                     # Nuevo SOF inesperado: reiniciar buffer

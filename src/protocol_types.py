@@ -383,6 +383,7 @@ class MeshcoreFrame:
         header_bytes = self.header.pack()
         body = header_bytes + self.raw_payload
         crc_val = compute_crc16_ccitt(body)
+        # NOTE: CRC is serialized as big-endian (>H) while the header uses little-endian (<BB HH BH). This is intentional per the MeshCore wire format spec. Do NOT change.
         crc_bytes = struct.pack(">H", crc_val)
 
         # Aplicar Byte Stuffing
@@ -399,14 +400,18 @@ class MeshcoreFrame:
         return bytes(escaped_stream)
 
     @classmethod
-    def parse_raw_packet(cls, unescaped_body: bytes) -> MeshcoreFrame:
+    def parse_raw_packet(cls, unescaped_body: bytes, strict: bool = False) -> MeshcoreFrame:
         """Parsea una trama des-escapada (Header + Payload + CRC)."""
         if len(unescaped_body) < HEADER_SIZE_BYTES + CRC_SIZE_BYTES:
             raise ValueError(f"Trama truncada ({len(unescaped_body)}B)")
 
         data_to_crc = unescaped_body[:-CRC_SIZE_BYTES]
+        # NOTE: CRC is serialized as big-endian (>H) while the header uses little-endian (<BB HH BH). This is intentional per the MeshCore wire format spec. Do NOT change.
         crc_embedded = struct.unpack(">H", unescaped_body[-CRC_SIZE_BYTES:])[0]
         crc_calc = compute_crc16_ccitt(data_to_crc)
+
+        if strict and crc_embedded != crc_calc:
+            raise ValueError(f"CRC mismatch: embedded=0x{crc_embedded:04X} calculated=0x{crc_calc:04X}")
 
         is_valid = (crc_embedded == crc_calc)
         header = FrameHeader.unpack(data_to_crc[:HEADER_SIZE_BYTES])

@@ -57,7 +57,7 @@ class NodeContactInfo:
     tx_packets: int = 0
     error_count: int = 0
     connected_clients_count: int = 0
-    neighbors: list[str] = field(default_factory=list)
+    neighbors: tuple[str, ...] = field(default_factory=tuple)
     temperature_c: float | None = None
     humidity_pct: float | None = None
     pressure_hpa: float | None = None
@@ -350,7 +350,7 @@ class NodeRegistry:
             tx_packets=update.tx_packets if update.tx_packets is not None else (existing.tx_packets if existing else 0),
             error_count=update.error_count if update.error_count is not None else (existing.error_count if existing else 0),
             connected_clients_count=update.connected_clients_count if update.connected_clients_count is not None else (existing.connected_clients_count if existing else 0),
-            neighbors=update.neighbors if update.neighbors is not None else (existing.neighbors if existing else []),
+            neighbors=tuple(update.neighbors) if update.neighbors is not None else (existing.neighbors if existing else ()),
             temperature_c=update.temperature_c if update.temperature_c is not None else (existing.temperature_c if existing else None),
             humidity_pct=update.humidity_pct if update.humidity_pct is not None else (existing.humidity_pct if existing else None),
             pressure_hpa=update.pressure_hpa if update.pressure_hpa is not None else (existing.pressure_hpa if existing else None),

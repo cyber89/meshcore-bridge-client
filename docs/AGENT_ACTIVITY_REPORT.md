@@ -1434,3 +1434,13 @@ Cada vez que un agente comience o finalice una tarea, agregar√° una entrada en l
   - 	ests/test_tx_rate_limiter.py, 	ests/test_stress_flood.py: Fixes para compatibilidad por eliminaci√≥n del worker obsoleto.
 - **Contratos / Interfaces Modificadas**: APIs internas cambiaron en su firma de asincron√≠a (broadcast_event). Las interfaces externas (MQTT, REST, TCP) mantienen contratos previos.
 - **Estado**: COMPLETADO
+# #   A g e n t e   1   -   P r o t o c o l   &   T y p e s   S p e c i a l i s t 
+ 
+ * * C a m b i o s   I m p l e m e n t a d o s : * * 
+ -   * * Q U A L - 0 0 1 * * :   S e   c a m b i Û   ` N o d e C o n t a c t I n f o . n e i g h b o r s `   d e   ` l i s t [ s t r ] `   a   ` t u p l e [ s t r ,   . . . ] `   y   s e   a c t u a l i z Û   s u   i n s t a n c i a c i Û n   p a s a n d o   ` t u p l e ( . . . ) ` . 
+ -   * * Q U A L - 0 0 2 * * :   S e   a g r e g a r o n   l o s   m È t o d o s   c o n c r e t o s   d e l   c l i e n t e   p a h o - m q t t   e n   ` M q t t C l i e n t P r o t o c o l `   ( b r i d g e _ c o r e . p y ) . 
+ -   * * Q U A L - 0 0 6 * * :   S e   a g r e g Û   e l   m o d o   e s t r i c t o   e n   ` p a r s e _ r a w _ p a c k e t `   e n   ` p r o t o c o l _ t y p e s . p y `   y   s e   u s a   c o n   ` s t r i c t = T r u e `   e n   ` s e r i a l _ d r i v e r . p y `   e m i t i e n d o   w a r n i n g s   s i   l a   t r a m a   e s   r e c h a z a d a . 
+ -   * * Q U A L - 0 0 7   /   Q U A L - 0 1 5 * * :   S e   a Ò a d i Û   y   s e   i n v o c Û   a l   f i n a l   d e   ` c o n f i g . p y `   l a   v a l i d a c i Û n   p a r a   p u e r t o s ,   b a u d   r a t e s ,   S F ,   a n c h o s   d e   b a n d a   y   t i e m p o s   d e   e s p e r a . 
+ -   * * R O B - 0 1 1 * * :   S e   i n c l u y Û   u n   c o m e n t a r i o   d o c u m e n t a n d o   e l   e n d i a n n e s s   d e   C R C   e n   ` p r o t o c o l _ t y p e s . p y ` . 
+  
+ 
