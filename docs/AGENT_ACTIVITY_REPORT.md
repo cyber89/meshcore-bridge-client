@@ -6,6 +6,26 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Protección Estricta de Rol de Repetidor y Conversión Universal de Telemetría de Batería
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect).
+- **Problema Reportado**:
+  - El nodo repetidor `R1-Lee` se mostraba con rol `SENSOR` y batería `🔋 N/D`.
+- **Causa Raíz Identificada**:
+  1. **Degradación de Rol en Enrutador de Telemetría (`src/rx_router.py:790`)**:
+     - Al recibir eventos genéricos de telemetría sin campos de uptime, `RxEventRouter` asignaba por defecto `role="SENSOR"`, sobrescribiendo la clasificación de repetidor del dispositivo en `NodeRegistry`.
+  2. **Extracción Restrictiva de Batería (`src/rx_router.py:315`, `src/rx_router.py:791`)**:
+     - Solo se extraía el campo `battery` en formato entero plano. Si el firmware enviaba `battery_pct`, `batt`, `bat`, `voltage_v`, `voltage` (en voltios o milivoltios), el valor no se mapeaba a porcentaje, quedando en `None` (`🔋 N/D`).
+  3. **Comportamiento del Firmware MeshCore Oficial (Protocol Spec)**:
+     - Las tramas de anuncio básicas (Adverts) en MeshCore no incluyen el estado de batería en el paquete inicial de 0 saltos; la batería se recibe mediante reportes periódicos de telemetría, consultas directas (`/status` o `get_bat`) o tramas de estado.
+- **Acciones Realizadas**:
+  1. **Protección Permanente de Rol en `NodeRegistry` y `RxEventRouter`**:
+     - Se implementó `is_named_repeater` y protección estricta en `add_or_update()` (`src/contact_manager.py`), impidiendo que un nodo nombrado como repetidor (`R1-Lee`, prefijos `R-`, `REP_`, `ROUTER_`) sea degradado a `SENSOR`.
+  2. **Conversor Universal de Curva de Batería**:
+     - Se procesan todas las variantes de telemetría (`battery`, `battery_pct`, `batt`, `bat`, `voltage`, `voltage_v`, `vbat`, milivoltios y voltios), calculando el porcentaje según la curva estándar Li-Ion (3.2V - 4.2V) o 100% para alimentación fija USB (>= 4.8V).
+- **Módulos Modificados**: `src/contact_manager.py`, `src/rx_router.py`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Sincronización y Cálculo de Clientes Vecinos, Potencia TX y Hop Limit en Métricas de Repetidores
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO

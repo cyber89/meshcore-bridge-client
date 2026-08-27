@@ -312,12 +312,34 @@ class RxEventRouter:
 
             # Actualizar directorio dinámico de nodos
             if sender and is_valid_node_key(sender):
-                bat_pct = int(payload_dict["battery"]) if "battery" in payload_dict and isinstance(payload_dict["battery"], (int, float)) else None
+                raw_bat = payload_dict.get("battery_pct", payload_dict.get("battery", payload_dict.get("batt", payload_dict.get("bat"))))
+                bat_pct: int | None = None
+                if raw_bat is not None and isinstance(raw_bat, (int, float)):
+                    if 0 <= raw_bat <= 100:
+                        bat_pct = int(raw_bat)
+                    elif raw_bat > 100:  # mV
+                        bat_pct = max(0, min(100, int((raw_bat - 3300) / (4200 - 3300) * 100)))
+
+                volt_val = payload_dict.get("voltage_v", payload_dict.get("voltage", payload_dict.get("vbat")))
+                if bat_pct is None and volt_val is not None and isinstance(volt_val, (int, float)):
+                    v_flt = float(volt_val)
+                    if v_flt > 100:  # mV
+                        v_flt = v_flt / 1000.0
+                    if v_flt >= 4.8:
+                        bat_pct = 100
+                    elif v_flt >= 3.0:
+                        bat_pct = max(0, min(100, int((v_flt - 3.3) / (4.2 - 3.3) * 100)))
+
+                sender_name_cand = (sender_name or "").upper()
+                is_named_rep = (
+                    sender_name_cand.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-", "REP_", "ROUTER_"))
+                    or "REPEATER" in sender_name_cand or "ROUTER" in sender_name_cand or "REPETIDOR" in sender_name_cand
+                )
 
                 role_val = payload_dict.get("role")
                 if not role_val:
                     raw_type = payload_dict.get("adv_type", payload_dict.get("type"))
-                    if raw_type == 2 or raw_type == "REPEATER":
+                    if raw_type == 2 or raw_type == "REPEATER" or is_named_rep:
                         role_val = "REPEATER"
                     elif raw_type == 3 or raw_type == "ROOM":
                         role_val = "ROOM"
@@ -329,7 +351,7 @@ class RxEventRouter:
                 lat_val = _get_coord(payload_dict, ("lat", "latitude", "gps_lat"))
                 lon_val = _get_coord(payload_dict, ("lon", "longitude", "gps_lon"))
 
-                effective_role = "LOCAL" if is_local_sender else (role_val or "CLIENT")
+                effective_role = "LOCAL" if is_local_sender else (role_val or ("REPEATER" if is_named_rep else "CLIENT"))
 
                 is_new, contact_info = self._ctx.node_registry.discover_node(
                     public_key=sender,
@@ -783,13 +805,51 @@ class RxEventRouter:
                 payload_dict["sender_name"] = contact.alias or contact.name
 
         if sender and is_valid_node_key(sender):
+            sender_name_cand = str(payload_dict.get("sender_name", self._resolve_sender_name(sender)))
+            name_cand_upper = sender_name_cand.upper()
+            existing_contact = self._ctx.node_registry.get_contact(sender)
+            is_known_rep = bool(
+                (existing_contact and existing_contact.role in ("REPEATER", "ROUTER"))
+                or name_cand_upper.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-", "REP_", "ROUTER_"))
+                or "REPEATER" in name_cand_upper or "ROUTER" in name_cand_upper or "REPETIDOR" in name_cand_upper
+            )
+
+            raw_telem_bat = payload_dict.get("battery_pct", payload_dict.get("battery", payload_dict.get("batt", payload_dict.get("bat"))))
+            calc_bat_pct: int | None = None
+            if raw_telem_bat is not None and isinstance(raw_telem_bat, (int, float)):
+                if 0 <= raw_telem_bat <= 100:
+                    calc_bat_pct = int(raw_telem_bat)
+                elif raw_telem_bat > 100:
+                    calc_bat_pct = max(0, min(100, int((raw_telem_bat - 3300) / (4200 - 3300) * 100)))
+
+            telem_volt = payload_dict.get("voltage_v", payload_dict.get("voltage", payload_dict.get("vbat")))
+            if calc_bat_pct is None and telem_volt is not None and isinstance(telem_volt, (int, float)):
+                v_flt = float(telem_volt)
+                if v_flt > 100:
+                    v_flt = v_flt / 1000.0
+                if v_flt >= 4.8:
+                    calc_bat_pct = 100
+                elif v_flt >= 3.0:
+                    calc_bat_pct = max(0, min(100, int((v_flt - 3.3) / (4.2 - 3.3) * 100)))
+
+            telem_role = payload_dict.get("role")
+            if not telem_role:
+                if is_known_rep:
+                    telem_role = "REPEATER"
+                elif any(k in payload_dict for k in ("temperature_c", "temp", "humidity_pct", "humidity", "pressure_hpa")):
+                    telem_role = "SENSOR"
+                elif existing_contact and existing_contact.role:
+                    telem_role = existing_contact.role
+                else:
+                    telem_role = "CLIENT"
+
             self._ctx.node_registry.add_or_update(
                 sender,
                 NodeContactUpdate(
-                    name=str(payload_dict.get("sender_name", self._resolve_sender_name(sender))),
-                    role=payload_dict.get("role", "REPEATER" if "uptime" in payload_dict or "packet_errors" in payload_dict else "SENSOR"),
-                    battery_pct=payload_dict.get("battery_pct"),
-                    voltage_v=payload_dict.get("voltage_v"),
+                    name=sender_name_cand,
+                    role=telem_role,
+                    battery_pct=calc_bat_pct,
+                    voltage_v=payload_dict.get("voltage_v", telem_volt),
                     solar_v=payload_dict.get("solar_v"),
                     latitude=payload_dict.get("latitude"),
                     longitude=payload_dict.get("longitude"),

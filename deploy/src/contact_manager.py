@@ -397,13 +397,35 @@ class NodeRegistry:
             calc_lqi = existing.lqi_score if existing else 0.0
             calc_status = existing.lqi_status if existing else "UNKNOWN"
 
+        name_upper = clean_name.upper()
+        alias_upper = clean_alias.upper()
+        is_named_repeater = (
+            name_upper.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-", "REP_", "ROUTER_"))
+            or alias_upper.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-", "REP_", "ROUTER_"))
+            or "REPEATER" in name_upper or "REPEATER" in alias_upper
+            or "ROUTER" in name_upper or "ROUTER" in alias_upper
+            or "REPETIDOR" in name_upper or "REPETIDOR" in alias_upper
+        )
+        if is_local_flag:
+            final_role = "LOCAL"
+        elif is_named_repeater:
+            final_role = "REPEATER"
+        elif existing and existing.role in ("REPEATER", "ROUTER") and update.role == "SENSOR":
+            final_role = existing.role
+        elif update.role is not None:
+            final_role = update.role
+        elif existing and existing.role:
+            final_role = existing.role
+        else:
+            final_role = role_default
+
         calc_route = update.best_route if update.best_route is not None else (existing.best_route if existing else "DIRECT")
 
         contact = NodeContactInfo(
             public_key=canonical_key,
             name=clean_name,
             alias=clean_alias,
-            role=update.role if update.role is not None else (existing.role if existing else role_default),
+            role=final_role,
             is_local=is_local_flag,
             hops=eff_hops if not is_local_flag else 0,
             last_rssi=eff_rssi,
