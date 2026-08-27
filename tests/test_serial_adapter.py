@@ -8,7 +8,7 @@ import unittest
 from src.protocol_types import (
     FrameHeader,
     MeshcoreFrame,
-    OpCode,
+    PacketType,
     TelemetryPayload,
 )
 from src.serial_driver import (
@@ -36,7 +36,7 @@ class TestSerialAdapter(unittest.IsolatedAsyncioTestCase):
         )
         telem_bytes = telem.pack()
         header = FrameHeader(
-            opcode=OpCode.TELEMETRY,
+            packet_type=PacketType.TELEMETRY_RESPONSE,
             seq_num=1,
             src_node_id=0x1111,
             dst_node_id=0xFFFF,
@@ -69,7 +69,7 @@ class TestSerialAdapter(unittest.IsolatedAsyncioTestCase):
 
         rx_frame = received_frames[0]
         self.assertTrue(rx_frame.is_valid)
-        self.assertEqual(rx_frame.header.opcode, OpCode.TELEMETRY)
+        self.assertEqual(rx_frame.header.packet_type, PacketType.TELEMETRY_RESPONSE)
         self.assertEqual(rx_frame.header.src_node_id, 0x1111)
 
     async def test_serial_watchdog_timeout_trigger(self) -> None:

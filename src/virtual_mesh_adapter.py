@@ -18,7 +18,7 @@ import struct
 import time
 from typing import Any
 
-from src.protocol_types import MeshcoreFrame, OpCode
+from src.protocol_types import MeshcoreFrame, PacketType
 from src.sensor_decoder import LppDataType
 from src.serial_driver import BaseSerialAdapter
 
@@ -697,7 +697,7 @@ class VirtualMeshAdapter(BaseSerialAdapter):
             pass
 
         target_node = None
-        if frame.header.opcode == OpCode.TEXT_MSG or "alpha" in text.lower() or "a1b2c3" in text.lower():
+        if frame.header.packet_type in (PacketType.CHANNEL_MSG_RECV, PacketType.CONTACT_MSG_RECV) or "alpha" in text.lower() or "a1b2c3" in text.lower():
             target_node = self.node_alpha
         elif "bravo" in text.lower() or "d7e8f9" in text.lower():
             target_node = self.node_bravo

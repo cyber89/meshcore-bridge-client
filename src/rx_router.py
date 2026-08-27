@@ -24,7 +24,7 @@ from src.contact_manager import (
 from src.deduplicator import PacketDeduplicator
 from src.lqi_engine import LinkQualityEngine
 from src.mqtt_client import AsyncBridgeMQTTClient
-from src.protocol_types import MeshcoreFrame, OpCode, TextMessagePayload
+from src.protocol_types import MeshcoreFrame, PacketType, TextMessagePayload
 from src.repeater_manager import RepeaterManager
 from src.sensor_decoder import (
     extract_telemetry_fields,
@@ -589,7 +589,7 @@ class RxEventRouter:
             return local_name
         return str(self._ctx.serial_adapter.resolve_sender_name(prefix_or_key))
 
-    async def _handle_mesh_msg_common(self, msg: MeshMessageEvent, event_type_str: str) -> dict | None:
+    async def _handle_mesh_msg_common(self, msg: MeshMessageEvent, event_type_str: str) -> dict[str, Any] | None:
         extracted_telem = self._ctx.repeater_manager.parse_repeater_telemetry_or_response(msg.text)
         if extracted_telem:
             self._ctx.node_registry.add_or_update(
@@ -870,11 +870,11 @@ class RxEventRouter:
 
             self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
 
-            if frame.header.opcode == OpCode.TELEMETRY:
+            if frame.header.packet_type == PacketType.TELEMETRY_RESPONSE:
                 self._ctx.mqtt.publish_safe(config.TOPIC_RX_TELEMETRY, evt_json, qos=0)
-            elif frame.header.opcode == OpCode.NODE_ADVERT:
+            elif frame.header.packet_type == PacketType.CONTACT:
                 self._ctx.mqtt.publish_safe(config.TOPIC_RX_NODES, evt_json, qos=0)
-            elif frame.header.opcode == OpCode.TEXT_MSG:
+            elif frame.header.packet_type in (PacketType.CHANNEL_MSG_RECV, PacketType.CONTACT_MSG_RECV):
                 if isinstance(frame.payload, TextMessagePayload):
                     if not is_common_chat_message(frame.payload.text):
                         return

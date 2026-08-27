@@ -615,7 +615,7 @@ class AdminCommandHandler:
             dest_target = self._resolve_target(str(target_node), min_hex_len=12)
             dest_login_target = self._resolve_target(str(target_node), min_hex_len=64)
             norm_target = self._ctx.node_registry.get_canonical_key(str(target_node)) or str(target_node).strip().lower()
-            fut: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
+            fut = asyncio.get_running_loop().create_future()
             waiter_keys = [norm_target, norm_target[:8], norm_target[:4], str(target_node).strip().lower()]
             if target_info and target_info.get("name"):
                 waiter_keys.append(str(target_info["name"]).lower())
@@ -1031,8 +1031,10 @@ class AdminCommandHandler:
                     try:
                         t_res = await mc.commands.get_time()
                         if hasattr(t_res, "payload") and isinstance(t_res.payload, dict):
-                            now_ts = int(t_res.payload.get("time", t_res.payload.get("timestamp", now_ts)))
-                            now_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now_ts))
+                            raw_time = t_res.payload.get("time", t_res.payload.get("timestamp"))
+                            if raw_time is not None:
+                                now_ts = int(raw_time)
+                                now_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now_ts))
                     except Exception:
                         pass
                 res["result"] = f"🕒 [RTC CLOCK] Hora del Nodo: {now_str} (Timestamp: {now_ts})"

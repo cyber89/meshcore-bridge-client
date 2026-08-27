@@ -33,8 +33,9 @@
             <span class="logo-version">v3.0 Pro</span>
           </div>
         </div>
-        <div class="connection-status" role="status" aria-live="polite">
-          <span id="ws-status" class="ws-badge ws-badge--connecting" aria-live="polite" title="Estado de conexión">⬤ Conectando…</span>
+        <div class="connection-status" role="status" aria-live="polite" style="display: flex; gap: 6px; align-items: center;">
+          <span id="radio-status" class="ws-badge ws-badge--disconnected" aria-live="polite" title="Estado del transceptor LoRa conectado por USB">📻 Radio: Desconectada</span>
+          <span id="ws-status" class="ws-badge ws-badge--connecting" aria-live="polite" title="Estado de la conexión WebSocket con el servidor">🌐 Web: Conectando…</span>
         </div>
       </div>
 

@@ -373,7 +373,7 @@ def parse_status_response(data: bytes, pubkey_prefix: str | None = None, offset:
     Basado en SDK: meshcore_py/src/meshcore/parsing.py parse_status()
     """
     res: dict[str, Any] = {}
-    
+
     # Handle pubkey
     if pubkey_prefix is None:
         if len(data) >= 8:

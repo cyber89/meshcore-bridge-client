@@ -167,7 +167,7 @@ class CayenneLPPDecoder:
         Retorna al decoder nativo si hay problemas de formato o para compatibilidad total.
         """
         try:
-            from cayennelpp import LppFrame
+            from cayennelpp import LppFrame  # type: ignore[import-untyped]
 
             buf = bytes(data)
             if not buf:
@@ -337,12 +337,15 @@ def extract_telemetry_fields(data: dict[str, Any]) -> dict[str, Any]:
                             pass
                     elif isinstance(val, dict):
                         try:
-                            if "lat" in val or "latitude" in val:
-                                res["latitude"] = float(val.get("lat", val.get("latitude")))
-                            if "lon" in val or "longitude" in val:
-                                res["longitude"] = float(val.get("lon", val.get("longitude")))
-                            if "alt" in val or "altitude" in val:
-                                res["altitude_m"] = float(val.get("alt", val.get("altitude")))
+                            v_lat = val.get("lat", val.get("latitude"))
+                            if v_lat is not None:
+                                res["latitude"] = float(v_lat)
+                            v_lon = val.get("lon", val.get("longitude"))
+                            if v_lon is not None:
+                                res["longitude"] = float(v_lon)
+                            v_alt = val.get("alt", val.get("altitude"))
+                            if v_alt is not None:
+                                res["altitude_m"] = float(v_alt)
                         except (ValueError, TypeError):
                             pass
                 elif "illumin" in t or "lux" in t:
@@ -650,32 +653,32 @@ def parse_mma_data(buf: bytes) -> list[dict[str, Any]]:
     """
     result: list[dict[str, Any]] = []
     i = 0
-    
+
     while i < len(buf) and buf[i] != 0:
         if i + 1 >= len(buf):
             break
-            
+
         chan = buf[i]
         i += 1
         type_val = buf[i]
         i += 1
-        
+
         size = LPP_TYPE_SIZES.get(type_val)
         if size is None:
             logging.warning(f"Unknown LPP type in MMA: {type_val}")
             break
-        
+
         # Need 3 * size bytes for min, max, avg
         if i + 3 * size > len(buf):
             break
-        
+
         min_val = _decode_lpp_value(type_val, buf[i:i+size])
         i += size
         max_val = _decode_lpp_value(type_val, buf[i:i+size])
         i += size
         avg_val = _decode_lpp_value(type_val, buf[i:i+size])
         i += size
-        
+
         result.append({
             "channel": chan,
             "type": type_val,
@@ -684,7 +687,7 @@ def parse_mma_data(buf: bytes) -> list[dict[str, Any]]:
             "max": max_val,
             "avg": avg_val,
         })
-    
+
     return result
 
 
@@ -696,15 +699,15 @@ def parse_acl_data(buf: bytes) -> list[dict[str, Any]]:
     """
     result: list[dict[str, Any]] = []
     i = 0
-    
+
     while i + 7 <= len(buf):
         key = buf[i:i+6].hex()
         perm = buf[i+6]
         i += 7
-        
+
         # Skip null keys
         if key != "000000000000":
             result.append({"key": key, "perm": perm})
-    
+
     return result
 

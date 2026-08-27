@@ -13,7 +13,7 @@ import os
 import re
 import time
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 from src.protocol_types import (
     EOF_BYTE,
@@ -361,9 +361,10 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
     async def _on_sdk_event(self, event_type: Any, data: Any) -> None:
         """Maneja eventos del SDK MeshCore y los despacha a los callbacks apropiados."""
         self.heartbeat()
-        
+
         event_name = getattr(event_type, "value", str(event_type))
-        
+        logging.debug(f"Evento SDK MeshCore recibido: {event_name}")
+
         # Messages
         if event_type == getattr(EventType, "CONTACT_MSG_RECV", None):
             await self._handle_direct_message(data)
@@ -371,7 +372,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             await self._handle_channel_message(data)
         elif event_type == getattr(EventType, "CHANNEL_DATA_RECV", None):
             await self._handle_channel_data(data)
-        
+
         # Status & Telemetry
         elif event_type == getattr(EventType, "STATUS_RESPONSE", None):
             await self._handle_status_response(data)
@@ -387,7 +388,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             await self._handle_battery(data)
         elif event_type == getattr(EventType, "DEVICE_INFO", None):
             await self._handle_device_info(data)
-        
+
         # Contacts
         elif event_type == getattr(EventType, "CONTACTS", None):
             await self._handle_contacts_list(data)
@@ -401,7 +402,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             await self._handle_contact_deleted(data)
         elif event_type == getattr(EventType, "CONTACTS_FULL", None):
             logging.warning("Contactos llenos en el dispositivo")
-        
+
         # ACK & Messages
         elif event_type == getattr(EventType, "MSG_SENT", None):
             await self._handle_msg_sent(data)
@@ -409,17 +410,17 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             await self._handle_ack(data)
         elif event_type == getattr(EventType, "MESSAGES_WAITING", None):
             logging.debug("Mensajes esperando en cola")
-        
+
         # Time
         elif event_type == getattr(EventType, "CURRENT_TIME", None):
             logging.debug(f"Tiempo del dispositivo: {data}")
-        
+
         # Login
         elif event_type == getattr(EventType, "LOGIN_SUCCESS", None):
             await self._handle_login_result(data, success=True)
         elif event_type == getattr(EventType, "LOGIN_FAILED", None):
             await self._handle_login_result(data, success=False)
-        
+
         # Binary responses
         elif event_type == getattr(EventType, "BINARY_RESPONSE", None):
             await self._handle_binary_response(data)
@@ -429,7 +430,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             await self._handle_raw_data(data)
         elif event_type == getattr(EventType, "LOG_DATA", None):
             await self._handle_log_data(data)
-        
+
         # Path & Discovery
         elif event_type == getattr(EventType, "PATH_UPDATE", None):
             logging.debug(f"Path update: {data}")
@@ -441,27 +442,27 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             logging.debug(f"Discover response: {data}")
         elif event_type == getattr(EventType, "NEIGHBOURS_RESPONSE", None):
             logging.debug(f"Neighbours response: {data}")
-        
+
         # Control
         elif event_type == getattr(EventType, "CONTROL_DATA", None):
             await self._handle_control_data(data)
         elif event_type == getattr(EventType, "ADVERTISEMENT", None):
             logging.debug(f"Advertisement received: {data}")
-        
+
         # Channel info
         elif event_type == getattr(EventType, "CHANNEL_INFO", None):
             logging.debug(f"Channel info: {data}")
-        
+
         # Errors
         elif event_type == getattr(EventType, "ERROR", None):
             logging.warning(f"SDK Error: {data}")
-        
+
         # Connection events
         elif event_type == getattr(EventType, "CONNECTED", None):
             logging.info("SDK connected")
         elif event_type == getattr(EventType, "DISCONNECTED", None):
             logging.warning("SDK disconnected")
-        
+
         # Other events - forward to generic handler
         else:
             await self._handle_generic_event(event_type, data)
@@ -881,13 +882,15 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                     if isinstance(c, dict):
                         pk = str(c.get("public_key", c.get("key", ""))).strip()
                         adv_name = str(c.get("adv_name", c.get("name", c.get("alias", f"Node_{pk[:6]}")))).strip()
-                        raw_type = c.get("type", c.get("adv_type", 1))
+                        raw_type_val = c.get("type", c.get("adv_type", 1))
+                        raw_type = int(raw_type_val) if raw_type_val is not None else 1
                         adv_lat = c.get("adv_lat", c.get("latitude"))
                         adv_lon = c.get("adv_lon", c.get("longitude"))
                     elif hasattr(c, "public_key") or hasattr(c, "adv_name") or hasattr(c, "name"):
                         pk = str(getattr(c, "public_key", "")).strip()
                         adv_name = str(getattr(c, "adv_name", getattr(c, "name", getattr(c, "alias", f"Node_{pk[:6]}")))).strip()
-                        raw_type = getattr(c, "adv_type", getattr(c, "type", 1))
+                        raw_type_val = getattr(c, "adv_type", getattr(c, "type", 1))
+                        raw_type = int(raw_type_val) if raw_type_val is not None else 1
                         adv_lat = getattr(c, "adv_lat", getattr(c, "latitude", None))
                         adv_lon = getattr(c, "adv_lon", getattr(c, "longitude", None))
 
@@ -917,21 +920,21 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         if not self.is_connected or not self.mc:
             return None
         if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "get_channel"):
-            return await self.mc.commands.get_channel(index)
+            return cast(dict[str, Any] | None, await self.mc.commands.get_channel(index))
         return None
 
     async def get_stats(self) -> dict[str, Any] | None:
         if not self.is_connected or not self.mc:
             return None
         if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "get_stats"):
-            return await self.mc.commands.get_stats()
+            return cast(dict[str, Any] | None, await self.mc.commands.get_stats())
         return None
 
     async def device_query(self) -> dict[str, Any] | None:
         if not self.is_connected or not self.mc:
             return None
         if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "device_query"):
-            return await self.mc.commands.device_query()
+            return cast(dict[str, Any] | None, await self.mc.commands.device_query())
         return None
 
     async def share_contact(self, contact_key: str) -> Any:
@@ -1103,11 +1106,13 @@ class SerialWatchdog:
     async def _supervise_loop(self) -> None:
         while self._running:
             try:
-                # Comprobación proactiva y rápida de presencia física USB cada 2 segundos
-                for _ in range(max(1, int(self.interval_sec / 2.0))):
+                # Comprobación proactiva y rápida de presencia física USB cada 2 segundos (o interval_sec si es menor)
+                step_sleep = min(2.0, max(0.005, self.interval_sec))
+                steps = max(1, int(self.interval_sec / step_sleep))
+                for _ in range(steps):
                     if not self._running:
                         break
-                    await asyncio.sleep(2.0)
+                    await asyncio.sleep(step_sleep)
                     if self.adapter.is_connected and hasattr(self.adapter, "is_hardware_alive"):
                         if not self.adapter.is_hardware_alive():
                             logging.warning("Watchdog Serial: Transceptor LoRa desconectado físicamente del puerto USB.")
@@ -1126,10 +1131,11 @@ class SerialWatchdog:
                         )
                         await asyncio.sleep(300.0)
                     else:
+                        reconnect_wait = min(self._reconnect_backoff_sec, max(0.005, self.interval_sec))
                         logging.info(
-                            f"Watchdog Serial: Adaptador desconectado. Reintentando conexión con transceptor en {self._reconnect_backoff_sec:.1f}s..."
+                            f"Watchdog Serial: Adaptador desconectado. Reintentando conexión con transceptor en {reconnect_wait:.2f}s..."
                         )
-                        await asyncio.sleep(self._reconnect_backoff_sec)
+                        await asyncio.sleep(reconnect_wait)
 
                     self._total_reconnect_attempts += 1
                     if self.on_timeout_reconnect:

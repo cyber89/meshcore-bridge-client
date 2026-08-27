@@ -781,7 +781,8 @@ class NodeRegistry:
 
     def save_to_file(self, filepath: str | Path | None = None) -> bool:
         """Guarda la libreta de contactos y estado de nodos en un archivo JSON."""
-        target_path = Path(filepath or os.getenv("NODE_REGISTRY_STORAGE_PATH", os.path.join("data", "node_registry.json")))
+        target_str = str(filepath or os.getenv("NODE_REGISTRY_STORAGE_PATH") or os.path.join("data", "node_registry.json"))
+        target_path = Path(target_str)
         try:
             target_path.parent.mkdir(parents=True, exist_ok=True)
             data = {
@@ -802,7 +803,8 @@ class NodeRegistry:
 
     def load_from_file(self, filepath: str | Path | None = None) -> int:
         """Carga la libreta de contactos y estado de nodos desde un archivo JSON."""
-        target_path = Path(filepath or os.getenv("NODE_REGISTRY_STORAGE_PATH", os.path.join("data", "node_registry.json")))
+        target_str = str(filepath or os.getenv("NODE_REGISTRY_STORAGE_PATH") or os.path.join("data", "node_registry.json"))
+        target_path = Path(target_str)
         if not target_path.is_file():
             return 0
         try:

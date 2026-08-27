@@ -1,4 +1,4 @@
-﻿"""
+"""
 Mutation & Robustness Resilience Tests for MeshCore Bridge.
 Verifica que el sistema detecte y rechace mutaciones de tramas, inversión de bits,
 mutaciones de opcodes, corrupción de checksums y alteración de secuencias de escape.
@@ -11,7 +11,7 @@ from src.protocol_types import (
     ESC_BYTE,
     FrameHeader,
     MeshcoreFrame,
-    OpCode,
+    PacketType,
     TextMessagePayload,
 )
 from src.sensor_decoder import CayenneLPPDecoder
@@ -22,7 +22,7 @@ class TestMutationResilience(unittest.TestCase):
         self.text_payload = TextMessagePayload(channel_idx=0, sender_alias="Alice", text="Hello Mutation Test")
         payload_bytes = self.text_payload.pack()
         self.header = FrameHeader(
-            opcode=OpCode.TEXT_MSG,
+            packet_type=PacketType.CHANNEL_MSG_RECV,
             seq_num=42,
             src_node_id=0x1234,
             dst_node_id=0xFFFF,

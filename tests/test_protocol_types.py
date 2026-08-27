@@ -13,7 +13,7 @@ from src.protocol_types import (
     HardwareModel,
     MeshcoreFrame,
     NodeAdvertisement,
-    OpCode,
+    PacketType,
     TelemetryPayload,
     TextMessagePayload,
 )
@@ -22,7 +22,7 @@ from src.protocol_types import (
 class TestProtocolHeader:
     def test_valid_header_packing_and_unpacking(self) -> None:
         header = FrameHeader(
-            opcode=OpCode.TELEMETRY,
+            packet_type=PacketType.TELEMETRY_RESPONSE,
             seq_num=42,
             src_node_id=0x1234,
             dst_node_id=0xFFFF,
@@ -33,7 +33,7 @@ class TestProtocolHeader:
         assert len(packed) == 9
 
         unpacked = FrameHeader.unpack(packed)
-        assert unpacked.opcode == OpCode.TELEMETRY
+        assert unpacked.packet_type == PacketType.TELEMETRY_RESPONSE
         assert unpacked.seq_num == 42
         assert unpacked.src_node_id == 0x1234
         assert unpacked.dst_node_id == 0xFFFF
@@ -42,10 +42,10 @@ class TestProtocolHeader:
 
     def test_header_validation_errors(self) -> None:
         with pytest.raises(ValueError, match="seq_num fuera de rango"):
-            FrameHeader(OpCode.TELEMETRY, 300, 1, 2, 3, 10)
+            FrameHeader(PacketType.TELEMETRY_RESPONSE, 300, 1, 2, 3, 10)
 
         with pytest.raises(ValueError, match="payload_len excede"):
-            FrameHeader(OpCode.TELEMETRY, 1, 1, 2, 3, 500)
+            FrameHeader(PacketType.TELEMETRY_RESPONSE, 1, 1, 2, 3, 500)
 
 
 class TestTelemetryPayload:
@@ -136,7 +136,7 @@ class TestMeshcoreFrameSerialization:
         )
         telem_bytes = telem.pack()
         header = FrameHeader(
-            opcode=OpCode.TELEMETRY,
+            packet_type=PacketType.TELEMETRY_RESPONSE,
             seq_num=10,
             src_node_id=0x0102,
             dst_node_id=0xFFFF,
@@ -170,7 +170,7 @@ class TestMeshcoreFrameSerialization:
 
         parsed_frame = MeshcoreFrame.parse_raw_packet(bytes(unescaped))
         assert parsed_frame.is_valid is True
-        assert parsed_frame.header.opcode == OpCode.TELEMETRY
+        assert parsed_frame.header.packet_type == PacketType.TELEMETRY_RESPONSE
         assert parsed_frame.header.seq_num == 10
         assert parsed_frame.header.src_node_id == 0x0102
         assert isinstance(parsed_frame.payload, TelemetryPayload)
@@ -178,7 +178,7 @@ class TestMeshcoreFrameSerialization:
 
         # Verificar formato de evento MQTT para n8n
         mqtt_evt = parsed_frame.to_mqtt_event()
-        assert mqtt_evt["event_type"] == "TELEMETRY"
+        assert mqtt_evt["event_type"] == "TELEMETRY_RESPONSE"
         assert mqtt_evt["sender"]["node_id"] == "0x0102"
         assert mqtt_evt["recipient"]["is_broadcast"] is True
         assert mqtt_evt["payload"]["battery_mv"] == 3800

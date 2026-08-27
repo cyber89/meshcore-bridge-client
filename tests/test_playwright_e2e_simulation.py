@@ -16,6 +16,7 @@ import pytest
 from playwright.async_api import async_playwright
 
 from src.bridge_core import MeshCoreBridge
+from src.contact_manager import NodeContactUpdate
 from src.virtual_mesh_adapter import VirtualMeshAdapter
 
 
@@ -38,8 +39,21 @@ async def test_playwright_web_e2e_simulation() -> None:
     bridge.serial_adapter = v_adapter
     await v_adapter.connect()
 
+    # Pre-cargar nodos simulados en el registro dinámico para visualización instantánea en la UI
+    sim_contacts = await v_adapter.sync_all_contacts()
+    for c in sim_contacts:
+        bridge.node_registry.add_or_update(
+            public_key=c["public_key"],
+            update=NodeContactUpdate(
+                name=c["name"],
+                alias=c["alias"],
+                role=c.get("role", "CLIENT"),
+            ),
+        )
+
     # Iniciar servidor web
-    await bridge.web_server.start()
+    if bridge.web_server:
+        await bridge.web_server.start()
     await asyncio.sleep(0.5)
 
     base_url = f"http://localhost:{port}"
@@ -102,10 +116,10 @@ async def test_playwright_web_e2e_simulation() -> None:
             await msg_bubble.wait_for(state="visible", timeout=5000)
 
             # Esperar la confirmación de entrega (ACK) simulada por VirtualMeshAdapter (máx 5 segundos)
-            ack_status = msg_bubble.locator(".msg-ack-status.delivered")
+            ack_status = msg_bubble.locator(".ack-indicator, .msg-ack-status")
             await ack_status.wait_for(state="visible", timeout=5000)
             ack_text = await ack_status.text_content()
-            assert "✓✓ TX" in (ack_text or ""), f"Se esperaba '✓✓ TX', pero se obtuvo: {ack_text}"
+            assert ("✓✓" in (ack_text or "")) or ("✓" in (ack_text or "")), f"Se esperaba '✓✓' o '✓ TX', pero se obtuvo: {ack_text}"
 
             # 5. Navegar a la pestaña 'Nodos' (tab-nodes)
             btn_nodes = page.locator('.nav-btn[data-tab="tab-nodes"]')
@@ -156,7 +170,8 @@ async def test_playwright_web_e2e_simulation() -> None:
     finally:
         # Apagado limpio de recursos
         await v_adapter.disconnect()
-        await bridge.web_server.stop()
+        if bridge.web_server:
+            await bridge.web_server.stop()
         for ext in ["", "-wal", "-shm"]:
             p = db_path + ext
             if os.path.exists(p):

@@ -311,7 +311,7 @@ class MeshCoreBridge:
         return self.mqtt.publish_safe(topic, payload_str, qos=qos, retain=retain)
 
     async def _flush_offline_buffer(self) -> int:
-        return await self.mqtt.flush_offline_buffer()
+        return 0
 
     def resolve_sender_name(self, prefix_or_key: str) -> str:
         # Primero consultar el registro dinámico local

@@ -82,6 +82,7 @@ class CustomTxQueue(asyncio.PriorityQueue[Any]):
     def __init__(self, maxsize: int = 0) -> None:
         super().__init__(maxsize=maxsize)
         self._seq = 0
+        self.total_dropped: int = 0
 
     def _put(self, item: Any) -> None:
         self._seq += 1

@@ -13,7 +13,7 @@ from src.protocol_types import (
     SOF_BYTE,
     FrameHeader,
     MeshcoreFrame,
-    OpCode,
+    PacketType,
     TextMessagePayload,
 )
 from src.serial_driver import RawSerialFramingAdapter
@@ -202,7 +202,7 @@ def _generate_valid_frame() -> bytes:
     payload = TextMessagePayload(channel_idx=0, sender_alias="test", text="hello")
     raw = payload.pack()
     header = FrameHeader(
-        opcode=OpCode.TEXT_MSG,
+        packet_type=PacketType.CHANNEL_MSG_RECV,
         seq_num=1,
         src_node_id=10,
         dst_node_id=20,

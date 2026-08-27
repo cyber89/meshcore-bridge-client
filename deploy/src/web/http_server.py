@@ -12,8 +12,11 @@ import hashlib
 import hmac
 import json
 import logging
+import mimetypes
 import os
+import struct
 import time
+from pathlib import Path
 from typing import Any
 
 from src.web.api_router import WebAPIRouter
@@ -243,7 +246,6 @@ class MeshCoreWebServer:
         body_dict: dict[str, Any],
         cors_origin: str,
     ) -> None:
-        import os
         api_key = os.getenv("BRIDGE_API_KEY", "")
         protected_prefixes = ("/api/node/reboot", "/api/admin/", "/api/tx", "/api/repeater/")
         needs_auth = False
@@ -374,7 +376,6 @@ class MeshCoreWebServer:
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter | None = None
     ) -> tuple[int, bytes] | None:
         """Lee una trama WebSocket completa (opcode, payload) o None si la conexión cerró."""
-        import os
         timeout_sec = float(os.getenv("WS_IDLE_TIMEOUT_SEC", "30.0"))
         while self.running:
             try:
