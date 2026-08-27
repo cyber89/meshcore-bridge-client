@@ -163,21 +163,57 @@ class CayenneLPPDecoder:
     @classmethod
     def decode_with_official_lib(cls, data: bytes | bytearray) -> tuple[list[SensorReading], dict[str, Any]]:
         """
-        Decodifica un flujo usando la librería oficial cayennelpp como vía preferente (COMPAT-002).
-        Retorna al decoder manual si hay problemas o para compatibilidad.
+        Decodifica un flujo usando la librería oficial pycayennelpp v2.x (LppFrame / LppData).
+        Retorna al decoder nativo si hay problemas de formato o para compatibilidad total.
         """
         try:
-            from cayennelpp import LppData
-            # Verificación rápida con la librería oficial
-            i = 0
+            from cayennelpp import LppFrame
+
             buf = bytes(data)
-            lpp_data_list = []
-            while i < len(buf) and buf[i] != 0:
-                lppdata = LppData.from_bytes(buf[i:])
-                lpp_data_list.append(lppdata)
-                i += len(lppdata)
-        except ImportError:
-            pass
+            if not buf:
+                return [], {}
+            frame = LppFrame().from_bytes(buf)
+            readings: list[SensorReading] = []
+            summary: dict[str, Any] = {}
+            for item in frame:
+                ch = item.channel
+                t_val = int(item.type)
+                t_name = str(item.type.name).lower().replace(" ", "_")
+                val = item.value[0] if isinstance(item.value, tuple) and len(item.value) == 1 else item.value
+                if t_val == 136 and isinstance(item.value, tuple) and len(item.value) >= 3:
+                    gps_data = {"latitude": item.value[0], "longitude": item.value[1], "altitude_m": item.value[2]}
+                    summary["gps"] = gps_data
+                    summary[f"ch_{ch}_gps"] = gps_data
+                    readings.append(SensorReading(ch, t_val, "gps", gps_data, "deg/m"))
+                else:
+                    if t_name in ("temperature",):
+                        summary["temperature_c"] = val
+                        summary[f"ch_{ch}_temperature_c"] = val
+                        readings.append(SensorReading(ch, t_val, "temperature", val, "°C"))
+                    elif t_name in ("humidity",):
+                        summary["humidity_pct"] = val
+                        summary[f"ch_{ch}_humidity_pct"] = val
+                        readings.append(SensorReading(ch, t_val, "humidity", val, "%"))
+                    elif t_name in ("barometer", "pressure"):
+                        summary["pressure_hpa"] = val
+                        summary[f"ch_{ch}_pressure_hpa"] = val
+                        readings.append(SensorReading(ch, t_val, "barometer", val, "hPa"))
+                    elif t_name in ("voltage",):
+                        summary["voltage_v"] = val
+                        summary[f"ch_{ch}_voltage_v"] = val
+                        readings.append(SensorReading(ch, t_val, "voltage", val, "V"))
+                    elif t_name in ("analog_input", "analog_in"):
+                        summary["analog_in"] = val
+                        summary[f"ch_{ch}_analog_in"] = val
+                        readings.append(SensorReading(ch, t_val, "analog_in", val, "V"))
+                    else:
+                        summary[t_name] = val
+                        summary[f"ch_{ch}_{t_name}"] = val
+                        readings.append(SensorReading(ch, t_val, t_name, val, ""))
+            if readings:
+                return readings, summary
+        except Exception as ex:
+            logging.debug(f"pycayennelpp decode_with_official_lib fallback to custom decoder: {ex}")
         return cls.decode(data)
 
     @staticmethod

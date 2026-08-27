@@ -203,11 +203,23 @@ class AsyncBridgeMQTTClient:
             self.is_connected = False
             logging.error(f"Fallo de conexión MQTT (rc: {rc})")
 
-    def _on_disconnect(self, client: Any, userdata: Any, rc: Any, *args: Any, **kwargs: Any) -> None:
-        """Callback ejecutado al perder la conexión MQTT."""
+    def _on_disconnect(
+        self,
+        client: Any,
+        userdata: Any,
+        disconnect_flags_or_rc: Any,
+        rc_or_props: Any = None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        """Callback ejecutado al perder la conexión MQTT con soporte nativo para paho-mqtt v2.x ReasonCodes."""
         self.is_connected = False
-        if rc != 0:
-            logging.warning(f"Desconexión de MQTT detectada (rc: {rc}). El cliente intentará reconectar automáticamente...")
+        rc = rc_or_props if rc_or_props is not None else disconnect_flags_or_rc
+        rc_code = getattr(rc, "value", rc)
+        is_clean = (rc_code == 0) or str(rc).lower() in ("0", "success", "clean disconnect", "disconnect", "none")
+        if not is_clean:
+            reason = getattr(rc, "getName", lambda: str(rc))()
+            logging.warning(f"Desconexión de MQTT detectada ({reason}). Reconectando automáticamente...")
 
     def _on_message(self, client: Any, userdata: Any, msg: Any) -> None:
         """Callback ejecutado al recibir un mensaje suscrito en MQTT."""

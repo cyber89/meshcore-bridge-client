@@ -10,7 +10,7 @@ from pathlib import Path
 env_path = Path(__file__).resolve().parent / ".env"
 try:
     from dotenv import load_dotenv
-    load_dotenv(dotenv_path=env_path)
+    load_dotenv(dotenv_path=env_path, override=False, interpolate=True)
 except ImportError:
     # Fallback si python-dotenv no está instalado: parser nativo de .env
     if env_path.is_file():
