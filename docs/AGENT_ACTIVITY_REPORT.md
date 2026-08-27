@@ -6,6 +6,22 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Blindaje de Autenticación de Repetidores y Validación Estricta de Administración Remota
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO (Eliminación de auto-login por telemetría, validación de `send_login_sync` y respuesta RF, HTTP 401 en fallos)
+- **Agente Principal (Lead Orchestrator)**: Diagnosticó y corrigió las vulnerabilidades y fallos en la administración remota de repetidores:
+  1. **Causa Raíz de Autenticación Espuria**:
+     - En [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js), la condición en `handleIncomingLiveEvent` incluía `payload.telemetry?.battery_pct !== undefined`, lo que provocaba que cualquier paquete periódico de telemetría de batería marcara el repetidor como autenticado y desbloqueara la vista de administración sin verificar la contraseña.
+     - En [`src/admin_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin_handler.py), la acción `login` devolvía `status: "ok"` y `authenticated: True` de forma incondicional aunque no hubiese respuesta del repetidor (timeout) o se devolviera un mensaje de error.
+  2. **Validación Estricta de Autenticación RF ([`src/admin_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin_handler.py))**:
+     - Implementado soporte síncrono para `mc.commands.send_login_sync` (verificación de evento `LOGIN_SUCCESS`).
+     - Fallback con evaluación estricta de palabras de error (`invalid`, `denied`, `bad pin`, `wrong password`, `login failed`) y rechazo explícito con `status: "error"` y `authenticated: False` en caso de timeout por RF o error de contraseña.
+  3. **Código HTTP 401 Unauthorized en REST API ([`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py))**:
+     - `POST /api/repeater/remote/login` devuelve código HTTP 401 si la autenticación falla o el repetidor no responde, manteniendo el modal bloqueado en la interfaz.
+  4. **Protección en Frontend ([`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js))**:
+     - `authenticateRepeater()` exige `res.ok && data.status === "ok" && data.data?.authenticated === true` antes de añadir a `authenticatedRepeaters` y desbloquear.
+     - Limpieza de `payload.telemetry?.battery_pct` en eventos WebSocket.
+
 ### Hito: Verificación Integral de Conexión del Cliente Web, REST APIs y Streaming WebSocket (Playwright PASS)
 - **Fecha**: 2026-08-26
 - **Estado**: ✅ COMPLETADO (Playwright Chromium Headless [PASS] - 0 Excepciones JS, 0 Peticiones Fallidas, WebSockets 100% Funcionales)

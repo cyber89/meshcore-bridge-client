@@ -1363,7 +1363,7 @@ class MeshCoreStationApp {
       });
       const data = await res.json();
 
-      if (data.status === "ok") {
+      if (res.ok && data.status === "ok" && data.data?.authenticated === true) {
         this.authenticatedRepeaters.add(canonicalPk);
         this.authenticatedRepeaters.add(pubkey);
         this.setStoredRepeaterPassword(canonicalPk, password);
@@ -1386,7 +1386,8 @@ class MeshCoreStationApp {
 
         return true;
       } else {
-        this.handleRepeaterAuthError(canonicalPk, data.message || "Contraseña incorrecta o cambiada en el repetidor");
+        const errorDetail = data.message || data.data?.message || "Contraseña incorrecta o el repetidor no respondió";
+        this.handleRepeaterAuthError(canonicalPk, errorDetail);
         return false;
       }
     } catch (err) {
@@ -2483,7 +2484,8 @@ class MeshCoreStationApp {
                    rawText.includes("logged in") ||
                    rawText.includes("auth ok") ||
                    rawText.includes("welcome admin") ||
-                   payload.telemetry?.battery_pct !== undefined) {
+                   rawText.includes("access granted") ||
+                   rawText.includes("login success")) {
           if (!this.authenticatedRepeaters.has(senderKey)) {
             this.authenticatedRepeaters.add(senderKey);
             this.unlockRepeaterAdminView(senderKey);

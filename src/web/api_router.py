@@ -325,9 +325,10 @@ class WebAPIRouter:
                     return 400, {"status": "error", "message": "La contraseña de administración no puede estar vacía"}
                 cmd = {"action": "login", "target_node": target, "password": pwd}
                 res = await self.bridge.handle_admin(cmd)
-                if res.get("status") == "error":
-                    return 400, res
-                self.log_system_event("INFO", f"Intento de autenticación enviado a repetidor {target}", source="repeater_admin")
+                if res.get("status") == "error" or not res.get("authenticated", False):
+                    self.log_system_event("WARN", f"Fallo de autenticación con repetidor {target}: {res.get('message', 'Contraseña incorrecta o sin respuesta')}", source="repeater_admin")
+                    return 401, {"status": "error", "message": res.get("message", "Contraseña incorrecta o sin respuesta del repetidor"), "data": res}
+                self.log_system_event("INFO", f"Autenticación exitosa con repetidor {target}", source="repeater_admin")
                 return 200, {"status": "ok", "data": res}
 
             if method == "POST" and clean_path == "/api/repeater/remote/config":

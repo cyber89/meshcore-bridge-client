@@ -145,18 +145,27 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
 
     async def test_remote_repeater_login_and_config(self) -> None:
         """Prueba login y configuración remota autenticada de un repetidor vecino."""
-        # 1. Login remoto
+        # 1. Login remoto fallido (sin respuesta del repetidor por RF o clave incorrecta)
+        code_fail, resp_fail = await self.router.handle_request(
+            "POST",
+            "/api/repeater/remote/login",
+            {"target_node": "a1b2c3d4e5f6", "password": "wrong_password"},
+        )
+        self.assertEqual(code_fail, 401)
+        self.assertEqual(resp_fail["status"], "error")
+
+        # 2. Login remoto exitoso con send_login_sync
+        self.mock_mc.commands.send_login_sync = AsyncMock(return_value=MagicMock(type="LOGIN_SUCCESS"))
         code, resp = await self.router.handle_request(
             "POST",
             "/api/repeater/remote/login",
             {"target_node": "a1b2c3d4e5f6", "password": "repeater_secret"},
         )
         self.assertEqual(code, 200)
-        self.assertEqual(len(self.dispatched_txs), 1)
-        self.assertEqual(self.dispatched_txs[0]["to"], "a1b2c3d4e5f6")
-        self.assertEqual(self.dispatched_txs[0]["text"], "login repeater_secret")
+        self.assertEqual(resp["status"], "ok")
+        self.assertTrue(resp["data"]["authenticated"])
 
-        # 2. Configuración remota múltiple
+        # 3. Configuración remota múltiple
         self.dispatched_txs.clear()
         config_payload = {
             "target_node": "a1b2c3d4e5f6",
@@ -178,7 +187,7 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
         self.assertIn("cmd set repeat on", [tx["text"] for tx in self.dispatched_txs])
         self.assertIn("cmd set hop_limit 4", [tx["text"] for tx in self.dispatched_txs])
 
-        # 3. Acción remota (reboot del repetidor)
+        # 4. Acción remota (reboot del repetidor)
         self.dispatched_txs.clear()
         action_payload = {
             "target_node": "a1b2c3d4e5f6",

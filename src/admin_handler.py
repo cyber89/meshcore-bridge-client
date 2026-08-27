@@ -647,39 +647,89 @@ class AdminCommandHandler:
                         if wk in self._cmd_waiters:
                             self._cmd_waiters[wk] = [f for f in self._cmd_waiters[wk] if f is not fut]
                     return {"status": "error", "message": "La contraseña de administración no puede estar vacía"}
-                
+
                 cmd_text = f"login {password}"
-                if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_login"):
+                login_success = False
+                resp_text = ""
+                error_msg: str | None = None
+
+                # 1. Intentar método oficial síncrono send_login_sync si está disponible
+                if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_login_sync"):
                     try:
-                        await mc.commands.send_login(dest_login_target, password)
+                        login_ev = await mc.commands.send_login_sync(dest_login_target, password, min_timeout=4.0)
+                        if login_ev is not None and getattr(login_ev, "type", None) not in ("ERROR", "ERR"):
+                            login_success = True
+                            resp_text = "Autenticación exitosa (LOGIN_SUCCESS)"
+                        else:
+                            login_success = False
+                            error_msg = "Contraseña incorrecta o repetidor fuera de alcance"
                     except Exception as e:
-                        logging.debug(f"Fallo enviando send_login: {e}")
+                        logging.debug(f"send_login_sync falló ({e}), usando fallback...")
+
+                # 2. Fallback con send_login / send_cmd y escucha de trama RF
+                if not login_success and error_msg is None:
+                    if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_login"):
+                        try:
+                            await mc.commands.send_login(dest_login_target, password)
+                        except Exception as e:
+                            logging.debug(f"Fallo enviando send_login: {e}")
+                            await self._ctx.execute_tx({"to": str(target_node), "text": cmd_text, "request_id": req_id})
+                    elif mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_cmd"):
+                        try:
+                            await mc.commands.send_cmd(dest_target, cmd_text)
+                        except Exception as e:
+                            logging.debug(f"Fallo enviando send_cmd login: {e}")
+                            await self._ctx.execute_tx({"to": str(target_node), "text": cmd_text, "request_id": req_id})
+                    else:
                         await self._ctx.execute_tx({"to": str(target_node), "text": cmd_text, "request_id": req_id})
-                elif mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_cmd"):
-                    try:
-                        await mc.commands.send_cmd(dest_target, cmd_text)
-                    except Exception as e:
-                        logging.debug(f"Fallo enviando send_cmd login: {e}")
-                        await self._ctx.execute_tx({"to": str(target_node), "text": cmd_text, "request_id": req_id})
-                else:
-                    await self._ctx.execute_tx({"to": str(target_node), "text": cmd_text, "request_id": req_id})
-                
-                resp_data = await self._wait_for_repeater_response(mc, fut, timeout=6.0) or {}
+
+                    resp_data = await self._wait_for_repeater_response(mc, fut, timeout=6.0) or {}
+                    raw_resp = resp_data.get("text") or resp_data.get("message") or ""
+                    resp_text = raw_resp[2:].strip() if raw_resp.startswith("> ") else raw_resp.strip()
+                    lower_resp = resp_text.lower()
+
+                    if resp_data.get("auth_status") == "failed" or any(
+                        p in lower_resp for p in ("invalid", "denied", "bad pin", "bad password", "wrong password", "login failed", "not authorized", "incorrect")
+                    ):
+                        login_success = False
+                        error_msg = resp_text or "Contraseña incorrecta en el repetidor"
+                    elif resp_data.get("auth_status") == "success" or any(
+                        p in lower_resp for p in ("ok", "success", "logged in", "auth ok", "welcome admin", "access granted")
+                    ):
+                        login_success = True
+                    elif resp_text:
+                        # Si respondió con confirmación textual libre no-error
+                        login_success = True
+                    else:
+                        # Timeout por RF (repetidor apagado, fuera de rango o clave errónea sin ACK)
+                        login_success = False
+                        error_msg = f"Sin respuesta del repetidor {str(target_node)[:8]} (Verifique cobertura RF o contraseña)"
+
                 for wk in waiter_keys:
                     if wk in self._cmd_waiters:
                         self._cmd_waiters[wk] = [f for f in self._cmd_waiters[wk] if f is not fut]
                         if not self._cmd_waiters[wk]:
                             del self._cmd_waiters[wk]
 
-                raw_resp = resp_data.get("text") or resp_data.get("message") or ""
-                resp_text = raw_resp[2:].strip() if raw_resp.startswith("> ") else raw_resp.strip()
+                if not login_success:
+                    res.update({
+                        "status": "error",
+                        "action": "login",
+                        "target_node": str(target_node),
+                        "authenticated": False,
+                        "message": error_msg or "Contraseña incorrecta en el repetidor",
+                        "cmd_dispatched": f"login {'*' * len(password)}",
+                    })
+                    return res
+
                 res.update({
+                    "status": "ok",
                     "action": "login",
                     "target_node": str(target_node),
                     "authenticated": True,
-                    "response": resp_text or f"Comando de autenticación transmitido al repetidor {str(target_node)[:8]}",
+                    "response": resp_text or "Autenticado con éxito",
                     "text": resp_text or None,
-                    "message": resp_text or f"Comando de autenticación transmitido al repetidor {str(target_node)[:8]}",
+                    "message": "Autenticado con éxito en el repetidor",
                     "cmd_dispatched": f"login {'*' * len(password)}",
                 })
                 self._ctx.mqtt.publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/status", json.dumps(res), qos=1)
