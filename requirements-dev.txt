@@ -1,10 +1,10 @@
 # Herramientas de desarrollo, QA, auditoría de seguridad y E2E (NO requeridas en producción)
 # Instalar con: pip install -r requirements-dev.txt
-pytest>=8.0.0
-pytest-asyncio>=0.23.0
+pytest>=8.3.0
+pytest-asyncio>=0.24.0
 pytest-cov>=5.0.0
-mypy>=1.9.0
-ruff>=0.3.0
-bandit>=1.7.0
-playwright>=1.44.0
-amqtt>=0.11.0
+mypy>=1.11.0
+ruff>=0.6.0
+bandit>=1.8.0
+playwright>=1.48.0
+amqtt>=0.12.0
