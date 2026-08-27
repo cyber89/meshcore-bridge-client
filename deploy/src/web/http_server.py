@@ -173,11 +173,14 @@ class MeshCoreWebServer:
             allowed_origins_env = os.getenv("BRIDGE_ALLOWED_ORIGINS", "http://localhost:8080,http://127.0.0.1:8080")
             allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
             req_origin = headers.get("origin", "")
-            cors_origin = req_origin if req_origin in allowed_origins else ""
+            host_header = headers.get("host", "")
+            is_origin_ok = self._is_origin_allowed(req_origin, host_header, allowed_origins)
+            cors_origin = req_origin if is_origin_ok else ""
 
             # 1. Comprobar si es solicitud de Upgrade a WebSocket
             if headers.get("upgrade", "").lower() == "websocket" and "sec-websocket-key" in headers:
-                if req_origin and req_origin not in allowed_origins:
+                if req_origin and not is_origin_ok:
+                    logging.warning(f"WebSocket upgrade rechazado por Origin no permitido: {req_origin}")
                     await self._write_http_response(writer, "403 Forbidden", b"")
                     return
                 await self._handle_websocket_handshake(reader, writer, headers["sec-websocket-key"])
@@ -263,6 +266,29 @@ class MeshCoreWebServer:
         resp_bytes = json.dumps(resp_json, indent=2).encode("utf-8")
         await self._write_http_response(writer, f"{status_code} OK", resp_bytes, "application/json", cors_origin=cors_origin)
 
+    def _is_origin_allowed(self, req_origin: str, host_header: str, allowed_origins: list[str]) -> bool:
+        """Valida si el origen HTTP/WebSocket está autorizado para CORS y WebSockets."""
+        if not req_origin:
+            return True
+        if "*" in allowed_origins:
+            return True
+        if req_origin in allowed_origins:
+            return True
+        if host_header:
+            origin_clean = req_origin.replace("http://", "").replace("https://", "").rstrip("/")
+            if origin_clean.lower() == host_header.lower():
+                return True
+        origin_host = req_origin.split("://")[-1].split(":")[0].lower()
+        if origin_host in ("localhost", "127.0.0.1", "::1"):
+            return True
+        if origin_host.startswith("192.168.") or origin_host.startswith("10.") or origin_host.startswith("127."):
+            return True
+        if origin_host.startswith("172."):
+            parts = origin_host.split(".")
+            if len(parts) > 1 and parts[1].isdigit() and 16 <= int(parts[1]) <= 31:
+                return True
+        return False
+
     async def _handle_websocket_handshake(
         self,
         reader: asyncio.StreamReader,
@@ -313,19 +339,29 @@ class MeshCoreWebServer:
             "queue_depth": q_depth,
         }
         writer.write(self._build_websocket_frame(json.dumps(initial_metrics).encode("utf-8")))
+        await writer.drain()
 
         # Bucle de escucha WebSocket para mantener la conexión activa
         try:
             while self.running:
-                frame = await self._read_websocket_frame(reader)
+                frame = await self._read_websocket_frame(reader, writer)
                 if frame is None:
                     break
-                opcode, _payload = frame
+                opcode, payload = frame
                 if opcode == 0x8:  # Close frame
                     break
-                if opcode == 0x9:  # Ping -> Enviar Pong
+                if opcode == 0x9:  # Ping binario -> Enviar Pong
                     writer.write(bytearray([0x8A, 0x00]))
                     await writer.drain()
+                elif opcode == 0x1:  # Text frame (ej. ping heartbeat JSON)
+                    try:
+                        msg_obj = json.loads(payload.decode("utf-8", errors="ignore"))
+                        if isinstance(msg_obj, dict) and msg_obj.get("type") == "ping":
+                            pong_resp = json.dumps({"type": "pong", "timestamp": int(time.time())}).encode("utf-8")
+                            writer.write(self._build_websocket_frame(pong_resp))
+                            await writer.drain()
+                    except Exception:
+                        pass
         except Exception:
             pass
         finally:
@@ -335,41 +371,50 @@ class MeshCoreWebServer:
             except Exception:
                 pass
 
-    async def _read_websocket_frame(self, reader: asyncio.StreamReader) -> tuple[int, bytes] | None:
+    async def _read_websocket_frame(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter | None = None
+    ) -> tuple[int, bytes] | None:
         """Lee una trama WebSocket completa (opcode, payload) o None si la conexión cerró."""
         import os
         timeout_sec = float(os.getenv("WS_IDLE_TIMEOUT_SEC", "30.0"))
-        try:
-            head = await asyncio.wait_for(reader.read(2), timeout=timeout_sec)
-            if len(head) < 2:
+        while self.running:
+            try:
+                head = await asyncio.wait_for(reader.read(2), timeout=timeout_sec)
+                if len(head) < 2:
+                    return None
+                b1, b2 = head[0], head[1]
+                opcode = b1 & 0x0F
+                masked = bool(b2 & 0x80)
+                length = b2 & 0x7F
+                if length == 126:
+                    len_bytes = await reader.readexactly(2)
+                    length = struct.unpack(">H", len_bytes)[0]
+                elif length == 127:
+                    len_bytes = await reader.readexactly(8)
+                    length = struct.unpack(">Q", len_bytes)[0]
+
+                mask_key = await reader.readexactly(4) if masked else b""
+                payload = await reader.readexactly(length) if length > 0 else b""
+                if masked and mask_key:
+                    unmasked = bytearray(len(payload))
+                    for i in range(len(payload)):
+                        unmasked[i] = payload[i] ^ mask_key[i % 4]
+                    payload = bytes(unmasked)
+
+                return opcode, payload
+            except asyncio.TimeoutError:
+                # Si el socket estuvo ocioso, enviamos un Ping de vivacidad RFC 6455
+                if writer is not None:
+                    try:
+                        writer.write(bytearray([0x89, 0x00]))
+                        await writer.drain()
+                        continue
+                    except Exception:
+                        return None
                 return None
-            b1, b2 = head[0], head[1]
-            opcode = b1 & 0x0F
-            masked = bool(b2 & 0x80)
-            length = b2 & 0x7F
-            if length == 126:
-                len_bytes = await asyncio.wait_for(reader.read(2), timeout=timeout_sec)
-                if len(len_bytes) < 2:
-                    return None
-                length = struct.unpack(">H", len_bytes)[0]
-            elif length == 127:
-                len_bytes = await asyncio.wait_for(reader.read(8), timeout=timeout_sec)
-                if len(len_bytes) < 8:
-                    return None
-                length = struct.unpack(">Q", len_bytes)[0]
-
-            mask_key = await asyncio.wait_for(reader.read(4), timeout=timeout_sec) if masked else b""
-            payload = await asyncio.wait_for(reader.read(length), timeout=timeout_sec)
-        except asyncio.TimeoutError:
-            return None
-
-        if masked and mask_key:
-            unmasked = bytearray(len(payload))
-            for i in range(len(payload)):
-                unmasked[i] = payload[i] ^ mask_key[i % 4]
-            payload = bytes(unmasked)
-
-        return opcode, payload
+            except Exception:
+                return None
+        return None
 
     def _is_traversal_attempt(self, clean_path: str) -> bool:
         """Detecta intentos de Directory Traversal en la ruta solicitada."""

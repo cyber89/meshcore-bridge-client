@@ -4681,25 +4681,53 @@ class MeshCoreStationApp {
     if (!this.wsReconnectDelay) this.wsReconnectDelay = 1000;
     const WS_MAX_DELAY = 30000;
 
-    this.ws = new WebSocket(wsUrl);
+    if (this.ws) {
+      try {
+        this.ws.onclose = null;
+        this.ws.onerror = null;
+        this.ws.close();
+      } catch (e) {}
+    }
+
+    try {
+      this.ws = new WebSocket(wsUrl);
+    } catch (err) {
+      console.warn("Error creando WebSocket:", err);
+      this.updateConnectionBadge('reconnecting');
+      clearTimeout(this.wsReconnectTimer);
+      this.wsReconnectTimer = setTimeout(() => this.initWebSocket(), this.wsReconnectDelay);
+      return;
+    }
 
     this.ws.onopen = () => {
       this.wsReconnectDelay = 1000;
       this.updateConnectionBadge('connected');
+      clearInterval(this.wsHeartbeatInterval);
+      this.wsHeartbeatInterval = setInterval(() => {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          try {
+            this.ws.send(JSON.stringify({ type: "ping", timestamp: Date.now() }));
+          } catch (e) {}
+        }
+      }, 15000);
     };
 
     this.ws.onclose = () => {
+      clearInterval(this.wsHeartbeatInterval);
       this.updateConnectionBadge('reconnecting');
       clearTimeout(this.wsReconnectTimer);
       this.wsReconnectTimer = setTimeout(() => this.initWebSocket(), this.wsReconnectDelay);
       this.wsReconnectDelay = Math.min(this.wsReconnectDelay * 2, WS_MAX_DELAY);
     };
 
-    this.ws.onerror = (e) => console.warn('WS error:', e);
+    this.ws.onerror = (e) => {
+      console.warn('WS error:', e);
+    };
 
     this.ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
+        if (payload && (payload.type === "pong" || payload.event_type === "pong")) return;
         this.handleIncomingLiveEvent(payload);
       } catch (err) {
         console.error("Error parseando WebSocket payload:", err);
