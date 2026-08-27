@@ -295,6 +295,11 @@ class RxEventRouter:
             effective_snr = None if is_local_sender else (float(snr) if isinstance(snr, (int, float)) else None)
             effective_hops = 0 if is_local_sender else hops
 
+            if effective_snr is not None and hasattr(self._ctx, "last_rx_snr"):
+                self._ctx.last_rx_snr = effective_snr
+            if effective_rssi is not None and hasattr(self._ctx, "last_rx_rssi"):
+                self._ctx.last_rx_rssi = effective_rssi
+
             # Re-inyectar en payload_dict para coherencia en downstream
             if sender:
                 payload_dict["sender"] = sender

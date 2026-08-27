@@ -108,6 +108,25 @@ class AdminCommandHandler:
             cfg["battery_mv"] = 5000
         if "power_source" not in cfg:
             cfg["power_source"] = "USB 5V Directo"
+
+        last_snr = getattr(self._ctx, "last_rx_snr", None)
+        last_rssi = getattr(self._ctx, "last_rx_rssi", None)
+        if last_snr is None or last_rssi is None:
+            nr = getattr(self._ctx, "node_registry", None)
+            if nr and hasattr(nr, "list_nodes"):
+                remote_nodes = [
+                    n for n in nr.list_nodes()
+                    if not n.get("is_local") and str(n.get("role")).upper() != "LOCAL" and (n.get("last_snr") is not None or n.get("last_rssi") is not None)
+                ]
+                if remote_nodes:
+                    remote_nodes.sort(key=lambda x: float(x.get("last_seen") or 0.0), reverse=True)
+                    if last_snr is None and remote_nodes[0].get("last_snr") is not None:
+                        last_snr = remote_nodes[0].get("last_snr")
+                    if last_rssi is None and remote_nodes[0].get("last_rssi") is not None:
+                        last_rssi = remote_nodes[0].get("last_rssi")
+
+        cfg["last_snr"] = last_snr
+        cfg["last_rssi"] = last_rssi
         return cfg
 
     async def fetch_device_config(self) -> dict[str, Any]:

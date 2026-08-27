@@ -276,6 +276,20 @@ class WebAPIRouter:
                 tx_val = getattr(self.bridge, "tx_count", 0)
                 err_tx = getattr(self.bridge, "tx_error_count", 0)
                 err_gen = getattr(self.bridge, "err_count", 0)
+                last_snr = getattr(self.bridge, "last_rx_snr", None)
+                last_rssi = getattr(self.bridge, "last_rx_rssi", None)
+                if last_snr is None or last_rssi is None:
+                    if hasattr(self.bridge, "node_registry") and hasattr(self.bridge.node_registry, "list_nodes"):
+                        remote_nodes = [
+                            n for n in self.bridge.node_registry.list_nodes()
+                            if not n.get("is_local") and str(n.get("role")).upper() != "LOCAL" and (n.get("last_snr") is not None or n.get("last_rssi") is not None)
+                        ]
+                        if remote_nodes:
+                            remote_nodes.sort(key=lambda x: float(x.get("last_seen") or 0.0), reverse=True)
+                            if last_snr is None and remote_nodes[0].get("last_snr") is not None:
+                                last_snr = remote_nodes[0].get("last_snr")
+                            if last_rssi is None and remote_nodes[0].get("last_rssi") is not None:
+                                last_rssi = remote_nodes[0].get("last_rssi")
 
                 local_cfg.update({
                     "uptime": uptime_sec,
@@ -288,6 +302,8 @@ class WebAPIRouter:
                     "packet_errors": (int(err_tx) if isinstance(err_tx, (int, float)) else 0) + (int(err_gen) if isinstance(err_gen, (int, float)) else 0),
                     "noise_floor_dbm": local_cfg.get("noise_floor_dbm", -118),
                     "clock": datetime.now().strftime("%I:%M:%S %p"),
+                    "last_snr": last_snr,
+                    "last_rssi": last_rssi,
                 })
                 return 200, {"status": "ok", "data": local_cfg}
 
@@ -558,6 +574,21 @@ class WebAPIRouter:
         mqtt_client = getattr(self.bridge, "mqtt", None)
         mqtt_connected = getattr(mqtt_client, "is_connected", False) if mqtt_client else False
 
+        last_snr = getattr(self.bridge, "last_rx_snr", None)
+        last_rssi = getattr(self.bridge, "last_rx_rssi", None)
+        if last_snr is None or last_rssi is None:
+            if hasattr(self.bridge, "node_registry") and hasattr(self.bridge.node_registry, "list_nodes"):
+                remote_nodes = [
+                    n for n in self.bridge.node_registry.list_nodes()
+                    if not n.get("is_local") and str(n.get("role")).upper() != "LOCAL" and (n.get("last_snr") is not None or n.get("last_rssi") is not None)
+                ]
+                if remote_nodes:
+                    remote_nodes.sort(key=lambda x: float(x.get("last_seen") or 0.0), reverse=True)
+                    if last_snr is None and remote_nodes[0].get("last_snr") is not None:
+                        last_snr = remote_nodes[0].get("last_snr")
+                    if last_rssi is None and remote_nodes[0].get("last_rssi") is not None:
+                        last_rssi = remote_nodes[0].get("last_rssi")
+
         status_data = {
             "bridge_status": "online" if getattr(self.bridge, "running", True) else "offline",
             "uptime_seconds": int(time.time() - getattr(self.bridge, "start_time", time.time())),
@@ -577,6 +608,8 @@ class WebAPIRouter:
             "error_rate": error_rate,
             "tx_queue_depth": q_depth,
             "queue_depth": q_depth,
+            "last_snr": last_snr,
+            "last_rssi": last_rssi,
         }
         return 200, {"status": "ok", "data": status_data}
 

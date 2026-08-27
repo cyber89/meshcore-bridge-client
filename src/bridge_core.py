@@ -157,6 +157,8 @@ class MeshCoreBridge:
         self.tx_error_count = 0
         self.err_count = 0
         self.serial_reconnect_count = 0
+        self.last_rx_snr: float | None = None
+        self.last_rx_rssi: int | None = None
         self._health_task: asyncio.Task[None] | None = None
         self._background_tasks: set[asyncio.Task[Any]] = set()
         self._tasks_lock = asyncio.Lock()

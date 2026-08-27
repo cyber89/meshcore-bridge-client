@@ -6,6 +6,30 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Sincronización y Mapeo en Vivo de Calidad de Señal RF (SNR / RSSI) en Panel de Ajustes y Telemetría
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect).
+- **Problema Reportado**:
+  - En la pestaña de Ajustes (`#tab-settings`), la tarjeta *"Calidad de Señal RF"* mostraba constantemente valores vacíos o nulos: `"-- dB | RSSI: -- dBm"`.
+- **Causa Raíz Identificada**:
+  1. **Ausencia de Persistencia de Métrica Global RF en el Bridge (`src/bridge_core.py`, `src/rx_router.py`)**:
+     - Aunque `RxEventRouter` calculaba `effective_snr` y `effective_rssi` para cada paquete entrante de la malla, estos valores no se registraban a nivel de la instancia `BridgeCore` (`last_rx_snr`, `last_rx_rssi`).
+  2. **Omisión de Métricas en `/api/node/config` y `/api/status` (`src/web/api_router.py`, `src/admin_handler.py`)**:
+     - Las rutas REST que suministran la telemetría del nodo local (`get_local_config` y `_route_status`) no incluían los campos `last_snr` ni `last_rssi`.
+  3. **Falta de Actualización Reactiva en Tiempo Real (`src/web/static/js/app.js`)**:
+     - `handleIncomingLiveEvent()` y `updateHeaderMetrics()` no actualizaban los elementos DOM `#localSnrValue` y `#localRssiValue` ante la llegada de paquetes de radio o eventos en vivo.
+- **Acciones Realizadas**:
+  1. **Registro Global de Señal RF en Core y Router**:
+     - Se inicializaron `self.last_rx_snr` y `self.last_rx_rssi` en `BridgeCore` (`src/bridge_core.py`).
+     - `RxEventRouter.handle_event()` actualiza atómicamente estas propiedades ante cada trama recibida por radio (`src/rx_router.py`).
+  2. **Inyección en Endpoints REST y Fallback Inteligente**:
+     - `_route_status()` y `_route_node_config()` inyectan `last_snr` y `last_rssi` en el JSON retornado. Si el bridge aún no recibió un paquete directo tras reiniciar, recupera como fallback el valor del nodo remoto más recientemente visto en `NodeRegistry`.
+  3. **Formateo y Actualización Reactiva en Frontend (`src/web/static/js/app.js`)**:
+     - `fetchLocalNodeConfig()` formatea los valores con signo y unidades claras (ej: `+12.5 dB | RSSI: -11 dBm`).
+     - `handleIncomingLiveEvent()` y `updateHeaderMetrics()` actualizan inmediatamente los elementos `#localSnrValue` y `#localRssiValue` ante cualquier evento recibido por WebSocket.
+- **Módulos Modificados**: `src/bridge_core.py`, `src/rx_router.py`, `src/admin_handler.py`, `src/web/api_router.py`, `src/web/static/js/app.js`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Restauración Integral de Contactos en la Libreta del Dispositivo y Reactividad en Tiempo Real
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO

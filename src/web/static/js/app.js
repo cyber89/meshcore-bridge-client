@@ -2314,6 +2314,23 @@ class MeshCoreStationApp {
   handleIncomingLiveEvent(payload) {
     if (!payload || typeof payload !== "object") return;
 
+    const liveSnr = payload.snr ?? payload.SNR ?? payload.last_snr ?? payload.metrics?.snr;
+    const liveRssi = payload.rssi ?? payload.RSSI ?? payload.last_rssi ?? payload.metrics?.rssi;
+    if (liveSnr != null) {
+      const snrEl = document.getElementById("localSnrValue");
+      if (snrEl) {
+        const numSnr = Number(liveSnr);
+        snrEl.textContent = !isNaN(numSnr) ? `${numSnr > 0 ? "+" : ""}${numSnr.toFixed(1)} dB` : `${liveSnr} dB`;
+      }
+    }
+    if (liveRssi != null) {
+      const rssiEl = document.getElementById("localRssiValue");
+      if (rssiEl) {
+        const numRssi = Number(liveRssi);
+        rssiEl.textContent = `RSSI: ${!isNaN(numRssi) ? Math.round(numRssi) : liveRssi} dBm`;
+      }
+    }
+
     if (payload.type === "channels_updated" || payload.event_type === "channels_updated") {
       if (Array.isArray(payload.data)) {
         this.renderChannelsList(payload.data);
@@ -3356,10 +3373,24 @@ class MeshCoreStationApp {
       if (dutyEl) dutyEl.textContent = `Duty Cycle: ${cfg.duty_cycle_pct ?? 0}%`;
 
       const snrEl = document.getElementById("localSnrValue");
-      if (snrEl) snrEl.textContent = cfg.last_snr != null ? `${cfg.last_snr} dB` : "-- dB";
+      if (snrEl) {
+        if (cfg.last_snr != null) {
+          const numSnr = Number(cfg.last_snr);
+          snrEl.textContent = !isNaN(numSnr) ? `${numSnr > 0 ? "+" : ""}${numSnr.toFixed(1)} dB` : `${cfg.last_snr} dB`;
+        } else {
+          snrEl.textContent = "-- dB";
+        }
+      }
 
       const rssiEl = document.getElementById("localRssiValue");
-      if (rssiEl) rssiEl.textContent = cfg.last_rssi != null ? `RSSI: ${cfg.last_rssi} dBm` : "RSSI: -- dBm";
+      if (rssiEl) {
+        if (cfg.last_rssi != null) {
+          const numRssi = Number(cfg.last_rssi);
+          rssiEl.textContent = `RSSI: ${!isNaN(numRssi) ? Math.round(numRssi) : cfg.last_rssi} dBm`;
+        } else {
+          rssiEl.textContent = "RSSI: -- dBm";
+        }
+      }
 
       const noiseEl = document.getElementById("localNoiseValue");
       if (noiseEl) noiseEl.textContent = `${cfg.noise_floor_dbm ?? -118} dBm`;
@@ -5008,6 +5039,23 @@ class MeshCoreStationApp {
     }
     if (queueDepth != null && this.dom.headerQueueDepth) {
       this.dom.headerQueueDepth.textContent = queueDepth;
+    }
+
+    const localSnr = metrics.last_snr ?? metrics.snr ?? (metrics.metrics ? metrics.metrics.snr : null);
+    const localRssi = metrics.last_rssi ?? metrics.rssi ?? (metrics.metrics ? metrics.metrics.rssi : null);
+    if (localSnr != null) {
+      const snrEl = document.getElementById("localSnrValue");
+      if (snrEl) {
+        const numSnr = Number(localSnr);
+        snrEl.textContent = !isNaN(numSnr) ? `${numSnr > 0 ? "+" : ""}${numSnr.toFixed(1)} dB` : `${localSnr} dB`;
+      }
+    }
+    if (localRssi != null) {
+      const rssiEl = document.getElementById("localRssiValue");
+      if (rssiEl) {
+        const numRssi = Number(localRssi);
+        rssiEl.textContent = `RSSI: ${!isNaN(numRssi) ? Math.round(numRssi) : localRssi} dBm`;
+      }
     }
   }
 
