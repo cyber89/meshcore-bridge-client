@@ -906,12 +906,16 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                         norm_pk = pk.strip().lower()
                         my_pk = str(getattr(self, "public_key", "") or getattr(self.mc, "public_key", "")).strip().lower()
                         is_local_contact = bool(my_pk and (norm_pk == my_pk or (len(my_pk) >= 6 and len(norm_pk) >= 6 and (my_pk.startswith(norm_pk) or norm_pk.startswith(my_pk)))))
-
                         try:
                             advert_type = FirmwareAdvertType(raw_type)
-                            role = "LOCAL" if is_local_contact else advert_type.name
+                            if is_local_contact:
+                                role = "LOCAL"
+                            elif advert_type in (FirmwareAdvertType.CHAT, FirmwareAdvertType.NONE):
+                                role = "CLIENT"
+                            else:
+                                role = advert_type.name
                         except ValueError:
-                            role = "LOCAL" if is_local_contact else "UNKNOWN"
+                            role = "LOCAL" if is_local_contact else "CLIENT"
 
                         imported_contacts.append({
                             "public_key": pk,

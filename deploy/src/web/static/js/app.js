@@ -2358,6 +2358,7 @@ class MeshCoreStationApp {
             this.showToast(`📡 Nuevo nodo descubierto en el aire: ${this.escapeHtml(name)}`, "info");
           }
 
+          this.renderNodesDirectory(Array.from(this.knownNodes.values()));
         }
       } else {
         this.fetchNodes();
@@ -2432,6 +2433,7 @@ class MeshCoreStationApp {
         };
         this.knownNodes.set(canonicalRecipient, updated);
         this.updateNodeInDom(canonicalRecipient, updated);
+        this.renderNodesDirectory(Array.from(this.knownNodes.values()));
       }
       return;
     }
@@ -2576,6 +2578,7 @@ class MeshCoreStationApp {
         };
         this.knownNodes.set(canonicalPk, updatedNode);
         this.updateNodeInDom(canonicalPk, updatedNode);
+        this.renderNodesDirectory(Array.from(this.knownNodes.values()));
       }
 
       let isCurrent = false;
@@ -6203,13 +6206,66 @@ class MeshCoreStationApp {
 
       const isOffline = statusClass === "status-offline";
 
-      // 1. Renderizar en la pestaña "Contactos" (solo clientes/contactos externos)
-      if (contactsGrid && !isLocal && !isRepeater && !isSensor && !isRoom) {
+      // Extraer coordenadas GPS normalizadas para mapa y tarjetas
+      const extractCoord = (...vals) => {
+        for (const v of vals) {
+          if (v !== undefined && v !== null && v !== "") {
+            const num = parseFloat(v);
+            if (!isNaN(num)) return num;
+          }
+        }
+        return null;
+      };
+
+      const lat = extractCoord(
+        node.latitude,
+        node.lat,
+        node.gps_lat,
+        node.adv_lat,
+        node.gps?.latitude,
+        node.gps?.lat,
+        node.position?.latitude,
+        node.position?.lat,
+        node.telemetry?.latitude,
+        node.telemetry?.lat,
+        node.telemetry?.gps_lat,
+        node.telemetry?.gps?.latitude,
+        node.telemetry?.gps?.lat
+      );
+      const lon = extractCoord(
+        node.longitude,
+        node.lon,
+        node.gps_lon,
+        node.adv_lon,
+        node.gps?.longitude,
+        node.gps?.lon,
+        node.position?.longitude,
+        node.position?.lon,
+        node.telemetry?.longitude,
+        node.telemetry?.lon,
+        node.telemetry?.gps_lon,
+        node.telemetry?.gps?.longitude,
+        node.telemetry?.gps?.lon
+      );
+
+      const hasGps = lat !== null && lon !== null && lat >= -90.0 && lat <= 90.0 && lon >= -180.0 && lon <= 180.0 && !(lat === 0.0 && lon === 0.0);
+      const isSelected = this.selectedMapNodePk === node.public_key;
+
+      // 1. Renderizar en la pestaña "Contactos" (todos los nodos remotos de la libreta)
+      if (contactsGrid && !isLocal) {
         clientContactCount++;
         const cCard = document.createElement("div");
         cCard.className = `contact-card ${isOffline ? "contact-card-offline" : ""}`;
         cCard.setAttribute("data-pk", node.public_key);
-        cCard.setAttribute("data-search", `${cleanName} ${node.public_key}`.toLowerCase());
+        cCard.setAttribute("data-search", `${cleanName} ${node.public_key} ${roleStr}`.toLowerCase());
+        cCard.setAttribute("data-has-gps", String(hasGps));
+        cCard.setAttribute("data-is-fav", String(Boolean(node.is_favorite)));
+
+        const avatarClass = isSensor ? "avatar-sensor" : (isRepeater ? "avatar-repeater" : (isRoom ? "avatar-room" : "avatar-client"));
+        const avatarIcon = isSensor ? "📡" : (isRepeater ? "🏔️" : (isRoom ? "🏠" : "👤"));
+        const roleLabel = isSensor ? "SENSOR" : (isRepeater ? "REPEATER" : (isRoom ? "ROOM" : "CLIENT"));
+        const roleBadgeClass = isSensor ? "role-sensor" : (isRepeater ? "role-repeater" : (isRoom ? "role-room" : "role-client"));
+        const typeDesc = isSensor ? "📡 Sensor de Telemetría" : (isRepeater ? "🏔️ Router de Malla LoRa" : (isRoom ? "🏠 Servidor de Sala" : "📱 Dispositivo Cliente MeshCore"));
 
         const batChipHtml = hasRealBat
           ? `<span class="contact-battery-chip" title="Nivel de batería">🔋 ${batVal}</span>`
@@ -6218,14 +6274,14 @@ class MeshCoreStationApp {
         cCard.innerHTML = `
           <div class="contact-card-header">
             <div class="node-card-avatar-wrapper">
-              <div class="contact-avatar avatar-client">👤</div>
+              <div class="contact-avatar ${avatarClass}">${avatarIcon}</div>
               <span class="avatar-status-dot ${statusClass}" title="${timeAgoStr}"></span>
             </div>
             <div class="contact-info">
               <div class="contact-title-row">
                 <span class="contact-name" title="${this.escapeHtml(cleanName)}">${this.escapeHtml(cleanName)}</span>
                 <div class="node-card-badges-group">
-                  <span class="node-role-badge role-client">CLIENT</span>
+                  <span class="node-role-badge ${roleBadgeClass}">${roleLabel}</span>
                   ${batChipHtml}
                 </div>
               </div>
@@ -6240,8 +6296,8 @@ class MeshCoreStationApp {
           </div>
           <div class="node-telemetry-panel">
             <div class="node-meta-row">
-              <span class="node-meta-title">📱 Dispositivo Cliente MeshCore</span>
-              <span class="node-meta-highlight color-cyan">Punto a Punto</span>
+              <span class="node-meta-title">${typeDesc}</span>
+              <span class="node-meta-highlight color-cyan">${hasGps ? `GPS: ${lat.toFixed(3)}, ${lon.toFixed(3)}` : 'Punto a Punto'}</span>
             </div>
             <div class="node-meta-sub">
               <span>Actividad: ${timeAgoStr}</span>
@@ -6281,8 +6337,8 @@ class MeshCoreStationApp {
         if (btnQr) {
           btnQr.addEventListener("click", (e) => {
             e.stopPropagation();
-            const payload = { type: "contact", public_key: node.public_key, name: cleanName, role: "CLIENT" };
-            const uri = `meshcore://contact?pubkey=${encodeURIComponent(node.public_key)}&name=${encodeURIComponent(cleanName)}&role=CLIENT`;
+            const payload = { type: "contact", public_key: node.public_key, name: cleanName, role: roleLabel };
+            const uri = `meshcore://contact?pubkey=${encodeURIComponent(node.public_key)}&name=${encodeURIComponent(cleanName)}&role=${roleLabel}`;
             this.renderQrModal(`👥 Contacto: ${cleanName}`, uri, payload);
           });
         }
@@ -6302,7 +6358,6 @@ class MeshCoreStationApp {
 
         contactsFrag.appendChild(cCard);
       }
-
 
       // 2. Renderizar en la vista unificada "Nodos" (TODOS los nodos con tarjetas adaptativas y uniformes)
       if (unifiedNodesGrid) {
@@ -6484,8 +6539,6 @@ class MeshCoreStationApp {
           </div>
         `;
 
-
-
         const copyBtn = nCard.querySelector(".btn-copy-pk");
         if (copyBtn) {
           copyBtn.addEventListener("click", (e) => {
@@ -6577,50 +6630,6 @@ class MeshCoreStationApp {
       }
 
       // 3. Marcadores y Lista Lateral del Mapa Leaflet
-      const extractCoord = (...vals) => {
-        for (const v of vals) {
-          if (v !== undefined && v !== null && v !== "") {
-            const num = parseFloat(v);
-            if (!isNaN(num)) return num;
-          }
-        }
-        return null;
-      };
-
-      const lat = extractCoord(
-        node.latitude,
-        node.lat,
-        node.gps_lat,
-        node.adv_lat,
-        node.gps?.latitude,
-        node.gps?.lat,
-        node.position?.latitude,
-        node.position?.lat,
-        node.telemetry?.latitude,
-        node.telemetry?.lat,
-        node.telemetry?.gps_lat,
-        node.telemetry?.gps?.latitude,
-        node.telemetry?.gps?.lat
-      );
-      const lon = extractCoord(
-        node.longitude,
-        node.lon,
-        node.gps_lon,
-        node.adv_lon,
-        node.gps?.longitude,
-        node.gps?.lon,
-        node.position?.longitude,
-        node.position?.lon,
-        node.telemetry?.longitude,
-        node.telemetry?.lon,
-        node.telemetry?.gps_lon,
-        node.telemetry?.gps?.longitude,
-        node.telemetry?.gps?.lon
-      );
-
-      const hasGps = lat !== null && lon !== null && lat >= -90.0 && lat <= 90.0 && lon >= -180.0 && lon <= 180.0 && !(lat === 0.0 && lon === 0.0);
-      const isSelected = this.selectedMapNodePk === node.public_key;
-
       if (hasGps) {
         geoLocatedCount++;
         mapBounds.push([lat, lon]);
@@ -6712,7 +6721,7 @@ class MeshCoreStationApp {
     // Volcar fragmentos en el DOM en un único reflow
     if (contactsGrid) {
       if (clientContactCount === 0) {
-        contactsGrid.innerHTML = '<div class="empty-state">No hay otros contactos cliente registrados. Los nodos repetidores y routers se gestionan en la pestaña <strong>Nodos</strong>.</div>';
+        contactsGrid.innerHTML = '<div class="empty-state">No hay contactos registrados en la libreta del dispositivo.</div>';
       } else {
         contactsGrid.appendChild(contactsFrag);
       }
@@ -6758,14 +6767,28 @@ class MeshCoreStationApp {
     const countAllContactsEl = document.getElementById("countAllContacts");
     if (countAllContactsEl) countAllContactsEl.textContent = String(clientContactCount);
     const countFavContactsEl = document.getElementById("countFavContacts");
-    if (countFavContactsEl) countFavContactsEl.textContent = String(clientContactCount > 0 ? 1 : 0);
+    if (countFavContactsEl) {
+      let favCount = 0;
+      deduplicatedNodes.forEach((n) => { if (!n.is_local && String(n.role).toUpperCase() !== "LOCAL" && n.is_favorite) favCount++; });
+      countFavContactsEl.textContent = String(favCount);
+    }
     const countOnlineContactsEl = document.getElementById("countOnlineContacts");
-    if (countOnlineContactsEl) countOnlineContactsEl.textContent = String(clientContactCount);
+    if (countOnlineContactsEl) {
+      let onlineCount = 0;
+      const nowTs = Date.now() / 1000;
+      deduplicatedNodes.forEach((n) => {
+        if (!n.is_local && String(n.role).toUpperCase() !== "LOCAL") {
+          const ls = Number(n.last_seen) || 0;
+          if (ls > 1000000000 && (nowTs - ls) < 7200) onlineCount++;
+        }
+      });
+      countOnlineContactsEl.textContent = String(onlineCount);
+    }
     const countGpsContactsEl = document.getElementById("countGpsContacts");
     if (countGpsContactsEl) countGpsContactsEl.textContent = String(geoLocatedCount);
 
     if (contactsGrid && clientContactCount === 0) {
-      contactsGrid.innerHTML = '<div class="empty-state">No hay contactos cliente (CLIENT) registrados en el dispositivo.</div>';
+      contactsGrid.innerHTML = '<div class="empty-state">No hay contactos registrados en la libreta del dispositivo.</div>';
     }
 
     if (unifiedNodesGrid && totalCount === 0) {
@@ -6782,7 +6805,7 @@ class MeshCoreStationApp {
 
     cards.forEach((card) => {
       const search = (card.getAttribute("data-search") || "").toLowerCase();
-      const isOnline = !card.classList.contains("is-offline");
+      const isOnline = !card.classList.contains("is-offline") && !card.classList.contains("contact-card-offline");
       const hasGps = Boolean(card.getAttribute("data-has-gps") === "true");
       const isFav = Boolean(card.getAttribute("data-is-fav") === "true");
 

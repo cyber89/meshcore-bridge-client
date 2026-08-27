@@ -6,6 +6,30 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Restauración Integral de Contactos en la Libreta del Dispositivo y Reactividad en Tiempo Real
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect).
+- **Problema Reportado**:
+  - En la pestaña "Contactos" (`#tab-contacts`), la interfaz mostraba el estado vacío `"No hay contactos cliente (CLIENT) registrados en el dispositivo."`, a pesar de que el usuario podía comunicarse fluidamente por chat directo (DM) y recibir confirmaciones de entrega (ACKs).
+- **Causa Raíz Identificada**:
+  1. **Filtro Excluyente en Frontend (`src/web/static/js/app.js`)**:
+     - `renderNodesDirectory()` exigía `if (contactsGrid && !isLocal && !isRepeater && !isSensor && !isRoom)`. Si un contacto transmitía telemetría (batería/voltaje/temperatura) o su nombre iniciaba con prefijos de infraestructura, era clasificado automáticamente como sensor o repetidor y excluido de la cuadrícula de contactos (`#contactsGridUi`).
+  2. **Mapeo de Rol desde Firmware Oficial (`src/serial_driver.py`)**:
+     - Al sincronizar contactos del transceptor (`sync_all_contacts`), el opcode de anuncio `CHAT (1)` o `NONE (0)` asignaba el string `"CHAT"` o `"NONE"` en lugar del rol estándar `"CLIENT"`.
+  3. **Falta de Re-renderizado Reactivo en Eventos WebSocket (`src/web/static/js/app.js`)**:
+     - Al recibir eventos `contact_discovered`, `contact_updated`, `message_delivered` o mensajes de chat entrantes, se actualizaba el mapa en memoria `this.knownNodes` pero no se ejecutaba `this.renderNodesDirectory()`, manteniendo la vista de contactos sin refrescar.
+- **Acciones Realizadas**:
+  1. **Renderizado Universal en Libreta de Contactos (`src/web/static/js/app.js`)**:
+     - La cuadrícula de Contactos (`#contactsGridUi`) ahora renderiza **todos los contactos y nodos remotos de la libreta** (`!isLocal`), adaptando dinámicamente el avatar (`👤` cliente, `🏔️` repetidor, `📡` sensor, `🏠` sala), badge de rol y descripción.
+     - Se añadieron los atributos `data-has-gps` y `data-is-fav` para que los filtros de píldoras ("⭐ Favoritos", "🟢 En Línea", "📍 Con Posición") funcionen correctamente sobre las tarjetas de contacto.
+     - Se vincularon los botones de acción rápida ("💬 Iniciar Chat DM", "📤 QR", "🗑️ Eliminar") directamente sobre cada tarjeta.
+  2. **Normalización de Roles en Driver Serie (`src/serial_driver.py`)**:
+     - `sync_all_contacts()` normaliza los tipos `FirmwareAdvertType.CHAT` y `NONE` al rol estándar `"CLIENT"`.
+  3. **Reactividad en Tiempo Real (`src/web/static/js/app.js`)**:
+     - Los manejadores de WebSocket para `contact_discovered`, `contact_updated`, `message_delivered` y mensajes comunes ahora invocan automáticamente `this.renderNodesDirectory(Array.from(this.knownNodes.values()))`, actualizando la libreta de contactos en el DOM al instante.
+- **Módulos Modificados**: `src/web/static/js/app.js`, `src/serial_driver.py`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Exclusión Estricta de la Estación Base Local en Comandos de Vecinos (`neighbors`) y Calidad de Enlace (`lqi`)
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO
