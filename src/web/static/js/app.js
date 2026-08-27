@@ -819,7 +819,7 @@ class MeshCoreStationApp {
             closeCreateChannel();
             await this.fetchChannels();
             this.switchChannel(index);
-            this.showToast(`✅ Canal ${index} (${name}) guardado y sincronizado`, "success");
+            this.showToast(`✅ Canal ${index} (${this.escapeHtml(name)}) guardado y sincronizado`, "success");
           } else {
             alert(`Error guardando canal: ${data.message || "Fallo desconocido"}`);
           }
@@ -1098,7 +1098,7 @@ class MeshCoreStationApp {
         if (data.status === "ok") {
           await this.fetchChannels();
           this.switchChannel(idx);
-          this.showToast(`✅ Canal ${name} importado desde URI`, "success");
+          this.showToast(`✅ Canal ${this.escapeHtml(name)} importado desde URI`, "success");
           return;
         }
       } else if (text.startsWith("meshcore://contact")) {
@@ -1116,7 +1116,7 @@ class MeshCoreStationApp {
           if (data.status === "ok") {
             await this.fetchNodes();
             this.setDmTarget(pk, name);
-            this.showToast(`✅ Contacto ${name} importado desde URI`, "success");
+            this.showToast(`✅ Contacto ${this.escapeHtml(name)} importado desde URI`, "success");
             return;
           }
         }
@@ -2070,7 +2070,7 @@ class MeshCoreStationApp {
       }
     }
 
-    this.appendTerminalLine(`meshcore@remote:~$ ping ${name} (${target.slice(0, 8)})`, "term-cmd");
+    this.appendTerminalLine(`meshcore@remote:~$ ping ${this.escapeHtml(name)} (${target.slice(0, 8)})`, "term-cmd");
 
     const btnActionPingEl = document.getElementById("btnModalActionPing");
     if (btnActionPingEl) {
@@ -2112,7 +2112,7 @@ class MeshCoreStationApp {
         }
         this.updateNodeInDom(canonicalTarget, existing);
 
-        this.showToast(`🎯 Ping a ${name}: Duration: ${rtt} ms (RSSI: ${rssi})`, "success");
+        this.showToast(`🎯 Ping a ${this.escapeHtml(name)}: Duration: ${rtt} ms (RSSI: ${rssi})`, "success");
       } else {
         const errMsg = data.message || "Timeout esperando respuesta";
         this.appendTerminalLine(`✗ [PING FALLIDO] ${errMsg}`, "term-error");
@@ -2169,7 +2169,7 @@ class MeshCoreStationApp {
   refreshNeighborsTable(pubkey) {
     const tbody = document.getElementById("neighborsTableBody");
     if (!tbody) return;
-    tbody.innerHTML = "";
+    tbody.textContent = "";
     const otherNodes = Array.from(this.knownNodes.values()).filter((n) => n.public_key !== pubkey);
     if (otherNodes.length === 0) {
       tbody.innerHTML = '<tr><td colspan="6" class="text-center">No hay vecinos registrados aún.</td></tr>';
@@ -2346,7 +2346,7 @@ class MeshCoreStationApp {
           if (payload.is_new && !isAlreadySaved && c.name && !c.name.startsWith("Node_unknow")) {
             this.fetchDiscoveredContacts();
             const name = c.name || canonicalPk.slice(0, 8);
-            this.showToast(`📡 Nuevo nodo descubierto en el aire: ${name}`, "info");
+            this.showToast(`📡 Nuevo nodo descubierto en el aire: ${this.escapeHtml(name)}`, "info");
           }
 
         }
@@ -2623,7 +2623,7 @@ class MeshCoreStationApp {
 
       if (matches && this.dom.systemLogsFeed) {
         if (this.dom.systemLogsFeed.querySelector("div[style]")) {
-          this.dom.systemLogsFeed.innerHTML = "";
+          this.dom.systemLogsFeed.textContent = "";
         }
         this.appendLogEntryToDom(log);
         if (!this.logsScrollPaused) {
@@ -2763,7 +2763,7 @@ class MeshCoreStationApp {
         if (topNodes.length === 0) {
           topTrafficTable.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No hay actividad de tráfico registrada aún.</td></tr>';
         } else {
-          topTrafficTable.innerHTML = "";
+          topTrafficTable.textContent = "";
           const frag = document.createDocumentFragment();
           for (const n of topNodes) {
             const tr = document.createElement("tr");
@@ -2793,7 +2793,7 @@ class MeshCoreStationApp {
         if (bestSnr.length === 0) {
           signalTable.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Esperando mediciones de SNR/RSSI de la malla...</td></tr>';
         } else {
-          signalTable.innerHTML = "";
+          signalTable.textContent = "";
           const frag = document.createDocumentFragment();
           for (const n of bestSnr) {
             const tr = document.createElement("tr");
@@ -2832,7 +2832,7 @@ class MeshCoreStationApp {
         if (repeatersList.length === 0) {
           repTable.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No se han detectado repetidores en la malla.</td></tr>';
         } else {
-          repTable.innerHTML = "";
+          repTable.textContent = "";
           const frag = document.createDocumentFragment();
           for (const r of repeatersList) {
             const tr = document.createElement("tr");
@@ -2868,7 +2868,7 @@ class MeshCoreStationApp {
     if (this.dom.btnRunPreflight) {
       this.dom.btnRunPreflight.addEventListener("click", async () => {
         if (this.dom.preflightResults) {
-          this.dom.preflightResults.innerHTML = "Ejecutando comprobaciones de diagnóstico...";
+          this.dom.preflightResults.textContent = "Ejecutando comprobaciones de diagnóstico...";
         }
         try {
           const res = await fetch("/api/preflight");
@@ -3163,7 +3163,7 @@ class MeshCoreStationApp {
           await this.storage.clearAll();
           this.channelFeeds.clear();
           this.rawPackets = [];
-          if (this.dom.chatMessageFeed) this.dom.chatMessageFeed.innerHTML = "";
+          if (this.dom.chatMessageFeed) this.dom.chatMessageFeed.textContent = "";
           this.showToast("🧹 Almacenamiento local IndexedDB vaciado", "success");
         }
       });
@@ -3673,7 +3673,7 @@ class MeshCoreStationApp {
       return true;
     });
 
-    this.dom.systemLogsFeed.innerHTML = "";
+    this.dom.systemLogsFeed.textContent = "";
     if (filtered.length === 0) {
       this.dom.systemLogsFeed.innerHTML = '<div style="color: var(--text-muted); padding: 14px; text-align: center;">No hay logs que coincidan con los filtros actuales.</div>';
       return;
@@ -3712,7 +3712,7 @@ class MeshCoreStationApp {
   appendLogEntryToDom(log) {
     if (!this.dom.systemLogsFeed) return;
     if (this.dom.systemLogsFeed.querySelector("div[style]")) {
-      this.dom.systemLogsFeed.innerHTML = "";
+      this.dom.systemLogsFeed.textContent = "";
     }
     const el = this.createLogElement(log);
     this.dom.systemLogsFeed.appendChild(el);
@@ -3771,7 +3771,7 @@ class MeshCoreStationApp {
   async runQuickDiagnostic() {
     if (!this.dom.quickDiagPanel || !this.dom.quickDiagBody) return;
     this.dom.quickDiagPanel.classList.remove("hidden");
-    this.dom.quickDiagBody.innerHTML = "Ejecutando auto-diagnóstico de subsistemas...";
+    this.dom.quickDiagBody.textContent = "Ejecutando auto-diagnóstico de subsistemas...";
     try {
       const res = await fetch("/api/diagnostics");
       const data = await res.json();
@@ -4262,7 +4262,7 @@ class MeshCoreStationApp {
         const feedKey = canonicalTarget ? `dm_${canonicalTarget}` : `ch_${this.activeChannelIdx}`;
         this.channelFeeds.set(feedKey, []);
         this.storage.clearFeedMessages(feedKey);
-        if (this.dom.chatMessageFeed) this.dom.chatMessageFeed.innerHTML = "";
+        if (this.dom.chatMessageFeed) this.dom.chatMessageFeed.textContent = "";
       });
     }
 
@@ -4405,7 +4405,7 @@ class MeshCoreStationApp {
   }
 
   async renderCurrentConversation() {
-    this.dom.chatMessageFeed.innerHTML = "";
+    this.dom.chatMessageFeed.textContent = "";
     const canonicalTarget = this.activeDmTarget ? this.resolveCanonicalPubkey(this.activeDmTarget) : null;
     const feedKey = canonicalTarget ? `dm_${canonicalTarget}` : `ch_${this.activeChannelIdx}`;
 
@@ -4529,7 +4529,7 @@ class MeshCoreStationApp {
 
   appendChatMessage(msg) {
     if (this.dom.chatMessageFeed.querySelector(".chat-welcome-card")) {
-      this.dom.chatMessageFeed.innerHTML = "";
+      this.dom.chatMessageFeed.textContent = "";
     }
 
     const row = document.createElement("div");
@@ -5629,7 +5629,7 @@ class MeshCoreStationApp {
   renderChannelsList(channels) {
     this.channelsList = channels;
     if (!this.dom.channelListUi) return;
-    this.dom.channelListUi.innerHTML = "";
+    this.dom.channelListUi.textContent = "";
     for (const ch of channels) {
       const li = document.createElement("li");
       li.className = `channel-item ${ch.index === this.activeChannelIdx && !this.activeDmTarget ? "active" : ""}`;
@@ -5742,7 +5742,7 @@ class MeshCoreStationApp {
     const contactsGrid = this.dom.contactsGridUi || document.getElementById("contactsGridUi");
     const unifiedNodesGrid = this.dom.nodesUnifiedGridUi || document.getElementById("nodesUnifiedGridUi");
     const mapList = document.getElementById("mapNodesList");
-    if (mapList) mapList.innerHTML = "";
+    if (mapList) mapList.textContent = "";
 
     // Purgar entradas inválidas de knownNodes
     if (this.knownNodes && this.knownNodes.size > 0) {
@@ -5820,8 +5820,8 @@ class MeshCoreStationApp {
       }
     }
 
-    if (contactsGrid) contactsGrid.innerHTML = "";
-    if (unifiedNodesGrid) unifiedNodesGrid.innerHTML = "";
+    if (contactsGrid) contactsGrid.textContent = "";
+    if (unifiedNodesGrid) unifiedNodesGrid.textContent = "";
 
     const contactsFrag = document.createDocumentFragment();
     const nodesFrag = document.createDocumentFragment();

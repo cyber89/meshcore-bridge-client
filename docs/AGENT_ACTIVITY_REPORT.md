@@ -1459,3 +1459,17 @@ Cada vez que un agente comience o finalice una tarea, agregará una entrada en l
  -   * * E s t a d o * * :   C O M P L E T A D O 
   
  
+### [TASK-2026-08-26-03] Frontend Fixes & UX/Reliability Updates
+- **Fecha y Hora**: 2026-08-26 23:13
+- **Agente Responsable**: Agente 4 (Web UI/UX & Frontend Specialist)
+- **Objetivo**: Implementar mejoras de frontend solicitadas (FE-001 a FE-005) y robustez menor (ROB-005, ROB-006).
+- **Archivos Modificados / Creados**:
+  - src/web/static/js/app.js: Implementado auto-reconnect WebSocket con backoff exponencial. Mitigación XSS (textContent y escapeHtml) para variables interpoladas. Método updateConnectionBadge añadido.
+  - src/web/static/index.html: Badge de WS insertado en el header.
+  - src/web/static/css/app.css: Estilos para el badge WS.
+  - src/web/http_server.py: Diccionario HTTP_STATUS_TEXTS agregado para mapeo de códigos a textos HTTP.
+  - src/web/api_router.py: Paginación mediante limit y offset soportada en /api/nodes, /api/messages, /api/telemetry.
+  - src/bridge_core.py: Debug mode loop configurado según LOG_LEVEL.
+  - config.py: Definición SQLITE_DB_PATH apuntando a data/meshcore_buffer.db.
+  - .gitignore: Ignorar la carpeta data y db local.
+- **Estado**: COMPLETADO
