@@ -6,6 +6,25 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Habilitación Universal de Botones de Administración y Ping en Nodos Repetidores
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect).
+- **Problema Reportado**:
+  - En la vista de "Nodos" y "Contactos", un repetidor LoRa no mostraba los botones *"🎛️ Administrar"* ni *"🎯 Ping"*.
+- **Causa Raíz Identificada**:
+  1. **Conflicto de Precedencia con Sensores (`src/web/static/js/app.js`)**:
+     - Si un repetidor reportaba telemetría de temperatura/humedad o voltaje (ej: `temp`, `humidity`), la lógica `isSensor` se evaluaba antes de `isRepeater` o la condición `else if (isSensor)` capturaba la tarjeta primero, excluyendo los botones de administración de repetidor.
+  2. **Botones Incompletos en Tarjetas de Contacto (`#contactsGridUi`)**:
+     - Las tarjetas de la libreta de contactos no incluían los botones rápidos de `🎛️ Administrar` y `🎯 Ping`.
+- **Acciones Realizadas**:
+  1. **Precedencia Estricta de Roles**:
+     - Se reforzó la condición `isRepeater` con soporte para prefijos de nombre (`R-`, `R1-`, `REP_`, `ROUTER_`, `REPETIDOR`) y `!isRepeater` en la clasificación de sensores.
+     - En el renderizado de la cuadrícula unificada de Nodos, la rama `else if (isRepeater)` ahora se evalúa antes que `isSensor`.
+  2. **Inclusión Universal de Acciones**:
+     - Se integraron los botones `🎛️ Administrar`, `🎯 Ping (Hop 0)`, `🗺️ Ruta`, `💬 Chat` y `🗺️ Mapa` en las tarjetas de repetidores, tanto en la pestaña **Nodos** como en **Contactos**.
+- **Módulos Modificados**: `src/web/static/js/app.js`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Sincronización y Mapeo en Vivo de Calidad de Señal RF (SNR / RSSI) en Panel de Ajustes y Telemetría
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO

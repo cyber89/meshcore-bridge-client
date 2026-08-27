@@ -6097,11 +6097,14 @@ class MeshCoreStationApp {
 
       const roleStr = (node.role || "CLIENT").toUpperCase();
       const nodeNameUpper = (node.alias || node.name || "").toUpperCase();
-      const isRepeater = !isLocal && (roleStr === "REPEATER" || roleStr === "ROUTER" || node.type === 2 || node.adv_type === 2 ||
-        nodeNameUpper.startsWith("R-") || nodeNameUpper.startsWith("R1-") || nodeNameUpper.startsWith("R2-") || nodeNameUpper.startsWith("R3-") || nodeNameUpper.startsWith("REP-") || nodeNameUpper.startsWith("ROUTER-") ||
-        nodeNameUpper.includes("REPEATER") || nodeNameUpper.includes("ROUTER"));
-      const isSensor = !isLocal && (roleStr === "SENSOR" || node.type === 4 || node.adv_type === 4 || !!(node.temperature_c || node.temp || node.humidity_pct || node.humidity));
-      const isRoom = !isLocal && (roleStr === "ROOM" || node.type === 3 || node.adv_type === 3 || nodeNameUpper.includes("ROOM") || nodeNameUpper.includes("BBS"));
+      const isRepeater = !isLocal && (
+        roleStr === "REPEATER" || roleStr === "ROUTER" || node.type === 2 || node.adv_type === 2 ||
+        nodeNameUpper.startsWith("R-") || nodeNameUpper.startsWith("R1-") || nodeNameUpper.startsWith("R2-") || nodeNameUpper.startsWith("R3-") ||
+        nodeNameUpper.startsWith("REP-") || nodeNameUpper.startsWith("ROUTER-") || nodeNameUpper.startsWith("REP_") || nodeNameUpper.startsWith("ROUTER_") ||
+        nodeNameUpper.includes("REPEATER") || nodeNameUpper.includes("ROUTER") || nodeNameUpper.includes("REPETIDOR")
+      );
+      const isRoom = !isLocal && !isRepeater && (roleStr === "ROOM" || node.type === 3 || node.adv_type === 3 || nodeNameUpper.includes("ROOM") || nodeNameUpper.includes("BBS"));
+      const isSensor = !isLocal && !isRepeater && !isRoom && (roleStr === "SENSOR" || node.type === 4 || node.adv_type === 4 || !!(node.temperature_c || node.temp || node.humidity_pct || node.humidity));
       const isClient = !isLocal && !isRepeater && !isSensor && !isRoom;
 
       if (isRepeater) repeaterCount++;
@@ -6358,7 +6361,9 @@ class MeshCoreStationApp {
             <span class="stat-pill" title="Saltos de retransmisión">🦘 <strong>${hopsVal}</strong></span>
           </div>
           <div class="contact-card-actions">
+            ${isRepeater ? '<button type="button" class="btn-primary btn-sm btn-manage-node-repeater" title="Administrar parámetros del repetidor">🎛️ Administrar</button>' : ''}
             <button type="button" class="btn-primary btn-sm btn-contact-dm" title="Abrir chat en Mensajería">💬 Iniciar Chat DM</button>
+            <button type="button" class="btn-secondary btn-sm btn-node-ping-zero" title="Hacer Ping directo (Hop 0)">🎯 Ping</button>
             <button type="button" class="btn-secondary btn-sm btn-contact-qr" title="Exportar tarjeta o código QR">📤 QR</button>
             <button type="button" class="btn-secondary btn-sm btn-contact-del" title="Eliminar del dispositivo">🗑️</button>
           </div>
@@ -6370,6 +6375,22 @@ class MeshCoreStationApp {
             e.stopPropagation();
             navigator.clipboard.writeText(node.public_key);
             this.showToast("📋 Clave pública copiada", "success");
+          });
+        }
+
+        const btnManageContact = cCard.querySelector(".btn-manage-node-repeater");
+        if (btnManageContact) {
+          btnManageContact.addEventListener("click", (e) => {
+            e.stopPropagation();
+            this.openRepeaterAdminModal(node.public_key, cleanName);
+          });
+        }
+
+        const btnPingContact = cCard.querySelector(".btn-node-ping-zero");
+        if (btnPingContact) {
+          btnPingContact.addEventListener("click", (e) => {
+            e.stopPropagation();
+            this.pingZero(node.public_key, cleanName);
           });
         }
 
@@ -6400,7 +6421,11 @@ class MeshCoreStationApp {
         }
 
         cCard.addEventListener("click", () => {
-          this.openDmConversation(node.public_key, cleanName);
+          if (isRepeater) {
+            this.openRepeaterAdminModal(node.public_key, cleanName);
+          } else {
+            this.openDmConversation(node.public_key, cleanName);
+          }
         });
         cCard.style.cursor = "pointer";
 
@@ -6410,11 +6435,11 @@ class MeshCoreStationApp {
       // 2. Renderizar en la vista unificada "Nodos" (TODOS los nodos con tarjetas adaptativas y uniformes)
       if (unifiedNodesGrid) {
         const nCard = document.createElement("div");
-        const roleClass = isLocal ? "role-local-card is-local" : (isSensor ? "role-sensor-card" : isRepeater ? "role-repeater-card" : isRoom ? "role-room-card" : "role-client-card");
-        const avatarClass = isLocal ? "avatar-local" : (isSensor ? "avatar-sensor" : isRepeater ? "avatar-repeater" : isRoom ? "avatar-room" : "avatar-client");
-        const avatarIcon = isLocal ? "🏠" : (isSensor ? "📡" : isRepeater ? "🏔️" : isRoom ? "🏠" : "👤");
-        const roleLabel = isLocal ? "LOCAL" : (isSensor ? "SENSOR" : isRepeater ? "REPEATER" : isRoom ? "ROOM" : "CLIENT");
-        const roleBadgeClass = isLocal ? "role-local" : (isSensor ? "role-sensor" : isRepeater ? "role-repeater" : isRoom ? "role-room" : "role-client");
+        const roleClass = isLocal ? "role-local-card is-local" : (isRepeater ? "role-repeater-card" : isSensor ? "role-sensor-card" : isRoom ? "role-room-card" : "role-client-card");
+        const avatarClass = isLocal ? "avatar-local" : (isRepeater ? "avatar-repeater" : isSensor ? "avatar-sensor" : isRoom ? "avatar-room" : "avatar-client");
+        const avatarIcon = isLocal ? "🏠" : (isRepeater ? "🏔️" : isSensor ? "📡" : isRoom ? "🏠" : "👤");
+        const roleLabel = isLocal ? "LOCAL" : (isRepeater ? "REPEATER" : isSensor ? "SENSOR" : isRoom ? "ROOM" : "CLIENT");
+        const roleBadgeClass = isLocal ? "role-local" : (isRepeater ? "role-repeater" : isSensor ? "role-sensor" : isRoom ? "role-room" : "role-client");
 
         nCard.className = `node-card ${roleClass} ${isOffline ? "node-card-offline" : ""}`;
         nCard.setAttribute("data-role", roleLabel);
@@ -6452,6 +6477,34 @@ class MeshCoreStationApp {
           actionsHtml = `
             <button type="button" class="btn-primary btn-sm btn-node-primary btn-node-local-settings">⚙️ Ajustes de Radio</button>
           `;
+        } else if (isRepeater) {
+          const rawTxPower = node.tx_power ?? 20;
+          const txPowerStr = `${rawTxPower} dBm`;
+          const rawHopLimit = node.hop_limit ?? 3;
+          const hopLimitStr = `${rawHopLimit} saltos`;
+          
+          middlePanelHtml = `
+            <div class="node-meta-row">
+              <span class="node-meta-title">🏔️ Router de Malla LoRa</span>
+              <span class="node-meta-highlight color-purple">TX: ${txPowerStr}</span>
+            </div>
+            <div class="node-meta-sub">
+              <span>Reenvío: Activo</span>
+              <span>Hop Limit: ${hopLimitStr}</span>
+            </div>
+          `;
+          rfStripHtml = `
+            <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal}</strong></span>
+            <span class="stat-pill" title="Intensidad de Señal">📡 <strong>${rssiVal}</strong></span>
+            <span class="stat-pill" title="Saltos">🦘 <strong>${hopsVal}</strong></span>
+          `;
+          actionsHtml = `
+            <button type="button" class="btn-primary btn-sm btn-node-primary btn-manage-node-repeater">🎛️ Administrar</button>
+            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-ping-zero" title="Hacer Ping directo (Hop 0)">🎯 Ping</button>
+            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
+            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-client-dm" title="Abrir chat en Mensajería">💬 Chat</button>
+            ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">🗺️ Mapa</button>` : ''}
+          `;
         } else if (isSensor) {
           const rawTemp = node.temperature_c ?? node.temp ?? node.temperature ?? node.telemetry?.temperature_c ?? (node.telemetry?.temp != null ? node.telemetry.temp : null);
           const rawHum = node.humidity_pct ?? node.humidity ?? node.telemetry?.humidity_pct ?? (node.telemetry?.hum != null ? node.telemetry.hum : null);
@@ -6476,34 +6529,10 @@ class MeshCoreStationApp {
             <span class="stat-pill" title="Saltos">🦘 <strong>${hopsVal}</strong></span>
           `;
           actionsHtml = `
+            <button type="button" class="btn-primary btn-sm btn-node-primary btn-node-ping-zero" title="Hacer Ping directo (Hop 0)">🎯 Ping</button>
             <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
+            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-client-dm" title="Abrir chat en Mensajería">💬 Chat</button>
             ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">🗺️ Mapa</button>` : ''}
-          `;
-        } else if (isRepeater) {
-          const rawTxPower = node.tx_power ?? 20;
-          const txPowerStr = `${rawTxPower} dBm`;
-          const rawHopLimit = node.hop_limit ?? 3;
-          const hopLimitStr = `${rawHopLimit} saltos`;
-          
-          middlePanelHtml = `
-            <div class="node-meta-row">
-              <span class="node-meta-title">🏔️ Router de Malla LoRa</span>
-              <span class="node-meta-highlight color-purple">TX: ${txPowerStr}</span>
-            </div>
-            <div class="node-meta-sub">
-              <span>Reenvío: Activo</span>
-              <span>Hop Limit: ${hopLimitStr}</span>
-            </div>
-          `;
-          rfStripHtml = `
-            <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>${snrVal}</strong></span>
-            <span class="stat-pill" title="Intensidad de Señal">📡 <strong>${rssiVal}</strong></span>
-            <span class="stat-pill" title="Saltos">🦘 <strong>${hopsVal}</strong></span>
-          `;
-          actionsHtml = `
-            <button type="button" class="btn-primary btn-sm btn-node-primary btn-manage-node-repeater">🎛️ Administrar</button>
-            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-ping-zero" title="Hacer Ping directo">🎯 Ping</button>
-            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
           `;
         } else if (isRoom) {
           middlePanelHtml = `
@@ -6523,7 +6552,9 @@ class MeshCoreStationApp {
           `;
           actionsHtml = `
             <button type="button" class="btn-primary btn-sm btn-node-primary btn-room-channel">💬 Ver Canal</button>
+            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-ping-zero" title="Hacer Ping directo (Hop 0)">🎯 Ping</button>
             <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
+            ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">🗺️ Mapa</button>` : ''}
           `;
         } else {
           // CLIENT
@@ -6544,7 +6575,9 @@ class MeshCoreStationApp {
           `;
           actionsHtml = `
             <button type="button" class="btn-primary btn-sm btn-node-primary btn-client-dm">💬 Iniciar Chat DM</button>
+            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-ping-zero" title="Hacer Ping directo (Hop 0)">🎯 Ping</button>
             <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
+            ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">🗺️ Mapa</button>` : ''}
           `;
         }
 
