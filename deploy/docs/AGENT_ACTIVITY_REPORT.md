@@ -6,6 +6,44 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Saneamiento Integral Multi-Agente del Código (Rate Limiter, Admin Handler, Target Resolver, Security y Protocol Types)
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 3 (QA & Testing), Agente 4 (Web UI/UX Architect), Agente 5 (Security Auditor).
+- **Problemas y Oportunidades Identificados**:
+  1. **Race condition en `TxRateLimiter._worker_loop`**: Si un elemento era `None`, el bucle saltaba con `continue` omitiendo `task_done()`, lo que provocaba deadlocks en `queue.join()`. Además, `stop()` no cancelaba `Future`s huérfanos y `CustomTxQueue._put()` fallaba en conversiones no numéricas.
+  2. **Monolito en `AdminCommandHandler.handle()` (~990 líneas)**: Método con excesiva profundidad ciclomática y anidamiento.
+  3. **Duplicación de `_resolve_target()`**: Lógica divergente e inconsistente entre `serial_driver.py` y `admin_handler.py`.
+  4. **Aliases Legados sin Advertencia en `protocol_types.py`**: `OpCode`, `FirmwareCommandType` y `FirmwarePushCode` carecían de avisos de obsolescencia.
+  5. **Detección Ineficiente de Mensajes de Sistema en `rx_router.py`**: Más de 40 cadenas hardcodeadas sin indexación O(1).
+  6. **Vulnerabilidades en Servidor Web (`http_server.py`)**: `_is_traversal_attempt()` vulnerable a double-encoding y null-bytes; `_is_origin_allowed()` vulnerable a bypass de prefijos de dominio; excepciones silenciadas con `logging.debug`.
+- **Acciones Realizadas**:
+  1. **Fix en `rate_limiter.py`**:
+     - Estructurado bloque `try/finally` para garantizar `task_done()` en todas las ramas de ejecución.
+     - Drenado de colas y cancelación de `Future`s pendientes durante `stop()`.
+     - Coerción segura de tipos (`try/except (ValueError, TypeError)`) en `CustomTxQueue._put()`.
+  2. **Creación de `src/target_resolver.py` (Single Source of Truth)**:
+     - Consolidación canónica de resolución de destinos por SDK y `NodeRegistry` con soporte de padding hex y fallback configurable.
+     - `admin_handler.py` y `serial_driver.py` delegados a `TargetResolver`.
+  3. **Refactorización de `admin_handler.py`**:
+     - Extracción de `_handle_cli_command()` y 15 sub-handlers especializados, reduciendo el tamaño y complejidad de `handle()`.
+  4. **Centralización en `src/shared_utils.py`**:
+     - Incorporadas funciones canónicas `classify_device_role()` y `normalize_battery()`.
+     - Actualizadas referencias en `serial_driver.py`.
+  5. **Deprecación Controlada en `protocol_types.py`**:
+     - Implementado `__getattr__` a nivel de módulo con emisión de `DeprecationWarning` para `OpCode`, `FirmwareCommandType` y `FirmwarePushCode`.
+  6. **Optimización O(1) en `rx_router.py`**:
+     - Definidas constantes `_SYSTEM_EXACT_MATCHES` (`frozenset`), `_SYSTEM_PREFIXES` y `_SYSTEM_EMOJI_PREFIXES` a nivel de módulo.
+  7. **Fortificación de Seguridad en `http_server.py`**:
+     - `_is_traversal_attempt()` con decodificación iterativa `unquote(unquote())`, detección de null-bytes (`\x00`, `%00`), double-encoding (`%252e`) y overlong UTF-8 (`%c0%ae`).
+     - `_is_origin_allowed()` validando octetos numéricos IPv4 completos para prevenir bypasses como `192.168.evil.com`.
+     - Reemplazo de excepciones silenciosas por `logging.warning()` estructurado.
+  8. **Suite de Pruebas Automatizadas (`tests/test_sanitization_fixes.py`)**:
+     - 45 casos de prueba unitarios y de integración validando cada corrección con 100% de éxito.
+- **Módulos Modificados**: `src/rate_limiter.py`, `src/admin_handler.py`, `src/serial_driver.py`, `src/protocol_types.py`, `src/rx_router.py`, `src/shared_utils.py`, `src/target_resolver.py`, `src/web/http_server.py`, `tests/test_sanitization_fixes.py`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
+
+
 ### Hito: Corrección de Error de Sintaxis en Frontend SPA (`app.js`) y Restauración de Conexión Web
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO

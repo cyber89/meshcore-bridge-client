@@ -102,7 +102,7 @@ class MeshCoreWebServer:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logging.debug(f"Error en bucle de métricas WS: {e}")
+                logging.warning("Error en bucle de métricas WS: %s", e, exc_info=True)
 
     async def broadcast_event(self, event_data: dict[str, Any]) -> None:
         """Emite un evento a todos los clientes WebSocket conectados."""
@@ -226,7 +226,7 @@ class MeshCoreWebServer:
             await self._serve_static_file(writer, path, cors_origin)
 
         except Exception as e:
-            logging.debug(f"Excepción en cliente HTTP/WS: {e}")
+            logging.warning("Excepción en cliente HTTP/WS: %s", e)
             try:
                 writer.close()
             except Exception:
@@ -287,15 +287,19 @@ class MeshCoreWebServer:
             origin_clean = req_origin.replace("http://", "").replace("https://", "").rstrip("/")
             if origin_clean.lower() == host_header.lower():
                 return True
-        origin_host = req_origin.split("://")[-1].split(":")[0].lower()
+        origin_host = req_origin.split("://")[-1].split(":")[0].split("/")[0].rstrip(".").lower()
         if origin_host in ("localhost", "127.0.0.1", "::1"):
             return True
-        if origin_host.startswith("192.168.") or origin_host.startswith("10.") or origin_host.startswith("127."):
-            return True
+        if origin_host.startswith(("192.168.", "10.", "127.")):
+            parts = origin_host.split(".")
+            if all(p.isdigit() for p in parts) and len(parts) == 4:
+                return True
         if origin_host.startswith("172."):
             parts = origin_host.split(".")
-            if len(parts) > 1 and parts[1].isdigit() and 16 <= int(parts[1]) <= 31:
-                return True
+            if len(parts) == 4 and all(p.isdigit() for p in parts):
+                second = int(parts[1])
+                if 16 <= second <= 31:
+                    return True
         return False
 
     async def _handle_websocket_handshake(
@@ -425,14 +429,24 @@ class MeshCoreWebServer:
         return None
 
     def _is_traversal_attempt(self, clean_path: str) -> bool:
-        """Detecta intentos de Directory Traversal en la ruta solicitada."""
+        """Detecta intentos de Directory Traversal en la ruta solicitada.
+        
+        Cubre vectores: path traversal directo, URL encoding simple/doble,
+        overlong UTF-8 encoding y null byte injection.
+        """
+        from urllib.parse import unquote
         normalized = clean_path.replace("\\", "/")
         low = normalized.lower()
+        decoded = unquote(unquote(low))
         return (
             ".." in normalized.split("/")
+            or ".." in decoded.split("/")
             or "%2e" in low
             or "%2f" in low
-            or "...." in normalized
+            or "%00" in low
+            or "%c0%ae" in low
+            or "..../" in normalized
+            or "\x00" in clean_path
         )
 
     def _is_within_static_root(self, target_file: Path) -> bool:

@@ -90,11 +90,17 @@ class CustomTxQueue(asyncio.PriorityQueue[Any]):
             wrapped = item
         elif isinstance(item, dict):
             prio = item.get("priority", 1)
-            prio_int = int(prio) if prio is not None else 1
+            try:
+                prio_int = int(prio) if prio is not None else 1
+            except (ValueError, TypeError):
+                prio_int = 1
             target_val = item.get("to", item.get("target"))
             req_id_val = item.get("request_id", item.get("id"))
             raw_ch = item.get("channel_index", item.get("channel_idx", item.get("channel", 0)))
-            ch_idx = int(raw_ch) if raw_ch is not None else 0
+            try:
+                ch_idx = int(raw_ch) if raw_ch is not None else 0
+            except (ValueError, TypeError):
+                ch_idx = 0
 
             wrapped = TxItem(
                 priority=prio_int,
@@ -244,7 +250,20 @@ class TxRateLimiter:
                 await self._worker_task
             except asyncio.CancelledError:
                 pass
-            logging.debug("TxRateLimiter worker detenido.")
+            
+        drained = 0
+        while not self.queue.empty():
+            try:
+                orphan = self.queue.get_nowait()
+                if isinstance(orphan, TxItem) and orphan.future and not orphan.future.done():
+                    orphan.future.cancel()
+                self.queue.task_done()
+                drained += 1
+            except asyncio.QueueEmpty:
+                break
+        if drained:
+            logging.debug("TxRateLimiter: drenados %d items huérfanos al detener.", drained)
+        logging.debug("TxRateLimiter worker detenido.")
 
     async def submit(
         self,
@@ -300,13 +319,27 @@ class TxRateLimiter:
         while self._running:
             try:
                 item = await self.queue.get()
-                if item is None:
-                    continue
+                try:
+                    if item is None:
+                        continue
 
-                if self.transmit_callback:
-                    try:
-                        res = await self.transmit_callback(item)
-                        self.total_transmitted += 1
+                    if self.transmit_callback:
+                        try:
+                            res = await self.transmit_callback(item)
+                            self.total_transmitted += 1
+                            if isinstance(item, TxItem):
+                                self.airtime_tracker.record_tx(
+                                    airtime_ms=item.estimated_airtime_ms,
+                                    channel_idx=item.channel_idx,
+                                    target=item.target,
+                                )
+                                if item.future and not item.future.done():
+                                    item.future.set_result(res)
+                        except Exception as e:
+                            logging.error(f"Error en callback de transmisión: {e}")
+                            if isinstance(item, TxItem) and item.future and not item.future.done():
+                                item.future.set_exception(e)
+                    else:
                         if isinstance(item, TxItem):
                             self.airtime_tracker.record_tx(
                                 airtime_ms=item.estimated_airtime_ms,
@@ -314,22 +347,9 @@ class TxRateLimiter:
                                 target=item.target,
                             )
                             if item.future and not item.future.done():
-                                item.future.set_result(res)
-                    except Exception as e:
-                        logging.error(f"Error en callback de transmisión: {e}")
-                        if isinstance(item, TxItem) and item.future and not item.future.done():
-                            item.future.set_exception(e)
-                else:
-                    if isinstance(item, TxItem):
-                        self.airtime_tracker.record_tx(
-                            airtime_ms=item.estimated_airtime_ms,
-                            channel_idx=item.channel_idx,
-                            target=item.target,
-                        )
-                        if item.future and not item.future.done():
-                            item.future.set_result({"status": "SENT_DRY_RUN", "airtime_ms": item.estimated_airtime_ms})
-
-                self.queue.task_done()
+                                item.future.set_result({"status": "SENT_DRY_RUN", "airtime_ms": item.estimated_airtime_ms})
+                finally:
+                    self.queue.task_done()
 
                 # Espaciado regulatorio
                 airtime_sec = item.estimated_airtime_ms / 1000.0 if isinstance(item, TxItem) else 0.05

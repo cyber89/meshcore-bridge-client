@@ -80,6 +80,26 @@ class MeshMessageEvent:
     txt_type: int = 0
 
 
+_SYSTEM_EXACT_MATCHES: frozenset[str] = frozenset({
+    "unknown command", "ok", "error", "success", "failed",
+    "unauthorized", "advert", "[advert]", "beacon",
+    "logging off", "log erased", "eof", "pong", "ping",
+})
+
+_SYSTEM_PREFIXES: tuple[str, ...] = (
+    "unknown command", "error: unknown command", "error unknown command",
+    "invalid command", "cmd ", "login ", "auth ", "stats-", "stats ",
+    "set ", "get ", "log ", "reboot", "logging off", "log erased",
+    "eof", "welcome admin", "access denied", "bad pin",
+    "wrong password", "incorrect password", "permission denied",
+    "not logged in",
+)
+
+_SYSTEM_EMOJI_PREFIXES: tuple[str, ...] = (
+    "[Eco ", "[Status ", "[ACK", "\U0001f4e1 ", "\u26d4 ", "\U0001f4d6 ", "\u23f0 ", "\U0001f4c5 ", "\U0001f3d3 ",
+)
+
+
 def is_command_or_system_message(text: str, txt_type: int = 0) -> bool:
     """
     Determina si un mensaje recibido es una respuesta de comando CLI, anuncio,
@@ -101,53 +121,11 @@ def is_command_or_system_message(text: str, txt_type: int = 0) -> bool:
     if clean_lower.startswith(("->", "- >", ">")):
         clean_lower = clean_lower.lstrip("-> ").strip()
 
-    if (
-        clean_lower.startswith((
-            "unknown command",
-            "error: unknown command",
-            "error unknown command",
-            "invalid command",
-            "cmd ",
-            "login ",
-            "auth ",
-            "stats-",
-            "stats ",
-            "set ",
-            "get ",
-            "log ",
-            "reboot",
-            "logging off",
-            "log erased",
-            "eof",
-            "welcome admin",
-            "access denied",
-            "bad pin",
-            "wrong password",
-            "incorrect password",
-            "permission denied",
-            "not logged in",
-        ))
-        or clean_lower in (
-            "unknown command",
-            "ok",
-            "error",
-            "success",
-            "failed",
-            "unauthorized",
-            "advert",
-            "[advert]",
-            "beacon",
-            "logging off",
-            "log erased",
-            "eof",
-            "pong",
-            "ping",
-        )
-    ):
+    if clean_lower.startswith(_SYSTEM_PREFIXES) or clean_lower in _SYSTEM_EXACT_MATCHES:
         return True
 
     # Respuestas de bots reflejadas
-    if clean.startswith(("[Eco ", "[Status ", "[ACK", "📡 ", "⛔ ", "📖 ", "⏰ ", "📅 ", "🏓 ")):
+    if clean.startswith(_SYSTEM_EMOJI_PREFIXES):
         return True
 
     return False

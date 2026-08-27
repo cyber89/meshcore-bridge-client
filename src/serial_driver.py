@@ -703,52 +703,21 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         return {"status": "UNKNOWN_ACTION", "action": action}
 
     def _resolve_target(self, name_or_key: str, min_hex_len: int = 12) -> Any:
-        if not self.mc or not name_or_key:
-            return name_or_key
-        if isinstance(name_or_key, dict) or hasattr(name_or_key, "public_key"):
-            return name_or_key
-        name_str = str(name_or_key).strip()
+        """Resuelve un identificador de destino a clave pública.
 
-        # 1. Buscar en NodeRegistry si está provisto
-        if self.node_registry:
-            contact = self.node_registry.get_by_key_or_prefix(name_str)
-            if not contact:
-                contact = self.node_registry.find_by_name(name_str)
-            if contact and contact.public_key:
-                return contact.public_key
-
-        # 2. Buscar en SDK contacts
-        if hasattr(self.mc, "get_contact_by_name"):
-            try:
-                c = self.mc.get_contact_by_name(name_str)
-                if c:
-                    return getattr(c, "public_key", c)
-            except Exception:
-                pass
-        if hasattr(self.mc, "get_contact_by_key_prefix"):
-            try:
-                c = self.mc.get_contact_by_key_prefix(name_str)
-                if c:
-                    return getattr(c, "public_key", c)
-            except Exception:
-                pass
-        if hasattr(self.mc, "contacts") and isinstance(self.mc.contacts, dict):
-            for pk, contact in self.mc.contacts.items():
-                c_name = getattr(contact, "name", contact.get("name") if isinstance(contact, dict) else "")
-                if pk.lower().startswith(name_str.lower()) or (c_name and str(c_name).lower() == name_str.lower()):
-                    return pk
-
-        # 3. Si es cadena hex pero menor a min_hex_len (ej. 8 chars), rellenar con ceros
-        is_hex = all(c in "0123456789abcdefABCDEF" for c in name_str)
-        if is_hex and len(name_str) < min_hex_len:
-            return (name_str + "0" * min_hex_len)[:min_hex_len]
-
-        # 4. Si no es hex (ej: "Alice" no encontrada), evitar crash en bytes.fromhex
-        if not is_hex:
-            logging.warning(f"Target '{name_str}' no es una clave hex válida ni se encontró en contactos.")
-            raise ValueError(f"Destinatario no encontrado o clave pública inválida: '{name_str}'")
-
-        return name_str
+        Delega a TargetResolver (Single Source of Truth) para evitar
+        duplicación de lógica con admin_handler.py.
+        """
+        from src.target_resolver import TargetResolver
+        resolver = TargetResolver(
+            mc_provider=self.mc,
+            node_registry=self.node_registry,
+        )
+        return resolver.resolve(
+            name_or_key,
+            min_hex_len=min_hex_len,
+            raise_on_not_found=True,
+        )
 
     async def get_channels(self) -> list[dict[str, Any]]:
         """Devuelve la lista de canales configurados en el nodo físico companion."""
@@ -906,16 +875,8 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                         norm_pk = pk.strip().lower()
                         my_pk = str(getattr(self, "public_key", "") or getattr(self.mc, "public_key", "")).strip().lower()
                         is_local_contact = bool(my_pk and (norm_pk == my_pk or (len(my_pk) >= 6 and len(norm_pk) >= 6 and (my_pk.startswith(norm_pk) or norm_pk.startswith(my_pk)))))
-                        try:
-                            advert_type = FirmwareAdvertType(raw_type)
-                            if is_local_contact:
-                                role = "LOCAL"
-                            elif advert_type in (FirmwareAdvertType.CHAT, FirmwareAdvertType.NONE):
-                                role = "CLIENT"
-                            else:
-                                role = advert_type.name
-                        except ValueError:
-                            role = "LOCAL" if is_local_contact else "CLIENT"
+                        from src.shared_utils import classify_device_role
+                        role = classify_device_role(raw_type, is_local_contact)
 
                         imported_contacts.append({
                             "public_key": pk,

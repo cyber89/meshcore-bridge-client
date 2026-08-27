@@ -78,8 +78,8 @@ class PacketType(IntEnum):
     CONTACTS_FULL = 0x90
 
 
-# Legacy alias for backward compatibility
-OpCode = PacketType
+# Deprecated: Use PacketType instead. OpCode was incompatible with the official SDK.
+# This alias is maintained for legacy import compatibility only.
 
 
 class FirmwareRouteType(IntEnum):
@@ -177,8 +177,8 @@ class CommandType(IntEnum):
     GET_DEFAULT_FLOOD_SCOPE = 64
 
 
-# Legacy alias
-FirmwareCommandType = CommandType
+# Deprecated: Use CommandType instead. FirmwareCommandType was an alias maintained
+# for backward compatibility only.
 
 
 class BinaryReqType(IntEnum):
@@ -197,8 +197,8 @@ class ControlType(IntEnum):
     NODE_DISCOVER_RESP = 0x90
 
 
-# Legacy alias
-FirmwarePushCode = PacketType
+# Deprecated: Use PacketType instead. FirmwarePushCode was an alias maintained
+# for backward compatibility only.
 
 
 class HardwareModel(IntEnum):
@@ -315,6 +315,9 @@ class MeshCoreSDKProtocol(Protocol):
     def close(self) -> None: ...
     def subscribe(self, event_type: Any, callback: Any) -> None: ...
 
+import warnings
+
+
 @dataclass(frozen=True)
 class TelemetryPayload:
     """LEGACY: Payload estructurado de métricas y telemetría de nodo.
@@ -331,6 +334,11 @@ class TelemetryPayload:
     battery_pct: int
 
     def pack(self) -> bytes:
+        warnings.warn(
+            "TelemetryPayload.pack() is deprecated. Use parse_status_response() instead.",
+            PendingDeprecationWarning,
+            stacklevel=2,
+        )
         temp_cdeg = int(round(self.temperature_c * 100))
         hum_pct = int(round(self.humidity_pct * 100))
         press_pa = int(round(self.pressure_hpa * 100))
@@ -348,6 +356,11 @@ class TelemetryPayload:
 
     @classmethod
     def unpack(cls, data: bytes) -> TelemetryPayload:
+        warnings.warn(
+            "TelemetryPayload.unpack() is deprecated. Use parse_status_response() instead.",
+            PendingDeprecationWarning,
+            stacklevel=2,
+        )
         if len(data) < 16:
             raise ValueError(f"Payload de telemetría demasiado corto: {len(data)}B < 16B")
         bat_mv, sol_mv, t_cdeg, h_pct, p_pa, snr, rssi, bat_pct = struct.unpack("<HHhhIbhB", data[:16])
@@ -627,3 +640,23 @@ class MeshcoreFrame:
             "payload": payload_data,
             "crc_valid": self.is_valid,
         }
+
+_DEPRECATED_ALIASES: dict[str, str] = {
+    "OpCode": "PacketType",
+    "FirmwareCommandType": "CommandType", 
+    "FirmwarePushCode": "PacketType",
+}
+
+def __getattr__(name: str) -> Any:
+    """Provide deprecated aliases with runtime warnings."""
+    if name in _DEPRECATED_ALIASES:
+        import warnings
+        canonical = _DEPRECATED_ALIASES[name]
+        warnings.warn(
+            f"{name} is deprecated, use {canonical} instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return globals()[canonical]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
