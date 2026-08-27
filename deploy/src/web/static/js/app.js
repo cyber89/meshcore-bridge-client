@@ -369,12 +369,33 @@ class MeshCoreStationApp {
       return { senderName: currentSenderName || "Anónimo", cleanText: text || "" };
     }
     const trimmed = text.trim();
-    const match = trimmed.match(/^([a-zA-Z0-9_\-\.]{2,32}):\s*([\s\S]*)$/);
+
+    // 1. Si coincide con el nombre de remitente actual al inicio ("Nombre: texto", "[Nombre]: texto", "<Nombre>: texto")
+    if (currentSenderName && typeof currentSenderName === "string") {
+      const sName = currentSenderName.trim();
+      if (sName && sName.toLowerCase() !== "unknown" && sName.toLowerCase() !== "anónimo" && sName.toLowerCase() !== "anonimo") {
+        const escaped = sName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const namePrefixRegex = new RegExp(`^(?:\\[${escaped}\\]|<${escaped}>|${escaped})\\s*:\\s*([\\s\\S]*)$`, "i");
+        const nameMatch = trimmed.match(namePrefixRegex);
+        if (nameMatch) {
+          const actual = nameMatch[1].trim();
+          if (!actual.startsWith("//")) {
+            return {
+              senderName: currentSenderName,
+              cleanText: actual || trimmed
+            };
+          }
+        }
+      }
+    }
+
+    // 2. Patrón general 'Nombre: Mensaje' o '[Nombre]: Mensaje'
+    const match = trimmed.match(/^(?:\[([a-zA-Z0-9_\-\.]{2,32})\]|<([a-zA-Z0-9_\-\.]{2,32})>|([a-zA-Z0-9_\-\.]{2,32})):\s*([\s\S]*)$/);
     if (match) {
-      const candidateName = match[1].trim();
-      const actualText = match[2].trim();
+      const candidateName = (match[1] || match[2] || match[3] || "").trim();
+      const actualText = (match[4] || "").trim();
       const lowerCandidate = candidateName.toLowerCase();
-      if (!["http", "https", "ftp", "ws", "wss", "json", "data", "cmd", "r", "ack", "req", "res", "echo", "status"].includes(lowerCandidate)) {
+      if (!actualText.startsWith("//") && !["http", "https", "ftp", "ws", "wss", "json", "data", "cmd", "r", "ack", "req", "res", "echo", "status", "meshcore", "loc"].includes(lowerCandidate)) {
         const isUnknown = !currentSenderName ||
           currentSenderName.toLowerCase() === "unknown" ||
           currentSenderName.toLowerCase() === "anónimo" ||
@@ -2546,6 +2567,8 @@ class MeshCoreStationApp {
         senderName = extracted.senderName || (senderKey && this.isValidNodeKey(senderKey) ? senderKey : "Anónimo");
       }
 
+      const cleanText = extracted.cleanText || rawText;
+
       const feedKey = isDm ? `dm_${senderKey}` : `ch_${chIdx}`;
 
       if (!this.channelFeeds.has(feedKey)) {
@@ -2559,7 +2582,7 @@ class MeshCoreStationApp {
       const normalizedMsg = {
         sender: senderKey,
         sender_name: senderName,
-        text: payload.text || payload.message || "",
+        text: cleanText,
         channel_idx: chIdx,
         txt_type: Number(payload.txt_type ?? payload.text_type ?? 0),
         is_outgoing: false,
@@ -4720,6 +4743,10 @@ class MeshCoreStationApp {
       sender = extracted.senderName || "Anónimo";
     }
 
+    // Re-evaluar texto limpio asegurando remover cualquier prefijo repetido del nombre resuelto
+    const finalExtracted = this.extractSenderAndText(extracted.cleanText || rawText, sender);
+    const displayText = finalExtracted.cleanText || extracted.cleanText || rawText;
+
     const rssi = msg.metrics?.rssi != null ? msg.metrics.rssi : (msg.rssi != null ? msg.rssi : null);
     const snr = msg.metrics?.snr != null ? msg.metrics.snr : (msg.snr != null ? msg.snr : null);
 
@@ -4739,7 +4766,7 @@ class MeshCoreStationApp {
     let locLat = msg.location?.lat;
     let locLon = msg.location?.lon;
     if (locLat == null || locLon == null) {
-      const locMatch = rawText.match(/📍\s*Mi ubicación:\s*(-?\d+\.\d+),\s*(-?\d+\.\d+)/i) || rawText.match(/LOC:\s*(-?\d+\.\d+),\s*(-?\d+\.\d+)/i);
+      const locMatch = displayText.match(/📍\s*Mi ubicación:\s*(-?\d+\.\d+),\s*(-?\d+\.\d+)/i) || displayText.match(/LOC:\s*(-?\d+\.\d+),\s*(-?\d+\.\d+)/i);
       if (locMatch) {
         locLat = parseFloat(locMatch[1]);
         locLon = parseFloat(locMatch[2]);
@@ -4804,7 +4831,7 @@ class MeshCoreStationApp {
       </div>
       <div class="msg-bubble">
         ${quoteHtml}
-        <div class="msg-text-content">${this.escapeHtml(msg.text)}</div>
+        <div class="msg-text-content">${this.escapeHtml(displayText)}</div>
         ${locationCardHtml}
       </div>
       <div class="msg-footer">

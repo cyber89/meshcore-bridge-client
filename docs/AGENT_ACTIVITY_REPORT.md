@@ -6,6 +6,30 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Eliminación de Prefijo Duplicado de Remitente en Burbujas de Chat
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect).
+- **Problema Reportado**:
+  - En los mensajes de canales (público/privado), el nombre del nodo emisor (ej: `Cu1.mobilUnit`) se mostraba dos veces: una sobre la burbuja del mensaje (en el encabezado de metadatos) y se repetía dentro del cuerpo del mensaje (`Cu1.mobilUnit: meshcore://channel/add?...`).
+- **Causa Raíz Identificada**:
+  1. Las tramas de canal transmitidas por clientes y companions MeshCore frecuentemente anteponen el nombre del emisor en el payload de texto (`"Nombre: Mensaje"`).
+  2. En `src/rx_router.py`, `extract_sender_from_text(text)` extraía el nombre pero descartaba el texto limpio devuelto (`clean_text`), enviando el texto sin depurar a MQTT y WebSockets.
+  3. En `src/web/static/js/app.js`, `appendChatMessage()` y `onMessage()` calculaban `extracted.senderName` pero renderizaban directamente `msg.text` sin limpiar el prefijo de la burbuja ni filtrar esquemas URL como `meshcore://`.
+- **Acciones Realizadas**:
+  1. **Backend (`src/rx_router.py`)**:
+     - Actualizado `_SENDER_PREFIX_RE` y `extract_sender_from_text()` para admitir nombres normales y entre corchetes/paréntesis, protegiendo esquemas URL (`//`).
+     - Asignación de `clean_text` a `text` y remoción del prefijo si `sender_name` ya era conocido.
+  2. **Frontend SPA (`src/web/static/js/app.js`)**:
+     - `extractSenderAndText()` optimizado para coincidir con el nombre de remitente actual y remover prefijos redundantes antes de renderizar la burbuja.
+     - `appendChatMessage()` renderiza exclusivamente el texto limpio depurado en `.msg-text-content`.
+     - `normalizedMsg` en el handler de WebSockets persiste el texto limpio en IndexedDB y memoria.
+  3. **Suite de Pruebas (`tests/test_sanitization_fixes.py`)**:
+     - Añadida clase `TestSenderPrefixDeduplication` con 4 tests unitarios específicos (incluyendo enlaces `meshcore://` y URLs).
+- **Módulos Modificados**: `src/rx_router.py`, `src/web/static/js/app.js`, `tests/test_sanitization_fixes.py`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
+
+
 ### Hito: Saneamiento Integral Multi-Agente del Código (Rate Limiter, Admin Handler, Target Resolver, Security y Protocol Types)
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO

@@ -406,3 +406,48 @@ class TestAdminHandlerStructure:
         from src.admin_handler import AdminCommandHandler
         source = inspect.getsource(AdminCommandHandler._resolve_target)
         assert "TargetResolver" in source
+
+
+# ================================================================== #
+#  9. Sender Prefix Deduplication in Message Text                     #
+# ================================================================== #
+
+class TestSenderPrefixDeduplication:
+    """Tests para verificar la extracción y remoción del prefijo de remitente."""
+
+    def test_extract_sender_with_channel_url(self) -> None:
+        """Verifica que 'Cu1.mobilUnit: meshcore://...' extrae el remitente y limpia el texto."""
+        from src.rx_router import extract_sender_from_text
+
+        text = "Cu1.mobilUnit: meshcore://channel/add?name=Locals&secret=d57078c90eef5f5a7e949f1892ba744e"
+        sender, clean = extract_sender_from_text(text)
+        assert sender == "Cu1.mobilUnit"
+        assert clean == "meshcore://channel/add?name=Locals&secret=d57078c90eef5f5a7e949f1892ba744e"
+
+    def test_extract_sender_with_brackets(self) -> None:
+        """Verifica que '[Cu1.mobilUnit]: hola mundo' extrae el remitente y limpia el texto."""
+        from src.rx_router import extract_sender_from_text
+
+        text = "[Cu1.mobilUnit]: hola mundo"
+        sender, clean = extract_sender_from_text(text)
+        assert sender == "Cu1.mobilUnit"
+        assert clean == "hola mundo"
+
+    def test_extract_sender_url_not_treated_as_sender(self) -> None:
+        """Verifica que URLs directas como 'meshcore://...' no extraen 'meshcore' como remitente."""
+        from src.rx_router import extract_sender_from_text
+
+        text = "meshcore://channel/add?name=Locals&secret=d57078c90eef5f5a7e949f1892ba744e"
+        sender, clean = extract_sender_from_text(text)
+        assert sender is None
+        assert clean == text
+
+    def test_extract_sender_http_url_not_treated_as_sender(self) -> None:
+        """Verifica que 'http://...' o 'https://...' no extraen scheme como remitente."""
+        from src.rx_router import extract_sender_from_text
+
+        text = "https://meshcore.org"
+        sender, clean = extract_sender_from_text(text)
+        assert sender is None
+        assert clean == text
+

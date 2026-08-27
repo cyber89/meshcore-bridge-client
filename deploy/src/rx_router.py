@@ -31,7 +31,10 @@ from src.sensor_decoder import (
     format_telemetry_summary,
 )
 
-_SENDER_PREFIX_RE = re.compile(r"^([a-zA-Z0-9_\-\.]{2,32}):\s*(.*)$", re.DOTALL)
+_SENDER_PREFIX_RE = re.compile(
+    r"^(?:\[([a-zA-Z0-9_\-\.]{2,32})\]|<([a-zA-Z0-9_\-\.]{2,32})>|([a-zA-Z0-9_\-\.]{2,32})):\s*(.*)$",
+    re.DOTALL,
+)
 
 
 def _get_coord(d: dict[str, Any], keys: tuple[str, ...]) -> float | None:
@@ -55,14 +58,23 @@ def _get_coord(d: dict[str, Any], keys: tuple[str, ...]) -> float | None:
 
 
 def extract_sender_from_text(text: str) -> tuple[str | None, str]:
-    """Extrae el nombre del remitente si el texto tiene el prefijo 'Nombre: Mensaje'."""
+    """Extrae el nombre del remitente si el texto tiene el prefijo 'Nombre: Mensaje'.
+
+    Retorna (candidate_name, clean_text). Si no hay prefijo o si es una URL,
+    retorna (None, text).
+    """
     if not text or not isinstance(text, str):
         return None, text
     m = _SENDER_PREFIX_RE.match(text.strip())
     if m:
-        candidate_name = m.group(1).strip()
-        actual_text = m.group(2).strip()
-        if candidate_name.lower() not in ("http", "https", "ftp", "ws", "wss", "json", "data", "cmd", "r", "ack", "req", "res", "echo", "status"):
+        candidate_name = (m.group(1) or m.group(2) or m.group(3) or "").strip()
+        actual_text = (m.group(4) or "").strip()
+        if actual_text.startswith("//"):
+            return None, text
+        if candidate_name.lower() not in (
+            "http", "https", "ftp", "ws", "wss", "json", "data", "cmd",
+            "r", "ack", "req", "res", "echo", "status", "meshcore", "loc",
+        ):
             return candidate_name, actual_text
     return None, text
 
@@ -240,14 +252,23 @@ class RxEventRouter:
             hops = int(payload_dict.get("hop_count", payload_dict.get("hops", 0)))
 
             # Extracción inteligente de nombre desde el cuerpo del texto si viene en formato 'Nombre: Mensaje'
-            extracted_name, _ = extract_sender_from_text(text)
+            extracted_name, clean_text = extract_sender_from_text(text)
             if extracted_name:
+                text = clean_text
                 if not sender_name or sender_name.lower() in ("unknown", "anónimo", "anonimo", "") or sender_name == sender:
                     sender_name = extracted_name
                 if not sender or not is_valid_node_key(sender):
                     found_c = self._ctx.node_registry.find_by_name(extracted_name)
                     if found_c and is_valid_node_key(found_c.public_key):
                         sender = found_c.public_key
+            elif sender_name and sender_name.lower() not in ("unknown", "anónimo", "anonimo", ""):
+                # Si el texto empieza con el nombre ya conocido (ej: "Cu1.mobilUnit: mensaje")
+                s_clean = sender_name.strip()
+                prefix_check = f"{s_clean}:"
+                if text.lower().startswith(prefix_check.lower()):
+                    candidate_clean = text[len(prefix_check):].strip()
+                    if not candidate_clean.startswith("//"):
+                        text = candidate_clean
 
             # Si no hay emisor pero el evento proviene del transceptor local o consulta interna
             ev_upper_cand = ev_type_str.upper()
