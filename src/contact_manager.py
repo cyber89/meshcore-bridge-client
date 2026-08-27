@@ -664,6 +664,17 @@ class NodeRegistry:
             return contact.alias or contact.name
         return query
 
+    def resolve_display_name(self, key_or_prefix: str) -> str:
+        """Resuelve el nombre de display de un nodo dado su key completa o prefijo de 8 chars.
+        Single Source of Truth para resolución de nombres en todo el bridge.
+        Retorna alias si existe, nombre si no, o el prefijo como fallback.
+        """
+        prefix = key_or_prefix[:8] if len(key_or_prefix) >= 8 else key_or_prefix
+        node = self.get_by_key_or_prefix(key_or_prefix)
+        if node:
+            return node.alias or node.name or prefix
+        return prefix
+
     def list_nodes(self) -> list[dict[str, Any]]:
         """Retorna la lista de todos los nodos registrados en formato serializable."""
         return [
