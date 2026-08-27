@@ -551,7 +551,10 @@ class WebAPIRouter:
         local_cfg = self.bridge.admin_handler.get_local_config() if hasattr(self.bridge, "admin_handler") else {}
 
         ser_adapter = getattr(self.bridge, "serial_adapter", None)
-        serial_connected = getattr(ser_adapter, "is_connected", False) if ser_adapter else False
+        if ser_adapter and hasattr(ser_adapter, "is_hardware_alive"):
+            serial_connected = bool(ser_adapter.is_hardware_alive())
+        else:
+            serial_connected = getattr(ser_adapter, "is_connected", False) if ser_adapter else False
         mqtt_client = getattr(self.bridge, "mqtt", None)
         mqtt_connected = getattr(mqtt_client, "is_connected", False) if mqtt_client else False
 

@@ -117,9 +117,13 @@ class BaseSerialAdapter(abc.ABC):
         """Descarga e importa todos los contactos almacenados en el hardware."""
         return []
 
+    def is_hardware_alive(self) -> bool:
+        """Verifica de forma síncrona si el hardware USB o socket TCP permanece conectado a nivel OS."""
+        return bool(self.is_connected)
+
     async def ping_or_check_alive(self) -> bool:
         """Verifica si el transceptor local sigue vivo y respondiendo por serial."""
-        return self.is_connected
+        return self.is_hardware_alive()
 
     async def get_channel(self, index: int) -> dict[str, Any] | None:
         """Obtiene la configuración de un canal específico."""
@@ -270,23 +274,53 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                 self.mc = None
         self.is_connected = False
 
-    async def ping_or_check_alive(self) -> bool:
-        """Comprueba si el transceptor local sigue vivo y respondiendo activamente por serial."""
-        if not self.is_connected or not self.mc:
+    def is_hardware_alive(self) -> bool:
+        """Verifica instantáneamente si el transceptor USB / TCP sigue presente en el sistema operativo."""
+        if not self.is_connected or self.mc is None:
+            self.is_connected = False
             return False
+
+        if str(self.port).startswith("tcp://"):
+            return self.is_connected
+
+        # 1. Comprobación a nivel de sistema operativo de puertos COM / tty
         try:
-            # Comprobar si el socket o conexión serial de transporte permanece abierta a nivel OS
+            import serial.tools.list_ports
+            com_ports = [p.device.lower() for p in serial.tools.list_ports.comports()]
+            port_lower = str(self.port).lower()
+            if port_lower and port_lower not in ("auto", "detect") and port_lower not in com_ports:
+                if not os.path.exists(self.port):
+                    self.is_connected = False
+                    return False
+        except Exception:
+            pass
+
+        # 2. Comprobación de transporte serial abierto
+        try:
             if hasattr(self.mc, "connection"):
                 cx = self.mc.connection
                 if hasattr(cx, "is_open") and not cx.is_open:
+                    self.is_connected = False
+                    return False
+                if hasattr(cx, "serial") and hasattr(cx.serial, "is_open") and not cx.serial.is_open:
+                    self.is_connected = False
                     return False
                 if hasattr(cx, "transport") and cx.transport and hasattr(cx.transport, "is_closing") and cx.transport.is_closing():
+                    self.is_connected = False
                     return False
-            self.heartbeat()
-            return True
-        except Exception as e:
-            logging.debug(f"Ping vivacidad serial falló: {e}")
+        except Exception:
+            self.is_connected = False
             return False
+
+        return self.is_connected
+
+    async def ping_or_check_alive(self) -> bool:
+        """Comprueba si el transceptor local sigue vivo y respondiendo activamente por serial."""
+        if not self.is_hardware_alive():
+            self.is_connected = False
+            return False
+        self.heartbeat()
+        return True
 
     def _register_event_handlers(self) -> None:
         if not self.mc:
@@ -855,7 +889,17 @@ class SerialWatchdog:
     async def _supervise_loop(self) -> None:
         while self._running:
             try:
-                await asyncio.sleep(self.interval_sec)
+                # Comprobación proactiva y rápida de presencia física USB cada 2 segundos
+                for _ in range(max(1, int(self.interval_sec / 2.0))):
+                    if not self._running:
+                        break
+                    await asyncio.sleep(2.0)
+                    if self.adapter.is_connected and hasattr(self.adapter, "is_hardware_alive"):
+                        if not self.adapter.is_hardware_alive():
+                            logging.warning("Watchdog Serial: Transceptor LoRa desconectado físicamente del puerto USB.")
+                            self.adapter.is_connected = False
+                            break
+
                 now = time.time()
                 idle_sec = now - self.adapter.last_heartbeat_time
 

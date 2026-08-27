@@ -4751,9 +4751,9 @@ class MeshCoreStationApp {
     const badge = document.getElementById('ws-status');
     if (!badge) return;
     const states = {
-        connected: { cls: 'ws-badge--connected', text: '⬤ Conectado' },
-        reconnecting: { cls: 'ws-badge--reconnecting', text: '⬤ Reconectando…' },
-        disconnected: { cls: 'ws-badge--disconnected', text: '⬤ Sin conexión' },
+        connected: { cls: 'ws-badge--connected', text: '🌐 Web: Conectado' },
+        reconnecting: { cls: 'ws-badge--reconnecting', text: '🌐 Web: Reconectando…' },
+        disconnected: { cls: 'ws-badge--disconnected', text: '🌐 Web: Sin conexión' },
     };
     const s = states[state] || states.disconnected;
     badge.className = `ws-badge ${s.cls}`;
