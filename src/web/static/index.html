@@ -1446,8 +1446,9 @@
                 <div class="linux-term-actions">
                   <button type="button" class="btn-xs btn-outline-term" id="btnToggleCmdHelp">❓ Ayuda (help)</button>
                   <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="ping">🎯 ping</button>
-                  <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="stats-core">stats-core</button>
-                  <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="stats-radio">stats-radio</button>
+                  <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="ver">ver</button>
+                  <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="get radio">get radio</button>
+                  <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="neighbors">neighbors</button>
                 </div>
               </div>
 
@@ -1459,68 +1460,68 @@
                 </div>
                 <div class="help-cmd-grid">
                   <div class="help-cmd-item" data-cmd="ver">
-                    <code>ver / query</code>
-                    <span>Modelo, firmware, build y estado repetidor</span>
+                    <code>ver</code>
+                    <span>Versión de firmware, build date y estado</span>
                   </div>
-                  <div class="help-cmd-item" data-cmd="bat">
-                    <code>bat / get_bat</code>
-                    <span>Nivel de batería, voltaje (mV/V) y panel solar</span>
+                  <div class="help-cmd-item" data-cmd="get radio">
+                    <code>get radio</code>
+                    <span>Frecuencia (MHz), BW, SF y Coding Rate (CR)</span>
+                  </div>
+                  <div class="help-cmd-item" data-cmd="get tx">
+                    <code>get tx</code>
+                    <span>Potencia de transmisión configurada (dBm)</span>
+                  </div>
+                  <div class="help-cmd-item" data-cmd="get name">
+                    <code>get name</code>
+                    <span>Nombre o alias configurado en el repetidor</span>
+                  </div>
+                  <div class="help-cmd-item" data-cmd="get lat">
+                    <code>get lat</code>
+                    <span>Latitud configurada en el repetidor</span>
+                  </div>
+                  <div class="help-cmd-item" data-cmd="get lon">
+                    <code>get lon</code>
+                    <span>Longitud configurada en el repetidor</span>
+                  </div>
+                  <div class="help-cmd-item" data-cmd="get owner.info">
+                    <code>get owner.info</code>
+                    <span>Identidad y datos del propietario</span>
                   </div>
                   <div class="help-cmd-item" data-cmd="clock">
-                    <code>clock / time</code>
-                    <span>Hora actual y timestamp del reloj RTC</span>
+                    <code>clock</code>
+                    <span>Hora UTC actual del reloj RTC del repetidor</span>
                   </div>
-                  <div class="help-cmd-item" data-cmd="sync_clock">
-                    <code>sync_clock / st</code>
+                  <div class="help-cmd-item" data-cmd="clock sync">
+                    <code>clock sync</code>
                     <span>Sincroniza RTC con la hora exacta del host</span>
                   </div>
-                  <div class="help-cmd-item" data-cmd="stats-core">
-                    <code>stats-core / stats</code>
-                    <span>Estadísticas de CPU, memoria, solar y airtime</span>
-                  </div>
-                  <div class="help-cmd-item" data-cmd="stats-radio">
-                    <code>stats-radio / radio</code>
-                    <span>Parámetros RF, SNR, RSSI y piso de ruido</span>
-                  </div>
-                  <div class="help-cmd-item" data-cmd="stats-packets">
-                    <code>stats-packets / packets</code>
-                    <span>Contadores de paquetes TX, RX, dup y errores</span>
-                  </div>
-                  <div class="help-cmd-item" data-cmd="pos">
-                    <code>pos / get_pos</code>
-                    <span>Consulta coordenadas GPS y posición fija</span>
-                  </div>
-                  <div class="help-cmd-item" data-cmd="owner">
-                    <code>owner / identity</code>
-                    <span>Identidad del repetidor y datos del propietario</span>
-                  </div>
                   <div class="help-cmd-item" data-cmd="neighbors">
-                    <code>neighbors / vecinos</code>
-                    <span>Tabla de nodos vecinos y rutas de malla</span>
+                    <code>neighbors</code>
+                    <span>Tabla de nodos vecinos y rutas de la malla</span>
                   </div>
-                  <div class="help-cmd-item" data-cmd="discover.neighbors">
-                    <code>discover.neighbors</code>
-                    <span>Fuerza escaneo activo de vecinos en la malla</span>
+                  <div class="help-cmd-item" data-cmd="get repeat">
+                    <code>get repeat</code>
+                    <span>Estado del reenvío/repetidor (on / off)</span>
                   </div>
-                  <div class="help-cmd-item" data-cmd="acl">
-                    <code>acl / get_acl</code>
-                    <span>Lista de control de acceso y permisos</span>
+                  <div class="help-cmd-item" data-cmd="get dutycycle">
+                    <code>get dutycycle</code>
+                    <span>Límite de ciclo de trabajo (airtime %)</span>
                   </div>
                   <div class="help-cmd-item" data-cmd="advert">
-                    <code>advert / flood</code>
-                    <span>Emite anuncio de presencia (Hop 0 / Flood)</span>
+                    <code>advert</code>
+                    <span>Emite anuncio de presencia en la malla</span>
+                  </div>
+                  <div class="help-cmd-item" data-cmd="advert.zerohop">
+                    <code>advert.zerohop</code>
+                    <span>Anuncio local de 0 saltos (directo)</span>
                   </div>
                   <div class="help-cmd-item" data-cmd="ping">
                     <code>ping</code>
-                    <span>Sonda directa de enlace y respuesta de radio</span>
-                  </div>
-                  <div class="help-cmd-item" data-cmd="clear stats">
-                    <code>clear stats</code>
-                    <span>Restablece contadores de estadísticas a cero</span>
+                    <span>Sonda directa de enlace (0 saltos)</span>
                   </div>
                   <div class="help-cmd-item" data-cmd="reboot">
                     <code>reboot</code>
-                    <span>Reinicia el microcontrolador del repetidor por RF</span>
+                    <span>Reinicia el microcontrolador por RF</span>
                   </div>
                 </div>
               </div>
@@ -1532,7 +1533,7 @@
 
               <form id="repeaterTerminalForm" class="linux-term-input-bar">
                 <span class="linux-term-prompt">meshcore@remote:~$</span>
-                <input type="text" id="repeaterTerminalInput" class="linux-term-input" placeholder="Escribe comando RF (ej: ping, stats-core, neighbors, clock, advert)..." autocomplete="off" spellcheck="false" />
+                <input type="text" id="repeaterTerminalInput" class="linux-term-input" placeholder="Escribe comando RF (ej: ver, get radio, neighbors, clock, get lat)..." autocomplete="off" spellcheck="false" />
                 <button type="submit" class="btn-term-send">↵ Ejecutar</button>
               </form>
             </div>

@@ -1404,10 +1404,10 @@ class MeshCoreStationApp {
             body: JSON.stringify({ target_node: canonicalPk, password: password, action: act }),
           }).catch(() => {});
 
-          fetchAction("stats-core");
-          setTimeout(() => fetchAction("stats-radio"), 600);
-          setTimeout(() => fetchAction("pos"), 1200);
-          setTimeout(() => fetchAction("owner"), 1800);
+          fetchAction("ver");
+          setTimeout(() => fetchAction("get radio"), 600);
+          setTimeout(() => fetchAction("get lat"), 1200);
+          setTimeout(() => fetchAction("get owner.info"), 1800);
         } catch (_) {}
 
         return true;
@@ -1452,7 +1452,7 @@ class MeshCoreStationApp {
         fetch("/api/repeater/remote/action", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ target_node: canonicalPk, password: pwd, action: "stats-core" }),
+          body: JSON.stringify({ target_node: canonicalPk, password: pwd, action: "ver" }),
         }).catch(() => {});
       }
     } else {
@@ -1904,25 +1904,23 @@ class MeshCoreStationApp {
         btnRefreshTelem.disabled = true;
         btnRefreshTelem.textContent = "🔄 Consultando...";
         try {
-          await this.executeRepeaterCommand(target, "stats-core", {}, password);
+          await this.executeRepeaterCommand(target, "ver", {}, password);
           await new Promise((r) => setTimeout(r, 400));
-          await this.executeRepeaterCommand(target, "stats-radio", {}, password);
+          await this.executeRepeaterCommand(target, "get radio", {}, password);
           await new Promise((r) => setTimeout(r, 400));
-          await this.executeRepeaterCommand(target, "pos", {}, password);
+          await this.executeRepeaterCommand(target, "get lat", {}, password);
           await new Promise((r) => setTimeout(r, 400));
-          await this.executeRepeaterCommand(target, "owner", {}, password);
-          this.showToast("📡 Solicitud de telemetría completa transmitida al repetidor", "info");
+          await this.executeRepeaterCommand(target, "get owner.info", {}, password);
+          this.showToast("📡 Parámetros y estado consultados al repetidor por RF", "info");
         } catch (_) {}
         finally {
           setTimeout(() => {
             btnRefreshTelem.disabled = false;
-            btnRefreshTelem.textContent = "🔄 Actualizar Telemetría Remota (stats-core)";
+            btnRefreshTelem.textContent = "🔄 Consultar Parámetros";
           }, 1500);
         }
       });
     }
-
-
 
     const btnDiscover = document.getElementById("btnDiscoverNeighbors");
     if (btnDiscover) {
@@ -1934,7 +1932,7 @@ class MeshCoreStationApp {
         }
         const password = this.getRepeaterPassword(target);
         this.appendTerminalLine(`> [TX] Sondeando vecinos en la malla desde ${target.slice(0, 8)}...`, "term-cmd");
-        await this.executeRepeaterCommand(target, "discover.neighbors", {}, password);
+        await this.executeRepeaterCommand(target, "neighbors", {}, password);
         this.refreshNeighborsTable(target);
       });
     }
@@ -1953,7 +1951,7 @@ class MeshCoreStationApp {
         const target = this.selectedRepeaterTarget;
         if (!target) return;
         const password = this.getRepeaterPassword(target);
-        this.executeRepeaterCommand(target, "stats-radio", {}, password);
+        this.executeRepeaterCommand(target, "get radio", {}, password);
       });
     }
 

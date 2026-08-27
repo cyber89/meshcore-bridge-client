@@ -6,6 +6,35 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Corrección y Normalización de Comandos CLI Remotos por RF para Repetidores MeshCore
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect).
+- **Problema Reportado por el Usuario**:
+  - Al abrir la consola de administración remota de un repetidor, se recibían respuestas de error automáticas:
+    ```text
+    Consola remota lista. Envía comandos RF o presiona ↑ / ↓ para navegar el historial.
+    [4:59:29 PM] ← [RESP] Unknown command
+    [4:59:30 PM] ← [RESP] Unknown command
+    [4:59:30 PM] ← [RESP] ??: pos
+    ```
+- **Causa Raíz Identificada**:
+  1. **Restricción de Firmware MeshCore (`CommonCLI.cpp:434-445`)**:
+     - Los comandos `stats-core`, `stats-radio` y `stats-packets` tienen guarda de timestamp `if (sender_timestamp == 0)`. Sólo están permitidos por puerto serie local USB. Cuando se envían vía RF remota (`sender_timestamp > 0`), el firmware los rechaza respondiendo `Unknown command`.
+  2. **Inexistencia del comando `get pos` / `pos`**:
+     - En el firmware oficial de MeshCore, las coordenadas se consultan mediante `get lat` y `get lon`. Cualquier parámetro no reconocido en `get <key>` cae en la cláusula `sprintf(reply, "??: %s", config)` devolviendo `??: pos`.
+  3. **Disparos Automáticos Post-Autenticación**:
+     - Al desbloquear o abrir la sesión del repetidor, la interfaz web ejecutaba en segundo plano ráfagas de consulta con comandos obsoletos (`stats-core`, `stats-radio`, `pos`, `owner`).
+- **Acciones Realizadas**:
+  1. **Alineación con Firmware SSoT en `src/repeater_manager.py`**:
+     - Mapeo de `pos` / `lat` a `"get lat"`, `lon` a `"get lon"`, `owner` a `"get owner.info"`, `radio` a `"get radio"`, `neighbors` a `"neighbors"` y `sync_clock` a `"clock sync"`.
+  2. **Frontend SPA (`src/web/static/js/app.js` y `index.html`)**:
+     - Actualizados los disparadores post-autenticación y botones rápidos para emitir comandos RF nativos (`ver`, `get radio`, `get lat`, `get owner.info`, `neighbors`).
+     - Actualizada la cuadrícula de ayuda del terminal y los botones rápidos con los comandos soportados por RF.
+- **Módulos Modificados**: `src/repeater_manager.py`, `src/web/static/js/app.js`, `src/web/static/index.html`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
+
+
 ### Hito: Eliminación de Opciones de Responder (↩️) y Copiar (📋) en Burbujas de Chat
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO
