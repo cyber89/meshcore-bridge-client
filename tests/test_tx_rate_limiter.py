@@ -42,7 +42,7 @@ class TestTXRateLimiter(unittest.TestCase):
             self.bridge.mc.commands.send_chan_msg.side_effect = mock_send
 
             # Iniciar el worker en segundo plano
-            worker_task = asyncio.create_task(self.bridge._tx_worker())
+            worker_task = asyncio.create_task(self.bridge.rate_limiter._worker_loop())
 
             # Encolar 3 mensajes casi al instante
             await self.bridge.tx_queue.put({"request_id": "req_1", "text": "Msg 1", "to": "broadcast"})

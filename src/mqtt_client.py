@@ -108,7 +108,7 @@ class AsyncBridgeMQTTClient:
 
     def start(self, loop: asyncio.AbstractEventLoop | None = None) -> None:
         """Configura credenciales, LWT e inicia el bucle de red MQTT en hilo dedicado."""
-        self._loop = loop or asyncio.get_event_loop()
+        self._loop = loop or asyncio.get_running_loop()
 
         # Backoff de reconexión determinista (1s..30s) para resiliencia ante caídas del broker
         self.client.reconnect_delay_set(min_delay=1, max_delay=30)
@@ -211,6 +211,9 @@ class AsyncBridgeMQTTClient:
                 if self._loop and self._loop.is_running():
                     self._loop.call_soon_threadsafe(self.on_rx_message_callback, topic, payload_str)
                 else:
-                    self.on_rx_message_callback(topic, payload_str)
+                    try:
+                        self.on_rx_message_callback(topic, payload_str)
+                    except Exception as e:
+                        logging.error(f"MQTT callback error: {e}")
         except Exception as e:
             logging.error(f"Error procesando mensaje MQTT entrante: {e}")

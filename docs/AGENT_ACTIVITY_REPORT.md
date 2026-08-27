@@ -1414,3 +1414,23 @@ Cada vez que un agente comience o finalice una tarea, agregará una entrada en l
   - [Notas de compatibilidad cruzada para armonizar otros subsistemas]
 - **Estado**: [EN PROGRESO / COMPLETADO]
 ```
+
+### [TASK-2026-08-26-01] Concurrencia y Resiliencia FASE 1B + 2
+- **Fecha y Hora**: 2026-08-26 23:05
+- **Agente Responsable**: Agente 2 (Bridge Architect)
+- **Objetivo**: Implementar correcciones de concurrencia y resiliencia (drain/backpressure en broadcasts, protección de estructuras no thread-safe, maxsize en TxQueue, semáforo en RX, timeout en WS, etc).
+- **Archivos Modificados / Creados**:
+  - config.py: Agregados MAX_TX_QUEUE_SIZE, MAX_RX_CONCURRENCY, WS_IDLE_TIMEOUT_SEC.
+  - src/web/http_server.py: \roadcast_event\ es ahora corutina con discard de clientes lentos y wait_for drain; timeout aplicado a eader.read\ en WS.
+  - src/tcp_companion_server.py: \roadcast_companion_frame\ y \send_frame_to_client\ con validación de buffer y drain timeout. Buffer limits al registrar clientes.
+  - src/deduplicator.py: Agregados locks asíncronos y síncronos para operaciones thread-safe sobre el cache.
+  - src/rate_limiter.py: \CustomTxQueue\ implementa \maxsize\ configurable con captura de \QueueFull\. Atributos \	otal_dropped\.
+  - src/bridge_core.py: Cancelación y recolección de tareas background al apagar. Limpiador de \_background_tasks\ periódico con lock. Eliminado \_tx_worker\ duplicado. Contadores de TX protegidos con lock. Reconexión serial invoca \wait connect()\.
+  - src/rx_router.py: Incorporado \syncio.Semaphore\ para limitar concurrencia en la validación y despacho de tramas (CONC-004). Llamadas a web broadcast refactorizadas.
+  - src/serial_driver.py: Agregado \wait_for\ timeout a \ping_or_check_alive\.
+  - src/mqtt_client.py: \get_running_loop\ en lugar de \get_event_loop\. Try-catch añadido al callback \on_message\ directo.
+  - src/mqtt_dispatcher.py: Agregado timeout en el wait de la request de TX (CONC-009).
+  - src/admin_handler.py, src/web/api_router.py: Adaptadas a la API async de websockets broadcast y rate limiter.
+  - 	ests/test_tx_rate_limiter.py, 	ests/test_stress_flood.py: Fixes para compatibilidad por eliminación del worker obsoleto.
+- **Contratos / Interfaces Modificadas**: APIs internas cambiaron en su firma de asincronía (broadcast_event). Las interfaces externas (MQTT, REST, TCP) mantienen contratos previos.
+- **Estado**: COMPLETADO

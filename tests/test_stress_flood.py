@@ -73,7 +73,7 @@ class TestStressFlood(unittest.TestCase):
         """Encola 50 órdenes TX y verifica que se procesen sin pérdidas ni fallos."""
         async def run_stress_tx():
             config.TX_INTERVAL_SEC = 0.001  # Acelerar intervalo para el test
-            worker = asyncio.create_task(self.bridge._tx_worker())
+            worker = asyncio.create_task(self.bridge.rate_limiter._worker_loop())
 
             for i in range(50):
                 await self.bridge.tx_queue.put({

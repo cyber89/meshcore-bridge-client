@@ -755,8 +755,11 @@ class SerialWatchdog:
                 # 2. CASO CONECTADO: Si no ha habido tráfico RF reciente, verificar vivacidad mediante ping suave
                 if idle_sec > self.timeout_sec:
                     logging.debug(f"Watchdog Serial: Sin tráfico RF en {idle_sec:.1f}s. Comprobando respuesta del transceptor...")
-                    is_alive = await self.adapter.ping_or_check_alive()
-
+                    try:
+                        is_alive = await asyncio.wait_for(self.adapter.ping_or_check_alive(), timeout=10.0)
+                    except asyncio.TimeoutError:
+                        is_alive = False
+                        logging.warning("Watchdog ping timeout")
                     if is_alive:
                         # El nodo local responde perfectamente al ping (solo hay silencio de radio en la malla)
                         self._consecutive_ping_failures = 0

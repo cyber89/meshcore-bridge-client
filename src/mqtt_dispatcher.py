@@ -101,16 +101,28 @@ class MqttInboundDispatcher:
             request_id=str(req_id) if req_id else None,
         )
 
-        res = await future
-        status_payload = {
-            "status": res.get("status", "sent"),
-            "request_id": req_id,
-            "target": target,
-            "channel_idx": channel_idx,
-            "queue_depth": self._ctx.rate_limiter.get_queue_depth(),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-        self._ctx.mqtt.publish_safe(config.TOPIC_TX_STATUS, json.dumps(status_payload), qos=1)
+        try:
+            res = await asyncio.wait_for(future, timeout=30.0)
+            status_payload = {
+                "status": res.get("status", "sent"),
+                "request_id": req_id,
+                "target": target,
+                "channel_idx": channel_idx,
+                "queue_depth": self._ctx.rate_limiter.get_queue_depth(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            self._ctx.mqtt.publish_safe(config.TOPIC_TX_STATUS, json.dumps(status_payload), qos=1)
+        except asyncio.TimeoutError:
+            logging.error("TX future timeout, activating diagnostic alert")
+            status_payload = {
+                "status": "error",
+                "error": "TX future timeout",
+                "request_id": req_id,
+                "target": target,
+                "channel_idx": channel_idx,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            self._ctx.mqtt.publish_safe(config.TOPIC_TX_STATUS, json.dumps(status_payload), qos=1)
 
     async def _handle_admin_request(self, payload_str: str) -> None:
         """Ejecuta comandos de administración sobre el hardware."""

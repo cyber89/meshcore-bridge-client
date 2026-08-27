@@ -196,7 +196,9 @@ class RxEventRouter:
     """Enruta eventos de la red Mesh (RF/radio) hacia MQTT, n8n y WebSocket."""
 
     def __init__(self, ctx: RxRouterContext) -> None:
+        import os
         self._ctx = ctx
+        self._rx_semaphore = asyncio.Semaphore(int(os.getenv("MAX_RX_CONCURRENCY", "20")))
 
     def handle_event(self, event: Any) -> None:
         """Procesa y enruta eventos de la red Mesh hacia MQTT y n8n."""
@@ -205,7 +207,7 @@ class RxEventRouter:
 
         try:
             if isinstance(event, MeshcoreFrame):
-                loop = self._ctx.loop or asyncio.get_event_loop()
+                loop = self._ctx.loop or asyncio.get_running_loop()
                 task = loop.create_task(self._dispatch_parsed_frame(event))
                 self._ctx.background_tasks.add(task)
                 task.add_done_callback(self._ctx.background_tasks.discard)
@@ -1010,32 +1012,33 @@ class RxEventRouter:
 
     async def _dispatch_parsed_frame(self, frame: MeshcoreFrame) -> None:
         """Enruta instancias de MeshcoreFrame validadas a MQTT."""
-        mqtt_evt = frame.to_mqtt_event()
-        evt_json = json.dumps(mqtt_evt)
+        async with self._rx_semaphore:
+            mqtt_evt = frame.to_mqtt_event()
+            evt_json = json.dumps(mqtt_evt)
 
-        dedup_key = f"frame::{frame.header.src_node_id}::{frame.header.seq_num}::{int(frame.header.opcode)}"
-        if await self._ctx.deduplicator.is_duplicate(dedup_key):
-            return
+            dedup_key = f"frame::{frame.header.src_node_id}::{frame.header.seq_num}::{int(frame.header.opcode)}"
+            if await self._ctx.deduplicator.is_duplicate(dedup_key):
+                return
 
-        self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
+            self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
 
-        if frame.header.opcode == OpCode.TELEMETRY:
-            self._ctx.mqtt.publish_safe(config.TOPIC_RX_TELEMETRY, evt_json, qos=0)
-        elif frame.header.opcode == OpCode.NODE_ADVERT:
-            self._ctx.mqtt.publish_safe(config.TOPIC_RX_NODES, evt_json, qos=0)
-        elif frame.header.opcode == OpCode.TEXT_MSG:
-            if isinstance(frame.payload, TextMessagePayload):
-                if not is_common_chat_message(frame.payload.text):
-                    return
-                if frame.payload.channel_idx == 0:
-                    self._ctx.mqtt.publish_safe(config.TOPIC_RX_PUBLIC, evt_json, qos=0)
-                else:
-                    self._ctx.mqtt.publish_safe(f"{config.TOPIC_RX_CHANNEL}/ch_{frame.payload.channel_idx}", evt_json, qos=0)
+            if frame.header.opcode == OpCode.TELEMETRY:
+                self._ctx.mqtt.publish_safe(config.TOPIC_RX_TELEMETRY, evt_json, qos=0)
+            elif frame.header.opcode == OpCode.NODE_ADVERT:
+                self._ctx.mqtt.publish_safe(config.TOPIC_RX_NODES, evt_json, qos=0)
+            elif frame.header.opcode == OpCode.TEXT_MSG:
+                if isinstance(frame.payload, TextMessagePayload):
+                    if not is_common_chat_message(frame.payload.text):
+                        return
+                    if frame.payload.channel_idx == 0:
+                        self._ctx.mqtt.publish_safe(config.TOPIC_RX_PUBLIC, evt_json, qos=0)
+                    else:
+                        self._ctx.mqtt.publish_safe(f"{config.TOPIC_RX_CHANNEL}/ch_{frame.payload.channel_idx}", evt_json, qos=0)
 
-                src_hex = f"0x{frame.header.src_node_id:04X}"
-                self._ctx.mqtt.publish_safe(f"{config.TOPIC_RX_DIRECT}/{src_hex}", evt_json, qos=0)
+                    src_hex = f"0x{frame.header.src_node_id:04X}"
+                    self._ctx.mqtt.publish_safe(f"{config.TOPIC_RX_DIRECT}/{src_hex}", evt_json, qos=0)
 
-        logging.info(
-            f"[RX-FRAME] De: 0x{frame.header.src_node_id:04X} -> Para: 0x{frame.header.dst_node_id:04X} | "
-            f"OpCode: {frame.header.opcode.name} | Seq: {frame.header.seq_num} | Válido: {frame.is_valid}"
-        )
+            logging.info(
+                f"[RX-FRAME] De: 0x{frame.header.src_node_id:04X} -> Para: 0x{frame.header.dst_node_id:04X} | "
+                f"OpCode: {frame.header.opcode.name} | Seq: {frame.header.seq_num} | Válido: {frame.is_valid}"
+            )
