@@ -809,6 +809,8 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         elif name.startswith("#"):
             import hashlib
             secret_bytes = hashlib.sha256(name.encode("utf-8")).digest()[:16]
+        else:
+            secret_bytes = b"\x00" * 16
 
         try:
             if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "set_channel"):
