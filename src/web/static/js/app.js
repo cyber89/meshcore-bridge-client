@@ -4217,6 +4217,12 @@ class MeshCoreStationApp {
             this.showToast("Los repetidores son infraestructura de red y no admiten mensajería de chat", "warning");
             return;
           }
+
+          const isSensorTarget = targetNode?.role === "SENSOR" || targetNode?.type === 4 || targetNode?.adv_type === 4;
+          if (isSensorTarget) {
+            this.showToast("Los sensores de telemetría no admiten mensajería de chat", "warning");
+            return;
+          }
         }
         const target = canonicalTarget || "broadcast";
 
@@ -4509,6 +4515,12 @@ class MeshCoreStationApp {
 
     if (isRepeater) {
       this.showToast("Los repetidores son infraestructura de red y no admiten mensajería de chat", "warning");
+      return;
+    }
+
+    const isSensor = targetNode?.role === "SENSOR" || targetNode?.type === 4 || targetNode?.adv_type === 4;
+    if (isSensor) {
+      this.showToast("Los sensores de telemetría no admiten mensajería de chat", "warning");
       return;
     }
 
@@ -6491,7 +6503,6 @@ class MeshCoreStationApp {
           `;
           actionsHtml = `
             <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
-            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-client-dm" title="Abrir chat en Mensajería">💬 Chat</button>
             ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">🗺️ Mapa</button>` : ''}
           `;
         } else if (isRoom) {

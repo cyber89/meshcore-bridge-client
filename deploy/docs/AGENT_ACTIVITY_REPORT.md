@@ -6,6 +6,20 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Restricción de Mensajería Directa (DM) y Botón de Chat Exclusivamente a Clientes Compatibles
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 4 (Web UI/UX Architect).
+- **Problema / Requerimiento**:
+  - En la vista Nodos, dispositivos de telemetría (`SENSOR`) mostraban el botón `💬 Chat`, a pesar de que los sensores no poseen interfaz de usuario ni procesan mensajería de chat.
+- **Acciones Realizadas**:
+  - Se retiró el botón `💬 Chat` de las tarjetas de nodos con rol `SENSOR`.
+  - En `openDmConversation()` y en el manejador de envío `chatInputForm`, se agregaron validaciones para bloquear intentos de iniciar chats directos dirigidos a nodos `SENSOR` y `REPEATER`.
+  - Los únicos dispositivos que permiten mensajería DM interactiva son los dispositivos de usuario con rol **`CLIENT`** (`NONE / 0` o `CHAT / 1`), mientras que los servidores de sala **`ROOM` (3)** ofrecen navegación comunitaria de canal (`💬 Ver Canal`).
+- **Módulos Modificados**: `src/web/static/js/app.js`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
+
+
 ### Hito: Restricción del Botón Ping Directo Exclusivamente a Nodos Repetidores Compatibles
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO
