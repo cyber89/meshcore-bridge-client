@@ -6416,9 +6416,6 @@ class MeshCoreStationApp {
           });
         }
 
-          });
-        }
-
         const btnPingContact = cCard.querySelector(".btn-node-ping-zero");
         if (btnPingContact) {
           btnPingContact.addEventListener("click", (e) => {

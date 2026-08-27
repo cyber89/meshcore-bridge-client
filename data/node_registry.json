@@ -1,6 +1,6 @@
 {
-  "local_pubkey": "",
-  "saved_at": 1787846500.634194,
+  "local_pubkey": "000000000000",
+  "saved_at": 1787849275.8485668,
   "nodes": [
     {
       "public_key": "aabbccdd11223344",
@@ -41,6 +41,7 @@
       "advert_interval": null,
       "repeat_enabled": null,
       "tx_power": null,
+      "hop_limit": null,
       "frequency": null,
       "spreading_factor": null,
       "bandwidth": null,

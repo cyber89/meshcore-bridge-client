@@ -6,6 +6,19 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Corrección de Error de Sintaxis en Frontend SPA (`app.js`) y Restauración de Conexión Web
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect).
+- **Problema Reportado**:
+  - `app.js:6419 Uncaught SyntaxError: Unexpected token ')'` provocando que el script principal no se ejecutara y la interfaz web no conectara con el servidor WebSocket.
+- **Causa Raíz Identificada**:
+  - Quedaron llaves y paréntesis huérfanos (`}); }`) en la línea 6419 tras remover listeners no requeridos de la tarjeta de contactos.
+- **Acciones Realizadas**:
+  - Se eliminó la secuencia huérfana en `src/web/static/js/app.js`.
+  - Se verificó la validez del AST con `node -c src/web/static/js/app.js` (0 errores).
+- **Módulos Modificados**: `src/web/static/js/app.js`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Eliminación de Logs Duplicados y Clasificación Limpia de Configuración de la Estación Local
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO
