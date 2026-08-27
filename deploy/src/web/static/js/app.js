@@ -500,7 +500,8 @@ class MeshCoreStationApp {
 
   initElements() {
     this.dom = {
-      wsStatus: document.getElementById("wsStatus"),
+      radioStatus: document.getElementById("radio-status") || document.getElementById("radioStatus"),
+      wsStatus: document.getElementById("ws-status") || document.getElementById("wsStatus"),
       headerNodeCount: document.getElementById("headerNodeCount"),
       headerRxCount: document.getElementById("headerRxCount"),
       headerTxCount: document.getElementById("headerTxCount"),
@@ -2447,6 +2448,12 @@ class MeshCoreStationApp {
       return;
     }
 
+    if (payload.serial_connected !== undefined || payload.radio_connected !== undefined) {
+      this.updateRadioBadge(Boolean(payload.serial_connected ?? payload.radio_connected));
+    } else if (["rx_msg", "channel_msg", "direct_msg", "telemetry", "rf_log", "ack", "node_advert", "stats_radio", "stats_core", "trace", "repeater_response"].includes(payload.type || payload.event)) {
+      this.updateRadioBadge(true);
+    }
+
     if (payload.event === "metrics_update" || payload.type === "metrics_update" || (payload.rx_count !== undefined && payload.tx_count !== undefined)) {
       this.updateHeaderMetrics(payload);
     } else if (payload.type === "repeater_response" || payload.event_type === "repeater_response") {
@@ -3669,11 +3676,12 @@ class MeshCoreStationApp {
     const sub = diag.subsystems || {};
 
     if (this.dom.chipSerialHealth) {
-      const isSerOk = sub.serial_companion?.connected ?? diag.serial_connected ?? false;
-      const portName = sub.serial_companion?.port || document.getElementById("localNodeSerialPort")?.value || "/dev/ttyACM0";
+      const isSerOk = sub.serial_companion?.connected ?? diag.serial_connected ?? diag.radio_connected ?? false;
+      const portName = sub.serial_companion?.port || document.getElementById("localNodeSerialPort")?.value || "";
+      this.updateRadioBadge(isSerOk, isSerOk ? portName : "");
       const el = this.dom.chipSerialHealth.querySelector(".val");
       if (el) {
-        el.textContent = isSerOk ? `Conectado (${portName})` : "Desconectado";
+        el.textContent = isSerOk ? `Conectado (${portName || "/dev/ttyACM0"})` : "Desconectado";
         el.className = `val ${isSerOk ? "ok" : "err"}`;
       }
     }
@@ -4748,7 +4756,7 @@ class MeshCoreStationApp {
   }
 
   updateConnectionBadge(state) {
-    const badge = document.getElementById('ws-status');
+    const badge = document.getElementById('ws-status') || (this.dom && this.dom.wsStatus);
     if (!badge) return;
     const states = {
         connected: { cls: 'ws-badge--connected', text: '🌐 Web: Conectado' },
@@ -4758,6 +4766,20 @@ class MeshCoreStationApp {
     const s = states[state] || states.disconnected;
     badge.className = `ws-badge ${s.cls}`;
     badge.textContent = s.text;
+  }
+
+  updateRadioBadge(isConnected, portName = "") {
+    const badge = document.getElementById('radio-status') || (this.dom && this.dom.radioStatus);
+    if (!badge) return;
+    if (isConnected) {
+      badge.className = 'ws-badge ws-badge--connected';
+      badge.textContent = portName ? `📻 Radio: Conectada (${portName})` : '📻 Radio: Conectada';
+      badge.title = `Transceptor LoRa conectado y operativo por USB/UART ${portName ? '(' + portName + ')' : ''}`;
+    } else {
+      badge.className = 'ws-badge ws-badge--disconnected';
+      badge.textContent = '📻 Radio: Desconectada';
+      badge.title = 'Transceptor LoRa desconectado o sin respuesta';
+    }
   }
 
   initWebSocket() {
@@ -4963,6 +4985,10 @@ class MeshCoreStationApp {
 
   updateHeaderMetrics(metrics) {
     if (!metrics) return;
+    if (metrics.serial_connected !== undefined || metrics.radio_connected !== undefined) {
+      const isRadioOk = Boolean(metrics.serial_connected ?? metrics.radio_connected);
+      this.updateRadioBadge(isRadioOk);
+    }
     const nodeCount = metrics.node_count ?? metrics.known_mesh_nodes;
     const rxCount = metrics.rx_count ?? metrics.total_rx_packets;
     const txCount = metrics.tx_count ?? metrics.total_tx_packets;

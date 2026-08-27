@@ -562,6 +562,7 @@ class WebAPIRouter:
             "bridge_status": "online" if getattr(self.bridge, "running", True) else "offline",
             "uptime_seconds": int(time.time() - getattr(self.bridge, "start_time", time.time())),
             "serial_connected": serial_connected,
+            "radio_connected": serial_connected,
             "mqtt_connected": mqtt_connected,
             "tcp_companion": tcp_info,
             "local_node_pubkey": local_cfg.get("public_key"),

@@ -919,17 +919,18 @@
                     <p class="card-desc">
                       Si has configurado <code>BRIDGE_API_KEY</code> en tu archivo <code>.env</code> para restringir la transmisión RF por radio y comandos de administración, introduce tu clave aquí para autorizar este navegador.
                     </p>
-                    <div class="settings-form">
+                    <form class="settings-form" id="bridgeApiKeyForm" onsubmit="return false;">
+                      <input type="text" name="username" autocomplete="username" style="display:none;" aria-hidden="true" tabindex="-1" value="admin" />
                       <div class="form-group">
                         <label for="inputBridgeApiKey">API Key del Bridge (Cabecera X-Api-Key)</label>
                         <div style="display: flex; gap: 8px; align-items: center;">
-                          <input type="password" id="inputBridgeApiKey" class="form-control" placeholder="Ingresa tu clave secreta de BRIDGE_API_KEY..." autocomplete="off" />
+                          <input type="password" id="inputBridgeApiKey" class="form-control" placeholder="Ingresa tu clave secreta de BRIDGE_API_KEY..." autocomplete="current-password" />
                           <button type="button" class="btn-primary btn-sm" id="btnSaveBridgeApiKey">Guardar</button>
                           <button type="button" class="btn-secondary btn-sm" id="btnClearBridgeApiKey">Limpiar</button>
                         </div>
                         <span id="apiKeyStatusHint" class="text-success text-xs hidden" style="margin-top: 8px; display: inline-block;">✓ API Key guardada con éxito en este navegador</span>
                       </div>
-                    </div>
+                    </form>
                   </div>
                 </div>
               </div>
@@ -1096,6 +1097,7 @@
             <p>Para consultar la telemetría, modificar parámetros RF y despachar comandos remotos a este repetidor, es obligatorio validar la contraseña de administración.</p>
             
             <form id="repeaterGateForm" class="auth-gate-form" onsubmit="return false;">
+              <input type="text" name="username" autocomplete="username" style="display:none;" aria-hidden="true" tabindex="-1" value="admin" />
               <div class="auth-gate-input-wrapper">
                 <label for="repeaterGatePassword" class="auth-gate-label">Contraseña de Administración (PIN):</label>
                 <div class="auth-gate-input-row">
@@ -1385,6 +1387,7 @@
           <div id="rep-security" class="repeater-subpanel">
             <div class="card-panel">
               <form id="repSecurityForm" class="grid-form-2col">
+                <input type="text" name="username" autocomplete="username" style="display:none;" aria-hidden="true" tabindex="-1" value="admin" />
                 <div class="form-section-title span-full">🔑 Contraseñas de Administración y Acceso</div>
                 <div class="form-group">
                   <label for="secNewAdminPwd">Nueva Contraseña de Administrador (Admin Password):</label>

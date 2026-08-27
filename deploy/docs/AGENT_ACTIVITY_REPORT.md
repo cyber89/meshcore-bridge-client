@@ -6,6 +6,23 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Corrección de Bloqueo CSP para Mapas Leaflet / Fuentes, Sincronización de Chip de Radio y Accesibilidad de Formularios
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect), Agente 5 (Security Auditor).
+- **Acciones Realizadas**:
+  1. **Resolución de Violaciones CSP en Mapas y Fuentes** (`src/web/http_server.py`):
+     - Actualizada la política `Content-Security-Policy` para permitir de forma segura la carga de scripts de Leaflet (`https://unpkg.com`), estilos CDN (`https://fonts.googleapis.com`, `https://unpkg.com`), fuentes web (`https://fonts.gstatic.com`) y capas de teselas cartográficas (`https://*.tile.openstreetmap.org`, `https://*.basemaps.cartocdn.com`).
+     - Desbloqueada la inicialización de `window.L` y renderizado interactivo de mapas GPS en vivo con capas CartoDB Dark, OpenStreetMap y Heatmap RF.
+  2. **Corrección del Estado "📻 Radio: Desconectada"** (`src/web/static/js/app.js`, `src/web/api_router.py`, `src/serial_driver.py`):
+     - Implementado método reactivo `updateRadioBadge(isConnected, portName)` en `app.js` conectado al elemento `#radio-status` del header.
+     - Vinculada la actualización de estado a las métricas del WebSocket (`metrics_update`), sondeo de `/api/status`, respuesta de diagnóstico y actividad de eventos RF de malla.
+     - Refinado `MeshcoreSDKAdapter.is_hardware_alive()` para no invalidar conexiones activas ni bloquearse en Windows.
+  3. **Corrección de Advertencias DOM de Formularios de Contraseña** (`src/web/static/index.html`):
+     - Encapsulado el campo de `inputBridgeApiKey` dentro de un `<form>` explícito (`#bridgeApiKeyForm`).
+     - Añadidos campos ocultos de `username` (`autocomplete="username"`) en los 3 formularios protegidos (`#bridgeApiKeyForm`, `#repeaterGateForm`, `#repSecurityForm`) satisfaciendo las directrices de accesibilidad del navegador y gestores de contraseñas.
+- **Módulos Modificados**: `src/web/http_server.py`, `src/web/api_router.py`, `src/serial_driver.py`, `src/web/static/index.html`, `src/web/static/js/app.js`.
+
 ### Hito: Auditoría Integral de Código, Tipado Estricto (Mypy Strict 100%), Corrección de Bugs en Web/Watchdog y Suite de Pruebas Completa (129 Tests - 100% PASS)
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO

@@ -275,27 +275,19 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         self.is_connected = False
 
     def is_hardware_alive(self) -> bool:
-        """Verifica instantáneamente si el transceptor USB / TCP sigue presente en el sistema operativo."""
+        """Verifica si el transceptor USB / TCP sigue presente en el sistema operativo y operativo."""
         if not self.is_connected or self.mc is None:
-            self.is_connected = False
             return False
 
-        if str(self.port).startswith("tcp://"):
-            return self.is_connected
+        port_str = str(self.port)
+        if port_str.startswith("tcp://") or port_str.upper().startswith("VIRTUAL"):
+            return bool(self.is_connected)
 
-        # 1. Comprobación a nivel de sistema operativo de puertos COM / tty
-        try:
-            import serial.tools.list_ports
-            com_ports = [p.device.lower() for p in serial.tools.list_ports.comports()]
-            port_lower = str(self.port).lower()
-            if port_lower and port_lower not in ("auto", "detect") and port_lower not in com_ports:
-                if not os.path.exists(self.port):
-                    self.is_connected = False
-                    return False
-        except Exception:
-            pass
+        # Si hubo actividad reciente (heartbeat o recepción de trama), la radio está viva
+        if (time.time() - self.last_heartbeat_time) <= max(30.0, self.timeout_sec):
+            return True
 
-        # 2. Comprobación de transporte serial abierto
+        # Comprobación de transporte serial abierto en la conexión del SDK
         try:
             if hasattr(self.mc, "connection"):
                 cx = self.mc.connection
@@ -309,10 +301,26 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                     self.is_connected = False
                     return False
         except Exception:
-            self.is_connected = False
-            return False
+            pass
 
-        return self.is_connected
+        # Comprobación a nivel de sistema operativo de puertos COM / tty si está inactivo
+        try:
+            import serial.tools.list_ports
+            com_ports = [p.device.lower() for p in serial.tools.list_ports.comports()]
+            port_lower = port_str.lower()
+            if port_lower and port_lower not in ("auto", "detect"):
+                # En Windows, los puertos COM son COM1, COM2...
+                if port_lower.startswith("com") and com_ports and port_lower not in com_ports:
+                    self.is_connected = False
+                    return False
+                # En Linux, verificar que el nodo de dispositivo /dev/ exista
+                if port_lower.startswith("/dev/") and os.name != "nt" and not os.path.exists(self.port):
+                    self.is_connected = False
+                    return False
+        except Exception:
+            pass
+
+        return bool(self.is_connected)
 
     async def ping_or_check_alive(self) -> bool:
         """Comprueba si el transceptor local sigue vivo y respondiendo activamente por serial."""

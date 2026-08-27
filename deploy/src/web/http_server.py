@@ -82,6 +82,12 @@ class MeshCoreWebServer:
                     node_cnt = self.bridge.node_registry.get_count() if hasattr(self.bridge, "node_registry") else 0
                     q_depth = self.bridge.rate_limiter.get_queue_depth() if hasattr(self.bridge, "rate_limiter") else 0
 
+                    ser_adapter = getattr(self.bridge, "serial_adapter", None)
+                    if ser_adapter and hasattr(ser_adapter, "is_hardware_alive"):
+                        serial_connected = bool(ser_adapter.is_hardware_alive())
+                    else:
+                        serial_connected = getattr(ser_adapter, "is_connected", False) if ser_adapter else False
+
                     await self.broadcast_event({
                         "event": "metrics_update",
                         "type": "metrics_update",
@@ -90,6 +96,8 @@ class MeshCoreWebServer:
                         "tx_count": total_tx,
                         "error_rate": error_rate,
                         "queue_depth": q_depth,
+                        "serial_connected": serial_connected,
+                        "radio_connected": serial_connected,
                     })
             except asyncio.CancelledError:
                 break
@@ -468,7 +476,16 @@ class MeshCoreWebServer:
         if content_type:
             headers.insert(0, f"Content-Type: {content_type}")
             if "text/html" in content_type:
-                headers.append("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; frame-ancestors 'none'; img-src 'self' data: https:")
+                csp = (
+                    "default-src 'self'; "
+                    "script-src 'self' 'unsafe-inline' https://unpkg.com; "
+                    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; "
+                    "font-src 'self' https://fonts.gstatic.com data:; "
+                    "img-src 'self' data: blob: https: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://unpkg.com; "
+                    "connect-src 'self' ws: wss: https:; "
+                    "frame-ancestors 'none'"
+                )
+                headers.append(f"Content-Security-Policy: {csp}")
         if cors_origin:
             headers.append(f"Access-Control-Allow-Origin: {cors_origin}")
             headers.append("Access-Control-Allow-Methods: GET, POST, OPTIONS, DELETE")

@@ -1,6 +1,6 @@
 {
   "local_pubkey": "",
-  "saved_at": 1787841657.2920582,
+  "saved_at": 1787843897.5497396,
   "nodes": [
     {
       "public_key": "aabbccdd11223344",
@@ -11,8 +11,8 @@
       "last_rssi": -80,
       "last_snr": 9.0,
       "battery_pct": 88,
-      "last_seen": 1787841657.2235796,
-      "rx_packets": 84,
+      "last_seen": 1787843897.4851139,
+      "rx_packets": 90,
       "tx_packets": 0,
       "error_count": 0,
       "connected_clients_count": 0,
@@ -55,7 +55,7 @@
       "lqi_status": "EXCELLENT",
       "best_route": "DIRECT",
       "key_prefix": "aabbccdd",
-      "total_packets": 84,
+      "total_packets": 90,
       "error_rate_pct": 0.0,
       "lat": null,
       "lon": null
