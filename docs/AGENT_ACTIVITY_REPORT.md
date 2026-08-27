@@ -6,6 +6,26 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Eliminación de Opciones de Responder (↩️) y Copiar (📋) en Burbujas de Chat
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect).
+- **Requerimiento del Usuario**:
+  - Eliminar las opciones flotantes de responder (↩️) y copiar (📋) de los mensajes del chat, removiendo además todo el código asociado a citas y barra de respuestas.
+- **Acciones Realizadas**:
+  1. **Frontend SPA (`src/web/static/js/app.js`)**:
+     - Eliminadas las acciones flotantes `btn-msg-reply` (↩️) y `btn-msg-copy` (📋) del generador de burbujas en `appendChatMessage()`.
+     - Eliminados los manejadores de eventos `btnReply` y `btnCopy` en la delegación de clic del contenedor `#chatMessageFeed`.
+     - Eliminados los métodos `setReplyTarget()`, `cancelReplyTarget()`, el estado `this.activeReplyTarget` y los selectores asociados del DOM (`chatReplyBar`, `replyTargetAuthor`, `replyTargetSnippet`, `btnCancelReply`).
+     - Eliminada la propiedad y renderizado de bloques de citas (`quoteHtml`, `quoteData`).
+  2. **Estructura HTML (`src/web/static/index.html`)**:
+     - Removido el contenedor `#chatReplyBar` (Banner de Respuesta Activa).
+  3. **Hojas de Estilo (`src/web/static/css/app.css`)**:
+     - Removidas todas las reglas CSS de `.msg-hover-actions`, `.btn-msg-action`, `.chat-reply-bar` y `.chat-quote-block`.
+- **Módulos Modificados**: `src/web/static/js/app.js`, `src/web/static/index.html`, `src/web/static/css/app.css`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
+
+
 ### Hito: Eliminación de Prefijo Duplicado de Remitente en Burbujas de Chat
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO

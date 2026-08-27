@@ -316,7 +316,6 @@ class MeshCoreStationApp {
     this.repeaterPasswords = new Map(); // pubkey -> password en memoria
 
     // Estado interactivo de Chat & Mensajería
-    this.activeReplyTarget = null; // { id, sender, text }
     this.pendingOutgoingAcks = new Map(); // msgId -> { timer, msgData, feedKey }
     this.chatSoundEnabled = localStorage.getItem("meshcore_chat_sound_enabled") !== "false";
     this._audioCtx = null;
@@ -531,10 +530,6 @@ class MeshCoreStationApp {
       globalChatUnreadBadge: document.getElementById("globalChatUnreadBadge"),
       themeToggleBtn: document.getElementById("themeToggleBtn"),
       chatMessageFeed: document.getElementById("chatMessageFeed"),
-      chatReplyBar: document.getElementById("chatReplyBar"),
-      replyTargetAuthor: document.getElementById("replyTargetAuthor"),
-      replyTargetSnippet: document.getElementById("replyTargetSnippet"),
-      btnCancelReply: document.getElementById("btnCancelReply"),
       btnShareLocation: document.getElementById("btnShareLocation"),
       chkChatSoundAlerts: document.getElementById("chkChatSoundAlerts"),
       chatInputForm: document.getElementById("chatInputForm"),
@@ -3948,30 +3943,6 @@ class MeshCoreStationApp {
     } catch (_) {}
   }
 
-  setReplyTarget(msgId, senderName, textSnippet) {
-    const cleanSnippet = (textSnippet || "").replace(/\n/g, " ").trim();
-    this.activeReplyTarget = {
-      id: msgId,
-      sender: senderName || "Anónimo",
-      text: cleanSnippet.length > 60 ? cleanSnippet.slice(0, 60) + "..." : cleanSnippet,
-    };
-    if (this.dom.chatReplyBar) {
-      if (this.dom.replyTargetAuthor) this.dom.replyTargetAuthor.textContent = `@${this.activeReplyTarget.sender}`;
-      if (this.dom.replyTargetSnippet) this.dom.replyTargetSnippet.textContent = this.activeReplyTarget.text;
-      this.dom.chatReplyBar.classList.remove("hidden");
-    }
-    if (this.dom.chatInputText) {
-      this.dom.chatInputText.focus();
-    }
-  }
-
-  cancelReplyTarget() {
-    this.activeReplyTarget = null;
-    if (this.dom.chatReplyBar) {
-      this.dom.chatReplyBar.classList.add("hidden");
-    }
-  }
-
   async shareCurrentLocation() {
     let lat = null;
     let lon = null;
@@ -4204,35 +4175,7 @@ class MeshCoreStationApp {
           return;
         }
 
-        // 2. Responder a mensaje
-        const btnReply = e.target.closest(".btn-msg-reply");
-        if (btnReply) {
-          const row = btnReply.closest(".message-bubble-row");
-          if (row) {
-            const msgId = row.getAttribute("data-msg-id");
-            const sender = row.querySelector(".msg-meta strong")?.textContent || "Anónimo";
-            const text = row.querySelector(".msg-text-content")?.textContent || row.querySelector(".msg-bubble")?.textContent || "";
-            this.setReplyTarget(msgId, sender, text);
-          }
-          return;
-        }
-
-        // 3. Copiar texto de mensaje
-        const btnCopy = e.target.closest(".btn-msg-copy");
-        if (btnCopy) {
-          const row = btnCopy.closest(".message-bubble-row");
-          if (row) {
-            const text = row.querySelector(".msg-text-content")?.textContent || row.querySelector(".msg-bubble")?.textContent || "";
-            if (navigator.clipboard) {
-              navigator.clipboard.writeText(text).then(() => {
-                this.showToast("📋 Texto copiado al portapapeles", "info");
-              });
-            }
-          }
-          return;
-        }
-
-        // 4. Reintentar mensaje fallido
+        // 2. Reintentar mensaje fallido
         const btnRetry = e.target.closest(".btn-retry-msg, .btn-msg-retry");
         if (btnRetry) {
           const msgId = btnRetry.getAttribute("data-retry-id") || btnRetry.closest(".message-bubble-row")?.getAttribute("data-msg-id");
@@ -4250,9 +4193,6 @@ class MeshCoreStationApp {
         const rawInput = this.dom.chatInputText ? this.dom.chatInputText.value.trim() : "";
         if (!rawInput) return;
         if (this.dom.chatInputText) this.dom.chatInputText.value = "";
-
-        const quoteData = this.activeReplyTarget ? { sender: this.activeReplyTarget.sender, text: this.activeReplyTarget.text } : null;
-        this.cancelReplyTarget();
 
         const msgId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
         const canonicalTarget = this.activeDmTarget ? this.resolveCanonicalPubkey(this.activeDmTarget) : null;
@@ -4301,7 +4241,6 @@ class MeshCoreStationApp {
           timestamp: new Date().toISOString(),
           delivered: false,
           status: "queued",
-          quote: quoteData,
           location: locationData,
         };
 
@@ -4748,20 +4687,7 @@ class MeshCoreStationApp {
     const displayText = finalExtracted.cleanText || extracted.cleanText || rawText;
 
     const rssi = msg.metrics?.rssi != null ? msg.metrics.rssi : (msg.rssi != null ? msg.rssi : null);
-    const snr = msg.metrics?.snr != null ? msg.metrics.snr : (msg.snr != null ? msg.snr : null);
-
-    // 1. Renderizado de Cita / Respuesta previa
-    let quoteHtml = "";
-    if (msg.quote && msg.quote.text) {
-      quoteHtml = `
-        <div class="chat-quote-block">
-          <div class="quote-author">@${this.escapeHtml(msg.quote.sender || "Usuario")}</div>
-          <div class="quote-text">${this.escapeHtml(msg.quote.text)}</div>
-        </div>
-      `;
-    }
-
-    // 2. Renderizado de Tarjeta de Ubicación GPS
+    // 1. Renderizado de Tarjeta de Ubicación GPS
     let locationCardHtml = "";
     let locLat = msg.location?.lat;
     let locLon = msg.location?.lon;
@@ -4786,7 +4712,7 @@ class MeshCoreStationApp {
       `;
     }
 
-    // 3. Indicador de Estado de Entrega (ACK)
+    // 2. Indicador de Estado de Entrega (ACK)
     let ackHtml = "";
     if (msg.is_outgoing) {
       const st = msg.status || (msg.delivered ? "delivered" : "sent");
@@ -4804,7 +4730,7 @@ class MeshCoreStationApp {
       ackHtml = `<span class="ack-indicator ack-received" title="Mensaje recibido por radio LoRa">📥 RX</span>`;
     }
 
-    // 4. Chip de Señal RF
+    // 3. Chip de Señal RF
     let signalHtml = "";
     if (rssi != null && snr != null) {
       signalHtml = `<span class="signal-chip">📶 ${rssi} dBm / ${snr} dB</span>`;
@@ -4814,23 +4740,12 @@ class MeshCoreStationApp {
       signalHtml = `<span class="signal-chip">📶 ${snr} dB</span>`;
     }
 
-    // 5. Botones de acción rápida flotantes (Hover)
-    const hoverActionsHtml = `
-      <div class="msg-hover-actions">
-        <button type="button" class="btn-msg-action btn-msg-reply" title="Responder a este mensaje">↩️</button>
-        <button type="button" class="btn-msg-action btn-msg-copy" title="Copiar texto">📋</button>
-        ${msg.is_outgoing && (msg.status === "failed" || !msg.delivered) ? `<button type="button" class="btn-msg-action btn-msg-retry" title="Reintentar transmisión">🔄</button>` : ""}
-      </div>
-    `;
-
     row.innerHTML = `
-      ${hoverActionsHtml}
       <div class="msg-meta">
         <strong>${this.escapeHtml(sender)}</strong>
         <span>${timeStr}</span>
       </div>
       <div class="msg-bubble">
-        ${quoteHtml}
         <div class="msg-text-content">${this.escapeHtml(displayText)}</div>
         ${locationCardHtml}
       </div>
