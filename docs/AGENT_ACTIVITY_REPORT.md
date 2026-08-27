@@ -6,6 +6,21 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Corrección de Envío de Mensajes (ReferenceError SNR) y Enriquecimiento de RSSI en Ping Directo
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect).
+- **Problemas Identificados y Resueltos**:
+  1. **Fallo en Envío de Mensajes de Chat**:
+     - Durante la limpieza anterior de botones de citas, la declaración de la variable `snr` en `appendChatMessage()` fue cortada accidentalmente. Al enviar un mensaje, JavaScript lanzaba un `ReferenceError: snr is not defined` impidiendo que la función completara y cancelando la llamada posterior `fetch("/api/tx")`.
+     - **Solución**: Se restauró la declaración `const snr = msg.metrics?.snr != null ? ... : null;` en `appendChatMessage()`.
+  2. **Resolución de RSSI en Ping Zero (`ping 0` / Pong Directo)**:
+     - El protocolo de trama ACK de MeshCore a nivel de radio sólo transporta `code` y `trip_time` (sin cabecera explícita de RSSI en la carga útil del paquete ACK de radio).
+     - **Solución**: Se fortaleció la resolución de métricas en `admin_handler.py` para consultar en cascada `resp_data.get("rssi")` $\to$ `node_registry.get_by_key_or_prefix(target).last_rssi` $\to$ `target_info.get("last_rssi")` $\to$ `_ctx.last_rx_rssi`, garantizando que siempre se devuelva la medición de intensidad de señal más reciente del enlace.
+- **Módulos Modificados**: `src/web/static/js/app.js`, `src/admin_handler.py`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
+
+
 ### Hito: Corrección y Normalización de Comandos CLI Remotos por RF para Repetidores MeshCore
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO

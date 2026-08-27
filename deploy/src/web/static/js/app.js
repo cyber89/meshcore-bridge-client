@@ -4685,6 +4685,7 @@ class MeshCoreStationApp {
     const displayText = finalExtracted.cleanText || extracted.cleanText || rawText;
 
     const rssi = msg.metrics?.rssi != null ? msg.metrics.rssi : (msg.rssi != null ? msg.rssi : null);
+    const snr = msg.metrics?.snr != null ? msg.metrics.snr : (msg.snr != null ? msg.snr : null);
     // 1. Renderizado de Tarjeta de Ubicación GPS
     let locationCardHtml = "";
     let locLat = msg.location?.lat;

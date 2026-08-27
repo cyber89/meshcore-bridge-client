@@ -588,8 +588,14 @@ class AdminCommandHandler:
                     if snr_back is None:
                         snr_back = resp_data.get("snr_there") or resp_data.get("snr") or 0.0
                     rssi_val = resp_data.get("rssi")
-                    if rssi_val is None and target_info:
-                        rssi_val = target_info.get("last_rssi")
+                    if rssi_val is None:
+                        c_node = self._ctx.node_registry.get_by_key_or_prefix(str(target_node))
+                        if c_node and c_node.last_rssi is not None:
+                            rssi_val = c_node.last_rssi
+                        elif target_info and target_info.get("last_rssi") is not None:
+                            rssi_val = target_info.get("last_rssi")
+                        elif getattr(self._ctx, "last_rx_rssi", None) is not None:
+                            rssi_val = getattr(self._ctx, "last_rx_rssi")
 
                     bat_val = target_info.get("battery_pct") if target_info else None
 
