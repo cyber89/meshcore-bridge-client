@@ -6,6 +6,24 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Corrección de Formato de Ruta en Traceroute y Eliminación de Error "Invalid path format: unknown path_hash_len 0"
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 3 (Protocol QA Specialist), Agente 4 (Web UI/UX Architect).
+- **Causa Raíz**:
+  - Al ejecutar una traza de ruta directa (Traceroute) sin repetidores intermedios definidos, el frontend y la API REST pasaban `path=""` (cadena vacía).
+  - El SDK oficial (`meshcore.commands.messaging.send_trace`) evaluaba `isinstance(path, str)` y calculaba `path_hash_len = int(len("".split(",")[0]) / 2) = 0`. Al no ser una longitud de hash válida (1, 2, 4 u 8 bytes), emitía el error `logger.error("Invalid path format: unknown path_hash_len 0")`.
+- **Acciones Realizadas**:
+  1. **Normalización de Rutas RF y Flags en AdminCommandHandler** (`src/admin_handler.py`):
+     - Cuando no se especifican saltos intermedios o `path` es una cadena vacía `""`, ahora se despacha `await mc.commands.send_trace(path=None, flags=0)`, previniendo la división de cadena vacía en el SDK.
+     - Cuando se proporcionan saltos intermedios (ej. claves públicas completas de 64 hex, prefijos o nombres de repetidores), se normalizan automáticamente a hashes hexadecimales válidos de 2 bytes (4 hex chars, `flags=1`) o 1 byte (2 hex chars, `flags=0`), asegurando plena compatibilidad con el firmware MeshCore C++ (`CMD_SEND_TRACE_PATH = 36`).
+  2. **Limpieza en Enrutador de API REST** (`src/web/api_router.py`):
+     - `_route_trace()` y el endpoint `/api/traceroute` transmiten `path` como `None` cuando el campo recibido está vacío, evitando propagar cadenas vacías.
+  3. **Suites de Pruebas Automatizadas** (`tests/test_node_and_repeater_config.py`):
+     - Añadido `test_traceroute_empty_path_passes_none_and_flags_zero`: Valida que trazas sin saltos pasen `path=None, flags=0` sin generar advertencias ni excepciones.
+     - Añadido `test_traceroute_custom_path_normalizes_hashes_and_flags`: Valida la normalización de claves completas a `path="1122,aabb", flags=1`.
+- **Módulos Modificados**: `src/admin_handler.py`, `src/web/api_router.py`, `docs/AGENT_ACTIVITY_REPORT.md`, `tests/test_node_and_repeater_config.py`.
+
 ### Hito: Invariante de Unicidad Absoluta del Nodo Local, Deduplicación de Prefijos y Conteo Exacto de Nodos en Malla
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO

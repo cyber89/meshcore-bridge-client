@@ -249,6 +249,43 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
         self.assertIn("55.0%", last_log["message"])
         self.assertNotIn("nodo anónimo", last_log["message"])
 
+    async def test_traceroute_empty_path_passes_none_and_flags_zero(self) -> None:
+        """Verifica que un traceroute con path vacío despache path=None y flags=0 sin causar 'unknown path_hash_len 0'."""
+        self.mock_mc.commands.send_trace = AsyncMock()
+
+        # 1. Petición con path vacío ""
+        res = await self.admin_handler.handle({
+            "action": "traceroute",
+            "target_node": "feedfacecafe0011",
+            "path": "",
+        })
+        self.assertEqual(res["status"], "ok")
+        self.mock_mc.commands.send_trace.assert_awaited_once_with(path=None, flags=0)
+
+        # 2. Petición con lista vacía []
+        self.mock_mc.commands.send_trace.reset_mock()
+        res2 = await self.admin_handler.handle({
+            "action": "trace",
+            "target_node": "feedfacecafe0011",
+            "path": [],
+        })
+        self.assertEqual(res2["status"], "ok")
+        self.mock_mc.commands.send_trace.assert_awaited_once_with(path=None, flags=0)
+
+    async def test_traceroute_custom_path_normalizes_hashes_and_flags(self) -> None:
+        """Verifica que un traceroute con saltos intermedios normalice los hashes y use flags correctos."""
+        self.mock_mc.commands.send_trace = AsyncMock()
+
+        # Petición con claves públicas completas de repetidores intermedios
+        res = await self.admin_handler.handle({
+            "action": "traceroute",
+            "target_node": "deadbeefcafe0099",
+            "path": ["112233445566778899aabbccddeeff00", "aabbccddeeff00112233445566778899"],
+        })
+        self.assertEqual(res["status"], "ok")
+        # Debe normalizar a 2 bytes (4 hex chars por salto) y flags=1
+        self.mock_mc.commands.send_trace.assert_awaited_once_with(path="1122,aabb", flags=1)
+
 
 if __name__ == "__main__":
     unittest.main()

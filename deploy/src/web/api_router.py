@@ -937,10 +937,12 @@ class WebAPIRouter:
             return 400, {"status": "error", "message": "Se requiere 'to' (nodo objetivo)"}
 
         auth_code = int(req_body.get("auth_code", 0))
+        raw_path = req_body.get("path")
         cmd_data = {
             "target_node": target,
             "action": "trace",
-            "params": {"auth_code": auth_code, "path": req_body.get("path", "")},
+            "params": {"auth_code": auth_code, "path": raw_path},
+            "path": raw_path,
             "request_id": f"web_trace_{int(time.time())}",
         }
         res = await self.bridge.handle_admin(cmd_data)

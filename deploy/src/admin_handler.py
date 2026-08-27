@@ -344,15 +344,64 @@ class AdminCommandHandler:
             # Caso especial: Traceroute Multi-Salto
             if action in ("traceroute", "trace", "trace_route", "send_trace"):
                 t_start = time.perf_counter()
-                path_list = admin_data.get("path", [])
-                if isinstance(path_list, str):
-                    path_list = [p.strip() for p in path_list.split(",") if p.strip()]
+                raw_path = admin_data.get("path")
+                if raw_path is None and isinstance(admin_data.get("params"), dict):
+                    raw_path = admin_data.get("params", {}).get("path")
 
-                path_str = ",".join(path_list) if path_list else ""
+                path_list: list[str] = []
+                if isinstance(raw_path, str):
+                    path_list = [p.strip() for p in raw_path.split(",") if p.strip()]
+                elif isinstance(raw_path, (list, tuple)):
+                    path_list = [str(p).strip() for p in raw_path if str(p).strip()]
+
+                # Normalizar los saltos a hashes hexadecimales válidos para el protocolo MeshCore (1, 2, 4 u 8 bytes)
+                formatted_hops: list[str] = []
+                trace_flags: int = 0
+                trace_path_arg: str | None = None
+
+                if path_list:
+                    for p in path_list:
+                        clean_p = p.lower().strip()
+                        if clean_p.startswith("0x"):
+                            clean_p = clean_p[2:]
+                        clean_hex = "".join(c for c in clean_p if c in "0123456789abcdef")
+                        if not clean_hex:
+                            found_node = self._ctx.node_registry.get_by_key_or_prefix(clean_p)
+                            if found_node:
+                                clean_hex = found_node.public_key.lower()[:4]
+
+                        if clean_hex:
+                            if len(clean_hex) >= 16:
+                                formatted_hops.append(clean_hex[:4])  # 2 bytes estándar
+                            elif len(clean_hex) >= 8:
+                                formatted_hops.append(clean_hex[:8])  # 4 bytes
+                            elif len(clean_hex) >= 4:
+                                formatted_hops.append(clean_hex[:4])  # 2 bytes
+                            elif len(clean_hex) >= 2:
+                                formatted_hops.append(clean_hex[:2])  # 1 byte
+
+                    if formatted_hops:
+                        if all(len(h) == 4 for h in formatted_hops):
+                            trace_path_arg = ",".join(formatted_hops)
+                            trace_flags = 1  # 2 bytes por salto (1 << 1)
+                        elif all(len(h) == 8 for h in formatted_hops):
+                            trace_path_arg = ",".join(formatted_hops)
+                            trace_flags = 2  # 4 bytes por salto (1 << 2)
+                        elif all(len(h) == 16 for h in formatted_hops):
+                            trace_path_arg = ",".join(formatted_hops)
+                            trace_flags = 3  # 8 bytes por salto (1 << 3)
+                        else:
+                            trace_path_arg = ",".join(h[:2] for h in formatted_hops)
+                            trace_flags = 0  # 1 byte por salto (1 << 0)
+
                 # Si el SDK soporta comando nativo de traza por radio, despacharlo a nivel RF
                 if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_trace"):
                     try:
-                        await mc.commands.send_trace(path=path_str)
+                        if trace_path_arg:
+                            await mc.commands.send_trace(path=trace_path_arg, flags=trace_flags)
+                        else:
+                            # NUNCA pasar path="" porque len("")/2=0 provoca "unknown path_hash_len 0"
+                            await mc.commands.send_trace(path=None, flags=0)
                     except Exception as e:
                         logging.debug(f"Error invocando mc.commands.send_trace: {e}")
 
@@ -419,7 +468,7 @@ class AdminCommandHandler:
                     "total_rtt_ms": max(25.0, rtt_ms),
                     "hops_breakdown": hops_breakdown,
                     "timestamp": int(time.time()),
-                    "cmd_dispatched": f"send_trace({path_str})",
+                    "cmd_dispatched": f"send_trace({trace_path_arg or ''})",
                 })
                 self._ctx.mqtt.publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/trace", json.dumps(res), qos=1)
                 self._ctx.mqtt.publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
