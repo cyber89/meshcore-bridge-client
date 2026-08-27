@@ -8,9 +8,12 @@ from __future__ import annotations
 
 import asyncio
 import collections
+import json
 import logging
+import os
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from src.contact_manager import NodeContactUpdate, PacketRecord, is_valid_node_key
@@ -28,6 +31,63 @@ class WebAPIRouter:
         self.recent_messages: collections.deque[dict[str, Any]] = collections.deque(maxlen=200)
         self.recent_telemetry: collections.deque[dict[str, Any]] = collections.deque(maxlen=200)
         self.recent_system_logs: collections.deque[dict[str, Any]] = collections.deque(maxlen=300)
+        self._load_channels()
+
+    def _get_storage_path(self) -> Path:
+        """Obtiene la ruta persistente del archivo JSON de canales."""
+        custom_path = os.getenv("CHANNELS_STORAGE_PATH")
+        if custom_path:
+            return Path(custom_path)
+        return Path("data") / "channels.json"
+
+    def _load_channels(self) -> None:
+        """Carga la configuración persistida de canales desde almacenamiento local."""
+        file_path = self._get_storage_path()
+        if not file_path.is_file():
+            return
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, list):
+                for item in data:
+                    if isinstance(item, dict) and "index" in item:
+                        idx = int(item["index"])
+                        self.channels[idx] = {
+                            "index": idx,
+                            "name": str(item.get("name", f"Canal {idx}")),
+                            "psk": str(item.get("psk", "")),
+                            "is_public": idx == 0,
+                        }
+            elif isinstance(data, dict):
+                for k, v in data.items():
+                    if isinstance(v, dict):
+                        idx = int(v.get("index", k))
+                        self.channels[idx] = {
+                            "index": idx,
+                            "name": str(v.get("name", f"Canal {idx}")),
+                            "psk": str(v.get("psk", "")),
+                            "is_public": idx == 0,
+                        }
+            logging.debug(f"Canales cargados desde almacenamiento: {len(self.channels)} canales")
+        except Exception as e:
+            logging.warning(f"Error cargando canales desde {file_path}: {e}")
+
+    def _save_channels(self) -> bool:
+        """Persiste la configuración de canales a disco en formato JSON atómico."""
+        file_path = self._get_storage_path()
+        try:
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            ch_list = list(self.channels.values())
+            ch_list.sort(key=lambda c: int(c.get("index", 0)))
+            tmp_path = file_path.with_suffix(".tmp")
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(ch_list, f, indent=2)
+            tmp_path.replace(file_path)
+            logging.debug(f"Canales persistidos exitosamente en {file_path}")
+            return True
+        except Exception as e:
+            logging.warning(f"Error persistiendo canales en {file_path}: {e}")
+            return False
 
     def _notify_web_clients(self, event: dict[str, Any]) -> None:
         """Emite eventos en tiempo real a clientes WebSocket manejando corutinas y mocks síncronos."""
@@ -721,9 +781,11 @@ class WebAPIRouter:
             if ser and hasattr(ser, "get_channels"):
                 try:
                     node_channels = await ser.get_channels()
-                    for ch in node_channels:
-                        idx = int(ch.get("index", 0))
-                        self.channels[idx] = ch
+                    if node_channels:
+                        for ch in node_channels:
+                            idx = int(ch.get("index", 0))
+                            self.channels[idx] = ch
+                        self._save_channels()
                 except Exception as e:
                     logging.debug(f"Fallo sincronizando canales del nodo serial: {e}")
             channels = list(self.channels.values())
@@ -735,9 +797,11 @@ class WebAPIRouter:
             if ser and hasattr(ser, "get_channels"):
                 try:
                     node_channels = await ser.get_channels()
-                    for ch in node_channels:
-                        idx = int(ch.get("index", 0))
-                        self.channels[idx] = ch
+                    if node_channels:
+                        for ch in node_channels:
+                            idx = int(ch.get("index", 0))
+                            self.channels[idx] = ch
+                        self._save_channels()
                 except Exception as e:
                     logging.debug(f"Fallo sincronizando canales del nodo serial: {e}")
 
@@ -756,6 +820,7 @@ class WebAPIRouter:
             name = str(req_body.get("name", f"Canal {idx}")).strip()
             psk = str(req_body.get("psk", "")).strip()
             self.channels[idx] = {"index": idx, "name": name, "psk": psk, "is_public": (idx == 0)}
+            self._save_channels()
 
             # Sincronizar con el hardware serial si está conectado
             ser = getattr(self.bridge, "serial_adapter", None)
@@ -779,6 +844,7 @@ class WebAPIRouter:
                 return 400, {"status": "error", "message": "No se puede eliminar el canal público 0"}
             if idx in self.channels:
                 del self.channels[idx]
+                self._save_channels()
                 ser = getattr(self.bridge, "serial_adapter", None)
                 if ser and hasattr(ser, "set_channel"):
                     try:

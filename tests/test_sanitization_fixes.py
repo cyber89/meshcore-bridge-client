@@ -451,3 +451,80 @@ class TestSenderPrefixDeduplication:
         assert sender is None
         assert clean == text
 
+
+# ================================================================== #
+#  10. Channels Persistence and PSK Formatting                       #
+# ================================================================== #
+
+class TestChannelsPersistence:
+    """Tests para verificar la persistencia de canales y formateo de claves PSK."""
+
+    @pytest.mark.asyncio
+    async def test_channels_persistence_and_reload(self, tmp_path: Any, monkeypatch: Any) -> None:
+        import json
+        from unittest.mock import MagicMock
+        from src.web.api_router import WebAPIRouter
+
+        storage_file = tmp_path / "channels.json"
+        monkeypatch.setenv("CHANNELS_STORAGE_PATH", str(storage_file))
+
+        class MockBridge:
+            def __init__(self) -> None:
+                self.web_server = MagicMock()
+                self.diagnostics = MagicMock()
+                self.serial_adapter = None
+
+        bridge1 = MockBridge()
+        router1 = WebAPIRouter(bridge1)
+
+        # Inicialmente solo canal 0
+        assert len(router1.channels) == 1
+        assert router1.channels[0]["name"] == "Public / Broadcast"
+
+        # Crear Canal 1
+        code, res = await router1._route_channels(
+            "/api/channels",
+            "POST",
+            {"index": 1, "name": "Operaciones", "psk": "d57078c90eef5f5a7e949f1892ba744e"},
+        )
+        assert code == 200
+        assert res["status"] == "ok"
+        assert len(router1.channels) == 2
+        assert router1.channels[1]["name"] == "Operaciones"
+
+        # Verificar guardado en archivo
+        assert storage_file.is_file()
+        with open(storage_file, encoding="utf-8") as f:
+            saved_data = json.load(f)
+        assert len(saved_data) == 2
+        assert saved_data[1]["name"] == "Operaciones"
+
+        # Simular reinicio del servicio / Nueva instancia
+        bridge2 = MockBridge()
+        router2 = WebAPIRouter(bridge2)
+
+        # Los canales deben cargarse intactos desde el disco
+        assert len(router2.channels) == 2
+        assert 1 in router2.channels
+        assert router2.channels[1]["name"] == "Operaciones"
+        assert router2.channels[1]["psk"] == "d57078c90eef5f5a7e949f1892ba744e"
+
+    @pytest.mark.asyncio
+    async def test_serial_driver_set_channel_psk_conversion(self) -> None:
+        from unittest.mock import AsyncMock, MagicMock
+        from src.serial_driver import MeshcoreSDKAdapter
+
+        driver = MeshcoreSDKAdapter(port="COM3")
+        driver.is_connected = True
+        driver.mc = MagicMock()
+        driver.mc.commands = MagicMock()
+        driver.mc.commands.set_channel = AsyncMock(return_value={"status": "OK"})
+
+        # PSK hexadecimal de 32 caracteres (16 bytes)
+        res = await driver.set_channel(1, "Canal-Test", "d57078c90eef5f5a7e949f1892ba744e")
+        assert res["status"] == "OK"
+        driver.mc.commands.set_channel.assert_called_once_with(
+            1, "Canal-Test", bytes.fromhex("d57078c90eef5f5a7e949f1892ba744e")
+        )
+
+

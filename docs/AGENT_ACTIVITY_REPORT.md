@@ -6,6 +6,33 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Persistencia de Canales a Disco y Corrección de Formato de Clave Secreta PSK en SerialDriver
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect).
+- **Problema Reportado por el Usuario**:
+  - Al crear un canal nuevo y reiniciar el bridge o la interfaz, el canal desaparecía.
+- **Causas Raíz Identificadas**:
+  1. **Falta de Persistencia en Backend (`src/web/api_router.py`)**:
+     - `WebAPIRouter` almacenaba los canales exclusivamente en un diccionario en memoria RAM (`self.channels`). Al reiniciar el proceso o servicio, el estado se reseteaba únicamente al canal público `0`.
+  2. **Error de Tipado en Transmisión de Clave Secreta (`src/serial_driver.py:set_channel`)**:
+     - El SDK de MeshCore (`meshcore_py.commands.set_channel`) requiere un argumento binario `channel_secret: bytes` de 16 bytes exactos (AES-128). El bridge pasaba la cadena de texto hexadecimal `psk` (`str` de 32 caracteres), provocando un `ValueError: Channel secret must be exactly 16 bytes` dentro del SDK, lo que impedía que el canal se guardara en la memoria Flash física del transceptor de radio.
+  3. **Consulta de Canales al Transceptor (`src/serial_driver.py:get_channels`)**:
+     - `get_channels()` intentaba llamar a un método inexistente `get_channels()`, cuando el SDK expone `get_channel(idx)` y `packet_parser.channels`.
+- **Acciones Realizadas**:
+  1. **Almacenamiento Persistente en `src/web/api_router.py`**:
+     - Implementados `_load_channels()` y `_save_channels()` para guardar y recuperar atómicamente la configuración de canales en `data/channels.json` (o la ruta especificada por `CHANNELS_STORAGE_PATH`).
+     - Al arrancar `WebAPIRouter`, se cargan automáticamente los canales persistidos.
+     - En `_route_channels`, se invocan `_save_channels()` ante adiciones (`POST`), eliminaciones (`DELETE`) y sincronizaciones (`GET` / `sync`).
+  2. **Normalización de Claves PSK en `src/serial_driver.py`**:
+     - Se implementó la conversión estricta de PSK a `16 bytes`: decodificación hex de 32 caracteres, truncado/padding o derivación SHA-256 para canales con clave de texto o formato `#nombre`.
+     - Se enriqueció `get_channels()` para inspeccionar `packet_parser.channels` y consultar los canales 0..7 con `get_channel(idx)`.
+  3. **Pruebas Automatizadas**:
+     - Añadida suite `TestChannelsPersistence` en `tests/test_sanitization_fixes.py` con 51/51 tests pasando.
+- **Módulos Modificados**: `src/web/api_router.py`, `src/serial_driver.py`, `tests/test_sanitization_fixes.py`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
+
+
 ### Hito: Corrección de Envío de Mensajes (ReferenceError SNR) y Enriquecimiento de RSSI en Ping Directo
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO

@@ -726,32 +726,58 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
         channels: list[dict[str, Any]] = []
         try:
-            if hasattr(self.mc, "channels"):
+            # 1. Intentar desde parser de canales en memoria del SDK
+            reader = getattr(self.mc, "_reader", None) or getattr(self.mc, "reader", None)
+            packet_parser = getattr(reader, "packet_parser", None) if reader else None
+            parser_channels = getattr(packet_parser, "channels", None) if packet_parser else None
+
+            if parser_channels and isinstance(parser_channels, list):
+                for idx, c in enumerate(parser_channels):
+                    if isinstance(c, dict) and c.get("channel_name"):
+                        ch_name = str(c.get("channel_name", ""))
+                        ch_sec = c.get("channel_secret")
+                        psk_hex = ch_sec.hex() if isinstance(ch_sec, bytes) else str(ch_sec or "")
+                        channels.append({
+                            "index": int(c.get("channel_idx", idx)),
+                            "name": ch_name,
+                            "psk": psk_hex,
+                            "is_public": int(c.get("channel_idx", idx)) == 0,
+                        })
+
+            if not channels and hasattr(self.mc, "channels"):
                 raw_ch = self.mc.channels
                 if isinstance(raw_ch, dict):
                     raw_ch = list(raw_ch.values())
                 if isinstance(raw_ch, list):
                     for idx, c in enumerate(raw_ch):
-                        if isinstance(c, dict):
-                            ch_index = int(c.get("index", idx))
+                        if isinstance(c, dict) and (c.get("name") or c.get("channel_name")):
+                            ch_index = int(c.get("index", c.get("channel_idx", idx)))
                             channels.append({
                                 "index": ch_index,
-                                "name": str(c.get("name", f"Canal {ch_index}")),
-                                "psk": str(c.get("psk", "")),
+                                "name": str(c.get("name", c.get("channel_name", f"Canal {ch_index}"))),
+                                "psk": str(c.get("psk", c.get("channel_secret", ""))),
                                 "is_public": ch_index == 0,
                             })
-            elif hasattr(self.mc, "commands") and hasattr(self.mc.commands, "get_channels"):
-                res = await self.mc.commands.get_channels()
-                if isinstance(res, list):
-                    for idx, c in enumerate(res):
-                        if isinstance(c, dict):
-                            ch_index = int(c.get("index", idx))
-                            channels.append({
-                                "index": ch_index,
-                                "name": str(c.get("name", f"Canal {ch_index}")),
-                                "psk": str(c.get("psk", "")),
-                                "is_public": ch_index == 0,
-                            })
+
+            # 2. Si no hay canales en memoria, consultar canales 0 a 7 al firmware mediante get_channel
+            if not channels and hasattr(self.mc, "commands") and hasattr(self.mc.commands, "get_channel"):
+                for ch_idx in range(8):
+                    try:
+                        ev = await self.mc.commands.get_channel(ch_idx)
+                        if ev and hasattr(ev, "payload") and isinstance(ev.payload, dict):
+                            p = ev.payload
+                            ch_name = str(p.get("channel_name", "")).strip()
+                            if ch_name:
+                                ch_sec = p.get("channel_secret")
+                                psk_hex = ch_sec.hex() if isinstance(ch_sec, bytes) else str(ch_sec or "")
+                                channels.append({
+                                    "index": ch_idx,
+                                    "name": ch_name,
+                                    "psk": psk_hex,
+                                    "is_public": ch_idx == 0,
+                                })
+                    except Exception:
+                        pass
         except Exception as e:
             logging.debug(f"Error extrayendo canales del nodo USB: {e}")
 
@@ -769,9 +795,24 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         if not self.is_connected or not self.mc:
             return {"status": "LOCAL_SAVED", "index": index, "name": name}
 
+        # Convertir PSK a 16 bytes exactos (AES-128) según lo requerido por el SDK de MeshCore
+        secret_bytes: bytes | None = None
+        if psk:
+            clean_psk = psk.strip()
+            if len(clean_psk) == 32 and all(c in "0123456789abcdefABCDEF" for c in clean_psk):
+                secret_bytes = bytes.fromhex(clean_psk)
+            elif len(clean_psk) == 16:
+                secret_bytes = clean_psk.encode("utf-8")
+            else:
+                import hashlib
+                secret_bytes = hashlib.sha256(clean_psk.encode("utf-8")).digest()[:16]
+        elif name.startswith("#"):
+            import hashlib
+            secret_bytes = hashlib.sha256(name.encode("utf-8")).digest()[:16]
+
         try:
             if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "set_channel"):
-                res = await self.mc.commands.set_channel(index, name, psk)
+                res = await self.mc.commands.set_channel(index, name, secret_bytes)
                 return {"status": "OK", "response": str(res)}
             if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "send_cmd"):
                 clean_ch_name = name.strip().replace('"', "")
