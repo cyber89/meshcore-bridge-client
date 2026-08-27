@@ -19,6 +19,8 @@ from src.protocol_types import (
     ESC_MASK,
     SOF_BYTE,
     MeshcoreFrame,
+    MeshCoreSDKProtocol,
+    FirmwareAdvertType,
 )
 
 try:
@@ -117,6 +119,18 @@ class BaseSerialAdapter(abc.ABC):
         """Verifica si el transceptor local sigue vivo y respondiendo por serial."""
         return self.is_connected
 
+    async def get_channel(self, index: int) -> dict[str, Any] | None:
+        """Obtiene la configuración de un canal específico."""
+        return None
+
+    async def get_stats(self) -> dict[str, Any] | None:
+        """Obtiene las estadísticas de la radio."""
+        return None
+
+    async def device_query(self) -> dict[str, Any] | None:
+        """Obtiene información del dispositivo."""
+        return None
+
     def resolve_sender_name(self, prefix_or_key: str) -> str:
         return str(prefix_or_key)
 
@@ -133,7 +147,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
     ) -> None:
         super().__init__(port, baud_rate, timeout_sec)
         self.node_registry = node_registry
-        self.mc: Any = None
+        self.mc: MeshCoreSDKProtocol | Any = None
 
     async def connect(self) -> bool:
         if MeshCore is None:
@@ -276,17 +290,47 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         if not hasattr(self.mc, "subscribe"):
             return
 
-        def _on_event(event: Any) -> None:
-            self.heartbeat()
-            if self.rx_callback:
-                self.rx_callback(event)
-
         if EventType:
             for ev_type in EventType:
                 try:
-                    self.mc.subscribe(ev_type, _on_event)
+                    def _make_handler(et: Any) -> Any:
+                        def _handler(event: Any) -> None:
+                            try:
+                                loop = asyncio.get_running_loop()
+                                loop.create_task(self._on_sdk_event(et, event))
+                            except RuntimeError:
+                                pass
+                        return _handler
+                    self.mc.subscribe(ev_type, _make_handler(ev_type))
                 except Exception as e:
                     logging.debug(f"Suscripción a evento {ev_type}: {e}")
+
+    async def _on_sdk_event(self, event_type: int, data: Any) -> None:
+        self.heartbeat()
+        if event_type == getattr(EventType, "CONTACT_MSG_RECV", 7):
+            await self._handle_direct_message(data)
+        elif event_type == getattr(EventType, "CHANNEL_MSG_RECV", 8):
+            await self._handle_channel_message(data)
+        elif event_type == getattr(EventType, "CURRENT_TIME", 9):
+            # Procesar/loguear tiempo actual
+            pass
+        elif event_type == getattr(EventType, "STATS", 24):
+            # Publicar estadísticas
+            pass
+        else:
+            await self._handle_generic_event(event_type, data)
+
+    async def _handle_direct_message(self, data: Any) -> None:
+        if self.rx_callback:
+            self.rx_callback(data)
+
+    async def _handle_channel_message(self, data: Any) -> None:
+        if self.rx_callback:
+            self.rx_callback(data)
+
+    async def _handle_generic_event(self, event_type: int, data: Any) -> None:
+        if self.rx_callback:
+            self.rx_callback(data)
 
     async def send_raw_companion_frame(self, data: bytes) -> bool:
         """Envía una trama cruda recibida desde un cliente companion hacia el hardware de radio."""
@@ -582,15 +626,12 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                         adv_lon = getattr(c, "adv_lon", getattr(c, "longitude", None))
 
                     if pk:
-                        name_upper = adv_name.upper()
-                        if raw_type == 2 or name_upper.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-")) or "REPEATER" in name_upper or "ROUTER" in name_upper:
-                            role = "REPEATER"
-                        elif raw_type == 3 or "ROOM" in name_upper or "BBS" in name_upper:
-                            role = "ROOM"
-                        elif raw_type == 4 or "SENSOR" in name_upper:
-                            role = "SENSOR"
-                        else:
-                            role = "CLIENT"
+                        try:
+                            advert_type = FirmwareAdvertType(raw_type)
+                            role = advert_type.name
+                        except ValueError:
+                            role = "UNKNOWN"
+                        
                         imported_contacts.append({
                             "public_key": pk,
                             "name": adv_name,
@@ -605,6 +646,27 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             logging.warning(f"Fallo sincronizando libreta de contactos del nodo: {e}")
 
         return imported_contacts
+
+    async def get_channel(self, index: int) -> dict[str, Any] | None:
+        if not self.is_connected or not self.mc:
+            return None
+        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "get_channel"):
+            return await self.mc.commands.get_channel(index)
+        return None
+
+    async def get_stats(self) -> dict[str, Any] | None:
+        if not self.is_connected or not self.mc:
+            return None
+        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "get_stats"):
+            return await self.mc.commands.get_stats()
+        return None
+
+    async def device_query(self) -> dict[str, Any] | None:
+        if not self.is_connected or not self.mc:
+            return None
+        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "device_query"):
+            return await self.mc.commands.device_query()
+        return None
 
     def resolve_sender_name(self, prefix_or_key: str) -> str:
         if not self.mc or not prefix_or_key:
