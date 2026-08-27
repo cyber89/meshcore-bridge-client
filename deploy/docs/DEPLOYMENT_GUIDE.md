@@ -117,11 +117,11 @@ sudo systemctl enable mosquitto
    ```
 
 3. Configura el archivo de variables de entorno `.env`:
-   ```bash
-   cp .env.example .env
-   nano .env
-   ```
-   *Verifica que `SERIAL_PORT` apunte a tu dispositivo (ej. `/dev/ttyACM0` o `/dev/ttyUSB0`).*
+    ```bash
+    cp .env.example .env
+    nano .env
+    ```
+    *Verifica que `SERIAL_PORT` apunte a tu dispositivo (ej. `/dev/ttyACM0`, `/dev/ttyUSB0` o `AUTO`) y que `SQLITE_DB_PATH` use `data/meshcore_buffer.db`.*
 
 ---
 
@@ -144,6 +144,29 @@ sudo systemctl enable mosquitto
    sudo systemctl status meshcore-bridge.service
    sudo journalctl -u meshcore-bridge.service -f
    ```
+
+---
+
+## 🌐 Acceso a la Estación Web SPA y Seguridad
+
+Una vez iniciado el servicio, accede desde cualquier navegador en la misma red local:
+
+- **URL de la Estación Web**: `http://<IP_DE_TU_SERVIDOR>:8080`
+- **Indicador de Vivacidad**: El badge en la barra superior mostrará **`⬤ Conectado`** en tiempo real mediante WebSockets RFC 6455.
+- **Autenticación (Opcional)**: Si configuras `BRIDGE_API_KEY=tu_clave_secreta` en `.env`:
+  1. Ve a **⚙️ Ajustes ➔ 🔐 Seguridad & API**.
+  2. Escribe tu clave secreta en el campo correspondiente y pulsa **Guardar**.
+  3. Tu navegador quedará automáticamente autorizado para emitir mensajes y enviar comandos administrativos.
+
+---
+
+## 📱 Conexión con Companion Apps Móviles (Android / iOS / CLI)
+
+El bridge incluye un servidor TCP Companion integrado (compatible con el protocolo oficial MeshCore):
+- **Host**: IP de tu servidor o Raspberry Pi
+- **Puerto**: `5000` (configurable mediante `TCP_SERVER_PORT`)
+- **Límite Conexiones**: Hasta 8 clientes simultáneos (`MAX_COMPANION_CLIENTS=8`) con protección contra DoS.
+- **Token de Acceso (Opcional)**: Configurable mediante `COMPANION_TOKEN` en `.env`.
 
 ---
 
@@ -175,4 +198,9 @@ mosquitto_pub -t "meshcore/tx" -m '{"to": "broadcast", "channel_index": 0, "text
 ### 3. Consultar telemetría de salud del bridge:
 ```bash
 mosquitto_sub -t "meshcore/bridge/health" -v
+```
+
+### 4. Consultar API REST de estado:
+```bash
+curl -s http://127.0.0.1:8080/api/status | jq .
 ```

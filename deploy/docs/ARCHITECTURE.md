@@ -107,17 +107,20 @@ flowchart TB
 - **Compatibilidad**: Permite conectar la App Móvil oficial de MeshCore (Android/iOS) y el CLI oficial (`meshcore-cli -t <ip> -p 5000`) de forma transparente.
 
 ### 2.2 Servidor Web Asíncrono y WebSocket Hub (`src/web/http_server.py`)
-- **Servidor HTTP 1.1 Nativo**: Despacha la aplicación SPA y los endpoints de la API REST sin dependencias pesadas.
-- **WebSocket RFC 6455 Hub**: Canal bidireccional en `/ws/live` para streaming continuo de mensajes entrantes, telemetría y estado de la malla.
+- **Servidor HTTP 1.1 Nativo**: Despacha la aplicación SPA y los endpoints de la API REST sin dependencias pesadas ni frameworks bloqueantes.
+- **WebSocket RFC 6455 Hub**: Canal bidireccional en `/ws` para streaming continuo de mensajes entrantes, telemetría y estado de la malla.
+  - **Soporte Same-Origin & Red Local**: Validación automática de orígenes LAN (`192.168.*`, `10.*`, `172.16-31.*`) y Same-Origin contra `Host`.
+  - **Heartbeat Keepalive**: Ping/Pong activo cada 15s y tramas WebSocket Ping (`0x89`) ante inactividad.
 - **CORS Preflight**: Soporte completo para peticiones `OPTIONS` retornando `204 No Content`.
-- **Endurecimiento de Seguridad**: Aislamiento canónico contra Directory Traversal (`.resolve().is_relative_to()`), cabeceras `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` y límite de cuerpo `MAX_BODY_SIZE` de 1 MB contra DoS.
+- **Autenticación API Key**: Middleware de validación para cabecera `X-Api-Key` contra `BRIDGE_API_KEY` protegiendo `/api/tx`, `/api/node/reboot`, `/api/admin/*` y `/api/repeater/*`.
+- **Endurecimiento de Seguridad**: Aislamiento canónico contra Directory Traversal (`.resolve().is_relative_to()`), cabeceras `Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` y límite de cuerpo `MAX_BODY_SIZE` de 1 MB contra DoS.
 
 ### 2.3 Enrutador REST API (`src/web/api_router.py`)
-Centraliza las operaciones del cliente web y herramientas externas:
+Centraliza las operaciones del cliente web y herramientas externas con soporte de paginación (`limit`, `offset`):
 - `/api/status`: Diagnóstico de salud, uptime, estado de enlaces y colas.
-- `/api/nodes`: Directorio en vivo de nodos en la malla.
+- `/api/nodes`: Directorio en vivo de nodos en la malla con deduplicación estricta de la estación local.
 - `/api/analytics`: Resumen analítico con Top Nodos por Tráfico y Calidad SNR.
-- `/api/system/logs`: Historial de registros del puente con filtrado de severidad.
+- `/api/system/logs`: Historial de registros del puente con filtrado de severidad y paginación.
 - `/api/contacts` & `/api/channels`: Gestión de libreta de contactos y configuración de canales.
 - `/api/tx`: Transmisión RF directa a canales públicos, privados o DMs.
 - `/api/trace`: Lanzamiento de trazado de ruta de radio (Traceroute multi-hop).
@@ -125,20 +128,21 @@ Centraliza las operaciones del cliente web y herramientas externas:
 - `/api/preflight`: Diagnósticos de infraestructura (Mosquitto, puerto serial/TCP, servidor Companion).
 
 ### 2.4 Deduplicador de Paquetes en Memoria RAM (`src/deduplicator.py`)
-- Estructura `PacketDeduplicator` basada en `collections.OrderedDict` con ventana deslizante TTL.
+- Estructura `PacketDeduplicator` protegida con `asyncio.Lock` y `threading.Lock` para concurrencia thread-safe.
 - Elimina ecos RF y retransmisiones duplicadas en tiempo constante $O(1)$ sin incurrir en I/O de disco.
 
 ### 2.5 Motor de Diagnósticos Preflight (`src/preflight.py`)
 - Valida la disponibilidad del broker Mosquitto, el puerto serial o conexión TCP y el servidor TCP Companion antes de arrancar.
 
 ### 2.6 Decodificador CayenneLPP (`src/sensor_decoder.py`)
-- Decodifica paquetes ambientales binarios (`GRP_DATA`, `TELEMETRY_RESPONSE`) convirtiendo los canales IPSO estándar en valores de ingeniería con unidades (Temperatura, Humedad, Presión, Voltaje, GPS, Acelerómetro).
+- Decodifica paquetes ambientales binarios (`GRP_DATA`, `TELEMETRY_RESPONSE`) utilizando `pycayennelpp>=2.0.0` (v2.4.0) y un fallback determinista. Convierte canales IPSO estándar en valores de ingeniería con unidades (Temperatura, Humedad, Presión, Voltaje, GPS, Acelerómetro, Luminosidad).
 
 ### 2.7 Registro Dinámico de Nodos (`src/contact_manager.py`)
-- Mantiene una tabla en memoria con los nodos activos detectados en la malla con resolución $O(1)$ y cálculo de métricas en tiempo real.
+- Mantiene una tabla en memoria con los nodos activos detectados en la malla con resolución $O(1)$, deduplicación unificada de la estación base local y cálculo de métricas LQI (Link Quality Index).
 
 ### 2.8 Cliente MQTT Resiliente (`src/mqtt_client.py`)
-- Conexión asíncrona con reconexión indefinida de 1s a 30s.
+- Conexión asíncrona compatible con `paho-mqtt` 2.x y `ReasonCode`.
+- Reconexión indefinida de 1s a 30s.
 - Last Will & Testament (LWT) en `meshcore/bridge/state`.
 
 ---

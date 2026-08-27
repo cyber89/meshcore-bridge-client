@@ -6,6 +6,30 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Saneamiento de `.env`, Actualización Global de Documentación, Deduplicación de Nodo Local y Corrección de Transmisión Web
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Frontend Architect), Agente 5 (Security Auditor).
+- **Acciones Realizadas**:
+  1. **Limpieza y Sincronización de `.env` y `.env.example`**:
+     - Eliminadas variables obsoletas o heredadas (`OFFLINE_BUFFER_MAX_SIZE`, `OFFLINE_BUFFER_TTL_HOURS`, `HA_DISCOVERY_ENABLED`, etc.).
+     - Organizado en 8 secciones lógicas y comentadas: Conexión Serial, Broker MQTT, Servidor Web / API REST / WebSockets, Servidor TCP Companion, Parámetros LoRa Airtime, Resiliencia y Control de Flujo, Persistencia de Datos y Logs.
+     - Creado `.env` activo sincronizado con `.env.example`.
+  2. **Corrección de Transmisión de Mensajes Web**:
+     - Eliminado falso timeout de ACK para mensajes en canales públicos (Broadcast / Canal 0): confirmación inmediata como `✓ TX (Transmitido)` al completarse la emisión física RF.
+     - Ampliado timeout para DMs a 25s acorde a retardos de propagación LoRa multi-hop.
+     - Añadido soporte automático para cabecera `X-Api-Key` en el cliente SPA (`getAuthHeaders()`) y campo de configuración en **⚙️ Ajustes ➔ 🔐 Seguridad & API**.
+  3. **Deduplicación Estricta de la Estación Base Local**:
+     - Backend (`src/contact_manager.py`): `NodeRegistry.add_or_update()` y `list_nodes()` unifican cualquier variante (64 chars, 12 chars o alias) en una sola entrada canónica de estación local.
+     - Frontend (`src/web/static/js/app.js`): `renderNodesDirectory()` fusiona variantes locales evitando duplicados en la interfaz de usuario.
+  4. **Resiliencia de WebSockets en Red Local (LAN)**:
+     - `src/web/http_server.py`: Autorización automática de orígenes LAN (`192.168.*`, `10.*`, `172.16-31.*`) y Same-Origin.
+     - Heartbeat RFC 6455 bidireccional (pings cada 15s) evitando cierres por inactividad.
+  5. **Actualización Integral de Documentación**:
+     - `README.md`: Documentación completa de características v3.0 Pro, endpoints REST/WS, seguridad, topics MQTT y tabla de variables `.env`.
+     - `docs/DEPLOYMENT_GUIDE.md`: Guía de despliegue paso a paso en Linux/Raspberry Pi con systemd, acceso a Web SPA en puerto 8080 y servidor TCP en puerto 5000.
+     - `docs/ARCHITECTURE.md`: Diagramas y detalle de capas actualizado con todas las protecciones y flujos asíncronos.
+
 ### Hito: Ejecución Exitosa de la Suite Completa de Pruebas (128 Tests - 100% PASS) y Saneamiento de UTF-8
 - **Fecha**: 2026-08-26
 - **Estado**: ✅ COMPLETADO (128 pasados, 0 fallos, 0 errores, cobertura del 59%)
