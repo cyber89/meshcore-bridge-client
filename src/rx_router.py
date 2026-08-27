@@ -14,7 +14,14 @@ from datetime import datetime, timezone
 from typing import Any, Protocol
 
 import config
-from src.contact_manager import NodeContactUpdate, NodeRegistry, PacketRecord, is_valid_node_key
+from src.contact_manager import (
+    NodeContactUpdate,
+    NodeRegistry,
+    PacketRecord,
+    is_valid_node_key,
+    _safe_int,
+    _safe_float,
+)
 from src.mqtt_client import AsyncBridgeMQTTClient
 from src.protocol_types import MeshcoreFrame, OpCode, TextMessagePayload
 from src.repeater_manager import RepeaterManager
@@ -27,6 +34,26 @@ from src.deduplicator import PacketDeduplicator
 from src.lqi_engine import LinkQualityEngine
 
 _SENDER_PREFIX_RE = re.compile(r"^([a-zA-Z0-9_\-\.]{2,32}):\s*(.*)$", re.DOTALL)
+
+
+def _get_coord(d: dict[str, Any], keys: tuple[str, ...]) -> float | None:
+    """Extrae coordenadas GPS válidas evitando tuplas nulas o ceros."""
+    if not isinstance(d, dict):
+        return None
+    for k in keys:
+        if k in d and d[k] is not None:
+            try:
+                v = float(d[k])
+                if v != 0.0:
+                    return v
+            except (ValueError, TypeError):
+                pass
+    for sub in ("gps", "position", "pos", "location", "telemetry"):
+        if sub in d and isinstance(d[sub], dict):
+            res = _get_coord(d[sub], keys)
+            if res is not None:
+                return res
+    return None
 
 
 def extract_sender_from_text(text: str) -> tuple[str | None, str]:
@@ -328,22 +355,6 @@ class RxEventRouter:
                         role_val = "SENSOR"
                     elif raw_type == 1 or raw_type == "CHAT" or raw_type == "CLIENT":
                         role_val = "CLIENT"
-
-                def _get_coord(d: dict[str, Any], keys: tuple[str, ...]) -> float | None:
-                    for k in keys:
-                        if k in d and d[k] is not None:
-                            try:
-                                v = float(d[k])
-                                if v != 0.0:
-                                    return v
-                            except (ValueError, TypeError):
-                                pass
-                    for sub in ("gps", "position", "pos", "location"):
-                        if sub in d and isinstance(d[sub], dict):
-                            res = _get_coord(d[sub], keys)
-                            if res is not None:
-                                return res
-                    return None
 
                 lat_val = _get_coord(payload_dict, ("lat", "latitude", "gps_lat"))
                 lon_val = _get_coord(payload_dict, ("lon", "longitude", "gps_lon"))

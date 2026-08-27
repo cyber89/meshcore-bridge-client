@@ -6,6 +6,17 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Corrección de `NameError: name '_safe_int' is not defined` en `rx_router.py`
+- **Fecha**: 2026-08-26
+- **Estado**: ✅ COMPLETADO
+- **Agente Principal (Lead Orchestrator)**:
+  1. **Causa Raíz**: En [`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py) (línea 437), el bloque de procesamiento de listas de contactos invocaba `_safe_int(...)` y `_safe_float(...)`, pero estas funciones no estaban importadas en la cabecera del módulo — sólo estaban definidas en [`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py) (líneas 18 y 31).
+  2. **Corrección aplicada**:
+     - Ampliado el import de `src.contact_manager` en [`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py) para incluir `_safe_int` y `_safe_float`.
+     - Elevada la función `_get_coord` (antes anidada dentro de `handle_event`) a nivel de módulo para evitar redefiniciones en cada llamada al evento y para mejorar la cobertura de pruebas.
+  3. **Archivos modificados**:
+     - [`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py): importaciones líneas 17-24, nueva función `_get_coord` a nivel de módulo líneas 39-56.
+
 ### Hito: Blindaje de Autenticación de Repetidores y Validación Estricta de Administración Remota
 - **Fecha**: 2026-08-26
 - **Estado**: ✅ COMPLETADO (Eliminación de auto-login por telemetría, validación de `send_login_sync` y respuesta RF, HTTP 401 en fallos)
