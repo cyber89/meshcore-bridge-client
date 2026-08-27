@@ -84,6 +84,10 @@ class MeshCoreBridge:
             window_seconds=getattr(config, "DEDUPLICATION_WINDOW_SEC", 60.0),
         )
         self.node_registry = NodeRegistry()
+        try:
+            self.node_registry.load_from_file()
+        except Exception as e:
+            logging.debug(f"No se pudo cargar NodeRegistry previo: {e}")
         self.repeater_manager = RepeaterManager()
         self.rate_limiter = TxRateLimiter(
             tx_interval_sec=config.TX_INTERVAL_SEC,
@@ -131,13 +135,13 @@ class MeshCoreBridge:
         """Difunde logs en tiempo real vía WebSocket a la interfaz web."""
         web = getattr(self, "web_server", None)
         if web is not None and getattr(self, "running", False):
-            import asyncio; asyncio.create_task(web.broadcast_event(payload))
+            asyncio.create_task(web.broadcast_event(payload))
 
     def _on_raw_companion_frame_rx(self, payload: bytes) -> None:
         """Difunde tramas binarias de la radio hacia clientes TCP Companion conectados (App Móvil / CLI)."""
         tcp_srv = getattr(self, "tcp_server", None)
         if tcp_srv is not None and getattr(self, "running", False):
-            import asyncio; asyncio.create_task(tcp_srv.broadcast_companion_frame(payload))
+            asyncio.create_task(tcp_srv.broadcast_companion_frame(payload))
 
     async def handle_tcp_companion_command(self, payload: bytes, client_writer: Any) -> None:
         """Maneja comandos binarios enviados por apps móviles o CLI a través del socket TCP Companion."""
@@ -172,6 +176,11 @@ class MeshCoreBridge:
             await asyncio.sleep(60.0)
             async with self._tasks_lock:
                 self._background_tasks = {t for t in self._background_tasks if not t.done()}
+            try:
+                if hasattr(self, "node_registry") and hasattr(self.node_registry, "save_to_file"):
+                    self.node_registry.save_to_file()
+            except Exception as e:
+                logging.debug(f"Fallo en guardado periódico de NodeRegistry: {e}")
 
     def _create_web_server(self) -> MeshCoreWebServer | None:
         """Crea el servidor HTTP/WebSocket asíncrono si está habilitado por configuración."""
@@ -398,6 +407,13 @@ class MeshCoreBridge:
                 await coro
             except Exception as e:
                 logging.error(f"Error deteniendo {subsystem_name}: {e}", exc_info=True)
+
+        # Persistir libreta de contactos y métricas de nodos
+        try:
+            if hasattr(self, "node_registry") and hasattr(self.node_registry, "save_to_file"):
+                self.node_registry.save_to_file()
+        except Exception as e:
+            logging.debug(f"Error guardando NodeRegistry al detener: {e}")
 
         # Emitir estado offline explícito antes de cerrar
         try:

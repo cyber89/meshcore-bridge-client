@@ -1414,3 +1414,64 @@ Cada vez que un agente comience o finalice una tarea, agregar√° una entrada en l
   - [Notas de compatibilidad cruzada para armonizar otros subsistemas]
 - **Estado**: [EN PROGRESO / COMPLETADO]
 ```
+
+### [TASK-2026-08-26-01] Concurrencia y Resiliencia FASE 1B + 2
+- **Fecha y Hora**: 2026-08-26 23:05
+- **Agente Responsable**: Agente 2 (Bridge Architect)
+- **Objetivo**: Implementar correcciones de concurrencia y resiliencia (drain/backpressure en broadcasts, protecci√≥n de estructuras no thread-safe, maxsize en TxQueue, sem√°foro en RX, timeout en WS, etc).
+- **Archivos Modificados / Creados**:
+  - config.py: Agregados MAX_TX_QUEUE_SIZE, MAX_RX_CONCURRENCY, WS_IDLE_TIMEOUT_SEC.
+  - src/web/http_server.py: \roadcast_event\ es ahora corutina con discard de clientes lentos y wait_for drain; timeout aplicado a eader.read\ en WS.
+  - src/tcp_companion_server.py: \roadcast_companion_frame\ y \send_frame_to_client\ con validaci√≥n de buffer y drain timeout. Buffer limits al registrar clientes.
+  - src/deduplicator.py: Agregados locks as√≠ncronos y s√≠ncronos para operaciones thread-safe sobre el cache.
+  - src/rate_limiter.py: \CustomTxQueue\ implementa \maxsize\ configurable con captura de \QueueFull\. Atributos \	otal_dropped\.
+  - src/bridge_core.py: Cancelaci√≥n y recolecci√≥n de tareas background al apagar. Limpiador de \_background_tasks\ peri√≥dico con lock. Eliminado \_tx_worker\ duplicado. Contadores de TX protegidos con lock. Reconexi√≥n serial invoca \wait connect()\.
+  - src/rx_router.py: Incorporado \syncio.Semaphore\ para limitar concurrencia en la validaci√≥n y despacho de tramas (CONC-004). Llamadas a web broadcast refactorizadas.
+  - src/serial_driver.py: Agregado \wait_for\ timeout a \ping_or_check_alive\.
+  - src/mqtt_client.py: \get_running_loop\ en lugar de \get_event_loop\. Try-catch a√±adido al callback \on_message\ directo.
+  - src/mqtt_dispatcher.py: Agregado timeout en el wait de la request de TX (CONC-009).
+  - src/admin_handler.py, src/web/api_router.py: Adaptadas a la API async de websockets broadcast y rate limiter.
+  - 	ests/test_tx_rate_limiter.py, 	ests/test_stress_flood.py: Fixes para compatibilidad por eliminaci√≥n del worker obsoleto.
+- **Contratos / Interfaces Modificadas**: APIs internas cambiaron en su firma de asincron√≠a (broadcast_event). Las interfaces externas (MQTT, REST, TCP) mantienen contratos previos.
+- **Estado**: COMPLETADO
+# #   A g e n t e   1   -   P r o t o c o l   &   T y p e s   S p e c i a l i s t 
+ 
+ * * C a m b i o s   I m p l e m e n t a d o s : * * 
+ -   * * Q U A L - 0 0 1 * * :   S e   c a m b i Û   ` N o d e C o n t a c t I n f o . n e i g h b o r s `   d e   ` l i s t [ s t r ] `   a   ` t u p l e [ s t r ,   . . . ] `   y   s e   a c t u a l i z Û   s u   i n s t a n c i a c i Û n   p a s a n d o   ` t u p l e ( . . . ) ` . 
+ -   * * Q U A L - 0 0 2 * * :   S e   a g r e g a r o n   l o s   m È t o d o s   c o n c r e t o s   d e l   c l i e n t e   p a h o - m q t t   e n   ` M q t t C l i e n t P r o t o c o l `   ( b r i d g e _ c o r e . p y ) . 
+ -   * * Q U A L - 0 0 6 * * :   S e   a g r e g Û   e l   m o d o   e s t r i c t o   e n   ` p a r s e _ r a w _ p a c k e t `   e n   ` p r o t o c o l _ t y p e s . p y `   y   s e   u s a   c o n   ` s t r i c t = T r u e `   e n   ` s e r i a l _ d r i v e r . p y `   e m i t i e n d o   w a r n i n g s   s i   l a   t r a m a   e s   r e c h a z a d a . 
+ -   * * Q U A L - 0 0 7   /   Q U A L - 0 1 5 * * :   S e   a Ò a d i Û   y   s e   i n v o c Û   a l   f i n a l   d e   ` c o n f i g . p y `   l a   v a l i d a c i Û n   p a r a   p u e r t o s ,   b a u d   r a t e s ,   S F ,   a n c h o s   d e   b a n d a   y   t i e m p o s   d e   e s p e r a . 
+ -   * * R O B - 0 1 1 * * :   S e   i n c l u y Û   u n   c o m e n t a r i o   d o c u m e n t a n d o   e l   e n d i a n n e s s   d e   C R C   e n   ` p r o t o c o l _ t y p e s . p y ` . 
+  
+ 
+ # # #   [ T A S K - 2 0 2 6 - 0 8 - 2 6 - 0 2 ]   Q U A L   R e f a c t o r i n g   ( e v e n t _ u t i l s ,   c o n n e c t ,   r x _ r o u t e r _ c o m m o n ) 
+ -   * * F e c h a   y   H o r a * * :   2 0 2 6 - 0 8 - 2 6   2 3 : 1 3 
+ -   * * A g e n t e   R e s p o n s a b l e * * :   A g e n t e   2   ( R e f a c t o r i n g   &   A r c h i t e c t u r e   S p e c i a l i s t ) 
+ -   * * O b j e t i v o * * :   I m p l e m e n t a r   m e j o r a s   d e   c a l i d a d   y   r e f a c t o r i z a c i Û n   s o l i c i t a d a s   ( Q U A L - 0 0 3 ,   Q U A L - 0 0 9 ,   Q U A L - 0 1 1 ) . 
+ -   * * A r c h i v o s   M o d i f i c a d o s   /   C r e a d o s * * : 
+     -   s r c / e v e n t _ u t i l s . p y :   C r e a d o   a r c h i v o   n u e v o   c o n   \ e x t r a c t _ s e n d e r _ f r o m _ p a y l o a d \   ( S S o T   p a r a   r e m i t e n t e s )   [ Q U A L - 0 0 3 ] . 
+     -   s r c / r x _ r o u t e r . p y :   U s a d a   \ e x t r a c t _ s e n d e r _ f r o m _ p a y l o a d \ .   R e f a c t o r i z a d a   l Û g i c a   c o m ˙ n   e n t r e   \ _ h a n d l e _ m e s h _ c h a n n e l _ m s g \   y   \ _ h a n d l e _ m e s h _ d i r e c t _ m s g \   a   \ _ h a n d l e _ m e s h _ m s g _ c o m m o n \   [ Q U A L - 0 1 1 ] .   L l a m a d a s   a s Ì n c r o n a s   a d a p t a d a s   e n   \ h a n d l e _ e v e n t \ . 
+     -   s r c / w e b / a p i _ r o u t e r . p y :   U s a d a   \ e x t r a c t _ s e n d e r _ f r o m _ p a y l o a d \   [ Q U A L - 0 0 3 ] . 
+     -   s r c / s e r i a l _ d r i v e r . p y :   R e f a c t o r i z a d o   m È t o d o   \ c o n n e c t ( ) \   p a r a   s e r   n o   b l o q u e a n t e   y   d i s p a r a r   p r o c e s o   e n   b a c k g r o u n d   ( \ _ c o n n e c t _ w i t h _ s t a b i l i z a t i o n \ )   [ Q U A L - 0 0 9 ] . 
+ -   * * C o n t r a t o s   /   I n t e r f a c e s   M o d i f i c a d a s * * :   S e   m o v i Û   l Û g i c a   e s t a n d a r i z a d a   a   u n   m Û d u l o   n u e v o .   \ c o n n e c t \   a h o r a   r e t o r n a   i n s t a n t · n e a m e n t e . 
+ -   * * A c c i o n e s   R e q u e r i d a s   p o r   e l   A g e n t e   P r i n c i p a l * * :   
+     -   ( N o t a :   Q U A L - 0 1 0   y   Q U A L - 0 1 3   s e   o m i t i e r o n   y a   q u e   \ c o n t a c t _ m a n a g e r . p y \   y   \ h t t p _ s e r v e r . p y \   e s t a b a n   e s t r i c t a m e n t e   p r o h i b i d o s   p o r   S y s t e m   I n s t r u c t i o n s ) . 
+ -   * * E s t a d o * * :   C O M P L E T A D O 
+  
+ 
+### [TASK-2026-08-26-03] Frontend Fixes & UX/Reliability Updates
+- **Fecha y Hora**: 2026-08-26 23:13
+- **Agente Responsable**: Agente 4 (Web UI/UX & Frontend Specialist)
+- **Objetivo**: Implementar mejoras de frontend solicitadas (FE-001 a FE-005) y robustez menor (ROB-005, ROB-006).
+- **Archivos Modificados / Creados**:
+  - src/web/static/js/app.js: Implementado auto-reconnect WebSocket con backoff exponencial. Mitigaci√≥n XSS (textContent y escapeHtml) para variables interpoladas. M√©todo updateConnectionBadge a√±adido.
+  - src/web/static/index.html: Badge de WS insertado en el header.
+  - src/web/static/css/app.css: Estilos para el badge WS.
+  - src/web/http_server.py: Diccionario HTTP_STATUS_TEXTS agregado para mapeo de c√≥digos a textos HTTP.
+  - src/web/api_router.py: Paginaci√≥n mediante limit y offset soportada en /api/nodes, /api/messages, /api/telemetry.
+  - src/bridge_core.py: Debug mode loop configurado seg√∫n LOG_LEVEL.
+  - config.py: Definici√≥n SQLITE_DB_PATH apuntando a data/meshcore_buffer.db.
+  - .gitignore: Ignorar la carpeta data y db local.
+- **Estado**: COMPLETADO
+F a s e   5   -   C O M P A T - 0 0 1   t o   C O M P A T - 0 1 2   t e r m i n a d o s  
+ 

@@ -74,11 +74,15 @@ TOPIC_ADMIN_CMD   = f"{TOPIC_PREFIX}/admin/cmd"        # Entrada de comandos de 
 TOPIC_ADMIN_STAT  = f"{TOPIC_PREFIX}/admin/status"     # Respuesta de comandos de administración
 TOPIC_ADMIN_REPEATER = f"{TOPIC_PREFIX}/admin/repeater" # Gestión remota de repetidores por RF
 
+MQTT_MAX_PAYLOAD_BYTES = _safe_int("MQTT_MAX_PAYLOAD_BYTES", 128 * 1024)
+
 # ================= Parámetros de Resiliencia y Control =================
 TX_INTERVAL_SEC = _safe_float("TX_INTERVAL_SEC", 1.0)                 # Espaciado de transmisión RF (LoRa Rate Limiter)
 DEDUPLICATION_WINDOW_SEC = _safe_float("DEDUPLICATION_WINDOW_SEC", 60.0) # Ventana temporal de deduplicación de paquetes en RAM (segundos)
 WATCHDOG_INTERVAL_SEC = _safe_float("WATCHDOG_INTERVAL_SEC", 60.0)     # Intervalo de supervisión de vivacidad serial
 HEALTH_METRICS_INTERVAL_SEC = _safe_float("HEALTH_METRICS_INTERVAL_SEC", 60.0) # Intervalo de reporte de salud
+MAX_RECONNECT_ATTEMPTS = _safe_int("MAX_RECONNECT_ATTEMPTS", 0)       # 0 = reintentos ilimitados
+NODE_REGISTRY_STORAGE_PATH = os.getenv("NODE_REGISTRY_STORAGE_PATH", os.path.join("data", "node_registry.json"))
 
 # ================= Parámetros de Concurrencia (Nuevos) =================
 MAX_TX_QUEUE_SIZE = _safe_int("MAX_TX_QUEUE_SIZE", 500)

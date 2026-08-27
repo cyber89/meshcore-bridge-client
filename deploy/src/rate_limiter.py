@@ -216,13 +216,16 @@ class TxRateLimiter:
         self.radio_config = radio_config or LoRaRadioConfig()
         self.transmit_callback = transmit_callback
 
-        self.queue: CustomTxQueue = CustomTxQueue()
+        import os
+        MAX_TX_QUEUE_SIZE = int(os.getenv("MAX_TX_QUEUE_SIZE", "500"))
+        self.queue: CustomTxQueue = CustomTxQueue(maxsize=MAX_TX_QUEUE_SIZE)
         self.airtime_tracker: AirtimeTracker = AirtimeTracker(duty_cycle_limit_pct=duty_cycle_limit_pct)
         self._seq_counter = 0
         self._worker_task: asyncio.Task[None] | None = None
         self._running = False
         self.total_transmitted = 0
         self.total_dropped = 0
+        self.queue.total_dropped = 0
 
     def start(self) -> None:
         """Inicia la tarea worker de procesamiento en segundo plano."""
@@ -278,7 +281,13 @@ class TxRateLimiter:
             future=future,
         )
 
-        await self.queue.put(item)
+        try:
+            self.queue.put_nowait(item)
+        except asyncio.QueueFull:
+            self.total_dropped += 1
+            self.queue.total_dropped += 1
+            logging.warning("TxRateLimiter queue is full, dropping item.")
+            future.set_exception(asyncio.QueueFull("Queue Full"))
         return future
 
     def get_queue_depth(self) -> int:

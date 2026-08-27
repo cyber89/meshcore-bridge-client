@@ -44,7 +44,7 @@ class MockWebServer:
     def __init__(self) -> None:
         self.broadcasted: list[dict[str, Any]] = []
 
-    def broadcast_event(self, event_data: dict[str, Any]) -> None:
+    async def broadcast_event(self, event_data: dict[str, Any]) -> None:
         self.broadcasted.append(event_data)
 
 

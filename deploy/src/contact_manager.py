@@ -7,7 +7,10 @@ en memoria con soporte de búsqueda O(1), estadísticas de tráfico y análisis 
 from __future__ import annotations
 
 import heapq
+import json
 import logging
+import os
+from pathlib import Path
 import time
 from dataclasses import asdict, dataclass, field
 from typing import Any
@@ -57,7 +60,7 @@ class NodeContactInfo:
     tx_packets: int = 0
     error_count: int = 0
     connected_clients_count: int = 0
-    neighbors: list[str] = field(default_factory=list)
+    neighbors: tuple[str, ...] = field(default_factory=tuple)
     temperature_c: float | None = None
     humidity_pct: float | None = None
     pressure_hpa: float | None = None
@@ -350,7 +353,7 @@ class NodeRegistry:
             tx_packets=update.tx_packets if update.tx_packets is not None else (existing.tx_packets if existing else 0),
             error_count=update.error_count if update.error_count is not None else (existing.error_count if existing else 0),
             connected_clients_count=update.connected_clients_count if update.connected_clients_count is not None else (existing.connected_clients_count if existing else 0),
-            neighbors=update.neighbors if update.neighbors is not None else (existing.neighbors if existing else []),
+            neighbors=tuple(update.neighbors) if update.neighbors is not None else (existing.neighbors if existing else ()),
             temperature_c=update.temperature_c if update.temperature_c is not None else (existing.temperature_c if existing else None),
             humidity_pct=update.humidity_pct if update.humidity_pct is not None else (existing.humidity_pct if existing else None),
             pressure_hpa=update.pressure_hpa if update.pressure_hpa is not None else (existing.pressure_hpa if existing else None),
@@ -664,6 +667,17 @@ class NodeRegistry:
             return contact.alias or contact.name
         return query
 
+    def resolve_display_name(self, key_or_prefix: str) -> str:
+        """Resuelve el nombre de display de un nodo dado su key completa o prefijo de 8 chars.
+        Single Source of Truth para resolución de nombres en todo el bridge.
+        Retorna alias si existe, nombre si no, o el prefijo como fallback.
+        """
+        prefix = key_or_prefix[:8] if len(key_or_prefix) >= 8 else key_or_prefix
+        node = self.get_by_key_or_prefix(key_or_prefix)
+        if node:
+            return node.alias or node.name or prefix
+        return prefix
+
     def list_nodes(self) -> list[dict[str, Any]]:
         """Retorna la lista de todos los nodos registrados en formato serializable."""
         return [
@@ -735,3 +749,114 @@ class NodeRegistry:
         if to_remove:
             logging.info(f"Limpieza de NodeRegistry: eliminados {len(to_remove)} nodos obsoletos.")
         return len(to_remove)
+
+    def save_to_file(self, filepath: str | Path | None = None) -> bool:
+        """Guarda la libreta de contactos y estado de nodos en un archivo JSON."""
+        target_path = Path(filepath or os.getenv("NODE_REGISTRY_STORAGE_PATH", os.path.join("data", "node_registry.json")))
+        try:
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            data = {
+                "local_pubkey": self._local_pubkey,
+                "saved_at": time.time(),
+                "nodes": [c.to_dict() for c in self._nodes_by_key.values()],
+                "error_categories": self.error_categories,
+            }
+            tmp_path = target_path.with_suffix(".tmp")
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            tmp_path.replace(target_path)
+            logging.debug(f"NodeRegistry guardado exitosamente en {target_path} ({len(self._nodes_by_key)} nodos)")
+            return True
+        except Exception as e:
+            logging.warning(f"Error guardando NodeRegistry en {target_path}: {e}")
+            return False
+
+    def load_from_file(self, filepath: str | Path | None = None) -> int:
+        """Carga la libreta de contactos y estado de nodos desde un archivo JSON."""
+        target_path = Path(filepath or os.getenv("NODE_REGISTRY_STORAGE_PATH", os.path.join("data", "node_registry.json")))
+        if not target_path.is_file():
+            return 0
+        try:
+            with open(target_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            loaded_count = 0
+            raw_nodes = data.get("nodes", [])
+            for nd in raw_nodes:
+                pk = nd.get("public_key")
+                if not pk or not is_valid_node_key(pk):
+                    continue
+                # Asegurar que neighbors sea una tupla
+                raw_neighbors = nd.get("neighbors", ())
+                neighbors_tuple = tuple(raw_neighbors) if isinstance(raw_neighbors, (list, tuple)) else ()
+                
+                # Construir campos de NodeContactInfo
+                contact = NodeContactInfo(
+                    public_key=str(pk).strip().lower(),
+                    name=str(nd.get("name", "")),
+                    alias=str(nd.get("alias", "")),
+                    role=str(nd.get("role", "CLIENT")),
+                    hops=nd.get("hops"),
+                    last_rssi=nd.get("last_rssi"),
+                    last_snr=nd.get("last_snr"),
+                    battery_pct=nd.get("battery_pct"),
+                    last_seen=float(nd.get("last_seen", 0.0)),
+                    rx_packets=int(nd.get("rx_packets", 0)),
+                    tx_packets=int(nd.get("tx_packets", 0)),
+                    error_count=int(nd.get("error_count", 0)),
+                    connected_clients_count=int(nd.get("connected_clients_count", 0)),
+                    neighbors=neighbors_tuple,
+                    temperature_c=nd.get("temperature_c"),
+                    humidity_pct=nd.get("humidity_pct"),
+                    pressure_hpa=nd.get("pressure_hpa"),
+                    voltage_v=nd.get("voltage_v"),
+                    solar_v=nd.get("solar_v"),
+                    latitude=nd.get("latitude"),
+                    longitude=nd.get("longitude"),
+                    altitude_m=nd.get("altitude_m"),
+                    uptime=nd.get("uptime"),
+                    clock=nd.get("clock"),
+                    airtime_ms=nd.get("airtime_ms"),
+                    noise_floor_dbm=nd.get("noise_floor_dbm"),
+                    packets_sent=nd.get("packets_sent"),
+                    packets_recv=nd.get("packets_recv"),
+                    duplicate_packets=nd.get("duplicate_packets"),
+                    packet_errors=nd.get("packet_errors"),
+                    queue_len=nd.get("queue_len"),
+                    owner_name=nd.get("owner_name"),
+                    owner_info=nd.get("owner_info"),
+                    firmware_version=nd.get("firmware_version"),
+                    hardware_board=nd.get("hardware_board"),
+                    advert_interval=nd.get("advert_interval"),
+                    repeat_enabled=nd.get("repeat_enabled"),
+                    tx_power=nd.get("tx_power"),
+                    frequency=nd.get("frequency"),
+                    spreading_factor=nd.get("spreading_factor"),
+                    bandwidth=nd.get("bandwidth"),
+                    coding_rate=nd.get("coding_rate"),
+                    fixed_position=nd.get("fixed_position"),
+                    is_local=bool(nd.get("is_local", False)),
+                    auto_discovered=bool(nd.get("auto_discovered", False)),
+                    discovery_time=float(nd.get("discovery_time", 0.0)),
+                    verified_identity=bool(nd.get("verified_identity", False)),
+                    is_favorite=bool(nd.get("is_favorite", False)),
+                    lqi_score=float(nd.get("lqi_score", 0.0)),
+                    lqi_status=str(nd.get("lqi_status", "UNKNOWN")),
+                    best_route=str(nd.get("best_route", "DIRECT")),
+                )
+                self._nodes_by_key[contact.public_key] = contact
+                if contact.name:
+                    self._nodes_by_name[contact.name.lower()] = contact.public_key
+                if contact.alias:
+                    self._nodes_by_name[contact.alias.lower()] = contact.public_key
+                loaded_count += 1
+
+            if "local_pubkey" in data and data["local_pubkey"]:
+                self._local_pubkey = data["local_pubkey"]
+            if "error_categories" in data and isinstance(data["error_categories"], dict):
+                self.error_categories.update(data["error_categories"])
+
+            logging.info(f"NodeRegistry cargado exitosamente desde {target_path} ({loaded_count} nodos)")
+            return loaded_count
+        except Exception as e:
+            logging.warning(f"Error cargando NodeRegistry desde {target_path}: {e}")
+            return 0

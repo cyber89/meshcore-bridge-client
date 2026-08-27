@@ -148,16 +148,25 @@ class AsyncBridgeMQTTClient:
         retain: bool = False,
         ttl_seconds: float | None = None,
     ) -> bool:
-        """Publica directamente en MQTT."""
-        if self.is_connected:
-            try:
-                self.client.publish(topic, payload_str, qos=qos, retain=retain)
-                self.total_published += 1
-                return True
-            except Exception as e:
-                logging.warning(f"Fallo al publicar en MQTT ({e})")
-                return False
-        return False
+        """Publica directamente en MQTT con validación de tamaño de payload."""
+        if not self.is_connected:
+            return False
+
+        payload_bytes = payload_str.encode("utf-8") if isinstance(payload_str, str) else payload_str
+        max_payload_size = getattr(config, "MQTT_MAX_PAYLOAD_BYTES", 128 * 1024)
+        if len(payload_bytes) > max_payload_size:
+            logging.warning(
+                f"Payload MQTT excede el tamaño máximo permitido ({len(payload_bytes)} > {max_payload_size} bytes). Descartando mensaje en {topic}."
+            )
+            return False
+
+        try:
+            self.client.publish(topic, payload_str, qos=qos, retain=retain)
+            self.total_published += 1
+            return True
+        except Exception as e:
+            logging.warning(f"Fallo al publicar en MQTT ({e})")
+            return False
 
     def _on_connect(self, client: Any, userdata: Any, flags: Any, rc: Any, *args: Any, **kwargs: Any) -> None:
         """Callback ejecutado al establecer conexión con el broker."""

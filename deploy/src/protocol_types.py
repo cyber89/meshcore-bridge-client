@@ -9,7 +9,7 @@ from __future__ import annotations
 import struct
 from dataclasses import asdict, dataclass
 from enum import IntEnum
-from typing import Any
+from typing import Any, Protocol
 
 # ================= Constantes de Protocolo =================
 
@@ -85,9 +85,18 @@ class FirmwareCommandType(IntEnum):
     RESET_PATH = 13
     SET_ADVERT_LATLON = 14
     REMOVE_CONTACT = 15
+    SHARE_CONTACT = 16
+    EXPORT_CONTACT = 17
+    IMPORT_CONTACT = 18
     REBOOT = 19
     GET_BATT_AND_STORAGE = 20
+    DEVICE_QUERY = 22
     SEND_RAW_DATA = 25
+    SEND_LOGIN = 26
+    LOGOUT = 29
+    GET_CONTACT_BY_KEY = 30
+    GET_CHANNEL = 31
+    SET_CHANNEL = 32
     SEND_TRACE_PATH = 36
     SEND_TELEMETRY_REQ = 39
     BINARY_REQ = 50
@@ -101,11 +110,15 @@ class FirmwarePushCode(IntEnum):
     ACK = 0x82
     MESSAGES_WAITING = 0x83
     RAW_DATA = 0x84
+    LOGIN_SUCCESS = 0x85
+    LOGIN_FAILED = 0x86
     STATUS_RESPONSE = 0x87
     LOG_DATA = 0x88
     TRACE_DATA = 0x89
+    NEW_ADVERT = 0x8A
     TELEMETRY_RESPONSE = 0x8B
     BINARY_RESPONSE = 0x8C
+    PATH_DISCOVERY_RESPONSE = 0x8D
     CONTROL_DATA = 0x8E
     CONTACT_DELETED = 0x8F
     CONTACTS_FULL = 0x90
@@ -213,6 +226,23 @@ class FrameHeader:
         )
 
 
+class MeshCoreSDKProtocol(Protocol):
+    """Protocolo estructural que define la interfaz esperada del SDK meshcore_py.
+    Permite type checking sin acoplamiento a la implementación concreta."""
+    commands: Any
+    connection: Any
+    cx: Any
+    contacts: Any
+    channels: Any
+    def get_contact_by_name(self, name: str) -> Any: ...
+    def get_contact_by_key_prefix(self, prefix: str) -> Any: ...
+    async def start_auto_message_fetching(self) -> None: ...
+    async def ensure_contacts(self) -> None: ...
+    async def disconnect(self) -> None: ...
+    def stop(self) -> None: ...
+    def close(self) -> None: ...
+    def subscribe(self, event_type: Any, callback: Any) -> None: ...
+
 @dataclass(frozen=True)
 class TelemetryPayload:
     """Payload estructurado de métricas y telemetría de nodo (OpCode 0x01)."""
@@ -259,6 +289,55 @@ class TelemetryPayload:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+def parse_telemetry_from_sdk(data: bytes, pubkey_prefix: str | None = None) -> dict[str, Any]:
+    """
+    Decodifica telemetría usando el layout de parse_status() del SDK oficial.
+    NOTE: TelemetryPayload es el formato interno heredado del bridge.
+    Esta función es para leer datos del firmware real.
+    """
+    res = {}
+    offset = 0
+    if pubkey_prefix is None:
+        res["pubkey_pre"] = data[2:8].hex()
+        offset = 8
+    else:
+        res["pubkey_pre"] = pubkey_prefix
+
+    if len(data) < offset + 52:
+        return res
+
+    res["bat"] = int.from_bytes(data[offset:offset+2], byteorder="little")
+    res["tx_queue_len"] = int.from_bytes(data[offset+2:offset+4], byteorder="little")
+    res["noise_floor"] = int.from_bytes(data[offset+4:offset+6], byteorder="little", signed=True)
+    res["last_rssi"] = int.from_bytes(data[offset+6:offset+8], byteorder="little", signed=True)
+    res["nb_recv"] = int.from_bytes(data[offset+8:offset+12], byteorder="little", signed=False)
+    res["nb_sent"] = int.from_bytes(data[offset+12:offset+16], byteorder="little", signed=False)
+    res["airtime"] = int.from_bytes(data[offset+16:offset+20], byteorder="little")
+    res["uptime"] = int.from_bytes(data[offset+20:offset+24], byteorder="little")
+    res["sent_flood"] = int.from_bytes(data[offset+24:offset+28], byteorder="little")
+    res["sent_direct"] = int.from_bytes(data[offset+28:offset+32], byteorder="little")
+    res["recv_flood"] = int.from_bytes(data[offset+32:offset+36], byteorder="little")
+    res["recv_direct"] = int.from_bytes(data[offset+36:offset+40], byteorder="little")
+    res["full_evts"] = int.from_bytes(data[offset+40:offset+42], byteorder="little")
+    res["last_snr"] = int.from_bytes(data[offset+42:offset+44], byteorder="little", signed=True) / 4
+    res["direct_dups"] = int.from_bytes(data[offset+44:offset+46], byteorder="little")
+    res["flood_dups"] = int.from_bytes(data[offset+46:offset+48], byteorder="little")
+    res["rx_airtime"] = int.from_bytes(data[offset+48:offset+52], byteorder="little")
+
+    if len(data) >= offset + 56:
+        res["recv_errors"] = int.from_bytes(data[offset+52:offset+56], byteorder="little")
+    else:
+        res["recv_errors"] = None
+
+    # Alias estándar para el bridge
+    res["battery_mv"] = res["bat"]
+    res["queue_len"] = res["tx_queue_len"]
+    res["noise_floor_dbm"] = res["noise_floor"]
+    res["errors"] = res["recv_errors"] or 0
+    res["uptime_secs"] = res["uptime"]
+
+    return res
 
 
 @dataclass(frozen=True)
@@ -383,6 +462,7 @@ class MeshcoreFrame:
         header_bytes = self.header.pack()
         body = header_bytes + self.raw_payload
         crc_val = compute_crc16_ccitt(body)
+        # NOTE: CRC is serialized as big-endian (>H) while the header uses little-endian (<BB HH BH). This is intentional per the MeshCore wire format spec. Do NOT change.
         crc_bytes = struct.pack(">H", crc_val)
 
         # Aplicar Byte Stuffing
@@ -399,14 +479,18 @@ class MeshcoreFrame:
         return bytes(escaped_stream)
 
     @classmethod
-    def parse_raw_packet(cls, unescaped_body: bytes) -> MeshcoreFrame:
+    def parse_raw_packet(cls, unescaped_body: bytes, strict: bool = False) -> MeshcoreFrame:
         """Parsea una trama des-escapada (Header + Payload + CRC)."""
         if len(unescaped_body) < HEADER_SIZE_BYTES + CRC_SIZE_BYTES:
             raise ValueError(f"Trama truncada ({len(unescaped_body)}B)")
 
         data_to_crc = unescaped_body[:-CRC_SIZE_BYTES]
+        # NOTE: CRC is serialized as big-endian (>H) while the header uses little-endian (<BB HH BH). This is intentional per the MeshCore wire format spec. Do NOT change.
         crc_embedded = struct.unpack(">H", unescaped_body[-CRC_SIZE_BYTES:])[0]
         crc_calc = compute_crc16_ccitt(data_to_crc)
+
+        if strict and crc_embedded != crc_calc:
+            raise ValueError(f"CRC mismatch: embedded=0x{crc_embedded:04X} calculated=0x{crc_calc:04X}")
 
         is_valid = (crc_embedded == crc_calc)
         header = FrameHeader.unpack(data_to_crc[:HEADER_SIZE_BYTES])

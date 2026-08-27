@@ -9,7 +9,7 @@ from __future__ import annotations
 import struct
 from dataclasses import asdict, dataclass
 from enum import IntEnum
-from typing import Any
+from typing import Any, Protocol
 
 # ================= Constantes de Protocolo =================
 
@@ -85,10 +85,15 @@ class FirmwareCommandType(IntEnum):
     RESET_PATH = 13
     SET_ADVERT_LATLON = 14
     REMOVE_CONTACT = 15
+    SHARE_CONTACT = 16
+    EXPORT_CONTACT = 17
+    IMPORT_CONTACT = 18
     REBOOT = 19
     GET_BATT_AND_STORAGE = 20
     DEVICE_QUERY = 22
     SEND_RAW_DATA = 25
+    SEND_LOGIN = 26
+    LOGOUT = 29
     GET_CONTACT_BY_KEY = 30
     GET_CHANNEL = 31
     SET_CHANNEL = 32
@@ -324,6 +329,13 @@ def parse_telemetry_from_sdk(data: bytes, pubkey_prefix: str | None = None) -> d
         res["recv_errors"] = int.from_bytes(data[offset+52:offset+56], byteorder="little")
     else:
         res["recv_errors"] = None
+
+    # Alias estándar para el bridge
+    res["battery_mv"] = res["bat"]
+    res["queue_len"] = res["tx_queue_len"]
+    res["noise_floor_dbm"] = res["noise_floor"]
+    res["errors"] = res["recv_errors"] or 0
+    res["uptime_secs"] = res["uptime"]
 
     return res
 

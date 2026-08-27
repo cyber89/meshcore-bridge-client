@@ -128,8 +128,28 @@ class BaseSerialAdapter(abc.ABC):
         return None
 
     async def device_query(self) -> dict[str, Any] | None:
-        """Obtiene información del dispositivo."""
+        """Consulta el estado del dispositivo."""
         return None
+
+    async def share_contact(self, contact_key: str) -> Any:
+        """Comparte un contacto con la red."""
+        return {"status": "NOT_SUPPORTED"}
+
+    async def export_contact(self, contact_key: str) -> Any:
+        """Exporta un contacto desde el transceptor."""
+        return {"status": "NOT_SUPPORTED"}
+
+    async def import_contact(self, contact_data: bytes) -> Any:
+        """Importa un contacto hacia el transceptor."""
+        return {"status": "NOT_SUPPORTED"}
+
+    async def send_login(self, target_node: str, password: str) -> Any:
+        """Envía credenciales de login a un repetidor remoto."""
+        return {"status": "NOT_SUPPORTED"}
+
+    async def logout(self, target_node: str) -> Any:
+        """Cierra sesión administrativa en un repetidor remoto."""
+        return {"status": "NOT_SUPPORTED"}
 
     def resolve_sender_name(self, prefix_or_key: str) -> str:
         return str(prefix_or_key)
@@ -668,6 +688,41 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             return await self.mc.commands.device_query()
         return None
 
+    async def share_contact(self, contact_key: str) -> Any:
+        if not self.is_connected or not self.mc:
+            return None
+        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "share_contact"):
+            return await self.mc.commands.share_contact(contact_key)
+        return None
+
+    async def export_contact(self, contact_key: str) -> Any:
+        if not self.is_connected or not self.mc:
+            return None
+        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "export_contact"):
+            return await self.mc.commands.export_contact(contact_key)
+        return None
+
+    async def import_contact(self, contact_data: bytes) -> Any:
+        if not self.is_connected or not self.mc:
+            return None
+        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "import_contact"):
+            return await self.mc.commands.import_contact(contact_data)
+        return None
+
+    async def send_login(self, target_node: str, password: str) -> Any:
+        if not self.is_connected or not self.mc:
+            return None
+        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "send_login"):
+            return await self.mc.commands.send_login(target_node, password)
+        return None
+
+    async def logout(self, target_node: str) -> Any:
+        if not self.is_connected or not self.mc:
+            return None
+        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "logout"):
+            return await self.mc.commands.logout(target_node)
+        return None
+
     def resolve_sender_name(self, prefix_or_key: str) -> str:
         if not self.mc or not prefix_or_key:
             return str(prefix_or_key)
@@ -782,6 +837,8 @@ class SerialWatchdog:
         self._running = False
         self._consecutive_ping_failures = 0
         self._reconnect_backoff_sec = 5.0
+        self.max_reconnect_attempts = int(os.getenv("MAX_RECONNECT_ATTEMPTS", "0"))
+        self._total_reconnect_attempts = 0
 
     def start(self) -> None:
         if self._task is None or self._task.done():
@@ -806,10 +863,19 @@ class SerialWatchdog:
 
                 # 1. CASO DESCONECTADO: Reintentar reconexión automática periódica en background
                 if not self.adapter.is_connected:
-                    logging.info(
-                        f"Watchdog Serial: Adaptador desconectado. Reintentando conexión con transceptor en {self._reconnect_backoff_sec:.1f}s..."
-                    )
-                    await asyncio.sleep(self._reconnect_backoff_sec)
+                    if self.max_reconnect_attempts > 0 and self._total_reconnect_attempts >= self.max_reconnect_attempts:
+                        logging.warning(
+                            f"Watchdog Serial: Se alcanzó el límite máximo de reintentos ({self.max_reconnect_attempts}). "
+                            "Entrando en modo dormant (reintentando cada 300s)..."
+                        )
+                        await asyncio.sleep(300.0)
+                    else:
+                        logging.info(
+                            f"Watchdog Serial: Adaptador desconectado. Reintentando conexión con transceptor en {self._reconnect_backoff_sec:.1f}s..."
+                        )
+                        await asyncio.sleep(self._reconnect_backoff_sec)
+
+                    self._total_reconnect_attempts += 1
                     if self.on_timeout_reconnect:
                         res = self.on_timeout_reconnect()
                         if asyncio.iscoroutine(res):
@@ -819,6 +885,7 @@ class SerialWatchdog:
                     else:
                         self._reconnect_backoff_sec = 5.0
                         self._consecutive_ping_failures = 0
+                        self._total_reconnect_attempts = 0
                     continue
 
                 # 2. CASO CONECTADO: Si no ha habido tráfico RF reciente, verificar vivacidad mediante ping suave

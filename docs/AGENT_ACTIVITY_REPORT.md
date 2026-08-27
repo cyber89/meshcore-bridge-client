@@ -1,1294 +1,1331 @@
-# 📋 Reporte Colaborativo de Actividad Multi-Agente - MeshCore Bridge
+# ðŸ“‹ Reporte Colaborativo de Actividad Multi-Agente - MeshCore Bridge
 
-Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
+Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, mÃ³dulos afectados, contratos de interfaz y estado de integraciÃ³n para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
 ---
 
-## 🎯 Registro de Hitos y Tareas Recientes
+## ðŸŽ¯ Registro de Hitos y Tareas Recientes
+
+### Hito: Implementación Integral v3.0 — Fases 1 a 5 Completadas, Blindaje de Red, Concurrencia Async, Robustez, Compatibilidad SDK y Validación Simulada 100%
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol & Types Specialist), Agente 2 (Concurrency & Resilience Architect), Agente 4 (Web UI/UX Specialist), Agente 5 (Security Auditor).
+- **Módulos Modificados e Implementaciones Clave**:
+  1. **Fase 1 (Seguridad)**:
+     - Middleware de autenticación por API Key (`X-Api-Key` / `BRIDGE_API_KEY`).
+     - Hardening de TCP Companion: límite `MAX_COMPANION_CLIENTS`, filtro IP y handshake `COMPANION_TOKEN` (5s timeout).
+     - CORS estricto con `BRIDGE_ALLOWED_ORIGINS` (eliminados wildcards).
+     - Validación de cabecera `Origin` en WebSocket y mitigación de Path Traversal previo al upgrade.
+     - Cabecera `Content-Security-Policy` estricta en respuestas HTML.
+     - Validación de sintaxis regex para claves PSK (`^[a-fA-F0-9]{0,64}$`) y rango de canales (0-15).
+     - Enmascaramiento de credenciales MQTT en logs (`MQTT_PASSWORD_MASKED`).
+  2. **Fase 2 (Concurrencia y Resiliencia)**:
+     - Deduplicador determinista thread-safe con `asyncio.Lock` y `threading.Lock`.
+     - `CustomTxQueue` con límite de tamaño (`MAX_TX_QUEUE_SIZE=500`) y contador de descartes (`total_dropped`).
+     - Control de concurrencia en RX con `asyncio.Semaphore(MAX_RX_CONCURRENCY=20)`.
+     - Timeouts de vivacidad en lecturas WebSocket (`WS_IDLE_TIMEOUT_SEC=30s`) y pings de Watchdog Serial (10s).
+     - Eliminación de tareas zombies: migración a `asyncio.get_running_loop()`, timeout de 30s en future TX MQTT, cancelación limpia de tareas en `shutdown` y reconexión con `await connect()`.
+     - Broadcasts no-bloqueantes con `await drain()` y desconexión por backpressure (64 KB / 2.0s).
+  3. **Fase 3 & 4 (Calidad de Código y Robustez)**:
+     - Estructuras inmutables: `NodeContactInfo.neighbors` tipado como `tuple[str, ...]`.
+     - SSoT para resolución de nombres: `NodeRegistry.resolve_display_name()`.
+     - SSoT para extracción de remitentes: `src/event_utils.py` (`extract_sender_from_payload`).
+     - Validación estricta de arranque en `config.py` (`_validate_config()`) para puertos, SF y BW.
+     - Persistencia atómica de contactos en `data/node_registry.json` con `save_to_file()` y `load_from_file()`.
+     - Protección de payload MQTT (`MQTT_MAX_PAYLOAD_BYTES=128KB`).
+     - Modo dormant en `SerialWatchdog` tras superar `MAX_RECONNECT_ATTEMPTS`.
+     - Frontend sanitizado contra XSS (`escapeHtml` / `textContent`), auto-reconexión WebSocket con backoff exponencial, badge de estado en tiempo real y paginación en REST API.
+  4. **Fase 5 (Compatibilidad SDK MeshCore)**:
+     - Decodificación de telemetría alineada con el firmware oficial de 56 bytes (`parse_telemetry_from_sdk`).
+     - Decodificador oficial `cayennelpp` con resolución de signed wrap en voltaje/corriente.
+     - Definición de `MeshCoreSDKProtocol` con `typing.Protocol`.
+     - Clasificación de roles de nodo basada exclusivamente en `FirmwareAdvertType`.
+     - Métodos de protocolo y endpoints REST para compartir, exportar e importar contactos (`share_contact`, `export_contact`, `import_contact`) y autenticación de repetidores (`send_login`, `logout`).
+  5. **Validación Simulada y Empaquetado**:
+     - `scripts/simulate_mesh_network.py` y `scripts/verify_all_components.py` ejecutados con 100% de éxito.
+     - Paquete autónomo `/deploy/` sincronizado con `scripts/sync_deploy.py`.
 
 ### Hito: Fase 1 Seguridad - SEC-001/002/004/005/006/007/009/010/011
 - **Fecha**: 2026-08-26
-- **Estado**: ✅ COMPLETADO
+- **Estado**: âœ… COMPLETADO
 - **Agente 5 (Security & Vulnerability Auditor)**: 
   - **`src/web/http_server.py`**:
-    - SEC-001: Implementado middleware con verificación del header `X-Api-Key` contra `BRIDGE_API_KEY` para proteger rutas administrativas (`/api/node/reboot`, `/api/admin/`, `/api/tx`, `/api/repeater/`).
-    - SEC-004: Reemplazado CORS wildcard `Access-Control-Allow-Origin: *` por orígenes específicos definidos en `BRIDGE_ALLOWED_ORIGINS`.
-    - SEC-009: Validación explícita del header `Origin` antes de aceptar el handshake WebSocket.
-    - SEC-011: Validación de Path Traversal ejecutada estrictamente antes del upgrade WebSocket.
+    - SEC-001: Implementado middleware con verificaciÃ³n del header `X-Api-Key` contra `BRIDGE_API_KEY` para proteger rutas administrativas (`/api/node/reboot`, `/api/admin/`, `/api/tx`, `/api/repeater/`).
+    - SEC-004: Reemplazado CORS wildcard `Access-Control-Allow-Origin: *` por orÃ­genes especÃ­ficos definidos en `BRIDGE_ALLOWED_ORIGINS`.
+    - SEC-009: ValidaciÃ³n explÃ­cita del header `Origin` antes de aceptar el handshake WebSocket.
+    - SEC-011: ValidaciÃ³n de Path Traversal ejecutada estrictamente antes del upgrade WebSocket.
     - SEC-005: Incorporada cabecera `Content-Security-Policy` estricta para la entrega de archivos `.html`.
   - **`src/tcp_companion_server.py`**:
-    - SEC-002: Implementado límite máximo de conexiones concurrentes (`MAX_COMPANION_CLIENTS`) y cierre proactivo.
-    - SEC-007: Implementado handshake de autenticación obligatoria (`COMPANION_TOKEN`) con timeout de 5s y validación de orígenes por IP (`COMPANION_ALLOWED_IPS`).
+    - SEC-002: Implementado lÃ­mite mÃ¡ximo de conexiones concurrentes (`MAX_COMPANION_CLIENTS`) y cierre proactivo.
+    - SEC-007: Implementado handshake de autenticaciÃ³n obligatoria (`COMPANION_TOKEN`) con timeout de 5s y validaciÃ³n de orÃ­genes por IP (`COMPANION_ALLOWED_IPS`).
   - **`src/serial_driver.py`**:
-    - SEC-006: Reforzada validación de tipos, rangos y sintaxis (regex `^[a-fA-F0-9]{0,64}$`) en el comando `set_channel()`.
+    - SEC-006: Reforzada validaciÃ³n de tipos, rangos y sintaxis (regex `^[a-fA-F0-9]{0,64}$`) en el comando `set_channel()`.
   - **`config.py` y `.env.example`**:
-    - SEC-010: Creada variable `MQTT_PASSWORD_MASKED` para ofuscación segura en logs.
+    - SEC-010: Creada variable `MQTT_PASSWORD_MASKED` para ofuscaciÃ³n segura en logs.
     - Registradas las nuevas variables de entorno de seguridad (`BRIDGE_API_KEY`, `BRIDGE_ALLOWED_ORIGINS`, `MAX_COMPANION_CLIENTS`, `COMPANION_TOKEN`, etc).
 
 
-### Hito: Corrección de `NameError: name '_safe_int' is not defined` en `rx_router.py`
+### Hito: CorrecciÃ³n de `NameError: name '_safe_int' is not defined` en `rx_router.py`
 - **Fecha**: 2026-08-26
-- **Estado**: ✅ COMPLETADO
+- **Estado**: âœ… COMPLETADO
 - **Agente Principal (Lead Orchestrator)**:
-  1. **Causa Raíz**: En [`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py) (línea 437), el bloque de procesamiento de listas de contactos invocaba `_safe_int(...)` y `_safe_float(...)`, pero estas funciones no estaban importadas en la cabecera del módulo — sólo estaban definidas en [`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py) (líneas 18 y 31).
-  2. **Corrección aplicada**:
+  1. **Causa RaÃ­z**: En [`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py) (lÃ­nea 437), el bloque de procesamiento de listas de contactos invocaba `_safe_int(...)` y `_safe_float(...)`, pero estas funciones no estaban importadas en la cabecera del mÃ³dulo â€” sÃ³lo estaban definidas en [`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py) (lÃ­neas 18 y 31).
+  2. **CorrecciÃ³n aplicada**:
      - Ampliado el import de `src.contact_manager` en [`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py) para incluir `_safe_int` y `_safe_float`.
-     - Elevada la función `_get_coord` (antes anidada dentro de `handle_event`) a nivel de módulo para evitar redefiniciones en cada llamada al evento y para mejorar la cobertura de pruebas.
+     - Elevada la funciÃ³n `_get_coord` (antes anidada dentro de `handle_event`) a nivel de mÃ³dulo para evitar redefiniciones en cada llamada al evento y para mejorar la cobertura de pruebas.
   3. **Archivos modificados**:
-     - [`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py): importaciones líneas 17-24, nueva función `_get_coord` a nivel de módulo líneas 39-56.
+     - [`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py): importaciones lÃ­neas 17-24, nueva funciÃ³n `_get_coord` a nivel de mÃ³dulo lÃ­neas 39-56.
 
-### Hito: Blindaje de Autenticación de Repetidores y Validación Estricta de Administración Remota
+### Hito: Blindaje de AutenticaciÃ³n de Repetidores y ValidaciÃ³n Estricta de AdministraciÃ³n Remota
 - **Fecha**: 2026-08-26
-- **Estado**: ✅ COMPLETADO (Eliminación de auto-login por telemetría, validación de `send_login_sync` y respuesta RF, HTTP 401 en fallos)
-- **Agente Principal (Lead Orchestrator)**: Diagnosticó y corrigió las vulnerabilidades y fallos en la administración remota de repetidores:
-  1. **Causa Raíz de Autenticación Espuria**:
-     - En [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js), la condición en `handleIncomingLiveEvent` incluía `payload.telemetry?.battery_pct !== undefined`, lo que provocaba que cualquier paquete periódico de telemetría de batería marcara el repetidor como autenticado y desbloqueara la vista de administración sin verificar la contraseña.
-     - En [`src/admin_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin_handler.py), la acción `login` devolvía `status: "ok"` y `authenticated: True` de forma incondicional aunque no hubiese respuesta del repetidor (timeout) o se devolviera un mensaje de error.
-  2. **Validación Estricta de Autenticación RF ([`src/admin_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin_handler.py))**:
-     - Implementado soporte síncrono para `mc.commands.send_login_sync` (verificación de evento `LOGIN_SUCCESS`).
-     - Fallback con evaluación estricta de palabras de error (`invalid`, `denied`, `bad pin`, `wrong password`, `login failed`) y rechazo explícito con `status: "error"` y `authenticated: False` en caso de timeout por RF o error de contraseña.
-  3. **Código HTTP 401 Unauthorized en REST API ([`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py))**:
-     - `POST /api/repeater/remote/login` devuelve código HTTP 401 si la autenticación falla o el repetidor no responde, manteniendo el modal bloqueado en la interfaz.
-  4. **Protección en Frontend ([`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js))**:
-     - `authenticateRepeater()` exige `res.ok && data.status === "ok" && data.data?.authenticated === true` antes de añadir a `authenticatedRepeaters` y desbloquear.
+- **Estado**: âœ… COMPLETADO (EliminaciÃ³n de auto-login por telemetrÃ­a, validaciÃ³n de `send_login_sync` y respuesta RF, HTTP 401 en fallos)
+- **Agente Principal (Lead Orchestrator)**: DiagnosticÃ³ y corrigiÃ³ las vulnerabilidades y fallos en la administraciÃ³n remota de repetidores:
+  1. **Causa RaÃ­z de AutenticaciÃ³n Espuria**:
+     - En [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js), la condiciÃ³n en `handleIncomingLiveEvent` incluÃ­a `payload.telemetry?.battery_pct !== undefined`, lo que provocaba que cualquier paquete periÃ³dico de telemetrÃ­a de baterÃ­a marcara el repetidor como autenticado y desbloqueara la vista de administraciÃ³n sin verificar la contraseÃ±a.
+     - En [`src/admin_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin_handler.py), la acciÃ³n `login` devolvÃ­a `status: "ok"` y `authenticated: True` de forma incondicional aunque no hubiese respuesta del repetidor (timeout) o se devolviera un mensaje de error.
+  2. **ValidaciÃ³n Estricta de AutenticaciÃ³n RF ([`src/admin_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin_handler.py))**:
+     - Implementado soporte sÃ­ncrono para `mc.commands.send_login_sync` (verificaciÃ³n de evento `LOGIN_SUCCESS`).
+     - Fallback con evaluaciÃ³n estricta de palabras de error (`invalid`, `denied`, `bad pin`, `wrong password`, `login failed`) y rechazo explÃ­cito con `status: "error"` y `authenticated: False` en caso de timeout por RF o error de contraseÃ±a.
+  3. **CÃ³digo HTTP 401 Unauthorized en REST API ([`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py))**:
+     - `POST /api/repeater/remote/login` devuelve cÃ³digo HTTP 401 si la autenticaciÃ³n falla o el repetidor no responde, manteniendo el modal bloqueado en la interfaz.
+  4. **ProtecciÃ³n en Frontend ([`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js))**:
+     - `authenticateRepeater()` exige `res.ok && data.status === "ok" && data.data?.authenticated === true` antes de aÃ±adir a `authenticatedRepeaters` y desbloquear.
      - Limpieza de `payload.telemetry?.battery_pct` en eventos WebSocket.
 
-### Hito: Verificación Integral de Conexión del Cliente Web, REST APIs y Streaming WebSocket (Playwright PASS)
+### Hito: VerificaciÃ³n Integral de ConexiÃ³n del Cliente Web, REST APIs y Streaming WebSocket (Playwright PASS)
 - **Fecha**: 2026-08-26
-- **Estado**: ✅ COMPLETADO (Playwright Chromium Headless [PASS] - 0 Excepciones JS, 0 Peticiones Fallidas, WebSockets 100% Funcionales)
-- **Agente Principal (Lead Orchestrator)**: Llevó a cabo la verificación funcional y visual del cliente web SPA y su integración con el backend:
-  1. **Inspección de Conexión y Navegación Web ([`scripts/inspect_web.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/scripts/inspect_web.py))**:
-     - Ejecutada auditoría en Chromium Headless en resoluciones Desktop (1920x1080) y Mobile (390x844).
+- **Estado**: âœ… COMPLETADO (Playwright Chromium Headless [PASS] - 0 Excepciones JS, 0 Peticiones Fallidas, WebSockets 100% Funcionales)
+- **Agente Principal (Lead Orchestrator)**: LlevÃ³ a cabo la verificaciÃ³n funcional y visual del cliente web SPA y su integraciÃ³n con el backend:
+  1. **InspecciÃ³n de ConexiÃ³n y NavegaciÃ³n Web ([`scripts/inspect_web.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/scripts/inspect_web.py))**:
+     - Ejecutada auditorÃ­a en Chromium Headless en resoluciones Desktop (1920x1080) y Mobile (390x844).
      - Resultado: **`[PASS]` con 0 excepciones JavaScript no capturadas, 0 errores de consola y 0 peticiones de red fallidas**.
      - DOM completamente renderizado con todos los paneles principales (`#tab-chat`, `#tab-map`, `#tab-nodes`, `#tab-analytics`, `#tab-logs`).
-  2. **Verificación de Protocolo WebSocket RFC 6455 ([`src/web/http_server.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/http_server.py))**:
-     - Comprobado handshake HTTP `101 Switching Protocols`, recepción inmediata del evento `ws_connected`, emisión periódica de `metrics_update` y streaming bidireccional en caliente de eventos de telemetría y mensajes.
-  3. **Corrección de Robustez en Endpoints REST ([`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py))**:
-     - Implementado acceso defensivo para atributos `serial_adapter` y `mqtt` en `GET /api/status`, evitando excepciones cuando los subsistemas no están instanciados.
-     - Verificados endpoints `/api/status`, `/api/nodes`, `/api/contacts`, `/api/channels`, `/api/analytics`, `/api/lqi` con código HTTP 200.
+  2. **VerificaciÃ³n de Protocolo WebSocket RFC 6455 ([`src/web/http_server.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/http_server.py))**:
+     - Comprobado handshake HTTP `101 Switching Protocols`, recepciÃ³n inmediata del evento `ws_connected`, emisiÃ³n periÃ³dica de `metrics_update` y streaming bidireccional en caliente de eventos de telemetrÃ­a y mensajes.
+  3. **CorrecciÃ³n de Robustez en Endpoints REST ([`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py))**:
+     - Implementado acceso defensivo para atributos `serial_adapter` y `mqtt` en `GET /api/status`, evitando excepciones cuando los subsistemas no estÃ¡n instanciados.
+     - Verificados endpoints `/api/status`, `/api/nodes`, `/api/contacts`, `/api/channels`, `/api/analytics`, `/api/lqi` con cÃ³digo HTTP 200.
 
-### Hito: Corrección de Excepción AttributeError en `NodeRegistry.get_local_pubkey`
+### Hito: CorrecciÃ³n de ExcepciÃ³n AttributeError en `NodeRegistry.get_local_pubkey`
 - **Fecha**: 2026-08-26
-- **Estado**: ✅ COMPLETADO (Implementación de getter/property de `local_pubkey` y defensa en `rx_router.py`)
-- **Agente Principal (Lead Orchestrator)**: Diagnosticó y corrigió el error `AttributeError: 'NodeRegistry' object has no attribute 'get_local_pubkey'`:
-  1. En [`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py), se implementó el método `get_local_pubkey(self) -> str` y la propiedad `@property def local_pubkey(self) -> str` en la clase `NodeRegistry`.
-  2. En [`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py), se aplicó acceso defensivo con `getattr()` y fallback al atributo interno.
-  3. En [`tests/test_contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/tests/test_contact_manager.py), se agregaron pruebas unitarias para la gestión y consulta de la clave pública del nodo local.
+- **Estado**: âœ… COMPLETADO (ImplementaciÃ³n de getter/property de `local_pubkey` y defensa en `rx_router.py`)
+- **Agente Principal (Lead Orchestrator)**: DiagnosticÃ³ y corrigiÃ³ el error `AttributeError: 'NodeRegistry' object has no attribute 'get_local_pubkey'`:
+  1. En [`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py), se implementÃ³ el mÃ©todo `get_local_pubkey(self) -> str` y la propiedad `@property def local_pubkey(self) -> str` en la clase `NodeRegistry`.
+  2. En [`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py), se aplicÃ³ acceso defensivo con `getattr()` y fallback al atributo interno.
+  3. En [`tests/test_contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/tests/test_contact_manager.py), se agregaron pruebas unitarias para la gestiÃ³n y consulta de la clave pÃºblica del nodo local.
 
-### Hito: Corrección Integral de Transmisión TX (Mensajes Públicos y Directos) y Posicionamiento Cartográfico GPS en Mapa Leaflet
+### Hito: CorrecciÃ³n Integral de TransmisiÃ³n TX (Mensajes PÃºblicos y Directos) y Posicionamiento CartogrÃ¡fico GPS en Mapa Leaflet
 - **Fecha**: 2026-08-26
-- **Estado**: ✅ COMPLETADO (Resolución de Nombres en DM, Casting de Canales, Auto-registro de Contactos en Radio y Persistencia de GPS)
-- **Agente Principal (Lead Orchestrator)**: Diagnosticó y corrigió las fallas en el pipeline de transmisión TX y la ubicación de nodos en el mapa:
-  1. **Resolución Robusta de Destinatarios en Mensajes Directos (DM)**:
-     - En [`src/serial_driver.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/serial_driver.py) y [`src/bridge_core.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/bridge_core.py), se integró `NodeRegistry` en `MeshcoreSDKAdapter` y se amplió `_resolve_target()` para resolver nombres/alias (ej. `"Alice"`, `"Sensor_Meteo"`), prefijos de 6 a 12 caracteres y claves públicas completas de 64 caracteres.
+- **Estado**: âœ… COMPLETADO (ResoluciÃ³n de Nombres en DM, Casting de Canales, Auto-registro de Contactos en Radio y Persistencia de GPS)
+- **Agente Principal (Lead Orchestrator)**: DiagnosticÃ³ y corrigiÃ³ las fallas en el pipeline de transmisiÃ³n TX y la ubicaciÃ³n de nodos en el mapa:
+  1. **ResoluciÃ³n Robusta de Destinatarios en Mensajes Directos (DM)**:
+     - En [`src/serial_driver.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/serial_driver.py) y [`src/bridge_core.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/bridge_core.py), se integrÃ³ `NodeRegistry` en `MeshcoreSDKAdapter` y se ampliÃ³ `_resolve_target()` para resolver nombres/alias (ej. `"Alice"`, `"Sensor_Meteo"`), prefijos de 6 a 12 caracteres y claves pÃºblicas completas de 64 caracteres.
      - Se previno el crash por `ValueError: Invalid public key hex string` cuando se utilizaban nombres de contactos en lugar de cadenas hexadecimales.
-     - Auto-registro proactivo de contactos en la tabla de ruteo de la radio mediante `mc.commands.add_contact()` previo a la llamada de transmisión `send_msg()`.
-  2. **Tipado Estricto de Canales y Difusión Pública**:
+     - Auto-registro proactivo de contactos en la tabla de ruteo de la radio mediante `mc.commands.add_contact()` previo a la llamada de transmisiÃ³n `send_msg()`.
+  2. **Tipado Estricto de Canales y DifusiÃ³n PÃºblica**:
      - Forzado de tipo entero `safe_ch = int(channel_idx)` en [`src/serial_driver.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/serial_driver.py) y [`src/bridge_core.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/bridge_core.py) para prevenir excepciones `AttributeError: 'str' object has no attribute 'to_bytes'` provenientes del framing binario de `meshcore_py`.
-     - Tratamiento explícito de `target` (`"broadcast"`, `"public"`, `"0xffff"`, `"all"`, `"none"`, `""`) para enrutar directamente a canal secundario o broadcast sin confusión con mensajes directos.
-  3. **Manejo de Respuestas de TX y Retroalimentación Inmediata**:
-     - En [`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py) y [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js), se añadió verificación de estado de error (`res.status === "error"`) para marcar de forma inmediata mensajes fallidos en la UI con la causa real y ofrecer botón de reintento, en lugar de esperar el timeout ciego de 8s.
-  4. **Posicionamiento Cartográfico GPS en Mapa Leaflet**:
-     - En [`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py), se añadieron alias `lat` y `lon` en `NodeContactInfo.to_dict()` y extracción universal de coordenadas en `record_packet()` (`lat`, `latitude`, `gps_lat`, `adv_lat`).
-     - En [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js), se corrigió la deduplicación de nodos en `renderNodesDirectory()` para preservar las coordenadas geográficas existentes cuando un nodo envía paquetes sin GPS.
-     - Enriquecido `extractCoord()` para extraer coordenadas desde todos los campos posibles (`node.latitude`, `node.lat`, `node.gps_lat`, `node.adv_lat`, `node.telemetry.*`) y excluir únicamente coordenadas nulas o `(0.0, 0.0)`.
-     - Actualización y re-renderizado en tiempo real del mapa ante eventos entrantes de telemetría por WebSockets.
+     - Tratamiento explÃ­cito de `target` (`"broadcast"`, `"public"`, `"0xffff"`, `"all"`, `"none"`, `""`) para enrutar directamente a canal secundario o broadcast sin confusiÃ³n con mensajes directos.
+  3. **Manejo de Respuestas de TX y RetroalimentaciÃ³n Inmediata**:
+     - En [`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py) y [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js), se aÃ±adiÃ³ verificaciÃ³n de estado de error (`res.status === "error"`) para marcar de forma inmediata mensajes fallidos en la UI con la causa real y ofrecer botÃ³n de reintento, en lugar de esperar el timeout ciego de 8s.
+  4. **Posicionamiento CartogrÃ¡fico GPS en Mapa Leaflet**:
+     - En [`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py), se aÃ±adieron alias `lat` y `lon` en `NodeContactInfo.to_dict()` y extracciÃ³n universal de coordenadas en `record_packet()` (`lat`, `latitude`, `gps_lat`, `adv_lat`).
+     - En [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js), se corrigiÃ³ la deduplicaciÃ³n de nodos en `renderNodesDirectory()` para preservar las coordenadas geogrÃ¡ficas existentes cuando un nodo envÃ­a paquetes sin GPS.
+     - Enriquecido `extractCoord()` para extraer coordenadas desde todos los campos posibles (`node.latitude`, `node.lat`, `node.gps_lat`, `node.adv_lat`, `node.telemetry.*`) y excluir Ãºnicamente coordenadas nulas o `(0.0, 0.0)`.
+     - ActualizaciÃ³n y re-renderizado en tiempo real del mapa ante eventos entrantes de telemetrÃ­a por WebSockets.
 
-### Hito: Normalización Exhaustiva de Telemetría, Resolución Canónica de Emisor y Logs Estructurados
+### Hito: NormalizaciÃ³n Exhaustiva de TelemetrÃ­a, ResoluciÃ³n CanÃ³nica de Emisor y Logs Estructurados
 - **Fecha**: 2026-08-26
-- **Estado**: ✅ COMPLETADO (Extracción Universal LPP / Stats, Resolución de Prefijos y Formato Rico de Logs)
-- **Agente Principal (Lead Orchestrator)**: Analizó la causa raíz de logs con `De: Desconocido`, `nodo anónimo` y `RSSI/SNR: None`, refactorizando integralmente el pipeline de extracción y resolución:
-  1. **Motor de Extracción Universal de Sensores ([`src/sensor_decoder.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/sensor_decoder.py))**:
-     - Creada función `extract_telemetry_fields()` capaz de procesar listas LPP nativas de MeshCore Python SDK, bytes binarios CayenneLPP, respuestas estructuradas (`battery_mv`, `voltage_v`, `solar_v`, `uptime_secs`, `noise_floor`, `queue_len`, `packet_errors`, GPS).
-     - Conversión automática de `battery_mv` a `voltage_v` y cálculo proporcional de `battery_pct`.
-     - Creada función `format_telemetry_summary()` para generar resúmenes informativos claros (ej: `🌡️ 24.5°C | 💧 60% | 🌀 1013.2 hPa | 🔋 85% (4.12V) | ⏱️ 3h 25m | ⚠️ 0 err`).
-  2. **Resolución Canónica y Logging en Enrutador RX ([`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py))**:
-     - Fusión automática de `event.attributes` con `event.payload` para capturar `pubkey_prefix` y atributos de RF.
-     - Extracción exhaustiva de remitente considerando claves: `pubkey_pre`, `pubkey_prefix`, `public_key`, `target_node`, `from_node`, `node_id`, `source`.
-     - Resolución contra `NodeRegistry.get_by_key_or_prefix` para asociar prefijos de 6 a 12 caracteres hex (`31d03b1f...`, `8d5accef...`) a sus alias o nombres de repetidor.
-     - Normalización de RSSI/SNR eliminando `None dBm` en favor de valores legibles o `N/A`.
+- **Estado**: âœ… COMPLETADO (ExtracciÃ³n Universal LPP / Stats, ResoluciÃ³n de Prefijos y Formato Rico de Logs)
+- **Agente Principal (Lead Orchestrator)**: AnalizÃ³ la causa raÃ­z de logs con `De: Desconocido`, `nodo anÃ³nimo` y `RSSI/SNR: None`, refactorizando integralmente el pipeline de extracciÃ³n y resoluciÃ³n:
+  1. **Motor de ExtracciÃ³n Universal de Sensores ([`src/sensor_decoder.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/sensor_decoder.py))**:
+     - Creada funciÃ³n `extract_telemetry_fields()` capaz de procesar listas LPP nativas de MeshCore Python SDK, bytes binarios CayenneLPP, respuestas estructuradas (`battery_mv`, `voltage_v`, `solar_v`, `uptime_secs`, `noise_floor`, `queue_len`, `packet_errors`, GPS).
+     - ConversiÃ³n automÃ¡tica de `battery_mv` a `voltage_v` y cÃ¡lculo proporcional de `battery_pct`.
+     - Creada funciÃ³n `format_telemetry_summary()` para generar resÃºmenes informativos claros (ej: `ðŸŒ¡ï¸� 24.5Â°C | ðŸ’§ 60% | ðŸŒ€ 1013.2 hPa | ðŸ”‹ 85% (4.12V) | â�±ï¸� 3h 25m | âš ï¸� 0 err`).
+  2. **ResoluciÃ³n CanÃ³nica y Logging en Enrutador RX ([`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py))**:
+     - FusiÃ³n automÃ¡tica de `event.attributes` con `event.payload` para capturar `pubkey_prefix` y atributos de RF.
+     - ExtracciÃ³n exhaustiva de remitente considerando claves: `pubkey_pre`, `pubkey_prefix`, `public_key`, `target_node`, `from_node`, `node_id`, `source`.
+     - ResoluciÃ³n contra `NodeRegistry.get_by_key_or_prefix` para asociar prefijos de 6 a 12 caracteres hex (`31d03b1f...`, `8d5accef...`) a sus alias o nombres de repetidor.
+     - NormalizaciÃ³n de RSSI/SNR eliminando `None dBm` en favor de valores legibles o `N/A`.
   3. **Buffer de Logs y Web API Router ([`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py))**:
-     - Actualizado `record_incoming_event` para resolver remitentes por prefijo y mostrar `nodo '<alias>' (<pk[:8]>)` o `nodo [<prefix>]` en lugar de `nodo anónimo`.
-     - Integración de `extract_telemetry_fields()` en `api_router` garantizando que los logs del sistema desglosen lecturas completas.
+     - Actualizado `record_incoming_event` para resolver remitentes por prefijo y mostrar `nodo '<alias>' (<pk[:8]>)` o `nodo [<prefix>]` en lugar de `nodo anÃ³nimo`.
+     - IntegraciÃ³n de `extract_telemetry_fields()` en `api_router` garantizando que los logs del sistema desglosen lecturas completas.
   4. **Pruebas Automatizadas**:
-     - Actualizado [`tests/test_sensor_decoder.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/tests/test_sensor_decoder.py) y [`tests/test_node_and_repeater_config.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/tests/test_node_and_repeater_config.py) con casos de validación para `extract_telemetry_fields`, `format_telemetry_summary` y resolución de telemetría de repetidores registrados y nodos con prefijo.
+     - Actualizado [`tests/test_sensor_decoder.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/tests/test_sensor_decoder.py) y [`tests/test_node_and_repeater_config.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/tests/test_node_and_repeater_config.py) con casos de validaciÃ³n para `extract_telemetry_fields`, `format_telemetry_summary` y resoluciÃ³n de telemetrÃ­a de repetidores registrados y nodos con prefijo.
 
-### Hito: Implementación de Enrutamiento Dinámico por Calidad de Enlace (LQI) y Selección Inteligente de Rutas
+### Hito: ImplementaciÃ³n de Enrutamiento DinÃ¡mico por Calidad de Enlace (LQI) y SelecciÃ³n Inteligente de Rutas
 - **Fecha**: 2026-08-26
-- **Estado**: ✅ COMPLETADO (124 Tests en pytest - 100% Suites Pasadas - 0 Fallos)
-- **Agente Principal (Lead Orchestrator)**: Diseñó e implementó el motor de métricas de calidad de enlace LQI (Link Quality Index) y selección automática de ruta directa vs repetidor:
+- **Estado**: âœ… COMPLETADO (124 Tests en pytest - 100% Suites Pasadas - 0 Fallos)
+- **Agente Principal (Lead Orchestrator)**: DiseÃ±Ã³ e implementÃ³ el motor de mÃ©tricas de calidad de enlace LQI (Link Quality Index) y selecciÃ³n automÃ¡tica de ruta directa vs repetidor:
   1. **Motor LQI ([`src/lqi_engine.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/lqi_engine.py))**:
-     - Cálculo normalizado de calidad física de señal (65% SNR + 35% RSSI).
-     - Penalización por saltos multi-hop (15% por salto).
+     - CÃ¡lculo normalizado de calidad fÃ­sica de seÃ±al (65% SNR + 35% RSSI).
+     - PenalizaciÃ³n por saltos multi-hop (15% por salto).
      - Suavizado exponencial EMA ($\alpha = 0.3$) y decaimiento temporal tras 3 minutos de inactividad (10% por minuto adicional).
-     - Clasificación categórica de enlace: `EXCELLENT` ($\ge 80\%$), `GOOD` ($\ge 60\%$), `FAIR` ($\ge 40\%$), `POOR` ($> 0\%$), `UNREACHABLE` ($0\%$).
-     - Algoritmo `select_best_route()` para conmutación transparente entre enlace `DIRECT` o `VIA_<REPEATER_PK>` según la calidad comparada.
-  2. **Integración con Contact Manager y Pipeline Asíncrono**:
-     - Actualizado [`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py) con campos `lqi_score`, `lqi_status`, `best_route` y método `get_all_lqi_metrics()`.
-     - Actualizado [`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py) incorporando métricas LQI en los payloads de eventos MQTT/WebSockets y logging estructurado `[LQI: XX% [STATUS]]`.
+     - ClasificaciÃ³n categÃ³rica de enlace: `EXCELLENT` ($\ge 80\%$), `GOOD` ($\ge 60\%$), `FAIR` ($\ge 40\%$), `POOR` ($> 0\%$), `UNREACHABLE` ($0\%$).
+     - Algoritmo `select_best_route()` para conmutaciÃ³n transparente entre enlace `DIRECT` o `VIA_<REPEATER_PK>` segÃºn la calidad comparada.
+  2. **IntegraciÃ³n con Contact Manager y Pipeline AsÃ­ncrono**:
+     - Actualizado [`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py) con campos `lqi_score`, `lqi_status`, `best_route` y mÃ©todo `get_all_lqi_metrics()`.
+     - Actualizado [`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py) incorporando mÃ©tricas LQI en los payloads de eventos MQTT/WebSockets y logging estructurado `[LQI: XX% [STATUS]]`.
      - Creado endpoint REST `GET /api/lqi` en [`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py).
-     - Añadido comando CLI `get_lqi` en [`src/admin_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin_handler.py).
+     - AÃ±adido comando CLI `get_lqi` en [`src/admin_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin_handler.py).
   3. **Suite de Pruebas Automatizadas ([`tests/test_lqi_routing.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/tests/test_lqi_routing.py))**:
-     - 7 tests exhaustivos de normalización, suavizado EMA, decaimiento temporal, penalización de saltos, selección de rutas e integración con `NodeRegistry`.
+     - 7 tests exhaustivos de normalizaciÃ³n, suavizado EMA, decaimiento temporal, penalizaciÃ³n de saltos, selecciÃ³n de rutas e integraciÃ³n con `NodeRegistry`.
      - Total de tests en suite global: **124 tests pasados (0 fallos)** en 21.22s. Matriz de 10 disciplinas superada al 100%.
 
-### Hito: Auditoría Exhaustiva de Código y Cobertura de Pruebas Total (100% Módulos / 117 Tests)
+### Hito: AuditorÃ­a Exhaustiva de CÃ³digo y Cobertura de Pruebas Total (100% MÃ³dulos / 117 Tests)
 - **Fecha**: 2026-08-26
-- **Estado**: ✅ COMPLETADO (29 Suites de Prueba - 117 Tests Superados - 100% Éxito)
-- **Agente Principal (Lead Orchestrator)**: Llevó a cabo una auditoría integral de todos los módulos de producción en `/src/` para verificar la existencia de pruebas automatizadas en las 10 disciplinas requeridas:
-  1. **Incorporación de Suite Faltante ([`tests/test_tcp_companion_server.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/tests/test_tcp_companion_server.py))**:
-     - Creada suite unitaria e integración para `src/tcp_companion_server.py`.
-     - Valida el ciclo de vida del servidor TCP en puerto efímero/companion, framing bidireccional con delimitadores `0x3C` (`<`) y `0x3E` (`>`), broadcast, envío a cliente específico, recuperación ante bytes de basura y rechazo seguro de tramas sobredimensionadas (`MAX_FRAME_SIZE`).
+- **Estado**: âœ… COMPLETADO (29 Suites de Prueba - 117 Tests Superados - 100% Ã‰xito)
+- **Agente Principal (Lead Orchestrator)**: LlevÃ³ a cabo una auditorÃ­a integral de todos los mÃ³dulos de producciÃ³n en `/src/` para verificar la existencia de pruebas automatizadas en las 10 disciplinas requeridas:
+  1. **IncorporaciÃ³n de Suite Faltante ([`tests/test_tcp_companion_server.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/tests/test_tcp_companion_server.py))**:
+     - Creada suite unitaria e integraciÃ³n para `src/tcp_companion_server.py`.
+     - Valida el ciclo de vida del servidor TCP en puerto efÃ­mero/companion, framing bidireccional con delimitadores `0x3C` (`<`) y `0x3E` (`>`), broadcast, envÃ­o a cliente especÃ­fico, recuperaciÃ³n ante bytes de basura y rechazo seguro de tramas sobredimensionadas (`MAX_FRAME_SIZE`).
   2. **Matriz Consolidada de Pruebas**:
      - Total de Suites en el Repositorio: **29 archivos de prueba**.
      - Total de Tests Automatizados: **117 tests superados (0 fallos)** en 21.39s.
      - Cobertura de las 10 Disciplinas de Prueba (`scripts/run_all_test_categories.py`): **10/10 PASSED (100%)**.
 
-### Hito: Simulación Exhaustiva de Todos los Tipos de Mensajes de MeshCore (20s) y Trazabilidad Origen -> Destino
+### Hito: SimulaciÃ³n Exhaustiva de Todos los Tipos de Mensajes de MeshCore (20s) y Trazabilidad Origen -> Destino
 - **Fecha**: 2026-08-26
-- **Estado**: ✅ COMPLETADO (20.07s Ejecución - 839 Eventos con Origen/Destino Auditados - 0 Errores)
-- **Agente Principal (Lead Orchestrator)**: Implementó mejoras estructurales de logging en `src/rx_router.py` y `src/admin_handler.py` para garantizar trazabilidad explícita de `De: <origen> -> Para: <destino>` en el 100% de los eventos, y coordinó la simulación de todos los tipos de mensajes posibles:
+- **Estado**: âœ… COMPLETADO (20.07s EjecuciÃ³n - 839 Eventos con Origen/Destino Auditados - 0 Errores)
+- **Agente Principal (Lead Orchestrator)**: ImplementÃ³ mejoras estructurales de logging en `src/rx_router.py` y `src/admin_handler.py` para garantizar trazabilidad explÃ­cita de `De: <origen> -> Para: <destino>` en el 100% de los eventos, y coordinÃ³ la simulaciÃ³n de todos los tipos de mensajes posibles:
   1. **Cobertura Completa de Tipos de Mensajes en MeshCore ([`scripts/simulate_concurrent_network.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/scripts/simulate_concurrent_network.py))**:
-     - *1. Direct Messages (DM)*: 50 mensajes de texto directo con trazabilidad hacia la estación local.
-     - *2. Canales & Broadcast*: 100 mensajes transmitidos en Canal #0 (Público) y Canal #1 (Emergencias).
-     - *3. Telemetría Ambiental*: 50 reportes de sensores de batería, voltaje, temperatura, humedad y presión.
+     - *1. Direct Messages (DM)*: 50 mensajes de texto directo con trazabilidad hacia la estaciÃ³n local.
+     - *2. Canales & Broadcast*: 100 mensajes transmitidos en Canal #0 (PÃºblico) y Canal #1 (Emergencias).
+     - *3. TelemetrÃ­a Ambiental*: 50 reportes de sensores de baterÃ­a, voltaje, temperatura, humedad y presiÃ³n.
      - *4. Anuncios & BBS Rooms*: 50 anuncios de presencia de nodos y salas de tableros comunitarios.
-     - *5. Acuses de Recibo (ACK)*: 50 confirmaciones de entrega de paquetes con medición de RTT (ms).
+     - *5. Acuses de Recibo (ACK)*: 50 confirmaciones de entrega de paquetes con mediciÃ³n de RTT (ms).
      - *6. Traceroute Multi-Salto*: 18 trazas de ruta con SNR por salto hacia nodos remotos.
      - *7. Comandos CLI a Repetidores*: 18 configuraciones remotas con respuestas estructuradas.
      - *8. Sensores CayenneLPP*: 50 decodificaciones de tramas binarias IPSO.
      - *9. Tramas Binarias MeshcoreFrame*: 50 tramas seriales directas despachadas limpiamente a MQTT.
-     - *10. Fuzzing & Tramas Deformadas*: 161 paquetes corruptos (CRC alterado, truncados, opcodes inválidos, JSON roto) capturados y descartados con logs detallados.
-     - *11. Modificaciones Remotas de Nodos*: 18 actualizaciones dinámicas de parámetros.
+     - *10. Fuzzing & Tramas Deformadas*: 161 paquetes corruptos (CRC alterado, truncados, opcodes invÃ¡lidos, JSON roto) capturados y descartados con logs detallados.
+     - *11. Modificaciones Remotas de Nodos*: 18 actualizaciones dinÃ¡micas de parÃ¡metros.
      - *12. Ajustes en el Transceptor Local*: 9 cambios en caliente de potencia TX, frecuencia y GPS.
-     - *13. Ráfagas de Cuello de Botella*: 12 ráfagas masivas con colas de prioridad `HIGH` (0) y `NORMAL` (1).
-  2. **Auditoría de Logs en Tiempo Real**:
+     - *13. RÃ¡fagas de Cuello de Botella*: 12 rÃ¡fagas masivas con colas de prioridad `HIGH` (0) y `NORMAL` (1).
+  2. **AuditorÃ­a de Logs en Tiempo Real**:
      - **839 registros de logs generados** identificando origen y destino con formato `De: <origen> -> Para: <destino>`.
      - **0 errores no controlados, 0 excepciones y 0 fallos de estabilidad**.
-  3. **Verificación Integral de Pruebas**:
-     - `python scripts/run_all_test_categories.py` $\to$ **10/10 Categorías de Prueba Superadas (100% de Éxito)** en 39.25s.
+  3. **VerificaciÃ³n Integral de Pruebas**:
+     - `python scripts/run_all_test_categories.py` $\to$ **10/10 CategorÃ­as de Prueba Superadas (100% de Ã‰xito)** en 39.25s.
 
-### Hito: Verificación y Cobertura Integral de las 10 Disciplinas de Prueba
+### Hito: VerificaciÃ³n y Cobertura Integral de las 10 Disciplinas de Prueba
 - **Fecha**: 2026-08-26
-- **Estado**: ✅ COMPLETADO (10/10 Disciplinas Verificadas - 100% Éxito)
-- **Agente Principal (Lead Orchestrator)**: Coordinó la comprobación y ejecución de la matriz completa de pruebas solicitada por el usuario:
+- **Estado**: âœ… COMPLETADO (10/10 Disciplinas Verificadas - 100% Ã‰xito)
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ la comprobaciÃ³n y ejecuciÃ³n de la matriz completa de pruebas solicitada por el usuario:
   1. **1. Unit Tests (Pruebas Unitarias - 7 suites)**: `test_protocol_types.py`, `test_sensor_decoder.py`, `test_contact_manager.py`, `test_rate_limiter_priority.py`, `test_store_forward_modular.py`, `test_serial_adapter.py`, `test_ha_discovery.py`.
-  2. **2. E2E Tests (End-to-End - 1 suite)**: `test_e2e_simulation.py` (ciclo de vida completo del bridge con simulación virtual).
+  2. **2. E2E Tests (End-to-End - 1 suite)**: `test_e2e_simulation.py` (ciclo de vida completo del bridge con simulaciÃ³n virtual).
   3. **3. Contract Tests (Pruebas de Contrato - 1 suite)**: `test_n8n_parser_matrix.py` (esquemas JSON de MQTT e interoperabilidad n8n).
   4. **4. Chaos Tests (Pruebas de Caos & Hardware Flapping - 2 suites)**: `test_concurrency_and_flapping.py`, `test_serial_watchdog.py`.
   5. **5. Smoke Tests (Pruebas de Humo & Preflight - 2 suites)**: `test_preflight.py`, `test_diagnostics.py`.
-  6. **6. Integration Tests (Pruebas de Integración - 4 suites)**: `test_bridge_logic.py`, `test_web_server.py`, `test_websocket_live.py`, `test_repeater_manager.py`.
+  6. **6. Integration Tests (Pruebas de IntegraciÃ³n - 4 suites)**: `test_bridge_logic.py`, `test_web_server.py`, `test_websocket_live.py`, `test_repeater_manager.py`.
   7. **7. Snapshot Tests (Pruebas de Snapshot & Formatos - 2 suites)**: `test_diagnostics_export.py`, `test_node_and_repeater_config.py`.
-  8. **8. Load Tests (Pruebas de Carga & Saturación - 2 suites)**: `test_stress_flood.py`, `test_tx_rate_limiter.py`.
-  9. **9. Mutation Tests (Pruebas de Mutación & Bit-Flip - 1 suite)**: `test_mutation_resilience.py` (inversión de bits en tramas, mutación de opcodes, colisiones y truncamientos).
-  10. **10. Regression Tests (Pruebas de Regresión & Seguridad - 4 suites)**: `test_virtual_mesh_simulation.py`, `test_security_audit.py`, `test_store_and_forward.py`, `test_fuzzing_and_edge_cases.py`.
-  - **Runner Automatizado**: Implementado [`scripts/run_all_test_categories.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/scripts/run_all_test_categories.py) para verificación unificada.
-  - **Resultado**: **10/10 Categorías Superadas (100% de Éxito) en 35.67s**.
+  8. **8. Load Tests (Pruebas de Carga & SaturaciÃ³n - 2 suites)**: `test_stress_flood.py`, `test_tx_rate_limiter.py`.
+  9. **9. Mutation Tests (Pruebas de MutaciÃ³n & Bit-Flip - 1 suite)**: `test_mutation_resilience.py` (inversiÃ³n de bits en tramas, mutaciÃ³n de opcodes, colisiones y truncamientos).
+  10. **10. Regression Tests (Pruebas de RegresiÃ³n & Seguridad - 4 suites)**: `test_virtual_mesh_simulation.py`, `test_security_audit.py`, `test_store_and_forward.py`, `test_fuzzing_and_edge_cases.py`.
+  - **Runner Automatizado**: Implementado [`scripts/run_all_test_categories.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/scripts/run_all_test_categories.py) para verificaciÃ³n unificada.
+  - **Resultado**: **10/10 CategorÃ­as Superadas (100% de Ã‰xito) en 35.67s**.
 
-### Hito: Auditoría Exhaustiva de Integridad y Verificación de Importabilidad Total
+### Hito: AuditorÃ­a Exhaustiva de Integridad y VerificaciÃ³n de Importabilidad Total
 - **Fecha**: 2026-08-26
-- **Estado**: ✅ COMPLETADO (100% de Módulos Verificados sin Errores)
-- **Agente Principal (Lead Orchestrator)**: Coordinó la verificación total del repositorio tras la refactorización:
-  1. **Herramienta de Auditoría Integral ([`scripts/audit_codebase_integrity.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/scripts/audit_codebase_integrity.py))**:
-     - Escaneo léxico y de AST en el 100% de archivos Python del repositorio en busca de llamadas a módulos eliminados.
-     - Prueba de importación dinámica de todos los 23 módulos de producción y entrypoints raíz.
-     - Resultado: **0 referencias a módulos eliminados en código de producción** y **100% de módulos de producción importados sin errores**.
-  2. **Corrección de Entrypoint Raíz y Tests**:
+- **Estado**: âœ… COMPLETADO (100% de MÃ³dulos Verificados sin Errores)
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ la verificaciÃ³n total del repositorio tras la refactorizaciÃ³n:
+  1. **Herramienta de AuditorÃ­a Integral ([`scripts/audit_codebase_integrity.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/scripts/audit_codebase_integrity.py))**:
+     - Escaneo lÃ©xico y de AST en el 100% de archivos Python del repositorio en busca de llamadas a mÃ³dulos eliminados.
+     - Prueba de importaciÃ³n dinÃ¡mica de todos los 23 mÃ³dulos de producciÃ³n y entrypoints raÃ­z.
+     - Resultado: **0 referencias a mÃ³dulos eliminados en cÃ³digo de producciÃ³n** y **100% de mÃ³dulos de producciÃ³n importados sin errores**.
+  2. **CorrecciÃ³n de Entrypoint RaÃ­z y Tests**:
      - Corregido `meshcore_bridge.py` para importar `PacketDeduplicator` desde `src.deduplicator`.
      - Actualizadas las suites de pruebas `test_concurrency_and_flapping.py`, `test_store_and_forward.py`, `test_ha_discovery.py`, `test_security_audit.py` y `test_store_forward_modular.py`.
-  3. **Verificación de Ejecución**:
-     - `python meshcore_bridge.py --version` $\to$ `MeshCore Universal Bridge v3.0.0` (código 0).
+  3. **VerificaciÃ³n de EjecuciÃ³n**:
+     - `python meshcore_bridge.py --version` $\to$ `MeshCore Universal Bridge v3.0.0` (cÃ³digo 0).
      - `python scripts/simulate_mesh_network.py` $\to$ **100% de fases superadas**.
      - Repositorio remoto sincronizado en GitHub (`main`).
 - **Fecha**: 2026-08-26
-- **Estado**: ✅ COMPLETADO (100% de Pruebas Superadas)
-- **Agente Principal (Lead Orchestrator)**: Coordinó al Agente 4 (Web UI/UX & Frontend Architect) para implementar las nuevas capacidades interactivas de mensajería:
+- **Estado**: âœ… COMPLETADO (100% de Pruebas Superadas)
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ al Agente 4 (Web UI/UX & Frontend Architect) para implementar las nuevas capacidades interactivas de mensajerÃ­a:
   1. **Sistema de Estados de Entrega (ACK Ticks)**:
-     - Ticks visuales: 🕒 Encolado $\to$ ✓ Emitido por radio $\to$ ✓✓ Confirmado por ACK (con RTT en ms y SNR) $\to$ ❌ Falló con botón interactivo de 1 click para reintentar (`retryMessage`).
-     - Timeout automático de 8 segundos para transicionar mensajes sin acuse a estado fallido.
+     - Ticks visuales: ðŸ•’ Encolado $\to$ âœ“ Emitido por radio $\to$ âœ“âœ“ Confirmado por ACK (con RTT en ms y SNR) $\to$ â�Œ FallÃ³ con botÃ³n interactivo de 1 click para reintentar (`retryMessage`).
+     - Timeout automÃ¡tico de 8 segundos para transicionar mensajes sin acuse a estado fallido.
      - Persistencia de estados ACK y tiempos RTT en IndexedDB (`chat_messages`).
-  2. **Compartir Ubicación GPS y Centrado Táctico en Mapa**:
-     - Botón `📍` en el composer de chat (`shareCurrentLocation`).
-     - Detección automática de coordenadas desde la configuración de la estación o geolocalización del navegador.
-     - Renderizado de tarjeta táctica con coordenadas y botón `"🗺️ Ver en Mapa"`, que conmuta a la pestaña Mapa y centra Leaflet (`flyTo`) con animación y popup destacado.
+  2. **Compartir UbicaciÃ³n GPS y Centrado TÃ¡ctico en Mapa**:
+     - BotÃ³n `ðŸ“�` en el composer de chat (`shareCurrentLocation`).
+     - DetecciÃ³n automÃ¡tica de coordenadas desde la configuraciÃ³n de la estaciÃ³n o geolocalizaciÃ³n del navegador.
+     - Renderizado de tarjeta tÃ¡ctica con coordenadas y botÃ³n `"ðŸ—ºï¸� Ver en Mapa"`, que conmuta a la pestaÃ±a Mapa y centra Leaflet (`flyTo`) con animaciÃ³n y popup destacado.
   3. **Respuestas a Mensajes (Reply Threading)**:
-     - Botón `↩️` en cada mensaje que despliega un banner contextual flotante `#chatReplyBar` sobre el input.
+     - BotÃ³n `â†©ï¸�` en cada mensaje que despliega un banner contextual flotante `#chatReplyBar` sobre el input.
      - Renderizado de bloques de cita (`.chat-quote-block`) con autor y texto citado en la burbuja.
-  4. **Alertas Sonoras y Contador de No Leídos**:
-     - Notificación auditiva sintetizada mediante `Web Audio API` (0 dependencias externas) al recibir mensajes entrantes, con control de activación en Ajustes.
-     - Contador dinámico de mensajes no leídos en el título de la pestaña del navegador `(N) MeshCore Web Client`.
-  5. **Verificación y Pruebas**:
+  4. **Alertas Sonoras y Contador de No LeÃ­dos**:
+     - NotificaciÃ³n auditiva sintetizada mediante `Web Audio API` (0 dependencias externas) al recibir mensajes entrantes, con control de activaciÃ³n en Ajustes.
+     - Contador dinÃ¡mico de mensajes no leÃ­dos en el tÃ­tulo de la pestaÃ±a del navegador `(N) MeshCore Web Client`.
+  5. **VerificaciÃ³n y Pruebas**:
      - `node -c src/web/static/js/app.js`: 0 errores.
      - `python -m compileall src scripts`: 0 errores.
      - `python scripts/simulate_mesh_network.py`: 100% superado.
 - **Fecha**: 2026-08-26
-- **Estado**: ✅ COMPLETADO (100% de Pruebas y Simulaciones Superadas)
-- **Agente Principal (Lead Orchestrator)**: Coordinó la refactorización arquitectónica para simplificar y optimizar el bridge a una arquitectura *Stateless en Memoria RAM*:
-  1. **Eliminación de Store & Forward en SQLite**:
+- **Estado**: âœ… COMPLETADO (100% de Pruebas y Simulaciones Superadas)
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ la refactorizaciÃ³n arquitectÃ³nica para simplificar y optimizar el bridge a una arquitectura *Stateless en Memoria RAM*:
+  1. **EliminaciÃ³n de Store & Forward en SQLite**:
      - Eliminado `src/store_forward.py` y base de datos `meshcore_store_forward.db`.
-     - Implementado nuevo módulo `src/deduplicator.py` con `PacketDeduplicator` basado en `collections.OrderedDict` y ventana deslizante TTL para deduplicación ultra-rápida en memoria RAM ($O(1)$) sin I/O en disco.
+     - Implementado nuevo mÃ³dulo `src/deduplicator.py` con `PacketDeduplicator` basado en `collections.OrderedDict` y ventana deslizante TTL para deduplicaciÃ³n ultra-rÃ¡pida en memoria RAM ($O(1)$) sin I/O en disco.
      - Adaptado `src/rx_router.py`, `src/bridge_core.py`, `src/mqtt_client.py`, `src/diagnostics.py`, `src/health_reporter.py` y `src/preflight.py` para operar sin dependencias de base de datos ni colas offline en disco.
-  2. **Eliminación de RF Packet Sniffer**:
+  2. **EliminaciÃ³n de RF Packet Sniffer**:
      - Eliminadas rutas API REST `/api/sniffer/*` en `src/web/api_router.py`.
-     - Eliminada pestaña `<section id="tab-sniffer">` y modal `#packetDetailModal` en `src/web/static/index.html`.
-     - Eliminados métodos `initSniffer()`, `renderSnifferPacket()`, `updateSnifferStats()`, `filterSnifferTable()` y almacén `sniffer_packets` en IndexedDB en `src/web/static/js/app.js`.
+     - Eliminada pestaÃ±a `<section id="tab-sniffer">` y modal `#packetDetailModal` en `src/web/static/index.html`.
+     - Eliminados mÃ©todos `initSniffer()`, `renderSnifferPacket()`, `updateSnifferStats()`, `filterSnifferTable()` y almacÃ©n `sniffer_packets` en IndexedDB en `src/web/static/js/app.js`.
      - Eliminado procesamiento de tramas `0x88 LOG_DATA` en `src/repeater_manager.py` y `src/virtual_mesh_adapter.py`.
-  3. **Eliminación de Integración Home Assistant Discovery**:
-     - Eliminado módulo `src/ha_discovery.py` y rutas `/api/ha/*`.
-     - Eliminada pestaña `<section id="tab-ha">` y botones de auto-discovery en `src/web/static/index.html` y `src/web/static/js/app.js`.
-     - Eliminados tópicos `homeassistant/#` de la especificación MQTT.
-  4. **Simulación y Verificación**:
-     - `python -m compileall src scripts`: Compilación sin errores (0 advertencias).
+  3. **EliminaciÃ³n de IntegraciÃ³n Home Assistant Discovery**:
+     - Eliminado mÃ³dulo `src/ha_discovery.py` y rutas `/api/ha/*`.
+     - Eliminada pestaÃ±a `<section id="tab-ha">` y botones de auto-discovery en `src/web/static/index.html` y `src/web/static/js/app.js`.
+     - Eliminados tÃ³picos `homeassistant/#` de la especificaciÃ³n MQTT.
+  4. **SimulaciÃ³n y VerificaciÃ³n**:
+     - `python -m compileall src scripts`: CompilaciÃ³n sin errores (0 advertencias).
      - `node -c src/web/static/js/app.js`: Sintaxis JavaScript validada (0 errores).
-     - `python scripts/simulate_mesh_network.py`: 100% superado (5 fases multi-nodo, sincronización de contactos, mensajería DM/broadcast, ACK, comandos remotos CLI y configuración).
-     - `python scripts/simulate_heltec_v4_mesh.py`: Simulación de tráfico en vivo con transceptor y Mosquitto superada.
-  5. **Actualización Integral de Documentación**:
+     - `python scripts/simulate_mesh_network.py`: 100% superado (5 fases multi-nodo, sincronizaciÃ³n de contactos, mensajerÃ­a DM/broadcast, ACK, comandos remotos CLI y configuraciÃ³n).
+     - `python scripts/simulate_heltec_v4_mesh.py`: SimulaciÃ³n de trÃ¡fico en vivo con transceptor y Mosquitto superada.
+  5. **ActualizaciÃ³n Integral de DocumentaciÃ³n**:
      - Actualizados `README.md`, `docs/ARCHITECTURE.md`, `docs/PROTOCOL_SPEC.md` y `docs/AGENT_ACTIVITY_REPORT.md`.
-     - Despliegue `/deploy/` congelado según instrucción explícita del usuario.
+     - Despliegue `/deploy/` congelado segÃºn instrucciÃ³n explÃ­cita del usuario.
 - **Fecha**: 2026-08-26
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Coordinó a los Agentes 1, 2 y 4 para resolver el descubrimiento de contactos, prevenir desconexiones del watchdog y aislar el nodo local en la vista de mensajería:
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ a los Agentes 1, 2 y 4 para resolver el descubrimiento de contactos, prevenir desconexiones del watchdog y aislar el nodo local en la vista de mensajerÃ­a:
   1. **Agente 1 & 2 (Investigator & Bridge Architect)**:
      - **`src/serial_driver.py`**:
-       - Corregido `sync_all_contacts`: adaptado para extraer atributos de instancias de `Contact` (y diccionarios) en `mc.contacts`, permitiendo importar con éxito todos los contactos almacenados en la memoria de la radio al `NodeRegistry`.
+       - Corregido `sync_all_contacts`: adaptado para extraer atributos de instancias de `Contact` (y diccionarios) en `mc.contacts`, permitiendo importar con Ã©xito todos los contactos almacenados en la memoria de la radio al `NodeRegistry`.
        - Mejorado `resolve_sender_name` para resolver objetos `Contact` devueltos por el SDK.
-       - Añadido retardo de arranque seguro `cx_dly=1.5s` y reintento con 2.0s en `MeshcoreSDKAdapter.connect()` para permitir al hardware USB-CDC (ESP32-S3/nRF52) completar su secuencia de boot tras el reset de DTR antes de enviar `CMD_APP_START`.
+       - AÃ±adido retardo de arranque seguro `cx_dly=1.5s` y reintento con 2.0s en `MeshcoreSDKAdapter.connect()` para permitir al hardware USB-CDC (ESP32-S3/nRF52) completar su secuencia de boot tras el reset de DTR antes de enviar `CMD_APP_START`.
      - **`src/bridge_core.py`**:
-       - Eliminado bucle de desconexión espuria en `_watchdog_loop` que establecía `self.mc = None` tras 1.0s de inactividad, delegando la supervisión al `SerialWatchdog` oficial no destructivo.
-       - Sincronización de coordenadas GPS y telemetría de contactos al arrancar.
+       - Eliminado bucle de desconexiÃ³n espuria en `_watchdog_loop` que establecÃ­a `self.mc = None` tras 1.0s de inactividad, delegando la supervisiÃ³n al `SerialWatchdog` oficial no destructivo.
+       - SincronizaciÃ³n de coordenadas GPS y telemetrÃ­a de contactos al arrancar.
      - **`src/admin_handler.py`**:
-       - Corregido acceso a `mc.self_info`: manejado como método invocable `mc.self_info()` para extraer de forma fiable la clave pública local, nombre y coordenadas de la estación base.
+       - Corregido acceso a `mc.self_info`: manejado como mÃ©todo invocable `mc.self_info()` para extraer de forma fiable la clave pÃºblica local, nombre y coordenadas de la estaciÃ³n base.
   2. **Agente 4 (Web UI/UX & Frontend Architect)**:
      - **`src/web/static/js/app.js`**:
-       - Añadido método `purgeLocalNodeFromDmList()` para eliminar cualquier entrada del nodo local de la lista de chats directos.
+       - AÃ±adido mÃ©todo `purgeLocalNodeFromDmList()` para eliminar cualquier entrada del nodo local de la lista de chats directos.
        - Fortalecido el filtro `isLocal` en `addDmContact` utilizando tanto `this.localNodePubkey` como el valor del input del DOM `#localNodePubkey` y el prefijo de clave.
   3. **Agente 0 (Lead Orchestrator)**:
-     - Verificación estática JavaScript (`node -c` $\to$ 0 errores).
-     - Verificación de compilación Python (`python -m compileall src` $\to$ 0 errores).
-     - Sincronización del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
-     - Sincronización con GitHub `origin/main`.
+     - VerificaciÃ³n estÃ¡tica JavaScript (`node -c` $\to$ 0 errores).
+     - VerificaciÃ³n de compilaciÃ³n Python (`python -m compileall src` $\to$ 0 errores).
+     - SincronizaciÃ³n del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
+     - SincronizaciÃ³n con GitHub `origin/main`.
 
-### Hito: Pipeline Bidireccional de Comandos y Corrección de Ping Zero en Terminal Remota
+### Hito: Pipeline Bidireccional de Comandos y CorrecciÃ³n de Ping Zero en Terminal Remota
 - **Fecha**: 2026-08-26
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Coordinó a los Agentes 1, 2 y 4 para asegurar la emisión y captura completa de respuestas en todos los comandos de terminal (`ver`, `bat`, `time`, `sync_clock`, `stats-core`, `stats-radio`, `pos`, `owner`, `neighbors`, `channels`, `acl`, `board`, `ping`, etc.):
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ a los Agentes 1, 2 y 4 para asegurar la emisiÃ³n y captura completa de respuestas en todos los comandos de terminal (`ver`, `bat`, `time`, `sync_clock`, `stats-core`, `stats-radio`, `pos`, `owner`, `neighbors`, `channels`, `acl`, `board`, `ping`, etc.):
   1. **Agente 1 & 2 (Investigator & Bridge Architect)**:
      - **`src/admin_handler.py`**:
-       - Integración nativa con `mc.commands.send_cmd` (`txt_type = 1`) y `mc.commands.send_login` del SDK oficial MeshCore para que los nodos repetidores interpreten las solicitudes como comandos administrativos CLI y no como mensajes de chat planos (`txt_type = 0`).
-       - Corrección en `ping_zero`: sustituido el envío como texto plano por `send_cmd(dest_target, "ping 0")` con bombeo activo de `get_msg`, eliminando el falso positivo que calculaba el tiempo transcurrido del timeout como un Pong exitoso de 19.5s.
-       - Implementado `_resolve_target` con resolución de contactos por nombre y prefijo de clave pública para enrutar con precisión a los nodos repetidores en la memoria de la radio.
-       - Implementado `_wait_for_repeater_response` con bombeo activo (`get_msg`) sobre la cola de hardware del transceptor y un timeout ampliado a 6.0s adecuado para propagación LoRa en mallas multi-salto.
+       - IntegraciÃ³n nativa con `mc.commands.send_cmd` (`txt_type = 1`) y `mc.commands.send_login` del SDK oficial MeshCore para que los nodos repetidores interpreten las solicitudes como comandos administrativos CLI y no como mensajes de chat planos (`txt_type = 0`).
+       - CorrecciÃ³n en `ping_zero`: sustituido el envÃ­o como texto plano por `send_cmd(dest_target, "ping 0")` con bombeo activo de `get_msg`, eliminando el falso positivo que calculaba el tiempo transcurrido del timeout como un Pong exitoso de 19.5s.
+       - Implementado `_resolve_target` con resoluciÃ³n de contactos por nombre y prefijo de clave pÃºblica para enrutar con precisiÃ³n a los nodos repetidores en la memoria de la radio.
+       - Implementado `_wait_for_repeater_response` con bombeo activo (`get_msg`) sobre la cola de hardware del transceptor y un timeout ampliado a 6.0s adecuado para propagaciÃ³n LoRa en mallas multi-salto.
        - Implementado saneamiento de prefijos de firmware (`> `) en los textos de respuesta devueltos.
      - **`src/rx_router.py`**:
-       - Conexión de `notify_command_response` en el enrutador de recepción tanto para mensajes directos de contacto como para eventos de radio, asegurando la resolución inmediata de futuros en espera.
+       - ConexiÃ³n de `notify_command_response` en el enrutador de recepciÃ³n tanto para mensajes directos de contacto como para eventos de radio, asegurando la resoluciÃ³n inmediata de futuros en espera.
   2. **Agente 4 (Web UI/UX & Frontend Architect)**:
      - **`src/web/static/js/app.js`**:
-       - Mejorado `formatRemoteCliResponse` para formatear claramente las respuestas recibidas (`← [RESP] ...`) y diferenciar los acuses de transmisión (`ℹ [TX] ...`).
-       - Enriquecido el listener WebSocket de `repeater_response` con resolución canónica tolerante de claves públicas y visualización garantizada en la consola (`← [RESP] ...`) cuando el diálogo de administración está abierto.
+       - Mejorado `formatRemoteCliResponse` para formatear claramente las respuestas recibidas (`â†� [RESP] ...`) y diferenciar los acuses de transmisiÃ³n (`â„¹ [TX] ...`).
+       - Enriquecido el listener WebSocket de `repeater_response` con resoluciÃ³n canÃ³nica tolerante de claves pÃºblicas y visualizaciÃ³n garantizada en la consola (`â†� [RESP] ...`) cuando el diÃ¡logo de administraciÃ³n estÃ¡ abierto.
   3. **Agente 0 (Lead Orchestrator)**:
-     - Verificación estática JavaScript (`node -c` $\to$ 0 errores).
-     - Verificación de compilación Python (`python -m compileall src` $\to$ 0 errores).
-     - Sincronización del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
-     - Sincronización con GitHub `origin/main`.
+     - VerificaciÃ³n estÃ¡tica JavaScript (`node -c` $\to$ 0 errores).
+     - VerificaciÃ³n de compilaciÃ³n Python (`python -m compileall src` $\to$ 0 errores).
+     - SincronizaciÃ³n del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
+     - SincronizaciÃ³n con GitHub `origin/main`.
 
-### Hito: Limpieza de Elementos Ping en Encabezado de Modal de Administración de Repetidores
+### Hito: Limpieza de Elementos Ping en Encabezado de Modal de AdministraciÃ³n de Repetidores
 - **Fecha**: 2026-08-26
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Coordinó al Agente 4 (Frontend) para simplificar el encabezado del modal de administración de repetidores:
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ al Agente 4 (Frontend) para simplificar el encabezado del modal de administraciÃ³n de repetidores:
   1. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
-     - **`src/web/static/index.html`**: Eliminados la insignia `🎯 Ping: -- ms` (`adminModalPingZeroBadge`) y el botón `🎯 Ping` (`btnModalHeaderPingZero`) del encabezado superior del diálogo `#repeaterAdminModal`, dejando el título y la clave pública limpios.
-     - **`src/web/static/js/app.js`**: Purgadas las referencias y listeners huérfanos a dichos elementos, manteniendo la funcionalidad de ping activa en la pestaña Terminal y botones de acción rápida.
+     - **`src/web/static/index.html`**: Eliminados la insignia `ðŸŽ¯ Ping: -- ms` (`adminModalPingZeroBadge`) y el botÃ³n `ðŸŽ¯ Ping` (`btnModalHeaderPingZero`) del encabezado superior del diÃ¡logo `#repeaterAdminModal`, dejando el tÃ­tulo y la clave pÃºblica limpios.
+     - **`src/web/static/js/app.js`**: Purgadas las referencias y listeners huÃ©rfanos a dichos elementos, manteniendo la funcionalidad de ping activa en la pestaÃ±a Terminal y botones de acciÃ³n rÃ¡pida.
   2. **Agente 0 (Lead Orchestrator)**:
-     - Verificación estática JavaScript (`node -c src/web/static/js/app.js` $\to$ 0 errores).
-     - Sincronización del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
-     - Sincronización con GitHub `origin/main`.
+     - VerificaciÃ³n estÃ¡tica JavaScript (`node -c src/web/static/js/app.js` $\to$ 0 errores).
+     - SincronizaciÃ³n del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
+     - SincronizaciÃ³n con GitHub `origin/main`.
 
-### Hito: Auditoría Multi-Agente Integral, Optimización de Rendimiento y Limpieza de Código Muerto
+### Hito: AuditorÃ­a Multi-Agente Integral, OptimizaciÃ³n de Rendimiento y Limpieza de CÃ³digo Muerto
 - **Fecha**: 2026-08-25
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Coordinó a los Agentes 1, 2, 4 y 5 en una auditoría y refactorización integral del sistema frente a la pila oficial MeshCore (`/reference/meshcore/` y `/reference/meshcore_py/`):
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ a los Agentes 1, 2, 4 y 5 en una auditorÃ­a y refactorizaciÃ³n integral del sistema frente a la pila oficial MeshCore (`/reference/meshcore/` y `/reference/meshcore_py/`):
   1. **Agente 1 (Protocol & Firmware Investigator Agent)**:
-     - Comprobación de tipos, constantes de framing (SOF `0xAA`, EOF `0x55`, ESC `0x1B`), offsets de paquetes y CRC-16-CCITT en `src/protocol_types.py`.
-     - Validación 1:1 de `FirmwareCommandType`, `FirmwarePushCode`, `FirmwarePayloadType` y `FirmwareRouteType` con los headers oficiales C/C++ (`Packet.h`, `AdvertDataHelpers.h`).
+     - ComprobaciÃ³n de tipos, constantes de framing (SOF `0xAA`, EOF `0x55`, ESC `0x1B`), offsets de paquetes y CRC-16-CCITT en `src/protocol_types.py`.
+     - ValidaciÃ³n 1:1 de `FirmwareCommandType`, `FirmwarePushCode`, `FirmwarePayloadType` y `FirmwareRouteType` con los headers oficiales C/C++ (`Packet.h`, `AdvertDataHelpers.h`).
   2. **Agente 2 (Python Bridge Architect Agent)**:
-     - Auditoría y saneamiento de dependencias en `src/admin_handler.py`, `src/repeater_manager.py`, `src/contact_manager.py`, `src/rx_router.py` y `src/web/api_router.py`.
-     - Optimización de transacciones SQLite WAL en `store_forward.py` y `contact_manager.py`.
+     - AuditorÃ­a y saneamiento de dependencias en `src/admin_handler.py`, `src/repeater_manager.py`, `src/contact_manager.py`, `src/rx_router.py` y `src/web/api_router.py`.
+     - OptimizaciÃ³n de transacciones SQLite WAL en `store_forward.py` y `contact_manager.py`.
   3. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
-     - Auditoría profunda de `src/web/static/js/app.js`:
-       - Eliminación de selectores DOM huérfanos (`activeRepeaterSelect`, `adminModalPassword`, `btnModalAuthTest`, `btnModalActionPingZero`, `repQuickPingResult`, `btnModalActionClock`).
-       - Eliminación de métodos redundantes en desuso (`populateRepeaterDropdown`, `onRepeaterSelected`).
-       - Optimización de listeners en acciones rápidas de repetidor (`btnModalActionPing`, `btnSyncRepeaterClock`).
-     - Verificación de consistencia visual en `src/web/static/css/app.css` e `index.html`.
+     - AuditorÃ­a profunda de `src/web/static/js/app.js`:
+       - EliminaciÃ³n de selectores DOM huÃ©rfanos (`activeRepeaterSelect`, `adminModalPassword`, `btnModalAuthTest`, `btnModalActionPingZero`, `repQuickPingResult`, `btnModalActionClock`).
+       - EliminaciÃ³n de mÃ©todos redundantes en desuso (`populateRepeaterDropdown`, `onRepeaterSelected`).
+       - OptimizaciÃ³n de listeners en acciones rÃ¡pidas de repetidor (`btnModalActionPing`, `btnSyncRepeaterClock`).
+     - VerificaciÃ³n de consistencia visual en `src/web/static/css/app.css` e `index.html`.
   4. **Agente 5 (Security & Vulnerability Auditor Agent)**:
-     - Parametrización estricta de consultas SQLite.
-     - Sanitización obligatoria `escapeHtml` en todas las proyecciones dinámicas de datos de malla hacia el DOM.
+     - ParametrizaciÃ³n estricta de consultas SQLite.
+     - SanitizaciÃ³n obligatoria `escapeHtml` en todas las proyecciones dinÃ¡micas de datos de malla hacia el DOM.
   5. **Agente 0 (Lead Orchestrator)**:
-     - Verificación estática JavaScript (`node -c src/web/static/js/app.js` $\to$ 0 errores).
-     - Verificación de compilación Python (`python -m compileall src` $\to$ 0 errores).
-     - Sincronización del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
-     - Sincronización con GitHub `origin/main`.
+     - VerificaciÃ³n estÃ¡tica JavaScript (`node -c src/web/static/js/app.js` $\to$ 0 errores).
+     - VerificaciÃ³n de compilaciÃ³n Python (`python -m compileall src` $\to$ 0 errores).
+     - SincronizaciÃ³n del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
+     - SincronizaciÃ³n con GitHub `origin/main`.
 
-### Hito: Verificación y Sincronización Integral de Posicionamiento GPS, Persistencia y Visualización en Mapa
+### Hito: VerificaciÃ³n y SincronizaciÃ³n Integral de Posicionamiento GPS, Persistencia y VisualizaciÃ³n en Mapa
 - **Fecha**: 2026-08-25
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Coordinó al Agente 2 (Bridge Architect) y Agente 4 (Frontend) para garantizar la correcta obtención, serialización, guardado, recuperación y renderizado en vivo de posiciones geográficas en mapa:
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ al Agente 2 (Bridge Architect) y Agente 4 (Frontend) para garantizar la correcta obtenciÃ³n, serializaciÃ³n, guardado, recuperaciÃ³n y renderizado en vivo de posiciones geogrÃ¡ficas en mapa:
   1. **Agente 2 (Python Bridge Architect Agent)**:
      - **`src/admin_handler.py`**:
-       - En `set_local_config`: Tras actualizar latitud, longitud, altitud y propietario, sincroniza inmediatamente el nodo local en `NodeRegistry` (`NodeContactUpdate`) y emite actualización hacia el servidor web / WebSockets.
-       - En `remote_repeater_set_config`: Tras despachar tramas RF `set pos` / `set owner`, actualiza de inmediato el registro canónico del nodo repetidor en `NodeRegistry` para persistencia en base de datos SQLite y recuperación instantánea.
+       - En `set_local_config`: Tras actualizar latitud, longitud, altitud y propietario, sincroniza inmediatamente el nodo local en `NodeRegistry` (`NodeContactUpdate`) y emite actualizaciÃ³n hacia el servidor web / WebSockets.
+       - En `remote_repeater_set_config`: Tras despachar tramas RF `set pos` / `set owner`, actualiza de inmediato el registro canÃ³nico del nodo repetidor en `NodeRegistry` para persistencia en base de datos SQLite y recuperaciÃ³n instantÃ¡nea.
      - **`src/contact_manager.py`**:
-       - Validación y parsing tolerante de coordenadas (`_safe_float`) desde telemetría ambiental, advertencias de presencia (`advert`), beacons LoRa y diccionarios anidados (`gps.latitude`, `position.latitude`, etc.).
+       - ValidaciÃ³n y parsing tolerante de coordenadas (`_safe_float`) desde telemetrÃ­a ambiental, advertencias de presencia (`advert`), beacons LoRa y diccionarios anidados (`gps.latitude`, `position.latitude`, etc.).
   2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
      - **`src/web/static/js/app.js`**:
-       - **Formularios de Edición**: Parsing robusto (`rawLat !== ""` y `!isNaN`) en `saveLocalIdentityAndPosition` y en el diálogo de repetidores remotos (`repOwnerPosForm`), evitando conversiones erróneas a 0.0 cuando se dejan vacíos.
-       - **Sincronización Inmediata en Memoria**: Actualización directa de `knownNodes` y re-renderizado instantáneo del directorio y marcadores del mapa Leaflet (`renderNodesDirectory`) al guardar coordenadas.
-       - **Interacción y Centrado en Mapa**: Mejora en `selectMapNode` y `focusNodeOnMap` para asegurar la creación del marcador, centrado con animación suave (`flyTo`), apertura de popup enriquecido y feedback visual si el nodo no tiene fijación GPS.
+       - **Formularios de EdiciÃ³n**: Parsing robusto (`rawLat !== ""` y `!isNaN`) en `saveLocalIdentityAndPosition` y en el diÃ¡logo de repetidores remotos (`repOwnerPosForm`), evitando conversiones errÃ³neas a 0.0 cuando se dejan vacÃ­os.
+       - **SincronizaciÃ³n Inmediata en Memoria**: ActualizaciÃ³n directa de `knownNodes` y re-renderizado instantÃ¡neo del directorio y marcadores del mapa Leaflet (`renderNodesDirectory`) al guardar coordenadas.
+       - **InteracciÃ³n y Centrado en Mapa**: Mejora en `selectMapNode` y `focusNodeOnMap` para asegurar la creaciÃ³n del marcador, centrado con animaciÃ³n suave (`flyTo`), apertura de popup enriquecido y feedback visual si el nodo no tiene fijaciÃ³n GPS.
   3. **Agente 0 (Lead Orchestrator)**:
-     - Verificación de tipos y sintaxis JavaScript (`node -c` $\to$ código 0).
-     - Verificación de compilación Python (`python -m compileall src` $\to$ código 0).
-     - Sincronización del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
-     - Sincronización con GitHub `origin/main`.
+     - VerificaciÃ³n de tipos y sintaxis JavaScript (`node -c` $\to$ cÃ³digo 0).
+     - VerificaciÃ³n de compilaciÃ³n Python (`python -m compileall src` $\to$ cÃ³digo 0).
+     - SincronizaciÃ³n del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
+     - SincronizaciÃ³n con GitHub `origin/main`.
 
-### Hito: Validación Multi-Nodo Integral y Auto-Sincronización de Contactos de Hardware
+### Hito: ValidaciÃ³n Multi-Nodo Integral y Auto-SincronizaciÃ³n de Contactos de Hardware
 - **Fecha**: 2026-08-26
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Coordinó al Agente 1 (Protocolo), Agente 2 (Bridge) y Agente 4 (Frontend) para resolver la causa raíz por la cual los contactos de hardware no se importaban y validar toda la red con un simulador multi-nodo:
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ al Agente 1 (Protocolo), Agente 2 (Bridge) y Agente 4 (Frontend) para resolver la causa raÃ­z por la cual los contactos de hardware no se importaban y validar toda la red con un simulador multi-nodo:
   1. **Agente 1 (Protocol & Firmware Investigator Agent)**:
-     - **Causa Raíz Identificada**: En el SDK oficial `meshcore_py` (`meshcore.py` L331), `contacts` es un método/función (`def contacts(self): return self._contacts`), no una propiedad. `getattr(self.mc, "contacts")` devolvía la función bound, haciendo que las comprobaciones `isinstance(dict)` fallaran silenciosamente.
+     - **Causa RaÃ­z Identificada**: En el SDK oficial `meshcore_py` (`meshcore.py` L331), `contacts` es un mÃ©todo/funciÃ³n (`def contacts(self): return self._contacts`), no una propiedad. `getattr(self.mc, "contacts")` devolvÃ­a la funciÃ³n bound, haciendo que las comprobaciones `isinstance(dict)` fallaran silenciosamente.
   2. **Agente 2 (Python Bridge Architect Agent)**:
      - **`src/serial_driver.py`**: Adaptado `sync_all_contacts` para invocar `raw_contacts()` si es callable y extraer el diccionario `_contacts`.
-     - **`src/rx_router.py`**: Añadido soporte nativo para eventos `CONTACT`, `NEXT_CONTACT`, `CONTACTS` y `ADVERTISEMENT`, integrando de inmediato cualquier contacto recibido por radio/serie en `NodeRegistry`.
+     - **`src/rx_router.py`**: AÃ±adido soporte nativo para eventos `CONTACT`, `NEXT_CONTACT`, `CONTACTS` y `ADVERTISEMENT`, integrando de inmediato cualquier contacto recibido por radio/serie en `NodeRegistry`.
      - **`src/admin_handler.py`**: Flexibilizado `notify_command_response` para aceptar payloads unificados y notificar a corrutinas esperando respuestas de comandos CLI remotos.
-     - **`src/store_forward.py`**: Mejorado soporte de SQLite `:memory:` para compartir cache (`file:meshcore_mem_db?mode=memory&cache=shared`) entre hilos asíncronos.
+     - **`src/store_forward.py`**: Mejorado soporte de SQLite `:memory:` para compartir cache (`file:meshcore_mem_db?mode=memory&cache=shared`) entre hilos asÃ­ncronos.
   3. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
-     - **`src/web/static/js/app.js`**: Auto-sincronización activa con la libreta de contactos serie (`/api/contacts/sync`) si el directorio de nodos locales está vacío al inicio.
-  4. **Simulación Multi-Nodo (`scripts/simulate_mesh_network.py`)**:
-     - Creado y ejecutado simulador con 7 nodos heterogéneos (Estación Base, 2 Repetidores, 2 Clientes, 1 Sensor ambiental, 1 Sala BBS).
-     - Validación del 100% de flujos: Descubrimiento de nodos con coordenadas/batería, mensajería de difusión y DMs, acuses de recibo ACK E2E, comandos CLI remotos (`ver`, `pos`, `ping_zero`) y actualización/persistencia de parámetros.
+     - **`src/web/static/js/app.js`**: Auto-sincronizaciÃ³n activa con la libreta de contactos serie (`/api/contacts/sync`) si el directorio de nodos locales estÃ¡ vacÃ­o al inicio.
+  4. **SimulaciÃ³n Multi-Nodo (`scripts/simulate_mesh_network.py`)**:
+     - Creado y ejecutado simulador con 7 nodos heterogÃ©neos (EstaciÃ³n Base, 2 Repetidores, 2 Clientes, 1 Sensor ambiental, 1 Sala BBS).
+     - ValidaciÃ³n del 100% de flujos: Descubrimiento de nodos con coordenadas/baterÃ­a, mensajerÃ­a de difusiÃ³n y DMs, acuses de recibo ACK E2E, comandos CLI remotos (`ver`, `pos`, `ping_zero`) y actualizaciÃ³n/persistencia de parÃ¡metros.
 
-### Hito: Estandarización de Terminales (Local y Repetidores) con Conjunto de Comandos Oficiales MeshCore
+### Hito: EstandarizaciÃ³n de Terminales (Local y Repetidores) con Conjunto de Comandos Oficiales MeshCore
 - **Fecha**: 2026-08-25
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Coordinó al Agente 1 (Protocolo), Agente 2 (Bridge) y Agente 4 (Frontend) para unificar la nomenclatura a **Terminal** y asegurar que ambas terminales admitan exactamente los mismos comandos de firmware de MeshCore:
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ al Agente 1 (Protocolo), Agente 2 (Bridge) y Agente 4 (Frontend) para unificar la nomenclatura a **Terminal** y asegurar que ambas terminales admitan exactamente los mismos comandos de firmware de MeshCore:
   1. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
-     - **Nomenclatura Estandarizada**: Pestañas renombradas a **`💻 Terminal`** tanto en la vista Ajustes del nodo local como en el diálogo de administración del repetidor remoto.
+     - **Nomenclatura Estandarizada**: PestaÃ±as renombradas a **`ðŸ’» Terminal`** tanto en la vista Ajustes del nodo local como en el diÃ¡logo de administraciÃ³n del repetidor remoto.
      - **Encabezados Unificados**: `meshcore@base:~ (Terminal)` y `meshcore@repeater:~ (Terminal)`.
-     - **Desplegables de Ayuda Idénticos**: Ambas consolas ahora incluyen la referencia completa de comandos oficiales del firmware MeshCore (`ver`, `bat`, `time`, `sync_clock`, `stats`, `radio`, `packets`, `pos`, `owner`, `neighbors`, `discover.neighbors`, `channels`, `acl`, `advert`, `ping`, `clear stats`, `reboot`, `set ...`).
+     - **Desplegables de Ayuda IdÃ©nticos**: Ambas consolas ahora incluyen la referencia completa de comandos oficiales del firmware MeshCore (`ver`, `bat`, `time`, `sync_clock`, `stats`, `radio`, `packets`, `pos`, `owner`, `neighbors`, `discover.neighbors`, `channels`, `acl`, `advert`, `ping`, `clear stats`, `reboot`, `set ...`).
   2. **Agente 2 (Python Bridge Architect Agent)**:
-     - **`src/admin_handler.py`**: Añadido soporte completo para `pos`, `owner`, `identity`, `neighbors`, `vecinos`, `acl`, `board`, `ping` y `help` enriquecido en el procesador CLI local.
+     - **`src/admin_handler.py`**: AÃ±adido soporte completo para `pos`, `owner`, `identity`, `neighbors`, `vecinos`, `acl`, `board`, `ping` y `help` enriquecido en el procesador CLI local.
      - **`src/repeater_manager.py`**: Actualizado `build_repeater_command_payload` con todos los alias de comandos oficiales (`bat`, `time`, `clock`, `stats-core`, `stats-radio`, `pos`, `owner`, `acl`, `neighbors`, `discover.neighbors`, `advert flood`, `help`).
   3. **Agente 0 (Lead Orchestrator)**:
-     - Verificación de tipos y sintaxis JavaScript (`node -c` $\to$ código 0).
-     - Verificación de compilación Python (`python -m compileall src` $\to$ código 0).
-     - Sincronización del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
-     - Sincronización con GitHub `origin/main`.
+     - VerificaciÃ³n de tipos y sintaxis JavaScript (`node -c` $\to$ cÃ³digo 0).
+     - VerificaciÃ³n de compilaciÃ³n Python (`python -m compileall src` $\to$ cÃ³digo 0).
+     - SincronizaciÃ³n del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
+     - SincronizaciÃ³n con GitHub `origin/main`.
 
-### Hito: Identificación Exhaustiva de Nodos y Lecturas Ambientales en Logs de Telemetría
+### Hito: IdentificaciÃ³n Exhaustiva de Nodos y Lecturas Ambientales en Logs de TelemetrÃ­a
 - **Fecha**: 2026-08-25
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Coordinó al Agente 2 (Bridge Architect) y Agente 5 (Seguridad/Auditoría) para resolver la causa raíz de los logs "nodo anónimo" y optimizar la cadencia de telemetría:
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ al Agente 2 (Bridge Architect) y Agente 5 (Seguridad/AuditorÃ­a) para resolver la causa raÃ­z de los logs "nodo anÃ³nimo" y optimizar la cadencia de telemetrÃ­a:
   1. **Agente 2 (Python Bridge Architect Agent)**:
      - **`src/web/api_router.py` (`record_incoming_event`)**:
-       - Extracción exhaustiva de identificadores de emisor (`sender`, `public_key`, `pubkey`, `pubkey_prefix`, `from_node`, `from`, `source`, `node_id`, `contact.public_key`, `payload.sender`).
-       - Extracción exhaustiva de nombres y alias (`sender_name`, `alias`, `name`, `node_alias`, `node_name`, `contact.name`, `contact.alias`).
-       - Resolución automática contra `NodeRegistry` (`get_by_key_or_prefix` y `find_by_name`), asociando el nombre de contacto conocido y su prefijo de clave pública canónica.
-       - Enriquecimiento del mensaje de log con lecturas ambientales en vivo (`🌡️ Temp`, `💧 Humedad`, `🌀 Presión`, `🔋 Batería`, `⚡ Voltaje`, `📶 SNR`, `📡 RSSI`).
+       - ExtracciÃ³n exhaustiva de identificadores de emisor (`sender`, `public_key`, `pubkey`, `pubkey_prefix`, `from_node`, `from`, `source`, `node_id`, `contact.public_key`, `payload.sender`).
+       - ExtracciÃ³n exhaustiva de nombres y alias (`sender_name`, `alias`, `name`, `node_alias`, `node_name`, `contact.name`, `contact.alias`).
+       - ResoluciÃ³n automÃ¡tica contra `NodeRegistry` (`get_by_key_or_prefix` y `find_by_name`), asociando el nombre de contacto conocido y su prefijo de clave pÃºblica canÃ³nica.
+       - Enriquecimiento del mensaje de log con lecturas ambientales en vivo (`ðŸŒ¡ï¸� Temp`, `ðŸ’§ Humedad`, `ðŸŒ€ PresiÃ³n`, `ðŸ”‹ BaterÃ­a`, `âš¡ Voltaje`, `ðŸ“¶ SNR`, `ðŸ“¡ RSSI`).
      - **`src/virtual_mesh_adapter.py`**:
-       - Inclusión explícita de `sender`, `public_key`, `sender_name`, `alias` y `name` en el payload de telemetría.
-       - Ajuste de la cadencia de simulación de telemetría a intervalos realistas de red LoRa (30s / 45s / 60s) para evitar saturación de logs y airtime.
+       - InclusiÃ³n explÃ­cita de `sender`, `public_key`, `sender_name`, `alias` y `name` en el payload de telemetrÃ­a.
+       - Ajuste de la cadencia de simulaciÃ³n de telemetrÃ­a a intervalos realistas de red LoRa (30s / 45s / 60s) para evitar saturaciÃ³n de logs y airtime.
   2. **Agente 0 (Lead Orchestrator)**:
-     - Verificación de compilación Python (`python -m compileall src` $\to$ código 0).
-     - Sincronización del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
-     - Sincronización con GitHub `origin/main`.
+     - VerificaciÃ³n de compilaciÃ³n Python (`python -m compileall src` $\to$ cÃ³digo 0).
+     - SincronizaciÃ³n del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
+     - SincronizaciÃ³n con GitHub `origin/main`.
 
-### Hito: Homogeneización Visual de Ajustes y Repetidores, Consolas Terminal Linux con Historial, Renombrado Ping, Buscador de Contactos y Persistencia de Chat
+### Hito: HomogeneizaciÃ³n Visual de Ajustes y Repetidores, Consolas Terminal Linux con Historial, Renombrado Ping, Buscador de Contactos y Persistencia de Chat
 - **Fecha**: 2026-08-25
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Coordinó al Agente 4 (Frontend), Agente 2 (Bridge) y Agente 5 (Seguridad) para la unificación integral de vistas, emulación de terminal Linux y persistencia robusta:
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ al Agente 4 (Frontend), Agente 2 (Bridge) y Agente 5 (Seguridad) para la unificaciÃ³n integral de vistas, emulaciÃ³n de terminal Linux y persistencia robusta:
   1. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
-     - **Unificación de Ajustes y Modal de Repetidores**: Homogeneización total de los esquemas de telemetría (8 tarjetas con franja de resumen rápido), formularios RF/GPS y barras de acciones tácticas `.hardware-actions-toolbar` con micro-botones.
-     - **Consolas Linux Terminal (`.linux-term-window`)**: Implementó ventana estilo Linux con botones de ventana (🔴🟡🟢), títulos `meshcore@base:~` y `meshcore@repeater:~`, prompts interactivos `meshcore@base:~$ ` y `meshcore@remote:~$ `, tipografía monoespaciada e historial interactivo con teclas $\uparrow$ / $\downarrow$.
-     - **Eliminación de Secciones Redundantes**: Purgó subpaneles obsoletos (`local-actions` en Ajustes y `rep-quick` en Administración de Repetidores).
-     - **Renombrado de Ping**: Cambió todas las instancias de "Ping 0" / "Ping Zero" a "Ping" en badges, botones de nodo, modales y mensajes.
-     - **Buscador y Filtros de Contactos**: Añadió barra de búsqueda unificada y píldoras de filtro (`Todos`, `⭐ Favoritos`, `🟢 En Línea`, `📍 Con Posición`) sincronizadas con contadores en tiempo real.
-     - **Persistencia de Mensajería**: Refinó `isCommandOrSystemText` para que palabras comunes de chat nunca sean descartadas, asegurando hidratación completa en IndexedDB.
+     - **UnificaciÃ³n de Ajustes y Modal de Repetidores**: HomogeneizaciÃ³n total de los esquemas de telemetrÃ­a (8 tarjetas con franja de resumen rÃ¡pido), formularios RF/GPS y barras de acciones tÃ¡cticas `.hardware-actions-toolbar` con micro-botones.
+     - **Consolas Linux Terminal (`.linux-term-window`)**: ImplementÃ³ ventana estilo Linux con botones de ventana (ðŸ”´ðŸŸ¡ðŸŸ¢), tÃ­tulos `meshcore@base:~` y `meshcore@repeater:~`, prompts interactivos `meshcore@base:~$ ` y `meshcore@remote:~$ `, tipografÃ­a monoespaciada e historial interactivo con teclas $\uparrow$ / $\downarrow$.
+     - **EliminaciÃ³n de Secciones Redundantes**: PurgÃ³ subpaneles obsoletos (`local-actions` en Ajustes y `rep-quick` en AdministraciÃ³n de Repetidores).
+     - **Renombrado de Ping**: CambiÃ³ todas las instancias de "Ping 0" / "Ping Zero" a "Ping" en badges, botones de nodo, modales y mensajes.
+     - **Buscador y Filtros de Contactos**: AÃ±adiÃ³ barra de bÃºsqueda unificada y pÃ­ldoras de filtro (`Todos`, `â­� Favoritos`, `ðŸŸ¢ En LÃ­nea`, `ðŸ“� Con PosiciÃ³n`) sincronizadas con contadores en tiempo real.
+     - **Persistencia de MensajerÃ­a**: RefinÃ³ `isCommandOrSystemText` para que palabras comunes de chat nunca sean descartadas, asegurando hidrataciÃ³n completa en IndexedDB.
   2. **Agente 2 (Python Bridge Architect Agent)**:
-     - Verificación de la simulación continua multi-nodo en `VirtualMeshAdapter` con emisión de tramas de sniffer (0x88 `LOG_DATA`), telemetría CayenneLPP y eco interactivo.
+     - VerificaciÃ³n de la simulaciÃ³n continua multi-nodo en `VirtualMeshAdapter` con emisiÃ³n de tramas de sniffer (0x88 `LOG_DATA`), telemetrÃ­a CayenneLPP y eco interactivo.
   3. **Agente 0 (Lead Orchestrator)**:
-     - Validación estática JavaScript con `node -c` (código 0).
-     - Verificación de compilación Python con `python -m compileall src` (código 0).
-     - Sincronización del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
-     - Sincronización con GitHub `origin/main`.
+     - ValidaciÃ³n estÃ¡tica JavaScript con `node -c` (cÃ³digo 0).
+     - VerificaciÃ³n de compilaciÃ³n Python con `python -m compileall src` (cÃ³digo 0).
+     - SincronizaciÃ³n del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
+     - SincronizaciÃ³n con GitHub `origin/main`.
 
-### Hito: Optimización Integral de Ajustes, Telemetría Real, Parámetros RF/GPS Bidireccionales, Consolas en String y Acciones Compactas
+### Hito: OptimizaciÃ³n Integral de Ajustes, TelemetrÃ­a Real, ParÃ¡metros RF/GPS Bidireccionales, Consolas en String y Acciones Compactas
 - **Fecha**: 2026-08-25
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Coordinó al Agente 1 (Protocolo), Agente 2 (Bridge) y Agente 4 (Frontend) para la auditoría, optimización y resolución integral de los casos de uso de la vista Ajustes:
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ al Agente 1 (Protocolo), Agente 2 (Bridge) y Agente 4 (Frontend) para la auditorÃ­a, optimizaciÃ³n y resoluciÃ³n integral de los casos de uso de la vista Ajustes:
   1. **Agente 2 (Python Bridge Architect Agent)**:
      - **`src/admin_handler.py`**:
-       - Sincronización real de parámetros RF (`set_radio`, `set_tx_power`, `send_appstart`) y guardado de coordenadas GPS e identidad (`set_coords`, `set_name`, `set_custom_var`).
-       - Motor de formateo CLI textual enriquecido que transforma todas las respuestas de comandos en strings limpios y comprensibles (`[DEVICE INFO]`, `🔋 [BATERÍA]`, `🕒 [RTC CLOCK]`, `📊 [CORE STATS]`, `📻 [RF CONFIG]`, `📦 [PACKETS]`, `📢 [ADVERT]`, `🔄 [REBOOT]`, `🧹 [STATS]`, `📖 [COMANDOS]`).
+       - SincronizaciÃ³n real de parÃ¡metros RF (`set_radio`, `set_tx_power`, `send_appstart`) y guardado de coordenadas GPS e identidad (`set_coords`, `set_name`, `set_custom_var`).
+       - Motor de formateo CLI textual enriquecido que transforma todas las respuestas de comandos en strings limpios y comprensibles (`[DEVICE INFO]`, `ðŸ”‹ [BATERÃ�A]`, `ðŸ•’ [RTC CLOCK]`, `ðŸ“Š [CORE STATS]`, `ðŸ“» [RF CONFIG]`, `ðŸ“¦ [PACKETS]`, `ðŸ“¢ [ADVERT]`, `ðŸ”„ [REBOOT]`, `ðŸ§¹ [STATS]`, `ðŸ“– [COMANDOS]`).
        - Soporte para comandos CLI directos en terminal (`ver`, `bat`, `time`, `clock`, `stats`, `radio`, `packets`, `channels`, `advert`, `flood`, `reboot`, `clear stats`, `set name`, `set tx`, `set freq`, `set coords`).
      - **`src/virtual_mesh_adapter.py`**:
-       - Implementó `VirtualMeshCoreMock` y `VirtualMeshCoreCommands` para emulación 100% fidedigna de comandos de hardware y telemetría en tiempo real.
+       - ImplementÃ³ `VirtualMeshCoreMock` y `VirtualMeshCoreCommands` para emulaciÃ³n 100% fidedigna de comandos de hardware y telemetrÃ­a en tiempo real.
      - **`src/bridge_core.py`**:
-       - Habilitó el acceso bidireccional al objeto `mc` desde cualquier adaptador (SDK o Virtual).
+       - HabilitÃ³ el acceso bidireccional al objeto `mc` desde cualquier adaptador (SDK o Virtual).
      - **`src/web/api_router.py`**:
-       - En `GET /api/node/config`, incorporó consulta activa en tiempo real de telemetría de hardware con `fetch_device_config()`.
+       - En `GET /api/node/config`, incorporÃ³ consulta activa en tiempo real de telemetrÃ­a de hardware con `fetch_device_config()`.
   2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
      - **`src/web/static/index.html` & `src/web/static/css/app.css`**:
-       - Diseñó e integró la barra compacta `.hardware-actions-toolbar` con micro-botones de acción tácticos dentro de la subpestaña *Telemetría & Estado*.
-       - Configuración predeterminada del selector de capas cartográficas en modo online (CartoDB Dark / OSM).
+       - DiseÃ±Ã³ e integrÃ³ la barra compacta `.hardware-actions-toolbar` con micro-botones de acciÃ³n tÃ¡cticos dentro de la subpestaÃ±a *TelemetrÃ­a & Estado*.
+       - ConfiguraciÃ³n predeterminada del selector de capas cartogrÃ¡ficas en modo online (CartoDB Dark / OSM).
      - **`src/web/static/js/app.js`**:
-       - Implementó `formatCliResponseObject()` y `formatRemoteCliResponse()` para formatear respuestas de consola en ambas terminales (local y repetidores remotos) en cadenas legibles y limpias, eliminando volcados JSON crudos.
-       - Desactivó el fallback intrusivo a radar táctico ante errores aislados de teselas individuales.
+       - ImplementÃ³ `formatCliResponseObject()` y `formatRemoteCliResponse()` para formatear respuestas de consola en ambas terminales (local y repetidores remotos) en cadenas legibles y limpias, eliminando volcados JSON crudos.
+       - DesactivÃ³ el fallback intrusivo a radar tÃ¡ctico ante errores aislados de teselas individuales.
   3. **Agente 0 (Lead Orchestrator)**:
-     - Validación estática JavaScript con `node -c` (código 0).
-     - Verificación de compilación Python con `python -m compileall src` (código 0).
-     - Sincronización del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
-     - Sincronización con GitHub `origin/main`.
+     - ValidaciÃ³n estÃ¡tica JavaScript con `node -c` (cÃ³digo 0).
+     - VerificaciÃ³n de compilaciÃ³n Python con `python -m compileall src` (cÃ³digo 0).
+     - SincronizaciÃ³n del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
+     - SincronizaciÃ³n con GitHub `origin/main`.
 
-### Hito: Auditoría Visual Completa de Todas las Vistas, Reparación de Llave CSS Desbalanceada y Rediseño de Home Assistant
+### Hito: AuditorÃ­a Visual Completa de Todas las Vistas, ReparaciÃ³n de Llave CSS Desbalanceada y RediseÃ±o de Home Assistant
 - **Fecha**: 2026-08-22
-- **Estado**: ✅ COMPLETADO (100% PASS - 122 Tests)
-- **Agente Principal (Lead Orchestrator)**: Coordinó al Agente 4 (Frontend), Agente 2 (Bridge) y Agente 3 (QA) tras detectar vistas con pérdida de estilos debido a una regla CSS huérfana no cerrada.
+- **Estado**: âœ… COMPLETADO (100% PASS - 122 Tests)
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ al Agente 4 (Frontend), Agente 2 (Bridge) y Agente 3 (QA) tras detectar vistas con pÃ©rdida de estilos debido a una regla CSS huÃ©rfana no cerrada.
 - **Contribuciones de Agentes**:
   1. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
-     - **Causa Raíz de Estilos Incompletos**: La regla `.nodes-unified-grid {` en la línea 1017 de `src/web/static/css/app.css` no tenía llave de cierre `}`, lo que invalidaba en cascada más de 3.600 líneas de CSS posterior, dejando sin estilos a las vistas de Métricas/Analítica, Home Assistant, Consolas y Ajustes.
-     - **Corrección en `app.css`**: Se eliminó la regla duplicada e incompleta, restableciendo el balance exacto de llaves (`count = 0`).
-     - **Rediseño de Pestaña Home Assistant (`tab-ha`)**: Se maquetó un panel visual completo con KPIs (Auto-Discovery MQTT, Nodos Anunciados, Entidades Expuestas, Broker MQTT), tabla de entidades soportadas (Batería, Voltaje, SNR, RSSI, Temperatura, Humedad) y tarjeta de tópicos MQTT.
+     - **Causa RaÃ­z de Estilos Incompletos**: La regla `.nodes-unified-grid {` en la lÃ­nea 1017 de `src/web/static/css/app.css` no tenÃ­a llave de cierre `}`, lo que invalidaba en cascada mÃ¡s de 3.600 lÃ­neas de CSS posterior, dejando sin estilos a las vistas de MÃ©tricas/AnalÃ­tica, Home Assistant, Consolas y Ajustes.
+     - **CorrecciÃ³n en `app.css`**: Se eliminÃ³ la regla duplicada e incompleta, restableciendo el balance exacto de llaves (`count = 0`).
+     - **RediseÃ±o de PestaÃ±a Home Assistant (`tab-ha`)**: Se maquetÃ³ un panel visual completo con KPIs (Auto-Discovery MQTT, Nodos Anunciados, Entidades Expuestas, Broker MQTT), tabla de entidades soportadas (BaterÃ­a, Voltaje, SNR, RSSI, Temperatura, Humedad) y tarjeta de tÃ³picos MQTT.
   2. **Agente 2 (Python Bridge Architect Agent)**:
      - **`src/mqtt_client.py`**:
-       - Corrigió `publish_safe` para evitar `RuntimeError: asyncio.run() cannot be called from a running event loop` cuando se invoca desde un bucle asíncrono activo, usando `asyncio.get_running_loop().create_task()`.
+       - CorrigiÃ³ `publish_safe` para evitar `RuntimeError: asyncio.run() cannot be called from a running event loop` cuando se invoca desde un bucle asÃ­ncrono activo, usando `asyncio.get_running_loop().create_task()`.
   3. **Agente 3 (Protocol QA & Fuzzing Agent)**:
      - **`scripts/inspect_all_views.py`**:
-       - Inspección visual automatizada de las 9 pestañas principales y las 6 subpestañas de Ajustes con Playwright, validando que todas las vistas cargan con el tema visual UI/UX Pro Max completo.
-     - **Verificación Global**: 122/122 pruebas en Pytest (100% PASS), Mypy strict (0 errores) y Ruff (0 warnings).
+       - InspecciÃ³n visual automatizada de las 9 pestaÃ±as principales y las 6 subpestaÃ±as de Ajustes con Playwright, validando que todas las vistas cargan con el tema visual UI/UX Pro Max completo.
+     - **VerificaciÃ³n Global**: 122/122 pruebas en Pytest (100% PASS), Mypy strict (0 errores) y Ruff (0 warnings).
   4. **Agente 0 (Lead Orchestrator)**:
-     - Sincronización del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
-     - Sincronización con GitHub `origin/main`.
+     - SincronizaciÃ³n del paquete de despliegue `/deploy/` (`python scripts/sync_deploy.py`).
+     - SincronizaciÃ³n con GitHub `origin/main`.
 
-### Hito: Corrección de Recepción de Confirmaciones de Entrega (ACKs), Interactividad de Tarjetas de Contactos y Simulación E2E con Playwright
+### Hito: CorrecciÃ³n de RecepciÃ³n de Confirmaciones de Entrega (ACKs), Interactividad de Tarjetas de Contactos y SimulaciÃ³n E2E con Playwright
 
 - **Fecha**: 2026-08-22
-- **Estado**: ✅ COMPLETADO (100% PASS - 122 Tests)
-- **Agente Principal (Lead Orchestrator)**: Coordinó al Agente 2 (Bridge), Agente 4 (Frontend) y Agente 3 (QA) para resolver el enrutamiento de confirmaciones de entrega E2E, habilitar la interactividad completa de las tarjetas de contactos y crear la suite de simulación E2E automatizada con Playwright en Chromium headless.
+- **Estado**: âœ… COMPLETADO (100% PASS - 122 Tests)
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ al Agente 2 (Bridge), Agente 4 (Frontend) y Agente 3 (QA) para resolver el enrutamiento de confirmaciones de entrega E2E, habilitar la interactividad completa de las tarjetas de contactos y crear la suite de simulaciÃ³n E2E automatizada con Playwright en Chromium headless.
 - **Contribuciones de Agentes**:
   1. **Agente 2 (Python Bridge Architect Agent)**:
      - **`src/bridge_core.py`**:
-       - Inyectó explícitamente `store_forward` y `store_and_forward` en `RxRouterContext` durante la inicialización del bridge, permitiendo que `RxEventRouter` consulte la base de datos de recibos de entrega.
+       - InyectÃ³ explÃ­citamente `store_forward` y `store_and_forward` en `RxRouterContext` durante la inicializaciÃ³n del bridge, permitiendo que `RxEventRouter` consulte la base de datos de recibos de entrega.
      - **`src/rx_router.py`**:
-       - Aseguró la búsqueda robusta de `msg_id` a través de `get_msg_id_by_expected_ack(ack_code)` y el marcado de entrega con `mark_message_delivered(ack_msg_id, trip_time)`.
+       - AsegurÃ³ la bÃºsqueda robusta de `msg_id` a travÃ©s de `get_msg_id_by_expected_ack(ack_code)` y el marcado de entrega con `mark_message_delivered(ack_msg_id, trip_time)`.
   2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
      - **`src/web/static/js/app.js`**:
-       - Añadió `stopPropagation` a todos los botones de acción interna de la tarjeta de contacto (`.btn-contact-dm`, `.btn-contact-qr`, `.btn-contact-del`, `.btn-copy-pk`).
-       - Habilitó el evento de clic en toda la superficie de la tarjeta `.contact-card` con `cursor: pointer` para abrir directamente la conversación privada (DM) con el nodo seleccionado.
+       - AÃ±adiÃ³ `stopPropagation` a todos los botones de acciÃ³n interna de la tarjeta de contacto (`.btn-contact-dm`, `.btn-contact-qr`, `.btn-contact-del`, `.btn-copy-pk`).
+       - HabilitÃ³ el evento de clic en toda la superficie de la tarjeta `.contact-card` con `cursor: pointer` para abrir directamente la conversaciÃ³n privada (DM) con el nodo seleccionado.
   3. **Agente 3 (Protocol QA & Fuzzing Agent)**:
      - **`tests/test_playwright_e2e_simulation.py`**:
-       - Creó la suite automatizada E2E con Playwright que lanza un bridge virtual completo, navega por la UI web, selecciona un contacto, abre el chat DM, transmite un mensaje, recibe el ACK por radio simulado y valida que el indicador de estado cambie a `"✓✓ TX"` (entregado).
-     - **Resultados de Verificación**:
+       - CreÃ³ la suite automatizada E2E con Playwright que lanza un bridge virtual completo, navega por la UI web, selecciona un contacto, abre el chat DM, transmite un mensaje, recibe el ACK por radio simulado y valida que el indicador de estado cambie a `"âœ“âœ“ TX"` (entregado).
+     - **Resultados de VerificaciÃ³n**:
        - Pytest: 122 pruebas aprobadas (100% PASS).
-       - Mypy: 0 errores en los 23 módulos de producción (`--strict`).
+       - Mypy: 0 errores en los 23 mÃ³dulos de producciÃ³n (`--strict`).
        - Ruff: 0 errores de formato / estilo.
   4. **Agente 0 (Lead Orchestrator)**:
-     - Sincronización del paquete de producción `/deploy/` (`python scripts/sync_deploy.py`).
-     - Sincronización con el repositorio remoto GitHub (`origin/main`).
+     - SincronizaciÃ³n del paquete de producciÃ³n `/deploy/` (`python scripts/sync_deploy.py`).
+     - SincronizaciÃ³n con el repositorio remoto GitHub (`origin/main`).
 
-### Hito: Verificación Global de Calidad, Tipado Estricto y Corrección de Serialización de Comandos MeshCore
+### Hito: VerificaciÃ³n Global de Calidad, Tipado Estricto y CorrecciÃ³n de SerializaciÃ³n de Comandos MeshCore
 
 - **Fecha**: 2026-08-22
-- **Estado**: ✅ COMPLETADO (100% PASS)
-- **Agente Principal (Lead Orchestrator)**: Lideró la ejecución exhaustiva de la suite de pruebas bajo demanda explícita del usuario, coordinando al Agente 1 (Protocolo), Agente 2 (Bridge), Agente 3 (QA) y Agente 5 (Seguridad).
+- **Estado**: âœ… COMPLETADO (100% PASS)
+- **Agente Principal (Lead Orchestrator)**: LiderÃ³ la ejecuciÃ³n exhaustiva de la suite de pruebas bajo demanda explÃ­cita del usuario, coordinando al Agente 1 (Protocolo), Agente 2 (Bridge), Agente 3 (QA) y Agente 5 (Seguridad).
 - **Contribuciones de Agentes**:
   1. **Agente 1 (Protocol & Firmware Investigator Agent)** & **Agente 2 (Bridge Architect Agent)**:
      - **`src/repeater_manager.py`**:
-       - Corrigió la serialización del comando de potencia TX remota de `set tx_power {pwr}` a `set tx {pwr}` para coincidir exactamente con el firmware C/C++ de MeshCore (`CommonCLI.cpp`).
-       - Añadió soporte nativo para `set_name` / `name` (`set name {name}`).
+       - CorrigiÃ³ la serializaciÃ³n del comando de potencia TX remota de `set tx_power {pwr}` a `set tx {pwr}` para coincidir exactamente con el firmware C/C++ de MeshCore (`CommonCLI.cpp`).
+       - AÃ±adiÃ³ soporte nativo para `set_name` / `name` (`set name {name}`).
      - **`src/contact_manager.py`**:
-       - Agregó retorno tipado explícito `return None` al método `get_by_key_or_prefix` para cumplir con `mypy --strict`.
+       - AgregÃ³ retorno tipado explÃ­cito `return None` al mÃ©todo `get_by_key_or_prefix` para cumplir con `mypy --strict`.
   2. **Agente 3 (Protocol QA & Fuzzing Agent)**:
      - **Pytest Suite**: 121 pruebas pasadas exitosamente (100% PASS en 24.91s).
-     - **Mypy Strict**: Tipado estático 100% verificado en los 23 archivos fuente de `src/` (0 errores).
+     - **Mypy Strict**: Tipado estÃ¡tico 100% verificado en los 23 archivos fuente de `src/` (0 errores).
      - **Ruff Linter**: 0 advertencias o errores de estilo PEP 8.
   3. **Agente 5 (Security & Vulnerability Auditor Agent)**:
-     - Auditoría SAST/DAST completa ejecutada (Bandit, prevención de inyecciones SQL, Directory Traversal en servidor HTTP y sanitización XSS). Cero vulnerabilidades.
+     - AuditorÃ­a SAST/DAST completa ejecutada (Bandit, prevenciÃ³n de inyecciones SQL, Directory Traversal en servidor HTTP y sanitizaciÃ³n XSS). Cero vulnerabilidades.
   4. **Agente 0 (Lead Orchestrator)**:
-     - Concilió los contratos entre el backend y frontend.
-     - Sincronización del paquete autónomo `/deploy/` (`python scripts/sync_deploy.py`).
-     - Sincronización con el repositorio remoto GitHub (`origin/main`).
+     - ConciliÃ³ los contratos entre el backend y frontend.
+     - SincronizaciÃ³n del paquete autÃ³nomo `/deploy/` (`python scripts/sync_deploy.py`).
+     - SincronizaciÃ³n con el repositorio remoto GitHub (`origin/main`).
 
-### Hito: Auditoría Multi-Agente y Depuración Integral de Código Duplicado y Deprecado en la Vista Web
+### Hito: AuditorÃ­a Multi-Agente y DepuraciÃ³n Integral de CÃ³digo Duplicado y Deprecado en la Vista Web
 
 - **Fecha**: 2026-08-22
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Coordinó una auditoría estática automatizada completa entre Agente 4 (Frontend), Agente 5 (Seguridad) y Lead Orchestrator para erradicar selectores CSS duplicados, reglas obsoletas de modales básicos, lookups DOM huérfanos en JavaScript y optimizar la mantenibilidad del código cliente.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ una auditorÃ­a estÃ¡tica automatizada completa entre Agente 4 (Frontend), Agente 5 (Seguridad) y Lead Orchestrator para erradicar selectores CSS duplicados, reglas obsoletas de modales bÃ¡sicos, lookups DOM huÃ©rfanos en JavaScript y optimizar la mantenibilidad del cÃ³digo cliente.
 - **Contribuciones de Agentes**:
   1. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
      - **`src/web/static/css/app.css`**:
-       - Eliminó definiciones preliminares y redundantes de `.msg-ack-status` (consolidando la versión completa con keyframe `ackPop`).
-       - Eliminó más de 80 líneas de definiciones básicas obsoletas de modales (`.modal-overlay`, `.modal-card`, `.modal-header`, `.modal-body`, `.modal-footer`) que entraban en conflicto con el sistema moderno de glassmorphism (`backdrop-filter: blur(14px)`).
+       - EliminÃ³ definiciones preliminares y redundantes de `.msg-ack-status` (consolidando la versiÃ³n completa con keyframe `ackPop`).
+       - EliminÃ³ mÃ¡s de 80 lÃ­neas de definiciones bÃ¡sicas obsoletas de modales (`.modal-overlay`, `.modal-card`, `.modal-header`, `.modal-body`, `.modal-footer`) que entraban en conflicto con el sistema moderno de glassmorphism (`backdrop-filter: blur(14px)`).
      - **`src/web/static/js/app.js`**:
-       - Purgó más de 20 lookups DOM huérfanos y obsoletos en `this.dom` heredados de formularios antiguos de repetidor (`remoteRepeaterConfigForm`, `remoteTargetNodeSelect`, `remoteAdminPassword`, etc.) y controles deprecados (`btnAddContact`, `btnRefreshAllNodes`, `nodesGridUi`, `btnRunPreflight`, `snifferFilterOpcode`).
-       - Refactorizó `populateRepeaterDropdown()` eliminando comprobaciones muertas.
+       - PurgÃ³ mÃ¡s de 20 lookups DOM huÃ©rfanos y obsoletos en `this.dom` heredados de formularios antiguos de repetidor (`remoteRepeaterConfigForm`, `remoteTargetNodeSelect`, `remoteAdminPassword`, etc.) y controles deprecados (`btnAddContact`, `btnRefreshAllNodes`, `nodesGridUi`, `btnRunPreflight`, `snifferFilterOpcode`).
+       - RefactorizÃ³ `populateRepeaterDropdown()` eliminando comprobaciones muertas.
   2. **Agente 5 (Security & Vulnerability Auditor Agent)**:
-     - Verificó que la purga de selectores y elementos del DOM preservó el 100% de los mecanismos de sanitización XSS (`escapeHtml`) y los flujos de autenticación segura del PIN del repetidor (`repeaterGatePassword`).
+     - VerificÃ³ que la purga de selectores y elementos del DOM preservÃ³ el 100% de los mecanismos de sanitizaciÃ³n XSS (`escapeHtml`) y los flujos de autenticaciÃ³n segura del PIN del repetidor (`repeaterGatePassword`).
   3. **Agente 0 (Lead Orchestrator)**:
-     - Validación estática JavaScript con `node -c src/web/static/js/app.js` (código 0).
-     - Verificación de compilación Python con `python -m compileall src` (código 0).
-     - Sincronización del paquete autónomo `/deploy/` (`python scripts/sync_deploy.py`).
-     - Sincronización con el repositorio remoto GitHub (`origin/main`).
+     - ValidaciÃ³n estÃ¡tica JavaScript con `node -c src/web/static/js/app.js` (cÃ³digo 0).
+     - VerificaciÃ³n de compilaciÃ³n Python con `python -m compileall src` (cÃ³digo 0).
+     - SincronizaciÃ³n del paquete autÃ³nomo `/deploy/` (`python scripts/sync_deploy.py`).
+     - SincronizaciÃ³n con el repositorio remoto GitHub (`origin/main`).
 
-### Hito: Estandarización Geométrica y Visual Total de Tarjetas (Nodos y Contactos)
+### Hito: EstandarizaciÃ³n GeomÃ©trica y Visual Total de Tarjetas (Nodos y Contactos)
 
 - **Fecha**: 2026-08-22
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Diseñó e implementó una arquitectura simétrica y uniforme para todas las tarjetas del sistema (Clientes, Repetidores, Sensores, Salas y Estación Base Local). Se resolvieron los truncamientos prematuros de nombres, el salto de línea en badges de estado (`🟢 En Línea`), la asimetría de alturas mediante un panel central de metadatos estandarizado (`44px`), la alineación estricta de la cuadrícula de 3 métricas RF y la fijación inferior de la barra de acciones.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: DiseÃ±Ã³ e implementÃ³ una arquitectura simÃ©trica y uniforme para todas las tarjetas del sistema (Clientes, Repetidores, Sensores, Salas y EstaciÃ³n Base Local). Se resolvieron los truncamientos prematuros de nombres, el salto de lÃ­nea en badges de estado (`ðŸŸ¢ En LÃ­nea`), la asimetrÃ­a de alturas mediante un panel central de metadatos estandarizado (`44px`), la alineaciÃ³n estricta de la cuadrÃ­cula de 3 mÃ©tricas RF y la fijaciÃ³n inferior de la barra de acciones.
 - **Contribuciones de Agentes**:
   1. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
      - **`src/web/static/css/app.css`**:
-       - Rediseñó `.node-card`, `.contact-card` y `.contact-item-card` con `min-height: 235px`, `padding: 14px 16px`, bordes de 4px por rol y sombras con resplandor cyan al hover.
-       - Creó `.node-card-top-row` y `.node-card-sub-row` para separar el nombre/batería de la clave pública/badges, eliminando el colapso del texto de estado (`white-space: nowrap`).
-       - Estandarizó `.node-telemetry-panel` a una altura fija de `44px` con tipografía de precisión (`.node-meta-row`, `.node-meta-title`, `.node-meta-highlight`, `.node-meta-sub`).
-       - Unificó `.node-rf-strip` y `.contact-card-chips` en 3 columnas iguales (`grid-template-columns: repeat(3, 1fr)`) con pills de `26px`.
-       - Estandarizó `.node-actions-bar` y `.contact-card-actions` con botones de `32px` (`.btn-node-primary` flexible y `.btn-node-secondary` fijos).
-       - Eliminó el chip de texto `🟢 En Línea` y lo reemplazó por un indicador circular `avatar-status-dot` integrado en el avatar con pulso de luz según el estado en vivo.
-       - Alineó la cuadrícula de matriz en `auto-fill, minmax(295px, 1fr)` con `min-height: 232px` para simetría absoluta en filas y columnas.
+       - RediseÃ±Ã³ `.node-card`, `.contact-card` y `.contact-item-card` con `min-height: 235px`, `padding: 14px 16px`, bordes de 4px por rol y sombras con resplandor cyan al hover.
+       - CreÃ³ `.node-card-top-row` y `.node-card-sub-row` para separar el nombre/baterÃ­a de la clave pÃºblica/badges, eliminando el colapso del texto de estado (`white-space: nowrap`).
+       - EstandarizÃ³ `.node-telemetry-panel` a una altura fija de `44px` con tipografÃ­a de precisiÃ³n (`.node-meta-row`, `.node-meta-title`, `.node-meta-highlight`, `.node-meta-sub`).
+       - UnificÃ³ `.node-rf-strip` y `.contact-card-chips` en 3 columnas iguales (`grid-template-columns: repeat(3, 1fr)`) con pills de `26px`.
+       - EstandarizÃ³ `.node-actions-bar` y `.contact-card-actions` con botones de `32px` (`.btn-node-primary` flexible y `.btn-node-secondary` fijos).
+       - EliminÃ³ el chip de texto `ðŸŸ¢ En LÃ­nea` y lo reemplazÃ³ por un indicador circular `avatar-status-dot` integrado en el avatar con pulso de luz segÃºn el estado en vivo.
+       - AlineÃ³ la cuadrÃ­cula de matriz en `auto-fill, minmax(295px, 1fr)` con `min-height: 232px` para simetrÃ­a absoluta en filas y columnas.
   2. **Agente 0 (Lead Orchestrator)**:
-     - Validación estática JavaScript con `node -c src/web/static/js/app.js` (código 0).
-     - Validación de compilación Python con `python -m compileall src` (código 0).
-     - Sincronización del paquete autónomo `/deploy/` (`python scripts/sync_deploy.py`).
-     - Sincronización con el repositorio remoto GitHub (`origin/main`).
+     - ValidaciÃ³n estÃ¡tica JavaScript con `node -c src/web/static/js/app.js` (cÃ³digo 0).
+     - ValidaciÃ³n de compilaciÃ³n Python con `python -m compileall src` (cÃ³digo 0).
+     - SincronizaciÃ³n del paquete autÃ³nomo `/deploy/` (`python scripts/sync_deploy.py`).
+     - SincronizaciÃ³n con el repositorio remoto GitHub (`origin/main`).
 
-### Hito: Deduplicación Robusta de Contactos y Eliminación de Falsos Positivos en Banner de Descubrimiento
+### Hito: DeduplicaciÃ³n Robusta de Contactos y EliminaciÃ³n de Falsos Positivos en Banner de Descubrimiento
 - **Fecha**: 2026-08-22
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Diagnosticó y corrigió la causa por la cual un contacto ya registrado en la libreta o transceptor de radio volvía a disparar la alerta de *"¡Nuevos Nodos Descubiertos en el Aire!"*. Se optimizó la resolución de claves canónicas (`_find_existing_key`) para coincidir por nombre/alias exacto y prefijos (`>= 6` caracteres), se garantizó que los contactos sincronizados desde el dispositivo inicien como `auto_discovered=False`, y se filtraron en el frontend (`fetchDiscoveredContacts` y evento WebSocket) las coincidencias de contactos guardados.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: DiagnosticÃ³ y corrigiÃ³ la causa por la cual un contacto ya registrado en la libreta o transceptor de radio volvÃ­a a disparar la alerta de *"Â¡Nuevos Nodos Descubiertos en el Aire!"*. Se optimizÃ³ la resoluciÃ³n de claves canÃ³nicas (`_find_existing_key`) para coincidir por nombre/alias exacto y prefijos (`>= 6` caracteres), se garantizÃ³ que los contactos sincronizados desde el dispositivo inicien como `auto_discovered=False`, y se filtraron en el frontend (`fetchDiscoveredContacts` y evento WebSocket) las coincidencias de contactos guardados.
 - **Contribuciones de Agentes**:
   1. **Agente 2 (Python Bridge Architect Agent)**:
      - **`src/contact_manager.py`**:
-       - Mejoró `_find_existing_key` para buscar primero por coincidencia exacta de clave pública, prefijos comunes y por nombre/alias registrado en `_nodes_by_key`.
+       - MejorÃ³ `_find_existing_key` para buscar primero por coincidencia exacta de clave pÃºblica, prefijos comunes y por nombre/alias registrado en `_nodes_by_key`.
      - **`src/bridge_core.py`**:
-       - En `sync_all_contacts()`, marcó explícitamente los contactos importados desde el hardware con `auto_discovered=False` e `is_favorite=True`.
+       - En `sync_all_contacts()`, marcÃ³ explÃ­citamente los contactos importados desde el hardware con `auto_discovered=False` e `is_favorite=True`.
   2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
      - **`src/web/static/js/app.js`**:
-       - En `fetchDiscoveredContacts()`, implementó el descarte de nodos descubiertos si coinciden con cualquier contacto existente en la libreta (`auto_discovered === false`).
-       - En el manejador WebSocket `contact_discovered`, añadió la verificación previa para suprimir el toast y la actualización del banner si el contacto ya pertenece a la libreta de contactos.
+       - En `fetchDiscoveredContacts()`, implementÃ³ el descarte de nodos descubiertos si coinciden con cualquier contacto existente en la libreta (`auto_discovered === false`).
+       - En el manejador WebSocket `contact_discovered`, aÃ±adiÃ³ la verificaciÃ³n previa para suprimir el toast y la actualizaciÃ³n del banner si el contacto ya pertenece a la libreta de contactos.
   3. **Agente 0 (Lead Orchestrator)**:
-     - Validación estática JavaScript con `node -c src/web/static/js/app.js` (código 0).
-     - Validación de compilación Python con `python -m compileall src` (código 0).
-     - Sincronización del paquete autónomo `/deploy/` (`python scripts/sync_deploy.py`).
-     - Sincronización con el repositorio remoto GitHub (`origin/main`).
+     - ValidaciÃ³n estÃ¡tica JavaScript con `node -c src/web/static/js/app.js` (cÃ³digo 0).
+     - ValidaciÃ³n de compilaciÃ³n Python con `python -m compileall src` (cÃ³digo 0).
+     - SincronizaciÃ³n del paquete autÃ³nomo `/deploy/` (`python scripts/sync_deploy.py`).
+     - SincronizaciÃ³n con el repositorio remoto GitHub (`origin/main`).
 
-### Hito: Rediseño Integral de la Estación Web con el Skill UI/UX Pro Max (Dark Tech & Operations Dashboard)
+### Hito: RediseÃ±o Integral de la EstaciÃ³n Web con el Skill UI/UX Pro Max (Dark Tech & Operations Dashboard)
 - **Fecha**: 2026-08-22
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Integró formalmente el skill `ui-ux-pro-max` (`https://github.com/nextlevelbuilder/ui-ux-pro-max-skill`) y coordinó el rediseño integral de la interfaz web bajo el arquetipo *Real-Time Operations & Tactical IoT Dashboard* con estética *OLED Dark Tech* y *Glassmorphism*.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: IntegrÃ³ formalmente el skill `ui-ux-pro-max` (`https://github.com/nextlevelbuilder/ui-ux-pro-max-skill`) y coordinÃ³ el rediseÃ±o integral de la interfaz web bajo el arquetipo *Real-Time Operations & Tactical IoT Dashboard* con estÃ©tica *OLED Dark Tech* y *Glassmorphism*.
 - **Contribuciones de Agentes**:
   1. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
      - **`src/web/static/css/app.css`**:
-       - Integró la paleta semántica de alto contraste (`--bg-canvas: #070B14`, `--bg-surface: #0F172A`, `--bg-surface-elevated: #1E293B`, `--bg-glass: rgba(15, 23, 42, 0.78)`).
-       - Rediseñó la barra superior táctica con efecto frosted glass (`backdrop-filter: blur(16px)`), microindicador pulsante de estado en vivo, chips de métricas RF pulidos y disparador Command Palette.
-       - Modernizó la barra de navegación con indicador lateral cyan (`--accent-primary`), badges de notificación pulsantes y selectores de canales y DMs con degradados sutiles.
-       - Rediseñó las burbujas de mensajería: degradado asimétrico TX (`#0284C7 -> #0369A1`), tarjetas elevadas RX, autor destacado, marca temporal legible y chips de señal RF (`📶 -XX dBm / XX dB`).
-       - Reforzó la presentación de tarjetas en Contactos y Nodos (grilla uniforme de `280px`, microanimación hover, chips de telemetría de alto contraste).
-       - Rediseñó el sistema de modales con desenfoque de fondo (`backdrop-filter: blur(14px)`), borde reactivo y animación de entrada suave (`modalZoomIn`).
+       - IntegrÃ³ la paleta semÃ¡ntica de alto contraste (`--bg-canvas: #070B14`, `--bg-surface: #0F172A`, `--bg-surface-elevated: #1E293B`, `--bg-glass: rgba(15, 23, 42, 0.78)`).
+       - RediseÃ±Ã³ la barra superior tÃ¡ctica con efecto frosted glass (`backdrop-filter: blur(16px)`), microindicador pulsante de estado en vivo, chips de mÃ©tricas RF pulidos y disparador Command Palette.
+       - ModernizÃ³ la barra de navegaciÃ³n con indicador lateral cyan (`--accent-primary`), badges de notificaciÃ³n pulsantes y selectores de canales y DMs con degradados sutiles.
+       - RediseÃ±Ã³ las burbujas de mensajerÃ­a: degradado asimÃ©trico TX (`#0284C7 -> #0369A1`), tarjetas elevadas RX, autor destacado, marca temporal legible y chips de seÃ±al RF (`ðŸ“¶ -XX dBm / XX dB`).
+       - ReforzÃ³ la presentaciÃ³n de tarjetas en Contactos y Nodos (grilla uniforme de `280px`, microanimaciÃ³n hover, chips de telemetrÃ­a de alto contraste).
+       - RediseÃ±Ã³ el sistema de modales con desenfoque de fondo (`backdrop-filter: blur(14px)`), borde reactivo y animaciÃ³n de entrada suave (`modalZoomIn`).
      - **`src/web/static/index.html`**:
-       - Incorporó tipografía Google Fonts con preconnect de alto rendimiento (`Inter` para controles UI y `Fira Code` para telemetría, hex y terminal).
+       - IncorporÃ³ tipografÃ­a Google Fonts con preconnect de alto rendimiento (`Inter` para controles UI y `Fira Code` para telemetrÃ­a, hex y terminal).
   2. **Agente 0 (Lead Orchestrator)**:
-     - Validación estática JavaScript con `node -c src/web/static/js/app.js` (código 0).
-     - Validación de compilación Python con `python -m compileall src` (código 0).
-     - Sincronización del paquete autónomo `/deploy/` (`python scripts/sync_deploy.py`).
-     - Sincronización con el repositorio remoto GitHub (`origin/main`).
+     - ValidaciÃ³n estÃ¡tica JavaScript con `node -c src/web/static/js/app.js` (cÃ³digo 0).
+     - ValidaciÃ³n de compilaciÃ³n Python con `python -m compileall src` (cÃ³digo 0).
+     - SincronizaciÃ³n del paquete autÃ³nomo `/deploy/` (`python scripts/sync_deploy.py`).
+     - SincronizaciÃ³n con el repositorio remoto GitHub (`origin/main`).
 
-### Hito: Unificación Estética de Tarjetas (Contactos y Nodos) y Resolución Integral de Métricas RF/Batería (-- a N/D)
+### Hito: UnificaciÃ³n EstÃ©tica de Tarjetas (Contactos y Nodos) y ResoluciÃ³n Integral de MÃ©tricas RF/BaterÃ­a (-- a N/D)
 - **Fecha**: 2026-08-22
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Diagnosticó y corrigió las discrepancias de diseño y formato en las tarjetas de las vistas de "Contactos" y "Nodos". Corrigió la falta de estilos base por discrepancia de selectores CSS (`.contact-item-card` vs `.contact-card`, `.contact-meta` vs `.contact-info`), el fallo en la búsqueda de contactos por selector desfasado, y resolvió el mapeo de métricas (SNR, RSSI, Saltos, Batería, Voltaje, Uptime y Ruido) para evitar cadenas `--` descontextualizadas, proporcionando valores calculados precisos (`0 (Directo)`, `USB 5V`, `+12.5 dB`, `N/D`).
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: DiagnosticÃ³ y corrigiÃ³ las discrepancias de diseÃ±o y formato en las tarjetas de las vistas de "Contactos" y "Nodos". CorrigiÃ³ la falta de estilos base por discrepancia de selectores CSS (`.contact-item-card` vs `.contact-card`, `.contact-meta` vs `.contact-info`), el fallo en la bÃºsqueda de contactos por selector desfasado, y resolviÃ³ el mapeo de mÃ©tricas (SNR, RSSI, Saltos, BaterÃ­a, Voltaje, Uptime y Ruido) para evitar cadenas `--` descontextualizadas, proporcionando valores calculados precisos (`0 (Directo)`, `USB 5V`, `+12.5 dB`, `N/D`).
 - **Contribuciones de Agentes**:
   1. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
      - **`src/web/static/css/app.css`**:
-       - Unificó las reglas de grilla y contenedores para `.nodes-grid` y `.nodes-unified-grid` (`minmax(280px, 1fr)` y gap de `14px`).
-       - Alineó `.contact-card` y `.contact-item-card` con el estándar de diseño de `.node-card`: borde lateral temático (`3.5px solid var(--accent-primary)`), fondo elevado, `padding: 12px 14px`, `min-height: 180px`, flexbox de distribución vertical y microanimación hover.
-       - Corrigió selectores `.contact-info`, `.contact-title-row`, `.contact-avatar` y `.contact-battery-chip` (`.bat-unknown`).
-       - Rediseñó la botonera de acciones `.btn-contact-action` (`.btn-contact-dm`, `.btn-contact-qr`, `.btn-contact-del`) con altura estándar de `28px` y tipografía unificada.
+       - UnificÃ³ las reglas de grilla y contenedores para `.nodes-grid` y `.nodes-unified-grid` (`minmax(280px, 1fr)` y gap de `14px`).
+       - AlineÃ³ `.contact-card` y `.contact-item-card` con el estÃ¡ndar de diseÃ±o de `.node-card`: borde lateral temÃ¡tico (`3.5px solid var(--accent-primary)`), fondo elevado, `padding: 12px 14px`, `min-height: 180px`, flexbox de distribuciÃ³n vertical y microanimaciÃ³n hover.
+       - CorrigiÃ³ selectores `.contact-info`, `.contact-title-row`, `.contact-avatar` y `.contact-battery-chip` (`.bat-unknown`).
+       - RediseÃ±Ã³ la botonera de acciones `.btn-contact-action` (`.btn-contact-dm`, `.btn-contact-qr`, `.btn-contact-del`) con altura estÃ¡ndar de `28px` y tipografÃ­a unificada.
      - **`src/web/static/js/app.js`**:
-       - Enriqueció la resolución de métricas en `renderNodesDirectory`:
-         - **SNR**: extracción jerárquica (`snr`, `last_snr`, `metrics.snr`, `telemetry.snr`, `SNR`), formato numérico con signo (`+X.X dB`) o `Host USB` para el nodo local, o `N/D` amigable.
-         - **RSSI**: extracción jerárquica (`last_rssi`, `rssi`, `metrics.rssi`, `RSSI`), redondeo exacto (`-XX dBm`) o `Directo` para nodo local.
+       - EnriqueciÃ³ la resoluciÃ³n de mÃ©tricas en `renderNodesDirectory`:
+         - **SNR**: extracciÃ³n jerÃ¡rquica (`snr`, `last_snr`, `metrics.snr`, `telemetry.snr`, `SNR`), formato numÃ©rico con signo (`+X.X dB`) o `Host USB` para el nodo local, o `N/D` amigable.
+         - **RSSI**: extracciÃ³n jerÃ¡rquica (`last_rssi`, `rssi`, `metrics.rssi`, `RSSI`), redondeo exacto (`-XX dBm`) o `Directo` para nodo local.
          - **Saltos**: mapeo contextual (`0 (Directo)`, `1 salto`, `X saltos`, `0 (Host)`).
-         - **Batería/Voltaje**: resolución de porcentaje y conversión automática de voltaje litio (`3.2V - 4.2V` -> porcentaje estimado con voltaje auxiliar ej. `85% (4.1V)`), y `USB 5V` para base local.
-         - **Sensores y Repetidores**: formateo de temperatura, humedad y presión con unidades claras y fallback `N/D`, y potencia TX/Hop Limit consistentes.
-       - Añadió chip de estado en línea dinámico (`🟢 En Línea` / `🟡 Inactivo` / `🔴 Fuera de línea`) con tooltip de tiempo relativo en las tarjetas de contactos.
-       - En `updateNodeCardLiveState`: integró actualización en tiempo real tanto para `.node-card` como para `.contact-card`.
-       - En `filterContactsGrid`: corrigió la consulta de tarjetas (`.contact-card, .contact-item-card`) restaurando la búsqueda en tiempo real de contactos.
+         - **BaterÃ­a/Voltaje**: resoluciÃ³n de porcentaje y conversiÃ³n automÃ¡tica de voltaje litio (`3.2V - 4.2V` -> porcentaje estimado con voltaje auxiliar ej. `85% (4.1V)`), y `USB 5V` para base local.
+         - **Sensores y Repetidores**: formateo de temperatura, humedad y presiÃ³n con unidades claras y fallback `N/D`, y potencia TX/Hop Limit consistentes.
+       - AÃ±adiÃ³ chip de estado en lÃ­nea dinÃ¡mico (`ðŸŸ¢ En LÃ­nea` / `ðŸŸ¡ Inactivo` / `ðŸ”´ Fuera de lÃ­nea`) con tooltip de tiempo relativo en las tarjetas de contactos.
+       - En `updateNodeCardLiveState`: integrÃ³ actualizaciÃ³n en tiempo real tanto para `.node-card` como para `.contact-card`.
+       - En `filterContactsGrid`: corrigiÃ³ la consulta de tarjetas (`.contact-card, .contact-item-card`) restaurando la bÃºsqueda en tiempo real de contactos.
   2. **Agente 0 (Lead Orchestrator)**:
-     - Validación estática JavaScript (`node -c`) y compilación Python (`python -m compileall src`).
-     - Sincronización del paquete autónomo `/deploy/` (`python scripts/sync_deploy.py`).
-     - Sincronización y commit con el repositorio remoto GitHub (`origin/main`).
+     - ValidaciÃ³n estÃ¡tica JavaScript (`node -c`) y compilaciÃ³n Python (`python -m compileall src`).
+     - SincronizaciÃ³n del paquete autÃ³nomo `/deploy/` (`python scripts/sync_deploy.py`).
+     - SincronizaciÃ³n y commit con el repositorio remoto GitHub (`origin/main`).
 
-### Hito: Extracción Inteligente de Nombres de Remitente y Persistencia de Chats Directos Estilo WhatsApp al Refrescar
+### Hito: ExtracciÃ³n Inteligente de Nombres de Remitente y Persistencia de Chats Directos Estilo WhatsApp al Refrescar
 - **Fecha**: 2026-08-22
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Diagnosticó e implementó la resolución automática de nombres de remitente para evitar que se muestren como `unknown` en el encabezado de las burbujas de mensaje cuando el emisor incluye su identificador en el texto (`Nombre: Mensaje`) o se encuentra en la libreta de contactos. Asimismo, implementó la persistencia y recuperación automática de todas las conversaciones de mensajes directos (`MENSAJES DIRECTOS`) desde IndexedDB al recargar la página (F5), emulando la experiencia de usuario de WhatsApp/Telegram.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: DiagnosticÃ³ e implementÃ³ la resoluciÃ³n automÃ¡tica de nombres de remitente para evitar que se muestren como `unknown` en el encabezado de las burbujas de mensaje cuando el emisor incluye su identificador en el texto (`Nombre: Mensaje`) o se encuentra en la libreta de contactos. Asimismo, implementÃ³ la persistencia y recuperaciÃ³n automÃ¡tica de todas las conversaciones de mensajes directos (`MENSAJES DIRECTOS`) desde IndexedDB al recargar la pÃ¡gina (F5), emulando la experiencia de usuario de WhatsApp/Telegram.
 - **Contribuciones de Agentes**:
   1. **Agente 2 (Python Bridge Architect Agent)**:
      - **`src/contact_manager.py`**:
-       - Añadió el método `find_by_name(name: str)` en `NodeRegistry` para resolver nodos por nombre/alias de forma insensible a mayúsculas.
+       - AÃ±adiÃ³ el mÃ©todo `find_by_name(name: str)` en `NodeRegistry` para resolver nodos por nombre/alias de forma insensible a mayÃºsculas.
      - **`src/rx_router.py`**:
-       - Implementó la función `extract_sender_from_text(text: str)` para detectar prefijos `^([a-zA-Z0-9_\-\.]{2,32}):\s*(.*)$`.
-       - En `handle_event`, si `sender_name` es desconocido o genérico, extrae el nombre del texto, resuelve la clave pública mediante `node_registry.find_by_name` y propaga `sender_name` a los eventos MQTT y WebSockets.
+       - ImplementÃ³ la funciÃ³n `extract_sender_from_text(text: str)` para detectar prefijos `^([a-zA-Z0-9_\-\.]{2,32}):\s*(.*)$`.
+       - En `handle_event`, si `sender_name` es desconocido o genÃ©rico, extrae el nombre del texto, resuelve la clave pÃºblica mediante `node_registry.find_by_name` y propaga `sender_name` a los eventos MQTT y WebSockets.
   2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
      - **`src/web/static/js/app.js`**:
-       - Añadió el método `getDmConversations()` en `MeshCoreStorage` para recuperar todos los hilos DM almacenados en IndexedDB (`chat_messages`), agrupándolos y ordenándolos por fecha reciente.
-       - En `fetchInitialData()`, restaura automáticamente todas las conversaciones de mensajes directos en la barra lateral (`#dmListUi`), registra los feeds en `this.channelFeeds`, añade las claves a `conversationsWithMessages` y actualiza badges y contadores al recargar la página.
-       - Implementó `extractSenderAndText(text, currentSenderName)` para extraer y asociar el nombre del remitente en tiempo real.
+       - AÃ±adiÃ³ el mÃ©todo `getDmConversations()` en `MeshCoreStorage` para recuperar todos los hilos DM almacenados en IndexedDB (`chat_messages`), agrupÃ¡ndolos y ordenÃ¡ndolos por fecha reciente.
+       - En `fetchInitialData()`, restaura automÃ¡ticamente todas las conversaciones de mensajes directos en la barra lateral (`#dmListUi`), registra los feeds en `this.channelFeeds`, aÃ±ade las claves a `conversationsWithMessages` y actualiza badges y contadores al recargar la pÃ¡gina.
+       - ImplementÃ³ `extractSenderAndText(text, currentSenderName)` para extraer y asociar el nombre del remitente en tiempo real.
        - En `appendChatMessage(msg)`, garantiza que el encabezado del mensaje muestre el nombre real del contacto (ej. `Cu1.mobilUnit`) y nunca `unknown` cuando haya un nombre presente o registrado.
-       - En `renderNodesDirectory()`, refresca dinámicamente los nombres de contactos en la lista activa de DMs en la barra lateral.
+       - En `renderNodesDirectory()`, refresca dinÃ¡micamente los nombres de contactos en la lista activa de DMs en la barra lateral.
   3. **Agente 0 (Lead Orchestrator)**:
-     - Validación estática JavaScript con `node -c src/web/static/js/app.js` (código 0).
-     - Validación de compilación Python con `python -m compileall src` (código 0).
-     - Sincronización del paquete autónomo `/deploy/` (`python scripts/sync_deploy.py`).
-     - Sincronización con el repositorio remoto GitHub (`origin/main`).
+     - ValidaciÃ³n estÃ¡tica JavaScript con `node -c src/web/static/js/app.js` (cÃ³digo 0).
+     - ValidaciÃ³n de compilaciÃ³n Python con `python -m compileall src` (cÃ³digo 0).
+     - SincronizaciÃ³n del paquete autÃ³nomo `/deploy/` (`python scripts/sync_deploy.py`).
+     - SincronizaciÃ³n con el repositorio remoto GitHub (`origin/main`).
 
-### Hito: Flujo Periódico n8n Cada 6h con Estado, Fecha/Hora y Clima de Lehigh Acres, FL
+### Hito: Flujo PeriÃ³dico n8n Cada 6h con Estado, Fecha/Hora y Clima de Lehigh Acres, FL
 - **Fecha**: 2026-08-22
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Diseñó e integró la tarea programada recurrente en el flujo universal de automatización n8n (`n8n_workflow_meshcore.json`) para emitir periódicamente cada 6 horas (iniciando a las 12:00 AM / 00:00, 06:00, 12:00, 18:00) un reporte completo de estado a la red MeshCore con fecha, hora y el pronóstico meteorológico en tiempo real para Lehigh Acres, Florida.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: DiseÃ±Ã³ e integrÃ³ la tarea programada recurrente en el flujo universal de automatizaciÃ³n n8n (`n8n_workflow_meshcore.json`) para emitir periÃ³dicamente cada 6 horas (iniciando a las 12:00 AM / 00:00, 06:00, 12:00, 18:00) un reporte completo de estado a la red MeshCore con fecha, hora y el pronÃ³stico meteorolÃ³gico en tiempo real para Lehigh Acres, Florida.
 - **Contribuciones de Agentes**:
   1. **Agente 2 (Python Bridge Architect Agent)**:
      - **`n8n_workflow_meshcore.json`**:
-       - Integró el nodo `Schedule Trigger` (`0 0,6,12,18 * * *`) para ejecución cíclica cada 6 horas comenzando a las 12:00 AM.
-       - Integró el nodo `HTTP Request` para consultar la API meteorológica Open-Meteo para Lehigh Acres, FL (`lat: 26.6254`, `lon: -81.6248`, `timezone: America/New_York`).
-       - Diseñó el nodo de código JavaScript para transformar códigos WMO a emojis/descripciones en español, calcular temperaturas en °C y °F, sensación térmica, humedad, viento y construir el paquete MQTT de difusión (`meshcore/tx`, canal 0 broadcast).
-       - Conectó el flujo de reporte meteorológico directamente al nodo emisor MQTT.
+       - IntegrÃ³ el nodo `Schedule Trigger` (`0 0,6,12,18 * * *`) para ejecuciÃ³n cÃ­clica cada 6 horas comenzando a las 12:00 AM.
+       - IntegrÃ³ el nodo `HTTP Request` para consultar la API meteorolÃ³gica Open-Meteo para Lehigh Acres, FL (`lat: 26.6254`, `lon: -81.6248`, `timezone: America/New_York`).
+       - DiseÃ±Ã³ el nodo de cÃ³digo JavaScript para transformar cÃ³digos WMO a emojis/descripciones en espaÃ±ol, calcular temperaturas en Â°C y Â°F, sensaciÃ³n tÃ©rmica, humedad, viento y construir el paquete MQTT de difusiÃ³n (`meshcore/tx`, canal 0 broadcast).
+       - ConectÃ³ el flujo de reporte meteorolÃ³gico directamente al nodo emisor MQTT.
      - **`tests/test_n8n_parser_matrix.py`**:
-       - Añadió el método de simulación `format_periodic_weather_status` en `N8nSimulator`.
-       - Integró la prueba unitaria `test_n8n_periodic_weather_formatting` para validar la construcción y exactitud de los reportes.
+       - AÃ±adiÃ³ el mÃ©todo de simulaciÃ³n `format_periodic_weather_status` en `N8nSimulator`.
+       - IntegrÃ³ la prueba unitaria `test_n8n_periodic_weather_formatting` para validar la construcciÃ³n y exactitud de los reportes.
   2. **Agente 0 (Lead Orchestrator)**:
-     - Sincronización completa de `/deploy/` y regeneración de bundles comprimidos (`.tar.gz`, `.zip`) y sumas SHA256 (`python scripts/sync_deploy.py`).
-     - Sincronización y commit con el repositorio remoto GitHub (`origin/main`).
+     - SincronizaciÃ³n completa de `/deploy/` y regeneraciÃ³n de bundles comprimidos (`.tar.gz`, `.zip`) y sumas SHA256 (`python scripts/sync_deploy.py`).
+     - SincronizaciÃ³n y commit con el repositorio remoto GitHub (`origin/main`).
 
-### Hito: Optimización de Latencia en Ping Zero a Repetidores (500ms vs 1500ms - Eliminación de Paquetes Redundantes)
+### Hito: OptimizaciÃ³n de Latencia en Ping Zero a Repetidores (500ms vs 1500ms - EliminaciÃ³n de Paquetes Redundantes)
 - **Fecha**: 2026-08-20
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Diagnosticó y resolvió la discrepancia de latencia donde el ping a repetidores tardaba ~1500 ms (3x más lento) desde la interfaz web en comparación con la conexión TCP directa del cliente oficial (~500 ms).
-- **Causa Raíz**:
-  1. La interfaz web pasaba innecesariamente contraseñas guardadas en las solicitudes de Ping Zero (`/api/repeater/ping_zero`).
-  2. `src/admin_handler.py` despachaba un paquete previo `cmd login <password>` por RF antes de emitir `cmd ping 0`, y arrancaba el temporizador de medición antes del login, acumulando el tiempo de emisión de dos tramas LoRa consecutivas más el turnaround de radio. En el protocolo MeshCore, las sondas de diagnóstico (`ping`, `ping 0`, `trace`) son de acceso público y no requieren sesión autenticada.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: DiagnosticÃ³ y resolviÃ³ la discrepancia de latencia donde el ping a repetidores tardaba ~1500 ms (3x mÃ¡s lento) desde la interfaz web en comparaciÃ³n con la conexiÃ³n TCP directa del cliente oficial (~500 ms).
+- **Causa RaÃ­z**:
+  1. La interfaz web pasaba innecesariamente contraseÃ±as guardadas en las solicitudes de Ping Zero (`/api/repeater/ping_zero`).
+  2. `src/admin_handler.py` despachaba un paquete previo `cmd login <password>` por RF antes de emitir `cmd ping 0`, y arrancaba el temporizador de mediciÃ³n antes del login, acumulando el tiempo de emisiÃ³n de dos tramas LoRa consecutivas mÃ¡s el turnaround de radio. En el protocolo MeshCore, las sondas de diagnÃ³stico (`ping`, `ping 0`, `trace`) son de acceso pÃºblico y no requieren sesiÃ³n autenticada.
 - **Contribuciones de Agentes**:
   1. **Agente 2 (Python Bridge Architect Agent)**:
      - **`src/admin_handler.py`**:
-       - Eliminó el despacho de `cmd login` en la rutina de `ping_zero` / `ping` / `ping_0` / `trace 0` / `zero_hop_ping`.
-       - Reubicó la toma de tiempo `t_start = time.perf_counter()` inmediatamente antes de la emisión del paquete de sonda única.
+       - EliminÃ³ el despacho de `cmd login` en la rutina de `ping_zero` / `ping` / `ping_0` / `trace 0` / `zero_hop_ping`.
+       - ReubicÃ³ la toma de tiempo `t_start = time.perf_counter()` inmediatamente antes de la emisiÃ³n del paquete de sonda Ãºnica.
      - **`src/web/api_router.py`**:
-       - Limpió el endpoint `/api/repeater/ping_zero` para omitir la extracción y reenvío de contraseñas hacia el manejador de ping.
+       - LimpiÃ³ el endpoint `/api/repeater/ping_zero` para omitir la extracciÃ³n y reenvÃ­o de contraseÃ±as hacia el manejador de ping.
   2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
      - **`src/web/static/js/app.js`**:
-       - En `pingZero(targetNode, targetName)`, removió la inclusión de `password` en el cuerpo de la petición hacia `/api/repeater/ping_zero`, garantizando que la sonda sea despachada como un paquete RF liviano de 0 saltos directo.
+       - En `pingZero(targetNode, targetName)`, removiÃ³ la inclusiÃ³n de `password` en el cuerpo de la peticiÃ³n hacia `/api/repeater/ping_zero`, garantizando que la sonda sea despachada como un paquete RF liviano de 0 saltos directo.
   3. **Agente 0 (Lead Orchestrator)**:
-     - Verificación estática de sintaxis JavaScript con `node -c src/web/static/js/app.js`.
-     - Compilación Python con `python -m compileall src`.
-     - Sincronización del paquete autónomo `/deploy/` (`python scripts/sync_deploy.py`).
-     - Sincronización con el repositorio remoto (`git push origin main`).
+     - VerificaciÃ³n estÃ¡tica de sintaxis JavaScript con `node -c src/web/static/js/app.js`.
+     - CompilaciÃ³n Python con `python -m compileall src`.
+     - SincronizaciÃ³n del paquete autÃ³nomo `/deploy/` (`python scripts/sync_deploy.py`).
+     - SincronizaciÃ³n con el repositorio remoto (`git push origin main`).
 
-### Hito: Filtrado y Bloqueo de Nodos Fantasma / Desconocidos (`Node_unknow` / Claves Inválidas)
+### Hito: Filtrado y Bloqueo de Nodos Fantasma / Desconocidos (`Node_unknow` / Claves InvÃ¡lidas)
 - **Fecha**: 2026-08-20
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Diagnosticó y corrigió el problema donde un remitente con clave ausente, broadcast o vacía (`"unknown"`, `"broadcast"`, `"none"`, `""`) era registrado dinámicamente como un nodo activo bajo el identificador y nombre truncado `Node_unknow` en la libreta de contactos y directorio de nodos.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: DiagnosticÃ³ y corrigiÃ³ el problema donde un remitente con clave ausente, broadcast o vacÃ­a (`"unknown"`, `"broadcast"`, `"none"`, `""`) era registrado dinÃ¡micamente como un nodo activo bajo el identificador y nombre truncado `Node_unknow` en la libreta de contactos y directorio de nodos.
 - **Contribuciones de Agentes**:
   1. **Agente 2 (Python Bridge Architect Agent)**:
      - **`src/contact_manager.py`**:
-       - Implementó la función de validación `is_valid_node_key(key)` y el conjunto de claves prohibidas `INVALID_NODE_KEYS = {"unknown", "broadcast", "none", "null", "system", "00000000", "ffff", "0xffff", ""}`.
-       - Protegió `add_or_update`, `discover_node`, `get_canonical_key`, `record_packet` y `_find_existing_key` para descartar o ignorar cualquier clave inválida o de longitud insuficiente (< 4 caracteres).
-       - En `list_nodes()`, añadió un filtro estricto para retornar únicamente nodos con claves válidas y excluir nombres fantasma como `Node_unknow`.
+       - ImplementÃ³ la funciÃ³n de validaciÃ³n `is_valid_node_key(key)` y el conjunto de claves prohibidas `INVALID_NODE_KEYS = {"unknown", "broadcast", "none", "null", "system", "00000000", "ffff", "0xffff", ""}`.
+       - ProtegiÃ³ `add_or_update`, `discover_node`, `get_canonical_key`, `record_packet` y `_find_existing_key` para descartar o ignorar cualquier clave invÃ¡lida o de longitud insuficiente (< 4 caracteres).
+       - En `list_nodes()`, aÃ±adiÃ³ un filtro estricto para retornar Ãºnicamente nodos con claves vÃ¡lidas y excluir nombres fantasma como `Node_unknow`.
      - **`src/rx_router.py`**:
-       - Integró `is_valid_node_key` al extraer `sender_raw` en `handle_event`, evitando que eventos con remitente desconocido disparen `discover_node` o `add_or_update`.
+       - IntegrÃ³ `is_valid_node_key` al extraer `sender_raw` en `handle_event`, evitando que eventos con remitente desconocido disparen `discover_node` o `add_or_update`.
      - **`src/web/api_router.py`**:
-       - En `record_incoming_event`, normalizó la firma para soportar 1 o 2 parámetros y filtró remitentes mediante `is_valid_node_key` antes de registrar paquetes en `NodeRegistry`.
+       - En `record_incoming_event`, normalizÃ³ la firma para soportar 1 o 2 parÃ¡metros y filtrÃ³ remitentes mediante `is_valid_node_key` antes de registrar paquetes en `NodeRegistry`.
   2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
      - **`src/web/static/js/app.js`**:
-       - Implementó el método `isValidNodeKey(key)` en `MeshCoreStationApp`.
-       - En `renderNodesDirectory(nodes)`, añadió filtrado de nodos con claves inválidas o nombres que inicien con `Node_unknow`, y purgó automáticamente entradas residuales de `this.knownNodes`.
-       - En `updateNodeInDom(pubkey, node)`, evitó actualizar o refrescar tarjetas de nodos si la clave es inválida o el nombre es `Node_unknow`.
-       - En `handleIncomingLiveEvent(payload)`, protegió los bloques `contact_discovered`, `contact_updated`, `telemetry` y mensajes de chat para no registrar claves desconocidas en `knownNodes`.
+       - ImplementÃ³ el mÃ©todo `isValidNodeKey(key)` en `MeshCoreStationApp`.
+       - En `renderNodesDirectory(nodes)`, aÃ±adiÃ³ filtrado de nodos con claves invÃ¡lidas o nombres que inicien con `Node_unknow`, y purgÃ³ automÃ¡ticamente entradas residuales de `this.knownNodes`.
+       - En `updateNodeInDom(pubkey, node)`, evitÃ³ actualizar o refrescar tarjetas de nodos si la clave es invÃ¡lida o el nombre es `Node_unknow`.
+       - En `handleIncomingLiveEvent(payload)`, protegiÃ³ los bloques `contact_discovered`, `contact_updated`, `telemetry` y mensajes de chat para no registrar claves desconocidas en `knownNodes`.
   3. **Agente 0 (Lead Orchestrator)**:
-     - Verificación estática con `ruff check src` (0 errores).
-     - Verificación de tipado estricto con `mypy --strict src` (0 errores en 23 módulos).
-     - Sincronización del paquete autónomo `/deploy/` (`python scripts/sync_deploy.py`).
-     - Sincronización con el repositorio remoto (`git push origin main`).
+     - VerificaciÃ³n estÃ¡tica con `ruff check src` (0 errores).
+     - VerificaciÃ³n de tipado estricto con `mypy --strict src` (0 errores en 23 mÃ³dulos).
+     - SincronizaciÃ³n del paquete autÃ³nomo `/deploy/` (`python scripts/sync_deploy.py`).
+     - SincronizaciÃ³n con el repositorio remoto (`git push origin main`).
 
 ### Hito: Filtrado Estricto de Mensajes de Comando, Anuncios y Control ("Unknown command") en Canales y DMs
 - **Fecha**: 2026-08-20
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Implementó el aislamiento y filtrado exhaustivo de mensajes no comunes (respuestas CLI del firmware como `"Unknown command"`, telemetría de repetidores, anuncios de baliza / `ADVERT`, respuestas de autenticación y comandos de diagnóstico) en todas las vistas de mensajería (Canal público 0, Canales privados 1..7 y Mensajes directos DM), garantizando que única y exclusivamente el chat común entre usuarios sea emitido y almacenado en las vistas de conversación.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: ImplementÃ³ el aislamiento y filtrado exhaustivo de mensajes no comunes (respuestas CLI del firmware como `"Unknown command"`, telemetrÃ­a de repetidores, anuncios de baliza / `ADVERT`, respuestas de autenticaciÃ³n y comandos de diagnÃ³stico) en todas las vistas de mensajerÃ­a (Canal pÃºblico 0, Canales privados 1..7 y Mensajes directos DM), garantizando que Ãºnica y exclusivamente el chat comÃºn entre usuarios sea emitido y almacenado en las vistas de conversaciÃ³n.
 - **Contribuciones de Agentes**:
   1. **Agente 2 (Python Bridge Architect Agent)**:
      - **`src/rx_router.py`**:
-       - Implementó las funciones de validación `is_command_or_system_message(text, txt_type)` e `is_common_chat_message(text, txt_type, event_type)`.
-       - Añadió el campo `txt_type: int = 0` en `MeshMessageEvent`.
-       - En `handle_event`, aisló los paquetes de presencia / anuncio (`ADVERT`, `NODE_ADVERT`, `NEW_CONTACT`) y telemetría ambiental para que no caigan en canales de texto de chat.
-       - En `_handle_mesh_channel_msg`, si un mensaje de canal es una respuesta de comando (`txt_type == 1`, "Unknown command", etc.) o telemetría, se despacha exclusivamente como evento `repeater_response` o telemetría MQTT/WS, omitiendo su difusión a `TOPIC_RX_PUBLIC`, `TOPIC_RX_CHANNEL/ch_X` y eventos de chat WebSocket.
-       - En `_handle_mesh_direct_msg`, aseguró que las respuestas de comando y telemetría no se emitan al tópico de chat directo `TOPIC_RX_DIRECT/{sender}`.
-       - En `_dispatch_parsed_frame`, agregó validación con `is_common_chat_message` antes de despachar tramas `TEXT_MSG`.
+       - ImplementÃ³ las funciones de validaciÃ³n `is_command_or_system_message(text, txt_type)` e `is_common_chat_message(text, txt_type, event_type)`.
+       - AÃ±adiÃ³ el campo `txt_type: int = 0` en `MeshMessageEvent`.
+       - En `handle_event`, aislÃ³ los paquetes de presencia / anuncio (`ADVERT`, `NODE_ADVERT`, `NEW_CONTACT`) y telemetrÃ­a ambiental para que no caigan en canales de texto de chat.
+       - En `_handle_mesh_channel_msg`, si un mensaje de canal es una respuesta de comando (`txt_type == 1`, "Unknown command", etc.) o telemetrÃ­a, se despacha exclusivamente como evento `repeater_response` o telemetrÃ­a MQTT/WS, omitiendo su difusiÃ³n a `TOPIC_RX_PUBLIC`, `TOPIC_RX_CHANNEL/ch_X` y eventos de chat WebSocket.
+       - En `_handle_mesh_direct_msg`, asegurÃ³ que las respuestas de comando y telemetrÃ­a no se emitan al tÃ³pico de chat directo `TOPIC_RX_DIRECT/{sender}`.
+       - En `_dispatch_parsed_frame`, agregÃ³ validaciÃ³n con `is_common_chat_message` antes de despachar tramas `TEXT_MSG`.
      - **`src/web/api_router.py`**:
-       - En `record_incoming_event`, integró `is_common_chat_message` para evitar que respuestas de comandos y telemetría se guarden en `self.recent_messages`.
+       - En `record_incoming_event`, integrÃ³ `is_common_chat_message` para evitar que respuestas de comandos y telemetrÃ­a se guarden en `self.recent_messages`.
   2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
      - **`src/web/static/js/app.js`**:
-       - Implementó los métodos `isCommandOrSystemText(text, txtType)` e `isCommonChatMessage(payload)` en la clase `MeshCoreStationApp`.
-       - En `handleIncomingLiveEvent(payload)`, aisló el bloque `repeater_response` para que procese telemetría y terminal sin tocar `channelFeeds`, `chat_messages` ni listas de DM.
-       - En `handleIncomingLiveEvent`, procesa feeds de chat únicamente si `this.isCommonChatMessage(payload)` es verdadero.
-       - En `MeshCoreStorage`, añadió el método `purgeNonCommonMessages(filterFn)` para purgar entradas residuales de comandos de IndexedDB.
-       - En `renderCurrentConversation()` y `fetchInitialData()`, filtró mensajes no comunes al renderizar y al iniciar la aplicación.
+       - ImplementÃ³ los mÃ©todos `isCommandOrSystemText(text, txtType)` e `isCommonChatMessage(payload)` en la clase `MeshCoreStationApp`.
+       - En `handleIncomingLiveEvent(payload)`, aislÃ³ el bloque `repeater_response` para que procese telemetrÃ­a y terminal sin tocar `channelFeeds`, `chat_messages` ni listas de DM.
+       - En `handleIncomingLiveEvent`, procesa feeds de chat Ãºnicamente si `this.isCommonChatMessage(payload)` es verdadero.
+       - En `MeshCoreStorage`, aÃ±adiÃ³ el mÃ©todo `purgeNonCommonMessages(filterFn)` para purgar entradas residuales de comandos de IndexedDB.
+       - En `renderCurrentConversation()` y `fetchInitialData()`, filtrÃ³ mensajes no comunes al renderizar y al iniciar la aplicaciÃ³n.
   3. **Agente 0 (Lead Orchestrator)**:
-     - Verificación estática con `node -c src/web/static/js/app.js` (código 0).
-     - Verificación de compilación Python con `python -m compileall src` (código 0).
-     - Sincronización del paquete autónomo `/deploy/` (`python scripts/sync_deploy.py`).
-     - Sincronización con el repositorio remoto (`git push origin main`).
+     - VerificaciÃ³n estÃ¡tica con `node -c src/web/static/js/app.js` (cÃ³digo 0).
+     - VerificaciÃ³n de compilaciÃ³n Python con `python -m compileall src` (cÃ³digo 0).
+     - SincronizaciÃ³n del paquete autÃ³nomo `/deploy/` (`python scripts/sync_deploy.py`).
+     - SincronizaciÃ³n con el repositorio remoto (`git push origin main`).
 
-### Hito: Verificación y Fortalecimiento Integral del Pipeline de Entrega de Mensajes (`✓✓ TX` / Delivery Receipts)
+### Hito: VerificaciÃ³n y Fortalecimiento Integral del Pipeline de Entrega de Mensajes (`âœ“âœ“ TX` / Delivery Receipts)
 - **Fecha**: 2026-08-20
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Comprobó y fortaleció el ciclo completo de notificación de entrega de mensajes (Delivery Receipts / ACKs de radio) desde el firmware y adaptador virtual hasta la interfaz de usuario en tiempo real vía WebSockets e IndexedDB.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: ComprobÃ³ y fortaleciÃ³ el ciclo completo de notificaciÃ³n de entrega de mensajes (Delivery Receipts / ACKs de radio) desde el firmware y adaptador virtual hasta la interfaz de usuario en tiempo real vÃ­a WebSockets e IndexedDB.
 - **Contribuciones de Agentes**:
   1. **Agente 2 (Python Bridge Architect Agent)**:
-     - **`src/store_forward.py`**: Normalizó la consulta de `expected_ack` en SQLite para soportar indistintamente formatos con y sin prefijo `0x` (`ack_clean`, `ack_no_prefix`, `ack_with_prefix`).
-     - **`src/rx_router.py`**: Robusteció la extracción de `ack_code` soportando tipos `bytes` (vía `.hex()`), `int` (vía `hex()`) y cadenas de texto, garantizando el enrutamiento inmediato del evento WebSocket `message_delivered`.
-     - **`src/virtual_mesh_adapter.py`**: Añadió la generación y emisión de paquetes ACK de radio con código hash y cálculo de `trip_time_ms` en mensajes directos simulados.
+     - **`src/store_forward.py`**: NormalizÃ³ la consulta de `expected_ack` en SQLite para soportar indistintamente formatos con y sin prefijo `0x` (`ack_clean`, `ack_no_prefix`, `ack_with_prefix`).
+     - **`src/rx_router.py`**: RobusteciÃ³ la extracciÃ³n de `ack_code` soportando tipos `bytes` (vÃ­a `.hex()`), `int` (vÃ­a `hex()`) y cadenas de texto, garantizando el enrutamiento inmediato del evento WebSocket `message_delivered`.
+     - **`src/virtual_mesh_adapter.py`**: AÃ±adiÃ³ la generaciÃ³n y emisiÃ³n de paquetes ACK de radio con cÃ³digo hash y cÃ¡lculo de `trip_time_ms` en mensajes directos simulados.
   2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
      - **`src/web/static/js/app.js`**:
-       - Aseguró la normalización de códigos ACK en `handleIncomingLiveEvent` y `updateMessageDelivery` para actualizar el DOM reactivamente (`.message-bubble-row.delivered`, `.msg-ack-status.delivered` -> `✓✓ TX`, `title="Entregado por radio (X ms)"`).
-       - Sincronizó el estado en memoria (`this.channelFeeds`) y almacenamiento persistente en IndexedDB (`chat_messages`).
+       - AsegurÃ³ la normalizaciÃ³n de cÃ³digos ACK en `handleIncomingLiveEvent` y `updateMessageDelivery` para actualizar el DOM reactivamente (`.message-bubble-row.delivered`, `.msg-ack-status.delivered` -> `âœ“âœ“ TX`, `title="Entregado por radio (X ms)"`).
+       - SincronizÃ³ el estado en memoria (`this.channelFeeds`) y almacenamiento persistente en IndexedDB (`chat_messages`).
   3. **Agente 0 (Lead Orchestrator)**:
-     - Verificación estática con `node -c src/web/static/js/app.js` (código 0).
-     - Verificación de compilación Python con `python -m compileall src` (código 0).
-     - Sincronización del paquete autónomo `/deploy/` (`python scripts/sync_deploy.py`).
-     - Sincronización con el repositorio remoto (`git push origin main`).
+     - VerificaciÃ³n estÃ¡tica con `node -c src/web/static/js/app.js` (cÃ³digo 0).
+     - VerificaciÃ³n de compilaciÃ³n Python con `python -m compileall src` (cÃ³digo 0).
+     - SincronizaciÃ³n del paquete autÃ³nomo `/deploy/` (`python scripts/sync_deploy.py`).
+     - SincronizaciÃ³n con el repositorio remoto (`git push origin main`).
 
-### Hito: Corrección de Excepción JavaScript en Consola Web (`appendLogEntryToDom is not a function`)
+### Hito: CorrecciÃ³n de ExcepciÃ³n JavaScript en Consola Web (`appendLogEntryToDom is not a function`)
 - **Fecha**: 2026-08-20
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Diagnosticó y corrigió el error en tiempo de ejecución en la consola del navegador (`TypeError: this.appendLogEntryToDom is not a function`) generado al procesar eventos WebSocket de tipo `system_log` en tiempo real.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: DiagnosticÃ³ y corrigiÃ³ el error en tiempo de ejecuciÃ³n en la consola del navegador (`TypeError: this.appendLogEntryToDom is not a function`) generado al procesar eventos WebSocket de tipo `system_log` en tiempo real.
 - **Contribuciones de Agentes**:
   1. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
      - **`src/web/static/js/app.js`**:
-       - Implementó el método `appendLogEntryToDom(log)` en `MeshCoreStationApp` para renderizar y adjuntar dinámicamente las entradas de log del sistema recibidas por WebSocket, aplicando sanitización HTML (`escapeHtml`), formateo de niveles (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`), eliminación de placeholders de feed vacío y poda de elementos antiguos según el límite `MAX_SYSTEM_LOGS`.
+       - ImplementÃ³ el mÃ©todo `appendLogEntryToDom(log)` en `MeshCoreStationApp` para renderizar y adjuntar dinÃ¡micamente las entradas de log del sistema recibidas por WebSocket, aplicando sanitizaciÃ³n HTML (`escapeHtml`), formateo de niveles (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`), eliminaciÃ³n de placeholders de feed vacÃ­o y poda de elementos antiguos segÃºn el lÃ­mite `MAX_SYSTEM_LOGS`.
   2. **Agente 0 (Lead Orchestrator)**:
-     - Verificación estática con `node -c src/web/static/js/app.js` (código 0).
-     - Sincronización del paquete autónomo `/deploy/` (`python scripts/sync_deploy.py`).
-     - Sincronización con el repositorio remoto (`git push origin main`).
+     - VerificaciÃ³n estÃ¡tica con `node -c src/web/static/js/app.js` (cÃ³digo 0).
+     - SincronizaciÃ³n del paquete autÃ³nomo `/deploy/` (`python scripts/sync_deploy.py`).
+     - SincronizaciÃ³n con el repositorio remoto (`git push origin main`).
 
-### Hito: Simulación Integral Multi-Nodo, Verificación con Suites de Pruebas (120/120), Auditoría de Seguridad SAST/DAST y Limpieza de Código
+### Hito: SimulaciÃ³n Integral Multi-Nodo, VerificaciÃ³n con Suites de Pruebas (120/120), AuditorÃ­a de Seguridad SAST/DAST y Limpieza de CÃ³digo
 - **Fecha**: 2026-08-20
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Coordinó el despliegue de una simulación completa de malla de 10 nodos cubriendo todos los roles oficiales de MeshCore (`CLIENT`, `REPEATER`, `SENSOR`, `ROOM`, `GATEWAY`) y todos los tipos de tramas de radio (`CHANNEL_MSG`, `DIRECT_MSG`, `ADVERT`, `TELEMETRY/Cayenne LPP`, `ACK/Receipt`, `TRACE_DATA`, `LOG_DATA/Sniffer`, `REPEATER_CMD/Response`, `DEVICE_INFO`, `TCP Companion`). Generó ficheros de logs estructurados (`logs/simulation_meshcore_full.log` y `logs/simulation_events.jsonl`), ejecutó las suites completas de pruebas unitarias/integración (120/120 superadas al 100%), depuró y limpió el código fuente con `ruff` y `mypy --strict` (0 errores en 23 módulos), y ejecutó una auditoría de seguridad SAST/DAST con Bandit (0 vulnerabilidades).
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ el despliegue de una simulaciÃ³n completa de malla de 10 nodos cubriendo todos los roles oficiales de MeshCore (`CLIENT`, `REPEATER`, `SENSOR`, `ROOM`, `GATEWAY`) y todos los tipos de tramas de radio (`CHANNEL_MSG`, `DIRECT_MSG`, `ADVERT`, `TELEMETRY/Cayenne LPP`, `ACK/Receipt`, `TRACE_DATA`, `LOG_DATA/Sniffer`, `REPEATER_CMD/Response`, `DEVICE_INFO`, `TCP Companion`). GenerÃ³ ficheros de logs estructurados (`logs/simulation_meshcore_full.log` y `logs/simulation_events.jsonl`), ejecutÃ³ las suites completas de pruebas unitarias/integraciÃ³n (120/120 superadas al 100%), depurÃ³ y limpiÃ³ el cÃ³digo fuente con `ruff` y `mypy --strict` (0 errores en 23 mÃ³dulos), y ejecutÃ³ una auditorÃ­a de seguridad SAST/DAST con Bandit (0 vulnerabilidades).
 - **Contribuciones de Agentes**:
   1. **Agente 1 (Protocol & Firmware Investigator Agent)**:
-     - Modeló los 10 nodos simulados con sus metadatos de hardware, capacidades de telemetría ambiental, canales de difusión y claves públicas en `src/virtual_mesh_adapter.py`.
+     - ModelÃ³ los 10 nodos simulados con sus metadatos de hardware, capacidades de telemetrÃ­a ambiental, canales de difusiÃ³n y claves pÃºblicas en `src/virtual_mesh_adapter.py`.
   2. **Agente 2 (Python Bridge Architect Agent)**:
-     - Enriqueció `scripts/simulate_heltec_v4_mesh.py` con logging dual continuo a texto estructurado y eventos JSON Lines.
-     - Añadió `get_contact` a `NodeRegistry` en `src/contact_manager.py` y `hop_count` a `PacketRecord`.
-     - Depuró el despachador de comandos de repetidor en `src/admin_handler.py` y el enrutador en `src/rx_router.py`.
-     - Fortaleció `src/store_forward.py` y `src/rate_limiter.py` bajo condiciones de alta carga y concurrencia.
+     - EnriqueciÃ³ `scripts/simulate_heltec_v4_mesh.py` con logging dual continuo a texto estructurado y eventos JSON Lines.
+     - AÃ±adiÃ³ `get_contact` a `NodeRegistry` en `src/contact_manager.py` y `hop_count` a `PacketRecord`.
+     - DepurÃ³ el despachador de comandos de repetidor en `src/admin_handler.py` y el enrutador en `src/rx_router.py`.
+     - FortaleciÃ³ `src/store_forward.py` y `src/rate_limiter.py` bajo condiciones de alta carga y concurrencia.
   3. **Agente 3 (Protocol QA & Fuzzing Agent)**:
-     - Ejecutó la suite completa de 120 pruebas unitarias y de integración (`pytest tests/`), logrando 100% de aprobados en concurrencia, serial watchdog, store & forward SQLite WAL, rate limiter, HA discovery, matriz n8n y enrutamiento RF.
-     - Resolvió el fixture de disponibilidad para pruebas E2E de Playwright.
+     - EjecutÃ³ la suite completa de 120 pruebas unitarias y de integraciÃ³n (`pytest tests/`), logrando 100% de aprobados en concurrencia, serial watchdog, store & forward SQLite WAL, rate limiter, HA discovery, matriz n8n y enrutamiento RF.
+     - ResolviÃ³ el fixture de disponibilidad para pruebas E2E de Playwright.
   4. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
-     - Validó la semántica HTML5, sistema de tokens de diseño CSS3 (variables HSL, contraste WCAG 2.2 AA >= 4.5:1, tipografía fluida y scrollbars estilizadas) y la lógica cliente asíncrona en `src/web/static/`.
+     - ValidÃ³ la semÃ¡ntica HTML5, sistema de tokens de diseÃ±o CSS3 (variables HSL, contraste WCAG 2.2 AA >= 4.5:1, tipografÃ­a fluida y scrollbars estilizadas) y la lÃ³gica cliente asÃ­ncrona en `src/web/static/`.
   5. **Agente 5 (Security & Vulnerability Auditor Agent)**:
-     - Ejecutó la auditoría de seguridad SAST con Bandit y scripts especializados (`.agents/skills/security-code-auditor/scripts/run_security_audit.py`).
-     - Verificó 100% de consultas SQL parametrizadas, aislamiento estricto de rutas canónicas contra Directory Traversal, sanitización XSS con `escapeHtml` y cabeceras HTTP defensivas.
+     - EjecutÃ³ la auditorÃ­a de seguridad SAST con Bandit y scripts especializados (`.agents/skills/security-code-auditor/scripts/run_security_audit.py`).
+     - VerificÃ³ 100% de consultas SQL parametrizadas, aislamiento estricto de rutas canÃ³nicas contra Directory Traversal, sanitizaciÃ³n XSS con `escapeHtml` y cabeceras HTTP defensivas.
   6. **Agente 0 (Lead Orchestrator)**:
-     - Verificación estática con `ruff check src tests` (0 errores).
-     - Verificación estricta de tipos con `mypy --strict src` (0 errores en 23 módulos).
-     - Sincronización del paquete autónomo en `/deploy/` (`python scripts/sync_deploy.py`).
-     - Sincronización con repositorio remoto (`git push origin main`).
+     - VerificaciÃ³n estÃ¡tica con `ruff check src tests` (0 errores).
+     - VerificaciÃ³n estricta de tipos con `mypy --strict src` (0 errores en 23 mÃ³dulos).
+     - SincronizaciÃ³n del paquete autÃ³nomo en `/deploy/` (`python scripts/sync_deploy.py`).
+     - SincronizaciÃ³n con repositorio remoto (`git push origin main`).
 
-### Hito: Medición RF de Ping y Ping Zero con RTT, SNR There, SNR Back y RSSI
+### Hito: MediciÃ³n RF de Ping y Ping Zero con RTT, SNR There, SNR Back y RSSI
 - **Fecha**: 2026-08-19
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Diagnosticó e implementó la captura y medición en tiempo real de pings y ecos de radio directos (Ping Zero y Ping multi-nodo). Resolvió la causa por la cual RSSI aparecía como `-- dBm` y la latencia no reflejaba la respuesta de radio del nodo remoto, formateando la respuesta idéntica a la aplicación oficial de MeshCore: `"Duration en ms, SNR there, SNR back (RSSI en dBm)"`.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: DiagnosticÃ³ e implementÃ³ la captura y mediciÃ³n en tiempo real de pings y ecos de radio directos (Ping Zero y Ping multi-nodo). ResolviÃ³ la causa por la cual RSSI aparecÃ­a como `-- dBm` y la latencia no reflejaba la respuesta de radio del nodo remoto, formateando la respuesta idÃ©ntica a la aplicaciÃ³n oficial de MeshCore: `"Duration en ms, SNR there, SNR back (RSSI en dBm)"`.
 - **Contribuciones de Agentes**:
   1. **Agente 2 (Python Bridge Architect Agent)**:
      - **`src/admin_handler.py`**:
-       - Añadió el sistema de promesas asíncronas `_ping_waiters` en `AdminCommandHandler` y el método `notify_ping_response` para capturar la respuesta del nodo remoto.
-       - En `handle` para `action in ("ping_zero", "ping_0", "ping", "zero_hop_ping")`, envía la sonda RF, espera la respuesta del transceptor con timeout controlado, calcula la duración real de ida y vuelta (`duration_ms`), y extrae `snr_there` (SNR medido en el nodo remoto), `snr_back` (SNR medido en el transceptor local) y `rssi` (en dBm).
-       - Actualiza inmediatamente el registro de nodos `node_registry.record_packet` con las métricas RF obtenidas.
+       - AÃ±adiÃ³ el sistema de promesas asÃ­ncronas `_ping_waiters` en `AdminCommandHandler` y el mÃ©todo `notify_ping_response` para capturar la respuesta del nodo remoto.
+       - En `handle` para `action in ("ping_zero", "ping_0", "ping", "zero_hop_ping")`, envÃ­a la sonda RF, espera la respuesta del transceptor con timeout controlado, calcula la duraciÃ³n real de ida y vuelta (`duration_ms`), y extrae `snr_there` (SNR medido en el nodo remoto), `snr_back` (SNR medido en el transceptor local) y `rssi` (en dBm).
+       - Actualiza inmediatamente el registro de nodos `node_registry.record_packet` con las mÃ©tricas RF obtenidas.
      - **`src/rx_router.py`**:
-       - Añadió `admin_handler` a `RxRouterContext`.
+       - AÃ±adiÃ³ `admin_handler` a `RxRouterContext`.
        - En `handle_event`, intercepta paquetes `ACK`, `TRACE_DATA` y respuestas de comandos de repetidor (`repeater_response`), notificando a `admin_handler.notify_ping_response` con `trip_time`, `snr_there`, `snr_back` y `rssi`.
        - Propaga `rssi` y `snr` en el evento `message_delivered`.
      - **`src/bridge_core.py`**:
-       - Conectó `self.admin_handler` con `self.rx_router._ctx.admin_handler`.
+       - ConectÃ³ `self.admin_handler` con `self.rx_router._ctx.admin_handler`.
   2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
      - **`src/web/static/js/app.js`**:
        - En `pingZero`, extrae `duration_ms` / `rtt_ms`, `snr_there`, `snr_back` y `rssi`.
-       - Formatea la salida de terminal idéntica a MeshCore oficial: `✓ [PONG DIRECTO] Duration: ${rtt} ms | SNR there: ${snrThere} | SNR back: ${snrBack} | RSSI: ${rssi}`.
-       - Actualiza el Toast, la píldora de resultado rápido (`repQuickPingResult`) y la insignia del modal (`adminModalPingZeroBadge`).
-       - Actualiza inmediatamente las métricas en `this.knownNodes` y llama a `updateNodeInDom` para refrescar los chips de RF y estado del nodo en la interfaz.
+       - Formatea la salida de terminal idÃ©ntica a MeshCore oficial: `âœ“ [PONG DIRECTO] Duration: ${rtt} ms | SNR there: ${snrThere} | SNR back: ${snrBack} | RSSI: ${rssi}`.
+       - Actualiza el Toast, la pÃ­ldora de resultado rÃ¡pido (`repQuickPingResult`) y la insignia del modal (`adminModalPingZeroBadge`).
+       - Actualiza inmediatamente las mÃ©tricas en `this.knownNodes` y llama a `updateNodeInDom` para refrescar los chips de RF y estado del nodo en la interfaz.
   3. **Agente 0 (Agente Principal / Orchestrator)**:
-     - Verificación de sintaxis JS (`node -c`, código 0).
-     - Verificación de sintaxis y tipos Python (`python -m compileall`, código 0).
-     - Sincronización completa de paquete autónomo de despliegue (`python scripts/sync_deploy.py`).
-     - Sincronización con repositorio remoto (`git push origin main`).
+     - VerificaciÃ³n de sintaxis JS (`node -c`, cÃ³digo 0).
+     - VerificaciÃ³n de sintaxis y tipos Python (`python -m compileall`, cÃ³digo 0).
+     - SincronizaciÃ³n completa de paquete autÃ³nomo de despliegue (`python scripts/sync_deploy.py`).
+     - SincronizaciÃ³n con repositorio remoto (`git push origin main`).
 
-### Hito: Actualización Reactiva de Estado de Actividad de Nodos (En Línea / Inactivo)
+### Hito: ActualizaciÃ³n Reactiva de Estado de Actividad de Nodos (En LÃ­nea / Inactivo)
 - **Fecha**: 2026-08-19
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Diagnosticó y corrigió el flujo por el cual un nodo remoto con el que se interactúa o del que se recibe un mensaje permanecía erróneamente con estado visual "Inactivo" / "Fuera de línea".
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: DiagnosticÃ³ y corrigiÃ³ el flujo por el cual un nodo remoto con el que se interactÃºa o del que se recibe un mensaje permanecÃ­a errÃ³neamente con estado visual "Inactivo" / "Fuera de lÃ­nea".
 - **Contribuciones de Agentes**:
   1. **Agente 2 (Python Bridge Architect Agent)**:
      - **`src/rx_router.py`**:
-       - En `handle_event`, registra los paquetes de recepción con `node_registry.record_packet` para nodos remotos y emite el evento WebSocket `contact_updated` (o `contact_discovered` para nuevos) conteniendo la información actualizada del contacto (`last_seen`, `last_rssi`, `last_snr`, `hops`), permitiendo que el cliente web reciba la señal de vivacidad en tiempo real.
+       - En `handle_event`, registra los paquetes de recepciÃ³n con `node_registry.record_packet` para nodos remotos y emite el evento WebSocket `contact_updated` (o `contact_discovered` para nuevos) conteniendo la informaciÃ³n actualizada del contacto (`last_seen`, `last_rssi`, `last_snr`, `hops`), permitiendo que el cliente web reciba la seÃ±al de vivacidad en tiempo real.
   2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
      - **`src/web/static/js/app.js`**:
-       - Implementó `updateNodeInDom(pubkey, node)` para conmutar inmediatamente el chip de estado a `🟢 En Línea` (`status-online`), actualizar métricas de RF (`RSSI`, `SNR`, `Saltos`) y remover `.node-card-offline` en el DOM sin necesidad de recargar la página.
-       - En `handleIncomingLiveEvent`, actualiza `last_seen` en `this.knownNodes` e invoca `updateNodeInDom` al recibir mensajes ordinarios (DM o canal), confirmaciones de entrega de radio (`message_delivered` para el destinatario) y eventos de actualización (`contact_updated` / `contact_discovered`).
-       - Robusteció el cálculo y normalización de `last_seen` en `renderNodesDirectory` para soportar marcas de tiempo en segundos, milisegundos y formatos de fecha ISO.
+       - ImplementÃ³ `updateNodeInDom(pubkey, node)` para conmutar inmediatamente el chip de estado a `ðŸŸ¢ En LÃ­nea` (`status-online`), actualizar mÃ©tricas de RF (`RSSI`, `SNR`, `Saltos`) y remover `.node-card-offline` en el DOM sin necesidad de recargar la pÃ¡gina.
+       - En `handleIncomingLiveEvent`, actualiza `last_seen` en `this.knownNodes` e invoca `updateNodeInDom` al recibir mensajes ordinarios (DM o canal), confirmaciones de entrega de radio (`message_delivered` para el destinatario) y eventos de actualizaciÃ³n (`contact_updated` / `contact_discovered`).
+       - RobusteciÃ³ el cÃ¡lculo y normalizaciÃ³n de `last_seen` en `renderNodesDirectory` para soportar marcas de tiempo en segundos, milisegundos y formatos de fecha ISO.
   3. **Agente 0 (Agente Principal / Orchestrator)**:
-     - Verificación estática con `node -c src/web/static/js/app.js` (código 0).
-     - Verificación de compilación Python con `python -m compileall src` (código 0).
-     - Sincronización de `/deploy/` y paquetes comprimidos vía `python scripts/sync_deploy.py`.
-     - Sincronización con el repositorio remoto GitHub (`origin/main`).
+     - VerificaciÃ³n estÃ¡tica con `node -c src/web/static/js/app.js` (cÃ³digo 0).
+     - VerificaciÃ³n de compilaciÃ³n Python con `python -m compileall src` (cÃ³digo 0).
+     - SincronizaciÃ³n de `/deploy/` y paquetes comprimidos vÃ­a `python scripts/sync_deploy.py`.
+     - SincronizaciÃ³n con el repositorio remoto GitHub (`origin/main`).
 
-### Hito: Validación y Confirmación de Entrega de Mensajes E2E (Doble Palomilla `✓✓ TX`)
+### Hito: ValidaciÃ³n y ConfirmaciÃ³n de Entrega de Mensajes E2E (Doble Palomilla `âœ“âœ“ TX`)
 - **Fecha**: 2026-08-19
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Diagnosticó e implementó la cadena completa de confirmación de entrega de mensajes (Delivery Receipts). Resolvió la causa raíz por la cual los mensajes transmitidos permanecían indefinidamente en una sola palomilla (`✓ TX`), conectando el código de ACK de 4 bytes de la radio con el ID del mensaje, persistiendo la confirmación en SQLite WAL e IndexedDB, y actualizando la interfaz reactivamente a doble palomilla (`✓✓ TX`).
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: DiagnosticÃ³ e implementÃ³ la cadena completa de confirmaciÃ³n de entrega de mensajes (Delivery Receipts). ResolviÃ³ la causa raÃ­z por la cual los mensajes transmitidos permanecÃ­an indefinidamente en una sola palomilla (`âœ“ TX`), conectando el cÃ³digo de ACK de 4 bytes de la radio con el ID del mensaje, persistiendo la confirmaciÃ³n en SQLite WAL e IndexedDB, y actualizando la interfaz reactivamente a doble palomilla (`âœ“âœ“ TX`).
 - **Contribuciones de Agentes**:
   1. **Agente 2 (Python Bridge Architect Agent)**:
      - **`src/store_forward.py`**:
-       - Añadió la columna `expected_ack TEXT` e índice `idx_receipts_expected_ack` a la tabla `message_receipts` de SQLite.
-       - Actualizó `record_outbound_message` para registrar el código de ACK esperado junto al `msg_id` y `recipient`.
-       - Implementó `get_msg_id_by_expected_ack(expected_ack)` para resolver instantáneamente el ID del mensaje a partir del código recibido por radio.
+       - AÃ±adiÃ³ la columna `expected_ack TEXT` e Ã­ndice `idx_receipts_expected_ack` a la tabla `message_receipts` de SQLite.
+       - ActualizÃ³ `record_outbound_message` para registrar el cÃ³digo de ACK esperado junto al `msg_id` y `recipient`.
+       - ImplementÃ³ `get_msg_id_by_expected_ack(expected_ack)` para resolver instantÃ¡neamente el ID del mensaje a partir del cÃ³digo recibido por radio.
      - **`src/serial_driver.py`**:
-       - En `PySerialAsyncioAdapter.send_message`, extrajo el `expected_ack` (código hexadecimal de 4 bytes) generado por el firmware en el evento `MSG_SENT` y lo retornó en el resultado.
+       - En `PySerialAsyncioAdapter.send_message`, extrajo el `expected_ack` (cÃ³digo hexadecimal de 4 bytes) generado por el firmware en el evento `MSG_SENT` y lo retornÃ³ en el resultado.
      - **`src/bridge_core.py`**:
-       - En `_execute_tx`, capturó `expected_ack` y registró el mensaje saliente en `store_forward.record_outbound_message`.
-       - Incluyó `expected_ack` en la respuesta JSON devuelta a la API REST y en el tópico MQTT `meshcore/tx/status`.
+       - En `_execute_tx`, capturÃ³ `expected_ack` y registrÃ³ el mensaje saliente en `store_forward.record_outbound_message`.
+       - IncluyÃ³ `expected_ack` en la respuesta JSON devuelta a la API REST y en el tÃ³pico MQTT `meshcore/tx/status`.
      - **`src/rx_router.py`**:
        - En `handle_event`, intercepta los eventos `EventType.ACK` / `PacketType.ACK` extrayendo `ack_code` y `trip_time`.
        - Resuelve el `msg_id` correspondiente consultando `store_forward.get_msg_id_by_expected_ack(ack_code)`.
        - Marca el mensaje como entregado en SQLite (`mark_message_delivered`) y emite el evento `message_delivered` a WebSocket y MQTT con `msg_id`, `ack_code`, `trip_time_ms` y `status: "delivered"`.
   2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
      - **`src/web/static/js/app.js`**:
-       - En `MeshCoreStorage`, actualizó `saveMessage` y añadió `updateMessageDelivery` para persistir el estado `delivered: true`, `expected_ack` y `trip_time_ms` en `IndexedDB`.
-       - En `initChat`, genera un `msgId` único (`msg_...`), lo envía en `POST /api/tx` como `request_id`, captura el `expected_ack` de retorno y lo asocia como `data-ack-code` en la burbuja del DOM.
-       - En `handleIncomingLiveEvent`, el manejador de `message_delivered` localiza la burbuja por `data-msg-id` o `data-ack-code`, conmuta a `✓✓ TX`, actualiza el tooltip con la latencia RTT y persiste el estado en `this.channelFeeds` e IndexedDB.
-       - En `appendChatMessage`, asigna los atributos `data-msg-id` y `data-ack-code`, renderizando `✓✓ TX` cuando `msg.delivered` es verdadero.
+       - En `MeshCoreStorage`, actualizÃ³ `saveMessage` y aÃ±adiÃ³ `updateMessageDelivery` para persistir el estado `delivered: true`, `expected_ack` y `trip_time_ms` en `IndexedDB`.
+       - En `initChat`, genera un `msgId` Ãºnico (`msg_...`), lo envÃ­a en `POST /api/tx` como `request_id`, captura el `expected_ack` de retorno y lo asocia como `data-ack-code` en la burbuja del DOM.
+       - En `handleIncomingLiveEvent`, el manejador de `message_delivered` localiza la burbuja por `data-msg-id` o `data-ack-code`, conmuta a `âœ“âœ“ TX`, actualiza el tooltip con la latencia RTT y persiste el estado en `this.channelFeeds` e IndexedDB.
+       - En `appendChatMessage`, asigna los atributos `data-msg-id` y `data-ack-code`, renderizando `âœ“âœ“ TX` cuando `msg.delivered` es verdadero.
      - **`src/web/static/css/app.css`**:
-       - Diseñó micro-animación `@keyframes ackPop` y estilos destacados para `.msg-ack-status.delivered` (verde esmeralda con resplandor) y `.msg-ack-status.sent`.
+       - DiseÃ±Ã³ micro-animaciÃ³n `@keyframes ackPop` y estilos destacados para `.msg-ack-status.delivered` (verde esmeralda con resplandor) y `.msg-ack-status.sent`.
   3. **Agente 0 (Agente Principal / Orchestrator)**:
-     - Verificación estática con `node -c src/web/static/js/app.js` (código 0, sin errores).
-     - Verificación de compilación Python con `python -m compileall src` (código 0, sin errores).
-     - Sincronización del paquete de despliegue en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vía `python scripts/sync_deploy.py`.
-     - Sincronización de commits con el repositorio GitHub (`origin/main`).
+     - VerificaciÃ³n estÃ¡tica con `node -c src/web/static/js/app.js` (cÃ³digo 0, sin errores).
+     - VerificaciÃ³n de compilaciÃ³n Python con `python -m compileall src` (cÃ³digo 0, sin errores).
+     - SincronizaciÃ³n del paquete de despliegue en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vÃ­a `python scripts/sync_deploy.py`.
+     - SincronizaciÃ³n de commits con el repositorio GitHub (`origin/main`).
 - **Fecha**: 2026-08-19
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Coordinó la resolución integral de las 8 solicitudes de usuario relacionadas con fallas responsive en CSS, renderizado de logs, consolidación de telemetría por USB en Ajustes, eliminación de métricas obsoletas en el Sniffer RF, filtrado de DMs de repetidores, centrado interactivo del mapa geográfico, soporte de anuncios Advert estilo iOS (Hop 0, Flood Routed, Clipboard) y enriquecimiento del Directorio de Nodos.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ la resoluciÃ³n integral de las 8 solicitudes de usuario relacionadas con fallas responsive en CSS, renderizado de logs, consolidaciÃ³n de telemetrÃ­a por USB en Ajustes, eliminaciÃ³n de mÃ©tricas obsoletas en el Sniffer RF, filtrado de DMs de repetidores, centrado interactivo del mapa geogrÃ¡fico, soporte de anuncios Advert estilo iOS (Hop 0, Flood Routed, Clipboard) y enriquecimiento del Directorio de Nodos.
 - **Contribuciones de Agentes**:
   1. **Agente 2 (Python Bridge Architect Agent)**:
      - **`src/admin_handler.py`**:
-       - Amplió `get_local_config()` y `fetch_device_config()` para consolidar telemetría en tiempo real del transceptor conectado por USB (`battery_pct`, `voltage`, `battery_mv`, `power_source`, reloj RTC, contadores del microcontrolador y estadísticas de radio).
-       - Implementó `broadcast_advert(flood: bool)` para emisión por radio de anuncios en modo vecindario (Hop 0 / `flood=False`) o propagación multi-salto (Flood Routed / `flood=True`).
+       - AmpliÃ³ `get_local_config()` y `fetch_device_config()` para consolidar telemetrÃ­a en tiempo real del transceptor conectado por USB (`battery_pct`, `voltage`, `battery_mv`, `power_source`, reloj RTC, contadores del microcontrolador y estadÃ­sticas de radio).
+       - ImplementÃ³ `broadcast_advert(flood: bool)` para emisiÃ³n por radio de anuncios en modo vecindario (Hop 0 / `flood=False`) o propagaciÃ³n multi-salto (Flood Routed / `flood=True`).
      - **`src/web/api_router.py`**:
-       - Enriqueció el endpoint `GET /api/node/config` consolidando métricas calculadas en vivo del bridge (`uptime`, `uptime_str`, `airtime_ms`, `duty_cycle_pct`, contadores de paquetes `tx_count`, `rx_count`, `duplicate_packets`, `packet_errors`, `noise_floor_dbm`, `clock`).
-       - Implementó el endpoint `POST /api/node/advert` recibiendo el flag `flood`.
+       - EnriqueciÃ³ el endpoint `GET /api/node/config` consolidando mÃ©tricas calculadas en vivo del bridge (`uptime`, `uptime_str`, `airtime_ms`, `duty_cycle_pct`, contadores de paquetes `tx_count`, `rx_count`, `duplicate_packets`, `packet_errors`, `noise_floor_dbm`, `clock`).
+       - ImplementÃ³ el endpoint `POST /api/node/advert` recibiendo el flag `flood`.
      - **`src/rx_router.py`**:
-       - En `_handle_mesh_direct_msg`, detecta si el emisor es un repetidor o si el texto es una respuesta de comando (`"unknown command"`, `"cmd "`, `"login "`, etc.), despachándolo como evento de telemetría/control a MQTT y WebSocket (`event_type: "repeater_response"`), evitando que se inyecte erróneamente como mensaje directo de chat de usuario en la barra lateral.
+       - En `_handle_mesh_direct_msg`, detecta si el emisor es un repetidor o si el texto es una respuesta de comando (`"unknown command"`, `"cmd "`, `"login "`, etc.), despachÃ¡ndolo como evento de telemetrÃ­a/control a MQTT y WebSocket (`event_type: "repeater_response"`), evitando que se inyecte errÃ³neamente como mensaje directo de chat de usuario en la barra lateral.
   2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
      - **`src/web/static/css/app.css`**:
-       - Corrigió la regla responsive en `@media (max-width: 900px)`, reemplazando `.app-container` por `.app-body { flex-direction: column; overflow: hidden; }` para que la barra lateral y el contenido principal se adapten fluidamente a pantallas pequeñas sin comprimirse.
-       - Añadió reglas para compactar el header en pantallas `<= 768px` y hacer los grids de nodos y filtros responsive de 1 columna en pantallas `<= 600px`.
+       - CorrigiÃ³ la regla responsive en `@media (max-width: 900px)`, reemplazando `.app-container` por `.app-body { flex-direction: column; overflow: hidden; }` para que la barra lateral y el contenido principal se adapten fluidamente a pantallas pequeÃ±as sin comprimirse.
+       - AÃ±adiÃ³ reglas para compactar el header en pantallas `<= 768px` y hacer los grids de nodos y filtros responsive de 1 columna en pantallas `<= 600px`.
      - **`src/web/static/index.html`**:
-       - Eliminó el texto `"Sincronización en Tiempo Real"` del encabezado de Nodos manteniendo el indicador de pulso.
-       - Removió la tarjeta de `"Calidad Señal Promedio"` (`#snifferAvgRssi`) del Sniffer RF.
-       - Removió los botones `#btnCopyAIDiag` y `#btnExportDiag` de la barra de acciones de logs.
-       - Añadió las 3 acciones de hardware para Anuncios de Presencia estilo iOS: `Advert Hop (0 Saltos / Vecindario)`, `Advert Flood Routed (Toda la Malla)` y `Advert Clipboard (Copiar URI)`.
+       - EliminÃ³ el texto `"SincronizaciÃ³n en Tiempo Real"` del encabezado de Nodos manteniendo el indicador de pulso.
+       - RemoviÃ³ la tarjeta de `"Calidad SeÃ±al Promedio"` (`#snifferAvgRssi`) del Sniffer RF.
+       - RemoviÃ³ los botones `#btnCopyAIDiag` y `#btnExportDiag` de la barra de acciones de logs.
+       - AÃ±adiÃ³ las 3 acciones de hardware para Anuncios de Presencia estilo iOS: `Advert Hop (0 Saltos / Vecindario)`, `Advert Flood Routed (Toda la Malla)` y `Advert Clipboard (Copiar URI)`.
      - **`src/web/static/js/app.js`**:
-       - Corrigió el error crítico en `createLogElement(log)` para retornar `row`, restableciendo el renderizado fluido de la Consola de Logs.
-       - Removió referencias a `#snifferAvgRssi`, `#btnCopyAIDiag` y `#btnExportDiag`.
-       - Enlazó la telemetría en tiempo real en `fetchLocalNodeConfig()`, poblando los 8 bloques de Ajustes (batería, voltaje, alimentación USB, reloj RTC, uptime, airtime, señal RF, piso de ruido y contadores TX/RX/dup/err).
-       - Implementó `sendAdvert(flood)` y `copyAdvertToClipboard()`, enlazando botones de hardware y command palette (`action-advert-hop`, `action-advert-flood`, `action-advert-clipboard`).
-       - Enriqueció las tarjetas de nodos con métricas detalladas (`Last RSSI`, `Last SNR`, `Noise Floor`, `Uptime`) y botón interactivo `🗺️ Mapa`.
-       - Implementó `focusNodeOnMap(pubkey)` para centrar el mapa suavemente con `map.flyTo`, resaltar el marcador en rojo y abrir el popup.
-       - Corrigió el cálculo de contadores en las píldoras de filtro en `renderNodesDirectory()`.
+       - CorrigiÃ³ el error crÃ­tico en `createLogElement(log)` para retornar `row`, restableciendo el renderizado fluido de la Consola de Logs.
+       - RemoviÃ³ referencias a `#snifferAvgRssi`, `#btnCopyAIDiag` y `#btnExportDiag`.
+       - EnlazÃ³ la telemetrÃ­a en tiempo real en `fetchLocalNodeConfig()`, poblando los 8 bloques de Ajustes (baterÃ­a, voltaje, alimentaciÃ³n USB, reloj RTC, uptime, airtime, seÃ±al RF, piso de ruido y contadores TX/RX/dup/err).
+       - ImplementÃ³ `sendAdvert(flood)` y `copyAdvertToClipboard()`, enlazando botones de hardware y command palette (`action-advert-hop`, `action-advert-flood`, `action-advert-clipboard`).
+       - EnriqueciÃ³ las tarjetas de nodos con mÃ©tricas detalladas (`Last RSSI`, `Last SNR`, `Noise Floor`, `Uptime`) y botÃ³n interactivo `ðŸ—ºï¸� Mapa`.
+       - ImplementÃ³ `focusNodeOnMap(pubkey)` para centrar el mapa suavemente con `map.flyTo`, resaltar el marcador en rojo y abrir el popup.
+       - CorrigiÃ³ el cÃ¡lculo de contadores en las pÃ­ldoras de filtro en `renderNodesDirectory()`.
   3. **Agente 0 (Agente Principal / Orchestrator)**:
-     - Verificación estática con `node -c src/web/static/js/app.js` (código 0, sin errores de sintaxis).
-     - Verificación de compilación de código Python con `python -m compileall src` (código 0, sin errores).
-     - Sincronización del paquete de despliegue en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vía `python scripts/sync_deploy.py`.
-     - Actualización y sincronización de commits con el repositorio remoto GitHub (`origin/main`).
+     - VerificaciÃ³n estÃ¡tica con `node -c src/web/static/js/app.js` (cÃ³digo 0, sin errores de sintaxis).
+     - VerificaciÃ³n de compilaciÃ³n de cÃ³digo Python con `python -m compileall src` (cÃ³digo 0, sin errores).
+     - SincronizaciÃ³n del paquete de despliegue en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vÃ­a `python scripts/sync_deploy.py`.
+     - ActualizaciÃ³n y sincronizaciÃ³n de commits con el repositorio remoto GitHub (`origin/main`).
 - **Fecha**: 2026-08-19
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Diseñó e integró la capacidad de realizar **Ping Zero** (sonda de 0 saltos directos sin saturar la malla) contra nodos y repetidores, calculando la latencia de ida y vuelta (RTT en ms), potencia de señal RSSI (dBm), relación señal-ruido SNR (dB) y estado de alcance en línea de vista.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: DiseÃ±Ã³ e integrÃ³ la capacidad de realizar **Ping Zero** (sonda de 0 saltos directos sin saturar la malla) contra nodos y repetidores, calculando la latencia de ida y vuelta (RTT en ms), potencia de seÃ±al RSSI (dBm), relaciÃ³n seÃ±al-ruido SNR (dB) y estado de alcance en lÃ­nea de vista.
 - **Contribuciones de Agentes**:
   1. **Agente 2 (Python Bridge Architect Agent)**:
-     - **`src/repeater_manager.py`**: Añadió soporte de normalización para comandos `ping 0`, `ping_zero`, `ping` y `trace 0`.
-     - **`src/admin_handler.py`**: Implementó el manejador especializado de `ping_zero`, midiendo con alta precisión (`time.perf_counter()`) la latencia RTT, consultando las métricas de RF del registro de nodos y publicando el evento en MQTT (`meshcore/admin/repeater/{target}/ping_zero`).
+     - **`src/repeater_manager.py`**: AÃ±adiÃ³ soporte de normalizaciÃ³n para comandos `ping 0`, `ping_zero`, `ping` y `trace 0`.
+     - **`src/admin_handler.py`**: ImplementÃ³ el manejador especializado de `ping_zero`, midiendo con alta precisiÃ³n (`time.perf_counter()`) la latencia RTT, consultando las mÃ©tricas de RF del registro de nodos y publicando el evento en MQTT (`meshcore/admin/repeater/{target}/ping_zero`).
      - **`src/web/api_router.py`**: Expuso los endpoints REST `POST /api/repeater/ping_zero` y `POST /api/node/ping_zero`.
   2. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
      - **`src/web/static/index.html`**:
-       - Añadió botón y badge de **Ping Zero (0 Hops)** en el encabezado del Modal de Administración de Repetidores (`#repeaterAdminModal`).
-       - Añadió tarjeta de acción dedicada a Ping Zero en la pestaña de Acciones Rápidas (`#rep-quick`).
-       - Integró el comando interactivo `ping 0` en los botones rápidos de la terminal y en la guía de ayuda (`#terminalHelpDrawer`).
+       - AÃ±adiÃ³ botÃ³n y badge de **Ping Zero (0 Hops)** en el encabezado del Modal de AdministraciÃ³n de Repetidores (`#repeaterAdminModal`).
+       - AÃ±adiÃ³ tarjeta de acciÃ³n dedicada a Ping Zero en la pestaÃ±a de Acciones RÃ¡pidas (`#rep-quick`).
+       - IntegrÃ³ el comando interactivo `ping 0` en los botones rÃ¡pidos de la terminal y en la guÃ­a de ayuda (`#terminalHelpDrawer`).
      - **`src/web/static/js/app.js`**:
-       - Implementó `pingZero(targetNode, targetName)` con feedback visual en tiempo real, salida en terminal interactiva, actualización de badges y toasts.
-       - Añadió botones `🎯 Ping 0` directamente en las tarjetas de repetidores y clientes en el Directorio de Nodos.
+       - ImplementÃ³ `pingZero(targetNode, targetName)` con feedback visual en tiempo real, salida en terminal interactiva, actualizaciÃ³n de badges y toasts.
+       - AÃ±adiÃ³ botones `ðŸŽ¯ Ping 0` directamente en las tarjetas de repetidores y clientes en el Directorio de Nodos.
      - **`src/web/static/css/app.css`**:
-       - Diseñó estilos para `.ping-zero-badge`, `.btn-modal-ping-zero`, `.btn-node-ping-zero`, `.stat-pill-ping` y animación de pulso `@keyframes pingPulse`.
+       - DiseÃ±Ã³ estilos para `.ping-zero-badge`, `.btn-modal-ping-zero`, `.btn-node-ping-zero`, `.stat-pill-ping` y animaciÃ³n de pulso `@keyframes pingPulse`.
   3. **Agente 0 (Agente Principal / Orchestrator)**:
-     - Verificación estática con `node -c` y `lint_frontend_standards.py` (100% aprobado).
-     - Verificación de arquitectura y concurrencia (`audit_architecture.py`, `audit_async_concurrency.py`).
-     - Sincronización del paquete de despliegue en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vía `python scripts/sync_deploy.py`.
-     - Sincronización completa con GitHub (`origin/main`).
+     - VerificaciÃ³n estÃ¡tica con `node -c` y `lint_frontend_standards.py` (100% aprobado).
+     - VerificaciÃ³n de arquitectura y concurrencia (`audit_architecture.py`, `audit_async_concurrency.py`).
+     - SincronizaciÃ³n del paquete de despliegue en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vÃ­a `python scripts/sync_deploy.py`.
+     - SincronizaciÃ³n completa con GitHub (`origin/main`).
 
 ---
 
-### Hito: Corrección de Sintaxis de Bash (`!grep`) y Soporte TCP Companion en `install.sh`
+### Hito: CorrecciÃ³n de Sintaxis de Bash (`!grep`) y Soporte TCP Companion en `install.sh`
 - **Fecha**: 2026-08-19
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Corrigió el error de sintaxis en `install.sh` (`!grep` sin espacio) que provocaba el fallo `!grep: command not found` durante la actualización del software, e integró la migración automática de variables de entorno del servidor TCP Companion (`TCP_SERVER_ENABLED`, `TCP_SERVER_HOST`, `TCP_SERVER_PORT`).
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: CorrigiÃ³ el error de sintaxis en `install.sh` (`!grep` sin espacio) que provocaba el fallo `!grep: command not found` durante la actualizaciÃ³n del software, e integrÃ³ la migraciÃ³n automÃ¡tica de variables de entorno del servidor TCP Companion (`TCP_SERVER_ENABLED`, `TCP_SERVER_HOST`, `TCP_SERVER_PORT`).
 - **Contribuciones de Agentes**:
   1. **Agente 2 (Python Bridge Architect Agent)**:
-     - Corrigió la evaluación condicional en [`install.sh`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/install.sh) a `if ! grep -q ...`.
-     - Añadió la sección de auto-inyección de variables para `TCP_SERVER_ENABLED` en `.env` existentes.
+     - CorrigiÃ³ la evaluaciÃ³n condicional en [`install.sh`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/install.sh) a `if ! grep -q ...`.
+     - AÃ±adiÃ³ la secciÃ³n de auto-inyecciÃ³n de variables para `TCP_SERVER_ENABLED` en `.env` existentes.
   2. **Agente 0 (Agente Principal / Orchestrator)**:
-     - Sincronización del paquete de despliegue en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vía `python scripts/sync_deploy.py`.
-     - Sincronización completa con GitHub (`origin/main`).
+     - SincronizaciÃ³n del paquete de despliegue en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vÃ­a `python scripts/sync_deploy.py`.
+     - SincronizaciÃ³n completa con GitHub (`origin/main`).
 
 ---
 
-### Hito: Corrección de Excepción de Inicialización (TypeError) y Blindaje de Elementos DOM en la SPA
+### Hito: CorrecciÃ³n de ExcepciÃ³n de InicializaciÃ³n (TypeError) y Blindaje de Elementos DOM en la SPA
 - **Fecha**: 2026-08-19
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Diagnosticó y corrigió la interrupción en la carga de la SPA provocada por referencias nulas a elementos de diagnóstico/discovery en `initPreflight()` e `initHomeAssistant()`.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: DiagnosticÃ³ y corrigiÃ³ la interrupciÃ³n en la carga de la SPA provocada por referencias nulas a elementos de diagnÃ³stico/discovery en `initPreflight()` e `initHomeAssistant()`.
 - **Contribuciones de Agentes**:
   1. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
-     - Blindó con comprobaciones de nulidad (*null checks*) estrictas todos los escuchadores de eventos en [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js) (`initPreflight`, `initHomeAssistant`, `initTheme`, `initCommandPalette`, `initChat`).
-     - Restauró el ciclo de vida completo de la aplicación, permitiendo que `initChat()`, `initWebSocket()`, `initLeafletMap()` y `fetchInitialData()` se ejecuten de manera fluida y sin bloqueos.
-     - Restableció la carga automática y continua de nodos de la malla, repetidores y libreta de contactos.
+     - BlindÃ³ con comprobaciones de nulidad (*null checks*) estrictas todos los escuchadores de eventos en [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js) (`initPreflight`, `initHomeAssistant`, `initTheme`, `initCommandPalette`, `initChat`).
+     - RestaurÃ³ el ciclo de vida completo de la aplicaciÃ³n, permitiendo que `initChat()`, `initWebSocket()`, `initLeafletMap()` y `fetchInitialData()` se ejecuten de manera fluida y sin bloqueos.
+     - RestableciÃ³ la carga automÃ¡tica y continua de nodos de la malla, repetidores y libreta de contactos.
   2. **Agente 0 (Agente Principal / Orchestrator)**:
-     - Verificación con `node -c src/web/static/js/app.js` y `lint_frontend_standards.py`.
-     - Sincronización del paquete de despliegue en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vía `python scripts/sync_deploy.py`.
+     - VerificaciÃ³n con `node -c src/web/static/js/app.js` y `lint_frontend_standards.py`.
+     - SincronizaciÃ³n del paquete de despliegue en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vÃ­a `python scripts/sync_deploy.py`.
 
 ---
 
-### Hito: Implementación de Persistencia IndexedDB y Mapas Geográficos Offline con Modo Radar Táctico en la SPA
+### Hito: ImplementaciÃ³n de Persistencia IndexedDB y Mapas GeogrÃ¡ficos Offline con Modo Radar TÃ¡ctico en la SPA
 - **Fecha**: 2026-08-19
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Coordinó la implementación de la capa de almacenamiento en navegador (`MeshCoreStorage`) con IndexedDB y el sistema integral de capas cartográficas offline y radar táctico para situaciones de emergencia sin conexión a Internet.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ la implementaciÃ³n de la capa de almacenamiento en navegador (`MeshCoreStorage`) con IndexedDB y el sistema integral de capas cartogrÃ¡ficas offline y radar tÃ¡ctico para situaciones de emergencia sin conexiÃ³n a Internet.
 - **Contribuciones de Agentes**:
   1. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
      - **Capa de Almacenamiento IndexedDB (`app.js`)**:
-       - Implementó `MeshCoreStorage` gestionando la base de datos `MeshCoreStationDB` con los object stores `chat_messages`, `sniffer_packets` y `app_settings`.
-       - Persistencia automática de mensajes de chat salientes y entrantes por canal y DM, cargando el historial previo de forma asíncrona al iniciar o cambiar de conversación.
+       - ImplementÃ³ `MeshCoreStorage` gestionando la base de datos `MeshCoreStationDB` con los object stores `chat_messages`, `sniffer_packets` y `app_settings`.
+       - Persistencia automÃ¡tica de mensajes de chat salientes y entrantes por canal y DM, cargando el historial previo de forma asÃ­ncrona al iniciar o cambiar de conversaciÃ³n.
        - Persistencia de tramas interceptadas por el sniffer RF con recarga inmediata en el arranque y limpieza coordinada.
-     - **Mapas Offline & Modo Radar Táctico (`app.js`, `app.css`, `index.html`)**:
-       - Añadió barra de herramientas de capas cartográficas (`.map-layer-switcher`) con soporte para *CartoDB Dark*, *OpenStreetMap*, *Teselas Locales* y *Radar Táctico*.
-       - Implementó el **Modo Radar Táctico / Grícula LoRa**: visualización geoespacial sin dependencia de internet con anillos concéntricos de alcance (1 km, 5 km, 10 km, 25 km), grícula de coordenadas y ejes cardinales centrados en el nodo local.
-       - Detección y conmutación automática (*fallback*) a Radar Táctico ante fallos de conexión a teselas online (`tileerror`).
-       - Añadió panel de gestión en Ajustes (`#local-storage-maps`) para vaciar IndexedDB y configurar la URL del servidor de teselas locales (`localTileUrl`).
+     - **Mapas Offline & Modo Radar TÃ¡ctico (`app.js`, `app.css`, `index.html`)**:
+       - AÃ±adiÃ³ barra de herramientas de capas cartogrÃ¡ficas (`.map-layer-switcher`) con soporte para *CartoDB Dark*, *OpenStreetMap*, *Teselas Locales* y *Radar TÃ¡ctico*.
+       - ImplementÃ³ el **Modo Radar TÃ¡ctico / GrÃ­cula LoRa**: visualizaciÃ³n geoespacial sin dependencia de internet con anillos concÃ©ntricos de alcance (1 km, 5 km, 10 km, 25 km), grÃ­cula de coordenadas y ejes cardinales centrados en el nodo local.
+       - DetecciÃ³n y conmutaciÃ³n automÃ¡tica (*fallback*) a Radar TÃ¡ctico ante fallos de conexiÃ³n a teselas online (`tileerror`).
+       - AÃ±adiÃ³ panel de gestiÃ³n en Ajustes (`#local-storage-maps`) para vaciar IndexedDB y configurar la URL del servidor de teselas locales (`localTileUrl`).
   2. **Agente 2 (Python Bridge Architect Agent)**:
-     - **Telemetría TCP Companion en REST API (`src/web/api_router.py`)**:
+     - **TelemetrÃ­a TCP Companion en REST API (`src/web/api_router.py`)**:
        - Expuso el objeto `tcp_companion` (estado `enabled`, `host`, `port`, `connected_clients`) en el endpoint `/api/status`.
   3. **Agente 0 (Agente Principal / Orchestrator)**:
-     - Validación con `node -c src/web/static/js/app.js` (0 errores).
-     - Verificación con `lint_frontend_standards.py`, `audit_architecture.py` y `audit_async_concurrency.py` (100% de cumplimiento).
-     - Sincronización del paquete de despliegue en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vía `python scripts/sync_deploy.py`.
+     - ValidaciÃ³n con `node -c src/web/static/js/app.js` (0 errores).
+     - VerificaciÃ³n con `lint_frontend_standards.py`, `audit_architecture.py` y `audit_async_concurrency.py` (100% de cumplimiento).
+     - SincronizaciÃ³n del paquete de despliegue en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vÃ­a `python scripts/sync_deploy.py`.
 
 ---
 
-### Hito: Incorporación de Skills de Ingeniería de Software, Arquitectura Hexagonal, Patrones GoF y Concurrencia Async
+### Hito: IncorporaciÃ³n de Skills de IngenierÃ­a de Software, Arquitectura Hexagonal, Patrones GoF y Concurrencia Async
 - **Fecha**: 2026-08-19
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Incorporó un conjunto integral de 4 nuevas skills técnicas especializadas con herramientas de análisis estático para blindar la arquitectura, patrones de diseño, concurrencia asíncrona y métricas de código limpio.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: IncorporÃ³ un conjunto integral de 4 nuevas skills tÃ©cnicas especializadas con herramientas de anÃ¡lisis estÃ¡tico para blindar la arquitectura, patrones de diseÃ±o, concurrencia asÃ­ncrona y mÃ©tricas de cÃ³digo limpio.
 - **Nuevas Skills Incorporadas**:
   1. **`software-architecture-patterns`** ([`SKILL.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/.agents/skills/software-architecture-patterns/SKILL.md)):
-     - Guía de Arquitectura Hexagonal (Ports & Adapters), Event-Driven Architecture (EDA), Domain-Driven Design (DDD) y patrones de resiliencia (Circuit Breaker, Exponential Backoff, Bulkhead).
-     - Herramienta: `scripts/audit_architecture.py` (auditoría de inversión de dependencias e inmutabilidad del dominio).
+     - GuÃ­a de Arquitectura Hexagonal (Ports & Adapters), Event-Driven Architecture (EDA), Domain-Driven Design (DDD) y patrones de resiliencia (Circuit Breaker, Exponential Backoff, Bulkhead).
+     - Herramienta: `scripts/audit_architecture.py` (auditorÃ­a de inversiÃ³n de dependencias e inmutabilidad del dominio).
   2. **`gof-design-patterns-expert`** ([`SKILL.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/.agents/skills/gof-design-patterns-expert/SKILL.md)):
-     - Catálogo formal de patrones GoF (Adapter, Factory Method, Strategy, Facade, Observer, State Machine).
-     - Herramienta: `scripts/analyze_design_patterns.py` (mapeo y detección de patrones en el código de producción).
+     - CatÃ¡logo formal de patrones GoF (Adapter, Factory Method, Strategy, Facade, Observer, State Machine).
+     - Herramienta: `scripts/analyze_design_patterns.py` (mapeo y detecciÃ³n de patrones en el cÃ³digo de producciÃ³n).
   3. **`async-concurrency-engineering`** ([`SKILL.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/.agents/skills/async-concurrency-engineering/SKILL.md)):
      - Directrices para evitar llamadas bloqueantes en el event loop, puente seguro entre hilos/asyncio y graceful shutdown.
-     - Herramienta: `scripts/audit_async_concurrency.py` (detección de bloqueos I/O y patrones inseguros).
+     - Herramienta: `scripts/audit_async_concurrency.py` (detecciÃ³n de bloqueos I/O y patrones inseguros).
   4. **`refactoring-clean-architecture`** ([`SKILL.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/.agents/skills/refactoring-clean-architecture/SKILL.md)):
-     - Técnicas de refactorización de Martin Fowler y umbrales de métricas (Complejidad Ciclomática $\le 15$, longitud de métodos $\le 45$, parámetros $\le 6$).
-     - Herramienta: `scripts/evaluate_refactoring_metrics.py` (cálculo de complejidad ciclomática de McCabe por función).
+     - TÃ©cnicas de refactorizaciÃ³n de Martin Fowler y umbrales de mÃ©tricas (Complejidad CiclomÃ¡tica $\le 15$, longitud de mÃ©todos $\le 45$, parÃ¡metros $\le 6$).
+     - Herramienta: `scripts/evaluate_refactoring_metrics.py` (cÃ¡lculo de complejidad ciclomÃ¡tica de McCabe por funciÃ³n).
 
 ---
 
-### Hito: Normalización Integral de Componentes UI, Optimización de Memoria (RAM), Renderizado por Lotes y Sanitización XSS en Frontend
+### Hito: NormalizaciÃ³n Integral de Componentes UI, OptimizaciÃ³n de Memoria (RAM), Renderizado por Lotes y SanitizaciÃ³n XSS en Frontend
 - **Fecha**: 2026-08-18
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Coordinó la normalización estética de todos los componentes visuales de la aplicación, la poda de duplicidad en CSS, el blindaje estricto de sanitización contra XSS y la optimización de rendimiento y huella de memoria RAM en el navegador.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ la normalizaciÃ³n estÃ©tica de todos los componentes visuales de la aplicaciÃ³n, la poda de duplicidad en CSS, el blindaje estricto de sanitizaciÃ³n contra XSS y la optimizaciÃ³n de rendimiento y huella de memoria RAM en el navegador.
 - **Contribuciones de Agentes**:
   1. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
-     - **Normalización de Componentes (`app.css`)**: Estandarizó el sistema de tarjetas (`.card`, `.node-card`, `.contact-item-card`, `.settings-card`, `.ha-status-card`, `.repeater-card`, `.quick-diag-card`) bajo una escala armónica de radios (`var(--radius-md)` = 10px), paddings y sombras unificadas.
-     - **Limpieza y Poda CSS**: Consolidó selectores duplicados de modales (`.modal-card`, `.modal-overlay`), eliminó estilos inline en [`src/web/static/index.html`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/index.html) y redujo el peso del stylesheet.
-     - **Optimización de Rendimiento DOM (`app.js`)**:
-       - Implementó renderizado por lotes mediante `DocumentFragment` en `renderNodesDirectory()`, `renderFilteredLogs()` y `renderAnalytics()`, reduciendo *layout reflows* a una única mutación de pintura instantánea (< 5ms).
-       - Aplicó *debouncing* (`debounce(fn, 150)`) en todos los campos de búsqueda en vivo (`nodesSearchInput`, `contactsSearchInput`, `snifferSearch`, `logSearchInput`).
+     - **NormalizaciÃ³n de Componentes (`app.css`)**: EstandarizÃ³ el sistema de tarjetas (`.card`, `.node-card`, `.contact-item-card`, `.settings-card`, `.ha-status-card`, `.repeater-card`, `.quick-diag-card`) bajo una escala armÃ³nica de radios (`var(--radius-md)` = 10px), paddings y sombras unificadas.
+     - **Limpieza y Poda CSS**: ConsolidÃ³ selectores duplicados de modales (`.modal-card`, `.modal-overlay`), eliminÃ³ estilos inline en [`src/web/static/index.html`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/index.html) y redujo el peso del stylesheet.
+     - **OptimizaciÃ³n de Rendimiento DOM (`app.js`)**:
+       - ImplementÃ³ renderizado por lotes mediante `DocumentFragment` en `renderNodesDirectory()`, `renderFilteredLogs()` y `renderAnalytics()`, reduciendo *layout reflows* a una Ãºnica mutaciÃ³n de pintura instantÃ¡nea (< 5ms).
+       - AplicÃ³ *debouncing* (`debounce(fn, 150)`) en todos los campos de bÃºsqueda en vivo (`nodesSearchInput`, `contactsSearchInput`, `snifferSearch`, `logSearchInput`).
   2. **Agente 2 (Python Bridge Architect Agent)**:
-     - **Gestión Estricta de Memoria (RAM Bounded Queues)**:
-       - Limitó el ring-buffer de paquetes sniffer (`rawPackets`) a un máximo de 200 tramas y podó los nodos DOM excedentes en tiempo real con `removeChild`.
-       - Limitó el buffer de logs del sistema (`systemLogs`) a 300 entradas con poda automática de elementos en el DOM.
-       - Acotó el historial por canal y mensaje directo (`channelFeeds`) a un tope de 100 mensajes por conversación para evitar retención indefinida de memoria.
+     - **GestiÃ³n Estricta de Memoria (RAM Bounded Queues)**:
+       - LimitÃ³ el ring-buffer de paquetes sniffer (`rawPackets`) a un mÃ¡ximo de 200 tramas y podÃ³ los nodos DOM excedentes en tiempo real con `removeChild`.
+       - LimitÃ³ el buffer de logs del sistema (`systemLogs`) a 300 entradas con poda automÃ¡tica de elementos en el DOM.
+       - AcotÃ³ el historial por canal y mensaje directo (`channelFeeds`) a un tope de 100 mensajes por conversaciÃ³n para evitar retenciÃ³n indefinida de memoria.
   3. **Agente 5 (Security & Vulnerability Auditor Agent)**:
-     - Blindó al 100% las interpolaciones de texto y atributos en la interfaz con `escapeHtml()` en todos los renderizadores de nodos, mensajes, claves públicas, paquetes y logs.
+     - BlindÃ³ al 100% las interpolaciones de texto y atributos en la interfaz con `escapeHtml()` en todos los renderizadores de nodos, mensajes, claves pÃºblicas, paquetes y logs.
   4. **Agente 0 (Agente Principal / Orchestrator)**:
-     - Verificación estática con `node -c src/web/static/js/app.js` (0 errores de sintaxis).
-     - Validación con `lint_frontend_standards.py` (100% de cumplimiento en estándares HTML5 semántico, CSS3 y ES6+).
-     - Sincronización del paquete de despliegue en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vía `python scripts/sync_deploy.py`.
+     - VerificaciÃ³n estÃ¡tica con `node -c src/web/static/js/app.js` (0 errores de sintaxis).
+     - ValidaciÃ³n con `lint_frontend_standards.py` (100% de cumplimiento en estÃ¡ndares HTML5 semÃ¡ntico, CSS3 y ES6+).
+     - SincronizaciÃ³n del paquete de despliegue en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vÃ­a `python scripts/sync_deploy.py`.
 
 ---
 
-### Hito: Implementación del Servidor TCP/IP Companion en Puerto 5000 para Apps Oficiales MeshCore
+### Hito: ImplementaciÃ³n del Servidor TCP/IP Companion en Puerto 5000 para Apps Oficiales MeshCore
 - **Fecha**: 2026-08-18
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Coordinó la investigación del protocolo en firmware oficial C++ y SDK Python, diseñó el servidor TCP asíncrono en puerto 5000 y armonizó los adaptadores de radio y el simulador virtual.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ la investigaciÃ³n del protocolo en firmware oficial C++ y SDK Python, diseÃ±Ã³ el servidor TCP asÃ­ncrono en puerto 5000 y armonizÃ³ los adaptadores de radio y el simulador virtual.
 - **Contribuciones de Agentes**:
   1. **Agente 1 (Protocol & Firmware Investigator Agent)**:
-     - Analizó el firmware [`SerialWifiInterface.cpp`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/reference/meshcore/src/helpers/esp32/SerialWifiInterface.cpp) y el SDK [`tcp_cx.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/reference/meshcore_py/src/meshcore/tcp_cx.py).
-     - Formalizó la especificación del framing binario oficial (`0x3C`/`0x3E` + longitud little-endian uint16 + payload) en [`docs/PROTOCOL_SPEC.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/docs/PROTOCOL_SPEC.md).
+     - AnalizÃ³ el firmware [`SerialWifiInterface.cpp`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/reference/meshcore/src/helpers/esp32/SerialWifiInterface.cpp) y el SDK [`tcp_cx.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/reference/meshcore_py/src/meshcore/tcp_cx.py).
+     - FormalizÃ³ la especificaciÃ³n del framing binario oficial (`0x3C`/`0x3E` + longitud little-endian uint16 + payload) en [`docs/PROTOCOL_SPEC.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/docs/PROTOCOL_SPEC.md).
   2. **Agente 2 (Python Bridge Architect Agent)**:
-     - Implementó [`src/tcp_companion_server.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/tcp_companion_server.py): Servidor `asyncio` no bloqueante con de-framing continuo, soporte multi-cliente y protección DoS (`MAX_FRAME_SIZE = 512`).
-     - Añadió variables de configuración en [`config.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/config.py) y [`.env.example`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/.env.example) (`TCP_SERVER_ENABLED`, `TCP_SERVER_HOST`, `TCP_SERVER_PORT=5000`).
-     - Integró callbacks de tramas crudas (`set_companion_rx_callback` y `send_raw_companion_frame`) en [`src/serial_driver.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/serial_driver.py) y emulación completa en [`src/virtual_mesh_adapter.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/virtual_mesh_adapter.py).
-     - Integró el ciclo de vida en [`src/bridge_core.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/bridge_core.py) y diagnósticos en [`src/preflight.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/preflight.py).
+     - ImplementÃ³ [`src/tcp_companion_server.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/tcp_companion_server.py): Servidor `asyncio` no bloqueante con de-framing continuo, soporte multi-cliente y protecciÃ³n DoS (`MAX_FRAME_SIZE = 512`).
+     - AÃ±adiÃ³ variables de configuraciÃ³n en [`config.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/config.py) y [`.env.example`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/.env.example) (`TCP_SERVER_ENABLED`, `TCP_SERVER_HOST`, `TCP_SERVER_PORT=5000`).
+     - IntegrÃ³ callbacks de tramas crudas (`set_companion_rx_callback` y `send_raw_companion_frame`) en [`src/serial_driver.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/serial_driver.py) y emulaciÃ³n completa en [`src/virtual_mesh_adapter.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/virtual_mesh_adapter.py).
+     - IntegrÃ³ el ciclo de vida en [`src/bridge_core.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/bridge_core.py) y diagnÃ³sticos en [`src/preflight.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/preflight.py).
   3. **Agente 0 (Agente Principal / Orchestrator)**:
-     - Concilió la arquitectura en [`docs/ARCHITECTURE.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/docs/ARCHITECTURE.md).
-     - Ejecutó la sincronización de producción en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vía `python scripts/sync_deploy.py`.
+     - ConciliÃ³ la arquitectura en [`docs/ARCHITECTURE.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/docs/ARCHITECTURE.md).
+     - EjecutÃ³ la sincronizaciÃ³n de producciÃ³n en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vÃ­a `python scripts/sync_deploy.py`.
 
 ---
 
-### Hito: Sanitización Integral de Persistencia SQLite, Resolución de Deadlocks, Suite Completa de Pruebas y Deploy
+### Hito: SanitizaciÃ³n Integral de Persistencia SQLite, ResoluciÃ³n de Deadlocks, Suite Completa de Pruebas y Deploy
 - **Fecha**: 2026-08-18
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Coordinó la resolución de deadlocks por concurrencia multihilo en persistencia SQLite, saneamiento de contadores de tráfico RX, robustez de tipos en API REST, ejecución completa de las suites de pruebas (120/120 superadas), auditoría SAST de seguridad y re-sincronización del paquete de despliegue.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ la resoluciÃ³n de deadlocks por concurrencia multihilo en persistencia SQLite, saneamiento de contadores de trÃ¡fico RX, robustez de tipos en API REST, ejecuciÃ³n completa de las suites de pruebas (120/120 superadas), auditorÃ­a SAST de seguridad y re-sincronizaciÃ³n del paquete de despliegue.
 - **Contribuciones de Agentes**:
   1. **Agente 2 (Python Bridge Architect Agent)**:
-     - Reemplazó `asyncio.Lock` por sincronización multihilo `threading.Lock` en [`src/store_forward.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/store_forward.py), eliminando por completo los bloqueos en llamadas concurrentes `asyncio.run()` provenientes de múltiples hilos del SO.
-     - Eliminó el doble incremento de `rx_count` en [`src/bridge_core.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/bridge_core.py), delegando la autoría única de métricas en `RxEventRouter` ([`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py)).
-     - Añadió alias `shutdown()` en `MeshCoreBridge`.
-     - Blindó la extracción de métricas numéricas y cálculo de tasa de error en `_route_status` ([`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py)).
+     - ReemplazÃ³ `asyncio.Lock` por sincronizaciÃ³n multihilo `threading.Lock` en [`src/store_forward.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/store_forward.py), eliminando por completo los bloqueos en llamadas concurrentes `asyncio.run()` provenientes de mÃºltiples hilos del SO.
+     - EliminÃ³ el doble incremento de `rx_count` en [`src/bridge_core.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/bridge_core.py), delegando la autorÃ­a Ãºnica de mÃ©tricas en `RxEventRouter` ([`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py)).
+     - AÃ±adiÃ³ alias `shutdown()` en `MeshCoreBridge`.
+     - BlindÃ³ la extracciÃ³n de mÃ©tricas numÃ©ricas y cÃ¡lculo de tasa de error en `_route_status` ([`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py)).
   2. **Agente 3 (Protocol QA & Fuzzing Agent)**:
-     - Ajustó temporización del Watchdog en [`tests/test_serial_adapter.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/tests/test_serial_adapter.py) y mock de métricas en [`tests/test_web_server.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/tests/test_web_server.py).
-     - Ejecutó la suite completa de 120 pruebas unitarias, de concurrencia, estrés, fuzzing e integración con un resultado de **120/120 PASSED (100% de éxito)**.
+     - AjustÃ³ temporizaciÃ³n del Watchdog en [`tests/test_serial_adapter.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/tests/test_serial_adapter.py) y mock de mÃ©tricas en [`tests/test_web_server.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/tests/test_web_server.py).
+     - EjecutÃ³ la suite completa de 120 pruebas unitarias, de concurrencia, estrÃ©s, fuzzing e integraciÃ³n con un resultado de **120/120 PASSED (100% de Ã©xito)**.
   3. **Agente 5 (Security & Vulnerability Auditor Agent)**:
-     - Ejecutó auditoría estática SAST completa (`run_security_audit.py`): Cero vulnerabilidades encontradas (Bandit SAST limpio, 100% SQL parametrizado, Directory Traversal aislado, XSS escapado).
+     - EjecutÃ³ auditorÃ­a estÃ¡tica SAST completa (`run_security_audit.py`): Cero vulnerabilidades encontradas (Bandit SAST limpio, 100% SQL parametrizado, Directory Traversal aislado, XSS escapado).
   4. **Agente 0 (Agente Principal / Orchestrator)**:
-     - Verificó con `mypy --strict src/` (0 errores en 22 módulos) y `ruff check` (0 errores).
-     - Empaquetó y sincronizó el release en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vía `python scripts/sync_deploy.py`.
+     - VerificÃ³ con `mypy --strict src/` (0 errores en 22 mÃ³dulos) y `ruff check` (0 errores).
+     - EmpaquetÃ³ y sincronizÃ³ el release en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vÃ­a `python scripts/sync_deploy.py`.
 
 ---
 
-### Hito: Sincronización Automática en Tiempo Real y Detección de Estado Offline (TTL)
+### Hito: SincronizaciÃ³n AutomÃ¡tica en Tiempo Real y DetecciÃ³n de Estado Offline (TTL)
 - **Fecha**: 2026-08-18
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Diseñó el sistema de auto-descubrimiento reactivo en tiempo real para la vista **🌐 Nodos** y la lógica de detección de apagado/offline para nodos de radiofrecuencia LoRa MeshCore.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: DiseÃ±Ã³ el sistema de auto-descubrimiento reactivo en tiempo real para la vista **ðŸŒ� Nodos** y la lÃ³gica de detecciÃ³n de apagado/offline para nodos de radiofrecuencia LoRa MeshCore.
 - **Contribuciones de Agentes**:
   1. **Agente 4 (Web UI/UX & Frontend Architect Agent)**:
-     - **Auto-descubrimiento Reactivo**: Reemplazo del botón manual de actualización por un indicador de pulso `🟢 Sincronización en Tiempo Real` (`.live-sync-indicator`). Los nuevos nodos o actualizaciones de telemetría/anuncios se integran dinámicamente vía WebSocket sin refresco manual.
-     - **Detección y Visualización Offline**: Incorporación de chips de conectividad (`🟢 En Línea` < 30min, `🟡 Inactivo` 30m-2h, `🔴 Fuera de línea` > 2h) calculados sobre la marca de tiempo `last_seen`. Los nodos apagados o fuera de cobertura se atenúan visualmente (`.node-card-offline`) conservando su telemetría y última posición GPS.
+     - **Auto-descubrimiento Reactivo**: Reemplazo del botÃ³n manual de actualizaciÃ³n por un indicador de pulso `ðŸŸ¢ SincronizaciÃ³n en Tiempo Real` (`.live-sync-indicator`). Los nuevos nodos o actualizaciones de telemetrÃ­a/anuncios se integran dinÃ¡micamente vÃ­a WebSocket sin refresco manual.
+     - **DetecciÃ³n y VisualizaciÃ³n Offline**: IncorporaciÃ³n de chips de conectividad (`ðŸŸ¢ En LÃ­nea` < 30min, `ðŸŸ¡ Inactivo` 30m-2h, `ðŸ”´ Fuera de lÃ­nea` > 2h) calculados sobre la marca de tiempo `last_seen`. Los nodos apagados o fuera de cobertura se atenÃºan visualmente (`.node-card-offline`) conservando su telemetrÃ­a y Ãºltima posiciÃ³n GPS.
   2. **Agente 0 (Agente Principal / Orchestrator)**:
-     - Verificación estática con `node --check`, `ruff check` y `mypy --strict` (0 errores).
-     - Sincronización a [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vía `sync_deploy.py`.
+     - VerificaciÃ³n estÃ¡tica con `node --check`, `ruff check` y `mypy --strict` (0 errores).
+     - SincronizaciÃ³n a [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vÃ­a `sync_deploy.py`.
 
 ---
 
-### Hito: Rediseño y Separación Clara entre Mensajería (DMs Activos) y Libreta de Contactos
+### Hito: RediseÃ±o y SeparaciÃ³n Clara entre MensajerÃ­a (DMs Activos) y Libreta de Contactos
 - **Fecha**: 2026-08-18
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Coordinó la reestructuración de la interfaz para separar de forma limpia la bandeja de conversaciones activas de la libreta general de contactos del dispositivo.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ la reestructuraciÃ³n de la interfaz para separar de forma limpia la bandeja de conversaciones activas de la libreta general de contactos del dispositivo.
 - **Contribuciones de Agentes**:
   1. **Agente 4 (Web UI/UX Architect Agent)**:
-     - **Mensajería (`#tab-chat`)**: En la barra lateral, la sección «Mensajes Directos» ahora muestra **exclusivamente las conversaciones que cuentan con al menos un mensaje enviado o recibido**, evitando saturar la lista de chats con nodos sin interacción.
-     - **Libreta de Contactos (`#tab-contacts`)**: Pestaña principal que lista **única y exclusivamente los contactos con rol `CLIENT` (o `CHAT`)**, con tarjetas perfectamente uniformadas (`height: 100%`, flexbox stretch y micro-grid 3 columnas de telemetría sin saltos de línea irregulares):
-       - `💬 DM`: Abre inmediatamente la conversación privada en la vista de Mensajería.
-       - `📤 QR`: Abre el modal con código QR con renderizado estilizado (ojos redondeados y gradiente cian) y distribución de 2 columnas sin scroll.
-       - `🗑️ Eliminar`: Botón compacto y estilizado para borrar el contacto.
-       - `🔍 Buscador`: Filtrado en tiempo real por nombre, alias, rol o clave pública.
-       - `➕ Agregar Contacto`: Botón directo en la cabecera para añadir nuevos contactos.
-     - **Mensajes Directos**: Validación estricta que impide abrir o agregar chats DM con nodos que no sean de tipo `CLIENT`.
-     - Eliminada la pestaña redundante «Directorio», dejando una navegación optimizada y jerárquica.
+     - **MensajerÃ­a (`#tab-chat`)**: En la barra lateral, la secciÃ³n Â«Mensajes DirectosÂ» ahora muestra **exclusivamente las conversaciones que cuentan con al menos un mensaje enviado o recibido**, evitando saturar la lista de chats con nodos sin interacciÃ³n.
+     - **Libreta de Contactos (`#tab-contacts`)**: PestaÃ±a principal que lista **Ãºnica y exclusivamente los contactos con rol `CLIENT` (o `CHAT`)**, con tarjetas perfectamente uniformadas (`height: 100%`, flexbox stretch y micro-grid 3 columnas de telemetrÃ­a sin saltos de lÃ­nea irregulares):
+       - `ðŸ’¬ DM`: Abre inmediatamente la conversaciÃ³n privada en la vista de MensajerÃ­a.
+       - `ðŸ“¤ QR`: Abre el modal con cÃ³digo QR con renderizado estilizado (ojos redondeados y gradiente cian) y distribuciÃ³n de 2 columnas sin scroll.
+       - `ðŸ—‘ï¸� Eliminar`: BotÃ³n compacto y estilizado para borrar el contacto.
+       - `ðŸ”� Buscador`: Filtrado en tiempo real por nombre, alias, rol o clave pÃºblica.
+       - `âž• Agregar Contacto`: BotÃ³n directo en la cabecera para aÃ±adir nuevos contactos.
+     - **Mensajes Directos**: ValidaciÃ³n estricta que impide abrir o agregar chats DM con nodos que no sean de tipo `CLIENT`.
+     - Eliminada la pestaÃ±a redundante Â«DirectorioÂ», dejando una navegaciÃ³n optimizada y jerÃ¡rquica.
   2. **Agente 0 (Agente Principal / Orchestrator)**:
-     - Verificación estática con `node --check`, `ruff check` y `mypy --strict` (0 errores).
-     - Sincronización del release en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vía `sync_deploy.py`.
+     - VerificaciÃ³n estÃ¡tica con `node --check`, `ruff check` y `mypy --strict` (0 errores).
+     - SincronizaciÃ³n del release en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vÃ­a `sync_deploy.py`.
 
 ---
 - **Fecha**: 2026-08-18
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Coordinó la revisión integral de compatibilidad de tipos, sanitización de datos y optimización de rendimiento entre el backend asíncrono y la interfaz web SPA.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ la revisiÃ³n integral de compatibilidad de tipos, sanitizaciÃ³n de datos y optimizaciÃ³n de rendimiento entre el backend asÃ­ncrono y la interfaz web SPA.
 - **Contribuciones de Agentes**:
   1. **Agente 2 (Python Bridge Architect Agent)**:
-     - Enriqueció el enrutador de recepción ([`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py)) para mapear automáticamente roles oficiales MeshCore (`REPEATER`, `ROOM`, `SENSOR`, `CLIENT`) y coordenadas GPS (`latitude`, `longitude`) en el directorio de nodos.
-     - Optimizó el gestor de contactos ([`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py)) para normalizar campos de posición y telemetría de forma resiliente ante múltiples formatos de entrada (`gps`, `lat`, `latitude`).
-     - Alineó los nodos del adaptador virtual ([`src/virtual_mesh_adapter.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/virtual_mesh_adapter.py)) con los 4 roles oficiales del firmware MeshCore.
+     - EnriqueciÃ³ el enrutador de recepciÃ³n ([`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py)) para mapear automÃ¡ticamente roles oficiales MeshCore (`REPEATER`, `ROOM`, `SENSOR`, `CLIENT`) y coordenadas GPS (`latitude`, `longitude`) en el directorio de nodos.
+     - OptimizÃ³ el gestor de contactos ([`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py)) para normalizar campos de posiciÃ³n y telemetrÃ­a de forma resiliente ante mÃºltiples formatos de entrada (`gps`, `lat`, `latitude`).
+     - AlineÃ³ los nodos del adaptador virtual ([`src/virtual_mesh_adapter.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/virtual_mesh_adapter.py)) con los 4 roles oficiales del firmware MeshCore.
   2. **Agente 4 (Web UI/UX Architect Agent)**:
-     - Mejoró el generador de URIs y códigos QR en [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js) para incluir el parámetro `role` al exportar contactos.
-     - Robusteció el parser de importación URI `meshcore://contact?...` para registrar el rol y actualizar el directorio en vivo.
-     - Sustituyó llamadas bloqueantes `alert()` por el sistema nativo de notificaciones `showToast()`.
+     - MejorÃ³ el generador de URIs y cÃ³digos QR en [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js) para incluir el parÃ¡metro `role` al exportar contactos.
+     - RobusteciÃ³ el parser de importaciÃ³n URI `meshcore://contact?...` para registrar el rol y actualizar el directorio en vivo.
+     - SustituyÃ³ llamadas bloqueantes `alert()` por el sistema nativo de notificaciones `showToast()`.
   3. **Agente 5 (Security & Vulnerability Auditor Agent)**:
-     - Verificó con SAST/DAST (`security-code-auditor`) la ausencia total de inyecciones SQL, aislamiento estricto de Directory Traversal y sanitización XSS contextual (`escapeHtml`).
+     - VerificÃ³ con SAST/DAST (`security-code-auditor`) la ausencia total de inyecciones SQL, aislamiento estricto de Directory Traversal y sanitizaciÃ³n XSS contextual (`escapeHtml`).
   4. **Agente 0 (Agente Principal / Orchestrator)**:
-     - Ejecutó análisis estático estricto: `mypy --strict src/` (0 errores en 22 archivos), `ruff check` (0 errores) y `node --check` (0 errores de sintaxis JS).
-     - Sincronizó y empaquetó el release en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/).
+     - EjecutÃ³ anÃ¡lisis estÃ¡tico estricto: `mypy --strict src/` (0 errores en 22 archivos), `ruff check` (0 errores) y `node --check` (0 errores de sintaxis JS).
+     - SincronizÃ³ y empaquetÃ³ el release en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/).
 
 ---
 - **Fecha**: 2026-08-18
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Invocó al Agente Investigador para compilar y armonizar la documentación técnica oficial de MeshCore ([docs.meshcore.io](https://docs.meshcore.io/) y [github.com/meshcore-dev/MeshCore](https://github.com/meshcore-dev/MeshCore)) con los fuentes binarios C/C++ y SDKs de referencia.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: InvocÃ³ al Agente Investigador para compilar y armonizar la documentaciÃ³n tÃ©cnica oficial de MeshCore ([docs.meshcore.io](https://docs.meshcore.io/) y [github.com/meshcore-dev/MeshCore](https://github.com/meshcore-dev/MeshCore)) con los fuentes binarios C/C++ y SDKs de referencia.
 - **Contribuciones de Agentes**:
   1. **Agente 1 (Protocol & Firmware Investigator Agent)**:
-     - Realizó una investigación integral de las fuentes oficiales de MeshCore ([docs.meshcore.io](https://docs.meshcore.io/), [github.com/meshcore-dev](https://github.com/meshcore-dev)).
-     - Ejecutó la skill `meshcore_source_inspector` sobre los headers C/C++ (`Packet.h`, `AdvertDataHelpers.h`, `ClientACL.h`, `RoutingPolicy.h`, `RadioLibWrappers.h`) y módulos de Python (`packets.py`, `reader.py`, `contact.py`, `messaging.py`).
-     - Redactó la versión 3.0.0 de [`docs/PROTOCOL_SPEC.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/docs/PROTOCOL_SPEC.md), detallando:
+     - RealizÃ³ una investigaciÃ³n integral de las fuentes oficiales de MeshCore ([docs.meshcore.io](https://docs.meshcore.io/), [github.com/meshcore-dev](https://github.com/meshcore-dev)).
+     - EjecutÃ³ la skill `meshcore_source_inspector` sobre los headers C/C++ (`Packet.h`, `AdvertDataHelpers.h`, `ClientACL.h`, `RoutingPolicy.h`, `RadioLibWrappers.h`) y mÃ³dulos de Python (`packets.py`, `reader.py`, `contact.py`, `messaging.py`).
+     - RedactÃ³ la versiÃ³n 3.0.0 de [`docs/PROTOCOL_SPEC.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/docs/PROTOCOL_SPEC.md), detallando:
        - Framing determinista con Byte Stuffing (`0xAA`, `0x55`, `0x1B`, `0x20`).
-       - Algoritmo de verificación CRC-16-CCITT ($0x1021$).
+       - Algoritmo de verificaciÃ³n CRC-16-CCITT ($0x1021$).
        - Roles oficiales MeshCore (`ADV_TYPE_CHAT=1`, `REPEATER=2`, `ROOM=3`, `SENSOR=4`).
        - Formato binario de la tarjeta de contacto (147 bytes estructurados).
        - Estructura de 8 canales LoRa (Canal 0 abierto, Canales 1-7 AES-128 PSK).
-       - Catálogo completo de comandos host (`0x01` a `0x3A`) y notificaciones push (`0x80` a `0x8A`).
-       - Especificación de telemetría ambiental CayenneLPP y matrices de tópicos MQTT / n8n.
-     - Actualizó [`src/protocol_types.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/protocol_types.py) con nuevos modelos de hardware reconocidos (`HardwareModel`).
+       - CatÃ¡logo completo de comandos host (`0x01` a `0x3A`) y notificaciones push (`0x80` a `0x8A`).
+       - EspecificaciÃ³n de telemetrÃ­a ambiental CayenneLPP y matrices de tÃ³picos MQTT / n8n.
+     - ActualizÃ³ [`src/protocol_types.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/protocol_types.py) con nuevos modelos de hardware reconocidos (`HardwareModel`).
   2. **Agente 0 (Agente Principal / Orchestrator)**:
-     - Realizó verificación estática con `mypy --strict src/` (0 errores) y `ruff check`.
-     - Sincronizó los artefactos y documentación en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vía `sync_deploy.py`.
+     - RealizÃ³ verificaciÃ³n estÃ¡tica con `mypy --strict src/` (0 errores) y `ruff check`.
+     - SincronizÃ³ los artefactos y documentaciÃ³n en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) vÃ­a `sync_deploy.py`.
 
 ---
 - **Fecha**: 2026-08-18
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Coordinó la comprobación formal de la especificación de tipos MeshCore y la integración del borrado interactivo en UI y hardware.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ la comprobaciÃ³n formal de la especificaciÃ³n de tipos MeshCore y la integraciÃ³n del borrado interactivo en UI y hardware.
 - **Contribuciones de Agentes**:
   1. **Agente 1 (Protocol & Firmware Investigator Agent)**:
-     - Verificó en el firmware oficial (`AdvertDataHelpers.h`) la definición estricta de roles/tipos de anuncio: `ADV_TYPE_CHAT = 1` (Chat/Companion), `ADV_TYPE_REPEATER = 2` (Repetidor/Router), `ADV_TYPE_ROOM = 3` (Servidor de Sala) y `ADV_TYPE_SENSOR = 4` (Sensor de Telemetría).
-     - Documentó `FirmwareAdvertType` en [`src/protocol_types.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/protocol_types.py).
+     - VerificÃ³ en el firmware oficial (`AdvertDataHelpers.h`) la definiciÃ³n estricta de roles/tipos de anuncio: `ADV_TYPE_CHAT = 1` (Chat/Companion), `ADV_TYPE_REPEATER = 2` (Repetidor/Router), `ADV_TYPE_ROOM = 3` (Servidor de Sala) y `ADV_TYPE_SENSOR = 4` (Sensor de TelemetrÃ­a).
+     - DocumentÃ³ `FirmwareAdvertType` en [`src/protocol_types.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/protocol_types.py).
   2. **Agente 4 (Web UI/UX Architect Agent)**:
-     - Removió los botones redundantes de sincronización manual (`btnSyncChannels`, `btnSyncContacts`), ya que la sincronización es 100% automática.
-     - Añadió botones de eliminación directa `🗑️` en canales secundarios (1-7), mensajes directos (DMs) y tarjetas del directorio/contactos.
-     - Implementó métodos `deleteChannel(index)` y `deleteContact(pubkey)` en [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js) con confirmación y retroalimentación mediante toasts.
-     - Actualizó el selector de tipos de nodo en `#createContactModal` con los roles oficiales de MeshCore.
+     - RemoviÃ³ los botones redundantes de sincronizaciÃ³n manual (`btnSyncChannels`, `btnSyncContacts`), ya que la sincronizaciÃ³n es 100% automÃ¡tica.
+     - AÃ±adiÃ³ botones de eliminaciÃ³n directa `ðŸ—‘ï¸�` en canales secundarios (1-7), mensajes directos (DMs) y tarjetas del directorio/contactos.
+     - ImplementÃ³ mÃ©todos `deleteChannel(index)` y `deleteContact(pubkey)` en [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js) con confirmaciÃ³n y retroalimentaciÃ³n mediante toasts.
+     - ActualizÃ³ el selector de tipos de nodo en `#createContactModal` con los roles oficiales de MeshCore.
   3. **Agente 0 (Agente Principal)**:
-     - Comprobó estática estricta con `mypy --strict src/` (0 errores) y `ruff check`.
-     - Dejó en ejecución permanente la simulación multi-canal y multi-contacto en el puerto 8080.
-     - Sincronizó paquete en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/).
+     - ComprobÃ³ estÃ¡tica estricta con `mypy --strict src/` (0 errores) y `ruff check`.
+     - DejÃ³ en ejecuciÃ³n permanente la simulaciÃ³n multi-canal y multi-contacto en el puerto 8080.
+     - SincronizÃ³ paquete en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/).
 
 ---
 
-### Hito Anterior: Auto-Importación en Arranque y Sincronización Continua Bidireccional con Heltec
+### Hito Anterior: Auto-ImportaciÃ³n en Arranque y SincronizaciÃ³n Continua Bidireccional con Heltec
 - **Fecha**: 2026-08-18
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Coordinó el arranque asíncrono no bloqueante y la difusión en tiempo real de canales y contactos por WebSockets.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ el arranque asÃ­ncrono no bloqueante y la difusiÃ³n en tiempo real de canales y contactos por WebSockets.
 - **Contribuciones de Agentes**:
   1. **Agente 2 (Bridge Architect Agent)**:
-     - Implementó `_auto_bootstrap_heltec_state()` en `MeshCoreBridge.start()` ([`src/bridge_core.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/bridge_core.py)) para consultar y precargar automáticamente canales (`get_channels`), libreta de contactos (`sync_all_contacts`) y parámetros de radio/hardware (`fetch_device_config`) del transceptor Heltec USB al iniciar el script.
-     - Añadió `remove_contact(pubkey)` en `BaseSerialAdapter` y `MeshcoreSDKAdapter` ([`src/serial_driver.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/serial_driver.py)).
-     - Implementó `fetch_device_config()` en `AdminCommandHandler` ([`src/admin_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin_handler.py)).
-     - Añadió difusión de eventos WebSocket (`channels_updated`, `contacts_updated`) en `WebAPIRouter` ([`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py)) al crear o eliminar canales/contactos.
+     - ImplementÃ³ `_auto_bootstrap_heltec_state()` en `MeshCoreBridge.start()` ([`src/bridge_core.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/bridge_core.py)) para consultar y precargar automÃ¡ticamente canales (`get_channels`), libreta de contactos (`sync_all_contacts`) y parÃ¡metros de radio/hardware (`fetch_device_config`) del transceptor Heltec USB al iniciar el script.
+     - AÃ±adiÃ³ `remove_contact(pubkey)` en `BaseSerialAdapter` y `MeshcoreSDKAdapter` ([`src/serial_driver.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/serial_driver.py)).
+     - ImplementÃ³ `fetch_device_config()` en `AdminCommandHandler` ([`src/admin_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin_handler.py)).
+     - AÃ±adiÃ³ difusiÃ³n de eventos WebSocket (`channels_updated`, `contacts_updated`) en `WebAPIRouter` ([`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py)) al crear o eliminar canales/contactos.
   2. **Agente 4 (Web UI/UX Architect Agent)**:
-     - Añadió receptores en tiempo real para `channels_updated` y `contacts_updated` en `handleIncomingLiveEvent` ([`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js)), asegurando que la interfaz refleje inmediatamente cualquier cambio ocurrido en el hardware o desde otros clientes.
+     - AÃ±adiÃ³ receptores en tiempo real para `channels_updated` y `contacts_updated` en `handleIncomingLiveEvent` ([`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js)), asegurando que la interfaz refleje inmediatamente cualquier cambio ocurrido en el hardware o desde otros clientes.
   3. **Agente 0 (Agente Principal)**:
-     - Comprobación estática estricta con `mypy --strict src/` (0 errores) y `ruff check`.
-     - Sincronización del paquete de despliegue en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/).
+     - ComprobaciÃ³n estÃ¡tica estricta con `mypy --strict src/` (0 errores) y `ruff check`.
+     - SincronizaciÃ³n del paquete de despliegue en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/).
 
 ---
 
-### Hito Actual: Suite Completa de Administración de Repetidores, Parser de Telemetría Real y Deduplicación Inteligente de Nodos
+### Hito Actual: Suite Completa de AdministraciÃ³n de Repetidores, Parser de TelemetrÃ­a Real y DeduplicaciÃ³n Inteligente de Nodos
 - **Fecha**: 2026-08-19
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Coordinó la resolución integral del problema de duplicación de clientes, el parser de telemetría de repetidores, y la implementación de todas las opciones de administración remota de MeshCore en backend y frontend.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ la resoluciÃ³n integral del problema de duplicaciÃ³n de clientes, el parser de telemetrÃ­a de repetidores, y la implementaciÃ³n de todas las opciones de administraciÃ³n remota de MeshCore en backend y frontend.
 - **Contribuciones de Agentes**:
   1. **Agente 1 & 2 (Investigador de Protocolo & Arquitecto de Bridge)**:
-     - Diseñó e implementó `_find_existing_key()` y motor de deduplicación canónica en `NodeRegistry` ([`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py)), eliminando duplicados causados por coincidencia de prefijos hex vs claves de 64 caracteres.
-     - Implementó `parse_repeater_telemetry_or_response()` en [`src/repeater_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/repeater_manager.py) capaz de extraer structured metrics (Battery %/mV, Solar V, RTC clock, Uptime, Airtime ms, RSSI, SNR, Noise floor dBm, Packets sent/recv/dup/err/queue, Lat/Lon/Alt, Owner Info, Firmware/Board) a partir de respuestas CLI de texto de MeshCore.
-     - Enriqueció `build_repeater_command_payload()` con los 15 comandos de administración de MeshCore (owner, advert, advert intervals, pos, sync clock, ACL mode, admin/guest passwords, identity key, radio regions/freq, neighbours, repeat settings, telemetry, reboot, version, board).
-     - Integró el parser en el despachador de eventos RF ([`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py)) para actualización en vivo vía MQTT y WebSocket.
+     - DiseÃ±Ã³ e implementÃ³ `_find_existing_key()` y motor de deduplicaciÃ³n canÃ³nica en `NodeRegistry` ([`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py)), eliminando duplicados causados por coincidencia de prefijos hex vs claves de 64 caracteres.
+     - ImplementÃ³ `parse_repeater_telemetry_or_response()` en [`src/repeater_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/repeater_manager.py) capaz de extraer structured metrics (Battery %/mV, Solar V, RTC clock, Uptime, Airtime ms, RSSI, SNR, Noise floor dBm, Packets sent/recv/dup/err/queue, Lat/Lon/Alt, Owner Info, Firmware/Board) a partir de respuestas CLI de texto de MeshCore.
+     - EnriqueciÃ³ `build_repeater_command_payload()` con los 15 comandos de administraciÃ³n de MeshCore (owner, advert, advert intervals, pos, sync clock, ACL mode, admin/guest passwords, identity key, radio regions/freq, neighbours, repeat settings, telemetry, reboot, version, board).
+     - IntegrÃ³ el parser en el despachador de eventos RF ([`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py)) para actualizaciÃ³n en vivo vÃ­a MQTT y WebSocket.
   2. **Agente 4 (Web UI/UX Architect Agent)**:
-     - Rediseñó y expandió `#repeaterAdminModal` ([`src/web/static/index.html`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/index.html)) con 7 subpestañas: Telemetría Extendida (8 tarjetas métricas), Configuración RF, Propietario & Posición, Seguridad & Control de Acceso (ACL), Malla & Vecinos, Terminal RF con Guía de Ayuda Interactiva (`help`), y Acciones Rápidas.
-     - Añadió cajón interactivo de ayuda de comandos (`#terminalHelpDrawer`) con inserción de comando a un clic.
-     - Añadió deduplicación inteligente del lado del cliente en `renderNodesDirectory()` ([`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js)).
-     - Conectó actualización en caliente del modal de administración ante eventos de telemetría entrantes.
+     - RediseÃ±Ã³ y expandiÃ³ `#repeaterAdminModal` ([`src/web/static/index.html`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/index.html)) con 7 subpestaÃ±as: TelemetrÃ­a Extendida (8 tarjetas mÃ©tricas), ConfiguraciÃ³n RF, Propietario & PosiciÃ³n, Seguridad & Control de Acceso (ACL), Malla & Vecinos, Terminal RF con GuÃ­a de Ayuda Interactiva (`help`), y Acciones RÃ¡pidas.
+     - AÃ±adiÃ³ cajÃ³n interactivo de ayuda de comandos (`#terminalHelpDrawer`) con inserciÃ³n de comando a un clic.
+     - AÃ±adiÃ³ deduplicaciÃ³n inteligente del lado del cliente en `renderNodesDirectory()` ([`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js)).
+     - ConectÃ³ actualizaciÃ³n en caliente del modal de administraciÃ³n ante eventos de telemetrÃ­a entrantes.
   3. **Agente 5 (Auditor de Seguridad)**:
-     - Corrigió BUG-01 (Thread safety en MQTT con `asyncio.run_coroutine_threadsafe`).
-     - Corrigió BUG-02 (Cierre seguro e independiente de subsistemas en `bridge_core.py`).
-     - Corrigió BUG-03 (Log de error ante RuntimeErrors en `mqtt_dispatcher.py`).
-     - Corrigió BUG-04 (Sanitización y entrecomillado en `set_channel` en `serial_driver.py`).
-     - Corrigió BUG-06 (Serialización con `asyncio.Lock` en transacciones SQLite de `store_forward.py`).
-     - Corrigió BUG-07 (Consumo de memoria O(1) con `collections.deque` en `diagnostics.py`).
+     - CorrigiÃ³ BUG-01 (Thread safety en MQTT con `asyncio.run_coroutine_threadsafe`).
+     - CorrigiÃ³ BUG-02 (Cierre seguro e independiente de subsistemas en `bridge_core.py`).
+     - CorrigiÃ³ BUG-03 (Log de error ante RuntimeErrors en `mqtt_dispatcher.py`).
+     - CorrigiÃ³ BUG-04 (SanitizaciÃ³n y entrecomillado en `set_channel` en `serial_driver.py`).
+     - CorrigiÃ³ BUG-06 (SerializaciÃ³n con `asyncio.Lock` en transacciones SQLite de `store_forward.py`).
+     - CorrigiÃ³ BUG-07 (Consumo de memoria O(1) con `collections.deque` en `diagnostics.py`).
   4. **Agente 0 (Agente Principal)**:
-     - Verificación estática estricta con `ruff check` (0 errores) y `mypy --strict src/` (0 errores en 22 módulos).
-     - Comprobación de sintaxis JS con `node --check src/web/static/js/app.js` (0 errores).
-     - Sincronización completa del paquete `/deploy/` ejecutando `python scripts/sync_deploy.py`.
+     - VerificaciÃ³n estÃ¡tica estricta con `ruff check` (0 errores) y `mypy --strict src/` (0 errores en 22 mÃ³dulos).
+     - ComprobaciÃ³n de sintaxis JS con `node --check src/web/static/js/app.js` (0 errores).
+     - SincronizaciÃ³n completa del paquete `/deploy/` ejecutando `python scripts/sync_deploy.py`.
 
 ---
 
 
 - **Fecha**: 2026-08-18
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Coordinó el diseño de modales, sincronización serial Heltec y generador QR offline.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ el diseÃ±o de modales, sincronizaciÃ³n serial Heltec y generador QR offline.
 - **Contribuciones de Agentes**:
   1. **Agente 2 (Bridge Architect Agent)**:
-     - Eliminó canales de prueba ficticios en `WebAPIRouter.__init__` (solo Canal 0 por defecto).
-     - Implementó `set_channel`, `add_contact`, y `sync_all_contacts` en `MeshcoreSDKAdapter` ([`src/serial_driver.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/serial_driver.py)).
-     - Creó endpoints `POST /api/channels/sync`, `DELETE /api/channels`, `POST /api/contacts/sync` y `DELETE /api/contacts` en [`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py).
-     - Añadió soporte de campo `role` en `NodeContactInfo` y `NodeContactUpdate` ([`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py)).
+     - EliminÃ³ canales de prueba ficticios en `WebAPIRouter.__init__` (solo Canal 0 por defecto).
+     - ImplementÃ³ `set_channel`, `add_contact`, y `sync_all_contacts` en `MeshcoreSDKAdapter` ([`src/serial_driver.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/serial_driver.py)).
+     - CreÃ³ endpoints `POST /api/channels/sync`, `DELETE /api/channels`, `POST /api/contacts/sync` y `DELETE /api/contacts` en [`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py).
+     - AÃ±adiÃ³ soporte de campo `role` en `NodeContactInfo` y `NodeContactUpdate` ([`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py)).
   2. **Agente 4 (Web UI/UX Architect Agent)**:
-     - Creó módulo generador de Códigos QR offline en Vanilla JS puro ([`src/web/static/js/qrcode.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/qrcode.js)).
-     - Diseñó modales emergentes: `#createChannelModal`, `#createContactModal`, `#qrShareModal` e `#importModal` en [`src/web/static/index.html`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/index.html).
-     - Añadió generador aleatorio de claves AES-128 (PSK) y soporte para importar por URI `meshcore://...` o JSON.
-     - Implementó reglas CSS `@media (max-width: 900px)` para evitar deformación visual en tablets y celulares, con panel drawer deslizante.
+     - CreÃ³ mÃ³dulo generador de CÃ³digos QR offline en Vanilla JS puro ([`src/web/static/js/qrcode.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/qrcode.js)).
+     - DiseÃ±Ã³ modales emergentes: `#createChannelModal`, `#createContactModal`, `#qrShareModal` e `#importModal` en [`src/web/static/index.html`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/index.html).
+     - AÃ±adiÃ³ generador aleatorio de claves AES-128 (PSK) y soporte para importar por URI `meshcore://...` o JSON.
+     - ImplementÃ³ reglas CSS `@media (max-width: 900px)` para evitar deformaciÃ³n visual en tablets y celulares, con panel drawer deslizante.
   3. **Agente 0 (Agente Principal)**:
-     - Verificó integridad estática con `mypy --strict` (0 errores) y `ruff check`.
-     - Sincronizó paquete de distribución en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) sin ejecutar pruebas automáticas (respetando orden de usuario).
+     - VerificÃ³ integridad estÃ¡tica con `mypy --strict` (0 errores) y `ruff check`.
+     - SincronizÃ³ paquete de distribuciÃ³n en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/) sin ejecutar pruebas automÃ¡ticas (respetando orden de usuario).
 
 ---
 
-### Hito Anterior: Rediseño de Mensajería, Optimización UX y Sincronización de Canales
+### Hito Anterior: RediseÃ±o de MensajerÃ­a, OptimizaciÃ³n UX y SincronizaciÃ³n de Canales
 - **Fecha**: 2026-08-18
-- **Estado**: ✅ COMPLETADO
-- **Agente Principal (Lead Orchestrator)**: Coordinó el desglose de tareas entre Web UI y Backend Serial.
+- **Estado**: âœ… COMPLETADO
+- **Agente Principal (Lead Orchestrator)**: CoordinÃ³ el desglose de tareas entre Web UI y Backend Serial.
 - **Contribuciones de Agentes**:
   1. **Agente 4 (Web UI/UX Architect)**:
-     - Reubicó los selectores de Canales LoRa y Mensajes Directos (DMs) dentro de la vista de Mensajería (`tab-chat`) en un layout integrado de dos columnas (`chat-channels-panel` y `chat-conversation-panel`).
-     - Eliminó el mensaje de bienvenida estático (`chat-welcome-card`) del feed.
-     - Renombró el botón de transmisión a `"Enviar 📤"`.
-     - Removió el botón `"Trace Route"` y su lógica asociada.
-     - Corrigió los subtítulos de canal para eliminar `"Hop limit: 3"` y reemplazarlos por descripciones contextuales (`🔓 Abierto` / `🔒 Cifrado`).
+     - ReubicÃ³ los selectores de Canales LoRa y Mensajes Directos (DMs) dentro de la vista de MensajerÃ­a (`tab-chat`) en un layout integrado de dos columnas (`chat-channels-panel` y `chat-conversation-panel`).
+     - EliminÃ³ el mensaje de bienvenida estÃ¡tico (`chat-welcome-card`) del feed.
+     - RenombrÃ³ el botÃ³n de transmisiÃ³n a `"Enviar ðŸ“¤"`.
+     - RemoviÃ³ el botÃ³n `"Trace Route"` y su lÃ³gica asociada.
+     - CorrigiÃ³ los subtÃ­tulos de canal para eliminar `"Hop limit: 3"` y reemplazarlos por descripciones contextuales (`ðŸ”“ Abierto` / `ðŸ”’ Cifrado`).
   2. **Agente 2 (Bridge Architect Agent)**:
-     - Implementó `get_channels()` en `BaseSerialAdapter` y `MeshcoreSDKAdapter` ([`src/serial_driver.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/serial_driver.py)).
-     - Actualizó `WebAPIRouter._route_channels` ([`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py)) para sincronizar los canales reales del nodo USB conectado.
+     - ImplementÃ³ `get_channels()` en `BaseSerialAdapter` y `MeshcoreSDKAdapter` ([`src/serial_driver.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/serial_driver.py)).
+     - ActualizÃ³ `WebAPIRouter._route_channels` ([`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py)) para sincronizar los canales reales del nodo USB conectado.
   3. **Agente 0 (Agente Principal)**:
-     - Concilió la compatibilidad entre el frontend SPA y el backend REST/WebSocket.
-     - Sincronizó el paquete de despliegue en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/).
+     - ConciliÃ³ la compatibilidad entre el frontend SPA y el backend REST/WebSocket.
+     - SincronizÃ³ el paquete de despliegue en [`deploy/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/deploy/).
 
 ---
 
-## 📐 Matriz de Contratos e Interfaces Activas
+## ðŸ“� Matriz de Contratos e Interfaces Activas
 
 | Subsistema / Contrato | Endpoint / Canal | Formato / Esquema | Responsable | Estado |
 |---|---|---|---|---|
 | **Canales REST** | `GET /api/channels` | `[{ index, name, psk, is_public }]` | Agente 2 / Agente 4 | Sincronizado |
-| **Envío Mensajes** | `POST /api/tx` | `{ to, text, channel_index, request_id }` | Agente 2 | Activo |
+| **EnvÃ­o Mensajes** | `POST /api/tx` | `{ to, text, channel_index, request_id }` | Agente 2 | Activo |
 | **Logs del Sistema** | `GET /api/system/logs` | `{ status, data: [...], counters, current_level }` | Agente 2 | Activo |
 | **Reporte IA** | `GET /api/diagnostics/report.md` | `{ status: "ok", markdown: "..." }` | Agente 2 / Agente 4 | Activo |
 | **Descarga Logs** | `GET /api/logs/download` | `{ status: "ok", raw_logs: "..." }` | Agente 2 | Activo |
 | **MQTT Rx Broker** | `meshcore/rx/all`, `meshcore/rx/ch_<N>` | JSON con `sender`, `text`, `channel_idx`, `is_outgoing: false` | Agente 2 | Activo |
 | **MQTT Tx Broker** | `meshcore/tx` | JSON con `to`, `text`, `channel_idx` | Agente 2 | Activo |
 
-### [TASK-2026-08-19-03] Implementación de 5 Características Avanzadas de MeshCore
+### [TASK-2026-08-19-03] ImplementaciÃ³n de 5 CaracterÃ­sticas Avanzadas de MeshCore
 - **Fecha y Hora**: 2026-08-19 18:04
 - **Agente Responsable**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect)
-- **Objetivo**: Integrar 1) Presupuesto de Airtime y Duty Cycle Compliance (1h/24h), 2) Heatmap de Cobertura RF y Matriz de Ruido, 3) Intercambio Automático de Tarjetas de Contacto (Contact Discovery), 4) Confirmaciones Criptográficas E2E (Delivery Receipts con trip_time y doble check ✓✓), y 5) Traceroute Multi-Salto Visual con desglose de saltos, RTT y SNR.
+- **Objetivo**: Integrar 1) Presupuesto de Airtime y Duty Cycle Compliance (1h/24h), 2) Heatmap de Cobertura RF y Matriz de Ruido, 3) Intercambio AutomÃ¡tico de Tarjetas de Contacto (Contact Discovery), 4) Confirmaciones CriptogrÃ¡ficas E2E (Delivery Receipts con trip_time y doble check âœ“âœ“), y 5) Traceroute Multi-Salto Visual con desglose de saltos, RTT y SNR.
 - **Archivos Modificados / Creados**:
-  - `src/rate_limiter.py`: Añadida clase `AirtimeTracker` y estructura `AirtimeRecord` con cálculo de ventanas deslizantes (1h/24h) y métricas de Duty Cycle %.
-  - `src/contact_manager.py`: Añadidos campos `auto_discovered`, `discovery_time`, `verified_identity`, `is_favorite` y métodos `discover_node()`, `list_discovered()`, `accept_discovered_contact()`.
+  - `src/rate_limiter.py`: AÃ±adida clase `AirtimeTracker` y estructura `AirtimeRecord` con cÃ¡lculo de ventanas deslizantes (1h/24h) y mÃ©tricas de Duty Cycle %.
+  - `src/contact_manager.py`: AÃ±adidos campos `auto_discovered`, `discovery_time`, `verified_identity`, `is_favorite` y mÃ©todos `discover_node()`, `list_discovered()`, `accept_discovered_contact()`.
   - `src/store_forward.py`: Creada tabla SQLite `message_receipts` con transacciones WAL para registrar mensajes salientes y confirmar entregas con `trip_time_ms`.
-  - `src/rx_router.py`: Detección en tiempo real de eventos `ACK`, balizas desconocidas (Contact Discovery) y tramas de traza multi-salto (`trace_data`).
-  - `src/admin_handler.py`: Implementado manejador de acción `traceroute` (`CMD_SEND_TRACE_PATH = 36`) con desglose de saltos, RTT y SNR.
+  - `src/rx_router.py`: DetecciÃ³n en tiempo real de eventos `ACK`, balizas desconocidas (Contact Discovery) y tramas de traza multi-salto (`trace_data`).
+  - `src/admin_handler.py`: Implementado manejador de acciÃ³n `traceroute` (`CMD_SEND_TRACE_PATH = 36`) con desglose de saltos, RTT y SNR.
   - `src/web/api_router.py`: Nuevos endpoints `GET /api/airtime/stats`, `GET /api/rf/heatmap`, `GET /api/rf/noise`, `GET /api/contacts/discovered`, `POST /api/contacts/accept`, `POST /api/traceroute`.
-  - `src/web/static/index.html`: Badge de Airtime en header, botón `🔥 Heatmap RF` en selector de capas Leaflet, banner de Contact Discovery, y modal de Traceroute Visual (`#tracerouteModal`).
-  - `src/web/static/js/app.js`: Monitoreo en vivo de Airtime/Duty Cycle, renderizado de capa Heatmap sobre Leaflet, banner reactivo de Contact Discovery, recibos de entrega en chat (✓✓ con latencia) y grafo interactivo de Traceroute.
-  - `src/web/static/css/app.css`: Estilos visuales para todos los nuevos componentes, badges, gráficas y animaciones de pulso.
+  - `src/web/static/index.html`: Badge de Airtime en header, botÃ³n `ðŸ”¥ Heatmap RF` en selector de capas Leaflet, banner de Contact Discovery, y modal de Traceroute Visual (`#tracerouteModal`).
+  - `src/web/static/js/app.js`: Monitoreo en vivo de Airtime/Duty Cycle, renderizado de capa Heatmap sobre Leaflet, banner reactivo de Contact Discovery, recibos de entrega en chat (âœ“âœ“ con latencia) y grafo interactivo de Traceroute.
+  - `src/web/static/css/app.css`: Estilos visuales para todos los nuevos componentes, badges, grÃ¡ficas y animaciones de pulso.
 - **Contratos / Interfaces Modificadas**:
   - `GET /api/airtime/stats` -> `{ hourly_used_ms, hourly_budget_ms, hourly_duty_cycle_pct, is_throttled }`
   - `GET /api/rf/heatmap` -> `{ points: [{ lat, lon, rssi, snr, weight, name, noise_floor }] }`
@@ -1297,114 +1334,114 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
   - `POST /api/contacts/accept` -> `{ public_key }`
   - `POST /api/traceroute` -> `{ target_node, path }`
   - Eventos WebSocket: `contact_discovered`, `message_delivered`, `trace_data`.
-### [TASK-2026-08-19-04] Corrección de Superposición y Minimizado de Lista de Nodos en Mapa
+### [TASK-2026-08-19-04] CorrecciÃ³n de SuperposiciÃ³n y Minimizado de Lista de Nodos en Mapa
 - **Fecha y Hora**: 2026-08-19 18:07
 - **Agente Responsable**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect)
-- **Objetivo**: Corregir superposición espacial entre el selector de capas cartográficas (`.map-layer-switcher`) y la lista flotante de nodos (`.map-overlay-info`), y dotar a la lista de nodos de capacidad interactiva de colapso y minimización con persistencia en `localStorage`.
+- **Objetivo**: Corregir superposiciÃ³n espacial entre el selector de capas cartogrÃ¡ficas (`.map-layer-switcher`) y la lista flotante de nodos (`.map-overlay-info`), y dotar a la lista de nodos de capacidad interactiva de colapso y minimizaciÃ³n con persistencia en `localStorage`.
 - **Archivos Modificados / Creados**:
-  - `src/web/static/index.html`: Agregado encabezado interactivo `#mapOverlayHeader` con botón `#btnToggleMapNodes` (`−`/`＋`) y soporte de accesibilidad `aria-expanded`.
-  - `src/web/static/css/app.css`: Reubicado `.map-layer-switcher` a `left: 56px; top: 14px;` (junto al zoom control), agregados estilos `.map-overlay-header`, `.btn-toggle-overlay` y estado `.minimized`, y soporte responsivo móvil (`<= 768px`).
-  - `src/web/static/js/app.js`: Implementado método `initMapOverlayToggle()` con listener para alternar clases, animaciones y persistencia en `localStorage.getItem("meshcore_map_nodes_minimized")`.
+  - `src/web/static/index.html`: Agregado encabezado interactivo `#mapOverlayHeader` con botÃ³n `#btnToggleMapNodes` (`âˆ’`/`ï¼‹`) y soporte de accesibilidad `aria-expanded`.
+  - `src/web/static/css/app.css`: Reubicado `.map-layer-switcher` a `left: 56px; top: 14px;` (junto al zoom control), agregados estilos `.map-overlay-header`, `.btn-toggle-overlay` y estado `.minimized`, y soporte responsivo mÃ³vil (`<= 768px`).
+  - `src/web/static/js/app.js`: Implementado mÃ©todo `initMapOverlayToggle()` con listener para alternar clases, animaciones y persistencia en `localStorage.getItem("meshcore_map_nodes_minimized")`.
 - **Contratos / Interfaces Modificadas**:
   - Estado local persistido: `meshcore_map_nodes_minimized` ("true" / "false").
-### [TASK-2026-08-19-05] Corrección de Errores de Inicialización en SQLite y collections
+### [TASK-2026-08-19-05] CorrecciÃ³n de Errores de InicializaciÃ³n en SQLite y collections
 - **Fecha y Hora**: 2026-08-19 18:08
 - **Agente Responsable**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect)
-- **Objetivo**: Corregir error de inicialización en SQLite `sqlite3.ProgrammingError: You can only execute one statement at a time` y `NameError: name 'collections' is not defined` en `AirtimeTracker`.
+- **Objetivo**: Corregir error de inicializaciÃ³n en SQLite `sqlite3.ProgrammingError: You can only execute one statement at a time` y `NameError: name 'collections' is not defined` en `AirtimeTracker`.
 - **Archivos Modificados / Creados**:
-  - `src/rate_limiter.py`: Añadido `import collections` a las importaciones del módulo.
-  - `src/store_forward.py`: Reemplazado `conn.execute()` por `conn.executescript()` en el método `_init_db()`.
-- **Contratos / Interfaces Modificadas**: Ninguno (corrección de estabilidad y robustez interna).
-### [TASK-2026-08-19-06] Depuración y Filtrado de Contactos, Exclusión de Nodo Local y Métricas RF Reales
+  - `src/rate_limiter.py`: AÃ±adido `import collections` a las importaciones del mÃ³dulo.
+  - `src/store_forward.py`: Reemplazado `conn.execute()` por `conn.executescript()` en el mÃ©todo `_init_db()`.
+- **Contratos / Interfaces Modificadas**: Ninguno (correcciÃ³n de estabilidad y robustez interna).
+### [TASK-2026-08-19-06] DepuraciÃ³n y Filtrado de Contactos, ExclusiÃ³n de Nodo Local y MÃ©tricas RF Reales
 - **Fecha y Hora**: 2026-08-19 18:20
 - **Agente Responsable**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect), Agente 2 (Bridge Architect)
-- **Objetivo**: Eliminar subtítulo obsoleto de memoria flash Heltec en pestaña Contactos, filtrar estrictamente repetidores (`R1-Lee`) para que solo aparezcan estaciones cliente, excluir la estación base local (`Node_34c0c7`) de los contactos remotos, sanear métricas RF evitando valores por defecto ficticios (`-80 dBm/10 dB/0 saltos`) y pulir estados vacíos de la interfaz.
+- **Objetivo**: Eliminar subtÃ­tulo obsoleto de memoria flash Heltec en pestaÃ±a Contactos, filtrar estrictamente repetidores (`R1-Lee`) para que solo aparezcan estaciones cliente, excluir la estaciÃ³n base local (`Node_34c0c7`) de los contactos remotos, sanear mÃ©tricas RF evitando valores por defecto ficticios (`-80 dBm/10 dB/0 saltos`) y pulir estados vacÃ­os de la interfaz.
 - **Archivos Modificados / Creados**:
-  - `src/web/static/index.html`: Eliminado subtítulo obsoleto y mejorado placeholder de búsqueda.
-  - `src/web/static/js/app.js`: Guardado de `localNodePubkey`, exclusión de `isLocal` y repetidores en `contactsGrid`, formateo estricto de mediciones reales (`snrVal`, `rssiVal`, `hopsVal`, `batVal`) y manejo elegante de estados vacíos.
-  - `src/contact_manager.py`: Valores por defecto de `last_rssi`, `last_snr`, `hops` establecidos a `None` para no simular métricas no medidas.
+  - `src/web/static/index.html`: Eliminado subtÃ­tulo obsoleto y mejorado placeholder de bÃºsqueda.
+  - `src/web/static/js/app.js`: Guardado de `localNodePubkey`, exclusiÃ³n de `isLocal` y repetidores en `contactsGrid`, formateo estricto de mediciones reales (`snrVal`, `rssiVal`, `hopsVal`, `batVal`) y manejo elegante de estados vacÃ­os.
+  - `src/contact_manager.py`: Valores por defecto de `last_rssi`, `last_snr`, `hops` establecidos a `None` para no simular mÃ©tricas no medidas.
   - `src/serial_driver.py`: Inferencia de rol en `sync_all_contacts()` basada en `type`, `adv_type` y prefijos de nombre (`R1-`, `R-`, etc.).
-- **Contratos / Interfaces Modificadas**: Ninguno (saneamiento de datos y lógica de presentación).
-### [TASK-2026-08-19-07] Deduplicación y Normalización Canónica de Claves para Mensajes Directos (DM)
+- **Contratos / Interfaces Modificadas**: Ninguno (saneamiento de datos y lÃ³gica de presentaciÃ³n).
+### [TASK-2026-08-19-07] DeduplicaciÃ³n y NormalizaciÃ³n CanÃ³nica de Claves para Mensajes Directos (DM)
 - **Fecha y Hora**: 2026-08-19 18:28
 - **Agente Responsable**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect), Agente 2 (Bridge Architect)
-- **Objetivo**: Corregir duplicación de clientes en la barra lateral de mensajes directos (DM) provocada por discrepancias entre prefijos de clave pública (`8d5accef1946` de 12 caracteres recibidos en eventos de radio) y claves completas (`8d5accef1946bc...` de 64 caracteres registradas en la libreta).
+- **Objetivo**: Corregir duplicaciÃ³n de clientes en la barra lateral de mensajes directos (DM) provocada por discrepancias entre prefijos de clave pÃºblica (`8d5accef1946` de 12 caracteres recibidos en eventos de radio) y claves completas (`8d5accef1946bc...` de 64 caracteres registradas en la libreta).
 - **Archivos Modificados / Creados**:
-  - `src/contact_manager.py`: Agregado método `get_canonical_key()` en `NodeRegistry` para resolver prefijos a claves canónicas conocidas.
-  - `src/rx_router.py`: Normalización de `sender` a la clave canónica antes de despachar eventos MQTT y WebSocket.
-  - `src/web/static/js/app.js`: Implementado método `resolveCanonicalPubkey()`, unificación de feeds `dm_${canonicalPk}`, deduplicación estricta de elementos en `#dmListUi` y sincronización bidireccional de conversaciones directas.
-- **Contratos / Interfaces Modificadas**: Ninguno (normalización de identificadores y resolución canónica interna).
-### [TASK-2026-08-19-08] Validación y Supresión de Falsos Positivos en Contact Discovery
+  - `src/contact_manager.py`: Agregado mÃ©todo `get_canonical_key()` en `NodeRegistry` para resolver prefijos a claves canÃ³nicas conocidas.
+  - `src/rx_router.py`: NormalizaciÃ³n de `sender` a la clave canÃ³nica antes de despachar eventos MQTT y WebSocket.
+  - `src/web/static/js/app.js`: Implementado mÃ©todo `resolveCanonicalPubkey()`, unificaciÃ³n de feeds `dm_${canonicalPk}`, deduplicaciÃ³n estricta de elementos en `#dmListUi` y sincronizaciÃ³n bidireccional de conversaciones directas.
+- **Contratos / Interfaces Modificadas**: Ninguno (normalizaciÃ³n de identificadores y resoluciÃ³n canÃ³nica interna).
+### [TASK-2026-08-19-08] ValidaciÃ³n y SupresiÃ³n de Falsos Positivos en Contact Discovery
 - **Fecha y Hora**: 2026-08-19 18:33
 - **Agente Responsable**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect), Agente 2 (Bridge Architect)
-- **Objetivo**: Evitar que el banner de "Nuevos Nodos Descubiertos en el Aire" se muestre si los nodos capturados ya están registrados en la libreta de contactos, o si corresponden a repetidores, infraestructura o la estación base local.
+- **Objetivo**: Evitar que el banner de "Nuevos Nodos Descubiertos en el Aire" se muestre si los nodos capturados ya estÃ¡n registrados en la libreta de contactos, o si corresponden a repetidores, infraestructura o la estaciÃ³n base local.
 - **Archivos Modificados / Creados**:
-  - `src/contact_manager.py`: En `discover_node()` y `list_discovered()`, exclusión de repetidores/sensores y preservación de `auto_discovered = False` si el nodo ya existe en la libreta de contactos.
+  - `src/contact_manager.py`: En `discover_node()` y `list_discovered()`, exclusiÃ³n de repetidores/sensores y preservaciÃ³n de `auto_discovered = False` si el nodo ya existe en la libreta de contactos.
   - `src/web/static/js/app.js`: En `fetchDiscoveredContacts()`, filtrado estricto contra `knownNodes`, repetidores y nodo local, ocultando el banner si el conteo de clientes verdaderamente nuevos es 0.
-- **Contratos / Interfaces Modificadas**: Ninguno (depuración y validación de estado de descubrimiento).
-### [TASK-2026-08-19-09] Remaquetación de Subpestañas en Ajustes, Carga Integral de Telemetría y Sistema de Delimitador/Badges de Mensajes No Leídos
+- **Contratos / Interfaces Modificadas**: Ninguno (depuraciÃ³n y validaciÃ³n de estado de descubrimiento).
+### [TASK-2026-08-19-09] RemaquetaciÃ³n de SubpestaÃ±as en Ajustes, Carga Integral de TelemetrÃ­a y Sistema de Delimitador/Badges de Mensajes No LeÃ­dos
 - **Fecha y Hora**: 2026-08-19 18:44
 - **Agente Responsable**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect), Agente 2 (Bridge Architect)
-- **Objetivo**: Remaquetar la barra de subpestañas de Ajustes en una cuadrícula CSS responsiva sin scrollbar horizontal y con scroll vertical fluido; consolidar la carga de todos los datos del nodo local y telemetría de hardware; e implementar un sistema de badges de mensajes no leídos por canal/DM con delimitador visual ("⚡ Mensajes Nuevos") en el feed de chat.
+- **Objetivo**: Remaquetar la barra de subpestaÃ±as de Ajustes en una cuadrÃ­cula CSS responsiva sin scrollbar horizontal y con scroll vertical fluido; consolidar la carga de todos los datos del nodo local y telemetrÃ­a de hardware; e implementar un sistema de badges de mensajes no leÃ­dos por canal/DM con delimitador visual ("âš¡ Mensajes Nuevos") en el feed de chat.
 - **Archivos Modificados / Creados**:
-  - `src/web/static/css/app.css`: Reemplazado `.local-settings-subtabs` por CSS Grid adaptativo (`repeat(auto-fit, minmax(170px, 1fr))`) sin `overflow-x`; ajustado scroll vertical de `.settings-view-container`; añadidos estilos para `.nav-badge-count`, `.ch-unread-badge` (con animación de pulso) y `.chat-unread-divider`.
-  - `src/web/static/index.html`: Añadido span `#globalChatUnreadBadge` en el botón principal de Mensajería.
-  - `src/web/static/js/app.js`: Implementado rastreo de `unreadCounts` y `lastReadTimestamps`; actualización reactiva de badges en canales, DMs y menú global; inserción del delimitador `chat-unread-divider` al ingresar a chats con mensajes no leídos; y enriquecido `fetchLocalNodeConfig()` con datos completos de telemetría y puerto serie.
-  - `src/admin_handler.py`: Consolidación completa de parámetros de hardware, GPS y radio en `get_local_config()`.
-- **Contratos / Interfaces Modificadas**: Ninguno (enriquecimiento de campos de configuración y mejoras de experiencia de usuario en frontend).
+  - `src/web/static/css/app.css`: Reemplazado `.local-settings-subtabs` por CSS Grid adaptativo (`repeat(auto-fit, minmax(170px, 1fr))`) sin `overflow-x`; ajustado scroll vertical de `.settings-view-container`; aÃ±adidos estilos para `.nav-badge-count`, `.ch-unread-badge` (con animaciÃ³n de pulso) y `.chat-unread-divider`.
+  - `src/web/static/index.html`: AÃ±adido span `#globalChatUnreadBadge` en el botÃ³n principal de MensajerÃ­a.
+  - `src/web/static/js/app.js`: Implementado rastreo de `unreadCounts` y `lastReadTimestamps`; actualizaciÃ³n reactiva de badges en canales, DMs y menÃº global; inserciÃ³n del delimitador `chat-unread-divider` al ingresar a chats con mensajes no leÃ­dos; y enriquecido `fetchLocalNodeConfig()` con datos completos de telemetrÃ­a y puerto serie.
+  - `src/admin_handler.py`: ConsolidaciÃ³n completa de parÃ¡metros de hardware, GPS y radio en `get_local_config()`.
+- **Contratos / Interfaces Modificadas**: Ninguno (enriquecimiento de campos de configuraciÃ³n y mejoras de experiencia de usuario en frontend).
 - **Estado**: COMPLETADO
 
-### [TASK-2026-08-19-10] Flujo Estricto de Autenticación, Gating y Gestión Persistente de Contraseñas en Repetidores LoRa
+### [TASK-2026-08-19-10] Flujo Estricto de AutenticaciÃ³n, Gating y GestiÃ³n Persistente de ContraseÃ±as en Repetidores LoRa
 - **Fecha y Hora**: 2026-08-19 18:50
 - **Agente Responsable**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect), Agente 5 (Security Auditor), Agente 2 (Bridge Architect)
-- **Objetivo**: Implementar un flujo de seguridad estricto para la administración de repetidores MeshCore remotos. Bloqueo total de parámetros y pestañas mediante pantalla de gating `#repeaterAuthGate` hasta autenticación válida; auto-login y persistencia de contraseñas por repetidor en `localStorage` (`meshcore_repeater_passwords`); invalidación inmediata de clave, bloqueo de UI y toast de error si la contraseña es incorrecta o fue modificada en el repetidor.
+- **Objetivo**: Implementar un flujo de seguridad estricto para la administraciÃ³n de repetidores MeshCore remotos. Bloqueo total de parÃ¡metros y pestaÃ±as mediante pantalla de gating `#repeaterAuthGate` hasta autenticaciÃ³n vÃ¡lida; auto-login y persistencia de contraseÃ±as por repetidor en `localStorage` (`meshcore_repeater_passwords`); invalidaciÃ³n inmediata de clave, bloqueo de UI y toast de error si la contraseÃ±a es incorrecta o fue modificada en el repetidor.
 - **Archivos Modificados / Creados**:
-  - `src/web/static/index.html`: Estructura HTML de `#repeaterAuthGate` con formulario de contraseña/PIN, botón de visibilidad y contenedor `#repeaterAdminUnlockedContent` con botón de cierre de sesión `#btnRepeaterLogout`.
-  - `src/web/static/css/app.css`: Estilos de seguridad para `.repeater-admin-modal-card.locked`, `.repeater-admin-modal-card.unlocked`, `.repeater-auth-gate`, `.auth-gate-card`, `.auth-gate-shield` y chips de autenticación.
-  - `src/web/static/js/app.js`: Implementación de `getStoredRepeaterPassword()`, `setStoredRepeaterPassword()`, `clearStoredRepeaterPassword()`, `getRepeaterPassword()`, `authenticateRepeater()`, `lockRepeaterAdminView()`, `unlockRepeaterAdminView()`, `handleRepeaterAuthError()`, auto-autenticación en `openRepeaterAdminModal()` y captura reactiva de fallos de credenciales en `handleIncomingLiveEvent()`.
-  - `src/repeater_manager.py`: Detección e inclusión de `auth_status` ("success" / "failed") y `auth_error` en `parse_repeater_telemetry_or_response()`.
-  - `src/admin_handler.py`: Manejo dedicado de la acción `login` con enmascaramiento de contraseña en los logs de comando.
-- **Contratos / Interfaces Modificadas**: Ninguno (robustecimiento de autenticación RF y experiencia SPA).
+  - `src/web/static/index.html`: Estructura HTML de `#repeaterAuthGate` con formulario de contraseÃ±a/PIN, botÃ³n de visibilidad y contenedor `#repeaterAdminUnlockedContent` con botÃ³n de cierre de sesiÃ³n `#btnRepeaterLogout`.
+  - `src/web/static/css/app.css`: Estilos de seguridad para `.repeater-admin-modal-card.locked`, `.repeater-admin-modal-card.unlocked`, `.repeater-auth-gate`, `.auth-gate-card`, `.auth-gate-shield` y chips de autenticaciÃ³n.
+  - `src/web/static/js/app.js`: ImplementaciÃ³n de `getStoredRepeaterPassword()`, `setStoredRepeaterPassword()`, `clearStoredRepeaterPassword()`, `getRepeaterPassword()`, `authenticateRepeater()`, `lockRepeaterAdminView()`, `unlockRepeaterAdminView()`, `handleRepeaterAuthError()`, auto-autenticaciÃ³n en `openRepeaterAdminModal()` y captura reactiva de fallos de credenciales en `handleIncomingLiveEvent()`.
+  - `src/repeater_manager.py`: DetecciÃ³n e inclusiÃ³n de `auth_status` ("success" / "failed") y `auth_error` en `parse_repeater_telemetry_or_response()`.
+  - `src/admin_handler.py`: Manejo dedicado de la acciÃ³n `login` con enmascaramiento de contraseÃ±a en los logs de comando.
+- **Contratos / Interfaces Modificadas**: Ninguno (robustecimiento de autenticaciÃ³n RF y experiencia SPA).
 - **Estado**: COMPLETADO
 
-### [TASK-2026-08-19-11] Saneamiento de Telemetría Nula y Carga Integral de Parámetros de Repetidores LoRa
+### [TASK-2026-08-19-11] Saneamiento de TelemetrÃ­a Nula y Carga Integral de ParÃ¡metros de Repetidores LoRa
 - **Fecha y Hora**: 2026-08-19 18:58
 - **Agente Responsable**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect), Agente 2 (Bridge Architect)
-- **Objetivo**: Corregir la representación de valores nulos en el Centro de Control RF de repetidores (eliminando textos literales "null ms", "null dBm", "null TX / null RX", "Duplicados: null"), enriquecer el parser de respuestas del firmware con extracción exhaustiva de parámetros de radio (frecuencia, potencia TX, SF, BW, CR, repetición, hops, beacon), propietario y posición fija, y automatizar la solicitud de telemetría completa y configuración al autenticar o actualizar remotamente.
+- **Objetivo**: Corregir la representaciÃ³n de valores nulos en el Centro de Control RF de repetidores (eliminando textos literales "null ms", "null dBm", "null TX / null RX", "Duplicados: null"), enriquecer el parser de respuestas del firmware con extracciÃ³n exhaustiva de parÃ¡metros de radio (frecuencia, potencia TX, SF, BW, CR, repeticiÃ³n, hops, beacon), propietario y posiciÃ³n fija, y automatizar la solicitud de telemetrÃ­a completa y configuraciÃ³n al autenticar o actualizar remotamente.
 - **Archivos Modificados / Creados**:
-  - `src/web/static/js/app.js`: Saneamiento de comprobaciones en `populateRepeaterModalData` usando `val != null` y valores de reserva adecuados (`--`); sincronización automática multiconsulta (`stats-core`, `stats-radio`, `pos`, `owner`) en `authenticateRepeater`, `openRepeaterAdminModal` y `btnRefreshRepeaterTelem`; actualización reactiva en vivo en `handleIncomingLiveEvent` para eventos directos y de telemetría.
-  - `src/repeater_manager.py`: Ampliación exhaustiva de expresiones regulares en `parse_repeater_telemetry_or_response()` para soportar todos los formatos de telemetría de repetidores de MeshCore (frecuencia, potencia, SF, BW, CR, modo repetidor, hops, beacon, posición fija, nombre/información de propietario, variantes de voltaje y airtime en segundos o milisegundos).
-  - `src/contact_manager.py`: Incorporación de campos `coding_rate` y `fixed_position` en `NodeContactInfo` y `NodeContactUpdate`.
-  - `src/rx_router.py`: Mapeo completo de todos los atributos de telemetría y radio extraídos hacia `NodeContactUpdate` en `_handle_mesh_direct_msg` y `_handle_mesh_telemetry_msg`.
+  - `src/web/static/js/app.js`: Saneamiento de comprobaciones en `populateRepeaterModalData` usando `val != null` y valores de reserva adecuados (`--`); sincronizaciÃ³n automÃ¡tica multiconsulta (`stats-core`, `stats-radio`, `pos`, `owner`) en `authenticateRepeater`, `openRepeaterAdminModal` y `btnRefreshRepeaterTelem`; actualizaciÃ³n reactiva en vivo en `handleIncomingLiveEvent` para eventos directos y de telemetrÃ­a.
+  - `src/repeater_manager.py`: AmpliaciÃ³n exhaustiva de expresiones regulares en `parse_repeater_telemetry_or_response()` para soportar todos los formatos de telemetrÃ­a de repetidores de MeshCore (frecuencia, potencia, SF, BW, CR, modo repetidor, hops, beacon, posiciÃ³n fija, nombre/informaciÃ³n de propietario, variantes de voltaje y airtime en segundos o milisegundos).
+  - `src/contact_manager.py`: IncorporaciÃ³n de campos `coding_rate` y `fixed_position` en `NodeContactInfo` y `NodeContactUpdate`.
+  - `src/rx_router.py`: Mapeo completo de todos los atributos de telemetrÃ­a y radio extraÃ­dos hacia `NodeContactUpdate` en `_handle_mesh_direct_msg` y `_handle_mesh_telemetry_msg`.
 - **Contratos / Interfaces Modificadas**: Enriquecimiento de atributos en `NodeContactInfo.to_dict()` (`coding_rate`, `fixed_position`).
 - **Estado**: COMPLETADO
 
-### [TASK-2026-08-19-13] Supresión de DMs Espurios de Comandos y Tratamiento Estricto del Nodo Local
+### [TASK-2026-08-19-13] SupresiÃ³n de DMs Espurios de Comandos y Tratamiento Estricto del Nodo Local
 - **Fecha y Hora**: 2026-08-19 19:15
 - **Agente Responsable**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect), Agente 5 (Security Auditor)
-- **Objetivo**: Corregir el despacho de comandos de administración remota (`cmd login ...`, `cmd ping`, `cmd trace ...`) como mensajes de texto de chat directo (DM) hacia clientes remotos; validar el tipo de nodo objetivo para restringir comandos de administración exclusivamente a repetidores/routers de infraestructura; migrar el traceroute a la llamada nativa por radio del SDK (`mc.commands.send_trace`); e identificar y maquetar la estación base local como nodo propio en la vista de Directorio (sin botones de DM, ping o ruta hacia sí mismo, y sin simulación espuria de mediciones de señal RF sobre sí mismo).
+- **Objetivo**: Corregir el despacho de comandos de administraciÃ³n remota (`cmd login ...`, `cmd ping`, `cmd trace ...`) como mensajes de texto de chat directo (DM) hacia clientes remotos; validar el tipo de nodo objetivo para restringir comandos de administraciÃ³n exclusivamente a repetidores/routers de infraestructura; migrar el traceroute a la llamada nativa por radio del SDK (`mc.commands.send_trace`); e identificar y maquetar la estaciÃ³n base local como nodo propio en la vista de Directorio (sin botones de DM, ping o ruta hacia sÃ­ mismo, y sin simulaciÃ³n espuria de mediciones de seÃ±al RF sobre sÃ­ mismo).
 - **Archivos Modificados / Creados**:
-  - `src/contact_manager.py`: Añadido soporte de `is_local` en `NodeContactInfo`, `NodeContactUpdate` y `NodeRegistry` (`set_local_pubkey`, `is_local_key`); el nodo local se registra con rol `LOCAL`, `hops=0` y sin métricas de señal RF recibida; exclusión de nodos locales en `list_discovered()`.
-  - `src/rx_router.py`: Detección de transmisor local para no asignarle métricas RF de recepción sobre sí mismo ni emitir eventos espurios de nuevo contacto descubierto.
-  - `src/admin_handler.py`: Protección del nodo local contra comandos remotos (`traceroute`, `ping_zero`, `login`); en `traceroute`, invocación del comando nativo de radio `mc.commands.send_trace` sin transmitir mensajes de texto de chat a los clientes; validación de repetidor antes de enviar `ping_zero` o `cmd login`; supresión de `cmd login ` con contraseña vacía.
-  - `src/bridge_core.py`: Registro automático de la clave pública del nodo local en `NodeRegistry` al sincronizar la configuración de hardware Heltec.
-  - `src/web/api_router.py`: Inclusión de `local_node_pubkey` y `local_node_name` en `/api/status`; validación de tipo y propagación de errores HTTP 400 en `/api/repeater/remote/login`, `/api/repeater/remote/config`, `/api/repeater/remote/action` y `/api/repeater/ping_zero`.
-  - `src/web/static/js/app.js`: Identificación de la tarjeta local (`isLocal`) en el Directorio Unificado con avatar `🏠`, rol `LOCAL (Estación Base)`, panel de parámetros de radio (frecuencia, potencia, SF/BW, puerto) y acceso directo a Ajustes; eliminación del botón `Ping 0` en tarjetas de clientes estándar; protección en `openDmConversation`, `openTracerouteModal` y `pingZero` para impedir ejecuciones hacia el nodo local; actualización reactiva de `localNodePubkey` desde `/api/status`.
+  - `src/contact_manager.py`: AÃ±adido soporte de `is_local` en `NodeContactInfo`, `NodeContactUpdate` y `NodeRegistry` (`set_local_pubkey`, `is_local_key`); el nodo local se registra con rol `LOCAL`, `hops=0` y sin mÃ©tricas de seÃ±al RF recibida; exclusiÃ³n de nodos locales en `list_discovered()`.
+  - `src/rx_router.py`: DetecciÃ³n de transmisor local para no asignarle mÃ©tricas RF de recepciÃ³n sobre sÃ­ mismo ni emitir eventos espurios de nuevo contacto descubierto.
+  - `src/admin_handler.py`: ProtecciÃ³n del nodo local contra comandos remotos (`traceroute`, `ping_zero`, `login`); en `traceroute`, invocaciÃ³n del comando nativo de radio `mc.commands.send_trace` sin transmitir mensajes de texto de chat a los clientes; validaciÃ³n de repetidor antes de enviar `ping_zero` o `cmd login`; supresiÃ³n de `cmd login ` con contraseÃ±a vacÃ­a.
+  - `src/bridge_core.py`: Registro automÃ¡tico de la clave pÃºblica del nodo local en `NodeRegistry` al sincronizar la configuraciÃ³n de hardware Heltec.
+  - `src/web/api_router.py`: InclusiÃ³n de `local_node_pubkey` y `local_node_name` en `/api/status`; validaciÃ³n de tipo y propagaciÃ³n de errores HTTP 400 en `/api/repeater/remote/login`, `/api/repeater/remote/config`, `/api/repeater/remote/action` y `/api/repeater/ping_zero`.
+  - `src/web/static/js/app.js`: IdentificaciÃ³n de la tarjeta local (`isLocal`) en el Directorio Unificado con avatar `ðŸ� `, rol `LOCAL (EstaciÃ³n Base)`, panel de parÃ¡metros de radio (frecuencia, potencia, SF/BW, puerto) y acceso directo a Ajustes; eliminaciÃ³n del botÃ³n `Ping 0` en tarjetas de clientes estÃ¡ndar; protecciÃ³n en `openDmConversation`, `openTracerouteModal` y `pingZero` para impedir ejecuciones hacia el nodo local; actualizaciÃ³n reactiva de `localNodePubkey` desde `/api/status`.
   - `src/web/static/css/app.css`: Estilos visuales para `.node-card.role-local-card`, `.node-card-avatar.avatar-local`, `.node-role-badge.role-local` y badges por rol.
-- **Contratos / Interfaces Modificadas**: Inclusión de `local_node_pubkey` y `local_node_name` en `GET /api/status`; campo `is_local: bool` en `NodeContactInfo.to_dict()`.
+- **Contratos / Interfaces Modificadas**: InclusiÃ³n de `local_node_pubkey` y `local_node_name` en `GET /api/status`; campo `is_local: bool` en `NodeContactInfo.to_dict()`.
 - **Estado**: COMPLETADO
 
 ---
 
-## 📝 Plantilla de Registro para Nuevas Tareas
+## ðŸ“� Plantilla de Registro para Nuevas Tareas
 
-Cada vez que un agente comience o finalice una tarea, agregará una entrada en la siguiente estructura:
+Cada vez que un agente comience o finalice una tarea, agregarÃ¡ una entrada en la siguiente estructura:
 
 ```markdown
 ### [ID de Tarea] [Nombre Descriptivo de la Tarea]
 - **Fecha y Hora**: YYYY-MM-DD HH:MM
 - **Agente Responsable**: [Agente 1 / Agente 2 / Agente 4 / Agente 5]
-- **Objetivo**: [Descripción concisa del requerimiento]
+- **Objetivo**: [DescripciÃ³n concisa del requerimiento]
 - **Archivos Modificados / Creados**:
   - `src/...`
   - `src/web/...`
@@ -1418,42 +1455,42 @@ Cada vez que un agente comience o finalice una tarea, agregará una entrada en l
 ### [TASK-2026-08-26-01] Concurrencia y Resiliencia FASE 1B + 2
 - **Fecha y Hora**: 2026-08-26 23:05
 - **Agente Responsable**: Agente 2 (Bridge Architect)
-- **Objetivo**: Implementar correcciones de concurrencia y resiliencia (drain/backpressure en broadcasts, protección de estructuras no thread-safe, maxsize en TxQueue, semáforo en RX, timeout en WS, etc).
+- **Objetivo**: Implementar correcciones de concurrencia y resiliencia (drain/backpressure en broadcasts, protecciÃ³n de estructuras no thread-safe, maxsize en TxQueue, semÃ¡foro en RX, timeout en WS, etc).
 - **Archivos Modificados / Creados**:
   - config.py: Agregados MAX_TX_QUEUE_SIZE, MAX_RX_CONCURRENCY, WS_IDLE_TIMEOUT_SEC.
   - src/web/http_server.py: \roadcast_event\ es ahora corutina con discard de clientes lentos y wait_for drain; timeout aplicado a eader.read\ en WS.
-  - src/tcp_companion_server.py: \roadcast_companion_frame\ y \send_frame_to_client\ con validación de buffer y drain timeout. Buffer limits al registrar clientes.
-  - src/deduplicator.py: Agregados locks asíncronos y síncronos para operaciones thread-safe sobre el cache.
+  - src/tcp_companion_server.py: \roadcast_companion_frame\ y \send_frame_to_client\ con validaciÃ³n de buffer y drain timeout. Buffer limits al registrar clientes.
+  - src/deduplicator.py: Agregados locks asÃ­ncronos y sÃ­ncronos para operaciones thread-safe sobre el cache.
   - src/rate_limiter.py: \CustomTxQueue\ implementa \maxsize\ configurable con captura de \QueueFull\. Atributos \	otal_dropped\.
-  - src/bridge_core.py: Cancelación y recolección de tareas background al apagar. Limpiador de \_background_tasks\ periódico con lock. Eliminado \_tx_worker\ duplicado. Contadores de TX protegidos con lock. Reconexión serial invoca \wait connect()\.
-  - src/rx_router.py: Incorporado \syncio.Semaphore\ para limitar concurrencia en la validación y despacho de tramas (CONC-004). Llamadas a web broadcast refactorizadas.
+  - src/bridge_core.py: CancelaciÃ³n y recolecciÃ³n de tareas background al apagar. Limpiador de \_background_tasks\ periÃ³dico con lock. Eliminado \_tx_worker\ duplicado. Contadores de TX protegidos con lock. ReconexiÃ³n serial invoca \wait connect()\.
+  - src/rx_router.py: Incorporado \syncio.Semaphore\ para limitar concurrencia en la validaciÃ³n y despacho de tramas (CONC-004). Llamadas a web broadcast refactorizadas.
   - src/serial_driver.py: Agregado \wait_for\ timeout a \ping_or_check_alive\.
-  - src/mqtt_client.py: \get_running_loop\ en lugar de \get_event_loop\. Try-catch añadido al callback \on_message\ directo.
+  - src/mqtt_client.py: \get_running_loop\ en lugar de \get_event_loop\. Try-catch aÃ±adido al callback \on_message\ directo.
   - src/mqtt_dispatcher.py: Agregado timeout en el wait de la request de TX (CONC-009).
   - src/admin_handler.py, src/web/api_router.py: Adaptadas a la API async de websockets broadcast y rate limiter.
-  - 	ests/test_tx_rate_limiter.py, 	ests/test_stress_flood.py: Fixes para compatibilidad por eliminación del worker obsoleto.
-- **Contratos / Interfaces Modificadas**: APIs internas cambiaron en su firma de asincronía (broadcast_event). Las interfaces externas (MQTT, REST, TCP) mantienen contratos previos.
+  - 	ests/test_tx_rate_limiter.py, 	ests/test_stress_flood.py: Fixes para compatibilidad por eliminaciÃ³n del worker obsoleto.
+- **Contratos / Interfaces Modificadas**: APIs internas cambiaron en su firma de asincronÃ­a (broadcast_event). Las interfaces externas (MQTT, REST, TCP) mantienen contratos previos.
 - **Estado**: COMPLETADO
 # #   A g e n t e   1   -   P r o t o c o l   &   T y p e s   S p e c i a l i s t 
  
  * * C a m b i o s   I m p l e m e n t a d o s : * * 
- -   * * Q U A L - 0 0 1 * * :   S e   c a m b i �   ` N o d e C o n t a c t I n f o . n e i g h b o r s `   d e   ` l i s t [ s t r ] `   a   ` t u p l e [ s t r ,   . . . ] `   y   s e   a c t u a l i z �   s u   i n s t a n c i a c i � n   p a s a n d o   ` t u p l e ( . . . ) ` . 
- -   * * Q U A L - 0 0 2 * * :   S e   a g r e g a r o n   l o s   m � t o d o s   c o n c r e t o s   d e l   c l i e n t e   p a h o - m q t t   e n   ` M q t t C l i e n t P r o t o c o l `   ( b r i d g e _ c o r e . p y ) . 
- -   * * Q U A L - 0 0 6 * * :   S e   a g r e g �   e l   m o d o   e s t r i c t o   e n   ` p a r s e _ r a w _ p a c k e t `   e n   ` p r o t o c o l _ t y p e s . p y `   y   s e   u s a   c o n   ` s t r i c t = T r u e `   e n   ` s e r i a l _ d r i v e r . p y `   e m i t i e n d o   w a r n i n g s   s i   l a   t r a m a   e s   r e c h a z a d a . 
- -   * * Q U A L - 0 0 7   /   Q U A L - 0 1 5 * * :   S e   a � a d i �   y   s e   i n v o c �   a l   f i n a l   d e   ` c o n f i g . p y `   l a   v a l i d a c i � n   p a r a   p u e r t o s ,   b a u d   r a t e s ,   S F ,   a n c h o s   d e   b a n d a   y   t i e m p o s   d e   e s p e r a . 
- -   * * R O B - 0 1 1 * * :   S e   i n c l u y �   u n   c o m e n t a r i o   d o c u m e n t a n d o   e l   e n d i a n n e s s   d e   C R C   e n   ` p r o t o c o l _ t y p e s . p y ` . 
+ -   * * Q U A L - 0 0 1 * * :   S e   c a m b i ó   ` N o d e C o n t a c t I n f o . n e i g h b o r s `   d e   ` l i s t [ s t r ] `   a   ` t u p l e [ s t r ,   . . . ] `   y   s e   a c t u a l i z ó   s u   i n s t a n c i a c i ó n   p a s a n d o   ` t u p l e ( . . . ) ` . 
+ -   * * Q U A L - 0 0 2 * * :   S e   a g r e g a r o n   l o s   m é t o d o s   c o n c r e t o s   d e l   c l i e n t e   p a h o - m q t t   e n   ` M q t t C l i e n t P r o t o c o l `   ( b r i d g e _ c o r e . p y ) . 
+ -   * * Q U A L - 0 0 6 * * :   S e   a g r e g ó   e l   m o d o   e s t r i c t o   e n   ` p a r s e _ r a w _ p a c k e t `   e n   ` p r o t o c o l _ t y p e s . p y `   y   s e   u s a   c o n   ` s t r i c t = T r u e `   e n   ` s e r i a l _ d r i v e r . p y `   e m i t i e n d o   w a r n i n g s   s i   l a   t r a m a   e s   r e c h a z a d a . 
+ -   * * Q U A L - 0 0 7   /   Q U A L - 0 1 5 * * :   S e   a ñ a d i ó   y   s e   i n v o c ó   a l   f i n a l   d e   ` c o n f i g . p y `   l a   v a l i d a c i ó n   p a r a   p u e r t o s ,   b a u d   r a t e s ,   S F ,   a n c h o s   d e   b a n d a   y   t i e m p o s   d e   e s p e r a . 
+ -   * * R O B - 0 1 1 * * :   S e   i n c l u y ó   u n   c o m e n t a r i o   d o c u m e n t a n d o   e l   e n d i a n n e s s   d e   C R C   e n   ` p r o t o c o l _ t y p e s . p y ` . 
   
  
  # # #   [ T A S K - 2 0 2 6 - 0 8 - 2 6 - 0 2 ]   Q U A L   R e f a c t o r i n g   ( e v e n t _ u t i l s ,   c o n n e c t ,   r x _ r o u t e r _ c o m m o n ) 
  -   * * F e c h a   y   H o r a * * :   2 0 2 6 - 0 8 - 2 6   2 3 : 1 3 
  -   * * A g e n t e   R e s p o n s a b l e * * :   A g e n t e   2   ( R e f a c t o r i n g   &   A r c h i t e c t u r e   S p e c i a l i s t ) 
- -   * * O b j e t i v o * * :   I m p l e m e n t a r   m e j o r a s   d e   c a l i d a d   y   r e f a c t o r i z a c i � n   s o l i c i t a d a s   ( Q U A L - 0 0 3 ,   Q U A L - 0 0 9 ,   Q U A L - 0 1 1 ) . 
+ -   * * O b j e t i v o * * :   I m p l e m e n t a r   m e j o r a s   d e   c a l i d a d   y   r e f a c t o r i z a c i ó n   s o l i c i t a d a s   ( Q U A L - 0 0 3 ,   Q U A L - 0 0 9 ,   Q U A L - 0 1 1 ) . 
  -   * * A r c h i v o s   M o d i f i c a d o s   /   C r e a d o s * * : 
      -   s r c / e v e n t _ u t i l s . p y :   C r e a d o   a r c h i v o   n u e v o   c o n   \ e x t r a c t _ s e n d e r _ f r o m _ p a y l o a d \   ( S S o T   p a r a   r e m i t e n t e s )   [ Q U A L - 0 0 3 ] . 
-     -   s r c / r x _ r o u t e r . p y :   U s a d a   \ e x t r a c t _ s e n d e r _ f r o m _ p a y l o a d \ .   R e f a c t o r i z a d a   l � g i c a   c o m � n   e n t r e   \ _ h a n d l e _ m e s h _ c h a n n e l _ m s g \   y   \ _ h a n d l e _ m e s h _ d i r e c t _ m s g \   a   \ _ h a n d l e _ m e s h _ m s g _ c o m m o n \   [ Q U A L - 0 1 1 ] .   L l a m a d a s   a s � n c r o n a s   a d a p t a d a s   e n   \ h a n d l e _ e v e n t \ . 
+     -   s r c / r x _ r o u t e r . p y :   U s a d a   \ e x t r a c t _ s e n d e r _ f r o m _ p a y l o a d \ .   R e f a c t o r i z a d a   l ó g i c a   c o m ú n   e n t r e   \ _ h a n d l e _ m e s h _ c h a n n e l _ m s g \   y   \ _ h a n d l e _ m e s h _ d i r e c t _ m s g \   a   \ _ h a n d l e _ m e s h _ m s g _ c o m m o n \   [ Q U A L - 0 1 1 ] .   L l a m a d a s   a s í n c r o n a s   a d a p t a d a s   e n   \ h a n d l e _ e v e n t \ . 
      -   s r c / w e b / a p i _ r o u t e r . p y :   U s a d a   \ e x t r a c t _ s e n d e r _ f r o m _ p a y l o a d \   [ Q U A L - 0 0 3 ] . 
-     -   s r c / s e r i a l _ d r i v e r . p y :   R e f a c t o r i z a d o   m � t o d o   \ c o n n e c t ( ) \   p a r a   s e r   n o   b l o q u e a n t e   y   d i s p a r a r   p r o c e s o   e n   b a c k g r o u n d   ( \ _ c o n n e c t _ w i t h _ s t a b i l i z a t i o n \ )   [ Q U A L - 0 0 9 ] . 
- -   * * C o n t r a t o s   /   I n t e r f a c e s   M o d i f i c a d a s * * :   S e   m o v i �   l � g i c a   e s t a n d a r i z a d a   a   u n   m � d u l o   n u e v o .   \ c o n n e c t \   a h o r a   r e t o r n a   i n s t a n t � n e a m e n t e . 
+     -   s r c / s e r i a l _ d r i v e r . p y :   R e f a c t o r i z a d o   m é t o d o   \ c o n n e c t ( ) \   p a r a   s e r   n o   b l o q u e a n t e   y   d i s p a r a r   p r o c e s o   e n   b a c k g r o u n d   ( \ _ c o n n e c t _ w i t h _ s t a b i l i z a t i o n \ )   [ Q U A L - 0 0 9 ] . 
+ -   * * C o n t r a t o s   /   I n t e r f a c e s   M o d i f i c a d a s * * :   S e   m o v i ó   l ó g i c a   e s t a n d a r i z a d a   a   u n   m ó d u l o   n u e v o .   \ c o n n e c t \   a h o r a   r e t o r n a   i n s t a n t á n e a m e n t e . 
  -   * * A c c i o n e s   R e q u e r i d a s   p o r   e l   A g e n t e   P r i n c i p a l * * :   
      -   ( N o t a :   Q U A L - 0 1 0   y   Q U A L - 0 1 3   s e   o m i t i e r o n   y a   q u e   \ c o n t a c t _ m a n a g e r . p y \   y   \ h t t p _ s e r v e r . p y \   e s t a b a n   e s t r i c t a m e n t e   p r o h i b i d o s   p o r   S y s t e m   I n s t r u c t i o n s ) . 
  -   * * E s t a d o * * :   C O M P L E T A D O 
@@ -1464,13 +1501,13 @@ Cada vez que un agente comience o finalice una tarea, agregará una entrada en l
 - **Agente Responsable**: Agente 4 (Web UI/UX & Frontend Specialist)
 - **Objetivo**: Implementar mejoras de frontend solicitadas (FE-001 a FE-005) y robustez menor (ROB-005, ROB-006).
 - **Archivos Modificados / Creados**:
-  - src/web/static/js/app.js: Implementado auto-reconnect WebSocket con backoff exponencial. Mitigación XSS (textContent y escapeHtml) para variables interpoladas. Método updateConnectionBadge añadido.
+  - src/web/static/js/app.js: Implementado auto-reconnect WebSocket con backoff exponencial. MitigaciÃ³n XSS (textContent y escapeHtml) para variables interpoladas. MÃ©todo updateConnectionBadge aÃ±adido.
   - src/web/static/index.html: Badge de WS insertado en el header.
   - src/web/static/css/app.css: Estilos para el badge WS.
-  - src/web/http_server.py: Diccionario HTTP_STATUS_TEXTS agregado para mapeo de códigos a textos HTTP.
-  - src/web/api_router.py: Paginación mediante limit y offset soportada en /api/nodes, /api/messages, /api/telemetry.
-  - src/bridge_core.py: Debug mode loop configurado según LOG_LEVEL.
-  - config.py: Definición SQLITE_DB_PATH apuntando a data/meshcore_buffer.db.
+  - src/web/http_server.py: Diccionario HTTP_STATUS_TEXTS agregado para mapeo de cÃ³digos a textos HTTP.
+  - src/web/api_router.py: PaginaciÃ³n mediante limit y offset soportada en /api/nodes, /api/messages, /api/telemetry.
+  - src/bridge_core.py: Debug mode loop configurado segÃºn LOG_LEVEL.
+  - config.py: DefiniciÃ³n SQLITE_DB_PATH apuntando a data/meshcore_buffer.db.
   - .gitignore: Ignorar la carpeta data y db local.
 - **Estado**: COMPLETADO
 F a s e   5   -   C O M P A T - 0 0 1   t o   C O M P A T - 0 1 2   t e r m i n a d o s  

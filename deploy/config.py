@@ -74,11 +74,15 @@ TOPIC_ADMIN_CMD   = f"{TOPIC_PREFIX}/admin/cmd"        # Entrada de comandos de 
 TOPIC_ADMIN_STAT  = f"{TOPIC_PREFIX}/admin/status"     # Respuesta de comandos de administración
 TOPIC_ADMIN_REPEATER = f"{TOPIC_PREFIX}/admin/repeater" # Gestión remota de repetidores por RF
 
+MQTT_MAX_PAYLOAD_BYTES = _safe_int("MQTT_MAX_PAYLOAD_BYTES", 128 * 1024)
+
 # ================= Parámetros de Resiliencia y Control =================
 TX_INTERVAL_SEC = _safe_float("TX_INTERVAL_SEC", 1.0)                 # Espaciado de transmisión RF (LoRa Rate Limiter)
 DEDUPLICATION_WINDOW_SEC = _safe_float("DEDUPLICATION_WINDOW_SEC", 60.0) # Ventana temporal de deduplicación de paquetes en RAM (segundos)
 WATCHDOG_INTERVAL_SEC = _safe_float("WATCHDOG_INTERVAL_SEC", 60.0)     # Intervalo de supervisión de vivacidad serial
 HEALTH_METRICS_INTERVAL_SEC = _safe_float("HEALTH_METRICS_INTERVAL_SEC", 60.0) # Intervalo de reporte de salud
+MAX_RECONNECT_ATTEMPTS = _safe_int("MAX_RECONNECT_ATTEMPTS", 0)       # 0 = reintentos ilimitados
+NODE_REGISTRY_STORAGE_PATH = os.getenv("NODE_REGISTRY_STORAGE_PATH", os.path.join("data", "node_registry.json"))
 
 # ================= Parámetros de Concurrencia (Nuevos) =================
 MAX_TX_QUEUE_SIZE = _safe_int("MAX_TX_QUEUE_SIZE", 500)
@@ -113,3 +117,47 @@ LOG_FILE_PATH = os.getenv("LOG_FILE_PATH", os.path.join(LOG_DIR, "meshcore-bridg
 LOG_ERROR_FILE_PATH = os.getenv("LOG_ERROR_FILE_PATH", os.path.join(LOG_DIR, "meshcore-bridge.error.log"))
 LOG_MAX_BYTES = _safe_int("LOG_MAX_BYTES", 5 * 1024 * 1024)       # 5 MB por archivo antes de rotar
 LOG_BACKUP_COUNT = _safe_int("LOG_BACKUP_COUNT", 3)                # Mantener hasta 3 copias históricas (.1, .2, .3)
+
+# ================= Base de Datos =================
+SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", "data/meshcore_buffer.db")
+
+def _validate_config() -> None:
+    import sys
+    errors: list[str] = []
+    warnings: list[str] = []
+    
+    # Spreading Factor
+    if not (7 <= LORA_DEFAULT_SF <= 12):
+        errors.append(f"LORA_DEFAULT_SF={LORA_DEFAULT_SF} must be in range 7-12")
+    
+    # Bandwidth
+    if LORA_DEFAULT_BW_KHZ not in (125.0, 250.0, 500.0):
+        warnings.append(f"LORA_DEFAULT_BW_KHZ={LORA_DEFAULT_BW_KHZ} is non-standard (use 125, 250, or 500)")
+    
+    # Ports
+    if not (1 <= MQTT_PORT <= 65535):
+        errors.append(f"MQTT_PORT={MQTT_PORT} must be in range 1-65535")
+    if not (1 <= WEB_PORT <= 65535):
+        errors.append(f"WEB_PORT={WEB_PORT} must be in range 1-65535")
+    if not (1 <= TCP_SERVER_PORT <= 65535):
+        errors.append(f"TCP_SERVER_PORT={TCP_SERVER_PORT} must be in range 1-65535")
+    
+    # Baud rate
+    if BAUD_RATE not in (9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600):
+        warnings.append(f"BAUD_RATE={BAUD_RATE} is non-standard")
+    
+    # Timeouts
+    if WATCHDOG_INTERVAL_SEC < 5.0:
+        warnings.append(f"WATCHDOG_INTERVAL_SEC={WATCHDOG_INTERVAL_SEC} < 5s may cause false disconnects")
+    if WS_IDLE_TIMEOUT_SEC < 5.0:
+        warnings.append(f"WS_IDLE_TIMEOUT_SEC={WS_IDLE_TIMEOUT_SEC} < 5s may cause premature WS disconnects")
+    
+    import logging as _log
+    for w in warnings:
+        _log.warning(f"[CONFIG] {w}")
+    if errors:
+        for e in errors:
+            _log.critical(f"[CONFIG] FATAL: {e}")
+        sys.exit("Configuration errors found. Fix your .env file.")
+
+_validate_config()

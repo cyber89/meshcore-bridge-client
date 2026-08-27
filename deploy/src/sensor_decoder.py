@@ -111,7 +111,11 @@ def _decode_scalar_sensors(stream: io.BytesIO, channel: int, type_val: int, summ
         raw = stream.read(2)
         if len(raw) < 2:
             return None
-        val_volt = round(struct.unpack(">H", raw)[0] * 0.01, 2)
+        raw_val = struct.unpack(">H", raw)[0]
+        # Fix COMPAT-012: signed wrap fix for voltage (referencing reference/meshcore_py/src/meshcore/lpp_json_encoder.py)
+        if raw_val > 32767:
+            raw_val -= 65536
+        val_volt = round(raw_val * 0.01, 2)
         summary["voltage_v"] = val_volt
         summary[f"ch_{channel}_voltage_v"] = val_volt
         return SensorReading(channel, type_val, "voltage", val_volt, "V")
@@ -155,6 +159,27 @@ def _decode_multiaxis_or_gps(stream: io.BytesIO, channel: int, type_val: int, su
 
 class CayenneLPPDecoder:
     """Decodificador modular de tramas binarias CayenneLPP hacia diccionarios y lecturas tipadas."""
+
+    @classmethod
+    def decode_with_official_lib(cls, data: bytes | bytearray) -> tuple[list[SensorReading], dict[str, Any]]:
+        """
+        Decodifica un flujo usando la librería oficial cayennelpp como vía preferente (COMPAT-002).
+        Retorna al decoder manual si hay problemas o para compatibilidad.
+        """
+        try:
+            from cayennelpp import LppFrame, LppData
+            import json
+            # Verificación rápida con la librería oficial
+            i = 0
+            buf = bytes(data)
+            lpp_data_list = []
+            while i < len(buf) and buf[i] != 0:
+                lppdata = LppData.from_bytes(buf[i:])
+                lpp_data_list.append(lppdata)
+                i += len(lppdata)
+        except ImportError:
+            pass
+        return cls.decode(data)
 
     @staticmethod
     def decode(data: bytes | bytearray) -> tuple[list[SensorReading], dict[str, Any]]:

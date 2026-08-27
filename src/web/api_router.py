@@ -222,7 +222,7 @@ class WebAPIRouter:
             if method == "GET" and clean_path in ("/api/analytics", "/api/metrics/analytics"):
                 return await self._route_analytics()
 
-            if clean_path in ("/api/contacts", "/api/contacts/sync"):
+            if clean_path in ("/api/contacts", "/api/contacts/sync", "/api/contacts/share", "/api/contacts/export", "/api/contacts/import"):
                 return await self._route_contacts(clean_path, method, req_body)
 
             if clean_path in ("/api/channels", "/api/channels/sync"):
@@ -316,6 +316,15 @@ class WebAPIRouter:
                     self.log_system_event("WARN", f"Fallo de autenticación con repetidor {target}: {res.get('message', 'Contraseña incorrecta o sin respuesta')}", source="repeater_admin")
                     return 401, {"status": "error", "message": res.get("message", "Contraseña incorrecta o sin respuesta del repetidor"), "data": res}
                 self.log_system_event("INFO", f"Autenticación exitosa con repetidor {target}", source="repeater_admin")
+                return 200, {"status": "ok", "data": res}
+
+            if method == "POST" and clean_path in ("/api/repeater/remote/logout", "/api/repeater/logout"):
+                target = str(req_body.get("target_node", req_body.get("repeater", ""))).strip()
+                if not target:
+                    return 400, {"status": "error", "message": "Se requiere 'target_node'"}
+                cmd = {"action": "logout", "target_node": target}
+                res = await self.bridge.handle_admin(cmd)
+                self.log_system_event("INFO", f"Sesión cerrada en repetidor {target}", source="repeater_admin")
                 return 200, {"status": "ok", "data": res}
 
             if method == "POST" and clean_path == "/api/repeater/remote/config":
@@ -586,6 +595,32 @@ class WebAPIRouter:
             nodes = self.bridge.node_registry.list_nodes()
             return 200, {"status": "ok", "imported": imported_count, "data": nodes, "count": len(nodes)}
 
+        if path == "/api/contacts/share" and method == "POST":
+            pubkey = str(req_body.get("public_key", req_body.get("key", ""))).strip()
+            if not pubkey:
+                return 400, {"status": "error", "message": "Se requiere 'public_key'"}
+            ser = getattr(self.bridge, "serial_adapter", None)
+            res = await ser.share_contact(pubkey) if ser and hasattr(ser, "share_contact") else None
+            self.log_system_event("INFO", f"Contacto compartido con la malla: {pubkey}", source="contacts")
+            return 200, {"status": "ok", "result": res}
+
+        if path == "/api/contacts/export" and method in ("GET", "POST"):
+            pubkey = str(req_body.get("public_key", req_body.get("key", ""))).strip()
+            ser = getattr(self.bridge, "serial_adapter", None)
+            res = await ser.export_contact(pubkey) if ser and hasattr(ser, "export_contact") else None
+            return 200, {"status": "ok", "result": res}
+
+        if path == "/api/contacts/import" and method == "POST":
+            hex_data = str(req_body.get("data", "")).strip()
+            ser = getattr(self.bridge, "serial_adapter", None)
+            try:
+                bin_data = bytes.fromhex(hex_data) if hex_data else b""
+            except ValueError:
+                return 400, {"status": "error", "message": "Formato hexadecimal inválido en 'data'"}
+            res = await ser.import_contact(bin_data) if ser and hasattr(ser, "import_contact") else None
+            self.log_system_event("INFO", "Contacto importado vía API", source="contacts")
+            return 200, {"status": "ok", "result": res}
+
         if method == "GET":
             nodes = self.bridge.node_registry.list_nodes()
             return 200, {"status": "ok", "data": nodes, "count": len(nodes)}
@@ -613,7 +648,7 @@ class WebAPIRouter:
             # Notificar a los clientes WebSocket en tiempo real
             web = getattr(self.bridge, "web_server", None)
             if web:
-                import asyncio; asyncio.create_task(web.broadcast_event({"type": "contacts_updated", "data": self.bridge.node_registry.list_nodes()}))
+                asyncio.create_task(web.broadcast_event({"type": "contacts_updated", "data": self.bridge.node_registry.list_nodes()}))
 
             self.log_system_event("INFO", f"Contacto guardado: {pubkey} ({alias or name})", source="contacts")
             return 200, {"status": "ok", "data": contact.to_dict()}
@@ -631,7 +666,7 @@ class WebAPIRouter:
                 del self.bridge.node_registry._nodes_by_key[pubkey]
                 web = getattr(self.bridge, "web_server", None)
                 if web:
-                    import asyncio; asyncio.create_task(web.broadcast_event({"type": "contacts_updated", "data": self.bridge.node_registry.list_nodes()}))
+                    asyncio.create_task(web.broadcast_event({"type": "contacts_updated", "data": self.bridge.node_registry.list_nodes()}))
                 return 200, {"status": "ok", "message": f"Contacto {pubkey} eliminado"}
             return 404, {"status": "error", "message": "Contacto no encontrado"}
 
@@ -689,7 +724,7 @@ class WebAPIRouter:
 
             web = getattr(self.bridge, "web_server", None)
             if web:
-                import asyncio; asyncio.create_task(web.broadcast_event({"type": "channels_updated", "data": list(self.channels.values())}))
+                asyncio.create_task(web.broadcast_event({"type": "channels_updated", "data": list(self.channels.values())}))
 
             self.log_system_event("INFO", f"Canal {idx} configurado: {name}", source="channels")
             return 200, {"status": "ok", "data": self.channels[idx]}
@@ -711,7 +746,7 @@ class WebAPIRouter:
                         logging.debug(f"Error limpiando canal en transceptor serial: {e}")
                 web = getattr(self.bridge, "web_server", None)
                 if web:
-                    import asyncio; asyncio.create_task(web.broadcast_event({"type": "channels_updated", "data": list(self.channels.values())}))
+                    asyncio.create_task(web.broadcast_event({"type": "channels_updated", "data": list(self.channels.values())}))
                 return 200, {"status": "ok", "message": f"Canal {idx} eliminado"}
             return 404, {"status": "error", "message": "Canal no encontrado"}
 
