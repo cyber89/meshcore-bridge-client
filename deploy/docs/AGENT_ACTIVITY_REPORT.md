@@ -6,6 +6,20 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Corrección de Atributos Slots en RxRouterContext y AdminContext
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect).
+- **Problema / Requerimiento**:
+  - Error en ejecución: `Error procesando evento de radio Mesh: 'RxRouterContext' object has no attribute 'last_rx_rssi' and no __dict__ for setting new attributes`.
+- **Causa Raíz Identificada**:
+  - La clase `@dataclass(slots=True) RxRouterContext` no tenía declarados los campos `last_rx_rssi` y `last_rx_snr`, por lo que Python bloqueaba la asignación dinámica al usar optimización de memoria por slots.
+- **Acciones Realizadas**:
+  - Se declararon formalmente los slots `last_rx_rssi: int | None = None` y `last_rx_snr: float | None = None` en `RxRouterContext` ([`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py)) y en `AdminContext` ([`src/admin_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin_handler.py)), sincronizando ambos contextos de manera bidireccional y eficiente en memoria.
+- **Módulos Modificados**: `src/rx_router.py`, `src/admin_handler.py`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
+
+
 ### Hito: Actualización Automática y Persistente de Métricas de Nodo tras Ping Exitoso
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO

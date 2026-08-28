@@ -35,6 +35,8 @@ class AdminContext:
     mqtt: AsyncBridgeMQTTClient
     execute_tx: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
     web_server: Any = None
+    last_rx_rssi: int | None = None
+    last_rx_snr: float | None = None
 
 
 class AdminCommandHandler:

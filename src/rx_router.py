@@ -178,6 +178,8 @@ class RxRouterContext:
     background_tasks: set[asyncio.Task[Any]]
     counters: BridgeCounters
     admin_handler: Any = None
+    last_rx_rssi: int | None = None
+    last_rx_snr: float | None = None
 
 
 class RxEventRouter:
@@ -294,10 +296,15 @@ class RxEventRouter:
             effective_snr = None if is_local_sender else (float(snr) if isinstance(snr, (int, float)) else None)
             effective_hops = 0 if is_local_sender else hops
 
-            if effective_snr is not None and hasattr(self._ctx, "last_rx_snr"):
+            if effective_snr is not None:
                 self._ctx.last_rx_snr = effective_snr
-            if effective_rssi is not None and hasattr(self._ctx, "last_rx_rssi"):
+            if effective_rssi is not None:
                 self._ctx.last_rx_rssi = effective_rssi
+            if self._ctx.admin_handler and hasattr(self._ctx.admin_handler, "_ctx"):
+                if effective_rssi is not None:
+                    self._ctx.admin_handler._ctx.last_rx_rssi = effective_rssi
+                if effective_snr is not None:
+                    self._ctx.admin_handler._ctx.last_rx_snr = effective_snr
 
             # Re-inyectar en payload_dict para coherencia en downstream
             if sender:
@@ -549,11 +556,15 @@ class RxEventRouter:
                 if rx_rssi is not None:
                     try:
                         self._ctx.last_rx_rssi = int(rx_rssi)
+                        if self._ctx.admin_handler and hasattr(self._ctx.admin_handler, "_ctx"):
+                            self._ctx.admin_handler._ctx.last_rx_rssi = int(rx_rssi)
                     except (ValueError, TypeError):
                         pass
                 if rx_snr is not None:
                     try:
                         self._ctx.last_rx_snr = float(rx_snr)
+                        if self._ctx.admin_handler and hasattr(self._ctx.admin_handler, "_ctx"):
+                            self._ctx.admin_handler._ctx.last_rx_snr = float(rx_snr)
                     except (ValueError, TypeError):
                         pass
                 if sender and is_valid_node_key(sender) and not is_local_sender:
