@@ -6,6 +6,32 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Sincronización Integral de Telemetría Remota (Hop Limit, Modo Repetidor) y Rediseño de Botones de Guardado
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web Architect), Agente 1 (Protocol Investigator).
+- **Problema / Requerimiento**:
+  - Resolver la no visualización o discrepancia en el valor de **Hop Limit (Límite de Saltos)** y el **Modo Repetidor (Reenvío)** en nodos repetidores remotos.
+  - Asegurar la extracción exhaustiva de todos los parámetros de radio (`hop_limit`, `repeat_enabled`, `frequency`, `tx_power`, `sf`, `bw`, `cr`, `beacon_interval`, `owner_info`, `position`) tanto en respuestas JSON como en cadenas de texto CLI.
+  - Garantizar la persistencia inmediata en el registro local `NodeRegistry` al aplicar cambios remotos.
+  - Renombrar el botón "Transmitir Parámetros RF al Repetidor" a **"Guardar"** e integrar el icono vectorial Lucide `save` en los botones principales.
+- **Acciones Realizadas**:
+  - En [`src/repeater_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/repeater_manager.py):
+    - Ampliada la extracción JSON y Regex para capturar explícitamente `hop_limit` / `hops` y `repeat_enabled` (con soporte para `repeat: on/off`, `mode: repeater`, `routing`, `active`, etc.).
+  - En [`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py):
+    - En `NodeContactInfo.to_dict()`, establecido `repeat_enabled` predeterminado en `True` para nodos de rol `REPEATER` / `ROUTER` y `hop_limit` por defecto en `3` cuando no hayan sido sobreescritos, evitando valores nulos en el frontend.
+  - En [`src/admin_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin_handler.py):
+    - Corregido el endpoint `remote_repeater_set_config` para actualizar y persistir todos los parámetros RF (`frequency`, `tx_power`, `hop_limit`, `sf`, `bw`, `cr`, `repeat_enabled`, `advert_interval`) en el `NodeRegistry` local tras el envío del comando RF.
+  - En [`src/web/static/js/icons.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/icons.js):
+    - Añadido el icono vectorial Lucide `'save'` (`<svg ... class="lucide-save">`).
+  - En [`src/web/static/index.html`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/index.html) y [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js):
+    - Añadido `Hop Limit` al panel de resumen rápido (`panel-summary-strip`).
+    - Renombrados los botones de acción a `<button type="submit" class="btn-primary"><span class="btn-icon" data-lucide="save"></span> Guardar</button>`.
+    - En `openRepeaterModal` y los manejadores de formulario `repRadioForm` y `repOwnerPosForm`, se sincronizan de inmediato los datos en pantalla y en la memoria del cliente web.
+- **Módulos Modificados**: `src/repeater_manager.py`, `src/contact_manager.py`, `src/admin_handler.py`, `src/web/static/js/icons.js`, `src/web/static/index.html`, `src/web/static/js/app.js`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
+---
+
 ### Hito: Control y Adaptación Dinámica de Potencia TX LoRa por Modelo de Hardware en Nodos Locales y Remotos
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO

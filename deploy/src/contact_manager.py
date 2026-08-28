@@ -113,7 +113,8 @@ class NodeContactInfo:
         d["lqi_score"] = round(self.lqi_score, 1)
         d["lqi_status"] = self.lqi_status
         d["best_route"] = self.best_route
-        d["hop_limit"] = self.hop_limit
+        d["repeat_enabled"] = self.repeat_enabled if self.repeat_enabled is not None else (self.role in ("REPEATER", "ROUTER"))
+        d["hop_limit"] = self.hop_limit if self.hop_limit is not None else 3
         min_p, max_p, def_p = get_hardware_power_limits(self.hardware_board, self.max_tx_power)
         d["min_tx_power"] = min_p
         d["max_tx_power"] = max_p

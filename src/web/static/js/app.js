@@ -1640,8 +1640,21 @@ class MeshCoreStationApp {
     const sfVal = node.spreading_factor != null ? node.spreading_factor : (node.sf != null ? node.sf : 11);
     const bwVal = node.bandwidth != null ? node.bandwidth : (node.bw != null ? node.bw : 250);
     if (sumModem) sumModem.textContent = `SF${sfVal} / BW${bwVal}`;
+
+    const isRep = node.repeat_enabled !== undefined && node.repeat_enabled !== null
+      ? Boolean(node.repeat_enabled)
+      : (node.repeat !== undefined && node.repeat !== null
+          ? Boolean(node.repeat)
+          : (String(node.role || "").toUpperCase() === "REPEATER" || node.is_repeater === true || node.advert_type === 2 || String(node.raw_role || "").toUpperCase() === "REPEATER"));
+
+    const repHopLimit = node.hop_limit != null ? node.hop_limit : (node.default_hop_limit != null ? node.default_hop_limit : (node.hopLimit != null ? node.hopLimit : 3));
+
+    const sumHopLimit = document.getElementById("repSummaryHopLimit");
+    if (sumHopLimit) sumHopLimit.textContent = `${repHopLimit} saltos`;
+
     const sumRepeat = document.getElementById("repSummaryRepeat");
-    if (sumRepeat) sumRepeat.textContent = node.repeat_enabled === false ? "Desactivado" : "Activado";
+    if (sumRepeat) sumRepeat.textContent = isRep ? "Activado" : "Desactivado";
+
     const sumQueue = document.getElementById("repSummaryQueue");
     if (sumQueue) sumQueue.textContent = `${node.queue_len != null ? node.queue_len : (node.tx_queue_len != null ? node.tx_queue_len : 0)} paquetes`;
 
@@ -1688,8 +1701,8 @@ class MeshCoreStationApp {
       radioPowerVal.textContent = `${clampedPower} dBm`;
     }
     const radioHopLimitInput = document.getElementById("radioHopLimit");
-    if (radioHopLimitInput && (node.hops != null || node.hop_limit != null)) {
-      radioHopLimitInput.value = node.hops != null ? node.hops : node.hop_limit;
+    if (radioHopLimitInput) {
+      radioHopLimitInput.value = String(repHopLimit);
     }
     const radioBeaconInput = document.getElementById("radioBeaconInterval");
     if (radioBeaconInput && (node.advert_interval != null || node.beacon_interval != null)) {
@@ -1720,7 +1733,6 @@ class MeshCoreStationApp {
     const radioRepeatMode = document.getElementById("radioRepeatMode");
     const radioRepBadge = document.getElementById("radioRepeatBadge");
     if (radioRepeatMode) {
-      const isRep = node.repeat_enabled !== undefined ? Boolean(node.repeat_enabled) : (node.repeat !== undefined ? Boolean(node.repeat) : false);
       radioRepeatMode.checked = isRep;
       if (radioRepBadge) {
         radioRepBadge.textContent = isRep ? "ON" : "OFF";
@@ -1933,6 +1945,30 @@ class MeshCoreStationApp {
           if (data.status === "ok") {
             this.appendTerminalLine(`✓ [RX OK] Parámetros RF aplicados al repetidor ${target.slice(0, 8)}.`, "term-success");
             this.showToast("📻 Configuración RF transmitida al repetidor", "success");
+
+            const sFreq = document.getElementById("repSummaryFreq");
+            if (sFreq) sFreq.textContent = `${freq.toFixed(3)} MHz`;
+            const sPower = document.getElementById("repSummaryPower");
+            if (sPower) sPower.textContent = `${tx_power} dBm`;
+            const sModem = document.getElementById("repSummaryModem");
+            if (sModem) sModem.textContent = `SF${sf} / BW${bw}`;
+            const sHop = document.getElementById("repSummaryHopLimit");
+            if (sHop) sHop.textContent = `${hop_limit} saltos`;
+            const sRep = document.getElementById("repSummaryRepeat");
+            if (sRep) sRep.textContent = repeat ? "Activado" : "Desactivado";
+
+            const existing = this.knownNodes.get(target);
+            if (existing) {
+              existing.frequency = freq;
+              existing.tx_power = tx_power;
+              existing.spreading_factor = sf;
+              existing.bandwidth = bw;
+              existing.coding_rate = cr;
+              existing.hop_limit = hop_limit;
+              existing.repeat_enabled = repeat;
+              existing.advert_interval = beacon_interval;
+              this.updateNodeInDom(existing);
+            }
           } else {
             this.appendTerminalLine(`✗ [RX ERROR] ${data.message || data.error}`, "term-error");
             if (data.message && (data.message.toLowerCase().includes("password") || data.message.toLowerCase().includes("auth") || data.message.toLowerCase().includes("pin"))) {

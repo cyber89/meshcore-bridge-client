@@ -326,6 +326,61 @@ class RepeaterManager:
                         extracted["packets_recv"] = int(data_json["recv"])
                     if "recv_errors" in data_json:
                         extracted["packet_errors"] = int(data_json["recv_errors"])
+                    if "repeat" in data_json or "repeat_enabled" in data_json or "repeating" in data_json:
+                        raw_rep = data_json.get("repeat", data_json.get("repeat_enabled", data_json.get("repeating")))
+                        extracted["repeat_enabled"] = bool(raw_rep) if not isinstance(raw_rep, str) else raw_rep.lower() in ("1", "true", "on", "enabled", "activado")
+                    if "hop_limit" in data_json or "hops" in data_json or "max_hops" in data_json:
+                        raw_hl = data_json.get("hop_limit", data_json.get("max_hops", data_json.get("hops")))
+                        if isinstance(raw_hl, (int, float)):
+                            extracted["hop_limit"] = int(raw_hl)
+                    if "tx_power" in data_json or "power" in data_json:
+                        raw_pwr = data_json.get("tx_power", data_json.get("power"))
+                        if raw_pwr is not None:
+                            extracted["tx_power"] = int(raw_pwr)
+                    if "max_tx_power" in data_json or "max_power" in data_json:
+                        raw_mp = data_json.get("max_tx_power", data_json.get("max_power"))
+                        if raw_mp is not None:
+                            extracted["max_tx_power"] = int(raw_mp)
+                    if "freq" in data_json or "frequency" in data_json:
+                        raw_fr = data_json.get("freq", data_json.get("frequency"))
+                        if raw_fr is not None:
+                            extracted["frequency"] = round(float(raw_fr), 3)
+                    if "sf" in data_json or "spreading_factor" in data_json:
+                        raw_sf = data_json.get("sf", data_json.get("spreading_factor"))
+                        if raw_sf is not None:
+                            extracted["spreading_factor"] = int(raw_sf)
+                    if "bw" in data_json or "bandwidth" in data_json:
+                        raw_bw = data_json.get("bw", data_json.get("bandwidth"))
+                        if raw_bw is not None:
+                            extracted["bandwidth"] = float(raw_bw)
+                    if "cr" in data_json or "coding_rate" in data_json:
+                        raw_cr = data_json.get("cr", data_json.get("coding_rate"))
+                        if raw_cr is not None:
+                            extracted["coding_rate"] = str(raw_cr).strip()
+                    if "beacon_interval" in data_json or "advert_interval" in data_json:
+                        raw_bi = data_json.get("beacon_interval", data_json.get("advert_interval"))
+                        if raw_bi is not None:
+                            extracted["advert_interval"] = int(raw_bi)
+                    if "owner" in data_json or "owner_name" in data_json:
+                        raw_ow = data_json.get("owner_name", data_json.get("owner"))
+                        if raw_ow is not None:
+                            extracted["owner_name"] = str(raw_ow)
+                    if "owner_info" in data_json:
+                        raw_oi = data_json.get("owner_info")
+                        if raw_oi is not None:
+                            extracted["owner_info"] = str(raw_oi)
+                    if "lat" in data_json or "latitude" in data_json:
+                        raw_la = data_json.get("lat", data_json.get("latitude"))
+                        if raw_la is not None:
+                            extracted["latitude"] = round(float(raw_la), 5)
+                    if "lon" in data_json or "longitude" in data_json:
+                        raw_lo = data_json.get("lon", data_json.get("longitude"))
+                        if raw_lo is not None:
+                            extracted["longitude"] = round(float(raw_lo), 5)
+                    if "alt" in data_json or "altitude" in data_json:
+                        raw_al = data_json.get("alt", data_json.get("altitude"))
+                        if raw_al is not None:
+                            extracted["altitude_m"] = round(float(raw_al), 1)
             except Exception:
                 pass
 
@@ -485,14 +540,23 @@ class RepeaterManager:
         if cr_m:
             extracted["coding_rate"] = cr_m.group(1).strip()
 
-        repeat_m = re.search(r'(?:repeat(?:er)?|repeating|mode)\s*[:=]?\s*(on|off|true|false|1|0|enabled|disabled|activa(?:do)?)', text, re.IGNORECASE)
+        repeat_m = re.search(r'(?:repeat(?:er)?|repeating|mode|routing)\s*[:=]?\s*(on|off|true|false|1|0|enabled|disabled|activa(?:do)?|desactiva(?:do)?)', text, re.IGNORECASE)
         if repeat_m:
-            extracted["repeat_enabled"] = repeat_m.group(1).lower() in ("on", "true", "1", "enabled", "activado")
+            extracted["repeat_enabled"] = repeat_m.group(1).lower() in ("on", "true", "1", "enabled", "activado", "active")
 
-        hops_m = re.search(r'(?:hop_?limit|hops|max_?hops)\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
+        hops_m = re.search(r'(?:hop_?limit|max_?hops|default_?hops?)\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
         if hops_m:
             try:
-                extracted["hops"] = int(hops_m.group(1))
+                extracted["hop_limit"] = int(hops_m.group(1))
+            except Exception:
+                pass
+
+        hop_cnt_m = re.search(r'(?:hop\s+count|hops?|saltos?)\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
+        if hop_cnt_m:
+            try:
+                extracted["hops"] = int(hop_cnt_m.group(1))
+                if "hop_limit" not in extracted:
+                    extracted["hop_limit"] = int(hop_cnt_m.group(1))
             except Exception:
                 pass
 

@@ -516,6 +516,15 @@ class AdminCommandHandler:
                 owner_i = params.get("owner_info")
                 fix_pos = params.get("fixed", params.get("fixed_position"))
 
+                freq_val = params.get("freq", params.get("frequency"))
+                tx_pwr_val = params.get("tx_power", params.get("power"))
+                hop_l_val = params.get("hop_limit", params.get("hops"))
+                sf_val = params.get("sf", params.get("spreading_factor"))
+                bw_val = params.get("bw", params.get("bandwidth"))
+                cr_val = params.get("cr", params.get("coding_rate"))
+                rep_val = params.get("repeat", params.get("repeat_enabled"))
+                adv_val = params.get("beacon_interval", params.get("advert_interval"))
+
                 self._ctx.node_registry.add_or_update(
                     canon_target,
                     NodeContactUpdate(
@@ -527,6 +536,14 @@ class AdminCommandHandler:
                         longitude=float(lon_val) if lon_val is not None else None,
                         altitude_m=float(alt_val) if alt_val is not None else None,
                         fixed_position=bool(fix_pos) if fix_pos is not None else None,
+                        frequency=float(freq_val) if freq_val is not None else None,
+                        tx_power=int(tx_pwr_val) if tx_pwr_val is not None else None,
+                        hop_limit=int(hop_l_val) if hop_l_val is not None else None,
+                        spreading_factor=int(sf_val) if sf_val is not None else None,
+                        bandwidth=float(bw_val) if bw_val is not None else None,
+                        coding_rate=str(cr_val) if cr_val is not None else None,
+                        repeat_enabled=bool(rep_val) if rep_val is not None else None,
+                        advert_interval=int(adv_val) if adv_val is not None else None,
                     ),
                 )
 
