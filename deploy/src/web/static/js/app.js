@@ -2220,9 +2220,31 @@ class MeshCoreStationApp {
   }
 
   appendTerminalLine(text, cssClass = "term-info") {
+    if (!text) return;
+    const strText = String(text).trim();
+    if (!strText) return;
+
+    // Normalizar texto para deduplicar respuestas idénticas recibidas concurrentemente por WebSocket y HTTP REST
+    const norm = strText
+      .replace(/^[←ℹ✓>\s]+/, "")
+      .replace(/^\[RESP\]\s*/i, "")
+      .replace(/^\[RX OK\]\s*/i, "")
+      .replace(/^\[TX\]\s*/i, "")
+      .replace(/^>\s*/, "")
+      .trim();
+
+    const now = Date.now();
+    if (norm && this._lastTerminalEntry) {
+      const isDuplicate = (this._lastTerminalEntry.norm === norm) && (now - this._lastTerminalEntry.time < 4000);
+      if (isDuplicate) {
+        return;
+      }
+    }
+    this._lastTerminalEntry = { norm: norm || strText, time: now };
+
     const line = document.createElement("div");
     line.className = `term-line ${cssClass}`;
-    line.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+    line.textContent = `[${new Date().toLocaleTimeString()}] ${strText}`;
     this.dom.repeaterTerminalOutput.appendChild(line);
     this.dom.repeaterTerminalOutput.scrollTop = this.dom.repeaterTerminalOutput.scrollHeight;
   }
@@ -2266,11 +2288,11 @@ class MeshCoreStationApp {
   formatRemoteCliResponse(action, resObj) {
     if (!resObj || typeof resObj !== "object") return String(resObj || "✓ Comando ejecutado");
     if (typeof resObj.text === "string" && resObj.text.trim()) {
-      const txt = resObj.text.trim();
+      const txt = resObj.text.replace(/^>\s*/, "").trim();
       return txt.startsWith("←") || txt.startsWith("✓") ? txt : `← [RESP] ${txt}`;
     }
     if (typeof resObj.response === "string" && resObj.response.trim()) {
-      const resp = resObj.response.trim();
+      const resp = resObj.response.replace(/^>\s*/, "").trim();
       if (resp.startsWith("Comando '") && resp.includes("transmitido por RF")) {
         return `ℹ [TX] ${resp}`;
       }
@@ -2536,7 +2558,8 @@ class MeshCoreStationApp {
           }
         }
         if (payload.text) {
-          this.appendTerminalLine(`← [RESP] ${payload.text}`, "term-resp");
+          const cleanTxt = payload.text.replace(/^>\s*/, "").trim();
+          this.appendTerminalLine(`← [RESP] ${cleanTxt}`, "term-resp");
         }
       }
       return;

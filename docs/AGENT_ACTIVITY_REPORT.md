@@ -6,6 +6,24 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Corrección y Deduplicación de Respuestas en el Terminal Remoto CLI
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect).
+- **Problema / Requerimiento**:
+  - En la consola remota de administración, los comandos CLI (como `ver`, `get radio`, `neighbors`) mostraban la línea de respuesta `← [RESP]` duplicada consecutivamente.
+- **Causa Raíz Identificada**:
+  - Al ejecutar una acción CLI remota, el bridge recibe la respuesta RF y la transmite de dos maneras concurrentes a la interfaz web:
+    1. A través de la transmisión en tiempo real por **WebSockets** (`repeater_response` live event).
+    2. A través de la resolución de la petición **HTTP REST** (`POST /api/repeater/remote/action`).
+  - Ambos canales invocaban de forma independiente `appendTerminalLine()`, generando dos líneas impresas en el mismo segundo (una con prefijo crudo `>` y otra con el objeto procesado).
+- **Acciones Realizadas**:
+  - Se implementó en `appendTerminalLine()` un motor de deduplicación basado en normalización de texto y ventana temporal (4 segundos), descartando automáticamente ecos idénticos de WebSocket / REST.
+  - Se homogeneizó la limpieza de prefijos `>` generados por el CLI del firmware MeshCore tanto en el pipeline WebSocket como en `formatRemoteCliResponse()`.
+- **Módulos Modificados**: `src/web/static/js/app.js`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
+
+
 ### Hito: Restricción de Mensajería Directa (DM) y Botón de Chat Exclusivamente a Clientes Compatibles
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO
