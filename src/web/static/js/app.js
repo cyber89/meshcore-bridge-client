@@ -1620,9 +1620,14 @@ class MeshCoreStationApp {
       }
     }
     const radioRepeatMode = document.getElementById("radioRepeatMode");
-    if (radioRepeatMode && (node.repeat_enabled !== undefined || node.repeat !== undefined)) {
-      const isRep = node.repeat_enabled !== undefined ? Boolean(node.repeat_enabled) : Boolean(node.repeat);
-      radioRepeatMode.value = isRep ? "on" : "off";
+    const radioRepBadge = document.getElementById("radioRepeatBadge");
+    if (radioRepeatMode) {
+      const isRep = node.repeat_enabled !== undefined ? Boolean(node.repeat_enabled) : (node.repeat !== undefined ? Boolean(node.repeat) : false);
+      radioRepeatMode.checked = isRep;
+      if (radioRepBadge) {
+        radioRepBadge.textContent = isRep ? "ON" : "OFF";
+        radioRepBadge.className = isRep ? "toggle-state-badge is-active-purple" : "toggle-state-badge";
+      }
     }
 
     // Llenar formulario de Propietario & Posición
@@ -1648,8 +1653,14 @@ class MeshCoreStationApp {
     const posAltInput = document.getElementById("repPosAlt");
     if (posAltInput) posAltInput.value = extractNum(node.altitude_m, node.alt, node.altitude, node.gps?.altitude);
     const posFixed = document.getElementById("repPosFixed");
-    if (posFixed && node.fixed_position !== undefined) {
-      posFixed.value = node.fixed_position === false ? "0" : "1";
+    const posFixedBadge = document.getElementById("repPosFixedBadge");
+    if (posFixed) {
+      const isFixed = node.fixed_position !== undefined ? Boolean(node.fixed_position) : true;
+      posFixed.checked = isFixed;
+      if (posFixedBadge) {
+        posFixedBadge.textContent = isFixed ? "FIJA" : "GPS DINÁMICO";
+        posFixedBadge.className = isFixed ? "toggle-state-badge is-active" : "toggle-state-badge";
+      }
     }
 
     if (pubkey) this.refreshNeighborsTable(pubkey);
@@ -1763,6 +1774,16 @@ class MeshCoreStationApp {
 
     // 1. Formulario de Parámetros RF
     const radioForm = document.getElementById("repRadioForm");
+    const repToggle = document.getElementById("radioRepeatMode");
+    const repBadge = document.getElementById("radioRepeatBadge");
+    if (repToggle && repBadge) {
+      repToggle.addEventListener("change", (e) => {
+        const isChecked = e.target.checked;
+        repBadge.textContent = isChecked ? "ON" : "OFF";
+        repBadge.className = isChecked ? "toggle-state-badge is-active-purple" : "toggle-state-badge";
+      });
+    }
+
     if (radioForm) {
       radioForm.addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -1779,7 +1800,7 @@ class MeshCoreStationApp {
         const bw = parseFloat(document.getElementById("radioBw").value);
         const cr = document.getElementById("radioCr")?.value || "4/5";
         const hop_limit = parseInt(document.getElementById("radioHopLimit").value, 10);
-        const repeat = document.getElementById("radioRepeatMode").value === "on";
+        const repeat = document.getElementById("radioRepeatMode")?.checked === true;
         const beacon_interval = parseInt(document.getElementById("radioBeaconInterval")?.value || "300", 10);
 
         const params = { freq, region, tx_power, sf, bw, cr, hop_limit, repeat, beacon_interval };
@@ -1811,6 +1832,16 @@ class MeshCoreStationApp {
 
     // 2. Formulario de Propietario & Posición
     const ownerPosForm = document.getElementById("repOwnerPosForm");
+    const posFixedToggle = document.getElementById("repPosFixed");
+    const posFixedBadge = document.getElementById("repPosFixedBadge");
+    if (posFixedToggle && posFixedBadge) {
+      posFixedToggle.addEventListener("change", (e) => {
+        const isChecked = e.target.checked;
+        posFixedBadge.textContent = isChecked ? "FIJA" : "GPS DINÁMICO";
+        posFixedBadge.className = isChecked ? "toggle-state-badge is-active" : "toggle-state-badge";
+      });
+    }
+
     if (ownerPosForm) {
       ownerPosForm.addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -1828,7 +1859,7 @@ class MeshCoreStationApp {
         const lat = rawLat !== undefined && rawLat !== "" && !isNaN(parseFloat(rawLat)) ? parseFloat(rawLat) : null;
         const lon = rawLon !== undefined && rawLon !== "" && !isNaN(parseFloat(rawLon)) ? parseFloat(rawLon) : null;
         const alt = rawAlt !== undefined && rawAlt !== "" && !isNaN(parseFloat(rawAlt)) ? parseFloat(rawAlt) : null;
-        const fixed = document.getElementById("repPosFixed")?.value === "1";
+        const fixed = document.getElementById("repPosFixed")?.checked === true;
 
         const params = { owner_name, owner_info, lat, lon, alt, fixed };
         this.appendTerminalLine(`> [TX OWNER/POS] Configurando propietario '${owner_name}' y posición (${lat ?? '--'}, ${lon ?? '--'}) en ${target.slice(0, 8)}...`, "term-cmd");
@@ -3059,7 +3090,19 @@ class MeshCoreStationApp {
       });
     }
 
-    // 3. Formulario Parámetros RF & Radio
+    // 3. Formulario Parámetros RF & Radio y Toggle de Repetidor
+    const localRepToggle = document.getElementById("localRepeatMode");
+    const localRepBadge = document.getElementById("localRepeatBadge");
+    if (localRepToggle && localRepBadge) {
+      localRepToggle.addEventListener("change", (e) => {
+        const isChecked = e.target.checked;
+        localRepBadge.textContent = isChecked ? "ON" : "OFF";
+        localRepBadge.className = isChecked ? "toggle-state-badge is-active-purple" : "toggle-state-badge";
+        const sumRep = document.getElementById("localSummaryRepeat");
+        if (sumRep) sumRep.textContent = isChecked ? "Activado" : "Desactivado";
+      });
+    }
+
     const radioForm = document.getElementById("localRadioForm");
     if (radioForm) {
       radioForm.addEventListener("submit", async (e) => {
@@ -3278,9 +3321,18 @@ class MeshCoreStationApp {
     // 9. Manejadores de Almacenamiento IndexedDB y Alertas Sonoras
     if (this.dom.chkChatSoundAlerts) {
       this.dom.chkChatSoundAlerts.checked = this.chatSoundEnabled;
+      const soundBadge = document.getElementById("chatSoundBadge");
+      if (soundBadge) {
+        soundBadge.textContent = this.chatSoundEnabled ? "ON" : "OFF";
+        soundBadge.className = this.chatSoundEnabled ? "toggle-state-badge is-active-success" : "toggle-state-badge";
+      }
       this.dom.chkChatSoundAlerts.addEventListener("change", (e) => {
         this.chatSoundEnabled = e.target.checked;
         localStorage.setItem("meshcore_chat_sound_enabled", String(this.chatSoundEnabled));
+        if (soundBadge) {
+          soundBadge.textContent = this.chatSoundEnabled ? "ON" : "OFF";
+          soundBadge.className = this.chatSoundEnabled ? "toggle-state-badge is-active-success" : "toggle-state-badge";
+        }
         if (this.chatSoundEnabled) {
           this.playNotificationChime();
           this.showToast("🔔 Alertas sonoras de chat activadas", "info");
@@ -3455,9 +3507,14 @@ class MeshCoreStationApp {
       }
 
       const repInput = document.getElementById("localRepeatMode");
+      const repBadge = document.getElementById("localRepeatBadge");
       if (repInput) {
         const isRep = cfg.repeat !== undefined ? Boolean(cfg.repeat) : (cfg.repeat_enabled !== undefined ? Boolean(cfg.repeat_enabled) : false);
-        repInput.value = isRep ? "on" : "off";
+        repInput.checked = isRep;
+        if (repBadge) {
+          repBadge.textContent = isRep ? "ON" : "OFF";
+          repBadge.className = isRep ? "toggle-state-badge is-active-purple" : "toggle-state-badge";
+        }
       }
 
       const telemInput = document.getElementById("localTelemetryInterval");
@@ -3641,7 +3698,7 @@ class MeshCoreStationApp {
       spreading_factor: parseInt(document.getElementById("localSf")?.value, 10) || 11,
       bandwidth: parseInt(document.getElementById("localBw")?.value, 10) || 250,
       coding_rate: document.getElementById("localCr")?.value || "4/5",
-      repeat: document.getElementById("localRepeatMode")?.value === "on",
+      repeat: document.getElementById("localRepeatMode")?.checked === true,
       telemetry_interval: parseInt(document.getElementById("localTelemetryInterval")?.value, 10) || 60,
       advert_interval: parseInt(document.getElementById("localAdvertInterval")?.value, 10) || 300,
     };

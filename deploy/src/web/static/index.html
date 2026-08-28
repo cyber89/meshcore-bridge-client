@@ -674,12 +674,20 @@
                       <option value="4/8">4/8 (Máxima corrección)</option>
                     </select>
                   </div>
-                  <div class="form-group">
-                    <label for="localRepeatMode">Modo Repetidor / Router:</label>
-                    <select id="localRepeatMode" class="select-input">
-                      <option value="on">Activado (Reenvía paquetes de malla)</option>
-                      <option value="off" selected>Desactivado (Solo estación base / cliente)</option>
-                    </select>
+                  <div class="form-group toggle-field-group">
+                    <div class="toggle-field-row">
+                      <div class="toggle-field-info">
+                        <span class="toggle-field-title">Modo Repetidor / Router</span>
+                        <span class="toggle-field-desc">Reenvía paquetes de otros nodos en la malla LoRa</span>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="toggle-state-badge" id="localRepeatBadge">OFF</span>
+                        <label class="toggle-switch toggle-purple" for="localRepeatMode" title="Activar/desactivar reenvío de paquetes repetidor">
+                          <input type="checkbox" id="localRepeatMode" />
+                          <span class="toggle-slider"></span>
+                        </label>
+                      </div>
+                    </div>
                   </div>
                   <div class="form-group">
                     <label for="localTelemetryInterval">Intervalo de Telemetría (seg):</label>
@@ -862,11 +870,20 @@
                     </div>
                     <p class="card-desc">Los mensajes de chat y el estado de la estación se almacenan de forma segura y asíncrona en el navegador para no perderse al recargar.</p>
                     <div class="settings-form">
-                      <div class="form-group" style="margin-bottom: 12px;">
-                        <label class="checkbox-label" for="chkChatSoundAlerts" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                          <input type="checkbox" id="chkChatSoundAlerts" checked />
-                          <span>🔔 Reproducir timbre de audio al recibir mensajes nuevos (Web Audio API)</span>
-                        </label>
+                      <div class="form-group toggle-field-group" style="margin-bottom: 14px;">
+                        <div class="toggle-field-row">
+                          <div class="toggle-field-info">
+                            <span class="toggle-field-title">🔔 Timbre de Alerta Sonora</span>
+                            <span class="toggle-field-desc">Reproduce un chime de audio sintetizado al recibir mensajes entrantes (Web Audio API)</span>
+                          </div>
+                          <div style="display: flex; align-items: center; gap: 8px;">
+                            <span class="toggle-state-badge is-active-success" id="chatSoundBadge">ON</span>
+                            <label class="toggle-switch toggle-success" for="chkChatSoundAlerts" title="Activar o desactivar timbre de audio">
+                              <input type="checkbox" id="chkChatSoundAlerts" checked />
+                              <span class="toggle-slider"></span>
+                            </label>
+                          </div>
+                        </div>
                       </div>
                       <div class="form-row">
                         <button type="button" class="btn-danger btn-sm" id="btnClearIndexedDbStorage">🧹 Vaciar Almacenamiento Local IndexedDB</button>
@@ -1312,13 +1329,21 @@
                     <option value="4/8">4/8 (Máxima corrección de error)</option>
                   </select>
                 </div>
-                <div class="form-group">
-                  <label for="radioRepeatMode">Modo Repetidor:</label>
-                  <select id="radioRepeatMode">
-                    <option value="on" selected>Activado (Reenvía paquetes de malla)</option>
-                    <option value="off">Desactivado (Solo escucha / Monitor)</option>
-                  </select>
-                </div>
+                <div class="form-group toggle-field-group">
+                    <div class="toggle-field-row">
+                      <div class="toggle-field-info">
+                        <span class="toggle-field-title">Modo Repetidor</span>
+                        <span class="toggle-field-desc">Reenvía paquetes de malla en este nodo remoto</span>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="toggle-state-badge is-active-purple" id="radioRepeatBadge">ON</span>
+                        <label class="toggle-switch toggle-purple" for="radioRepeatMode" title="Activar/desactivar reenvío de paquetes repetidor">
+                          <input type="checkbox" id="radioRepeatMode" checked />
+                          <span class="toggle-slider"></span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
                 <div class="form-group">
                   <label for="radioBeaconInterval">Intervalo de Anuncio / Beacon (seg):</label>
                   <input type="number" id="radioBeaconInterval" min="30" max="86400" value="300" />
@@ -1357,12 +1382,20 @@
                   <label for="repPosAlt">Altitud sobre el nivel del mar (metros):</label>
                   <input type="number" id="repPosAlt" step="0.1" placeholder="Ej: 145.0" />
                 </div>
-                <div class="form-group">
-                  <label for="repPosFixed">Modo de Posición:</label>
-                  <select id="repPosFixed">
-                    <option value="1" selected>Posición Fija (Transmitir coordenadas configuradas)</option>
-                    <option value="0">GPS Dinámico / Sin posición fija</option>
-                  </select>
+                <div class="form-group toggle-field-group">
+                  <div class="toggle-field-row">
+                    <div class="toggle-field-info">
+                      <span class="toggle-field-title">Posición Fija</span>
+                      <span class="toggle-field-desc">Transmitir coordenadas configuradas (ON) o GPS dinámico (OFF)</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span class="toggle-state-badge is-active" id="repPosFixedBadge">FIJA</span>
+                      <label class="toggle-switch" for="repPosFixed" title="Alternar entre coordenadas fijas o GPS dinámico">
+                        <input type="checkbox" id="repPosFixed" checked />
+                        <span class="toggle-slider"></span>
+                      </label>
+                    </div>
+                  </div>
                 </div>
                 <div class="form-actions-full">
                   <button type="submit" class="btn-primary" id="btnSubmitRepOwnerPos">💾 Guardar y Transmitir Información & Posición</button>
