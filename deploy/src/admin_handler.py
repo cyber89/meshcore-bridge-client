@@ -56,6 +56,7 @@ class AdminCommandHandler:
             "bandwidth": getattr(config, "LORA_BW", 250),
             "coding_rate": getattr(config, "LORA_CR", "4/5"),
             "hop_limit": getattr(config, "DEFAULT_HOP_LIMIT", 3),
+            "repeat": False,
             "beacon_interval": 300,
             "telemetry_interval": 60,
         }
@@ -96,7 +97,7 @@ class AdminCommandHandler:
                 "bandwidth": si.get("bw", si.get("radio_bw", si.get("bandwidth", cfg.get("bandwidth")))),
                 "coding_rate": si.get("cr", si.get("radio_cr", si.get("coding_rate", cfg.get("coding_rate")))),
                 "hop_limit": si.get("hop_limit", cfg.get("hop_limit")),
-                "repeat": si.get("repeat", cfg.get("repeat", True)),
+                "repeat": si.get("repeat", cfg.get("repeat", False)),
                 "telemetry_interval": si.get("telemetry_interval", cfg.get("telemetry_interval")),
                 "beacon_interval": si.get("beacon_interval", si.get("advert_interval", cfg.get("beacon_interval"))),
                 "advert_interval": si.get("advert_interval", si.get("beacon_interval", cfg.get("advert_interval"))),
@@ -148,7 +149,12 @@ class AdminCommandHandler:
                 logging.debug(f"Fallo enviando send_appstart: {e}")
             try:
                 if hasattr(mc.commands, "send_device_query"):
-                    await mc.commands.send_device_query()
+                    dev_res = await mc.commands.send_device_query()
+                    if dev_res and hasattr(dev_res, "payload") and isinstance(dev_res.payload, dict):
+                        if "repeat" in dev_res.payload:
+                            self._local_config["repeat"] = bool(dev_res.payload["repeat"])
+                    elif isinstance(dev_res, dict) and "repeat" in dev_res:
+                        self._local_config["repeat"] = bool(dev_res["repeat"])
             except Exception as e:
                 logging.debug(f"Fallo enviando send_device_query: {e}")
             try:
@@ -972,7 +978,7 @@ class AdminCommandHandler:
                     except Exception:
                         cr_i = 5
 
-                repeat_i = int(rep_val) if rep_val is not None else (1 if self._local_config.get("repeat", True) else 0)
+                repeat_i = int(rep_val) if rep_val is not None else (1 if self._local_config.get("repeat", False) else 0)
 
                 self._local_config["frequency"] = freq_f
                 self._local_config["radio_freq"] = freq_f
@@ -1160,7 +1166,7 @@ class AdminCommandHandler:
         model = cfg.get("model", "MeshCore Transceiver")
         ver = cfg.get("ver", cfg.get("fw_ver", "v1.6.0"))
         build = cfg.get("fw_build", "2026-08-20")
-        rep_str = "Activado" if cfg.get("repeat", True) else "Desactivado"
+        rep_str = "Activado" if cfg.get("repeat", False) else "Desactivado"
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_device_query"):
             try:
                 q_res = await mc.commands.send_device_query()
@@ -1169,7 +1175,7 @@ class AdminCommandHandler:
                     model = pl.get("model", model)
                     ver = pl.get("ver", ver)
                     build = pl.get("fw_build", build)
-                    rep_str = "Activado" if pl.get("repeat", cfg.get("repeat", True)) else "Desactivado"
+                    rep_str = "Activado" if pl.get("repeat", cfg.get("repeat", False)) else "Desactivado"
             except Exception:
                 pass
         res["result"] = f"📟 [DEVICE INFO] Modelo: {model} | Firmware: {ver} | Build: {build} | Repetidor: {rep_str}"

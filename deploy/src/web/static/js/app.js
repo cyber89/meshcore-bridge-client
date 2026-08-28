@@ -3455,8 +3455,8 @@ class MeshCoreStationApp {
       }
 
       const repInput = document.getElementById("localRepeatMode");
-      if (repInput && (cfg.repeat !== undefined || cfg.repeat_enabled !== undefined)) {
-        const isRep = cfg.repeat !== undefined ? Boolean(cfg.repeat) : Boolean(cfg.repeat_enabled);
+      if (repInput) {
+        const isRep = cfg.repeat !== undefined ? Boolean(cfg.repeat) : (cfg.repeat_enabled !== undefined ? Boolean(cfg.repeat_enabled) : false);
         repInput.value = isRep ? "on" : "off";
       }
 
@@ -3498,7 +3498,7 @@ class MeshCoreStationApp {
 
       const sumRepeat = document.getElementById("localSummaryRepeat");
       if (sumRepeat) {
-        const isRep = cfg.repeat !== undefined ? Boolean(cfg.repeat) : (cfg.repeat_enabled !== undefined ? Boolean(cfg.repeat_enabled) : true);
+        const isRep = cfg.repeat !== undefined ? Boolean(cfg.repeat) : (cfg.repeat_enabled !== undefined ? Boolean(cfg.repeat_enabled) : false);
         sumRepeat.textContent = isRep ? "Activado" : "Desactivado";
       }
 

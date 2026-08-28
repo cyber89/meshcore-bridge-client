@@ -950,8 +950,11 @@ class RxEventRouter:
             ver = payload_dict.get("ver") or payload_dict.get("firmware_version") or ""
             build = payload_dict.get("fw_build") or ""
             max_c = payload_dict.get("max_contacts", "--")
+            if "repeat" in payload_dict and self._ctx.admin_handler:
+                self._ctx.admin_handler._local_config["repeat"] = bool(payload_dict["repeat"])
+            rep_status = "ON" if payload_dict.get("repeat") else "OFF"
             logging.info(
-                f"[ESTACIÓN LOCAL] Hardware: {model} {ver} (Build: {build}, Contactos Máx: {max_c})"
+                f"[ESTACIÓN LOCAL] Hardware: {model} {ver} (Build: {build}, Contactos Máx: {max_c}, Repetidor: {rep_status})"
             )
             return
 

@@ -517,6 +517,16 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
     async def _handle_device_info(self, data: Any) -> None:
         """Maneja información del dispositivo."""
         logging.debug(f"Device info: {data}")
+        rep_val = None
+        if isinstance(data, dict) and "repeat" in data:
+            rep_val = bool(data["repeat"])
+        elif hasattr(data, "payload") and isinstance(data.payload, dict) and "repeat" in data.payload:
+            rep_val = bool(data.payload["repeat"])
+        if rep_val is not None:
+            if hasattr(self, "self_info") and isinstance(self.self_info, dict):
+                self.self_info["repeat"] = rep_val
+            if hasattr(self, "_self_info") and isinstance(self._self_info, dict):
+                self._self_info["repeat"] = rep_val
         if self.rx_callback:
             self.rx_callback(data)
 
