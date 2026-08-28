@@ -2165,7 +2165,7 @@ class MeshCoreStationApp {
       return;
     }
     const password = this.getRepeaterPassword(target);
-    this.appendTerminalLine(`> [TX ACTION] Ejecutando acción '${actionName}' en ${target.slice(0, 8)}...`, "term-cmd");
+    this.appendTerminalLine(`meshcore@remote:~$ ${actionName}`, "term-cmd");
 
     try {
       const res = await fetch("/api/repeater/remote/action", {
@@ -2175,10 +2175,16 @@ class MeshCoreStationApp {
       });
       const data = await res.json();
       if (data.status === "ok") {
-        this.appendTerminalLine(`✓ [RX OK] Acción '${actionName}' ejecutada con éxito.`, "term-success");
-        this.showToast(`✅ Acción '${actionName}' ejecutada`, "success");
+        this.showToast(`✅ Comando '${actionName}' enviado`, "success");
+        const isWsConnected = Boolean(this.ws && this.ws.readyState === WebSocket.OPEN);
+        if (!isWsConnected && (data.data?.text || data.text || data.message)) {
+          const cleanTxt = (data.data?.text || data.text || data.message || "").replace(/^>\s*/, "").trim();
+          if (cleanTxt) {
+            this.appendTerminalLine(`← [RESP] ${cleanTxt}`, "term-resp");
+          }
+        }
       } else {
-        this.appendTerminalLine(`✗ [RX ERROR] ${data.message || data.error}`, "term-error");
+        this.appendTerminalLine(`✗ [ERROR] ${data.message || data.error}`, "term-error");
         if (data.message && (data.message.toLowerCase().includes("password") || data.message.toLowerCase().includes("auth") || data.message.toLowerCase().includes("pin"))) {
           this.handleRepeaterAuthError(target, data.message);
         } else {
@@ -2186,7 +2192,7 @@ class MeshCoreStationApp {
         }
       }
     } catch (e) {
-      this.appendTerminalLine(`✗ [ERROR] ${e.message}`, "term-error");
+      this.appendTerminalLine(`✗ [ERROR DE RED] ${e.message}`, "term-error");
     }
   }
 
@@ -2320,8 +2326,15 @@ class MeshCoreStationApp {
       });
       const data = await res.json();
       if (data.status === "ok") {
-        const respText = this.formatRemoteCliResponse(action, data.data || data.result || data);
-        this.appendTerminalLine(respText, "term-success");
+        // La respuesta del repetidor se difunde y renderiza por WebSocket ('repeater_response').
+        // Si el WebSocket está desconectado, usamos la respuesta HTTP como canal de respaldo.
+        const isWsConnected = Boolean(this.ws && this.ws.readyState === WebSocket.OPEN);
+        if (!isWsConnected) {
+          const respText = this.formatRemoteCliResponse(action, data.data || data.result || data);
+          if (respText) {
+            this.appendTerminalLine(respText, "term-success");
+          }
+        }
       } else {
         this.appendTerminalLine(`✗ Error: ${data.message || data.error}`, "term-error");
         if (data.message && (data.message.toLowerCase().includes("password") || data.message.toLowerCase().includes("auth") || data.message.toLowerCase().includes("pin"))) {

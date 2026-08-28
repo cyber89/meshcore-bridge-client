@@ -6,6 +6,22 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Separación Estricta de Responsabilidades de Canales (HTTP REST vs WebSocket Push)
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect).
+- **Problema / Requerimiento**:
+  - Evitar el solapamiento o duplicación de respuestas entre la resolución de promesas HTTP REST (`fetch`) y la transmisión de eventos en tiempo real WebSocket (`/ws`).
+- **Causa Raíz Identificada**:
+  - En la consola remota de repetidores (`executeRepeaterCommand` y `sendModalRepeaterAction`), la UI imprimía el resultado síncrono recibido por HTTP y paralelamente imprimía el evento `repeater_response` emitido por el WebSocket al retornar el paquete de radio.
+- **Acciones Realizadas**:
+  - **HTTP REST (Comandos / Mutación)**: Responsable exclusivo del envío del comando, validación de autenticación y manejo de errores de red.
+  - **WebSocket Push (Single Source of Truth de Radio)**: Canal exclusivo para el streaming asíncrono en vivo de respuestas de firmware (`repeater_response`), telemetría, descubrimiento de nodos y mensajes.
+  - **Fallback Offline**: Si el WebSocket pierde conectividad temporalmente, la UI conmuta de forma segura a renderizar la respuesta del endpoint HTTP.
+- **Módulos Modificados**: `src/web/static/js/app.js`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
+
+
 ### Hito: Actualización de la Paleta Cromática del Tema Claro (Light Theme)
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO
