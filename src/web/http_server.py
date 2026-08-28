@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from src.web.api_router import WebAPIRouter
+from src.web.security_inspector import SecurityTrafficInspector
 
 
 class MeshCoreWebServer:
@@ -174,8 +175,39 @@ class MeshCoreWebServer:
                     k, v = h_str.split(":", 1)
                     headers[k.strip().lower()] = v.strip()
 
+            client_ip = SecurityTrafficInspector.extract_client_ip(writer, headers)
+            t_start = time.perf_counter()
+
+            # 1. Inspección de seguridad perimetral y detección de tráfico sospechoso
+            is_suspicious, anomaly_type, anomaly_detail = SecurityTrafficInspector.inspect_http_request(
+                method=method,
+                path=path,
+                headers=headers,
+                body_dict=None,
+                client_ip=client_ip,
+            )
+            if is_suspicious:
+                SecurityTrafficInspector.log_suspicious_traffic(
+                    client_ip=client_ip,
+                    source_type="HTTP",
+                    endpoint=path,
+                    anomaly_type=anomaly_type,
+                    detail=anomaly_detail,
+                    user_agent=headers.get("user-agent", ""),
+                )
+                await self._write_http_response(writer, "403 Forbidden", b"403 Forbidden - Security Violation")
+                return
+
             clean_path = path.split("?")[0].strip("/")
             if self._is_traversal_attempt(clean_path):
+                SecurityTrafficInspector.log_suspicious_traffic(
+                    client_ip=client_ip,
+                    source_type="HTTP",
+                    endpoint=path,
+                    anomaly_type="DIRECTORY_TRAVERSAL",
+                    detail=f"Traversal detectado en clean_path: '{clean_path}'",
+                    user_agent=headers.get("user-agent", ""),
+                )
                 await self._write_http_response(writer, "403 Forbidden", b"")
                 return
 
@@ -187,25 +219,41 @@ class MeshCoreWebServer:
             is_origin_ok = self._is_origin_allowed(req_origin, host_header, allowed_origins)
             cors_origin = req_origin if is_origin_ok else ""
 
-            # 1. Comprobar si es solicitud de Upgrade a WebSocket
+            # 2. Comprobar si es solicitud de Upgrade a WebSocket
             if headers.get("upgrade", "").lower() == "websocket" and "sec-websocket-key" in headers:
                 if req_origin and not is_origin_ok:
+                    SecurityTrafficInspector.log_suspicious_traffic(
+                        client_ip=client_ip,
+                        source_type="WEBSOCKET",
+                        endpoint=path,
+                        anomaly_type="WS_ORIGIN_RECHAZADO",
+                        detail=f"Origin WebSocket no autorizado: '{req_origin}'",
+                        user_agent=headers.get("user-agent", ""),
+                    )
                     logging.warning(f"WebSocket upgrade rechazado por Origin no permitido: {req_origin}")
                     await self._write_http_response(writer, "403 Forbidden", b"")
                     return
-                await self._handle_websocket_handshake(reader, writer, headers["sec-websocket-key"])
+                await self._handle_websocket_handshake(reader, writer, headers["sec-websocket-key"], client_ip=client_ip)
                 return
 
-            # 2. Manejo de CORS Preflight (OPTIONS)
+            # 3. Manejo de CORS Preflight (OPTIONS)
             if method == "OPTIONS":
                 await self._handle_cors_preflight(writer, cors_origin)
                 return
 
-            # 3. Leer cuerpo si existe Content-Length (con límite de tamaño para prevenir DoS)
+            # 4. Leer cuerpo si existe Content-Length (con límite de tamaño para prevenir DoS)
             body_dict: dict[str, Any] = {}
             if "content-length" in headers:
                 content_len = int(headers["content-length"])
                 if content_len > 1024 * 1024:  # 1 MB max
+                    SecurityTrafficInspector.log_suspicious_traffic(
+                        client_ip=client_ip,
+                        source_type="HTTP",
+                        endpoint=path,
+                        anomaly_type="PAYLOAD_SOBREDIMENSIONADO",
+                        detail=f"Content-Length {content_len} excede 1MB",
+                        user_agent=headers.get("user-agent", ""),
+                    )
                     writer.write(b"HTTP/1.1 413 Payload Too Large\r\nConnection: close\r\n\r\n")
                     await writer.drain()
                     writer.close()
@@ -217,13 +265,17 @@ class MeshCoreWebServer:
                 except Exception:
                     body_dict = {"raw": body_bytes.decode("utf-8", errors="ignore")}
 
-            # 4. Manejo de API REST con Cabeceras de Seguridad
+            # 5. Manejo de API REST con Cabeceras de Seguridad
             if path.startswith("/api/"):
-                await self._handle_api_response(writer, method, path, headers, body_dict, cors_origin)
+                await self._handle_api_response(
+                    writer, method, path, headers, body_dict, cors_origin, client_ip=client_ip, t_start=t_start
+                )
                 return
 
-            # 5. Servir archivos estáticos (HTML, CSS, JS)
-            await self._serve_static_file(writer, path, cors_origin)
+            # 6. Servir archivos estáticos (HTML, CSS, JS)
+            await self._serve_static_file(
+                writer, path, cors_origin=cors_origin, client_ip=client_ip, method=method, t_start=t_start, headers=headers
+            )
 
         except Exception as e:
             logging.warning("Excepción en cliente HTTP/WS: %s", e)
@@ -253,6 +305,8 @@ class MeshCoreWebServer:
         headers: dict[str, str],
         body_dict: dict[str, Any],
         cors_origin: str,
+        client_ip: str = "127.0.0.1",
+        t_start: float = 0.0,
     ) -> None:
         api_key = os.getenv("BRIDGE_API_KEY", "")
         protected_prefixes = ("/api/node/reboot", "/api/admin/", "/api/tx", "/api/repeater/")
@@ -267,11 +321,28 @@ class MeshCoreWebServer:
             else:
                 req_api_key = headers.get("x-api-key", "")
                 if not hmac.compare_digest(req_api_key, api_key):
+                    SecurityTrafficInspector.log_suspicious_traffic(
+                        client_ip=client_ip,
+                        source_type="API-AUTH",
+                        endpoint=path,
+                        anomaly_type="AUTENTICACION_API_FALLIDA",
+                        detail=f"Intento no autorizado a endpoint protegido '{path}'",
+                        user_agent=headers.get("user-agent", ""),
+                    )
                     resp_bytes = json.dumps({"error": "Unauthorized"}).encode("utf-8")
                     await self._write_http_response(writer, "401 Unauthorized", resp_bytes, "application/json", cors_origin=cors_origin)
                     return
 
         status_code, resp_json = await self.router.handle_request(method, path, body_dict)
+        duration_ms = (time.perf_counter() - t_start) * 1000.0 if t_start > 0 else 0.0
+        SecurityTrafficInspector.log_http_access(
+            client_ip=client_ip,
+            method=method,
+            path=path,
+            status_code=status_code,
+            duration_ms=duration_ms,
+            user_agent=headers.get("user-agent", ""),
+        )
         resp_bytes = json.dumps(resp_json, indent=2).encode("utf-8")
         await self._write_http_response(writer, f"{status_code} OK", resp_bytes, "application/json", cors_origin=cors_origin)
 
@@ -307,6 +378,7 @@ class MeshCoreWebServer:
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter,
         sec_key: str,
+        client_ip: str = "127.0.0.1",
     ) -> None:
         """Ejecuta el handshake RFC 6455 de WebSocket y mantiene el bucle de escucha."""
         guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -325,6 +397,11 @@ class MeshCoreWebServer:
         await writer.drain()
 
         self.active_websockets.add(writer)
+        SecurityTrafficInspector.log_websocket_connection(
+            client_ip=client_ip,
+            event="Conexión WebSocket establecida",
+            active_count=len(self.active_websockets),
+        )
 
         # Enviar estado inicial inmediato al cliente conectado
         initial_status = {
@@ -379,6 +456,11 @@ class MeshCoreWebServer:
             pass
         finally:
             self.active_websockets.discard(writer)
+            SecurityTrafficInspector.log_websocket_connection(
+                client_ip=client_ip,
+                event="Conexión WebSocket cerrada",
+                active_count=len(self.active_websockets),
+            )
             try:
                 writer.close()
             except Exception:
@@ -521,16 +603,33 @@ class MeshCoreWebServer:
         await writer.drain()
         writer.close()
 
-    async def _serve_static_file(self, writer: asyncio.StreamWriter, raw_path: str, cors_origin: str = "") -> None:
+    async def _serve_static_file(
+        self,
+        writer: asyncio.StreamWriter,
+        raw_path: str,
+        cors_origin: str = "",
+        client_ip: str = "127.0.0.1",
+        method: str = "GET",
+        t_start: float = 0.0,
+        headers: dict[str, str] | None = None,
+    ) -> None:
         """Sirve archivos estáticos locales o devuelve index.html para SPA routing."""
         clean_path = raw_path.split("?")[0].strip("/")
-        if not clean_path or clean_path in ("", "chat", "map", "nodes", "contacts", "settings", "telemetry"):
+        if not clean_path or clean_path in ("", "chat", "map", "nodes", "contacts", "settings", "telemetry", "logs", "analytics"):
             target_file = self.static_dir / "index.html"
         else:
             target_file = (self.static_dir / clean_path).resolve()
 
         # Seguridad: verificación canónica (defensa en profundidad)
         if not self._is_within_static_root(target_file):
+            SecurityTrafficInspector.log_suspicious_traffic(
+                client_ip=client_ip,
+                source_type="HTTP-STATIC",
+                endpoint=raw_path,
+                anomaly_type="ESCAPE_RAIZ_ESTATICOS",
+                detail=f"Intento de acceso fuera de static_dir: '{target_file}'",
+                user_agent=(headers or {}).get("user-agent", ""),
+            )
             await self._write_http_response(writer, "403 Forbidden", b"", cors_origin=cors_origin)
             return
 
@@ -538,6 +637,15 @@ class MeshCoreWebServer:
             if not target_file.suffix:
                 target_file = self.static_dir / "index.html"
             else:
+                duration_ms = (time.perf_counter() - t_start) * 1000.0 if t_start > 0 else 0.0
+                SecurityTrafficInspector.log_http_access(
+                    client_ip=client_ip,
+                    method=method,
+                    path=raw_path,
+                    status_code=404,
+                    duration_ms=duration_ms,
+                    user_agent=(headers or {}).get("user-agent", ""),
+                )
                 await self._write_http_response(writer, "404 Not Found", b"404 Not Found", cors_origin=cors_origin)
                 return
 
@@ -547,6 +655,15 @@ class MeshCoreWebServer:
                 content_type = "text/html" if target_file.suffix == ".html" else "application/octet-stream"
 
             file_bytes = target_file.read_bytes()
+            duration_ms = (time.perf_counter() - t_start) * 1000.0 if t_start > 0 else 0.0
+            SecurityTrafficInspector.log_http_access(
+                client_ip=client_ip,
+                method=method,
+                path=raw_path,
+                status_code=200,
+                duration_ms=duration_ms,
+                user_agent=(headers or {}).get("user-agent", ""),
+            )
             cache_header = "Cache-Control: no-cache, no-store, must-revalidate" if target_file.suffix == ".html" else "Cache-Control: public, max-age=60"
             await self._write_http_response(
                 writer,

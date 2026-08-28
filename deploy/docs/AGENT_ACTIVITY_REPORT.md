@@ -6,6 +6,30 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Registro Integral de Conexiones IP y Detección en Tiempo Real de Tráfico Sospechoso
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 5 (Security Auditor), Agente 4 (Web Architect).
+- **Problema / Requerimiento**:
+  - Registrar formalmente en los logs del sistema todas las direcciones IP entrantes hacia la interfaz Web, la API REST, el canal WebSocket y el servidor TCP Companion.
+  - Detectar de forma proactiva patrones de tráfico sospechoso (Directory Traversal, escáneres automatizados de vulnerabilidades como sqlmap/nikto, sondeos a rutas sensibles como `/.env`, inyecciones de código/comandos, cargas sobredimensionadas y tramas TCP malformadas) y alertar en logs con categoría de seguridad de alta visibilidad.
+- **Acciones Realizadas**:
+  - Creado el módulo perimetral `SecurityTrafficInspector` ([`src/web/security_inspector.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/security_inspector.py)) con extracción de IP normalizada (soporte directo y proxies `X-Forwarded-For`), validación estricta de rutas y firmas de escáneres/inyecciones.
+  - Integrado registro de accesos en `MeshCoreWebServer` ([`src/web/http_server.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/http_server.py)):
+    - `🌐 [HTTP-CLIENT]` para solicitudes HTTP estáticas con IP, método, ruta, código HTTP, tiempo de respuesta y User-Agent.
+    - `⚡ [REST-API]` para llamadas a la API REST con IP, método, endpoint, código HTTP y latencia.
+    - `🔌 [WEBSOCKET]` para conexiones y desconexiones de clientes WebSocket con IP y conteo activo.
+  - Integrado registro de accesos en `MeshCoreCompanionServer` ([`src/tcp_companion_server.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/tcp_companion_server.py)):
+    - `📶 [TCP-COMPANION]` para conexiones/desconexiones de clientes TCP con IP, puerto y conteo activo.
+    - `🚨 [TRAFICO-SOSPECHOSO]` para intentos no autorizados por IP/token o tramas TCP sobredimensionadas (> 512B).
+  - Enriquecida la consola de logs frontend (`#tab-logs`, `app.js`, `app.css`):
+    - Añadidos filtros especializados en el selector: `🛡️ Tráfico Sospechoso & Seguridad` (`SECURITY`) y `🌐 Conexiones IP (Web / API / TCP)` (`NET`).
+    - Destacado visual en tiempo real para filas de seguridad (`.log-row-suspicious`) y red (`.log-row-network`).
+  - Creado script de prueba automatizado `scripts/test_ip_and_security_logging.py` validando todas las categorías de registro y bloqueo.
+- **Módulos Modificados**: `src/web/security_inspector.py` (nuevo), `src/web/http_server.py`, `src/tcp_companion_server.py`, `src/web/static/index.html`, `src/web/static/js/app.js`, `src/web/static/css/app.css`, `scripts/test_ip_and_security_logging.py` (nuevo), `docs/AGENT_ACTIVITY_REPORT.md`.
+
+---
+
 ### Hito: Estandarización de Persistencia JSON y Eliminación de Referencias a SQLite
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO

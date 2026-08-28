@@ -3241,6 +3241,18 @@ body {
   transition: background 0.12s ease;
 }
 
+.log-row-suspicious {
+  background: rgba(239, 68, 68, 0.09) !important;
+  border-left: 3px solid #ef4444 !important;
+  padding-left: 8px;
+}
+
+.log-row-network {
+  background: rgba(14, 165, 233, 0.06);
+  border-left: 2px solid var(--accent-primary);
+  padding-left: 8px;
+}
+
 .log-row:hover {
   background: var(--bg-surface-hover);
 }

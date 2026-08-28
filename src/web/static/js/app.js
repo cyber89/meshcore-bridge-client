@@ -4035,11 +4035,23 @@ class MeshCoreStationApp {
     const searchQuery = (this.dom.logSearchInput?.value || "").toLowerCase().trim();
 
     const filtered = this.systemLogs.filter((log) => {
+      const msg = log.message || "";
       if (levelFilter !== "ALL") {
-        if (levelFilter === "ERROR" && !["ERROR", "CRITICAL"].includes(log.level)) return false;
-        if (levelFilter === "WARNING" && !["WARNING", "WARN"].includes(log.level)) return false;
-        if (levelFilter === "INFO" && log.level !== "INFO") return false;
-        if (levelFilter === "DEBUG" && log.level !== "DEBUG") return false;
+        if (levelFilter === "SECURITY") {
+          const isSec = msg.includes("[TRAFICO-SOSPECHOSO]") || msg.includes("[SEGURIDAD]") || msg.includes("403 Forbidden") || msg.includes("Unauthorized");
+          if (!isSec) return false;
+        } else if (levelFilter === "NET") {
+          const isNet = msg.includes("[HTTP-CLIENT]") || msg.includes("[REST-API]") || msg.includes("[TCP-COMPANION]") || msg.includes("[WEBSOCKET]");
+          if (!isNet) return false;
+        } else if (levelFilter === "ERROR" && !["ERROR", "CRITICAL"].includes(log.level)) {
+          return false;
+        } else if (levelFilter === "WARNING" && !["WARNING", "WARN"].includes(log.level)) {
+          return false;
+        } else if (levelFilter === "INFO" && log.level !== "INFO") {
+          return false;
+        } else if (levelFilter === "DEBUG" && log.level !== "DEBUG") {
+          return false;
+        }
       }
       if (searchQuery) {
         const text = `${this.escapeHtml(log.message)} ${log.module} ${log.logger} ${log.exception || ""}`.toLowerCase();
@@ -4068,7 +4080,15 @@ class MeshCoreStationApp {
 
   createLogElement(log) {
     const row = document.createElement("div");
-    row.className = "log-row";
+    const msg = log.message || "";
+    const isSuspicious = msg.includes("[TRAFICO-SOSPECHOSO]");
+    const isNetwork = msg.includes("[HTTP-CLIENT]") || msg.includes("[REST-API]") || msg.includes("[TCP-COMPANION]") || msg.includes("[WEBSOCKET]");
+    
+    let extraClass = "";
+    if (isSuspicious) extraClass = "log-row-suspicious";
+    else if (isNetwork) extraClass = "log-row-network";
+
+    row.className = `log-row ${extraClass}`;
 
     const lvlLower = (log.level || "info").toLowerCase();
     const timeStr = log.iso_time ? (log.iso_time.split(" ")[1] || log.iso_time) : new Date((log.timestamp || (Date.now() / 1000)) * 1000).toLocaleTimeString();
