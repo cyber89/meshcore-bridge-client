@@ -6,6 +6,18 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Actualización Automática y Persistente de Métricas de Nodo tras Ping Exitoso
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect).
+- **Problema / Requerimiento**:
+  - Al completar un Ping a un nodo remoto (0-hop o repetidor), asegurar que las métricas obtenidas (`last_rssi`, `last_snr`, `last_seen`, `hops = 0`, `rtt_ms`) actualicen de inmediato el registro del nodo en `NodeRegistry`, se persistan en SQLite y se sincronicen en tiempo real con la UI vía WebSocket (`contact_updated`).
+- **Acciones Realizadas**:
+  - En `admin_handler.py:handle()`, tras resolverse la respuesta de `ping_zero`, se integró la llamada a `node_registry.record_packet()` y `node_registry.add_or_update()`, emitiendo el evento `contact_updated` por WebSocket para actualizar instantáneamente las tarjetas en la grilla unificada de nodos y el modal de administración.
+- **Módulos Modificados**: `src/admin_handler.py`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
+
+
 ### Hito: Separación Estricta de Responsabilidades de Canales (HTTP REST vs WebSocket Push)
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO

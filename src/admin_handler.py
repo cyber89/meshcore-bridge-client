@@ -14,7 +14,12 @@ from dataclasses import dataclass
 from typing import Any
 
 import config
-from src.contact_manager import NodeContactUpdate, NodeRegistry
+from src.contact_manager import (
+    NodeContactUpdate,
+    NodeRegistry,
+    PacketRecord,
+    is_valid_node_key,
+)
 from src.mqtt_client import AsyncBridgeMQTTClient
 from src.repeater_manager import RepeaterManager
 from src.target_resolver import TargetResolver
@@ -601,6 +606,34 @@ class AdminCommandHandler:
                         rssi_val = int(round(-120.0 + min(55.0, max(5.0, (float(snr_back) + 15.0) * 2.2))))
 
                     bat_val = target_info.get("battery_pct") if target_info else None
+
+                    # Actualizar métricas frescas del nodo en el NodeRegistry y base de datos
+                    canon_target_pk = (self._ctx.node_registry.get_canonical_key(str(target_node)) or str(target_node)).lower().strip()
+                    if is_valid_node_key(canon_target_pk) and not self._ctx.node_registry.is_local_key(canon_target_pk):
+                        self._ctx.node_registry.record_packet(
+                            PacketRecord(
+                                public_key=canon_target_pk,
+                                is_rx=True,
+                                rssi=rssi_val,
+                                snr=float(snr_back),
+                                hop_count=0,
+                            )
+                        )
+                        c_updated = self._ctx.node_registry.add_or_update(
+                            canon_target_pk,
+                            NodeContactUpdate(
+                                last_rssi=rssi_val,
+                                last_snr=float(snr_back),
+                                hops=0,
+                            ),
+                        )
+                        web_srv = getattr(self._ctx, "web_server", None)
+                        if web_srv and hasattr(web_srv, "broadcast_event") and c_updated:
+                            asyncio.create_task(web_srv.broadcast_event({
+                                "type": "contact_updated",
+                                "event_type": "contact_updated",
+                                "contact": c_updated.to_dict(),
+                            }))
 
                     res.update({
                         "status": "ok",
