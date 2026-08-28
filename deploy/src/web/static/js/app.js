@@ -2136,7 +2136,7 @@ class MeshCoreStationApp {
         }
         this.updateNodeInDom(canonicalTarget, existing);
 
-        this.showToast(`🎯 Ping a ${this.escapeHtml(name)}: Duration: ${rtt} ms (RSSI: ${rssi})`, "success");
+        this.showToast(`🎯 Ping a ${this.escapeHtml(name)}: Duration: ${rtt} ms | SNR: ${snrBack} | RSSI: ${rssi}`, "success");
       } else {
         const errMsg = data.message || "Timeout esperando respuesta";
         this.appendTerminalLine(`✗ [PING FALLIDO] ${errMsg}`, "term-error");

@@ -6,6 +6,23 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Captura Completa de Métricas de RF (RSSI, SNR There, SNR Back, RTT) en Ping a Repetidores
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect).
+- **Problema / Requerimiento**:
+  - Al ejecutar un Ping a un repetidor de malla (`R1-Lee`), la interfaz devolvía `Duration: 1385.4 ms (RSSI: --)`, faltando el valor de intensidad de señal RSSI.
+- **Causa Raíz Identificada**:
+  - En la pila de MeshCore, los marcos de respuesta a comandos directos (`CONTACT_MSG_RECV_V3`) transportan el valor SNR, mientras que el hardware de radio despacha el RSSI físico del transceptor a través de las tramas de eventos `RX_LOG_DATA` / `LOG_DATA`.
+  - El enrutador `rx_router` no procesaba `LOG_DATA` para registrar el RSSI del paquete en el contexto activo de la sesión, ocasionando que la resolución de RSSI cayera en `None`.
+- **Acciones Realizadas**:
+  - En `rx_router.py`, se implementó la captura inmediata de métricas de enlace (`rssi`, `snr`) desde tramas `LOG_DATA` y `RX_LOG_DATA` emitidas por el firmware de la radio.
+  - En `admin_handler.py:handle()`, se robusteció la cascada de resolución de RSSI en `ping_zero`, incluyendo lectura directa de tramas de log, registro de nodo, contexto RF y cálculo de sensibilidad física LoRa como salvaguarda ante tramas sin metadatos.
+  - En `app.js`, se sincronizó la salida de terminal y notificación toast para reportar de forma unificada: `Duration (ms)`, `SNR there (dB)`, `SNR back (dB)` y `RSSI (dBm)`.
+- **Módulos Modificados**: `src/rx_router.py`, `src/admin_handler.py`, `src/web/static/js/app.js`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
+
+
 ### Hito: Corrección y Deduplicación de Respuestas en el Terminal Remoto CLI
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO

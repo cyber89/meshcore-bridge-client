@@ -542,6 +542,32 @@ class RxEventRouter:
                     }))
                 return
 
+            # Caso Log de RF / Métricas de señal a bajo nivel (LOG_DATA / RX_LOG_DATA)
+            if "LOG" in ev_upper or payload_dict.get("event_type") in ("log_data", "rx_log_data"):
+                rx_rssi = payload_dict.get("rssi", payload_dict.get("RSSI"))
+                rx_snr = payload_dict.get("snr", payload_dict.get("SNR"))
+                if rx_rssi is not None:
+                    try:
+                        self._ctx.last_rx_rssi = int(rx_rssi)
+                    except (ValueError, TypeError):
+                        pass
+                if rx_snr is not None:
+                    try:
+                        self._ctx.last_rx_snr = float(rx_snr)
+                    except (ValueError, TypeError):
+                        pass
+                if sender and is_valid_node_key(sender) and not is_local_sender:
+                    self._ctx.node_registry.record_packet(
+                        PacketRecord(
+                            public_key=sender,
+                            is_rx=True,
+                            rssi=self._ctx.last_rx_rssi,
+                            snr=self._ctx.last_rx_snr,
+                            hop_count=hops,
+                        )
+                    )
+                return
+
             raw_txt_type = payload_dict.get("txt_type", payload_dict.get("text_type", 0))
             try:
                 txt_type = int(raw_txt_type)
