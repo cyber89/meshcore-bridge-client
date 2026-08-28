@@ -31,6 +31,46 @@ const MAX_RAW_PACKETS = 200;
 const MAX_SYSTEM_LOGS = 300;
 const MAX_FEED_MESSAGES = 100;
 
+// Mapeo canónico de frecuencias por región de radio
+const REGION_FREQUENCIES = Object.freeze({
+  "US915": "915.000",
+  "EU868": "868.000",
+  "AU915": "915.000",
+  "AS923": "923.000",
+  "IN865": "865.000",
+  "RU864": "864.000",
+});
+
+// Eventos de telemetría y control excluidos del feed de chat (O(1) Set lookup)
+const NON_CHAT_EVENT_TYPES = new Set([
+  "repeater_response", "repeater_telemetry", "advert", "node_advert",
+  "node_discovered", "contact_discovered", "contact_updated", "contacts_updated",
+  "channels_updated", "message_delivered", "trace_data", "system_log",
+  "metrics_update", "rf_log", "telemetry", "stats_radio", "stats_core", "ack", "trace"
+]);
+
+// Prefijos de comandos/errores CLI de firmware para filtrar ruido de consola
+const KNOWN_CLI_SYSTEM_PREFIXES = [
+  "unknown command",
+  "error: unknown command",
+  "error unknown command",
+  "invalid command",
+  "cmd ",
+  "login ",
+  "auth ",
+  "stats-",
+  "stats_",
+  "logging off",
+  "log erased",
+  "welcome admin",
+  "access denied",
+  "bad pin",
+  "wrong password",
+  "incorrect password",
+  "permission denied",
+  "not logged in",
+];
+
 /**
  * Capa de persistencia asíncrona en el navegador mediante IndexedDB.
  * Permite conservar historial de chat y preferencias tras refrescar la página.
@@ -421,45 +461,14 @@ class MeshCoreStationApp {
     }
 
     // Filtrar únicamente ruido de consola CLI / logs de firmware
-    if (
-      cleanLower.startsWith("unknown command") ||
-      cleanLower.startsWith("error: unknown command") ||
-      cleanLower.startsWith("error unknown command") ||
-      cleanLower.startsWith("invalid command") ||
-      cleanLower.startsWith("cmd ") ||
-      cleanLower.startsWith("login ") ||
-      cleanLower.startsWith("auth ") ||
-      cleanLower.startsWith("stats-") ||
-      cleanLower.startsWith("stats_") ||
-      cleanLower.startsWith("logging off") ||
-      cleanLower.startsWith("log erased") ||
-      cleanLower.startsWith("welcome admin") ||
-      cleanLower.startsWith("access denied") ||
-      cleanLower.startsWith("bad pin") ||
-      cleanLower.startsWith("wrong password") ||
-      cleanLower.startsWith("incorrect password") ||
-      cleanLower.startsWith("permission denied") ||
-      cleanLower.startsWith("not logged in") ||
-      cleanLower === "unknown command"
-    ) {
-      return true;
-    }
-
-    return false;
+    return KNOWN_CLI_SYSTEM_PREFIXES.some((prefix) => cleanLower.startsWith(prefix));
   }
 
   isCommonChatMessage(payload) {
     if (!payload || typeof payload !== "object") return false;
 
     const evType = String(payload.event_type || payload.type || "");
-    const nonChatEventTypes = [
-      "repeater_response", "repeater_telemetry", "advert", "node_advert",
-      "node_discovered", "contact_discovered", "contact_updated", "contacts_updated",
-      "channels_updated", "message_delivered", "trace_data", "system_log",
-      "metrics_update", "rf_log", "telemetry", "stats_radio", "stats_core", "ack", "trace"
-    ];
-
-    if (nonChatEventTypes.includes(evType)) {
+    if (NON_CHAT_EVENT_TYPES.has(evType)) {
       return false;
     }
 
@@ -1806,6 +1815,17 @@ class MeshCoreStationApp {
 
     // 1. Formulario de Parámetros RF
     const radioForm = document.getElementById("repRadioForm");
+    const repRegionSelect = document.getElementById("radioRegion");
+    const repFreqInput = document.getElementById("radioFreq");
+    if (repRegionSelect && repFreqInput) {
+      repRegionSelect.addEventListener("change", (e) => {
+        const reg = e.target.value;
+        if (REGION_FREQUENCIES[reg]) {
+          repFreqInput.value = REGION_FREQUENCIES[reg];
+        }
+      });
+    }
+
     const repToggle = document.getElementById("radioRepeatMode");
     const repBadge = document.getElementById("radioRepeatBadge");
     if (repToggle && repBadge) {
@@ -3097,18 +3117,10 @@ class MeshCoreStationApp {
     if (regionSelect && freqInput) {
       regionSelect.addEventListener("change", (e) => {
         const reg = e.target.value;
-        const regionFreqs = {
-          "US915": "915.000",
-          "EU868": "868.000",
-          "AU915": "915.000",
-          "AS923": "923.000",
-          "IN865": "865.000",
-          "RU864": "864.000",
-        };
-        if (regionFreqs[reg]) {
-          freqInput.value = regionFreqs[reg];
+        if (REGION_FREQUENCIES[reg]) {
+          freqInput.value = REGION_FREQUENCIES[reg];
           const sumFreq = document.getElementById("localSummaryFreq");
-          if (sumFreq) sumFreq.textContent = `${regionFreqs[reg]} MHz`;
+          if (sumFreq) sumFreq.textContent = `${REGION_FREQUENCIES[reg]} MHz`;
         }
       });
     }
