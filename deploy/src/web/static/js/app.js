@@ -6086,7 +6086,7 @@ class MeshCoreStationApp {
 
     await loadStatus();
 
-    // Heartbeat de métricas periódico de respaldo cada 4 segundos
+    // Heartbeat de métricas periódico de respaldo cada 15 segundos
     setInterval(async () => {
       try {
         const res = await fetch("/api/status");
@@ -6096,7 +6096,7 @@ class MeshCoreStationApp {
           this.updateHealthChips(json.data);
         }
       } catch (_) {}
-    }, 4000);
+    }, 15000);
   }
 
   renderChannelsList(channels) {
