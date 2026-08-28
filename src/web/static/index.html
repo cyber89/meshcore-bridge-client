@@ -134,13 +134,13 @@
             <!-- Panel Derecho de Mensajería: Conversación Activa y Composición -->
             <div class="chat-conversation-panel">
               <div class="chat-header">
-                <div class="active-target-info">
+                <div class="header-title-group active-target-info">
                   <div class="target-title-row">
                     <button class="btn-xs btn-outline mobile-only-inline" id="btnToggleChannelsMobile" title="Mostrar/Ocultar lista de canales">📑 Canales</button>
                     <h2 id="chatActiveTitle">Canal 0 (Public / Broadcast)</h2>
                     <span class="security-chip" id="chatSecurityChip">🔓 Abierto</span>
                   </div>
-                  <span class="target-sub" id="chatActiveSub">Difusión comunitaria abierta por radio LoRa</span>
+                  <p class="header-subtitle target-sub" id="chatActiveSub">Difusión comunitaria abierta por radio LoRa</p>
                 </div>
                 <div class="chat-header-actions">
                   <button class="btn-secondary btn-sm" id="btnShareTargetQr" title="Compartir destino activo por QR">📤 QR</button>
@@ -166,12 +166,10 @@
         <!-- Pestaña: Directorio Unificado de Nodos de la Malla -->
         <section id="tab-nodes" class="tab-pane" role="tabpanel" aria-labelledby="navTabNodes">
           <div class="nodes-view-container">
-            <div class="pane-header nodes-pane-header">
+            <div class="pane-header">
               <div class="header-title-group">
                 <h2>🌐 Directorio de Nodos en la Malla</h2>
-                <p class="pane-subtitle">
-                  Todos los nodos descubiertos en la red LoRa MeshCore con su telemetría y estado en vivo.
-                </p>
+                <p class="header-subtitle">Todos los nodos descubiertos en la red LoRa MeshCore con su telemetría y estado en vivo.</p>
               </div>
             </div>
 
@@ -226,6 +224,7 @@
             <div class="pane-header">
               <div class="header-title-group">
                 <h2>👥 Libreta de Contactos</h2>
+                <p class="header-subtitle">Directorio de contactos, nodos amigos y gestión de claves públicas de la red.</p>
               </div>
               <div class="header-actions">
                 <button class="btn-secondary" id="btnRefreshNodes" aria-label="Actualizar lista de contactos">🔄 Actualizar</button>
@@ -430,9 +429,9 @@
         <section id="tab-logs" class="tab-pane" role="tabpanel" aria-labelledby="navTabLogs">
           <div class="logs-view-container">
             <div class="pane-header">
-              <div>
-                <h2>Consola de Logs y Diagnóstico en Vivo</h2>
-                <p class="pane-sub">Registro de eventos, depuración en tiempo real y estado de salud de subsistemas</p>
+              <div class="header-title-group">
+                <h2>📜 Consola de Logs y Diagnóstico en Vivo</h2>
+                <p class="header-subtitle">Registro de eventos, depuración en tiempo real y estado de salud de subsistemas.</p>
               </div>
               <div class="pane-actions">
                 <button class="btn-secondary" id="btnToggleDebugMode" title="Alternar nivel de logging DEBUG">🐞 Modo DEBUG</button>
