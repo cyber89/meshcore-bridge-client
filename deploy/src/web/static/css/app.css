@@ -62,48 +62,138 @@
 }
 
 body.light-theme {
-  /* Fondo general: Gris Claro (#F8FAFC) */
-  --bg-canvas: #F8FAFC;
-  --bg-surface: #FFFFFF;
-  --bg-surface-elevated: #F1F5F9;
-  --bg-surface-hover: #E2E8F0;
-  --bg-glass: rgba(248, 250, 252, 0.88);
+  /* Fondo general y Lienzo: Tono pizarra azulado suave anti-deslumbramiento */
+  --bg-canvas: #EAF0F6;
+  --bg-surface: #F3F7FA;
+  --bg-surface-elevated: #FFFFFF;
+  --bg-surface-hover: #E1EAF2;
+  --bg-glass: rgba(234, 240, 246, 0.94);
 
-  /* Estructura y Bordes */
-  --border-subtle: #E2E8F0;
-  --border-medium: #CBD5E1;
-  --border-strong: #94A3B8;
-  --border-focus: #0EA5E9;
+  /* Estructura y Bordes refinados con matiz azul-acero */
+  --border-subtle: #D2DEEB;
+  --border-medium: #BACBDC;
+  --border-strong: #8BA2BA;
+  --border-focus: #0284C7;
 
-  /* Estructura y Textos: Gris Pizarra (#1E293B) */
-  --text-bright: #0F172A;
-  --text-main: #1E293B;
-  --text-muted: #64748B;
-  --text-dim: #94A3B8;
+  /* Estructura y Textos: Azul Marino Profundo de alto contraste */
+  --text-bright: #0A192F;
+  --text-main: #1E2E42;
+  --text-muted: #486282;
+  --text-dim: #728AA5;
   --text-inverse: #FFFFFF;
 
-  /* Paleta Semántica & Roles MeshCore */
-  --accent-primary: #0EA5E9;          /* Verde Menta / Acento de datos principales */
-  --accent-primary-hover: #0284C7;
-  --accent-secondary: #38BDF8;        /* Cian Eléctrico / Comparativas */
-  --accent-cyan: #38BDF8;
-  --accent-success: #10B981;          /* En línea / Local Host / Telemetría */
-  --accent-warning: #F59E0B;          /* Salas BBS / Advertencias */
-  --accent-danger: #EF4444;           /* Fuera de línea / Errores */
-  --accent-purple: #8B5CF6;           /* Repetidores / Routers de Malla */
+  /* Paleta Semántica & Roles MeshCore - Tonos Azules y Acentos Profesionales */
+  --accent-primary: #0284C7;          /* Azul Cielo / Océano profundo */
+  --accent-primary-hover: #0369A1;
+  --accent-secondary: #2563EB;        /* Azul Real / Red */
+  --accent-cyan: #0284C7;
+  --accent-success: #059669;          /* Verde Esmeralda (alta legibilidad) */
+  --accent-warning: #D97706;          /* Ámbar Cálido */
+  --accent-danger: #DC2626;           /* Carmesí / Errores */
+  --accent-purple: #7C3AED;           /* Violeta Real / Repetidores */
 
-  /* Sombras y Elevación */
-  --shadow-sm: 0 1px 2px 0 rgba(30, 41, 59, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(30, 41, 59, 0.07), 0 2px 4px -2px rgba(30, 41, 59, 0.04);
-  --shadow-lg: 0 10px 15px -3px rgba(30, 41, 59, 0.08), 0 4px 6px -4px rgba(30, 41, 59, 0.04);
-  --shadow-glow: 0 0 15px rgba(14, 165, 233, 0.20);
-  --shadow-glow-success: 0 0 16px rgba(16, 185, 129, 0.20);
+  /* Sombras y Elevación Suave con tinte azul */
+  --shadow-sm: 0 1px 3px 0 rgba(10, 25, 47, 0.06);
+  --shadow-md: 0 4px 8px -1px rgba(10, 25, 47, 0.08), 0 2px 4px -2px rgba(10, 25, 47, 0.04);
+  --shadow-lg: 0 12px 24px -4px rgba(10, 25, 47, 0.10), 0 4px 8px -4px rgba(10, 25, 47, 0.04);
+  --shadow-glow: 0 0 16px rgba(2, 132, 199, 0.22);
+  --shadow-glow-success: 0 0 16px rgba(5, 150, 105, 0.22);
 
   /* Barras de Desplazamiento */
-  --scrollbar-thumb: rgba(100, 116, 139, 0.30);
-  --scrollbar-thumb-hover: rgba(100, 116, 139, 0.60);
-  --scrollbar-thumb-active: rgba(14, 165, 233, 0.85);
+  --scrollbar-thumb: rgba(72, 98, 130, 0.35);
+  --scrollbar-thumb-hover: rgba(72, 98, 130, 0.65);
+  --scrollbar-thumb-active: rgba(2, 132, 199, 0.85);
   --scrollbar-track: transparent;
+}
+
+/* Ajustes Específicos de Componentes para Tema Claro */
+body.light-theme .app-header {
+  background-color: rgba(240, 245, 250, 0.95);
+  border-bottom-color: #D2DEEB;
+}
+
+body.light-theme .app-sidebar {
+  background-color: #F0F5FA;
+  border-right-color: #D2DEEB;
+}
+
+body.light-theme .nav-btn:hover {
+  background-color: #E2ECF5;
+  color: #0A192F;
+}
+
+body.light-theme .nav-btn.active {
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.14) 0%, rgba(37, 99, 235, 0.08) 100%);
+  color: #0284C7;
+  border-color: rgba(2, 132, 199, 0.35);
+}
+
+body.light-theme .chat-channels-panel {
+  background-color: #F5F9FC;
+  border-right-color: #D2DEEB;
+}
+
+body.light-theme .channel-item:hover,
+body.light-theme .dm-item:hover {
+  background-color: #E6EFF7;
+}
+
+body.light-theme .channel-item.active,
+body.light-theme .dm-item.active {
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.12) 0%, rgba(37, 99, 235, 0.06) 100%);
+  border-left-color: #0284C7;
+}
+
+body.light-theme .chat-conversation-panel {
+  background-color: #EAF0F6;
+}
+
+body.light-theme .chat-messages-container {
+  background-color: #EAF0F6;
+}
+
+body.light-theme .incoming .msg-bubble {
+  background: #FFFFFF;
+  border-color: #D2DEEB;
+  box-shadow: 0 1px 3px rgba(10, 25, 47, 0.05);
+}
+
+body.light-theme .node-card,
+body.light-theme .contact-card,
+body.light-theme .analytics-kpi-card,
+body.light-theme .settings-card,
+body.light-theme .metric-card {
+  background: #FFFFFF;
+  border-color: #D2DEEB;
+  box-shadow: 0 2px 5px rgba(10, 25, 47, 0.05);
+}
+
+body.light-theme .node-card:hover,
+body.light-theme .contact-card:hover,
+body.light-theme .settings-card:hover {
+  border-color: #8BA2BA;
+  box-shadow: 0 6px 14px rgba(10, 25, 47, 0.08);
+}
+
+body.light-theme .linux-terminal,
+body.light-theme .linux-term-output,
+body.light-theme .system-logs-box {
+  background: #0B192C;
+  border-color: #1E3A5F;
+  color: #E2E8F0;
+}
+
+body.light-theme .incoming .signal-chip,
+body.light-theme .incoming .loc-coords-badge {
+  background: rgba(2, 132, 199, 0.08);
+  border-color: rgba(2, 132, 199, 0.22);
+  color: #0284C7;
+}
+
+body.light-theme .hex-preview-box {
+  background: #0B192C;
+  border-color: #1E3A5F;
+  color: #38BDF8;
 }
 
 
@@ -3334,11 +3424,12 @@ body {
 }
 
 .input-readonly {
-  background: rgba(0, 0, 0, 0.25) !important;
+  background: var(--bg-surface-hover) !important;
   color: var(--text-muted) !important;
   font-family: var(--font-mono);
   font-size: 11px !important;
   cursor: not-allowed;
+  border-color: var(--border-medium) !important;
 }
 
 .input-with-action {
