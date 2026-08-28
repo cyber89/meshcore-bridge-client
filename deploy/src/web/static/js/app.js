@@ -1567,8 +1567,23 @@ class MeshCoreStationApp {
 
     // Llenar formulario de Radio
     const radioFreqInput = document.getElementById("radioFreq");
-    if (radioFreqInput && (node.frequency != null || node.freq != null)) {
-      radioFreqInput.value = node.frequency != null ? node.frequency : node.freq;
+    const repFreq = node.frequency != null ? node.frequency : node.freq;
+    if (radioFreqInput && repFreq != null) {
+      const numF = parseFloat(repFreq);
+      radioFreqInput.value = !isNaN(numF) ? numF.toFixed(3) : String(repFreq);
+    }
+    const radioRegionInput = document.getElementById("radioRegion");
+    if (radioRegionInput) {
+      if (node.region) {
+        radioRegionInput.value = node.region;
+      } else if (repFreq != null) {
+        const f = parseFloat(repFreq);
+        if (f >= 863.0 && f < 865.0) radioRegionInput.value = "RU864";
+        else if (f >= 865.0 && f < 867.0) radioRegionInput.value = "IN865";
+        else if (f >= 867.0 && f <= 870.0) radioRegionInput.value = "EU868";
+        else if (f >= 920.0 && f <= 925.0) radioRegionInput.value = "AS923";
+        else if (f >= 902.0 && f <= 928.0) radioRegionInput.value = "US915";
+      }
     }
     const radioPowerInput = document.getElementById("radioPower");
     if (radioPowerInput && (node.tx_power != null || node.power != null)) {
@@ -1584,19 +1599,30 @@ class MeshCoreStationApp {
     }
     const radioSf = document.getElementById("radioSf");
     if (radioSf && (node.spreading_factor != null || node.sf != null)) {
-      radioSf.value = String(node.spreading_factor != null ? node.spreading_factor : node.sf);
+      let rawSf = String(node.spreading_factor != null ? node.spreading_factor : node.sf).toUpperCase().replace("SF", "").trim();
+      radioSf.value = rawSf;
     }
     const radioBw = document.getElementById("radioBw");
     if (radioBw && (node.bandwidth != null || node.bw != null)) {
-      radioBw.value = String(node.bandwidth != null ? node.bandwidth : node.bw);
+      let rawBw = parseFloat(node.bandwidth != null ? node.bandwidth : node.bw);
+      if (rawBw > 1000) rawBw = rawBw / 1000.0;
+      const bwStr = String(Math.round(rawBw));
+      if (["125", "250", "500"].includes(bwStr)) {
+        radioBw.value = bwStr;
+      }
     }
     const radioCr = document.getElementById("radioCr");
     if (radioCr && (node.coding_rate != null || node.cr != null)) {
-      radioCr.value = String(node.coding_rate != null ? node.coding_rate : node.cr);
+      let rawCr = String(node.coding_rate != null ? node.coding_rate : node.cr).trim();
+      if (["5", "6", "7", "8"].includes(rawCr)) rawCr = `4/${rawCr}`;
+      if (["4/5", "4/6", "4/7", "4/8"].includes(rawCr)) {
+        radioCr.value = rawCr;
+      }
     }
     const radioRepeatMode = document.getElementById("radioRepeatMode");
-    if (radioRepeatMode && node.repeat_enabled !== undefined) {
-      radioRepeatMode.value = node.repeat_enabled === false ? "off" : "on";
+    if (radioRepeatMode && (node.repeat_enabled !== undefined || node.repeat !== undefined)) {
+      const isRep = node.repeat_enabled !== undefined ? Boolean(node.repeat_enabled) : Boolean(node.repeat);
+      radioRepeatMode.value = isRep ? "on" : "off";
     }
 
     // Llenar formulario de Propietario & Posición
@@ -2996,8 +3022,33 @@ class MeshCoreStationApp {
         const target = btn.getAttribute("data-subtab");
         const panel = document.getElementById(target);
         if (panel) panel.classList.add("active");
+        if (target === "local-radio" || target === "local-telemetry" || target === "local-owner-pos") {
+          this.fetchLocalNodeConfig();
+        }
       });
     });
+
+    // 1b. Auto-ajuste de frecuencia al cambiar región
+    const regionSelect = document.getElementById("localRegion");
+    const freqInput = document.getElementById("localFreq");
+    if (regionSelect && freqInput) {
+      regionSelect.addEventListener("change", (e) => {
+        const reg = e.target.value;
+        const regionFreqs = {
+          "US915": "915.000",
+          "EU868": "868.000",
+          "AU915": "915.000",
+          "AS923": "923.000",
+          "IN865": "865.000",
+          "RU864": "864.000",
+        };
+        if (regionFreqs[reg]) {
+          freqInput.value = regionFreqs[reg];
+          const sumFreq = document.getElementById("localSummaryFreq");
+          if (sumFreq) sumFreq.textContent = `${regionFreqs[reg]} MHz`;
+        }
+      });
+    }
 
     // 2. Slider de potencia TX
     const txSlider = document.getElementById("localTxPower");
@@ -3343,37 +3394,81 @@ class MeshCoreStationApp {
       const altInput = document.getElementById("localGpsAlt");
       if (altInput && (cfg.altitude || cfg.alt)) altInput.value = cfg.altitude || cfg.alt;
 
-      // Inputs de Radio
+      // Inputs de Radio & RF
+      const freqVal = cfg.frequency || cfg.radio_freq;
       const freqInput = document.getElementById("localFreq");
-      if (freqInput && (cfg.frequency || cfg.radio_freq)) freqInput.value = String(cfg.frequency || cfg.radio_freq);
+      if (freqInput && freqVal != null) {
+        const numFreq = parseFloat(freqVal);
+        freqInput.value = !isNaN(numFreq) ? numFreq.toFixed(3) : String(freqVal);
+      }
 
+      const regionInput = document.getElementById("localRegion");
+      if (regionInput) {
+        if (cfg.region) {
+          regionInput.value = cfg.region;
+        } else if (freqVal != null) {
+          const f = parseFloat(freqVal);
+          if (f >= 863.0 && f < 865.0) regionInput.value = "RU864";
+          else if (f >= 865.0 && f < 867.0) regionInput.value = "IN865";
+          else if (f >= 867.0 && f <= 870.0) regionInput.value = "EU868";
+          else if (f >= 920.0 && f <= 925.0) regionInput.value = "AS923";
+          else if (f >= 902.0 && f <= 928.0) regionInput.value = "US915";
+        }
+      }
+
+      const txPowerVal = cfg.tx_power != null ? cfg.tx_power : (cfg.power != null ? cfg.power : 20);
       const txInput = document.getElementById("localTxPower");
       const txVal = document.getElementById("localTxPowerVal");
       if (txInput) {
-        txInput.value = String(cfg.tx_power || 20);
-        if (txVal) txVal.textContent = `${cfg.tx_power || 20} dBm`;
+        txInput.value = String(txPowerVal);
+        if (txVal) txVal.textContent = `${txPowerVal} dBm`;
       }
 
       const hopInput = document.getElementById("localHopLimit");
-      if (hopInput && cfg.hop_limit) hopInput.value = String(cfg.hop_limit);
+      if (hopInput && (cfg.hop_limit != null || cfg.hops != null)) {
+        hopInput.value = String(cfg.hop_limit != null ? cfg.hop_limit : cfg.hops);
+      }
 
       const sfInput = document.getElementById("localSf");
-      if (sfInput && (cfg.spreading_factor || cfg.sf)) sfInput.value = String(cfg.spreading_factor || cfg.sf);
+      if (sfInput && (cfg.spreading_factor != null || cfg.sf != null)) {
+        let rawSf = String(cfg.spreading_factor != null ? cfg.spreading_factor : cfg.sf).toUpperCase().replace("SF", "").trim();
+        sfInput.value = rawSf;
+      }
 
       const bwInput = document.getElementById("localBw");
-      if (bwInput && (cfg.bandwidth || cfg.bw)) bwInput.value = String(cfg.bandwidth || cfg.bw);
+      if (bwInput && (cfg.bandwidth != null || cfg.bw != null)) {
+        let rawBw = parseFloat(cfg.bandwidth != null ? cfg.bandwidth : cfg.bw);
+        if (rawBw > 1000) rawBw = rawBw / 1000.0; // 250000 -> 250
+        const bwStr = String(Math.round(rawBw));
+        if (["125", "250", "500"].includes(bwStr)) {
+          bwInput.value = bwStr;
+        }
+      }
 
       const crInput = document.getElementById("localCr");
-      if (crInput && (cfg.coding_rate || cfg.cr)) crInput.value = String(cfg.coding_rate || cfg.cr);
+      if (crInput && (cfg.coding_rate != null || cfg.cr != null)) {
+        let rawCr = String(cfg.coding_rate != null ? cfg.coding_rate : cfg.cr).trim();
+        if (["5", "6", "7", "8"].includes(rawCr)) rawCr = `4/${rawCr}`;
+        if (["4/5", "4/6", "4/7", "4/8"].includes(rawCr)) {
+          crInput.value = rawCr;
+        }
+      }
 
       const repInput = document.getElementById("localRepeatMode");
-      if (repInput && cfg.repeat !== undefined) repInput.value = cfg.repeat ? "on" : "off";
+      if (repInput && (cfg.repeat !== undefined || cfg.repeat_enabled !== undefined)) {
+        const isRep = cfg.repeat !== undefined ? Boolean(cfg.repeat) : Boolean(cfg.repeat_enabled);
+        repInput.value = isRep ? "on" : "off";
+      }
 
       const telemInput = document.getElementById("localTelemetryInterval");
-      if (telemInput && cfg.telemetry_interval) telemInput.value = String(cfg.telemetry_interval);
+      if (telemInput && cfg.telemetry_interval != null) {
+        telemInput.value = String(cfg.telemetry_interval);
+      }
 
       const advInput = document.getElementById("localAdvertInterval");
-      if (advInput && (cfg.advert_interval || cfg.beacon_interval)) advInput.value = String(cfg.advert_interval || cfg.beacon_interval);
+      if (advInput && (cfg.advert_interval != null || cfg.beacon_interval != null)) {
+        advInput.value = String(cfg.advert_interval != null ? cfg.advert_interval : cfg.beacon_interval);
+      }
 
       // Badges de Puerto Serie y Rol
       const roleBadge = document.getElementById("localNodeRoleBadge");
@@ -3385,16 +3480,27 @@ class MeshCoreStationApp {
       }
 
       const sumFreq = document.getElementById("localSummaryFreq");
-      if (sumFreq) sumFreq.textContent = `${cfg.frequency || cfg.radio_freq || 915.0} MHz`;
+      if (sumFreq) {
+        const fDisp = cfg.frequency || cfg.radio_freq || 915.0;
+        sumFreq.textContent = `${typeof fDisp === "number" ? fDisp.toFixed(3) : fDisp} MHz`;
+      }
 
       const sumPower = document.getElementById("localSummaryPower");
-      if (sumPower) sumPower.textContent = `${cfg.tx_power || 20} dBm`;
+      if (sumPower) sumPower.textContent = `${txPowerVal} dBm`;
 
       const sumModem = document.getElementById("localSummaryModem");
-      if (sumModem) sumModem.textContent = `SF${cfg.spreading_factor || cfg.sf || 11} / BW${cfg.bandwidth || cfg.bw || 250}`;
+      if (sumModem) {
+        const sfDisp = cfg.spreading_factor || cfg.sf || 11;
+        let bwDisp = cfg.bandwidth || cfg.bw || 250;
+        if (bwDisp > 1000) bwDisp = bwDisp / 1000;
+        sumModem.textContent = `SF${sfDisp} / BW${bwDisp}`;
+      }
 
       const sumRepeat = document.getElementById("localSummaryRepeat");
-      if (sumRepeat) sumRepeat.textContent = cfg.repeat === false ? "Desactivado" : "Activado";
+      if (sumRepeat) {
+        const isRep = cfg.repeat !== undefined ? Boolean(cfg.repeat) : (cfg.repeat_enabled !== undefined ? Boolean(cfg.repeat_enabled) : true);
+        sumRepeat.textContent = isRep ? "Activado" : "Desactivado";
+      }
 
       const sumPos = document.getElementById("localSummaryPos");
       if (sumPos) {

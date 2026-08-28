@@ -1,6 +1,6 @@
 {
   "local_pubkey": "",
-  "saved_at": 1787884209.4929874,
+  "saved_at": 1787884646.6296415,
   "nodes": [
     {
       "public_key": "feedface0001",
@@ -11,7 +11,7 @@
       "last_rssi": -70,
       "last_snr": 11.5,
       "battery_pct": 90,
-      "last_seen": 1787884209.469155,
+      "last_seen": 1787884646.6069248,
       "rx_packets": 15,
       "tx_packets": 5,
       "error_count": 0,
@@ -70,7 +70,7 @@
       "last_rssi": null,
       "last_snr": null,
       "battery_pct": null,
-      "last_seen": 1787884209.4929874,
+      "last_seen": 1787884646.6286354,
       "rx_packets": 0,
       "tx_packets": 0,
       "error_count": 0,
