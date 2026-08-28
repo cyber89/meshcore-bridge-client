@@ -323,6 +323,7 @@ class MeshCoreStationApp {
     this.initElements();
     this.initTheme();
     this.initNavigation();
+    this.initSidebarCollapse();
     this.initCommandPalette();
     this.initChannelAndContactModals();
     this.initRepeaterDashboard();
@@ -730,6 +731,43 @@ class MeshCoreStationApp {
         }
       });
     });
+  }
+
+  initSidebarCollapse() {
+    const sidebar = document.getElementById("appSidebar");
+    const toggleBtn = document.getElementById("btnToggleSidebar");
+    if (!sidebar) return;
+
+    // Restaurar preferencia guardada
+    const isCollapsed = localStorage.getItem("meshcore_sidebar_collapsed") === "true";
+    if (isCollapsed) {
+      sidebar.classList.add("collapsed");
+      if (toggleBtn) {
+        const lbl = toggleBtn.querySelector(".sidebar-toggle-label");
+        if (lbl) lbl.textContent = "Expandir";
+        toggleBtn.title = "Expandir barra lateral (mostrar nombres)";
+      }
+    }
+
+    if (toggleBtn) {
+      toggleBtn.addEventListener("click", () => {
+        sidebar.classList.toggle("collapsed");
+        const collapsed = sidebar.classList.contains("collapsed");
+        localStorage.setItem("meshcore_sidebar_collapsed", String(collapsed));
+        const lbl = toggleBtn.querySelector(".sidebar-toggle-label");
+        if (lbl) lbl.textContent = collapsed ? "Expandir" : "Colapsar";
+        toggleBtn.title = collapsed ? "Expandir barra lateral (mostrar nombres)" : "Colapsar barra lateral (modo iconos)";
+
+        // Reajustar mapa Leaflet si está activo en la vista
+        if (this.map) {
+          setTimeout(() => {
+            try {
+              this.map.invalidateSize();
+            } catch (_) {}
+          }, 260);
+        }
+      });
+    }
   }
 
   initCommandPalette() {

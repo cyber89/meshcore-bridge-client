@@ -50,7 +50,8 @@
   --font-mono: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   
   --header-height: 60px;
-  --sidebar-width: 256px;
+  --sidebar-width: 180px;
+  --sidebar-collapsed-width: 58px;
 
   /* Tokens de Scrollbars Modernas y Estilizadas */
   --scrollbar-thumb: rgba(148, 163, 184, 0.22);
@@ -374,12 +375,52 @@ body {
   border-right: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
-  padding: 12px 10px;
-  gap: 14px;
+  padding: 12px 8px;
+  gap: 12px;
   flex-shrink: 0;
+  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), padding 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Modo Rail Colapsado (Solo Iconos) */
+.app-sidebar.collapsed {
+  width: var(--sidebar-collapsed-width);
+  padding: 12px 6px;
+}
+
+.app-sidebar.collapsed .nav-label,
+.app-sidebar.collapsed .sidebar-toggle-label {
+  display: none !important;
+}
+
+.app-sidebar.collapsed .nav-btn {
+  justify-content: center;
+  padding: 10px 0;
+  gap: 0;
+}
+
+.app-sidebar.collapsed .nav-icon {
+  font-size: 1.25rem;
+}
+
+.app-sidebar.collapsed .nav-badge-count {
+  position: absolute;
+  top: 3px;
+  right: 5px;
+  padding: 1px 5px;
+  font-size: 10px;
+}
+
+.app-sidebar.collapsed .sidebar-toggle-icon {
+  transform: rotate(180deg);
+}
+
+.app-sidebar.collapsed .btn-sidebar-toggle {
+  justify-content: center;
+  padding: 8px 0;
 }
 
 .nav-tabs {
@@ -403,6 +444,7 @@ body {
   text-align: left;
   transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
+  white-space: nowrap;
 }
 
 .nav-btn:hover {
@@ -428,6 +470,41 @@ body {
   background: var(--accent-primary);
   border-radius: 0 4px 4px 0;
   box-shadow: 0 0 8px var(--accent-primary);
+}
+
+/* Footer de Barra Lateral y Botón de Colapso */
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.btn-sidebar-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+
+.btn-sidebar-toggle:hover {
+  background-color: var(--bg-surface-hover);
+  color: var(--text-bright);
+  border-color: var(--border-subtle);
+}
+
+.sidebar-toggle-icon {
+  font-size: 11px;
+  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 
@@ -3813,8 +3890,9 @@ body {
     flex-shrink: 0;
   }
 
-  .app-sidebar .channel-selector-card {
-    display: none;
+  .app-sidebar .channel-selector-card,
+  .app-sidebar .sidebar-footer {
+    display: none !important;
   }
 
   .app-sidebar::-webkit-scrollbar {

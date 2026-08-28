@@ -64,31 +64,38 @@
     <!-- Cuerpo Principal -->
     <div class="app-body">
       <!-- Barra Lateral de Navegación Principal -->
-      <aside class="app-sidebar" role="navigation" aria-label="Navegación principal">
+      <aside class="app-sidebar" id="appSidebar" role="navigation" aria-label="Navegación principal">
         <nav class="nav-tabs" role="tablist">
-          <button class="nav-btn active" role="tab" tabindex="0" aria-selected="true" aria-controls="tab-chat" id="navTabChat" data-tab="tab-chat">
-            <span class="nav-icon">💬</span> <span>Mensajería</span>
+          <button class="nav-btn active" role="tab" tabindex="0" aria-selected="true" aria-controls="tab-chat" id="navTabChat" data-tab="tab-chat" title="Mensajería (Chat)">
+            <span class="nav-icon">💬</span> <span class="nav-label">Mensajería</span>
             <span class="nav-badge-count hidden" id="globalChatUnreadBadge">0</span>
           </button>
-          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-contacts" id="navTabContacts" data-tab="tab-contacts">
-            <span class="nav-icon">👥</span> <span>Contactos</span>
+          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-contacts" id="navTabContacts" data-tab="tab-contacts" title="Libreta de Contactos">
+            <span class="nav-icon">👥</span> <span class="nav-label">Contactos</span>
           </button>
-          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-nodes" id="navTabNodes" data-tab="tab-nodes">
-            <span class="nav-icon">🌐</span> <span>Nodos</span>
+          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-nodes" id="navTabNodes" data-tab="tab-nodes" title="Nodos & Malla LoRa">
+            <span class="nav-icon">🌐</span> <span class="nav-label">Nodos</span>
           </button>
-          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-map" id="navTabMap" data-tab="tab-map">
-            <span class="nav-icon">🗺️</span> <span>Mapa</span>
+          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-map" id="navTabMap" data-tab="tab-map" title="Mapa Cartográfico">
+            <span class="nav-icon">🗺️</span> <span class="nav-label">Mapa</span>
           </button>
-          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-analytics" id="navTabAnalytics" data-tab="tab-analytics">
-            <span class="nav-icon">📈</span> <span>Métricas</span>
+          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-analytics" id="navTabAnalytics" data-tab="tab-analytics" title="Métricas & Analítica">
+            <span class="nav-icon">📈</span> <span class="nav-label">Métricas</span>
           </button>
-          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-logs" id="navTabLogs" data-tab="tab-logs">
-            <span class="nav-icon">📜</span> <span>Logs Sistema</span>
+          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-logs" id="navTabLogs" data-tab="tab-logs" title="Consola de Logs">
+            <span class="nav-icon">📜</span> <span class="nav-label">Logs Sistema</span>
           </button>
-          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-settings" id="navTabSettings" data-tab="tab-settings">
-            <span class="nav-icon">⚙️</span> <span>Ajustes</span>
+          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-settings" id="navTabSettings" data-tab="tab-settings" title="Ajustes & Parámetros RF">
+            <span class="nav-icon">⚙️</span> <span class="nav-label">Ajustes</span>
           </button>
         </nav>
+
+        <div class="sidebar-footer">
+          <button type="button" class="btn-sidebar-toggle" id="btnToggleSidebar" title="Colapsar o expandir barra lateral (modo iconos)" aria-label="Colapsar o expandir barra lateral">
+            <span class="sidebar-toggle-icon">◀</span>
+            <span class="sidebar-toggle-label">Colapsar</span>
+          </button>
+        </div>
       </aside>
 
       <!-- Área de Contenido Principal -->
