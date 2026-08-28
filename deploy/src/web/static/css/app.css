@@ -451,6 +451,79 @@ body {
   font-weight: 600;
 }
 
+/* ==============================================================================
+   Sistema de Iconografía Vectorial Lucide (100% Offline)
+   ============================================================================== */
+.lucide-icon {
+  display: inline-block;
+  vertical-align: middle;
+  stroke-width: 2px;
+  stroke: currentColor;
+  fill: none;
+  flex-shrink: 0;
+}
+
+.nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.nav-icon .lucide-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.chip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chip-icon .lucide-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--accent-primary);
+}
+
+.subtab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 4px;
+}
+
+.subtab-icon .lucide-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.sidebar-toggle-icon .lucide-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.btn-icon .lucide-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.btn-sm .lucide-icon,
+.btn-xs .lucide-icon {
+  width: 14px;
+  height: 14px;
+  margin-right: 4px;
+}
+
+.btn-copy-pk .lucide-icon {
+  width: 12px;
+  height: 12px;
+  margin-right: 0;
+}
+
 /* App Body & Sidebar */
 .app-body {
   display: flex;
@@ -492,8 +565,9 @@ body {
   gap: 0;
 }
 
-.app-sidebar.collapsed .nav-icon {
-  font-size: 1.25rem;
+.app-sidebar.collapsed .nav-icon .lucide-icon {
+  width: 20px;
+  height: 20px;
 }
 
 .app-sidebar.collapsed .nav-badge-count {

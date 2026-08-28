@@ -50,14 +50,14 @@
 
       <div class="header-right">
         <div class="header-metrics" role="region" aria-label="Métricas globales de tráfico">
-          <span class="metric-chip" title="Nodos Activos en Malla">👥 <strong id="headerNodeCount">0</strong></span>
-          <span class="metric-chip" title="Paquetes Recibidos">📥 <strong id="headerRxCount">0</strong></span>
-          <span class="metric-chip" title="Paquetes Emitidos">📤 <strong id="headerTxCount">0</strong></span>
-          <span class="metric-chip airtime-metric-chip" id="headerAirtimeChip" title="Presupuesto de Airtime LoRa y Duty Cycle (1h)">⏱️ Airtime: <strong id="headerDutyCycle">0.0%</strong></span>
-          <span class="metric-chip" title="Tasa de Error">⚠️ <strong id="headerErrorRate">0.0%</strong></span>
-          <span class="metric-chip" title="Cola TX / Buffer">⏱️ <strong id="headerQueueDepth">0</strong></span>
+          <span class="metric-chip" title="Nodos Activos en Malla"><span class="chip-icon" data-lucide="users" data-size="14"></span> <strong id="headerNodeCount">0</strong></span>
+          <span class="metric-chip" title="Paquetes Recibidos"><span class="chip-icon" data-lucide="download" data-size="14"></span> <strong id="headerRxCount">0</strong></span>
+          <span class="metric-chip" title="Paquetes Emitidos"><span class="chip-icon" data-lucide="upload" data-size="14"></span> <strong id="headerTxCount">0</strong></span>
+          <span class="metric-chip airtime-metric-chip" id="headerAirtimeChip" title="Presupuesto de Airtime LoRa y Duty Cycle (1h)"><span class="chip-icon" data-lucide="clock" data-size="14"></span> Airtime: <strong id="headerDutyCycle">0.0%</strong></span>
+          <span class="metric-chip" title="Tasa de Error"><span class="chip-icon" data-lucide="alert-triangle" data-size="14"></span> <strong id="headerErrorRate">0.0%</strong></span>
+          <span class="metric-chip" title="Cola TX / Buffer"><span class="chip-icon" data-lucide="activity" data-size="14"></span> <strong id="headerQueueDepth">0</strong></span>
         </div>
-        <button id="themeToggleBtn" class="btn-icon" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema claro u oscuro">🌓</button>
+        <button id="themeToggleBtn" class="btn-icon" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema claro u oscuro"><span data-lucide="sun" data-size="16"></span></button>
       </div>
     </header>
 
@@ -67,32 +67,32 @@
       <aside class="app-sidebar" id="appSidebar" role="navigation" aria-label="Navegación principal">
         <nav class="nav-tabs" role="tablist">
           <button class="nav-btn active" role="tab" tabindex="0" aria-selected="true" aria-controls="tab-chat" id="navTabChat" data-tab="tab-chat" title="Mensajería (Chat)">
-            <span class="nav-icon">💬</span> <span class="nav-label">Mensajería</span>
+            <span class="nav-icon" data-lucide="message-square" data-size="18"></span> <span class="nav-label">Mensajería</span>
             <span class="nav-badge-count hidden" id="globalChatUnreadBadge">0</span>
           </button>
           <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-contacts" id="navTabContacts" data-tab="tab-contacts" title="Libreta de Contactos">
-            <span class="nav-icon">👥</span> <span class="nav-label">Contactos</span>
+            <span class="nav-icon" data-lucide="users" data-size="18"></span> <span class="nav-label">Contactos</span>
           </button>
           <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-nodes" id="navTabNodes" data-tab="tab-nodes" title="Nodos & Malla LoRa">
-            <span class="nav-icon">🌐</span> <span class="nav-label">Nodos</span>
+            <span class="nav-icon" data-lucide="network" data-size="18"></span> <span class="nav-label">Nodos</span>
           </button>
           <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-map" id="navTabMap" data-tab="tab-map" title="Mapa Cartográfico">
-            <span class="nav-icon">🗺️</span> <span class="nav-label">Mapa</span>
+            <span class="nav-icon" data-lucide="map" data-size="18"></span> <span class="nav-label">Mapa</span>
           </button>
           <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-analytics" id="navTabAnalytics" data-tab="tab-analytics" title="Métricas & Analítica">
-            <span class="nav-icon">📈</span> <span class="nav-label">Métricas</span>
+            <span class="nav-icon" data-lucide="activity" data-size="18"></span> <span class="nav-label">Métricas</span>
           </button>
           <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-logs" id="navTabLogs" data-tab="tab-logs" title="Consola de Logs">
-            <span class="nav-icon">📜</span> <span class="nav-label">Logs Sistema</span>
+            <span class="nav-icon" data-lucide="file-text" data-size="18"></span> <span class="nav-label">Logs Sistema</span>
           </button>
           <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-settings" id="navTabSettings" data-tab="tab-settings" title="Ajustes & Parámetros RF">
-            <span class="nav-icon">⚙️</span> <span class="nav-label">Ajustes</span>
+            <span class="nav-icon" data-lucide="sliders" data-size="18"></span> <span class="nav-label">Ajustes</span>
           </button>
         </nav>
 
         <div class="sidebar-footer">
           <button type="button" class="btn-sidebar-toggle" id="btnToggleSidebar" title="Colapsar o expandir barra lateral (modo iconos)" aria-label="Colapsar o expandir barra lateral">
-            <span class="sidebar-toggle-icon">◀</span>
+            <span class="sidebar-toggle-icon" data-lucide="chevron-left" data-size="16"></span>
             <span class="sidebar-toggle-label">Colapsar</span>
           </button>
         </div>
@@ -499,12 +499,12 @@
 
             <!-- Subpestañas de Configuración del Nodo Local -->
             <div class="local-settings-subtabs">
-              <button type="button" class="local-subtab-btn active" data-subtab="local-telemetry">📊 Telemetría & Estado</button>
-              <button type="button" class="local-subtab-btn" data-subtab="local-radio">📻 Parámetros RF & Radio</button>
-              <button type="button" class="local-subtab-btn" data-subtab="local-owner-pos">📍 Identidad & Posición GPS</button>
-              <button type="button" class="local-subtab-btn" data-subtab="local-console">💻 Terminal</button>
-              <button type="button" class="local-subtab-btn" data-subtab="local-storage-maps">💾 Mapas Offline & Almacenamiento</button>
-              <button type="button" class="local-subtab-btn" data-subtab="local-security">🔐 Seguridad & API</button>
+              <button type="button" class="local-subtab-btn active" data-subtab="local-telemetry"><span class="subtab-icon" data-lucide="activity" data-size="15"></span> Telemetría & Estado</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-radio"><span class="subtab-icon" data-lucide="radio" data-size="15"></span> Parámetros RF & Radio</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-owner-pos"><span class="subtab-icon" data-lucide="map-pin" data-size="15"></span> Identidad & Posición GPS</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-console"><span class="subtab-icon" data-lucide="terminal" data-size="15"></span> Terminal</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-storage-maps"><span class="subtab-icon" data-lucide="map" data-size="15"></span> Mapas Offline</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-security"><span class="subtab-icon" data-lucide="shield" data-size="15"></span> Seguridad & API</button>
             </div>
 
             <!-- Subpanel 1: Telemetría & Estado en Tiempo Real -->
@@ -1651,6 +1651,7 @@
   </div>
 
   <script src="/js/qrcode.js"></script>
+  <script src="/js/icons.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>

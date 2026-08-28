@@ -667,6 +667,7 @@ class MeshCoreStationApp {
       document.body.classList.remove("dark-theme");
       document.body.classList.add("light-theme");
     }
+    this.updateThemeToggleIcon();
     if (this.dom.themeToggleBtn) {
       this.dom.themeToggleBtn.addEventListener("click", () => {
         const isDark = document.body.classList.contains("dark-theme");
@@ -679,7 +680,19 @@ class MeshCoreStationApp {
           document.body.classList.add("dark-theme");
           localStorage.setItem("meshcore_theme", "dark");
         }
+        this.updateThemeToggleIcon();
       });
+    }
+    if (window.initLucideIcons) {
+      window.initLucideIcons();
+    }
+  }
+
+  updateThemeToggleIcon() {
+    if (!this.dom.themeToggleBtn) return;
+    const isLight = document.body.classList.contains("light-theme");
+    if (window.getLucideIcon) {
+      this.dom.themeToggleBtn.innerHTML = window.getLucideIcon(isLight ? "moon" : "sun", "", 16);
     }
   }
 
@@ -6567,7 +6580,7 @@ class MeshCoreStationApp {
         cCard.setAttribute("data-is-fav", String(Boolean(node.is_favorite)));
 
         const avatarClass = "avatar-client";
-        const avatarIcon = "👤";
+        const avatarIcon = window.getLucideIcon ? window.getLucideIcon('user', '', 20) : "👤";
         const roleLabel = "CLIENT";
         const roleBadgeClass = "role-client";
         const typeDesc = "📱 Dispositivo Cliente MeshCore";
@@ -6593,7 +6606,7 @@ class MeshCoreStationApp {
               <div class="node-card-sub-row">
                 <span class="contact-pubkey font-mono" title="${this.escapeHtml(node.public_key)}">
                   ${this.escapeHtml(shortPk)}
-                  <button type="button" class="btn-copy-pk" title="Copiar clave pública">📋</button>
+                  <button type="button" class="btn-copy-pk" title="Copiar clave pública">${window.getLucideIcon ? window.getLucideIcon('copy', '', 12) : '📋'}</button>
                 </span>
                 <span class="node-card-activity" title="${timeAgoStr}">${timeAgoStr}</span>
               </div>
@@ -6615,9 +6628,9 @@ class MeshCoreStationApp {
             <span class="stat-pill" title="Saltos de retransmisión">🦘 <strong>${hopsVal}</strong></span>
           </div>
           <div class="contact-card-actions">
-            <button type="button" class="btn-primary btn-sm btn-contact-dm" title="Abrir chat en Mensajería">💬 Iniciar Chat DM</button>
-            <button type="button" class="btn-secondary btn-sm btn-contact-qr" title="Exportar tarjeta o código QR">📤 QR</button>
-            <button type="button" class="btn-secondary btn-sm btn-contact-del" title="Eliminar del dispositivo">🗑️</button>
+            <button type="button" class="btn-primary btn-sm btn-contact-dm" title="Abrir chat en Mensajería">${window.getLucideIcon ? window.getLucideIcon('message-square', '', 14) : '💬'} Iniciar Chat DM</button>
+            <button type="button" class="btn-secondary btn-sm btn-contact-qr" title="Exportar tarjeta o código QR">${window.getLucideIcon ? window.getLucideIcon('qr-code', '', 14) : '📤'} QR</button>
+            <button type="button" class="btn-secondary btn-sm btn-contact-del" title="Eliminar del dispositivo">${window.getLucideIcon ? window.getLucideIcon('trash-2', '', 14) : '🗑️'}</button>
           </div>
         `;
 
@@ -6642,9 +6655,15 @@ class MeshCoreStationApp {
         if (btnQr) {
           btnQr.addEventListener("click", (e) => {
             e.stopPropagation();
-            const payload = { type: "contact", public_key: node.public_key, name: cleanName, role: roleLabel };
-            const uri = `meshcore://contact?pubkey=${encodeURIComponent(node.public_key)}&name=${encodeURIComponent(cleanName)}&role=${roleLabel}`;
-            this.renderQrModal(`👥 Contacto: ${cleanName}`, uri, payload);
+            const contactPayload = {
+              type: "contact",
+              public_key: node.public_key,
+              name: cleanName,
+              alias: cleanName,
+              role: roleLabel,
+            };
+            const uri = `meshcore://contact?pk=${node.public_key}&name=${encodeURIComponent(cleanName)}&role=${roleLabel}`;
+            this.renderQrModal(`👤 Contacto: ${this.escapeHtml(cleanName)}`, uri, contactPayload);
           });
         }
 
@@ -6673,14 +6692,22 @@ class MeshCoreStationApp {
         const nCard = document.createElement("div");
         const roleClass = isLocal ? "role-local-card is-local" : (isRepeater ? "role-repeater-card" : isSensor ? "role-sensor-card" : isRoom ? "role-room-card" : "role-client-card");
         const avatarClass = isLocal ? "avatar-local" : (isRepeater ? "avatar-repeater" : isSensor ? "avatar-sensor" : isRoom ? "avatar-room" : "avatar-client");
-        const avatarIcon = isLocal ? "🏠" : (isRepeater ? "🏔️" : isSensor ? "📡" : isRoom ? "🏠" : "👤");
+        const avatarIcon = isLocal
+          ? (window.getLucideIcon ? window.getLucideIcon('server', '', 20) : "🏠")
+          : (isRepeater
+            ? (window.getLucideIcon ? window.getLucideIcon('radio-tower', '', 20) : "🏔️")
+            : (isSensor
+              ? (window.getLucideIcon ? window.getLucideIcon('gauge', '', 20) : "📡")
+              : (isRoom
+                ? (window.getLucideIcon ? window.getLucideIcon('message-square', '', 20) : "🏠")
+                : (window.getLucideIcon ? window.getLucideIcon('user', '', 20) : "👤"))));
         const roleLabel = isLocal ? "LOCAL" : (isRepeater ? "REPEATER" : isSensor ? "SENSOR" : isRoom ? "ROOM" : "CLIENT");
         const roleBadgeClass = isLocal ? "role-local" : (isRepeater ? "role-repeater" : isSensor ? "role-sensor" : isRoom ? "role-room" : "role-client");
 
         nCard.className = `node-card ${roleClass} ${isOffline ? "node-card-offline" : ""}`;
         nCard.setAttribute("data-role", roleLabel);
         nCard.setAttribute("data-pk", node.public_key);
-        const searchData = `${node.alias || ''} ${node.name || ''} ${node.public_key} ${roleLabel}`.toLowerCase();
+        const searchData = `${cleanName} ${node.alias || ''} ${node.name || ''} ${node.public_key} ${roleLabel}`.toLowerCase();
         nCard.setAttribute("data-search", searchData);
 
         let middlePanelHtml = "";
@@ -6711,7 +6738,7 @@ class MeshCoreStationApp {
             <span class="stat-pill" title="Modem LoRa">📡 <strong>SF${lSf}/BW${lBw}</strong></span>
           `;
           actionsHtml = `
-            <button type="button" class="btn-primary btn-sm btn-node-primary btn-node-local-settings">⚙️ Ajustes de Radio</button>
+            <button type="button" class="btn-primary btn-sm btn-node-primary btn-node-local-settings">${window.getLucideIcon ? window.getLucideIcon('sliders', '', 13) : '⚙️'} Ajustes de Radio</button>
           `;
         } else if (isRepeater) {
           const rawTxPower = node.tx_power ?? 20;
@@ -6735,10 +6762,10 @@ class MeshCoreStationApp {
             <span class="stat-pill" title="Saltos">🦘 <strong>${hopsVal}</strong></span>
           `;
           actionsHtml = `
-            <button type="button" class="btn-primary btn-sm btn-node-primary btn-manage-node-repeater">🎛️ Administrar</button>
-            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-ping-zero" title="Hacer Ping directo (Hop 0)">🎯 Ping</button>
-            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
-            ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">🗺️ Mapa</button>` : ''}
+            <button type="button" class="btn-primary btn-sm btn-node-primary btn-manage-node-repeater">${window.getLucideIcon ? window.getLucideIcon('sliders', '', 13) : '🎛️'} Administrar</button>
+            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-ping-zero" title="Hacer Ping directo (Hop 0)">${window.getLucideIcon ? window.getLucideIcon('crosshair', '', 13) : '🎯'} Ping</button>
+            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">${window.getLucideIcon ? window.getLucideIcon('activity', '', 13) : '🗺️'} Ruta</button>
+            ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">${window.getLucideIcon ? window.getLucideIcon('map-pin', '', 13) : '🗺️'} Mapa</button>` : ''}
           `;
         } else if (isSensor) {
           const rawTemp = node.temperature_c ?? node.temp ?? node.temperature ?? node.telemetry?.temperature_c ?? (node.telemetry?.temp != null ? node.telemetry.temp : null);
@@ -6764,8 +6791,8 @@ class MeshCoreStationApp {
             <span class="stat-pill" title="Saltos">🦘 <strong>${hopsVal}</strong></span>
           `;
           actionsHtml = `
-            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
-            ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">🗺️ Mapa</button>` : ''}
+            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">${window.getLucideIcon ? window.getLucideIcon('activity', '', 13) : '🗺️'} Ruta</button>
+            ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">${window.getLucideIcon ? window.getLucideIcon('map-pin', '', 13) : '🗺️'} Mapa</button>` : ''}
           `;
         } else if (isRoom) {
           middlePanelHtml = `
@@ -6784,9 +6811,9 @@ class MeshCoreStationApp {
             <span class="stat-pill" title="Saltos">🦘 <strong>${hopsVal}</strong></span>
           `;
           actionsHtml = `
-            <button type="button" class="btn-primary btn-sm btn-node-primary btn-room-channel">💬 Ver Canal</button>
-            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
-            ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">🗺️ Mapa</button>` : ''}
+            <button type="button" class="btn-primary btn-sm btn-node-primary btn-room-channel">${window.getLucideIcon ? window.getLucideIcon('message-square', '', 13) : '💬'} Ver Canal</button>
+            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">${window.getLucideIcon ? window.getLucideIcon('activity', '', 13) : '🗺️'} Ruta</button>
+            ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">${window.getLucideIcon ? window.getLucideIcon('map-pin', '', 13) : '🗺️'} Mapa</button>` : ''}
           `;
         } else {
           // CLIENT
@@ -6806,9 +6833,9 @@ class MeshCoreStationApp {
             <span class="stat-pill" title="Saltos">🦘 <strong>${hopsVal}</strong></span>
           `;
           actionsHtml = `
-            <button type="button" class="btn-primary btn-sm btn-node-primary btn-client-dm">💬 Iniciar Chat DM</button>
-            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
-            ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">🗺️ Mapa</button>` : ''}
+            <button type="button" class="btn-primary btn-sm btn-node-primary btn-client-dm">${window.getLucideIcon ? window.getLucideIcon('message-square', '', 13) : '💬'} Iniciar Chat DM</button>
+            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">${window.getLucideIcon ? window.getLucideIcon('activity', '', 13) : '🗺️'} Ruta</button>
+            ${hasNodeGps ? `<button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">${window.getLucideIcon ? window.getLucideIcon('map-pin', '', 13) : '🗺️'} Mapa</button>` : ''}
           `;
         }
 
