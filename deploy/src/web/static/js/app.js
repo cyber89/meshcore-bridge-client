@@ -2540,8 +2540,11 @@ class MeshCoreStationApp {
           ...payload.telemetry,
           public_key: canonicalPk,
           last_seen: Math.floor(Date.now() / 1000),
+          last_rssi: payload.rssi != null ? payload.rssi : existing.last_rssi,
+          last_snr: payload.snr != null ? payload.snr : existing.last_snr,
         };
         this.knownNodes.set(canonicalPk, updated);
+        this.updateNodeInDom(canonicalPk, updated);
         if (isRepeaterTarget) {
           this.populateRepeaterModalData(updated);
         }

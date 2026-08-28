@@ -6,6 +6,19 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Verificación y Fortalecimiento de la Reactividad en la Actualización de Datos y Vistas Web
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect).
+- **Problema / Requerimiento**:
+  - Comprobar que todos los datos recibidos mediante cada vía (adverts, telemetría, ping, traceroute, ACKs, mensajes, logs RF) actualicen el modelo de datos (`NodeRegistry`, `knownNodes`) y refresquen inmediatamente las vistas de la interfaz web (grilla de nodos, estadísticas, chips de estado y modal de repetidor).
+- **Acciones Realizadas**:
+  - Se verificaron los 6 canales de adquisición de datos en backend y frontend.
+  - En `app.js:handleIncomingLiveEvent()`, se aseguró la invocación de `updateNodeInDom()` al recibir telemetría de repetidores y eventos de radio, garantizando que el estado "🟢 En Línea", RSSI, SNR, saltos y porcentaje de batería se sincronicen en el DOM sin requerir recargar la página.
+- **Módulos Modificados**: `src/web/static/js/app.js`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
+
+
 ### Hito: Corrección de Atributos Slots en RxRouterContext y AdminContext
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO
