@@ -12,6 +12,8 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from src.shared_utils import clamp_tx_power
+
 
 class RepeaterManager:
     """Administrador de comandos remotos a repetidores y analizador de telemetría."""
@@ -199,7 +201,10 @@ class RepeaterManager:
 
         if act in ("set_tx_power", "set_power", "tx_power", "power", "set_tx", "tx"):
             pwr = params.get("tx_power", params.get("power", params.get("tx", 20)))
-            return f"set tx {pwr}"
+            hw_board = params.get("hardware_board", params.get("board", params.get("hw_model")))
+            max_p_hint = params.get("max_tx_power", params.get("max_power"))
+            pwr_clamped = clamp_tx_power(int(pwr), hw_board, max_p_hint)
+            return f"set tx {pwr_clamped}"
 
 
         # 6. LoRa Modem Parameters

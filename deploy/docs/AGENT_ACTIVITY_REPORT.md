@@ -6,6 +6,23 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Control y Adaptación Dinámica de Potencia TX LoRa por Modelo de Hardware en Nodos Locales y Remotos
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web Architect), Agente 1 (Protocol Investigator).
+- **Problema / Requerimiento**:
+  - Homogeneizar el ajuste de potencia TX en nodos remotos (modal de repetidor) para que funcione como un slider interactivo idéntico al nodo local.
+  - Limitar y acotar la potencia máxima y mínima permitida de forma dinámica según el modelo de hardware específico de cada equipo (SX1262 $\le$ 22 dBm, SX1276 $\le$ 20 dBm, amplificadores de potencia PA E22 $\le$ 30 dBm, dongles de bajo consumo $\le$ 14 dBm), evitando sobrecalentamiento o valores fuera de las especificaciones del chip.
+- **Acciones Realizadas**:
+  - Definida la tabla canónica `HARDWARE_TX_POWER_LIMITS` y las funciones auxiliares `get_hardware_power_limits()` y `clamp_tx_power()` en [`src/shared_utils.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/shared_utils.py).
+  - Actualizado `NodeContactInfo` en [`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py) para incluir `max_tx_power`, `min_tx_power` y `default_tx_power` calculados de acuerdo al modelo de hardware del nodo.
+  - Integrado `clamp_tx_power` en [`src/admin_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin_handler.py) y en [`src/repeater_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/repeater_manager.py) para acotar cualquier comando local o remoto (`set tx <pwr>`).
+  - Actualizado el modal de repetidor en [`src/web/static/index.html`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/index.html) reemplazando el input numérico por un slider de rango `<input type="range" id="radioPower">` con badge dinámico `<span id="radioPowerVal">`.
+  - Enriquecido [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js) con `getHardwarePowerLimits(node)`: tanto el slider local como el slider del modal remoto adaptan dinámicamente sus atributos `min`, `max`, `value` y badge en tiempo real al abrir la configuración del nodo.
+- **Módulos Modificados**: `src/shared_utils.py`, `src/contact_manager.py`, `src/admin_handler.py`, `src/repeater_manager.py`, `src/web/static/index.html`, `src/web/static/js/app.js`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
+---
+
 ### Hito: Registro Integral de Conexiones IP y Detección en Tiempo Real de Tráfico Sospechoso
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO

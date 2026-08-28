@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from src.lqi_engine import LinkQualityEngine, LQIStatus
+from src.shared_utils import get_hardware_power_limits
 
 
 def _safe_int(val: Any) -> int | None:
@@ -85,6 +86,7 @@ class NodeContactInfo:
     advert_interval: int | None = None
     repeat_enabled: bool | None = None
     tx_power: int | None = None
+    max_tx_power: int | None = None
     hop_limit: int | None = None
     frequency: float | None = None
     spreading_factor: int | None = None
@@ -112,6 +114,10 @@ class NodeContactInfo:
         d["lqi_status"] = self.lqi_status
         d["best_route"] = self.best_route
         d["hop_limit"] = self.hop_limit
+        min_p, max_p, def_p = get_hardware_power_limits(self.hardware_board, self.max_tx_power)
+        d["min_tx_power"] = min_p
+        d["max_tx_power"] = max_p
+        d["default_tx_power"] = def_p
         return d
 
 
@@ -162,6 +168,7 @@ class NodeContactUpdate:
     advert_interval: int | None = None
     repeat_enabled: bool | None = None
     tx_power: int | None = None
+    max_tx_power: int | None = None
     hop_limit: int | None = None
     frequency: float | None = None
     spreading_factor: int | None = None
@@ -463,6 +470,7 @@ class NodeRegistry:
             advert_interval=update.advert_interval if update.advert_interval is not None else (existing.advert_interval if existing else None),
             repeat_enabled=update.repeat_enabled if update.repeat_enabled is not None else (existing.repeat_enabled if existing else None),
             tx_power=update.tx_power if update.tx_power is not None else (existing.tx_power if existing else None),
+            max_tx_power=update.max_tx_power if update.max_tx_power is not None else (existing.max_tx_power if existing else None),
             hop_limit=update.hop_limit if update.hop_limit is not None else (existing.hop_limit if existing else None),
             frequency=update.frequency if update.frequency is not None else (existing.frequency if existing else None),
             spreading_factor=update.spreading_factor if update.spreading_factor is not None else (existing.spreading_factor if existing else None),

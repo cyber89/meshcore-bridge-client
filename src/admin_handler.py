@@ -22,6 +22,7 @@ from src.contact_manager import (
 )
 from src.mqtt_client import AsyncBridgeMQTTClient
 from src.repeater_manager import RepeaterManager
+from src.shared_utils import clamp_tx_power, get_hardware_power_limits
 from src.target_resolver import TargetResolver
 
 
@@ -136,6 +137,14 @@ class AdminCommandHandler:
 
         cfg["last_snr"] = last_snr
         cfg["last_rssi"] = last_rssi
+
+        # Límites dinámicos de potencia TX según modelo de hardware / transceptor
+        hw_board = cfg.get("hardware_board") or (si.get("hardware_board") if isinstance(si, dict) else None)
+        max_hint = cfg.get("max_tx_power") or (si.get("max_tx_power") if isinstance(si, dict) else None)
+        min_p, max_p, def_p = get_hardware_power_limits(hw_board, max_hint)
+        cfg["min_tx_power"] = min_p
+        cfg["max_tx_power"] = max_p
+        cfg["default_tx_power"] = def_p
         return cfg
 
     async def fetch_device_config(self) -> dict[str, Any]:
@@ -942,7 +951,14 @@ class AdminCommandHandler:
 
             # Potencia TX LoRa
             if "tx_power" in params or "power" in params:
-                new_power = int(params.get("tx_power", params.get("power", 20)))
+                hw_board = self._local_config.get("hardware_board") or (
+                    mc.self_info.get("hardware_board") if mc and hasattr(mc, "self_info") and isinstance(mc.self_info, dict) else None
+                )
+                max_p_hint = self._local_config.get("max_tx_power") or (
+                    mc.self_info.get("max_tx_power") if mc and hasattr(mc, "self_info") and isinstance(mc.self_info, dict) else None
+                )
+                raw_power = int(params.get("tx_power", params.get("power", 20)))
+                new_power = clamp_tx_power(raw_power, hw_board, max_p_hint)
                 self._local_config["tx_power"] = new_power
                 applied["tx_power"] = new_power
                 if mc:

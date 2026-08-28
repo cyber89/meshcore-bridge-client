@@ -1302,8 +1302,8 @@
                   </select>
                 </div>
                 <div class="form-group">
-                  <label for="radioPower">Potencia TX (dBm):</label>
-                  <input type="number" id="radioPower" min="2" max="22" value="20" />
+                  <label for="radioPower">Potencia TX LoRa: <span id="radioPowerVal" class="val-badge">20 dBm</span></label>
+                  <input type="range" id="radioPower" min="2" max="22" value="20" step="1" />
                 </div>
                 <div class="form-group">
                   <label for="radioHopLimit">Hop Limit (Límite de Saltos):</label>

@@ -522,6 +522,25 @@ class MeshCoreStationApp {
     }, durationMs);
   }
 
+  getHardwarePowerLimits(node) {
+    if (!node) return { min: 2, max: 22, def: 20 };
+    if (typeof node.max_tx_power === "number" && node.max_tx_power > 0) {
+      const minP = typeof node.min_tx_power === "number" ? node.min_tx_power : (node.max_tx_power >= 30 ? 10 : (node.max_tx_power <= 14 ? 0 : 2));
+      return { min: minP, max: node.max_tx_power, def: Math.min(20, node.max_tx_power) };
+    }
+    const hw = String(node.hardware_board || node.hw_model_name || node.hw_model || node.model || node.board || "").toUpperCase();
+    if (hw.includes("30DBM") || hw.includes("E22") || hw.includes("PA") || hw.includes("PLUS") || hw.includes("HIGH_POWER")) {
+      return { min: 10, max: 30, def: 27 };
+    }
+    if (hw.includes("V2") || hw.includes("V1") || hw.includes("SX1276") || hw.includes("SX1278") || hw.includes("M5STACK") || hw.includes("TLORA")) {
+      return { min: 2, max: 20, def: 17 };
+    }
+    if (hw.includes("CC1352") || hw.includes("LOW_POWER")) {
+      return { min: 0, max: 14, def: 10 };
+    }
+    return { min: 2, max: 22, def: 20 };
+  }
+
   initElements() {
     this.dom = {
       radioStatus: document.getElementById("radio-status") || document.getElementById("radioStatus"),
@@ -1656,8 +1675,17 @@ class MeshCoreStationApp {
       }
     }
     const radioPowerInput = document.getElementById("radioPower");
-    if (radioPowerInput && (node.tx_power != null || node.power != null)) {
-      radioPowerInput.value = node.tx_power != null ? node.tx_power : node.power;
+    const radioPowerVal = document.getElementById("radioPowerVal");
+    const pLimits = this.getHardwarePowerLimits(node);
+    const rawPower = node.tx_power != null ? node.tx_power : (node.power != null ? node.power : pLimits.def);
+    const clampedPower = Math.max(pLimits.min, Math.min(pLimits.max, parseInt(rawPower, 10) || pLimits.def));
+    if (radioPowerInput) {
+      radioPowerInput.min = String(pLimits.min);
+      radioPowerInput.max = String(pLimits.max);
+      radioPowerInput.value = String(clampedPower);
+    }
+    if (radioPowerVal) {
+      radioPowerVal.textContent = `${clampedPower} dBm`;
     }
     const radioHopLimitInput = document.getElementById("radioHopLimit");
     if (radioHopLimitInput && (node.hops != null || node.hop_limit != null)) {
@@ -1852,6 +1880,14 @@ class MeshCoreStationApp {
         if (REGION_FREQUENCIES[reg]) {
           repFreqInput.value = REGION_FREQUENCIES[reg];
         }
+      });
+    }
+
+    const repPowerSlider = document.getElementById("radioPower");
+    const repPowerVal = document.getElementById("radioPowerVal");
+    if (repPowerSlider && repPowerVal) {
+      repPowerSlider.addEventListener("input", (e) => {
+        repPowerVal.textContent = `${e.target.value} dBm`;
       });
     }
 
@@ -3541,10 +3577,14 @@ class MeshCoreStationApp {
         }
       }
 
-      const txPowerVal = cfg.tx_power != null ? cfg.tx_power : (cfg.power != null ? cfg.power : 20);
+      const pLimits = this.getHardwarePowerLimits(cfg);
+      const rawTx = cfg.tx_power != null ? cfg.tx_power : (cfg.power != null ? cfg.power : pLimits.def);
+      const txPowerVal = Math.max(pLimits.min, Math.min(pLimits.max, parseInt(rawTx, 10) || pLimits.def));
       const txInput = document.getElementById("localTxPower");
       const txVal = document.getElementById("localTxPowerVal");
       if (txInput) {
+        txInput.min = String(pLimits.min);
+        txInput.max = String(pLimits.max);
         txInput.value = String(txPowerVal);
         if (txVal) txVal.textContent = `${txPowerVal} dBm`;
       }
