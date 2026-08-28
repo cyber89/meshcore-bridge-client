@@ -6,6 +6,22 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Actualización de la Paleta Cromática del Tema Claro (Light Theme)
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect).
+- **Problema / Requerimiento**:
+  - Sustituir la paleta del tema claro con los nuevos tokens de color de diseño:
+    - **Gris Pizarra (Estructura/Textos)**: `#1E293B`
+    - **Verde Menta (Datos principales)**: `#0EA5E9`
+    - **Cian Eléctrico (Comparativas)**: `#38BDF8`
+    - **Gris Claro (Fondo general)**: `#F8FAFC`
+- **Acciones Realizadas**:
+  - En `src/web/static/css/app.css`, se actualizaron las variables de diseño de `body.light-theme` (`--bg-canvas`, `--bg-surface`, `--text-main`, `--accent-primary`, `--accent-secondary`, `--border-focus`, scrollbars y sombras) aplicando rigurosamente los tokens solicitados con contraste WCAG 2.2 AA.
+- **Módulos Modificados**: `src/web/static/css/app.css`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
+
+
 ### Hito: Captura Completa de Métricas de RF (RSSI, SNR There, SNR Back, RTT) en Ping a Repetidores
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO

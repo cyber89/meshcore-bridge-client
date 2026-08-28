@@ -61,29 +61,47 @@
 }
 
 body.light-theme {
-  --bg-canvas: #f8fafc;
-  --bg-surface: #ffffff;
-  --bg-surface-elevated: #f1f5f9;
-  --bg-surface-hover: #e2e8f0;
-  --bg-glass: rgba(255, 255, 255, 0.85);
-  --border-subtle: #e2e8f0;
-  --border-medium: #cbd5e1;
-  --border-strong: #94a3b8;
-  --border-focus: #0284c7;
-  --text-bright: #0f172a;
-  --text-main: #1e293b;
-  --text-muted: #64748b;
-  --text-dim: #94a3b8;
-  --text-inverse: #ffffff;
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-  --shadow-glow: 0 0 15px rgba(2, 132, 199, 0.15);
-  --shadow-glow-success: 0 0 16px rgba(34, 197, 94, 0.2);
+  /* Fondo general: Gris Claro (#F8FAFC) */
+  --bg-canvas: #F8FAFC;
+  --bg-surface: #FFFFFF;
+  --bg-surface-elevated: #F1F5F9;
+  --bg-surface-hover: #E2E8F0;
+  --bg-glass: rgba(248, 250, 252, 0.88);
 
-  --scrollbar-thumb: rgba(100, 116, 139, 0.28);
-  --scrollbar-thumb-hover: rgba(100, 116, 139, 0.55);
-  --scrollbar-thumb-active: rgba(14, 165, 233, 0.75);
+  /* Estructura y Bordes */
+  --border-subtle: #E2E8F0;
+  --border-medium: #CBD5E1;
+  --border-strong: #94A3B8;
+  --border-focus: #0EA5E9;
+
+  /* Estructura y Textos: Gris Pizarra (#1E293B) */
+  --text-bright: #0F172A;
+  --text-main: #1E293B;
+  --text-muted: #64748B;
+  --text-dim: #94A3B8;
+  --text-inverse: #FFFFFF;
+
+  /* Paleta Semántica & Roles MeshCore */
+  --accent-primary: #0EA5E9;          /* Verde Menta / Acento de datos principales */
+  --accent-primary-hover: #0284C7;
+  --accent-secondary: #38BDF8;        /* Cian Eléctrico / Comparativas */
+  --accent-cyan: #38BDF8;
+  --accent-success: #10B981;          /* En línea / Local Host / Telemetría */
+  --accent-warning: #F59E0B;          /* Salas BBS / Advertencias */
+  --accent-danger: #EF4444;           /* Fuera de línea / Errores */
+  --accent-purple: #8B5CF6;           /* Repetidores / Routers de Malla */
+
+  /* Sombras y Elevación */
+  --shadow-sm: 0 1px 2px 0 rgba(30, 41, 59, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(30, 41, 59, 0.07), 0 2px 4px -2px rgba(30, 41, 59, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(30, 41, 59, 0.08), 0 4px 6px -4px rgba(30, 41, 59, 0.04);
+  --shadow-glow: 0 0 15px rgba(14, 165, 233, 0.20);
+  --shadow-glow-success: 0 0 16px rgba(16, 185, 129, 0.20);
+
+  /* Barras de Desplazamiento */
+  --scrollbar-thumb: rgba(100, 116, 139, 0.30);
+  --scrollbar-thumb-hover: rgba(100, 116, 139, 0.60);
+  --scrollbar-thumb-active: rgba(14, 165, 233, 0.85);
   --scrollbar-track: transparent;
 }
 
