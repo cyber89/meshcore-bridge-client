@@ -703,6 +703,10 @@ class MeshCoreStationApp {
           targetPane.classList.add("active");
           if (targetTabId === "tab-chat") {
             this.renderCurrentConversation();
+          } else if (targetTabId === "tab-contacts") {
+            this.filterContactsGrid();
+          } else if (targetTabId === "tab-nodes") {
+            this.filterNodesGrid();
           } else if (targetTabId === "tab-map") {
             if (!this.map) {
               this.initLeafletMap();
@@ -914,12 +918,18 @@ class MeshCoreStationApp {
     if (this.dom.btnCancelCreateContact) this.dom.btnCancelCreateContact.addEventListener("click", closeCreateContact);
 
     if (this.dom.contactsSearchInput) {
-      this.dom.contactsSearchInput.addEventListener(
-        "input",
-        debounce((e) => {
-          this.filterContactsGrid(e.target.value);
-        }, 150)
-      );
+      const handleContactSearch = debounce((val) => {
+        this.filterContactsGrid(val);
+      }, 100);
+
+      this.dom.contactsSearchInput.addEventListener("input", (e) => handleContactSearch(e.target.value));
+      this.dom.contactsSearchInput.addEventListener("search", (e) => this.filterContactsGrid(e.target.value));
+      this.dom.contactsSearchInput.addEventListener("keyup", (e) => {
+        if (e.key === "Escape") {
+          this.dom.contactsSearchInput.value = "";
+          this.filterContactsGrid("");
+        }
+      });
     }
 
     // Filtros de Libreta de Contactos
@@ -973,12 +983,18 @@ class MeshCoreStationApp {
     });
 
     if (this.dom.nodesSearchInput) {
-      this.dom.nodesSearchInput.addEventListener(
-        "input",
-        debounce(() => {
+      const handleNodesSearch = debounce(() => {
+        this.filterNodesGrid();
+      }, 100);
+
+      this.dom.nodesSearchInput.addEventListener("input", handleNodesSearch);
+      this.dom.nodesSearchInput.addEventListener("search", () => this.filterNodesGrid());
+      this.dom.nodesSearchInput.addEventListener("keyup", (e) => {
+        if (e.key === "Escape") {
+          this.dom.nodesSearchInput.value = "";
           this.filterNodesGrid();
-        }, 150)
-      );
+        }
+      });
     }
 
 
@@ -7090,20 +7106,26 @@ class MeshCoreStationApp {
     if (unifiedNodesGrid && totalCount === 0) {
       unifiedNodesGrid.innerHTML = '<div class="empty-state">No se han descubierto nodos en la malla LoRa.</div>';
     }
+
+    // Re-aplicar inmediatamente los filtros y términos de búsqueda activos sobre los elementos recién creados
+    this.filterContactsGrid();
+    this.filterNodesGrid();
   }
 
   filterContactsGrid(query) {
     const contactsGrid = this.dom.contactsGridUi || document.getElementById("contactsGridUi");
     if (!contactsGrid) return;
     const cards = contactsGrid.querySelectorAll(".contact-card, .contact-item-card");
-    const q = (query || (this.dom.contactsSearchInput ? this.dom.contactsSearchInput.value : "")).trim().toLowerCase();
+    const q = (query !== undefined ? query : (this.dom.contactsSearchInput ? this.dom.contactsSearchInput.value : "")).trim().toLowerCase();
     const activeFilter = this.activeContactsFilter || "all";
 
+    let visibleCount = 0;
     cards.forEach((card) => {
       const search = (card.getAttribute("data-search") || "").toLowerCase();
-      const isOnline = !card.classList.contains("is-offline") && !card.classList.contains("contact-card-offline");
-      const hasGps = Boolean(card.getAttribute("data-has-gps") === "true");
-      const isFav = Boolean(card.getAttribute("data-is-fav") === "true");
+      const isOffline = card.classList.contains("contact-card-offline") || card.classList.contains("is-offline");
+      const isOnline = !isOffline;
+      const hasGps = card.getAttribute("data-has-gps") === "true";
+      const isFav = card.getAttribute("data-is-fav") === "true";
 
       const matchesSearch = !q || search.includes(q);
       let matchesFilter = true;
@@ -7111,25 +7133,56 @@ class MeshCoreStationApp {
       else if (activeFilter === "online") matchesFilter = isOnline;
       else if (activeFilter === "gps") matchesFilter = hasGps;
 
-      card.style.display = (matchesSearch && matchesFilter) ? "flex" : "none";
+      const isVisible = matchesSearch && matchesFilter;
+      card.style.display = isVisible ? "flex" : "none";
+      if (isVisible) visibleCount++;
     });
-  }
 
+    let noResultsEl = contactsGrid.querySelector(".no-search-results");
+    if (visibleCount === 0 && cards.length > 0) {
+      if (!noResultsEl) {
+        noResultsEl = document.createElement("div");
+        noResultsEl.className = "empty-state no-search-results";
+        contactsGrid.appendChild(noResultsEl);
+      }
+      noResultsEl.textContent = `No se encontraron contactos que coincidan con los filtros aplicados.`;
+      noResultsEl.style.display = "block";
+    } else if (noResultsEl) {
+      noResultsEl.style.display = "none";
+    }
+  }
 
   filterNodesGrid() {
     const grid = this.dom.nodesUnifiedGridUi || document.getElementById("nodesUnifiedGridUi");
     if (!grid) return;
     const cards = grid.querySelectorAll(".node-card");
     const q = (this.dom.nodesSearchInput ? this.dom.nodesSearchInput.value : "").trim().toLowerCase();
-    const activeFilter = this.activeNodesFilter || "all";
+    const activeFilter = (this.activeNodesFilter || "all").toUpperCase();
 
+    let visibleCount = 0;
     cards.forEach((card) => {
-      const search = card.getAttribute("data-search") || "";
-      const role = card.getAttribute("data-role") || "";
-      const matchesSearch = search.includes(q);
-      const matchesFilter = activeFilter === "all" || role === activeFilter;
-      card.style.display = (matchesSearch && matchesFilter) ? "flex" : "none";
+      const search = (card.getAttribute("data-search") || "").toLowerCase();
+      const role = (card.getAttribute("data-role") || "").toUpperCase();
+      const matchesSearch = !q || search.includes(q);
+      const matchesFilter = activeFilter === "ALL" || role === activeFilter;
+
+      const isVisible = matchesSearch && matchesFilter;
+      card.style.display = isVisible ? "flex" : "none";
+      if (isVisible) visibleCount++;
     });
+
+    let noResultsEl = grid.querySelector(".no-search-results");
+    if (visibleCount === 0 && cards.length > 0) {
+      if (!noResultsEl) {
+        noResultsEl = document.createElement("div");
+        noResultsEl.className = "empty-state no-search-results";
+        grid.appendChild(noResultsEl);
+      }
+      noResultsEl.textContent = `No se encontraron nodos que coincidan con los filtros aplicados.`;
+      noResultsEl.style.display = "block";
+    } else if (noResultsEl) {
+      noResultsEl.style.display = "none";
+    }
   }
 }
 
