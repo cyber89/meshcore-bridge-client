@@ -430,7 +430,7 @@ class MeshCoreWebServer:
 
     def _is_traversal_attempt(self, clean_path: str) -> bool:
         """Detecta intentos de Directory Traversal en la ruta solicitada.
-        
+
         Cubre vectores: path traversal directo, URL encoding simple/doble,
         overlong UTF-8 encoding y null byte injection.
         """

@@ -46,7 +46,7 @@ class WebAPIRouter:
         if not file_path.is_file():
             return
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 data = json.load(f)
             if isinstance(data, list):
                 for item in data:
@@ -61,7 +61,8 @@ class WebAPIRouter:
             elif isinstance(data, dict):
                 for k, v in data.items():
                     if isinstance(v, dict):
-                        idx = int(v.get("index", k))
+                        raw_idx = v.get("index")
+                        idx = int(raw_idx) if raw_idx is not None else int(k)
                         self.channels[idx] = {
                             "index": idx,
                             "name": str(v.get("name", f"Canal {idx}")),

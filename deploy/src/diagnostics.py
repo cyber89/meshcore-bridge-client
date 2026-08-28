@@ -296,7 +296,6 @@ class DiagnosticManager:
         lines.append("## 🔌 2. Matriz de Subsistemas y Conectividad")
         ser = sub.get("serial_companion", {})
         mqtt = sub.get("mqtt_broker", {})
-        db = sub.get("database_wal", {})
         rl = sub.get("rate_limiter", {})
         nodes = sub.get("mesh_nodes", {})
 

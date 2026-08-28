@@ -597,7 +597,7 @@ class AdminCommandHandler:
                     rssi_val = resp_data.get("rssi") or resp_data.get("RSSI")
                     if rssi_val is None:
                         if getattr(self._ctx, "last_rx_rssi", None) is not None:
-                            rssi_val = getattr(self._ctx, "last_rx_rssi")
+                            rssi_val = self._ctx.last_rx_rssi
                         else:
                             c_node = self._ctx.node_registry.get_by_key_or_prefix(str(target_node))
                             if c_node and c_node.last_rssi is not None:

@@ -9,6 +9,7 @@ Aligned with official MeshCore SDK (meshcore_py/src/meshcore/packets.py).
 from __future__ import annotations
 
 import struct
+import warnings
 from dataclasses import asdict, dataclass
 from enum import IntEnum
 from typing import Any, Protocol
@@ -314,8 +315,6 @@ class MeshCoreSDKProtocol(Protocol):
     def stop(self) -> None: ...
     def close(self) -> None: ...
     def subscribe(self, event_type: Any, callback: Any) -> None: ...
-
-import warnings
 
 
 @dataclass(frozen=True)
@@ -643,7 +642,7 @@ class MeshcoreFrame:
 
 _DEPRECATED_ALIASES: dict[str, str] = {
     "OpCode": "PacketType",
-    "FirmwareCommandType": "CommandType", 
+    "FirmwareCommandType": "CommandType",
     "FirmwarePushCode": "PacketType",
 }
 

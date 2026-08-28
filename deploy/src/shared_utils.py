@@ -1,16 +1,18 @@
 import logging
+
 from src.protocol_types import FirmwareAdvertType
+
 
 def classify_device_role(advert_type: int, is_local: bool = False) -> str:
     """Clasificación canónica de rol de dispositivo según FirmwareAdvertType.
-    
+
     Single Source of Truth para mapear tipos de advertisement del firmware
     MeshCore a roles de dispositivo legibles.
-    
+
     Args:
         advert_type: Valor numérico de FirmwareAdvertType del firmware.
         is_local: True si el nodo es la estación base local.
-        
+
     Returns:
         Rol como string: LOCAL, CLIENT, REPEATER, ROOM, SENSOR.
     """
@@ -27,15 +29,15 @@ def classify_device_role(advert_type: int, is_local: bool = False) -> str:
 
 def normalize_battery(raw_value: int) -> tuple[float, float]:
     """Conversión canónica de valor crudo de batería a porcentaje y voltaje.
-    
+
     El firmware MeshCore reporta batería en diferentes formatos según hardware:
     - 0-100: Porcentaje directo
     - 101-255: Valor ADC que requiere conversión
     - 300-420: Voltaje en centésimas (3.00V - 4.20V)
-    
+
     Args:
         raw_value: Valor crudo reportado por el firmware.
-        
+
     Returns:
         Tupla (porcentaje, voltaje_estimado).
     """

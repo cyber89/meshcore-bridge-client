@@ -294,11 +294,10 @@ class NodeRegistry:
         if norm and norm in self._nodes_by_key:
             return norm
 
-        # 2. Coincidencia por prefijo (>= 6 caracteres comunes)
+        # 2. Coincidencia por prefijo (cuando una clave es prefijo de la otra)
         if norm and is_valid_node_key(norm):
             for k in self._nodes_by_key:
-                if (len(k) >= 6 and len(norm) >= 6 and (k.startswith(norm) or norm.startswith(k))) or \
-                   (len(norm) >= 8 and len(k) >= 8 and (k.startswith(norm[:8]) or norm.startswith(k[:8]))):
+                if (len(k) < len(norm) and norm.startswith(k)) or (len(norm) < len(k) and k.startswith(norm)):
                     return k
 
         # 3. Coincidencia por nombre exacto o alias si no es un nombre genérico
@@ -717,9 +716,9 @@ class NodeRegistry:
             target_key = self._nodes_by_name[q]
             return self._nodes_by_key.get(target_key)
 
-        # 3. Búsqueda por prefijo de clave pública
+        # 3. Búsqueda por prefijo de clave pública (cuando una clave es prefijo de la otra)
         for key, contact in self._nodes_by_key.items():
-            if key.startswith(q) or q.startswith(key):
+            if (len(q) < len(key) and key.startswith(q)) or (len(key) < len(q) and q.startswith(key)):
                 return contact
 
         return None

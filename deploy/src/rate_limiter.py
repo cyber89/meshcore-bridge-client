@@ -250,7 +250,7 @@ class TxRateLimiter:
                 await self._worker_task
             except asyncio.CancelledError:
                 pass
-            
+
         drained = 0
         while not self.queue.empty():
             try:

@@ -1,0 +1,32 @@
+[
+  {
+    "index": 0,
+    "name": "Public / Broadcast",
+    "psk": "",
+    "is_public": true
+  },
+  {
+    "index": 1,
+    "name": "Operaciones T\u00e1cticas",
+    "psk": "A1B2C3D4E5F67890123456789ABCDEF0",
+    "is_public": false
+  },
+  {
+    "index": 2,
+    "name": "Telemetr\u00eda Sensores",
+    "psk": "FEEDFACECAFED00D1234567890ABCDEF",
+    "is_public": false
+  },
+  {
+    "index": 3,
+    "name": "Emergencias Malla",
+    "psk": "99887766554433221100FFEEDDCCBBAA",
+    "is_public": false
+  },
+  {
+    "index": 4,
+    "name": "Canal T\u00e1ctico",
+    "psk": "KEY_12345",
+    "is_public": false
+  }
+]

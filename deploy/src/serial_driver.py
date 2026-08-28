@@ -20,7 +20,6 @@ from src.protocol_types import (
     ESC_BYTE,
     ESC_MASK,
     SOF_BYTE,
-    FirmwareAdvertType,
     MeshcoreFrame,
     MeshCoreSDKProtocol,
 )
@@ -748,10 +747,12 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                 raw_ch = self.mc.channels
                 if isinstance(raw_ch, dict):
                     raw_ch = list(raw_ch.values())
-                if isinstance(raw_ch, list):
                     for idx, c in enumerate(raw_ch):
                         if isinstance(c, dict) and (c.get("name") or c.get("channel_name")):
-                            ch_index = int(c.get("index", c.get("channel_idx", idx)))
+                            raw_idx = c.get("index")
+                            if raw_idx is None:
+                                raw_idx = c.get("channel_idx")
+                            ch_index = int(raw_idx) if raw_idx is not None else idx
                             channels.append({
                                 "index": ch_index,
                                 "name": str(c.get("name", c.get("channel_name", f"Canal {ch_index}"))),
