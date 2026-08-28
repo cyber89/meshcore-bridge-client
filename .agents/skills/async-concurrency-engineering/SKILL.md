@@ -19,8 +19,8 @@ Esta skill establece las directrices de ingeniería para garantizar código así
 2. **Puente Seguro entre Hilos y Asyncio**:
    * Si un hilo del SO (ej. callback de pyserial o daemon de fondo) necesita notificar a una corrutina en el event loop, **NUNCA** llamar directamente a corrutinas con `asyncio.run()`.
    * **Solución**: Usar `loop.call_soon_threadsafe(callback, *args)` o encolar en una `asyncio.Queue` protegida.
-3. **Persistencia SQLite Concurrente**:
-   * Las conexiones SQLite compartidas entre hilos deben protegerse mediante `threading.Lock` o transacciones atómicas con modo WAL activado (`PRAGMA journal_mode=WAL`).
+3. **Persistencia Atómica y Segura**:
+   * Las operaciones de escritura en disco (archivos JSON de canales/configuración) deben realizarse de forma atómica (escritura en temporal + renombre atómico) o mediante corrutinas sin bloquear el event loop.
 
 ---
 

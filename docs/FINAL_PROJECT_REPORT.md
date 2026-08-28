@@ -13,7 +13,7 @@
 
 El sistema garantiza:
 - **Cero Bloqueo en Bucle de Eventos**: Arquitectura 100% reactiva nativa en `asyncio`.
-- **Resiliencia Extrema ante Fallos**: Persistencia Store & Forward transaccional en SQLite (modo `WAL`), purga por TTL y deduplicación en memoria RAM.
+- **Resiliencia Extrema ante Fallos**: Persistencia atómica JSON, deduplicación en memoria RAM y sincronización de hardware.
 - **Control de Emisión LoRa**: Rate Limiter con cola de prioridades y cálculo analítico de tiempo en el aire de Semtech (`Airtime Estimator`).
 - **Soberanía y Bajo Consumo**: Servidor web asíncrono embebido sin dependencias pesadas (< 10 MB RAM, arranque en < 50ms) apto para microcomputadores (Orange Pi Zero 2W, Raspberry Pi 3/4/5).
 - **Accesibilidad y Seguridad Rigurosa**: Cumplimiento WCAG 2.2 AA (foco visible, navegación por teclado, regiones ARIA), análisis estático Bandit SAST (0 vulnerabilidades) y prevención OWASP Top 10.
@@ -82,12 +82,12 @@ flowchart TB
         CORE <==> LPP
     end
 
-    subgraph ResilienceLayer["Capa de Resiliencia (/src/store_forward.py & /src/rate_limiter.py)"]
+    subgraph ResilienceLayer["Capa de Resiliencia (/src/deduplicator.py & /src/rate_limiter.py)"]
         DEDUP["PacketDeduplicator (RAM Window)"]
-        SQLITE[("SQLiteStoreAndForward (Modo WAL + TTL)")]
+        STORAGE[("Persistencia JSON (channels/registry)")]
         TX_QUEUE["TxRateLimiter (PriorityQueue + Airtime)"]
         CORE <==> DEDUP
-        CORE <==> SQLITE
+        CORE <==> STORAGE
         CORE <==> TX_QUEUE
     end
 
@@ -150,7 +150,7 @@ La estación web (`http://<IP>:8080` o `http://<IP>:8085`) provee **11 paneles o
 8. **👥 Libreta de Contactos y Claves**: Gestión de claves públicas, alias y conmutación instantánea a chat DM.
 9. **🏠 Integración Home Assistant**: Estado de sincronización MQTT Discovery y re-anuncio forzado.
 10. **📜 Consola de Logs del Sistema**: Terminal en vivo con filtro por severidad (`INFO`, `WARN`, `ERROR`), buscador y exportación en `.json`.
-11. **⚙️ Configuración de Radio Local & Diagnósticos Preflight**: Verificación previa al arranque de infraestructura (Mosquitto, SQLite WAL, serial/TCP).
+11. **⚙️ Configuración de Radio Local & Diagnósticos Preflight**: Verificación previa al arranque de infraestructura (Mosquitto, serial/TCP, Companion Server).
 
 ### Endpoints REST API
 - `GET /api/status`: Estado general, uptime, enlaces y profundidad de colas.
@@ -163,7 +163,7 @@ La estación web (`http://<IP>:8080` o `http://<IP>:8085`) provee **11 paneles o
 - `POST /api/sniffer/control` & `GET /api/sniffer/packets`: Control y consulta del interceptor de paquetes RF.
 - `POST /api/admin/command` & `POST /api/admin/repeater`: Envío de comandos a nodos locales y repetidores distantes.
 - `GET /api/ha/status` & `POST /api/ha/publish`: Estado y publicación de Home Assistant Discovery.
-- `GET /api/preflight`: Diagnósticos de infraestructura (Mosquitto, SQLite WAL, puerto serial/TCP).
+- `GET /api/preflight`: Diagnósticos de infraestructura (Mosquitto, puerto serial/TCP, companion).
 - `GET /api/system/logs`: Historial de eventos y logs del sistema.
 - `OPTIONS *`: CORS preflight retornando `204 No Content`.
 

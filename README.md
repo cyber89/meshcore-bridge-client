@@ -44,15 +44,15 @@ Puente bidireccional asíncrono, resiliente y de grado industrial para conectar 
   - Gestión visual de API Key en **⚙️ Ajustes ➔ 🔐 Seguridad & API**.
   - Servidor TCP Companion con límite de conexiones concurrentes (`MAX_COMPANION_CLIENTS`), lista blanca de IPs y token de autenticación.
   - Políticas de seguridad CORS estrictas y cabeceras CSP (*Content-Security-Policy*).
-  - Sanitización HTML contra ataques XSS y 100% consultas SQL parametrizadas en SQLite.
+  - Sanitización HTML contra ataques XSS y validación estricta de esquemas de datos.
 - **🩺 Motor de Diagnósticos Preflight (`src/preflight.py`)**:
   - Verificaciones automáticas previas al arranque (Broker Mosquitto TCP, Puerto Serial / TCP, Servidor Companion).
 - **Decodificador Nativo CayenneLPP (`src/sensor_decoder.py`)**:
   - Soporte para `pycayennelpp>=2.0.0` (v2.4.0) con deserialización determinista de temperatura, humedad, presión, GPS, acelerómetro, luminosidad y voltaje.
 - **LoRa TX Rate Limiter con Cola de Prioridades y Airtime Tracking**:
   - Espaciado adaptativo según el cálculo analítico de tiempo en el aire LoRa de Semtech (`estimate_lora_airtime_ms`).
-- **Persistencia en SQLite WAL (`data/meshcore_buffer.db`)**:
-  - Cola Store & Forward no bloqueante para reintentos y tolerancia a caídas de red.
+- **Persistencia Híbrida Atómica (JSON & Memoria Flash)**:
+  - Almacenamiento no volátil en la radio LoRa para contactos y persistencia atómica en archivos JSON (`data/channels.json`, `data/node_registry.json`) sin dependencias de motores de bases de datos pesados.
 - **Serial Watchdog Activo**:
   - Detección automática de bloqueos silenciosos del puerto USB y reconexión automática con estabilización USB CDC.
 
@@ -187,6 +187,6 @@ python scripts/simulate_heltec_v4_mesh.py --live
 | `LORA_DEFAULT_SF` | `11` | Spreading Factor por defecto (SF7 a SF12). |
 | `LORA_DEFAULT_BW_KHZ` | `250.0` | Ancho de banda LoRa en kHz. |
 | `TX_INTERVAL_SEC` | `1.0` | Espaciado mínimo entre paquetes RF (Rate Limiter). |
-| `SQLITE_DB_PATH` | `data/meshcore_buffer.db` | Ruta del archivo de persistencia SQLite. |
+| `DATA_DIR` | `data` | Directorio raíz para almacenamiento JSON y persistencia. |
 | `LOG_LEVEL` | `INFO` | Nivel de registro (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
 

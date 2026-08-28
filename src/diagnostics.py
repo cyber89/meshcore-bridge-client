@@ -246,7 +246,6 @@ class DiagnosticManager:
                 preflight_results = preflight_checker.run_all(
                     mqtt_host=config.MQTT_BROKER,
                     mqtt_port=config.MQTT_PORT,
-                    db_path=config.SQLITE_DB_PATH,
                     serial_port=getattr(
                         self.bridge.serial_adapter, "port", config.SERIAL_PORT
                     ),
@@ -308,7 +307,7 @@ class DiagnosticManager:
         lines.append("|---|---|---|")
         lines.append(f"| **Radio Serial Companion** | {ser_icon} `{'Conectado' if ser.get('connected') else 'Desconectado'}` | Puerto: `{ser.get('port')}` @ `{ser.get('baudrate')}` bps |")
         lines.append(f"| **Broker MQTT** | {mqtt_icon} `{'Online' if mqtt.get('connected') else 'Offline'}` | Host: `{mqtt.get('broker')}:{mqtt.get('port')}` (Reconexiones: {mqtt.get('reconnect_count', 0)}) |")
-        lines.append(f"| **Persistencia SQLite WAL** | 💽 `Operativo` | Ruta: `{db.get('path')}` |")
+        lines.append("| **Persistencia Local JSON** | 💽 `Operativo` | Canales y nodos en almacenamiento atómico |")
         lines.append(f"| **Rate Limiter (Cola TX)** | ⏱️ `Activo` | Profundidad de cola: `{rl.get('queue_depth', 0)}` paquetes |")
         lines.append(f"| **Directorio de Nodos LoRa** | 📡 `Activo` | `{nodes.get('known_count', 0)}` nodos descubiertos en malla |\n")
 

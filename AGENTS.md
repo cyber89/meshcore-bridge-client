@@ -44,7 +44,7 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
 - **Responsabilidades y Reglas Estrictas**:
   1. **Desglose y Asignación**: Al iniciar una tarea, desglosa los requerimientos y delega subtareas a los agentes correspondientes (Investigador, Arquitecto de Bridge, Arquitecto Web, Auditor de Seguridad).
   2. **Auditoría del Reporte**: Consulta obligatoriamente `docs/AGENT_ACTIVITY_REPORT.md` tras cada fase para verificar qué módulos fueron modificados y qué contratos cambiaron.
-  3. **Armonización Cruzada**: Actualiza y refactoriza el código de cualquier subsistema que deba mantenerse compatible con los cambios introducidos (APIs REST, WebSockets, MQTT, SQLite WAL, frontend).
+  3. **Armonización Cruzada**: Actualiza y refactoriza el código de cualquier subsistema que deba mantenerse compatible con los cambios introducidos (APIs REST, WebSockets, MQTT, persistencia JSON / memoria, frontend).
   4. **Control de Pruebas**: **NUNCA ejecutar suites de pruebas (pytest/Playwright/fuzzing) automáticamente**, a menos que el usuario lo solicite de manera explícita en su mensaje.
 
 ---
@@ -57,7 +57,7 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
 - **Herramientas**:
   - Skill: `meshcore_source_inspector` (AST / Struct / Enum Extractor)
 - **Reglas y Restricciones Estrictas**:
-  1. **NUNCA** escribir código de red (MQTT, Sockets), SQLite ni controladores de hardware serie en `/src/meshcore_bridge.py`.
+  1. **NUNCA** escribir código de red (MQTT, Sockets), persistencia de archivos ni controladores de hardware serie en `/src/meshcore_bridge.py`.
   2. Cada struct de C/C++ extraído debe documentar: Endianness, empaquetado (`packed`), padding y CRC.
   3. Los tipos en `/src/protocol_types.py` deben ser `@dataclass(frozen=True)` o Enums con tipado estricto.
   4. Registrar cambios de tipos y layouts en `docs/AGENT_ACTIVITY_REPORT.md`.
@@ -74,7 +74,7 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
 - **Reglas y Restricciones Estrictas**:
   1. Todo código asíncrono debe usar `asyncio` nativo, sin llamadas bloqueantes en el event loop.
   2. Implementar siempre descompresión/framing determinista (Byte Stuffing / SOF / EOF / CRC validation).
-  3. La persistencia Store & Forward en SQLite debe usar transacciones WAL y modo asíncrono.
+  3. La persistencia en disco de canales y configuraciones debe ser atómica y no bloqueante mediante archivos JSON.
   4. Los mensajes MQTT deben cumplir con el esquema JSON documentado para n8n.
   5. Registrar modificaciones de endpoints y drivers en `docs/AGENT_ACTIVITY_REPORT.md`.
 
@@ -107,14 +107,14 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
 ---
 
 ### Agente 5: Security & Vulnerability Auditor Agent
-- **Objetivo**: Auditar, fortificar y garantizar la seguridad integral del bridge, API REST, WebSockets, base de datos SQLite y mitigación de vulnerabilidades OWASP Top 10.
+- **Objetivo**: Auditar, fortificar y garantizar la seguridad integral del bridge, API REST, WebSockets, persistencia JSON y mitigación de vulnerabilidades OWASP Top 10.
 - **Área de Trabajo**:
   - Lectura: Todo el repositorio (`/src/**`, `/docs/**`, `/tests/**`, `/reference/**`)
   - Escritura: `.agents/skills/security-code-auditor/**`, parches de seguridad en `/src/**`
 - **Herramientas**:
   - Skill: `security-code-auditor`
 - **Reglas y Restricciones Estrictas**:
-  1. 100% Consultas Parametrizadas en SQLite (prohibidos f-strings en SQL).
+  1. Validación y sanitización estricta de esquemas JSON y tipos de datos.
   2. Sanitización estricta de entradas antes de almacenar o renderizar (`escapeHtml`).
   3. Registrar auditorías de seguridad y parches en `docs/AGENT_ACTIVITY_REPORT.md`.
 

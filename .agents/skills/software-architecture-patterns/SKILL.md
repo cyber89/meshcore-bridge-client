@@ -47,14 +47,14 @@ Esta skill define los lineamientos arquitectónicos de nivel enterprise para sis
                                   v
 +---------------------------------+---------------------------------+
 |                       Adaptadores Secundarios                     |
-|  [pyserial-asyncio]  [VirtualMeshAdapter]  [SQLite WAL]  [MQTT]   |
+|  [pyserial-asyncio]  [VirtualMeshAdapter]  [JSON Storage]  [MQTT] |
 +-------------------------------------------------------------------+
 ```
 
 ### Reglas de Dependencia:
 1. Las capas internas (Núcleo) **NUNCA** deben importar de capas externas (Adaptadores de UI, red o BD).
 2. La comunicación entre el Núcleo y el exterior se realiza exclusivamente a través de interfaces (`typing.Protocol` o `abc.ABC`).
-3. El dominio es 100% testeable sin requerir hardware físico, red ni base de datos real (usando adaptadores virtuales y mocks).
+3. El dominio es 100% testeable sin requerir hardware físico, red ni almacenamiento real (usando adaptadores virtuales y mocks).
 
 ---
 
@@ -64,7 +64,7 @@ Esta skill define los lineamientos arquitectónicos de nivel enterprise para sis
 2. **Eventos Inmutables**: Todos los eventos del dominio se modelan como `@dataclass(frozen=True, slots=True)`.
 3. **Múltiples Suscriptores Asíncronos**:
    * Evento `RxPacketReceived` $\to$ Consumido simultáneamente por:
-     * `StoreForward` (persistencia en SQLite).
+     * `NodeRegistry` (actualización en memoria y persistencia JSON).
      * `MqttBridge` (publicación hacia Home Assistant / n8n).
      * `WebSocketHub` (actualización reactiva de la SPA).
      * `TCPCompanionServer` (reenvío a apps móviles conectadas).
@@ -81,8 +81,8 @@ Esta skill define los lineamientos arquitectónicos de nivel enterprise para sis
    * Evita el efecto «thundering herd» sobre transceptores o brokers.
 3. **Bulkhead (Aislamiento de Recursos)**:
    * Aislar colas de procesamiento para que la congestión de un canal (ej. broadcast masivo) no bloquee los mensajes directos prioritarios ni las respuestas administrativas.
-4. **Graceful Degradation / Store & Forward**:
-   * Si la radio LoRa o la red se desconecta, los mensajes se encolan de forma persistente en SQLite WAL y se reintentan automáticamente al restaurar el enlace.
+4. **Graceful Degradation / Memoria & IndexedDB**:
+   * Si la red se desconecta, los mensajes se retienen en el cliente mediante IndexedDB y se reintentan al restaurar el enlace.
 
 ---
 

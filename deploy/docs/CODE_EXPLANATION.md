@@ -1,6 +1,6 @@
 # Explicación Técnica del Código: MeshCore Universal Bridge
 
-Este documento detalla la arquitectura, decisiones de diseño, flujo de concurrencia, mecanismos de resiliencia de grado industrial (**Store & Forward SQLite WAL**, **LoRa Rate Limiter**, **Serial Watchdog**, **Health Metrics**) y el funcionamiento del puente **`meshcore_bridge.py`** con cualquier placa compatible (Heltec, LilyGO, RAKwireless, Seeed, RP2040) y el workflow de **n8n**.
+Este documento detalla la arquitectura, decisiones de diseño, flujo de concurrencia, mecanismos de resiliencia de grado industrial (**Persistencia Atómica JSON**, **LoRa Rate Limiter**, **Serial Watchdog**, **Health Metrics**) y el funcionamiento del puente **`meshcore_bridge.py`** con cualquier placa compatible (Heltec, LilyGO, RAKwireless, Seeed, RP2040) y el workflow de **n8n**.
 
 ---
 
@@ -143,12 +143,10 @@ En redes LoRa Mesh, cuando un nodo emite un paquete, este puede ser recibido dir
 
 ## 4. Mecanismos de Alta Disponibilidad y Resiliencia
 
-### A. Store & Forward Persistente en SQLite (Anti-Caídas y Cortes Eléctricos)
-- Si la conexión TCP con Mosquitto se interrumpe, `publish_safe()` encola los paquetes recibidos en la base de datos SQLite local (`meshcore_buffer.db`) configurada en modo **WAL (Write-Ahead Logging)** para alta velocidad y concurrencia.
-- Los mensajes **sobreviven a reinicios o cortes de energía** de la máquina anfitriona (Raspberry Pi / Servidor).
-- En cuanto se restablece la conexión MQTT, `flush_offline_buffer()` despacha en lotes todos los paquetes retenidos en orden cronológico estricto FIFO hacia Mosquitto y n8n, garantizando **cero pérdida de datos**.
-- **Reconexión automática al arranque**: el cliente MQTT usa `connect_async()` + `loop_start()` con `reconnect_delay_set(1s..30s)`; si el broker estaba caído al iniciar el proceso, Paho reintenta en segundo plano (`retry_first_connection=True`) y el bridge se conecta sin reiniciar, drenando el buffer acumulado.
-- **API asíncrona**: `SQLiteStoreAndForward` expone métodos `async` (`enqueue`, `count`, `dequeue_batch`, `delete_batch`, `purge_expired`, `is_duplicate`) con sentencias parametrizadas, transacciones WAL y deduplicación en RAM.
+### A. Persistencia Híbrida y Almacenamiento Atómico (Zero-Overhead)
+- Los contactos, identificadores y claves se gestionan en memoria y se sincronizan directamente con la memoria Flash de la radio LoRa conectada.
+- Los canales y configuraciones locales se persisten en disco de forma atómica en archivos JSON (`data/channels.json`), evitando bloqueos y minimizando el desgaste de tarjetas SD en micro-computadores (SBCs).
+- El historial de mensajes y acuses de recibo (ACKs) se conserva en el navegador mediante `IndexedDB`, garantizando disponibilidad offline sin sobrecargar el servidor.
 
 ### B. Control de Congestión LoRa (TX Rate Limiter)
 - Las transmisiones RF están reguladas por `_tx_worker()`, que procesa los elementos de `self.tx_queue` espaciando cada emisión por `TX_INTERVAL_SEC` (por defecto 1.0s).
@@ -162,9 +160,9 @@ En redes LoRa Mesh, cuando un nodo emite un paquete, este puede ser recibido dir
 - La tarea `_health_reporter_loop()` emite periódicamente un reporte JSON con:
   - Uptime en segundos.
   - Conteo total de paquetes RX y TX.
-  - Tasa de errores y tamaño de colas pendientes en SQLite (`offline_buffer_size`).
+  - Tasa de errores y estado de colas de transmisión.
   - Estado de conexión serial y MQTT.
-  - Frecuencia y nombre del nodo Heltec.
+  - Frecuencia y nombre del nodo LoRa.
 
 ---
 

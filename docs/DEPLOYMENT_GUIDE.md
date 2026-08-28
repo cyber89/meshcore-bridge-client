@@ -121,7 +121,7 @@ sudo systemctl enable mosquitto
     cp .env.example .env
     nano .env
     ```
-    *Verifica que `SERIAL_PORT` apunte a tu dispositivo (ej. `/dev/ttyACM0`, `/dev/ttyUSB0` o `AUTO`) y que `SQLITE_DB_PATH` use `data/meshcore_buffer.db`.*
+    *Verifica que `SERIAL_PORT` apunte a tu dispositivo (ej. `/dev/ttyACM0`, `/dev/ttyUSB0` o `AUTO`) y que `DATA_DIR` esté configurado en `data`.*
 
 ---
 

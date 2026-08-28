@@ -24,11 +24,10 @@ sequenceDiagram
     Note over DevOrAgent,HW: Flujo de Recepción (RX)
     HW->>Bridge: Evento Serial RX (Trama LoRa)
     Bridge->>Bridge: Validar CRC-16 & Deduplicar (LRU RAM)
+    Bridge->>Bridge: Actualizar NodeRegistry en Memoria / JSON
     alt MQTT Online
         Bridge->>MQTT: Publicar en meshcore/rx/all y tópicos específicos
         MQTT->>N8N: Disparar Trigger Webhook/MQTT
-    else MQTT Offline
-        Bridge->>SQLite: Persistir en offline_queue (con TTL)
     end
 
     Note over DevOrAgent,HW: Flujo de Transmisión (TX)
@@ -57,7 +56,7 @@ sequenceDiagram
 1. **Regla de Oro**: Ninguna operación I/O puede bloquear el bucle de `asyncio`.
 2. **Procedimiento de Implementación**:
    - Utilizar el patrón adaptador híbrido: el bridge debe funcionar con el SDK oficial `meshcore_py` cuando esté instalado, y conmutar a `RawSerialFramingAdapter` en entornos sin dependencias externas.
-   - Siempre envolver transacciones de base de datos SQLite en modo WAL y limpiar registros expirados con `purge_expired()`.
+   - Las operaciones de persistencia en disco deben ser atómicas mediante archivos JSON.
    - Asegurar que el espaciado de transmisión LoRa respete el tiempo en el aire calculado por `estimate_lora_airtime_ms()`.
 
 ### 2.3 Para el QA & Fuzzing Agent
@@ -79,5 +78,4 @@ sequenceDiagram
 | `ERR_BUSY` (`0x01`) | El canal LoRa está ocupado por otra transmisión (CAD detectó portadora) | El `TxRateLimiter` reintenta con backoff exponencial y jitter aleatorio |
 | `ERR_TIMEOUT` | La radio no respondió al comando serial en el tiempo límite | El `SerialWatchdog` detecta inactividad y ejecuta reconexión suave |
 | `CRC_MISMATCH` | Interferencia RF o ruido en la línea UART corrompió bytes de la trama | El `RawSerialFramingAdapter` descarta la trama e incrementa `rx_error_count` |
-| `SQLITE_BUSY` | Múltiples hilos intentando escribir simultáneamente | SQLite configurado en modo `WAL` con `busy_timeout=5000` ms |
-| `MQTT_DISCONNECTED` | Pérdida de conectividad con el broker Mosquitto | Desvío transparente a `SQLiteStoreAndForward` hasta evento `on_connect` |
+| `MQTT_DISCONNECTED` | Pérdida de conectividad con el broker Mosquitto | Reintento en segundo plano con reconexión exponencial asíncrona |

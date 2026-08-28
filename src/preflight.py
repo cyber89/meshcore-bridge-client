@@ -1,7 +1,7 @@
 """
 Preflight Diagnostics Engine for MeshCore Bridge.
 Inspirado en ammb/preflight.py para validar conectividad con Mosquitto,
-acceso al puerto serial/TCP y estado de persistencia SQLite antes del arranque.
+acceso al puerto serial/TCP y estado de red antes del arranque.
 """
 
 from __future__ import annotations

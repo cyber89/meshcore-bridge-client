@@ -29,7 +29,7 @@ Esta skill proporciona una guía sistemática para seleccionar, implementar y re
 1. **Adapter Pattern (Adaptador)**:
    * **Propósito**: Convertir la interfaz de una librería externa (ej. SDK de MeshCore, pyserial) en la interfaz esperada por el núcleo del bridge (`BaseSerialAdapter`).
 2. **Facade Pattern (Fachada)**:
-   * **Propósito**: Proveer una interfaz unificada y de alto nivel (`MeshCoreBridge`) que coordine subsistemas complejos (Serial, SQLite, MQTT, WebSockets, TCP Server).
+   * **Propósito**: Proveer una interfaz unificada y de alto nivel (`MeshCoreBridge`) que coordine subsistemas complejos (Serial, Persistencia JSON, MQTT, WebSockets, TCP Server).
 3. **Proxy / Decorator Pattern**:
    * **Propósito**: Añadir logging, cálculo de métricas de latencia o reintentos automáticos de forma transparente sobre llamadas de red o comandos de radio.
 

@@ -6,6 +6,20 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Estandarización de Persistencia JSON y Eliminación de Referencias a SQLite
+- **Fecha**: 2026-08-27
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - Eliminar todo rastro y mención de SQLite en la base de código, configuración y documentación, consolidando el modelo de persistencia atómica en archivos JSON (`channels.json`, `node_registry.json`) y memoria Flash de hardware.
+- **Acciones Realizadas**:
+  - Actualizado `config.py` y `.env.example` reemplazando `SQLITE_DB_PATH` por `DATA_DIR`, `CHANNELS_JSON_PATH` y `NODE_REGISTRY_STORAGE_PATH`.
+  - Depurado `src/preflight.py` y `src/diagnostics.py` eliminando parámetros y textos de SQLite.
+  - Saneadas todas las referencias en `AGENTS.md`, `README.md`, `CODE_EXPLANATION.md`, `FINAL_PROJECT_REPORT.md`, `DEPLOYMENT_GUIDE.md` y skills de agentes (`security-code-auditor`, `async-concurrency-engineering`, `gof-design-patterns-expert`, `software-architecture-patterns`).
+- **Módulos Modificados**: `config.py`, `.env.example`, `.env`, `src/preflight.py`, `src/diagnostics.py`, `README.md`, `AGENTS.md`, `.agents/skills/**`, `docs/**`.
+
+
+
 ### Hito: Verificación y Fortalecimiento de la Reactividad en la Actualización de Datos y Vistas Web
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO
