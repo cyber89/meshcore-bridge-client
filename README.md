@@ -85,7 +85,7 @@ meshcore-bridge/
 │   ├── mqtt_client.py                # Cliente MQTT asíncrono con soporte ReasonCodes v2.x
 │   ├── mqtt_dispatcher.py            # Despachador de mensajes MQTT entrantes (TX/Admin)
 │   ├── preflight.py                  # Motor de diagnósticos previos al arranque
-│   ├── protocol_types.py             # Dataclasses inmutables y tipadas con CRC-16 y OpCodes
+│   ├── protocol_types.py             # Dataclasses inmutables y tipadas con CRC-16 y PacketType oficial
 │   ├── rate_limiter.py               # Rate Limiter con PriorityQueue y LoRa Airtime Tracker
 │   ├── repeater_manager.py           # Gestor de repetidores remotos y telemetría
 │   ├── rx_router.py                  # Enrutador de eventos LoRa/RF → MQTT + WebSocket
@@ -103,6 +103,8 @@ meshcore-bridge/
 │           └── js/app.js             # Lógica reactiva Vanilla JS y WebSocket
 ├── scripts/                          # Herramientas de despliegue y simuladores
 │   ├── sync_deploy.py                # Generador del paquete de distribución autónomo (/deploy/)
+│   ├── simulate_tcp_mesh_network.py  # Simulación integral TCP multi-nodo, saltos, DM, canales y repetidores
+│   ├── validate_all_node_parameters.py # Validador exhaustivo de parámetros por tipo de nodo
 │   ├── simulate_mesh_network.py      # Simulación determinista multi-nodo de red LoRa
 │   ├── simulate_heltec_v4_mesh.py    # Simulador en vivo de hardware Heltec v4 y red LoRa
 │   └── inspect_web.py                # Automatización de capturas Playwright Desktop/Mobile

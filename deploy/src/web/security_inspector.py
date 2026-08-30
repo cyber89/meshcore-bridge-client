@@ -1,4 +1,4 @@
-﻿"""
+"""
 MeshCore Bridge - Security Traffic Inspector & Ingress Connection Logger.
 Módulo de seguridad e inspección de tráfico en tiempo real que registra todas las
 conexiones IP a la interfaz Web, API REST, WebSocket y servidor TCP Companion,

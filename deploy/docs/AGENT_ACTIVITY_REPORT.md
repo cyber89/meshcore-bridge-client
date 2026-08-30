@@ -6,6 +6,34 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Auditoría Integral de Código, Saneamiento de Código Muerto/Deprecado, Verificación de Salud y Actualización Documental
+- **Fecha**: 2026-08-30
+- **Estado**: ✅ COMPLETADO (100% de Módulos Auditados, 0 Errores, 0 Warnings)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 4 (Web Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - Realizar una lectura, análisis y comprensión profunda de toda la base de código y documentación.
+  - Detectar y corregir errores, inconsistencias, nombres deprecados, código duplicado o en desuso.
+  - Comprobar el funcionamiento de extremo a extremo de la aplicación en todos sus subsistemas.
+  - Actualizar la documentación técnica en todo el proyecto (`README.md`, `PROTOCOL_SPEC.md`, `ARCHITECTURE.md`, `AGENT_ACTIVITY_REPORT.md`).
+- **Acciones Realizadas**:
+  1. **Saneamiento de Símbolos y Deprecaciones**:
+     - Sustituido el uso legado de `OpCode` por `PacketType` (conforme a `packets.py` del SDK oficial) en [`meshcore_bridge.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/meshcore_bridge.py), [`src/__init__.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/__init__.py), [`scripts/validate_all_node_parameters.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/scripts/validate_all_node_parameters.py), [`scripts/verify_all_components.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/scripts/verify_all_components.py) y [`scripts/simulate_concurrent_network.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/scripts/simulate_concurrent_network.py).
+     - Eliminado carácter BOM (`\ufeff`) en [`src/web/security_inspector.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/security_inspector.py).
+  2. **Corrección en Enrutamiento y Preservación de Nombres de Nodo**:
+     - En [`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py): Corregido el flujo en `handle_event` y `_handle_mesh_telemetry_msg` donde `sender_name` extraído de anuncios `adv_name`/`name` era sobreescrito por el fallback `Nodo [xxxx]` si el nodo aún no residía en el registro local.
+  3. **Diagnósticos Preflight y Alias de Configuración**:
+     - En [`config.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/config.py): Añadido alias canónico `MQTT_HOST = MQTT_BROKER`.
+     - En [`src/preflight.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/preflight.py): Implementada la función de conveniencia `run_preflight_checks()`.
+  4. **Verificación Funcional Multi-Subsistema**:
+     - Comprobada la carga sintáctica y dinámica de los **27 módulos de `src/` (100% de éxito, 0 warnings)**.
+     - Validados los 8 escenarios de la simulación TCP Multi-Nodo (`simulate_tcp_mesh_network.py`).
+     - Validados los 126 parámetros por tipo de nodo (`validate_all_node_parameters.py`).
+     - Validado el ciclo de vida del Bridge (`bridge_core.py`) con eventos RX, comandos admin y rate limiting.
+  5. **Actualización Documental**:
+     - Actualizado [`README.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/README.md) con la estructura completa de scripts y módulos v3.0.
+     - Actualizado [`docs/PROTOCOL_SPEC.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/docs/PROTOCOL_SPEC.md) con la matriz exhaustiva de parámetros.
+- **Módulos Modificados**: `config.py`, `meshcore_bridge.py`, `src/__init__.py`, `src/preflight.py`, `src/rx_router.py`, `src/web/security_inspector.py`, `scripts/validate_all_node_parameters.py`, `scripts/verify_all_components.py`, `scripts/simulate_concurrent_network.py`, `README.md`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Validación Exhaustiva de Parámetros y Cobertura de Nodos en la Pila MeshCore (LOCAL, CLIENT, REPEATER, SENSOR, ROOM)
 - **Fecha**: 2026-08-30
 - **Estado**: ✅ COMPLETADO (126/126 Parámetros Validados - 100% de Éxito)

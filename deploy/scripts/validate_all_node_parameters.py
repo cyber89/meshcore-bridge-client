@@ -25,7 +25,7 @@ from src.protocol_types import (
     FirmwareAdvertType,
     HardwareModel,
     MeshcoreFrame,
-    OpCode,
+    PacketType,
     TelemetryPayload,
 )
 from src.rate_limiter import LoRaRadioConfig, TxRateLimiter

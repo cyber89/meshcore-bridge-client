@@ -18,7 +18,7 @@ from src.protocol_types import (
     HardwareModel,
     MeshcoreFrame,
     NodeAdvertisement,
-    OpCode,
+    PacketType,
     TelemetryPayload,
     TextMessagePayload,
 )
@@ -41,7 +41,7 @@ __all__ = [
     "MeshcoreSDKAdapter",
     "RawSerialFramingAdapter",
     "SerialWatchdog",
-    "OpCode",
+    "PacketType",
     "HardwareModel",
     "FrameHeader",
     "TelemetryPayload",

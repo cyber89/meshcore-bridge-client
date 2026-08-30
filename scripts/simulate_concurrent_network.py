@@ -39,7 +39,7 @@ from src.protocol_types import (
     HardwareModel,
     MeshcoreFrame,
     NodeAdvertisement,
-    OpCode,
+    PacketType,
     SOF_BYTE,
     TelemetryPayload,
     TextMessagePayload,
@@ -504,7 +504,7 @@ async def run_master_20s_simulation() -> bool:
 
             # Tramas Binarias MeshcoreFrame directas
             txt_pl = TextMessagePayload(channel_idx=0, sender_alias="Alice", text=f"MeshcoreFrame direct #{seq}")
-            hdr = FrameHeader(opcode=OpCode.TEXT_MSG, seq_num=seq, src_node_id=0x1234, dst_node_id=0xFFFF, hop_limit=3, payload_len=len(txt_pl.pack()))
+            hdr = FrameHeader(opcode=PacketType.CONTACT_MSG_RECV, seq_num=seq, src_node_id=0x1234, dst_node_id=0xFFFF, hop_limit=3, payload_len=len(txt_pl.pack()))
             m_frame = MeshcoreFrame(header=hdr, payload=txt_pl, raw_payload=txt_pl.pack(), crc16=0, is_valid=True)
             rx_router.handle_event(m_frame)
             msg_type_counters["9. Tramas Binarias MeshcoreFrame"] += 1

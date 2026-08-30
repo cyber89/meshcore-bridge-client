@@ -13,7 +13,7 @@ from src.protocol_types import (
     HardwareModel,
     MeshcoreFrame,
     NodeAdvertisement,
-    OpCode,
+    PacketType,
     TelemetryPayload,
     TextMessagePayload,
 )
@@ -61,7 +61,7 @@ __all__ = [
     "SensorReading",
     "extract_telemetry_fields",
     "format_telemetry_summary",
-    "OpCode",
+    "PacketType",
     "HardwareModel",
     "FrameHeader",
     "TelemetryPayload",

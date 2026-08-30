@@ -31,7 +31,7 @@ from src.deduplicator import PacketDeduplicator
 from src.rate_limiter import TxRateLimiter, CustomTxQueue
 from src.protocol_types import (
     MeshcoreFrame,
-    OpCode,
+    PacketType,
     FirmwareAdvertType,
     MeshCoreSDKProtocol,
     parse_telemetry_from_sdk,

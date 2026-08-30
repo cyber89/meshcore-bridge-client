@@ -169,3 +169,34 @@ class PreflightChecker:
             "critical_count": len(critical_failures),
             "warning_count": len(warnings),
         }
+
+
+def run_preflight_checks(
+    mqtt_host: str | None = None,
+    mqtt_port: int | None = None,
+    serial_port: str | None = None,
+    tcp_server_port: int = 5000,
+    tcp_server_enabled: bool = True,
+    tcp_server_host: str = "0.0.0.0",  # nosec B104
+) -> dict[str, Any]:
+    """Función de conveniencia para ejecutar todas las comprobaciones preflight."""
+    import config
+    host = mqtt_host or config.MQTT_HOST
+    port = mqtt_port or config.MQTT_PORT
+    s_port = serial_port or config.SERIAL_PORT
+    checker = PreflightChecker()
+    return checker.run_all(
+        mqtt_host=host,
+        mqtt_port=port,
+        serial_port=s_port,
+        tcp_server_port=tcp_server_port,
+        tcp_server_enabled=tcp_server_enabled,
+        tcp_server_host=tcp_server_host,
+    )
+
+
+__all__ = [
+    "PreflightCheckResult",
+    "PreflightChecker",
+    "run_preflight_checks",
+]

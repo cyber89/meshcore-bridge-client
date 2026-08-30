@@ -48,7 +48,8 @@ BAUD_RATE = _safe_int("BAUD_RATE", 115200)
 SERIAL_TIMEOUT = _safe_float("SERIAL_TIMEOUT", 30.0)
 
 # ================= Configuración MQTT =================
-MQTT_BROKER = os.getenv("MQTT_BROKER", "127.0.0.1")
+MQTT_BROKER = os.getenv("MQTT_BROKER", os.getenv("MQTT_HOST", "127.0.0.1"))
+MQTT_HOST = MQTT_BROKER  # Alias canónico
 MQTT_PORT = _safe_int("MQTT_PORT", 1883)
 MQTT_USER = os.getenv("MQTT_USER", "").strip() or None
 MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "").strip() or None

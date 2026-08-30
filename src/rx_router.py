@@ -238,9 +238,9 @@ class RxEventRouter:
                     resolved = self._resolve_sender_name(sender)
                     if resolved and resolved != sender:
                         sender_name = resolved
-                    else:
+                    elif not sender_name or sender_name.lower() in ("unknown", "anónimo", "anonimo", ""):
                         sender_name = f"Nodo [{sender_raw[:8]}]"
-                else:
+                elif not sender_name or sender_name.lower() in ("unknown", "anónimo", "anonimo", ""):
                     sender_name = f"Nodo [{sender_raw[:8]}]"
 
             if sender_name:
@@ -841,7 +841,13 @@ class RxEventRouter:
                 payload_dict["sender_name"] = contact.alias or contact.name
 
         if sender and is_valid_node_key(sender):
-            sender_name_cand = str(payload_dict.get("sender_name", self._resolve_sender_name(sender)))
+            sender_name_cand = str(
+                payload_dict.get("sender_name")
+                or payload_dict.get("adv_name")
+                or payload_dict.get("name")
+                or payload_dict.get("alias")
+                or self._resolve_sender_name(sender)
+            )
             name_cand_upper = sender_name_cand.upper()
             existing_contact = self._ctx.node_registry.get_contact(sender)
             is_known_rep = bool(
