@@ -487,26 +487,72 @@ class WebAPIRouter:
                 return 200, {"status": "ok", "data": stats}
 
             if method == "GET" and clean_path == "/api/rf/heatmap":
-                nodes = self.bridge.node_registry.list_nodes()
+                nodes = self.bridge.node_registry.list_nodes() if hasattr(self.bridge, "node_registry") else []
                 heatmap_points = []
+                seen_coords = set()
+
                 for n in nodes:
-                    lat = n.get("latitude")
-                    lon = n.get("longitude")
-                    if lat is not None and lon is not None and lat != 0.0 and lon != 0.0:
-                        rssi = n.get("last_rssi")
-                        snr = n.get("last_snr")
-                        rssi_val = rssi if rssi is not None else -100
-                        weight = max(0.1, min(1.0, round((rssi_val + 120.0) / 70.0, 2)))
-                        heatmap_points.append({
-                            "lat": lat,
-                            "lon": lon,
-                            "rssi": rssi,
-                            "snr": snr,
-                            "name": n.get("name") or n.get("alias") or n.get("public_key", "")[:8],
-                            "role": n.get("role", "CLIENT"),
-                            "weight": weight,
-                            "noise_floor": n.get("noise_floor_dbm"),
-                        })
+                    lat_val = n.get("latitude") if n.get("latitude") is not None else n.get("lat")
+                    lon_val = n.get("longitude") if n.get("longitude") is not None else n.get("lon")
+                    if lat_val is not None and lon_val is not None:
+                        try:
+                            lat = float(lat_val)
+                            lon = float(lon_val)
+                            if lat != 0.0 and lon != 0.0 and -90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0:
+                                rssi = n.get("last_rssi") if n.get("last_rssi") is not None else n.get("rssi")
+                                snr = n.get("last_snr") if n.get("last_snr") is not None else n.get("snr")
+                                rssi_val = float(rssi) if rssi is not None else -100.0
+                                snr_val = float(snr) if snr is not None else 0.0
+                                weight = max(0.1, min(1.0, round((rssi_val + 120.0) / 70.0, 2)))
+
+                                coord_key = (round(lat, 5), round(lon, 5))
+                                seen_coords.add(coord_key)
+
+                                heatmap_points.append({
+                                    "pubkey": n.get("public_key", ""),
+                                    "lat": lat,
+                                    "lon": lon,
+                                    "rssi": rssi_val if rssi is not None else None,
+                                    "snr": snr_val if snr is not None else None,
+                                    "name": n.get("name") or n.get("alias") or n.get("public_key", "")[:8] or "Nodo LoRa",
+                                    "role": n.get("role", "CLIENT"),
+                                    "weight": weight,
+                                    "noise_floor": n.get("noise_floor_dbm"),
+                                    "last_heard": n.get("last_heard") or n.get("last_seen"),
+                                    "battery": n.get("battery") or n.get("battery_level"),
+                                    "is_local": n.get("is_local", False) or n.get("role") == "LOCAL",
+                                })
+                        except (ValueError, TypeError):
+                            continue
+
+                # Si el nodo local tiene GPS configurado y no fue añadido aún, incluirlo
+                local_cfg = getattr(self.bridge, "config", {})
+                if isinstance(local_cfg, dict):
+                    loc_lat = local_cfg.get("latitude") or local_cfg.get("lat")
+                    loc_lon = local_cfg.get("longitude") or local_cfg.get("lon")
+                    if loc_lat is not None and loc_lon is not None:
+                        try:
+                            l_lat, l_lon = float(loc_lat), float(loc_lon)
+                            if l_lat != 0.0 and l_lon != 0.0 and (round(l_lat, 5), round(l_lon, 5)) not in seen_coords:
+                                heatmap_points.append({
+                                    "pubkey": local_cfg.get("public_key", "LOCAL"),
+                                    "lat": l_lat,
+                                    "lon": l_lon,
+                                    "rssi": 0.0,
+                                    "snr": 12.0,
+                                    "name": local_cfg.get("name") or "Base Station (Local)",
+                                    "role": "LOCAL",
+                                    "weight": 1.0,
+                                    "noise_floor": -118.0,
+                                    "last_heard": int(time.time()),
+                                    "battery": 100,
+                                    "is_local": True,
+                                })
+                        except (ValueError, TypeError):
+                            pass
+
+                return 200, {"status": "ok", "data": {"points": heatmap_points, "count": len(heatmap_points)}}
+
             if method == "GET" and clean_path == "/api/map/status":
                 return 200, {"status": "ok", "data": self.map_tile_service.get_status()}
 

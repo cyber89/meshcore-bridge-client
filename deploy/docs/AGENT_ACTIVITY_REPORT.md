@@ -6,6 +6,30 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Verificación y Optimización en Tiempo Real del Heatmap de Cobertura RF
+- **Fecha**: 2026-08-30
+- **Estado**: ✅ COMPLETADO (Heatmap Dinámico Activo, Gradiente Táctico Multinivel, Reactividad en Tiempo Real)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Python Bridge Architect), Agente 4 (Web UI/UX Architect).
+- **Problema / Requerimiento**:
+  - Verificar exhaustivamente que el módulo de Mapa de Calor de Cobertura RF (`Heatmap RF`) funcione correctamente y obtenga datos actualizados de todos los nodos de la red en tiempo real.
+- **Acciones Realizadas**:
+  - En [`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py):
+    - Corregido y enriquecido el endpoint `GET /api/rf/heatmap` extrayendo coordenadas geográficas precisas (`lat`/`lon`, `latitude`/`longitude`), métricas RF de última generación (`last_snr`, `last_rssi`, `noise_floor_dbm`), rol del nodo y posición del transceptor local.
+    - Implementado cálculo de peso de señal ponderado y sanitización de límites geográficos (-90/90, -180/180).
+  - En [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js):
+    - Rediseñado el renderizado del mapa de calor con visualización táctica multinivel:
+      1. Halo exterior difuminado con borde punteado de radio extendido ($500\text{m} - 3500\text{m}$).
+      2. Núcleo central de alta densidad y opacidad reforzada ($0.32$).
+      3. Paleta cromática por calidad de enlace: Verde Esmeralda ($\ge -75\text{ dBm}$), Cyan Táctico ($\ge -95\text{ dBm}$), Ámbar ($\ge -110\text{ dBm}$) y Rojo ($< -110\text{ dBm}$).
+    - Incorporada actualización reactiva en tiempo real:
+      - Actualización automática al recibir paquetes de telemetría/nodos vía WebSockets (`renderNodesDirectory`).
+      - Bucle de sondeo periódico cada 10 segundos mientras el botón `#btnToggleHeatmap` permanezca activo.
+  - Validación Automatizada E2E:
+    - Ejecutada suite Playwright (`scratch/test_heatmap_rf.py`) confirmando generación de capas, cálculo de radios y actualización en tiempo real con 0 errores de consola.
+  - Sincronización:
+    - Ejecutado `python scripts/sync_deploy.py` para sincronizar `/deploy/`.
+- **Módulos Modificados**: `src/web/api_router.py`, `src/web/static/js/app.js`, `deploy/**`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Implementación de Servidor Nativo de Mapas Offline con Soporte SQLite MBTiles y Teselas XYZ
 - **Fecha**: 2026-08-30
 - **Estado**: ✅ COMPLETADO (Servidor de Teselas Local Activo, Soporte MBTiles Raster y XYZ, UI con Detección en Vivo)

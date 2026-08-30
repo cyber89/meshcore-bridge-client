@@ -5780,9 +5780,27 @@ class MeshCoreStationApp {
 
     if (!this.rfHeatmapActive) {
       if (this.rfHeatmapGroup) this.rfHeatmapGroup.clearLayers();
+      if (this.rfHeatmapInterval) {
+        clearInterval(this.rfHeatmapInterval);
+        this.rfHeatmapInterval = null;
+      }
       this.showToast("🔥 Mapa de calor RF desactivado", "info");
       return;
     }
+
+    // Activar y refrescar de inmediato
+    await this.refreshRfHeatmap(true);
+
+    // Iniciar intervalo de actualización periódica si sigue activo
+    if (!this.rfHeatmapInterval) {
+      this.rfHeatmapInterval = setInterval(() => {
+        if (this.rfHeatmapActive) this.refreshRfHeatmap(false);
+      }, 10000);
+    }
+  }
+
+  async refreshRfHeatmap(showToast = false) {
+    if (!this.map || !this.rfHeatmapActive) return;
 
     try {
       const res = await fetch("/api/rf/heatmap");
@@ -5791,37 +5809,88 @@ class MeshCoreStationApp {
         if (!this.rfHeatmapGroup) this.rfHeatmapGroup = L.layerGroup();
         this.rfHeatmapGroup.clearLayers();
 
-        data.data.points.forEach((pt) => {
-          const ptRssi = pt.rssi != null ? pt.rssi : -100;
-          const radius = Math.max(400, Math.min(3000, (ptRssi + 130) * 40));
-          let color = "#ef4444"; // Rojo (débil)
-          if (ptRssi >= -75) color = "#22c55e"; // Verde (excelente)
-          else if (ptRssi >= -95) color = "#0ea5e9"; // Azul (bueno)
-          else if (ptRssi >= -110) color = "#f59e0b"; // Amarillo (regular)
+        const points = data.data.points;
 
-          const circle = L.circle([pt.lat, pt.lon], {
-            radius: radius,
+        points.forEach((pt) => {
+          const ptRssi = pt.rssi != null ? Number(pt.rssi) : -100;
+          const ptSnr = pt.snr != null ? Number(pt.snr) : 0;
+          const isLocal = Boolean(pt.is_local);
+
+          // Cálculo determinista de radio según intensidad RSSI
+          const baseRadius = Math.max(500, Math.min(3500, (ptRssi + 135) * 45));
+
+          // Gradiente de color según calidad RF (SNR / RSSI)
+          let color = "#ef4444"; // Rojo (Señal débil)
+          let qualityLabel = "Débil";
+          if (ptRssi >= -75 || (isLocal && ptRssi >= -85)) {
+            color = "#10b981"; // Verde esmeralda (Excelente)
+            qualityLabel = "Excelente";
+          } else if (ptRssi >= -95) {
+            color = "#06b6d4"; // Cyan táctico (Buena)
+            qualityLabel = "Buena";
+          } else if (ptRssi >= -110) {
+            color = "#f59e0b"; // Ámbar (Regular)
+            qualityLabel = "Marginal";
+          }
+
+          // 1. Halo exterior difuminado (cobertura extendida)
+          const outerCircle = L.circle([pt.lat, pt.lon], {
+            radius: baseRadius,
             color: color,
             fillColor: color,
-            fillOpacity: 0.28,
+            fillOpacity: 0.12,
+            weight: 1,
+            dashArray: "4, 4",
+          });
+
+          // 2. Núcleo central de alta densidad
+          const innerCircle = L.circle([pt.lat, pt.lon], {
+            radius: baseRadius * 0.45,
+            color: color,
+            fillColor: color,
+            fillOpacity: 0.32,
             weight: 2,
           });
-          const rssiPart = pt.rssi != null ? `${pt.rssi} dBm` : "--";
-          const snrPart = pt.snr != null ? `${pt.snr} dB` : "--";
+
+          const rssiPart = pt.rssi != null ? `${Math.round(ptRssi)} dBm` : "--";
+          const snrPart = pt.snr != null ? `${ptSnr > 0 ? "+" : ""}${ptSnr.toFixed(1)} dB` : "--";
           const noisePart = pt.noise_floor != null ? `${pt.noise_floor} dBm` : "--";
-          circle.bindPopup(`
-            <strong>🔥 Cobertura RF: ${this.escapeHtml(pt.name)}</strong><br/>
-            RSSI: <strong>${rssiPart}</strong> | SNR: <strong>${snrPart}</strong><br/>
-            Piso de Ruido: <strong>${noisePart}</strong>
-          `);
-          this.rfHeatmapGroup.addLayer(circle);
+          const roleLabel = pt.role || (isLocal ? "LOCAL" : "CLIENT");
+
+          const popupHtml = `
+            <div class="custom-map-popup" style="min-width: 190px;">
+              <div class="popup-title" style="color: ${color};">
+                <span data-lucide="flame" data-size="14"></span> <strong>${this.escapeHtml(pt.name)}</strong>
+              </div>
+              <div class="popup-info">
+                <div><span>Rol:</span> <span class="badge-pill" style="font-size: 10px;">${this.escapeHtml(roleLabel)}</span></div>
+                <div><span>Calidad Enlace:</span> <strong style="color: ${color};">${qualityLabel}</strong></div>
+                <div><span>RSSI / SNR:</span> <strong>${rssiPart} / ${snrPart}</strong></div>
+                <div><span>Piso Ruido:</span> <strong>${noisePart}</strong></div>
+                <div><span>Radio Cobertura:</span> <code>~${(baseRadius / 1000).toFixed(1)} km</code></div>
+              </div>
+            </div>
+          `;
+
+          innerCircle.bindPopup(popupHtml);
+          outerCircle.bindPopup(popupHtml);
+
+          this.rfHeatmapGroup.addLayer(outerCircle);
+          this.rfHeatmapGroup.addLayer(innerCircle);
         });
 
-        this.rfHeatmapGroup.addTo(this.map);
-        this.showToast(`🔥 Heatmap RF generado con ${data.data.points.length} puntos de cobertura`, "success");
+        if (!this.map.hasLayer(this.rfHeatmapGroup)) {
+          this.rfHeatmapGroup.addTo(this.map);
+        }
+
+        if (showToast) {
+          this.showToast(`🔥 Heatmap RF generado con ${points.length} puntos de cobertura activa`, "success");
+        }
       }
     } catch (err) {
-      this.showToast(`Error cargando Heatmap RF: ${err.message}`, "error");
+      if (showToast) {
+        this.showToast(`Error cargando Heatmap RF: ${err.message}`, "error");
+      }
     }
   }
 
@@ -7537,8 +7606,9 @@ class MeshCoreStationApp {
       contactsGrid.innerHTML = '<div class="empty-state">No hay contactos registrados en la libreta del dispositivo.</div>';
     }
 
-    if (unifiedNodesGrid && totalCount === 0) {
-      unifiedNodesGrid.innerHTML = '<div class="empty-state">No se han descubierto nodos en la malla LoRa.</div>';
+    // Actualizar dinámicamente el Heatmap RF si está activo
+    if (this.rfHeatmapActive) {
+      this.refreshRfHeatmap(false);
     }
 
     // Re-aplicar inmediatamente los filtros y términos de búsqueda activos sobre los elementos recién creados
