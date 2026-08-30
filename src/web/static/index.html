@@ -902,9 +902,20 @@
                   <div class="settings-card">
                     <div class="card-title-row">
                       <h3><span class="section-icon" data-lucide="map" data-size="16"></span> Servidor de Teselas / Mapas Offline</h3>
-                      <span class="badge-pill badge-primary">Soporte PMTiles / MBTiles</span>
+                      <span class="badge-pill badge-primary">Soporte SQLite MBTiles & XYZ</span>
                     </div>
-                    <p class="card-desc">Especifica la URL o endpoint local para cargar mapas sin conexión a Internet (ej. servidor de mosaicos local en Raspberry Pi o PC).</p>
+                    <p class="card-desc">Permite navegar cartográficamente 100% fuera de línea sin conexión a Internet usando bases de datos <code>.mbtiles</code> o carpetas de teselas XYZ locales.</p>
+                    
+                    <div id="localMapsStatusCard" class="analytics-card" style="margin-bottom: 16px; background: rgba(15, 23, 42, 0.6);">
+                      <div class="card-title-row">
+                        <h4 style="font-size: 0.9rem; font-weight: 600;"><span data-lucide="hard-drive" data-size="14"></span> Estado del Almacenamiento Local</h4>
+                        <button type="button" class="btn-secondary btn-xs" id="btnReloadLocalMaps" title="Volver a escanear archivos .mbtiles en data/maps/"><span data-lucide="refresh-cw" data-size="12"></span> Reindexar</button>
+                      </div>
+                      <div id="localMapsStatusContent" style="font-size: 0.85rem; color: var(--color-text-secondary); margin-top: 8px;">
+                        Detectando mapas locales en <code>data/maps/</code>...
+                      </div>
+                    </div>
+
                     <div class="settings-form">
                       <div class="form-group">
                         <label for="inputLocalTileUrl">URL de Servidor de Teselas Locales (formato {z}/{x}/{y})</label>

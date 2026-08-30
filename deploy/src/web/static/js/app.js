@@ -3552,6 +3552,8 @@ class MeshCoreStationApp {
 
     const inputLocalTileUrl = document.getElementById("inputLocalTileUrl");
     const btnSaveMapSettings = document.getElementById("btnSaveMapSettings");
+    const btnReloadLocalMaps = document.getElementById("btnReloadLocalMaps");
+
     if (inputLocalTileUrl) {
       inputLocalTileUrl.value = this.localTileUrl;
     }
@@ -3568,6 +3570,12 @@ class MeshCoreStationApp {
         }
       });
     }
+    if (btnReloadLocalMaps) {
+      btnReloadLocalMaps.addEventListener("click", () => {
+        this.fetchLocalMapsStatus(true);
+      });
+    }
+    this.fetchLocalMapsStatus();
 
     // 10. Gestión de API Key del Bridge
     const apiKeyInput = document.getElementById("inputBridgeApiKey");
@@ -3608,6 +3616,67 @@ class MeshCoreStationApp {
         }
         this.showToast("ℹ️ API Key eliminada de este navegador", "info");
       });
+    }
+  }
+
+  async fetchLocalMapsStatus(showToastFeedback = false) {
+    const statusContent = document.getElementById("localMapsStatusContent");
+    if (!statusContent) return;
+
+    try {
+      const resp = await fetch("/api/map/status");
+      const res = await resp.json();
+      if (res && res.status === "ok" && res.data) {
+        const d = res.data;
+        if (d.has_local_maps) {
+          let mbtilesHtml = "";
+          if (d.mbtiles_files && d.mbtiles_files.length > 0) {
+            mbtilesHtml = d.mbtiles_files.map(f => `
+              <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(30, 41, 59, 0.7); padding: 6px 10px; border-radius: 6px; margin-top: 4px; border: 1px solid var(--color-border-subtle);">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span data-lucide="database" data-size="14" style="color: var(--color-success);"></span>
+                  <strong>${window.escapeHtml(f.filename)}</strong>
+                  <span style="font-size: 0.75rem; color: var(--color-text-muted);">(${f.size_mb} MB)</span>
+                </div>
+                <span class="badge-pill badge-success" style="font-size: 0.7rem;">Zoom ${f.min_zoom}-${f.max_zoom}</span>
+              </div>
+            `).join("");
+          }
+
+          let looseHtml = d.has_loose_tiles ? `
+            <div style="margin-top: 6px; color: var(--color-success); font-size: 0.8rem;">
+              ✓ Teselas sueltas XYZ detectadas en <code>data/maps/tiles/</code>
+            </div>
+          ` : "";
+
+          statusContent.innerHTML = `
+            <div style="color: var(--color-success); font-weight: 500; margin-bottom: 6px;">
+              ✓ Almacenamiento cartográfico offline activo (${d.mbtiles_count} archivo(s) MBTiles detectado(s))
+            </div>
+            ${mbtilesHtml}
+            ${looseHtml}
+            <div style="font-size: 0.75rem; color: var(--color-text-muted); margin-top: 6px;">
+              Directorio: <code>${window.escapeHtml(d.maps_directory)}</code>
+            </div>
+          `;
+          if (window.initLucideIcons) window.initLucideIcons(statusContent);
+          if (showToastFeedback) this.showToast(`✓ ${d.mbtiles_count} mapa(s) offline indexados`, "success");
+        } else {
+          statusContent.innerHTML = `
+            <div style="color: var(--color-warning); margin-bottom: 6px;">
+              ⚠️ No se encontraron archivos <code>.mbtiles</code> ni teselas XYZ en <code>data/maps/</code>.
+            </div>
+            <div style="font-size: 0.8rem; line-height: 1.4;">
+              Para operar 100% sin Internet, copia tus archivos <code>.mbtiles</code> o carpetas <code>tiles/{z}/{x}/{y}.png</code> dentro del directorio:
+              <br><code style="word-break: break-all;">${window.escapeHtml(d.maps_directory)}</code>
+            </div>
+          `;
+          if (showToastFeedback) this.showToast("ℹ️ No se detectaron archivos .mbtiles en data/maps/", "info");
+        }
+      }
+    } catch (e) {
+      console.debug("Error consultando estado de mapas locales:", e);
+      statusContent.innerHTML = `<span style="color: var(--color-danger);">Error al verificar almacenamiento local de mapas</span>`;
     }
   }
 
@@ -6077,6 +6146,21 @@ class MeshCoreStationApp {
       }
       const targetLayer = this.tileLayers[normalizedMode] || this.tileLayers.dark;
       if (targetLayer) targetLayer.addTo(this.map);
+
+      if (normalizedMode === "local") {
+        fetch("/api/map/status")
+          .then((r) => r.json())
+          .then((res) => {
+            if (res && res.status === "ok" && res.data) {
+              if (res.data.has_local_maps) {
+                this.showToast(`💾 Capa Local activada (${res.data.mbtiles_count} mapa(s) MBTiles offline)`, "success");
+              } else {
+                this.showToast("ℹ️ Capa Local activada. Coloca archivos .mbtiles o carpetas XYZ en data/maps/ para navegar offline.", "info");
+              }
+            }
+          })
+          .catch(() => {});
+      }
     }
   }
 

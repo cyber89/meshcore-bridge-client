@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from src.web.api_router import WebAPIRouter
+from src.web.map_tile_service import MapTileService
 from src.web.security_inspector import SecurityTrafficInspector
 
 
@@ -38,6 +39,7 @@ class MeshCoreWebServer:
         self.port = port
         self.static_dir = Path(static_dir) if static_dir else Path(__file__).resolve().parent / "static"
         self.router = WebAPIRouter(bridge)
+        self.tile_service = self.router.map_tile_service
         self.server: asyncio.Server | None = None
         self.active_websockets: set[asyncio.StreamWriter] = set()
         self.running = False
@@ -308,6 +310,32 @@ class MeshCoreWebServer:
         client_ip: str = "127.0.0.1",
         t_start: float = 0.0,
     ) -> None:
+        # 1. Despacho especializado de teselas cartográficas binarias (/api/map/tiles/{z}/{x}/{y}.ext)
+        if path.startswith("/api/map/tiles/"):
+            subpath = path[len("/api/map/tiles/"):].split("?")[0].strip("/")
+            parts = subpath.split("/")
+            if len(parts) >= 3:
+                try:
+                    z = int(parts[0])
+                    x = int(parts[1])
+                    y_raw = parts[2].split(".")[0]
+                    y = int(y_raw)
+                    status_code, tile_bytes, mime = self.tile_service.get_tile(z, x, y)
+                    if status_code == 200 and tile_bytes:
+                        await self._write_http_response(
+                            writer,
+                            "200 OK",
+                            tile_bytes,
+                            mime,
+                            extra_headers=["Cache-Control: public, max-age=86400"],
+                            cors_origin=cors_origin,
+                        )
+                        return
+                except ValueError:
+                    pass
+            await self._write_http_response(writer, "404 Not Found", b"", "image/png", cors_origin=cors_origin)
+            return
+
         api_key = os.getenv("BRIDGE_API_KEY", "")
         protected_prefixes = ("/api/node/reboot", "/api/admin/", "/api/tx", "/api/repeater/")
         needs_auth = False

@@ -6,6 +6,36 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Implementación de Servidor Nativo de Mapas Offline con Soporte SQLite MBTiles y Teselas XYZ
+- **Fecha**: 2026-08-30
+- **Estado**: ✅ COMPLETADO (Servidor de Teselas Local Activo, Soporte MBTiles Raster y XYZ, UI con Detección en Vivo)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Python Bridge Architect), Agente 4 (Web UI/UX Architect).
+- **Problema / Requerimiento**:
+  - El usuario consultó por qué la capa de mapas "Local" no cargaba mosaicos.
+- **Causa Raíz Identificada**:
+  - La capa "Local" apuntaba al endpoint `/api/map/tiles/{z}/{x}/{y}.png`, pero no existía un servicio o despachador en el backend para buscar y servir archivos locales ni bases de datos cartográficas offline (`.mbtiles`), retornando 404 y mostrando el placeholder de tesela no disponible.
+- **Acciones Realizadas**:
+  - En [`src/web/map_tile_service.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/map_tile_service.py):
+    - Creado servicio `MapTileService` con soporte para:
+      1. Bases de datos SQLite MBTiles (`data/maps/*.mbtiles`) con conversión de coordenadas estándar TMS/XYZ y caché de 8MB.
+      2. Carpetas de teselas sueltas XYZ (`data/maps/tiles/{z}/{x}/{y}.{png|jpg|webp|pbf}`).
+      3. Detección automática de tipos MIME mediante firmas de números mágicos.
+  - En [`src/web/http_server.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/http_server.py) y [`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py):
+    - Añadido interceptor de alta velocidad para `/api/map/tiles/{z}/{x}/{y}.ext` sirviendo los bytes binarios de imagen con cabeceras `Cache-Control: public, max-age=86400`.
+    - Añadido endpoint de diagnóstico `GET /api/map/status` que informa del estado del almacenamiento local, bases de datos cargadas, zoom mínimo/máximo y tamaños.
+  - En [`src/web/static/index.html`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/index.html) y [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js):
+    - Creado panel de estado en vivo en "Ajustes -> Mapas Offline" (`#localMapsStatusCard`) que lista los archivos `.mbtiles` indexados en tiempo real.
+    - Añadido botón "🔄 Reindexar" (`#btnReloadLocalMaps`) para escanear nuevos mapas añadidos a `data/maps/` sin reiniciar el servicio.
+    - Añadida notificación toast contextual al seleccionar la capa "Local" indicando cuántos mapas offline están cargados.
+  - En [`data/maps/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/data/maps):
+    - Creado directorio de almacenamiento y guía en [`data/maps/README.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/data/maps/README.md).
+    - Generada base de datos inicial de ejemplo [`data/maps/overview_sample.mbtiles`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/data/maps/overview_sample.mbtiles).
+  - Validación E2E:
+    - Ejecutadas pruebas automatizadas con Playwright (`scratch/test_local_maps_e2e.py`) y unitarias (`tests/test_tile_server.py`) verificando el servicio de teselas y renderizado sin errores en consola.
+  - Sincronización:
+    - Sincronizado el paquete de despliegue en `/deploy/` (`python scripts/sync_deploy.py`).
+- **Módulos Modificados**: `src/web/map_tile_service.py`, `src/web/http_server.py`, `src/web/api_router.py`, `src/web/static/index.html`, `src/web/static/js/app.js`, `data/maps/**`, `deploy/**`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Solución de Marca de Agua 'API KEY REQUIRED' y Optimización del Mapeo Cartográfico Oscuro
 - **Fecha**: 2026-08-30
 - **Estado**: ✅ COMPLETADO (Cero Marcas de Agua, 100% Cobertura Global, Cero Dependencias de API Keys)

@@ -18,6 +18,7 @@ from typing import Any
 
 from src.contact_manager import NodeContactUpdate, PacketRecord, is_valid_node_key
 from src.sensor_decoder import extract_telemetry_fields
+from src.web.map_tile_service import MapTileService
 
 
 class WebAPIRouter:
@@ -31,6 +32,7 @@ class WebAPIRouter:
         self.recent_messages: collections.deque[dict[str, Any]] = collections.deque(maxlen=200)
         self.recent_telemetry: collections.deque[dict[str, Any]] = collections.deque(maxlen=200)
         self.recent_system_logs: collections.deque[dict[str, Any]] = collections.deque(maxlen=300)
+        self.map_tile_service = MapTileService()
         self._load_channels()
 
     def _get_storage_path(self) -> Path:
@@ -505,7 +507,8 @@ class WebAPIRouter:
                             "weight": weight,
                             "noise_floor": n.get("noise_floor_dbm"),
                         })
-                return 200, {"status": "ok", "data": {"points": heatmap_points, "count": len(heatmap_points)}}
+            if method == "GET" and clean_path == "/api/map/status":
+                return 200, {"status": "ok", "data": self.map_tile_service.get_status()}
 
             if method == "GET" and clean_path == "/api/rf/noise":
                 nodes = self.bridge.node_registry.list_nodes()
