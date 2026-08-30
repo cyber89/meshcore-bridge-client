@@ -26,6 +26,17 @@ from src.shared_utils import clamp_tx_power, get_hardware_power_limits
 from src.target_resolver import TargetResolver
 
 
+def _extract_payload_dict(data: Any) -> dict[str, Any]:
+    """Extrae un diccionario de datos tanto de objetos Event (SDK oficial) como de dicts nativos."""
+    if data is None:
+        return {}
+    if isinstance(data, dict):
+        return data
+    if hasattr(data, "payload") and isinstance(data.payload, dict):
+        return data.payload
+    return {}
+
+
 @dataclass(slots=True)
 class AdminContext:
     """Dependencias para ejecutar comandos de administración sobre radio y repetidores."""
@@ -38,6 +49,9 @@ class AdminContext:
     web_server: Any = None
     last_rx_rssi: int | None = None
     last_rx_snr: float | None = None
+    rate_limiter: Any = None
+    counters: Any = None
+    start_time: float = 0.0
 
 
 class AdminCommandHandler:
@@ -45,6 +59,7 @@ class AdminCommandHandler:
 
     def __init__(self, ctx: AdminContext) -> None:
         self._ctx = ctx
+        self._init_time = time.time()
         self._ping_waiters: dict[str, list[asyncio.Future[dict[str, Any]]]] = {}
         self._cmd_waiters: dict[str, list[asyncio.Future[dict[str, Any]]]] = {}
         self._local_config: dict[str, Any] = {
@@ -61,6 +76,14 @@ class AdminCommandHandler:
             "beacon_interval": 300,
             "telemetry_interval": 60,
         }
+
+    def _publish_safe(self, topic: str, payload: str, qos: int = 1) -> None:
+        """Publica de forma segura a MQTT si el cliente está disponible."""
+        if self._ctx.mqtt and hasattr(self._ctx.mqtt, "publish_safe"):
+            try:
+                self._ctx.mqtt.publish_safe(topic, payload, qos=qos)
+            except Exception as e:
+                logging.debug(f"Error publicando en MQTT ({topic}): {e}")
 
     def get_local_config(self) -> dict[str, Any]:
         """Devuelve la configuración consolidada del nodo local y su telemetría."""
@@ -119,6 +142,52 @@ class AdminCommandHandler:
         if "power_source" not in cfg:
             cfg["power_source"] = "USB 5V Directo"
 
+        # Uptime dinámico consolidado del nodo / bridge
+        uptime_sec = self._local_config.get("uptime", 0)
+        if uptime_sec <= 0:
+            bridge_start = getattr(self._ctx, "start_time", 0.0)
+            if not bridge_start and hasattr(self._ctx, "counters"):
+                bridge_start = getattr(self._ctx.counters, "start_time", 0.0)
+            if not bridge_start:
+                bridge_start = self._init_time
+            if bridge_start > 0:
+                uptime_sec = max(1, int(time.time() - bridge_start))
+
+        days = uptime_sec // 86400
+        hours = (uptime_sec % 86400) // 3600
+        mins = (uptime_sec % 3600) // 60
+        secs = uptime_sec % 60
+        uptime_str = f"{days}d {hours}h {mins}m {secs}s" if days > 0 else (f"{hours}h {mins}m {secs}s" if hours > 0 else f"{mins}m {secs}s")
+
+        airtime_ms = self._local_config.get("airtime_ms", 0)
+        duty_pct = self._local_config.get("duty_cycle_pct", 0.0)
+        if self._ctx.rate_limiter and hasattr(self._ctx.rate_limiter, "airtime_tracker"):
+            try:
+                air_stats = self._ctx.rate_limiter.airtime_tracker.get_stats()
+                if airtime_ms == 0:
+                    airtime_ms = int(air_stats.get("total_airtime_ms", 0))
+                if duty_pct == 0.0:
+                    duty_pct = air_stats.get("hourly_duty_cycle_pct") or air_stats.get("daily_duty_cycle_pct") or 0.0
+            except Exception:
+                pass
+
+        if duty_pct == 0.0 and airtime_ms > 0 and uptime_sec > 0:
+            duty_pct = round((airtime_ms / (uptime_sec * 1000.0)) * 100.0, 3)
+
+        tx_val = self._local_config.get("tx_count", 0)
+        rx_val = self._local_config.get("rx_count", 0)
+        if hasattr(self._ctx, "counters") and self._ctx.counters is not None:
+            tx_val = getattr(self._ctx.counters, "tx_count", tx_val)
+            rx_val = getattr(self._ctx.counters, "rx_count", rx_val)
+
+        cfg["uptime"] = uptime_sec
+        cfg["uptime_secs"] = uptime_sec
+        cfg["uptime_str"] = uptime_str
+        cfg["airtime_ms"] = airtime_ms
+        cfg["duty_cycle_pct"] = duty_pct
+        cfg["tx_count"] = tx_val
+        cfg["rx_count"] = rx_val
+
         last_snr = getattr(self._ctx, "last_rx_snr", None)
         last_rssi = getattr(self._ctx, "last_rx_rssi", None)
         if last_snr is None or last_rssi is None:
@@ -159,48 +228,88 @@ class AdminCommandHandler:
             try:
                 if hasattr(mc.commands, "send_device_query"):
                     dev_res = await mc.commands.send_device_query()
-                    if dev_res and hasattr(dev_res, "payload") and isinstance(dev_res.payload, dict):
-                        if "repeat" in dev_res.payload:
-                            self._local_config["repeat"] = bool(dev_res.payload["repeat"])
-                    elif isinstance(dev_res, dict) and "repeat" in dev_res:
-                        self._local_config["repeat"] = bool(dev_res["repeat"])
+                    dev_data = _extract_payload_dict(dev_res)
+                    if dev_data and "repeat" in dev_data:
+                        self._local_config["repeat"] = bool(dev_data["repeat"])
             except Exception as e:
                 logging.debug(f"Fallo enviando send_device_query: {e}")
             try:
                 if hasattr(mc.commands, "get_bat"):
                     bat_res = await mc.commands.get_bat()
-                    if isinstance(bat_res, dict):
+                    bat_data = _extract_payload_dict(bat_res)
+                    if bat_data:
+                        mv = bat_data.get("battery_mv", bat_data.get("mv", 5000))
+                        pct = bat_data.get("battery_pct", bat_data.get("pct", 100))
                         self._local_config.update({
-                            "battery_pct": bat_res.get("battery_pct", bat_res.get("pct", 100)),
-                            "battery_mv": bat_res.get("battery_mv", bat_res.get("mv", 5000)),
-                            "voltage": bat_res.get("voltage", (bat_res.get("battery_mv", 5000) / 1000.0) if bat_res.get("battery_mv") else 5.0),
+                            "battery_pct": pct,
+                            "battery_mv": mv,
+                            "voltage": round(mv / 1000.0, 2) if mv else 5.0,
                         })
             except Exception as e:
                 logging.debug(f"Fallo enviando get_bat: {e}")
             try:
                 if hasattr(mc.commands, "get_time"):
                     t_res = await mc.commands.get_time()
-                    if isinstance(t_res, dict):
+                    t_data = _extract_payload_dict(t_res)
+                    if t_data:
+                        raw_ts = t_data.get("timestamp", t_data.get("ts", t_data.get("time")))
+                        t_str = t_data.get("time_str")
+                        if t_str is None and raw_ts is not None:
+                            try:
+                                t_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(int(raw_ts)))
+                            except Exception:
+                                t_str = str(raw_ts)
                         self._local_config.update({
-                            "clock": t_res.get("time_str", t_res.get("time")),
-                            "clock_ts": t_res.get("timestamp", t_res.get("ts")),
+                            "clock": t_str or time.strftime("%Y-%m-%d %H:%M:%S"),
+                            "clock_ts": int(raw_ts) if raw_ts is not None else int(time.time()),
                         })
             except Exception as e:
                 logging.debug(f"Fallo enviando get_time: {e}")
             try:
                 if hasattr(mc.commands, "get_stats_core"):
                     c_res = await mc.commands.get_stats_core()
-                    if isinstance(c_res, dict):
-                        self._local_config.update(c_res)
+                    c_data = _extract_payload_dict(c_res)
+                    if c_data:
+                        u_val = c_data.get("uptime_secs") or c_data.get("uptime")
+                        if u_val is not None and int(u_val) > 0:
+                            self._local_config["uptime"] = int(u_val)
+                            self._local_config["uptime_secs"] = int(u_val)
+                        if "battery_mv" in c_data:
+                            self._local_config["battery_mv"] = c_data["battery_mv"]
+                        if "errors" in c_data:
+                            self._local_config["packet_errors"] = c_data["errors"]
+                        if "queue_len" in c_data:
+                            self._local_config["queue_len"] = c_data["queue_len"]
             except Exception as e:
                 logging.debug(f"Fallo enviando get_stats_core: {e}")
             try:
                 if hasattr(mc.commands, "get_stats_radio"):
                     r_res = await mc.commands.get_stats_radio()
-                    if isinstance(r_res, dict):
-                        self._local_config.update(r_res)
+                    r_data = _extract_payload_dict(r_res)
+                    if r_data:
+                        if "noise_floor" in r_data:
+                            self._local_config["noise_floor_dbm"] = r_data["noise_floor"]
+                        if "last_snr" in r_data:
+                            self._local_config["last_snr"] = r_data["last_snr"]
+                        if "last_rssi" in r_data:
+                            self._local_config["last_rssi"] = r_data["last_rssi"]
+                        if "tx_air_secs" in r_data:
+                            self._local_config["airtime_ms"] = int(float(r_data["tx_air_secs"]) * 1000)
             except Exception as e:
                 logging.debug(f"Fallo enviando get_stats_radio: {e}")
+            try:
+                if hasattr(mc.commands, "get_stats_packets"):
+                    p_res = await mc.commands.get_stats_packets()
+                    p_data = _extract_payload_dict(p_res)
+                    if p_data:
+                        if "sent" in p_data:
+                            self._local_config["tx_count"] = p_data["sent"]
+                        if "recv" in p_data:
+                            self._local_config["rx_count"] = p_data["recv"]
+                        if "recv_errors" in p_data:
+                            self._local_config["packet_errors"] = p_data["recv_errors"]
+            except Exception as e:
+                logging.debug(f"Fallo enviando get_stats_packets: {e}")
         return self.get_local_config()
 
     async def broadcast_advert(self, flood: bool = False) -> dict[str, Any]:
@@ -460,8 +569,8 @@ class AdminCommandHandler:
                 "timestamp": int(time.time()),
                 "cmd_dispatched": f"send_trace({trace_path_arg or ''})",
             })
-            self._ctx.mqtt.publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/trace", json.dumps(res), qos=1)
-            self._ctx.mqtt.publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
+            self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/trace", json.dumps(res), qos=1)
+            self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
             if self._ctx.web_server:
                 asyncio.create_task(self._ctx.web_server.broadcast_event({"type": "trace_data", "data": res}))
             return res
@@ -548,7 +657,7 @@ class AdminCommandHandler:
                 )
 
                 res["dispatched_commands"] = dispatched_commands
-                self._ctx.mqtt.publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/status", json.dumps(res), qos=1)
+                self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/status", json.dumps(res), qos=1)
                 return res
 
             # Caso especial: Ping Zero (0 saltos directos) / Ping de nodo
@@ -687,8 +796,8 @@ class AdminCommandHandler:
                         "message": f"Duration: {rtt_ms:.1f} ms, SNR there: {float(snr_there):.1f} dB, SNR back: {float(snr_back):.1f} dB" + (f" (RSSI: {rssi_val} dBm)" if rssi_val is not None else ""),
                         "cmd_dispatched": cmd_text,
                     })
-                    self._ctx.mqtt.publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/ping_zero", json.dumps(res), qos=1)
-                    self._ctx.mqtt.publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
+                    self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/ping_zero", json.dumps(res), qos=1)
+                    self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
                     return res
                 else:
                     # No hubo respuesta de radio en la ventana de tiempo
@@ -704,7 +813,7 @@ class AdminCommandHandler:
                         "message": f"Sin respuesta de radio tras {elapsed_rtt:.0f} ms (el nodo no respondió al ping directo)",
                         "cmd_dispatched": cmd_text,
                     })
-                    self._ctx.mqtt.publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/ping_zero", json.dumps(res), qos=1)
+                    self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/ping_zero", json.dumps(res), qos=1)
                     return res
 
             # Comandos unitarios (login, reboot, stats-core, advert, ver, bat, pos, etc.)
@@ -890,13 +999,13 @@ class AdminCommandHandler:
                 res["snr"] = resp_data_cmd.get("snr")
             res["rtt_ms"] = elapsed_rtt
 
-            self._ctx.mqtt.publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/status", json.dumps(res), qos=1)
+            self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/status", json.dumps(res), qos=1)
             return res
 
         # 2. Comandos locales sobre el nodo conectado
         if action in ("get_config", "get_local_config"):
             res["config"] = self.get_local_config()
-            self._ctx.mqtt.publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
+            self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
             return res
 
         if action in ("set_config", "set_local_config"):
@@ -1079,12 +1188,12 @@ class AdminCommandHandler:
 
             res["applied"] = applied
             res["config"] = self.get_local_config()
-            self._ctx.mqtt.publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
+            self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
             return res
 
         if action == "list_nodes":
             res["nodes"] = self._ctx.node_registry.list_nodes()
-            self._ctx.mqtt.publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
+            self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
             return res
 
         # 3. Comandos CLI y de Control Directo Local (Formato String Legible)
@@ -1189,7 +1298,7 @@ class AdminCommandHandler:
             res["error"] = str(e)
             res["result"] = f"✗ ERROR ejecutando comando '{action}': {e}"
 
-        self._ctx.mqtt.publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
+        self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
         return res
 
     # ---- CLI Sub-handlers ---- #
@@ -1266,18 +1375,92 @@ class AdminCommandHandler:
     async def _cli_stats_core(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
         """Handler para comandos: stats, stats_core, get_stats_core, status."""
         uptime_s = cfg.get("uptime", 0)
-        uptime_str = cfg.get("uptime_str", f"{uptime_s}s")
         airtime_ms = cfg.get("airtime_ms", 0)
         duty_pct = cfg.get("duty_cycle_pct", 0.0)
+
+        # 1. Intentar consultar estadísticas de núcleo del hardware oficial (MeshCore SDK)
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_stats_core"):
             try:
                 c_res = await mc.commands.get_stats_core()
-                if hasattr(c_res, "payload") and isinstance(c_res.payload, dict):
-                    uptime_s = c_res.payload.get("uptime", uptime_s)
-                    airtime_ms = c_res.payload.get("airtime_ms", airtime_ms)
+                c_payload = _extract_payload_dict(c_res)
+                if c_payload:
+                    u_val = c_payload.get("uptime_secs") or c_payload.get("uptime")
+                    if u_val is not None and int(u_val) > 0:
+                        uptime_s = int(u_val)
+                    if "battery_mv" in c_payload:
+                        self._local_config["battery_mv"] = c_payload["battery_mv"]
+                    if "errors" in c_payload:
+                        self._local_config["packet_errors"] = c_payload["errors"]
+                    if "queue_len" in c_payload:
+                        self._local_config["queue_len"] = c_payload["queue_len"]
+            except Exception as e:
+                logging.debug(f"Fallo consultando get_stats_core: {e}")
+
+        # 2. Consultar estadísticas de radio (Airtime) del transceptor si están disponibles
+        if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_stats_radio"):
+            try:
+                r_res = await mc.commands.get_stats_radio()
+                r_payload = _extract_payload_dict(r_res)
+                if r_payload and "tx_air_secs" in r_payload:
+                    airtime_ms = int(float(r_payload["tx_air_secs"]) * 1000)
+            except Exception as e:
+                logging.debug(f"Fallo consultando get_stats_radio para airtime: {e}")
+
+        # 3. Si airtime o duty cycle no provienen del radio, obtener métricas de rate limiter del bridge
+        if self._ctx.rate_limiter and hasattr(self._ctx.rate_limiter, "airtime_tracker"):
+            try:
+                air_stats = self._ctx.rate_limiter.airtime_tracker.get_stats()
+                if airtime_ms == 0 and air_stats.get("total_airtime_ms", 0) > 0:
+                    airtime_ms = int(air_stats["total_airtime_ms"])
+                duty_pct = air_stats.get("hourly_duty_cycle_pct") or air_stats.get("daily_duty_cycle_pct") or duty_pct
             except Exception:
                 pass
+
+        # 4. Si el transceptor no reporta uptime aún o está en 0, usar el tiempo activo del bridge
+        if uptime_s <= 0:
+            bridge_start = getattr(self._ctx, "start_time", 0.0)
+            if not bridge_start and hasattr(self._ctx, "counters"):
+                bridge_start = getattr(self._ctx.counters, "start_time", 0.0)
+            if not bridge_start:
+                bridge_start = self._init_time
+            if bridge_start > 0:
+                uptime_s = max(1, int(time.time() - bridge_start))
+
+        # 5. Formatear cadena de uptime legible
+        days = uptime_s // 86400
+        hours = (uptime_s % 86400) // 3600
+        mins = (uptime_s % 3600) // 60
+        secs = uptime_s % 60
+        if days > 0:
+            uptime_str = f"{days}d {hours}h {mins}m {secs}s"
+        elif hours > 0:
+            uptime_str = f"{hours}h {mins}m {secs}s"
+        elif mins > 0:
+            uptime_str = f"{mins}m {secs}s"
+        else:
+            uptime_str = f"{secs}s"
+
+        # 6. Calcular Duty Cycle estimado si airtime > 0 y duty_pct == 0
+        if duty_pct == 0.0 and airtime_ms > 0 and uptime_s > 0:
+            duty_pct = round((airtime_ms / (uptime_s * 1000.0)) * 100.0, 3)
+
+        # 7. Actualizar configuración local en memoria
+        self._local_config.update({
+            "uptime": uptime_s,
+            "uptime_secs": uptime_s,
+            "uptime_str": uptime_str,
+            "airtime_ms": airtime_ms,
+            "duty_cycle_pct": duty_pct,
+        })
+
         res["result"] = f"📊 [CORE STATS] Uptime: {uptime_str} | Airtime TX: {airtime_ms} ms | Duty Cycle: {duty_pct:.2f}% | Estado: Operativo"
+        res["stats"] = {
+            "uptime_secs": uptime_s,
+            "uptime_str": uptime_str,
+            "airtime_ms": airtime_ms,
+            "duty_cycle_pct": duty_pct,
+            "status": "operative",
+        }
         return res
 
     def _cli_radio_info(self, cfg: dict[str, Any]) -> str:
@@ -1296,6 +1479,9 @@ class AdminCommandHandler:
         """Genera string informativo de estadísticas de paquetes."""
         tx = cfg.get("tx_count", 0)
         rx = cfg.get("rx_count", 0)
+        if hasattr(self._ctx, "counters") and self._ctx.counters is not None:
+            tx = getattr(self._ctx.counters, "tx_count", tx)
+            rx = getattr(self._ctx.counters, "rx_count", rx)
         dup = cfg.get("duplicate_packets", 0)
         err = cfg.get("packet_errors", 0)
         return f"📦 [PACKETS] Transmitidos (TX): {tx} | Recibidos (RX): {rx} | Duplicados: {dup} | Errores de trama: {err}"

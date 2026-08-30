@@ -6,6 +6,28 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Corrección Integral de Telemetría Local, Extracción de Eventos de Stats y Métricas en Tiempo Real (get_stats_core)
+- **Fecha**: 2026-08-30
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 4 (Web Architect).
+- **Problema / Requerimiento**:
+  - Corregir el comando `get_stats_core` / `stats` y la tarjeta de telemetría local de la interfaz web que devolvía parámetros en 0 (`Uptime: 0s`, `Airtime TX: 0 ms`, `Duty Cycle: 0.00%`).
+  - El SDK oficial (`meshcore_py`) devuelve instancias de `Event` con payload estructurado (`'uptime_secs'`, `'battery_mv'`, `'errors'`, `'queue_len'` para `STATS_CORE`, y `'tx_air_secs'` para `STATS_RADIO`), mientras que el handler esperaba diccionarios planos con claves heredadas (`'uptime'`).
+- **Acciones Realizadas**:
+  - En [`src/admin_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin_handler.py):
+    - Creada la función auxiliar `_extract_payload_dict()` para extraer transparentemente diccionarios desde objetos `Event` o `dict`.
+    - Ampliado `AdminContext` para recibir `rate_limiter`, `counters` y `start_time`.
+    - Actualizado `_cli_stats_core()` para obtener `uptime_secs`, `airtime_ms` (vía radio `tx_air_secs` o `TxRateLimiter`), calcular el `Duty Cycle` y formatear el uptime de forma legible (ej. `1h 24m 10s`).
+    - Actualizado `get_local_config()` y `fetch_device_config()` para consolidar métricas dinámicas de uptime, airtime, paquetes TX/RX y duty cycle.
+    - Creado método seguro `_publish_safe()` para publicar en MQTT protegiendo contra instancias nulas.
+  - En [`src/bridge_core.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/bridge_core.py):
+    - Inyectadas las dependencias de `rate_limiter`, `counters`, `start_time` y `web_server` en la construcción de `AdminContext`.
+  - En [`src/virtual_mesh_adapter.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/virtual_mesh_adapter.py):
+    - Sincronizados los retornos de `get_stats_core`, `get_stats_radio` y `get_stats_packets` para coincidir 100% con los payloads de `meshcore_py`.
+  - En [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js):
+    - Enriquecido el botón de refresco de telemetría (`btnRefreshLocalTelem`) para invocar `get_stats_core` y actualizar inmediatamente el dashboard (`fetchLocalNodeConfig()`).
+- **Módulos Modificados**: `src/admin_handler.py`, `src/bridge_core.py`, `src/virtual_mesh_adapter.py`, `src/web/static/js/app.js`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Diagnóstico de Conectividad TCP, Compatibilidad Canónica MeshCore y Simulación Multi-Nodo por Saltos
 - **Fecha**: 2026-08-30
 - **Estado**: ✅ COMPLETADO (100% de Éxito en Verificación Integral)

@@ -3399,6 +3399,8 @@ class MeshCoreStationApp {
     if (btnRefreshTelem) {
       btnRefreshTelem.addEventListener("click", async () => {
         await this.sendLocalCliCommand("get_stats_core");
+        await this.fetchLocalNodeConfig();
+        this.showToast("📊 Estadísticas de telemetría actualizadas", "info");
       });
     }
 

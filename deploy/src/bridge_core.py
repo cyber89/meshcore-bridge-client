@@ -237,6 +237,10 @@ class MeshCoreBridge:
                 repeater_manager=self.repeater_manager,
                 mqtt=self.mqtt,
                 execute_tx=self._execute_tx,
+                web_server=self.web_server,
+                rate_limiter=self.rate_limiter,
+                counters=self,
+                start_time=self.start_time,
             )
         )
         self.rx_router._ctx.admin_handler = self.admin_handler

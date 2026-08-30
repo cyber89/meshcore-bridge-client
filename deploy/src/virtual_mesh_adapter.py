@@ -99,16 +99,35 @@ class VirtualMeshCoreCommands:
         return {"status": "ok"}
 
     async def get_stats_core(self) -> dict[str, Any]:
+        uptime_val = max(1, int(time.time() - getattr(self._adapter, "_start_time", time.time())))
         return {
-            "uptime": int(time.time() - getattr(self._adapter, "_start_time", time.time())),
+            "uptime": uptime_val,
+            "uptime_secs": uptime_val,
             "airtime_ms": 120,
+            "battery_mv": 4180,
+            "errors": 0,
+            "queue_len": 0,
         }
 
     async def get_stats_radio(self) -> dict[str, Any]:
         return {
             "last_snr": 12.0,
             "last_rssi": -72,
+            "noise_floor": -118,
             "noise_floor_dbm": -118,
+            "tx_air_secs": 2,
+            "rx_air_secs": 5,
+        }
+
+    async def get_stats_packets(self) -> dict[str, Any]:
+        return {
+            "sent": 15,
+            "recv": 24,
+            "flood_tx": 10,
+            "direct_tx": 5,
+            "flood_rx": 18,
+            "direct_rx": 6,
+            "recv_errors": 0,
         }
 
     async def set_custom_var(self, key: str, val: str) -> dict[str, Any]:
