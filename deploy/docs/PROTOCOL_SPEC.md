@@ -322,3 +322,35 @@ Cada nodo de la red se clasifica formalmente por su tipo de anuncio (`FirmwareAd
    - El transceptor o estación base local **NUNCA aparecerá en la libreta de Contactos** ni como vecino remoto.
 2. **Prohibición de Mensajería hacia Sí Mismo**:
    - **NUNCA se puede enviar mensajería de chat hacia la propia clave pública del nodo local** (bloqueo preventivo de bucle local).
+
+---
+
+## 13. Especificación de Interfaz TCP Companion y Enrutamiento Multi-Salto
+
+### 13.1 Protocolo de Tramas TCP (0x3C / 0x3E)
+A nivel de transporte TCP (puertos `4000` en firmware ESP32 WiFi y `5000` en el Companion Server del Bridge), la comunicación se estructura en tramas delimitadas por un byte indicador de dirección y longitud little-endian:
+
+```text
++---------------------+-------------------------------+--------------------------------+
+| Indicador Dirección | Longitud Payload (uint16_t LE) | Payload de Comando / Respuesta |
+| 1 Byte (0x3C / 0x3E)|            2 Bytes            |          N Bytes (0..512)      |
++---------------------+-------------------------------+--------------------------------+
+```
+- **App $\to$ Radio (`0x3C` / `<`)**: Tramas emitidas desde la aplicación hacia el nodo (ej. `CMD_APP_START (0x01)`, `CMD_SEND_TXT_MSG (0x02)`, `CMD_SEND_CHANNEL_TXT_MSG (0x03)`, `CMD_GET_CONTACTS (0x04)`).
+- **Radio $\to$ App (`0x3E` / `>`)**: Tramas emitidas desde el nodo hacia la aplicación (ej. `SELF_INFO (0x05)`, `CONTACT_START (0x02)`, `CONTACT (0x03)`, `CONTACT_END (0x04)`, `MSG_SENT (0x06)`, `CONTACT_MSG_RECV (0x07)`, `CHANNEL_MSG_RECV (0x08)`, `ACK (0x82)`, `STATUS_RESPONSE (0x87)`).
+
+### 13.2 Enrutamiento Multi-Salto (Multi-Hop Routing)
+El protocolo opera en dos modalidades principales de enrutamiento:
+1. **Inundación Controlada (`ROUTE_TYPE_FLOOD = 0x01` / `TRANSPORT_FLOOD = 0x00`)**:
+   - Utilizado para anuncios de identidad (`PAYLOAD_TYPE_ADVERT`) y mensajes públicos de canal (`PAYLOAD_TYPE_GRP_TXT`).
+   - Cada repetidor intermedio añade su hash de nodo al campo de ruta (`path[MAX_PATH_SIZE]`) y decrementa el límite de saltos (*hops*).
+2. **Enrutamiento Directo Punto a Punto (`ROUTE_TYPE_DIRECT = 0x02` / `TRANSPORT_DIRECT = 0x03`)**:
+   - Utilizado para mensajes directos cifrados (DM) y comandos remotos.
+   - El emisor incluye la secuencia exacta de hashes de repetidores calculada previamente por el algoritmo de descubrimiento de caminos (*Path Discovery*).
+
+### 13.3 Comandos Remotos de Repetidor (CommonCLI)
+La administración remota de nodos repetidores se ejecuta mediante tramas de texto cifradas dirigidas (`PAYLOAD_TYPE_REQ` / `PAYLOAD_TYPE_TXT_MSG`), soportando los siguientes comandos canónicos:
+- **Diagnóstico e Información**: `ver`, `board`, `clock`, `stats-core`, `stats-radio`, `stats-packets`, `clear stats`, `neighbors`.
+- **Lectura de Parámetros**: `get name`, `get freq`, `get tx`, `get advert.interval`, `get allow.read.only`, `get flood.max`, `get bat`.
+- **Configuración de Parámetros**: `set name <nombre>`, `set tx <dBm>`, `set advert.interval <minutos>`, `set radio <freq,bw,sf,cr>`, `set repeat on|off`, `password <nueva_clave>`.
+

@@ -110,11 +110,11 @@ class RepeaterManager:
             if act in ("acl", "get_acl", "get acl"):
                 return "get allow.read.only"
             if act in ("get_radio", "get radio", "radio", "stats_radio", "stats-radio"):
-                return "get radio"
+                return "stats-radio" if "stats" in act else "get radio"
             if act in ("stats_core", "stats-core", "stats", "status"):
-                return "ver"
+                return "stats-core"
             if act in ("stats_packets", "stats-packets"):
-                return "get flood.max"
+                return "stats-packets"
             if act in ("bat", "get_bat", "get bat", "battery"):
                 return "get pwrmgt.bootmv"
             if act in ("clock", "get_clock", "get clock", "time", "get_time", "get time"):

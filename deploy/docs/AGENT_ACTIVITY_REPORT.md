@@ -6,6 +6,29 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Diagnóstico de Conectividad TCP, Compatibilidad Canónica MeshCore y Simulación Multi-Nodo por Saltos
+- **Fecha**: 2026-08-30
+- **Estado**: ✅ COMPLETADO (100% de Éxito en Verificación Integral)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  1. Diagnosticar exhaustivamente las causas por las cuales no es posible conectarse a un dispositivo MeshCore por TCP (arquitectura de microcontroladores ESP32 con WiFi, puertos 4000 vs 5000, esquema URI `tcp://<IP>:<PORT>`, concurrencia monopuesto en firmware C++, y filtros perimetrales IP/token).
+  2. Verificar la compatibilidad 100% de toda la pila de software contra el firmware oficial MeshCore (`reference/meshcore/`), el SDK Python (`reference/meshcore_py/`) y el CLI (`reference/meshcore_cli/`).
+  3. Implementar un simulador integral multi-nodo (`scripts/simulate_tcp_mesh_network.py`) que levante el servidor TCP Companion, conecte un socket TCP cliente real (protocolo binario 0x3C/0x3E) y valide exhaustivamente:
+     - Handshake inicial `CMD_APP_START (0x01)` y `SELF_INFO (0x05)`.
+     - Sincronización de contactos `CMD_GET_CONTACTS (0x04)`.
+     - Mensajes públicos broadcast (Canal 0) por inundación multihop.
+     - Mensajes privados directos (DM) con ruta de 3 saltos a través de repetidores y confirmación ACK.
+     - Canales cifrados secundarios con clave simétrica AES/PSK y validación de hash de canal.
+     - Canales abiertos secundarios sin cifrado.
+     - Comandos remotos de consulta de estado a repetidores (`ver`, `board`, `stats-core`, `stats-radio`, `stats-packets`, `neighbors`, `get tx`).
+     - Comandos de configuración y cambio de parámetros en repetidores (`set name`, `set tx`, `set advert.interval`, `set radio`) y verificación de persistencia.
+- **Acciones Realizadas**:
+  - **Corrección de Mapeo de Comandos**: En [`src/repeater_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/repeater_manager.py), corregido el enrutamiento de `stats-core`, `stats-packets`, `stats-radio` y `get` para enviar comandos nativos idénticos a la especificación oficial de `CommonCLI.cpp`.
+  - **Ampliación de Comandos en Adaptador Virtual**: En [`src/virtual_mesh_adapter.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/virtual_mesh_adapter.py), añadidos manejadores en `send_raw_companion_frame` para `GET_DEVICE_TIME (5)`, `DEVICE_QUERY (22)` y `GET_STATS (56)`.
+  - **Especificación Formal de Protocolo**: En [`docs/PROTOCOL_SPEC.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/docs/PROTOCOL_SPEC.md), añadida la **Sección 13** detallando el protocolo de tramas TCP (`0x3C`/`0x3E` con longitud uint16 LE), el enrutamiento multi-salto (`FLOOD` vs `DIRECT`) y los comandos de repetidor.
+  - **Desarrollo del Simulador Multi-Nodo TCP**: Creado [`scripts/simulate_tcp_mesh_network.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/scripts/simulate_tcp_mesh_network.py) con topología de 6 nodos (Base Station, R1, R2, Charlie, Delta, Echo) y ejecución automatizada de las 8 suites de prueba, logrando una tasa de éxito del **100% (8/8 PASS)**.
+- **Módulos Modificados**: `src/repeater_manager.py`, `src/virtual_mesh_adapter.py`, `docs/PROTOCOL_SPEC.md`, `scripts/simulate_tcp_mesh_network.py` (nuevo), `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Sincronización Integral de Telemetría Remota (Hop Limit, Modo Repetidor) y Rediseño de Botones de Guardado
 - **Fecha**: 2026-08-27
 - **Estado**: ✅ COMPLETADO

@@ -650,6 +650,27 @@ class VirtualMeshAdapter(BaseSerialAdapter):
                 self.companion_rx_callback(bytes(bat_pkt))
             return True
 
+        # CMD_GET_DEVICE_TIME (5) -> CURRENT_TIME (9)
+        if cmd_type == 5:
+            time_pkt = bytearray([9]) + int(time.time()).to_bytes(4, "little")
+            if self.companion_rx_callback:
+                self.companion_rx_callback(bytes(time_pkt))
+            return True
+
+        # CMD_DEVICE_QUERY (22) -> DEVICE_INFO (13)
+        if cmd_type == 22:
+            dev_pkt = bytearray([13]) + b"MeshCore Virtual Transceiver v1.6.0"
+            if self.companion_rx_callback:
+                self.companion_rx_callback(bytes(dev_pkt))
+            return True
+
+        # CMD_GET_STATS (56) -> STATS (24)
+        if cmd_type == 56:
+            stats_pkt = bytearray([24]) + int(time.time() - getattr(self, "_start_time", time.time())).to_bytes(4, "little")
+            if self.companion_rx_callback:
+                self.companion_rx_callback(bytes(stats_pkt))
+            return True
+
         # CMD_SEND_TXT_MSG (2) o CMD_SEND_CHANNEL_TXT_MSG (3)
         if cmd_type in (2, 3):
             ok_pkt = bytearray([6]) + int(time.time()).to_bytes(4, "little")
