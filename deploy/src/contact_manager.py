@@ -751,8 +751,11 @@ class NodeRegistry:
         return None
 
     def get_contact(self, query: str) -> NodeContactInfo | None:
-
         """Obtiene la información del contacto buscando por clave, prefijo o alias."""
+        return self.get_by_key_or_prefix(query)
+
+    def get_node(self, query: str) -> NodeContactInfo | None:
+        """Obtiene la información de un nodo buscando por clave, prefijo o alias."""
         return self.get_by_key_or_prefix(query)
 
     def resolve_name(self, query: str) -> str:

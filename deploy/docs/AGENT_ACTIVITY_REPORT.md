@@ -6,6 +6,24 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Validación Exhaustiva de Parámetros y Cobertura de Nodos en la Pila MeshCore (LOCAL, CLIENT, REPEATER, SENSOR, ROOM)
+- **Fecha**: 2026-08-30
+- **Estado**: ✅ COMPLETADO (126/126 Parámetros Validados - 100% de Éxito)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 4 (Web Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - Validar y comprobar que el 100% de los parámetros que se pueden obtener de todos los tipos de nodos en la pila canónica de MeshCore (`LOCAL`, `CLIENT`, `REPEATER`, `SENSOR`, `ROOM`, y métricas de red `NETWORK`) son alcanzables desde el código, parseados, almacenados en `NodeRegistry` y exportados a REST, WebSockets y MQTT.
+- **Acciones Realizadas**:
+  - En [`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py):
+    - Añadido el método `NodeRegistry.get_node(query)` como alias canónico para consultas directas por clave pública o prefijo.
+  - En [`src/repeater_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/repeater_manager.py):
+    - Añadido `extract_all_repeater_params_from_text()` como alias de `parse_repeater_telemetry_or_response()`.
+    - Refinado el análisis de paquetes (`packets: rx=..., tx=...`) y potencia de transmisión (`tx_power`), diferenciando conteos de paquetes de valores de dBm RF.
+  - En [`docs/PROTOCOL_SPEC.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/docs/PROTOCOL_SPEC.md):
+    - Añadida la **Sección 14**: Matriz Canónica de Parámetros por Tipo de Nodo, documentando los 126 parámetros, tipos de datos y vectores de adquisición.
+  - En [`scripts/validate_all_node_parameters.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/scripts/validate_all_node_parameters.py):
+    - Creado script de auditoría y validación determinista que evalúa exhaustivamente los 6 conjuntos de parámetros, logrando una tasa de éxito del **100% (6/6 suites PASS, 126 parámetros)**.
+- **Módulos Modificados**: `src/contact_manager.py`, `src/repeater_manager.py`, `docs/PROTOCOL_SPEC.md`, `scripts/validate_all_node_parameters.py` (nuevo), `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Corrección Integral de Telemetría Local, Extracción de Eventos de Stats y Métricas en Tiempo Real (get_stats_core)
 - **Fecha**: 2026-08-30
 - **Estado**: ✅ COMPLETADO

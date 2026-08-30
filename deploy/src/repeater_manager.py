@@ -259,6 +259,10 @@ class RepeaterManager:
 
         return action
 
+    def extract_all_repeater_params_from_text(self, raw_text: str) -> dict[str, Any]:
+        """Alias para extracción completa de parámetros de repetidor a partir de texto CLI/telemetría."""
+        return self.parse_repeater_telemetry_or_response(raw_text)
+
     def parse_repeater_telemetry_or_response(self, raw_text: str) -> dict[str, Any]:
         """
         Analiza cadenas de texto provenientes de respuestas de repetidores MeshCore
@@ -472,19 +476,31 @@ class RepeaterManager:
                 pass
 
         # Packets Sent / Received / Duplicates / Errors / Queue:
-        sent_m = re.search(r'(?:packets?\s+sent|tx\s+packets?|sent\s+packets?|nb_sent)\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
-        if sent_m:
+        pkt_block = re.search(r'packets:\s*rx=(\d+),\s*tx=(\d+)(?:,\s*routed=(\d+))?(?:,\s*(?:drop|err|errors?)=(\d+))?', text, re.IGNORECASE)
+        if pkt_block:
             try:
-                extracted["packets_sent"] = int(sent_m.group(1))
+                extracted["packets_recv"] = int(pkt_block.group(1))
+                extracted["packets_sent"] = int(pkt_block.group(2))
+                if pkt_block.group(4):
+                    extracted["packet_errors"] = int(pkt_block.group(4))
             except Exception:
                 pass
 
-        recv_m = re.search(r'(?:packets?\s+rec(?:ei)?ved|rx\s+packets?|rec(?:ei)?ved\s+packets?|nb_recv)\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
-        if recv_m:
-            try:
-                extracted["packets_recv"] = int(recv_m.group(1))
-            except Exception:
-                pass
+        if "packets_sent" not in extracted:
+            sent_m = re.search(r'(?:packets?\s+sent|tx\s+packets?|sent\s+packets?|nb_sent)\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
+            if sent_m:
+                try:
+                    extracted["packets_sent"] = int(sent_m.group(1))
+                except Exception:
+                    pass
+
+        if "packets_recv" not in extracted:
+            recv_m = re.search(r'(?:packets?\s+rec(?:ei)?ved|rx\s+packets?|rec(?:ei)?ved\s+packets?|nb_recv)\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
+            if recv_m:
+                try:
+                    extracted["packets_recv"] = int(recv_m.group(1))
+                except Exception:
+                    pass
 
         dup_m = re.search(r'(?:duplicate\s+packets?(?:\s+seen)?|duplicates?|direct_dups|flood_dups)\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
         if dup_m:
@@ -494,7 +510,7 @@ class RepeaterManager:
                 pass
 
         err_m = re.search(r'(?:rec(?:ei)?ved\s+packet\s+errors?|rx\s+errors?|packet\s+errors?|errors?)\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
-        if err_m:
+        if err_m and "packet_errors" not in extracted:
             try:
                 extracted["packet_errors"] = int(err_m.group(1))
             except Exception:
@@ -515,10 +531,16 @@ class RepeaterManager:
             except Exception:
                 pass
 
-        power_m = re.search(r'(?:tx_?power|power|tx)\s*[:=]?\s*(\d+)\s*(?:dbm)?', text, re.IGNORECASE)
+        power_m = re.search(r'(?:tx_?power|power)\s*[:=]?\s*(\d+)\s*(?:dbm)?', text, re.IGNORECASE)
+        if not power_m:
+            power_m = re.search(r'(?:^|[\s,;])tx\s*[:=]?\s*(\d+)\s*dbm', text, re.IGNORECASE)
+        if not power_m:
+            power_m = re.search(r'(?:params|radio|config)?:.*?\btx\s*[:=]?\s*(\d{1,2})\b', text, re.IGNORECASE)
         if power_m:
             try:
-                extracted["tx_power"] = int(power_m.group(1))
+                p_val = int(power_m.group(1))
+                if p_val <= 33:  # Potencia LoRa válida en dBm (1 a 33 dBm)
+                    extracted["tx_power"] = p_val
             except Exception:
                 pass
 
