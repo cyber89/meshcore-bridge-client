@@ -41,20 +41,28 @@ def detect_serial_port() -> str:
         for p in ports:
             desc = (p.description or "").lower()
             hwid = (p.hwid or "").lower()
-            if any(k in desc or k in hwid for k in ("heltec", "cp210", "ch340", "ch341", "ftdi", "uart", "acm", "usb serial", "espressif", "t-beam", "rak")):
+            if any(k in desc or k in hwid for k in ("heltec", "cp210", "ch340", "ch341", "ftdi", "uart", "acm", "usb serial", "usb-serial", "espressif", "t-beam", "rak", "com")):
                 return str(p.device)
         if ports:
             return str(ports[0].device)
     except Exception as e:
         logging.warning(f"Error detecting serial port: {e}", exc_info=True)
-    return "/dev/ttyACM0"
+    return "COM1" if os.name == "nt" else "/dev/ttyACM0"
 
 
 class BaseSerialAdapter(abc.ABC):
     """Interfaz abstracta para adaptadores de comunicación serial con hardware MeshCore."""
 
     def __init__(self, port: str, baud_rate: int = 115200, timeout_sec: float = 30.0) -> None:
-        self.port = detect_serial_port() if str(port).upper() in ("AUTO", "DETECT", "DEFAULT", "") else port
+        port_clean = str(port or "").strip()
+        if not port_clean.startswith("tcp://") and (
+            port_clean.upper() in ("AUTO", "DETECT", "DEFAULT", "")
+            or not port_clean
+            or (os.name == "nt" and port_clean.startswith("/dev/"))
+        ):
+            self.port = detect_serial_port()
+        else:
+            self.port = port_clean
         self.baud_rate = baud_rate
         self.timeout_sec = timeout_sec
         self.is_connected = False
@@ -188,8 +196,13 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             await asyncio.sleep(0.5)
 
         try:
-            # Re-detectar puerto dinámicamente si no está fijado estáticamente
-            if not self.port.startswith("tcp://") and (str(self.port).upper() in ("AUTO", "DETECT", "DEFAULT", "") or not self.port):
+            # Re-detectar puerto dinámicamente si no está fijado estáticamente o si es formato Unix en Windows
+            port_str = str(self.port or "")
+            if not port_str.startswith("tcp://") and (
+                port_str.upper() in ("AUTO", "DETECT", "DEFAULT", "")
+                or not port_str
+                or (os.name == "nt" and port_str.startswith("/dev/"))
+            ):
                 self.port = detect_serial_port()
 
             if self.port.startswith("tcp://"):

@@ -42,7 +42,8 @@ def _safe_float(key: str, default: float) -> float:
         return default
 
 # ================= Configuración Serial =================
-SERIAL_PORT = os.getenv("SERIAL_PORT", "/dev/ttyACM0")
+_default_serial = "AUTO" if os.name == "nt" else "/dev/ttyACM0"
+SERIAL_PORT = os.getenv("SERIAL_PORT", _default_serial)
 BAUD_RATE = _safe_int("BAUD_RATE", 115200)
 SERIAL_TIMEOUT = _safe_float("SERIAL_TIMEOUT", 30.0)
 
