@@ -6662,7 +6662,6 @@ class MeshCoreStationApp {
       else if (isClient) clientCount++;
 
       const cleanName = node.alias || node.name || `Node_${node.public_key.slice(0, 6)}`;
-      const shortPk = node.public_key.length > 16 ? `${node.public_key.slice(0, 10)}...${node.public_key.slice(-4)}` : node.public_key;
 
       const rawSnr = node.snr ?? node.last_snr ?? node.metrics?.snr ?? node.telemetry?.snr ?? (node.SNR != null ? node.SNR : null);
       const rawRssi = node.rssi ?? node.last_rssi ?? node.metrics?.rssi ?? node.telemetry?.rssi ?? (node.RSSI != null ? node.RSSI : null);
@@ -6886,10 +6885,6 @@ class MeshCoreStationApp {
                 </div>
               </div>
               <div class="node-card-sub-row">
-                <span class="contact-pubkey font-mono" title="${this.escapeHtml(node.public_key)}">
-                  ${this.escapeHtml(shortPk)}
-                  <button type="button" class="btn-copy-pk" title="Copiar clave pública">${window.getLucideIcon ? window.getLucideIcon('copy', '', 12) : '📋'}</button>
-                </span>
                 <span class="node-card-activity" title="${timeAgoStr}">${timeAgoStr}</span>
               </div>
             </div>
@@ -6915,15 +6910,6 @@ class MeshCoreStationApp {
             <button type="button" class="btn-secondary btn-sm btn-contact-del" title="Eliminar del dispositivo">${window.getLucideIcon ? window.getLucideIcon('trash-2', '', 14) : '🗑️'}</button>
           </div>
         `;
-
-        const copyBtn = cCard.querySelector(".btn-copy-pk");
-        if (copyBtn) {
-          copyBtn.addEventListener("click", (e) => {
-            e.stopPropagation();
-            navigator.clipboard.writeText(node.public_key);
-            this.showToast("📋 Clave pública copiada", "success");
-          });
-        }
 
         const btnDm = cCard.querySelector(".btn-contact-dm");
         if (btnDm) {
@@ -7141,11 +7127,7 @@ class MeshCoreStationApp {
                 </div>
               </div>
               <div class="node-card-sub-row">
-                <span class="node-card-pubkey font-mono" title="${this.escapeHtml(node.public_key)}">
-                  ${this.escapeHtml(shortPk)}
-                  <button type="button" class="btn-copy-pk" title="Copiar clave pública">📋</button>
-                </span>
-                <span class="node-card-activity" title="${timeAgoStr}">${timeAgoStr}</span>
+                <span class="node-card-activity" title="${timeAgoStr}">${isLocal ? 'Estación Base Activa' : timeAgoStr}</span>
               </div>
             </div>
           </div>
@@ -7160,15 +7142,6 @@ class MeshCoreStationApp {
             ${actionsHtml}
           </div>
         `;
-
-        const copyBtn = nCard.querySelector(".btn-copy-pk");
-        if (copyBtn) {
-          copyBtn.addEventListener("click", (e) => {
-            e.stopPropagation();
-            navigator.clipboard.writeText(node.public_key);
-            this.showToast("📋 Clave pública copiada", "success");
-          });
-        }
 
         const btnLocalSettings = nCard.querySelector(".btn-node-local-settings");
         if (btnLocalSettings) {

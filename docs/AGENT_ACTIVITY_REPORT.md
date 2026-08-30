@@ -6,6 +6,24 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Eliminación de Clave Pública y Botón de Copiado en Cabeceras de Tarjetas
+- **Fecha**: 2026-08-30
+- **Estado**: ✅ COMPLETADO (UI Simplificada, 100% de Pruebas PASS)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web Architect).
+- **Problema / Requerimiento**:
+  - Eliminar el fragmento de clave pública abreviada y su botón de copiado (`.node-card-pubkey` / `.contact-pubkey` / `.btn-copy-pk`) de las cabeceras de las tarjetas de contactos y nodos, debido a que dicha información y su compartición se realizan mediante el modal de QR / Detalles.
+  - Simplificar la fila secundaria `.node-card-sub-row` para mostrar de forma limpia e inmediata el estado y tiempo relativo de actividad (`.node-card-activity`).
+- **Acciones Realizadas**:
+  - En [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js):
+    - Eliminado el elemento HTML con la clave pública y el botón de copiado de `cCard` y `nCard`.
+    - Removidos los event listeners de `copyBtn` en las tarjetas.
+    - Eliminada la variable `shortPk` no utilizada.
+  - En [`src/web/static/css/app.css`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/css/app.css):
+    - Limpiadas las reglas de estilo de `.contact-pubkey`, `.node-card-pubkey` y `.btn-copy-pk`.
+    - Ajustado `.node-card-sub-row` para enfocar la línea de tiempo relativo (`.node-card-activity`).
+  - Validación Visual Playwright: Capturas actualizadas en `tests/artifacts/nodes_tab_desktop.png` y `tests/artifacts/contacts_tab_desktop.png`.
+- **Módulos Modificados**: `src/web/static/js/app.js`, `src/web/static/css/app.css`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Depuración de Redundancias y Optimización de Telemetría en Tarjetas Web (Nodos y Contactos)
 - **Fecha**: 2026-08-30
 - **Estado**: ✅ COMPLETADO (UI Refinada y 100% de Pruebas Visuales E2E PASS)

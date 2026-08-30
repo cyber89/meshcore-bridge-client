@@ -1600,25 +1600,15 @@ body {
 .node-card-sub-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 6px;
   width: 100%;
 }
 
-.node-card-pubkey,
-.contact-pubkey {
-  font-size: 11px;
-  font-family: var(--font-mono);
-  color: var(--text-dim);
-  display: flex;
-  align-items: center;
-  gap: 3px;
-}
-
 .node-card-activity {
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--text-dim);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .node-role-badge {
