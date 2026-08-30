@@ -6,6 +6,30 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Solución de Marca de Agua 'API KEY REQUIRED' y Optimización del Mapeo Cartográfico Oscuro
+- **Fecha**: 2026-08-30
+- **Estado**: ✅ COMPLETADO (Cero Marcas de Agua, 100% Cobertura Global, Cero Dependencias de API Keys)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect).
+- **Problema / Requerimiento**:
+  - El usuario reportó que la capa cartográfica oscura (`Oscuro`) mostraba la marca de agua diagonal `"API KEY REQUIRED carto.com/basemap/apikey"` debido a la reciente restricción de acceso anónimo en los servidores de teselas de CARTO.
+- **Causa Raíz Identificada**:
+  - La URL `https://{s}.basemaps.cartocdn.com/dark_all/...` fue restringida por el proveedor CARTO para peticiones públicas anónimas sin token de suscripción.
+- **Acciones Realizadas**:
+  - En [`src/web/static/css/app.css`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/css/app.css):
+    - Establecido el fondo del contenedor `.leaflet-container` y `.leaflet-map-canvas` en `#090d16 !important`.
+    - Creada la regla de filtrado táctico `.map-tiles-dark` (`brightness(0.65) invert(1) contrast(3.5) hue-rotate(200deg) saturate(0.3) brightness(0.75)`) para transformar las teselas estándar de OpenStreetMap en un mapa táctico oscuro de alta precisión con cero dependencia de servicios externos de pago.
+  - En [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js):
+    - Reemplazada la capa `cartodb` por `darkLayer` táctico (basado en OSM + `.map-tiles-dark`), con soporte nativo de zoom 0-19 y cobertura mundial garantizada.
+    - Incorporada la capa satelital `satellite` (Esri World Imagery) y preservadas las capas `osm`, `local` y `tactical_radar`.
+    - Actualizado `setMapLayer` y `constructor` para normalizar las preferencias almacenadas a `dark`.
+  - En [`src/web/static/index.html`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/index.html):
+    - Actualizado el toolbar `.map-layer-switcher` con selector semántico: `Oscuro`, `Calles`, `Satelital`, `Local`, `Radar`, `Heatmap RF`.
+  - Validación Visual Playwright:
+    - Ejecutada inspección automatizada (`scratch/capture_all_tabs.py`) confirmando renderizado nítido y libre de marcas de agua en `tests/artifacts/map_tab_desktop.png`.
+  - Sincronización y Empaquetado:
+    - Ejecutado `python scripts/sync_deploy.py` para actualizar `/deploy/` y paquetes.
+- **Módulos Modificados**: `src/web/static/css/app.css`, `src/web/static/js/app.js`, `src/web/static/index.html`, `deploy/**`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Homogeneización Total del Sistema de Iconografía Vectorial SVG Lucide en Toda la Aplicación
 - **Fecha**: 2026-08-30
 - **Estado**: ✅ COMPLETADO (100% de Iconos Estandarizados, Cero Emojis Crudos, Validación Playwright PASS)

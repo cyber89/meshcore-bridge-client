@@ -328,7 +328,8 @@ class MeshCoreStorage {
 class MeshCoreStationApp {
   constructor() {
     this.storage = new MeshCoreStorage();
-    this.mapLayerMode = localStorage.getItem("meshcore_map_layer_mode") || "cartodb";
+    const savedMapLayer = localStorage.getItem("meshcore_map_layer_mode");
+    this.mapLayerMode = (savedMapLayer === "cartodb" || !savedMapLayer) ? "dark" : savedMapLayer;
     this.localTileUrl = localStorage.getItem("meshcore_local_tile_url") || "/api/map/tiles/{z}/{x}/{y}.png";
     this.tacticalRadarGroup = null;
     this.ws = null;
@@ -5604,16 +5605,28 @@ class MeshCoreStationApp {
         attributionControl: true,
       }).setView([20.15, -75.20], 12);
 
+      const darkLayer = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        className: 'map-tiles-dark',
+        maxZoom: 19,
+      });
+
+      const osmLayer = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 19,
+      });
+
+      const satelliteLayer = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+        attribution: '&copy; <a href="https://www.esri.com/">Esri</a>, Earthstar Geographics',
+        maxZoom: 19,
+        maxNativeZoom: 18,
+      });
+
       this.tileLayers = {
-        cartodb: L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-          attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-          maxZoom: 19,
-          subdomains: "abcd",
-        }),
-        osm: L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-          maxZoom: 19,
-        }),
+        dark: darkLayer,
+        cartodb: darkLayer, // Compatibilidad hacia atrás
+        osm: osmLayer,
+        satellite: satelliteLayer,
         local: L.tileLayer(this.localTileUrl, {
           attribution: 'MeshCore Offline Local Tiles',
           maxZoom: 18,
@@ -5622,11 +5635,6 @@ class MeshCoreStationApp {
       };
 
       this.tacticalRadarGroup = L.layerGroup();
-
-      // Monitor de teselas online
-      this.tileLayers.cartodb.on("tileerror", (e) => {
-        console.debug("CartoDB tile load notice:", e);
-      });
 
       // Configurar botones de control de capas
       document.querySelectorAll(".map-layer-switcher .map-layer-btn").forEach((btn) => {
@@ -5643,7 +5651,7 @@ class MeshCoreStationApp {
       this.rfHeatmapGroup = L.layerGroup();
 
       // Activar capa inicial según preferencia persistida
-      this.setMapLayer(this.mapLayerMode || "cartodb");
+      this.setMapLayer(this.mapLayerMode || "dark");
 
       // Si ya hay nodos conocidos en memoria, renderizarlos inmediatamente en el mapa
       if (this.knownNodes && this.knownNodes.size > 0) {
@@ -6040,11 +6048,13 @@ class MeshCoreStationApp {
 
   setMapLayer(mode) {
     if (!this.map) return;
-    this.mapLayerMode = mode;
-    localStorage.setItem("meshcore_map_layer_mode", mode);
+    const normalizedMode = (mode === "cartodb" || (!this.tileLayers[mode] && mode !== "tactical_radar")) ? "dark" : mode;
+    this.mapLayerMode = normalizedMode;
+    localStorage.setItem("meshcore_map_layer_mode", normalizedMode);
 
     document.querySelectorAll(".map-layer-switcher .map-layer-btn").forEach((btn) => {
-      btn.classList.toggle("active", btn.getAttribute("data-layer") === mode);
+      const bLayer = btn.getAttribute("data-layer");
+      btn.classList.toggle("active", bLayer === normalizedMode || (bLayer === "dark" && mode === "cartodb"));
     });
 
     // Retirar capas activas
@@ -6054,7 +6064,7 @@ class MeshCoreStationApp {
 
     const mapCanvas = document.getElementById("liveGpsMap");
 
-    if (mode === "tactical_radar") {
+    if (normalizedMode === "tactical_radar") {
       if (mapCanvas) mapCanvas.classList.add("tactical-radar-mode");
       if (!this.map.hasLayer(this.tacticalRadarGroup)) {
         this.tacticalRadarGroup.addTo(this.map);
@@ -6065,8 +6075,8 @@ class MeshCoreStationApp {
       if (this.tacticalRadarGroup && this.map.hasLayer(this.tacticalRadarGroup)) {
         this.map.removeLayer(this.tacticalRadarGroup);
       }
-      const targetLayer = this.tileLayers[mode] || this.tileLayers.cartodb;
-      targetLayer.addTo(this.map);
+      const targetLayer = this.tileLayers[normalizedMode] || this.tileLayers.dark;
+      if (targetLayer) targetLayer.addTo(this.map);
     }
   }
 

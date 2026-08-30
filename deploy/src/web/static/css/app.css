@@ -2858,7 +2858,16 @@ body {
 .leaflet-map-canvas {
   flex: 1;
   height: 100%;
-  background: #090d16;
+  background: #090d16 !important;
+}
+
+.leaflet-container {
+  background: #090d16 !important;
+}
+
+/* Filtro táctico de alto contraste para mapa oscuro (100% libre de API Keys) */
+.map-tiles-dark {
+  filter: brightness(0.65) invert(1) contrast(3.5) hue-rotate(200deg) saturate(0.3) brightness(0.75);
 }
 
 /* ==============================================================================
