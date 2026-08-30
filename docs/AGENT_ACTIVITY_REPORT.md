@@ -6,6 +6,31 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Actualización de Presencia en Tiempo Real (Avatar Status Dot), Alineación Estricta de Cuadrículas y Verificación Frontend
+- **Fecha**: 2026-08-30
+- **Estado**: ✅ COMPLETADO (100% de Pruebas E2E Visuales y Funcionales PASS)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  1. Hacer que el estado de presencia en tiempo real (`<span class="avatar-status-dot status-online" title="Hace un momento"></span>`) se actualice inmediatamente en vivo ante cualquier paquete/evento LoRa recibido por WebSocket sin necesidad de recargar la página web.
+  2. Comprobar que las tarjetas de contactos y nodos estén perfectamente alineadas a la cuadrícula, sin elementos desplazados, desbordados o truncados, y con plena adaptabilidad responsive a diferentes resoluciones (Desktop 1920x1080, Tablet, Mobile 390x844).
+  3. Realizar una verificación integral de todo el código frontend (HTML5, Vanilla CSS, ES6+ JS), eliminando código con errores, duplicados o en desuso.
+- **Acciones Realizadas**:
+  1. **Motor de Presencia Instantánea y Ticker de Tiempo Relativo**:
+     - En [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js):
+       - Implementado `updateNodePresenceRealtime(pubkey, payload)` para actualizar en memoria y en el DOM el estado de presencia del nodo emisor inmediatamente ante cualquier trama RX (mensajes de canal, DMs, telemetría, anuncios, ACKs, traceroute).
+       - Implementados `initPresenceTicker()` y `updateAllPresenceDots()` (ejecución periódica cada 10 segundos) para recalcular timestamps relativos (`"Hace un momento"`, `"Hace 2m"`, `"Hace 1h"`, etc.) y transicionar suavemente clases `status-online` / `status-idle` / `status-offline` en el DOM sin recargas de página.
+       - Enriquecido `updateNodeInDom()` para actualizar `.avatar-status-dot`, `.node-card-activity`, y el encabezado de chat DM activo.
+       - Añadido atributo `data-last-seen` en las tarjetas de contactos (`cCard`) y nodos (`nCard`) en `renderNodesDirectory()`.
+  2. **Alineación de Cuadrícula y Responsividad Visual**:
+     - En [`src/web/static/css/app.css`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/css/app.css):
+       - Unificadas `.nodes-unified-grid` y `.nodes-grid` con `repeat(auto-fill, minmax(295px, 1fr))` en desktop/tablet y `1fr` en móviles ($\le 640\text{px}$).
+       - Ajustadas las tiras de métricas RF (`.node-rf-strip`, `.contact-card-chips`) a 3 columnas simétricas con `repeat(3, minmax(0, 1fr))` y `min-width: 0; box-sizing: border-box;` para prevenir desbordes.
+       - Ajustadas las barras de acción inferiores (`.node-actions-bar`, `.contact-card-actions`) con `flex-wrap: wrap; white-space: nowrap;`.
+  3. **Inspección Visual y Verificación E2E con Playwright**:
+     - Ejecutado `scripts/inspect_web.py` en Desktop (1920x1080) y Mobile (390x844). Resultado: **0 Excepciones JS, 0 Peticiones fallidas, 0 Errores de consola (PASS)**.
+     - Verificada la transición en vivo de `avatar-status-dot` vía WebSocket con script determinista.
+- **Módulos Modificados**: `src/web/static/js/app.js`, `src/web/static/css/app.css`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Auditoría Integral de Código, Saneamiento de Código Muerto/Deprecado, Verificación de Salud y Actualización Documental
 - **Fecha**: 2026-08-30
 - **Estado**: ✅ COMPLETADO (100% de Módulos Auditados, 0 Errores, 0 Warnings)

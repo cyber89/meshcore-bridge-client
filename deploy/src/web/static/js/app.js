@@ -378,6 +378,7 @@ class MeshCoreStationApp {
     this.initAirtimeMonitoring();
     this.initContactDiscovery();
     this.initTraceroute();
+    this.initPresenceTicker();
     this.fetchInitialData();
 
     // Exponer funciones globales para compatibilidad y tests E2E
@@ -2572,6 +2573,13 @@ class MeshCoreStationApp {
 
   handleIncomingLiveEvent(payload) {
     if (!payload || typeof payload !== "object") return;
+
+    // Actualización inmediata en tiempo real del estado de presencia (avatar-status-dot) sin recargar
+    const senderCandidate = payload.sender || payload.public_key || payload.from || payload.pubkey || payload.target_node || payload.contact?.public_key || payload.data?.public_key;
+    if (senderCandidate && this.isValidNodeKey(senderCandidate)) {
+      const canonicalSender = this.resolveCanonicalPubkey(senderCandidate) || String(senderCandidate).trim().toLowerCase();
+      this.updateNodePresenceRealtime(canonicalSender, payload);
+    }
 
     const liveSnr = payload.snr ?? payload.SNR ?? payload.last_snr ?? payload.metrics?.snr;
     const liveRssi = payload.rssi ?? payload.RSSI ?? payload.last_rssi ?? payload.metrics?.rssi;
@@ -6227,12 +6235,165 @@ class MeshCoreStationApp {
     return true;
   }
 
+  updateNodePresenceRealtime(pubkey, payload = {}) {
+    if (!pubkey || !this.isValidNodeKey(pubkey)) return;
+    const norm = String(pubkey).trim().toLowerCase();
+    const canonicalPk = this.resolveCanonicalPubkey(norm) || norm;
+    const nowSec = Math.floor(Date.now() / 1000);
+
+    // 1. Actualizar memoria en knownNodes
+    const existing = this.knownNodes.get(canonicalPk) || this.knownNodes.get(norm) || {
+      public_key: canonicalPk,
+      name: payload.sender_name || payload.adv_name || payload.name || `Nodo [${canonicalPk.slice(0, 8)}]`,
+      role: payload.role || "CLIENT",
+    };
+    const updated = {
+      ...existing,
+      public_key: canonicalPk,
+      last_seen: nowSec,
+      last_rssi: payload.rssi ?? payload.RSSI ?? payload.last_rssi ?? existing.last_rssi,
+      last_snr: payload.snr ?? payload.SNR ?? payload.last_snr ?? existing.last_snr,
+      hops: payload.hops ?? payload.hop_count ?? existing.hops,
+    };
+    this.knownNodes.set(canonicalPk, updated);
+
+    // 2. Actualizar en el DOM
+    this.updateNodeInDom(canonicalPk, updated);
+  }
+
+  initPresenceTicker() {
+    if (this.presenceTickerInterval) {
+      clearInterval(this.presenceTickerInterval);
+    }
+    // Ticker periódico cada 10 segundos para actualizar estado y tiempo relativo
+    this.presenceTickerInterval = setInterval(() => {
+      this.updateAllPresenceDots();
+    }, 10000);
+  }
+
+  updateAllPresenceDots() {
+    const now = Math.floor(Date.now() / 1000);
+    const allCards = document.querySelectorAll("#nodesUnifiedGridUi .node-card, #contactsGridUi .contact-card");
+
+    allCards.forEach((card) => {
+      const pk = card.getAttribute("data-pk");
+      if (!pk) return;
+
+      const isLocal = card.classList.contains("is-local") || card.classList.contains("role-local-card") || card.getAttribute("data-role") === "LOCAL";
+      if (isLocal) {
+        const dot = card.querySelector(".avatar-status-dot");
+        if (dot) {
+          dot.className = "avatar-status-dot status-online";
+          dot.title = "Estación Base Activa";
+        }
+        const act = card.querySelector(".node-card-activity");
+        if (act) {
+          act.textContent = "Activo";
+          act.title = "Estación Base Activa";
+        }
+        return;
+      }
+
+      let lastSeen = parseFloat(card.getAttribute("data-last-seen") || "0");
+      if (!lastSeen && this.knownNodes) {
+        const canonicalPk = this.resolveCanonicalPubkey(pk) || pk;
+        const node = this.knownNodes.get(canonicalPk) || this.knownNodes.get(pk);
+        if (node && node.last_seen) {
+          lastSeen = parseFloat(node.last_seen);
+        }
+      }
+
+      if (!lastSeen) return;
+
+      const diff = Math.max(0, now - lastSeen);
+      let statusClass = "status-online";
+      let timeAgoStr = "Hace un momento";
+      let isOffline = false;
+
+      if (diff < 60) {
+        statusClass = "status-online";
+        timeAgoStr = "Hace un momento";
+      } else if (diff < 300) {
+        statusClass = "status-online";
+        timeAgoStr = `Hace ${Math.floor(diff / 60)}m`;
+      } else if (diff < 3600) {
+        statusClass = "status-idle";
+        timeAgoStr = `Hace ${Math.floor(diff / 60)}m`;
+      } else if (diff < 86400) {
+        statusClass = "status-offline";
+        isOffline = true;
+        const hours = Math.floor(diff / 3600);
+        timeAgoStr = `Hace ${hours}h`;
+      } else {
+        statusClass = "status-offline";
+        isOffline = true;
+        const days = Math.floor(diff / 86400);
+        timeAgoStr = `Hace ${days}d`;
+      }
+
+      const dot = card.querySelector(".avatar-status-dot");
+      if (dot) {
+        dot.className = `avatar-status-dot ${statusClass}`;
+        dot.title = timeAgoStr;
+      }
+
+      const act = card.querySelector(".node-card-activity");
+      if (act) {
+        act.textContent = timeAgoStr;
+        act.title = timeAgoStr;
+      }
+
+      if (isOffline) {
+        card.classList.add("node-card-offline", "contact-card-offline");
+      } else {
+        card.classList.remove("node-card-offline", "contact-card-offline");
+      }
+    });
+
+    // Actualizar encabezado del chat activo si es necesario
+    if (this.activeDmTarget) {
+      const canonicalTarget = this.resolveCanonicalPubkey(this.activeDmTarget) || this.activeDmTarget;
+      const node = this.knownNodes.get(canonicalTarget) || this.knownNodes.get(this.activeDmTarget);
+      if (node && node.last_seen) {
+        const diff = Math.max(0, now - parseFloat(node.last_seen));
+        let headerTxt = "🟢 En Línea • Hace un momento";
+        let dotClass = "status-online";
+        if (diff < 60) {
+          headerTxt = "🟢 En Línea • Hace un momento";
+          dotClass = "status-online";
+        } else if (diff < 300) {
+          headerTxt = `🟢 En Línea • Hace ${Math.floor(diff / 60)}m`;
+          dotClass = "status-online";
+        } else if (diff < 3600) {
+          headerTxt = `🟡 Inactivo • Hace ${Math.floor(diff / 60)}m`;
+          dotClass = "status-idle";
+        } else {
+          const hours = Math.floor(diff / 3600);
+          headerTxt = `🔴 Fuera de Línea • Hace ${hours < 24 ? hours + 'h' : Math.floor(hours / 24) + 'd'}`;
+          dotClass = "status-offline";
+        }
+        const headerStatus = document.getElementById("dmChatHeaderStatus");
+        if (headerStatus) {
+          headerStatus.textContent = headerTxt;
+          headerStatus.className = `dm-header-status color-${dotClass.replace('status-', '')}`;
+        }
+        const headerDot = document.getElementById("dmChatHeaderAvatarDot");
+        if (headerDot) {
+          headerDot.className = `avatar-status-dot ${dotClass}`;
+          headerDot.title = headerTxt;
+        }
+      }
+    }
+  }
+
   updateNodeInDom(pubkey, node) {
     if (!pubkey || !node || !this.isValidNodeKey(pubkey)) return;
     if (node.name && (node.name.startsWith("Node_unknow") || node.name.toLowerCase() === "unknown")) return;
     const norm = String(pubkey).trim().toLowerCase();
+    const nowSec = Math.floor(Date.now() / 1000);
+    const lastSeen = node.last_seen || nowSec;
 
-    // 1. Actualizar tarjetas en el grid unificado de nodos
+    // 1. Actualizar tarjetas en el grid unificado de nodos y contactos
     const cards = document.querySelectorAll("#nodesUnifiedGridUi .node-card, #contactsGridUi .contact-card");
     let found = false;
 
@@ -6243,13 +6404,23 @@ class MeshCoreStationApp {
 
       if (isMatch) {
         found = true;
-        // Actualizar chip de estado a En Línea
-        const statusChip = card.querySelector(".node-status-chip");
-        if (statusChip) {
-          statusChip.className = "node-status-chip status-online";
-          statusChip.textContent = "🟢 En Línea";
-          statusChip.title = "Hace un momento";
+        card.setAttribute("data-last-seen", String(lastSeen));
+
+        // Actualizar avatar-status-dot a online inmediatamente
+        const statusDot = card.querySelector(".avatar-status-dot");
+        if (statusDot) {
+          statusDot.className = "avatar-status-dot status-online";
+          statusDot.title = "Hace un momento";
         }
+
+        // Actualizar texto de actividad
+        const actEl = card.querySelector(".node-card-activity");
+        if (actEl) {
+          actEl.textContent = "Hace un momento";
+          actEl.title = "Hace un momento";
+        }
+
+        // Remover clases offline
         card.classList.remove("node-card-offline", "contact-card-offline");
 
         // Actualizar RF stat pills si vienen métricas
@@ -6282,8 +6453,21 @@ class MeshCoreStationApp {
       }
     });
 
+    // 2. Actualizar también en el encabezado de chat DM si es el target activo
+    if (this.activeDmTarget && (this.activeDmTarget.toLowerCase() === norm || this.activeDmTarget.toLowerCase().startsWith(norm.slice(0, 8)) || norm.startsWith(this.activeDmTarget.toLowerCase().slice(0, 8)))) {
+      const headerStatus = document.getElementById("dmChatHeaderStatus");
+      if (headerStatus) {
+        headerStatus.textContent = "🟢 En Línea • Hace un momento";
+        headerStatus.className = "dm-header-status color-online";
+      }
+      const headerDot = document.getElementById("dmChatHeaderAvatarDot");
+      if (headerDot) {
+        headerDot.className = "avatar-status-dot status-online";
+        headerDot.title = "Hace un momento";
+      }
+    }
 
-    // 2. Si no se encontró en el DOM y tenemos la lista de nodos, refrescar el directorio
+    // 3. Si no se encontró en el DOM y tenemos la lista de nodos, refrescar el directorio
     if (!found && this.knownNodes && this.knownNodes.size > 0) {
       this.renderNodesDirectory(Array.from(this.knownNodes.values()));
     }
@@ -6673,6 +6857,7 @@ class MeshCoreStationApp {
         const cCard = document.createElement("div");
         cCard.className = `contact-card ${isOffline ? "contact-card-offline" : ""}`;
         cCard.setAttribute("data-pk", node.public_key);
+        cCard.setAttribute("data-last-seen", String(node.last_seen || Math.floor(Date.now() / 1000)));
         cCard.setAttribute("data-search", `${cleanName} ${node.public_key} CLIENT`.toLowerCase());
         cCard.setAttribute("data-has-gps", String(hasGps));
         cCard.setAttribute("data-is-fav", String(Boolean(node.is_favorite)));
@@ -6805,6 +6990,7 @@ class MeshCoreStationApp {
         nCard.className = `node-card ${roleClass} ${isOffline ? "node-card-offline" : ""}`;
         nCard.setAttribute("data-role", roleLabel);
         nCard.setAttribute("data-pk", node.public_key);
+        nCard.setAttribute("data-last-seen", String(node.last_seen || Math.floor(Date.now() / 1000)));
         const searchData = `${cleanName} ${node.alias || ''} ${node.name || ''} ${node.public_key} ${roleLabel}`.toLowerCase();
         nCard.setAttribute("data-search", searchData);
 

@@ -31,9 +31,9 @@
             <span class="logo-version">v3.0 Pro</span>
           </div>
         </div>
-        <div class="connection-status" id="wsStatus" role="status" aria-live="polite">
-          <span class="status-dot connected" aria-hidden="true"></span>
-          <span class="status-text">En línea (WS)</span>
+        <div class="connection-status" role="status" aria-live="polite" style="display: flex; gap: 6px; align-items: center;">
+          <span id="radio-status" class="ws-badge ws-badge--connected" aria-live="polite" title="Transceptor LoRa conectado y operativo por USB/UART ">📻 Radio: Conectada</span>
+          <span id="ws-status" class="ws-badge ws-badge--connected" aria-live="polite" title="Estado de la conexión WebSocket con el servidor">🌐 Web: Conectado</span>
         </div>
       </div>
 
@@ -48,45 +48,52 @@
 
       <div class="header-right">
         <div class="header-metrics" role="region" aria-label="Métricas globales de tráfico">
-          <span class="metric-chip" title="Nodos Activos en Malla">👥 <strong id="headerNodeCount">1</strong></span>
-          <span class="metric-chip" title="Paquetes Recibidos">📥 <strong id="headerRxCount">42</strong></span>
-          <span class="metric-chip" title="Paquetes Emitidos">📤 <strong id="headerTxCount">18</strong></span>
-          <span class="metric-chip airtime-metric-chip airtime-normal" id="headerAirtimeChip" title="Duty Cycle: 0.00% (0.0s / 36s presupuestados en 1h)">⏱️ Airtime: <strong id="headerDutyCycle">0.00%</strong></span>
-          <span class="metric-chip" title="Tasa de Error">⚠️ <strong id="headerErrorRate">0%</strong></span>
-          <span class="metric-chip" title="Cola TX / Buffer">⏱️ <strong id="headerQueueDepth">0</strong></span>
+          <span class="metric-chip" title="Nodos Activos en Malla"><span class="chip-icon" data-lucide="users" data-size="14"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-users "><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span> <strong id="headerNodeCount">2</strong></span>
+          <span class="metric-chip" title="Paquetes Recibidos"><span class="chip-icon" data-lucide="download" data-size="14"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-download "><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" x2="12" y1="15" y2="3"></line></svg></span> <strong id="headerRxCount">0</strong></span>
+          <span class="metric-chip" title="Paquetes Emitidos"><span class="chip-icon" data-lucide="upload" data-size="14"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-upload "><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" x2="12" y1="3" y2="15"></line></svg></span> <strong id="headerTxCount">0</strong></span>
+          <span class="metric-chip airtime-metric-chip airtime-normal" id="headerAirtimeChip" title="Duty Cycle: 0.00% (0.0s / 36s presupuestados en 1h)"><span class="chip-icon" data-lucide="clock" data-size="14"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-clock "><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></span> Airtime: <strong id="headerDutyCycle">0.00%</strong></span>
+          <span class="metric-chip" title="Tasa de Error"><span class="chip-icon" data-lucide="alert-triangle" data-size="14"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-alert-triangle "><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" x2="12" y1="9" y2="13"></line><line x1="12" x2="12.01" y1="17" y2="17"></line></svg></span> <strong id="headerErrorRate">0%</strong></span>
+          <span class="metric-chip" title="Cola TX / Buffer"><span class="chip-icon" data-lucide="activity" data-size="14"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-activity "><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg></span> <strong id="headerQueueDepth">0</strong></span>
         </div>
-        <button id="themeToggleBtn" class="btn-icon" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema claro u oscuro">🌓</button>
+        <button id="themeToggleBtn" class="btn-icon" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema claro u oscuro"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-sun "><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg></button>
       </div>
     </header>
 
     <!-- Cuerpo Principal -->
     <div class="app-body">
       <!-- Barra Lateral de Navegación Principal -->
-      <aside class="app-sidebar" role="navigation" aria-label="Navegación principal">
+      <aside class="app-sidebar" id="appSidebar" role="navigation" aria-label="Navegación principal">
         <nav class="nav-tabs" role="tablist">
-          <button class="nav-btn active" role="tab" tabindex="0" aria-selected="true" aria-controls="tab-chat" id="navTabChat" data-tab="tab-chat">
-            <span class="nav-icon">💬</span> <span>Mensajería</span>
+          <button class="nav-btn active" role="tab" tabindex="0" aria-selected="true" aria-controls="tab-chat" id="navTabChat" data-tab="tab-chat" title="Mensajería (Chat)">
+            <span class="nav-icon" data-lucide="message-square" data-size="18"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-message-square "><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span> <span class="nav-label">Mensajería</span>
             <span class="nav-badge-count hidden" id="globalChatUnreadBadge">0</span>
           </button>
-          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-contacts" id="navTabContacts" data-tab="tab-contacts">
-            <span class="nav-icon">👥</span> <span>Contactos</span>
+          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-contacts" id="navTabContacts" data-tab="tab-contacts" title="Libreta de Contactos">
+            <span class="nav-icon" data-lucide="users" data-size="18"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-users "><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span> <span class="nav-label">Contactos</span>
           </button>
-          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-nodes" id="navTabNodes" data-tab="tab-nodes">
-            <span class="nav-icon">🌐</span> <span>Nodos</span>
+          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-nodes" id="navTabNodes" data-tab="tab-nodes" title="Nodos &amp; Malla LoRa">
+            <span class="nav-icon" data-lucide="network" data-size="18"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-network "><rect x="16" y="16" width="6" height="6" rx="1"></rect><rect x="2" y="16" width="6" height="6" rx="1"></rect><rect x="9" y="2" width="6" height="6" rx="1"></rect><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"></path><path d="M12 12V8"></path></svg></span> <span class="nav-label">Nodos</span>
           </button>
-          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-map" id="navTabMap" data-tab="tab-map">
-            <span class="nav-icon">🗺️</span> <span>Mapa</span>
+          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-map" id="navTabMap" data-tab="tab-map" title="Mapa Cartográfico">
+            <span class="nav-icon" data-lucide="map" data-size="18"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-map "><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" x2="9" y1="3" y2="18"></line><line x1="15" x2="15" y1="6" y2="21"></line></svg></span> <span class="nav-label">Mapa</span>
           </button>
-          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-analytics" id="navTabAnalytics" data-tab="tab-analytics">
-            <span class="nav-icon">📈</span> <span>Métricas</span>
+          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-analytics" id="navTabAnalytics" data-tab="tab-analytics" title="Métricas &amp; Analítica">
+            <span class="nav-icon" data-lucide="activity" data-size="18"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-activity "><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg></span> <span class="nav-label">Métricas</span>
           </button>
-          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-logs" id="navTabLogs" data-tab="tab-logs">
-            <span class="nav-icon">📜</span> <span>Logs Sistema</span>
+          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-logs" id="navTabLogs" data-tab="tab-logs" title="Consola de Logs">
+            <span class="nav-icon" data-lucide="file-text" data-size="18"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-file-text "><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path><path d="M10 9H8"></path><path d="M16 13H8"></path><path d="M16 17H8"></path></svg></span> <span class="nav-label">Logs Sistema</span>
           </button>
-          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-settings" id="navTabSettings" data-tab="tab-settings">
-            <span class="nav-icon">⚙️</span> <span>Ajustes</span>
+          <button class="nav-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="tab-settings" id="navTabSettings" data-tab="tab-settings" title="Ajustes &amp; Parámetros RF">
+            <span class="nav-icon" data-lucide="sliders" data-size="18"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-sliders "><line x1="4" x2="4" y1="21" y2="14"></line><line x1="4" x2="4" y1="10" y2="3"></line><line x1="12" x2="12" y1="21" y2="12"></line><line x1="12" x2="12" y1="8" y2="3"></line><line x1="20" x2="20" y1="21" y2="16"></line><line x1="20" x2="20" y1="12" y2="3"></line><line x1="1" x2="7" y1="14" y2="14"></line><line x1="9" x2="15" y1="8" y2="8"></line><line x1="17" x2="23" y1="16" y2="16"></line></svg></span> <span class="nav-label">Ajustes</span>
           </button>
         </nav>
+
+        <div class="sidebar-footer">
+          <button type="button" class="btn-sidebar-toggle" id="btnToggleSidebar" title="Colapsar o expandir barra lateral (modo iconos)" aria-label="Colapsar o expandir barra lateral">
+            <span class="sidebar-toggle-icon" data-lucide="chevron-left" data-size="16"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-chevron-left "><path d="m15 18-6-6 6-6"></path></svg></span>
+            <span class="sidebar-toggle-label">Colapsar</span>
+          </button>
+        </div>
       </aside>
 
       <!-- Área de Contenido Principal -->
@@ -111,6 +118,38 @@
           <span class="ch-lock" title="Canal Público">🔓</span>
           
         </div>
+      </li><li class="channel-item " data-channel-idx="1">
+        <span class="ch-badge">Ch 1</span>
+        <span class="ch-name" title="Operaciones Tácticas">Operaciones Tácticas</span>
+        <span class="ch-unread-badge hidden">0</span>
+        <div class="ch-actions">
+          <span class="ch-lock" title="Canal Privado">🔒</span>
+          <button type="button" class="btn-item-delete" title="Eliminar canal del dispositivo" data-del-idx="1">🗑️</button>
+        </div>
+      </li><li class="channel-item " data-channel-idx="2">
+        <span class="ch-badge">Ch 2</span>
+        <span class="ch-name" title="Telemetría Sensores">Telemetría Sensores</span>
+        <span class="ch-unread-badge hidden">0</span>
+        <div class="ch-actions">
+          <span class="ch-lock" title="Canal Privado">🔒</span>
+          <button type="button" class="btn-item-delete" title="Eliminar canal del dispositivo" data-del-idx="2">🗑️</button>
+        </div>
+      </li><li class="channel-item " data-channel-idx="3">
+        <span class="ch-badge">Ch 3</span>
+        <span class="ch-name" title="Emergencias Malla">Emergencias Malla</span>
+        <span class="ch-unread-badge hidden">0</span>
+        <div class="ch-actions">
+          <span class="ch-lock" title="Canal Privado">🔒</span>
+          <button type="button" class="btn-item-delete" title="Eliminar canal del dispositivo" data-del-idx="3">🗑️</button>
+        </div>
+      </li><li class="channel-item " data-channel-idx="4">
+        <span class="ch-badge">Ch 4</span>
+        <span class="ch-name" title="Canal Táctico">Canal Táctico</span>
+        <span class="ch-unread-badge hidden">0</span>
+        <div class="ch-actions">
+          <span class="ch-lock" title="Canal Privado">🔒</span>
+          <button type="button" class="btn-item-delete" title="Eliminar canal del dispositivo" data-del-idx="4">🗑️</button>
+        </div>
       </li></ul>
 
               <div class="chat-channels-header" style="margin-top: 16px;">
@@ -127,13 +166,13 @@
             <!-- Panel Derecho de Mensajería: Conversación Activa y Composición -->
             <div class="chat-conversation-panel">
               <div class="chat-header">
-                <div class="active-target-info">
+                <div class="header-title-group active-target-info">
                   <div class="target-title-row">
                     <button class="btn-xs btn-outline mobile-only-inline" id="btnToggleChannelsMobile" title="Mostrar/Ocultar lista de canales">📑 Canales</button>
                     <h2 id="chatActiveTitle">Canal 0 (Public / Broadcast)</h2>
                     <span class="security-chip" id="chatSecurityChip">🔓 Abierto</span>
                   </div>
-                  <span class="target-sub" id="chatActiveSub">Difusión comunitaria abierta por radio LoRa</span>
+                  <p class="header-subtitle target-sub" id="chatActiveSub">Difusión comunitaria abierta por radio LoRa</p>
                 </div>
                 <div class="chat-header-actions">
                   <button class="btn-secondary btn-sm" id="btnShareTargetQr" title="Compartir destino activo por QR">📤 QR</button>
@@ -143,18 +182,6 @@
 
               <!-- Feed de Mensajes Limpio -->
               <div class="chat-messages" id="chatMessageFeed" role="log" aria-live="polite" aria-label="Historial de mensajes de chat"></div>
-
-              <!-- Banner de Respuesta Activa (Reply Context) -->
-              <div class="chat-reply-bar hidden" id="chatReplyBar" aria-live="polite">
-                <div class="reply-bar-content">
-                  <span class="reply-icon">↩️</span>
-                  <div class="reply-text-group">
-                    <strong class="reply-author" id="replyTargetAuthor">@Usuario</strong>
-                    <span class="reply-snippet" id="replyTargetSnippet">Mensaje citado...</span>
-                  </div>
-                </div>
-                <button type="button" class="btn-icon btn-cancel-reply" id="btnCancelReply" title="Cancelar respuesta" aria-label="Cancelar respuesta">✕</button>
-              </div>
 
               <!-- Caja de Entrada de Mensaje -->
               <form id="chatInputForm" class="chat-composer" aria-label="Formulario de envío de mensajes">
@@ -171,12 +198,10 @@
         <!-- Pestaña: Directorio Unificado de Nodos de la Malla -->
         <section id="tab-nodes" class="tab-pane" role="tabpanel" aria-labelledby="navTabNodes">
           <div class="nodes-view-container">
-            <div class="pane-header nodes-pane-header">
+            <div class="pane-header">
               <div class="header-title-group">
                 <h2>🌐 Directorio de Nodos en la Malla</h2>
-                <p class="pane-subtitle">
-                  Todos los nodos descubiertos en la red LoRa MeshCore con su telemetría y estado en vivo.
-                </p>
+                <p class="header-subtitle">Todos los nodos descubiertos en la red LoRa MeshCore con su telemetría y estado en vivo.</p>
               </div>
             </div>
 
@@ -184,35 +209,35 @@
             <div class="nodes-toolbar">
               <input type="search" id="nodesSearchInput" class="search-input" placeholder="🔍 Buscar nodo por nombre, alias, rol o clave pública..." aria-label="Buscar nodos" style="">
               <div class="nodes-filter-pills" role="radiogroup" aria-label="Filtrar por rol">
-                <button type="button" class="filter-pill active" data-filter="all">Todos (<span id="countAllNodes">1</span>)</button>
-                <button type="button" class="filter-pill" data-filter="REPEATER">🏔️ Repetidores (<span id="countRepeaters">0</span>)</button>
-                <button type="button" class="filter-pill" data-filter="SENSOR">📡 Sensores (<span id="countSensors">1</span>)</button>
+                <button type="button" class="filter-pill active" data-filter="all">Todos (<span id="countAllNodes">2</span>)</button>
+                <button type="button" class="filter-pill" data-filter="REPEATER">🏔️ Repetidores (<span id="countRepeaters">1</span>)</button>
+                <button type="button" class="filter-pill" data-filter="SENSOR">📡 Sensores (<span id="countSensors">0</span>)</button>
                 <button type="button" class="filter-pill" data-filter="ROOM">🏠 Salas (<span id="countRooms">0</span>)</button>
-                <button type="button" class="filter-pill" data-filter="CLIENT">👤 Clientes (<span id="countClients">0</span>)</button>
+                <button type="button" class="filter-pill" data-filter="CLIENT">👤 Clientes (<span id="countClients">1</span>)</button>
               </div>
             </div>
 
             <!-- Grilla Dinámica de Nodos -->
-            <div class="nodes-unified-grid" id="nodesUnifiedGridUi" role="region" aria-label="Directorio de nodos"><div class="node-card role-sensor-card " data-role="SENSOR" data-pk="8d5accef196f5986567b3c7e915fc8e5fc3fe689cadca190d02523aef24b46bc" data-search="sensor_meteo heltec_v3_sensor 8d5accef196f5986567b3c7e915fc8e5fc3fe689cadca190d02523aef24b46bc sensor">
+            <div class="nodes-unified-grid" id="nodesUnifiedGridUi" role="region" aria-label="Directorio de nodos"><div class="node-card role-client-card node-card-offline" data-role="CLIENT" data-pk="feedface0001" data-last-seen="1787884646.6069248" data-search="base_station base_station heltec_base feedface0001 client" style="display: flex;">
           <div class="node-card-header">
             <div class="node-card-avatar-wrapper">
-              <div class="node-card-avatar avatar-sensor" title="Ver código QR de Sensor_Meteo">📡</div>
-              <span class="avatar-status-dot status-online" title="Hace un momento"></span>
+              <div class="node-card-avatar avatar-client" title="Ver código QR de Base_Station"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-user "><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></div>
+              <span class="avatar-status-dot status-offline" title="Hace 2d"></span>
             </div>
             <div class="node-card-info">
               <div class="node-card-top-row">
-                <span class="node-card-name" title="Ver código QR de Sensor_Meteo">Sensor_Meteo</span>
+                <span class="node-card-name" title="Ver código QR de Base_Station">Base_Station</span>
                 <div class="node-card-badges-group">
-                  <span class="node-role-badge role-sensor">SENSOR</span>
-                  <span class="contact-battery-chip" title="Nivel de batería">🔋 85%</span>
+                  <span class="node-role-badge role-client">CLIENT</span>
+                  <span class="contact-battery-chip" title="Nivel de batería">🔋 90%</span>
                 </div>
               </div>
               <div class="node-card-sub-row">
-                <span class="node-card-pubkey font-mono" title="8d5accef196f5986567b3c7e915fc8e5fc3fe689cadca190d02523aef24b46bc">
-                  8d5accef19...46bc
+                <span class="node-card-pubkey font-mono" title="feedface0001">
+                  feedface0001
                   <button type="button" class="btn-copy-pk" title="Copiar clave pública">📋</button>
                 </span>
-                <span class="node-card-activity" title="Hace un momento">Hace un momento</span>
+                <span class="node-card-activity" title="Hace 2d">Hace 2d</span>
               </div>
             </div>
           </div>
@@ -220,12 +245,62 @@
           <div class="node-telemetry-panel">
             
             <div class="node-meta-row">
-              <span class="node-meta-title">📡 Sensor de Telemetría</span>
-              <span class="node-meta-highlight color-green">24.5°C</span>
+              <span class="node-meta-title">📱 Dispositivo Cliente MeshCore</span>
+              <span class="node-meta-highlight color-cyan">Punto a Punto</span>
             </div>
             <div class="node-meta-sub">
-              <span>Humedad: 55%</span>
-              <span>Presión: N/D</span>
+              <span>Actividad: Hace 2d</span>
+              <span>Enlace: RF Directo</span>
+            </div>
+          
+          </div>
+          <div class="node-rf-strip">
+            
+            <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>+11.5 dB</strong></span>
+            <span class="stat-pill" title="Intensidad de Señal">📡 <strong>-70 dBm</strong></span>
+            <span class="stat-pill" title="Saltos">🦘 <strong>1 salto</strong></span>
+          
+          </div>
+          <div class="node-actions-bar">
+            
+            <button type="button" class="btn-primary btn-sm btn-node-primary btn-client-dm"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-message-square "><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg> Iniciar Chat DM</button>
+            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-activity "><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg> Ruta</button>
+            
+          
+          </div>
+        </div><div class="node-card role-repeater-card node-card-offline" data-role="REPEATER" data-pk="aabbccddeeff0002" data-last-seen="1787884646.6286354" data-search="repeater_alpha repeater_alpha lilygo_node aabbccddeeff0002 repeater" style="display: flex;">
+          <div class="node-card-header">
+            <div class="node-card-avatar-wrapper">
+              <div class="node-card-avatar avatar-repeater" title="Ver código QR de Repeater_Alpha"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-radio-tower "><path d="M4.9 16.1C1 12.2 1 5.8 4.9 1.9"></path><path d="M7.8 13.2c-2.3-2.3-2.3-6.1 0-8.5"></path><circle cx="12" cy="9" r="2"></circle><path d="M16.2 4.8c2.3 2.3 2.3 6.1 0 8.5"></path><path d="M19.1 1.9C23 5.8 23 12.1 19.1 16"></path><path d="M9 22l3-7 3 7"></path><path d="M8 22h8"></path></svg></div>
+              <span class="avatar-status-dot status-offline" title="Hace 2d"></span>
+            </div>
+            <div class="node-card-info">
+              <div class="node-card-top-row">
+                <span class="node-card-name" title="Ver código QR de Repeater_Alpha">Repeater_Alpha</span>
+                <div class="node-card-badges-group">
+                  <span class="node-role-badge role-repeater">REPEATER</span>
+                  <span class="contact-battery-chip bat-unknown" title="Batería no reportada">🔋 N/D</span>
+                </div>
+              </div>
+              <div class="node-card-sub-row">
+                <span class="node-card-pubkey font-mono" title="aabbccddeeff0002">
+                  aabbccddeeff0002
+                  <button type="button" class="btn-copy-pk" title="Copiar clave pública">📋</button>
+                </span>
+                <span class="node-card-activity" title="Hace 2d">Hace 2d</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="node-telemetry-panel">
+            
+            <div class="node-meta-row">
+              <span class="node-meta-title">🏔️ Router de Malla LoRa</span>
+              <span class="node-meta-highlight color-purple">TX: 20 dBm</span>
+            </div>
+            <div class="node-meta-sub">
+              <span>Reenvío: Activo</span>
+              <span>Hop Limit: 3 saltos</span>
             </div>
           
           </div>
@@ -238,8 +313,10 @@
           </div>
           <div class="node-actions-bar">
             
-            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto">🗺️ Ruta</button>
-            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-view-map" title="Centrar y ver en mapa">🗺️ Mapa</button>
+            <button type="button" class="btn-primary btn-sm btn-node-primary btn-manage-node-repeater"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-sliders "><line x1="4" x2="4" y1="21" y2="14"></line><line x1="4" x2="4" y1="10" y2="3"></line><line x1="12" x2="12" y1="21" y2="12"></line><line x1="12" x2="12" y1="8" y2="3"></line><line x1="20" x2="20" y1="21" y2="16"></line><line x1="20" x2="20" y1="12" y2="3"></line><line x1="1" x2="7" y1="14" y2="14"></line><line x1="9" x2="15" y1="8" y2="8"></line><line x1="17" x2="23" y1="16" y2="16"></line></svg> Administrar</button>
+            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-ping-zero" title="Hacer Ping directo (Hop 0)"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-crosshair "><circle cx="12" cy="12" r="10"></circle><line x1="22" x2="18" y1="12" y2="12"></line><line x1="6" x2="2" y1="12" y2="12"></line><line x1="12" x2="12" y1="6" y2="2"></line><line x1="12" x2="12" y1="22" y2="18"></line></svg> Ping</button>
+            <button type="button" class="btn-secondary btn-sm btn-node-secondary btn-node-traceroute" title="Trazar ruta multi-salto"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-activity "><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg> Ruta</button>
+            
           
           </div>
         </div></div>
@@ -249,15 +326,7 @@
         <!-- Pestaña 4: Mapa RF en Vivo -->
         <section id="tab-map" class="tab-pane" role="tabpanel" aria-labelledby="navTabMap">
           <div class="map-container">
-            <div id="liveGpsMap" class="leaflet-map-canvas leaflet-container leaflet-touch leaflet-fade-anim leaflet-grab leaflet-touch-drag leaflet-touch-zoom" role="region" aria-label="Mapa interactivo de nodos en la malla" tabindex="0" style="position: relative;"><div class="leaflet-pane leaflet-map-pane" style="transform: translate3d(0px, 0px, 0px);"><div class="leaflet-pane leaflet-tile-pane"><div class="leaflet-layer " style="z-index: 1; opacity: 1;"><div class="leaflet-tile-container leaflet-zoom-animated" style="z-index: 19; transform: translate3d(0px, 0px, 0px) scale(1);"><img alt="" src="https://a.basemaps.cartocdn.com/dark_all/14/4443/7109.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(-192px, -68px, 0px); opacity: 1;"></div></div></div><div class="leaflet-pane leaflet-overlay-pane"></div><div class="leaflet-pane leaflet-shadow-pane"></div><div class="leaflet-pane leaflet-marker-pane"><div class="leaflet-marker-icon leaflet-custom-div-icon marker-purple leaflet-zoom-animated leaflet-interactive" tabindex="0" role="button" style="margin-left: -16px; margin-top: -40px; width: 32px; height: 40px; transform: translate3d(0px, 0px, 0px); z-index: 0;">
-      <div class="custom-map-pin marker-purple">
-        <div class="pin-head" style="background-color: #a855f7;">
-          <span class="pin-symbol">📡</span>
-        </div>
-        <div class="pin-pointer" style="border-top-color: #a855f7;"></div>
-        <div class="pin-pulse"></div>
-      </div>
-    </div></div><div class="leaflet-pane leaflet-tooltip-pane"></div><div class="leaflet-pane leaflet-popup-pane"></div><div class="leaflet-proxy leaflet-zoom-animated" style="transform: translate3d(1.1376e+06px, 1.81997e+06px, 0px) scale(8192);"></div></div><div class="leaflet-control-container"><div class="leaflet-top leaflet-left"><div class="leaflet-control-zoom leaflet-bar leaflet-control"><a class="leaflet-control-zoom-in" href="#" title="Zoom in" role="button" aria-label="Zoom in" aria-disabled="false"><span aria-hidden="true">+</span></a><a class="leaflet-control-zoom-out" href="#" title="Zoom out" role="button" aria-label="Zoom out" aria-disabled="false"><span aria-hidden="true">−</span></a></div></div><div class="leaflet-top leaflet-right"></div><div class="leaflet-bottom leaflet-left"></div><div class="leaflet-bottom leaflet-right"><div class="leaflet-control-attribution leaflet-control"><a href="https://leafletjs.com" title="A JavaScript library for interactive maps"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="12" height="8" viewBox="0 0 12 8" class="leaflet-attribution-flag"><path fill="#4C7BE1" d="M0 0h12v4H0z"></path><path fill="#FFD500" d="M0 4h12v3H0z"></path><path fill="#E0BC00" d="M0 7h12v1H0z"></path></svg> Leaflet</a> <span aria-hidden="true">|</span> © <a href="https://carto.com/">CARTO</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a></div></div></div></div>
+            <div id="liveGpsMap" class="leaflet-map-canvas leaflet-container leaflet-touch leaflet-fade-anim leaflet-grab leaflet-touch-drag leaflet-touch-zoom" role="region" aria-label="Mapa interactivo de nodos en la malla" tabindex="0" style="position: relative;"><div class="leaflet-pane leaflet-map-pane" style="transform: translate3d(0px, 0px, 0px);"><div class="leaflet-pane leaflet-tile-pane"><div class="leaflet-layer " style="z-index: 1; opacity: 1;"><div class="leaflet-tile-container leaflet-zoom-animated" style="z-index: 19; transform: translate3d(0px, 0px, 0px) scale(1);"><img alt="" src="https://b.basemaps.cartocdn.com/dark_all/12/1192/1813.png" class="leaflet-tile leaflet-tile-loaded" style="width: 256px; height: 256px; transform: translate3d(-100px, -220px, 0px); opacity: 1;"></div></div></div><div class="leaflet-pane leaflet-overlay-pane"></div><div class="leaflet-pane leaflet-shadow-pane"></div><div class="leaflet-pane leaflet-marker-pane"></div><div class="leaflet-pane leaflet-tooltip-pane"></div><div class="leaflet-pane leaflet-popup-pane"></div><div class="leaflet-proxy leaflet-zoom-animated" style="transform: translate3d(305252px, 464348px, 0px) scale(2048);"></div></div><div class="leaflet-control-container"><div class="leaflet-top leaflet-left"><div class="leaflet-control-zoom leaflet-bar leaflet-control"><a class="leaflet-control-zoom-in" href="#" title="Zoom in" role="button" aria-label="Zoom in" aria-disabled="false"><span aria-hidden="true">+</span></a><a class="leaflet-control-zoom-out" href="#" title="Zoom out" role="button" aria-label="Zoom out" aria-disabled="false"><span aria-hidden="true">−</span></a></div></div><div class="leaflet-top leaflet-right"></div><div class="leaflet-bottom leaflet-left"></div><div class="leaflet-bottom leaflet-right"><div class="leaflet-control-attribution leaflet-control"><a href="https://leafletjs.com" title="A JavaScript library for interactive maps"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="12" height="8" viewBox="0 0 12 8" class="leaflet-attribution-flag"><path fill="#4C7BE1" d="M0 0h12v4H0z"></path><path fill="#FFD500" d="M0 4h12v3H0z"></path><path fill="#E0BC00" d="M0 7h12v1H0z"></path></svg> Leaflet</a> <span aria-hidden="true">|</span> © <a href="https://carto.com/">CARTO</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a></div></div></div></div>
             <div class="map-layer-switcher" role="toolbar" aria-label="Selector de capas cartográficas">
               <button type="button" class="map-layer-btn active" data-layer="cartodb" title="CartoDB Dark (Online)">🌙 Oscuro</button>
               <button type="button" class="map-layer-btn" data-layer="osm" title="OpenStreetMap (Online)">🗺️ Calles</button>
@@ -269,20 +338,30 @@
               <div class="map-overlay-header" id="mapOverlayHeader">
                 <div class="map-overlay-title-group">
                   <span class="map-overlay-icon">👥</span>
-                  <h4>Nodos en Malla (<span id="mapNodesCount">1 (1 en mapa)</span>)</h4>
+                  <h4>Nodos en Malla (<span id="mapNodesCount">2 (0 en mapa)</span>)</h4>
                 </div>
                 <button type="button" class="btn-toggle-overlay" id="btnToggleMapNodes" title="Minimizar / Expandir lista de nodos" aria-label="Minimizar o expandir lista de nodos" aria-expanded="true">
                   <span class="toggle-icon">−</span>
                 </button>
               </div>
-              <div id="mapNodesList" class="map-nodes-feed"><div class="map-node-item   has-gps" data-pk="8d5accef196f5986567b3c7e915fc8e5fc3fe689cadca190d02523aef24b46bc">
+              <div id="mapNodesList" class="map-nodes-feed"><div class="map-node-item   no-gps" data-pk="feedface0001">
           <div class="map-node-item-header">
-            <span class="map-node-dot">📍</span>
-            <strong class="map-node-name" title="Sensor_Meteo">Sensor_Meteo</strong>
-            <span class="badge-pill" style="font-size: 10px;">SENSOR</span>
+            <span class="map-node-dot">🛰️</span>
+            <strong class="map-node-name" title="Base_Station">Base_Station</strong>
+            <span class="badge-pill" style="font-size: 10px;">CLIENT</span>
           </div>
           <div class="map-node-coords">
-            <span>🌐 23.1350, -82.3590</span>
+            <span><span style="color: var(--text-muted); font-style: italic;">🛰️ Sin fijación GPS</span></span>
+            <span>📶 +11.5 dB</span>
+          </div>
+        </div><div class="map-node-item   no-gps" data-pk="aabbccddeeff0002">
+          <div class="map-node-item-header">
+            <span class="map-node-dot">🛰️</span>
+            <strong class="map-node-name" title="Repeater_Alpha">Repeater_Alpha</strong>
+            <span class="badge-pill" style="font-size: 10px;">REPEATER</span>
+          </div>
+          <div class="map-node-coords">
+            <span><span style="color: var(--text-muted); font-style: italic;">🛰️ Sin fijación GPS</span></span>
             <span>📶 N/D</span>
           </div>
         </div></div>
@@ -296,6 +375,7 @@
             <div class="pane-header">
               <div class="header-title-group">
                 <h2>👥 Libreta de Contactos</h2>
+                <p class="header-subtitle">Directorio de contactos, nodos amigos y gestión de claves públicas de la red.</p>
               </div>
               <div class="header-actions">
                 <button class="btn-secondary" id="btnRefreshNodes" aria-label="Actualizar lista de contactos">🔄 Actualizar</button>
@@ -320,13 +400,56 @@
             <div class="contacts-toolbar">
               <input type="search" id="contactsSearchInput" class="search-input" placeholder="🔍 Buscar contacto por nombre, alias o clave pública..." aria-label="Buscar contactos" style="">
               <div class="contacts-filter-pills" role="radiogroup" aria-label="Filtrar contactos">
-                <button type="button" class="filter-pill active" data-contact-filter="all">Todos (<span id="countAllContacts">0</span>)</button>
+                <button type="button" class="filter-pill active" data-contact-filter="all">Todos (<span id="countAllContacts">1</span>)</button>
                 <button type="button" class="filter-pill" data-contact-filter="favorites">⭐ Favoritos (<span id="countFavContacts">0</span>)</button>
                 <button type="button" class="filter-pill" data-contact-filter="online">🟢 En Línea (<span id="countOnlineContacts">0</span>)</button>
-                <button type="button" class="filter-pill" data-contact-filter="gps">📍 Con Posición (<span id="countGpsContacts">1</span>)</button>
+                <button type="button" class="filter-pill" data-contact-filter="gps">📍 Con Posición (<span id="countGpsContacts">0</span>)</button>
               </div>
             </div>
-            <div class="nodes-grid" id="contactsGridUi" role="region" aria-label="Lista de contactos"><div class="empty-state">No hay contactos cliente (CLIENT) registrados en el dispositivo.</div></div>
+            <div class="nodes-grid" id="contactsGridUi" role="region" aria-label="Lista de contactos"><div class="contact-card contact-card-offline" data-pk="feedface0001" data-last-seen="1787884646.6069248" data-search="base_station feedface0001 client" data-has-gps="false" data-is-fav="false" style="cursor: pointer; display: flex;">
+          <div class="contact-card-header">
+            <div class="node-card-avatar-wrapper">
+              <div class="contact-avatar avatar-client"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-user "><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></div>
+              <span class="avatar-status-dot status-offline" title="Hace 2d"></span>
+            </div>
+            <div class="contact-info">
+              <div class="contact-title-row">
+                <span class="contact-name" title="Base_Station">Base_Station</span>
+                <div class="node-card-badges-group">
+                  <span class="node-role-badge role-client">CLIENT</span>
+                  <span class="contact-battery-chip" title="Nivel de batería">🔋 90%</span>
+                </div>
+              </div>
+              <div class="node-card-sub-row">
+                <span class="contact-pubkey font-mono" title="feedface0001">
+                  feedface0001
+                  <button type="button" class="btn-copy-pk" title="Copiar clave pública"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-copy "><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg></button>
+                </span>
+                <span class="node-card-activity" title="Hace 2d">Hace 2d</span>
+              </div>
+            </div>
+          </div>
+          <div class="node-telemetry-panel">
+            <div class="node-meta-row">
+              <span class="node-meta-title">📱 Dispositivo Cliente MeshCore</span>
+              <span class="node-meta-highlight color-cyan">Punto a Punto</span>
+            </div>
+            <div class="node-meta-sub">
+              <span>Ruta: DIRECT</span>
+              <span>LQI: 73%</span>
+            </div>
+          </div>
+          <div class="contact-card-chips">
+            <span class="stat-pill" title="Relación Señal/Ruido">📶 <strong>+11.5 dB</strong></span>
+            <span class="stat-pill" title="Intensidad de Señal">📡 <strong>-70 dBm</strong></span>
+            <span class="stat-pill" title="Saltos de retransmisión">🦘 <strong>1 salto</strong></span>
+          </div>
+          <div class="contact-card-actions">
+            <button type="button" class="btn-primary btn-sm btn-contact-dm" title="Abrir chat en Mensajería"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-message-square "><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg> Iniciar Chat DM</button>
+            <button type="button" class="btn-secondary btn-sm btn-contact-qr" title="Exportar tarjeta o código QR"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-qr-code "><rect width="5" height="5" x="3" y="3" rx="1"></rect><rect width="5" height="5" x="16" y="3" rx="1"></rect><rect width="5" height="5" x="3" y="16" rx="1"></rect><path d="M21 16h-3a2 2 0 0 0-2 2v3"></path><path d="M21 21v.01"></path><path d="M12 7v3a2 2 0 0 1-2 2H7"></path><path d="M3 12h.01"></path><path d="M12 3h.01"></path><path d="M12 16v.01"></path><path d="M16 12h1"></path><path d="M21 12v.01"></path><path d="M12 21v-1"></path></svg> QR</button>
+            <button type="button" class="btn-secondary btn-sm btn-contact-del" title="Eliminar del dispositivo"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-trash-2 "><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" x2="10" y1="11" y2="17"></line><line x1="14" x2="14" y1="11" y2="17"></line></svg></button>
+          </div>
+        </div></div>
           </div>
         </section>
 
@@ -351,15 +474,15 @@
                 <div class="kpi-icon">📦</div>
                 <div class="kpi-data">
                   <span class="kpi-label">Paquetes Totales Malla</span>
-                  <strong class="kpi-value" id="kpiTotalPackets">0</strong>
-                  <span class="kpi-sub" id="kpiPacketsRatio">RX: 0 | TX: 0</span>
+                  <strong class="kpi-value" id="kpiTotalPackets">20</strong>
+                  <span class="kpi-sub" id="kpiPacketsRatio">RX: 15 | TX: 5</span>
                 </div>
               </div>
               <div class="analytics-kpi-card">
                 <div class="kpi-icon">🌐</div>
                 <div class="kpi-data">
                   <span class="kpi-label">Nodos Activos Registrados</span>
-                  <strong class="kpi-value" id="kpiTotalNodes">1</strong>
+                  <strong class="kpi-value" id="kpiTotalNodes">2</strong>
                   <span class="kpi-sub" id="kpiRepeatersCount">1 Repetidores en Malla</span>
                 </div>
               </div>
@@ -404,8 +527,14 @@
                       </tr>
                     </thead>
                     <tbody id="analyticsTopActiveTable"><tr>
-              <td><strong>Sensor_Meteo</strong></td>
-              <td><span class="badge-pill" style="font-size: 10px;">SENSOR</span></td>
+              <td><strong>Base_Station</strong></td>
+              <td><span class="badge-pill" style="font-size: 10px;">CLIENT</span></td>
+              <td>15</td>
+              <td>5</td>
+              <td><strong>20</strong></td>
+            </tr><tr>
+              <td><strong>Repeater_Alpha</strong></td>
+              <td><span class="badge-pill" style="font-size: 10px;">REPEATER</span></td>
               <td>0</td>
               <td>0</td>
               <td><strong>0</strong></td>
@@ -433,7 +562,19 @@
                         <th>Calidad de Enlace</th>
                       </tr>
                     </thead>
-                    <tbody id="analyticsSignalTable"><tr><td colspan="4" class="text-center text-muted">Esperando mediciones de SNR/RSSI de la malla...</td></tr></tbody>
+                    <tbody id="analyticsSignalTable"><tr>
+              <td><strong>Base_Station</strong></td>
+              <td><strong>11.5 dB</strong></td>
+              <td>-70 dBm</td>
+              <td>
+                <div class="signal-bar-wrap">
+                  <div class="signal-bar-bg">
+                    <div class="signal-bar-fill good" style="width: 88.33333333333333%;"></div>
+                  </div>
+                  <span style="font-size: 10.5px; color: var(--text-muted);">GOOD</span>
+                </div>
+              </td>
+            </tr></tbody>
                   </table>
                 </div>
               </div>
@@ -458,10 +599,10 @@
                       </tr>
                     </thead>
                     <tbody id="analyticsRepeatersTable"><tr>
-              <td><strong>Sensor_Meteo</strong></td>
-              <td><span class="badge-pill badge-success">0 nodo(s)</span></td>
-              <td>--</td>
-              <td>0 saltos</td>
+              <td><strong>Repeater_Alpha</strong></td>
+              <td><span class="badge-pill badge-success">1 nodo(s)</span></td>
+              <td>20 dBm</td>
+              <td>3 saltos</td>
             </tr></tbody>
                   </table>
                 </div>
@@ -503,9 +644,9 @@
         <section id="tab-logs" class="tab-pane" role="tabpanel" aria-labelledby="navTabLogs">
           <div class="logs-view-container">
             <div class="pane-header">
-              <div>
-                <h2>Consola de Logs y Diagnóstico en Vivo</h2>
-                <p class="pane-sub">Registro de eventos, depuración en tiempo real y estado de salud de subsistemas</p>
+              <div class="header-title-group">
+                <h2>📜 Consola de Logs y Diagnóstico en Vivo</h2>
+                <p class="header-subtitle">Registro de eventos, depuración en tiempo real y estado de salud de subsistemas.</p>
               </div>
               <div class="pane-actions">
                 <button class="btn-secondary" id="btnToggleDebugMode" title="Alternar nivel de logging DEBUG">🐞 Modo DEBUG: OFF</button>
@@ -517,7 +658,7 @@
 
             <!-- Chips de Salud de Subsistemas -->
             <div class="subsystems-health-bar" id="subsystemsHealthBar">
-              <span class="health-chip" id="chipSerialHealth">📻 Serial: <strong class="val err">Desconectado</strong></span>
+              <span class="health-chip" id="chipSerialHealth">📻 Serial: <strong class="val ok">Conectado (/dev/ttyACM0)</strong></span>
               <span class="health-chip" id="chipMqttHealth">📡 MQTT: <strong class="val err">Offline</strong></span>
               <span class="health-chip" id="chipTxHealth">⏱️ TX Queue: <strong class="val">0</strong></span>
               <span class="health-chip" id="chipErrorsCount">⚠️ Errores: <strong class="val ok">0</strong></span>
@@ -538,6 +679,8 @@
                 <label for="logLevelFilter">Nivel:</label>
                 <select id="logLevelFilter" class="select-input">
                   <option value="ALL">Todos los Niveles</option>
+                  <option value="SECURITY">🛡️ Tráfico Sospechoso &amp; Seguridad</option>
+                  <option value="NET">🌐 Conexiones IP (Web / API / TCP)</option>
                   <option value="ERROR">Solo Errores (ERROR/CRIT)</option>
                   <option value="WARNING">Advertencias (WARN)</option>
                   <option value="INFO">Información (INFO)</option>
@@ -551,7 +694,55 @@
             </div>
 
             <!-- Contenedor Principal de Logs -->
-            <div class="system-logs-box" id="systemLogsFeed" role="log"><div style="color: var(--text-muted); padding: 14px; text-align: center;">No hay logs que coincidan con los filtros actuales.</div></div>
+            <div class="system-logs-box" id="systemLogsFeed" role="log"><div class="log-row ">
+      <span class="log-time">20:09:46.497</span>
+      <span class="log-badge badge-lvl-info">INFO</span>
+      <span class="log-mod font-mono" title="virtual_mesh_adapter">virtual_mesh_adapter</span>
+      <span class="log-msg">⚡ [USB-HARDWARE] Heltec v4 MeshCore Companion USB conectado (modo virtual).</span>
+      
+    </div><div class="log-row ">
+      <span class="log-time">20:09:46.498</span>
+      <span class="log-badge badge-lvl-info">INFO</span>
+      <span class="log-mod font-mono" title="http_server">http_server</span>
+      <span class="log-msg">Servidor Web MeshCore activo en http://127.0.0.1:8089</span>
+      
+    </div><div class="log-row log-row-network">
+      <span class="log-time">20:09:49.421</span>
+      <span class="log-badge badge-lvl-info">INFO</span>
+      <span class="log-mod font-mono" title="security_inspector">security_inspector</span>
+      <span class="log-msg">🌐 [HTTP-CLIENT] IP: 127.0.0.1 -&gt; GET / | Código: 200 | 76.0ms | UA: Mozilla/5.0 (Windows NT 10.0; Win64; x64...</span>
+      
+    </div><div class="log-row log-row-network">
+      <span class="log-time">20:09:49.455</span>
+      <span class="log-badge badge-lvl-info">INFO</span>
+      <span class="log-mod font-mono" title="security_inspector">security_inspector</span>
+      <span class="log-msg">🌐 [HTTP-CLIENT] IP: 127.0.0.1 -&gt; GET /css/app.css | Código: 200 | 1.4ms | UA: Mozilla/5.0 (Windows NT 10.0; Win64; x64...</span>
+      
+    </div><div class="log-row log-row-network">
+      <span class="log-time">20:09:49.493</span>
+      <span class="log-badge badge-lvl-info">INFO</span>
+      <span class="log-mod font-mono" title="security_inspector">security_inspector</span>
+      <span class="log-msg">🌐 [HTTP-CLIENT] IP: 127.0.0.1 -&gt; GET /js/qrcode.js | Código: 200 | 37.3ms | UA: Mozilla/5.0 (Windows NT 10.0; Win64; x64...</span>
+      
+    </div><div class="log-row log-row-network">
+      <span class="log-time">20:09:49.522</span>
+      <span class="log-badge badge-lvl-info">INFO</span>
+      <span class="log-mod font-mono" title="security_inspector">security_inspector</span>
+      <span class="log-msg">🌐 [HTTP-CLIENT] IP: 127.0.0.1 -&gt; GET /js/icons.js | Código: 200 | 28.2ms | UA: Mozilla/5.0 (Windows NT 10.0; Win64; x64...</span>
+      
+    </div><div class="log-row log-row-network">
+      <span class="log-time">20:09:49.525</span>
+      <span class="log-badge badge-lvl-info">INFO</span>
+      <span class="log-mod font-mono" title="security_inspector">security_inspector</span>
+      <span class="log-msg">🌐 [HTTP-CLIENT] IP: 127.0.0.1 -&gt; GET /js/app.js | Código: 200 | 2.0ms | UA: Mozilla/5.0 (Windows NT 10.0; Win64; x64...</span>
+      
+    </div><div class="log-row log-row-network">
+      <span class="log-time">20:09:52.768</span>
+      <span class="log-badge badge-lvl-info">INFO</span>
+      <span class="log-mod font-mono" title="security_inspector">security_inspector</span>
+      <span class="log-msg">⚡ [REST-API] IP: 127.0.0.1 -&gt; GET /api/node/config | Código: 200 | 0.5ms</span>
+      
+    </div></div>
           </div>
         </section>
 
@@ -573,11 +764,12 @@
 
             <!-- Subpestañas de Configuración del Nodo Local -->
             <div class="local-settings-subtabs">
-              <button type="button" class="local-subtab-btn active" data-subtab="local-telemetry">📊 Telemetría &amp; Estado</button>
-              <button type="button" class="local-subtab-btn" data-subtab="local-radio">📻 Parámetros RF &amp; Radio</button>
-              <button type="button" class="local-subtab-btn" data-subtab="local-owner-pos">📍 Identidad &amp; Posición GPS</button>
-              <button type="button" class="local-subtab-btn" data-subtab="local-console">💻 Terminal</button>
-              <button type="button" class="local-subtab-btn" data-subtab="local-storage-maps">💾 Mapas Offline &amp; Almacenamiento</button>
+              <button type="button" class="local-subtab-btn active" data-subtab="local-telemetry"><span class="subtab-icon" data-lucide="activity" data-size="15"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-activity "><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg></span> Telemetría &amp; Estado</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-radio"><span class="subtab-icon" data-lucide="radio" data-size="15"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-radio "><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"></path><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"></path><circle cx="12" cy="12" r="2"></circle><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"></path><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"></path></svg></span> Parámetros RF &amp; Radio</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-owner-pos"><span class="subtab-icon" data-lucide="map-pin" data-size="15"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-map-pin "><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg></span> Identidad &amp; Posición GPS</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-console"><span class="subtab-icon" data-lucide="terminal" data-size="15"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-terminal "><polyline points="4 17 10 11 4 5"></polyline><line x1="12" x2="20" y1="19" y2="19"></line></svg></span> Terminal</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-storage-maps"><span class="subtab-icon" data-lucide="map" data-size="15"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-map "><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" x2="9" y1="3" y2="18"></line><line x1="15" x2="15" y1="6" y2="21"></line></svg></span> Mapas Offline</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-security"><span class="subtab-icon" data-lucide="shield" data-size="15"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-shield "><path d="M20 13c0 5-8 9-8 9s-8-4-8-9V5l8-3 8 3z"></path></svg></span> Seguridad &amp; API</button>
             </div>
 
             <!-- Subpanel 1: Telemetría & Estado en Tiempo Real -->
@@ -595,7 +787,7 @@
                   <div class="card-icon">⚡</div>
                   <div class="card-data">
                     <span class="card-label">Alimentación / USB</span>
-                    <strong class="card-value" id="localSolarValue">Conectado</strong>
+                    <strong class="card-value" id="localSolarValue">USB 5V Directo</strong>
                     <span class="card-sub" id="localSolarStatus">USB 5V Directo</span>
                   </div>
                 </div>
@@ -603,7 +795,7 @@
                   <div class="card-icon">🕒</div>
                   <div class="card-data">
                     <span class="card-label">Reloj RTC (Hora Nodo)</span>
-                    <strong class="card-value" id="localClockValue">07:39:59 PM</strong>
+                    <strong class="card-value" id="localClockValue">04:09:52 PM</strong>
                     <span class="card-sub" id="localClockStatus">Sincronizado</span>
                   </div>
                 </div>
@@ -611,7 +803,7 @@
                   <div class="card-icon">⏱️</div>
                   <div class="card-data">
                     <span class="card-label">Tiempo Activo (Uptime)</span>
-                    <strong class="card-value" id="localUptimeValue">20691d 23h 23m 19s</strong>
+                    <strong class="card-value" id="localUptimeValue">0m 6s</strong>
                     <span class="card-sub">En línea</span>
                   </div>
                 </div>
@@ -627,8 +819,8 @@
                   <div class="card-icon">📶</div>
                   <div class="card-data">
                     <span class="card-label">Calidad de Señal RF</span>
-                    <strong class="card-value" id="localSnrValue">-- dB</strong>
-                    <span class="card-sub" id="localRssiValue">RSSI: -- dBm</span>
+                    <strong class="card-value" id="localSnrValue">+11.5 dB</strong>
+                    <span class="card-sub" id="localRssiValue">RSSI: -70 dBm</span>
                   </div>
                 </div>
                 <div class="metric-card">
@@ -643,7 +835,7 @@
                   <div class="card-icon">📦</div>
                   <div class="card-data">
                     <span class="card-label">Paquetes TX / RX</span>
-                    <strong class="card-value" id="localPacketsValue">18 / 42</strong>
+                    <strong class="card-value" id="localPacketsValue">0 / 0</strong>
                     <span class="card-sub" id="localPacketErrorsValue">Duplicados: 0 | Errores: 0</span>
                   </div>
                 </div>
@@ -651,12 +843,12 @@
 
               <!-- Resumen de Configuración Actual -->
               <div class="panel-summary-strip">
-                <div class="summary-pill"><span>Frecuencia:</span> <strong id="localSummaryFreq">915 MHz</strong></div>
+                <div class="summary-pill"><span>Frecuencia:</span> <strong id="localSummaryFreq">915.000 MHz</strong></div>
                 <div class="summary-pill"><span>Potencia TX:</span> <strong id="localSummaryPower">20 dBm</strong></div>
                 <div class="summary-pill"><span>Módem:</span> <strong id="localSummaryModem">SF11 / BW250</strong></div>
                 <div class="summary-pill"><span>Reenvío (Repeat):</span> <strong id="localSummaryRepeat">Activado</strong></div>
                 <div class="summary-pill"><span>Cola TX:</span> <strong id="localSummaryQueue">0 paquetes</strong></div>
-                <div class="summary-pill"><span>Posición:</span> <strong id="localSummaryPos">Sin fijar</strong></div>
+                <div class="summary-pill"><span>Posición:</span> <strong id="localSummaryPos">20.1500, -75.2000</strong></div>
               </div>
 
               <!-- Barra Compacta de Acciones de Hardware en Telemetría y Estado -->
@@ -753,12 +945,20 @@
                       <option value="4/8">4/8 (Máxima corrección)</option>
                     </select>
                   </div>
-                  <div class="form-group">
-                    <label for="localRepeatMode">Modo Repetidor / Router:</label>
-                    <select id="localRepeatMode" class="select-input">
-                      <option value="on" selected="">Activado (Reenvía paquetes de malla)</option>
-                      <option value="off">Desactivado (Solo estación base / cliente)</option>
-                    </select>
+                  <div class="form-group toggle-field-group">
+                    <div class="toggle-field-row">
+                      <div class="toggle-field-info">
+                        <span class="toggle-field-title">Modo Repetidor / Router</span>
+                        <span class="toggle-field-desc">Reenvía paquetes de otros nodos en la malla LoRa</span>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="toggle-state-badge is-active-purple" id="localRepeatBadge">ON</span>
+                        <label class="toggle-switch toggle-purple" for="localRepeatMode" title="Activar/desactivar reenvío de paquetes repetidor">
+                          <input type="checkbox" id="localRepeatMode" style="">
+                          <span class="toggle-slider"></span>
+                        </label>
+                      </div>
+                    </div>
                   </div>
                   <div class="form-group">
                     <label for="localTelemetryInterval">Intervalo de Telemetría (seg):</label>
@@ -769,7 +969,7 @@
                     <input type="number" id="localAdvertInterval" min="30" max="86400" value="300" style="">
                   </div>
                   <div class="form-actions-full">
-                    <button type="submit" class="btn-primary" id="btnSaveLocalRadio">💾 Guardar y Aplicar Parámetros de Radio</button>
+                    <button type="submit" class="btn-primary" id="btnSaveLocalRadio"><span class="btn-icon" data-lucide="save" data-size="16"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-save "><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg></span> Guardar</button>
                   </div>
                 </form>
               </div>
@@ -941,11 +1141,20 @@
                     </div>
                     <p class="card-desc">Los mensajes de chat y el estado de la estación se almacenan de forma segura y asíncrona en el navegador para no perderse al recargar.</p>
                     <div class="settings-form">
-                      <div class="form-group" style="margin-bottom: 12px;">
-                        <label class="checkbox-label" for="chkChatSoundAlerts" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                          <input type="checkbox" id="chkChatSoundAlerts" checked="" style="">
-                          <span>🔔 Reproducir timbre de audio al recibir mensajes nuevos (Web Audio API)</span>
-                        </label>
+                      <div class="form-group toggle-field-group" style="margin-bottom: 14px;">
+                        <div class="toggle-field-row">
+                          <div class="toggle-field-info">
+                            <span class="toggle-field-title">🔔 Timbre de Alerta Sonora</span>
+                            <span class="toggle-field-desc">Reproduce un chime de audio sintetizado al recibir mensajes entrantes (Web Audio API)</span>
+                          </div>
+                          <div style="display: flex; align-items: center; gap: 8px;">
+                            <span class="toggle-state-badge is-active-success" id="chatSoundBadge">ON</span>
+                            <label class="toggle-switch toggle-success" for="chkChatSoundAlerts" title="Activar o desactivar timbre de audio">
+                              <input type="checkbox" id="chkChatSoundAlerts" checked="" style="">
+                              <span class="toggle-slider"></span>
+                            </label>
+                          </div>
+                        </div>
                       </div>
                       <div class="form-row">
                         <button type="button" class="btn-danger btn-sm" id="btnClearIndexedDbStorage">🧹 Vaciar Almacenamiento Local IndexedDB</button>
@@ -969,6 +1178,35 @@
                         <button type="button" class="btn-primary btn-sm" id="btnSaveMapSettings">💾 Guardar Configuración de Mapas</button>
                       </div>
                     </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Subpanel 6: Autenticación & API Key del Bridge -->
+            <div id="local-security" class="local-settings-subpanel">
+              <div class="settings-content-layout">
+                <div class="settings-cards-col" style="max-width: 800px;">
+                  <div class="settings-card">
+                    <div class="card-title-row">
+                      <h3>🔐 Autenticación &amp; API Key del Bridge</h3>
+                      <span class="badge-pill badge-primary">Control de Acceso</span>
+                    </div>
+                    <p class="card-desc">
+                      Si has configurado <code>BRIDGE_API_KEY</code> en tu archivo <code>.env</code> para restringir la transmisión RF por radio y comandos de administración, introduce tu clave aquí para autorizar este navegador.
+                    </p>
+                    <form class="settings-form" id="bridgeApiKeyForm" onsubmit="return false;">
+                      <input type="text" name="username" autocomplete="username" style="display: none;" aria-hidden="true" tabindex="-1" value="admin">
+                      <div class="form-group">
+                        <label for="inputBridgeApiKey">API Key del Bridge (Cabecera X-Api-Key)</label>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                          <input type="password" id="inputBridgeApiKey" class="form-control" placeholder="Ingresa tu clave secreta de BRIDGE_API_KEY..." autocomplete="current-password" style="">
+                          <button type="button" class="btn-primary btn-sm" id="btnSaveBridgeApiKey">Guardar</button>
+                          <button type="button" class="btn-secondary btn-sm" id="btnClearBridgeApiKey">Limpiar</button>
+                        </div>
+                        <span id="apiKeyStatusHint" class="text-success text-xs hidden" style="margin-top: 8px; display: inline-block;">✓ API Key guardada con éxito en este navegador</span>
+                      </div>
+                    </form>
                   </div>
                 </div>
               </div>
@@ -1135,6 +1373,7 @@
             <p>Para consultar la telemetría, modificar parámetros RF y despachar comandos remotos a este repetidor, es obligatorio validar la contraseña de administración.</p>
             
             <form id="repeaterGateForm" class="auth-gate-form" onsubmit="return false;">
+              <input type="text" name="username" autocomplete="username" style="display: none;" aria-hidden="true" tabindex="-1" value="admin">
               <div class="auth-gate-input-wrapper">
                 <label for="repeaterGatePassword" class="auth-gate-label">Contraseña de Administración (PIN):</label>
                 <div class="auth-gate-input-row">
@@ -1258,6 +1497,7 @@
               <div class="summary-pill"><span>Frecuencia:</span> <strong id="repSummaryFreq">915.000 MHz</strong></div>
               <div class="summary-pill"><span>Potencia TX:</span> <strong id="repSummaryPower">20 dBm</strong></div>
               <div class="summary-pill"><span>Módem:</span> <strong id="repSummaryModem">SF11 / BW250</strong></div>
+              <div class="summary-pill"><span>Hop Limit:</span> <strong id="repSummaryHopLimit">3 saltos</strong></div>
               <div class="summary-pill"><span>Reenvío:</span> <strong id="repSummaryRepeat">Activado</strong></div>
               <div class="summary-pill"><span>Cola TX:</span> <strong id="repSummaryQueue">0 paquetes</strong></div>
               <div class="summary-pill"><span>Posición:</span> <strong id="repSummaryPos">--</strong></div>
@@ -1326,8 +1566,8 @@
                   </select>
                 </div>
                 <div class="form-group">
-                  <label for="radioPower">Potencia TX (dBm):</label>
-                  <input type="number" id="radioPower" min="2" max="22" value="20" style="">
+                  <label for="radioPower">Potencia TX LoRa: <span id="radioPowerVal" class="val-badge">20 dBm</span></label>
+                  <input type="range" id="radioPower" min="2" max="22" value="20" step="1" style="">
                 </div>
                 <div class="form-group">
                   <label for="radioHopLimit">Hop Limit (Límite de Saltos):</label>
@@ -1361,19 +1601,27 @@
                     <option value="4/8">4/8 (Máxima corrección de error)</option>
                   </select>
                 </div>
-                <div class="form-group">
-                  <label for="radioRepeatMode">Modo Repetidor:</label>
-                  <select id="radioRepeatMode">
-                    <option value="on" selected="">Activado (Reenvía paquetes de malla)</option>
-                    <option value="off">Desactivado (Solo escucha / Monitor)</option>
-                  </select>
-                </div>
+                <div class="form-group toggle-field-group">
+                    <div class="toggle-field-row">
+                      <div class="toggle-field-info">
+                        <span class="toggle-field-title">Modo Repetidor</span>
+                        <span class="toggle-field-desc">Reenvía paquetes de malla en este nodo remoto</span>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="toggle-state-badge is-active-purple" id="radioRepeatBadge">ON</span>
+                        <label class="toggle-switch toggle-purple" for="radioRepeatMode" title="Activar/desactivar reenvío de paquetes repetidor">
+                          <input type="checkbox" id="radioRepeatMode" checked="" style="">
+                          <span class="toggle-slider"></span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
                 <div class="form-group">
                   <label for="radioBeaconInterval">Intervalo de Anuncio / Beacon (seg):</label>
                   <input type="number" id="radioBeaconInterval" min="30" max="86400" value="300" style="">
                 </div>
                 <div class="form-actions-full">
-                  <button type="submit" class="btn-primary" id="btnSubmitRepRadio">💾 Transmitir Parámetros RF al Repetidor</button>
+                  <button type="submit" class="btn-primary" id="btnSubmitRepRadio"><span class="btn-icon" data-lucide="save" data-size="16"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-save "><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg></span> Guardar</button>
                 </div>
               </form>
             </div>
@@ -1406,15 +1654,23 @@
                   <label for="repPosAlt">Altitud sobre el nivel del mar (metros):</label>
                   <input type="number" id="repPosAlt" step="0.1" placeholder="Ej: 145.0" style="">
                 </div>
-                <div class="form-group">
-                  <label for="repPosFixed">Modo de Posición:</label>
-                  <select id="repPosFixed">
-                    <option value="1" selected="">Posición Fija (Transmitir coordenadas configuradas)</option>
-                    <option value="0">GPS Dinámico / Sin posición fija</option>
-                  </select>
+                <div class="form-group toggle-field-group">
+                  <div class="toggle-field-row">
+                    <div class="toggle-field-info">
+                      <span class="toggle-field-title">Posición Fija</span>
+                      <span class="toggle-field-desc">Transmitir coordenadas configuradas (ON) o GPS dinámico (OFF)</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span class="toggle-state-badge is-active" id="repPosFixedBadge">FIJA</span>
+                      <label class="toggle-switch" for="repPosFixed" title="Alternar entre coordenadas fijas o GPS dinámico">
+                        <input type="checkbox" id="repPosFixed" checked="" style="">
+                        <span class="toggle-slider"></span>
+                      </label>
+                    </div>
+                  </div>
                 </div>
                 <div class="form-actions-full">
-                  <button type="submit" class="btn-primary" id="btnSubmitRepOwnerPos">💾 Guardar y Transmitir Información &amp; Posición</button>
+                  <button type="submit" class="btn-primary" id="btnSubmitRepOwnerPos"><span class="btn-icon" data-lucide="save" data-size="16"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-save "><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg></span> Guardar</button>
                 </div>
               </form>
             </div>
@@ -1424,6 +1680,7 @@
           <div id="rep-security" class="repeater-subpanel">
             <div class="card-panel">
               <form id="repSecurityForm" class="grid-form-2col">
+                <input type="text" name="username" autocomplete="username" style="display: none;" aria-hidden="true" tabindex="-1" value="admin">
                 <div class="form-section-title span-full">🔑 Contraseñas de Administración y Acceso</div>
                 <div class="form-group">
                   <label for="secNewAdminPwd">Nueva Contraseña de Administrador (Admin Password):</label>
@@ -1494,8 +1751,9 @@
                 <div class="linux-term-actions">
                   <button type="button" class="btn-xs btn-outline-term" id="btnToggleCmdHelp">❓ Ayuda (help)</button>
                   <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="ping">🎯 ping</button>
-                  <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="stats-core">stats-core</button>
-                  <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="stats-radio">stats-radio</button>
+                  <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="ver">ver</button>
+                  <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="get radio">get radio</button>
+                  <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="neighbors">neighbors</button>
                 </div>
               </div>
 
@@ -1507,68 +1765,68 @@
                 </div>
                 <div class="help-cmd-grid">
                   <div class="help-cmd-item" data-cmd="ver">
-                    <code>ver / query</code>
-                    <span>Modelo, firmware, build y estado repetidor</span>
+                    <code>ver</code>
+                    <span>Versión de firmware, build date y estado</span>
                   </div>
-                  <div class="help-cmd-item" data-cmd="bat">
-                    <code>bat / get_bat</code>
-                    <span>Nivel de batería, voltaje (mV/V) y panel solar</span>
+                  <div class="help-cmd-item" data-cmd="get radio">
+                    <code>get radio</code>
+                    <span>Frecuencia (MHz), BW, SF y Coding Rate (CR)</span>
+                  </div>
+                  <div class="help-cmd-item" data-cmd="get tx">
+                    <code>get tx</code>
+                    <span>Potencia de transmisión configurada (dBm)</span>
+                  </div>
+                  <div class="help-cmd-item" data-cmd="get name">
+                    <code>get name</code>
+                    <span>Nombre o alias configurado en el repetidor</span>
+                  </div>
+                  <div class="help-cmd-item" data-cmd="get lat">
+                    <code>get lat</code>
+                    <span>Latitud configurada en el repetidor</span>
+                  </div>
+                  <div class="help-cmd-item" data-cmd="get lon">
+                    <code>get lon</code>
+                    <span>Longitud configurada en el repetidor</span>
+                  </div>
+                  <div class="help-cmd-item" data-cmd="get owner.info">
+                    <code>get owner.info</code>
+                    <span>Identidad y datos del propietario</span>
                   </div>
                   <div class="help-cmd-item" data-cmd="clock">
-                    <code>clock / time</code>
-                    <span>Hora actual y timestamp del reloj RTC</span>
+                    <code>clock</code>
+                    <span>Hora UTC actual del reloj RTC del repetidor</span>
                   </div>
-                  <div class="help-cmd-item" data-cmd="sync_clock">
-                    <code>sync_clock / st</code>
+                  <div class="help-cmd-item" data-cmd="clock sync">
+                    <code>clock sync</code>
                     <span>Sincroniza RTC con la hora exacta del host</span>
                   </div>
-                  <div class="help-cmd-item" data-cmd="stats-core">
-                    <code>stats-core / stats</code>
-                    <span>Estadísticas de CPU, memoria, solar y airtime</span>
-                  </div>
-                  <div class="help-cmd-item" data-cmd="stats-radio">
-                    <code>stats-radio / radio</code>
-                    <span>Parámetros RF, SNR, RSSI y piso de ruido</span>
-                  </div>
-                  <div class="help-cmd-item" data-cmd="stats-packets">
-                    <code>stats-packets / packets</code>
-                    <span>Contadores de paquetes TX, RX, dup y errores</span>
-                  </div>
-                  <div class="help-cmd-item" data-cmd="pos">
-                    <code>pos / get_pos</code>
-                    <span>Consulta coordenadas GPS y posición fija</span>
-                  </div>
-                  <div class="help-cmd-item" data-cmd="owner">
-                    <code>owner / identity</code>
-                    <span>Identidad del repetidor y datos del propietario</span>
-                  </div>
                   <div class="help-cmd-item" data-cmd="neighbors">
-                    <code>neighbors / vecinos</code>
-                    <span>Tabla de nodos vecinos y rutas de malla</span>
+                    <code>neighbors</code>
+                    <span>Tabla de nodos vecinos y rutas de la malla</span>
                   </div>
-                  <div class="help-cmd-item" data-cmd="discover.neighbors">
-                    <code>discover.neighbors</code>
-                    <span>Fuerza escaneo activo de vecinos en la malla</span>
+                  <div class="help-cmd-item" data-cmd="get repeat">
+                    <code>get repeat</code>
+                    <span>Estado del reenvío/repetidor (on / off)</span>
                   </div>
-                  <div class="help-cmd-item" data-cmd="acl">
-                    <code>acl / get_acl</code>
-                    <span>Lista de control de acceso y permisos</span>
+                  <div class="help-cmd-item" data-cmd="get dutycycle">
+                    <code>get dutycycle</code>
+                    <span>Límite de ciclo de trabajo (airtime %)</span>
                   </div>
                   <div class="help-cmd-item" data-cmd="advert">
-                    <code>advert / flood</code>
-                    <span>Emite anuncio de presencia (Hop 0 / Flood)</span>
+                    <code>advert</code>
+                    <span>Emite anuncio de presencia en la malla</span>
+                  </div>
+                  <div class="help-cmd-item" data-cmd="advert.zerohop">
+                    <code>advert.zerohop</code>
+                    <span>Anuncio local de 0 saltos (directo)</span>
                   </div>
                   <div class="help-cmd-item" data-cmd="ping">
                     <code>ping</code>
-                    <span>Sonda directa de enlace y respuesta de radio</span>
-                  </div>
-                  <div class="help-cmd-item" data-cmd="clear stats">
-                    <code>clear stats</code>
-                    <span>Restablece contadores de estadísticas a cero</span>
+                    <span>Sonda directa de enlace (0 saltos)</span>
                   </div>
                   <div class="help-cmd-item" data-cmd="reboot">
                     <code>reboot</code>
-                    <span>Reinicia el microcontrolador del repetidor por RF</span>
+                    <span>Reinicia el microcontrolador por RF</span>
                   </div>
                 </div>
               </div>
@@ -1580,7 +1838,7 @@
 
               <form id="repeaterTerminalForm" class="linux-term-input-bar">
                 <span class="linux-term-prompt">meshcore@remote:~$</span>
-                <input type="text" id="repeaterTerminalInput" class="linux-term-input" placeholder="Escribe comando RF (ej: ping, stats-core, neighbors, clock, advert)..." autocomplete="off" spellcheck="false" style="">
+                <input type="text" id="repeaterTerminalInput" class="linux-term-input" placeholder="Escribe comando RF (ej: ver, get radio, neighbors, clock, get lat)..." autocomplete="off" spellcheck="false" style="">
                 <button type="submit" class="btn-term-send">↵ Ejecutar</button>
               </form>
             </div>
@@ -1659,6 +1917,7 @@
   </div>
 
   <script src="/js/qrcode.js"></script>
+  <script src="/js/icons.js"></script>
   <script src="/js/app.js"></script>
 
 

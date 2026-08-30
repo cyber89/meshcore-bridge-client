@@ -1706,9 +1706,11 @@ body {
 .node-rf-strip,
 .contact-card-chips {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 5px;
   margin-bottom: 8px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .node-rf-strip .stat-pill,
@@ -1727,12 +1729,16 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .node-rf-strip .stat-pill strong,
 .contact-card-chips .stat-pill strong {
   color: var(--text-bright);
   font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Barra de Acciones Inferior */
@@ -1742,6 +1748,9 @@ body {
   align-items: center;
   gap: 6px;
   margin-top: auto;
+  flex-wrap: wrap;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .node-actions-bar button,
@@ -1756,11 +1765,14 @@ body {
   gap: 4px;
   cursor: pointer;
   transition: all 0.15s ease;
+  white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .btn-node-primary,
 .btn-contact-dm {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 100px;
 }
 
 .btn-node-secondary,
@@ -4233,9 +4245,11 @@ body {
   }
 }
 
-@media (max-width: 600px) {
-  .nodes-unified-grid {
+@media (max-width: 640px) {
+  .nodes-unified-grid,
+  .nodes-grid {
     grid-template-columns: 1fr !important;
+    gap: 12px !important;
   }
 
   .info-grid-extended {
