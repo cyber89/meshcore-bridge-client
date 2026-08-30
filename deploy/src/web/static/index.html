@@ -27,22 +27,22 @@
     <header class="app-header" role="banner">
       <div class="header-left">
         <div class="logo-badge">
-          <span class="logo-icon" aria-hidden="true">📻</span>
+          <span class="logo-icon" aria-hidden="true" data-lucide="radio" data-size="20"></span>
           <div class="logo-text-group">
             <h1 class="logo-title">MeshCore <strong>Station</strong></h1>
             <span class="logo-version">v3.0 Pro</span>
           </div>
         </div>
         <div class="connection-status" role="status" aria-live="polite" style="display: flex; gap: 6px; align-items: center;">
-          <span id="radio-status" class="ws-badge ws-badge--disconnected" aria-live="polite" title="Estado del transceptor LoRa conectado por USB">📻 Radio: Desconectada</span>
-          <span id="ws-status" class="ws-badge ws-badge--connecting" aria-live="polite" title="Estado de la conexión WebSocket con el servidor">🌐 Web: Conectando…</span>
+          <span id="radio-status" class="ws-badge ws-badge--disconnected" aria-live="polite" title="Estado del transceptor LoRa conectado por USB"><span class="chip-icon" data-lucide="radio" data-size="13"></span> Radio: Desconectada</span>
+          <span id="ws-status" class="ws-badge ws-badge--connecting" aria-live="polite" title="Estado de la conexión WebSocket con el servidor"><span class="chip-icon" data-lucide="wifi" data-size="13"></span> Web: Conectando…</span>
         </div>
       </div>
 
       <div class="header-center">
         <!-- Barra de Búsqueda / Atajo Command Palette -->
         <button id="btnCommandPalette" class="cmd-palette-trigger" title="Abrir paleta de comandos (Ctrl+K / ⌘K)" aria-label="Abrir paleta de comandos">
-          <span class="search-icon" aria-hidden="true">🔍</span>
+          <span class="search-icon" aria-hidden="true" data-lucide="search" data-size="16"></span>
           <span class="search-hint">Buscar nodo, comando o canal...</span>
           <kbd class="kbd-shortcut">Ctrl+K</kbd>
         </button>
@@ -108,15 +108,15 @@
               <div class="chat-channels-header">
                 <span class="panel-title">Canales</span>
                 <div class="panel-btn-group">
-                  <button class="btn-xs btn-outline" id="btnImportData" title="Importar canal o contacto">📥</button>
-                  <button class="btn-xs btn-primary" id="btnAddChannel" title="Crear / Unirse a canal">+</button>
+                  <button class="btn-xs btn-outline" id="btnImportData" title="Importar canal o contacto"><span data-lucide="download" data-size="13"></span></button>
+                  <button class="btn-xs btn-primary" id="btnAddChannel" title="Crear / Unirse a canal"><span data-lucide="plus" data-size="13"></span></button>
                 </div>
               </div>
               <ul class="channel-list" id="channelListUi" role="listbox" aria-label="Canales disponibles">
                 <li class="channel-item active" data-channel-idx="0" role="option" aria-selected="true">
                   <span class="ch-badge">Ch 0</span>
                   <span class="ch-name">Public / Broadcast</span>
-                  <span class="ch-lock" title="Canal Público">🔓</span>
+                  <span class="ch-lock" title="Canal Público"><span data-lucide="unlock" data-size="13"></span></span>
                 </li>
               </ul>
 
@@ -136,15 +136,15 @@
               <div class="chat-header">
                 <div class="header-title-group active-target-info">
                   <div class="target-title-row">
-                    <button class="btn-xs btn-outline mobile-only-inline" id="btnToggleChannelsMobile" title="Mostrar/Ocultar lista de canales">📑 Canales</button>
+                    <button class="btn-xs btn-outline mobile-only-inline" id="btnToggleChannelsMobile" title="Mostrar/Ocultar lista de canales"><span data-lucide="layers" data-size="13"></span> Canales</button>
                     <h2 id="chatActiveTitle">Canal 0 (Public / Broadcast)</h2>
-                    <span class="security-chip" id="chatSecurityChip">🔓 Abierto</span>
+                    <span class="security-chip" id="chatSecurityChip"><span data-lucide="unlock" data-size="13"></span> Abierto</span>
                   </div>
                   <p class="header-subtitle target-sub" id="chatActiveSub">Difusión comunitaria abierta por radio LoRa</p>
                 </div>
                 <div class="chat-header-actions">
-                  <button class="btn-secondary btn-sm" id="btnShareTargetQr" title="Compartir destino activo por QR">📤 QR</button>
-                  <button class="btn-secondary btn-sm" id="clearChatBtn" aria-label="Limpiar vista de chat">🧹 Limpiar</button>
+                  <button class="btn-secondary btn-sm" id="btnShareTargetQr" title="Compartir destino activo por QR"><span data-lucide="qr-code" data-size="14"></span> QR</button>
+                  <button class="btn-secondary btn-sm" id="clearChatBtn" aria-label="Limpiar vista de chat"><span data-lucide="trash-2" data-size="14"></span> Limpiar</button>
                 </div>
               </div>
 
@@ -153,10 +153,10 @@
 
               <!-- Caja de Entrada de Mensaje -->
               <form id="chatInputForm" class="chat-composer" aria-label="Formulario de envío de mensajes">
-                <button type="button" class="btn-icon btn-chat-tool" id="btnShareLocation" title="Compartir mi ubicación GPS actual en el chat" aria-label="Compartir ubicación GPS">📍</button>
+                <button type="button" class="btn-icon btn-chat-tool" id="btnShareLocation" title="Compartir mi ubicación GPS actual en el chat" aria-label="Compartir ubicación GPS"><span data-lucide="map-pin" data-size="16"></span></button>
                 <input type="text" id="chatInputText" placeholder="Escribe un mensaje para transmitir por RF..." autocomplete="off" required aria-label="Texto del mensaje a transmitir" />
                 <button type="submit" class="btn-primary" id="btnSendMsg" aria-label="Enviar mensaje por radio">
-                  <span>Enviar</span> <span aria-hidden="true">📤</span>
+                  <span>Enviar</span> <span aria-hidden="true" data-lucide="send" data-size="14"></span>
                 </button>
               </form>
             </div>
@@ -168,20 +168,20 @@
           <div class="nodes-view-container">
             <div class="pane-header">
               <div class="header-title-group">
-                <h2>🌐 Directorio de Nodos en la Malla</h2>
+                <h2><span class="section-icon" data-lucide="network" data-size="20"></span> Directorio de Nodos en la Malla</h2>
                 <p class="header-subtitle">Todos los nodos descubiertos en la red LoRa MeshCore con su telemetría y estado en vivo.</p>
               </div>
             </div>
 
             <!-- Toolbar de Filtros y Búsqueda -->
             <div class="nodes-toolbar">
-              <input type="search" id="nodesSearchInput" class="search-input" placeholder="🔍 Buscar nodo por nombre, alias, rol o clave pública..." aria-label="Buscar nodos" />
+              <input type="search" id="nodesSearchInput" class="search-input" placeholder="Buscar nodo por nombre, alias, rol o clave pública..." aria-label="Buscar nodos" />
               <div class="nodes-filter-pills" role="radiogroup" aria-label="Filtrar por rol">
-                <button type="button" class="filter-pill active" data-filter="all">Todos (<span id="countAllNodes">0</span>)</button>
-                <button type="button" class="filter-pill" data-filter="REPEATER">🏔️ Repetidores (<span id="countRepeaters">0</span>)</button>
-                <button type="button" class="filter-pill" data-filter="SENSOR">📡 Sensores (<span id="countSensors">0</span>)</button>
-                <button type="button" class="filter-pill" data-filter="ROOM">🏠 Salas (<span id="countRooms">0</span>)</button>
-                <button type="button" class="filter-pill" data-filter="CLIENT">👤 Clientes (<span id="countClients">0</span>)</button>
+                <button type="button" class="filter-pill active" data-filter="all"><span class="chip-icon" data-lucide="network" data-size="13"></span> Todos (<span id="countAllNodes">0</span>)</button>
+                <button type="button" class="filter-pill" data-filter="REPEATER"><span class="chip-icon" data-lucide="radio-tower" data-size="13"></span> Repetidores (<span id="countRepeaters">0</span>)</button>
+                <button type="button" class="filter-pill" data-filter="SENSOR"><span class="chip-icon" data-lucide="gauge" data-size="13"></span> Sensores (<span id="countSensors">0</span>)</button>
+                <button type="button" class="filter-pill" data-filter="ROOM"><span class="chip-icon" data-lucide="home" data-size="13"></span> Salas (<span id="countRooms">0</span>)</button>
+                <button type="button" class="filter-pill" data-filter="CLIENT"><span class="chip-icon" data-lucide="user" data-size="13"></span> Clientes (<span id="countClients">0</span>)</button>
               </div>
             </div>
 
@@ -197,16 +197,16 @@
           <div class="map-container">
             <div id="liveGpsMap" class="leaflet-map-canvas" role="region" aria-label="Mapa interactivo de nodos en la malla"></div>
             <div class="map-layer-switcher" role="toolbar" aria-label="Selector de capas cartográficas">
-              <button type="button" class="map-layer-btn active" data-layer="cartodb" title="CartoDB Dark (Online)">🌙 Oscuro</button>
-              <button type="button" class="map-layer-btn" data-layer="osm" title="OpenStreetMap (Online)">🗺️ Calles</button>
-              <button type="button" class="map-layer-btn" data-layer="local" title="Teselas Locales (Offline)">💾 Local</button>
-              <button type="button" class="map-layer-btn" data-layer="tactical_radar" title="Radar Táctico / Grícula LoRa (Sin Internet)">🎯 Radar</button>
-              <button type="button" class="map-layer-btn" id="btnToggleHeatmap" title="Mostrar/Ocultar Mapa de Calor de Cobertura RF">🔥 Heatmap RF</button>
+              <button type="button" class="map-layer-btn active" data-layer="cartodb" title="CartoDB Dark (Online)"><span data-lucide="moon" data-size="14"></span> Oscuro</button>
+              <button type="button" class="map-layer-btn" data-layer="osm" title="OpenStreetMap (Online)"><span data-lucide="map" data-size="14"></span> Calles</button>
+              <button type="button" class="map-layer-btn" data-layer="local" title="Teselas Locales (Offline)"><span data-lucide="database" data-size="14"></span> Local</button>
+              <button type="button" class="map-layer-btn" data-layer="tactical_radar" title="Radar Táctico / Grícula LoRa (Sin Internet)"><span data-lucide="compass" data-size="14"></span> Radar</button>
+              <button type="button" class="map-layer-btn" id="btnToggleHeatmap" title="Mostrar/Ocultar Mapa de Calor de Cobertura RF"><span data-lucide="flame" data-size="14"></span> Heatmap RF</button>
             </div>
             <div class="map-overlay-info" id="mapOverlayInfo">
               <div class="map-overlay-header" id="mapOverlayHeader">
                 <div class="map-overlay-title-group">
-                  <span class="map-overlay-icon">👥</span>
+                  <span class="map-overlay-icon" data-lucide="users" data-size="16"></span>
                   <h4>Nodos en Malla (<span id="mapNodesCount">0</span>)</h4>
                 </div>
                 <button type="button" class="btn-toggle-overlay" id="btnToggleMapNodes" title="Minimizar / Expandir lista de nodos" aria-label="Minimizar o expandir lista de nodos" aria-expanded="true">
@@ -223,36 +223,36 @@
           <div class="contacts-view-container">
             <div class="pane-header">
               <div class="header-title-group">
-                <h2>👥 Libreta de Contactos</h2>
+                <h2><span class="section-icon" data-lucide="users" data-size="20"></span> Libreta de Contactos</h2>
                 <p class="header-subtitle">Directorio de contactos, nodos amigos y gestión de claves públicas de la red.</p>
               </div>
               <div class="header-actions">
-                <button class="btn-secondary" id="btnRefreshNodes" aria-label="Actualizar lista de contactos">🔄 Actualizar</button>
-                <button class="btn-primary" id="btnHeaderAddContact" aria-label="Agregar nuevo contacto">➕ Agregar Contacto</button>
+                <button class="btn-secondary" id="btnRefreshNodes" aria-label="Actualizar lista de contactos"><span data-lucide="refresh-cw" data-size="14"></span> Actualizar</button>
+                <button class="btn-primary" id="btnHeaderAddContact" aria-label="Agregar nuevo contacto"><span data-lucide="plus" data-size="14"></span> Agregar Contacto</button>
               </div>
             </div>
 
             <!-- Banner de Contact Discovery Automático -->
             <div id="discoveryBanner" class="discovery-banner hidden">
               <div class="discovery-banner-content">
-                <span class="discovery-icon">📡</span>
+                <span class="discovery-icon" data-lucide="wifi" data-size="20"></span>
                 <div>
                   <strong>¡Nuevos Nodos Descubiertos en el Aire! (<span id="discoveryCount">0</span>)</strong>
                   <p>Se han capturado balizas de nuevos nodos en la malla LoRa. Puedes aceptarlos para agregarlos permanentemente.</p>
                 </div>
               </div>
               <div class="discovery-banner-actions">
-                <button type="button" class="btn-xs btn-primary" id="btnAcceptAllDiscovered">Aceptar Todos</button>
+                <button type="button" class="btn-xs btn-primary" id="btnAcceptAllDiscovered"><span data-lucide="check" data-size="13"></span> Aceptar Todos</button>
               </div>
             </div>
 
             <div class="contacts-toolbar">
-              <input type="search" id="contactsSearchInput" class="search-input" placeholder="🔍 Buscar contacto por nombre, alias o clave pública..." aria-label="Buscar contactos" />
+              <input type="search" id="contactsSearchInput" class="search-input" placeholder="Buscar contacto por nombre, alias o clave pública..." aria-label="Buscar contactos" />
               <div class="contacts-filter-pills" role="radiogroup" aria-label="Filtrar contactos">
-                <button type="button" class="filter-pill active" data-contact-filter="all">Todos (<span id="countAllContacts">0</span>)</button>
-                <button type="button" class="filter-pill" data-contact-filter="favorites">⭐ Favoritos (<span id="countFavContacts">0</span>)</button>
-                <button type="button" class="filter-pill" data-contact-filter="online">🟢 En Línea (<span id="countOnlineContacts">0</span>)</button>
-                <button type="button" class="filter-pill" data-contact-filter="gps">📍 Con Posición (<span id="countGpsContacts">0</span>)</button>
+                <button type="button" class="filter-pill active" data-contact-filter="all"><span class="chip-icon" data-lucide="users" data-size="13"></span> Todos (<span id="countAllContacts">0</span>)</button>
+                <button type="button" class="filter-pill" data-contact-filter="favorites"><span class="chip-icon" data-lucide="star" data-size="13"></span> Favoritos (<span id="countFavContacts">0</span>)</button>
+                <button type="button" class="filter-pill" data-contact-filter="online"><span class="chip-icon" data-lucide="activity" data-size="13"></span> En Línea (<span id="countOnlineContacts">0</span>)</button>
+                <button type="button" class="filter-pill" data-contact-filter="gps"><span class="chip-icon" data-lucide="map-pin" data-size="13"></span> Con Posición (<span id="countGpsContacts">0</span>)</button>
               </div>
             </div>
             <div class="nodes-grid" id="contactsGridUi" role="region" aria-label="Lista de contactos">
@@ -261,25 +261,23 @@
           </div>
         </section>
 
-
-
         <!-- Pestaña 4: Métricas Globales y Analítica de la Malla -->
         <section id="tab-analytics" class="tab-pane" role="tabpanel" aria-labelledby="navTabAnalytics">
           <div class="analytics-view-container">
             <div class="pane-header">
               <div class="header-title-group">
-                <h2>📈 Métricas & Analítica de la Red Malla</h2>
+                <h2><span class="section-icon" data-lucide="activity" data-size="20"></span> Métricas & Analítica de la Red Malla</h2>
                 <p class="header-subtitle">Monitoreo de tráfico RF, calidad de enlace SNR/RSSI, estadísticas de repetidores y salud del puente.</p>
               </div>
               <div class="header-actions">
-                <button type="button" class="btn-secondary btn-sm" id="btnRefreshAnalytics">🔄 Actualizar Métricas</button>
+                <button type="button" class="btn-secondary btn-sm" id="btnRefreshAnalytics"><span data-lucide="refresh-cw" data-size="14"></span> Actualizar Métricas</button>
               </div>
             </div>
 
             <!-- Fila de Tarjetas KPI Superiores -->
             <div class="analytics-kpi-grid">
               <div class="analytics-kpi-card">
-                <div class="kpi-icon">📦</div>
+                <div class="kpi-icon"><span data-lucide="package" data-size="22"></span></div>
                 <div class="kpi-data">
                   <span class="kpi-label">Paquetes Totales Malla</span>
                   <strong class="kpi-value" id="kpiTotalPackets">0</strong>
@@ -287,7 +285,7 @@
                 </div>
               </div>
               <div class="analytics-kpi-card">
-                <div class="kpi-icon">🌐</div>
+                <div class="kpi-icon"><span data-lucide="globe" data-size="22"></span></div>
                 <div class="kpi-data">
                   <span class="kpi-label">Nodos Activos Registrados</span>
                   <strong class="kpi-value" id="kpiTotalNodes">0</strong>
@@ -295,7 +293,7 @@
                 </div>
               </div>
               <div class="analytics-kpi-card">
-                <div class="kpi-icon">🛡️</div>
+                <div class="kpi-icon"><span data-lucide="shield" data-size="22"></span></div>
                 <div class="kpi-data">
                   <span class="kpi-label">Tasa de Error Global</span>
                   <strong class="kpi-value" id="kpiErrorRate">0.0%</strong>
@@ -303,7 +301,7 @@
                 </div>
               </div>
               <div class="analytics-kpi-card">
-                <div class="kpi-icon">⚡</div>
+                <div class="kpi-icon"><span data-lucide="zap" data-size="22"></span></div>
                 <div class="kpi-data">
                   <span class="kpi-label">Cola de Transmisión TX</span>
                   <strong class="kpi-value" id="kpiQueueDepth">0 paquetes</strong>
@@ -317,7 +315,7 @@
               <!-- Top Nodos por Tráfico -->
               <div class="analytics-card">
                 <div class="analytics-card-header">
-                  <span class="card-icon">🏆</span>
+                  <span class="card-icon"><span data-lucide="trophy" data-size="18"></span></span>
                   <div>
                     <h3>Top Nodos Más Activos</h3>
                     <p>Nodos con mayor volumen de paquetes transmitidos y recibidos</p>
@@ -344,7 +342,7 @@
               <!-- Calidad de Señal RF (SNR / RSSI) -->
               <div class="analytics-card">
                 <div class="analytics-card-header">
-                  <span class="card-icon">📶</span>
+                  <span class="card-icon"><span data-lucide="signal" data-size="18"></span></span>
                   <div>
                     <h3>Calidad de Señal RF (SNR)</h3>
                     <p>Ranking de mejor y peor relación señal/ruido en la malla</p>
@@ -370,7 +368,7 @@
               <!-- Top Repetidores y Enrutamiento -->
               <div class="analytics-card">
                 <div class="analytics-card-header">
-                  <span class="card-icon">🏔️</span>
+                  <span class="card-icon"><span data-lucide="radio-tower" data-size="18"></span></span>
                   <div>
                     <h3>Top Routers & Repetidores</h3>
                     <p>Nodos de infraestructura y clientes enrutados</p>
@@ -396,7 +394,7 @@
               <!-- Rendimiento del Sistema & Puente -->
               <div class="analytics-card">
                 <div class="analytics-card-header">
-                  <span class="card-icon">⚙️</span>
+                  <span class="card-icon"><span data-lucide="cpu" data-size="18"></span></span>
                   <div>
                     <h3>Salud del Puente & Rendimiento</h3>
                     <p>Métricas de persistencia, colas asíncronas y hardware</p>
@@ -430,29 +428,29 @@
           <div class="logs-view-container">
             <div class="pane-header">
               <div class="header-title-group">
-                <h2>📜 Consola de Logs y Diagnóstico en Vivo</h2>
+                <h2><span class="section-icon" data-lucide="file-text" data-size="20"></span> Consola de Logs y Diagnóstico en Vivo</h2>
                 <p class="header-subtitle">Registro de eventos, depuración en tiempo real y estado de salud de subsistemas.</p>
               </div>
               <div class="pane-actions">
-                <button class="btn-secondary" id="btnToggleDebugMode" title="Alternar nivel de logging DEBUG">🐞 Modo DEBUG</button>
-                <button class="btn-secondary" id="btnQuickDiag" title="Comprobar salud de subsistemas">🩺 Auto-Diagnóstico</button>
-                <button class="btn-secondary" id="btnDownloadRawLogs" title="Descargar archivo de logs completo del servidor (.log)">📥 Descargar .log</button>
-                <button class="btn-secondary" id="btnClearLogs" title="Limpiar búfer de logs">🧹 Limpiar</button>
+                <button class="btn-secondary" id="btnToggleDebugMode" title="Alternar nivel de logging DEBUG"><span data-lucide="bug" data-size="14"></span> Modo DEBUG</button>
+                <button class="btn-secondary" id="btnQuickDiag" title="Comprobar salud de subsistemas"><span data-lucide="stethoscope" data-size="14"></span> Auto-Diagnóstico</button>
+                <button class="btn-secondary" id="btnDownloadRawLogs" title="Descargar archivo de logs completo del servidor (.log)"><span data-lucide="download" data-size="14"></span> Descargar .log</button>
+                <button class="btn-secondary" id="btnClearLogs" title="Limpiar búfer de logs"><span data-lucide="trash-2" data-size="14"></span> Limpiar</button>
               </div>
             </div>
 
             <!-- Chips de Salud de Subsistemas -->
             <div class="subsystems-health-bar" id="subsystemsHealthBar">
-              <span class="health-chip" id="chipSerialHealth">📻 Serial: <strong class="val">Comprobando...</strong></span>
-              <span class="health-chip" id="chipMqttHealth">📡 MQTT: <strong class="val">Comprobando...</strong></span>
-              <span class="health-chip" id="chipTxHealth">⏱️ TX Queue: <strong class="val">0</strong></span>
-              <span class="health-chip" id="chipErrorsCount">⚠️ Errores: <strong class="val">0</strong></span>
+              <span class="health-chip" id="chipSerialHealth"><span class="chip-icon" data-lucide="radio" data-size="13"></span> Serial: <strong class="val">Comprobando...</strong></span>
+              <span class="health-chip" id="chipMqttHealth"><span class="chip-icon" data-lucide="wifi" data-size="13"></span> MQTT: <strong class="val">Comprobando...</strong></span>
+              <span class="health-chip" id="chipTxHealth"><span class="chip-icon" data-lucide="clock" data-size="13"></span> TX Queue: <strong class="val">0</strong></span>
+              <span class="health-chip" id="chipErrorsCount"><span class="chip-icon" data-lucide="alert-triangle" data-size="13"></span> Errores: <strong class="val">0</strong></span>
             </div>
 
             <!-- Panel de Diagnóstico Rápido (Oculto por defecto) -->
             <div id="quickDiagPanel" class="card-panel quick-diag-card hidden">
               <div class="diag-header">
-                <h3>🩺 Resumen de Auto-Diagnóstico</h3>
+                <h3><span class="section-icon" data-lucide="stethoscope" data-size="18"></span> Resumen de Auto-Diagnóstico</h3>
                 <button class="btn-icon" id="btnCloseQuickDiag">✕</button>
               </div>
               <div id="quickDiagBody" class="diag-body"></div>
@@ -464,8 +462,8 @@
                 <label for="logLevelFilter">Nivel:</label>
                 <select id="logLevelFilter" class="select-input">
                   <option value="ALL">Todos los Niveles</option>
-                  <option value="SECURITY">🛡️ Tráfico Sospechoso & Seguridad</option>
-                  <option value="NET">🌐 Conexiones IP (Web / API / TCP)</option>
+                  <option value="SECURITY">Tráfico Sospechoso & Seguridad</option>
+                  <option value="NET">Conexiones IP (Web / API / TCP)</option>
                   <option value="ERROR">Solo Errores (ERROR/CRIT)</option>
                   <option value="WARNING">Advertencias (WARN)</option>
                   <option value="INFO">Información (INFO)</option>
@@ -475,7 +473,7 @@
               <div class="search-group">
                 <input type="text" id="logSearchInput" placeholder="Buscar en logs (módulo, error, texto)..." autocomplete="off" />
               </div>
-              <button class="btn-outline btn-sm" id="btnPauseLogsScroll" title="Pausar o reanudar auto-scroll">⏸️ Pausar Scroll</button>
+              <button class="btn-outline btn-sm" id="btnPauseLogsScroll" title="Pausar o reanudar auto-scroll">Pausar Scroll</button>
             </div>
 
             <!-- Contenedor Principal de Logs -->
@@ -489,13 +487,13 @@
             <div class="pane-header">
               <div class="header-title-group">
                 <div class="header-badge-row">
-                  <h2>⚙️ Configuración & Gestión del Nodo Local</h2>
+                  <h2><span class="section-icon" data-lucide="sliders" data-size="20"></span> Configuración & Gestión del Nodo Local</h2>
                   <span class="badge-pill badge-primary" id="localNodeRoleBadge">Base Station</span>
                 </div>
                 <p class="header-subtitle">Control integral de parámetros RF, telemetría de hardware, identidad y consola interactiva del transceptor MeshCore conectado.</p>
               </div>
               <div class="header-actions">
-                <button type="button" class="btn-secondary btn-sm" id="btnRefreshLocalConfig">🔄 Actualizar Parámetros</button>
+                <button type="button" class="btn-secondary btn-sm" id="btnRefreshLocalConfig"><span data-lucide="refresh-cw" data-size="14"></span> Actualizar Parámetros</button>
               </div>
             </div>
 
@@ -513,7 +511,7 @@
             <div id="local-telemetry" class="local-settings-subpanel active">
               <div class="info-grid info-grid-extended">
                 <div class="metric-card">
-                  <div class="card-icon">🔋</div>
+                  <div class="card-icon"><span data-lucide="battery" data-size="20"></span></div>
                   <div class="card-data">
                     <span class="card-label">Batería & Voltaje</span>
                     <strong class="card-value" id="localBatValue">-- %</strong>
@@ -521,7 +519,7 @@
                   </div>
                 </div>
                 <div class="metric-card">
-                  <div class="card-icon">⚡</div>
+                  <div class="card-icon"><span data-lucide="zap" data-size="20"></span></div>
                   <div class="card-data">
                     <span class="card-label">Alimentación / USB</span>
                     <strong class="card-value" id="localSolarValue">Conectado</strong>
@@ -529,7 +527,7 @@
                   </div>
                 </div>
                 <div class="metric-card">
-                  <div class="card-icon">🕒</div>
+                  <div class="card-icon"><span data-lucide="clock" data-size="20"></span></div>
                   <div class="card-data">
                     <span class="card-label">Reloj RTC (Hora Nodo)</span>
                     <strong class="card-value" id="localClockValue">--:--:--</strong>
@@ -537,7 +535,7 @@
                   </div>
                 </div>
                 <div class="metric-card">
-                  <div class="card-icon">⏱️</div>
+                  <div class="card-icon"><span data-lucide="activity" data-size="20"></span></div>
                   <div class="card-data">
                     <span class="card-label">Tiempo Activo (Uptime)</span>
                     <strong class="card-value" id="localUptimeValue">--</strong>
@@ -545,7 +543,7 @@
                   </div>
                 </div>
                 <div class="metric-card">
-                  <div class="card-icon">📻</div>
+                  <div class="card-icon"><span data-lucide="radio" data-size="20"></span></div>
                   <div class="card-data">
                     <span class="card-label">Total Airtime (En Aire)</span>
                     <strong class="card-value" id="localAirtimeValue">-- ms</strong>
@@ -553,7 +551,7 @@
                   </div>
                 </div>
                 <div class="metric-card">
-                  <div class="card-icon">📶</div>
+                  <div class="card-icon"><span data-lucide="signal" data-size="20"></span></div>
                   <div class="card-data">
                     <span class="card-label">Calidad de Señal RF</span>
                     <strong class="card-value" id="localSnrValue">-- dB</strong>
@@ -561,7 +559,7 @@
                   </div>
                 </div>
                 <div class="metric-card">
-                  <div class="card-icon">🔊</div>
+                  <div class="card-icon"><span data-lucide="volume-2" data-size="20"></span></div>
                   <div class="card-data">
                     <span class="card-label">Piso de Ruido (Noise)</span>
                     <strong class="card-value" id="localNoiseValue">-- dBm</strong>
@@ -569,7 +567,7 @@
                   </div>
                 </div>
                 <div class="metric-card">
-                  <div class="card-icon">📦</div>
+                  <div class="card-icon"><span data-lucide="package" data-size="20"></span></div>
                   <div class="card-data">
                     <span class="card-label">Paquetes TX / RX</span>
                     <strong class="card-value" id="localPacketsValue">-- / --</strong>
@@ -591,36 +589,36 @@
               <!-- Barra Compacta de Acciones de Hardware en Telemetría y Estado -->
               <div class="hardware-actions-section">
                 <div class="section-micro-header">
-                  <span class="micro-title">⚡ Acciones Rápidas de Hardware</span>
+                  <span class="micro-title"><span data-lucide="zap" data-size="14"></span> Acciones Rápidas de Hardware</span>
                   <span class="micro-subtitle">Comandos de ejecución y control directo sobre el microcontrolador y transceptor LoRa</span>
                 </div>
                 <div class="hardware-actions-toolbar">
                   <button type="button" class="btn-compact-action btn-compact-primary" id="btnActionAdvertHop" title="Difunde anuncio directo a nodos vecinos en alcance visual de 1 salto (0 saltos)">
-                    <span class="btn-compact-icon">📢</span>
+                    <span class="btn-compact-icon" data-lucide="radio" data-size="14"></span>
                     <span class="btn-compact-label">Advert Hop 0</span>
                   </button>
                   <button type="button" class="btn-compact-action btn-compact-secondary" id="btnActionAdvertFlood" title="Difunde anuncio enrutado por inundación a toda la malla">
-                    <span class="btn-compact-icon">🌊</span>
+                    <span class="btn-compact-icon" data-lucide="wifi" data-size="14"></span>
                     <span class="btn-compact-label">Advert Flood</span>
                   </button>
                   <button type="button" class="btn-compact-action btn-compact-secondary" id="btnRefreshLocalTelem" title="Consulta telemetría y contadores de hardware en tiempo real">
-                    <span class="btn-compact-icon">🔄</span>
+                    <span class="btn-compact-icon" data-lucide="activity" data-size="14"></span>
                     <span class="btn-compact-label">Stats Hardware</span>
                   </button>
                   <button type="button" class="btn-compact-action btn-compact-secondary" id="btnSyncLocalClock" title="Ajusta el reloj de tiempo real RTC del nodo con la hora del host">
-                    <span class="btn-compact-icon">🕒</span>
+                    <span class="btn-compact-icon" data-lucide="clock" data-size="14"></span>
                     <span class="btn-compact-label">Sincronizar RTC</span>
                   </button>
                   <button type="button" class="btn-compact-action btn-compact-secondary" id="btnActionClearLocalStats" title="Restablece contadores de paquetes, duplicados y tiempos de aire">
-                    <span class="btn-compact-icon">🧹</span>
+                    <span class="btn-compact-icon" data-lucide="trash-2" data-size="14"></span>
                     <span class="btn-compact-label">Limpiar Stats</span>
                   </button>
                   <button type="button" class="btn-compact-action btn-compact-secondary" id="btnActionReconnectSerial" title="Cierra y reabre de forma segura la conexión USB/Serial con el transceptor">
-                    <span class="btn-compact-icon">📻</span>
+                    <span class="btn-compact-icon" data-lucide="radio" data-size="14"></span>
                     <span class="btn-compact-label">Reconectar Serial</span>
                   </button>
                   <button type="button" class="btn-compact-action btn-compact-danger" id="btnActionRebootLocal" title="Envía comando de reinicio de hardware al microcontrolador ESP32/nRF52">
-                    <span class="btn-compact-icon">🔄</span>
+                    <span class="btn-compact-icon" data-lucide="refresh-cw" data-size="14"></span>
                     <span class="btn-compact-label">Reiniciar Nodo</span>
                   </button>
                 </div>
@@ -716,7 +714,7 @@
             <div id="local-owner-pos" class="local-settings-subpanel">
               <div class="card-panel">
                 <form id="localOwnerPosForm" class="grid-form-2col">
-                  <div class="form-section-title span-full">👤 Identidad del Nodo Local</div>
+                  <div class="form-section-title span-full"><span class="section-icon" data-lucide="user" data-size="16"></span> Identidad del Nodo Local</div>
                   <div class="form-group">
                     <label for="localNodeName">Nombre del Nodo / Alias:</label>
                     <input type="text" id="localNodeName" placeholder="MeshCore_Base" required />
@@ -725,7 +723,7 @@
                     <label for="localNodePubkey">Clave Pública (Identidad Hexadecimal):</label>
                     <div class="input-with-action">
                       <input type="text" id="localNodePubkey" readonly class="input-readonly font-mono" />
-                      <button type="button" class="btn-secondary btn-sm" id="btnCopyLocalPubkey" title="Copiar clave pública">📋 Copiar</button>
+                      <button type="button" class="btn-secondary btn-sm" id="btnCopyLocalPubkey" title="Copiar clave pública"><span data-lucide="copy" data-size="13"></span> Copiar</button>
                     </div>
                   </div>
                   <div class="form-group span-full">
@@ -733,7 +731,7 @@
                     <input type="text" id="localOwnerInfo" placeholder="Ej: Operador Base - Canal 0 / TG-LoRa" />
                   </div>
 
-                  <div class="form-section-title span-full">📍 Coordenadas Geográficas Fijas (GPS / Mapa)</div>
+                  <div class="form-section-title span-full"><span class="section-icon" data-lucide="map-pin" data-size="16"></span> Coordenadas Geográficas Fijas (GPS / Mapa)</div>
                   <div class="form-group">
                     <label for="localGpsLat">Latitud (°):</label>
                     <input type="number" id="localGpsLat" step="0.000001" min="-90" max="90" placeholder="Ej: 23.1136" />
@@ -747,10 +745,10 @@
                     <input type="number" id="localGpsAlt" step="1" placeholder="Ej: 35" />
                   </div>
                   <div class="form-group flex-row-align">
-                    <button type="button" class="btn-secondary" id="btnGetBrowserGps">🛰️ Obtener GPS del Navegador</button>
+                    <button type="button" class="btn-secondary" id="btnGetBrowserGps"><span data-lucide="compass" data-size="14"></span> Obtener GPS del Navegador</button>
                   </div>
                   <div class="form-actions-full">
-                    <button type="submit" class="btn-primary" id="btnSaveLocalIdentityPos">💾 Guardar Identidad & Posición</button>
+                    <button type="submit" class="btn-primary" id="btnSaveLocalIdentityPos"><span data-lucide="save" data-size="14"></span> Guardar Identidad & Posición</button>
                   </div>
                 </form>
               </div>
@@ -767,15 +765,15 @@
                   </div>
                   <span class="linux-term-title">meshcore@base:~ (Terminal)</span>
                   <div class="linux-term-actions">
-                    <button type="button" class="btn-xs btn-outline-term" id="btnToggleLocalCmdHelp">❓ Ayuda (help)</button>
-                    <button type="button" class="btn-xs btn-outline-term" id="btnClearLocalTerminal">🧹 Limpiar</button>
+                    <button type="button" class="btn-xs btn-outline-term" id="btnToggleLocalCmdHelp"><span data-lucide="info" data-size="13"></span> Ayuda (help)</button>
+                    <button type="button" class="btn-xs btn-outline-term" id="btnClearLocalTerminal"><span data-lucide="trash-2" data-size="13"></span> Limpiar</button>
                   </div>
                 </div>
 
                 <!-- Desplegable interactivo de ayuda de comandos -->
                 <div id="localTerminalHelpDrawer" class="terminal-help-drawer hidden">
                   <div class="help-drawer-header">
-                    <strong>📖 Referencia Oficial de Comandos MeshCore</strong>
+                    <strong><span data-lucide="file-text" data-size="14"></span> Referencia Oficial de Comandos MeshCore</strong>
                     <button type="button" class="btn-icon btn-xs" id="btnCloseLocalHelpDrawer">✕</button>
                   </div>
                   <div class="help-drawer-grid">
@@ -864,7 +862,7 @@
               <div class="card-panel">
                 <div class="panel-header-modern">
                   <div>
-                    <h3>💾 Almacenamiento Local & Mapas Offline</h3>
+                    <h3><span class="section-icon" data-lucide="database" data-size="18"></span> Almacenamiento Local & Mapas Offline</h3>
                     <p class="panel-desc">Gestiona la base de datos IndexedDB del navegador y la configuración de capas cartográficas fuera de línea.</p>
                   </div>
                 </div>
@@ -873,7 +871,7 @@
                   <!-- Tarjeta 1: Almacén IndexedDB y Notificaciones -->
                   <div class="settings-card">
                     <div class="card-title-row">
-                      <h3>🗄️ Persistencia & Alertas de Chat</h3>
+                      <h3><span class="section-icon" data-lucide="database" data-size="16"></span> Persistencia & Alertas de Chat</h3>
                       <span class="badge-pill badge-success" id="indexedDbStatusBadge">Activo (MeshCoreStationDB)</span>
                     </div>
                     <p class="card-desc">Los mensajes de chat y el estado de la estación se almacenan de forma segura y asíncrona en el navegador para no perderse al recargar.</p>
@@ -881,7 +879,7 @@
                       <div class="form-group toggle-field-group" style="margin-bottom: 14px;">
                         <div class="toggle-field-row">
                           <div class="toggle-field-info">
-                            <span class="toggle-field-title">🔔 Timbre de Alerta Sonora</span>
+                            <span class="toggle-field-title"><span data-lucide="volume-2" data-size="14"></span> Timbre de Alerta Sonora</span>
                             <span class="toggle-field-desc">Reproduce un chime de audio sintetizado al recibir mensajes entrantes (Web Audio API)</span>
                           </div>
                           <div style="display: flex; align-items: center; gap: 8px;">
@@ -894,7 +892,7 @@
                         </div>
                       </div>
                       <div class="form-row">
-                        <button type="button" class="btn-danger btn-sm" id="btnClearIndexedDbStorage">🧹 Vaciar Almacenamiento Local IndexedDB</button>
+                        <button type="button" class="btn-danger btn-sm" id="btnClearIndexedDbStorage"><span data-lucide="trash-2" data-size="14"></span> Vaciar Almacenamiento Local IndexedDB</button>
                       </div>
                     </div>
                   </div>
@@ -902,7 +900,7 @@
                   <!-- Tarjeta 2: Servidor de Mosaicos / Mapas Offline -->
                   <div class="settings-card">
                     <div class="card-title-row">
-                      <h3>🗺️ Servidor de Teselas / Mapas Offline</h3>
+                      <h3><span class="section-icon" data-lucide="map" data-size="16"></span> Servidor de Teselas / Mapas Offline</h3>
                       <span class="badge-pill badge-primary">Soporte PMTiles / MBTiles</span>
                     </div>
                     <p class="card-desc">Especifica la URL o endpoint local para cargar mapas sin conexión a Internet (ej. servidor de mosaicos local en Raspberry Pi o PC).</p>
@@ -912,7 +910,7 @@
                         <input type="text" id="inputLocalTileUrl" class="form-control" placeholder="/api/map/tiles/{z}/{x}/{y}.png" value="/api/map/tiles/{z}/{x}/{y}.png" />
                       </div>
                       <div class="form-row">
-                        <button type="button" class="btn-primary btn-sm" id="btnSaveMapSettings">💾 Guardar Configuración de Mapas</button>
+                        <button type="button" class="btn-primary btn-sm" id="btnSaveMapSettings"><span data-lucide="save" data-size="14"></span> Guardar Configuración de Mapas</button>
                       </div>
                     </div>
                   </div>
@@ -926,7 +924,7 @@
                 <div class="settings-cards-col" style="max-width: 800px;">
                   <div class="settings-card">
                     <div class="card-title-row">
-                      <h3>🔐 Autenticación & API Key del Bridge</h3>
+                      <h3><span class="section-icon" data-lucide="shield" data-size="16"></span> Autenticación & API Key del Bridge</h3>
                       <span class="badge-pill badge-primary">Control de Acceso</span>
                     </div>
                     <p class="card-desc">
@@ -957,21 +955,21 @@
     <div id="commandPaletteModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="cmdPaletteTitle">
       <div class="modal-card cmd-palette-modal">
         <div class="cmd-palette-header">
-          <span class="search-icon">🔍</span>
+          <span class="search-icon" data-lucide="search" data-size="16"></span>
           <input type="text" id="cmdPaletteInput" placeholder="Escribe un comando o busca un nodo..." autocomplete="off" />
           <kbd class="kbd-esc">ESC</kbd>
         </div>
         <div class="cmd-palette-results" id="cmdPaletteResults" role="listbox">
-          <div class="cmd-item" data-action="tab-chat">💬 Ir a Mensajería</div>
-          <div class="cmd-item" data-action="tab-contacts">👥 Ir a Contactos</div>
-          <div class="cmd-item" data-action="tab-nodes">🌐 Ir a Nodos</div>
-          <div class="cmd-item" data-action="tab-map">🗺️ Abrir Mapa</div>
-          <div class="cmd-item" data-action="tab-logs">📜 Ver Consola de Logs del Sistema</div>
-          <div class="cmd-item" data-action="action-diag">🩺 Ejecutar Auto-Diagnóstico de Subsistemas</div>
-          <div class="cmd-item" data-action="action-debug-toggle">🐞 Alternar Modo DEBUG</div>
-          <div class="cmd-item" data-action="action-advert-hop">📢 Advert Hop (0 Saltos)</div>
-          <div class="cmd-item" data-action="action-advert-flood">🌊 Advert Flood Routed</div>
-          <div class="cmd-item" data-action="action-advert-clipboard">📋 Copiar Advert al Portapapeles</div>
+          <div class="cmd-item" data-action="tab-chat"><span data-lucide="message-square" data-size="14"></span> Ir a Mensajería</div>
+          <div class="cmd-item" data-action="tab-contacts"><span data-lucide="users" data-size="14"></span> Ir a Contactos</div>
+          <div class="cmd-item" data-action="tab-nodes"><span data-lucide="network" data-size="14"></span> Ir a Nodos</div>
+          <div class="cmd-item" data-action="tab-map"><span data-lucide="map" data-size="14"></span> Abrir Mapa</div>
+          <div class="cmd-item" data-action="tab-logs"><span data-lucide="file-text" data-size="14"></span> Ver Consola de Logs del Sistema</div>
+          <div class="cmd-item" data-action="action-diag"><span data-lucide="stethoscope" data-size="14"></span> Ejecutar Auto-Diagnóstico de Subsistemas</div>
+          <div class="cmd-item" data-action="action-debug-toggle"><span data-lucide="bug" data-size="14"></span> Alternar Modo DEBUG</div>
+          <div class="cmd-item" data-action="action-advert-hop"><span data-lucide="radio" data-size="14"></span> Advert Hop (0 Saltos)</div>
+          <div class="cmd-item" data-action="action-advert-flood"><span data-lucide="wifi" data-size="14"></span> Advert Flood Routed</div>
+          <div class="cmd-item" data-action="action-advert-clipboard"><span data-lucide="copy" data-size="14"></span> Copiar Advert al Portapapeles</div>
         </div>
       </div>
     </div>
@@ -980,7 +978,7 @@
     <div id="createChannelModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="createChannelTitle">
       <div class="modal-card">
         <div class="modal-header">
-          <h3 id="createChannelTitle">📻 Configurar Canal LoRa</h3>
+          <h3 id="createChannelTitle"><span class="modal-title-icon" data-lucide="radio" data-size="18"></span> Configurar Canal LoRa</h3>
           <button class="btn-icon modal-close" id="btnCloseCreateChannelModal">✕</button>
         </div>
         <form id="createChannelForm" class="modal-body">
@@ -1007,14 +1005,14 @@
             <label for="chModalPsk">Clave Precompartida (PSK / AES-128):</label>
             <div class="input-with-action">
               <input type="text" id="chModalPsk" placeholder="Clave secreta o token hexadecimal..." required />
-              <button type="button" class="btn-secondary btn-sm" id="btnGenRandomPsk" title="Generar clave AES-128 aleatoria">🎲 Generar</button>
+              <button type="button" class="btn-secondary btn-sm" id="btnGenRandomPsk" title="Generar clave AES-128 aleatoria"><span data-lucide="refresh-cw" data-size="13"></span> Generar</button>
             </div>
             <span class="field-hint">Los miembros deben compartir el mismo índice, nombre y clave PSK.</span>
           </div>
 
           <div class="modal-footer">
             <button type="button" class="btn-secondary" id="btnCancelCreateChannel">Cancelar</button>
-            <button type="submit" class="btn-primary" id="btnSaveChannel">💾 Guardar y Sincronizar al Nodo</button>
+            <button type="submit" class="btn-primary" id="btnSaveChannel"><span data-lucide="save" data-size="14"></span> Guardar y Sincronizar al Nodo</button>
           </div>
         </form>
       </div>
@@ -1024,7 +1022,7 @@
     <div id="createContactModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="createContactTitle">
       <div class="modal-card">
         <div class="modal-header">
-          <h3 id="createContactTitle">👤 Agregar Nuevo Contacto</h3>
+          <h3 id="createContactTitle"><span class="modal-title-icon" data-lucide="user" data-size="18"></span> Agregar Nuevo Contacto</h3>
           <button class="btn-icon modal-close" id="btnCloseCreateContactModal">✕</button>
         </div>
         <form id="createContactForm" class="modal-body">
@@ -1041,7 +1039,7 @@
 
           <div class="modal-footer">
             <button type="button" class="btn-secondary" id="btnCancelCreateContact">Cancelar</button>
-            <button type="submit" class="btn-primary" id="btnSaveContact">💾 Guardar Contacto</button>
+            <button type="submit" class="btn-primary" id="btnSaveContact"><span data-lucide="save" data-size="14"></span> Guardar Contacto</button>
           </div>
         </form>
       </div>
@@ -1051,7 +1049,7 @@
     <div id="qrShareModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="qrShareTitle">
       <div class="modal-card qr-modal-card">
         <div class="modal-header">
-          <h3 id="qrShareTitle">📤 Compartir por Código QR</h3>
+          <h3 id="qrShareTitle"><span class="modal-title-icon" data-lucide="qr-code" data-size="18"></span> Compartir por Código QR</h3>
           <button class="btn-icon modal-close" id="btnCloseQrShareModal">✕</button>
         </div>
         <div class="modal-body qr-modal-body">
@@ -1061,7 +1059,7 @@
               <div class="qr-canvas-container">
                 <canvas id="qrShareCanvas" width="180" height="180"></canvas>
               </div>
-              <span class="qr-scan-hint" id="qrShareDesc">📱 Escanea con la app MeshCore o cámara</span>
+              <span class="qr-scan-hint" id="qrShareDesc"><span data-lucide="qr-code" data-size="14"></span> Escanea con la app MeshCore o cámara</span>
             </div>
             
             <!-- Columna Derecha: Enlace URI, JSON y Acciones -->
@@ -1070,7 +1068,7 @@
                 <label for="qrShareUri">Enlace URI MeshCore:</label>
                 <div class="input-with-action">
                   <input type="text" id="qrShareUri" readonly />
-                  <button type="button" class="btn-primary btn-sm" id="btnCopyQrUri">📋 Copiar</button>
+                  <button type="button" class="btn-primary btn-sm" id="btnCopyQrUri"><span data-lucide="copy" data-size="13"></span> Copiar</button>
                 </div>
               </div>
 
@@ -1080,7 +1078,7 @@
               </div>
 
               <div class="qr-actions-row">
-                <button type="button" class="btn-secondary btn-sm" id="btnDownloadQrJson">💾 Descargar JSON</button>
+                <button type="button" class="btn-secondary btn-sm" id="btnDownloadQrJson"><span data-lucide="download" data-size="14"></span> Descargar JSON</button>
                 <button type="button" class="btn-primary btn-sm" id="btnCloseQrModalAction">Listo</button>
               </div>
             </div>
@@ -1094,7 +1092,7 @@
       <div class="modal-card repeater-admin-modal-card locked" id="repeaterAdminModalCard">
         <div class="modal-header repeater-admin-modal-header">
           <div class="header-node-info">
-            <h3 id="repeaterAdminTitle">🎛️ Centro de Control RF: <span id="adminModalNodeName">Repetidor</span></h3>
+            <h3 id="repeaterAdminTitle"><span class="modal-title-icon" data-lucide="sliders" data-size="18"></span> Centro de Control RF: <span id="adminModalNodeName">Repetidor</span></h3>
             <div class="header-node-badges">
               <span class="modal-pubkey-badge font-mono" id="adminModalNodePkDisplay">--</span>
             </div>
@@ -1105,7 +1103,7 @@
         <!-- Tarjeta de Bloqueo / Gate de Autenticación Requerida -->
         <div class="repeater-auth-gate" id="repeaterAuthGate">
           <div class="auth-gate-card">
-            <div class="auth-gate-shield">🔐</div>
+            <div class="auth-gate-shield"><span data-lucide="shield" data-size="36"></span></div>
             <h4>Acceso de Administración Restringido</h4>
             <p>Para consultar la telemetría, modificar parámetros RF y despachar comandos remotos a este repetidor, es obligatorio validar la contraseña de administración.</p>
             
@@ -1115,7 +1113,7 @@
                 <label for="repeaterGatePassword" class="auth-gate-label">Contraseña de Administración (PIN):</label>
                 <div class="auth-gate-input-row">
                   <input type="password" id="repeaterGatePassword" placeholder="PIN / Contraseña del repetidor..." autocomplete="current-password" required />
-                  <button type="button" class="btn-icon btn-toggle-pwd" id="btnToggleGatePwd" title="Mostrar u ocultar contraseña">👁️</button>
+                  <button type="button" class="btn-icon btn-toggle-pwd" id="btnToggleGatePwd" title="Mostrar u ocultar contraseña"><span data-lucide="eye" data-size="16"></span></button>
                 </div>
               </div>
 
@@ -1123,7 +1121,7 @@
 
               <div class="auth-gate-actions">
                 <button type="button" class="btn-primary btn-block" id="btnRepeaterGateSubmit">
-                  <span class="btn-icon">🔐</span> Desbloquear & Autenticar Repetidor
+                  <span class="btn-icon" data-lucide="unlock" data-size="16"></span> Desbloquear & Autenticar Repetidor
                 </button>
               </div>
             </form>
@@ -1135,26 +1133,26 @@
           <!-- Barra de Autenticación / PIN de Administración -->
           <div class="repeater-auth-strip">
             <div class="auth-strip-left">
-              <span class="auth-icon">🔓</span>
+              <span class="auth-icon" data-lucide="unlock" data-size="18"></span>
               <div class="auth-label-group">
                 <label class="auth-label">Sesión de Administración Activa</label>
                 <span class="auth-hint">Credenciales verificadas y guardadas para este repetidor</span>
               </div>
             </div>
             <div class="auth-strip-right">
-              <span class="auth-status-chip authenticated" id="adminModalAuthStatus">🔓 Autenticado</span>
-              <button type="button" class="btn-outline btn-xs" id="btnRepeaterLogout" title="Cerrar sesión y olvidar contraseña de este repetidor">🔒 Cerrar Sesión</button>
+              <span class="auth-status-chip authenticated" id="adminModalAuthStatus"><span data-lucide="unlock" data-size="12"></span> Autenticado</span>
+              <button type="button" class="btn-outline btn-xs" id="btnRepeaterLogout" title="Cerrar sesión y olvidar contraseña de este repetidor"><span data-lucide="lock" data-size="13"></span> Cerrar Sesión</button>
             </div>
           </div>
 
           <!-- Subpestañas del Repetidor -->
           <div class="repeater-subtabs">
-            <button class="subtab-btn active" data-subtab="rep-info">📊 Telemetría & Estado</button>
-            <button class="subtab-btn" data-subtab="rep-radio">📻 Configuración RF</button>
-            <button class="subtab-btn" data-subtab="rep-owner-pos">📍 Propietario & Posición</button>
-            <button class="subtab-btn" data-subtab="rep-security">🔐 Seguridad & ACL</button>
-            <button class="subtab-btn" data-subtab="rep-neighbors">🌐 Malla & Vecinos</button>
-            <button class="subtab-btn" data-subtab="rep-console">💻 Terminal Linux</button>
+            <button class="subtab-btn active" data-subtab="rep-info"><span class="subtab-icon" data-lucide="activity" data-size="15"></span> Telemetría & Estado</button>
+            <button class="subtab-btn" data-subtab="rep-radio"><span class="subtab-icon" data-lucide="radio" data-size="15"></span> Configuración RF</button>
+            <button class="subtab-btn" data-subtab="rep-owner-pos"><span class="subtab-icon" data-lucide="map-pin" data-size="15"></span> Propietario & Posición</button>
+            <button class="subtab-btn" data-subtab="rep-security"><span class="subtab-icon" data-lucide="shield" data-size="15"></span> Seguridad & ACL</button>
+            <button class="subtab-btn" data-subtab="rep-neighbors"><span class="subtab-icon" data-lucide="network" data-size="15"></span> Malla & Vecinos</button>
+            <button class="subtab-btn" data-subtab="rep-console"><span class="subtab-icon" data-lucide="terminal" data-size="15"></span> Terminal Linux</button>
           </div>
 
         <div class="modal-body repeater-admin-modal-body">
@@ -1164,7 +1162,7 @@
           <div id="rep-info" class="repeater-subpanel active">
             <div class="info-grid info-grid-extended">
               <div class="metric-card">
-                <div class="card-icon">🔋</div>
+                <div class="card-icon"><span data-lucide="battery" data-size="20"></span></div>
                 <div class="card-data">
                   <span class="card-label">Batería & Voltaje</span>
                   <strong class="card-value" id="repBatValue">-- %</strong>
@@ -1172,7 +1170,7 @@
                 </div>
               </div>
               <div class="metric-card">
-                <div class="card-icon">⚡</div>
+                <div class="card-icon"><span data-lucide="zap" data-size="20"></span></div>
                 <div class="card-data">
                   <span class="card-label">Panel Solar / Entrada</span>
                   <strong class="card-value" id="repSolarValue">-- V</strong>
@@ -1180,7 +1178,7 @@
                 </div>
               </div>
               <div class="metric-card">
-                <div class="card-icon">🕒</div>
+                <div class="card-icon"><span data-lucide="clock" data-size="20"></span></div>
                 <div class="card-data">
                   <span class="card-label">Reloj RTC (Hora Nodo)</span>
                   <strong class="card-value" id="repClockValue">--:--:--</strong>
@@ -1188,7 +1186,7 @@
                 </div>
               </div>
               <div class="metric-card">
-                <div class="card-icon">⏱️</div>
+                <div class="card-icon"><span data-lucide="activity" data-size="20"></span></div>
                 <div class="card-data">
                   <span class="card-label">Tiempo Activo (Uptime)</span>
                   <strong class="card-value" id="repUptimeValue">--</strong>
@@ -1196,7 +1194,7 @@
                 </div>
               </div>
               <div class="metric-card">
-                <div class="card-icon">📻</div>
+                <div class="card-icon"><span data-lucide="radio" data-size="20"></span></div>
                 <div class="card-data">
                   <span class="card-label">Total Airtime (En Aire)</span>
                   <strong class="card-value" id="repAirtimeValue">-- ms</strong>
@@ -1204,7 +1202,7 @@
                 </div>
               </div>
               <div class="metric-card">
-                <div class="card-icon">📶</div>
+                <div class="card-icon"><span data-lucide="signal" data-size="20"></span></div>
                 <div class="card-data">
                   <span class="card-label">Calidad de Señal RF</span>
                   <strong class="card-value" id="repSnrValue">-- dB</strong>
@@ -1212,7 +1210,7 @@
                 </div>
               </div>
               <div class="metric-card">
-                <div class="card-icon">🔊</div>
+                <div class="card-icon"><span data-lucide="volume-2" data-size="20"></span></div>
                 <div class="card-data">
                   <span class="card-label">Piso de Ruido (Noise)</span>
                   <strong class="card-value" id="repNoiseValue">-- dBm</strong>
@@ -1220,7 +1218,7 @@
                 </div>
               </div>
               <div class="metric-card">
-                <div class="card-icon">📦</div>
+                <div class="card-icon"><span data-lucide="package" data-size="20"></span></div>
                 <div class="card-data">
                   <span class="card-label">Paquetes TX / RX</span>
                   <strong class="card-value" id="repPacketsValue">-- / --</strong>
@@ -1243,40 +1241,40 @@
             <!-- Barra Compacta de Acciones de Hardware en Telemetría y Estado -->
             <div class="hardware-actions-section">
               <div class="section-micro-header">
-                <span class="micro-title">⚡ Acciones Rápidas de Control Remoto</span>
+                <span class="micro-title"><span data-lucide="zap" data-size="14"></span> Acciones Rápidas de Control Remoto</span>
                 <span class="micro-subtitle">Comandos de ejecución y sondeo directo por RF sobre el repetidor</span>
               </div>
               <div class="hardware-actions-toolbar">
                 <button type="button" class="btn-compact-action btn-compact-primary" id="btnModalActionPing" title="Sonda de enlace directo para medir RTT, RSSI y SNR">
-                  <span class="btn-compact-icon">🎯</span>
+                  <span class="btn-compact-icon" data-lucide="crosshair" data-size="14"></span>
                   <span class="btn-compact-label">Ping</span>
                 </button>
                 <button type="button" class="btn-compact-action btn-compact-secondary" id="btnRefreshRepeaterTelem" title="Consulta telemetría de CPU, batería, solar y reloj">
-                  <span class="btn-compact-icon">🔄</span>
+                  <span class="btn-compact-icon" data-lucide="activity" data-size="14"></span>
                   <span class="btn-compact-label">Stats Core</span>
                 </button>
                 <button type="button" class="btn-compact-action btn-compact-secondary" id="btnModalActionRadioStats" title="Consulta métricas de calidad de radio RF (RSSI, SNR, Airtime)">
-                  <span class="btn-compact-icon">📻</span>
+                  <span class="btn-compact-icon" data-lucide="radio" data-size="14"></span>
                   <span class="btn-compact-label">Stats Radio</span>
                 </button>
                 <button type="button" class="btn-compact-action btn-compact-secondary" id="btnSyncRepeaterClock" title="Ajusta el reloj RTC del repetidor con la hora de la estación base">
-                  <span class="btn-compact-icon">🕒</span>
+                  <span class="btn-compact-icon" data-lucide="clock" data-size="14"></span>
                   <span class="btn-compact-label">Sincronizar RTC</span>
                 </button>
                 <button type="button" class="btn-compact-action btn-compact-secondary" id="btnModalActionAdvert" title="Emite un anuncio de presencia del repetidor en la malla">
-                  <span class="btn-compact-icon">📢</span>
+                  <span class="btn-compact-icon" data-lucide="wifi" data-size="14"></span>
                   <span class="btn-compact-label">Advert</span>
                 </button>
                 <button type="button" class="btn-compact-action btn-compact-secondary" id="btnDiscoverNeighbors" title="Sondea y actualiza la tabla de vecinos del repetidor">
-                  <span class="btn-compact-icon">🌐</span>
+                  <span class="btn-compact-icon" data-lucide="users" data-size="14"></span>
                   <span class="btn-compact-label">Vecinos</span>
                 </button>
                 <button type="button" class="btn-compact-action btn-compact-secondary" id="btnModalActionClearStats" title="Pone a cero los contadores de paquetes y estadísticas">
-                  <span class="btn-compact-icon">🧹</span>
+                  <span class="btn-compact-icon" data-lucide="trash-2" data-size="14"></span>
                   <span class="btn-compact-label">Limpiar Stats</span>
                 </button>
                 <button type="button" class="btn-compact-action btn-compact-danger" id="btnModalActionReboot" title="Reinicia el microcontrolador del repetidor por RF">
-                  <span class="btn-compact-icon">🔄</span>
+                  <span class="btn-compact-icon" data-lucide="refresh-cw" data-size="14"></span>
                   <span class="btn-compact-label">Reiniciar</span>
                 </button>
               </div>
@@ -1368,7 +1366,7 @@
           <div id="rep-owner-pos" class="repeater-subpanel">
             <div class="card-panel">
               <form id="repOwnerPosForm" class="grid-form-2col">
-                <div class="form-section-title span-full">👤 Información del Propietario (Owner Info)</div>
+                <div class="form-section-title span-full"><span class="section-icon" data-lucide="user" data-size="16"></span> Información del Propietario (Owner Info)</div>
                 <div class="form-group">
                   <label for="repOwnerName">Nombre o Indicativo del Propietario:</label>
                   <input type="text" id="repOwnerName" placeholder="Ej: Operador EA1ABC / Repetidor Cumbre" />
@@ -1378,7 +1376,7 @@
                   <input type="text" id="repOwnerInfo" placeholder="Ej: Frecuencia 915.0 MHz | Contacto: radio@red.org" />
                 </div>
 
-                <div class="form-section-title span-full">📍 Coordenadas y Posición del Nodo (Position)</div>
+                <div class="form-section-title span-full"><span class="section-icon" data-lucide="map-pin" data-size="16"></span> Coordenadas y Posición del Nodo (Position)</div>
                 <div class="form-group">
                   <label for="repPosLat">Latitud (Decimal):</label>
                   <input type="number" id="repPosLat" step="0.00001" placeholder="Ej: 20.15042" />
@@ -1418,7 +1416,7 @@
             <div class="card-panel">
               <form id="repSecurityForm" class="grid-form-2col">
                 <input type="text" name="username" autocomplete="username" style="display:none;" aria-hidden="true" tabindex="-1" value="admin" />
-                <div class="form-section-title span-full">🔑 Contraseñas de Administración y Acceso</div>
+                <div class="form-section-title span-full"><span class="section-icon" data-lucide="lock" data-size="16"></span> Contraseñas de Administración y Acceso</div>
                 <div class="form-group">
                   <label for="secNewAdminPwd">Nueva Contraseña de Administrador (Admin Password):</label>
                   <input type="password" id="secNewAdminPwd" placeholder="Dejar vacío para no modificar" autocomplete="new-password" />
@@ -1428,7 +1426,7 @@
                   <input type="password" id="secNewGuestPwd" placeholder="Dejar vacío para no modificar" autocomplete="new-password" />
                 </div>
 
-                <div class="form-section-title span-full">🛡️ Control de Acceso de Malla (Access Control - ACL)</div>
+                <div class="form-section-title span-full"><span class="section-icon" data-lucide="shield" data-size="16"></span> Control de Acceso de Malla (Access Control - ACL)</div>
                 <div class="form-group">
                   <label for="secAclMode">Modo de Control de Acceso:</label>
                   <select id="secAclMode">
@@ -1442,7 +1440,7 @@
                   <input type="text" id="secIdentityKey" placeholder="Dejar vacío para conservar clave actual" class="font-mono" />
                 </div>
                 <div class="form-actions-full">
-                  <button type="submit" class="btn-primary" id="btnSubmitRepSecurity">🔐 Aplicar Parámetros de Seguridad por RF</button>
+                  <button type="submit" class="btn-primary" id="btnSubmitRepSecurity"><span data-lucide="shield" data-size="14"></span> Aplicar Parámetros de Seguridad por RF</button>
                 </div>
               </form>
             </div>
@@ -1453,7 +1451,7 @@
             <div class="card-panel">
               <div class="panel-header-row">
                 <h4>Tabla de Enrutamiento y Vecinos Detectados</h4>
-                <button class="btn-secondary btn-sm" id="btnDiscoverNeighbors">📡 Sondear Malla (discover.neighbors)</button>
+                <button class="btn-secondary btn-sm" id="btnDiscoverNeighbors"><span data-lucide="wifi" data-size="14"></span> Sondear Malla (discover.neighbors)</button>
               </div>
               <div class="table-responsive modal-table-scroll">
                 <table class="data-table" id="neighborsTable">
@@ -1486,8 +1484,8 @@
                 </div>
                 <span class="linux-term-title">meshcore@repeater:~ (Terminal)</span>
                 <div class="linux-term-actions">
-                  <button type="button" class="btn-xs btn-outline-term" id="btnToggleCmdHelp">❓ Ayuda (help)</button>
-                  <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="ping">🎯 ping</button>
+                  <button type="button" class="btn-xs btn-outline-term" id="btnToggleCmdHelp"><span data-lucide="info" data-size="13"></span> Ayuda (help)</button>
+                  <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="ping"><span data-lucide="crosshair" data-size="13"></span> ping</button>
                   <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="ver">ver</button>
                   <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="get radio">get radio</button>
                   <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="neighbors">neighbors</button>
@@ -1497,7 +1495,7 @@
               <!-- Desplegable interactivo de ayuda de comandos -->
               <div id="terminalHelpDrawer" class="terminal-help-drawer hidden">
                 <div class="help-drawer-header">
-                  <strong>📖 Referencia Oficial de Comandos MeshCore (RF Remoto)</strong>
+                  <strong><span data-lucide="file-text" data-size="14"></span> Referencia Oficial de Comandos MeshCore (RF Remoto)</strong>
                   <button type="button" class="btn-icon btn-xs" id="btnCloseCmdHelp">✕</button>
                 </div>
                 <div class="help-cmd-grid">
@@ -1589,7 +1587,7 @@
       <div class="modal-card traceroute-modal-card">
         <div class="modal-header">
           <div class="header-node-info">
-            <h3 id="tracerouteModalTitle">🗺️ Traceroute Multi-Salto: <span id="traceTargetNameDisplay">Nodo</span></h3>
+            <h3 id="tracerouteModalTitle"><span class="modal-title-icon" data-lucide="activity" data-size="18"></span> Traceroute Multi-Salto: <span id="traceTargetNameDisplay">Nodo</span></h3>
             <span class="modal-pubkey-badge font-mono" id="traceTargetPkDisplay">--</span>
           </div>
           <button class="btn-icon modal-close" id="btnCloseTracerouteModal" aria-label="Cerrar modal">✕</button>
@@ -1598,7 +1596,7 @@
           <div class="traceroute-controls">
             <div class="input-with-action">
               <input type="text" id="traceCustomPathInput" placeholder="Ruta de repetidores opcional (ej: 23,5f,3a o en blanco para auto)" />
-              <button type="button" class="btn-primary btn-sm" id="btnExecuteTrace">🚀 Iniciar Traza</button>
+              <button type="button" class="btn-primary btn-sm" id="btnExecuteTrace"><span data-lucide="activity" data-size="14"></span> Iniciar Traza</button>
             </div>
             <span class="trace-status-pill" id="traceStatusPill">Listo para trazar</span>
           </div>
@@ -1634,7 +1632,7 @@
     <div id="importModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="importModalTitle">
       <div class="modal-card">
         <div class="modal-header">
-          <h3 id="importModalTitle">📥 Importar Canal o Contacto</h3>
+          <h3 id="importModalTitle"><span class="modal-title-icon" data-lucide="download" data-size="18"></span> Importar Canal o Contacto</h3>
           <button class="btn-icon modal-close" id="btnCloseImportModal">✕</button>
         </div>
         <form id="importForm" class="modal-body">
@@ -1646,7 +1644,7 @@
 
           <div class="modal-footer">
             <button type="button" class="btn-secondary" id="btnCancelImport">Cancelar</button>
-            <button type="submit" class="btn-primary" id="btnExecuteImport">📥 Procesar e Importar</button>
+            <button type="submit" class="btn-primary" id="btnExecuteImport"><span data-lucide="download" data-size="14"></span> Procesar e Importar</button>
           </div>
         </form>
       </div>
