@@ -1675,29 +1675,37 @@ body {
   align-items: center;
   justify-content: space-between;
   font-size: 11.5px;
-  font-weight: 600;
-  color: var(--text-main);
+  color: var(--text-muted);
   line-height: 1.2;
 }
 
-.node-meta-title {
+.node-meta-row span,
+.node-meta-sub span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.node-meta-row strong,
+.node-meta-sub strong {
+  font-weight: 700;
   color: var(--text-bright);
 }
 
 .node-meta-highlight {
   font-weight: 700;
 }
-.node-meta-highlight.color-success { color: #22c55e; }
-.node-meta-highlight.color-purple { color: #c084fc; }
-.node-meta-highlight.color-cyan { color: #38bdf8; }
-.node-meta-highlight.color-amber { color: #fbbf24; }
-.node-meta-highlight.color-green { color: #34d399; }
+.node-meta-highlight.color-success, strong.color-success { color: #22c55e !important; }
+.node-meta-highlight.color-purple, strong.color-purple { color: #c084fc !important; }
+.node-meta-highlight.color-cyan, strong.color-cyan { color: #38bdf8 !important; }
+.node-meta-highlight.color-amber, strong.color-amber { color: #fbbf24 !important; }
+.node-meta-highlight.color-green, strong.color-green { color: #34d399 !important; }
 
 .node-meta-sub {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--text-dim);
   line-height: 1.2;
 }

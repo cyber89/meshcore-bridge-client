@@ -6,6 +6,22 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Depuración de Redundancias y Optimización de Telemetría en Tarjetas Web (Nodos y Contactos)
+- **Fecha**: 2026-08-30
+- **Estado**: ✅ COMPLETADO (UI Refinada y 100% de Pruebas Visuales E2E PASS)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web Architect).
+- **Problema / Requerimiento**:
+  - Eliminar los textos redundantes dentro del panel de telemetría de las tarjetas (como `📱 Dispositivo Cliente MeshCore`, `Host Bridge`, `🏔️ Router de Malla LoRa`, `Punto a Punto`) que duplicaban la información ya expresada por el avatar y el rol badge (`<span class="node-role-badge ...">`).
+  - Reemplazar esas etiquetas estáticas por pares clave-valor de telemetría operativa real (Ruta, LQI %, GPS, Saltos, Puerto Serial, Parámetros de Radio, Temperatura, Humedad y Presión).
+- **Acciones Realizadas**:
+  - En [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js):
+    - Eliminada la variable `typeDesc` y el uso de textos de tipo redundantes en `cCard` y `nCard`.
+    - Rediseñado el panel `.node-telemetry-panel` para mostrar metadatos operativos limpios y compactos para cada rol (`LOCAL`, `REPEATER`, `SENSOR`, `ROOM`, `CLIENT`).
+  - En [`src/web/static/css/app.css`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/css/app.css):
+    - Ajustadas las reglas `.node-meta-row`, `.node-meta-sub` y `strong` para un contraste tipográfico nítido y legible con elipsis en textos largos.
+  - Validación Visual Playwright: Capturas actualizadas en `tests/artifacts/nodes_tab_desktop.png` y `tests/artifacts/contacts_tab_desktop.png`.
+- **Módulos Modificados**: `src/web/static/js/app.js`, `src/web/static/css/app.css`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Actualización de Presencia en Tiempo Real (Avatar Status Dot), Alineación Estricta de Cuadrículas y Verificación Frontend
 - **Fecha**: 2026-08-30
 - **Estado**: ✅ COMPLETADO (100% de Pruebas E2E Visuales y Funcionales PASS)

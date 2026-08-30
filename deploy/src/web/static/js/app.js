@@ -6866,7 +6866,6 @@ class MeshCoreStationApp {
         const avatarIcon = window.getLucideIcon ? window.getLucideIcon('user', '', 20) : "👤";
         const roleLabel = "CLIENT";
         const roleBadgeClass = "role-client";
-        const typeDesc = "📱 Dispositivo Cliente MeshCore";
 
         const batChipHtml = hasRealBat
           ? `<span class="contact-battery-chip" title="Nivel de batería">🔋 ${batVal}</span>`
@@ -6897,12 +6896,12 @@ class MeshCoreStationApp {
           </div>
           <div class="node-telemetry-panel">
             <div class="node-meta-row">
-              <span class="node-meta-title">${typeDesc}</span>
-              <span class="node-meta-highlight color-cyan">${hasGps ? `GPS: ${lat.toFixed(3)}, ${lon.toFixed(3)}` : 'Punto a Punto'}</span>
+              <span>Ruta: <strong class="color-cyan">${this.escapeHtml(node.best_route || 'Directa')}</strong></span>
+              <span>LQI: <strong>${Math.round(node.lqi_score || 100)}%</strong></span>
             </div>
             <div class="node-meta-sub">
-              <span>Ruta: ${this.escapeHtml(node.best_route || 'Directa')}</span>
-              <span>LQI: ${Math.round(node.lqi_score || 100)}%</span>
+              <span>${hasGps ? `GPS: <strong class="color-cyan">${lat.toFixed(3)}, ${lon.toFixed(3)}</strong>` : 'GPS: <strong>No Reportado</strong>'}</span>
+              <span>Saltos: <strong>${hopsVal}</strong></span>
             </div>
           </div>
           <div class="contact-card-chips">
@@ -7008,12 +7007,12 @@ class MeshCoreStationApp {
           
           middlePanelHtml = `
             <div class="node-meta-row">
-              <span class="node-meta-title">🏠 Estación Base Transceptora</span>
-              <span class="node-meta-highlight color-success">Host Bridge</span>
+              <span>Puerto: <strong class="color-success">${this.escapeHtml(lPort)}</strong></span>
+              <span>Modem: <strong>SF${lSf}/BW${lBw}</strong></span>
             </div>
             <div class="node-meta-sub">
-              <span>Puerto: ${this.escapeHtml(lPort)}</span>
-              <span>Enlace USB Directo</span>
+              <span>Frecuencia: <strong>${lFreq} MHz</strong></span>
+              <span>Potencia: <strong>${lPower}</strong></span>
             </div>
           `;
           rfStripHtml = `
@@ -7032,12 +7031,12 @@ class MeshCoreStationApp {
           
           middlePanelHtml = `
             <div class="node-meta-row">
-              <span class="node-meta-title">🏔️ Router de Malla LoRa</span>
-              <span class="node-meta-highlight color-purple">TX: ${txPowerStr}</span>
+              <span>Potencia TX: <strong class="color-purple">${txPowerStr}</strong></span>
+              <span>Límite: <strong>${hopLimitStr}</strong></span>
             </div>
             <div class="node-meta-sub">
-              <span>Reenvío: Activo</span>
-              <span>Hop Limit: ${hopLimitStr}</span>
+              <span>Ruta: <strong>${this.escapeHtml(node.best_route || 'Malla LoRa')}</strong></span>
+              <span>${hasNodeGps ? `GPS: <strong class="color-purple">${lat.toFixed(3)}, ${lon.toFixed(3)}</strong>` : `LQI: <strong>${Math.round(node.lqi_score || 100)}%</strong>`}</span>
             </div>
           `;
           rfStripHtml = `
@@ -7061,12 +7060,12 @@ class MeshCoreStationApp {
           
           middlePanelHtml = `
             <div class="node-meta-row">
-              <span class="node-meta-title">📡 Sensor de Telemetría</span>
-              <span class="node-meta-highlight color-green">${tempStr}</span>
+              <span>Temp: <strong class="color-green">${tempStr}</strong></span>
+              <span>Humedad: <strong>${humStr}</strong></span>
             </div>
             <div class="node-meta-sub">
-              <span>Humedad: ${humStr}</span>
-              <span>Presión: ${pressStr}</span>
+              <span>Presión: <strong>${pressStr}</strong></span>
+              <span>${hasNodeGps ? `GPS: <strong class="color-green">${lat.toFixed(3)}, ${lon.toFixed(3)}</strong>` : `LQI: <strong>${Math.round(node.lqi_score || 100)}%</strong>`}</span>
             </div>
           `;
           rfStripHtml = `
@@ -7081,12 +7080,12 @@ class MeshCoreStationApp {
         } else if (isRoom) {
           middlePanelHtml = `
             <div class="node-meta-row">
-              <span class="node-meta-title">🏠 Servidor de Sala / BBS</span>
-              <span class="node-meta-highlight color-amber">Canal: ${node.channel || "General"}</span>
+              <span>Canal: <strong class="color-amber">${this.escapeHtml(node.channel || "General")}</strong></span>
+              <span>LQI: <strong>${Math.round(node.lqi_score || 100)}%</strong></span>
             </div>
             <div class="node-meta-sub">
-              <span>Mensajería Comunitaria</span>
-              <span>Visto: ${timeAgoStr}</span>
+              <span>Ruta: <strong>${this.escapeHtml(node.best_route || 'Directa')}</strong></span>
+              <span>${hasNodeGps ? `GPS: <strong class="color-amber">${lat.toFixed(3)}, ${lon.toFixed(3)}</strong>` : `Saltos: <strong>${hopsVal}</strong>`}</span>
             </div>
           `;
           rfStripHtml = `
@@ -7103,12 +7102,12 @@ class MeshCoreStationApp {
           // CLIENT
           middlePanelHtml = `
             <div class="node-meta-row">
-              <span class="node-meta-title">📱 Dispositivo Cliente MeshCore</span>
-              <span class="node-meta-highlight color-cyan">Punto a Punto</span>
+              <span>Ruta: <strong class="color-cyan">${this.escapeHtml(node.best_route || 'Directa')}</strong></span>
+              <span>LQI: <strong>${Math.round(node.lqi_score || 100)}%</strong></span>
             </div>
             <div class="node-meta-sub">
-              <span>Actividad: ${timeAgoStr}</span>
-              <span>Enlace: RF Directo</span>
+              <span>${hasNodeGps ? `GPS: <strong class="color-cyan">${lat.toFixed(3)}, ${lon.toFixed(3)}</strong>` : 'GPS: <strong>No Reportado</strong>'}</span>
+              <span>Saltos: <strong>${hopsVal}</strong></span>
             </div>
           `;
           rfStripHtml = `
