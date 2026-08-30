@@ -677,6 +677,37 @@ class WebAPIRouter:
     async def _route_analytics(self) -> tuple[int, dict[str, Any]]:
         analytics = self.bridge.node_registry.get_analytics_summary()
         analytics["queue_depth"] = self.bridge.rate_limiter.get_queue_depth()
+        analytics["deduplication_count"] = getattr(self.bridge, "dup_count", 0)
+
+        # Estado de hardware serial y broker MQTT
+        ser_adapter = getattr(self.bridge, "serial_adapter", None)
+        if ser_adapter and hasattr(ser_adapter, "is_hardware_alive"):
+            ser_connected = bool(ser_adapter.is_hardware_alive())
+        else:
+            ser_connected = getattr(ser_adapter, "is_connected", False) if ser_adapter else False
+        mqtt_client = getattr(self.bridge, "mqtt", getattr(self.bridge, "mqtt_client", None))
+        mqtt_connected = getattr(mqtt_client, "is_connected", False) if mqtt_client else False
+        analytics["serial_connected"] = ser_connected
+        analytics["mqtt_connected"] = mqtt_connected
+
+        # Consolidar totales de tráfico del bridge con el desglose por nodos
+        bridge_rx = getattr(self.bridge, "rx_count", 0)
+        bridge_tx = getattr(self.bridge, "tx_count", 0)
+        bridge_err = getattr(self.bridge, "err_count", 0) + getattr(self.bridge, "tx_error_count", 0)
+
+        sum_rx = analytics["summary"]["total_rx_packets"]
+        sum_tx = analytics["summary"]["total_tx_packets"]
+        sum_err = analytics["summary"]["total_errors"]
+
+        final_rx = max(bridge_rx, sum_rx)
+        final_tx = max(bridge_tx, sum_tx)
+        final_err = max(bridge_err, sum_err)
+        total_p = final_rx + final_tx
+
+        analytics["summary"]["total_rx_packets"] = final_rx
+        analytics["summary"]["total_tx_packets"] = final_tx
+        analytics["summary"]["total_errors"] = final_err
+        analytics["summary"]["global_error_rate_pct"] = round((final_err / (total_p or 1)) * 100, 2)
         return 200, {"status": "ok", "data": analytics}
 
     async def _route_contacts(self, path: str, method: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:

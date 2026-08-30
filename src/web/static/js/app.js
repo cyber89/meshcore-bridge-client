@@ -359,6 +359,8 @@ class MeshCoreStationApp {
     this.pendingOutgoingAcks = new Map(); // msgId -> { timer, msgData, feedKey }
     this.chatSoundEnabled = localStorage.getItem("meshcore_chat_sound_enabled") !== "false";
     this._audioCtx = null;
+    this.activeTabId = "tab-chat";
+    this._analyticsDebounceTimer = null;
 
     this.initElements();
     this.initTheme();
@@ -731,6 +733,7 @@ class MeshCoreStationApp {
         btn.tabIndex = 0;
 
         const targetTabId = btn.getAttribute("data-tab");
+        this.activeTabId = targetTabId;
         const targetPane = document.getElementById(targetTabId);
         if (targetPane) {
           targetPane.classList.add("active");
@@ -2598,6 +2601,9 @@ class MeshCoreStationApp {
       }
     }
 
+    // Programar actualización de analítica y métricas en tiempo real si el usuario está en tab-analytics
+    this.scheduleAnalyticsRefresh();
+
     if (payload.type === "channels_updated" || payload.event_type === "channels_updated") {
       if (Array.isArray(payload.data)) {
         this.renderChannelsList(payload.data);
@@ -3008,6 +3014,23 @@ class MeshCoreStationApp {
         this.showToast("📈 Métricas analíticas actualizadas", "info");
       });
     }
+
+    // Auto-actualización regular periódica cada 5 segundos si la pestaña de Analítica está activa
+    setInterval(() => {
+      if (this.activeTabId === "tab-analytics") {
+        this.fetchAnalytics();
+      }
+    }, 5000);
+  }
+
+  scheduleAnalyticsRefresh() {
+    if (this._analyticsDebounceTimer) return;
+    this._analyticsDebounceTimer = setTimeout(() => {
+      this._analyticsDebounceTimer = null;
+      if (this.activeTabId === "tab-analytics") {
+        this.fetchAnalytics();
+      }
+    }, 400);
   }
 
   async fetchAnalytics() {
@@ -3023,7 +3046,7 @@ class MeshCoreStationApp {
       const totalRx = summary.total_rx_packets || 0;
       const totalTx = summary.total_tx_packets || 0;
       const totalPackets = totalRx + totalTx;
-      const totalNodes = summary.total_nodes || this.knownNodes.size || 0;
+      const totalNodes = summary.total_nodes || (this.knownNodes ? this.knownNodes.size : 0);
       const errorRate = summary.global_error_rate_pct !== undefined ? summary.global_error_rate_pct : 0.0;
       const totalErrors = summary.total_errors || 0;
       const offlineBuffer = data.offline_buffer_size !== undefined ? data.offline_buffer_size : 0;
@@ -3032,14 +3055,14 @@ class MeshCoreStationApp {
       const kpiPkts = document.getElementById("kpiTotalPackets");
       if (kpiPkts) kpiPkts.textContent = totalPackets.toLocaleString();
       const kpiRatio = document.getElementById("kpiPacketsRatio");
-      if (kpiRatio) kpiRatio.textContent = `RX: ${totalRx} | TX: ${totalTx}`;
+      if (kpiRatio) kpiRatio.textContent = `RX: ${totalRx.toLocaleString()} | TX: ${totalTx.toLocaleString()}`;
 
       const kpiNodes = document.getElementById("kpiTotalNodes");
       if (kpiNodes) kpiNodes.textContent = String(totalNodes);
       
       const repeatersList = data.top_repeaters_by_clients || [];
       const kpiRep = document.getElementById("kpiRepeatersCount");
-      if (kpiRep) kpiRep.textContent = `${repeatersList.length} Repetidores en Malla`;
+      if (kpiRep) kpiRep.textContent = `${repeatersList.length} Repetidor${repeatersList.length === 1 ? '' : 'es'} en Malla`;
 
       const kpiErr = document.getElementById("kpiErrorRate");
       if (kpiErr) {
@@ -3047,12 +3070,10 @@ class MeshCoreStationApp {
         kpiErr.style.color = errorRate > 5 ? "var(--accent-danger)" : (errorRate > 2 ? "var(--accent-warning)" : "var(--accent-success)");
       }
       const kpiErrTot = document.getElementById("kpiErrorsTotal");
-      if (kpiErrTot) kpiErrTot.textContent = `${totalErrors} errores acumulados`;
+      if (kpiErrTot) kpiErrTot.textContent = `${totalErrors.toLocaleString()} errores acumulados`;
 
-      const kpiBuf = document.getElementById("kpiOfflineBuffer");
-      if (kpiBuf) kpiBuf.textContent = `${offlineBuffer} msgs`;
       const kpiQ = document.getElementById("kpiQueueDepth");
-      if (kpiQ) kpiQ.textContent = `Cola TX: ${queueDepth} paquetes`;
+      if (kpiQ) kpiQ.textContent = `${queueDepth} paquetes`;
 
       // 2. Tabla Top Nodos por Tráfico
       const topTrafficTable = document.getElementById("analyticsTopActiveTable");
@@ -3074,9 +3095,9 @@ class MeshCoreStationApp {
             tr.innerHTML = `
               <td><strong>${this.escapeHtml(name)}</strong></td>
               <td><span class="badge-pill" style="font-size: 10px;">${role}</span></td>
-              <td>${rx}</td>
-              <td>${tx}</td>
-              <td><strong>${total}</strong></td>
+              <td>${rx.toLocaleString()}</td>
+              <td>${tx.toLocaleString()}</td>
+              <td><strong>${total.toLocaleString()}</strong></td>
             `;
             frag.appendChild(tr);
           }
@@ -3154,11 +3175,29 @@ class MeshCoreStationApp {
         }
       }
 
-      // 5. Filas de Estado del Sistema
-      const bufEl = document.getElementById("statBufferOffline");
-      if (bufEl) bufEl.textContent = `${offlineBuffer} msgs`;
+      // 5. Filas de Rendimiento y Salud del Sistema
+      const dedupEl = document.getElementById("statDeduplication");
+      if (dedupEl) {
+        const dupCount = data.deduplication_count || 0;
+        dedupEl.textContent = `En RAM (${dupCount.toLocaleString()} duplicados filtrados)`;
+      }
+
       const qEl = document.getElementById("statQueueDepth");
       if (qEl) qEl.textContent = `${queueDepth} paquetes`;
+
+      const serEl = document.getElementById("statSerialStatus");
+      if (serEl) {
+        const isSerOk = Boolean(data.serial_connected);
+        serEl.textContent = isSerOk ? "Conectado" : "Desconectado";
+        serEl.style.color = isSerOk ? "var(--accent-success)" : "var(--accent-danger)";
+      }
+
+      const mqttEl = document.getElementById("statMqttStatus");
+      if (mqttEl) {
+        const isMqttOk = Boolean(data.mqtt_connected);
+        mqttEl.textContent = isMqttOk ? "En Línea" : "Desconectado";
+        mqttEl.style.color = isMqttOk ? "var(--accent-success)" : "var(--accent-warning)";
+      }
 
     } catch (err) {
       console.warn("Error cargando analítica de malla:", err);

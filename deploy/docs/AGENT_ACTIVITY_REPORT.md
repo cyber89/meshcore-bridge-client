@@ -6,6 +6,25 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Validación Integral y Reactividad en Tiempo Real del Módulo de Métricas & Analítica de Malla
+- **Fecha**: 2026-08-30
+- **Estado**: ✅ COMPLETADO (100% de Métricas Validadas, Reactividad en Tiempo Real y Ticker Periódico PASS)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web Architect).
+- **Problema / Requerimiento**:
+  - Verificar que todos los datos obtenidos en la sección **Métricas & Analítica de la Red Malla** (`#tab-analytics`) sean matemáticamente y operativamente correctos (Paquetes Totales, RX/TX ratio, Nodos Activos, Repetidores, Tasa de Error %, Profundidad de Cola TX, Rankings de Tráfico, Calidad de Señal SNR/RSSI, Tabla de Repetidores y Salud de Subsistemas).
+  - Garantizar que las métricas se actualicen con regularidad periódica (ticker cada 5s cuando la pestaña está activa) y en tiempo real inmediato ante cualquier paquete LoRa entrante vía WebSocket.
+- **Acciones Realizadas**:
+  - En [`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py):
+    - Enriquecido el endpoint `GET /api/analytics` para consolidar el conteo global de tráfico del bridge con el desglose por nodo, calculando con exactitud deduplicación en RAM, estado del transceptor serial (`is_hardware_alive` / `is_connected`), y broker MQTT.
+  - En [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js):
+    - Añadido seguimiento activo de pestaña (`this.activeTabId = targetTabId`).
+    - Implementado `scheduleAnalyticsRefresh()` con debounce (400ms) invocado en `handleIncomingLiveEvent()` ante cualquier paquete o evento de red por WebSocket.
+    - Implementado auto-refresco periódico cada 5 segundos en `initAnalytics()` cuando el usuario visualiza la pestaña.
+    - Completado el renderizado en vivo de todas las tarjetas KPI, tablas de tráfico/señal/repetidores y panel de salud del puente.
+  - Verificación Automatizada:
+    - Ejecutado script de prueba E2E (`scratch/test_analytics_metrics.py`) confirmando renderizado correcto y actualización reactiva de paquetes y tablas en vivo (captura en `tests/artifacts/analytics_tab_desktop.png`).
+- **Módulos Modificados**: `src/web/api_router.py`, `src/web/static/js/app.js`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Eliminación de Clave Pública y Botón de Copiado en Cabeceras de Tarjetas
 - **Fecha**: 2026-08-30
 - **Estado**: ✅ COMPLETADO (UI Simplificada, 100% de Pruebas PASS)
