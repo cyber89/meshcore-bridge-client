@@ -388,11 +388,19 @@ class RepeaterManager:
             except Exception:
                 pass
 
-        # Batería: "Battery: 4120mV (92%)" o "Batt: 4.12V, 95%" o "Battery: 92%" o "Bat: 92%"
-        bat_m = re.search(r'(?:battery|batt|bat)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:mv|v|%)?(?:\s*\((?:(\d+)\s*%)?\))?', text, re.IGNORECASE)
+        # Batería & Voltaje de Alimentación:
+        # Formatos: "Battery: 4120mV (92%)", "Batt: 4.12V, 95%", "Battery: 92%", "Bat: 92%", "> 4120 mV", "Boot voltage = 4120 mV", "> 4.12 V", "> 95%"
+        bat_m = re.search(r'(?:battery|batt|bat|pwrmgt\.bootmv|boot\s+voltage|bootmv)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:mv|v|%)?(?:\s*\((?:(\d+)\s*%)?\))?', text, re.IGNORECASE)
+        if not bat_m:
+            bat_m = re.search(r'(?:^|>)\s*(\d{3,4})\s*(?:mv)?(?:\s*\((?:(\d+)\s*%)?\))?$', text, re.IGNORECASE)
+        if not bat_m:
+            bat_m = re.search(r'(?:^|>)\s*([34]\.\d{1,3})\s*(?:v)?$', text, re.IGNORECASE)
+        if not bat_m:
+            bat_m = re.search(r'(?:^|>)\s*(\d{1,2}|100)\s*%$', text, re.IGNORECASE)
+
         if bat_m:
             raw_val_str = bat_m.group(1)
-            pct_in_paren = bat_m.group(2)
+            pct_in_paren = bat_m.group(2) if bat_m.lastindex and bat_m.lastindex >= 2 else None
             try:
                 val_num = float(raw_val_str)
                 if "%" in bat_m.group(0) or (val_num <= 100.0 and val_num > 4.5):
@@ -414,13 +422,27 @@ class RepeaterManager:
             except Exception:
                 pass
 
-        # Voltaje explícito si no vino en batería: "Voltage: 4.12V" o "VBat: 4.12"
+        # Formato de respuesta de radio directa: "> 915.000,250,11,5" (freq, bw, sf, cr)
+        radio_line_m = re.search(r'(?:^|>)\s*(\d{3}(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+)\s*,\s*(\d+)', text)
+        if radio_line_m:
+            try:
+                extracted["frequency"] = round(float(radio_line_m.group(1)), 3)
+                extracted["bandwidth"] = float(radio_line_m.group(2))
+                extracted["spreading_factor"] = int(radio_line_m.group(3))
+                cr_raw = radio_line_m.group(4).strip()
+                extracted["coding_rate"] = f"4/{cr_raw}" if cr_raw in ("5", "6", "7", "8") else cr_raw
+            except Exception:
+                pass
+
+        # Voltaje explícito si no vino en batería: "Voltage: 4.12V" o "VBat: 4.12" o "V: 4.12V"
         if "voltage_v" not in extracted:
-            volt_m = re.search(r'(?:voltage|volt|vbat)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:mv|v)?', text, re.IGNORECASE)
+            volt_m = re.search(r'(?:voltage|volt|vbat|v_bat)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:mv|v)?', text, re.IGNORECASE)
             if volt_m:
                 try:
                     v_num = float(volt_m.group(1))
                     extracted["voltage_v"] = round(v_num / 1000.0, 2) if v_num > 100.0 else round(v_num, 2)
+                    if "battery_pct" not in extracted:
+                        extracted["battery_pct"] = max(0, min(100, int((extracted["voltage_v"] - 3.3) / (4.2 - 3.3) * 100)))
                 except Exception:
                     pass
 

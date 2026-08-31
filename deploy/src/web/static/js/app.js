@@ -1490,19 +1490,8 @@ class MeshCoreStationApp {
         this.unlockRepeaterAdminView(canonicalPk);
         this.showToast("🔓 Repetidor autenticado con éxito", "success");
 
-        // Solicitar telemetría y configuración completa tras autenticación
-        try {
-          const fetchAction = (act) => fetch("/api/repeater/remote/action", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ target_node: canonicalPk, password: password, action: act }),
-          }).catch(() => {});
-
-          fetchAction("ver");
-          setTimeout(() => fetchAction("get radio"), 600);
-          setTimeout(() => fetchAction("get lat"), 1200);
-          setTimeout(() => fetchAction("get owner.info"), 1800);
-        } catch (_) {}
+        // Solicitar telemetría, batería y configuración completa tras autenticación exitosa
+        this.refreshRepeaterFullTelemetry(canonicalPk, password);
 
         return true;
       } else {
@@ -1519,6 +1508,128 @@ class MeshCoreStationApp {
         submitBtn.innerHTML = '<span class="btn-icon">🔐</span> Desbloquear & Autenticar Repetidor';
       }
     }
+  }
+
+  refreshRepeaterFullTelemetry(canonicalPk, password) {
+    if (!canonicalPk || !password) return;
+    const fetchAction = (act) => fetch("/api/repeater/remote/action", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target_node: canonicalPk, password: password, action: act }),
+    }).catch(() => {});
+
+    // Secuencia ordenada de consultas escalonadas para consultar todos los datos de estado y batería
+    fetchAction("ver");
+    setTimeout(() => fetchAction("stats-core"), 350);
+    setTimeout(() => fetchAction("bat"), 700);
+    setTimeout(() => fetchAction("get radio"), 1050);
+    setTimeout(() => fetchAction("get tx"), 1400);
+    setTimeout(() => fetchAction("get lat"), 1750);
+    setTimeout(() => fetchAction("get lon"), 2100);
+    setTimeout(() => fetchAction("get owner.info"), 2450);
+    setTimeout(() => fetchAction("clock"), 2800);
+    setTimeout(() => fetchAction("neighbors"), 3150);
+  }
+
+  parseRepeaterTelemetryFromText(text) {
+    if (!text || typeof text !== "string") return {};
+    const extracted = {};
+    const clean = text.trim();
+
+    // 1. Batería & Voltaje: "Battery: 4120mV (92%)", "Batt: 4.12V, 95%", "> 4120 mV", "Boot voltage = 4120 mV", "> 4.12 V", "> 95%"
+    const batM = clean.match(/(?:battery|batt|bat|pwrmgt\.bootmv|boot\s+voltage|bootmv)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:mv|v|%)?(?:\s*\((?:(\d+)\s*%)?\))?/i)
+      || clean.match(/(?:^|>)\s*(\d{3,4})\s*(?:mv)?(?:\s*\((?:(\d+)\s*%)?\))?$/i)
+      || clean.match(/(?:^|>)\s*([34]\.\d{1,3})\s*(?:v)?$/i)
+      || clean.match(/(?:^|>)\s*(\d{1,2}|100)\s*%$/i);
+
+    if (batM) {
+      const rawVal = parseFloat(batM[1]);
+      const pctParen = batM[2] ? parseInt(batM[2], 10) : null;
+      if (!isNaN(rawVal)) {
+        if (batM[0].includes("%") || (rawVal <= 100 && rawVal > 4.5)) {
+          extracted.battery_pct = Math.round(rawVal);
+        } else if (rawVal > 100) { // mV
+          extracted.voltage_v = Number((rawVal / 1000).toFixed(2));
+          extracted.battery_pct = pctParen !== null ? pctParen : Math.max(0, Math.min(100, Math.round((rawVal - 3300) / (4200 - 3300) * 100)));
+        } else { // V
+          extracted.voltage_v = Number(rawVal.toFixed(2));
+          extracted.battery_pct = pctParen !== null ? pctParen : Math.max(0, Math.min(100, Math.round((rawVal - 3.3) / (4.2 - 3.3) * 100)));
+        }
+      }
+    }
+
+    // Voltaje explícito
+    if (extracted.voltage_v == null) {
+      const voltM = clean.match(/(?:voltage|volt|vbat|v_bat)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:mv|v)?/i);
+      if (voltM) {
+        const vNum = parseFloat(voltM[1]);
+        if (!isNaN(vNum)) {
+          extracted.voltage_v = vNum > 100 ? Number((vNum / 1000).toFixed(2)) : Number(vNum.toFixed(2));
+          if (extracted.battery_pct == null) {
+            extracted.battery_pct = Math.max(0, Math.min(100, Math.round((extracted.voltage_v - 3.3) / (4.2 - 3.3) * 100)));
+          }
+        }
+      }
+    }
+
+    // Solar
+    const solM = clean.match(/(?:solar(?:_v)?|vin|v_in|vsolar|input(?:_v)?)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*v?/i);
+    if (solM) {
+      const sNum = parseFloat(solM[1]);
+      if (!isNaN(sNum)) extracted.solar_v = Number(sNum.toFixed(2));
+    }
+
+    // Radio: > 915.000,250,11,5
+    const radM = clean.match(/(?:^|>)\s*(\d{3}(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+)\s*,\s*(\d+)/);
+    if (radM) {
+      extracted.frequency = parseFloat(radM[1]);
+      extracted.bandwidth = parseFloat(radM[2]);
+      extracted.spreading_factor = parseInt(radM[3], 10);
+      extracted.coding_rate = `4/${radM[4]}`;
+    }
+
+    // Uptime
+    const upM = clean.match(/(?:uptime|up)\s*[:=]?\s*([0-9a-zA-Z\s]+?)(?:,|$|\n)/i);
+    if (upM) extracted.uptime = upM[1].trim();
+
+    // Clock
+    const clkM = clean.match(/(?:clock|rtc|time)\s*[:=]?\s*([0-9\-:\s]+(?:[ap]m)?)/i);
+    if (clkM) extracted.clock = clkM[1].trim();
+
+    // Noise Floor
+    const noiseM = clean.match(/(?:noise(?:\s*floor)?|noisefloor|floor)\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*(?:dbm)?/i);
+    if (noiseM) extracted.noise_floor_dbm = parseInt(noiseM[1], 10);
+
+    // Airtime
+    const atM = clean.match(/(?:total\s+)?airtime\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(ms|s)?/i);
+    if (atM) {
+      const v = parseFloat(atM[1]);
+      extracted.airtime_ms = (atM[2] || "").toLowerCase() === "s" ? Math.round(v * 1000) : Math.round(v);
+    }
+
+    // Packets rx, tx
+    const pktM = clean.match(/packets:\s*rx=(\d+),\s*tx=(\d+)(?:,\s*routed=(\d+))?(?:,\s*(?:drop|err|errors?)=(\d+))?/i);
+    if (pktM) {
+      extracted.packets_recv = parseInt(pktM[1], 10);
+      extracted.packets_sent = parseInt(pktM[2], 10);
+      if (pktM[4]) extracted.packet_errors = parseInt(pktM[4], 10);
+    }
+
+    // TX Power
+    const pwrM = clean.match(/(?:tx_?power|power)\s*[:=]?\s*(\d+)\s*(?:dbm)?/i) || clean.match(/^>\s*(\d{1,2})\s*(?:dbm)?$/);
+    if (pwrM) {
+      const p = parseInt(pwrM[1], 10);
+      if (p <= 33) extracted.tx_power = p;
+    }
+
+    // Lat / Lon
+    const latM = clean.match(/lat(?:itude)?\s*[:=]?\s*(-?\d+\.\d+)/i) || clean.match(/^>\s*(-?\d{1,2}\.\d{3,7})$/);
+    if (latM) extracted.latitude = parseFloat(latM[1]);
+
+    const lonM = clean.match(/lon(?:gitude)?\s*[:=]?\s*(-?\d+\.\d+)/i);
+    if (lonM) extracted.longitude = parseFloat(lonM[1]);
+
+    return extracted;
   }
 
   openRepeaterAdminModal(pubkey, name) {
@@ -1543,11 +1654,7 @@ class MeshCoreStationApp {
       this.unlockRepeaterAdminView(canonicalPk);
       const pwd = this.getRepeaterPassword(canonicalPk);
       if (pwd) {
-        fetch("/api/repeater/remote/action", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ target_node: canonicalPk, password: pwd, action: "ver" }),
-        }).catch(() => {});
+        this.refreshRepeaterFullTelemetry(canonicalPk, pwd);
       }
     } else {
       const savedPwd = this.getStoredRepeaterPassword(canonicalPk);
@@ -1573,9 +1680,20 @@ class MeshCoreStationApp {
     const pubkey = node.public_key || this.selectedRepeaterTarget;
 
     // 1. Batería & Voltajes
-    const batVal = node.battery_pct != null ? node.battery_pct : (node.battery != null ? node.battery : "--");
-    const voltVal = node.voltage_v != null ? node.voltage_v : (node.voltage != null ? node.voltage : "--");
-    const solarVal = node.solar_v != null ? node.solar_v : "--";
+    let calcBat = node.battery_pct != null ? Number(node.battery_pct) : (node.battery != null ? Number(node.battery) : (node.batt != null ? Number(node.batt) : null));
+    let calcVolt = node.voltage_v != null ? Number(node.voltage_v) : (node.voltage != null ? Number(node.voltage) : (node.battery_mv ? Number(node.battery_mv) / 1000 : null));
+
+    if (calcBat != null && calcBat > 100) { // Si vino en mV
+      if (calcVolt == null) calcVolt = Number((calcBat / 1000).toFixed(2));
+      calcBat = Math.max(0, Math.min(100, Math.round((calcBat - 3300) / (4200 - 3300) * 100)));
+    } else if (calcBat == null && calcVolt != null && calcVolt >= 2.5) {
+      const vNorm = calcVolt > 100 ? calcVolt / 1000 : calcVolt;
+      calcBat = Math.max(0, Math.min(100, Math.round((vNorm - 3.3) / (4.2 - 3.3) * 100)));
+    }
+
+    const batVal = calcBat != null && !isNaN(calcBat) ? calcBat : "--";
+    const voltVal = calcVolt != null && !isNaN(calcVolt) ? (calcVolt > 100 ? (calcVolt / 1000).toFixed(2) : calcVolt.toFixed(2)) : "--";
+    const solarVal = node.solar_v != null ? (Number(node.solar_v) > 100 ? (Number(node.solar_v) / 1000).toFixed(2) : Number(node.solar_v).toFixed(2)) : "--";
 
     const batEl = document.getElementById("repBatValue");
     if (batEl) batEl.textContent = batVal !== "--" ? `${batVal}%` : "-- %";
@@ -2115,24 +2233,18 @@ class MeshCoreStationApp {
         const target = this.selectedRepeaterTarget;
         if (!target) return;
         const password = this.getRepeaterPassword(target);
-        this.appendTerminalLine(`> [TX] Solicitando telemetría completa y parámetros a ${target.slice(0, 8)}...`, "term-cmd");
+        this.appendTerminalLine(`> [TX] Solicitando telemetría completa, batería y parámetros a ${target.slice(0, 8)}...`, "term-cmd");
         btnRefreshTelem.disabled = true;
         btnRefreshTelem.textContent = "🔄 Consultando...";
         try {
-          await this.executeRepeaterCommand(target, "ver", {}, password);
-          await new Promise((r) => setTimeout(r, 400));
-          await this.executeRepeaterCommand(target, "get radio", {}, password);
-          await new Promise((r) => setTimeout(r, 400));
-          await this.executeRepeaterCommand(target, "get lat", {}, password);
-          await new Promise((r) => setTimeout(r, 400));
-          await this.executeRepeaterCommand(target, "get owner.info", {}, password);
-          this.showToast("📡 Parámetros y estado consultados al repetidor por RF", "info");
+          this.refreshRepeaterFullTelemetry(target, password);
+          this.showToast("📡 Consultando telemetría, batería y estado al repetidor por RF...", "info");
         } catch (_) {}
         finally {
           setTimeout(() => {
             btnRefreshTelem.disabled = false;
             btnRefreshTelem.textContent = "🔄 Consultar Parámetros";
-          }, 1500);
+          }, 3500);
         }
       });
     }
@@ -2468,6 +2580,19 @@ class MeshCoreStationApp {
     line.textContent = `[${new Date().toLocaleTimeString()}] ${strText}`;
     this.dom.repeaterTerminalOutput.appendChild(line);
     this.dom.repeaterTerminalOutput.scrollTop = this.dom.repeaterTerminalOutput.scrollHeight;
+
+    // Analizar si la línea contiene datos de telemetría / batería y actualizar la UI inmediatamente
+    if (this.selectedRepeaterTarget) {
+      const parsed = this.parseRepeaterTelemetryFromText(strText);
+      if (parsed && Object.keys(parsed).length > 0) {
+        const canonicalPk = this.resolveCanonicalPubkey(this.selectedRepeaterTarget) || this.selectedRepeaterTarget;
+        const existing = this.knownNodes.get(canonicalPk) || {};
+        const updated = { ...existing, ...parsed, public_key: canonicalPk };
+        this.knownNodes.set(canonicalPk, updated);
+        this.populateRepeaterModalData(updated);
+        this.updateNodeInDom(canonicalPk, updated);
+      }
+    }
   }
 
   formatCliResponseObject(obj) {
@@ -2757,16 +2882,20 @@ class MeshCoreStationApp {
         (this.selectedRepeaterTarget.length >= 4 && senderKey.length >= 4 && (this.selectedRepeaterTarget.toLowerCase().startsWith(senderKey.toLowerCase()) || senderKey.toLowerCase().startsWith(this.selectedRepeaterTarget.toLowerCase())))
       ));
 
-      if (payload.telemetry) {
+      const rawPayloadText = payload.text || payload.message || "";
+      const textParsedTelem = this.parseRepeaterTelemetryFromText(rawPayloadText);
+      const combinedTelem = { ...(payload.telemetry || {}), ...textParsedTelem };
+
+      if (Object.keys(combinedTelem).length > 0) {
         const canonicalPk = this.resolveCanonicalPubkey(senderKey) || senderKey.toLowerCase().trim();
         const existing = this.knownNodes.get(canonicalPk) || {};
         const updated = {
           ...existing,
-          ...payload.telemetry,
+          ...combinedTelem,
           public_key: canonicalPk,
           last_seen: Math.floor(Date.now() / 1000),
-          last_rssi: payload.rssi != null ? payload.rssi : existing.last_rssi,
-          last_snr: payload.snr != null ? payload.snr : existing.last_snr,
+          last_rssi: payload.rssi != null ? payload.rssi : (combinedTelem.last_rssi != null ? combinedTelem.last_rssi : existing.last_rssi),
+          last_snr: payload.snr != null ? payload.snr : (combinedTelem.last_snr != null ? combinedTelem.last_snr : existing.last_snr),
         };
         this.knownNodes.set(canonicalPk, updated);
         this.updateNodeInDom(canonicalPk, updated);

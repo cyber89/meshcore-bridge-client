@@ -6,6 +6,34 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Consulta Automática y Actualización en Tiempo Real de Batería, Telemetría y Consola Terminal de Repetidores
+- **Fecha**: 2026-08-30
+- **Estado**: ✅ COMPLETADO (Consulta Exhaustiva en Login, Parsing Reactivo de Batería en mV/%, Normalización de Consola Terminal)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Python Bridge Architect), Agente 4 (Web UI/UX Architect).
+- **Problema / Requerimiento**:
+  - Al abrir la ventana modal de administración de un repetidor remoto nunca se mostraban los datos de la batería.
+  - Asegurar que el nodo repetidor consulte automáticamente todos los datos requeridos al hacer login exitoso, al recibir un anuncio/advert o al recibir datos mediante comandos de consola.
+  - Renombrar la subpestaña de la consola de "Terminal Linux" a "Terminal".
+- **Causa Raíz Identificada**:
+  - `authenticateRepeater` en el frontend solo consultaba `"ver"`, `"get radio"`, `"get lat"` y `"get owner.info"`, omitiendo la solicitud de batería (`"bat"` / `"get pwrmgt.bootmv"` / `"stats-core"`).
+  - El parser regex en backend y frontend exigía la presencia explícita de la palabra "battery", ignorando respuestas directas del firmware tipo `> 4120 mV`, `> 4.12 V`, `Boot voltage = ...` o `> 95%`.
+  - La etiqueta de la subpestaña en `index.html` tenía el texto `"Terminal Linux"`.
+- **Acciones Realizadas**:
+  - En [`src/web/static/index.html`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/index.html):
+    - Renombrada la subpestaña a `<button class="subtab-btn" data-subtab="rep-console">Terminal</button>`.
+  - En [`src/repeater_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/repeater_manager.py):
+    - Ampliado `parse_repeater_telemetry_or_response` con soporte integral para respuestas de voltaje de arranque y batería (`pwrmgt.bootmv`, `boot voltage`, `> 4120 mV`, `> 4.12 V`, `> 95%`, `> 915.000,250,11,5`, `tx`, etc.).
+  - En [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js):
+    - Implementado `refreshRepeaterFullTelemetry(canonicalPk, password)` que lanza la secuencia ordenada completa de consultas: `ver`, `stats-core`, `bat`, `get radio`, `get tx`, `get lat`, `get lon`, `get owner.info`, `clock` y `neighbors`.
+    - Integrado `refreshRepeaterFullTelemetry` al autenticarse con éxito y al pulsar el botón `#btnRefreshRepeaterTelem`.
+    - Creado `parseRepeaterTelemetryFromText(text)` en frontend para extraer y normalizar telemetría (batería en mV/%, voltaje, solar, radio, paquetes, reloj, uptime) tanto de respuestas WebSocket como de salidas registradas en la consola.
+    - Corregido `populateRepeaterModalData` para manejar valores numéricos directos de batería en milivoltios ($>100\text{ mV}$) y voltaje, calculando el porcentaje correspondiente de forma precisa.
+  - Validación Automatizada E2E:
+    - Verificado con suite Playwright (`scratch/test_repeater_battery_e2e.py`) validando el flujo de login, actualización de batería en tiempo real vía WebSocket y actualización reactiva al ejecutar comandos en la Terminal.
+  - Sincronización:
+    - Ejecutado `python scripts/sync_deploy.py` para sincronizar `/deploy/`.
+- **Módulos Modificados**: `src/web/static/index.html`, `src/web/static/js/app.js`, `src/repeater_manager.py`, `deploy/**`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Verificación y Optimización en Tiempo Real del Heatmap de Cobertura RF
 - **Fecha**: 2026-08-30
 - **Estado**: ✅ COMPLETADO (Heatmap Dinámico Activo, Gradiente Táctico Multinivel, Reactividad en Tiempo Real)
