@@ -144,7 +144,74 @@ sequenceDiagram
 
 ---
 
-## 4. Estándares de Calidad de Código y Sincronización
+## 4. Checklist de Impacto en la Malla LoRa (Obligatorio)
+
+> **Regla**: Antes de implementar cualquier feature que **envíe paquetes por radio**, **dispare notificaciones** automáticas, **arme un timer** periódico o **modifique parámetros de radio**, el agente DEBE responder estas tres preguntas y documentar las respuestas en el plan de implementación. **NUNCA elegir un límite, umbral o intervalo de forma unilateral — siempre preguntar al usuario.**
+
+---
+
+### Pregunta 1: ¿Cuánto airtime consume en la malla?
+
+LoRa es un medio **compartido, lento y half-duplex**. Cada paquete que el bridge envía bloquea el canal para todos los nodos de la malla. En un spreading factor alto (SF12 / LongRange), un solo mensaje puede ocupar el canal durante varios segundos. Cada hop adicional multiplica las transmisiones.
+
+Evaluar antes de programar:
+
+- ¿Cuántos paquetes envía esta feature, y con qué frecuencia?
+- ¿Se multiplica por el número de nodos activos? (O(n) paquetes = peligro en mallas grandes)
+- ¿Es un timer permanente o una acción puntual? Los timers permanentes acumulan coste indefinidamente.
+- ¿Se puede sustituir por **datos pasivos** que ya se reciben (adverts, telemetría, ACKs) en vez de paquetes de consulta activa?
+
+**Regla**: Preferir siempre la recepción pasiva sobre la consulta activa. Los traceroutes, pings y solicitudes de telemetría son costosos — ejecutarlos bajo demanda o con intervalos mínimos de **5–15 minutos**.
+
+---
+
+### Pregunta 2: ¿Puede esta feature generar spam o bucles de feedback?
+
+Spam no es solo un flood de mensajes de texto. Contar todas las rutas indirectas:
+
+- **Directo**: mensajes de texto, DMs, traceroutes automáticos, comandos admin, pings.
+- **Indirecto**: eventos en el bus asyncio (`asyncio.Queue`) que disparan publicación MQTT → n8n → webhook → que puede volver a enviar un mensaje al bridge.
+- **Bucle de feedback**: un evento recibido que dispara un envío que genera otro evento. El bridge DEBE tener una **guarda de origen propio** (ignorar paquetes que provienen de la clave pública local).
+- **Reintentos**: un envío fallido que reintenta infinitamente equivale a un flood con pasos extra. Implementar backoff exponencial con límite máximo de reintentos.
+
+Si alguna de estas situaciones aplica, la feature necesita un limitador. Usar los mecanismos existentes:
+
+| Necesidad | Mecanismo en el Bridge |
+|---|---|
+| Limitar envíos por ventana temporal | `rate_limiter.py` (`RateLimiter` por canal/nodo) |
+| Deduplicar eventos recibidos | `deduplicator.py` (`MessageDeduplicator`) |
+| Cooldown entre operaciones admin | Parámetro `min_interval_s` en `repeater_manager.py` |
+| Backoff en reconexión serial | `serial_driver.py` (exponential backoff ya implementado) |
+
+---
+
+### Pregunta 3: ¿Un guardado de configuración rearma un timer de seguridad?
+
+Este es el bug recurrente más difícil de detectar. Si un scheduler o timer vive **solo en memoria**, cada vez que el usuario guarda la configuración desde la WebUI, el timer se reinicia — provocando una ráfaga de paquetes, o que un cooldown de protección nunca expire.
+
+Reglas obligatorias:
+
+1. **Persistir el timestamp del último disparo en la base de datos o en el archivo `.json` de configuración**, nunca solo en una variable de instancia Python.
+2. Al reiniciar un scheduler, verificar el tiempo transcurrido desde el último disparo antes de ejecutar la primera iteración.
+3. Verificar que el comportamiento es correcto tras reiniciar el proceso bridge (simular con `pkill` + arranque manual).
+4. Ante la duda, preguntar al usuario el intervalo mínimo aceptable antes de hardcodear cualquier valor.
+
+---
+
+### Cuándo ejecutar este checklist
+
+Ejecutar obligatoriamente cuando la feature a implementar involucre:
+
+- [ ] Envío de mensajes de texto, DMs o comandos por radio (serial driver → SDK).
+- [ ] Traceroute, ping o solicitud de telemetría iniciados automáticamente (no por acción del usuario).
+- [ ] Timer asyncio (`asyncio.sleep` en loop, `asyncio.create_task` periódico) que produce paquetes.
+- [ ] Publicación automática a MQTT que podría retroalimentar el bridge.
+- [ ] Modificación de parámetros de radio (frecuencia, TX power, spreading factor).
+- [ ] Cualquier mecanismo de reintentos ante fallos de envío.
+
+---
+
+## 5. Estándares de Calidad de Código y Sincronización
 
 - **Python Version**: `>= 3.10`
 - **Linter & Formatter**: `ruff` (conformidad PEP 8 y buenas prácticas)
