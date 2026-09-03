@@ -109,11 +109,20 @@ class SystemController(BaseController):
 
     async def run_preflight(self) -> tuple[int, dict[str, Any]]:
         """Ejecuta la suite de verificación preflight."""
-        if hasattr(self.ctx.bridge, "preflight_checker") and hasattr(self.ctx.bridge.preflight_checker, "run_all"):
-            report = await self.ctx.bridge.preflight_checker.run_all()
-            return 200, {"status": "ok", "data": report}
-
+        import config
         from src.preflight import PreflightChecker
-        checker = PreflightChecker()
-        report = await checker.run_all()
-        return 200, {"status": "ok", "data": report}
+
+        checker = getattr(self.ctx.bridge, "preflight", None)
+        if not isinstance(checker, PreflightChecker):
+            checker = PreflightChecker()
+
+        report = checker.run_all(
+            mqtt_host=str(getattr(config, "MQTT_BROKER", "127.0.0.1")),
+            mqtt_port=int(getattr(config, "MQTT_PORT", 1883)),
+            serial_port=str(getattr(config, "SERIAL_PORT", "AUTO")),
+            tcp_server_port=int(getattr(config, "TCP_SERVER_PORT", 5000)),
+            tcp_server_enabled=bool(getattr(config, "TCP_SERVER_ENABLED", True)),
+            tcp_server_host=str(getattr(config, "TCP_SERVER_HOST", "0.0.0.0")),
+        )
+        report_dict: dict[str, Any] = report.to_dict() if hasattr(report, "to_dict") else {"passed": getattr(report, "all_passed", False)}
+        return 200, {"status": "ok", "data": report_dict}

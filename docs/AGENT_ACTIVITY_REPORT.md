@@ -6,6 +6,40 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Corrección de Vista Mensajes, Tarjetas Completas de Nodos/Contactos, Extracción Total MeshCore y Logs Resilientes
+- **Fecha**: 2026-09-03
+- **Estado**: ✅ COMPLETADO (Resolución del borrado del aside de canales/DMs por settings.js, binding de clearChatBtn y mobile toggle en chat.js, renderizado de tarjetas ricas en nodes.js con dot de presencia/telemetría/RF strip/botones de acción, consulta extendida de 11 comandos del SDK de MeshCore en local_config_executor.py, logging thread-safe con run_coroutine_threadsafe y verificación E2E 100% PASS)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 4 (Web Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - El usuario reportó problemas en la vista Mensajes, tarjetas incompletas en Contactos y Nodos, dudas sobre si se extraía toda la información permitida por la pila MeshCore del nodo local, y solicitó comprobar que los logs capturen adecuadamente los problemas.
+- **Causas Raíz Identificadas**:
+  1. **Destrucción de la barra lateral de canales y DMs**: `settings.js:renderChannelsList()` limpiaba el contenedor `#sidebarChannelList` (`<aside>`), eliminando los botones de crear canal, el encabezado de DMs y la lista `#dmListUi`, inyectando los `<li>` directamente dentro del `<aside>` sin atributo `data-channel-idx`.
+  2. **Tarjetas de Nodos y Contactos mínimas**: En `nodes.js`, las tarjetas omitían avatares con dot de presencia (`online/idle/offline`), chips de batería y voltaje, panel central de telemetría/coordenadas GPS, tira de 3 métricas RF (RSSI, SNR, Saltos) y botones de acción (QR, Traceroute, DM, Administrar).
+  3. **Extracción incompleta de parámetros de hardware del firmware**: `local_config_executor.py` no consultaba `get_tuning()`, `get_time()`, `get_self_telemetry()`, `get_custom_vars()`, `get_allowed_repeat_freq()`, y las excepciones se silenciaban en `logging.debug`. En el frontend, `populateLocalConfig` ignoraba las tarjetas de métricas en `#tab-settings` dejándolas en `--`.
+  4. **Emisión de logs sensible a hilos**: `_broadcast_system_log` usaba `asyncio.create_task` directamente, lo que fallaba al generarse logs desde callbacks síncronos o hilos secundarios. Además, el logger `meshcore` no heredaba el nivel dinámico al activar el modo DEBUG.
+- **Acciones Realizadas**:
+  - **Mensajería y Canales ([`src/web/static/js/modules/settings.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/settings.js), [`chat.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/chat.js))**:
+    - En `settings.js`: `renderChannelsList` ahora limpia y añade canales exclusivamente a `#channelListUi`, asignando `data-channel-idx="${ch.index}"` e inicializando iconos Lucide.
+    - En `chat.js`: Enlazado `#clearChatBtn` para purgar la conversación actual en memoria, vaciar la vista y llamar a `storage.clearFeedMessages()`; conectado el botón móvil para desplegar el panel lateral y añadido contador a `dmCountBadge`.
+  - **Tarjetas Ricas en Nodos y Contactos ([`src/web/static/js/modules/nodes.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/nodes.js))**:
+    - Implementadas las tarjetas completas con avatares por rol (`LOCAL`, `REPEATER`, `SENSOR`, `ROOM`, `CLIENT`), indicador de presencia (`status-online` si < 15 min, `status-idle`, `status-offline`), chips de energía, panel de telemetría/GPS, tira de 3 métricas RF (`.node-rf-strip`) y botones contextuales de acción (Administrar, DM, Ruta, QR, Favorito, Eliminar).
+    - Exclusión estricta de repetidores y nodo local en la libreta de contactos conforme a la regla inmutable SSoT.
+    - Implementado filtrado reactivo real para pastillas de Todos, Favoritos, En Línea y Con Posición GPS, actualizando los badges contadores numéricos del DOM.
+  - **Extracción Total de Información MeshCore ([`src/admin/local_config_executor.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin/local_config_executor.py), [`serial_driver.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/serial_driver.py), [`config_controller.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/controllers/config_controller.py), [`settings.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/settings.js))**:
+    - Añadidas consultas a `get_tuning()`, `get_time()`, `get_self_telemetry()`, `get_custom_vars()`, `get_allowed_repeat_freq()`, persistiendo `rx_delay`, `airtime_factor`, `path_hash_mode`, telemetría de sensores y hora RTC del MCU.
+    - En `serial_driver.py`: Activada tarea en segundo plano `_initial_hardware_sync()` tras conectar el transceptor para poblar de inmediato toda la telemetría.
+    - En `settings.js`: `populateLocalConfig` actualiza todos los campos RF y las 8 tarjetas de métricas en tiempo real (`localBatValue`, `localVoltValue`, `localClockValue`, `localUptimeValue`, `localAirtimeValue`, `localSnrValue`, `localNoiseValue`, etc.).
+  - **Fortificación del Sistema de Logs ([`src/bridge_core.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/bridge_core.py), [`diagnostics.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/diagnostics.py), [`local_config_executor.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin/local_config_executor.py))**:
+    - En `_broadcast_system_log`: Implementado despacho thread-safe con `asyncio.run_coroutine_threadsafe` para llamadas fuera del event loop principal.
+    - En `DiagnosticManager.set_log_level`: Propagación del nivel tanto al logger raíz como al logger del SDK `meshcore`.
+    - En consultas serie: Elevadas las excepciones de `logging.debug` a `logging.warning` con contexto explícito.
+  - **Verificación y Calidad**:
+    - `ruff check src/`: 100% PASS (0 advertencias, 0 errores).
+    - `mypy --strict`: 100% PASS (0 errores en todos los módulos de producción).
+    - `node --check`: 100% sintaxis válida en todos los archivos JS modificados.
+    - Pruebas E2E automatizadas: 8 fases completadas con 0 errores de consola, 0 excepciones JavaScript y 0 peticiones de red fallidas.
+- **Módulos Modificados**: `src/web/static/js/modules/settings.js`, `src/web/static/js/modules/chat.js`, `src/web/static/js/modules/nodes.js`, `src/admin/local_config_executor.py`, `src/serial_driver.py`, `src/bridge_core.py`, `src/diagnostics.py`, `src/web/controllers/config_controller.py`, `src/web/controllers/system_controller.py`, `src/contact_manager.py`, `src/web/http_server.py`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Solución Integral de Comunicación Bridge-WebUI, Vivacidad Serial y Ruteo de Mensajería
 - **Fecha**: 2026-09-03
 - **Estado**: ✅ COMPLETADO (Detección de causas raíz por bypass de TCP companion vs stack local, resolución de falsos positivos de desconexión en SerialWatchdog, corrección de secuestro de DMs por AdvertHandler, soporte para diccionarios de contactos en CONTACTS, sincronización bidireccional de SELF_INFO, parser seguro de timestamps en chat.js y verificación determinista 100% PASS)

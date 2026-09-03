@@ -446,7 +446,7 @@ class NodeRegistry:
         update: NodeContactUpdate,
         existing: NodeContactInfo | None,
         identity_meta: tuple[str, str, str, bool],
-        rf_meta: tuple[int, int | None, float | None, float, str, str],
+        rf_meta: tuple[int | None, int | None, float | None, float, str, str],
     ) -> NodeContactInfo:
         """Ensambla el objeto NodeContactInfo fusionando los datos anteriores con la actualización."""
         clean_name, clean_alias, final_role, is_local_flag = identity_meta

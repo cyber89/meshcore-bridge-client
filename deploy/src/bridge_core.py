@@ -132,10 +132,26 @@ class MeshCoreBridge:
         self.tcp_server = self._create_tcp_server()
 
     def _broadcast_system_log(self, payload: dict[str, Any]) -> None:
-        """Difunde logs en tiempo real vía WebSocket a la interfaz web."""
+        """Difunde logs en tiempo real vía WebSocket a la interfaz web de forma thread-safe."""
         web = getattr(self, "web_server", None)
-        if web is not None and getattr(self, "running", False):
-            asyncio.create_task(web.broadcast_event(payload))
+        if web is None or not getattr(self, "running", False):
+            return
+
+        loop = getattr(self, "_custom_loop", None)
+        if loop and loop.is_running():
+            try:
+                running_loop = asyncio.get_running_loop()
+                if running_loop is loop:
+                    asyncio.create_task(web.broadcast_event(payload))
+                else:
+                    asyncio.run_coroutine_threadsafe(web.broadcast_event(payload), loop)
+            except RuntimeError:
+                asyncio.run_coroutine_threadsafe(web.broadcast_event(payload), loop)
+        else:
+            try:
+                asyncio.create_task(web.broadcast_event(payload))
+            except Exception:
+                pass
 
     def _on_raw_companion_frame_rx(self, payload: bytes) -> None:
         """Difunde tramas binarias de la radio hacia clientes TCP Companion conectados (App Móvil / CLI)."""

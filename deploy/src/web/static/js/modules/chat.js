@@ -39,6 +39,9 @@ export class ChatModule {
       btnShareTargetQr: document.getElementById("btnShareTargetQr"),
       btnShareLocation: document.getElementById("btnShareLocation"),
       dmListUi: document.getElementById("dmListUi"),
+      clearChatBtn: document.getElementById("clearChatBtn"),
+      dmCountBadge: document.getElementById("dmCountBadge"),
+      btnToggleChannelsMobile: document.getElementById("btnToggleChannelsMobile"),
       sidebarChannelList: document.getElementById("sidebarChannelList"),
       globalChatUnreadBadge: document.getElementById("globalChatUnreadBadge"),
       chkChatSoundAlerts: document.getElementById("chkChatSoundAlerts"),
@@ -50,6 +53,16 @@ export class ChatModule {
       this.dom.chatInputForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         await this.sendMessage();
+      });
+    }
+
+    if (this.dom.clearChatBtn) {
+      this.dom.clearChatBtn.addEventListener("click", () => this.clearCurrentChat());
+    }
+
+    if (this.dom.btnToggleChannelsMobile && this.dom.sidebarChannelList) {
+      this.dom.btnToggleChannelsMobile.addEventListener("click", () => {
+        this.dom.sidebarChannelList.classList.toggle("mobile-open");
       });
     }
 
@@ -205,9 +218,36 @@ export class ChatModule {
     }
   }
 
+  async clearCurrentChat() {
+    const feedKey = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
+    this.channelFeeds.delete(feedKey);
+
+    if (this.ctx.storage && this.ctx.storage.clearFeedMessages) {
+      try {
+        await this.ctx.storage.clearFeedMessages(feedKey);
+      } catch (_) {}
+    }
+
+    if (this.dom.chatMessageFeed) {
+      this.dom.chatMessageFeed.innerHTML = `
+        <div class="chat-empty-state">
+          <p>Conversación limpiada.</p>
+          <small>Escribe un mensaje abajo para transmitir por la malla LoRa.</small>
+        </div>
+      `;
+    }
+
+    if (this.ctx.showToast) {
+      this.ctx.showToast("Conversación limpiada", "info");
+    }
+  }
+
   addDmContact(pubkey, name) {
     if (!pubkey || !this.dom.dmListUi) return;
     const canonicalPk = this.resolveCanonicalPubkey(pubkey);
+
+    const emptyHint = this.dom.dmListUi.querySelector(".empty-hint");
+    if (emptyHint) emptyHint.remove();
 
     const existing = this.dom.dmListUi.querySelector(`.channel-item[data-pubkey="${canonicalPk}"]`);
     if (existing) return;
@@ -222,6 +262,11 @@ export class ChatModule {
     `;
     li.addEventListener("click", () => this.openDmConversation(canonicalPk, name));
     this.dom.dmListUi.appendChild(li);
+
+    const totalDms = this.dom.dmListUi.querySelectorAll(".channel-item").length;
+    if (this.dom.dmCountBadge) {
+      this.dom.dmCountBadge.textContent = String(totalDms);
+    }
   }
 
   async renderCurrentConversation() {

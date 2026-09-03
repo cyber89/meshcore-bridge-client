@@ -278,8 +278,9 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                 try:
                     self.rx_callback(Event(EventType.SELF_INFO, self.self_info))
                 except Exception as ex_si:
-                    logging.debug(f"Despacho inicial de self_info: {ex_si}")
+                    logging.warning(f"Despacho inicial de self_info: {ex_si}")
             logging.info("MeshCore SDK conectado e iniciado exitosamente.")
+            asyncio.create_task(self._initial_hardware_sync())
         except asyncio.CancelledError:
             pass
         except Exception as e:
@@ -516,9 +517,44 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         elif event_type == getattr(EventType, "DISCONNECTED", None):
             logging.warning("SDK disconnected")
 
+        # Hardware params & custom vars
+        elif event_type in (
+            getattr(EventType, "TUNING_PARAMS", None),
+            getattr(EventType, "CUSTOM_VARS", None),
+            getattr(EventType, "ALLOWED_REPEAT_FREQ", None),
+            getattr(EventType, "PATH_HASH_MODE", None),
+        ):
+            if self.rx_callback:
+                self.rx_callback(data)
+
         # Other events - forward to generic handler
         else:
             await self._handle_generic_event(event_type, data)
+
+    async def _initial_hardware_sync(self) -> None:
+        """Interroga parámetros extendidos y telemetría de hardware al conectar."""
+        if not self.mc or not hasattr(self.mc, "commands"):
+            return
+        await asyncio.sleep(1.0)
+        cmds = self.mc.commands
+        for cmd_name in (
+            "send_device_query",
+            "get_bat",
+            "get_stats_core",
+            "get_stats_radio",
+            "get_stats_packets",
+            "get_tuning",
+            "get_time",
+            "get_self_telemetry",
+            "get_custom_vars",
+        ):
+            if hasattr(cmds, cmd_name):
+                try:
+                    fn = getattr(cmds, cmd_name)
+                    await fn()
+                    await asyncio.sleep(0.15)
+                except Exception as e:
+                    logging.warning(f"Aviso en sincronización inicial de radio ({cmd_name}): {e}")
 
     async def _handle_direct_message(self, data: Any) -> None:
         """Maneja mensajes directos recibidos."""

@@ -26,6 +26,7 @@ export class SettingsModule {
 
   _bindElements() {
     this.dom = {
+      channelListUi: document.getElementById("channelListUi"),
       sidebarChannelList: document.getElementById("sidebarChannelList"),
       btnToggleChannelsMobile: document.getElementById("btnToggleChannelsMobile"),
       btnAddChannel: document.getElementById("btnAddChannel"),
@@ -334,8 +335,9 @@ export class SettingsModule {
   }
 
   renderChannelsList(channels) {
-    if (!this.dom.sidebarChannelList) return;
-    this.dom.sidebarChannelList.textContent = "";
+    const listEl = this.dom.channelListUi || document.getElementById("channelListUi");
+    if (!listEl) return;
+    listEl.textContent = "";
 
     const activeIdx = this.ctx.activeChannelIdx ?? 0;
 
@@ -343,16 +345,26 @@ export class SettingsModule {
       const li = document.createElement("li");
       const isActive = ch.index === activeIdx && !this.ctx.activeDmTarget;
       li.className = `channel-item ${isActive ? "active" : ""}`;
+      li.setAttribute("data-channel-idx", String(ch.index));
+      li.setAttribute("role", "option");
+      li.setAttribute("aria-selected", isActive ? "true" : "false");
       li.innerHTML = `
-        <span class="channel-icon">${ch.index === 0 ? "📢" : "🔒"}</span>
-        <span class="channel-name">${escapeHtml(ch.name || `Canal ${ch.index}`)}</span>
-        <span class="channel-idx font-mono">#${ch.index}</span>
+        <span class="ch-badge font-mono">Ch ${ch.index}</span>
+        <span class="ch-name">${escapeHtml(ch.name || (ch.index === 0 ? "Public / Broadcast" : `Canal ${ch.index}`))}</span>
+        <span class="ch-lock" title="${ch.index === 0 ? "Canal Público" : "Canal Cifrado"}">
+          <span data-lucide="${ch.index === 0 ? "unlock" : "lock"}" data-size="13"></span>
+        </span>
       `;
       li.addEventListener("click", () => {
         if (this.ctx.switchChannel) this.ctx.switchChannel(ch.index);
+        if (this.dom.sidebarChannelList) this.dom.sidebarChannelList.classList.remove("mobile-open");
       });
-      this.dom.sidebarChannelList.appendChild(li);
+      listEl.appendChild(li);
     });
+
+    if (window.initLucideIcons) {
+      window.initLucideIcons(listEl);
+    }
   }
 
   async fetchLocalNodeConfig() {
@@ -380,8 +392,18 @@ export class SettingsModule {
       this.ctx.localNodePubkey = cfg.public_key.toLowerCase();
     }
 
+    // Parámetros de radio
     const freqInput = document.getElementById("localFreq");
     if (freqInput && cfg.frequency) freqInput.value = cfg.frequency;
+
+    const sfInput = document.getElementById("localSf");
+    if (sfInput && cfg.spreading_factor) sfInput.value = cfg.spreading_factor;
+
+    const bwInput = document.getElementById("localBw");
+    if (bwInput && cfg.bandwidth) bwInput.value = cfg.bandwidth;
+
+    const crInput = document.getElementById("localCr");
+    if (crInput && cfg.coding_rate) crInput.value = cfg.coding_rate;
 
     const pwrInput = document.getElementById("localTxPower");
     const pwrVal = document.getElementById("localTxPowerVal");
@@ -389,6 +411,50 @@ export class SettingsModule {
       pwrInput.value = cfg.tx_power;
       if (pwrVal) pwrVal.textContent = `${cfg.tx_power} dBm`;
     }
+
+    // Posición GPS
+    const latInput = document.getElementById("localGpsLat");
+    if (latInput && cfg.latitude != null) latInput.value = cfg.latitude;
+
+    const lonInput = document.getElementById("localGpsLon");
+    if (lonInput && cfg.longitude != null) lonInput.value = cfg.longitude;
+
+    const altInput = document.getElementById("localGpsAlt");
+    if (altInput && cfg.altitude != null) altInput.value = cfg.altitude;
+
+    // Tarjetas de Telemetría en Vivo
+    const elBat = document.getElementById("localBatValue");
+    if (elBat) elBat.textContent = cfg.battery_pct != null ? `${cfg.battery_pct} %` : "100 % (USB)";
+
+    const elVolt = document.getElementById("localVoltValue");
+    if (elVolt) elVolt.textContent = cfg.voltage != null ? `${cfg.voltage} V` : (cfg.battery_mv ? `${(cfg.battery_mv / 1000).toFixed(2)} V` : "5.00 V");
+
+    const elClock = document.getElementById("localClockValue");
+    if (elClock) elClock.textContent = cfg.clock || (cfg.device_epoch_time ? new Date(cfg.device_epoch_time * 1000).toLocaleTimeString() : "--:--:--");
+
+    const elUptime = document.getElementById("localUptimeValue");
+    if (elUptime) elUptime.textContent = cfg.uptime_str || (cfg.uptime ? `${cfg.uptime} s` : "--");
+
+    const elAirtime = document.getElementById("localAirtimeValue");
+    if (elAirtime) elAirtime.textContent = cfg.airtime_ms != null ? `${cfg.airtime_ms} ms` : "--";
+
+    const elDuty = document.getElementById("localAirtimeDuty");
+    if (elDuty) elDuty.textContent = `Duty Cycle: ${cfg.duty_cycle_pct != null ? cfg.duty_cycle_pct : 0}%`;
+
+    const elSnr = document.getElementById("localSnrValue");
+    if (elSnr) elSnr.textContent = cfg.last_snr != null ? `${cfg.last_snr} dB` : "Local";
+
+    const elRssi = document.getElementById("localRssiValue");
+    if (elRssi) elRssi.textContent = `RSSI: ${cfg.last_rssi != null ? `${cfg.last_rssi} dBm` : "Local"}`;
+
+    const elNoise = document.getElementById("localNoiseValue");
+    if (elNoise) elNoise.textContent = cfg.noise_floor_dbm != null ? `${cfg.noise_floor_dbm} dBm` : "--";
+
+    const elPkts = document.getElementById("localPacketsValue");
+    if (elPkts) elPkts.textContent = `${cfg.tx_count ?? 0} TX / ${cfg.rx_count ?? 0} RX`;
+
+    const elPktErrs = document.getElementById("localPacketErrorsValue");
+    if (elPktErrs) elPktErrs.textContent = `Duplicados: ${cfg.duplicate_packets ?? 0} | Errores: ${cfg.packet_errors ?? 0}`;
 
     if (this.ctx.updateRadioBadge && (cfg.serial_connected != null || cfg.radio_connected != null)) {
       const isConnected = Boolean(cfg.serial_connected ?? cfg.radio_connected);

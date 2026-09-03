@@ -179,6 +179,7 @@ class DiagnosticManager:
             level_val = getattr(logging, lvl)
             if isinstance(level_val, int):
                 logging.getLogger().setLevel(level_val)
+                logging.getLogger("meshcore").setLevel(level_val)
                 logging.info(f"Nivel global de logging cambiado dinámicamente a: {lvl}")
                 return lvl
         raise ValueError(f"Nivel de log inválido: {level_name}")

@@ -323,7 +323,10 @@ class MeshCoreWebServer:
 
         body_bytes = await reader.readexactly(content_len)
         try:
-            return json.loads(body_bytes.decode("utf-8"))
+            parsed: Any = json.loads(body_bytes.decode("utf-8"))
+            if isinstance(parsed, dict):
+                return parsed
+            return {"data": parsed}
         except Exception:
             return {"raw": body_bytes.decode("utf-8", errors="ignore")}
 

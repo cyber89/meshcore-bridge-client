@@ -112,6 +112,12 @@ class LocalConfigExecutor:
             "battery_pct": si.get("battery_pct", si.get("battery", cfg.get("battery_pct", 100))),
             "voltage": si.get("voltage", cfg.get("voltage", 5.0)),
             "battery_mv": si.get("battery_mv", cfg.get("battery_mv", 5000)),
+            "telemetry_mode_base": si.get("telemetry_mode_base", cfg.get("telemetry_mode_base")),
+            "telemetry_mode_loc": si.get("telemetry_mode_loc", cfg.get("telemetry_mode_loc")),
+            "telemetry_mode_env": si.get("telemetry_mode_env", cfg.get("telemetry_mode_env")),
+            "adv_loc_policy": si.get("adv_loc_policy", cfg.get("adv_loc_policy")),
+            "multi_acks": si.get("multi_acks", cfg.get("multi_acks")),
+            "manual_add_contacts": si.get("manual_add_contacts", cfg.get("manual_add_contacts")),
         })
 
     def _ensure_default_telemetry(self, cfg: dict[str, Any]) -> None:
@@ -201,7 +207,7 @@ class LocalConfigExecutor:
         return self.get_local_config()
 
     async def _query_hardware_device_and_battery(self, mc: Any) -> None:
-        """Consulta identidad, modo repetidor y nivel de batería por serial."""
+        """Consulta identidad, modo repetidor, parámetros avanzados y nivel de batería por serial."""
         if hasattr(mc.commands, "send_appstart"):
             try:
                 res_app = await mc.commands.send_appstart()
@@ -224,20 +230,25 @@ class LocalConfigExecutor:
                             ),
                         )
             except Exception as e:
-                logging.debug(f"Fallo enviando send_appstart: {e}")
+                logging.warning(f"Error consultando send_appstart de radio: {e}")
+
         if hasattr(mc.commands, "send_device_query"):
             try:
                 dev_res = await mc.commands.send_device_query()
                 dev_data = _extract_payload_dict(dev_res)
-                if dev_data and "repeat" in dev_data:
-                    self._local_config["repeat"] = bool(dev_data["repeat"])
+                if dev_data and isinstance(dev_data, dict):
+                    if "repeat" in dev_data:
+                        self._local_config["repeat"] = bool(dev_data["repeat"])
+                    if "path_hash_mode" in dev_data:
+                        self._local_config["path_hash_mode"] = dev_data["path_hash_mode"]
             except Exception as e:
-                logging.debug(f"Fallo enviando send_device_query: {e}")
+                logging.warning(f"Error consultando send_device_query de radio: {e}")
+
         if hasattr(mc.commands, "get_bat"):
             try:
                 bat_res = await mc.commands.get_bat()
                 bat_data = _extract_payload_dict(bat_res)
-                if bat_data:
+                if bat_data and isinstance(bat_data, dict):
                     mv = bat_data.get("battery_mv", bat_data.get("mv", 5000))
                     pct = bat_data.get("battery_pct", bat_data.get("pct", 100))
                     self._local_config.update({
@@ -246,15 +257,36 @@ class LocalConfigExecutor:
                         "voltage": round(mv / 1000.0, 2) if mv else 5.0,
                     })
             except Exception as e:
-                logging.debug(f"Fallo enviando get_bat: {e}")
+                logging.warning(f"Error consultando get_bat de radio: {e}")
+
+        if hasattr(mc.commands, "get_tuning"):
+            try:
+                tun_res = await mc.commands.get_tuning()
+                tun_data = _extract_payload_dict(tun_res)
+                if tun_data and isinstance(tun_data, dict):
+                    if "rx_delay" in tun_data:
+                        self._local_config["rx_delay"] = tun_data["rx_delay"]
+                    if "airtime_factor" in tun_data:
+                        self._local_config["airtime_factor"] = tun_data["airtime_factor"]
+            except Exception as e:
+                logging.warning(f"Error consultando get_tuning de radio: {e}")
+
+        if hasattr(mc.commands, "get_time"):
+            try:
+                t_res = await mc.commands.get_time()
+                t_data = _extract_payload_dict(t_res)
+                if t_data and isinstance(t_data, dict) and "time" in t_data:
+                    self._local_config["device_epoch_time"] = t_data["time"]
+            except Exception as e:
+                logging.warning(f"Error consultando get_time de radio: {e}")
 
     async def _query_hardware_stats_and_packets(self, mc: Any) -> None:
-        """Consulta estadísticas de núcleo, radio y paquetes por serial."""
+        """Consulta estadísticas de núcleo, radio, sensores y paquetes por serial."""
         if hasattr(mc.commands, "get_stats_core"):
             try:
                 c_res = await mc.commands.get_stats_core()
                 c_data = _extract_payload_dict(c_res)
-                if c_data:
+                if c_data and isinstance(c_data, dict):
                     u_val = c_data.get("uptime_secs") or c_data.get("uptime")
                     if u_val is not None and int(u_val) > 0:
                         self._local_config["uptime"] = int(u_val)
@@ -264,13 +296,13 @@ class LocalConfigExecutor:
                     if "errors" in c_data:
                         self._local_config["packet_errors"] = c_data["errors"]
             except Exception as e:
-                logging.debug(f"Fallo enviando get_stats_core: {e}")
+                logging.warning(f"Error consultando get_stats_core de radio: {e}")
 
         if hasattr(mc.commands, "get_stats_radio"):
             try:
                 r_res = await mc.commands.get_stats_radio()
                 r_data = _extract_payload_dict(r_res)
-                if r_data:
+                if r_data and isinstance(r_data, dict):
                     if "noise_floor" in r_data:
                         self._local_config["noise_floor_dbm"] = r_data["noise_floor"]
                     if "last_snr" in r_data:
@@ -280,13 +312,13 @@ class LocalConfigExecutor:
                     if "tx_air_secs" in r_data:
                         self._local_config["airtime_ms"] = int(float(r_data["tx_air_secs"]) * 1000)
             except Exception as e:
-                logging.debug(f"Fallo enviando get_stats_radio: {e}")
+                logging.warning(f"Error consultando get_stats_radio de radio: {e}")
 
         if hasattr(mc.commands, "get_stats_packets"):
             try:
                 p_res = await mc.commands.get_stats_packets()
                 p_data = _extract_payload_dict(p_res)
-                if p_data:
+                if p_data and isinstance(p_data, dict):
                     if "sent" in p_data:
                         self._local_config["tx_count"] = p_data["sent"]
                     if "recv" in p_data:
@@ -294,7 +326,40 @@ class LocalConfigExecutor:
                     if "recv_errors" in p_data:
                         self._local_config["packet_errors"] = p_data["recv_errors"]
             except Exception as e:
-                logging.debug(f"Fallo enviando get_stats_packets: {e}")
+                logging.warning(f"Error consultando get_stats_packets de radio: {e}")
+
+        if hasattr(mc.commands, "get_self_telemetry"):
+            try:
+                st_res = await mc.commands.get_self_telemetry()
+                st_data = _extract_payload_dict(st_res)
+                if st_data and isinstance(st_data, dict):
+                    self._local_config["self_telemetry"] = st_data
+                    if "temperature" in st_data or "temperature_c" in st_data:
+                        self._local_config["temperature_c"] = st_data.get("temperature", st_data.get("temperature_c"))
+                    if "humidity" in st_data or "humidity_pct" in st_data:
+                        self._local_config["humidity_pct"] = st_data.get("humidity", st_data.get("humidity_pct"))
+                    if "pressure" in st_data or "pressure_hpa" in st_data:
+                        self._local_config["pressure_hpa"] = st_data.get("pressure", st_data.get("pressure_hpa"))
+            except Exception as e:
+                logging.warning(f"Error consultando get_self_telemetry de radio: {e}")
+
+        if hasattr(mc.commands, "get_custom_vars"):
+            try:
+                cv_res = await mc.commands.get_custom_vars()
+                cv_data = _extract_payload_dict(cv_res)
+                if cv_data and isinstance(cv_data, dict):
+                    self._local_config["custom_vars"] = cv_data
+            except Exception as e:
+                logging.warning(f"Error consultando get_custom_vars de radio: {e}")
+
+        if hasattr(mc.commands, "get_allowed_repeat_freq"):
+            try:
+                arf_res = await mc.commands.get_allowed_repeat_freq()
+                arf_data = _extract_payload_dict(arf_res)
+                if arf_data and isinstance(arf_data, dict):
+                    self._local_config["allowed_repeat_freq"] = arf_data.get("allowed_freqs", arf_data)
+            except Exception as e:
+                logging.warning(f"Error consultando get_allowed_repeat_freq de radio: {e}")
 
     async def set_local_config(self, admin_data: dict[str, Any], res: dict[str, Any], mc: Any) -> dict[str, Any]:
         """Aplica configuraciones locales sobre el nodo conectado."""
