@@ -291,6 +291,10 @@ class RepeaterAdminExecutor:
         if req.action in ("login", "auth"):
             return await self._execute_auth_command(rf_ctx)
 
+        if req.action in ("get_stats_core", "get_stats_radio", "get_stats_packets"):
+            # Expose via binary/anon req logic if supported by SDK, otherwise fallback to unit command
+            return await self._execute_unit_command(rf_ctx)
+
         return await self._execute_unit_command(rf_ctx)
 
     async def _execute_auth_command(self, rf_ctx: RfExecutionContext) -> dict[str, Any]:

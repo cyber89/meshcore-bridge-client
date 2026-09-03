@@ -467,6 +467,22 @@ class NodeAdvertisement:
     node_id: int
     short_name: str
     long_name: str
+
+@dataclass(frozen=True)
+class NodeInfo:
+    """Configuración y capacidades del nodo (SELF_INFO / DEVICE_INFO)."""
+    public_key: str
+    name: str
+    multi_acks: bool | None = None
+    adv_loc_policy: str | None = None
+    telemetry_mode_base: str | None = None
+    telemetry_mode_loc: str | None = None
+    telemetry_mode_env: str | None = None
+    path_hash_mode: str | None = None
+    autoadd_config: dict[str, Any] | None = None
+    stats_core: dict[str, Any] | None = None
+    stats_radio: dict[str, Any] | None = None
+    stats_packets: dict[str, Any] | None = None
     hw_model: HardwareModel
     fw_version: str
     latitude: float

@@ -101,6 +101,13 @@ class NodeContactInfo:
     lqi_score: float = 0.0
     lqi_status: str = "UNKNOWN"
     best_route: str = "DIRECT"
+    flags: int | None = None
+    last_advert: float | None = None
+    out_path: str | None = None
+    out_path_len: int | None = None
+    out_path_hash_mode: str | None = None
+    adv_lat: float | None = None
+    adv_lon: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -113,6 +120,13 @@ class NodeContactInfo:
         d["lqi_score"] = round(self.lqi_score, 1)
         d["lqi_status"] = self.lqi_status
         d["best_route"] = self.best_route
+        d["flags"] = self.flags
+        d["last_advert"] = self.last_advert
+        d["out_path"] = self.out_path
+        d["out_path_len"] = self.out_path_len
+        d["out_path_hash_mode"] = self.out_path_hash_mode
+        d["adv_lat"] = self.adv_lat
+        d["adv_lon"] = self.adv_lon
         d["repeat_enabled"] = self.repeat_enabled if self.repeat_enabled is not None else (self.role in ("REPEATER", "ROUTER"))
         d["hop_limit"] = self.hop_limit if self.hop_limit is not None else 3
         min_p, max_p, def_p = get_hardware_power_limits(self.hardware_board, self.max_tx_power)
@@ -176,6 +190,13 @@ class NodeContactUpdate:
     bandwidth: float | None = None
     coding_rate: str | None = None
     fixed_position: bool | None = None
+    flags: int | None = None
+    last_advert: float | None = None
+    out_path: str | None = None
+    out_path_len: int | None = None
+    out_path_hash_mode: str | None = None
+    adv_lat: float | None = None
+    adv_lon: float | None = None
 
 
 @dataclass(slots=True)
@@ -502,6 +523,13 @@ class NodeRegistry:
             bandwidth=update.bandwidth if update.bandwidth is not None else (existing.bandwidth if existing else None),
             coding_rate=update.coding_rate if update.coding_rate is not None else (existing.coding_rate if existing else None),
             fixed_position=update.fixed_position if update.fixed_position is not None else (existing.fixed_position if existing else None),
+            flags=update.flags if update.flags is not None else (existing.flags if existing else None),
+            last_advert=update.last_advert if update.last_advert is not None else (existing.last_advert if existing else None),
+            out_path=update.out_path if update.out_path is not None else (existing.out_path if existing else None),
+            out_path_len=update.out_path_len if update.out_path_len is not None else (existing.out_path_len if existing else None),
+            out_path_hash_mode=update.out_path_hash_mode if update.out_path_hash_mode is not None else (existing.out_path_hash_mode if existing else None),
+            adv_lat=update.adv_lat if update.adv_lat is not None else (existing.adv_lat if existing else None),
+            adv_lon=update.adv_lon if update.adv_lon is not None else (existing.adv_lon if existing else None),
             auto_discovered=update.auto_discovered if update.auto_discovered is not None else (existing.auto_discovered if existing else False),
             discovery_time=update.discovery_time if update.discovery_time is not None else (existing.discovery_time if existing else 0.0),
             verified_identity=update.verified_identity if update.verified_identity is not None else (existing.verified_identity if existing else False),

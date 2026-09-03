@@ -184,6 +184,7 @@ class RxEventRouter:
             ChannelMessageHandler,
             DirectMessageHandler,
             RepeaterAdminHandler,
+            SystemHandler,
             TelemetryHandler,
         )
 
@@ -195,6 +196,7 @@ class RxEventRouter:
             ChannelMessageHandler(),
             AdvertHandler(),
             TelemetryHandler(),
+            SystemHandler(),
         ]
 
     def handle_event(self, event: Any) -> None:

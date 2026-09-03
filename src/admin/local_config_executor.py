@@ -287,6 +287,7 @@ class LocalConfigExecutor:
                 c_res = await mc.commands.get_stats_core()
                 c_data = _extract_payload_dict(c_res)
                 if c_data and isinstance(c_data, dict):
+                    self._local_config['stats_core'] = c_data
                     u_val = c_data.get("uptime_secs") or c_data.get("uptime")
                     if u_val is not None and int(u_val) > 0:
                         self._local_config["uptime"] = int(u_val)
@@ -303,6 +304,7 @@ class LocalConfigExecutor:
                 r_res = await mc.commands.get_stats_radio()
                 r_data = _extract_payload_dict(r_res)
                 if r_data and isinstance(r_data, dict):
+                    self._local_config['stats_radio'] = r_data
                     if "noise_floor" in r_data:
                         self._local_config["noise_floor_dbm"] = r_data["noise_floor"]
                     if "last_snr" in r_data:
@@ -319,6 +321,7 @@ class LocalConfigExecutor:
                 p_res = await mc.commands.get_stats_packets()
                 p_data = _extract_payload_dict(p_res)
                 if p_data and isinstance(p_data, dict):
+                    self._local_config['stats_packets'] = p_data
                     if "sent" in p_data:
                         self._local_config["tx_count"] = p_data["sent"]
                     if "recv" in p_data:
@@ -369,6 +372,7 @@ class LocalConfigExecutor:
         await self._apply_identity_settings(params, applied, mc)
         await self._apply_radio_settings(params, applied, mc)
         self._apply_timing_settings(params, applied, mc)
+        await self._apply_other_params_settings(params, applied, mc)
 
         # Actualizar en el NodeRegistry local
         cfg_now = self.get_local_config()
@@ -488,3 +492,33 @@ class LocalConfigExecutor:
                 applied["hop_limit"] = hl
             except (ValueError, TypeError):
                 pass
+
+    async def _apply_other_params_settings(self, params: dict[str, Any], applied: dict[str, Any], mc: Any) -> None:
+        keys = ["telemetry_mode_base", "telemetry_mode_loc", "telemetry_mode_env", "multi_acks", "adv_loc_policy", "manual_add_contacts"]
+        need_update = any(k in params for k in keys)
+
+        if need_update:
+            for k in keys:
+                if k in params:
+                    self._local_config[k] = params[k]
+                    applied[k] = params[k]
+
+            if mc and hasattr(mc, "commands") and hasattr(mc.commands, "set_other_params_from_infos"):
+                infos = {}
+                if hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
+                    infos = mc.self_info.copy()
+                else:
+                    infos = {k: self._local_config.get(k, 0) for k in keys}
+
+                for k in keys:
+                    if k in params:
+                        infos[k] = params[k]
+
+                try:
+                    res = mc.commands.set_other_params_from_infos(infos)
+                    if asyncio.iscoroutine(res):
+                        import asyncio
+                        await asyncio.wait_for(res, timeout=2.0)
+                except Exception as e:
+                    import logging
+                    logging.warning(f"Aviso actualizando other params: {e}")
