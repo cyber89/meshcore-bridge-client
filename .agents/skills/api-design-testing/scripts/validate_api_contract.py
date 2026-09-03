@@ -50,6 +50,15 @@ class MockBridge:
     async def handle_admin(self, cmd: Any) -> dict[str, Any]:
         return {"status": "ok", "action": cmd.get("action")}
 
+    def get_health(self) -> dict[str, Any]:
+        return {
+            "status": "healthy",
+            "subsystems": {
+                "serial_companion": {"connected": True, "port": "COM3"},
+                "mqtt_broker": {"connected": True},
+            },
+        }
+
 
 async def run_api_tests() -> bool:
     print("\n" + "=" * 68)
@@ -66,6 +75,9 @@ async def run_api_tests() -> bool:
 
         test_cases = [
             ("GET", "/api/status", {}, 200),
+            ("GET", "/api/health", {}, 200),
+            ("GET", "/api/diagnostics", {}, 200),
+            ("GET", "/api/diagnostics/report.md", {}, 200),
             ("GET", "/api/nodes", {}, 200),
             ("GET", "/api/contacts", {}, 200),
             ("GET", "/api/channels", {}, 200),
@@ -86,7 +98,16 @@ async def run_api_tests() -> bool:
         for method, path, body, expected_status in test_cases:
             status, resp = await router.handle_request(method, path, body)
             if status == expected_status:
-                print(f"[PASS] {method:<4} {path:<30} -> HTTP {status} (Esperado {expected_status})")
+                extra_check = ""
+                if path == "/api/diagnostics":
+                    sub = resp.get("data", {}).get("subsystems", {})
+                    is_ser = sub.get("serial_companion", {}).get("connected")
+                    if is_ser is True:
+                        extra_check = " (Subsystems.serial_companion.connected == True ✅)"
+                    else:
+                        extra_check = " (Subsystems.serial_companion missing ⚠️)"
+                        all_ok = False
+                print(f"[PASS] {method:<4} {path:<30} -> HTTP {status} (Esperado {expected_status}){extra_check}")
             else:
                 print(f"[FAIL] {method:<4} {path:<30} -> HTTP {status} (Esperado {expected_status})")
                 all_ok = False

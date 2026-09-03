@@ -541,6 +541,10 @@ class MeshCoreWebServer:
         node_cnt = self.bridge.node_registry.get_count() if hasattr(self.bridge, "node_registry") else 0
         q_depth = self.bridge.rate_limiter.get_queue_depth() if hasattr(self.bridge, "rate_limiter") else 0
 
+        serial_adapter = getattr(self.bridge, "serial_adapter", None)
+        is_radio_ok = getattr(serial_adapter, "is_connected", False) if serial_adapter else False
+        radio_port = getattr(serial_adapter, "port", "") if serial_adapter else ""
+
         initial_metrics = {
             "event": "metrics_update",
             "type": "metrics_update",
@@ -549,6 +553,8 @@ class MeshCoreWebServer:
             "tx_count": total_tx,
             "error_rate": error_rate,
             "queue_depth": q_depth,
+            "radio_connected": is_radio_ok,
+            "radio_port": radio_port,
         }
         writer.write(self._build_websocket_frame(json.dumps(initial_metrics).encode("utf-8")))
         await writer.drain()

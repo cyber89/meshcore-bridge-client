@@ -6,6 +6,28 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Auditoría de Conexión, Resolución 404 en /api/diagnostics y Sincronización Hardware-Web
+- **Fecha**: 2026-09-02
+- **Estado**: ✅ COMPLETADO (Resolución del error 404 en /api/diagnostics, corrección del estado permanente 'Desconectada' del transceptor en la SPA, implementación canónica de MeshCoreBridge.get_health, sincronización WebSocket multi-canal y 100% PASS en validación)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - Al ingresar a la interfaz web, el transceptor LoRa aparecía como "Radio: Desconectada" / "Desconectado" a pesar de estar conectado.
+  - La consola del navegador mostraba errores `Failed to load resource: the server responded with a status of 404 (Not Found)` en `:8080/api/diagnostics`.
+  - En el backend, `SystemController.get_health()` intentaba invocar `bridge.get_health()`, método que no estaba implementado en `MeshCoreBridge`.
+  - El WebSocket inicial omitía el estado del adaptador serie en `initial_metrics`.
+- **Acciones Realizadas**:
+  - **Enrutamiento y Controladores ([`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py), [`src/web/controllers/system_controller.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/controllers/system_controller.py))**:
+    - Se agregó `/api/diagnostics` y `/api/diagnostics/report.md` a la guarda de despacho de `_dispatch_system` y `_dispatch_misc`.
+    - Se implementó `_collect_health` en `SystemController` con fallback resiliente hacia `bridge.get_health()`, `diagnostics.collect_health_snapshot()` y lectura directa de adaptadores.
+    - Se añadió `get_health` canónico en [`src/bridge_core.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/bridge_core.py) sobre `MeshCoreBridge`.
+    - Se agregó `serial_connected`, `radio_connected` y `serial_port` en `ConfigController.get_device_config()`.
+  - **WebSocket y Frontend ([`src/web/http_server.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/http_server.py), [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js), [`src/web/static/js/modules/sniffer.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/sniffer.js), [`src/web/static/js/modules/settings.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/settings.js))**:
+    - En `http_server.py`, se incluyeron `radio_connected` y `radio_port` en el mensaje `initial_metrics` emitido tras el handshake WebSocket.
+    - En `app.js`, `settings.js` y `sniffer.js`, se sincroniza reactivamente `updateRadioBadge` y `chipSerialHealth` ante eventos de métricas y carga de configuración.
+  - **Pruebas y Verificación ([`.agents/skills/api-design-testing/scripts/validate_api_contract.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/.agents/skills/api-design-testing/scripts/validate_api_contract.py))**:
+    - Añadidas aserciones para `GET /api/diagnostics` y `GET /api/diagnostics/report.md` validando `subsystems.serial_companion.connected == True`.
+- **Módulos Modificados**: `src/bridge_core.py`, `src/web/controllers/system_controller.py`, `src/web/controllers/config_controller.py`, `src/web/api_router.py`, `src/web/http_server.py`, `src/web/static/js/app.js`, `src/web/static/js/modules/settings.js`, `src/web/static/js/modules/sniffer.js`, `.agents/skills/api-design-testing/scripts/validate_api_contract.py`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Corrección y Habilitación de Rutas REST /api/config en WebAPIRouter
 - **Fecha**: 2026-09-02
 - **Estado**: ✅ COMPLETADO (Habilitación de /api/config, /api/config/radio, /api/config/identity, /api/config/advert y /api/config/reboot en WebAPIRouter delegando en ConfigController; resolución del error 404 en consola de navegador al cargar la SPA; 100% PASS en contratos API y simulación)

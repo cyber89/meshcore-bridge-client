@@ -375,6 +375,11 @@ export class SettingsModule {
       pwrInput.value = cfg.tx_power;
       if (pwrVal) pwrVal.textContent = `${cfg.tx_power} dBm`;
     }
+
+    if (this.ctx.updateRadioBadge && (cfg.serial_connected != null || cfg.radio_connected != null)) {
+      const isConnected = Boolean(cfg.serial_connected ?? cfg.radio_connected);
+      this.ctx.updateRadioBadge(isConnected, cfg.serial_port || "");
+    }
   }
 
   async saveLocalRadioConfig() {

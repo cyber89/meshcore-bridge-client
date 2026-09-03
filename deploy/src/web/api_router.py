@@ -237,7 +237,14 @@ class WebAPIRouter:
         req_body = body or {}
 
         try:
-            if clean_path in ("/api/status", "/api/health", "/api/preflight") or clean_path.startswith("/api/system/logs"):
+            if clean_path in (
+                "/api/status",
+                "/api/health",
+                "/api/preflight",
+                "/api/diagnostics",
+                "/api/diagnostics/report.md",
+                "/api/diagnostics/report",
+            ) or clean_path.startswith("/api/system/logs"):
                 return await self._dispatch_system(method, path, clean_path, req_body)
 
             if clean_path in ("/api/nodes", "/api/lqi", "/api/link_quality", "/api/analytics", "/api/metrics/analytics", "/api/rf/heatmap", "/api/airtime/stats", "/api/rf/noise"):
@@ -272,8 +279,17 @@ class WebAPIRouter:
         """Despacha rutas de salud, estado y logs al SystemController."""
         if clean_path == "/api/status" and method == "GET":
             return await self._route_status()
-        if clean_path == "/api/health" and method == "GET":
+        if clean_path in ("/api/health", "/api/diagnostics") and method == "GET":
             return await self.system_ctrl.get_health()
+        if clean_path in ("/api/diagnostics/report.md", "/api/diagnostics/report") and method == "GET":
+            diag = getattr(self.bridge, "diagnostics", None)
+            from src.diagnostics import DiagnosticManager
+
+            if isinstance(diag, DiagnosticManager):
+                md_text = diag.generate_markdown_report()
+            else:
+                md_text = "# Reporte de Diagnóstico no disponible"
+            return 200, {"status": "ok", "markdown": md_text, "text": md_text}
         if clean_path == "/api/preflight" and method == "GET":
             return await self.system_ctrl.run_preflight()
         if clean_path == "/api/system/logs/level":
@@ -428,6 +444,9 @@ class WebAPIRouter:
         """Despacha servicios de mapas y visualización de diagnósticos históricos."""
         if clean_path == "/api/map/status" and method == "GET":
             return 200, {"status": "ok", "data": self.map_tile_service.get_status()}
+
+        if clean_path in ("/api/diagnostics", "/api/health") and method == "GET":
+            return await self.system_ctrl.get_health()
 
         if clean_path in (
             "/api/messages",

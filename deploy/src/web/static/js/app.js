@@ -216,6 +216,9 @@ class MeshCoreApp {
       if (this.dom.headerTxCount && payload.tx_count != null) {
         this.dom.headerTxCount.textContent = String(payload.tx_count);
       }
+      if (payload.radio_connected != null) {
+        this.updateRadioBadge(Boolean(payload.radio_connected), payload.radio_port || "");
+      }
     });
   }
 

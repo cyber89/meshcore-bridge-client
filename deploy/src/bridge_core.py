@@ -316,6 +316,30 @@ class MeshCoreBridge:
     ) -> bool:
         return self.mqtt.publish_safe(topic, payload_str, qos=qos, retain=retain)
 
+    def get_health(self) -> dict[str, Any]:
+        """Devuelve un snapshot consolidado de la salud de todos los subsistemas del bridge."""
+        if hasattr(self, "diagnostics") and hasattr(self.diagnostics, "collect_health_snapshot"):
+            return self.diagnostics.collect_health_snapshot()
+        serial_adapter = getattr(self, "serial_adapter", None)
+        mqtt_client = getattr(self, "mqtt", None)
+        is_ser_ok = getattr(serial_adapter, "is_connected", False) if serial_adapter else False
+        is_mqtt_ok = getattr(mqtt_client, "is_connected", False) if mqtt_client else False
+        port_val = getattr(serial_adapter, "port", getattr(config, "SERIAL_PORT", "desconocido")) if serial_adapter else "none"
+        return {
+            "status": "healthy" if is_ser_ok and is_mqtt_ok else "degraded",
+            "timestamp": time.time(),
+            "uptime_seconds": int(time.time() - getattr(self, "start_time", time.time())),
+            "subsystems": {
+                "serial_companion": {
+                    "connected": is_ser_ok,
+                    "port": port_val,
+                },
+                "mqtt_broker": {
+                    "connected": is_mqtt_ok,
+                },
+            },
+        }
+
     async def _flush_offline_buffer(self) -> int:
         return 0
 

@@ -57,6 +57,10 @@ class ConfigController(BaseController):
                 if last_rssi is None and remote_nodes[0].get("last_rssi") is not None:
                     last_rssi = remote_nodes[0].get("last_rssi")
 
+        serial_adapter = getattr(self.ctx.bridge, "serial_adapter", None)
+        is_ser_ok = getattr(serial_adapter, "is_connected", False) if serial_adapter else False
+        serial_port = getattr(serial_adapter, "port", "none") if serial_adapter else "none"
+
         local_cfg.update({
             "uptime": uptime_sec,
             "uptime_str": uptime_str,
@@ -70,6 +74,9 @@ class ConfigController(BaseController):
             "clock": datetime.now().strftime("%I:%M:%S %p"),
             "last_snr": last_snr,
             "last_rssi": last_rssi,
+            "serial_connected": is_ser_ok,
+            "radio_connected": is_ser_ok,
+            "serial_port": serial_port,
         })
         return 200, {"status": "ok", "data": local_cfg}
 

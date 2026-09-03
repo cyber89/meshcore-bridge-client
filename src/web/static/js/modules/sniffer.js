@@ -96,6 +96,16 @@ export class SnifferModule {
           this.systemLogs.shift();
         }
         this.appendLogEntryToDom(logData);
+      } else if (payload && (payload.type === "metrics_update" || payload.event === "metrics_update")) {
+        if (payload.radio_connected != null && this.dom.chipSerialHealth) {
+          const isSerOk = Boolean(payload.radio_connected);
+          const portName = payload.radio_port || "";
+          const el = this.dom.chipSerialHealth.querySelector(".val");
+          if (el) {
+            el.textContent = isSerOk ? `Conectado (${portName || "/dev/ttyACM0"})` : "Desconectado";
+            el.className = `val ${isSerOk ? "ok" : "err"}`;
+          }
+        }
       }
     });
   }
