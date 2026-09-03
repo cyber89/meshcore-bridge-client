@@ -438,7 +438,7 @@ class MeshCoreWebServer:
     async def _is_api_auth_valid(self, ctx: HttpRequestContext) -> bool:
         """Verifica la autenticación con BRIDGE_API_KEY si el endpoint está protegido."""
         api_key = os.getenv("BRIDGE_API_KEY", "")
-        protected_prefixes = ("/api/node/reboot", "/api/admin/", "/api/tx", "/api/repeater/")
+        protected_prefixes = ("/api/node/reboot", "/api/config/reboot", "/api/admin/", "/api/tx", "/api/repeater/")
         needs_auth = False
         if any(ctx.path.startswith(p) for p in protected_prefixes):
             if not (ctx.path.startswith("/api/nodes") and ctx.method == "GET"):

@@ -47,6 +47,9 @@ class MockBridge:
     async def _execute_tx(self, tx_item: Any) -> bool:
         return True
 
+    async def handle_admin(self, cmd: Any) -> dict[str, Any]:
+        return {"status": "ok", "action": cmd.get("action")}
+
 
 async def run_api_tests() -> bool:
     print("\n" + "=" * 68)
@@ -68,6 +71,10 @@ async def run_api_tests() -> bool:
             ("GET", "/api/channels", {}, 200),
             ("GET", "/api/analytics", {}, 200),
             ("GET", "/api/system/logs", {}, 200),
+            ("GET", "/api/config", {}, 200),
+            ("GET", "/api/node/config", {}, 200),
+            ("POST", "/api/config/radio", {"frequency": 915.0}, 200),
+            ("POST", "/api/config/identity", {"name": "Base Node"}, 200),
             ("POST", "/api/contacts", {"name": "Nodo Alpha", "public_key": "aabbcc112233"}, 200),
             ("POST", "/api/contacts", {}, 400),  # Falta clave
             ("POST", "/api/tx", {"text": "Hola Malla", "channel_idx": 0}, 200),

@@ -119,6 +119,14 @@ class MeshCoreApp {
         localStorage.setItem("meshcore_theme", next);
       });
     }
+    // i18n: wire language toggle button
+    const langBtn = document.getElementById("langToggleBtn");
+    if (langBtn && window.I18n) {
+      langBtn.addEventListener("click", () => window.I18n.toggle());
+    }
+    // Apply translations on init (i18n.js auto-applies on DOMContentLoaded,
+    // but calling again here ensures post-module-load elements are covered)
+    if (window.I18n) window.I18n.apply();
   }
 
   _initNavigation() {

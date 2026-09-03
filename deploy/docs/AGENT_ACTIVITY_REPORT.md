@@ -6,6 +6,27 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Corrección y Habilitación de Rutas REST /api/config en WebAPIRouter
+- **Fecha**: 2026-09-02
+- **Estado**: ✅ COMPLETADO (Habilitación de /api/config, /api/config/radio, /api/config/identity, /api/config/advert y /api/config/reboot en WebAPIRouter delegando en ConfigController; resolución del error 404 en consola de navegador al cargar la SPA; 100% PASS en contratos API y simulación)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - El frontend de la WebUI (`src/web/static/js/modules/settings.js`) solicita en su arranque `GET /api/config` para poblar el nodo local y envía `POST /api/config/radio` y `POST /api/config/identity` al guardar ajustes.
+  - El enrutador `WebAPIRouter` sólo despachaba rutas que iniciaban con `/api/node`, provocando errores `404 Not Found` en la consola del navegador al consultar `/api/config`.
+- **Acciones Realizadas**:
+  - **Ampliación de Despacho en [`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py)**:
+    - Se actualizó la guarda de enrutamiento a `clean_path.startswith(("/api/node", "/api/config"))`.
+    - Se extendió `_dispatch_config` para atender de forma simétrica:
+      - `GET /api/config`: Retorna la configuración consolidada del dispositivo (`ConfigController.get_device_config()`).
+      - `POST /api/config/radio`: Aplica parámetros de modulación y potencia RF (`ConfigController.set_local_config(req_body)`).
+      - `POST /api/config/identity`: Aplica nombre y geolocalización fija (`ConfigController.set_local_config(req_body)`).
+      - `POST /api/config/advert` y `POST /api/config/reboot`: Conectados a anuncios LoRa y reinicio de hardware.
+  - **Protección Perimetral en [`src/web/http_server.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/http_server.py)**:
+    - Se incluyó `"/api/config/reboot"` en `protected_prefixes` para requerir `x-api-key` cuando `BRIDGE_API_KEY` está activa.
+  - **Pruebas de Contrato en [`.agents/skills/api-design-testing/scripts/validate_api_contract.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/.agents/skills/api-design-testing/scripts/validate_api_contract.py)**:
+    - Añadidas verificaciones automáticas para `GET /api/config`, `POST /api/config/radio`, `POST /api/config/identity` y `GET /api/node/config` (todas HTTP 200).
+- **Módulos Modificados**: `src/web/api_router.py`, `src/web/http_server.py`, `.agents/skills/api-design-testing/scripts/validate_api_contract.py`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Refactorización Clean Code de Decodificadores de Sensores (extract_telemetry_fields)
 - **Fecha**: 2026-09-02
 - **Estado**: ✅ COMPLETADO (Descomposición de extract_telemetry_fields de 254 líneas a función coordinadora de 19 líneas y 6 extractores funcionales especializados < 40 líneas cada uno; 0 code smells en sensor_decoder.py y 100% PASS en simulación)

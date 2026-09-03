@@ -255,7 +255,7 @@ class WebAPIRouter:
             if clean_path.startswith(("/api/admin", "/api/repeater", "/api/traceroute", "/api/trace")):
                 return await self._dispatch_repeater(method, clean_path, req_body)
 
-            if clean_path.startswith("/api/node"):
+            if clean_path.startswith(("/api/node", "/api/config")):
                 return await self._dispatch_config(method, clean_path, req_body)
 
             if clean_path.startswith("/api/map") or clean_path in ("/api/logs", "/api/telemetry", "/api/diagnostics", "/api/diagnostics/report.md", "/api/diagnostics/report", "/api/logs/download", "/api/logs/raw"):
@@ -390,18 +390,39 @@ class WebAPIRouter:
 
     async def _dispatch_config(self, method: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Despacha rutas de configuración de nodo local y módem LoRa."""
-        if clean_path in ("/api/node/config", "/api/node/settings"):
+        if clean_path in ("/api/config", "/api/node/config", "/api/node/settings"):
             if method == "GET":
                 return await self.config_ctrl.get_device_config()
             if method == "POST":
                 return await self.config_ctrl.set_local_config(req_body)
-        if clean_path == "/api/node/advert" and method == "POST":
-            flood = bool(req_body.get("flood", False))
-            return await self.config_ctrl.broadcast_advert(flood)
-        if clean_path == "/api/node/reboot" and method == "POST":
-            return await self.config_ctrl.reboot_local()
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
-        return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+        if clean_path in ("/api/config/radio", "/api/node/config/radio"):
+            if method == "POST":
+                return await self.config_ctrl.set_local_config(req_body)
+            if method == "GET":
+                return await self.config_ctrl.get_device_config()
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+        if clean_path in ("/api/config/identity", "/api/node/config/identity"):
+            if method == "POST":
+                return await self.config_ctrl.set_local_config(req_body)
+            if method == "GET":
+                return await self.config_ctrl.get_device_config()
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+        if clean_path in ("/api/node/advert", "/api/config/advert"):
+            if method == "POST":
+                flood = bool(req_body.get("flood", False))
+                return await self.config_ctrl.broadcast_advert(flood)
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+        if clean_path in ("/api/node/reboot", "/api/config/reboot"):
+            if method == "POST":
+                return await self.config_ctrl.reboot_local()
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+        return problem_details(404, "Not Found", f"Ruta no encontrada: {method} {clean_path}", "route_not_found")
 
     async def _dispatch_misc(self, method: str, raw_path: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Despacha servicios de mapas y visualización de diagnósticos históricos."""
