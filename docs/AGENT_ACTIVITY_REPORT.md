@@ -6,6 +6,36 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Refactorización Clean Code del Backend (Strategy Pattern en rx_router.py) y Protección de Airtime LoRa en Repetidores
+- **Fecha**: 2026-09-02
+- **Estado**: ✅ COMPLETADO (Descomposición de handle_event CC 190 -> 4 con Strategy Pattern en src/routers/, descomposición modular de repeater_manager.py y gobernanza de Airtime LoRa con cooldowns)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - `rx_router.py:handle_event()` era un mega-método de 453 líneas y Complejidad Ciclomática (CC) = 190 que enrutaba todos los paquetes de RF en una estructura monobloque.
+  - `repeater_manager.py` contenía métodos con alta densidad (`parse_repeater_telemetry_or_response` con 392 líneas y `build_repeater_command_payload` con 236 líneas).
+  - Riesgo de congestión de Airtime en la malla LoRa al consultar repetidores remotos sin cooldowns regulados.
+- **Acciones Realizadas**:
+  - **Patrón Strategy para Enrutamiento de Eventos (`src/routers/`)**:
+    - [`base.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/routers/base.py): Protocolo `BaseRxHandler`, `RxMeta` y `MeshMessageEvent`.
+    - [`channel_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/routers/channel_handler.py): `ChannelMessageHandler` para mensajes broadcast y grupales.
+    - [`direct_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/routers/direct_handler.py): `DirectMessageHandler` para DMs con guarda loopback local.
+    - [`advert_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/routers/advert_handler.py): `AdvertHandler` para anuncios, descubrimiento y sincronización de libreta de contactos.
+    - [`telemetry_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/routers/telemetry_handler.py): `TelemetryHandler` para lecturas ambientales, voltajes y métricas de señal.
+    - [`repeater_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/routers/repeater_handler.py): `RepeaterAdminHandler` para respuestas CLI, delivery ACKs y traceroutes.
+    - [`rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py): `handle_event()` reducido de 453 líneas a **33 líneas**, CC reducida de **190 a 4**.
+  - **Descomposición Modular en `src/repeater_manager.py`**:
+    - `parse_repeater_telemetry_or_response()` descompuesto en submétodos especializados (`_parse_json_telemetry`, `_parse_battery_and_voltage`, `_parse_radio_parameters`, `_parse_system_metrics`, `_parse_owner_and_location`).
+    - `build_repeater_command_payload()` descompuesto en `_build_query_cmd`, `_build_radio_cmd`, `_build_owner_and_location_cmd`, `_build_acl_and_security_cmd`.
+  - **Protección de Airtime LoRa y Cooldowns**:
+    - Implementado `check_airtime_cooldown()` y `record_command_sent()` con **5s** de cooldown entre comandos individuales y **30s** para consultas completas de telemetría.
+    - Integrado en [`src/admin_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin_handler.py#L1006) para bloquear ráfagas automáticas o abusivas hacia repetidores de la malla.
+  - **Auditoría y Despliegue**:
+    - 36/36 módulos importados exitosamente (0 errores).
+    - 100% tipado estático (`mypy --strict`).
+    - Cero bloqueos de concurrencia y cero vulnerabilidades de seguridad.
+    - Sincronización a `/deploy/` con `scripts/sync_deploy.py`.
+- **Módulos Modificados**: `src/routers/**`, `src/rx_router.py`, `src/repeater_manager.py`, `src/admin_handler.py`, `deploy/**`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Modularización Integral del Frontend en ES6 Nativo y Desacoplamiento Event-Driven
 - **Fecha**: 2026-09-02
 - **Estado**: ✅ COMPLETADO (División de app.js de 7,826 líneas en arquitectura modular ES6 pura por capas y dominios funcionales)

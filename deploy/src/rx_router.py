@@ -80,16 +80,7 @@ def extract_sender_from_text(text: str) -> tuple[str | None, str]:
 
 
 
-@dataclass(slots=True)
-class MeshMessageEvent:
-    """Representa un mensaje de texto normalizado recibido por RF."""
-    sender: str
-    sender_name: str
-    text: str
-    channel_idx: int
-    rssi: float | int | None = None
-    snr: float | None = None
-    txt_type: int = 0
+from src.routers.base import MeshMessageEvent
 
 
 _SYSTEM_EXACT_MATCHES: frozenset[str] = frozenset({
@@ -187,8 +178,24 @@ class RxEventRouter:
 
     def __init__(self, ctx: RxRouterContext) -> None:
         import os
+        from src.routers import (
+            BaseRxHandler,
+            AdvertHandler,
+            ChannelMessageHandler,
+            DirectMessageHandler,
+            RepeaterAdminHandler,
+            TelemetryHandler,
+        )
+
         self._ctx = ctx
         self._rx_semaphore = asyncio.Semaphore(int(os.getenv("MAX_RX_CONCURRENCY", "20")))
+        self._handlers: list[BaseRxHandler] = [
+            RepeaterAdminHandler(),
+            AdvertHandler(),
+            TelemetryHandler(),
+            DirectMessageHandler(),
+            ChannelMessageHandler(),
+        ]
 
     def handle_event(self, event: Any) -> None:
         """Procesa y enruta eventos de la red Mesh hacia MQTT y n8n."""
@@ -203,447 +210,252 @@ class RxEventRouter:
                 task.add_done_callback(self._ctx.background_tasks.discard)
                 return
 
-            ev_type_str = str(getattr(event, "type", getattr(event, "event_type", "")))
-            payload_obj = getattr(event, "payload", getattr(event, "data", event))
-            attributes = getattr(event, "attributes", None)
-
-            if isinstance(payload_obj, dict):
-                payload_dict = dict(payload_obj)
-            elif hasattr(payload_obj, "__dict__"):
-                payload_dict = {k: v for k, v in payload_obj.__dict__.items() if not k.startswith("_")}
-            else:
-                payload_dict = {"raw": str(payload_obj)}
-
-            # Fusionar atributos del evento (ej. MeshCore Event)
-            if isinstance(attributes, dict):
-                for ak, av in attributes.items():
-                    if ak not in payload_dict or payload_dict[ak] is None:
-                        payload_dict[ak] = av
-
-            if payload_dict.get("is_outgoing") is True:
+            normalized = self._extract_normalized_meta(event)
+            if not normalized:
                 return
 
-            from src.event_utils import extract_sender_from_payload
-            sender_raw, sender_name = extract_sender_from_payload(payload_dict)
-            sender = ""
+            payload_dict, meta = normalized
+            loop = self._ctx.loop or asyncio.get_running_loop()
 
-            # 1. Resolver emisor contra NodeRegistry por clave o prefijo
-            if sender_raw:
-                contact = self._ctx.node_registry.get_by_key_or_prefix(sender_raw)
-                if contact and contact.public_key:
-                    sender = contact.public_key
-                    sender_name = contact.alias or contact.name
-                elif is_valid_node_key(sender_raw):
-                    sender = self._ctx.node_registry.get_canonical_key(sender_raw)
-                    resolved = self._resolve_sender_name(sender)
-                    if resolved and resolved != sender:
-                        sender_name = resolved
-                    elif not sender_name or sender_name.lower() in ("unknown", "anónimo", "anonimo", ""):
-                        sender_name = f"Nodo [{sender_raw[:8]}]"
-                elif not sender_name or sender_name.lower() in ("unknown", "anónimo", "anonimo", ""):
-                    sender_name = f"Nodo [{sender_raw[:8]}]"
+            for handler in self._handlers:
+                if handler.can_handle(meta, payload_dict):
+                    task = loop.create_task(handler.handle(self, payload_dict, meta, event))
+                    self._ctx.background_tasks.add(task)
+                    task.add_done_callback(self._ctx.background_tasks.discard)
+                    return
 
-            if sender_name:
-                if not sender:
-                    found_c = self._ctx.node_registry.find_by_name(sender_name)
-                    if found_c and found_c.public_key:
-                        sender = found_c.public_key
-
-            text = str(payload_dict.get("text", payload_dict.get("message", ""))).strip()
-            channel_idx = int(payload_dict.get("channel_idx", payload_dict.get("channel", 0)))
-            hops = int(payload_dict.get("hop_count", payload_dict.get("hops", 0)))
-
-            # Extracción inteligente de nombre desde el cuerpo del texto si viene en formato 'Nombre: Mensaje'
-            extracted_name, clean_text = extract_sender_from_text(text)
-            if extracted_name:
-                text = clean_text
-                if not sender_name or sender_name.lower() in ("unknown", "anónimo", "anonimo", "") or sender_name == sender:
-                    sender_name = extracted_name
-                if not sender or not is_valid_node_key(sender):
-                    found_c = self._ctx.node_registry.find_by_name(extracted_name)
-                    if found_c and is_valid_node_key(found_c.public_key):
-                        sender = found_c.public_key
-            elif sender_name and sender_name.lower() not in ("unknown", "anónimo", "anonimo", ""):
-                # Si el texto empieza con el nombre ya conocido (ej: "Cu1.mobilUnit: mensaje")
-                s_clean = sender_name.strip()
-                prefix_check = f"{s_clean}:"
-                if text.lower().startswith(prefix_check.lower()):
-                    candidate_clean = text[len(prefix_check):].strip()
-                    if not candidate_clean.startswith("//"):
-                        text = candidate_clean
-
-            # Si no hay emisor pero el evento proviene del transceptor local o consulta interna
-            ev_upper_cand = ev_type_str.upper()
-            if not sender:
-                if any(k in ev_upper_cand for k in ("SELF", "BATTERY", "DEVICE_INFO", "LOCAL")):
-                    local_pk = (
-                        self._ctx.node_registry.get_local_pubkey()
-                        if hasattr(self._ctx.node_registry, "get_local_pubkey")
-                        else getattr(self._ctx.node_registry, "_local_pubkey", "")
-                    )
-                    sender = local_pk or "LOCAL"
-                    sender_name = "Estación Base Local"
-                elif sender_raw:
-                    sender = sender_raw
-                    sender_name = f"Nodo [{sender_raw[:8]}]"
-
-            # Normalizar métricas de enlace RF de forma global
-            rssi = payload_dict.get("rssi", payload_dict.get("RSSI", payload_dict.get("last_rssi")))
-            snr = payload_dict.get("snr", payload_dict.get("SNR", payload_dict.get("last_snr")))
-
-            is_local_sender = bool(sender and is_valid_node_key(sender) and self._ctx.node_registry.is_local_key(sender))
-            effective_rssi = None if is_local_sender else (int(rssi) if isinstance(rssi, (int, float)) else None)
-            effective_snr = None if is_local_sender else (float(snr) if isinstance(snr, (int, float)) else None)
-            effective_hops = 0 if is_local_sender else hops
-
-            if effective_snr is not None:
-                self._ctx.last_rx_snr = effective_snr
-            if effective_rssi is not None:
-                self._ctx.last_rx_rssi = effective_rssi
-            if self._ctx.admin_handler and hasattr(self._ctx.admin_handler, "_ctx"):
-                if effective_rssi is not None:
-                    self._ctx.admin_handler._ctx.last_rx_rssi = effective_rssi
-                if effective_snr is not None:
-                    self._ctx.admin_handler._ctx.last_rx_snr = effective_snr
-
-            # Re-inyectar en payload_dict para coherencia en downstream
-            if sender:
-                payload_dict["sender"] = sender
-            if sender_name:
-                payload_dict["sender_name"] = sender_name
-            if effective_rssi is not None:
-                payload_dict["rssi"] = effective_rssi
-            if effective_snr is not None:
-                payload_dict["snr"] = effective_snr
-
-            # Actualizar directorio dinámico de nodos
-            if sender and is_valid_node_key(sender):
-                raw_bat = payload_dict.get("battery_pct", payload_dict.get("battery", payload_dict.get("batt", payload_dict.get("bat"))))
-                bat_pct: int | None = None
-                if raw_bat is not None and isinstance(raw_bat, (int, float)):
-                    if 0 <= raw_bat <= 100:
-                        bat_pct = int(raw_bat)
-                    elif raw_bat > 100:  # mV
-                        bat_pct = max(0, min(100, int((raw_bat - 3300) / (4200 - 3300) * 100)))
-
-                volt_val = payload_dict.get("voltage_v", payload_dict.get("voltage", payload_dict.get("vbat")))
-                if bat_pct is None and volt_val is not None and isinstance(volt_val, (int, float)):
-                    v_flt = float(volt_val)
-                    if v_flt > 100:  # mV
-                        v_flt = v_flt / 1000.0
-                    if v_flt >= 4.8:
-                        bat_pct = 100
-                    elif v_flt >= 3.0:
-                        bat_pct = max(0, min(100, int((v_flt - 3.3) / (4.2 - 3.3) * 100)))
-
-                sender_name_cand = (sender_name or "").upper()
-                is_named_rep = (
-                    sender_name_cand.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-", "REP_", "ROUTER_"))
-                    or "REPEATER" in sender_name_cand or "ROUTER" in sender_name_cand or "REPETIDOR" in sender_name_cand
-                )
-
-                role_val = payload_dict.get("role")
-                if not role_val:
-                    raw_type = payload_dict.get("adv_type", payload_dict.get("type"))
-                    if raw_type == 2 or raw_type == "REPEATER" or is_named_rep:
-                        role_val = "REPEATER"
-                    elif raw_type == 3 or raw_type == "ROOM":
-                        role_val = "ROOM"
-                    elif raw_type == 4 or raw_type == "SENSOR":
-                        role_val = "SENSOR"
-                    elif raw_type == 1 or raw_type == "CHAT" or raw_type == "CLIENT":
-                        role_val = "CLIENT"
-
-                lat_val = _get_coord(payload_dict, ("lat", "latitude", "gps_lat"))
-                lon_val = _get_coord(payload_dict, ("lon", "longitude", "gps_lon"))
-
-                effective_role = "LOCAL" if is_local_sender else (role_val or ("REPEATER" if is_named_rep else "CLIENT"))
-
-                is_new, contact_info = self._ctx.node_registry.discover_node(
-                    public_key=sender,
-                    name=sender_name if sender_name and sender_name != sender else None,
-                    role=effective_role,
-                    rssi=effective_rssi,
-                    snr=effective_snr,
-                    hops=effective_hops,
-                )
-
-                if is_valid_node_key(contact_info.public_key):
-                    if lat_val is not None or lon_val is not None or bat_pct is not None:
-                        contact_info = self._ctx.node_registry.add_or_update(
-                            sender,
-                            NodeContactUpdate(
-                                battery_pct=bat_pct,
-                                latitude=lat_val,
-                                longitude=lon_val,
-                                is_local=is_local_sender,
-                            ),
-                        )
-
-                    if not is_local_sender:
-                        self._ctx.node_registry.record_packet(
-                            PacketRecord(
-                                public_key=sender,
-                                is_rx=True,
-                                rssi=effective_rssi,
-                                snr=effective_snr,
-                                hop_count=effective_hops,
-                            )
-                        )
-                        if self._ctx.web_server:
-                            asyncio.create_task(self._ctx.web_server.broadcast_event({
-                                "type": "contact_discovered" if is_new else "contact_updated",
-                                "event_type": "contact_discovered" if is_new else "contact_updated",
-                                "is_new": is_new,
-                                "contact": contact_info.to_dict(),
-                            }))
-
-            ev_upper = ev_type_str.upper()
-            p_type_upper = str(payload_dict.get("type", "")).upper()
-            ev_attrs = getattr(event, "attributes", {}) if hasattr(event, "attributes") and isinstance(event.attributes, dict) else {}
-
-            # Caso Descubrimiento / Importación de Contacto (CONTACT, NEXT_CONTACT, CONTACTS, ADVERTISEMENT)
-            if "CONTACT" in ev_upper or "ADVERT" in ev_upper or "ADVERTISEMENT" in ev_upper:
-                c_items: list[dict[str, Any]] = []
-                if isinstance(payload_obj, list):
-                    c_items = [x for x in payload_obj if isinstance(x, dict)]
-                elif isinstance(payload_obj, dict):
-                    if "contacts" in payload_obj and isinstance(payload_obj["contacts"], list):
-                        c_items = [x for x in payload_obj["contacts"] if isinstance(x, dict)]
-                    else:
-                        c_items = [payload_obj]
-
-                for c_item in c_items:
-                    c_pk = str(c_item.get("public_key", c_item.get("key", c_item.get("pubkey", "")))).strip().lower()
-                    if not c_pk or not is_valid_node_key(c_pk):
-                        continue
-
-                    c_name = str(c_item.get("adv_name", c_item.get("name", c_item.get("alias", f"Node_{c_pk[:6]}")))).strip()
-                    c_raw_type = c_item.get("type", c_item.get("adv_type", 1))
-                    c_name_upper = c_name.upper()
-                    if c_raw_type == 2 or c_name_upper.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-")) or "REPEATER" in c_name_upper or "ROUTER" in c_name_upper:
-                        c_role = "REPEATER"
-                    elif c_raw_type == 3 or "ROOM" in c_name_upper or "BBS" in c_name_upper:
-                        c_role = "ROOM"
-                    elif c_raw_type == 4 or "SENSOR" in c_name_upper:
-                        c_role = "SENSOR"
-                    else:
-                        c_role = "CLIENT"
-
-                    c_lat = _get_coord(c_item, ("adv_lat", "lat", "latitude", "gps_lat"))
-                    c_lon = _get_coord(c_item, ("adv_lon", "lon", "longitude", "gps_lon"))
-                    c_bat = _safe_int(c_item.get("battery_pct", c_item.get("battery", c_item.get("batt"))))
-
-                    is_c_new, c_contact_info = self._ctx.node_registry.discover_node(
-                        public_key=c_pk,
-                        name=c_name,
-                        role=c_role,
-                        rssi=effective_rssi,
-                        snr=effective_snr,
-                        hops=effective_hops,
-                    )
-                    self._ctx.node_registry.add_or_update(
-                        c_pk,
-                        NodeContactUpdate(
-                            name=c_name,
-                            alias=c_name,
-                            role=c_role,
-                            latitude=c_lat,
-                            longitude=c_lon,
-                            battery_pct=c_bat,
-                            auto_discovered=False,
-                            is_favorite=True,
-                        ),
-                    )
-                    if self._ctx.web_server:
-                        asyncio.create_task(self._ctx.web_server.broadcast_event({
-                            "type": "contact_discovered" if is_c_new else "contact_updated",
-                            "event_type": "contact_discovered" if is_c_new else "contact_updated",
-                            "is_new": is_c_new,
-                            "contact": c_contact_info.to_dict(),
-                        }))
-
-            # Caso ACK de Entrega E2E (Delivery Receipt)
-            if "ACK" in ev_upper or "ACK" in p_type_upper or payload_dict.get("event_type") == "ack" or "code" in payload_dict or "code" in ev_attrs:
-                raw_code = payload_dict.get("code", payload_dict.get("ack_code", ev_attrs.get("code", "")))
-                if isinstance(raw_code, bytes):
-                    ack_code = raw_code.hex().lower()
-                elif isinstance(raw_code, int):
-                    ack_code = hex(raw_code)[2:].lower()
-                else:
-                    ack_code = str(raw_code).strip().lower()
-
-                trip_time = float(payload_dict.get("trip_time_ms", payload_dict.get("trip_time", payload_dict.get("rtt", 0.0))))
-                ack_msg_id = str(payload_dict.get("msg_id", payload_dict.get("id", ""))).strip()
-
-                admin = getattr(self._ctx, "admin_handler", None)
-                if admin and hasattr(admin, "notify_ping_response"):
-                    admin.notify_ping_response(
-                        sender,
-                        {
-                            "trip_time": trip_time,
-                            "rssi": effective_rssi,
-                            "snr_there": effective_snr,
-                            "snr_back": effective_snr,
-                            "source": "ack",
-                        },
-                    )
-
-                ack_evt_data = {
-                    "type": "message_delivered",
-                    "event_type": "message_delivered",
-                    "msg_id": ack_msg_id,
-                    "ack_code": ack_code,
-                    "trip_time_ms": trip_time,
-                    "recipient": sender,
-                    "status": "delivered",
-                    "rssi": effective_rssi,
-                    "snr": effective_snr,
-                }
-
-                logging.info(
-                    f"[RX-ACK] De: {sender or 'Red Mesh'} -> Para: Estación Base Local | "
-                    f"Código: '{ack_code}' | RTT: {trip_time} ms | RSSI: {effective_rssi} dBm, SNR: {effective_snr} dB"
-                )
-
-                if self._ctx.web_server:
-                    asyncio.create_task(self._ctx.web_server.broadcast_event(ack_evt_data))
-
-                self._ctx.mqtt.publish_safe(
-                    config.TOPIC_TX_STATUS,
-                    json.dumps(ack_evt_data),
-                    qos=1,
-                )
-                return
-
-            # Caso Trace Path / Traceroute
-            if "TRACE" in ev_upper or "TRACE" in p_type_upper or payload_dict.get("event_type") == "trace":
-                path_nodes = payload_dict.get("path", [])
-                snr_there = path_nodes[0].get("snr") if path_nodes and isinstance(path_nodes[0], dict) else None
-                snr_back = path_nodes[-1].get("snr") if path_nodes and isinstance(path_nodes[-1], dict) else None
-                rssi_trace = payload_dict.get("rssi", payload_dict.get("RSSI", effective_rssi))
-                tag = payload_dict.get("tag")
-
-                logging.info(
-                    f"[RX-TRACE] De: {sender or 'Desconocido'} -> Para: Estación Base Local | "
-                    f"Saltos: {len(path_nodes)} | Tag: {tag}"
-                )
-
-                admin = getattr(self._ctx, "admin_handler", None)
-                if admin and hasattr(admin, "notify_ping_response"):
-                    admin.notify_ping_response(
-                        str(tag) if tag else sender,
-                        {
-                            "snr_there": snr_there,
-                            "snr_back": snr_back,
-                            "rssi": rssi_trace,
-                            "tag": tag,
-                            "source": "trace",
-                        },
-                    )
-
-                if self._ctx.web_server:
-                    asyncio.create_task(self._ctx.web_server.broadcast_event({
-                        "type": "trace_data",
-                        "data": payload_dict,
-                    }))
-                return
-
-            # Caso Log de RF / Métricas de señal a bajo nivel (LOG_DATA / RX_LOG_DATA)
-            if "LOG" in ev_upper or payload_dict.get("event_type") in ("log_data", "rx_log_data"):
-                rx_rssi = payload_dict.get("rssi", payload_dict.get("RSSI"))
-                rx_snr = payload_dict.get("snr", payload_dict.get("SNR"))
-                if rx_rssi is not None:
-                    try:
-                        self._ctx.last_rx_rssi = int(rx_rssi)
-                        if self._ctx.admin_handler and hasattr(self._ctx.admin_handler, "_ctx"):
-                            self._ctx.admin_handler._ctx.last_rx_rssi = int(rx_rssi)
-                    except (ValueError, TypeError):
-                        pass
-                if rx_snr is not None:
-                    try:
-                        self._ctx.last_rx_snr = float(rx_snr)
-                        if self._ctx.admin_handler and hasattr(self._ctx.admin_handler, "_ctx"):
-                            self._ctx.admin_handler._ctx.last_rx_snr = float(rx_snr)
-                    except (ValueError, TypeError):
-                        pass
-                if sender and is_valid_node_key(sender) and not is_local_sender:
-                    self._ctx.node_registry.record_packet(
-                        PacketRecord(
-                            public_key=sender,
-                            is_rx=True,
-                            rssi=self._ctx.last_rx_rssi,
-                            snr=self._ctx.last_rx_snr,
-                            hop_count=hops,
-                        )
-                    )
-                return
-
-            raw_txt_type = payload_dict.get("txt_type", payload_dict.get("text_type", 0))
-            try:
-                txt_type = int(raw_txt_type)
-            except (ValueError, TypeError):
-                txt_type = 0
-
-            # Caso Anuncio / Presencia (ADVERT / ADVERTISEMENT / NODE_ADVERT / NEW_CONTACT)
-            is_advert = (
-                "ADVERT" in ev_upper
-                or "ADVERT" in p_type_upper
-                or payload_dict.get("event_type") in ("advert", "node_advert", "node_discovered", "advertisement")
-                or ev_upper in ("NEW_CONTACT", "CONTACT_UPDATE", "NODE_DISCOVERED")
-            )
-            if is_advert:
-                if "event_type" not in payload_dict:
-                    payload_dict["event_type"] = "advert"
-                self._handle_mesh_telemetry_msg(payload_dict)
-                return
-
-            # Caso Telemetría explícita o estadísticas
-            is_explicit_telem = (
-                "TELEM" in ev_upper
-                or "STATS" in ev_upper
-                or payload_dict.get("event_type") in ("telemetry", "repeater_telemetry", "stats_radio", "stats_core")
-                or "temperature_c" in payload_dict
-                or "battery_mv" in payload_dict
-                or "solar_mv" in payload_dict
-            )
-            if is_explicit_telem and not ("CONTACT" in ev_upper or "CHANNEL" in ev_upper or "DIRECT" in ev_upper):
-                if "event_type" not in payload_dict:
-                    payload_dict["event_type"] = "telemetry"
-                self._handle_mesh_telemetry_msg(payload_dict)
-                return
-
-            is_direct = (
-                "CONTACT" in ev_upper
-                or "DIRECT" in ev_upper
-                or "PRIV" in p_type_upper
-                or payload_dict.get("event_type") == "direct"
-            )
-            is_channel = (
-                "CHANNEL" in ev_upper
-                or "CHAN" in p_type_upper
-                or payload_dict.get("event_type") in ("public", "channel")
-                or (bool(text) and not is_direct)
-            )
-
-            if is_direct and text:
-                loop = self._ctx.loop or asyncio.get_running_loop()
-                task = loop.create_task(self._handle_mesh_direct_msg(MeshMessageEvent(sender, sender_name, text, channel_idx, effective_rssi, effective_snr, txt_type)))
-                self._ctx.background_tasks.add(task)
-                task.add_done_callback(self._ctx.background_tasks.discard)
-            elif is_channel and text:
-                loop = self._ctx.loop or asyncio.get_running_loop()
-                task = loop.create_task(self._handle_mesh_channel_msg(MeshMessageEvent(sender, sender_name, text, channel_idx, effective_rssi, effective_snr, txt_type)))
-                self._ctx.background_tasks.add(task)
-                task.add_done_callback(self._ctx.background_tasks.discard)
-            else:
-                if "event_type" not in payload_dict:
-                    payload_dict["event_type"] = "telemetry"
-                self._handle_mesh_telemetry_msg(payload_dict)
+            if "event_type" not in payload_dict:
+                payload_dict["event_type"] = "telemetry"
+            self._handle_mesh_telemetry_msg(payload_dict)
 
         except Exception as e:
             self._ctx.counters.err_count += 1
             logging.error(f"Error procesando evento de radio Mesh: {e}", exc_info=True)
+
+    def _extract_normalized_meta(self, event: Any) -> tuple[dict[str, Any], RxMeta] | None:
+        from src.routers.base import RxMeta
+
+        ev_type_str = str(getattr(event, "type", getattr(event, "event_type", "")))
+        payload_obj = getattr(event, "payload", getattr(event, "data", event))
+        attributes = getattr(event, "attributes", None)
+
+        if isinstance(payload_obj, dict):
+            payload_dict = dict(payload_obj)
+        elif hasattr(payload_obj, "__dict__"):
+            payload_dict = {k: v for k, v in payload_obj.__dict__.items() if not k.startswith("_")}
+        else:
+            payload_dict = {"raw": str(payload_obj)}
+
+        if isinstance(attributes, dict):
+            for ak, av in attributes.items():
+                if ak not in payload_dict or payload_dict[ak] is None:
+                    payload_dict[ak] = av
+
+        if payload_dict.get("is_outgoing") is True:
+            return None
+
+        from src.event_utils import extract_sender_from_payload
+        sender_raw, sender_name = extract_sender_from_payload(payload_dict)
+        sender = ""
+
+        if sender_raw:
+            contact = self._ctx.node_registry.get_by_key_or_prefix(sender_raw)
+            if contact and contact.public_key:
+                sender = contact.public_key
+                sender_name = contact.alias or contact.name
+            elif is_valid_node_key(sender_raw):
+                sender = self._ctx.node_registry.get_canonical_key(sender_raw)
+                resolved = self._resolve_sender_name(sender)
+                if resolved and resolved != sender:
+                    sender_name = resolved
+                elif not sender_name or sender_name.lower() in ("unknown", "anónimo", "anonimo", ""):
+                    sender_name = f"Nodo [{sender_raw[:8]}]"
+            elif not sender_name or sender_name.lower() in ("unknown", "anónimo", "anonimo", ""):
+                sender_name = f"Nodo [{sender_raw[:8]}]"
+
+        if sender_name:
+            if not sender:
+                found_c = self._ctx.node_registry.find_by_name(sender_name)
+                if found_c and found_c.public_key:
+                    sender = found_c.public_key
+
+        text = str(payload_dict.get("text", payload_dict.get("message", ""))).strip()
+        channel_idx = int(payload_dict.get("channel_idx", payload_dict.get("channel", 0)))
+        hops = int(payload_dict.get("hop_count", payload_dict.get("hops", 0)))
+
+        extracted_name, clean_text = extract_sender_from_text(text)
+        if extracted_name:
+            text = clean_text
+            if not sender_name or sender_name.lower() in ("unknown", "anónimo", "anonimo", "") or sender_name == sender:
+                sender_name = extracted_name
+            if not sender or not is_valid_node_key(sender):
+                found_c = self._ctx.node_registry.find_by_name(extracted_name)
+                if found_c and is_valid_node_key(found_c.public_key):
+                    sender = found_c.public_key
+        elif sender_name and sender_name.lower() not in ("unknown", "anónimo", "anonimo", ""):
+            s_clean = sender_name.strip()
+            prefix_check = f"{s_clean}:"
+            if text.lower().startswith(prefix_check.lower()):
+                candidate_clean = text[len(prefix_check):].strip()
+                if not candidate_clean.startswith("//"):
+                    text = candidate_clean
+
+        ev_upper_cand = ev_type_str.upper()
+        if not sender:
+            if any(k in ev_upper_cand for k in ("SELF", "BATTERY", "DEVICE_INFO", "LOCAL")):
+                local_pk = (
+                    self._ctx.node_registry.get_local_pubkey()
+                    if hasattr(self._ctx.node_registry, "get_local_pubkey")
+                    else getattr(self._ctx.node_registry, "_local_pubkey", "")
+                )
+                sender = local_pk or "LOCAL"
+                sender_name = "Estación Base Local"
+            elif sender_raw:
+                sender = sender_raw
+                sender_name = f"Nodo [{sender_raw[:8]}]"
+
+        rssi = payload_dict.get("rssi", payload_dict.get("RSSI", payload_dict.get("last_rssi")))
+        snr = payload_dict.get("snr", payload_dict.get("SNR", payload_dict.get("last_snr")))
+
+        is_local_sender = bool(sender and is_valid_node_key(sender) and self._ctx.node_registry.is_local_key(sender))
+        effective_rssi = None if is_local_sender else (int(rssi) if isinstance(rssi, (int, float)) else None)
+        effective_snr = None if is_local_sender else (float(snr) if isinstance(snr, (int, float)) else None)
+        effective_hops = 0 if is_local_sender else hops
+
+        if effective_snr is not None:
+            self._ctx.last_rx_snr = effective_snr
+        if effective_rssi is not None:
+            self._ctx.last_rx_rssi = effective_rssi
+        if self._ctx.admin_handler and hasattr(self._ctx.admin_handler, "_ctx"):
+            if effective_rssi is not None:
+                self._ctx.admin_handler._ctx.last_rx_rssi = effective_rssi
+            if effective_snr is not None:
+                self._ctx.admin_handler._ctx.last_rx_snr = effective_snr
+
+        if sender:
+            payload_dict["sender"] = sender
+        if sender_name:
+            payload_dict["sender_name"] = sender_name
+        if effective_rssi is not None:
+            payload_dict["rssi"] = effective_rssi
+        if effective_snr is not None:
+            payload_dict["snr"] = effective_snr
+
+        if sender and is_valid_node_key(sender):
+            self._update_node_registry_presence(
+                sender=sender,
+                sender_name=sender_name,
+                payload_dict=payload_dict,
+                effective_rssi=effective_rssi,
+                effective_snr=effective_snr,
+                effective_hops=effective_hops,
+                is_local_sender=is_local_sender,
+            )
+
+        meta = RxMeta(
+            ev_type_str=ev_type_str,
+            ev_upper=ev_type_str.upper(),
+            sender=sender,
+            sender_name=sender_name,
+            text=text,
+            channel_idx=channel_idx,
+            hops=hops,
+            effective_rssi=effective_rssi,
+            effective_snr=effective_snr,
+            effective_hops=effective_hops,
+            is_local_sender=is_local_sender,
+        )
+        return payload_dict, meta
+
+    def _update_node_registry_presence(
+        self,
+        sender: str,
+        sender_name: str,
+        payload_dict: dict[str, Any],
+        effective_rssi: int | None,
+        effective_snr: float | None,
+        effective_hops: int,
+        is_local_sender: bool,
+    ) -> None:
+        raw_bat = payload_dict.get("battery_pct", payload_dict.get("battery", payload_dict.get("batt", payload_dict.get("bat"))))
+        bat_pct: int | None = None
+        if raw_bat is not None and isinstance(raw_bat, (int, float)):
+            if 0 <= raw_bat <= 100:
+                bat_pct = int(raw_bat)
+            elif raw_bat > 100:
+                bat_pct = max(0, min(100, int((raw_bat - 3300) / (4200 - 3300) * 100)))
+
+        volt_val = payload_dict.get("voltage_v", payload_dict.get("voltage", payload_dict.get("vbat")))
+        if bat_pct is None and volt_val is not None and isinstance(volt_val, (int, float)):
+            v_flt = float(volt_val)
+            if v_flt > 100:
+                v_flt = v_flt / 1000.0
+            if v_flt >= 4.8:
+                bat_pct = 100
+            elif v_flt >= 3.0:
+                bat_pct = max(0, min(100, int((v_flt - 3.3) / (4.2 - 3.3) * 100)))
+
+        sender_name_cand = (sender_name or "").upper()
+        is_named_rep = (
+            sender_name_cand.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-", "REP_", "ROUTER_"))
+            or "REPEATER" in sender_name_cand or "ROUTER" in sender_name_cand or "REPETIDOR" in sender_name_cand
+        )
+
+        role_val = payload_dict.get("role")
+        if not role_val:
+            raw_type = payload_dict.get("adv_type", payload_dict.get("type"))
+            if raw_type == 2 or raw_type == "REPEATER" or is_named_rep:
+                role_val = "REPEATER"
+            elif raw_type == 3 or raw_type == "ROOM":
+                role_val = "ROOM"
+            elif raw_type == 4 or raw_type == "SENSOR":
+                role_val = "SENSOR"
+            elif raw_type == 1 or raw_type == "CHAT" or raw_type == "CLIENT":
+                role_val = "CLIENT"
+
+        lat_val = _get_coord(payload_dict, ("lat", "latitude", "gps_lat"))
+        lon_val = _get_coord(payload_dict, ("lon", "longitude", "gps_lon"))
+
+        effective_role = "LOCAL" if is_local_sender else (role_val or ("REPEATER" if is_named_rep else "CLIENT"))
+
+        is_new, contact_info = self._ctx.node_registry.discover_node(
+            public_key=sender,
+            name=sender_name if sender_name and sender_name != sender else None,
+            role=effective_role,
+            rssi=effective_rssi,
+            snr=effective_snr,
+            hops=effective_hops,
+        )
+
+        if is_valid_node_key(contact_info.public_key):
+            if lat_val is not None or lon_val is not None or bat_pct is not None:
+                self._ctx.node_registry.add_or_update(
+                    sender,
+                    NodeContactUpdate(
+                        battery_pct=bat_pct,
+                        latitude=lat_val,
+                        longitude=lon_val,
+                        is_local=is_local_sender,
+                    ),
+                )
+
+            if not is_local_sender:
+                self._ctx.node_registry.record_packet(
+                    PacketRecord(
+                        public_key=sender,
+                        is_rx=True,
+                        rssi=effective_rssi,
+                        snr=effective_snr,
+                        hop_count=effective_hops,
+                    )
+                )
+                if self._ctx.web_server:
+                    asyncio.create_task(self._ctx.web_server.broadcast_event({
+                        "type": "contact_discovered" if is_new else "contact_updated",
+                        "event_type": "contact_discovered" if is_new else "contact_updated",
+                        "is_new": is_new,
+                        "contact": contact_info.to_dict(),
+                    }))
 
     def _resolve_sender_name(self, prefix_or_key: str) -> str:
         # Primero consultar el registro dinámico local

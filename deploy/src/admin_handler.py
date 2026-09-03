@@ -1003,7 +1003,18 @@ class AdminCommandHandler:
                 await self._ctx.execute_tx({"to": str(target_node), "text": f"login {password}", "request_id": req_id})
             await asyncio.sleep(0.35)
 
+        can_send, rem_cd = self._ctx.repeater_manager.check_airtime_cooldown(str(target_node), is_full_query=False)
+        if not can_send:
+            return {
+                "status": "error",
+                "error": f"Protección de Airtime LoRa activa: Espera {rem_cd}s antes de enviar otro comando a este repetidor",
+                "message": f"Protección de Airtime LoRa activa: Espera {rem_cd}s antes de enviar otro comando",
+                "code": 429,
+                "cooldown_remaining": rem_cd,
+            }
+
         cmd_text = self._ctx.repeater_manager.build_repeater_command_payload(action, admin_data)
+        self._ctx.repeater_manager.record_command_sent(str(target_node), is_full_query=False)
 
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_cmd"):
             try:
