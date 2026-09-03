@@ -8,7 +8,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from src.web.controllers.base import ApiContext, BaseController, problem_details
+from src.web.controllers.base import BaseController, problem_details
 
 
 class RepeaterController(BaseController):

@@ -6,10 +6,9 @@ Handles /api/status, /api/health, /api/system/logs, and /api/preflight.
 from __future__ import annotations
 
 import time
-from datetime import datetime
 from typing import Any
 
-from src.web.controllers.base import ApiContext, BaseController, problem_details
+from src.web.controllers.base import BaseController
 
 
 class SystemController(BaseController):

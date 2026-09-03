@@ -26,7 +26,7 @@ class ChannelsController(BaseController):
         """Carga la tabla de canales desde disco o inicializa el canal público."""
         if os.path.exists(self.channels_file):
             try:
-                with open(self.channels_file, "r", encoding="utf-8") as f:
+                with open(self.channels_file, encoding="utf-8") as f:
                     data = json.load(f)
                     if isinstance(data, list):
                         self.channels = {int(c.get("index", i)): c for i, c in enumerate(data)}

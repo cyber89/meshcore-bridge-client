@@ -221,6 +221,12 @@ class MeshCoreApp {
       if (status === "connected") {
         this.dom.wsStatus.className = "ws-badge ws-badge--connected";
         this.dom.wsStatus.textContent = "Web: Online";
+        if (this.modules?.settings?.fetchLocalNodeConfig) {
+          this.modules.settings.fetchLocalNodeConfig();
+        }
+        if (this.modules?.nodes?.fetchNodes) {
+          this.modules.nodes.fetchNodes();
+        }
       } else if (status === "connecting") {
         this.dom.wsStatus.className = "ws-badge ws-badge--connecting";
         this.dom.wsStatus.textContent = "Web: Conectando…";
@@ -240,6 +246,12 @@ class MeshCoreApp {
       }
       if (payload.radio_connected != null) {
         this.updateRadioBadge(Boolean(payload.radio_connected), payload.radio_port || "");
+      }
+      const evType = String(payload.event || payload.event_type || payload.type || "").toLowerCase();
+      if (evType === "self_info" || evType === "device_info") {
+        if (this.modules?.settings?.fetchLocalNodeConfig) {
+          this.modules.settings.fetchLocalNodeConfig();
+        }
       }
     });
   }

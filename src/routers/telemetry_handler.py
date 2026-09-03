@@ -5,7 +5,6 @@ Handles environmental metrics, hardware telemetry and RF signal logs.
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
 from src.contact_manager import PacketRecord, is_valid_node_key

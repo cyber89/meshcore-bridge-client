@@ -148,7 +148,7 @@ class RepeaterAdminExecutor:
 
         self._update_local_registry_from_params(str(req.target_node), params)
         res["dispatched_commands"] = dispatched
-        self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{req.target_node}/status", json.dumps(res), qos=1)
+        self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{req.target_node}/status", json.dumps(res), 1)
         return res
 
     def _update_local_registry_from_params(self, target_node: str, params: dict[str, Any]) -> None:
@@ -160,6 +160,10 @@ class RepeaterAdminExecutor:
         alt_val = params.get("alt", params.get("altitude"))
         tx_pwr = params.get("tx_power", params.get("power"))
 
+        freq_raw = params.get("freq", params.get("frequency"))
+        hop_raw = params.get("hop_limit", params.get("hops"))
+        rep_raw = params.get("repeat", params.get("repeat_enabled"))
+        adv_raw = params.get("beacon_interval", params.get("advert_interval"))
         self._ctx.node_registry.add_or_update(
             canon,
             NodeContactUpdate(
@@ -170,11 +174,11 @@ class RepeaterAdminExecutor:
                 latitude=float(lat_val) if lat_val is not None else None,
                 longitude=float(lon_val) if lon_val is not None else None,
                 altitude_m=float(alt_val) if alt_val is not None else None,
-                frequency=float(params.get("freq", params.get("frequency"))) if params.get("freq", params.get("frequency")) is not None else None,
+                frequency=float(freq_raw) if freq_raw is not None else None,
                 tx_power=int(tx_pwr) if tx_pwr is not None else None,
-                hop_limit=int(params.get("hop_limit", params.get("hops"))) if params.get("hop_limit", params.get("hops")) is not None else None,
-                repeat_enabled=bool(params.get("repeat", params.get("repeat_enabled"))) if params.get("repeat", params.get("repeat_enabled")) is not None else None,
-                advert_interval=int(params.get("beacon_interval", params.get("advert_interval"))) if params.get("beacon_interval", params.get("advert_interval")) is not None else None,
+                hop_limit=int(hop_raw) if hop_raw is not None else None,
+                repeat_enabled=bool(rep_raw) if rep_raw is not None else None,
+                advert_interval=int(adv_raw) if adv_raw is not None else None,
             ),
         )
 
@@ -182,9 +186,9 @@ class RepeaterAdminExecutor:
         self, req: RemoteRepeaterRequest, target_info: dict[str, Any] | None, res: dict[str, Any]
     ) -> dict[str, Any]:
         """Ejecuta un ping directo de 0 saltos y calcula RTT y métricas de señal."""
-        dest_target = self._resolve_target(str(req.target_node), min_hex_len=12)
+        dest_target = self._resolve_target(str(req.target_node), 12)
         norm_target = self._ctx.node_registry.get_canonical_key(str(req.target_node)) or str(req.target_node).strip().lower()
-        target_name = (target_info.get("name") or target_info.get("alias")) if target_info else f"Nodo {norm_target[:8]}"
+        target_name = str((target_info.get("name") or target_info.get("alias")) if target_info else f"Nodo {norm_target[:8]}")
 
         fut: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
         waiter_keys = [norm_target, norm_target[:8], norm_target[:4], str(req.target_node).strip().lower()]
@@ -237,7 +241,7 @@ class RepeaterAdminExecutor:
             "message": f"Duration: {rtt_ms:.1f} ms, SNR there: {snr_there:.1f} dB, SNR back: {snr_back:.1f} dB",
             "cmd_dispatched": outcome.cmd_text,
         })
-        self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{outcome.norm_target}/ping_zero", json.dumps(res), qos=1)
+        self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{outcome.norm_target}/ping_zero", json.dumps(res), 1)
         return res
 
     def _build_ping_zero_timeout(
@@ -256,15 +260,15 @@ class RepeaterAdminExecutor:
             "message": f"Sin respuesta de radio tras {elapsed_rtt:.0f} ms",
             "cmd_dispatched": cmd_text,
         })
-        self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/ping_zero", json.dumps(res), qos=1)
+        self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/ping_zero", json.dumps(res), 1)
         return res
 
     async def _dispatch_rf_command(
         self, req: RemoteRepeaterRequest, target_info: dict[str, Any] | None, res: dict[str, Any]
     ) -> dict[str, Any]:
         """Enruta comandos administrativos individuales o autenticación."""
-        dest_target = self._resolve_target(str(req.target_node), min_hex_len=12)
-        dest_login_target = self._resolve_target(str(req.target_node), min_hex_len=64)
+        dest_target = self._resolve_target(str(req.target_node), 12)
+        dest_login_target = self._resolve_target(str(req.target_node), 64)
         norm_target = self._ctx.node_registry.get_canonical_key(str(req.target_node)) or str(req.target_node).strip().lower()
 
         fut: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
@@ -339,7 +343,7 @@ class RepeaterAdminExecutor:
             "message": resp_text if login_success else (error_msg or "Error en autenticación"),
             "cmd_dispatched": f"login {'*' * len(req.password)}",
         })
-        self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{req.target_node}/status", json.dumps(rf_ctx.res), qos=1)
+        self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{req.target_node}/status", json.dumps(rf_ctx.res), 1)
         return rf_ctx.res
 
     async def _execute_unit_command(self, rf_ctx: RfExecutionContext) -> dict[str, Any]:
@@ -382,7 +386,7 @@ class RepeaterAdminExecutor:
             rf_ctx.res["snr"] = resp_data["snr"]
         rf_ctx.res["rtt_ms"] = elapsed
 
-        self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{req.target_node}/status", json.dumps(rf_ctx.res), qos=1)
+        self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{req.target_node}/status", json.dumps(rf_ctx.res), 1)
         return rf_ctx.res
 
     # --------------------------------------------------------------------------

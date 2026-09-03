@@ -9,7 +9,7 @@ import logging
 from typing import Any
 
 from src.contact_manager import NodeContactUpdate
-from src.web.controllers.base import ApiContext, BaseController, problem_details
+from src.web.controllers.base import BaseController, problem_details
 
 
 class ContactsController(BaseController):

@@ -64,8 +64,8 @@ class TracerouteExecutor:
             "cmd_dispatched": f"send_trace({trace_path_arg or ''})",
         })
 
-        self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/trace", json.dumps(res), qos=1)
-        self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
+        self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/trace", json.dumps(res), 1)
+        self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), 1)
         if self._ctx.web_server:
             asyncio.create_task(self._ctx.web_server.broadcast_event({"type": "trace_data", "data": res}))
         return res

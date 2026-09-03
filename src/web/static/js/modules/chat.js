@@ -359,6 +359,16 @@ export class ChatModule {
     const isDm = payload.is_direct || payload.type === "direct" || payload.type === "DIRECT_MSG";
     const feedKey = isDm ? `dm_${canonicalSender}` : `ch_${payload.channel_idx ?? payload.channel ?? 0}`;
 
+    let safeIsoTimestamp = new Date().toISOString();
+    if (payload.timestamp) {
+      if (typeof payload.timestamp === "number") {
+        safeIsoTimestamp = new Date(payload.timestamp < 1e11 ? payload.timestamp * 1000 : payload.timestamp).toISOString();
+      } else if (typeof payload.timestamp === "string") {
+        const d = new Date(payload.timestamp);
+        safeIsoTimestamp = isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+      }
+    }
+
     const newMsg = {
       id: payload.msg_id || `rx_${Date.now()}`,
       sender: canonicalSender,
@@ -366,7 +376,7 @@ export class ChatModule {
       text: cleanText,
       is_outgoing: false,
       channel_idx: payload.channel_idx ?? 0,
-      timestamp: payload.timestamp ? new Date(payload.timestamp * 1000).toISOString() : new Date().toISOString(),
+      timestamp: safeIsoTimestamp,
       delivered: true,
       status: "received",
     };

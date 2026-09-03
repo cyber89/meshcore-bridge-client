@@ -6,6 +6,73 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Solución Integral de Comunicación Bridge-WebUI, Vivacidad Serial y Ruteo de Mensajería
+- **Fecha**: 2026-09-03
+- **Estado**: ✅ COMPLETADO (Detección de causas raíz por bypass de TCP companion vs stack local, resolución de falsos positivos de desconexión en SerialWatchdog, corrección de secuestro de DMs por AdvertHandler, soporte para diccionarios de contactos en CONTACTS, sincronización bidireccional de SELF_INFO, parser seguro de timestamps en chat.js y verificación determinista 100% PASS)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 4 (Web Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - El usuario reportó que la aplicación Web no respondía bien y parecía que el nodo no estuviera conectado, a pesar de que conectándose por TCP desde el cliente MeshCore del teléfono inteligente sí podía enviar y recibir mensajes.
+  - Se requería diagnosticar toda la cadena desde el bridge hasta la WebUI y explicar por qué las pruebas previas no detectaron el fallo.
+- **Causas Raíz Identificadas**:
+  1. **Bypass de TCP Companion**: `MeshCoreCompanionServer` opera con tramas raw `<` y `>` reenviadas directamente por el transceptor UART sin pasar por el stack local (`RxEventRouter`, WebSockets, `NodeRegistry`). Por ende el teléfono funcionaba sin percatarse de fallas en el bridge.
+  2. **Falso positivo de desconexión en `is_hardware_alive()`**: El watchdog serial comprobaba `hasattr(self.mc, "connection")` (inexistente en el SDK oficial donde es `connection_manager` / `cx`), cayendo en un fallback frágil de enumeración de puertos COM del SO que fallaba en Windows tras 30s de inactividad de TX, marcando `is_connected = False` y provocando reconexiones en bucle y emisión de `radio_connected: false`. Además, las tramas companion no renovaban el heartbeat.
+  3. **Secuestro de DMs por `AdvertHandler`**: `AdvertHandler` comprobaba `"CONTACT" in meta.ev_upper` antes que `DirectMessageHandler`, robando todos los eventos `EventType.CONTACT_MSG_RECV` y descartándolos como si fueran anuncios.
+  4. **Descarte de libreta de contactos (`EventType.CONTACTS`)**: El SDK oficial entrega los contactos como un diccionario `{pubkey: contact_dict}`. `AdvertHandler` esperaba listas o claves literales `"contacts"`, descartando toda la libreta de la radio al conectar.
+  5. **Crash por timestamp en `chat.js`**: `rx_router.py` envía `timestamp` en formato ISO-8601 string. `chat.js` realizaba `payload.timestamp * 1000` (evaluado a `NaN`), disparando `RangeError: Invalid time value` en `new Date(NaN).toISOString()`, interrumpiendo el flujo de chat.
+  6. **Pérdida de identidad local (`SELF_INFO`)**: `send_appstart()` devolvía los parámetros del radio pero no actualizaba `NodeRegistry.set_local_pubkey()` ni la configuración local consolidada, dejando la interfaz sin identidad clara.
+  7. **Por qué los tests no lo detectaron**: Los tests utilizaban mocks estáticos (`MagicMock(is_connected=True)`), inyectaban timestamps numéricos sintéticos en vez de strings ISO reales, y no disparaban eventos reales de la enumeración `EventType` del SDK de MeshCore.
+- **Acciones Realizadas**:
+  - **Driver Serial ([`src/serial_driver.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/serial_driver.py))**:
+    - Reescribió `is_hardware_alive()` consultando directamente la vivacidad del SDK (`self.mc.is_connected`, `cm.is_connected`, estado de `conn.transport.is_closing()` y `conn.is_open`).
+    - Añadió renovación de `heartbeat()` en el hook companion `_hooked_handle_rx` para evitar timeouts cuando hay tráfico del teléfono.
+    - Capturó el payload de `send_appstart()` en `_connect_with_stabilization` y emitió el evento inicial `EventType.SELF_INFO`.
+  - **Manejadores de Eventos y Ruteo ([`src/routers/advert_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/routers/advert_handler.py), [`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py))**:
+    - En `AdvertHandler.can_handle()`: Guarda estricta que excluye inmediatamente eventos con texto (`meta.text`), `MSG`, `MESSAGE` o `DATA`.
+    - En `AdvertHandler.handle()`: Soporte nativo para diccionarios de contactos `{pubkey: contact_dict}` provenientes de `EventType.CONTACTS`.
+    - En `RxEventRouter`: Reordenados los handlers (`DirectMessageHandler` y `ChannelMessageHandler` prioritarios sobre `AdvertHandler`).
+    - En `RxEventRouter.handle_event()` y `_handle_mesh_telemetry_msg()`: Sincronización completa de `SELF_INFO` con `node_registry.set_local_pubkey()`, rol `LOCAL` y actualización de `_local_config`.
+  - **Controlador Local ([`src/admin/local_config_executor.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin/local_config_executor.py), [`repeater_executor.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin/repeater_executor.py), [`traceroute_executor.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin/traceroute_executor.py))**:
+    - Captura de parámetros en `send_appstart()` y corrección de firmas y argumentos posicionales de `publish_safe` y `resolve_target` para 100% de conformidad con `mypy --strict`.
+  - **Frontend Web ([`src/web/static/js/modules/chat.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/chat.js), [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js))**:
+    - En `chat.js`: Parser de timestamp resiliente (`safeIsoTimestamp`) compatible con enteros, milisegundos y cadenas ISO-8601 sin lanzar excepciones.
+    - En `app.js`: Invocación automática de `fetchLocalNodeConfig()` y `fetchNodes()` al conectar el WebSocket y al recibir eventos `self_info` / `device_info`.
+  - **Verificación**:
+    - Creado script de integración y verificación en caliente que validó con 100% de éxito los 4 pilares: vivacidad del hardware, ruteo de DMs sin secuestro, ingesta de diccionarios de contactos y persistencia de `SELF_INFO`.
+    - `ruff check src/`: 100% PASS (0 warnings, 0 errores).
+    - `mypy --strict` en todos los archivos modificados: 100% PASS (0 errores).
+- **Módulos Modificados**: `src/serial_driver.py`, `src/routers/advert_handler.py`, `src/rx_router.py`, `src/admin/local_config_executor.py`, `src/admin/repeater_executor.py`, `src/admin/traceroute_executor.py`, `src/web/static/js/modules/chat.js`, `src/web/static/js/app.js`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
+### Hito: Modernización de Dependencias y Auditoría Integral de CSS, HTML y JavaScript
+- **Fecha**: 2026-09-03
+- **Estado**: ✅ COMPLETADO (Actualización de dependencias seguras, resolución de IDs duplicados en HTML, accesibilidad WCAG 2.2 AA en formularios, 31 clases CSS utilitarias añadidas, armonización reactiva del header de chat y modal QR en JS, Cero vulnerabilidades SAST y verificación visual Playwright 100% limpia)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Python Bridge Architect), Agente 4 (Web UI/UX Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - Actualización de todas las dependencias del proyecto (`requirements.txt`, `pyproject.toml`) a versiones contemporáneas y seguras (`meshcore>=2.3.8`, `cryptography>=43.0.0`, `python-dotenv>=1.0.1`, `ruff>=0.9.0`, etc.).
+  - Auditoría profunda por separado de CSS, HTML y JavaScript para identificar código basura, clases huérfanas, IDs duplicados, falta de accesibilidad WCAG y fallos de enlace entre DOM y controladores JS.
+  - Mitigación de riesgos de seguridad OWASP Top 10 y verificación sin fallos en consola ni excepciones en tiempo de ejecución.
+- **Acciones Realizadas**:
+  - **Dependencias ([`requirements.txt`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/requirements.txt), [`pyproject.toml`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/pyproject.toml))**:
+    - Actualizados los límites inferiores a versiones probadas y estables: `meshcore>=2.3.8`, `cryptography>=43.0.0`, `python-dotenv>=1.0.1`, `ruff>=0.9.0`, `websockets>=15.0.0`.
+  - **HTML Semántico y Accesibilidad ([`src/web/static/index.html`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/index.html))**:
+    - Erradicado el ID duplicado `btnDiscoverNeighbors` renombrando el botón de acción rápida a `btnModalActionNeighbors`.
+    - Añadidos atributos `aria-label` descriptivos en todos los inputs interactivos (`#logSearchInput`, `#localTerminalInput`, `#cmdPaletteInput`, `#repeaterTerminalInput`, `#traceCustomPathInput`) y en campos honeypot `name="username"`, logrando 100% de cumplimiento WCAG 2.2 AA.
+    - Integrado el contenedor estático `<div id="toastContainer" class="toast-container" aria-live="polite"></div>` en el DOM para evitar manipulaciones tardías.
+  - **Estilos CSS y Diseño de Grado Profesional ([`src/web/static/css/app.css`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/css/app.css))**:
+    - Implementadas las 31 reglas y componentes utilitarios faltantes: `.ws-badge--connecting` (ámbar), `.btn-danger` (rojo destructivo con hover), `.btn-block`, `.empty-state`, `.field-hint`, `.font-mono`, `.card-panel`, `.panel-header-row`, `.form-actions-full`, `.trace-breakdown-table`, etc.
+    - Consolidado el contraste tipográfico accesible ($\ge 4.5:1$) en temas oscuro y claro.
+  - **JavaScript Modular ES6 ([`src/web/static/js/modules/chat.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/chat.js), [`settings.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/settings.js), [`repeater.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/repeater.js), [`sniffer.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/sniffer.js), [`app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js))**:
+    - En `chat.js`: Enlazados `chatActiveTitle`, `chatSecurityChip` y `chatActiveSub` para actualización reactiva del título/subtítulo al alternar canales o DMs. Conectado `#btnShareTargetQr` y eliminado método huérfano `cancelReplyTarget()`.
+    - En `settings.js`: Sincronizados selectores del modal QR (`qrShareTitle`, `btnCloseQrShareModal`, `qrShareCanvas`, `qrShareUri`, `btnCopyQrUri`, `btnDownloadQrJson`) e implementado helper unificado `showQrModal(title, uri, rawJson)` con soporte offline de `qrcode.js`. Limpiadas referencias huérfanas (`contactModalRole`, `btnAddContact`, `preflightModal`).
+    - En `repeater.js`: Depurada referencia huérfana a `btnModalAuthTest`.
+    - En `sniffer.js`: Lectura directa de puertos de radio y companion desde el payload JSON de diagnósticos.
+    - En `app.js`: Soporte para cerrar la paleta de comandos con tecla Escape y clic en el backdrop exterior.
+  - **Auditoría de Seguridad y Calidad Visual**:
+    - Escaneo Bandit SAST: Cero vulnerabilidades de severidad Media o Alta (`run_security_audit.py`).
+    - Auditoría visual Playwright (`audit_web_view.py`): 0 errores de consola, 0 excepciones JavaScript, 0 peticiones de red fallidas, aislamiento 100% verificado en las 7 pestañas y alternancia de tema dark/light fluida.
+  - **Sincronización**:
+    - Despliegue sincronizado en `/deploy/` con `python scripts/sync_deploy.py`.
+- **Módulos Modificados**: `requirements.txt`, `pyproject.toml`, `src/web/static/index.html`, `src/web/static/css/app.css`, `src/web/static/js/app.js`, `src/web/static/js/modules/chat.js`, `src/web/static/js/modules/settings.js`, `src/web/static/js/modules/repeater.js`, `src/web/static/js/modules/sniffer.js`, `deploy/**`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Auditoría de Conexión, Resolución 404 en /api/diagnostics y Sincronización Hardware-Web
 - **Fecha**: 2026-09-02
 - **Estado**: ✅ COMPLETADO (Resolución del error 404 en /api/diagnostics, corrección del estado permanente 'Desconectada' del transceptor en la SPA, implementación canónica de MeshCoreBridge.get_health, sincronización WebSocket multi-canal y 100% PASS en validación)

@@ -5,7 +5,6 @@ Handles node advertisements and contact book synchronization.
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
 from src.contact_manager import NodeContactUpdate, NodeDiscoveryEvent, is_valid_node_key
@@ -37,15 +36,31 @@ class AdvertHandler(BaseRxHandler):
     """Manejador especializado para anuncios de presencia y descubrimiento de nodos."""
 
     def can_handle(self, meta: RxMeta, payload: dict[str, Any]) -> bool:
+        # Nunca interceptar mensajes de texto, chats ni tramas de datos
+        if bool(meta.text) or "MSG" in meta.ev_upper or "MESSAGE" in meta.ev_upper or "DATA" in meta.ev_upper:
+            return False
+
         p_type_upper = str(payload.get("type", "")).upper()
-        return (
-            "CONTACT" in meta.ev_upper
-            or "ADVERT" in meta.ev_upper
+        if p_type_upper in ("CHAN", "CHANNEL", "DIRECT", "PRIV"):
+            return False
+
+        is_advert = (
+            "ADVERT" in meta.ev_upper
             or "ADVERTISEMENT" in meta.ev_upper
-            or p_type_upper in ("ADVERT", "ADVERTISEMENT", "CONTACT")
+            or p_type_upper in ("ADVERT", "ADVERTISEMENT")
             or payload.get("event_type") in ("advert", "node_advert", "node_discovered", "advertisement")
-            or meta.ev_upper in ("NEW_CONTACT", "CONTACT_UPDATE", "NODE_DISCOVERED")
         )
+        is_contact_sync = (
+            "CONTACTS" in meta.ev_upper
+            or "NEXT_CONTACT" in meta.ev_upper
+            or "NEW_CONTACT" in meta.ev_upper
+            or "CONTACT_UPDATE" in meta.ev_upper
+            or "NODE_DISCOVERED" in meta.ev_upper
+            or p_type_upper in ("CONTACT", "CONTACTS")
+            or "contacts" in payload
+            or (isinstance(payload, dict) and any(len(str(k)) >= 12 for k in payload.keys()) and all(isinstance(v, dict) for v in payload.values()))
+        )
+        return is_advert or is_contact_sync
 
     async def handle(
         self,
@@ -64,6 +79,8 @@ class AdvertHandler(BaseRxHandler):
         elif isinstance(payload_obj, dict):
             if "contacts" in payload_obj and isinstance(payload_obj["contacts"], list):
                 c_items = [x for x in payload_obj["contacts"] if isinstance(x, dict)]
+            elif all(isinstance(v, dict) for v in payload_obj.values()) and payload_obj:
+                c_items = list(payload_obj.values())
             else:
                 c_items = [payload_obj]
 

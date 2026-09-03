@@ -9,9 +9,10 @@ import asyncio
 import json
 import logging
 import re
+from collections.abc import Coroutine
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 import config
 from src.contact_manager import (
@@ -19,7 +20,6 @@ from src.contact_manager import (
     NodeDiscoveryEvent,
     NodeRegistry,
     PacketRecord,
-    _safe_int,
     is_valid_node_key,
 )
 from src.deduplicator import PacketDeduplicator
@@ -27,6 +27,7 @@ from src.lqi_engine import LinkQualityEngine
 from src.mqtt_client import AsyncBridgeMQTTClient
 from src.protocol_types import MeshcoreFrame, PacketType, TextMessagePayload
 from src.repeater_manager import RepeaterManager
+from src.routers.base import MeshMessageEvent, RxMeta
 from src.sensor_decoder import (
     extract_telemetry_fields,
     format_telemetry_summary,
@@ -79,9 +80,6 @@ def extract_sender_from_text(text: str) -> tuple[str | None, str]:
             return candidate_name, actual_text
     return None, text
 
-
-
-from src.routers.base import MeshMessageEvent
 
 
 _SYSTEM_EXACT_MATCHES: frozenset[str] = frozenset({
@@ -179,9 +177,10 @@ class RxEventRouter:
 
     def __init__(self, ctx: RxRouterContext) -> None:
         import os
+
         from src.routers import (
-            BaseRxHandler,
             AdvertHandler,
+            BaseRxHandler,
             ChannelMessageHandler,
             DirectMessageHandler,
             RepeaterAdminHandler,
@@ -192,10 +191,10 @@ class RxEventRouter:
         self._rx_semaphore = asyncio.Semaphore(int(os.getenv("MAX_RX_CONCURRENCY", "20")))
         self._handlers: list[BaseRxHandler] = [
             RepeaterAdminHandler(),
-            AdvertHandler(),
-            TelemetryHandler(),
             DirectMessageHandler(),
             ChannelMessageHandler(),
+            AdvertHandler(),
+            TelemetryHandler(),
         ]
 
     def handle_event(self, event: Any) -> None:
@@ -220,13 +219,18 @@ class RxEventRouter:
 
             for handler in self._handlers:
                 if handler.can_handle(meta, payload_dict):
-                    task = loop.create_task(handler.handle(self, payload_dict, meta, event))
+                    task = loop.create_task(cast(Coroutine[Any, Any, None], handler.handle(self, payload_dict, meta, event)))
                     self._ctx.background_tasks.add(task)
                     task.add_done_callback(self._ctx.background_tasks.discard)
                     return
 
             if "event_type" not in payload_dict:
-                payload_dict["event_type"] = "telemetry"
+                payload_dict["event_type"] = (
+                    "self_info" if "SELF" in meta.ev_upper
+                    else ("device_info" if "DEVICE" in meta.ev_upper
+                    else ("battery" if "BATTERY" in meta.ev_upper
+                    else "telemetry"))
+                )
             self._handle_mesh_telemetry_msg(payload_dict)
 
         except Exception as e:
@@ -234,8 +238,6 @@ class RxEventRouter:
             logging.error(f"Error procesando evento de radio Mesh: {e}", exc_info=True)
 
     def _extract_normalized_meta(self, event: Any) -> tuple[dict[str, Any], RxMeta] | None:
-        from src.routers.base import RxMeta
-
         ev_type_str = str(getattr(event, "type", getattr(event, "event_type", "")))
         payload_obj = getattr(event, "payload", getattr(event, "data", event))
         attributes = getattr(event, "attributes", None)
@@ -753,16 +755,62 @@ class RxEventRouter:
         ev_name = str(payload_dict.get("event_type", payload_dict.get("type", "telemetry")))
 
         # Si el evento corresponde a configuración o hardware del nodo local, registrar con formato limpio [ESTACIÓN LOCAL]
-        if ev_name in ("self_info", "SELF_INFO", "self"):
+        if ev_name in ("self_info", "SELF_INFO", "self") or "SELF" in ev_name.upper():
             node_name = payload_dict.get("name") or "Estación Base"
-            pk_short = str(payload_dict.get("public_key", sender))[:8]
+            pk_val = str(payload_dict.get("public_key", sender or "")).strip().lower()
             freq = payload_dict.get("radio_freq", "--")
             sf = payload_dict.get("radio_sf", "--")
             bw = payload_dict.get("radio_bw", "--")
             cr = payload_dict.get("radio_cr", "--")
             tx_p = payload_dict.get("tx_power", "--")
+
+            if pk_val and is_valid_node_key(pk_val):
+                self._ctx.node_registry.set_local_pubkey(pk_val)
+                self._ctx.node_registry.add_or_update(
+                    pk_val,
+                    NodeContactUpdate(
+                        name=node_name,
+                        alias=node_name,
+                        role="LOCAL",
+                        is_local=True,
+                        hops=0,
+                        fixed_position=True,
+                    ),
+                )
+            if self._ctx.admin_handler and hasattr(self._ctx.admin_handler, "_local_config"):
+                cfg_update: dict[str, Any] = {"name": node_name}
+                if pk_val:
+                    cfg_update["public_key"] = pk_val
+                if freq != "--":
+                    try:
+                        cfg_update["frequency"] = float(freq)
+                        cfg_update["radio_freq"] = float(freq)
+                    except (ValueError, TypeError):
+                        pass
+                if sf != "--":
+                    try:
+                        cfg_update["spreading_factor"] = int(sf)
+                    except (ValueError, TypeError):
+                        pass
+                if bw != "--":
+                    try:
+                        cfg_update["bandwidth"] = float(bw)
+                    except (ValueError, TypeError):
+                        pass
+                if cr != "--":
+                    try:
+                        cfg_update["coding_rate"] = int(cr)
+                    except (ValueError, TypeError):
+                        pass
+                if tx_p != "--":
+                    try:
+                        cfg_update["tx_power"] = int(tx_p)
+                    except (ValueError, TypeError):
+                        pass
+                self._ctx.admin_handler._local_config.update(cfg_update)
+
             logging.info(
-                f"[ESTACIÓN LOCAL] Configuración: {node_name} ({pk_short}) | Freq: {freq} MHz, SF{sf}/BW{bw}/CR{cr}, TX: {tx_p} dBm"
+                f"[ESTACIÓN LOCAL] Configuración: {node_name} ({pk_val[:8] if pk_val else '??'}) | Freq: {freq} MHz, SF{sf}/BW{bw}/CR{cr}, TX: {tx_p} dBm"
             )
             return
 

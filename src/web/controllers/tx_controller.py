@@ -9,7 +9,7 @@ import time
 from typing import Any
 
 from src.contact_manager import PacketRecord
-from src.web.controllers.base import ApiContext, BaseController, problem_details
+from src.web.controllers.base import BaseController, problem_details
 
 
 class TxController(BaseController):

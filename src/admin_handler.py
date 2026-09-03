@@ -22,14 +22,10 @@ from src.admin import (
     WaiterRegistry,
 )
 from src.contact_manager import (
-    NodeContactUpdate,
     NodeRegistry,
-    PacketRecord,
-    is_valid_node_key,
 )
 from src.mqtt_client import AsyncBridgeMQTTClient
 from src.repeater_manager import RepeaterManager
-from src.shared_utils import clamp_tx_power, get_hardware_power_limits
 from src.target_resolver import TargetResolver
 
 

@@ -27,10 +27,12 @@ from src.protocol_types import (
 try:
     import meshcore
     from meshcore import EventType, MeshCore
+    from meshcore.events import Event
 except ImportError:
     meshcore = None
     MeshCore = None
     EventType = None
+    Event = None
 
 
 def detect_serial_port() -> str:
@@ -232,12 +234,20 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                         res_app = await mc.commands.send_appstart()
                         if res_app and getattr(res_app, "type", None) != EventType.ERROR:
                             self.mc = mc
+                            if hasattr(res_app, "payload") and isinstance(res_app.payload, dict):
+                                self.self_info = res_app.payload
+                                if hasattr(self.mc, "_self_info"):
+                                    self.mc._self_info = res_app.payload
                         else:
                             logging.debug("Reintentando send_appstart tras segundo pulso de sincronización...")
                             await asyncio.sleep(0.5)
                             res_app2 = await mc.commands.send_appstart()
                             if res_app2 and getattr(res_app2, "type", None) != EventType.ERROR:
                                 self.mc = mc
+                                if hasattr(res_app2, "payload") and isinstance(res_app2.payload, dict):
+                                    self.self_info = res_app2.payload
+                                    if hasattr(self.mc, "_self_info"):
+                                        self.mc._self_info = res_app2.payload
                             else:
                                 await mc.disconnect()
                 except Exception as ex_init:
@@ -264,6 +274,11 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
             self.is_connected = True
             self.heartbeat()
+            if self.self_info and self.rx_callback and Event and EventType:
+                try:
+                    self.rx_callback(Event(EventType.SELF_INFO, self.self_info))
+                except Exception as ex_si:
+                    logging.debug(f"Despacho inicial de self_info: {ex_si}")
             logging.info("MeshCore SDK conectado e iniciado exitosamente.")
         except asyncio.CancelledError:
             pass
@@ -299,36 +314,40 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         if (time.time() - self.last_heartbeat_time) <= max(30.0, self.timeout_sec):
             return True
 
-        # Comprobación de transporte serial abierto en la conexión del SDK
+        # Comprobación de transporte serial abierto y estado de conexión en el SDK oficial
         try:
-            if hasattr(self.mc, "connection"):
-                cx = self.mc.connection
-                if hasattr(cx, "is_open") and not cx.is_open:
+            # 1. Comprobación a nivel de objeto MeshCore principal
+            if hasattr(self.mc, "is_connected"):
+                is_mc_conn = self.mc.is_connected
+                if callable(is_mc_conn):
+                    is_mc_conn = is_mc_conn()
+                if not is_mc_conn:
                     self.is_connected = False
                     return False
-                if hasattr(cx, "serial") and hasattr(cx.serial, "is_open") and not cx.serial.is_open:
-                    self.is_connected = False
-                    return False
-                if hasattr(cx, "transport") and cx.transport and hasattr(cx.transport, "is_closing") and cx.transport.is_closing():
-                    self.is_connected = False
-                    return False
-        except Exception:
-            pass
 
-        # Comprobación a nivel de sistema operativo de puertos COM / tty si está inactivo
-        try:
-            import serial.tools.list_ports
-            com_ports = [p.device.lower() for p in serial.tools.list_ports.comports()]
-            port_lower = port_str.lower()
-            if port_lower and port_lower not in ("auto", "detect"):
-                # En Windows, los puertos COM son COM1, COM2...
-                if port_lower.startswith("com") and com_ports and port_lower not in com_ports:
+            # 2. Comprobación en connection_manager / cx
+            cm = getattr(self.mc, "connection_manager", getattr(self.mc, "cx", None))
+            if cm is not None:
+                if hasattr(cm, "is_connected") and cm.is_connected is False:
                     self.is_connected = False
                     return False
-                # En Linux, verificar que el nodo de dispositivo /dev/ exista
-                if port_lower.startswith("/dev/") and os.name != "nt" and not os.path.exists(self.port):
-                    self.is_connected = False
-                    return False
+                conn = getattr(cm, "connection", None)
+                if conn is not None:
+                    if hasattr(conn, "transport") and conn.transport:
+                        is_closing_fn = getattr(conn.transport, "is_closing", None)
+                        if callable(is_closing_fn):
+                            try:
+                                if is_closing_fn() is True:
+                                    self.is_connected = False
+                                    return False
+                            except Exception:
+                                pass
+                    if hasattr(conn, "is_open") and conn.is_open is False:
+                        self.is_connected = False
+                        return False
+                    if hasattr(conn, "serial") and hasattr(conn.serial, "is_open") and conn.serial.is_open is False:
+                        self.is_connected = False
+                        return False
         except Exception:
             pass
 
@@ -351,6 +370,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             original_handle_rx = self.mc._reader.handle_rx
 
             async def _hooked_handle_rx(data: bytearray) -> None:
+                self.heartbeat()
                 if self.companion_rx_callback and data:
                     try:
                         self.companion_rx_callback(bytes(data))

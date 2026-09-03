@@ -9,7 +9,7 @@ import time
 from datetime import datetime
 from typing import Any
 
-from src.web.controllers.base import ApiContext, BaseController, problem_details
+from src.web.controllers.base import BaseController, problem_details
 
 
 class ConfigController(BaseController):

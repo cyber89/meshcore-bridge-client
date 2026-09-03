@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.web.controllers.base import ApiContext, BaseController, problem_details
+from src.web.controllers.base import BaseController
 
 
 class NodesController(BaseController):

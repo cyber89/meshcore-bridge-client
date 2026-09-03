@@ -13,7 +13,7 @@ import json
 import logging
 import time
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import config
 from src.contact_manager import NodeContactUpdate, is_valid_node_key
@@ -74,9 +74,13 @@ class LocalConfigExecutor:
         raw_si = getattr(mc, "self_info", None)
         if callable(raw_si):
             try:
-                return raw_si()
+                res_si = raw_si()
+                if isinstance(res_si, dict):
+                    return cast(dict[str, Any], res_si)
+                return None
             except Exception:
-                return getattr(mc, "_self_info", None)
+                si_fallback = getattr(mc, "_self_info", None)
+                return cast(dict[str, Any], si_fallback) if isinstance(si_fallback, dict) else None
         if isinstance(raw_si, dict):
             return raw_si
         if hasattr(mc, "_self_info") and isinstance(mc._self_info, dict):
@@ -200,7 +204,25 @@ class LocalConfigExecutor:
         """Consulta identidad, modo repetidor y nivel de batería por serial."""
         if hasattr(mc.commands, "send_appstart"):
             try:
-                await mc.commands.send_appstart()
+                res_app = await mc.commands.send_appstart()
+                app_data = _extract_payload_dict(res_app)
+                if app_data and isinstance(app_data, dict):
+                    self._apply_self_info_to_cfg(self._local_config, app_data)
+                    pk = app_data.get("public_key") or app_data.get("pubkey")
+                    if pk and self._ctx.node_registry:
+                        pk_clean = str(pk).lower().strip()
+                        self._ctx.node_registry.set_local_pubkey(pk_clean)
+                        self._ctx.node_registry.add_or_update(
+                            pk_clean,
+                            NodeContactUpdate(
+                                name=app_data.get("name", self._local_config.get("name")),
+                                alias=app_data.get("name", self._local_config.get("name")),
+                                role="LOCAL",
+                                is_local=True,
+                                hops=0,
+                                fixed_position=True,
+                            ),
+                        )
             except Exception as e:
                 logging.debug(f"Fallo enviando send_appstart: {e}")
         if hasattr(mc.commands, "send_device_query"):
@@ -307,7 +329,7 @@ class LocalConfigExecutor:
         res["applied"] = applied
         res["message"] = f"Configuración local aplicada exitosamente: {', '.join(applied.keys())}"
         res["config"] = self.get_local_config()
-        self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
+        self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), 1)
         return res
 
     def _apply_identity_settings(self, params: dict[str, Any], applied: dict[str, Any], mc: Any) -> None:
