@@ -1,23 +1,31 @@
 """
 Web API Router and Dispatcher for MeshCore Bridge Web Interface.
 Gestiona el enrutamiento y procesamiento de peticiones REST para canales, contactos,
-telemetría, métricas analíticas avanzadas y consola de logs.
+telemetría, métricas analíticas avanzadas y consola de logs delegando en controladores modulares.
 """
 
 from __future__ import annotations
 
 import asyncio
 import collections
-import json
 import logging
-import os
 import time
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from src.contact_manager import NodeContactUpdate, PacketRecord, is_valid_node_key
+from src.contact_manager import PacketRecord, is_valid_node_key
 from src.sensor_decoder import extract_telemetry_fields
+from src.web.controllers import (
+    ApiContext,
+    ChannelsController,
+    ConfigController,
+    ContactsController,
+    NodesController,
+    RepeaterController,
+    SystemController,
+    TxController,
+    problem_details,
+)
 from src.web.map_tile_service import MapTileService
 
 
@@ -26,70 +34,48 @@ class WebAPIRouter:
 
     def __init__(self, bridge: Any) -> None:
         self.bridge = bridge
-        self.channels: dict[int, dict[str, Any]] = {
-            0: {"index": 0, "name": "Public / Broadcast", "psk": "", "is_public": True},
-        }
         self.recent_messages: collections.deque[dict[str, Any]] = collections.deque(maxlen=200)
         self.recent_telemetry: collections.deque[dict[str, Any]] = collections.deque(maxlen=200)
         self.recent_system_logs: collections.deque[dict[str, Any]] = collections.deque(maxlen=300)
         self.map_tile_service = MapTileService()
-        self._load_channels()
+
+        # Inyección de dependencias mediante ApiContext
+        self.api_ctx = ApiContext(
+            bridge=self.bridge,
+            recent_messages=self.recent_messages,
+            system_logs=self.recent_system_logs,
+            log_system_event=self.log_system_event,
+            broadcast_ws=self._notify_web_clients,
+            start_time=getattr(bridge, "start_time", time.time()),
+        )
+
+        # Controladores especializados por dominio (Modular REST Architecture)
+        self.system_ctrl = SystemController(self.api_ctx)
+        self.nodes_ctrl = NodesController(self.api_ctx)
+        self.contacts_ctrl = ContactsController(self.api_ctx)
+        self.channels_ctrl = ChannelsController(self.api_ctx)
+        self.tx_ctrl = TxController(self.api_ctx)
+        self.repeater_ctrl = RepeaterController(self.api_ctx)
+        self.config_ctrl = ConfigController(self.api_ctx)
+
+        # Referencia compartida de canales para retrocompatibilidad
+        self.channels: dict[int, dict[str, Any]] = self.channels_ctrl.channels
 
     def _get_storage_path(self) -> Path:
         """Obtiene la ruta persistente del archivo JSON de canales."""
-        custom_path = os.getenv("CHANNELS_STORAGE_PATH")
-        if custom_path:
-            return Path(custom_path)
-        return Path("data") / "channels.json"
+        return Path(self.channels_ctrl.channels_file)
 
     def _load_channels(self) -> None:
-        """Carga la configuración persistida de canales desde almacenamiento local."""
-        file_path = self._get_storage_path()
-        if not file_path.is_file():
-            return
-        try:
-            with open(file_path, encoding="utf-8") as f:
-                data = json.load(f)
-            if isinstance(data, list):
-                for item in data:
-                    if isinstance(item, dict) and "index" in item:
-                        idx = int(item["index"])
-                        self.channels[idx] = {
-                            "index": idx,
-                            "name": str(item.get("name", f"Canal {idx}")),
-                            "psk": str(item.get("psk", "")),
-                            "is_public": idx == 0,
-                        }
-            elif isinstance(data, dict):
-                for k, v in data.items():
-                    if isinstance(v, dict):
-                        raw_idx = v.get("index")
-                        idx = int(raw_idx) if raw_idx is not None else int(k)
-                        self.channels[idx] = {
-                            "index": idx,
-                            "name": str(v.get("name", f"Canal {idx}")),
-                            "psk": str(v.get("psk", "")),
-                            "is_public": idx == 0,
-                        }
-            logging.debug(f"Canales cargados desde almacenamiento: {len(self.channels)} canales")
-        except Exception as e:
-            logging.warning(f"Error cargando canales desde {file_path}: {e}")
+        """Carga la configuración persistida de canales delegando al controlador."""
+        self.channels_ctrl._load_channels()
+        self.channels = self.channels_ctrl.channels
 
     def _save_channels(self) -> bool:
-        """Persiste la configuración de canales a disco en formato JSON atómico."""
-        file_path = self._get_storage_path()
+        """Persiste la configuración de canales delegando al controlador."""
         try:
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-            ch_list = list(self.channels.values())
-            ch_list.sort(key=lambda c: int(c.get("index", 0)))
-            tmp_path = file_path.with_suffix(".tmp")
-            with open(tmp_path, "w", encoding="utf-8") as f:
-                json.dump(ch_list, f, indent=2)
-            tmp_path.replace(file_path)
-            logging.debug(f"Canales persistidos exitosamente en {file_path}")
+            self.channels_ctrl._save_channels()
             return True
-        except Exception as e:
-            logging.warning(f"Error persistiendo canales en {file_path}: {e}")
+        except Exception:
             return False
 
     def _notify_web_clients(self, event: dict[str, Any]) -> None:
@@ -115,7 +101,6 @@ class WebAPIRouter:
         }
         self.recent_system_logs.append(entry)
 
-        # Actualizar contadores del gestor de diagnósticos
         diag = getattr(self.bridge, "diagnostics", None)
         if diag and hasattr(diag, "log_handler") and diag.log_handler:
             if lvl_upper in ("ERROR", "CRITICAL"):
@@ -144,7 +129,6 @@ class WebAPIRouter:
         from src.event_utils import extract_sender_from_payload
         sender_raw, sender_name = extract_sender_from_payload(data)
 
-        # Resolver información en NodeRegistry
         node_info = None
         if hasattr(self.bridge, "node_registry") and self.bridge.node_registry:
             if sender_raw:
@@ -176,7 +160,6 @@ class WebAPIRouter:
         rssi = data.get("rssi", data.get("RSSI", data.get("last_rssi")))
         snr = data.get("snr", data.get("SNR", data.get("last_snr")))
 
-        # Extraer lecturas completas de sensores y telemetría
         extracted_telem = extract_telemetry_fields(data)
 
         if (
@@ -188,7 +171,6 @@ class WebAPIRouter:
             if canonical_sender and is_valid_node_key(canonical_sender):
                 self.bridge.node_registry.record_packet(PacketRecord(public_key=canonical_sender, is_rx=True, rssi=rssi, snr=snr, telemetry=data))
 
-            # Resumen de lecturas ambientales y de estado detalladas
             readings = []
             if "temperature_c" in extracted_telem:
                 readings.append(f"🌡️ {extracted_telem['temperature_c']}°C")
@@ -250,747 +232,217 @@ class WebAPIRouter:
         path: str,
         body: dict[str, Any] | None = None,
     ) -> tuple[int, dict[str, Any]]:
-        """Maneja una solicitud REST despachando al sub-manejador correspondiente."""
+        """Maneja una solicitud REST despachando limpiamente a controladores modulares especializados."""
         clean_path = path.split("?")[0].rstrip("/")
         req_body = body or {}
 
         try:
-            if method == "GET" and clean_path == "/api/status":
-                return await self._route_status()
+            if clean_path in ("/api/status", "/api/health", "/api/preflight") or clean_path.startswith("/api/system/logs"):
+                return await self._dispatch_system(method, path, clean_path, req_body)
 
-            if method == "GET" and clean_path == "/api/nodes":
-                all_nodes = self.bridge.node_registry.list_nodes()
+            if clean_path in ("/api/nodes", "/api/lqi", "/api/link_quality", "/api/analytics", "/api/metrics/analytics", "/api/rf/heatmap", "/api/airtime/stats", "/api/rf/noise"):
+                return await self._dispatch_nodes(method, path, clean_path, req_body)
 
-                limit = int(req_body.get('limit', 100)) if 'limit' in req_body else 100
-                offset = int(req_body.get('offset', 0)) if 'offset' in req_body else 0
+            if clean_path.startswith("/api/contacts"):
+                return await self._dispatch_contacts(method, clean_path, req_body)
 
-                # Check for query params if not in body
-                if "?" in path:
-                    query_str = path.split("?", 1)[1]
-                    for part in query_str.split("&"):
-                        if "=" in part:
-                            k, v = part.split("=", 1)
-                            if k.lower() == "limit" and v.isdigit():
-                                limit = int(v)
-                            elif k.lower() == "offset" and v.isdigit():
-                                offset = int(v)
+            if clean_path.startswith("/api/channels"):
+                return await self._dispatch_channels(method, clean_path, req_body)
 
-                nodes_page = all_nodes[offset:offset+limit]
-                return 200, {
-                    "status": "ok",
-                    "data": nodes_page,
-                    "count": len(nodes_page),
-                    "total_count": len(all_nodes),
-                    "limit": limit,
-                    "offset": offset
-                }
+            if clean_path in ("/api/tx", "/api/messages/recent", "/api/messages"):
+                return await self._dispatch_tx(method, clean_path, req_body)
 
-            if method == "GET" and clean_path in ("/api/lqi", "/api/link_quality"):
-                if hasattr(self.bridge, "node_registry") and hasattr(self.bridge.node_registry, "get_all_lqi_metrics"):
-                    lqi_data = self.bridge.node_registry.get_all_lqi_metrics()
-                else:
-                    lqi_data = []
-                return 200, {"status": "ok", "data": lqi_data, "count": len(lqi_data)}
+            if clean_path.startswith(("/api/admin", "/api/repeater", "/api/traceroute", "/api/trace")):
+                return await self._dispatch_repeater(method, clean_path, req_body)
 
-            if method == "GET" and clean_path in ("/api/analytics", "/api/metrics/analytics"):
-                return await self._route_analytics()
+            if clean_path.startswith("/api/node"):
+                return await self._dispatch_config(method, clean_path, req_body)
 
-            if clean_path in ("/api/contacts", "/api/contacts/sync", "/api/contacts/share", "/api/contacts/export", "/api/contacts/import"):
-                return await self._route_contacts(clean_path, method, req_body)
+            if clean_path.startswith("/api/map") or clean_path in ("/api/logs", "/api/telemetry", "/api/diagnostics", "/api/diagnostics/report.md", "/api/diagnostics/report", "/api/logs/download", "/api/logs/raw"):
+                return await self._dispatch_misc(method, path, clean_path, req_body)
 
-            if clean_path in ("/api/channels", "/api/channels/sync"):
-                return await self._route_channels(clean_path, method, req_body)
+            return problem_details(404, "Not Found", f"Ruta no encontrada: {method} {clean_path}", "route_not_found")
 
-            if method == "POST" and clean_path == "/api/tx":
-                return await self._route_tx(req_body)
+        except Exception as e:
+            logging.error(f"Error procesando solicitud REST {method} {clean_path}: {e}", exc_info=True)
+            self.log_system_event("ERROR", f"Fallo en API {method} {clean_path}: {e}", source="api")
+            return problem_details(500, "Internal Server Error", str(e), "internal_server_error")
 
-            if method == "POST" and clean_path == "/api/admin/command":
-                res = await self.bridge.handle_admin(req_body)
-                self.log_system_event("INFO", f"Comando admin ejecutado: {req_body.get('action')}", source="admin")
-                return 200, {"status": "ok", "result": res}
-
-            if method == "POST" and clean_path == "/api/admin/repeater":
-                return await self._route_admin_repeater(req_body)
-
-            if method == "GET" and clean_path in ("/api/node/config", "/api/node/settings"):
-                admin = getattr(self.bridge, "admin_handler", None)
-                if admin and hasattr(admin, "fetch_device_config"):
-                    try:
-                        local_cfg = await admin.fetch_device_config()
-                    except Exception:
-                        local_cfg = admin.get_local_config()
-                elif admin and hasattr(admin, "get_local_config"):
-                    local_cfg = admin.get_local_config()
-                else:
-                    local_cfg = {}
-
-                # Consolidar métricas en tiempo real del bridge
-                uptime_sec = int(time.time() - getattr(self.bridge, "start_time", time.time()))
-                days = uptime_sec // 86400
-                hours = (uptime_sec % 86400) // 3600
-                mins = (uptime_sec % 3600) // 60
-                secs = uptime_sec % 60
-                uptime_str = f"{days}d {hours}h {mins}m {secs}s" if days > 0 else (f"{hours}h {mins}m {secs}s" if hours > 0 else f"{mins}m {secs}s")
-
-                limiter = getattr(self.bridge, "rate_limiter", None)
-                airtime_stats = limiter.airtime_tracker.get_stats() if (limiter and hasattr(limiter, "airtime_tracker")) else {}
-
-                rx_val = getattr(self.bridge, "rx_count", 0)
-                tx_val = getattr(self.bridge, "tx_count", 0)
-                err_tx = getattr(self.bridge, "tx_error_count", 0)
-                err_gen = getattr(self.bridge, "err_count", 0)
-                last_snr = getattr(self.bridge, "last_rx_snr", None)
-                last_rssi = getattr(self.bridge, "last_rx_rssi", None)
-                if last_snr is None or last_rssi is None:
-                    if hasattr(self.bridge, "node_registry") and hasattr(self.bridge.node_registry, "list_nodes"):
-                        remote_nodes = [
-                            n for n in self.bridge.node_registry.list_nodes()
-                            if not n.get("is_local") and str(n.get("role")).upper() != "LOCAL" and (n.get("last_snr") is not None or n.get("last_rssi") is not None)
-                        ]
-                        if remote_nodes:
-                            remote_nodes.sort(key=lambda x: float(x.get("last_seen") or 0.0), reverse=True)
-                            if last_snr is None and remote_nodes[0].get("last_snr") is not None:
-                                last_snr = remote_nodes[0].get("last_snr")
-                            if last_rssi is None and remote_nodes[0].get("last_rssi") is not None:
-                                last_rssi = remote_nodes[0].get("last_rssi")
-
-                local_cfg.update({
-                    "uptime": uptime_sec,
-                    "uptime_str": uptime_str,
-                    "airtime_ms": airtime_stats.get("hourly_used_ms", 0),
-                    "duty_cycle_pct": airtime_stats.get("hourly_duty_cycle_pct", 0.0),
-                    "tx_count": int(tx_val) if isinstance(tx_val, (int, float)) else 0,
-                    "rx_count": int(rx_val) if isinstance(rx_val, (int, float)) else 0,
-                    "duplicate_packets": getattr(self.bridge, "dup_count", 0),
-                    "packet_errors": (int(err_tx) if isinstance(err_tx, (int, float)) else 0) + (int(err_gen) if isinstance(err_gen, (int, float)) else 0),
-                    "noise_floor_dbm": local_cfg.get("noise_floor_dbm", -118),
-                    "clock": datetime.now().strftime("%I:%M:%S %p"),
-                    "last_snr": last_snr,
-                    "last_rssi": last_rssi,
-                })
-                return 200, {"status": "ok", "data": local_cfg}
-
-            if method == "POST" and clean_path in ("/api/node/config", "/api/node/settings"):
-                cmd = {"action": "set_local_config", "params": req_body}
-                res = await self.bridge.handle_admin(cmd)
-                self.log_system_event("INFO", f"Configuración de nodo local actualizada: {list(req_body.keys())}", source="admin")
-                return 200, {"status": "ok", "data": res}
-
-            if method == "POST" and clean_path == "/api/node/advert":
-                flood = bool(req_body.get("flood", False))
-                admin = getattr(self.bridge, "admin_handler", None)
-                if admin and hasattr(admin, "broadcast_advert"):
-                    res = await admin.broadcast_advert(flood=flood)
-                    mode_str = "Flood Routed (toda la malla)" if flood else "Hop 0 (vecindario directo)"
-                    self.log_system_event("INFO", f"📢 Anuncio Advert emitido ({mode_str})", source="admin")
-                    return 200, {"status": "ok", "data": res}
-                return 400, {"status": "error", "message": "Admin handler no disponible"}
-
-            if method == "POST" and clean_path == "/api/node/reboot":
-                cmd = {"action": "reboot_local"}
-                res = await self.bridge.handle_admin(cmd)
-                self.log_system_event("WARN", "Reinicio de hardware de nodo local solicitado", source="admin")
-                return 200, {"status": "ok", "data": res}
-
-            if method == "POST" and clean_path == "/api/repeater/remote/login":
-                target = str(req_body.get("target_node", req_body.get("repeater", ""))).strip()
-                pwd = str(req_body.get("password", "")).strip()
-                if not target:
-                    return 400, {"status": "error", "message": "Se requiere 'target_node'"}
-                if not pwd:
-                    return 400, {"status": "error", "message": "La contraseña de administración no puede estar vacía"}
-                cmd = {"action": "login", "target_node": target, "password": pwd}
-                res = await self.bridge.handle_admin(cmd)
-                if res.get("status") == "error" or not res.get("authenticated", False):
-                    self.log_system_event("WARN", f"Fallo de autenticación con repetidor {target}: {res.get('message', 'Contraseña incorrecta o sin respuesta')}", source="repeater_admin")
-                    return 401, {"status": "error", "message": res.get("message", "Contraseña incorrecta o sin respuesta del repetidor"), "data": res}
-                self.log_system_event("INFO", f"Autenticación exitosa con repetidor {target}", source="repeater_admin")
-                return 200, {"status": "ok", "data": res}
-
-            if method == "POST" and clean_path in ("/api/repeater/remote/logout", "/api/repeater/logout"):
-                target = str(req_body.get("target_node", req_body.get("repeater", ""))).strip()
-                if not target:
-                    return 400, {"status": "error", "message": "Se requiere 'target_node'"}
-                cmd = {"action": "logout", "target_node": target}
-                res = await self.bridge.handle_admin(cmd)
-                self.log_system_event("INFO", f"Sesión cerrada en repetidor {target}", source="repeater_admin")
-                return 200, {"status": "ok", "data": res}
-
-            if method == "POST" and clean_path == "/api/repeater/remote/config":
-                target = str(req_body.get("target_node", req_body.get("repeater", ""))).strip()
-                pwd = str(req_body.get("password", "")).strip()
-                params = req_body.get("params", {})
-                if not target:
-                    return 400, {"status": "error", "message": "Se requiere 'target_node'"}
-                cmd = {
-                    "action": "remote_repeater_set_config",
-                    "target_node": target,
-                    "password": pwd,
-                    "params": params,
-                }
-                res = await self.bridge.handle_admin(cmd)
-                if res.get("status") == "error":
-                    return 400, res
-                self.log_system_event("INFO", f"Configuración remota despachada a repetidor {target}", source="repeater_admin")
-                return 200, {"status": "ok", "data": res}
-
-            if method == "POST" and clean_path == "/api/repeater/remote/action":
-                target = str(req_body.get("target_node", req_body.get("repeater", ""))).strip()
-                pwd = str(req_body.get("password", "")).strip()
-                action_name = str(req_body.get("action", "")).strip()
-                if not target or not action_name:
-                    return 400, {"status": "error", "message": "Se requieren 'target_node' y 'action'"}
-                cmd = {
-                    "action": action_name,
-                    "target_node": target,
-                    "password": pwd,
-                    "params": req_body.get("params", {}),
-                }
-                res = await self.bridge.handle_admin(cmd)
-                if res.get("status") == "error":
-                    return 400, res
-                self.log_system_event("INFO", f"Acción remota '{action_name}' despachada a repetidor {target}", source="repeater_admin")
-                return 200, {"status": "ok", "data": res}
-
-            if method == "POST" and clean_path in ("/api/repeater/ping_zero", "/api/node/ping_zero"):
-                target = str(req_body.get("target_node", req_body.get("repeater", req_body.get("target", "")))).strip()
-                if not target:
-                    return 400, {"status": "error", "message": "Se requiere 'target_node'"}
-                cmd = {
-                    "action": "ping_zero",
-                    "target_node": target,
-                }
-                res = await self.bridge.handle_admin(cmd)
-                if res.get("status") == "error":
-                    return 400, res
-                self.log_system_event("INFO", f"🎯 Ping Zero (0 saltos) enviado a {target} - RTT: {res.get('rtt_ms')} ms", source="repeater_admin")
-                return 200, {"status": "ok", "data": res}
-
-            if method == "GET" and clean_path == "/api/airtime/stats":
-                limiter = getattr(self.bridge, "rate_limiter", None)
-                stats = (
-                    limiter.airtime_tracker.get_stats()
-                    if limiter and hasattr(limiter, "airtime_tracker")
-                    else {
-                        "hourly_used_ms": 0.0,
-                        "hourly_budget_ms": 36000.0,
-                        "hourly_duty_cycle_pct": 0.0,
-                        "hourly_limit_pct": 1.0,
-                        "hourly_packets": 0,
-                        "daily_used_ms": 0.0,
-                        "total_airtime_ms": 0.0,
-                        "total_packets": 0,
-                        "is_throttled": False,
-                        "channel_stats": {},
-                    }
-                )
-                return 200, {"status": "ok", "data": stats}
-
-            if method == "GET" and clean_path == "/api/rf/heatmap":
-                nodes = self.bridge.node_registry.list_nodes() if hasattr(self.bridge, "node_registry") else []
-                heatmap_points = []
-                seen_coords = set()
-
-                for n in nodes:
-                    lat_val = n.get("latitude") if n.get("latitude") is not None else n.get("lat")
-                    lon_val = n.get("longitude") if n.get("longitude") is not None else n.get("lon")
-                    if lat_val is not None and lon_val is not None:
-                        try:
-                            lat = float(lat_val)
-                            lon = float(lon_val)
-                            if lat != 0.0 and lon != 0.0 and -90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0:
-                                rssi = n.get("last_rssi") if n.get("last_rssi") is not None else n.get("rssi")
-                                snr = n.get("last_snr") if n.get("last_snr") is not None else n.get("snr")
-                                rssi_val = float(rssi) if rssi is not None else -100.0
-                                snr_val = float(snr) if snr is not None else 0.0
-                                weight = max(0.1, min(1.0, round((rssi_val + 120.0) / 70.0, 2)))
-
-                                coord_key = (round(lat, 5), round(lon, 5))
-                                seen_coords.add(coord_key)
-
-                                heatmap_points.append({
-                                    "pubkey": n.get("public_key", ""),
-                                    "lat": lat,
-                                    "lon": lon,
-                                    "rssi": rssi_val if rssi is not None else None,
-                                    "snr": snr_val if snr is not None else None,
-                                    "name": n.get("name") or n.get("alias") or n.get("public_key", "")[:8] or "Nodo LoRa",
-                                    "role": n.get("role", "CLIENT"),
-                                    "weight": weight,
-                                    "noise_floor": n.get("noise_floor_dbm"),
-                                    "last_heard": n.get("last_heard") or n.get("last_seen"),
-                                    "battery": n.get("battery") or n.get("battery_level"),
-                                    "is_local": n.get("is_local", False) or n.get("role") == "LOCAL",
-                                })
-                        except (ValueError, TypeError):
-                            continue
-
-                # Si el nodo local tiene GPS configurado y no fue añadido aún, incluirlo
-                local_cfg = getattr(self.bridge, "config", {})
-                if isinstance(local_cfg, dict):
-                    loc_lat = local_cfg.get("latitude") or local_cfg.get("lat")
-                    loc_lon = local_cfg.get("longitude") or local_cfg.get("lon")
-                    if loc_lat is not None and loc_lon is not None:
-                        try:
-                            l_lat, l_lon = float(loc_lat), float(loc_lon)
-                            if l_lat != 0.0 and l_lon != 0.0 and (round(l_lat, 5), round(l_lon, 5)) not in seen_coords:
-                                heatmap_points.append({
-                                    "pubkey": local_cfg.get("public_key", "LOCAL"),
-                                    "lat": l_lat,
-                                    "lon": l_lon,
-                                    "rssi": 0.0,
-                                    "snr": 12.0,
-                                    "name": local_cfg.get("name") or "Base Station (Local)",
-                                    "role": "LOCAL",
-                                    "weight": 1.0,
-                                    "noise_floor": -118.0,
-                                    "last_heard": int(time.time()),
-                                    "battery": 100,
-                                    "is_local": True,
-                                })
-                        except (ValueError, TypeError):
-                            pass
-
-                return 200, {"status": "ok", "data": {"points": heatmap_points, "count": len(heatmap_points)}}
-
-            if method == "GET" and clean_path == "/api/map/status":
-                return 200, {"status": "ok", "data": self.map_tile_service.get_status()}
-
-            if method == "GET" and clean_path == "/api/rf/noise":
-                nodes = self.bridge.node_registry.list_nodes()
-                noise_matrix = []
-                for n in nodes:
-                    noise_matrix.append({
-                        "pubkey": n.get("public_key"),
-                        "name": n.get("name") or n.get("alias"),
-                        "role": n.get("role"),
-                        "noise_floor_dbm": n.get("noise_floor_dbm"),
-                        "snr": n.get("last_snr"),
-                        "rssi": n.get("last_rssi"),
-                        "channel": n.get("channel", 0),
-                        "freq": n.get("frequency", 915.0),
-                    })
-                return 200, {"status": "ok", "data": {"matrix": noise_matrix}}
-
-            if method == "GET" and clean_path == "/api/contacts/discovered":
-                discovered = self.bridge.node_registry.list_discovered()
-                return 200, {"status": "ok", "data": {"discovered": discovered, "count": len(discovered)}}
-
-            if method == "POST" and clean_path == "/api/contacts/accept":
-                pubkey = str(req_body.get("public_key", req_body.get("target_node", ""))).strip()
-                if not pubkey:
-                    return 400, {"status": "error", "message": "Se requiere 'public_key'"}
-                success = self.bridge.node_registry.accept_discovered_contact(pubkey)
-                return 200, {"status": "ok" if success else "error", "accepted": success}
-
-            if method == "POST" and clean_path == "/api/traceroute":
-                target = str(req_body.get("target_node", req_body.get("target", ""))).strip()
-                path = req_body.get("path", [])
-                if not target:
-                    return 400, {"status": "error", "message": "Se requiere 'target_node'"}
-                cmd = {
-                    "action": "traceroute",
-                    "target_node": target,
-                    "path": path,
-                }
-                res = await self.bridge.handle_admin(cmd)
-                self.log_system_event("INFO", f"🗺️ Traceroute ejecutado hacia {target} - Saltos: {res.get('total_hops', 0)}", source="repeater_admin")
-                return 200, {"status": "ok", "data": res}
-
-            if method == "GET" and clean_path == "/api/preflight":
-                report = self._run_preflight_diagnostics()
-                return 200, {"status": "ok", "data": report}
-
-            if method == "GET" and clean_path == "/api/diagnostics":
-                diag = getattr(self.bridge, "diagnostics", None)
-                data = diag.collect_health_snapshot() if diag else {}
-                return 200, {"status": "ok", "data": data}
-
-            if method == "GET" and clean_path == "/api/diagnostics/export":
-                diag = getattr(self.bridge, "diagnostics", None)
-                data = diag.generate_full_diagnostic_bundle() if diag else {}
-                return 200, {"status": "ok", "data": data}
-
-            if method == "GET" and clean_path == "/api/system/logs/level":
+    async def _dispatch_system(self, method: str, raw_path: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        """Despacha rutas de salud, estado y logs al SystemController."""
+        if clean_path == "/api/status" and method == "GET":
+            return await self._route_status()
+        if clean_path == "/api/health" and method == "GET":
+            return await self.system_ctrl.get_health()
+        if clean_path == "/api/preflight" and method == "GET":
+            return await self.system_ctrl.run_preflight()
+        if clean_path == "/api/system/logs/level":
+            if method == "GET":
                 diag = getattr(self.bridge, "diagnostics", None)
                 lvl = diag.get_current_log_level() if diag else "INFO"
                 return 200, {"status": "ok", "level": lvl}
-
-            if method == "POST" and clean_path == "/api/system/logs/level":
+            if method == "POST":
                 diag = getattr(self.bridge, "diagnostics", None)
                 target_lvl = req_body.get("level", "INFO")
                 if diag:
                     new_lvl = diag.set_log_level(str(target_lvl))
                     return 200, {"status": "ok", "level": new_lvl}
-                return 400, {"status": "error", "message": "Diagnostic manager no disponible"}
+                return problem_details(400, "Bad Request", "Diagnostic manager no disponible", "diagnostic_unavailable")
+        if clean_path == "/api/system/logs":
+            if method == "DELETE":
+                return await self.system_ctrl.clear_logs()
+            if method == "GET":
+                return self._route_logs(raw_path, clean_path)
 
-            if method == "DELETE" and clean_path == "/api/system/logs":
-                diag = getattr(self.bridge, "diagnostics", None)
-                if diag and diag.log_handler:
-                    diag.log_handler.clear()
-                self.recent_system_logs.clear()
-                return 200, {"status": "ok", "message": "Logs del sistema limpiados"}
+        return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
-            if method == "POST" and clean_path == "/api/trace":
-                return await self._route_trace(req_body)
+    async def _dispatch_nodes(self, method: str, raw_path: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        """Despacha rutas de directorio de nodos y analítica al NodesController."""
+        if clean_path == "/api/nodes" and method == "GET":
+            limit = int(req_body.get("limit", 100))
+            offset = int(req_body.get("offset", 0))
+            if "?" in raw_path:
+                for part in raw_path.split("?", 1)[1].split("&"):
+                    if "=" in part:
+                        k, v = part.split("=", 1)
+                        if k.lower() == "limit" and v.isdigit():
+                            limit = int(v)
+                        elif k.lower() == "offset" and v.isdigit():
+                            offset = int(v)
+            return await self.nodes_ctrl.list_nodes(limit, offset)
 
-            if method == "GET" and clean_path in (
-                "/api/messages",
-                "/api/telemetry",
-                "/api/logs",
-                "/api/system/logs",
-                "/api/diagnostics/report.md",
-                "/api/diagnostics/report",
-                "/api/logs/download",
-                "/api/logs/raw",
-            ):
-                return self._route_logs(path, clean_path)
+        if clean_path in ("/api/lqi", "/api/link_quality") and method == "GET":
+            return await self.nodes_ctrl.get_lqi()
+        if clean_path in ("/api/analytics", "/api/metrics/analytics") and method == "GET":
+            return await self.nodes_ctrl.get_analytics()
+        if clean_path == "/api/rf/heatmap" and method == "GET":
+            return await self.nodes_ctrl.get_rf_heatmap()
+        if clean_path == "/api/airtime/stats" and method == "GET":
+            return await self.nodes_ctrl.get_airtime_stats()
+        if clean_path == "/api/rf/noise" and method == "GET":
+            nodes = self.bridge.node_registry.list_nodes()
+            matrix = [
+                {
+                    "pubkey": n.get("public_key"),
+                    "name": n.get("name") or n.get("alias"),
+                    "role": n.get("role"),
+                    "noise_floor_dbm": n.get("noise_floor_dbm"),
+                    "snr": n.get("last_snr"),
+                    "rssi": n.get("last_rssi"),
+                    "channel": n.get("channel", 0),
+                    "freq": n.get("frequency", 915.0),
+                }
+                for n in nodes
+            ]
+            return 200, {"status": "ok", "data": {"matrix": matrix}}
 
-            return 404, {"status": "error", "message": f"Ruta no encontrada: {method} {clean_path}"}
+        return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
-        except Exception as e:
-            logging.error(f"Error procesando solicitud REST {method} {clean_path}: {e}", exc_info=True)
-            self.log_system_event("ERROR", f"Fallo en API {method} {clean_path}: {e}", source="api")
-            return 500, {"status": "error", "message": str(e)}
+    async def _dispatch_contacts(self, method: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        """Despacha rutas de libreta de contactos al ContactsController."""
+        if clean_path == "/api/contacts/discovered" and method == "GET":
+            discovered = self.bridge.node_registry.list_discovered()
+            return 200, {"status": "ok", "data": {"discovered": discovered, "count": len(discovered)}}
 
+        if clean_path == "/api/contacts/accept" and method == "POST":
+            pubkey = str(req_body.get("public_key", req_body.get("target_node", ""))).strip()
+            if not pubkey:
+                return problem_details(400, "Bad Request", "Se requiere 'public_key'", "missing_public_key")
+            success = self.bridge.node_registry.accept_discovered_contact(pubkey)
+            return 200, {"status": "ok" if success else "error", "accepted": success}
+
+        return await self.contacts_ctrl.handle_contacts_route(clean_path, method, req_body)
+
+    async def _dispatch_channels(self, method: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        """Despacha rutas de canales al ChannelsController."""
+        res = await self.channels_ctrl.handle_channels_route(clean_path, method, req_body)
+        self.channels = self.channels_ctrl.channels
+        return res
+
+    async def _dispatch_tx(self, method: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        """Despacha rutas de transmisión de mensajes al TxController."""
+        if clean_path == "/api/tx" and method == "POST":
+            return await self.tx_ctrl.send_tx(req_body)
+        if clean_path in ("/api/messages/recent", "/api/messages") and method == "GET":
+            return await self.tx_ctrl.get_recent_messages()
+        return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+    async def _dispatch_repeater(self, method: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        """Despacha rutas de gestión de repetidores y comandos remotos."""
+        if clean_path == "/api/admin/command" and method == "POST":
+            return await self.repeater_ctrl.execute_admin_command(req_body)
+        if clean_path == "/api/admin/repeater" and method == "POST":
+            return await self.repeater_ctrl.execute_repeater_command(req_body)
+        if clean_path == "/api/repeater/remote/login" and method == "POST":
+            return await self.repeater_ctrl.login(req_body)
+        if clean_path in ("/api/repeater/remote/logout", "/api/repeater/logout") and method == "POST":
+            return await self.repeater_ctrl.logout(req_body)
+        if clean_path == "/api/repeater/remote/config" and method == "POST":
+            return await self.repeater_ctrl.set_remote_config(req_body)
+        if clean_path == "/api/repeater/remote/action" and method == "POST":
+            return await self.repeater_ctrl.execute_remote_action(req_body)
+        if clean_path in ("/api/repeater/ping_zero", "/api/node/ping_zero") and method == "POST":
+            return await self.repeater_ctrl.ping_zero(req_body)
+        if clean_path in ("/api/traceroute", "/api/trace") and method == "POST":
+            return await self.repeater_ctrl.traceroute(req_body)
+
+        return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+    async def _dispatch_config(self, method: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        """Despacha rutas de configuración de nodo local y módem LoRa."""
+        if clean_path in ("/api/node/config", "/api/node/settings"):
+            if method == "GET":
+                return await self.config_ctrl.get_device_config()
+            if method == "POST":
+                return await self.config_ctrl.set_local_config(req_body)
+        if clean_path == "/api/node/advert" and method == "POST":
+            flood = bool(req_body.get("flood", False))
+            return await self.config_ctrl.broadcast_advert(flood)
+        if clean_path == "/api/node/reboot" and method == "POST":
+            return await self.config_ctrl.reboot_local()
+
+        return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+    async def _dispatch_misc(self, method: str, raw_path: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        """Despacha servicios de mapas y visualización de diagnósticos históricos."""
+        if clean_path == "/api/map/status" and method == "GET":
+            return 200, {"status": "ok", "data": self.map_tile_service.get_status()}
+
+        if clean_path in (
+            "/api/messages",
+            "/api/telemetry",
+            "/api/logs",
+            "/api/system/logs",
+            "/api/diagnostics/report.md",
+            "/api/diagnostics/report",
+            "/api/logs/download",
+            "/api/logs/raw",
+        ) and method == "GET":
+            return self._route_logs(raw_path, clean_path)
+
+        return problem_details(404, "Not Found", "Recurso no encontrado", "not_found")
+
+    # Retrocompatibilidad para llamadas internas o tests directos
     async def _route_status(self) -> tuple[int, dict[str, Any]]:
-        rx_val = getattr(self.bridge, "rx_count", 0)
-        total_rx = int(rx_val) if isinstance(rx_val, (int, float)) else 0
-        tx_val = getattr(self.bridge, "tx_count", 0)
-        total_tx = int(tx_val) if isinstance(tx_val, (int, float)) else 0
-        err_tx = getattr(self.bridge, "tx_error_count", 0)
-        err_gen = getattr(self.bridge, "err_count", 0)
-        total_err = (int(err_tx) if isinstance(err_tx, (int, float)) else 0) + (int(err_gen) if isinstance(err_gen, (int, float)) else 0)
-        total_pkts = total_rx + total_tx
-        error_rate = round((total_err / total_pkts * 100.0), 1) if total_pkts > 0 else 0.0
-        node_cnt = self.bridge.node_registry.get_count() if hasattr(self.bridge, "node_registry") and hasattr(self.bridge.node_registry, "get_count") else 0
-        q_depth = self.bridge.rate_limiter.get_queue_depth() if hasattr(self.bridge, "rate_limiter") and hasattr(self.bridge.rate_limiter, "get_queue_depth") else 0
-
-        tcp_server = getattr(self.bridge, "tcp_server", None)
-        tcp_info = {
-            "enabled": getattr(tcp_server, "is_running", False) if tcp_server else False,
-            "host": getattr(tcp_server, "host", "0.0.0.0") if tcp_server else "0.0.0.0",  # nosec B104
-            "port": getattr(tcp_server, "port", 5000) if tcp_server else 5000,
-            "connected_clients": getattr(tcp_server, "connected_clients_count", 0) if tcp_server else 0,
-        }
-
-        local_cfg = self.bridge.admin_handler.get_local_config() if hasattr(self.bridge, "admin_handler") else {}
-
-        ser_adapter = getattr(self.bridge, "serial_adapter", None)
-        if ser_adapter and hasattr(ser_adapter, "is_hardware_alive"):
-            serial_connected = bool(ser_adapter.is_hardware_alive())
-        else:
-            serial_connected = getattr(ser_adapter, "is_connected", False) if ser_adapter else False
-        mqtt_client = getattr(self.bridge, "mqtt", None)
-        mqtt_connected = getattr(mqtt_client, "is_connected", False) if mqtt_client else False
-
-        last_snr = getattr(self.bridge, "last_rx_snr", None)
-        last_rssi = getattr(self.bridge, "last_rx_rssi", None)
-        if last_snr is None or last_rssi is None:
-            if hasattr(self.bridge, "node_registry") and hasattr(self.bridge.node_registry, "list_nodes"):
-                remote_nodes = [
-                    n for n in self.bridge.node_registry.list_nodes()
-                    if not n.get("is_local") and str(n.get("role")).upper() != "LOCAL" and (n.get("last_snr") is not None or n.get("last_rssi") is not None)
-                ]
-                if remote_nodes:
-                    remote_nodes.sort(key=lambda x: float(x.get("last_seen") or 0.0), reverse=True)
-                    if last_snr is None and remote_nodes[0].get("last_snr") is not None:
-                        last_snr = remote_nodes[0].get("last_snr")
-                    if last_rssi is None and remote_nodes[0].get("last_rssi") is not None:
-                        last_rssi = remote_nodes[0].get("last_rssi")
-
-        status_data = {
-            "bridge_status": "online" if getattr(self.bridge, "running", True) else "offline",
-            "uptime_seconds": int(time.time() - getattr(self.bridge, "start_time", time.time())),
-            "serial_connected": serial_connected,
-            "radio_connected": serial_connected,
-            "mqtt_connected": mqtt_connected,
-            "tcp_companion": tcp_info,
-            "local_node_pubkey": local_cfg.get("public_key"),
-            "local_node_name": local_cfg.get("name"),
-            "known_mesh_nodes": node_cnt,
-            "node_count": node_cnt,
-            "total_rx_packets": total_rx,
-            "rx_count": total_rx,
-            "total_tx_packets": total_tx,
-            "tx_count": total_tx,
-            "total_tx_errors": total_err,
-            "error_rate": error_rate,
-            "tx_queue_depth": q_depth,
-            "queue_depth": q_depth,
-            "last_snr": last_snr,
-            "last_rssi": last_rssi,
-        }
-        return 200, {"status": "ok", "data": status_data}
+        return await self.config_ctrl.get_device_config()
 
     async def _route_analytics(self) -> tuple[int, dict[str, Any]]:
-        analytics = self.bridge.node_registry.get_analytics_summary()
-        analytics["queue_depth"] = self.bridge.rate_limiter.get_queue_depth()
-        analytics["deduplication_count"] = getattr(self.bridge, "dup_count", 0)
-
-        # Estado de hardware serial y broker MQTT
-        ser_adapter = getattr(self.bridge, "serial_adapter", None)
-        if ser_adapter and hasattr(ser_adapter, "is_hardware_alive"):
-            ser_connected = bool(ser_adapter.is_hardware_alive())
-        else:
-            ser_connected = getattr(ser_adapter, "is_connected", False) if ser_adapter else False
-        mqtt_client = getattr(self.bridge, "mqtt", getattr(self.bridge, "mqtt_client", None))
-        mqtt_connected = getattr(mqtt_client, "is_connected", False) if mqtt_client else False
-        analytics["serial_connected"] = ser_connected
-        analytics["mqtt_connected"] = mqtt_connected
-
-        # Consolidar totales de tráfico del bridge con el desglose por nodos
-        bridge_rx = getattr(self.bridge, "rx_count", 0)
-        bridge_tx = getattr(self.bridge, "tx_count", 0)
-        bridge_err = getattr(self.bridge, "err_count", 0) + getattr(self.bridge, "tx_error_count", 0)
-
-        sum_rx = analytics["summary"]["total_rx_packets"]
-        sum_tx = analytics["summary"]["total_tx_packets"]
-        sum_err = analytics["summary"]["total_errors"]
-
-        final_rx = max(bridge_rx, sum_rx)
-        final_tx = max(bridge_tx, sum_tx)
-        final_err = max(bridge_err, sum_err)
-        total_p = final_rx + final_tx
-
-        analytics["summary"]["total_rx_packets"] = final_rx
-        analytics["summary"]["total_tx_packets"] = final_tx
-        analytics["summary"]["total_errors"] = final_err
-        analytics["summary"]["global_error_rate_pct"] = round((final_err / (total_p or 1)) * 100, 2)
-        return 200, {"status": "ok", "data": analytics}
+        return await self.nodes_ctrl.get_analytics()
 
     async def _route_contacts(self, path: str, method: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-        if path == "/api/contacts/sync" and method in ("POST", "GET"):
-            ser = getattr(self.bridge, "serial_adapter", None)
-            imported_count = 0
-            if ser and hasattr(ser, "sync_all_contacts"):
-                try:
-                    imported = await ser.sync_all_contacts()
-                    for c in imported:
-                        pk = str(c.get("public_key", "")).strip()
-                        if pk:
-                            self.bridge.node_registry.add_or_update(
-                                pk,
-                                NodeContactUpdate(
-                                    name=c.get("name"),
-                                    alias=c.get("alias"),
-                                    role=c.get("role", "CLIENT"),
-                                ),
-                            )
-                            imported_count += 1
-                    if hasattr(self.bridge.node_registry, "save_to_file"):
-                        self.bridge.node_registry.save_to_file()
-                except Exception as e:
-                    logging.warning(f"Error sincronizando contactos con el nodo: {e}")
-            nodes = self.bridge.node_registry.list_nodes()
-            return 200, {"status": "ok", "imported": imported_count, "data": nodes, "count": len(nodes)}
-
-        if path == "/api/contacts/share" and method == "POST":
-            pubkey = str(req_body.get("public_key", req_body.get("key", ""))).strip()
-            if not pubkey:
-                return 400, {"status": "error", "message": "Se requiere 'public_key'"}
-            ser = getattr(self.bridge, "serial_adapter", None)
-            res = await ser.share_contact(pubkey) if ser and hasattr(ser, "share_contact") else None
-            self.log_system_event("INFO", f"Contacto compartido con la malla: {pubkey}", source="contacts")
-            return 200, {"status": "ok", "result": res}
-
-        if path == "/api/contacts/export" and method in ("GET", "POST"):
-            pubkey = str(req_body.get("public_key", req_body.get("key", ""))).strip()
-            ser = getattr(self.bridge, "serial_adapter", None)
-            res = await ser.export_contact(pubkey) if ser and hasattr(ser, "export_contact") else None
-            return 200, {"status": "ok", "result": res}
-
-        if path == "/api/contacts/import" and method == "POST":
-            hex_data = str(req_body.get("data", "")).strip()
-            ser = getattr(self.bridge, "serial_adapter", None)
-            try:
-                bin_data = bytes.fromhex(hex_data) if hex_data else b""
-            except ValueError:
-                return 400, {"status": "error", "message": "Formato hexadecimal inválido en 'data'"}
-            res = await ser.import_contact(bin_data) if ser and hasattr(ser, "import_contact") else None
-            self.log_system_event("INFO", "Contacto importado vía API", source="contacts")
-            return 200, {"status": "ok", "result": res}
-
-        if method == "GET":
-            nodes = self.bridge.node_registry.list_nodes()
-            return 200, {"status": "ok", "data": nodes, "count": len(nodes)}
-
-        if method == "POST":
-            pubkey = str(req_body.get("public_key", req_body.get("key", ""))).strip()
-            name = str(req_body.get("name", "")).strip()
-            alias = str(req_body.get("alias", "")).strip()
-            role = str(req_body.get("role", "CLIENT")).strip()
-            if not pubkey:
-                return 400, {"status": "error", "message": "Se requiere 'public_key'"}
-
-            contact = self.bridge.node_registry.add_or_update(
-                pubkey,
-                NodeContactUpdate(name=name or f"Node_{pubkey[:6]}", alias=alias, role=role),
-            )
-            if hasattr(self.bridge.node_registry, "save_to_file"):
-                self.bridge.node_registry.save_to_file()
-
-            # Sincronizar hacia el transceptor serial
-            ser = getattr(self.bridge, "serial_adapter", None)
-            if ser and hasattr(ser, "add_contact"):
-                try:
-                    await ser.add_contact({"public_key": pubkey, "name": name or alias, "role": role})
-                except Exception as e:
-                    logging.debug(f"Error enviando contacto al transceptor serial: {e}")
-
-            # Notificar a los clientes WebSocket en tiempo real
-            self._notify_web_clients({"type": "contacts_updated", "data": self.bridge.node_registry.list_nodes()})
-
-            self.log_system_event("INFO", f"Contacto guardado: {pubkey} ({alias or name})", source="contacts")
-            return 200, {"status": "ok", "data": contact.to_dict()}
-
-        if method == "DELETE":
-            pubkey = str(req_body.get("public_key", req_body.get("key", ""))).strip().lower()
-            ser = getattr(self.bridge, "serial_adapter", None)
-            if ser and hasattr(ser, "remove_contact"):
-                try:
-                    await ser.remove_contact(pubkey)
-                except Exception as e:
-                    logging.debug(f"Error eliminando contacto del transceptor serial: {e}")
-
-            if pubkey and pubkey in self.bridge.node_registry._nodes_by_key:
-                del self.bridge.node_registry._nodes_by_key[pubkey]
-                if hasattr(self.bridge.node_registry, "save_to_file"):
-                    self.bridge.node_registry.save_to_file()
-                self._notify_web_clients({"type": "contacts_updated", "data": self.bridge.node_registry.list_nodes()})
-                return 200, {"status": "ok", "message": f"Contacto {pubkey} eliminado"}
-            return 404, {"status": "error", "message": "Contacto no encontrado"}
-
-        return 405, {"status": "error", "message": "Método no permitido para /api/contacts"}
+        return await self.contacts_ctrl.handle_contacts_route(path, method, req_body)
 
     async def _route_channels(self, path: str, method: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-        if path == "/api/channels/sync" and method in ("POST", "GET"):
-            ser = getattr(self.bridge, "serial_adapter", None)
-            if ser and hasattr(ser, "get_channels"):
-                try:
-                    node_channels = await ser.get_channels()
-                    if node_channels:
-                        for ch in node_channels:
-                            idx = int(ch.get("index", 0))
-                            self.channels[idx] = ch
-                        self._save_channels()
-                except Exception as e:
-                    logging.debug(f"Fallo sincronizando canales del nodo serial: {e}")
-            channels = list(self.channels.values())
-            channels.sort(key=lambda c: int(c.get("index", 0)))
-            return 200, {"status": "ok", "data": channels, "count": len(channels)}
-
-        if method == "GET":
-            ser = getattr(self.bridge, "serial_adapter", None)
-            if ser and hasattr(ser, "get_channels"):
-                try:
-                    node_channels = await ser.get_channels()
-                    if node_channels:
-                        for ch in node_channels:
-                            idx = int(ch.get("index", 0))
-                            self.channels[idx] = ch
-                        self._save_channels()
-                except Exception as e:
-                    logging.debug(f"Fallo sincronizando canales del nodo serial: {e}")
-
-            channels = list(self.channels.values())
-            channels.sort(key=lambda c: int(c.get("index", 0)))
-            return 200, {"status": "ok", "data": channels, "count": len(channels)}
-
-        if method == "POST":
-            try:
-                idx = int(req_body.get("index", 1))
-            except ValueError:
-                return 400, {"status": "error", "message": "Índice de canal inválido"}
-            if idx < 0 or idx > 7:
-                return 400, {"status": "error", "message": "El índice de canal debe estar entre 0 y 7"}
-
-            name = str(req_body.get("name", f"Canal {idx}")).strip()
-            psk = str(req_body.get("psk", "")).strip()
-            self.channels[idx] = {"index": idx, "name": name, "psk": psk, "is_public": (idx == 0)}
-            self._save_channels()
-
-            # Sincronizar con el hardware serial si está conectado
-            ser = getattr(self.bridge, "serial_adapter", None)
-            if ser and hasattr(ser, "set_channel"):
-                try:
-                    await ser.set_channel(idx, name, psk)
-                except Exception as e:
-                    logging.debug(f"Error despachando canal al transceptor serial: {e}")
-
-            self._notify_web_clients({"type": "channels_updated", "data": list(self.channels.values())})
-
-            self.log_system_event("INFO", f"Canal {idx} configurado: {name}", source="channels")
-            return 200, {"status": "ok", "data": self.channels[idx]}
-
-        if method == "DELETE":
-            try:
-                idx = int(req_body.get("index", 0))
-            except ValueError:
-                return 400, {"status": "error", "message": "Índice de canal inválido"}
-            if idx == 0:
-                return 400, {"status": "error", "message": "No se puede eliminar el canal público 0"}
-            if idx in self.channels:
-                del self.channels[idx]
-                self._save_channels()
-                ser = getattr(self.bridge, "serial_adapter", None)
-                if ser and hasattr(ser, "set_channel"):
-                    try:
-                        await ser.set_channel(idx, "", "")
-                    except Exception as e:
-                        logging.debug(f"Error limpiando canal en transceptor serial: {e}")
-                self._notify_web_clients({"type": "channels_updated", "data": list(self.channels.values())})
-                return 200, {"status": "ok", "message": f"Canal {idx} eliminado"}
-            return 404, {"status": "error", "message": "Canal no encontrado"}
-
-        return 405, {"status": "error", "message": "Método no permitido para /api/channels"}
+        return await self.channels_ctrl.handle_channels_route(path, method, req_body)
 
     async def _route_tx(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-        text = str(req_body.get("text", "")).strip()
-        if not text:
-            return 400, {"status": "error", "message": "El campo 'text' no puede estar vacío"}
-
-        target = req_body.get("to", req_body.get("target", "broadcast"))
-        try:
-            ch_idx = int(req_body.get("channel_index", req_body.get("channel_idx", 0)))
-        except ValueError:
-            return 400, {"status": "error", "message": "Invalid channel index"}
-        req_id = req_body.get("request_id", f"web_{int(time.time() * 1000)}")
-
-        tx_item = {"to": target, "channel_index": ch_idx, "text": text, "request_id": req_id}
-        res = await self.bridge._execute_tx(tx_item)
-        if isinstance(res, dict) and res.get("status") == "error":
-            err_msg = res.get("error") or "Error en transmisión por radio LoRa"
-            self.log_system_event("ERROR", f"Fallo en TX hacia {target}: {err_msg}", source="mesh_tx")
-            return 400, {"status": "error", "message": err_msg, "data": res}
-
-        if target and str(target).lower() not in ("broadcast", "public", "0xffff"):
-            self.bridge.node_registry.record_packet(PacketRecord(public_key=str(target), is_rx=False))
-        self.log_system_event("INFO", f"Transmisión TX enviada a {target} (Ch {ch_idx})", source="mesh_tx")
-        return 200, {"status": "ok", "data": res}
-
-    async def _route_admin_repeater(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-        target_node = str(req_body.get("target_node", req_body.get("repeater", ""))).strip()
-        action = str(req_body.get("action", req_body.get("command", "stats-radio")))
-        if not target_node:
-            return 400, {"status": "error", "message": "Se requiere 'target_node'"}
-
-        cmd_data = {
-            "target_node": target_node,
-            "action": action,
-            "params": req_body.get("params", {}),
-            "request_id": req_body.get("request_id", f"web_rep_{int(time.time())}"),
-        }
-        res = await self.bridge.handle_admin(cmd_data)
-        self.log_system_event("INFO", f"Comando RF a repetidor {target_node}: {action}", source="repeater_admin")
-        return 200, {"status": "ok", "data": res}
+        return await self.tx_ctrl.send_tx(req_body)
 
     def _route_logs(self, raw_path: str, clean_path: str) -> tuple[int, dict[str, Any]]:
         limit = 100
         offset = 0
         if "?" in raw_path:
-            query_str = raw_path.split("?", 1)[1]
-            for part in query_str.split("&"):
+            for part in raw_path.split("?", 1)[1].split("&"):
                 if "=" in part:
                     k, v = part.split("=", 1)
                     if k.lower() == "limit" and v.isdigit():
@@ -1000,42 +452,37 @@ class WebAPIRouter:
 
         if clean_path == "/api/messages":
             all_messages = list(self.recent_messages)
-            msgs_page = all_messages[offset:offset+limit]
+            msgs_page = all_messages[offset : offset + limit]
             return 200, {
                 "status": "ok",
                 "data": msgs_page,
                 "count": len(msgs_page),
                 "total_count": len(all_messages),
                 "limit": limit,
-                "offset": offset
+                "offset": offset,
             }
         if clean_path == "/api/telemetry":
             all_telemetry = list(self.recent_telemetry)
-            telem_page = all_telemetry[offset:offset+limit]
+            telem_page = all_telemetry[offset : offset + limit]
             return 200, {
                 "status": "ok",
                 "data": telem_page,
                 "count": len(telem_page),
                 "total_count": len(all_telemetry),
                 "limit": limit,
-                "offset": offset
+                "offset": offset,
             }
         if clean_path == "/api/system/logs":
             level = None
             search = None
-            limit = 100
             if "?" in raw_path:
-                query_str = raw_path.split("?", 1)[1]
-                for part in query_str.split("&"):
+                for part in raw_path.split("?", 1)[1].split("&"):
                     if "=" in part:
                         k, v = part.split("=", 1)
-                        k_lower = k.lower()
-                        if k_lower == "level":
+                        if k.lower() == "level":
                             level = v
-                        elif k_lower == "search":
+                        elif k.lower() == "search":
                             search = v
-                        elif k_lower == "limit" and v.isdigit():
-                            limit = int(v)
 
             diag = getattr(self.bridge, "diagnostics", None)
             from src.diagnostics import DiagnosticManager
@@ -1103,35 +550,4 @@ class WebAPIRouter:
                 "line_count": len(tail.splitlines()),
             }
 
-        return 404, {"status": "error", "message": "Registro no encontrado"}
-
-    def _run_preflight_diagnostics(self) -> dict[str, Any]:
-        checker = getattr(self.bridge, "preflight", None)
-        if checker and hasattr(checker, "run_all"):
-            import config
-            res = checker.run_all(
-                mqtt_host=config.MQTT_BROKER,
-                mqtt_port=config.MQTT_PORT,
-                serial_port=getattr(self.bridge.serial_adapter, "port", config.SERIAL_PORT),
-            )
-            if isinstance(res, dict):
-                return res
-        return {"status": "OK", "checks": []}
-
-    async def _route_trace(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-        target = str(req_body.get("to", req_body.get("target", ""))).strip()
-        if not target:
-            return 400, {"status": "error", "message": "Se requiere 'to' (nodo objetivo)"}
-
-        auth_code = int(req_body.get("auth_code", 0))
-        raw_path = req_body.get("path")
-        cmd_data = {
-            "target_node": target,
-            "action": "trace",
-            "params": {"auth_code": auth_code, "path": raw_path},
-            "path": raw_path,
-            "request_id": f"web_trace_{int(time.time())}",
-        }
-        res = await self.bridge.handle_admin(cmd_data)
-        self.log_system_event("INFO", f"Traceroute iniciado hacia {target}", source="trace")
-        return 200, {"status": "ok", "data": res}
+        return problem_details(404, "Not Found", "Registro no encontrado", "log_not_found")

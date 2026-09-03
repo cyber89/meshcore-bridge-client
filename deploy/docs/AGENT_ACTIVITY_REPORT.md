@@ -6,6 +6,36 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Descomposición Modular de la API REST en Controladores de Dominio y Adopción de RFC 7807 Problem Details
+- **Fecha**: 2026-09-02
+- **Estado**: ✅ COMPLETADO (Descomposición de api_router.py de 1,138 líneas y handle_request de 407 líneas en controladores por dominio en src/web/controllers/, inyección de dependencias con ApiContext y especificación RFC 7807)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX & Frontend Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - `api_router.py:handle_request()` acumulaba 407 líneas en una cascada de condicionales procedimentales violando el principio de responsabilidad única (SRP).
+  - Manejo heterogéneo de errores en las respuestas REST. Se requería estandarización rigurosa bajo RFC 7807 (Problem Details for HTTP APIs) manteniendo 100% de retrocompatibilidad con la WebUI, n8n y scripts externos.
+- **Acciones Realizadas**:
+  - **Paquete de Controladores REST (`src/web/controllers/`)**:
+    - [`base.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/controllers/base.py): Dataclass `ApiContext` para inyección de dependencias limpias (`bridge`, `recent_messages`, `system_logs`, `log_system_event`, `broadcast_ws`), clase base `BaseController` y generador RFC 7807 `problem_details()`.
+    - [`system_controller.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/controllers/system_controller.py): Gestión de `/api/status`, `/api/health`, `/api/system/logs`, `/api/system/log/clear` y preflight.
+    - [`nodes_controller.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/controllers/nodes_controller.py): Paginación de `/api/nodes`, métricas `/api/lqi`, analítica consolidada `/api/analytics`, `/api/rf/heatmap` y `/api/airtime/stats`.
+    - [`contacts_controller.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/controllers/contacts_controller.py): CRUD y sincronización de libreta de contactos (`/api/contacts`, sync, share, export, import).
+    - [`channels_controller.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/controllers/channels_controller.py): Configuración de canales (0..7), persistencia atómica en disco y despacho hacia el transceptor.
+    - [`tx_controller.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/controllers/tx_controller.py): Validación y despacho de paquetes de transmisión `/api/tx` e historial en memoria `/api/messages/recent`.
+    - [`repeater_controller.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/controllers/repeater_controller.py): Comandos de administración remota, login, logout, telemetría y diagnósticos ping 0 y traceroute.
+    - [`config_controller.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/controllers/config_controller.py): Parámetros locales de radio, geolocalización, anuncios advert y reinicio.
+    - [`__init__.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/controllers/__init__.py): Exportación limpia de la suite de controladores.
+  - **Refactorización de [`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py)**:
+    - Inicialización de `ApiContext` y controladores en el constructor.
+    - `handle_request()` reducido de **407 líneas a 28 líneas**, despachando O(1) hacia los controladores por prefijo de ruta.
+    - Preservados wrappers de compatibilidad (`_route_status`, `_route_analytics`, `_route_contacts`, etc.) para asegurar 100% de interoperabilidad.
+  - **Auditoría y Despliegue**:
+    - 45/45 módulos de producción importados con 0 errores.
+    - 100% tipado estático (`mypy --strict`).
+    - Validación de contratos API REST cumplida (200, 400, 404).
+    - Cero vulnerabilidades Bandit SAST.
+    - Sincronización completa hacia `/deploy/`.
+- **Módulos Modificados**: `src/web/controllers/**`, `src/web/api_router.py`, `deploy/**`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Refactorización Clean Code del Backend (Strategy Pattern en rx_router.py) y Protección de Airtime LoRa en Repetidores
 - **Fecha**: 2026-09-02
 - **Estado**: ✅ COMPLETADO (Descomposición de handle_event CC 190 -> 4 con Strategy Pattern en src/routers/, descomposición modular de repeater_manager.py y gobernanza de Airtime LoRa con cooldowns)
