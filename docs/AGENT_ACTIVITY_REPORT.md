@@ -6,6 +6,25 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Refactorización Clean Code de AdminCommandHandler y Descomposición Modular en src/admin/
+- **Fecha**: 2026-09-02
+- **Estado**: ✅ COMPLETADO (Descomposición modular de AdminCommandHandler en ejecutores de dominio: RepeaterAdminExecutor, TracerouteExecutor, LocalConfigExecutor; eliminación del método monolítico de 443 líneas y reducción de 8 parámetros a dataclass RemoteRepeaterRequest; 100% PASS en auditorías y simulación)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - `AdminCommandHandler` en `src/admin_handler.py` concentraba múltiples responsabilidades en un archivo de 1,678 líneas, incluyendo `_handle_remote_repeater` (443 líneas y 8 parámetros), `_handle_set_local_config` (187 líneas), `_handle_traceroute` (140 líneas), `get_local_config` (129 líneas) y `fetch_device_config` (94 líneas).
+  - Se requería desacoplar la lógica administrativa en un paquete especializado `src/admin/`, empaquetar los parámetros en un dataclass fuertemente tipado `RemoteRepeaterRequest` y mantener la clase `AdminCommandHandler` como una Facade 100% retrocompatible.
+- **Acciones Realizadas**:
+  - **Nuevo Paquete Modular `src/admin/`**:
+    - [`src/admin/repeater_executor.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin/repeater_executor.py): Implementa `RepeaterAdminExecutor`, `RemoteRepeaterRequest`, `WaiterRegistry`, `RfExecutionContext` y `PingZeroOutcome`. Descompone comandos por lotes, ping 0, autenticación y comandos unitarios con cooldown de airtime. 100% métodos limpios y bajo límites de líneas y parámetros.
+    - [`src/admin/traceroute_executor.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin/traceroute_executor.py): Implementa `TracerouteExecutor`, modularizando el formateo de saltos multihop, emisión RF y desglose de segmentos.
+    - [`src/admin/local_config_executor.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin/local_config_executor.py): Implementa `LocalConfigExecutor`, desacoplando la lectura de `self_info`, cálculo de uptime/airtime, métricas de potencia TX y persistencia de configuración local.
+    - [`src/admin/__init__.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin/__init__.py): Exporta limpiamente todos los ejecutores y dataclasses del dominio administrativo.
+  - **Refactorización de Facade en [`src/admin_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin_handler.py)**:
+    - Reducido de 1,678 líneas a 735 líneas (reducción del 56% de tamaño).
+    - `_handle_remote_repeater` empaqueta la solicitud en `RemoteRepeaterRequest` reduciendo la firma a 1 parámetro.
+    - Delegación limpia de `get_local_config`, `fetch_device_config`, `_handle_traceroute` y `_handle_set_local_config` a los ejecutores especializados.
+- **Módulos Modificados**: `src/admin/__init__.py`, `src/admin/repeater_executor.py`, `src/admin/traceroute_executor.py`, `src/admin/local_config_executor.py`, `src/admin_handler.py`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Validación Integral de Red Mesh Multi-Nodo, Fuzzing de Tramas Deformes y Auditoría de Logs
 - **Fecha**: 2026-09-02
 - **Estado**: ✅ COMPLETADO (100% PASS: 7 fases ejecutadas exitosamente, topología de 33 nodos con saltos, 25 clientes concurrentes, 8 pruebas de fuzzing superadas, comandos remotos a repetidores, CRUD de contactos, heatmap RF y cero excepciones en logs)
