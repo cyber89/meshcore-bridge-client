@@ -225,6 +225,8 @@ def is_valid_node_key(key: Any) -> bool:
         return False
     if norm.startswith("unknow") or norm.startswith("broadcast") or norm.startswith("0x0000"):
         return False
+    if not all(c in "0123456789abcdef" for c in norm):
+        return False
     return True
 
 

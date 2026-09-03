@@ -6,6 +6,26 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Validación Integral de Red Mesh Multi-Nodo, Fuzzing de Tramas Deformes y Auditoría de Logs
+- **Fecha**: 2026-09-02
+- **Estado**: ✅ COMPLETADO (100% PASS: 7 fases ejecutadas exitosamente, topología de 33 nodos con saltos, 25 clientes concurrentes, 8 pruebas de fuzzing superadas, comandos remotos a repetidores, CRUD de contactos, heatmap RF y cero excepciones en logs)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 3 (QA & Fuzzing), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - Simular y validar exhaustivamente el funcionamiento del proyecto ante una red mesh multi-nodo realista (5 nodos de infraestructura con saltos de 1 a 3 hops, 25 clientes distribuidos, sensores y BBS).
+  - Inyectar tramas con deformaciones y fallos severos (CRC corrupto, tramas truncadas, framing roto, desbordamiento de búfer, JSON corrupto, claves maliciosas y bucles de enrutamiento) para verificar la contención en todos los niveles.
+  - Administrar de forma remota un repetidor (login, lectura de parámetros, reconfiguración de potencia TX a 22 dBm y logout).
+  - Gestionar el ciclo de vida de clientes (altas y bajas dinámicas vía API REST) y comprobar geolocalización, heatmap RF y ausencia de excepciones en los logs.
+- **Acciones Realizadas**:
+  - **Arnés de Simulación Integral (`scripts/simulate_full_mesh_validation.py`)**:
+    - **Fase 1 (Topología & Descubrimiento)**: Modelados la estación base local, 3 repetidores, 1 router gateway, 2 sensores, 1 servidor de sala comunitaria y 25 clientes concurrentes (33 nodos en total). Verificada la exclusión estricta de repetidores de la libreta de contactos conforme a `AGENTS.md`.
+    - **Fase 2 (Fuzzing & Resiliencia)**: Inyectados 8 patrones de anomalías (CRC corrupto, tramas truncadas, framing roto, buffer overflow, telemetría JSON mutilada, claves inválidas/no hexadecimales, saltos excesivos y peticiones REST malformadas). Se verificó el registro ordenado en `NodeRegistry.error_categories` (`CRC_MISMATCH`, `TX_BUFFER_OVERFLOW`, `ROUTE_UNREACHABLE`) y respuestas RFC 7807 sin caídas del event loop. Fortalecida la validación de claves en [`src/contact_manager.py:is_valid_node_key`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py) para filtrar cadenas no hexadecimales.
+    - **Fase 3 (Gestión Remota de Repetidor)**: Verificada autenticación con rechazo 401 ante clave errónea y éxito 200 con credenciales válidas; lectura de telemetría y ajuste de potencia de radio a 22 dBm.
+    - **Fase 4 (Operaciones Dinámicas de Clientes)**: Alta dinámica de 3 clientes nuevos en caliente y eliminación de 2 clientes obsoletos vía API REST `DELETE /api/contacts`, confirmando la purga inmediata de la memoria.
+    - **Fase 5 (Mensajería Multihop)**: Difusión broadcast en Canal 0 y entrega de mensaje directo (DM) a 4 saltos con confirmación ACK.
+    - **Fase 6 (Mapa Táctico & Heatmap RF)**: Verificados 31 nodos geolocalizados con coordenadas GPS válidas, cálculo de distancias geodésicas (Haversine: 3.71 km Base <-> R1) y matriz ponderada del Heatmap RF.
+    - **Fase 7 (Auditoría de Logs)**: Inspeccionados los logs del sistema, confirmando CERO `Traceback` o excepciones no capturadas.
+- **Módulos Modificados**: `src/contact_manager.py`, `scripts/simulate_full_mesh_validation.py`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Refactorización Clean Code de NodeRegistry en contact_manager.py y Dataclass NodeDiscoveryEvent
 - **Fecha**: 2026-09-02
 - **Estado**: ✅ COMPLETADO (Descomposición modular de add_or_update, discover_node, get_analytics_summary y load_from_file; adopción del dataclass NodeDiscoveryEvent; 100% de métodos de NodeRegistry limpios y bajo límites de líneas y parámetros)
