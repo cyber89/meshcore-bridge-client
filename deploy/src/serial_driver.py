@@ -458,16 +458,29 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             logging.debug(f"Path response: {data}")
         elif event_type == getattr(EventType, "ADVERT_PATH", None):
             logging.debug(f"Advert path: {data}")
+            if self.rx_callback:
+                self.rx_callback(data)
         elif event_type == getattr(EventType, "DISCOVER_RESPONSE", None):
             logging.debug(f"Discover response: {data}")
+            if self.rx_callback:
+                self.rx_callback(data)
         elif event_type == getattr(EventType, "NEIGHBOURS_RESPONSE", None):
             logging.debug(f"Neighbours response: {data}")
+            if self.rx_callback:
+                self.rx_callback(data)
 
         # Control
         elif event_type == getattr(EventType, "CONTROL_DATA", None):
             await self._handle_control_data(data)
         elif event_type == getattr(EventType, "ADVERTISEMENT", None):
-            logging.debug(f"Advertisement received: {data}")
+            pk_hint = ""
+            if isinstance(data, dict):
+                pk_hint = str(data.get("public_key", data.get("key", "")))[:12]
+            elif hasattr(data, "public_key"):
+                pk_hint = str(data.public_key)[:12]
+            logging.info(f"Advertisement recibido: pk={pk_hint or '?'} data={data}")
+            if self.rx_callback:
+                self.rx_callback(data)
 
         # Channel info
         elif event_type == getattr(EventType, "CHANNEL_INFO", None):

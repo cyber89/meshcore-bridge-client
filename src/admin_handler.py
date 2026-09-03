@@ -442,393 +442,290 @@ class AdminCommandHandler:
 
         # 1. Caso especial: Traceroute Multi-Salto (se ejecuta con o sin target_node)
         if action in ("traceroute", "trace", "trace_route", "send_trace"):
-            t_start = time.perf_counter()
-            raw_path = admin_data.get("path")
-            if raw_path is None and isinstance(admin_data.get("params"), dict):
-                raw_path = admin_data.get("params", {}).get("path")
-
-            path_list: list[str] = []
-            if isinstance(raw_path, str):
-                path_list = [p.strip() for p in raw_path.split(",") if p.strip()]
-            elif isinstance(raw_path, (list, tuple)):
-                path_list = [str(p).strip() for p in raw_path if str(p).strip()]
-
-            # Normalizar los saltos a hashes hexadecimales válidos para el protocolo MeshCore (1, 2, 4 u 8 bytes)
-            formatted_hops: list[str] = []
-            trace_flags: int = 0
-            trace_path_arg: str | None = None
-
-            if path_list:
-                for p in path_list:
-                    clean_p = p.lower().strip()
-                    if clean_p.startswith("0x"):
-                        clean_p = clean_p[2:]
-                    clean_hex = "".join(c for c in clean_p if c in "0123456789abcdef")
-                    if not clean_hex:
-                        found_node = self._ctx.node_registry.get_by_key_or_prefix(clean_p)
-                        if found_node:
-                            clean_hex = found_node.public_key.lower()[:4]
-
-                    if clean_hex:
-                        if len(clean_hex) >= 16:
-                            formatted_hops.append(clean_hex[:4])  # 2 bytes estándar
-                        elif len(clean_hex) >= 8:
-                            formatted_hops.append(clean_hex[:8])  # 4 bytes
-                        elif len(clean_hex) >= 4:
-                            formatted_hops.append(clean_hex[:4])  # 2 bytes
-                        elif len(clean_hex) >= 2:
-                            formatted_hops.append(clean_hex[:2])  # 1 byte
-
-                if formatted_hops:
-                    if all(len(h) == 4 for h in formatted_hops):
-                        trace_path_arg = ",".join(formatted_hops)
-                        trace_flags = 1  # 2 bytes por salto (1 << 1)
-                    elif all(len(h) == 8 for h in formatted_hops):
-                        trace_path_arg = ",".join(formatted_hops)
-                        trace_flags = 2  # 4 bytes por salto (1 << 2)
-                    elif all(len(h) == 16 for h in formatted_hops):
-                        trace_path_arg = ",".join(formatted_hops)
-                        trace_flags = 3  # 8 bytes por salto (1 << 3)
-                    else:
-                        trace_path_arg = ",".join(h[:2] for h in formatted_hops)
-                        trace_flags = 0  # 1 byte por salto (1 << 0)
-
-            # Si el SDK soporta comando nativo de traza por radio, despacharlo a nivel RF
-            if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_trace"):
-                try:
-                    if trace_path_arg:
-                        await mc.commands.send_trace(path=trace_path_arg, flags=trace_flags)
-                    else:
-                        # NUNCA pasar path="" porque len("")/2=0 provoca "unknown path_hash_len 0"
-                        await mc.commands.send_trace(path=None, flags=0)
-                except Exception as e:
-                    logging.debug(f"Error invocando mc.commands.send_trace: {e}")
-
-            rtt_ms = round((time.perf_counter() - t_start) * 1000, 1)
-
-            # Construir desglose de saltos a partir del registro de nodos
-            hops_breakdown: list[dict[str, Any]] = []
-            # Salto 0: Estación Base Local
-            cfg = self.get_local_config()
-            hops_breakdown.append({
-                "hop_index": 0,
-                "pubkey": cfg.get("public_key", "local"),
-                "name": cfg.get("name", "Estación Base"),
-                "snr_in": 12.0,
-                "snr_out": 12.0,
-                "rtt_segment_ms": 0.0,
-            })
-
-            # Saltos intermedios
-            for idx, hop_key in enumerate(path_list, start=1):
-                node_info = None
-                for n in self._ctx.node_registry.list_nodes():
-                    pk = str(n.get("public_key", "")).lower()
-                    tgt = str(hop_key).lower()
-                    if pk == tgt or (len(pk) >= 8 and (pk.startswith(tgt) or tgt.startswith(pk))):
-                        node_info = n
-                        break
-                h_name = node_info.get("name") or node_info.get("alias") if node_info else f"Repetidor {hop_key[:6]}"
-                h_snr = node_info.get("last_snr") or 8.5 if node_info else 8.5
-                hops_breakdown.append({
-                    "hop_index": idx,
-                    "pubkey": hop_key,
-                    "name": h_name,
-                    "snr_in": h_snr,
-                    "snr_out": max(2.0, h_snr - 1.5),
-                    "rtt_segment_ms": round(rtt_ms / (len(path_list) + 1), 1),
-                })
-
-            # Destino final si no estaba ya en el path
-            if not path_list or path_list[-1] != str(target_node):
-                dest_info = None
-                for n in self._ctx.node_registry.list_nodes():
-                    pk = str(n.get("public_key", "")).lower()
-                    tgt = str(target_node).lower()
-                    if pk == tgt or (len(pk) >= 8 and (pk.startswith(tgt) or tgt.startswith(pk))):
-                        dest_info = n
-                        break
-                d_name = dest_info.get("name") or dest_info.get("alias") if dest_info else f"Destino {str(target_node)[:8]}"
-                d_snr = dest_info.get("last_snr") or 7.0 if dest_info else 7.0
-                hops_breakdown.append({
-                    "hop_index": len(hops_breakdown),
-                    "pubkey": str(target_node),
-                    "name": d_name,
-                    "snr_in": d_snr,
-                    "snr_out": d_snr,
-                    "rtt_segment_ms": round(rtt_ms / (len(hops_breakdown)), 1),
-                })
-
-            res.update({
-                "action": "traceroute",
-                "target_node": str(target_node),
-                "path": path_list,
-                "total_hops": len(hops_breakdown) - 1,
-                "total_rtt_ms": max(25.0, rtt_ms),
-                "hops_breakdown": hops_breakdown,
-                "timestamp": int(time.time()),
-                "cmd_dispatched": f"send_trace({trace_path_arg or ''})",
-            })
-            self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/trace", json.dumps(res), qos=1)
-            self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
-            if self._ctx.web_server:
-                asyncio.create_task(self._ctx.web_server.broadcast_event({"type": "trace_data", "data": res}))
-            return res
+            return await self._handle_traceroute(admin_data, action, target_node, res, mc)
 
         # 2. Comandos dirigidos a un repetidor remoto (solo si target_node no es la estación local)
         is_local_target = bool(target_node and (self._ctx.node_registry.is_local_key(str(target_node)) or str(target_node).lower() in ("local", "000000000000")))
         if target_node and not is_local_target:
-            res["target_node"] = target_node
-            logging.info(f"[TX-ADMIN] De: Estación Base Local -> Para: {target_node} | Acción: '{action}' | ReqID: {req_id}")
+            return await self._handle_remote_repeater(admin_data, action, req_id, target_node, password, res, mc)
 
-            # Buscar datos del nodo destino para validar si es repetidor
-            target_info: dict[str, Any] | None = None
+        # 2. Comandos locales sobre el nodo conectado
+        if action in ("get_config", "get_local_config"):
+            res["config"] = self.get_local_config()
+            self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
+            return res
+
+        if action in ("set_config", "set_local_config"):
+            return await self._handle_set_local_config(admin_data, res, mc)
+
+        if action == "list_nodes":
+            res["nodes"] = self._ctx.node_registry.list_nodes()
+            self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
+            return res
+
+        # 3. Comandos CLI y de Control Directo Local (Formato String Legible)
+        return await self._handle_cli_command(action, res, mc)
+
+    # ------------------------------------------------------------------ #
+    #  Extracted handlers — reduce handle() nesting & line count          #
+    # ------------------------------------------------------------------ #
+
+    async def _handle_traceroute(
+        self,
+        admin_data: dict[str, Any],
+        action: str,
+        target_node: Any,
+        res: dict[str, Any],
+        mc: Any,
+    ) -> dict[str, Any]:
+        """Ejecuta el trazado de ruta de radio (traceroute multi-hop)."""
+        t_start = time.perf_counter()
+        raw_path = admin_data.get("path")
+        if raw_path is None and isinstance(admin_data.get("params"), dict):
+            raw_path = admin_data.get("params", {}).get("path")
+
+        path_list: list[str] = []
+        if isinstance(raw_path, str):
+            path_list = [p.strip() for p in raw_path.split(",") if p.strip()]
+        elif isinstance(raw_path, (list, tuple)):
+            path_list = [str(p).strip() for p in raw_path if str(p).strip()]
+
+        # Normalizar los saltos a hashes hexadecimales válidos para el protocolo MeshCore (1, 2, 4 u 8 bytes)
+        formatted_hops: list[str] = []
+        trace_flags: int = 0
+        trace_path_arg: str | None = None
+
+        if path_list:
+            for p in path_list:
+                clean_p = p.lower().strip()
+                if clean_p.startswith("0x"):
+                    clean_p = clean_p[2:]
+                clean_hex = "".join(c for c in clean_p if c in "0123456789abcdef")
+                if not clean_hex:
+                    found_node = self._ctx.node_registry.get_by_key_or_prefix(clean_p)
+                    if found_node:
+                        clean_hex = found_node.public_key.lower()[:4]
+
+                if clean_hex:
+                    if len(clean_hex) >= 16:
+                        formatted_hops.append(clean_hex[:4])  # 2 bytes estándar
+                    elif len(clean_hex) >= 8:
+                        formatted_hops.append(clean_hex[:8])  # 4 bytes
+                    elif len(clean_hex) >= 4:
+                        formatted_hops.append(clean_hex[:4])  # 2 bytes
+                    elif len(clean_hex) >= 2:
+                        formatted_hops.append(clean_hex[:2])  # 1 byte
+
+            if formatted_hops:
+                if all(len(h) == 4 for h in formatted_hops):
+                    trace_path_arg = ",".join(formatted_hops)
+                    trace_flags = 1  # 2 bytes por salto (1 << 1)
+                elif all(len(h) == 8 for h in formatted_hops):
+                    trace_path_arg = ",".join(formatted_hops)
+                    trace_flags = 2  # 4 bytes por salto (1 << 2)
+                elif all(len(h) == 16 for h in formatted_hops):
+                    trace_path_arg = ",".join(formatted_hops)
+                    trace_flags = 3  # 8 bytes por salto (1 << 3)
+                else:
+                    trace_path_arg = ",".join(h[:2] for h in formatted_hops)
+                    trace_flags = 0  # 1 byte por salto (1 << 0)
+
+        # Si el SDK soporta comando nativo de traza por radio, despacharlo a nivel RF
+        if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_trace"):
+            try:
+                if trace_path_arg:
+                    await mc.commands.send_trace(path=trace_path_arg, flags=trace_flags)
+                else:
+                    # NUNCA pasar path="" porque len("")/2=0 provoca "unknown path_hash_len 0"
+                    await mc.commands.send_trace(path=None, flags=0)
+            except Exception as e:
+                logging.debug(f"Error invocando mc.commands.send_trace: {e}")
+
+        rtt_ms = round((time.perf_counter() - t_start) * 1000, 1)
+
+        # Construir desglose de saltos a partir del registro de nodos
+        hops_breakdown: list[dict[str, Any]] = []
+        # Salto 0: Estación Base Local
+        cfg = self.get_local_config()
+        hops_breakdown.append({
+            "hop_index": 0,
+            "pubkey": cfg.get("public_key", "local"),
+            "name": cfg.get("name", "Estación Base"),
+            "snr_in": 12.0,
+            "snr_out": 12.0,
+            "rtt_segment_ms": 0.0,
+        })
+
+        # Saltos intermedios
+        for idx, hop_key in enumerate(path_list, start=1):
+            node_info = None
+            for n in self._ctx.node_registry.list_nodes():
+                pk = str(n.get("public_key", "")).lower()
+                tgt = str(hop_key).lower()
+                if pk == tgt or (len(pk) >= 8 and (pk.startswith(tgt) or tgt.startswith(pk))):
+                    node_info = n
+                    break
+            h_name = node_info.get("name") or node_info.get("alias") if node_info else f"Repetidor {hop_key[:6]}"
+            h_snr = node_info.get("last_snr") or 8.5 if node_info else 8.5
+            hops_breakdown.append({
+                "hop_index": idx,
+                "pubkey": hop_key,
+                "name": h_name,
+                "snr_in": h_snr,
+                "snr_out": max(2.0, h_snr - 1.5),
+                "rtt_segment_ms": round(rtt_ms / (len(path_list) + 1), 1),
+            })
+
+        # Destino final si no estaba ya en el path
+        if not path_list or path_list[-1] != str(target_node):
+            dest_info = None
             for n in self._ctx.node_registry.list_nodes():
                 pk = str(n.get("public_key", "")).lower()
                 tgt = str(target_node).lower()
                 if pk == tgt or (len(pk) >= 8 and (pk.startswith(tgt) or tgt.startswith(pk))):
-                    target_info = n
+                    dest_info = n
                     break
+            d_name = dest_info.get("name") or dest_info.get("alias") if dest_info else f"Destino {str(target_node)[:8]}"
+            d_snr = dest_info.get("last_snr") or 7.0 if dest_info else 7.0
+            hops_breakdown.append({
+                "hop_index": len(hops_breakdown),
+                "pubkey": str(target_node),
+                "name": d_name,
+                "snr_in": d_snr,
+                "snr_out": d_snr,
+                "rtt_segment_ms": round(rtt_ms / (len(hops_breakdown)), 1),
+            })
 
-            is_client_only = bool(target_info and target_info.get("role") == "CLIENT" and not (
-                "REPEATER" in str(target_info.get("name", "")).upper()
-                or str(target_info.get("name", "")).upper().startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-"))
-            ))
+        res.update({
+            "action": "traceroute",
+            "target_node": str(target_node),
+            "path": path_list,
+            "total_hops": len(hops_breakdown) - 1,
+            "total_rtt_ms": max(25.0, rtt_ms),
+            "hops_breakdown": hops_breakdown,
+            "timestamp": int(time.time()),
+            "cmd_dispatched": f"send_trace({trace_path_arg or ''})",
+        })
+        self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/trace", json.dumps(res), qos=1)
+        self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
+        if self._ctx.web_server:
+            asyncio.create_task(self._ctx.web_server.broadcast_event({"type": "trace_data", "data": res}))
+        return res
 
-            # Caso especial: configuración remota múltiple
-            if action in ("remote_repeater_set_config", "set_remote_config"):
-                if is_client_only:
-                    return {"status": "error", "message": "La configuración remota solo aplica a nodos repetidores"}
+    async def _handle_remote_repeater(
+        self,
+        admin_data: dict[str, Any],
+        action: str,
+        req_id: Any,
+        target_node: Any,
+        password: str,
+        res: dict[str, Any],
+        mc: Any,
+    ) -> dict[str, Any]:
+        """Ejecuta comandos de administración remota sobre un repetidor."""
+        res["target_node"] = target_node
+        logging.info(f"[TX-ADMIN] De: Estación Base Local -> Para: {target_node} | Acción: '{action}' | ReqID: {req_id}")
 
-                params = admin_data.get("params", {})
-                dispatched_commands: list[str] = []
+        # Buscar datos del nodo destino para validar si es repetidor
+        target_info: dict[str, Any] | None = None
+        for n in self._ctx.node_registry.list_nodes():
+            pk = str(n.get("public_key", "")).lower()
+            tgt = str(target_node).lower()
+            if pk == tgt or (len(pk) >= 8 and (pk.startswith(tgt) or tgt.startswith(pk))):
+                target_info = n
+                break
 
-                # Si incluye contraseña no vacía, despachar primero login
-                if password:
-                    login_cmd = f"cmd login {password}"
-                    await self._ctx.execute_tx({"to": str(target_node), "text": login_cmd, "request_id": req_id})
-                    dispatched_commands.append(f"login {'*' * len(password)}")
+        is_client_only = bool(target_info and target_info.get("role") == "CLIENT" and not (
+            "REPEATER" in str(target_info.get("name", "")).upper()
+            or str(target_info.get("name", "")).upper().startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-"))
+        ))
 
-                # Despachar cada parámetro modificado
-                for param_key, param_val in params.items():
-                    cmd_str = self._ctx.repeater_manager.build_repeater_command_payload(f"set_{param_key}", {param_key: param_val})
-                    if cmd_str:
-                        await self._ctx.execute_tx({"to": str(target_node), "text": f"cmd {cmd_str}", "request_id": req_id})
-                        dispatched_commands.append(cmd_str)
-
-                # Actualizar inmediatamente en el registro de nodos local
-                canon_target = self._ctx.node_registry.get_canonical_key(str(target_node)) or str(target_node).strip().lower()
-                lat_val = params.get("lat", params.get("latitude"))
-                lon_val = params.get("lon", params.get("longitude"))
-                alt_val = params.get("alt", params.get("altitude"))
-                owner_n = params.get("owner_name", params.get("name"))
-                owner_i = params.get("owner_info")
-                fix_pos = params.get("fixed", params.get("fixed_position"))
-
-                freq_val = params.get("freq", params.get("frequency"))
-                tx_pwr_val = params.get("tx_power", params.get("power"))
-                hop_l_val = params.get("hop_limit", params.get("hops"))
-                sf_val = params.get("sf", params.get("spreading_factor"))
-                bw_val = params.get("bw", params.get("bandwidth"))
-                cr_val = params.get("cr", params.get("coding_rate"))
-                rep_val = params.get("repeat", params.get("repeat_enabled"))
-                adv_val = params.get("beacon_interval", params.get("advert_interval"))
-
-                self._ctx.node_registry.add_or_update(
-                    canon_target,
-                    NodeContactUpdate(
-                        name=str(owner_n) if owner_n else None,
-                        alias=str(owner_n) if owner_n else None,
-                        owner_name=str(owner_n) if owner_n else None,
-                        owner_info=str(owner_i) if owner_i else None,
-                        latitude=float(lat_val) if lat_val is not None else None,
-                        longitude=float(lon_val) if lon_val is not None else None,
-                        altitude_m=float(alt_val) if alt_val is not None else None,
-                        fixed_position=bool(fix_pos) if fix_pos is not None else None,
-                        frequency=float(freq_val) if freq_val is not None else None,
-                        tx_power=int(tx_pwr_val) if tx_pwr_val is not None else None,
-                        hop_limit=int(hop_l_val) if hop_l_val is not None else None,
-                        spreading_factor=int(sf_val) if sf_val is not None else None,
-                        bandwidth=float(bw_val) if bw_val is not None else None,
-                        coding_rate=str(cr_val) if cr_val is not None else None,
-                        repeat_enabled=bool(rep_val) if rep_val is not None else None,
-                        advert_interval=int(adv_val) if adv_val is not None else None,
-                    ),
-                )
-
-                res["dispatched_commands"] = dispatched_commands
-                self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/status", json.dumps(res), qos=1)
-                return res
-
-            # Caso especial: Ping Zero (0 saltos directos) / Ping de nodo
-            # Caso especial: Ping Zero (0 saltos directos) / Ping de repetidor o nodo
-            if action in ("ping_zero", "ping_0", "ping", "zero_hop_ping"):
-                dest_target = self._resolve_target(str(target_node), min_hex_len=12)
-                norm_target = self._ctx.node_registry.get_canonical_key(str(target_node)) or str(target_node).strip().lower()
-
-                target_name = (
-                    target_info.get("name") or target_info.get("alias") or f"Nodo {norm_target[:8]}"
-                    if target_info
-                    else f"Nodo {norm_target[:8]}"
-                )
-
-                # Registrar waiter para la respuesta RF del transceptor
-                fut: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
-                waiter_keys = [norm_target, norm_target[:8], norm_target[:4], str(target_node).strip().lower()]
-                if target_info and target_info.get("name"):
-                    waiter_keys.append(str(target_info["name"]).lower())
-
-                for wk in waiter_keys:
-                    if wk not in self._ping_waiters:
-                        self._ping_waiters[wk] = []
-                    self._ping_waiters[wk].append(fut)
-                    if wk not in self._cmd_waiters:
-                        self._cmd_waiters[wk] = []
-                    self._cmd_waiters[wk].append(fut)
-
-                # Asegurar contacto en la tabla de rutas de la radio
-                if mc and hasattr(mc, "commands") and hasattr(mc.commands, "add_contact"):
-                    try:
-                        if isinstance(dest_target, dict):
-                            await mc.commands.add_contact(dest_target)
-                        elif hasattr(dest_target, "to_radio_dict"):
-                            await mc.commands.add_contact(dest_target.to_radio_dict())
-                        elif hasattr(dest_target, "public_key"):
-                            await mc.commands.add_contact({"public_key": dest_target.public_key, "name": getattr(dest_target, "name", "Repeater")})
-                        elif isinstance(dest_target, str) and len(dest_target) >= 12:
-                            await mc.commands.add_contact({"public_key": (dest_target + "0" * 64)[:64], "name": target_name})
-                    except Exception as e:
-                        logging.debug(f"Asegurando contacto en radio para ping: {e}")
-
-                cmd_text = "ping 0"
-                t_start = time.perf_counter()
-
-                # Enviar comando ping como comando de radio CLI oficial (txt_type = 1)
-                if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_cmd"):
-                    try:
-                        await mc.commands.send_cmd(dest_target, cmd_text)
-                    except Exception as e:
-                        logging.debug(f"Fallo enviando send_cmd ping: {e}")
-                        await self._ctx.execute_tx({"to": str(target_node), "text": cmd_text, "request_id": req_id})
-                else:
-                    await self._ctx.execute_tx({"to": str(target_node), "text": cmd_text, "request_id": req_id})
-
-                # Esperar respuesta de radio activa con bombeo get_msg
-                resp_data = await self._wait_for_repeater_response(mc, fut, timeout=5.0) or {}
-                for wk in waiter_keys:
-                    if wk in self._ping_waiters:
-                        self._ping_waiters[wk] = [f for f in self._ping_waiters[wk] if f is not fut]
-                        if not self._ping_waiters[wk]:
-                            del self._ping_waiters[wk]
-                    if wk in self._cmd_waiters:
-                        self._cmd_waiters[wk] = [f for f in self._cmd_waiters[wk] if f is not fut]
-                        if not self._cmd_waiters[wk]:
-                            del self._cmd_waiters[wk]
-
-                elapsed_rtt = round((time.perf_counter() - t_start) * 1000, 1)
-
-                if resp_data:
-                    rtt_ms = float(resp_data.get("trip_time") or resp_data.get("rtt_ms") or elapsed_rtt)
-                    snr_there = resp_data.get("snr_there")
-                    if snr_there is None:
-                        snr_there = resp_data.get("snr_back") or resp_data.get("snr") or 0.0
-                    snr_back = resp_data.get("snr_back")
-                    if snr_back is None:
-                        snr_back = resp_data.get("snr_there") or resp_data.get("snr") or 0.0
-                    rssi_val = resp_data.get("rssi") or resp_data.get("RSSI")
-                    if rssi_val is None:
-                        if getattr(self._ctx, "last_rx_rssi", None) is not None:
-                            rssi_val = self._ctx.last_rx_rssi
-                        else:
-                            c_node = self._ctx.node_registry.get_by_key_or_prefix(str(target_node))
-                            if c_node and c_node.last_rssi is not None:
-                                rssi_val = c_node.last_rssi
-                            elif target_info and target_info.get("last_rssi") is not None:
-                                rssi_val = target_info.get("last_rssi")
-                    if rssi_val is None and snr_back is not None:
-                        rssi_val = int(round(-120.0 + min(55.0, max(5.0, (float(snr_back) + 15.0) * 2.2))))
-
-                    bat_val = target_info.get("battery_pct") if target_info else None
-
-                    # Actualizar métricas frescas del nodo en el NodeRegistry y base de datos
-                    canon_target_pk = (self._ctx.node_registry.get_canonical_key(str(target_node)) or str(target_node)).lower().strip()
-                    if is_valid_node_key(canon_target_pk) and not self._ctx.node_registry.is_local_key(canon_target_pk):
-                        self._ctx.node_registry.record_packet(
-                            PacketRecord(
-                                public_key=canon_target_pk,
-                                is_rx=True,
-                                rssi=rssi_val,
-                                snr=float(snr_back),
-                                hop_count=0,
-                            )
-                        )
-                        c_updated = self._ctx.node_registry.add_or_update(
-                            canon_target_pk,
-                            NodeContactUpdate(
-                                last_rssi=rssi_val,
-                                last_snr=float(snr_back),
-                                hops=0,
-                            ),
-                        )
-                        web_srv = getattr(self._ctx, "web_server", None)
-                        if web_srv and hasattr(web_srv, "broadcast_event") and c_updated:
-                            asyncio.create_task(web_srv.broadcast_event({
-                                "type": "contact_updated",
-                                "event_type": "contact_updated",
-                                "contact": c_updated.to_dict(),
-                            }))
-
-                    res.update({
-                        "status": "ok",
-                        "action": "ping_zero",
-                        "target_node": str(target_node),
-                        "target_name": target_name,
-                        "hops": 0,
-                        "rtt_ms": rtt_ms,
-                        "duration_ms": rtt_ms,
-                        "snr_there": float(snr_there),
-                        "snr_back": float(snr_back),
-                        "snr": float(snr_back),
-                        "rssi": rssi_val,
-                        "battery_pct": bat_val,
-                        "reachable": True,
-                        "timestamp": int(time.time()),
-                        "message": f"Duration: {rtt_ms:.1f} ms, SNR there: {float(snr_there):.1f} dB, SNR back: {float(snr_back):.1f} dB" + (f" (RSSI: {rssi_val} dBm)" if rssi_val is not None else ""),
-                        "cmd_dispatched": cmd_text,
-                    })
-                    self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/ping_zero", json.dumps(res), qos=1)
-                    self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
-                    return res
-                else:
-                    # No hubo respuesta de radio en la ventana de tiempo
-                    res.update({
-                        "status": "error",
-                        "action": "ping_zero",
-                        "target_node": str(target_node),
-                        "target_name": target_name,
-                        "hops": 0,
-                        "reachable": False,
-                        "timeout": True,
-                        "timestamp": int(time.time()),
-                        "message": f"Sin respuesta de radio tras {elapsed_rtt:.0f} ms (el nodo no respondió al ping directo)",
-                        "cmd_dispatched": cmd_text,
-                    })
-                    self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/ping_zero", json.dumps(res), qos=1)
-                    return res
-
-            # Comandos unitarios (login, reboot, stats-core, advert, ver, bat, pos, etc.)
+        # Caso especial: configuración remota múltiple
+        if action in ("remote_repeater_set_config", "set_remote_config"):
             if is_client_only:
-                return {"status": "error", "message": "Los comandos de administración remota son exclusivos para repetidores"}
+                return {"status": "error", "message": "La configuración remota solo aplica a nodos repetidores"}
 
+            params = admin_data.get("params", {})
+            dispatched_commands: list[str] = []
+
+            # Si incluye contraseña no vacía, despachar primero login
+            if password:
+                login_cmd = f"cmd login {password}"
+                await self._ctx.execute_tx({"to": str(target_node), "text": login_cmd, "request_id": req_id})
+                dispatched_commands.append(f"login {'*' * len(password)}")
+
+            # Despachar cada parámetro modificado
+            for param_key, param_val in params.items():
+                cmd_str = self._ctx.repeater_manager.build_repeater_command_payload(f"set_{param_key}", {param_key: param_val})
+                if cmd_str:
+                    await self._ctx.execute_tx({"to": str(target_node), "text": f"cmd {cmd_str}", "request_id": req_id})
+                    dispatched_commands.append(cmd_str)
+
+            # Actualizar inmediatamente en el registro de nodos local
+            canon_target = self._ctx.node_registry.get_canonical_key(str(target_node)) or str(target_node).strip().lower()
+            lat_val = params.get("lat", params.get("latitude"))
+            lon_val = params.get("lon", params.get("longitude"))
+            alt_val = params.get("alt", params.get("altitude"))
+            owner_n = params.get("owner_name", params.get("name"))
+            owner_i = params.get("owner_info")
+            fix_pos = params.get("fixed", params.get("fixed_position"))
+
+            freq_val = params.get("freq", params.get("frequency"))
+            tx_pwr_val = params.get("tx_power", params.get("power"))
+            hop_l_val = params.get("hop_limit", params.get("hops"))
+            sf_val = params.get("sf", params.get("spreading_factor"))
+            bw_val = params.get("bw", params.get("bandwidth"))
+            cr_val = params.get("cr", params.get("coding_rate"))
+            rep_val = params.get("repeat", params.get("repeat_enabled"))
+            adv_val = params.get("beacon_interval", params.get("advert_interval"))
+
+            self._ctx.node_registry.add_or_update(
+                canon_target,
+                NodeContactUpdate(
+                    name=str(owner_n) if owner_n else None,
+                    alias=str(owner_n) if owner_n else None,
+                    owner_name=str(owner_n) if owner_n else None,
+                    owner_info=str(owner_i) if owner_i else None,
+                    latitude=float(lat_val) if lat_val is not None else None,
+                    longitude=float(lon_val) if lon_val is not None else None,
+                    altitude_m=float(alt_val) if alt_val is not None else None,
+                    fixed_position=bool(fix_pos) if fix_pos is not None else None,
+                    frequency=float(freq_val) if freq_val is not None else None,
+                    tx_power=int(tx_pwr_val) if tx_pwr_val is not None else None,
+                    hop_limit=int(hop_l_val) if hop_l_val is not None else None,
+                    spreading_factor=int(sf_val) if sf_val is not None else None,
+                    bandwidth=float(bw_val) if bw_val is not None else None,
+                    coding_rate=str(cr_val) if cr_val is not None else None,
+                    repeat_enabled=bool(rep_val) if rep_val is not None else None,
+                    advert_interval=int(adv_val) if adv_val is not None else None,
+                ),
+            )
+
+            res["dispatched_commands"] = dispatched_commands
+            self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/status", json.dumps(res), qos=1)
+            return res
+
+        # Caso especial: Ping Zero (0 saltos directos) / Ping de repetidor o nodo
+        if action in ("ping_zero", "ping_0", "ping", "zero_hop_ping"):
             dest_target = self._resolve_target(str(target_node), min_hex_len=12)
-            dest_login_target = self._resolve_target(str(target_node), min_hex_len=64)
             norm_target = self._ctx.node_registry.get_canonical_key(str(target_node)) or str(target_node).strip().lower()
-            fut = asyncio.get_running_loop().create_future()
+
+            target_name = (
+                target_info.get("name") or target_info.get("alias") or f"Nodo {norm_target[:8]}"
+                if target_info
+                else f"Nodo {norm_target[:8]}"
+            )
+
+            # Registrar waiter para la respuesta RF del transceptor
+            fut: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
             waiter_keys = [norm_target, norm_target[:8], norm_target[:4], str(target_node).strip().lower()]
             if target_info and target_info.get("name"):
                 waiter_keys.append(str(target_info["name"]).lower())
 
             for wk in waiter_keys:
+                if wk not in self._ping_waiters:
+                    self._ping_waiters[wk] = []
+                self._ping_waiters[wk].append(fut)
                 if wk not in self._cmd_waiters:
                     self._cmd_waiters[wk] = []
                 self._cmd_waiters[wk].append(fut)
@@ -843,365 +740,500 @@ class AdminCommandHandler:
                     elif hasattr(dest_target, "public_key"):
                         await mc.commands.add_contact({"public_key": dest_target.public_key, "name": getattr(dest_target, "name", "Repeater")})
                     elif isinstance(dest_target, str) and len(dest_target) >= 12:
-                        await mc.commands.add_contact({"public_key": (dest_target + "0" * 64)[:64], "name": "Repeater"})
+                        await mc.commands.add_contact({"public_key": (dest_target + "0" * 64)[:64], "name": target_name})
                 except Exception as e:
-                    logging.debug(f"Asegurando contacto en radio: {e}")
+                    logging.debug(f"Asegurando contacto en radio para ping: {e}")
 
+            cmd_text = "ping 0"
             t_start = time.perf_counter()
 
-            if action in ("login", "auth"):
-                if not password:
-                    for wk in waiter_keys:
-                        if wk in self._cmd_waiters:
-                            self._cmd_waiters[wk] = [f for f in self._cmd_waiters[wk] if f is not fut]
-                    return {"status": "error", "message": "La contraseña de administración no puede estar vacía"}
-
-                cmd_text = f"login {password}"
-                login_success = False
-                resp_text = ""
-                error_msg: str | None = None
-
-                # 1. Intentar método oficial síncrono send_login_sync si está disponible
-                if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_login_sync"):
-                    try:
-                        login_ev = await mc.commands.send_login_sync(dest_login_target, password, min_timeout=4.0)
-                        if login_ev is not None and getattr(login_ev, "type", None) not in ("ERROR", "ERR"):
-                            login_success = True
-                            resp_text = "Autenticación exitosa (LOGIN_SUCCESS)"
-                        else:
-                            login_success = False
-                            error_msg = "Contraseña incorrecta o repetidor fuera de alcance"
-                    except Exception as e:
-                        logging.debug(f"send_login_sync falló ({e}), usando fallback...")
-
-                # 2. Fallback con send_login / send_cmd y escucha de trama RF
-                if not login_success and error_msg is None:
-                    if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_login"):
-                        try:
-                            await mc.commands.send_login(dest_login_target, password)
-                        except Exception as e:
-                            logging.debug(f"Fallo enviando send_login: {e}")
-                            await self._ctx.execute_tx({"to": str(target_node), "text": cmd_text, "request_id": req_id})
-                    elif mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_cmd"):
-                        try:
-                            await mc.commands.send_cmd(dest_target, cmd_text)
-                        except Exception as e:
-                            logging.debug(f"Fallo enviando send_cmd login: {e}")
-                            await self._ctx.execute_tx({"to": str(target_node), "text": cmd_text, "request_id": req_id})
-                    else:
-                        await self._ctx.execute_tx({"to": str(target_node), "text": cmd_text, "request_id": req_id})
-
-                    resp_data = await self._wait_for_repeater_response(mc, fut, timeout=6.0) or {}
-                    raw_resp = resp_data.get("text") or resp_data.get("message") or ""
-                    resp_text = raw_resp[2:].strip() if raw_resp.startswith("> ") else raw_resp.strip()
-                    lower_resp = resp_text.lower()
-
-                    if resp_data.get("auth_status") == "failed" or any(
-                        p in lower_resp for p in ("invalid", "denied", "bad pin", "bad password", "wrong password", "login failed", "not authorized", "incorrect")
-                    ):
-                        login_success = False
-                        error_msg = resp_text or "Contraseña incorrecta en el repetidor"
-                    elif resp_data.get("auth_status") == "success" or any(
-                        p in lower_resp for p in ("ok", "success", "logged in", "auth ok", "welcome admin", "access granted")
-                    ):
-                        login_success = True
-                    elif resp_text:
-                        # Si respondió con confirmación textual libre no-error
-                        login_success = True
-                    else:
-                        # Timeout por RF (repetidor apagado, fuera de rango o clave errónea sin ACK)
-                        login_success = False
-                        error_msg = f"Sin respuesta del repetidor {str(target_node)[:8]} (Verifique cobertura RF o contraseña)"
-
-                for wk in waiter_keys:
-                    if wk in self._cmd_waiters:
-                        self._cmd_waiters[wk] = [f for f in self._cmd_waiters[wk] if f is not fut]
-                        if not self._cmd_waiters[wk]:
-                            del self._cmd_waiters[wk]
-
-                if not login_success:
-                    res.update({
-                        "status": "error",
-                        "action": "login",
-                        "target_node": str(target_node),
-                        "authenticated": False,
-                        "message": error_msg or "Contraseña incorrecta en el repetidor",
-                        "cmd_dispatched": f"login {'*' * len(password)}",
-                    })
-                    return res
-
-                res.update({
-                    "status": "ok",
-                    "action": "login",
-                    "target_node": str(target_node),
-                    "authenticated": True,
-                    "response": resp_text or "Autenticado con éxito",
-                    "text": resp_text or None,
-                    "message": "Autenticado con éxito en el repetidor",
-                    "cmd_dispatched": f"login {'*' * len(password)}",
-                })
-                self._ctx.mqtt.publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/status", json.dumps(res), qos=1)
-                return res
-
-            if password and action != "login":
-                # Enviar login previo si se adjuntó contraseña no vacía
-                if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_login"):
-                    try:
-                        await mc.commands.send_login(dest_login_target, password)
-                    except Exception:
-                        await self._ctx.execute_tx({"to": str(target_node), "text": f"login {password}", "request_id": req_id})
-                elif mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_cmd"):
-                    try:
-                        await mc.commands.send_cmd(dest_target, f"login {password}")
-                    except Exception:
-                        await self._ctx.execute_tx({"to": str(target_node), "text": f"login {password}", "request_id": req_id})
-                else:
-                    await self._ctx.execute_tx({"to": str(target_node), "text": f"login {password}", "request_id": req_id})
-                await asyncio.sleep(0.35)
-
-            cmd_text = self._ctx.repeater_manager.build_repeater_command_payload(action, admin_data)
-
+            # Enviar comando ping como comando de radio CLI oficial (txt_type = 1)
             if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_cmd"):
                 try:
                     await mc.commands.send_cmd(dest_target, cmd_text)
                 except Exception as e:
-                    logging.debug(f"Fallo enviando send_cmd: {e}")
+                    logging.debug(f"Fallo enviando send_cmd ping: {e}")
                     await self._ctx.execute_tx({"to": str(target_node), "text": cmd_text, "request_id": req_id})
             else:
                 await self._ctx.execute_tx({"to": str(target_node), "text": cmd_text, "request_id": req_id})
 
-            resp_data_cmd = await self._wait_for_repeater_response(mc, fut, timeout=6.0) or {}
+            # Esperar respuesta de radio activa con bombeo get_msg
+            resp_data = await self._wait_for_repeater_response(mc, fut, timeout=5.0) or {}
             for wk in waiter_keys:
+                if wk in self._ping_waiters:
+                    self._ping_waiters[wk] = [f for f in self._ping_waiters[wk] if f is not fut]
+                    if not self._ping_waiters[wk]:
+                        del self._ping_waiters[wk]
                 if wk in self._cmd_waiters:
                     self._cmd_waiters[wk] = [f for f in self._cmd_waiters[wk] if f is not fut]
                     if not self._cmd_waiters[wk]:
                         del self._cmd_waiters[wk]
 
             elapsed_rtt = round((time.perf_counter() - t_start) * 1000, 1)
-            raw_resp = resp_data_cmd.get("text") or resp_data_cmd.get("message") or ""
-            resp_text = raw_resp[2:].strip() if raw_resp.startswith("> ") else raw_resp.strip()
-            resp_telem = resp_data_cmd.get("telemetry")
 
-            res["cmd_dispatched"] = cmd_text
-            if resp_text:
-                res["response"] = resp_text
-                res["text"] = resp_text
-                res["message"] = resp_text
+            if resp_data:
+                rtt_ms = float(resp_data.get("trip_time") or resp_data.get("rtt_ms") or elapsed_rtt)
+                snr_there = resp_data.get("snr_there")
+                if snr_there is None:
+                    snr_there = resp_data.get("snr_back") or resp_data.get("snr") or 0.0
+                snr_back = resp_data.get("snr_back")
+                if snr_back is None:
+                    snr_back = resp_data.get("snr_there") or resp_data.get("snr") or 0.0
+                rssi_val = resp_data.get("rssi") or resp_data.get("RSSI")
+                if rssi_val is None:
+                    if getattr(self._ctx, "last_rx_rssi", None) is not None:
+                        rssi_val = self._ctx.last_rx_rssi
+                    else:
+                        c_node = self._ctx.node_registry.get_by_key_or_prefix(str(target_node))
+                        if c_node and c_node.last_rssi is not None:
+                            rssi_val = c_node.last_rssi
+                        elif target_info and target_info.get("last_rssi") is not None:
+                            rssi_val = target_info.get("last_rssi")
+                if rssi_val is None and snr_back is not None:
+                    rssi_val = int(round(-120.0 + min(55.0, max(5.0, (float(snr_back) + 15.0) * 2.2))))
+
+                bat_val = target_info.get("battery_pct") if target_info else None
+
+                # Actualizar métricas frescas del nodo en el NodeRegistry y base de datos
+                canon_target_pk = (self._ctx.node_registry.get_canonical_key(str(target_node)) or str(target_node)).lower().strip()
+                if is_valid_node_key(canon_target_pk) and not self._ctx.node_registry.is_local_key(canon_target_pk):
+                    self._ctx.node_registry.record_packet(
+                        PacketRecord(
+                            public_key=canon_target_pk,
+                            is_rx=True,
+                            rssi=rssi_val,
+                            snr=float(snr_back),
+                            hop_count=0,
+                        )
+                    )
+                    c_updated = self._ctx.node_registry.add_or_update(
+                        canon_target_pk,
+                        NodeContactUpdate(
+                            last_rssi=rssi_val,
+                            last_snr=float(snr_back),
+                            hops=0,
+                        ),
+                    )
+                    web_srv = getattr(self._ctx, "web_server", None)
+                    if web_srv and hasattr(web_srv, "broadcast_event") and c_updated:
+                        asyncio.create_task(web_srv.broadcast_event({
+                            "type": "contact_updated",
+                            "event_type": "contact_updated",
+                            "contact": c_updated.to_dict(),
+                        }))
+
+                res.update({
+                    "status": "ok",
+                    "action": "ping_zero",
+                    "target_node": str(target_node),
+                    "target_name": target_name,
+                    "hops": 0,
+                    "rtt_ms": rtt_ms,
+                    "duration_ms": rtt_ms,
+                    "snr_there": float(snr_there),
+                    "snr_back": float(snr_back),
+                    "snr": float(snr_back),
+                    "rssi": rssi_val,
+                    "battery_pct": bat_val,
+                    "reachable": True,
+                    "timestamp": int(time.time()),
+                    "message": f"Duration: {rtt_ms:.1f} ms, SNR there: {float(snr_there):.1f} dB, SNR back: {float(snr_back):.1f} dB" + (f" (RSSI: {rssi_val} dBm)" if rssi_val is not None else ""),
+                    "cmd_dispatched": cmd_text,
+                })
+                self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/ping_zero", json.dumps(res), qos=1)
+                self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
+                return res
             else:
-                res["response"] = f"Comando '{cmd_text}' transmitido por RF a {str(target_node)[:8]}"
-                res["message"] = f"Comando '{cmd_text}' transmitido por RF a {str(target_node)[:8]}"
+                # No hubo respuesta de radio en la ventana de tiempo
+                res.update({
+                    "status": "error",
+                    "action": "ping_zero",
+                    "target_node": str(target_node),
+                    "target_name": target_name,
+                    "hops": 0,
+                    "reachable": False,
+                    "timeout": True,
+                    "timestamp": int(time.time()),
+                    "message": f"Sin respuesta de radio tras {elapsed_rtt:.0f} ms (el nodo no respondió al ping directo)",
+                    "cmd_dispatched": cmd_text,
+                })
+                self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/ping_zero", json.dumps(res), qos=1)
+                return res
 
-            if resp_telem:
-                res["telemetry"] = resp_telem
-            if resp_data_cmd.get("rssi") is not None:
-                res["rssi"] = resp_data_cmd.get("rssi")
-            if resp_data_cmd.get("snr") is not None:
-                res["snr"] = resp_data_cmd.get("snr")
-            res["rtt_ms"] = elapsed_rtt
+        # Comandos unitarios (login, reboot, stats-core, advert, ver, bat, pos, etc.)
+        if is_client_only:
+            return {"status": "error", "message": "Los comandos de administración remota son exclusivos para repetidores"}
 
-            self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/status", json.dumps(res), qos=1)
-            return res
+        dest_target = self._resolve_target(str(target_node), min_hex_len=12)
+        dest_login_target = self._resolve_target(str(target_node), min_hex_len=64)
+        norm_target = self._ctx.node_registry.get_canonical_key(str(target_node)) or str(target_node).strip().lower()
+        fut = asyncio.get_running_loop().create_future()
+        waiter_keys = [norm_target, norm_target[:8], norm_target[:4], str(target_node).strip().lower()]
+        if target_info and target_info.get("name"):
+            waiter_keys.append(str(target_info["name"]).lower())
 
-        # 2. Comandos locales sobre el nodo conectado
-        if action in ("get_config", "get_local_config"):
-            res["config"] = self.get_local_config()
-            self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
-            return res
+        for wk in waiter_keys:
+            if wk not in self._cmd_waiters:
+                self._cmd_waiters[wk] = []
+            self._cmd_waiters[wk].append(fut)
 
-        if action in ("set_config", "set_local_config"):
-            params = admin_data.get("params", admin_data)
-            applied: dict[str, Any] = {}
+        # Asegurar contacto en la tabla de rutas de la radio
+        if mc and hasattr(mc, "commands") and hasattr(mc.commands, "add_contact"):
+            try:
+                if isinstance(dest_target, dict):
+                    await mc.commands.add_contact(dest_target)
+                elif hasattr(dest_target, "to_radio_dict"):
+                    await mc.commands.add_contact(dest_target.to_radio_dict())
+                elif hasattr(dest_target, "public_key"):
+                    await mc.commands.add_contact({"public_key": dest_target.public_key, "name": getattr(dest_target, "name", "Repeater")})
+                elif isinstance(dest_target, str) and len(dest_target) >= 12:
+                    await mc.commands.add_contact({"public_key": (dest_target + "0" * 64)[:64], "name": "Repeater"})
+            except Exception as e:
+                logging.debug(f"Asegurando contacto en radio: {e}")
 
-            if "name" in params:
-                new_name = str(params["name"]).strip()
-                self._local_config["name"] = new_name
-                applied["name"] = new_name
-                if mc:
-                    if hasattr(mc, "commands") and hasattr(mc.commands, "set_name"):
-                        try:
-                            await mc.commands.set_name(new_name)
-                        except Exception as e:
-                            logging.warning(f"No se pudo invocar set_name en SDK: {e}")
-                    if hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
-                        mc.self_info["name"] = new_name
-                        mc.self_info["adv_name"] = new_name
+        t_start = time.perf_counter()
 
-            # Identidad y coordenadas fijas GPS
-            lat_val = params.get("latitude", params.get("lat"))
-            lon_val = params.get("longitude", params.get("lon"))
-            alt_val = params.get("altitude", params.get("alt"))
-            if lat_val is not None and lon_val is not None:
+        if action in ("login", "auth"):
+            if not password:
+                for wk in waiter_keys:
+                    if wk in self._cmd_waiters:
+                        self._cmd_waiters[wk] = [f for f in self._cmd_waiters[wk] if f is not fut]
+                return {"status": "error", "message": "La contraseña de administración no puede estar vacía"}
+
+            cmd_text = f"login {password}"
+            login_success = False
+            resp_text = ""
+            error_msg: str | None = None
+
+            # 1. Intentar método oficial síncrono send_login_sync si está disponible
+            if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_login_sync"):
                 try:
-                    lat_f = float(lat_val)
-                    lon_f = float(lon_val)
-                    self._local_config["latitude"] = lat_f
-                    self._local_config["longitude"] = lon_f
-                    applied["latitude"] = lat_f
-                    applied["longitude"] = lon_f
-                    if mc:
-                        if hasattr(mc, "commands") and hasattr(mc.commands, "set_coords"):
-                            try:
-                                await mc.commands.set_coords(lat=lat_f, lon=lon_f)
-                            except Exception as e:
-                                logging.warning(f"No se pudo invocar set_coords en SDK: {e}")
-                        if hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
-                            mc.self_info["adv_lat"] = lat_f
-                            mc.self_info["adv_lon"] = lon_f
-                            mc.self_info["latitude"] = lat_f
-                            mc.self_info["longitude"] = lon_f
-                except (ValueError, TypeError):
-                    pass
+                    login_ev = await mc.commands.send_login_sync(dest_login_target, password, min_timeout=4.0)
+                    if login_ev is not None and getattr(login_ev, "type", None) not in ("ERROR", "ERR"):
+                        login_success = True
+                        resp_text = "Autenticación exitosa (LOGIN_SUCCESS)"
+                    else:
+                        login_success = False
+                        error_msg = "Contraseña incorrecta o repetidor fuera de alcance"
+                except Exception as e:
+                    logging.debug(f"send_login_sync falló ({e}), usando fallback...")
 
-            if alt_val is not None:
-                try:
-                    alt_i = int(alt_val)
-                    self._local_config["altitude"] = alt_i
-                    applied["altitude"] = alt_i
-                    if mc and hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
-                        mc.self_info["altitude"] = alt_i
-                except (ValueError, TypeError):
-                    pass
-
-            if "owner_info" in params or "owner" in params:
-                owner_info = str(params.get("owner_info", params.get("owner", ""))).strip()
-                self._local_config["owner_info"] = owner_info
-                applied["owner_info"] = owner_info
-                if mc:
-                    if hasattr(mc, "commands") and hasattr(mc.commands, "set_custom_var"):
-                        try:
-                            await mc.commands.set_custom_var("owner", owner_info)
-                        except Exception as e:
-                            logging.debug(f"No se pudo invocar set_custom_var en SDK: {e}")
-                    if hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
-                        mc.self_info["owner_info"] = owner_info
-
-            # Potencia TX LoRa
-            if "tx_power" in params or "power" in params:
-                hw_board = self._local_config.get("hardware_board") or (
-                    mc.self_info.get("hardware_board") if mc and hasattr(mc, "self_info") and isinstance(mc.self_info, dict) else None
-                )
-                max_p_hint = self._local_config.get("max_tx_power") or (
-                    mc.self_info.get("max_tx_power") if mc and hasattr(mc, "self_info") and isinstance(mc.self_info, dict) else None
-                )
-                raw_power = int(params.get("tx_power", params.get("power", 20)))
-                new_power = clamp_tx_power(raw_power, hw_board, max_p_hint)
-                self._local_config["tx_power"] = new_power
-                applied["tx_power"] = new_power
-                if mc:
-                    if hasattr(mc, "commands") and hasattr(mc.commands, "set_tx_power"):
-                        try:
-                            await mc.commands.set_tx_power(new_power)
-                        except Exception as e:
-                            logging.warning(f"No se pudo invocar set_tx_power en SDK: {e}")
-                    if hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
-                        mc.self_info["tx_power"] = new_power
-
-            # Parámetros RF (Frecuencia, BW, SF, CR, Repeat)
-            freq_val = params.get("frequency", params.get("freq", params.get("radio_freq")))
-            sf_val = params.get("spreading_factor", params.get("sf"))
-            bw_val = params.get("bandwidth", params.get("bw"))
-            cr_val = params.get("coding_rate", params.get("cr"))
-            rep_val = params.get("repeat")
-
-            if any(v is not None for v in (freq_val, sf_val, bw_val, cr_val, rep_val)):
-                freq_f = float(freq_val if freq_val is not None else self._local_config.get("frequency", 915.0))
-                sf_i = int(sf_val if sf_val is not None else self._local_config.get("spreading_factor", 11))
-                bw_f = float(bw_val if bw_val is not None else self._local_config.get("bandwidth", 250))
-
-                cr_in = cr_val if cr_val is not None else self._local_config.get("coding_rate", "4/5")
-                if isinstance(cr_in, str) and "/" in cr_in:
+            # 2. Fallback con send_login / send_cmd y escucha de trama RF
+            if not login_success and error_msg is None:
+                if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_login"):
                     try:
-                        cr_i = int(cr_in.split("/")[1])
-                    except Exception:
-                        cr_i = 5
+                        await mc.commands.send_login(dest_login_target, password)
+                    except Exception as e:
+                        logging.debug(f"Fallo enviando send_login: {e}")
+                        await self._ctx.execute_tx({"to": str(target_node), "text": cmd_text, "request_id": req_id})
+                elif mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_cmd"):
+                    try:
+                        await mc.commands.send_cmd(dest_target, cmd_text)
+                    except Exception as e:
+                        logging.debug(f"Fallo enviando send_cmd login: {e}")
+                        await self._ctx.execute_tx({"to": str(target_node), "text": cmd_text, "request_id": req_id})
                 else:
-                    try:
-                        cr_i = int(cr_in)
-                    except Exception:
-                        cr_i = 5
+                    await self._ctx.execute_tx({"to": str(target_node), "text": cmd_text, "request_id": req_id})
 
-                repeat_i = int(rep_val) if rep_val is not None else (1 if self._local_config.get("repeat", False) else 0)
+                resp_data = await self._wait_for_repeater_response(mc, fut, timeout=6.0) or {}
+                raw_resp = resp_data.get("text") or resp_data.get("message") or ""
+                resp_text = raw_resp[2:].strip() if raw_resp.startswith("> ") else raw_resp.strip()
+                lower_resp = resp_text.lower()
 
-                self._local_config["frequency"] = freq_f
-                self._local_config["radio_freq"] = freq_f
-                self._local_config["spreading_factor"] = sf_i
-                self._local_config["sf"] = sf_i
-                self._local_config["bandwidth"] = bw_f
-                self._local_config["bw"] = bw_f
-                self._local_config["coding_rate"] = f"4/{cr_i}" if cr_i in (5, 6, 7, 8) else str(cr_i)
-                self._local_config["cr"] = self._local_config["coding_rate"]
-                if rep_val is not None:
-                    self._local_config["repeat"] = bool(rep_val)
+                if resp_data.get("auth_status") == "failed" or any(
+                    p in lower_resp for p in ("invalid", "denied", "bad pin", "bad password", "wrong password", "login failed", "not authorized", "incorrect")
+                ):
+                    login_success = False
+                    error_msg = resp_text or "Contraseña incorrecta en el repetidor"
+                elif resp_data.get("auth_status") == "success" or any(
+                    p in lower_resp for p in ("ok", "success", "logged in", "auth ok", "welcome admin", "access granted")
+                ):
+                    login_success = True
+                elif resp_text:
+                    # Si respondió con confirmación textual libre no-error
+                    login_success = True
+                else:
+                    # Timeout por RF (repetidor apagado, fuera de rango o clave errónea sin ACK)
+                    login_success = False
+                    error_msg = f"Sin respuesta del repetidor {str(target_node)[:8]} (Verifique cobertura RF o contraseña)"
 
-                applied["frequency"] = freq_f
-                applied["spreading_factor"] = sf_i
-                applied["bandwidth"] = bw_f
-                applied["coding_rate"] = self._local_config["coding_rate"]
-                if rep_val is not None:
-                    applied["repeat"] = bool(rep_val)
+            for wk in waiter_keys:
+                if wk in self._cmd_waiters:
+                    self._cmd_waiters[wk] = [f for f in self._cmd_waiters[wk] if f is not fut]
+                    if not self._cmd_waiters[wk]:
+                        del self._cmd_waiters[wk]
 
-                if mc:
-                    if hasattr(mc, "commands") and hasattr(mc.commands, "set_radio"):
-                        try:
-                            await mc.commands.set_radio(freq=freq_f, bw=bw_f, sf=sf_i, cr=cr_i, repeat=repeat_i)
-                        except Exception as e:
-                            logging.warning(f"No se pudo invocar set_radio en SDK: {e}")
-                    if hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
-                        mc.self_info.update({
-                            "radio_freq": freq_f,
-                            "freq": freq_f,
-                            "sf": sf_i,
-                            "bw": bw_f,
-                            "cr": cr_i,
-                            "repeat": bool(repeat_i),
-                        })
+            if not login_success:
+                res.update({
+                    "status": "error",
+                    "action": "login",
+                    "target_node": str(target_node),
+                    "authenticated": False,
+                    "message": error_msg or "Contraseña incorrecta en el repetidor",
+                    "cmd_dispatched": f"login {'*' * len(password)}",
+                })
+                return res
 
-            for k in ("region", "hop_limit", "beacon_interval", "advert_interval", "telemetry_interval"):
-                if k in params:
-                    self._local_config[k] = params[k]
-                    applied[k] = params[k]
+            res.update({
+                "status": "ok",
+                "action": "login",
+                "target_node": str(target_node),
+                "authenticated": True,
+                "response": resp_text or "Autenticado con éxito",
+                "text": resp_text or None,
+                "message": "Autenticado con éxito en el repetidor",
+                "cmd_dispatched": f"login {'*' * len(password)}",
+            })
+            self._ctx.mqtt.publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/status", json.dumps(res), qos=1)
+            return res
 
-            # Forzar actualización de self_info en SDK
-            if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_appstart"):
+        if password and action != "login":
+            # Enviar login previo si se adjuntó contraseña no vacía
+            if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_login"):
                 try:
-                    await mc.commands.send_appstart()
+                    await mc.commands.send_login(dest_login_target, password)
                 except Exception:
-                    pass
+                    await self._ctx.execute_tx({"to": str(target_node), "text": f"login {password}", "request_id": req_id})
+            elif mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_cmd"):
+                try:
+                    await mc.commands.send_cmd(dest_target, f"login {password}")
+                except Exception:
+                    await self._ctx.execute_tx({"to": str(target_node), "text": f"login {password}", "request_id": req_id})
+            else:
+                await self._ctx.execute_tx({"to": str(target_node), "text": f"login {password}", "request_id": req_id})
+            await asyncio.sleep(0.35)
 
-            # Sincronizar nodo local en el registro de contactos
-            local_pk = str(self._local_config.get("public_key", "")).strip().lower()
-            if local_pk and local_pk != "000000000000":
-                self._ctx.node_registry.add_or_update(
-                    local_pk,
-                    NodeContactUpdate(
-                        name=self._local_config.get("name"),
-                        alias=self._local_config.get("name"),
-                        role="LOCAL",
-                        latitude=self._local_config.get("latitude"),
-                        longitude=self._local_config.get("longitude"),
-                        altitude_m=self._local_config.get("altitude"),
-                        owner_name=self._local_config.get("name"),
-                        owner_info=self._local_config.get("owner_info"),
-                        fixed_position=True,
-                    ),
-                )
+        cmd_text = self._ctx.repeater_manager.build_repeater_command_payload(action, admin_data)
 
-            res["applied"] = applied
-            res["config"] = self.get_local_config()
-            self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
-            return res
+        if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_cmd"):
+            try:
+                await mc.commands.send_cmd(dest_target, cmd_text)
+            except Exception as e:
+                logging.debug(f"Fallo enviando send_cmd: {e}")
+                await self._ctx.execute_tx({"to": str(target_node), "text": cmd_text, "request_id": req_id})
+        else:
+            await self._ctx.execute_tx({"to": str(target_node), "text": cmd_text, "request_id": req_id})
 
-        if action == "list_nodes":
-            res["nodes"] = self._ctx.node_registry.list_nodes()
-            self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
-            return res
+        resp_data_cmd = await self._wait_for_repeater_response(mc, fut, timeout=6.0) or {}
+        for wk in waiter_keys:
+            if wk in self._cmd_waiters:
+                self._cmd_waiters[wk] = [f for f in self._cmd_waiters[wk] if f is not fut]
+                if not self._cmd_waiters[wk]:
+                    del self._cmd_waiters[wk]
 
-        # 3. Comandos CLI y de Control Directo Local (Formato String Legible)
-        return await self._handle_cli_command(action, res, mc)
+        elapsed_rtt = round((time.perf_counter() - t_start) * 1000, 1)
+        raw_resp = resp_data_cmd.get("text") or resp_data_cmd.get("message") or ""
+        resp_text = raw_resp[2:].strip() if raw_resp.startswith("> ") else raw_resp.strip()
+        resp_telem = resp_data_cmd.get("telemetry")
 
-    # ------------------------------------------------------------------ #
-    #  Extracted handlers — reduce handle() nesting & line count          #
-    # ------------------------------------------------------------------ #
+        res["cmd_dispatched"] = cmd_text
+        if resp_text:
+            res["response"] = resp_text
+            res["text"] = resp_text
+            res["message"] = resp_text
+        else:
+            res["response"] = f"Comando '{cmd_text}' transmitido por RF a {str(target_node)[:8]}"
+            res["message"] = f"Comando '{cmd_text}' transmitido por RF a {str(target_node)[:8]}"
+
+        if resp_telem:
+            res["telemetry"] = resp_telem
+        if resp_data_cmd.get("rssi") is not None:
+            res["rssi"] = resp_data_cmd.get("rssi")
+        if resp_data_cmd.get("snr") is not None:
+            res["snr"] = resp_data_cmd.get("snr")
+        res["rtt_ms"] = elapsed_rtt
+
+        self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/status", json.dumps(res), qos=1)
+        return res
+
+    async def _handle_set_local_config(
+        self,
+        admin_data: dict[str, Any],
+        res: dict[str, Any],
+        mc: Any,
+    ) -> dict[str, Any]:
+        """Aplica configuraciones locales sobre el nodo conectado."""
+        params = admin_data.get("params", admin_data)
+        applied: dict[str, Any] = {}
+
+        if "name" in params:
+            new_name = str(params["name"]).strip()
+            self._local_config["name"] = new_name
+            applied["name"] = new_name
+            if mc:
+                if hasattr(mc, "commands") and hasattr(mc.commands, "set_name"):
+                    try:
+                        await mc.commands.set_name(new_name)
+                    except Exception as e:
+                        logging.warning(f"No se pudo invocar set_name en SDK: {e}")
+                if hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
+                    mc.self_info["name"] = new_name
+                    mc.self_info["adv_name"] = new_name
+
+        # Identidad y coordenadas fijas GPS
+        lat_val = params.get("latitude", params.get("lat"))
+        lon_val = params.get("longitude", params.get("lon"))
+        alt_val = params.get("altitude", params.get("alt"))
+        if lat_val is not None and lon_val is not None:
+            try:
+                lat_f = float(lat_val)
+                lon_f = float(lon_val)
+                self._local_config["latitude"] = lat_f
+                self._local_config["longitude"] = lon_f
+                applied["latitude"] = lat_f
+                applied["longitude"] = lon_f
+                if mc:
+                    if hasattr(mc, "commands") and hasattr(mc.commands, "set_coords"):
+                        try:
+                            await mc.commands.set_coords(lat=lat_f, lon=lon_f)
+                        except Exception as e:
+                            logging.warning(f"No se pudo invocar set_coords en SDK: {e}")
+                    if hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
+                        mc.self_info["adv_lat"] = lat_f
+                        mc.self_info["adv_lon"] = lon_f
+                        mc.self_info["latitude"] = lat_f
+                        mc.self_info["longitude"] = lon_f
+            except (ValueError, TypeError):
+                pass
+
+        if alt_val is not None:
+            try:
+                alt_i = int(alt_val)
+                self._local_config["altitude"] = alt_i
+                applied["altitude"] = alt_i
+                if mc and hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
+                    mc.self_info["altitude"] = alt_i
+            except (ValueError, TypeError):
+                pass
+
+        if "owner_info" in params or "owner" in params:
+            owner_info = str(params.get("owner_info", params.get("owner", ""))).strip()
+            self._local_config["owner_info"] = owner_info
+            applied["owner_info"] = owner_info
+            if mc:
+                if hasattr(mc, "commands") and hasattr(mc.commands, "set_custom_var"):
+                    try:
+                        await mc.commands.set_custom_var("owner", owner_info)
+                    except Exception as e:
+                        logging.debug(f"No se pudo invocar set_custom_var en SDK: {e}")
+                if hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
+                    mc.self_info["owner_info"] = owner_info
+
+        # Potencia TX LoRa
+        if "tx_power" in params or "power" in params:
+            hw_board = self._local_config.get("hardware_board") or (
+                mc.self_info.get("hardware_board") if mc and hasattr(mc, "self_info") and isinstance(mc.self_info, dict) else None
+            )
+            max_p_hint = self._local_config.get("max_tx_power") or (
+                mc.self_info.get("max_tx_power") if mc and hasattr(mc, "self_info") and isinstance(mc.self_info, dict) else None
+            )
+            raw_power = int(params.get("tx_power", params.get("power", 20)))
+            new_power = clamp_tx_power(raw_power, hw_board, max_p_hint)
+            self._local_config["tx_power"] = new_power
+            applied["tx_power"] = new_power
+            if mc:
+                if hasattr(mc, "commands") and hasattr(mc.commands, "set_tx_power"):
+                    try:
+                        await mc.commands.set_tx_power(new_power)
+                    except Exception as e:
+                        logging.warning(f"No se pudo invocar set_tx_power en SDK: {e}")
+                if hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
+                    mc.self_info["tx_power"] = new_power
+
+        # Parámetros RF (Frecuencia, BW, SF, CR, Repeat)
+        freq_val = params.get("frequency", params.get("freq", params.get("radio_freq")))
+        sf_val = params.get("spreading_factor", params.get("sf"))
+        bw_val = params.get("bandwidth", params.get("bw"))
+        cr_val = params.get("coding_rate", params.get("cr"))
+        rep_val = params.get("repeat")
+
+        if any(v is not None for v in (freq_val, sf_val, bw_val, cr_val, rep_val)):
+            freq_f = float(freq_val if freq_val is not None else self._local_config.get("frequency", 915.0))
+            sf_i = int(sf_val if sf_val is not None else self._local_config.get("spreading_factor", 11))
+            bw_f = float(bw_val if bw_val is not None else self._local_config.get("bandwidth", 250))
+
+            cr_in = cr_val if cr_val is not None else self._local_config.get("coding_rate", "4/5")
+            if isinstance(cr_in, str) and "/" in cr_in:
+                try:
+                    cr_i = int(cr_in.split("/")[1])
+                except Exception:
+                    cr_i = 5
+            else:
+                try:
+                    cr_i = int(cr_in)
+                except Exception:
+                    cr_i = 5
+
+            repeat_i = int(rep_val) if rep_val is not None else (1 if self._local_config.get("repeat", False) else 0)
+
+            self._local_config["frequency"] = freq_f
+            self._local_config["radio_freq"] = freq_f
+            self._local_config["spreading_factor"] = sf_i
+            self._local_config["sf"] = sf_i
+            self._local_config["bandwidth"] = bw_f
+            self._local_config["bw"] = bw_f
+            self._local_config["coding_rate"] = f"4/{cr_i}" if cr_i in (5, 6, 7, 8) else str(cr_i)
+            self._local_config["cr"] = self._local_config["coding_rate"]
+            if rep_val is not None:
+                self._local_config["repeat"] = bool(rep_val)
+
+            applied["frequency"] = freq_f
+            applied["spreading_factor"] = sf_i
+            applied["bandwidth"] = bw_f
+            applied["coding_rate"] = self._local_config["coding_rate"]
+            if rep_val is not None:
+                applied["repeat"] = bool(rep_val)
+
+            if mc:
+                if hasattr(mc, "commands") and hasattr(mc.commands, "set_radio"):
+                    try:
+                        await mc.commands.set_radio(freq=freq_f, bw=bw_f, sf=sf_i, cr=cr_i, repeat=repeat_i)
+                    except Exception as e:
+                        logging.warning(f"No se pudo invocar set_radio en SDK: {e}")
+                if hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
+                    mc.self_info.update({
+                        "radio_freq": freq_f,
+                        "freq": freq_f,
+                        "sf": sf_i,
+                        "bw": bw_f,
+                        "cr": cr_i,
+                        "repeat": bool(repeat_i),
+                    })
+
+        for k in ("region", "hop_limit", "beacon_interval", "advert_interval", "telemetry_interval"):
+            if k in params:
+                self._local_config[k] = params[k]
+                applied[k] = params[k]
+
+        # Forzar actualización de self_info en SDK
+        if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_appstart"):
+            try:
+                await mc.commands.send_appstart()
+            except Exception:
+                pass
+
+        # Sincronizar nodo local en el registro de contactos
+        local_pk = str(self._local_config.get("public_key", "")).strip().lower()
+        if local_pk and local_pk != "000000000000":
+            self._ctx.node_registry.add_or_update(
+                local_pk,
+                NodeContactUpdate(
+                    name=self._local_config.get("name"),
+                    alias=self._local_config.get("name"),
+                    role="LOCAL",
+                    latitude=self._local_config.get("latitude"),
+                    longitude=self._local_config.get("longitude"),
+                    altitude_m=self._local_config.get("altitude"),
+                    owner_name=self._local_config.get("name"),
+                    owner_info=self._local_config.get("owner_info"),
+                    fixed_position=True,
+                ),
+            )
+
+        res["applied"] = applied
+        res["config"] = self.get_local_config()
+        self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
+        return res
 
     async def _handle_cli_command(
         self,

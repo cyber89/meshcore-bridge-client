@@ -22,7 +22,19 @@ FORBIDDEN_TERMS = [
     "meshcore_store_forward.db",
 ]
 
-EXCLUDE_DIRS = {"deploy", ".git", "logs", "__pycache__", ".pytest_cache", ".gemini"}
+EXCLUDE_DIRS = {
+    "deploy",
+    ".git",
+    "logs",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".gemini",
+    ".venv",
+    "venv",
+    "env",
+}
 
 
 def scan_source_files():
