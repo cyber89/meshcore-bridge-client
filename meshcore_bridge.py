@@ -11,6 +11,7 @@ import logging
 import sys
 
 from src.bridge_core import MeshCoreBridge
+from src.deduplicator import PacketDeduplicator
 from src.mqtt_client import AsyncBridgeMQTTClient
 from src.protocol_types import (
     AckPayload,
@@ -22,7 +23,6 @@ from src.protocol_types import (
     TelemetryPayload,
     TextMessagePayload,
 )
-from src.deduplicator import PacketDeduplicator
 from src.rate_limiter import TxPriority, TxRateLimiter
 from src.serial_driver import (
     BaseSerialAdapter,

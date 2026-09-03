@@ -63,7 +63,9 @@ class RepeaterAdminHandler(BaseRxHandler):
             }
 
             if router_ctx.web_server:
-                asyncio.create_task(router_ctx.web_server.broadcast_event(ack_evt_data))
+                t = asyncio.create_task(router_ctx.web_server.broadcast_event(ack_evt_data))
+                router_ctx.background_tasks.add(t)
+                t.add_done_callback(router_ctx.background_tasks.discard)
 
             router_ctx.mqtt.publish_safe(
                 config.TOPIC_TX_STATUS,
@@ -103,10 +105,12 @@ class RepeaterAdminHandler(BaseRxHandler):
                 )
 
             if router_ctx.web_server:
-                asyncio.create_task(router_ctx.web_server.broadcast_event({
+                t = asyncio.create_task(router_ctx.web_server.broadcast_event({
                     "type": "trace_data",
                     "data": payload,
                 }))
+                router_ctx.background_tasks.add(t)
+                t.add_done_callback(router_ctx.background_tasks.discard)
             return True
 
         return False

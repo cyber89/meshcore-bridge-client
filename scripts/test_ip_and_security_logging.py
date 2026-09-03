@@ -116,7 +116,7 @@ async def test_ip_and_security_logging():
         # Verificar logs capturados
         logs_output = log_capture.getvalue()
         print("\n=================== AUDITORÍA DE LOGS CAPTURADOS ===================")
-        
+
         has_http_log = "[HTTP-CLIENT]" in logs_output
         has_api_log = "[REST-API]" in logs_output
         has_tcp_log = "[TCP-COMPANION]" in logs_output

@@ -21,11 +21,8 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import hmac
-import json
 import logging
 import os
-import struct
 import sys
 import time
 from typing import Any
@@ -33,17 +30,12 @@ from typing import Any
 # Añadir el directorio raíz al path de importación
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.contact_manager import NodeRegistry, NodeContactUpdate
-from src.deduplicator import PacketDeduplicator
+from src.contact_manager import NodeContactUpdate, NodeRegistry
 from src.protocol_types import (
     CommandType,
     FirmwareAdvertType,
-    FirmwarePayloadType,
-    FirmwareRouteType,
-    MeshcoreFrame,
     PacketType,
 )
-from src.rate_limiter import TxRateLimiter
 from src.repeater_manager import RepeaterManager
 from src.tcp_companion_server import (
     FRAME_APP_TO_RADIO,
@@ -219,7 +211,7 @@ class SimulatedBridgeCore:
         if cmd_type == CommandType.SEND_TXT_MSG:
             dest_key = payload[1:33].hex().lower() if len(payload) >= 33 else ""
             text = payload[33:].decode("utf-8", errors="ignore") if len(payload) > 33 else ""
-            
+
             msg_sent_pkt = bytearray([PacketType.MSG_SENT]) + int(time.time()).to_bytes(4, "little")
             if self.tcp_server:
                 await self.tcp_server.send_frame_to_client(client_writer, bytes(msg_sent_pkt))
@@ -608,7 +600,7 @@ async def run_tcp_mesh_simulation() -> bool:
             break
         contacts_received += 1
     c_end = await client.wait_for_frame(PacketType.CONTACT_END, timeout_sec=1.0)
-    
+
     if c_start and contacts_received >= 4 and c_end is not None:
         print(f"   ✅ [OK] Sincronización exitosa: {contacts_received} contactos recibidos delimitados por START/END.")
         results.append(("Suite 2: Sincronización de Contactos", True, f"{contacts_received} nodos sincronizados"))
@@ -623,10 +615,10 @@ async def run_tcp_mesh_simulation() -> bool:
     broadcast_msg = "Alerta de Red: Prueba General de Malla MeshCore TG-0"
     payload_ch0 = bytearray([CommandType.SEND_CHANNEL_TXT_MSG, 0]) + broadcast_msg.encode("utf-8")
     await client.send_command(bytes(payload_ch0))
-    
+
     msg_sent = await client.wait_for_frame(PacketType.MSG_SENT, timeout_sec=2.0)
     ch_echo = await client.wait_for_frame(PacketType.CHANNEL_MSG_RECV, timeout_sec=2.0)
-    
+
     nodes_rx_count = sum(1 for n in network.nodes.values() if any(m.get("text") == broadcast_msg for m in n.received_messages))
     if msg_sent and ch_echo and nodes_rx_count >= 5:
         print(f"   ✅ [OK] Broadcast difundido con éxito a {nodes_rx_count} nodos a través de inundación LoRa.")
@@ -652,7 +644,7 @@ async def run_tcp_mesh_simulation() -> bool:
         hops = charlie_msgs[0].get("hops", 0)
         route_str = " -> ".join([network.nodes[k].name for k in charlie_msgs[0].get("route", [])])
         print(f"   ✅ [OK] DM entregado a Charlie tras {hops} saltos: [{route_str}]")
-        print(f"   ✅ [OK] ACK recibido en el cliente TCP y respuesta eco procesada correctamente.")
+        print("   ✅ [OK] ACK recibido en el cliente TCP y respuesta eco procesada correctamente.")
         results.append(("Suite 4: Mensaje Privado Directo (DM)", True, f"Entregado en {hops} saltos con ACK"))
     else:
         print("   ❌ [FAIL] No se completó la entrega del DM o no se recibió el ACK.")
@@ -688,7 +680,7 @@ async def run_tcp_mesh_simulation() -> bool:
 
     msg_sent_ch2 = await client.wait_for_frame(PacketType.MSG_SENT, timeout_sec=2.0)
     ch2_echo = await client.wait_for_frame(PacketType.CHANNEL_MSG_RECV, timeout_sec=2.0)
-    
+
     r1_ch2_msgs = [m for m in node_r1.received_messages if m.get("channel_idx") == 2]
     if msg_sent_ch2 and ch2_echo and r1_ch2_msgs:
         print("   ✅ [OK] Mensaje abierto transmitido en Canal 2 sin cifrado y verificado en receptores.")
@@ -710,10 +702,10 @@ async def run_tcp_mesh_simulation() -> bool:
         ("neighbors", "Tabla de vecinos en 0 saltos"),
         ("get tx", "Potencia de transmisión"),
     ]
-    
+
     queries_ok = 0
     for cmd, desc in query_commands:
-        raw_cmd = f"{pk_r1[:8]}:{cmd}".encode("utf-8")
+        raw_cmd = f"{pk_r1[:8]}:{cmd}".encode()
         await client.send_command(bytes([CommandType.SEND_RAW_DATA]) + raw_cmd)
         stat_resp = await client.wait_for_frame(PacketType.STATUS_RESPONSE, timeout_sec=2.0)
         if stat_resp and len(stat_resp) > 32:
@@ -733,7 +725,7 @@ async def run_tcp_mesh_simulation() -> bool:
     print("🔹 SUITE 8: Modificación de Configuración en Repetidor Bravo (R2)")
     print("-" * 88)
     config_changes = [
-        (f"set name Repeater-Bravo-Apex", "Nuevo nombre de nodo"),
+        ("set name Repeater-Bravo-Apex", "Nuevo nombre de nodo"),
         ("set tx 22", "Incrementar potencia TX a 22 dBm"),
         ("set advert.interval 15", "Reducir intervalo de baliza a 15 mins"),
         ("set radio 915.0,250,11,5", "Fijar parámetros de modulación LoRa"),
@@ -741,7 +733,7 @@ async def run_tcp_mesh_simulation() -> bool:
 
     sets_ok = 0
     for cmd, desc in config_changes:
-        raw_cmd = f"{pk_r2[:8]}:{cmd}".encode("utf-8")
+        raw_cmd = f"{pk_r2[:8]}:{cmd}".encode()
         await client.send_command(bytes([CommandType.SEND_RAW_DATA]) + raw_cmd)
         stat_resp = await client.wait_for_frame(PacketType.STATUS_RESPONSE, timeout_sec=2.0)
         if stat_resp and len(stat_resp) > 32:
@@ -754,9 +746,9 @@ async def run_tcp_mesh_simulation() -> bool:
     applied_verified = (node_r2.name == "Repeater-Bravo-Apex" and node_r2.tx_power == 22 and node_r2.advert_interval_mins == 15)
     if sets_ok == len(config_changes) and applied_verified:
         print("   ✅ [OK] Persistencia verificada: R2 actualizado a 'Repeater-Bravo-Apex', 22 dBm, 15 mins.")
-        results.append(("Suite 8: Modificación de Configuración en Repetidor", True, f"Parámetros actualizados y validados"))
+        results.append(("Suite 8: Modificación de Configuración en Repetidor", True, "Parámetros actualizados y validados"))
     else:
-        results.append(("Suite 8: Modificación de Configuración en Repetidor", False, f"Fallo en validación de persistencia"))
+        results.append(("Suite 8: Modificación de Configuración en Repetidor", False, "Fallo en validación de persistencia"))
 
     await client.disconnect()
     await tcp_server.stop()

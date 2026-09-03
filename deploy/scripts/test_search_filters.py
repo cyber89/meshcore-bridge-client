@@ -12,8 +12,10 @@ if sys.platform == "win32":
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from playwright.async_api import async_playwright
+
 from src.bridge_core import MeshCoreBridge
 from src.virtual_mesh_adapter import VirtualMeshAdapter
+
 
 async def test_search_filters():
     port = 8096

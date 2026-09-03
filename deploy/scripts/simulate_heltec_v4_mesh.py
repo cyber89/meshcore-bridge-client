@@ -213,7 +213,7 @@ async def run_simulation(duration_sec: int = 15) -> None:
     """Ejecuta la simulación completa con Heltec v4, Mosquitto MQTT y Servidor Web."""
     print("=" * 80)
     print(" 📻 MESHCORE BRIDGE - SIMULACIÓN EN VIVO (HELTEC V4 USB + MOSQUITTO MQTT)")
-    
+
     # 1. Configurar logging y directorios de logs
     config.WEB_PORT = 8080
     log_dir = ROOT_DIR / "logs"

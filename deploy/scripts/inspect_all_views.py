@@ -6,7 +6,6 @@ capturing screenshots of each view to audit styles and layout.
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import sys
 import tempfile
@@ -25,9 +24,6 @@ from playwright.async_api import async_playwright
 
 from src.bridge_core import MeshCoreBridge
 from src.virtual_mesh_adapter import VirtualMeshAdapter
-
-
-
 
 
 async def inspect_all_views() -> None:

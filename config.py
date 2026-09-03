@@ -129,15 +129,15 @@ def _validate_config() -> None:
     import sys
     errors: list[str] = []
     warnings: list[str] = []
-    
+
     # Spreading Factor
     if not (7 <= LORA_DEFAULT_SF <= 12):
         errors.append(f"LORA_DEFAULT_SF={LORA_DEFAULT_SF} must be in range 7-12")
-    
+
     # Bandwidth
     if LORA_DEFAULT_BW_KHZ not in (125.0, 250.0, 500.0):
         warnings.append(f"LORA_DEFAULT_BW_KHZ={LORA_DEFAULT_BW_KHZ} is non-standard (use 125, 250, or 500)")
-    
+
     # Ports
     if not (1 <= MQTT_PORT <= 65535):
         errors.append(f"MQTT_PORT={MQTT_PORT} must be in range 1-65535")
@@ -145,17 +145,17 @@ def _validate_config() -> None:
         errors.append(f"WEB_PORT={WEB_PORT} must be in range 1-65535")
     if not (1 <= TCP_SERVER_PORT <= 65535):
         errors.append(f"TCP_SERVER_PORT={TCP_SERVER_PORT} must be in range 1-65535")
-    
+
     # Baud rate
     if BAUD_RATE not in (9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600):
         warnings.append(f"BAUD_RATE={BAUD_RATE} is non-standard")
-    
+
     # Timeouts
     if WATCHDOG_INTERVAL_SEC < 5.0:
         warnings.append(f"WATCHDOG_INTERVAL_SEC={WATCHDOG_INTERVAL_SEC} < 5s may cause false disconnects")
     if WS_IDLE_TIMEOUT_SEC < 5.0:
         warnings.append(f"WS_IDLE_TIMEOUT_SEC={WS_IDLE_TIMEOUT_SEC} < 5s may cause premature WS disconnects")
-    
+
     import logging as _log
     for w in warnings:
         _log.warning(f"[CONFIG] {w}")

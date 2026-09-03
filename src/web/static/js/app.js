@@ -68,6 +68,15 @@ class MeshCoreApp {
     this.nodesModule = new NodesModule(this.context);
     this.chatModule = new ChatModule(this.context);
 
+    this.modules = {
+      sniffer: this.snifferModule,
+      repeater: this.repeaterModule,
+      map: this.mapModule,
+      settings: this.settingsModule,
+      nodes: this.nodesModule,
+      chat: this.chatModule,
+    };
+
     this.init();
   }
 

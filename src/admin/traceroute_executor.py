@@ -5,7 +5,6 @@ Descompone el cálculo de saltos, emisión RF y formateo de resultados multihop.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import time
@@ -67,7 +66,10 @@ class TracerouteExecutor:
         self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/trace", json.dumps(res), 1)
         self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), 1)
         if self._ctx.web_server:
-            asyncio.create_task(self._ctx.web_server.broadcast_event({"type": "trace_data", "data": res}))
+            try:
+                await self._ctx.web_server.broadcast_event({"type": "trace_data", "data": res})
+            except Exception as e:
+                logging.warning(f"Error difundiendo trace_data a la WebUI: {e}")
         return res
 
     def _parse_path_list(self, raw_path: Any) -> list[str]:

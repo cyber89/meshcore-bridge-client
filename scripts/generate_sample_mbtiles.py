@@ -5,17 +5,18 @@ Genera una base de datos MBTiles de ejemplo con metadatos estándar y teselas de
 import sqlite3
 from pathlib import Path
 
+
 def create_sample_mbtiles():
     maps_dir = Path(r"c:\Users\Ruby\Desktop\meshcore-bridge\data\maps")
     maps_dir.mkdir(parents=True, exist_ok=True)
     db_path = maps_dir / "overview_sample.mbtiles"
-    
+
     if db_path.exists():
         db_path.unlink()
-        
+
     conn = sqlite3.connect(str(db_path))
     c = conn.cursor()
-    
+
     c.execute("""
         CREATE TABLE metadata (name text, value text);
     """)
@@ -25,7 +26,7 @@ def create_sample_mbtiles():
     c.execute("""
         CREATE UNIQUE INDEX tile_index ON tiles (zoom_level, tile_column, tile_row);
     """)
-    
+
     # Insert metadata
     metadata = [
         ("name", "MeshCore Offline Tactical Overview"),
@@ -38,12 +39,13 @@ def create_sample_mbtiles():
         ("attribution", "MeshCore Bridge Tactical Maps"),
     ]
     c.executemany("INSERT INTO metadata VALUES (?, ?)", metadata)
-    
+
     # Generar una tesela PNG 256x256 dark sólida con grícula
     # 1x1 PNG dark navy: \x89PNG\r\n\x1a\n...
     # Un PNG 256x256 válido comprimido
-    import zlib, struct
-    
+    import struct
+    import zlib
+
     def make_png_tile(text="OFFLINE TILE"):
         width, height = 256, 256
         raw_rows = []
@@ -59,26 +61,26 @@ def create_sample_mbtiles():
             raw_rows.append(bytes(row))
         raw_data = b"".join(raw_rows)
         compressed = zlib.compress(raw_data, 6)
-        
+
         png = bytearray(b"\x89PNG\r\n\x1a\n")
-        
+
         # IHDR
         ihdr_data = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
         ihdr_crc = zlib.crc32(b"IHDR" + ihdr_data)
         png.extend(struct.pack(">I", len(ihdr_data)) + b"IHDR" + ihdr_data + struct.pack(">I", ihdr_crc))
-        
+
         # IDAT
         idat_crc = zlib.crc32(b"IDAT" + compressed)
         png.extend(struct.pack(">I", len(compressed)) + b"IDAT" + compressed + struct.pack(">I", idat_crc))
-        
+
         # IEND
         iend_crc = zlib.crc32(b"IEND")
         png.extend(struct.pack(">I", 0) + b"IEND" + struct.pack(">I", iend_crc))
-        
+
         return bytes(png)
 
     tile_bytes = make_png_tile()
-    
+
     # Insertar teselas para zooms 0, 1, 2
     tiles_to_insert = []
     for z in range(3):
@@ -88,7 +90,7 @@ def create_sample_mbtiles():
                 # TMS y
                 tms_y = (1 << z) - 1 - y
                 tiles_to_insert.append((z, x, tms_y, tile_bytes))
-                
+
     c.executemany("INSERT INTO tiles VALUES (?, ?, ?, ?)", tiles_to_insert)
     conn.commit()
     conn.close()

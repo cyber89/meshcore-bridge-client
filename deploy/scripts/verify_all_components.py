@@ -11,13 +11,10 @@ Verifica de forma simulada y determinista todas las fases implementadas:
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import sys
 import tempfile
-import time
 from pathlib import Path
-from typing import Any
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
@@ -25,21 +22,16 @@ sys.path.insert(0, str(ROOT_DIR))
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
-import config
-from src.contact_manager import NodeRegistry, NodeContactInfo, NodeContactUpdate
+from src.contact_manager import NodeContactUpdate, NodeRegistry
 from src.deduplicator import PacketDeduplicator
-from src.rate_limiter import TxRateLimiter, CustomTxQueue
+from src.event_utils import extract_sender_from_payload
 from src.protocol_types import (
-    MeshcoreFrame,
-    PacketType,
     FirmwareAdvertType,
-    MeshCoreSDKProtocol,
     parse_telemetry_from_sdk,
 )
+from src.rate_limiter import CustomTxQueue
 from src.sensor_decoder import CayenneLPPDecoder, LppDataType
-from src.serial_driver import BaseSerialAdapter, MeshcoreSDKAdapter, SerialWatchdog
-from src.event_utils import extract_sender_from_payload
-from src.mqtt_client import AsyncBridgeMQTTClient, MQTTConfig
+from src.serial_driver import MeshcoreSDKAdapter
 
 
 async def test_security_features() -> None:
@@ -112,7 +104,7 @@ async def test_quality_and_robustness() -> None:
         loaded_contact = new_reg.get_contact(pk)
         assert loaded_contact is not None and loaded_contact.name == "Mountain-Rep-01"
         assert isinstance(loaded_contact.neighbors, tuple)
-        print(f"  ✓ Persistencia NodeRegistry: Guardado y cargado JSON verificado.")
+        print("  ✓ Persistencia NodeRegistry: Guardado y cargado JSON verificado.")
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)

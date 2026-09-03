@@ -24,20 +24,15 @@ if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
 from src.contact_manager import (
-    NodeContactInfo,
     NodeContactUpdate,
     NodeDiscoveryEvent,
     NodeRegistry,
-    PacketRecord,
     is_valid_node_key,
 )
 from src.deduplicator import PacketDeduplicator
-from src.lqi_engine import LinkQualityEngine
-from src.protocol_types import FirmwareAdvertType
 from src.rate_limiter import TxRateLimiter
 from src.repeater_manager import RepeaterManager
-from src.routers.base import RxMeta
-from src.rx_router import BridgeCounters, RxEventRouter, RxRouterContext
+from src.rx_router import RxEventRouter, RxRouterContext
 from src.web.api_router import WebAPIRouter
 from src.web.controllers.base import ApiContext
 

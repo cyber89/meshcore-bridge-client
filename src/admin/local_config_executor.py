@@ -366,8 +366,8 @@ class LocalConfigExecutor:
         params = admin_data.get("params", admin_data)
         applied: dict[str, Any] = {}
 
-        self._apply_identity_settings(params, applied, mc)
-        self._apply_radio_settings(params, applied, mc)
+        await self._apply_identity_settings(params, applied, mc)
+        await self._apply_radio_settings(params, applied, mc)
         self._apply_timing_settings(params, applied, mc)
 
         # Actualizar en el NodeRegistry local
@@ -397,7 +397,7 @@ class LocalConfigExecutor:
         self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), 1)
         return res
 
-    def _apply_identity_settings(self, params: dict[str, Any], applied: dict[str, Any], mc: Any) -> None:
+    async def _apply_identity_settings(self, params: dict[str, Any], applied: dict[str, Any], mc: Any) -> None:
         """Aplica nombre, propietario y coordenadas GPS."""
         if "name" in params:
             new_name = str(params["name"]).strip()
@@ -405,7 +405,12 @@ class LocalConfigExecutor:
             applied["name"] = new_name
             if mc:
                 if hasattr(mc, "commands") and hasattr(mc.commands, "set_name"):
-                    asyncio.create_task(mc.commands.set_name(new_name))
+                    try:
+                        res = mc.commands.set_name(new_name)
+                        if asyncio.iscoroutine(res):
+                            await asyncio.wait_for(res, timeout=2.0)
+                    except Exception as e:
+                        logging.warning(f"Aviso actualizando nombre de nodo: {e}")
                 if hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
                     mc.self_info["name"] = new_name
 
@@ -420,7 +425,12 @@ class LocalConfigExecutor:
                 applied["longitude"] = lon_f
                 if mc:
                     if hasattr(mc, "commands") and hasattr(mc.commands, "set_coords"):
-                        asyncio.create_task(mc.commands.set_coords(lat=lat_f, lon=lon_f))
+                        try:
+                            res = mc.commands.set_coords(lat=lat_f, lon=lon_f)
+                            if asyncio.iscoroutine(res):
+                                await asyncio.wait_for(res, timeout=2.0)
+                        except Exception as e:
+                            logging.warning(f"Aviso actualizando coordenadas: {e}")
                     if hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
                         mc.self_info["adv_lat"] = lat_f
                         mc.self_info["adv_lon"] = lon_f
@@ -432,7 +442,7 @@ class LocalConfigExecutor:
             self._local_config["owner_info"] = owner
             applied["owner_info"] = owner
 
-    def _apply_radio_settings(self, params: dict[str, Any], applied: dict[str, Any], mc: Any) -> None:
+    async def _apply_radio_settings(self, params: dict[str, Any], applied: dict[str, Any], mc: Any) -> None:
         """Aplica potencia TX, frecuencia y parámetros de modulación."""
         if "tx_power" in params or "power" in params:
             hw_board = self._local_config.get("hardware_board")
@@ -441,7 +451,12 @@ class LocalConfigExecutor:
             self._local_config["tx_power"] = new_p
             applied["tx_power"] = new_p
             if mc and hasattr(mc, "commands") and hasattr(mc.commands, "set_tx_power"):
-                asyncio.create_task(mc.commands.set_tx_power(new_p))
+                try:
+                    res = mc.commands.set_tx_power(new_p)
+                    if asyncio.iscoroutine(res):
+                        await asyncio.wait_for(res, timeout=2.0)
+                except Exception as e:
+                    logging.warning(f"Aviso actualizando potencia TX: {e}")
 
         if "frequency" in params or "radio_freq" in params:
             try:

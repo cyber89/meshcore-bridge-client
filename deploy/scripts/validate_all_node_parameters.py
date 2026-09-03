@@ -6,13 +6,9 @@ Verifica que el 100% de los parámetros definidos en la especificación oficial 
 sean alcanzables, parseados, almacenados en NodeRegistry y exportados a REST, WebSockets y MQTT.
 """
 
-import asyncio
-import json
 import logging
-import os
 import pathlib
 import sys
-import time
 from typing import Any
 
 # Asegurar importación de src desde la raíz del proyecto
@@ -20,15 +16,7 @@ PROJECT_ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.contact_manager import NodeContactInfo, NodeContactUpdate, NodeRegistry
-from src.protocol_types import (
-    FirmwareAdvertType,
-    HardwareModel,
-    MeshcoreFrame,
-    PacketType,
-    TelemetryPayload,
-)
-from src.rate_limiter import LoRaRadioConfig, TxRateLimiter
+from src.contact_manager import NodeContactUpdate, NodeRegistry
 from src.repeater_manager import RepeaterManager
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")

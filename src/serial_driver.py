@@ -183,6 +183,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         super().__init__(port, baud_rate, timeout_sec)
         self.node_registry = node_registry
         self.mc: MeshCoreSDKProtocol | Any = None
+        self._initial_sync_task: asyncio.Task[None] | None = None
 
     async def connect(self) -> bool:
         if MeshCore is None:
@@ -280,7 +281,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                 except Exception as ex_si:
                     logging.warning(f"Despacho inicial de self_info: {ex_si}")
             logging.info("MeshCore SDK conectado e iniciado exitosamente.")
-            asyncio.create_task(self._initial_hardware_sync())
+            self._initial_sync_task = asyncio.create_task(self._initial_hardware_sync())
         except asyncio.CancelledError:
             pass
         except Exception as e:
@@ -288,6 +289,14 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             self.is_connected = False
 
     async def disconnect(self) -> None:
+        if self._initial_sync_task and not self._initial_sync_task.done():
+            self._initial_sync_task.cancel()
+            try:
+                await self._initial_sync_task
+            except (asyncio.CancelledError, Exception):
+                pass
+            self._initial_sync_task = None
+
         if self.mc:
             try:
                 if hasattr(self.mc, "disconnect"):

@@ -6,6 +6,29 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Auditoría General Exhaustiva de Código, Resiliencia Asíncrona y Prevención de Fugas de Tareas
+- **Fecha**: 2026-09-03
+- **Estado**: ✅ COMPLETADO (Auditoría estática y dinámica integral: 0 errores de sintaxis en 48 módulos backend y frontend, resolución de desconexión reactiva en app.js por typo this.modules, sincronización síncrona de _add_background_task en bridge_core.py, descarte automático de tareas con add_done_callback, eliminación de tareas create_task no rastreadas en rx_router.py y serial_driver.py, mypy strict 100% PASS, ruff check 100% PASS)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 4 (Web Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - El usuario solicitó una auditoría general de todo el código en busca de fallos, inconsistencias, fugas de memoria, errores no capturados o vulnerabilidades.
+- **Hallazgos y Correcciones de la Auditoría**:
+  1. **Referencia Huérfana en Frontend (`src/web/static/js/app.js`)**:
+     - *Hallazgo*: En `app.js`, los manejadores de eventos WebSocket (`WS_STATUS_CHANGE` y `RX_PACKET` para `self_info`/`device_info`) intentaban invocar `this.modules?.settings?.fetchLocalNodeConfig()` y `this.modules?.nodes?.fetchNodes()`. Sin embargo, `this.modules` no estaba definido en la clase `MeshCoreApp`, provocando que la actualización reactiva al conectar o recibir eventos de configuración no se disparara automáticamente.
+     - *Corrección*: Se definió el diccionario canónico `this.modules` en el constructor de `MeshCoreApp` mapeando todos los subsistemas (`sniffer`, `repeater`, `map`, `settings`, `nodes`, `chat`).
+  2. **Riesgo de Recolección Prematura de Tareas (Garbage Collection en `asyncio`)**:
+     - *Hallazgo*: Múltiples corutinas y difusiones WebSocket se creaban con `asyncio.create_task(...)` de forma desvinculada (fire-and-forget), exponiéndolas a ser recolectadas por el recolector de basura de Python antes de completarse en servidores con alta carga.
+     - *Corrección*: En `src/bridge_core.py`, se refactorizó `_add_background_task()` haciéndolo determinista y síncrono (`self._background_tasks.add(task)` y `task.add_done_callback(self._background_tasks.discard)`), eliminando llamadas recursivas innecesarias a `create_task`. En `src/rx_router.py`, se implementó `_spawn_broadcast_task()` registrando todas las emisiones de eventos hacia clientes Web en `background_tasks`. En `src/routers/repeater_handler.py`, se enlazaron las tareas de ACKs y traceroute en `router_ctx.background_tasks`. En `src/serial_driver.py`, se guardó `self._initial_sync_task` permitiendo su cancelación limpia en `disconnect()`.
+  3. **Comandos de Hardware Desvinculados en `LocalConfigExecutor`**:
+     - *Hallazgo*: `_apply_identity_settings` y `_apply_radio_settings` creaban tareas asíncronas no rastreadas para `mc.commands.set_name`, `set_coords` y `set_tx_power`, sin esperar la confirmación de la radio antes de responder al usuario.
+     - *Corrección*: Se transformaron en métodos `async` con `await asyncio.wait_for(res, timeout=2.0)`, garantizando que la configuración se procese antes de confirmar el éxito.
+  4. **Auditoría de Seguridad y Contratos DOM**:
+     - Verificados 323 IDs en `index.html`: Cero referencias huérfanas en los scripts JavaScript.
+     - Verificados 20 endpoints REST consumidos por la WebUI: 100% de correspondencia y soporte en `src/web/api_router.py`.
+     - Cero capturas de excepción ciegas (`except:`) y cero recursos de archivos sin gestor de contexto (`with open`).
+     - Linter & Calidad: `ruff check src/ meshcore_bridge.py config.py` (100% PASS, 0 advertencias), `mypy --strict src/` (100% PASS en 48 módulos).
+- **Módulos Modificados**: `src/web/static/js/app.js`, `src/bridge_core.py`, `src/rx_router.py`, `src/routers/repeater_handler.py`, `src/admin/traceroute_executor.py`, `src/admin/local_config_executor.py`, `src/serial_driver.py`, `config.py`, `meshcore_bridge.py`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Corrección de Vista Mensajes, Tarjetas Completas de Nodos/Contactos, Extracción Total MeshCore y Logs Resilientes
 - **Fecha**: 2026-09-03
 - **Estado**: ✅ COMPLETADO (Resolución del borrado del aside de canales/DMs por settings.js, binding de clearChatBtn y mobile toggle en chat.js, renderizado de tarjetas ricas en nodes.js con dot de presencia/telemetría/RF strip/botones de acción, consulta extendida de 11 comandos del SDK de MeshCore en local_config_executor.py, logging thread-safe con run_coroutine_threadsafe y verificación E2E 100% PASS)

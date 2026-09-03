@@ -6,7 +6,6 @@ comandos remotos CLI a repetidores, telemetría y configuración de parámetros.
 """
 
 import asyncio
-import json
 import logging
 import os
 import sys
@@ -16,13 +15,13 @@ from typing import Any
 # Añadir el directorio raíz al path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.contact_manager import NodeRegistry, NodeContactUpdate, PacketRecord
-from src.deduplicator import PacketDeduplicator
-from src.repeater_manager import RepeaterManager
-from src.rate_limiter import TxRateLimiter
 from src.admin_handler import AdminCommandHandler, AdminContext
+from src.contact_manager import NodeContactUpdate, NodeRegistry
+from src.deduplicator import PacketDeduplicator
+from src.rate_limiter import TxRateLimiter
+from src.repeater_manager import RepeaterManager
 from src.rx_router import RxEventRouter, RxRouterContext
-import config
+
 sys.stdout.reconfigure(encoding='utf-8')
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -269,7 +268,7 @@ async def run_mesh_simulation() -> bool:
     # FASE 3: Mensajería de Canal y Mensajes Directos (DM) con ACKs
     # -------------------------------------------------------------
     print("\n💬 [FASE 3] Validando flujo de mensajería (Broadcast y DM) con Acuses de Recibo (ACK)...")
-    
+
     tx_res = await execute_tx_mock({"to": "broadcast", "text": "Hola a todos en la malla LoRa!", "channel_idx": 0})
     print(f"  ✓ Mensaje broadcast enviado: {tx_res.get('status')}")
 

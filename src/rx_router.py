@@ -237,6 +237,18 @@ class RxEventRouter:
             self._ctx.counters.err_count += 1
             logging.error(f"Error procesando evento de radio Mesh: {e}", exc_info=True)
 
+    def _spawn_broadcast_task(self, payload: dict[str, Any]) -> None:
+        """Emite eventos WebSocket registrando la tarea en background_tasks."""
+        if not self._ctx.web_server:
+            return
+        try:
+            loop = self._ctx.loop or asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        task = loop.create_task(self._ctx.web_server.broadcast_event(payload))
+        self._ctx.background_tasks.add(task)
+        task.add_done_callback(self._ctx.background_tasks.discard)
+
     def _extract_normalized_meta(self, event: Any) -> tuple[dict[str, Any], RxMeta] | None:
         ev_type_str = str(getattr(event, "type", getattr(event, "event_type", "")))
         payload_obj = getattr(event, "payload", getattr(event, "data", event))
@@ -454,13 +466,12 @@ class RxEventRouter:
                         hop_count=effective_hops,
                     )
                 )
-                if self._ctx.web_server:
-                    asyncio.create_task(self._ctx.web_server.broadcast_event({
-                        "type": "contact_discovered" if is_new else "contact_updated",
-                        "event_type": "contact_discovered" if is_new else "contact_updated",
-                        "is_new": is_new,
-                        "contact": contact_info.to_dict(),
-                    }))
+                self._spawn_broadcast_task({
+                    "type": "contact_discovered" if is_new else "contact_updated",
+                    "event_type": "contact_discovered" if is_new else "contact_updated",
+                    "is_new": is_new,
+                    "contact": contact_info.to_dict(),
+                })
 
     def _resolve_sender_name(self, prefix_or_key: str) -> str:
         # Primero consultar el registro dinámico local
@@ -570,8 +581,7 @@ class RxEventRouter:
                     "timestamp": now_iso,
                 }), qos=0)
             self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, json.dumps(rep_payload, sort_keys=True), qos=0)
-            if self._ctx.web_server:
-                asyncio.create_task(self._ctx.web_server.broadcast_event(rep_payload))
+            self._spawn_broadcast_task(rep_payload)
             return None
 
         lqi_val = LinkQualityEngine.compute_instant_lqi(msg.snr, msg.rssi, 0)
@@ -601,8 +611,7 @@ class RxEventRouter:
 
         evt_json = json.dumps(evt_payload, sort_keys=True)
         self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
-        if self._ctx.web_server:
-            asyncio.create_task(self._ctx.web_server.broadcast_event(evt_payload))
+        self._spawn_broadcast_task(evt_payload)
 
         return evt_payload
 
@@ -749,8 +758,7 @@ class RxEventRouter:
         self._ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
         if any(k in payload_dict for k in ("battery", "battery_pct", "battery_mv", "voltage", "voltage_v", "temperature", "temperature_c", "humidity_pct", "pressure_hpa", "solar_v")):
             self._ctx.mqtt.publish_safe(config.TOPIC_RX_TELEMETRY, evt_json, qos=0)
-        if self._ctx.web_server:
-            asyncio.create_task(self._ctx.web_server.broadcast_event(payload_dict))
+        self._spawn_broadcast_task(payload_dict)
 
         ev_name = str(payload_dict.get("event_type", payload_dict.get("type", "telemetry")))
 

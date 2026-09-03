@@ -11,12 +11,8 @@ Simula TODOS los tipos de mensajes y eventos de MeshCore con:
 """
 
 import asyncio
-import io
-import json
 import logging
 import os
-import random
-import struct
 import sys
 import time
 from typing import Any
@@ -24,27 +20,19 @@ from typing import Any
 # Añadir el directorio raíz al path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.contact_manager import NodeRegistry, NodeContactUpdate, PacketRecord
-from src.deduplicator import PacketDeduplicator
-from src.repeater_manager import RepeaterManager
-from src.rate_limiter import TxRateLimiter, TxPriority, TxItem
 from src.admin_handler import AdminCommandHandler, AdminContext
+from src.contact_manager import NodeContactUpdate, NodeRegistry
+from src.deduplicator import PacketDeduplicator
+from src.protocol_types import (
+    FrameHeader,
+    MeshcoreFrame,
+    PacketType,
+    TextMessagePayload,
+)
+from src.rate_limiter import TxItem, TxPriority, TxRateLimiter
+from src.repeater_manager import RepeaterManager
 from src.rx_router import RxEventRouter, RxRouterContext
 from src.sensor_decoder import CayenneLPPDecoder
-from src.protocol_types import (
-    AckPayload,
-    EOF_BYTE,
-    ESC_BYTE,
-    FrameHeader,
-    HardwareModel,
-    MeshcoreFrame,
-    NodeAdvertisement,
-    PacketType,
-    SOF_BYTE,
-    TelemetryPayload,
-    TextMessagePayload,
-    compute_crc16_ccitt,
-)
 
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -593,7 +581,7 @@ async def run_master_20s_simulation() -> bool:
     # REPORTE DE RESULTADOS Y AUDITORÍA DE LOGS
     # -------------------------------------------------------------------------
     nodes_final = node_registry.list_nodes()
-    print(f"\n\n" + "=" * 90, flush=True)
+    print("\n\n" + "=" * 90, flush=True)
     print("📊 REPORTE DE RESULTADOS DE LA SIMULACIÓN COMPLETA (TODOS LOS TIPOS DE MENSAJE)", flush=True)
     print("=" * 90, flush=True)
     print(f"⏱️  Tiempo Total de Ejecución Real       : {total_elapsed:.2f}s (Objetivo: 20s)", flush=True)
@@ -607,7 +595,7 @@ async def run_master_20s_simulation() -> bool:
     print(f"🌐 Total Eventos WebSocket Emitidos     : {len(ws_hub.streamed_events)}", flush=True)
     print(f"📤 Total Transmisiones RF Serial        : {len(serial_transceiver.tx_history)}", flush=True)
     print("-" * 90, flush=True)
-    print(f"📋 AUDITORÍA DE LOGS EN TIEMPO REAL:")
+    print("📋 AUDITORÍA DE LOGS EN TIEMPO REAL:")
     print(f"   - Total Registros con Origen -> Destino : {len(log_auditor.logged_origin_dest_events)}", flush=True)
     print(f"   - INFO Logs Generados                  : {log_auditor.info_count}", flush=True)
     print(f"   - WARNING Logs Controlados             : {log_auditor.warning_count}", flush=True)

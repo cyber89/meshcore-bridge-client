@@ -157,7 +157,8 @@ class MeshCoreBridge:
         """Difunde tramas binarias de la radio hacia clientes TCP Companion conectados (App Móvil / CLI)."""
         tcp_srv = getattr(self, "tcp_server", None)
         if tcp_srv is not None and getattr(self, "running", False):
-            asyncio.create_task(tcp_srv.broadcast_companion_frame(payload))
+            task = asyncio.create_task(tcp_srv.broadcast_companion_frame(payload))
+            self._add_background_task(task)
 
     async def handle_tcp_companion_command(self, payload: bytes, client_writer: Any) -> None:
         """Maneja comandos binarios enviados por apps móviles o CLI a través del socket TCP Companion."""
@@ -181,13 +182,14 @@ class MeshCoreBridge:
         self._tx_metrics_lock = asyncio.Lock()
         self._cleanup_task: asyncio.Task[None] | None = None
 
-    async def _add_background_task(self, task: asyncio.Task[Any]) -> None:
-        async with self._tasks_lock:
-            self._background_tasks.add(task)
+    def _add_background_task(self, task: asyncio.Task[Any]) -> asyncio.Task[Any]:
+        """Registra una tarea asíncrona previniendo recolección prematura por GC."""
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+        return task
 
-    async def _discard_background_task(self, task: asyncio.Task[Any]) -> None:
-        async with self._tasks_lock:
-            self._background_tasks.discard(task)
+    def _discard_background_task(self, task: asyncio.Task[Any]) -> None:
+        self._background_tasks.discard(task)
 
     async def _cleanup_loop(self) -> None:
         while self.running:
@@ -428,8 +430,9 @@ class MeshCoreBridge:
 
         # Iniciar reporte periódico de salud
         self._health_task = self.health_reporter.start()
-        asyncio.create_task(self._add_background_task(self._health_task))
+        self._add_background_task(self._health_task)
         self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+        self._add_background_task(self._cleanup_task)
         logging.info("MeshCore Bridge iniciado y operativo (v3.0).")
 
     async def stop(self) -> None:
@@ -740,7 +743,7 @@ class MeshCoreBridge:
 
         def _stop_task() -> None:
             task = asyncio.create_task(self.stop())
-            asyncio.create_task(self._add_background_task(task))
+            self._add_background_task(task)
 
         for sig in (signal.SIGINT, signal.SIGTERM):
             try:

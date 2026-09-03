@@ -6,7 +6,6 @@ Tests all tabs, subtabs, modals, toggles and listens for console logs, errors an
 from __future__ import annotations
 
 import asyncio
-import os
 import sys
 from pathlib import Path
 from typing import Any

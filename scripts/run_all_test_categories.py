@@ -14,9 +14,9 @@ Ejecuta y verifica la matriz completa de las 10 disciplinas de prueba requeridas
 10. Regression test
 """
 
+import subprocess
 import sys
 import time
-import subprocess
 from pathlib import Path
 
 try:
@@ -102,7 +102,7 @@ def main() -> int:
     for idx, (cat_name, files) in enumerate(TEST_CATEGORIES.items(), 1):
         print(f"\n[{idx}/10] Ejecutando: {cat_name} ({len(files)} suites)...", flush=True)
         passed, count, ret_code, elapsed, output = run_category(cat_name, files)
-        
+
         status_str = "✅ PASÓ" if passed else "❌ FALLÓ"
         if passed:
             total_passed_categories += 1
