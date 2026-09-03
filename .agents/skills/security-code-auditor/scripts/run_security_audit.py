@@ -68,10 +68,16 @@ def check_xss_sanitization() -> tuple[bool, list[str]]:
     """Verifica que el frontend JS contenga función de sanitización HTML y la use en interpolaciones."""
     issues = []
     js_file = STATIC_DIR / "js" / "app.js"
-    if js_file.exists():
-        content = js_file.read_text(encoding="utf-8")
-        if "function escapeHtml" not in content and "const escapeHtml" not in content:
-            issues.append("No se encontró la función escapeHtml() en app.js")
+    utils_file = STATIC_DIR / "js" / "core" / "utils.js"
+    found = False
+    for f in (js_file, utils_file):
+        if f.exists():
+            content = f.read_text(encoding="utf-8")
+            if "function escapeHtml" in content or "const escapeHtml" in content or "export function escapeHtml" in content:
+                found = True
+                break
+    if not found:
+        issues.append("No se encontró la función escapeHtml() en app.js o js/core/utils.js")
 
     return len(issues) == 0, issues
 

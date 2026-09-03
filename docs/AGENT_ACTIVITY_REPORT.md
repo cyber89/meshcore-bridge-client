@@ -6,6 +6,38 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Modularización Integral del Frontend en ES6 Nativo y Desacoplamiento Event-Driven
+- **Fecha**: 2026-09-02
+- **Estado**: ✅ COMPLETADO (División de app.js de 7,826 líneas en arquitectura modular ES6 pura por capas y dominios funcionales)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX & Frontend Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - El frontend de la SPA se encontraba condensado en un único archivo monolítico (`app.js`) de **7,826 líneas (353 KB)**, dificultando el mantenimiento y violando el principio de responsabilidad única (SRP).
+  - Se requería una arquitectura limpia en módulos ES6 nativos (`<script type="module">`), sin Node.js, npm ni herramientas de compilación pesadas, para garantizar arranque instantáneo (<100ms) en SBCs (Raspberry Pi/Orange Pi).
+  - Desacoplar los subsistemas mediante un bus de eventos reactivo (`EventBus`) y aislar 100% el frontend sin polución de variables globales en `window`.
+- **Acciones Realizadas**:
+  - **Capa Core (`src/web/static/js/core/`)**:
+    - [`eventbus.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/core/eventbus.js): Bus de eventos asíncrono desacoplado basado en `EventTarget` y `CustomEvent`.
+    - [`utils.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/core/utils.js): Funciones puras de utilidad, sanitización XSS (`escapeHtml`), `debounce`, cálculo de potencia de hardware y constantes de protocolo.
+    - [`storage.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/core/storage.js): Motor de persistencia IndexedDB `MeshCoreStorage` para chats y preferencias.
+    - [`websocket.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/core/websocket.js): Cliente WebSocket resiliente con reconexión exponencial y keepalive (15s).
+  - **Capa de Módulos de Dominio (`src/web/static/js/modules/`)**:
+    - [`sniffer.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/sniffer.js): Consola de logs del sistema, diagnósticos y captura de paquetes RF.
+    - [`repeater.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/repeater.js): Modal de repetidores remotos, autenticación segura, terminal interactiva y telemetría en tiempo real.
+    - [`map.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/map.js): Leaflet, capas de mosaicos online/offline (MBTiles), marcadores, Heatmap táctico RF y trazado Traceroute.
+    - [`settings.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/settings.js): Parámetros locales de radio, gestión de canales, exportación QR y preflight.
+    - [`nodes.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/nodes.js): Directorio unificado de nodos, libreta de contactos (clientes), filtrado reactivo y presencia en vivo.
+    - [`chat.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/chat.js): Mensajería de texto, canales broadcast, DMs, tracking de entrega (ACKs) y alertas sonoras.
+  - **Orquestador Central (`src/web/static/js/app.js`)**:
+    - Reducido de **7,826 líneas a solo 240 líneas** (reducción del 97% en densidad de código).
+    - Actúa como *Composition Root*, orquestando la navegación entre pestañas, paleta de comandos (Ctrl+K), temas y estados de conexión.
+  - **Plantilla HTML (`src/web/static/index.html`)**:
+    - Actualizada etiqueta `<script type="module" src="/js/app.js"></script>`.
+  - **Auditoría y Despliegue**:
+    - Verificación con `lint_frontend_standards.py` (100% PASS).
+    - Verificación de seguridad SAST con `run_security_audit.py` (100% PASS, Cero vulnerabilidades).
+    - Sincronización del paquete de despliegue mediante `python scripts/sync_deploy.py`.
+- **Módulos Modificados**: `src/web/static/js/core/**`, `src/web/static/js/modules/**`, `src/web/static/js/app.js`, `src/web/static/index.html`, `deploy/**`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Auditoría Multidimensional, Refactorización de Complejidad Ciclomática y Pipeline CI/CD
 - **Fecha**: 2026-09-02
 - **Estado**: ✅ COMPLETADO (Auditoría Integral de Código/Docs/Tareas, Descomposición de God Method handle() CC 291 -> 6, Pipeline CI GitHub Actions, Higiene de Repositorio)
