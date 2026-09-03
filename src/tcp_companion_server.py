@@ -11,7 +11,10 @@ import asyncio
 import logging
 from typing import Any
 
-from src.web.security_inspector import SecurityTrafficInspector
+from src.web.security_inspector import (
+    SecurityTrafficInspector,
+    SuspiciousTrafficEvent,
+)
 
 # Delimitadores y constantes de protocolo oficial MeshCore
 FRAME_APP_TO_RADIO = 0x3C  # '<' : Trama enviada desde la app hacia la radio
@@ -168,11 +171,13 @@ class MeshCoreCompanionServer:
         allowed_ips = [ip.strip() for ip in os.getenv("COMPANION_ALLOWED_IPS", "").split(",") if ip.strip()]
         if allowed_ips and peer and peer_ip not in allowed_ips:
             SecurityTrafficInspector.log_suspicious_traffic(
-                client_ip=peer_ip,
-                source_type="TCP-COMPANION",
-                endpoint=f"tcp://{self.host}:{self.port}",
-                anomaly_type="IP_TCP_NO_AUTORIZADA",
-                detail=f"Intento de conexión rechazado desde IP no permitida '{peer_ip}'",
+                SuspiciousTrafficEvent(
+                    client_ip=peer_ip,
+                    source_type="TCP-COMPANION",
+                    endpoint=f"tcp://{self.host}:{self.port}",
+                    anomaly_type="IP_TCP_NO_AUTORIZADA",
+                    detail=f"Intento de conexión rechazado desde IP no permitida '{peer_ip}'",
+                )
             )
             writer.close()
             return
@@ -185,11 +190,13 @@ class MeshCoreCompanionServer:
                 auth_line = await asyncio.wait_for(reader.readline(), timeout=5.0)
                 if auth_line.decode("utf-8", errors="ignore").strip() != f"TOKEN:{token}":
                     SecurityTrafficInspector.log_suspicious_traffic(
-                        client_ip=peer_ip,
-                        source_type="TCP-COMPANION",
-                        endpoint=f"tcp://{self.host}:{self.port}",
-                        anomaly_type="TOKEN_TCP_INVALIDO",
-                        detail=f"Fallo de autenticación por token desde {peer_str}",
+                        SuspiciousTrafficEvent(
+                            client_ip=peer_ip,
+                            source_type="TCP-COMPANION",
+                            endpoint=f"tcp://{self.host}:{self.port}",
+                            anomaly_type="TOKEN_TCP_INVALIDO",
+                            detail=f"Fallo de autenticación por token desde {peer_str}",
+                        )
                     )
                     writer.write(b"AUTH_FAILED\n")
                     await writer.drain()
@@ -197,11 +204,13 @@ class MeshCoreCompanionServer:
                     return
             except asyncio.TimeoutError:
                 SecurityTrafficInspector.log_suspicious_traffic(
-                    client_ip=peer_ip,
-                    source_type="TCP-COMPANION",
-                    endpoint=f"tcp://{self.host}:{self.port}",
-                    anomaly_type="TIMEOUT_AUTH_TCP",
-                    detail=f"Tiempo de espera de autenticación agotado para {peer_str}",
+                    SuspiciousTrafficEvent(
+                        client_ip=peer_ip,
+                        source_type="TCP-COMPANION",
+                        endpoint=f"tcp://{self.host}:{self.port}",
+                        anomaly_type="TIMEOUT_AUTH_TCP",
+                        detail=f"Tiempo de espera de autenticación agotado para {peer_str}",
+                    )
                 )
                 writer.write(b"AUTH_FAILED\n")
                 await writer.drain()
@@ -236,11 +245,13 @@ class MeshCoreCompanionServer:
                     if sof_idx < 0:
                         if len(buffer) > 128:
                             SecurityTrafficInspector.log_suspicious_traffic(
-                                client_ip=peer_ip,
-                                source_type="TCP-COMPANION",
-                                endpoint=f"tcp://{self.host}:{self.port}",
-                                anomaly_type="DESBORDAMIENTO_BUFFER_SIN_SOF",
-                                detail=f"Buffer de {len(buffer)} bytes recibido sin delimitador 0x3C ('<')",
+                                SuspiciousTrafficEvent(
+                                    client_ip=peer_ip,
+                                    source_type="TCP-COMPANION",
+                                    endpoint=f"tcp://{self.host}:{self.port}",
+                                    anomaly_type="DESBORDAMIENTO_BUFFER_SIN_SOF",
+                                    detail=f"Buffer de {len(buffer)} bytes recibido sin delimitador 0x3C ('<')",
+                                )
                             )
                         # No hay byte de inicio; limpiar buffer si no es válido
                         buffer.clear()
@@ -258,11 +269,13 @@ class MeshCoreCompanionServer:
 
                     if payload_len > MAX_FRAME_SIZE:
                         SecurityTrafficInspector.log_suspicious_traffic(
-                            client_ip=peer_ip,
-                            source_type="TCP-COMPANION",
-                            endpoint=f"tcp://{self.host}:{self.port}",
-                            anomaly_type="TRAMA_TCP_SOBREDIMENSIONADA",
-                            detail=f"Longitud declarada ({payload_len} bytes) excede MAX_FRAME_SIZE ({MAX_FRAME_SIZE} bytes)",
+                            SuspiciousTrafficEvent(
+                                client_ip=peer_ip,
+                                source_type="TCP-COMPANION",
+                                endpoint=f"tcp://{self.host}:{self.port}",
+                                anomaly_type="TRAMA_TCP_SOBREDIMENSIONADA",
+                                detail=f"Longitud declarada ({payload_len} bytes) excede MAX_FRAME_SIZE ({MAX_FRAME_SIZE} bytes)",
+                            )
                         )
                         logging.warning(
                             f"Cliente {peer_str} envió trama con longitud inválida ({payload_len} > {MAX_FRAME_SIZE}). Descartando."

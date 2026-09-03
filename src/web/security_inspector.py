@@ -10,8 +10,33 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+from dataclasses import dataclass
 from typing import Any
 from urllib.parse import unquote
+
+
+@dataclass(slots=True)
+class HttpAccessEvent:
+    """Evento estructurado de acceso HTTP para registro y auditoría."""
+
+    client_ip: str
+    method: str
+    path: str
+    status_code: int
+    duration_ms: float
+    user_agent: str = ""
+
+
+@dataclass(slots=True)
+class SuspiciousTrafficEvent:
+    """Evento estructurado de tráfico sospechoso o anómalo."""
+
+    client_ip: str
+    source_type: str
+    endpoint: str
+    anomaly_type: str
+    detail: str
+    user_agent: str = ""
 
 
 class SecurityTrafficInspector:
@@ -196,44 +221,33 @@ class SecurityTrafficInspector:
         return False, "", ""
 
     @classmethod
-    def log_http_access(
-        cls,
-        client_ip: str,
-        method: str,
-        path: str,
-        status_code: int,
-        duration_ms: float,
-        user_agent: str = "",
-    ) -> None:
+    def log_http_access(cls, event: HttpAccessEvent) -> None:
         """Registra una conexión HTTP o consulta REST de forma limpia y estructurada."""
-        is_api = path.startswith("/api/")
+        is_api = event.path.startswith("/api/")
         tag = "[REST-API]" if is_api else "[HTTP-CLIENT]"
-        clean_path = path.split("?")[0]
-        ua_summary = user_agent[:40] + "..." if len(user_agent) > 40 else (user_agent or "N/D")
+        clean_path = event.path.split("?")[0]
+        ua_summary = (
+            event.user_agent[:40] + "..." if len(event.user_agent) > 40 else (event.user_agent or "N/D")
+        )
 
         if is_api:
             logging.info(
-                f"⚡ {tag} IP: {client_ip} -> {method} {clean_path} | Código: {status_code} | {duration_ms:.1f}ms"
+                f"⚡ {tag} IP: {event.client_ip} -> {event.method} {clean_path} | "
+                f"Código: {event.status_code} | {event.duration_ms:.1f}ms"
             )
         else:
             logging.info(
-                f"🌐 {tag} IP: {client_ip} -> {method} {clean_path} | Código: {status_code} | {duration_ms:.1f}ms | UA: {ua_summary}"
+                f"🌐 {tag} IP: {event.client_ip} -> {event.method} {clean_path} | "
+                f"Código: {event.status_code} | {event.duration_ms:.1f}ms | UA: {ua_summary}"
             )
 
     @classmethod
-    def log_suspicious_traffic(
-        cls,
-        client_ip: str,
-        source_type: str,
-        endpoint: str,
-        anomaly_type: str,
-        detail: str,
-        user_agent: str = "",
-    ) -> None:
+    def log_suspicious_traffic(cls, event: SuspiciousTrafficEvent) -> None:
         """Registra un evento de tráfico sospechoso con alta visibilidad en el sistema de logs."""
-        ua_info = f" | UA: '{user_agent[:60]}'" if user_agent else ""
+        ua_info = f" | UA: '{event.user_agent[:60]}'" if event.user_agent else ""
         logging.warning(
-            f"🚨 [TRAFICO-SOSPECHOSO] [{source_type}] IP: {client_ip} | Tipo: {anomaly_type} | Endpoint: {endpoint} | Detalle: {detail}{ua_info}"
+            f"🚨 [TRAFICO-SOSPECHOSO] [{event.source_type}] IP: {event.client_ip} | "
+            f"Tipo: {event.anomaly_type} | Endpoint: {event.endpoint} | Detalle: {event.detail}{ua_info}"
         )
 
     @classmethod

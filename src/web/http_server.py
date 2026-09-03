@@ -21,8 +21,11 @@ from pathlib import Path
 from typing import Any
 
 from src.web.api_router import WebAPIRouter
-from src.web.map_tile_service import MapTileService
-from src.web.security_inspector import SecurityTrafficInspector
+from src.web.security_inspector import (
+    HttpAccessEvent,
+    SecurityTrafficInspector,
+    SuspiciousTrafficEvent,
+)
 
 
 @dataclass(slots=True)
@@ -260,12 +263,14 @@ class MeshCoreWebServer:
         )
         if is_suspicious:
             SecurityTrafficInspector.log_suspicious_traffic(
-                client_ip=client_ip,
-                source_type="HTTP",
-                endpoint=path,
-                anomaly_type=anomaly_type,
-                detail=anomaly_detail,
-                user_agent=headers.get("user-agent", ""),
+                SuspiciousTrafficEvent(
+                    client_ip=client_ip,
+                    source_type="HTTP",
+                    endpoint=path,
+                    anomaly_type=anomaly_type,
+                    detail=anomaly_detail,
+                    user_agent=headers.get("user-agent", ""),
+                )
             )
             await self._write_http_response(writer, "403 Forbidden", b"403 Forbidden - Security Violation")
             return False
@@ -273,12 +278,14 @@ class MeshCoreWebServer:
         clean_path = path.split("?")[0].strip("/")
         if self._is_traversal_attempt(clean_path):
             SecurityTrafficInspector.log_suspicious_traffic(
-                client_ip=client_ip,
-                source_type="HTTP",
-                endpoint=path,
-                anomaly_type="DIRECTORY_TRAVERSAL",
-                detail=f"Traversal detectado en clean_path: '{clean_path}'",
-                user_agent=headers.get("user-agent", ""),
+                SuspiciousTrafficEvent(
+                    client_ip=client_ip,
+                    source_type="HTTP",
+                    endpoint=path,
+                    anomaly_type="DIRECTORY_TRAVERSAL",
+                    detail=f"Traversal detectado en clean_path: '{clean_path}'",
+                    user_agent=headers.get("user-agent", ""),
+                )
             )
             await self._write_http_response(writer, "403 Forbidden", b"")
             return False
@@ -300,12 +307,14 @@ class MeshCoreWebServer:
         content_len = int(headers["content-length"])
         if content_len > 1024 * 1024:  # 1 MB max
             SecurityTrafficInspector.log_suspicious_traffic(
-                client_ip=client_ip,
-                source_type="HTTP",
-                endpoint=path,
-                anomaly_type="PAYLOAD_SOBREDIMENSIONADO",
-                detail=f"Content-Length {content_len} excede 1MB",
-                user_agent=headers.get("user-agent", ""),
+                SuspiciousTrafficEvent(
+                    client_ip=client_ip,
+                    source_type="HTTP",
+                    endpoint=path,
+                    anomaly_type="PAYLOAD_SOBREDIMENSIONADO",
+                    detail=f"Content-Length {content_len} excede 1MB",
+                    user_agent=headers.get("user-agent", ""),
+                )
             )
             writer.write(b"HTTP/1.1 413 Payload Too Large\r\nConnection: close\r\n\r\n")
             await writer.drain()
@@ -333,12 +342,14 @@ class MeshCoreWebServer:
             req_origin = ctx.headers.get("origin", "")
             if req_origin and not ctx.cors_origin:
                 SecurityTrafficInspector.log_suspicious_traffic(
-                    client_ip=ctx.client_ip,
-                    source_type="WEBSOCKET",
-                    endpoint=ctx.path,
-                    anomaly_type="WS_ORIGIN_RECHAZADO",
-                    detail=f"Origin WebSocket no autorizado: '{req_origin}'",
-                    user_agent=ctx.headers.get("user-agent", ""),
+                    SuspiciousTrafficEvent(
+                        client_ip=ctx.client_ip,
+                        source_type="WEBSOCKET",
+                        endpoint=ctx.path,
+                        anomaly_type="WS_ORIGIN_RECHAZADO",
+                        detail=f"Origin WebSocket no autorizado: '{req_origin}'",
+                        user_agent=ctx.headers.get("user-agent", ""),
+                    )
                 )
                 logging.warning(f"WebSocket upgrade rechazado por Origin no permitido: {req_origin}")
                 await self._write_http_response(ctx.writer, "403 Forbidden", b"")
@@ -385,12 +396,14 @@ class MeshCoreWebServer:
         status_code, resp_json = await self.router.handle_request(ctx.method, ctx.path, ctx.body_dict)
         duration_ms = (time.perf_counter() - ctx.t_start) * 1000.0 if ctx.t_start > 0 else 0.0
         SecurityTrafficInspector.log_http_access(
-            client_ip=ctx.client_ip,
-            method=ctx.method,
-            path=ctx.path,
-            status_code=status_code,
-            duration_ms=duration_ms,
-            user_agent=ctx.headers.get("user-agent", ""),
+            HttpAccessEvent(
+                client_ip=ctx.client_ip,
+                method=ctx.method,
+                path=ctx.path,
+                status_code=status_code,
+                duration_ms=duration_ms,
+                user_agent=ctx.headers.get("user-agent", ""),
+            )
         )
         resp_bytes = json.dumps(resp_json, indent=2).encode("utf-8")
         await self._write_http_response(ctx.writer, f"{status_code} OK", resp_bytes, "application/json", cors_origin=ctx.cors_origin)
@@ -441,12 +454,14 @@ class MeshCoreWebServer:
         req_api_key = ctx.headers.get("x-api-key", "")
         if not hmac.compare_digest(req_api_key, api_key):
             SecurityTrafficInspector.log_suspicious_traffic(
-                client_ip=ctx.client_ip,
-                source_type="API-AUTH",
-                endpoint=ctx.path,
-                anomaly_type="AUTENTICACION_API_FALLIDA",
-                detail=f"Intento no autorizado a endpoint protegido '{ctx.path}'",
-                user_agent=ctx.headers.get("user-agent", ""),
+                SuspiciousTrafficEvent(
+                    client_ip=ctx.client_ip,
+                    source_type="API-AUTH",
+                    endpoint=ctx.path,
+                    anomaly_type="AUTENTICACION_API_FALLIDA",
+                    detail=f"Intento no autorizado a endpoint protegido '{ctx.path}'",
+                    user_agent=ctx.headers.get("user-agent", ""),
+                )
             )
             resp_bytes = json.dumps({"error": "Unauthorized"}).encode("utf-8")
             await self._write_http_response(ctx.writer, "401 Unauthorized", resp_bytes, "application/json", cors_origin=ctx.cors_origin)
@@ -736,12 +751,14 @@ class MeshCoreWebServer:
         # Seguridad: verificación canónica (defensa en profundidad)
         if not self._is_within_static_root(target_file):
             SecurityTrafficInspector.log_suspicious_traffic(
-                client_ip=ctx.client_ip,
-                source_type="HTTP-STATIC",
-                endpoint=ctx.path,
-                anomaly_type="ESCAPE_RAIZ_ESTATICOS",
-                detail=f"Intento de acceso fuera de static_dir: '{target_file}'",
-                user_agent=ctx.headers.get("user-agent", ""),
+                SuspiciousTrafficEvent(
+                    client_ip=ctx.client_ip,
+                    source_type="HTTP-STATIC",
+                    endpoint=ctx.path,
+                    anomaly_type="ESCAPE_RAIZ_ESTATICOS",
+                    detail=f"Intento de acceso fuera de static_dir: '{target_file}'",
+                    user_agent=ctx.headers.get("user-agent", ""),
+                )
             )
             await self._write_http_response(ctx.writer, "403 Forbidden", b"", cors_origin=ctx.cors_origin)
             return
@@ -752,12 +769,14 @@ class MeshCoreWebServer:
             else:
                 duration_ms = (time.perf_counter() - ctx.t_start) * 1000.0 if ctx.t_start > 0 else 0.0
                 SecurityTrafficInspector.log_http_access(
-                    client_ip=ctx.client_ip,
-                    method=ctx.method,
-                    path=ctx.path,
-                    status_code=404,
-                    duration_ms=duration_ms,
-                    user_agent=ctx.headers.get("user-agent", ""),
+                    HttpAccessEvent(
+                        client_ip=ctx.client_ip,
+                        method=ctx.method,
+                        path=ctx.path,
+                        status_code=404,
+                        duration_ms=duration_ms,
+                        user_agent=ctx.headers.get("user-agent", ""),
+                    )
                 )
                 await self._write_http_response(ctx.writer, "404 Not Found", b"404 Not Found", cors_origin=ctx.cors_origin)
                 return
@@ -770,12 +789,14 @@ class MeshCoreWebServer:
             file_bytes = target_file.read_bytes()
             duration_ms = (time.perf_counter() - ctx.t_start) * 1000.0 if ctx.t_start > 0 else 0.0
             SecurityTrafficInspector.log_http_access(
-                client_ip=ctx.client_ip,
-                method=ctx.method,
-                path=ctx.path,
-                status_code=200,
-                duration_ms=duration_ms,
-                user_agent=ctx.headers.get("user-agent", ""),
+                HttpAccessEvent(
+                    client_ip=ctx.client_ip,
+                    method=ctx.method,
+                    path=ctx.path,
+                    status_code=200,
+                    duration_ms=duration_ms,
+                    user_agent=ctx.headers.get("user-agent", ""),
+                )
             )
             cache_header = "Cache-Control: no-cache, no-store, must-revalidate" if target_file.suffix == ".html" else "Cache-Control: public, max-age=60"
             resp = HttpResponse(

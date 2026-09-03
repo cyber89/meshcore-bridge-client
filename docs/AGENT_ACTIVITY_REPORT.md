@@ -6,6 +6,23 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Refactorización Clean Code de SecurityTrafficInspector con Eventos de Auditoría Tipados
+- **Fecha**: 2026-09-02
+- **Estado**: ✅ COMPLETADO (Introducción de HttpAccessEvent y SuspiciousTrafficEvent, reducción de firmas de 7 a 2 parámetros en log_http_access y log_suspicious_traffic; actualización de todos los puntos de llamada en http_server.py y tcp_companion_server.py; 0 code smells en security_inspector.py y 100% PASS en simulación)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - `SecurityTrafficInspector` en `src/web/security_inspector.py` contenía métodos de auditoría (`log_http_access` y `log_suspicious_traffic`) con firmas de 7 parámetros que infringían los estándares de Clean Code.
+  - Se requería encapsular los parámetros de auditoría en dataclasses estructurados e inmutables con slots (`HttpAccessEvent`, `SuspiciousTrafficEvent`), reducir las firmas a 2 parámetros y sincronizar todas las llamadas en el servidor web y en el servidor TCP companion.
+- **Acciones Realizadas**:
+  - **Dataclasses Tipados en [`src/web/security_inspector.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/security_inspector.py)**:
+    - Se definieron `@dataclass(slots=True) class HttpAccessEvent` (client_ip, method, path, status_code, duration_ms, user_agent) y `@dataclass(slots=True) class SuspiciousTrafficEvent` (client_ip, source_type, endpoint, anomaly_type, detail, user_agent).
+    - `log_http_access(cls, event: HttpAccessEvent)`: Reducida de 7 a 2 parámetros (`cls`, `event`).
+    - `log_suspicious_traffic(cls, event: SuspiciousTrafficEvent)`: Reducida de 7 a 2 parámetros (`cls`, `event`).
+  - **Actualización de Clientes Consumidores**:
+    - [`src/web/http_server.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/http_server.py): Adaptadas 6 llamadas de seguridad perimetral y 3 de acceso HTTP/REST construyendo instancias de eventos.
+    - [`src/tcp_companion_server.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/tcp_companion_server.py): Adaptadas 5 llamadas de auditoría TCP (filtrado IP, tokens inválidos, timeouts de auth, tramas sobredimensionadas).
+- **Módulos Modificados**: `src/web/security_inspector.py`, `src/web/http_server.py`, `src/tcp_companion_server.py`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Refactorización Clean Code del Servidor Web HTTP/WebSocket con Contextos Tipados
 - **Fecha**: 2026-09-02
 - **Estado**: ✅ COMPLETADO (Introducción de HttpRequestContext y HttpResponse, eliminación de firmas de 7 a 9 parámetros, descomposición de _handle_client de 134 líneas y _handle_websocket_handshake de 91 líneas en métodos modulares < 45 líneas; 0 code smells en http_server.py y 100% PASS en simulación)
