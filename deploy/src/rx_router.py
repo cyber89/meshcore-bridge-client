@@ -16,6 +16,7 @@ from typing import Any, Protocol
 import config
 from src.contact_manager import (
     NodeContactUpdate,
+    NodeDiscoveryEvent,
     NodeRegistry,
     PacketRecord,
     _safe_int,
@@ -419,12 +420,14 @@ class RxEventRouter:
         effective_role = "LOCAL" if is_local_sender else (role_val or ("REPEATER" if is_named_rep else "CLIENT"))
 
         is_new, contact_info = self._ctx.node_registry.discover_node(
-            public_key=sender,
-            name=sender_name if sender_name and sender_name != sender else None,
-            role=effective_role,
-            rssi=effective_rssi,
-            snr=effective_snr,
-            hops=effective_hops,
+            NodeDiscoveryEvent(
+                public_key=sender,
+                name=sender_name if sender_name and sender_name != sender else None,
+                role=effective_role,
+                rssi=effective_rssi,
+                snr=effective_snr,
+                hops=effective_hops,
+            )
         )
 
         if is_valid_node_key(contact_info.public_key):

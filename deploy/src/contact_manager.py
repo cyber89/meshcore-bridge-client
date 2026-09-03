@@ -204,6 +204,18 @@ INVALID_NODE_KEYS: set[str] = {
 }
 
 
+@dataclass(slots=True)
+class NodeDiscoveryEvent:
+    """Parámetros normalizados para el descubrimiento de un nodo en la red Mesh LoRa."""
+
+    public_key: str
+    name: str | None = None
+    role: str = "CLIENT"
+    rssi: int | None = None
+    snr: float | None = None
+    hops: int | None = None
+
+
 def is_valid_node_key(key: Any) -> bool:
     """Verifica si una clave pública es válida para registrar o descubrir un nodo."""
     if not key or not isinstance(key, str):
@@ -327,22 +339,13 @@ class NodeRegistry:
         existing = self._find_existing_key(raw_key, name)
         return existing if existing else raw_key.strip().lower()
 
-    def add_or_update(self, public_key: str, update: NodeContactUpdate) -> NodeContactInfo:
-        """Añade o actualiza la información de un nodo preservando métricas acumuladas y deduplicando prefijos."""
-        norm_key = public_key.strip().lower()
-        if not is_valid_node_key(norm_key):
-            return NodeContactInfo(
-                public_key="",
-                name="Invalid",
-                alias="Invalid",
-            )
-        clean_name_candidate = (update.name or "").strip()
-
-        # Buscar si ya existe una entrada para este nodo (evita duplicados de prefijo vs clave completa)
-        is_local_flag = update.is_local if update.is_local is not None else self.is_local_key(norm_key)
-        if update.role and str(update.role).upper() == "LOCAL":
-            is_local_flag = True
-
+    def _resolve_canonical_key_and_clean_locals(
+        self,
+        norm_key: str,
+        clean_name_candidate: str,
+        is_local_flag: bool,
+    ) -> tuple[str, NodeContactInfo | None]:
+        """Resuelve la clave canónica del nodo y purga duplicados locales o prefijos residuales."""
         existing_key = self._find_existing_key(norm_key, clean_name_candidate)
         existing: NodeContactInfo | None = None
 
@@ -366,7 +369,6 @@ class NodeRegistry:
                     if node.alias:
                         self._nodes_by_name.pop(node.alias.lower(), None)
         else:
-            # Determinar clave canónica para nodos remotos (preferir la más larga)
             canonical_key = norm_key
             if existing_key:
                 existing = self._nodes_by_key.get(existing_key)
@@ -375,27 +377,27 @@ class NodeRegistry:
                 elif existing_key != norm_key and existing_key in self._nodes_by_key:
                     del self._nodes_by_key[existing_key]
 
-        clean_name = clean_name_candidate or (existing.name if existing else f"Node_{canonical_key[:6]}")
-        clean_alias = (update.alias or "").strip() or (existing.alias if existing else clean_name)
-        now = time.time()
+        return canonical_key, existing
 
-        if is_local_flag:
-            role_default = "LOCAL"
-        else:
-            role_default = "CLIENT"
-
-        # Cálculo / Suavizado de LQI
-        eff_snr = None if is_local_flag else (update.last_snr if update.last_snr is not None else (existing.last_snr if existing else None))
-        eff_rssi = None if is_local_flag else (update.last_rssi if update.last_rssi is not None else (existing.last_rssi if existing else None))
-        eff_hops = 0 if is_local_flag else (update.hops if update.hops is not None else (existing.hops if existing else 0))
-
+    def _compute_node_lqi(
+        self,
+        update: NodeContactUpdate,
+        existing: NodeContactInfo | None,
+        is_local_flag: bool,
+    ) -> tuple[float, str]:
+        """Calcula y suaviza el puntaje LQI y su estado correspondiente."""
         if update.lqi_score is not None:
             calc_lqi = float(update.lqi_score)
             calc_status = update.lqi_status or LinkQualityEngine.classify_lqi_status(calc_lqi)
-        elif is_local_flag:
-            calc_lqi = 100.0
-            calc_status = LQIStatus.EXCELLENT.value
-        elif eff_snr is not None or eff_rssi is not None:
+            return calc_lqi, calc_status
+        if is_local_flag:
+            return 100.0, LQIStatus.EXCELLENT.value
+
+        eff_snr = update.last_snr if update.last_snr is not None else (existing.last_snr if existing else None)
+        eff_rssi = update.last_rssi if update.last_rssi is not None else (existing.last_rssi if existing else None)
+        eff_hops = update.hops if update.hops is not None else (existing.hops if existing else 0)
+
+        if eff_snr is not None or eff_rssi is not None:
             instant_lqi = LinkQualityEngine.compute_instant_lqi(eff_snr, eff_rssi, eff_hops or 0)
             prev_lqi = existing.lqi_score if existing else 0.0
             calc_lqi = LinkQualityEngine.update_ema_lqi(prev_lqi, instant_lqi)
@@ -404,6 +406,17 @@ class NodeRegistry:
             calc_lqi = existing.lqi_score if existing else 0.0
             calc_status = existing.lqi_status if existing else "UNKNOWN"
 
+        return calc_lqi, calc_status
+
+    def _resolve_node_role(
+        self,
+        clean_name: str,
+        clean_alias: str,
+        update: NodeContactUpdate,
+        existing: NodeContactInfo | None,
+        is_local_flag: bool,
+    ) -> str:
+        """Determina el rol canónico del nodo respetando la clasificación oficial y repetidores."""
         name_upper = clean_name.upper()
         alias_upper = clean_alias.upper()
         is_named_repeater = (
@@ -414,21 +427,30 @@ class NodeRegistry:
             or "REPETIDOR" in name_upper or "REPETIDOR" in alias_upper
         )
         if is_local_flag:
-            final_role = "LOCAL"
-        elif is_named_repeater:
-            final_role = "REPEATER"
-        elif existing and existing.role in ("REPEATER", "ROUTER") and update.role == "SENSOR":
-            final_role = existing.role
-        elif update.role is not None:
-            final_role = update.role
-        elif existing and existing.role:
-            final_role = existing.role
-        else:
-            final_role = role_default
+            return "LOCAL"
+        if is_named_repeater:
+            return "REPEATER"
+        if existing and existing.role in ("REPEATER", "ROUTER") and update.role == "SENSOR":
+            return existing.role
+        if update.role is not None:
+            return update.role
+        if existing and existing.role:
+            return existing.role
+        return "CLIENT"
 
-        calc_route = update.best_route if update.best_route is not None else (existing.best_route if existing else "DIRECT")
-
-        contact = NodeContactInfo(
+    def _build_updated_contact(
+        self,
+        canonical_key: str,
+        update: NodeContactUpdate,
+        existing: NodeContactInfo | None,
+        identity_meta: tuple[str, str, str, bool],
+        rf_meta: tuple[int, int | None, float | None, float, str, str],
+    ) -> NodeContactInfo:
+        """Ensambla el objeto NodeContactInfo fusionando los datos anteriores con la actualización."""
+        clean_name, clean_alias, final_role, is_local_flag = identity_meta
+        eff_hops, eff_rssi, eff_snr, calc_lqi, calc_status, calc_route = rf_meta
+        now = time.time()
+        return NodeContactInfo(
             public_key=canonical_key,
             name=clean_name,
             alias=clean_alias,
@@ -484,6 +506,40 @@ class NodeRegistry:
             is_favorite=update.is_favorite if update.is_favorite is not None else (existing.is_favorite if existing else False),
         )
 
+    def add_or_update(self, public_key: str, update: NodeContactUpdate) -> NodeContactInfo:
+        """Añade o actualiza la información de un nodo preservando métricas acumuladas y deduplicando prefijos."""
+        norm_key = public_key.strip().lower()
+        if not is_valid_node_key(norm_key):
+            return NodeContactInfo(
+                public_key="",
+                name="Invalid",
+                alias="Invalid",
+            )
+        clean_name_candidate = (update.name or "").strip()
+
+        is_local_flag = bool(update.is_local if update.is_local is not None else self.is_local_key(norm_key))
+        if update.role and str(update.role).upper() == "LOCAL":
+            is_local_flag = True
+
+        canonical_key, existing = self._resolve_canonical_key_and_clean_locals(norm_key, clean_name_candidate, is_local_flag)
+        clean_name = clean_name_candidate or (existing.name if existing else f"Node_{canonical_key[:6]}")
+        clean_alias = (update.alias or "").strip() or (existing.alias if existing else clean_name)
+        final_role = self._resolve_node_role(clean_name, clean_alias, update, existing, is_local_flag)
+
+        calc_lqi, calc_status = self._compute_node_lqi(update, existing, is_local_flag)
+        eff_hops = 0 if is_local_flag else (update.hops if update.hops is not None else (existing.hops if existing else 0))
+        eff_rssi = None if is_local_flag else (update.last_rssi if update.last_rssi is not None else (existing.last_rssi if existing else None))
+        eff_snr = None if is_local_flag else (update.last_snr if update.last_snr is not None else (existing.last_snr if existing else None))
+        calc_route = update.best_route if update.best_route is not None else (existing.best_route if existing else "DIRECT")
+
+        contact = self._build_updated_contact(
+            canonical_key,
+            update,
+            existing,
+            (clean_name, clean_alias, final_role, is_local_flag),
+            (eff_hops, eff_rssi, eff_snr, calc_lqi, calc_status, calc_route),
+        )
+
         self._nodes_by_key[canonical_key] = contact
         self._nodes_by_name[clean_name.lower()] = canonical_key
         if clean_alias:
@@ -491,53 +547,8 @@ class NodeRegistry:
 
         return contact
 
-    def get_all_lqi_metrics(self) -> list[dict[str, Any]]:
-        """Retorna las métricas LQI y estado de enlace de todos los nodos registrados."""
-        now = time.time()
-        results = []
-        for contact in self._nodes_by_key.values():
-            if contact.is_local:
-                decayed_lqi = 100.0
-                status = LQIStatus.EXCELLENT.value
-            else:
-                decayed_lqi = LinkQualityEngine.apply_time_decay(contact.lqi_score, contact.last_seen or now, now)
-                status = LinkQualityEngine.classify_lqi_status(decayed_lqi)
-
-            results.append({
-                "public_key": contact.public_key,
-                "key_prefix": contact.public_key[:8] if len(contact.public_key) >= 8 else contact.public_key,
-                "name": contact.name,
-                "alias": contact.alias,
-                "role": contact.role,
-                "lqi_score": round(decayed_lqi, 1),
-                "lqi_status": status,
-                "best_route": contact.best_route,
-                "last_snr": contact.last_snr,
-                "last_rssi": contact.last_rssi,
-                "hops": contact.hops,
-                "is_local": contact.is_local,
-                "last_seen_seconds_ago": round(max(0.0, now - contact.last_seen), 1) if contact.last_seen else None,
-            })
-        return results
-
-    def discover_node(
-        self,
-        public_key: str,
-        name: str | None = None,
-        role: str = "CLIENT",
-        rssi: int | None = None,
-        snr: float | None = None,
-        hops: int | None = None,
-    ) -> tuple[bool, NodeContactInfo]:
-        """
-        Descubre un nuevo nodo en el aire si no existía previamente.
-        Retorna (is_new, contact_info).
-        """
-        norm_key = public_key.strip().lower()
-        if not is_valid_node_key(norm_key):
-            return False, NodeContactInfo(public_key="", name="Invalid", alias="Invalid")
-
-        clean_name = (name or f"Node_{norm_key[:6]}").strip()
+    def _classify_advert_role(self, clean_name: str, role: str) -> tuple[str, bool]:
+        """Clasifica el rol de un nodo descubierto y si es parte de la infraestructura de red."""
         name_upper = clean_name.upper()
         role_upper = (role or "CLIENT").upper()
         is_infrastructure = (
@@ -550,49 +561,80 @@ class NodeRegistry:
             or "BBS" in name_upper
         )
         effective_role = "REPEATER" if ("REPEATER" in name_upper or name_upper.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-"))) else role
+        return effective_role, is_infrastructure
 
-        # Si corresponde a la estación base local, marcar como LOCAL y no auto_discovered
-        if self.is_local_key(norm_key):
-            contact = self.add_or_update(
-                norm_key,
-                NodeContactUpdate(
-                    name=clean_name,
-                    role="LOCAL",
-                    is_local=True,
-                    auto_discovered=False,
-                    last_rssi=None,
-                    last_snr=None,
-                    hops=0,
-                ),
+    def _handle_local_discovery(self, norm_key: str, clean_name: str) -> tuple[bool, NodeContactInfo]:
+        """Maneja el descubrimiento de la propia estación base local."""
+        contact = self.add_or_update(
+            norm_key,
+            NodeContactUpdate(
+                name=clean_name,
+                role="LOCAL",
+                is_local=True,
+                auto_discovered=False,
+                last_rssi=None,
+                last_snr=None,
+                hops=0,
+            ),
+        )
+        return False, contact
+
+    def discover_node(
+        self,
+        event: NodeDiscoveryEvent | str,
+        **kwargs: Any,
+    ) -> tuple[bool, NodeContactInfo]:
+        """
+        Descubre un nuevo nodo en el aire si no existía previamente.
+        Acepta un objeto estructurado NodeDiscoveryEvent o parámetros legacy en kwargs.
+        Retorna (is_new, contact_info).
+        """
+        if isinstance(event, NodeDiscoveryEvent):
+            evt = event
+        else:
+            evt = NodeDiscoveryEvent(
+                public_key=event,
+                name=kwargs.get("name"),
+                role=str(kwargs.get("role", "CLIENT")),
+                rssi=kwargs.get("rssi"),
+                snr=kwargs.get("snr"),
+                hops=kwargs.get("hops"),
             )
-            return False, contact
 
-        existing_key = self._find_existing_key(norm_key, name)
+        norm_key = evt.public_key.strip().lower()
+        if not is_valid_node_key(norm_key):
+            return False, NodeContactInfo(public_key="", name="Invalid", alias="Invalid")
+
+        clean_name = (evt.name or f"Node_{norm_key[:6]}").strip()
+        effective_role, is_infrastructure = self._classify_advert_role(clean_name, evt.role)
+
+        if self.is_local_key(norm_key):
+            return self._handle_local_discovery(norm_key, clean_name)
+
+        existing_key = self._find_existing_key(norm_key, evt.name)
         if existing_key:
             existing = self._nodes_by_key[existing_key]
             updated = self.add_or_update(
                 existing_key,
                 NodeContactUpdate(
-                    last_rssi=rssi,
-                    last_snr=snr,
-                    hops=hops,
-                    name=name if name and name != existing.name else None,
+                    last_rssi=evt.rssi,
+                    last_snr=evt.snr,
+                    hops=evt.hops,
+                    name=evt.name if evt.name and evt.name != existing.name else None,
                     role=effective_role if existing.role == "CLIENT" and is_infrastructure else None,
                 ),
             )
             return False, updated
 
-        # Si es un nodo de infraestructura (repetidor, sensor, sala), no marcar como auto_discovered para la libreta
         is_auto_discovered = not is_infrastructure
-
         contact = self.add_or_update(
             norm_key,
             NodeContactUpdate(
                 name=clean_name,
                 role=effective_role,
-                last_rssi=rssi,
-                last_snr=snr,
-                hops=hops,
+                last_rssi=evt.rssi,
+                last_snr=evt.snr,
+                hops=evt.hops,
                 auto_discovered=is_auto_discovered,
                 discovery_time=time.time(),
                 verified_identity=len(norm_key) >= 12,
@@ -829,19 +871,8 @@ class NodeRegistry:
             and not self.is_repeater_key(str(n.get("public_key", "")))
         ]
 
-    def get_analytics_summary(self) -> dict[str, Any]:
-        """Calcula el resumen analítico avanzado (Top Nodos, Top Clientes, Top Errores)."""
-        nodes_list = [c.to_dict() for c in self._nodes_by_key.values()]
-
-        # 1. Top Nodos por Tráfico (RX + TX)
-        top_traffic = heapq.nlargest(10, nodes_list, key=lambda n: int(str(n.get("total_packets", 0))))
-
-        # 2. Top Nodos por Calidad de Señal (SNR / RSSI) - Solo nodos con mediciones reales
-        measured_nodes = [n for n in nodes_list if n.get("last_snr") is not None]
-        top_best_signal = heapq.nlargest(5, measured_nodes, key=lambda n: float(n.get("last_snr", 0.0)))
-        top_worst_signal = heapq.nsmallest(5, measured_nodes, key=lambda n: float(n.get("last_snr", 0.0)))
-
-        # 3. Top Routers & Repetidores (Solo nodos con rol REPEATER / ROUTER o identificados como infraestructura)
+    def _extract_top_repeaters(self, nodes_list: list[dict[str, Any]], direct_remote_nodes_count: int) -> list[dict[str, Any]]:
+        """Extrae y filtra los nodos de infraestructura (repetidores y routers) con mayor conectividad."""
         def is_repeater_node(n: dict[str, Any]) -> bool:
             if n.get("is_local") or str(n.get("role")).upper() == "LOCAL":
                 return False
@@ -858,35 +889,40 @@ class NodeRegistry:
                 or "REPETIDOR" in name_str
             )
 
-        direct_remote_nodes_count = len([n for n in nodes_list if not n.get("is_local") and (n.get("hops") == 0 or n.get("hops") is None)])
-
         repeaters_list = []
         for n in nodes_list:
             if is_repeater_node(n):
                 r_dict = dict(n)
-                # Clientes vecinos: si el repetidor reportó lista de vecinos, usar su longitud; si no, calcular nodos con enlace
                 neighbors_list = r_dict.get("neighbors") or []
                 clients_count = len(neighbors_list) if neighbors_list else int(r_dict.get("connected_clients_count") or 0)
                 if clients_count == 0:
                     clients_count = max(1, direct_remote_nodes_count)
                 r_dict["connected_clients_count"] = clients_count
                 if r_dict.get("tx_power") is None:
-                    r_dict["tx_power"] = 20  # Potencia estándar de transmisión de repetidores LoRa MeshCore
+                    r_dict["tx_power"] = 20
                 if r_dict.get("hop_limit") is None:
-                    r_dict["hop_limit"] = 3   # Límite estándar de saltos en repetidores MeshCore
+                    r_dict["hop_limit"] = 3
                 repeaters_list.append(r_dict)
 
-        top_repeaters = heapq.nlargest(5, repeaters_list, key=lambda n: int(str(n.get("connected_clients_count", 0))))
+        return heapq.nlargest(5, repeaters_list, key=lambda n: int(str(n.get("connected_clients_count", 0))))
 
-        # 4. Top Errores
-        error_items: list[dict[str, Any]] = [
-            {"category": k, "count": v} for k, v in self.error_categories.items()
-        ]
-        sorted_errors = sorted(
-            error_items,
-            key=lambda e: int(str(e["count"])),
-            reverse=True,
-        )
+    def get_analytics_summary(self) -> dict[str, Any]:
+        """Calcula el resumen analítico avanzado (Top Nodos, Top Clientes, Top Errores)."""
+        nodes_list = [c.to_dict() for c in self._nodes_by_key.values()]
+
+        # 1. Top Nodos por Tráfico y Señal
+        top_traffic = heapq.nlargest(10, nodes_list, key=lambda n: int(str(n.get("total_packets", 0))))
+        measured_nodes = [n for n in nodes_list if n.get("last_snr") is not None]
+        top_best_signal = heapq.nlargest(5, measured_nodes, key=lambda n: float(n.get("last_snr", 0.0)))
+        top_worst_signal = heapq.nsmallest(5, measured_nodes, key=lambda n: float(n.get("last_snr", 0.0)))
+
+        # 2. Top Routers & Repetidores
+        direct_remote_count = len([n for n in nodes_list if not n.get("is_local") and (n.get("hops") == 0 or n.get("hops") is None)])
+        top_repeaters = self._extract_top_repeaters(nodes_list, direct_remote_count)
+
+        # 3. Top Errores y Totales Globales
+        error_items: list[dict[str, Any]] = [{"category": k, "count": v} for k, v in self.error_categories.items()]
+        sorted_errors = sorted(error_items, key=lambda e: int(str(e["count"])), reverse=True)
 
         total_rx = sum(int(str(n.get("rx_packets", 0))) for n in nodes_list)
         total_tx = sum(int(str(n.get("tx_packets", 0))) for n in nodes_list)
@@ -951,6 +987,70 @@ class NodeRegistry:
             logging.warning(f"Error guardando NodeRegistry en {target_path}: {e}")
             return False
 
+    def _deserialize_node_contact(self, nd: dict[str, Any]) -> NodeContactInfo | None:
+        """Reconstruye un objeto NodeContactInfo a partir de un diccionario serializado."""
+        pk = nd.get("public_key")
+        if not pk or not is_valid_node_key(pk):
+            return None
+
+        raw_neighbors = nd.get("neighbors", ())
+        neighbors_tuple = tuple(raw_neighbors) if isinstance(raw_neighbors, (list, tuple)) else ()
+
+        return NodeContactInfo(
+            public_key=str(pk).strip().lower(),
+            name=str(nd.get("name", "")),
+            alias=str(nd.get("alias", "")),
+            role=str(nd.get("role", "CLIENT")),
+            hops=nd.get("hops"),
+            last_rssi=nd.get("last_rssi"),
+            last_snr=nd.get("last_snr"),
+            battery_pct=nd.get("battery_pct"),
+            last_seen=float(nd.get("last_seen", 0.0)),
+            rx_packets=int(nd.get("rx_packets", 0)),
+            tx_packets=int(nd.get("tx_packets", 0)),
+            error_count=int(nd.get("error_count", 0)),
+            connected_clients_count=int(nd.get("connected_clients_count", 0)),
+            neighbors=neighbors_tuple,
+            temperature_c=nd.get("temperature_c"),
+            humidity_pct=nd.get("humidity_pct"),
+            pressure_hpa=nd.get("pressure_hpa"),
+            voltage_v=nd.get("voltage_v"),
+            solar_v=nd.get("solar_v"),
+            latitude=nd.get("latitude"),
+            longitude=nd.get("longitude"),
+            altitude_m=nd.get("altitude_m"),
+            uptime=nd.get("uptime"),
+            clock=nd.get("clock"),
+            airtime_ms=nd.get("airtime_ms"),
+            noise_floor_dbm=nd.get("noise_floor_dbm"),
+            packets_sent=nd.get("packets_sent"),
+            packets_recv=nd.get("packets_recv"),
+            duplicate_packets=nd.get("duplicate_packets"),
+            packet_errors=nd.get("packet_errors"),
+            queue_len=nd.get("queue_len"),
+            owner_name=nd.get("owner_name"),
+            owner_info=nd.get("owner_info"),
+            firmware_version=nd.get("firmware_version"),
+            hardware_board=nd.get("hardware_board"),
+            advert_interval=nd.get("advert_interval"),
+            repeat_enabled=nd.get("repeat_enabled"),
+            tx_power=nd.get("tx_power"),
+            hop_limit=nd.get("hop_limit"),
+            frequency=nd.get("frequency"),
+            spreading_factor=nd.get("spreading_factor"),
+            bandwidth=nd.get("bandwidth"),
+            coding_rate=nd.get("coding_rate"),
+            fixed_position=nd.get("fixed_position"),
+            is_local=bool(nd.get("is_local", False)),
+            auto_discovered=bool(nd.get("auto_discovered", False)),
+            discovery_time=float(nd.get("discovery_time", 0.0)),
+            verified_identity=bool(nd.get("verified_identity", False)),
+            is_favorite=bool(nd.get("is_favorite", False)),
+            lqi_score=float(nd.get("lqi_score", 0.0)),
+            lqi_status=str(nd.get("lqi_status", "UNKNOWN")),
+            best_route=str(nd.get("best_route", "DIRECT")),
+        )
+
     def load_from_file(self, filepath: str | Path | None = None) -> int:
         """Carga la libreta de contactos y estado de nodos desde un archivo JSON."""
         target_str = str(filepath or os.getenv("NODE_REGISTRY_STORAGE_PATH") or os.path.join("data", "node_registry.json"))
@@ -961,70 +1061,10 @@ class NodeRegistry:
             with open(target_path, encoding="utf-8") as f:
                 data = json.load(f)
             loaded_count = 0
-            raw_nodes = data.get("nodes", [])
-            for nd in raw_nodes:
-                pk = nd.get("public_key")
-                if not pk or not is_valid_node_key(pk):
+            for nd in data.get("nodes", []):
+                contact = self._deserialize_node_contact(nd)
+                if not contact:
                     continue
-                # Asegurar que neighbors sea una tupla
-                raw_neighbors = nd.get("neighbors", ())
-                neighbors_tuple = tuple(raw_neighbors) if isinstance(raw_neighbors, (list, tuple)) else ()
-
-                # Construir campos de NodeContactInfo
-                contact = NodeContactInfo(
-                    public_key=str(pk).strip().lower(),
-                    name=str(nd.get("name", "")),
-                    alias=str(nd.get("alias", "")),
-                    role=str(nd.get("role", "CLIENT")),
-                    hops=nd.get("hops"),
-                    last_rssi=nd.get("last_rssi"),
-                    last_snr=nd.get("last_snr"),
-                    battery_pct=nd.get("battery_pct"),
-                    last_seen=float(nd.get("last_seen", 0.0)),
-                    rx_packets=int(nd.get("rx_packets", 0)),
-                    tx_packets=int(nd.get("tx_packets", 0)),
-                    error_count=int(nd.get("error_count", 0)),
-                    connected_clients_count=int(nd.get("connected_clients_count", 0)),
-                    neighbors=neighbors_tuple,
-                    temperature_c=nd.get("temperature_c"),
-                    humidity_pct=nd.get("humidity_pct"),
-                    pressure_hpa=nd.get("pressure_hpa"),
-                    voltage_v=nd.get("voltage_v"),
-                    solar_v=nd.get("solar_v"),
-                    latitude=nd.get("latitude"),
-                    longitude=nd.get("longitude"),
-                    altitude_m=nd.get("altitude_m"),
-                    uptime=nd.get("uptime"),
-                    clock=nd.get("clock"),
-                    airtime_ms=nd.get("airtime_ms"),
-                    noise_floor_dbm=nd.get("noise_floor_dbm"),
-                    packets_sent=nd.get("packets_sent"),
-                    packets_recv=nd.get("packets_recv"),
-                    duplicate_packets=nd.get("duplicate_packets"),
-                    packet_errors=nd.get("packet_errors"),
-                    queue_len=nd.get("queue_len"),
-                    owner_name=nd.get("owner_name"),
-                    owner_info=nd.get("owner_info"),
-                    firmware_version=nd.get("firmware_version"),
-                    hardware_board=nd.get("hardware_board"),
-                    advert_interval=nd.get("advert_interval"),
-                    repeat_enabled=nd.get("repeat_enabled"),
-                    tx_power=nd.get("tx_power"),
-                    hop_limit=nd.get("hop_limit"),
-                    frequency=nd.get("frequency"),
-                    spreading_factor=nd.get("spreading_factor"),
-                    bandwidth=nd.get("bandwidth"),
-                    coding_rate=nd.get("coding_rate"),
-                    fixed_position=nd.get("fixed_position"),
-                    is_local=bool(nd.get("is_local", False)),
-                    auto_discovered=bool(nd.get("auto_discovered", False)),
-                    discovery_time=float(nd.get("discovery_time", 0.0)),
-                    verified_identity=bool(nd.get("verified_identity", False)),
-                    is_favorite=bool(nd.get("is_favorite", False)),
-                    lqi_score=float(nd.get("lqi_score", 0.0)),
-                    lqi_status=str(nd.get("lqi_status", "UNKNOWN")),
-                    best_route=str(nd.get("best_route", "DIRECT")),
-                )
                 self._nodes_by_key[contact.public_key] = contact
                 if contact.name:
                     self._nodes_by_name[contact.name.lower()] = contact.public_key

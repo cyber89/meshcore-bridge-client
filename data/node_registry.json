@@ -1,6 +1,6 @@
 {
   "local_pubkey": "",
-  "saved_at": 1788398703.2969654,
+  "saved_at": 1788399159.5140955,
   "nodes": [
     {
       "public_key": "aabbcc112233",
@@ -11,7 +11,7 @@
       "last_rssi": null,
       "last_snr": null,
       "battery_pct": null,
-      "last_seen": 1788398703.2964125,
+      "last_seen": 1788399159.5140955,
       "rx_packets": 0,
       "tx_packets": 0,
       "error_count": 0,

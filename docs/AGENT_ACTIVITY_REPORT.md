@@ -6,6 +6,35 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Refactorización Clean Code de NodeRegistry en contact_manager.py y Dataclass NodeDiscoveryEvent
+- **Fecha**: 2026-09-02
+- **Estado**: ✅ COMPLETADO (Descomposición modular de add_or_update, discover_node, get_analytics_summary y load_from_file; adopción del dataclass NodeDiscoveryEvent; 100% de métodos de NodeRegistry limpios y bajo límites de líneas y parámetros)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - `NodeRegistry` en `contact_manager.py` acumulaba múltiples métodos con olores de código: `add_or_update` (162 líneas), `discover_node` (78 líneas y 7 parámetros), `get_analytics_summary` (76 líneas) y `load_from_file` (92 líneas).
+  - Se requería modularizar los métodos extensos en submétodos privados especializados, reducir la firma de parámetros introduciendo el dataclass `NodeDiscoveryEvent`, y asegurar 100% de compatibilidad con `advert_handler.py` y `rx_router.py`.
+- **Acciones Realizadas**:
+  - **Nuevo Dataclass `NodeDiscoveryEvent`**:
+    - Definido en [`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py) con `slots=True` encapsulando `public_key`, `name`, `role`, `rssi`, `snr` y `hops`.
+  - **Descomposición Modular de `NodeRegistry`**:
+    - `_resolve_canonical_key_and_clean_locals()`: Deduplicación canónica O(1) de claves completas vs prefijos y purga segura de entradas locales duplicadas.
+    - `_compute_node_lqi()`: Cálculo determinista y suavizado EMA de la métrica LQI y clasificación de estado.
+    - `_resolve_node_role()`: Determinación de rol canónico (`LOCAL`, `REPEATER`, `ROUTER`, `SENSOR`, `CLIENT`) respetando el firmware MeshCore.
+    - `_build_updated_contact()`: Ensamblado limpio del objeto `NodeContactInfo` fusionando telemetría previa y nueva.
+    - `_classify_advert_role()` y `_handle_local_discovery()`: Clasificación de infraestructura de red y manejo de la estación base local en `discover_node()`.
+    - `_extract_top_repeaters()`: Filtrado y ordenación analítica de repetidores en `get_analytics_summary()`.
+    - `_deserialize_node_contact()`: Reconstrucción estructurada de contactos desde persistencia JSON en `load_from_file()`.
+  - **Actualización de Clientes de Descubrimiento**:
+    - [`src/routers/advert_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/routers/advert_handler.py): Actualizada la llamada para instanciar y pasar `NodeDiscoveryEvent`.
+    - [`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py): Actualizada la presencia de nodos para pasar `NodeDiscoveryEvent`.
+  - **Auditoría y Verificación de Calidad**:
+    - 45/45 módulos de producción importados sin errores.
+    - `mypy --strict`: 100% tipado estático verificado.
+    - `detect_code_smells.py`: Cero métodos fuera de límite de líneas o parámetros en `contact_manager.py`.
+    - REST API contracts: 100% PASS (HTTP 200, 400, 404).
+    - Bandit SAST: Cero vulnerabilidades encontradas.
+- **Módulos Modificados**: `src/contact_manager.py`, `src/routers/advert_handler.py`, `src/rx_router.py`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Descomposición Modular de la API REST en Controladores de Dominio y Adopción de RFC 7807 Problem Details
 - **Fecha**: 2026-09-02
 - **Estado**: ✅ COMPLETADO (Descomposición de api_router.py de 1,138 líneas y handle_request de 407 líneas en controladores por dominio en src/web/controllers/, inyección de dependencias con ApiContext y especificación RFC 7807)

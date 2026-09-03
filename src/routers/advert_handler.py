@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from src.contact_manager import NodeContactUpdate, is_valid_node_key
+from src.contact_manager import NodeContactUpdate, NodeDiscoveryEvent, is_valid_node_key
 from src.routers.base import BaseRxHandler, RxMeta
 
 
@@ -90,12 +90,14 @@ class AdvertHandler(BaseRxHandler):
             c_bat = _safe_int(c_item.get("battery_pct", c_item.get("battery", c_item.get("batt"))))
 
             is_c_new, c_contact_info = router_ctx.node_registry.discover_node(
-                public_key=c_pk,
-                name=c_name,
-                role=c_role,
-                rssi=meta.effective_rssi,
-                snr=meta.effective_snr,
-                hops=meta.effective_hops,
+                NodeDiscoveryEvent(
+                    public_key=c_pk,
+                    name=c_name,
+                    role=c_role,
+                    rssi=meta.effective_rssi,
+                    snr=meta.effective_snr,
+                    hops=meta.effective_hops,
+                )
             )
             router_ctx.node_registry.add_or_update(
                 c_pk,
