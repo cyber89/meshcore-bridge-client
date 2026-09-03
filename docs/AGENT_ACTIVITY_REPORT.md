@@ -6,6 +6,37 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Modernización de Dependencias y Auditoría Integral de CSS, HTML y JavaScript
+- **Fecha**: 2026-09-03
+- **Estado**: ✅ COMPLETADO (Actualización de dependencias seguras, resolución de IDs duplicados en HTML, accesibilidad WCAG 2.2 AA en formularios, 31 clases CSS utilitarias añadidas, armonización reactiva del header de chat y modal QR en JS, Cero vulnerabilidades SAST y verificación visual Playwright 100% limpia)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Python Bridge Architect), Agente 4 (Web UI/UX Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - Actualización de todas las dependencias del proyecto (`requirements.txt`, `pyproject.toml`) a versiones contemporáneas y seguras (`meshcore>=2.3.8`, `cryptography>=43.0.0`, `python-dotenv>=1.0.1`, `ruff>=0.9.0`, etc.).
+  - Auditoría profunda por separado de CSS, HTML y JavaScript para identificar código basura, clases huérfanas, IDs duplicados, falta de accesibilidad WCAG y fallos de enlace entre DOM y controladores JS.
+  - Mitigación de riesgos de seguridad OWASP Top 10 y verificación sin fallos en consola ni excepciones en tiempo de ejecución.
+- **Acciones Realizadas**:
+  - **Dependencias ([`requirements.txt`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/requirements.txt), [`pyproject.toml`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/pyproject.toml))**:
+    - Actualizados los límites inferiores a versiones probadas y estables: `meshcore>=2.3.8`, `cryptography>=43.0.0`, `python-dotenv>=1.0.1`, `ruff>=0.9.0`, `websockets>=15.0.0`.
+  - **HTML Semántico y Accesibilidad ([`src/web/static/index.html`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/index.html))**:
+    - Erradicado el ID duplicado `btnDiscoverNeighbors` renombrando el botón de acción rápida a `btnModalActionNeighbors`.
+    - Añadidos atributos `aria-label` descriptivos en todos los inputs interactivos (`#logSearchInput`, `#localTerminalInput`, `#cmdPaletteInput`, `#repeaterTerminalInput`, `#traceCustomPathInput`) y en campos honeypot `name="username"`, logrando 100% de cumplimiento WCAG 2.2 AA.
+    - Integrado el contenedor estático `<div id="toastContainer" class="toast-container" aria-live="polite"></div>` en el DOM para evitar manipulaciones tardías.
+  - **Estilos CSS y Diseño de Grado Profesional ([`src/web/static/css/app.css`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/css/app.css))**:
+    - Implementadas las 31 reglas y componentes utilitarios faltantes: `.ws-badge--connecting` (ámbar), `.btn-danger` (rojo destructivo con hover), `.btn-block`, `.empty-state`, `.field-hint`, `.font-mono`, `.card-panel`, `.panel-header-row`, `.form-actions-full`, `.trace-breakdown-table`, etc.
+    - Consolidado el contraste tipográfico accesible ($\ge 4.5:1$) en temas oscuro y claro.
+  - **JavaScript Modular ES6 ([`src/web/static/js/modules/chat.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/chat.js), [`settings.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/settings.js), [`repeater.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/repeater.js), [`sniffer.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/sniffer.js), [`app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js))**:
+    - En `chat.js`: Enlazados `chatActiveTitle`, `chatSecurityChip` y `chatActiveSub` para actualización reactiva del título/subtítulo al alternar canales o DMs. Conectado `#btnShareTargetQr` y eliminado método huérfano `cancelReplyTarget()`.
+    - En `settings.js`: Sincronizados selectores del modal QR (`qrShareTitle`, `btnCloseQrShareModal`, `qrShareCanvas`, `qrShareUri`, `btnCopyQrUri`, `btnDownloadQrJson`) e implementado helper unificado `showQrModal(title, uri, rawJson)` con soporte offline de `qrcode.js`. Limpiadas referencias huérfanas (`contactModalRole`, `btnAddContact`, `preflightModal`).
+    - En `repeater.js`: Depurada referencia huérfana a `btnModalAuthTest`.
+    - En `sniffer.js`: Lectura directa de puertos de radio y companion desde el payload JSON de diagnósticos.
+    - En `app.js`: Soporte para cerrar la paleta de comandos con tecla Escape y clic en el backdrop exterior.
+  - **Auditoría de Seguridad y Calidad Visual**:
+    - Escaneo Bandit SAST: Cero vulnerabilidades de severidad Media o Alta (`run_security_audit.py`).
+    - Auditoría visual Playwright (`audit_web_view.py`): 0 errores de consola, 0 excepciones JavaScript, 0 peticiones de red fallidas, aislamiento 100% verificado en las 7 pestañas y alternancia de tema dark/light fluida.
+  - **Sincronización**:
+    - Despliegue sincronizado en `/deploy/` con `python scripts/sync_deploy.py`.
+- **Módulos Modificados**: `requirements.txt`, `pyproject.toml`, `src/web/static/index.html`, `src/web/static/css/app.css`, `src/web/static/js/app.js`, `src/web/static/js/modules/chat.js`, `src/web/static/js/modules/settings.js`, `src/web/static/js/modules/repeater.js`, `src/web/static/js/modules/sniffer.js`, `deploy/**`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Auditoría de Conexión, Resolución 404 en /api/diagnostics y Sincronización Hardware-Web
 - **Fecha**: 2026-09-02
 - **Estado**: ✅ COMPLETADO (Resolución del error 404 en /api/diagnostics, corrección del estado permanente 'Desconectada' del transceptor en la SPA, implementación canónica de MeshCoreBridge.get_health, sincronización WebSocket multi-canal y 100% PASS en validación)

@@ -149,7 +149,7 @@ export class SnifferModule {
 
     if (this.dom.chipSerialHealth) {
       const isSerOk = sub.serial_companion?.connected ?? diag.serial_connected ?? diag.radio_connected ?? false;
-      const portName = sub.serial_companion?.port || document.getElementById("localNodeSerialPort")?.value || "";
+      const portName = sub.serial_companion?.port || diag.radio_port || diag.serial_port || "";
       if (this.ctx.updateRadioBadge) this.ctx.updateRadioBadge(isSerOk, isSerOk ? portName : "");
       const el = this.dom.chipSerialHealth.querySelector(".val");
       if (el) {

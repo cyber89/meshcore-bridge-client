@@ -47,9 +47,9 @@ class NodesController(BaseController):
         analytics["deduplication_count"] = getattr(self.ctx.bridge, "dup_count", 0)
 
         ser_adapter = getattr(self.ctx.bridge, "serial_adapter", None)
-        ser_connected = bool(ser_adapter.is_hardware_alive()) if ser_adapter and hasattr(ser_adapter, "is_hardware_alive") else getattr(ser_adapter, "is_connected", False)
+        ser_connected = bool(ser_adapter.is_hardware_alive()) if ser_adapter and hasattr(ser_adapter, "is_hardware_alive") else bool(getattr(ser_adapter, "is_connected", False))
         mqtt_client = getattr(self.ctx.bridge, "mqtt", getattr(self.ctx.bridge, "mqtt_client", None))
-        mqtt_connected = getattr(mqtt_client, "is_connected", False) if mqtt_client else False
+        mqtt_connected = bool(getattr(mqtt_client, "is_connected", False)) if mqtt_client else False
 
         analytics["serial_connected"] = ser_connected
         analytics["mqtt_connected"] = mqtt_connected

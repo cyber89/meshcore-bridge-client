@@ -28,6 +28,9 @@ class ConfigController(BaseController):
         else:
             local_cfg = {}
 
+        if not isinstance(local_cfg, dict):
+            local_cfg = {}
+
         uptime_sec = int(time.time() - getattr(self.ctx.bridge, "start_time", self.ctx.start_time))
         days = uptime_sec // 86400
         hours = (uptime_sec % 86400) // 3600

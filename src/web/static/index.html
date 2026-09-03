@@ -473,7 +473,7 @@
                 </select>
               </div>
               <div class="search-group">
-                <input type="text" id="logSearchInput" placeholder="Buscar en logs (módulo, error, texto)..." autocomplete="off" />
+                <input type="text" id="logSearchInput" placeholder="Buscar en logs (módulo, error, texto)..." autocomplete="off" aria-label="Buscar en logs del sistema" />
               </div>
               <button class="btn-outline btn-sm" id="btnPauseLogsScroll" title="Pausar o reanudar auto-scroll">Pausar Scroll</button>
             </div>
@@ -853,7 +853,7 @@
 
                 <form id="localTerminalForm" class="linux-term-input-bar">
                   <span class="linux-term-prompt">meshcore@base:~$</span>
-                  <input type="text" id="localTerminalInput" class="linux-term-input" placeholder="Escribe comando (ej: bat, stats, radio, time, help)..." autocomplete="off" spellcheck="false" />
+                  <input type="text" id="localTerminalInput" class="linux-term-input" placeholder="Escribe comando (ej: bat, stats, radio, time, help)..." autocomplete="off" spellcheck="false" aria-label="Comando interactivo terminal local" />
                   <button type="submit" class="btn-term-send" id="btnSendLocalTerminal">↵ Ejecutar</button>
                 </form>
               </div>
@@ -944,7 +944,7 @@
                       Si has configurado <code>BRIDGE_API_KEY</code> en tu archivo <code>.env</code> para restringir la transmisión RF por radio y comandos de administración, introduce tu clave aquí para autorizar este navegador.
                     </p>
                     <form class="settings-form" id="bridgeApiKeyForm" onsubmit="return false;">
-                      <input type="text" name="username" autocomplete="username" style="display:none;" aria-hidden="true" tabindex="-1" value="admin" />
+                      <input type="text" name="username" autocomplete="username" style="display:none;" aria-hidden="true" tabindex="-1" value="admin" aria-label="Nombre de usuario" />
                       <div class="form-group">
                         <label for="inputBridgeApiKey">API Key del Bridge (Cabecera X-Api-Key)</label>
                         <div style="display: flex; gap: 8px; align-items: center;">
@@ -969,7 +969,7 @@
       <div class="modal-card cmd-palette-modal">
         <div class="cmd-palette-header">
           <span class="search-icon" data-lucide="search" data-size="16"></span>
-          <input type="text" id="cmdPaletteInput" placeholder="Escribe un comando o busca un nodo..." autocomplete="off" />
+          <input type="text" id="cmdPaletteInput" placeholder="Escribe un comando o busca un nodo..." autocomplete="off" aria-label="Buscar nodo, comando o canal" />
           <kbd class="kbd-esc">ESC</kbd>
         </div>
         <div class="cmd-palette-results" id="cmdPaletteResults" role="listbox">
@@ -1121,7 +1121,7 @@
             <p>Para consultar la telemetría, modificar parámetros RF y despachar comandos remotos a este repetidor, es obligatorio validar la contraseña de administración.</p>
             
             <form id="repeaterGateForm" class="auth-gate-form" onsubmit="return false;">
-              <input type="text" name="username" autocomplete="username" style="display:none;" aria-hidden="true" tabindex="-1" value="admin" />
+              <input type="text" name="username" autocomplete="username" style="display:none;" aria-hidden="true" tabindex="-1" value="admin" aria-label="Nombre de usuario" />
               <div class="auth-gate-input-wrapper">
                 <label for="repeaterGatePassword" class="auth-gate-label">Contraseña de Administración (PIN):</label>
                 <div class="auth-gate-input-row">
@@ -1278,7 +1278,7 @@
                   <span class="btn-compact-icon" data-lucide="wifi" data-size="14"></span>
                   <span class="btn-compact-label">Advert</span>
                 </button>
-                <button type="button" class="btn-compact-action btn-compact-secondary" id="btnDiscoverNeighbors" title="Sondea y actualiza la tabla de vecinos del repetidor">
+                <button type="button" class="btn-compact-action btn-compact-secondary" id="btnModalActionNeighbors" title="Sondea y actualiza la tabla de vecinos del repetidor">
                   <span class="btn-compact-icon" data-lucide="users" data-size="14"></span>
                   <span class="btn-compact-label">Vecinos</span>
                 </button>
@@ -1428,7 +1428,7 @@
           <div id="rep-security" class="repeater-subpanel">
             <div class="card-panel">
               <form id="repSecurityForm" class="grid-form-2col">
-                <input type="text" name="username" autocomplete="username" style="display:none;" aria-hidden="true" tabindex="-1" value="admin" />
+                <input type="text" name="username" autocomplete="username" style="display:none;" aria-hidden="true" tabindex="-1" value="admin" aria-label="Nombre de usuario" />
                 <div class="form-section-title span-full"><span class="section-icon" data-lucide="lock" data-size="16"></span> Contraseñas de Administración y Acceso</div>
                 <div class="form-group">
                   <label for="secNewAdminPwd">Nueva Contraseña de Administrador (Admin Password):</label>
@@ -1586,7 +1586,7 @@
 
               <form id="repeaterTerminalForm" class="linux-term-input-bar">
                 <span class="linux-term-prompt">meshcore@remote:~$</span>
-                <input type="text" id="repeaterTerminalInput" class="linux-term-input" placeholder="Escribe comando RF (ej: ver, get radio, neighbors, clock, get lat)..." autocomplete="off" spellcheck="false" />
+                <input type="text" id="repeaterTerminalInput" class="linux-term-input" placeholder="Escribe comando RF (ej: ver, get radio, neighbors, clock, get lat)..." autocomplete="off" spellcheck="false" aria-label="Comando interactivo terminal de repetidor" />
                 <button type="submit" class="btn-term-send">↵ Ejecutar</button>
               </form>
             </div>
@@ -1608,7 +1608,7 @@
         <div class="modal-body traceroute-modal-body">
           <div class="traceroute-controls">
             <div class="input-with-action">
-              <input type="text" id="traceCustomPathInput" placeholder="Ruta de repetidores opcional (ej: 23,5f,3a o en blanco para auto)" />
+              <input type="text" id="traceCustomPathInput" placeholder="Ruta de repetidores opcional (ej: 23,5f,3a o en blanco para auto)" aria-label="Ruta personalizada de repetidores" />
               <button type="button" class="btn-primary btn-sm" id="btnExecuteTrace"><span data-lucide="activity" data-size="14"></span> Iniciar Traza</button>
             </div>
             <span class="trace-status-pill" id="traceStatusPill">Listo para trazar</span>
@@ -1663,6 +1663,9 @@
       </div>
     </div>
   </div>
+
+  <!-- Contenedor Global de Notificaciones Toast -->
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
   <script src="/js/qrcode.js"></script>
   <script src="/js/icons.js"></script>

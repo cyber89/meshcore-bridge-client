@@ -33,9 +33,10 @@ export class ChatModule {
       chatMessageFeed: document.getElementById("chatMessageFeed"),
       chatInputForm: document.getElementById("chatInputForm"),
       chatInputText: document.getElementById("chatInputText"),
-      chatTargetName: document.getElementById("chatTargetName"),
-      chatTargetBadge: document.getElementById("chatTargetBadge"),
-      btnCancelReply: document.getElementById("btnCancelReply"),
+      chatTargetName: document.getElementById("chatActiveTitle"),
+      chatTargetBadge: document.getElementById("chatSecurityChip"),
+      chatTargetSub: document.getElementById("chatActiveSub"),
+      btnShareTargetQr: document.getElementById("btnShareTargetQr"),
       btnShareLocation: document.getElementById("btnShareLocation"),
       dmListUi: document.getElementById("dmListUi"),
       sidebarChannelList: document.getElementById("sidebarChannelList"),
@@ -52,8 +53,8 @@ export class ChatModule {
       });
     }
 
-    if (this.dom.btnCancelReply) {
-      this.dom.btnCancelReply.addEventListener("click", () => this.cancelReplyTarget());
+    if (this.dom.btnShareTargetQr) {
+      this.dom.btnShareTargetQr.addEventListener("click", () => this.shareActiveTargetQr());
     }
 
     if (this.dom.btnShareLocation) {
@@ -130,11 +131,15 @@ export class ChatModule {
     this.activeDmName = null;
 
     if (this.dom.chatTargetName) {
-      this.dom.chatTargetName.textContent = this.activeChannelIdx === 0 ? "Canal Público 0 (Broadcast)" : `Canal Privado #${this.activeChannelIdx}`;
+      this.dom.chatTargetName.textContent = this.activeChannelIdx === 0 ? "Canal 0 (Public / Broadcast)" : `Canal #${this.activeChannelIdx}`;
+    }
+    if (this.dom.chatTargetSub) {
+      this.dom.chatTargetSub.textContent = this.activeChannelIdx === 0 ? "Difusión comunitaria abierta por radio LoRa" : `Canal privado cifrado #${this.activeChannelIdx}`;
     }
     if (this.dom.chatTargetBadge) {
-      this.dom.chatTargetBadge.textContent = `#${this.activeChannelIdx}`;
-      this.dom.chatTargetBadge.className = "chat-target-badge badge-channel";
+      const isPublic = this.activeChannelIdx === 0;
+      this.dom.chatTargetBadge.innerHTML = `<span data-lucide="${isPublic ? "unlock" : "lock"}" data-size="13"></span> ${isPublic ? "Abierto" : "Cifrado"}`;
+      if (window.initLucideIcons) window.initLucideIcons(this.dom.chatTargetBadge);
     }
 
     document.querySelectorAll(".channel-item").forEach((el) => el.classList.remove("active"));
@@ -158,9 +163,12 @@ export class ChatModule {
     if (this.dom.chatTargetName) {
       this.dom.chatTargetName.textContent = `DM: ${this.activeDmName}`;
     }
+    if (this.dom.chatTargetSub) {
+      this.dom.chatTargetSub.textContent = `Mensaje directo punto a punto • ${canonicalPk}`;
+    }
     if (this.dom.chatTargetBadge) {
-      this.dom.chatTargetBadge.textContent = "DM";
-      this.dom.chatTargetBadge.className = "chat-target-badge badge-dm";
+      this.dom.chatTargetBadge.innerHTML = `<span data-lucide="user" data-size="13"></span> DM`;
+      if (window.initLucideIcons) window.initLucideIcons(this.dom.chatTargetBadge);
     }
 
     this.addDmContact(canonicalPk, this.activeDmName);
@@ -173,6 +181,28 @@ export class ChatModule {
     if (navBtn) navBtn.click();
 
     this.renderCurrentConversation();
+  }
+
+  shareActiveTargetQr() {
+    if (this.activeDmTarget) {
+      const uri = `meshcore://contact?pubkey=${encodeURIComponent(this.activeDmTarget)}&name=${encodeURIComponent(this.activeDmName || "")}`;
+      const json = JSON.stringify({ type: "contact", pubkey: this.activeDmTarget, name: this.activeDmName }, null, 2);
+      if (window.showQrModal) {
+        window.showQrModal(`Contacto: ${this.activeDmName}`, uri, json);
+      } else if (this.ctx.showToast) {
+        navigator.clipboard.writeText(uri);
+        this.ctx.showToast("📋 Enlace de contacto copiado al portapapeles", "success");
+      }
+    } else {
+      const uri = `meshcore://channel?index=${this.activeChannelIdx}&name=${encodeURIComponent(this.activeChannelIdx === 0 ? "Public" : `Ch_${this.activeChannelIdx}`)}`;
+      const json = JSON.stringify({ type: "channel", index: this.activeChannelIdx, name: this.activeChannelIdx === 0 ? "Public" : `Ch_${this.activeChannelIdx}` }, null, 2);
+      if (window.showQrModal) {
+        window.showQrModal(`Canal #${this.activeChannelIdx}`, uri, json);
+      } else if (this.ctx.showToast) {
+        navigator.clipboard.writeText(uri);
+        this.ctx.showToast("📋 Enlace de canal copiado al portapapeles", "success");
+      }
+    }
   }
 
   addDmContact(pubkey, name) {

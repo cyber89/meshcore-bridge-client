@@ -143,7 +143,7 @@ class MeshCoreWebServer:
         if not self.active_websockets:
             return
 
-        payload_bytes = json.dumps(event_data).encode("utf-8")
+        payload_bytes = json.dumps(event_data, default=str).encode("utf-8")
         frame = self._build_websocket_frame(payload_bytes)
 
         for writer in list(self.active_websockets):
@@ -405,7 +405,7 @@ class MeshCoreWebServer:
                 user_agent=ctx.headers.get("user-agent", ""),
             )
         )
-        resp_bytes = json.dumps(resp_json, indent=2).encode("utf-8")
+        resp_bytes = json.dumps(resp_json, indent=2, default=str).encode("utf-8")
         await self._write_http_response(ctx.writer, f"{status_code} OK", resp_bytes, "application/json", cors_origin=ctx.cors_origin)
 
     async def _serve_map_tile(self, ctx: HttpRequestContext) -> bool:
@@ -531,7 +531,7 @@ class MeshCoreWebServer:
             "message": "Conectado al servidor WebSocket en vivo de MeshCore Bridge",
             "timestamp": int(time.time()),
         }
-        writer.write(self._build_websocket_frame(json.dumps(initial_status).encode("utf-8")))
+        writer.write(self._build_websocket_frame(json.dumps(initial_status, default=str).encode("utf-8")))
 
         total_rx = getattr(self.bridge, "rx_count", 0)
         total_tx = getattr(self.bridge, "tx_count", 0)
@@ -556,7 +556,7 @@ class MeshCoreWebServer:
             "radio_connected": is_radio_ok,
             "radio_port": radio_port,
         }
-        writer.write(self._build_websocket_frame(json.dumps(initial_metrics).encode("utf-8")))
+        writer.write(self._build_websocket_frame(json.dumps(initial_metrics, default=str).encode("utf-8")))
         await writer.drain()
 
     async def _run_websocket_message_loop(

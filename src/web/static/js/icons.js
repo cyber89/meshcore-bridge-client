@@ -96,3 +96,12 @@ function initLucideIcons(container = document) {
 window.LUCIDE_ICONS = LUCIDE_ICONS;
 window.getLucideIcon = getLucideIcon;
 window.initLucideIcons = initLucideIcons;
+
+// Auto-inicialización reactiva en el ciclo de carga del DOM
+if (typeof document !== "undefined") {
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => initLucideIcons());
+  } else {
+    initLucideIcons();
+  }
+}

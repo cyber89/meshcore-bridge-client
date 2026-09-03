@@ -21,7 +21,7 @@ export class SettingsModule {
     this._subscribeBus();
     this.fetchChannels();
     this.fetchLocalNodeConfig();
-    this.initPreflight();
+    window.showQrModal = (title, uri, rawJson) => this.showQrModal(title, uri, rawJson);
   }
 
   _bindElements() {
@@ -37,7 +37,6 @@ export class SettingsModule {
       chModalName: document.getElementById("chModalName"),
       chModalPsk: document.getElementById("chModalPsk"),
       btnGenRandomPsk: document.getElementById("btnGenRandomPsk"),
-      btnAddContact: document.getElementById("btnAddContact"),
       btnHeaderAddContact: document.getElementById("btnHeaderAddContact"),
       createContactModal: document.getElementById("createContactModal"),
       btnCloseCreateContactModal: document.getElementById("btnCloseCreateContactModal"),
@@ -45,19 +44,15 @@ export class SettingsModule {
       createContactForm: document.getElementById("createContactForm"),
       contactModalPubKey: document.getElementById("contactModalPubKey"),
       contactModalName: document.getElementById("contactModalName"),
-      contactModalRole: document.getElementById("contactModalRole"),
       qrShareModal: document.getElementById("qrShareModal"),
-      btnCloseQrModal: document.getElementById("btnCloseQrModal"),
-      qrModalTitle: document.getElementById("qrModalTitle"),
-      qrCanvas: document.getElementById("qrCanvas"),
-      qrUriDisplay: document.getElementById("qrUriDisplay"),
+      btnCloseQrModal: document.getElementById("btnCloseQrShareModal"),
+      btnCloseQrModalAction: document.getElementById("btnCloseQrModalAction"),
+      qrModalTitle: document.getElementById("qrShareTitle"),
+      qrCanvas: document.getElementById("qrShareCanvas"),
+      qrUriDisplay: document.getElementById("qrShareUri"),
+      qrShareJson: document.getElementById("qrShareJson"),
       btnCopyQrUri: document.getElementById("btnCopyQrUri"),
-      preflightModal: document.getElementById("preflightModal"),
-      btnPreflight: document.getElementById("btnPreflight"),
-      btnClosePreflight: document.getElementById("btnClosePreflight"),
-      btnRunPreflightCheck: document.getElementById("btnRunPreflightCheck"),
-      preflightResults: document.getElementById("preflightResults"),
-      preflightSpinner: document.getElementById("preflightSpinner"),
+      btnDownloadQrJson: document.getElementById("btnDownloadQrJson"),
       localRadioForm: document.getElementById("localRadioForm"),
       localOwnerPosForm: document.getElementById("localOwnerPosForm"),
       localTerminalForm: document.getElementById("localTerminalForm"),
@@ -183,12 +178,31 @@ export class SettingsModule {
         if (this.dom.qrShareModal) this.dom.qrShareModal.classList.add("hidden");
       });
     }
+    if (this.dom.btnCloseQrModalAction) {
+      this.dom.btnCloseQrModalAction.addEventListener("click", () => {
+        if (this.dom.qrShareModal) this.dom.qrShareModal.classList.add("hidden");
+      });
+    }
     if (this.dom.btnCopyQrUri) {
       this.dom.btnCopyQrUri.addEventListener("click", () => {
-        const uri = this.dom.qrUriDisplay ? this.dom.qrUriDisplay.textContent : "";
+        const uri = this.dom.qrUriDisplay ? (this.dom.qrUriDisplay.value || this.dom.qrUriDisplay.textContent || "") : "";
         if (uri) {
           navigator.clipboard.writeText(uri);
           if (this.ctx.showToast) this.ctx.showToast("📋 Enlace URI copiado al portapapeles", "success");
+        }
+      });
+    }
+    if (this.dom.btnDownloadQrJson) {
+      this.dom.btnDownloadQrJson.addEventListener("click", () => {
+        const json = this.dom.qrShareJson ? this.dom.qrShareJson.value : "";
+        if (json) {
+          const blob = new Blob([json], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "meshcore_share.json";
+          a.click();
+          URL.revokeObjectURL(url);
         }
       });
     }
@@ -436,59 +450,30 @@ export class SettingsModule {
     }
   }
 
-  initPreflight() {
-    if (this.dom.btnPreflight) {
-      this.dom.btnPreflight.addEventListener("click", () => {
-        if (this.dom.preflightModal) this.dom.preflightModal.classList.remove("hidden");
-        this.runPreflightChecks();
-      });
+  showQrModal(title, uri, rawJson = "") {
+    if (!this.dom.qrShareModal) return;
+    if (this.dom.qrModalTitle) this.dom.qrModalTitle.textContent = title || "Compartir por Código QR";
+    if (this.dom.qrUriDisplay) this.dom.qrUriDisplay.value = uri || "";
+    if (this.dom.qrShareJson) {
+      this.dom.qrShareJson.value = typeof rawJson === "object" ? JSON.stringify(rawJson, null, 2) : String(rawJson || "");
     }
-    if (this.dom.btnClosePreflight) {
-      this.dom.btnClosePreflight.addEventListener("click", () => {
-        if (this.dom.preflightModal) this.dom.preflightModal.classList.add("hidden");
-      });
-    }
-    if (this.dom.btnRunPreflightCheck) {
-      this.dom.btnRunPreflightCheck.addEventListener("click", () => this.runPreflightChecks());
-    }
-  }
 
-  async runPreflightChecks() {
-    if (this.dom.preflightSpinner) this.dom.preflightSpinner.classList.remove("hidden");
-    if (this.dom.preflightResults) this.dom.preflightResults.innerHTML = "Verificando subsistemas...";
-
-    try {
-      const res = await fetch("/api/preflight", {
-        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
-      });
-      const data = await res.json();
-      if (data.status === "ok" && data.data) {
-        this.renderPreflightReport(data.data);
+    if (this.dom.qrCanvas && window.QRCode) {
+      this.dom.qrCanvas.innerHTML = "";
+      try {
+        new QRCode(this.dom.qrCanvas, {
+          text: uri || "meshcore://",
+          width: 180,
+          height: 180,
+          colorDark: "#000000",
+          colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.M,
+        });
+      } catch (err) {
+        console.warn("Error generando QR:", err);
       }
-    } catch (e) {
-      if (this.dom.preflightResults) this.dom.preflightResults.textContent = "Error ejecutando preflight: " + e.message;
-    } finally {
-      if (this.dom.preflightSpinner) this.dom.preflightSpinner.classList.add("hidden");
     }
-  }
 
-  renderPreflightReport(report) {
-    if (!this.dom.preflightResults || !report) return;
-    let html = `<div class="preflight-grid">`;
-    const checks = report.checks || [];
-    checks.forEach((c) => {
-      const isOk = c.status === "pass" || c.status === "ok" || c.pass === true;
-      html += `
-        <div class="preflight-card ${isOk ? "pass" : "fail"}">
-          <div class="card-head">
-            <span class="status-icon">${isOk ? "✅" : "⚠️"}</span>
-            <strong>${escapeHtml(c.name || c.subsystem || "Check")}</strong>
-          </div>
-          <div class="card-desc">${escapeHtml(c.message || c.detail || "")}</div>
-        </div>
-      `;
-    });
-    html += `</div>`;
-    this.dom.preflightResults.innerHTML = html;
+    this.dom.qrShareModal.classList.remove("hidden");
   }
 }

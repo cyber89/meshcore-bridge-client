@@ -87,6 +87,9 @@ class MeshCoreApp {
     this.nodesModule.init();
     this.chatModule.init();
 
+    // Renderizar iconos vectoriales Lucide en el DOM cargado
+    if (window.initLucideIcons) window.initLucideIcons();
+
     // Conectar WebSocket
     this.wsClient.connect();
   }
@@ -100,7 +103,6 @@ class MeshCoreApp {
       commandPaletteModal: document.getElementById("commandPaletteModal"),
       cmdPaletteInput: document.getElementById("cmdPaletteInput"),
       cmdPaletteResults: document.getElementById("cmdPaletteResults"),
-      btnCloseCmdPalette: document.getElementById("btnCloseCmdPalette"),
       radioStatus: document.getElementById("radio-status"),
       wsStatus: document.getElementById("ws-status"),
       headerRxCount: document.getElementById("headerRxCount"),
@@ -111,12 +113,15 @@ class MeshCoreApp {
   _initTheme() {
     const savedTheme = localStorage.getItem("meshcore_theme") || "dark";
     document.body.className = `${savedTheme}-theme`;
+    this._updateThemeIcon(savedTheme);
+
     if (this.dom.themeToggleBtn) {
       this.dom.themeToggleBtn.addEventListener("click", () => {
         const isDark = document.body.classList.contains("dark-theme");
         const next = isDark ? "light" : "dark";
         document.body.className = `${next}-theme`;
         localStorage.setItem("meshcore_theme", next);
+        this._updateThemeIcon(next);
       });
     }
     // i18n: wire language toggle button
@@ -129,6 +134,19 @@ class MeshCoreApp {
     if (window.I18n) window.I18n.apply();
   }
 
+  _updateThemeIcon(theme) {
+    if (!this.dom.themeToggleBtn) return;
+    const isDark = theme === "dark";
+    const iconName = isDark ? "sun" : "moon";
+    if (window.getLucideIcon) {
+      this.dom.themeToggleBtn.innerHTML = window.getLucideIcon(iconName, "", 16);
+    } else {
+      this.dom.themeToggleBtn.innerHTML = `<span data-lucide="${iconName}" data-size="16"></span>`;
+    }
+    this.dom.themeToggleBtn.title = isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro";
+    this.dom.themeToggleBtn.setAttribute("aria-label", isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro");
+  }
+
   _initNavigation() {
     document.querySelectorAll(".nav-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -139,7 +157,7 @@ class MeshCoreApp {
           b.classList.remove("active");
           b.setAttribute("aria-selected", "false");
         });
-        document.querySelectorAll(".tab-content").forEach((pane) => {
+        document.querySelectorAll(".tab-pane, .tab-content").forEach((pane) => {
           pane.classList.remove("active");
           pane.setAttribute("hidden", "true");
         });
@@ -175,9 +193,11 @@ class MeshCoreApp {
         if (cmdPaletteInput) cmdPaletteInput.focus();
       });
     }
-    if (btnCloseCmdPalette && commandPaletteModal) {
-      btnCloseCmdPalette.addEventListener("click", () => {
-        commandPaletteModal.classList.add("hidden");
+    if (commandPaletteModal) {
+      commandPaletteModal.addEventListener("click", (e) => {
+        if (e.target === commandPaletteModal) {
+          commandPaletteModal.classList.add("hidden");
+        }
       });
     }
     window.addEventListener("keydown", (e) => {
@@ -189,6 +209,8 @@ class MeshCoreApp {
             cmdPaletteInput.focus();
           }
         }
+      } else if (e.key === "Escape" && commandPaletteModal && !commandPaletteModal.classList.contains("hidden")) {
+        commandPaletteModal.classList.add("hidden");
       }
     });
   }

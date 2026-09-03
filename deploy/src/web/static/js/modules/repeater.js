@@ -40,7 +40,6 @@ export class RepeaterModule {
       repeaterGatePassword: document.getElementById("repeaterGatePassword"),
       btnToggleGatePwd: document.getElementById("btnToggleGatePwd"),
       btnRepeaterLogout: document.getElementById("btnRepeaterLogout"),
-      btnModalAuthTest: document.getElementById("btnModalAuthTest"),
       repeaterTerminalInput: document.getElementById("repeaterTerminalInput"),
       repeaterTerminalForm: document.getElementById("repeaterTerminalForm"),
       repeaterTerminalOutput: document.getElementById("repeaterTerminalOutput"),
