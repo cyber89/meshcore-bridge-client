@@ -6,6 +6,24 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Refactorización Clean Code de Decodificadores de Sensores (extract_telemetry_fields)
+- **Fecha**: 2026-09-02
+- **Estado**: ✅ COMPLETADO (Descomposición de extract_telemetry_fields de 254 líneas a función coordinadora de 19 líneas y 6 extractores funcionales especializados < 40 líneas cada uno; 0 code smells en sensor_decoder.py y 100% PASS en simulación)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect).
+- **Problema / Requerimiento**:
+  - `extract_telemetry_fields` en `src/sensor_decoder.py` era el método más largo de todo el proyecto (254 líneas), acumulando la decodificación de CayenneLPP binario, hex, listas de objetos SDK, variables ambientales, perfiles de batería/solar, uptime y coordenadas GPS en un único bloque monolítico.
+  - Se requería descomponer la lógica en extractores especializados por perfil de telemetría manteniendo el tipado estricto, reduciendo la complejidad ciclomática y preservando 100% la compatibilidad retroactiva.
+- **Acciones Realizadas**:
+  - **Descomposición Modular en [`src/sensor_decoder.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/sensor_decoder.py)**:
+    - `_extract_lpp_telemetry(data, res)`: Decodificación binaria/hexadecimal y despacho a `_parse_lpp_candidate_list`, `_map_lpp_item_to_res` y `_parse_lpp_gps_val` (< 30 líneas cada una).
+    - `_extract_environment_telemetry(data, res)`: Temperatura, humedad relativa y presión atmosférica (25 líneas).
+    - `_extract_power_telemetry(data, res)`: Batería (porcentaje, mV y V) y panel solar (42 líneas).
+    - `_extract_system_telemetry(data, res)`: Uptime formateado legible, colas de transmisión y conteo de errores (35 líneas).
+    - `_extract_radio_telemetry(data, res)`: Piso de ruido RF (dBm), tiempo en el aire (ms) y paquetes TX/RX (32 líneas).
+    - `_extract_location_telemetry(data, res)`: Coordenadas geodésicas GPS lat/lon/altitud (28 líneas).
+    - `extract_telemetry_fields(data)`: Reducida de 254 líneas a **19 líneas** como orquestador limpio.
+- **Módulos Modificados**: `src/sensor_decoder.py`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Refactorización Clean Code de SecurityTrafficInspector con Eventos de Auditoría Tipados
 - **Fecha**: 2026-09-02
 - **Estado**: ✅ COMPLETADO (Introducción de HttpAccessEvent y SuspiciousTrafficEvent, reducción de firmas de 7 a 2 parámetros en log_http_access y log_suspicious_traffic; actualización de todos los puntos de llamada en http_server.py y tcp_companion_server.py; 0 code smells en security_inspector.py y 100% PASS en simulación)

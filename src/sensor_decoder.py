@@ -260,21 +260,8 @@ class CayenneLPPDecoder:
         return readings, summary
 
 
-def extract_telemetry_fields(data: dict[str, Any]) -> dict[str, Any]:
-    """
-    Extrae, normaliza y aplana exhaustivamente todas las posibles lecturas de telemetría y estado:
-    - Temperatura, humedad, presión barométrica
-    - Batería (porcentaje y mV/V), voltaje, solar
-    - Uptime, errores, tamaño de cola
-    - LPP decodificado (lista de objetos o diccionario plano)
-    - Ubicación GPS
-    - Métricas de radio (ruido, airtime, paquetes)
-    """
-    res: dict[str, Any] = {}
-    if not isinstance(data, dict):
-        return res
-
-    # 1. Si hay bytes sin procesar en CayenneLPP (raw_bytes o raw_hex)
+def _extract_lpp_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
+    """Extrae y decodifica tramas CayenneLPP binarias, hex o estructuras SDK."""
     if "raw_bytes" in data and isinstance(data["raw_bytes"], (bytes, bytearray)):
         _, summary = CayenneLPPDecoder.decode(bytes(data["raw_bytes"]))
         res.update(summary)
@@ -286,79 +273,75 @@ def extract_telemetry_fields(data: dict[str, Any]) -> dict[str, Any]:
         except Exception:
             pass
 
-    # 2. Si hay lista o estructura LPP proveniente de MeshCore SDK (LppFrame / lpp_data_list)
     lpp_cand = data.get("lpp")
     if isinstance(lpp_cand, list):
-        for item in lpp_cand:
-            if isinstance(item, dict):
-                t = str(item.get("type", item.get("type_name", ""))).lower()
-                val = item.get("value", item.get("val"))
-                ch = item.get("channel", 1)
-                if val is None:
-                    continue
-
-                if "temp" in t:
-                    try:
-                        res["temperature_c"] = round(float(val), 1)
-                        res[f"ch_{ch}_temperature_c"] = res["temperature_c"]
-                    except (ValueError, TypeError):
-                        pass
-                elif "humid" in t:
-                    try:
-                        res["humidity_pct"] = round(float(val), 1)
-                        res[f"ch_{ch}_humidity_pct"] = res["humidity_pct"]
-                    except (ValueError, TypeError):
-                        pass
-                elif "barom" in t or "press" in t:
-                    try:
-                        res["pressure_hpa"] = round(float(val), 1)
-                        res[f"ch_{ch}_pressure_hpa"] = res["pressure_hpa"]
-                    except (ValueError, TypeError):
-                        pass
-                elif "volt" in t:
-                    try:
-                        res["voltage_v"] = round(float(val), 2)
-                        res[f"ch_{ch}_voltage_v"] = res["voltage_v"]
-                    except (ValueError, TypeError):
-                        pass
-                elif "percent" in t or "bat" in t:
-                    try:
-                        res["battery_pct"] = int(val)
-                    except (ValueError, TypeError):
-                        pass
-                elif "gps" in t or "loc" in t:
-                    if isinstance(val, (list, tuple)) and len(val) >= 2:
-                        try:
-                            res["latitude"] = float(val[0])
-                            res["longitude"] = float(val[1])
-                            if len(val) >= 3:
-                                res["altitude_m"] = float(val[2])
-                        except (ValueError, TypeError):
-                            pass
-                    elif isinstance(val, dict):
-                        try:
-                            v_lat = val.get("lat", val.get("latitude"))
-                            if v_lat is not None:
-                                res["latitude"] = float(v_lat)
-                            v_lon = val.get("lon", val.get("longitude"))
-                            if v_lon is not None:
-                                res["longitude"] = float(v_lon)
-                            v_alt = val.get("alt", val.get("altitude"))
-                            if v_alt is not None:
-                                res["altitude_m"] = float(v_alt)
-                        except (ValueError, TypeError):
-                            pass
-                elif "illumin" in t or "lux" in t:
-                    try:
-                        res["illuminance_lux"] = int(val)
-                    except (ValueError, TypeError):
-                        pass
+        _parse_lpp_candidate_list(lpp_cand, res)
     elif isinstance(lpp_cand, dict):
         for k, v in lpp_cand.items():
             if isinstance(v, (int, float, str)):
                 res[k] = v
 
-    # 3. Temperatura
+
+def _parse_lpp_candidate_list(lpp_list: list[Any], res: dict[str, Any]) -> None:
+    """Parsea la lista de objetos LPP provenientes de MeshCore SDK."""
+    for item in lpp_list:
+        if not isinstance(item, dict):
+            continue
+        t = str(item.get("type", item.get("type_name", ""))).lower()
+        val = item.get("value", item.get("val"))
+        ch = item.get("channel", 1)
+        if val is None:
+            continue
+
+        _map_lpp_item_to_res(t, val, ch, res)
+
+
+def _map_lpp_item_to_res(t: str, val: Any, ch: Any, res: dict[str, Any]) -> None:
+    """Mapea un elemento individual de LPP al diccionario de resultados."""
+    try:
+        if "temp" in t:
+            res["temperature_c"] = round(float(val), 1)
+            res[f"ch_{ch}_temperature_c"] = res["temperature_c"]
+        elif "humid" in t:
+            res["humidity_pct"] = round(float(val), 1)
+            res[f"ch_{ch}_humidity_pct"] = res["humidity_pct"]
+        elif "barom" in t or "press" in t:
+            res["pressure_hpa"] = round(float(val), 1)
+            res[f"ch_{ch}_pressure_hpa"] = res["pressure_hpa"]
+        elif "volt" in t:
+            res["voltage_v"] = round(float(val), 2)
+            res[f"ch_{ch}_voltage_v"] = res["voltage_v"]
+        elif "percent" in t or "bat" in t:
+            res["battery_pct"] = int(val)
+        elif "illumin" in t or "lux" in t:
+            res["illuminance_lux"] = int(val)
+        elif "gps" in t or "loc" in t:
+            _parse_lpp_gps_val(val, res)
+    except (ValueError, TypeError):
+        pass
+
+
+def _parse_lpp_gps_val(val: Any, res: dict[str, Any]) -> None:
+    """Extrae coordenadas GPS desde estructuras de lista, tupla o diccionario."""
+    if isinstance(val, (list, tuple)) and len(val) >= 2:
+        res["latitude"] = float(val[0])
+        res["longitude"] = float(val[1])
+        if len(val) >= 3:
+            res["altitude_m"] = float(val[2])
+    elif isinstance(val, dict):
+        v_lat = val.get("lat", val.get("latitude"))
+        if v_lat is not None:
+            res["latitude"] = float(v_lat)
+        v_lon = val.get("lon", val.get("longitude"))
+        if v_lon is not None:
+            res["longitude"] = float(v_lon)
+        v_alt = val.get("alt", val.get("altitude"))
+        if v_alt is not None:
+            res["altitude_m"] = float(v_alt)
+
+
+def _extract_environment_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
+    """Extrae lecturas de temperatura, humedad y presión atmosférica."""
     temp = data.get("temperature_c", data.get("temp_c", data.get("temp", data.get("temperature"))))
     if temp is not None:
         try:
@@ -366,7 +349,6 @@ def extract_telemetry_fields(data: dict[str, Any]) -> dict[str, Any]:
         except (ValueError, TypeError):
             pass
 
-    # 4. Humedad
     hum = data.get("humidity_pct", data.get("humidity", data.get("hum", data.get("relative_humidity"))))
     if hum is not None:
         try:
@@ -374,7 +356,6 @@ def extract_telemetry_fields(data: dict[str, Any]) -> dict[str, Any]:
         except (ValueError, TypeError):
             pass
 
-    # 5. Presión
     press = data.get("pressure_hpa", data.get("pressure", data.get("press", data.get("barometer", data.get("barometric_pressure")))))
     if press is not None:
         try:
@@ -382,7 +363,9 @@ def extract_telemetry_fields(data: dict[str, Any]) -> dict[str, Any]:
         except (ValueError, TypeError):
             pass
 
-    # 6. Batería y Voltaje
+
+def _extract_power_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
+    """Extrae y normaliza métricas de batería, voltaje y panel solar."""
     raw_bat = data.get("battery_pct", data.get("battery", data.get("bat", data.get("batt"))))
     raw_bat_mv = data.get("battery_mv", data.get("batt_mv", data.get("vbat_mv")))
     raw_volt = data.get("voltage_v", data.get("voltage", data.get("volt", data.get("vbat"))))
@@ -418,7 +401,6 @@ def extract_telemetry_fields(data: dict[str, Any]) -> dict[str, Any]:
         except (ValueError, TypeError):
             pass
 
-    # 7. Solar
     raw_solar = data.get("solar_v", data.get("solar_mv", data.get("solar")))
     if raw_solar is not None:
         try:
@@ -427,7 +409,9 @@ def extract_telemetry_fields(data: dict[str, Any]) -> dict[str, Any]:
         except (ValueError, TypeError):
             pass
 
-    # 8. Uptime
+
+def _extract_system_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
+    """Extrae uptime formateado, colas y contadores de errores."""
     raw_uptime = data.get("uptime_secs", data.get("uptime", data.get("uptime_sec", data.get("uptime_s"))))
     if raw_uptime is not None:
         if isinstance(raw_uptime, (int, float)):
@@ -445,7 +429,6 @@ def extract_telemetry_fields(data: dict[str, Any]) -> dict[str, Any]:
         else:
             res["uptime"] = str(raw_uptime)
 
-    # 9. Errores y Cola de Repetidor
     errors = data.get("errors", data.get("packet_errors", data.get("recv_errors")))
     if errors is not None:
         try:
@@ -460,7 +443,9 @@ def extract_telemetry_fields(data: dict[str, Any]) -> dict[str, Any]:
         except (ValueError, TypeError):
             pass
 
-    # 10. Métricas de Radio (ruido, airtime, paquetes)
+
+def _extract_radio_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
+    """Extrae métricas RF: piso de ruido, airtime y contadores de paquetes."""
     noise = data.get("noise_floor", data.get("noise_floor_dbm", data.get("noise")))
     if noise is not None:
         try:
@@ -489,7 +474,9 @@ def extract_telemetry_fields(data: dict[str, Any]) -> dict[str, Any]:
         except (ValueError, TypeError):
             pass
 
-    # 11. GPS
+
+def _extract_location_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
+    """Extrae coordenadas GPS (latitud, longitud, altitud)."""
     for lat_k in ("latitude", "lat", "gps_lat"):
         if lat_k in data and data[lat_k] is not None:
             try:
@@ -513,6 +500,28 @@ def extract_telemetry_fields(data: dict[str, Any]) -> dict[str, Any]:
                 break
             except (ValueError, TypeError):
                 pass
+
+
+def extract_telemetry_fields(data: dict[str, Any]) -> dict[str, Any]:
+    """
+    Extrae, normaliza y aplana exhaustivamente todas las posibles lecturas de telemetría y estado:
+    - Temperatura, humedad, presión barométrica
+    - Batería (porcentaje y mV/V), voltaje, solar
+    - Uptime, errores, tamaño de cola
+    - LPP decodificado (lista de objetos o diccionario plano)
+    - Ubicación GPS
+    - Métricas de radio (ruido, airtime, paquetes)
+    """
+    res: dict[str, Any] = {}
+    if not isinstance(data, dict):
+        return res
+
+    _extract_lpp_telemetry(data, res)
+    _extract_environment_telemetry(data, res)
+    _extract_power_telemetry(data, res)
+    _extract_system_telemetry(data, res)
+    _extract_radio_telemetry(data, res)
+    _extract_location_telemetry(data, res)
 
     return res
 
