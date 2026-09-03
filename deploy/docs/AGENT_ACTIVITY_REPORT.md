@@ -6,6 +6,25 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Refactorización Clean Code del Servidor Web HTTP/WebSocket con Contextos Tipados
+- **Fecha**: 2026-09-02
+- **Estado**: ✅ COMPLETADO (Introducción de HttpRequestContext y HttpResponse, eliminación de firmas de 7 a 9 parámetros, descomposición de _handle_client de 134 líneas y _handle_websocket_handshake de 91 líneas en métodos modulares < 45 líneas; 0 code smells en http_server.py y 100% PASS en simulación)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - `MeshCoreWebServer` en `src/web/http_server.py` presentaba métodos con firmas excesivas (`_handle_api_response` con 9 parámetros, `_serve_static_file` con 8 parámetros, `_write_http_response` con 7 parámetros) y métodos sobredimensionados (`_handle_client` con 134 líneas y `_handle_websocket_handshake` con 91 líneas).
+  - Se requería estructurar el manejo de peticiones y respuestas mediante patrones de contexto (`HttpRequestContext`, `HttpResponse`), reducir la complejidad ciclomática y descomponer el flujo en submétodos de responsabilidad única sin alterar contratos ni dependencias externas.
+- **Acciones Realizadas**:
+  - **Contextos Tipados en [`src/web/http_server.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/http_server.py)**:
+    - Se definieron `@dataclass(slots=True) class HttpRequestContext` y `@dataclass(slots=True) class HttpResponse`.
+    - `_handle_api_response(self, ctx: HttpRequestContext)`: Reducida de 9 a 2 parámetros. Extraídos `_serve_map_tile(ctx)` e `_is_api_auth_valid(ctx)` (2 parámetros cada uno, < 30 líneas).
+    - `_serve_static_file(self, ctx: HttpRequestContext)`: Reducida de 8 a 2 parámetros (< 48 líneas).
+    - `_write_http_response(self, writer, resp_or_status, body, content_type, cors_origin)`: Reducida a <= 6 parámetros con soporte polimórfico para `HttpResponse` o argumentos individuales.
+  - **Descomposición de `_handle_client` (134 líneas $\to$ 33 líneas)**:
+    - Subdividido en: `_parse_request_head` (lectura de encabezados HTTP), `_inspect_request_security` (anomalías y traversal), `_read_request_body` (control de carga útil <= 1MB) y `_dispatch_client_request` (enrutamiento a WS, CORS, API o estáticos).
+  - **Descomposición de `_handle_websocket_handshake` (91 líneas $\to$ 13 líneas)**:
+    - Subdividido en: `_send_websocket_handshake_response` (cálculo RFC 6455 Sec-WebSocket-Accept), `_send_initial_websocket_state` (telemetría inicial) y `_run_websocket_message_loop` (bucle de escucha de tramas).
+- **Módulos Modificados**: `src/web/http_server.py`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Refactorización Clean Code de AdminCommandHandler y Descomposición Modular en src/admin/
 - **Fecha**: 2026-09-02
 - **Estado**: ✅ COMPLETADO (Descomposición modular de AdminCommandHandler en ejecutores de dominio: RepeaterAdminExecutor, TracerouteExecutor, LocalConfigExecutor; eliminación del método monolítico de 443 líneas y reducción de 8 parámetros a dataclass RemoteRepeaterRequest; 100% PASS en auditorías y simulación)

@@ -16,12 +16,39 @@ import mimetypes
 import os
 import struct
 import time
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from src.web.api_router import WebAPIRouter
 from src.web.map_tile_service import MapTileService
 from src.web.security_inspector import SecurityTrafficInspector
+
+
+@dataclass(slots=True)
+class HttpRequestContext:
+    """Contexto estructurado para el procesamiento de una petición HTTP/WebSocket."""
+
+    reader: asyncio.StreamReader
+    writer: asyncio.StreamWriter
+    method: str
+    path: str
+    headers: dict[str, str]
+    client_ip: str = "127.0.0.1"
+    cors_origin: str = ""
+    t_start: float = 0.0
+    body_dict: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class HttpResponse:
+    """Especificación de respuesta HTTP para serialización y transmisión."""
+
+    status_line: str
+    body: bytes
+    content_type: str | None = None
+    extra_headers: list[str] | None = None
+    cors_origin: str = ""
 
 
 class MeshCoreWebServer:
@@ -153,138 +180,181 @@ class MeshCoreWebServer:
     async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         """Procesa una conexión entrante HTTP o WebSocket."""
         try:
-            request_line = await reader.readline()
-            if not request_line:
-                writer.close()
+            head = await self._parse_request_head(reader, writer)
+            if head is None:
                 return
-
-            req_str = request_line.decode("utf-8", errors="ignore").strip()
-            parts = req_str.split(" ")
-            if len(parts) < 2:
-                writer.close()
-                return
-
-            method, path = parts[0].upper(), parts[1]
-
-            # Leer encabezados HTTP
-            headers: dict[str, str] = {}
-            while True:
-                line = await reader.readline()
-                if not line or line in (b"\r\n", b"\n"):
-                    break
-                h_str = line.decode("utf-8", errors="ignore").strip()
-                if ":" in h_str:
-                    k, v = h_str.split(":", 1)
-                    headers[k.strip().lower()] = v.strip()
-
+            method, path, headers = head
             client_ip = SecurityTrafficInspector.extract_client_ip(writer, headers)
             t_start = time.perf_counter()
 
-            # 1. Inspección de seguridad perimetral y detección de tráfico sospechoso
-            is_suspicious, anomaly_type, anomaly_detail = SecurityTrafficInspector.inspect_http_request(
+            if not await self._inspect_request_security(writer, method, path, headers, client_ip):
+                return
+
+            body_dict = await self._read_request_body(reader, writer, headers, client_ip, path)
+            if body_dict is None:
+                return
+
+            cors_origin = self._calculate_cors_origin(headers)
+            ctx = HttpRequestContext(
+                reader=reader,
+                writer=writer,
                 method=method,
                 path=path,
                 headers=headers,
-                body_dict=None,
                 client_ip=client_ip,
+                cors_origin=cors_origin,
+                t_start=t_start,
+                body_dict=body_dict,
             )
-            if is_suspicious:
-                SecurityTrafficInspector.log_suspicious_traffic(
-                    client_ip=client_ip,
-                    source_type="HTTP",
-                    endpoint=path,
-                    anomaly_type=anomaly_type,
-                    detail=anomaly_detail,
-                    user_agent=headers.get("user-agent", ""),
-                )
-                await self._write_http_response(writer, "403 Forbidden", b"403 Forbidden - Security Violation")
-                return
-
-            clean_path = path.split("?")[0].strip("/")
-            if self._is_traversal_attempt(clean_path):
-                SecurityTrafficInspector.log_suspicious_traffic(
-                    client_ip=client_ip,
-                    source_type="HTTP",
-                    endpoint=path,
-                    anomaly_type="DIRECTORY_TRAVERSAL",
-                    detail=f"Traversal detectado en clean_path: '{clean_path}'",
-                    user_agent=headers.get("user-agent", ""),
-                )
-                await self._write_http_response(writer, "403 Forbidden", b"")
-                return
-
-            import os
-            allowed_origins_env = os.getenv("BRIDGE_ALLOWED_ORIGINS", "http://localhost:8080,http://127.0.0.1:8080")
-            allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
-            req_origin = headers.get("origin", "")
-            host_header = headers.get("host", "")
-            is_origin_ok = self._is_origin_allowed(req_origin, host_header, allowed_origins)
-            cors_origin = req_origin if is_origin_ok else ""
-
-            # 2. Comprobar si es solicitud de Upgrade a WebSocket
-            if headers.get("upgrade", "").lower() == "websocket" and "sec-websocket-key" in headers:
-                if req_origin and not is_origin_ok:
-                    SecurityTrafficInspector.log_suspicious_traffic(
-                        client_ip=client_ip,
-                        source_type="WEBSOCKET",
-                        endpoint=path,
-                        anomaly_type="WS_ORIGIN_RECHAZADO",
-                        detail=f"Origin WebSocket no autorizado: '{req_origin}'",
-                        user_agent=headers.get("user-agent", ""),
-                    )
-                    logging.warning(f"WebSocket upgrade rechazado por Origin no permitido: {req_origin}")
-                    await self._write_http_response(writer, "403 Forbidden", b"")
-                    return
-                await self._handle_websocket_handshake(reader, writer, headers["sec-websocket-key"], client_ip=client_ip)
-                return
-
-            # 3. Manejo de CORS Preflight (OPTIONS)
-            if method == "OPTIONS":
-                await self._handle_cors_preflight(writer, cors_origin)
-                return
-
-            # 4. Leer cuerpo si existe Content-Length (con límite de tamaño para prevenir DoS)
-            body_dict: dict[str, Any] = {}
-            if "content-length" in headers:
-                content_len = int(headers["content-length"])
-                if content_len > 1024 * 1024:  # 1 MB max
-                    SecurityTrafficInspector.log_suspicious_traffic(
-                        client_ip=client_ip,
-                        source_type="HTTP",
-                        endpoint=path,
-                        anomaly_type="PAYLOAD_SOBREDIMENSIONADO",
-                        detail=f"Content-Length {content_len} excede 1MB",
-                        user_agent=headers.get("user-agent", ""),
-                    )
-                    writer.write(b"HTTP/1.1 413 Payload Too Large\r\nConnection: close\r\n\r\n")
-                    await writer.drain()
-                    writer.close()
-                    return
-
-                body_bytes = await reader.readexactly(content_len)
-                try:
-                    body_dict = json.loads(body_bytes.decode("utf-8"))
-                except Exception:
-                    body_dict = {"raw": body_bytes.decode("utf-8", errors="ignore")}
-
-            # 5. Manejo de API REST con Cabeceras de Seguridad
-            if path.startswith("/api/"):
-                await self._handle_api_response(
-                    writer, method, path, headers, body_dict, cors_origin, client_ip=client_ip, t_start=t_start
-                )
-                return
-
-            # 6. Servir archivos estáticos (HTML, CSS, JS)
-            await self._serve_static_file(
-                writer, path, cors_origin=cors_origin, client_ip=client_ip, method=method, t_start=t_start, headers=headers
-            )
-
+            await self._dispatch_client_request(ctx)
         except Exception as e:
             logging.warning("Excepción en cliente HTTP/WS: %s", e)
             try:
                 writer.close()
             except Exception:
                 pass
+
+    async def _parse_request_head(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> tuple[str, str, dict[str, str]] | None:
+        """Lee y decodifica la línea inicial de petición HTTP y sus cabeceras."""
+        request_line = await reader.readline()
+        if not request_line:
+            writer.close()
+            return None
+
+        req_str = request_line.decode("utf-8", errors="ignore").strip()
+        parts = req_str.split(" ")
+        if len(parts) < 2:
+            writer.close()
+            return None
+
+        method, path = parts[0].upper(), parts[1]
+        headers: dict[str, str] = {}
+        while True:
+            line = await reader.readline()
+            if not line or line in (b"\r\n", b"\n"):
+                break
+            h_str = line.decode("utf-8", errors="ignore").strip()
+            if ":" in h_str:
+                k, v = h_str.split(":", 1)
+                headers[k.strip().lower()] = v.strip()
+
+        return method, path, headers
+
+    async def _inspect_request_security(
+        self,
+        writer: asyncio.StreamWriter,
+        method: str,
+        path: str,
+        headers: dict[str, str],
+        client_ip: str,
+    ) -> bool:
+        """Inspecciona anomalías perimetrales y previene ataques de Directory Traversal."""
+        is_suspicious, anomaly_type, anomaly_detail = SecurityTrafficInspector.inspect_http_request(
+            method=method,
+            path=path,
+            headers=headers,
+            body_dict=None,
+            client_ip=client_ip,
+        )
+        if is_suspicious:
+            SecurityTrafficInspector.log_suspicious_traffic(
+                client_ip=client_ip,
+                source_type="HTTP",
+                endpoint=path,
+                anomaly_type=anomaly_type,
+                detail=anomaly_detail,
+                user_agent=headers.get("user-agent", ""),
+            )
+            await self._write_http_response(writer, "403 Forbidden", b"403 Forbidden - Security Violation")
+            return False
+
+        clean_path = path.split("?")[0].strip("/")
+        if self._is_traversal_attempt(clean_path):
+            SecurityTrafficInspector.log_suspicious_traffic(
+                client_ip=client_ip,
+                source_type="HTTP",
+                endpoint=path,
+                anomaly_type="DIRECTORY_TRAVERSAL",
+                detail=f"Traversal detectado en clean_path: '{clean_path}'",
+                user_agent=headers.get("user-agent", ""),
+            )
+            await self._write_http_response(writer, "403 Forbidden", b"")
+            return False
+
+        return True
+
+    async def _read_request_body(
+        self,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
+        headers: dict[str, str],
+        client_ip: str,
+        path: str,
+    ) -> dict[str, Any] | None:
+        """Lee el cuerpo JSON controlando el límite de 1MB para prevenir ataques DoS."""
+        if "content-length" not in headers:
+            return {}
+
+        content_len = int(headers["content-length"])
+        if content_len > 1024 * 1024:  # 1 MB max
+            SecurityTrafficInspector.log_suspicious_traffic(
+                client_ip=client_ip,
+                source_type="HTTP",
+                endpoint=path,
+                anomaly_type="PAYLOAD_SOBREDIMENSIONADO",
+                detail=f"Content-Length {content_len} excede 1MB",
+                user_agent=headers.get("user-agent", ""),
+            )
+            writer.write(b"HTTP/1.1 413 Payload Too Large\r\nConnection: close\r\n\r\n")
+            await writer.drain()
+            writer.close()
+            return None
+
+        body_bytes = await reader.readexactly(content_len)
+        try:
+            return json.loads(body_bytes.decode("utf-8"))
+        except Exception:
+            return {"raw": body_bytes.decode("utf-8", errors="ignore")}
+
+    def _calculate_cors_origin(self, headers: dict[str, str]) -> str:
+        """Calcula el origen CORS autorizado comparando cabeceras y variables de entorno."""
+        allowed_origins_env = os.getenv("BRIDGE_ALLOWED_ORIGINS", "http://localhost:8080,http://127.0.0.1:8080")
+        allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
+        req_origin = headers.get("origin", "")
+        host_header = headers.get("host", "")
+        is_origin_ok = self._is_origin_allowed(req_origin, host_header, allowed_origins)
+        return req_origin if is_origin_ok else ""
+
+    async def _dispatch_client_request(self, ctx: HttpRequestContext) -> None:
+        """Enruta la petición HTTP validada hacia WebSocket, CORS, API REST o estáticos."""
+        if ctx.headers.get("upgrade", "").lower() == "websocket" and "sec-websocket-key" in ctx.headers:
+            req_origin = ctx.headers.get("origin", "")
+            if req_origin and not ctx.cors_origin:
+                SecurityTrafficInspector.log_suspicious_traffic(
+                    client_ip=ctx.client_ip,
+                    source_type="WEBSOCKET",
+                    endpoint=ctx.path,
+                    anomaly_type="WS_ORIGIN_RECHAZADO",
+                    detail=f"Origin WebSocket no autorizado: '{req_origin}'",
+                    user_agent=ctx.headers.get("user-agent", ""),
+                )
+                logging.warning(f"WebSocket upgrade rechazado por Origin no permitido: {req_origin}")
+                await self._write_http_response(ctx.writer, "403 Forbidden", b"")
+                return
+            await self._handle_websocket_handshake(ctx, ctx.headers["sec-websocket-key"])
+            return
+
+        if ctx.method == "OPTIONS":
+            await self._handle_cors_preflight(ctx.writer, ctx.cors_origin)
+            return
+
+        if ctx.path.startswith("/api/"):
+            await self._handle_api_response(ctx)
+            return
+
+        await self._serve_static_file(ctx)
 
     async def _handle_cors_preflight(self, writer: asyncio.StreamWriter, cors_origin: str) -> None:
         cors_headers = f"Access-Control-Allow-Origin: {cors_origin}\r\n" if cors_origin else ""
@@ -299,80 +369,90 @@ class MeshCoreWebServer:
         await writer.drain()
         writer.close()
 
-    async def _handle_api_response(
-        self,
-        writer: asyncio.StreamWriter,
-        method: str,
-        path: str,
-        headers: dict[str, str],
-        body_dict: dict[str, Any],
-        cors_origin: str,
-        client_ip: str = "127.0.0.1",
-        t_start: float = 0.0,
-    ) -> None:
+    async def _handle_api_response(self, ctx: HttpRequestContext) -> None:
+        """Procesa endpoints de la API REST ejecutando validaciones de teselas y autenticación."""
         # 1. Despacho especializado de teselas cartográficas binarias (/api/map/tiles/{z}/{x}/{y}.ext)
-        if path.startswith("/api/map/tiles/"):
-            subpath = path[len("/api/map/tiles/"):].split("?")[0].strip("/")
-            parts = subpath.split("/")
-            if len(parts) >= 3:
-                try:
-                    z = int(parts[0])
-                    x = int(parts[1])
-                    y_raw = parts[2].split(".")[0]
-                    y = int(y_raw)
-                    status_code, tile_bytes, mime = self.tile_service.get_tile(z, x, y)
-                    if status_code == 200 and tile_bytes:
-                        await self._write_http_response(
-                            writer,
-                            "200 OK",
-                            tile_bytes,
-                            mime,
-                            extra_headers=["Cache-Control: public, max-age=86400"],
-                            cors_origin=cors_origin,
-                        )
-                        return
-                except ValueError:
-                    pass
-            await self._write_http_response(writer, "404 Not Found", b"", "image/png", cors_origin=cors_origin)
+        if ctx.path.startswith("/api/map/tiles/"):
+            if await self._serve_map_tile(ctx):
+                return
+            await self._write_http_response(ctx.writer, "404 Not Found", b"", "image/png", cors_origin=ctx.cors_origin)
             return
 
+        # 2. Comprobación de API Key en endpoints protegidos
+        if not await self._is_api_auth_valid(ctx):
+            return
+
+        status_code, resp_json = await self.router.handle_request(ctx.method, ctx.path, ctx.body_dict)
+        duration_ms = (time.perf_counter() - ctx.t_start) * 1000.0 if ctx.t_start > 0 else 0.0
+        SecurityTrafficInspector.log_http_access(
+            client_ip=ctx.client_ip,
+            method=ctx.method,
+            path=ctx.path,
+            status_code=status_code,
+            duration_ms=duration_ms,
+            user_agent=ctx.headers.get("user-agent", ""),
+        )
+        resp_bytes = json.dumps(resp_json, indent=2).encode("utf-8")
+        await self._write_http_response(ctx.writer, f"{status_code} OK", resp_bytes, "application/json", cors_origin=ctx.cors_origin)
+
+    async def _serve_map_tile(self, ctx: HttpRequestContext) -> bool:
+        """Sirve una tesela cartográfica si la ruta es válida y existe."""
+        subpath = ctx.path[len("/api/map/tiles/"):].split("?")[0].strip("/")
+        parts = subpath.split("/")
+        if len(parts) >= 3:
+            try:
+                z = int(parts[0])
+                x = int(parts[1])
+                y_raw = parts[2].split(".")[0]
+                y = int(y_raw)
+                status_code, tile_bytes, mime = self.tile_service.get_tile(z, x, y)
+                if status_code == 200 and tile_bytes:
+                    await self._write_http_response(
+                        ctx.writer,
+                        HttpResponse(
+                            status_line="200 OK",
+                            body=tile_bytes,
+                            content_type=mime,
+                            extra_headers=["Cache-Control: public, max-age=86400"],
+                            cors_origin=ctx.cors_origin,
+                        ),
+                    )
+                    return True
+            except ValueError:
+                pass
+        return False
+
+    async def _is_api_auth_valid(self, ctx: HttpRequestContext) -> bool:
+        """Verifica la autenticación con BRIDGE_API_KEY si el endpoint está protegido."""
         api_key = os.getenv("BRIDGE_API_KEY", "")
         protected_prefixes = ("/api/node/reboot", "/api/admin/", "/api/tx", "/api/repeater/")
         needs_auth = False
-        if any(path.startswith(p) for p in protected_prefixes):
-            if not (path.startswith("/api/nodes") and method == "GET"):
+        if any(ctx.path.startswith(p) for p in protected_prefixes):
+            if not (ctx.path.startswith("/api/nodes") and ctx.method == "GET"):
                 needs_auth = True
 
-        if needs_auth:
-            if not api_key:
-                logging.warning("BRIDGE_API_KEY no configurada, omitiendo autenticación (modo desarrollo)")
-            else:
-                req_api_key = headers.get("x-api-key", "")
-                if not hmac.compare_digest(req_api_key, api_key):
-                    SecurityTrafficInspector.log_suspicious_traffic(
-                        client_ip=client_ip,
-                        source_type="API-AUTH",
-                        endpoint=path,
-                        anomaly_type="AUTENTICACION_API_FALLIDA",
-                        detail=f"Intento no autorizado a endpoint protegido '{path}'",
-                        user_agent=headers.get("user-agent", ""),
-                    )
-                    resp_bytes = json.dumps({"error": "Unauthorized"}).encode("utf-8")
-                    await self._write_http_response(writer, "401 Unauthorized", resp_bytes, "application/json", cors_origin=cors_origin)
-                    return
+        if not needs_auth:
+            return True
 
-        status_code, resp_json = await self.router.handle_request(method, path, body_dict)
-        duration_ms = (time.perf_counter() - t_start) * 1000.0 if t_start > 0 else 0.0
-        SecurityTrafficInspector.log_http_access(
-            client_ip=client_ip,
-            method=method,
-            path=path,
-            status_code=status_code,
-            duration_ms=duration_ms,
-            user_agent=headers.get("user-agent", ""),
-        )
-        resp_bytes = json.dumps(resp_json, indent=2).encode("utf-8")
-        await self._write_http_response(writer, f"{status_code} OK", resp_bytes, "application/json", cors_origin=cors_origin)
+        if not api_key:
+            logging.warning("BRIDGE_API_KEY no configurada, omitiendo autenticación (modo desarrollo)")
+            return True
+
+        req_api_key = ctx.headers.get("x-api-key", "")
+        if not hmac.compare_digest(req_api_key, api_key):
+            SecurityTrafficInspector.log_suspicious_traffic(
+                client_ip=ctx.client_ip,
+                source_type="API-AUTH",
+                endpoint=ctx.path,
+                anomaly_type="AUTENTICACION_API_FALLIDA",
+                detail=f"Intento no autorizado a endpoint protegido '{ctx.path}'",
+                user_agent=ctx.headers.get("user-agent", ""),
+            )
+            resp_bytes = json.dumps({"error": "Unauthorized"}).encode("utf-8")
+            await self._write_http_response(ctx.writer, "401 Unauthorized", resp_bytes, "application/json", cors_origin=ctx.cors_origin)
+            return False
+
+        return True
 
     def _is_origin_allowed(self, req_origin: str, host_header: str, allowed_origins: list[str]) -> bool:
         """Valida si el origen HTTP/WebSocket está autorizado para CORS y WebSockets."""
@@ -401,20 +481,25 @@ class MeshCoreWebServer:
                     return True
         return False
 
-    async def _handle_websocket_handshake(
-        self,
-        reader: asyncio.StreamReader,
-        writer: asyncio.StreamWriter,
-        sec_key: str,
-        client_ip: str = "127.0.0.1",
-    ) -> None:
+    async def _handle_websocket_handshake(self, ctx: HttpRequestContext, sec_key: str) -> None:
         """Ejecuta el handshake RFC 6455 de WebSocket y mantiene el bucle de escucha."""
+        await self._send_websocket_handshake_response(ctx.writer, sec_key)
+        self.active_websockets.add(ctx.writer)
+        SecurityTrafficInspector.log_websocket_connection(
+            client_ip=ctx.client_ip,
+            event="Conexión WebSocket establecida",
+            active_count=len(self.active_websockets),
+        )
+
+        await self._send_initial_websocket_state(ctx.writer)
+        await self._run_websocket_message_loop(ctx.reader, ctx.writer, ctx.client_ip)
+
+    async def _send_websocket_handshake_response(self, writer: asyncio.StreamWriter, sec_key: str) -> None:
+        """Calcula Sec-WebSocket-Accept según RFC 6455 y envía respuesta 101 Switching Protocols."""
         guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
-        # RFC 6455 exige específicamente SHA-1 para el cálculo de Sec-WebSocket-Accept
         accept_key = base64.b64encode(
             hashlib.sha1((sec_key + guid).encode("utf-8"), usedforsecurity=False).digest()  # nosec B324
         ).decode("utf-8")
-
         handshake_resp = (
             "HTTP/1.1 101 Switching Protocols\r\n"
             "Upgrade: websocket\r\n"
@@ -424,14 +509,8 @@ class MeshCoreWebServer:
         writer.write(handshake_resp.encode("utf-8"))
         await writer.drain()
 
-        self.active_websockets.add(writer)
-        SecurityTrafficInspector.log_websocket_connection(
-            client_ip=client_ip,
-            event="Conexión WebSocket establecida",
-            active_count=len(self.active_websockets),
-        )
-
-        # Enviar estado inicial inmediato al cliente conectado
+    async def _send_initial_websocket_state(self, writer: asyncio.StreamWriter) -> None:
+        """Envía el estado de bienvenida y métricas iniciales del nodo al cliente WebSocket."""
         initial_status = {
             "event_type": "ws_connected",
             "message": "Conectado al servidor WebSocket en vivo de MeshCore Bridge",
@@ -459,7 +538,10 @@ class MeshCoreWebServer:
         writer.write(self._build_websocket_frame(json.dumps(initial_metrics).encode("utf-8")))
         await writer.drain()
 
-        # Bucle de escucha WebSocket para mantener la conexión activa
+    async def _run_websocket_message_loop(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, client_ip: str
+    ) -> None:
+        """Bucle de escucha de tramas WebSocket para mantener la conexión activa."""
         try:
             while self.running:
                 frame = await self._read_websocket_frame(reader, writer)
@@ -574,13 +656,22 @@ class MeshCoreWebServer:
 
     def _build_http_response(
         self,
-        status_line: str,
-        body: bytes,
+        resp_or_status: HttpResponse | str,
+        body: bytes = b"",
         content_type: str | None = None,
         extra_headers: list[str] | None = None,
         cors_origin: str = "",
     ) -> bytes:
         """Construye una respuesta HTTP 1.1 con cabeceras de seguridad obligatorias."""
+        if isinstance(resp_or_status, HttpResponse):
+            status_line = resp_or_status.status_line
+            body = resp_or_status.body
+            content_type = resp_or_status.content_type
+            extra_headers = resp_or_status.extra_headers
+            cors_origin = resp_or_status.cors_origin
+        else:
+            status_line = resp_or_status
+
         try:
             status_code = int(status_line.split(" ")[0])
             reason = self.HTTP_STATUS_TEXTS.get(status_code, "Unknown")
@@ -620,29 +711,23 @@ class MeshCoreWebServer:
     async def _write_http_response(
         self,
         writer: asyncio.StreamWriter,
-        status_line: str,
-        body: bytes,
+        resp_or_status: HttpResponse | str,
+        body: bytes = b"",
         content_type: str | None = None,
-        extra_headers: list[str] | None = None,
         cors_origin: str = "",
     ) -> None:
-        """Envía una respuesta HTTP y cierra la conexión."""
-        writer.write(self._build_http_response(status_line, body, content_type, extra_headers, cors_origin))
+        """Envía una respuesta HTTP estructurada o texto plano y cierra la conexión."""
+        if isinstance(resp_or_status, HttpResponse):
+            payload = self._build_http_response(resp_or_status)
+        else:
+            payload = self._build_http_response(resp_or_status, body, content_type, None, cors_origin)
+        writer.write(payload)
         await writer.drain()
         writer.close()
 
-    async def _serve_static_file(
-        self,
-        writer: asyncio.StreamWriter,
-        raw_path: str,
-        cors_origin: str = "",
-        client_ip: str = "127.0.0.1",
-        method: str = "GET",
-        t_start: float = 0.0,
-        headers: dict[str, str] | None = None,
-    ) -> None:
+    async def _serve_static_file(self, ctx: HttpRequestContext) -> None:
         """Sirve archivos estáticos locales o devuelve index.html para SPA routing."""
-        clean_path = raw_path.split("?")[0].strip("/")
+        clean_path = ctx.path.split("?")[0].strip("/")
         if not clean_path or clean_path in ("", "chat", "map", "nodes", "contacts", "settings", "telemetry", "logs", "analytics"):
             target_file = self.static_dir / "index.html"
         else:
@@ -651,30 +736,30 @@ class MeshCoreWebServer:
         # Seguridad: verificación canónica (defensa en profundidad)
         if not self._is_within_static_root(target_file):
             SecurityTrafficInspector.log_suspicious_traffic(
-                client_ip=client_ip,
+                client_ip=ctx.client_ip,
                 source_type="HTTP-STATIC",
-                endpoint=raw_path,
+                endpoint=ctx.path,
                 anomaly_type="ESCAPE_RAIZ_ESTATICOS",
                 detail=f"Intento de acceso fuera de static_dir: '{target_file}'",
-                user_agent=(headers or {}).get("user-agent", ""),
+                user_agent=ctx.headers.get("user-agent", ""),
             )
-            await self._write_http_response(writer, "403 Forbidden", b"", cors_origin=cors_origin)
+            await self._write_http_response(ctx.writer, "403 Forbidden", b"", cors_origin=ctx.cors_origin)
             return
 
         if not target_file.is_file():
             if not target_file.suffix:
                 target_file = self.static_dir / "index.html"
             else:
-                duration_ms = (time.perf_counter() - t_start) * 1000.0 if t_start > 0 else 0.0
+                duration_ms = (time.perf_counter() - ctx.t_start) * 1000.0 if ctx.t_start > 0 else 0.0
                 SecurityTrafficInspector.log_http_access(
-                    client_ip=client_ip,
-                    method=method,
-                    path=raw_path,
+                    client_ip=ctx.client_ip,
+                    method=ctx.method,
+                    path=ctx.path,
                     status_code=404,
                     duration_ms=duration_ms,
-                    user_agent=(headers or {}).get("user-agent", ""),
+                    user_agent=ctx.headers.get("user-agent", ""),
                 )
-                await self._write_http_response(writer, "404 Not Found", b"404 Not Found", cors_origin=cors_origin)
+                await self._write_http_response(ctx.writer, "404 Not Found", b"404 Not Found", cors_origin=ctx.cors_origin)
                 return
 
         if target_file.is_file():
@@ -683,24 +768,24 @@ class MeshCoreWebServer:
                 content_type = "text/html" if target_file.suffix == ".html" else "application/octet-stream"
 
             file_bytes = target_file.read_bytes()
-            duration_ms = (time.perf_counter() - t_start) * 1000.0 if t_start > 0 else 0.0
+            duration_ms = (time.perf_counter() - ctx.t_start) * 1000.0 if ctx.t_start > 0 else 0.0
             SecurityTrafficInspector.log_http_access(
-                client_ip=client_ip,
-                method=method,
-                path=raw_path,
+                client_ip=ctx.client_ip,
+                method=ctx.method,
+                path=ctx.path,
                 status_code=200,
                 duration_ms=duration_ms,
-                user_agent=(headers or {}).get("user-agent", ""),
+                user_agent=ctx.headers.get("user-agent", ""),
             )
             cache_header = "Cache-Control: no-cache, no-store, must-revalidate" if target_file.suffix == ".html" else "Cache-Control: public, max-age=60"
-            await self._write_http_response(
-                writer,
-                "200 OK",
-                file_bytes,
-                f"{content_type}; charset=utf-8",
+            resp = HttpResponse(
+                status_line="200 OK",
+                body=file_bytes,
+                content_type=f"{content_type}; charset=utf-8",
                 extra_headers=[cache_header],
-                cors_origin=cors_origin
+                cors_origin=ctx.cors_origin,
             )
+            await self._write_http_response(ctx.writer, resp)
         else:
             fallback = b"<h1>MeshCore Web Client</h1><p>Archivos estaticos inicializandose...</p>"
-            await self._write_http_response(writer, "200 OK", fallback, "text/html; charset=utf-8", cors_origin=cors_origin)
+            await self._write_http_response(ctx.writer, "200 OK", fallback, "text/html; charset=utf-8", cors_origin=ctx.cors_origin)
