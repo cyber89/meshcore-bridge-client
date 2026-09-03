@@ -1163,19 +1163,22 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
 
     async def get_stats_core(self) -> Any:
-        if not self.is_connected or not self.mc: return None
+        if not self.is_connected or not self.mc:
+            return None
         if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "get_stats_core"):
             return await self.mc.commands.get_stats_core()
         return None
 
     async def get_stats_radio(self) -> Any:
-        if not self.is_connected or not self.mc: return None
+        if not self.is_connected or not self.mc:
+            return None
         if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "get_stats_radio"):
             return await self.mc.commands.get_stats_radio()
         return None
 
     async def get_stats_packets(self) -> Any:
-        if not self.is_connected or not self.mc: return None
+        if not self.is_connected or not self.mc:
+            return None
         if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "get_stats_packets"):
             return await self.mc.commands.get_stats_packets()
         return None
@@ -1187,67 +1190,78 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         return None
 
     async def set_autoadd_config(self, flag: bool) -> Any:
-        if not self.is_connected or not self.mc: return None
+        if not self.is_connected or not self.mc:
+            return None
         if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "set_manual_add_contacts"):
             return await self.mc.commands.set_manual_add_contacts(flag)
         return None
 
     async def set_other_params_from_infos(self, infos: dict[str, Any]) -> Any:
-        if not self.is_connected or not self.mc: return None
+        if not self.is_connected or not self.mc:
+            return None
         if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "set_other_params_from_infos"):
             return await self.mc.commands.set_other_params_from_infos(infos)
         return None
 
     async def get_advert_path(self, key: str) -> Any:
-        if not self.is_connected or not self.mc: return None
+        if not self.is_connected or not self.mc:
+            return None
         if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "get_advert_path"):
             return await self.mc.commands.get_advert_path(key)
         return None
 
     async def get_contact_by_key(self, pubkey: str) -> Any:
-        if not self.is_connected or not self.mc: return None
+        if not self.is_connected or not self.mc:
+            return None
         if hasattr(self.mc, "get_contact_by_key"):
             return self.mc.get_contact_by_key(pubkey)
         return None
 
     async def send_path_discovery_sync(self, dst: str) -> Any:
-        if not self.is_connected or not self.mc: return None
+        if not self.is_connected or not self.mc:
+            return None
         if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "send_path_discovery_sync"):
             return await self.mc.commands.send_path_discovery_sync(dst)
         return None
 
     async def set_flood_scope(self, scope: int) -> Any:
-        if not self.is_connected or not self.mc: return None
+        if not self.is_connected or not self.mc:
+            return None
         if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "set_flood_scope"):
             return await self.mc.commands.set_flood_scope(scope)
         return None
 
     async def get_default_flood_scope(self) -> Any:
-        if not self.is_connected or not self.mc: return None
+        if not self.is_connected or not self.mc:
+            return None
         if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "get_default_flood_scope"):
             return await self.mc.commands.get_default_flood_scope()
         return None
 
     async def set_devicepin(self, pin: int) -> Any:
-        if not self.is_connected or not self.mc: return None
+        if not self.is_connected or not self.mc:
+            return None
         if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "set_devicepin"):
             return await self.mc.commands.set_devicepin(pin)
         return None
 
     async def set_time(self, val: int) -> Any:
-        if not self.is_connected or not self.mc: return None
+        if not self.is_connected or not self.mc:
+            return None
         if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "set_time"):
             return await self.mc.commands.set_time(val)
         return None
 
     async def has_connection(self) -> Any:
-        if not self.is_connected or not self.mc: return None
+        if not self.is_connected or not self.mc:
+            return None
         if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "has_connection"):
             return await self.mc.commands.has_connection()
         return None
 
     async def set_path_hash_mode(self, mode: int) -> Any:
-        if not self.is_connected or not self.mc: return None
+        if not self.is_connected or not self.mc:
+            return None
         if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "set_path_hash_mode"):
             return await self.mc.commands.set_path_hash_mode(mode)
         return None

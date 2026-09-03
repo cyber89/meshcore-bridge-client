@@ -517,7 +517,6 @@ class LocalConfigExecutor:
                 try:
                     res = mc.commands.set_other_params_from_infos(infos)
                     if asyncio.iscoroutine(res):
-                        import asyncio
                         await asyncio.wait_for(res, timeout=2.0)
                 except Exception as e:
                     import logging

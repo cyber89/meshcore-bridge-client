@@ -463,26 +463,10 @@ class TextMessagePayload:
 
 @dataclass(frozen=True)
 class NodeAdvertisement:
-    """Payload de anuncio y presencia de nodo (OpCode 0x03)."""
+    """Anuncio de contacto transmitido periódicamente (OpCode 0x03)."""
     node_id: int
     short_name: str
     long_name: str
-
-@dataclass(frozen=True)
-class NodeInfo:
-    """Configuración y capacidades del nodo (SELF_INFO / DEVICE_INFO)."""
-    public_key: str
-    name: str
-    multi_acks: bool | None = None
-    adv_loc_policy: str | None = None
-    telemetry_mode_base: str | None = None
-    telemetry_mode_loc: str | None = None
-    telemetry_mode_env: str | None = None
-    path_hash_mode: str | None = None
-    autoadd_config: dict[str, Any] | None = None
-    stats_core: dict[str, Any] | None = None
-    stats_radio: dict[str, Any] | None = None
-    stats_packets: dict[str, Any] | None = None
     hw_model: HardwareModel
     fw_version: str
     latitude: float
@@ -508,7 +492,7 @@ class NodeInfo:
         )
 
     @classmethod
-    def unpack(cls, data: bytes) -> NodeAdvertisement:
+    def unpack(cls, data: bytes) -> 'NodeAdvertisement':
         if len(data) < 39:
             raise ValueError(f"Payload de anuncio demasiado corto: {len(data)}B < 39B")
         node_id, sname_raw, lname_raw, hw, fw, lat_e7, lon_e7, alt = struct.unpack("<H4s20sBHiih", data[:39])
@@ -533,6 +517,28 @@ class NodeInfo:
         d = asdict(self)
         d["hw_model_name"] = self.hw_model.name
         return d
+
+@dataclass(frozen=True)
+class NodeInfo:
+    """Configuración y capacidades del nodo (SELF_INFO / DEVICE_INFO)."""
+    public_key: str
+    name: str
+    hw_model: HardwareModel
+    fw_version: str
+    latitude: float
+    longitude: float
+    altitude_m: int
+    multi_acks: bool | None = None
+    adv_loc_policy: str | None = None
+    telemetry_mode_base: str | None = None
+    telemetry_mode_loc: str | None = None
+    telemetry_mode_env: str | None = None
+    path_hash_mode: str | None = None
+    autoadd_config: dict[str, Any] | None = None
+    stats_core: dict[str, Any] | None = None
+    stats_radio: dict[str, Any] | None = None
+    stats_packets: dict[str, Any] | None = None
+
 
 
 @dataclass(frozen=True)
