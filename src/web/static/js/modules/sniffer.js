@@ -192,7 +192,10 @@ export class SnifferModule {
     const filtered = this.systemLogs.filter((log) => {
       const msg = log.message || "";
       if (levelFilter !== "ALL") {
-        if (levelFilter === "SECURITY") {
+        if (levelFilter === "RF") {
+          const isRf = msg.includes("[RX-") || msg.includes("[TX-") || msg.includes("[NODO-DESCUBIERTO]") || msg.includes("[ESTACIÓN LOCAL]") || msg.includes("Advertisement recibido");
+          if (!isRf) return false;
+        } else if (levelFilter === "SECURITY") {
           const isSec = msg.includes("[TRAFICO-SOSPECHOSO]") || msg.includes("[SEGURIDAD]") || msg.includes("403 Forbidden") || msg.includes("Unauthorized");
           if (!isSec) return false;
         } else if (levelFilter === "NET") {
@@ -238,10 +241,12 @@ export class SnifferModule {
     const msg = log.message || "";
     const isSuspicious = msg.includes("[TRAFICO-SOSPECHOSO]");
     const isNetwork = msg.includes("[HTTP-CLIENT]") || msg.includes("[REST-API]") || msg.includes("[TCP-COMPANION]") || msg.includes("[WEBSOCKET]");
+    const isRf = msg.includes("[RX-") || msg.includes("[TX-") || msg.includes("[NODO-DESCUBIERTO]") || msg.includes("[ESTACIÓN LOCAL]");
 
     let extraClass = "";
     if (isSuspicious) extraClass = "log-row-suspicious";
     else if (isNetwork) extraClass = "log-row-network";
+    else if (isRf) extraClass = "log-row-rf";
 
     row.className = `log-row ${extraClass}`;
 

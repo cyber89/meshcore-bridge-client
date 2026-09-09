@@ -3481,6 +3481,12 @@ body {
   padding-left: 8px;
 }
 
+.log-row-rf {
+  background: rgba(16, 185, 129, 0.07);
+  border-left: 2px solid #10b981;
+  padding-left: 8px;
+}
+
 .log-row:hover {
   background: var(--bg-surface-hover);
 }

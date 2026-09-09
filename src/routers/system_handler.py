@@ -5,6 +5,7 @@ Handles ACK, PATH_UPDATE, MESSAGES_WAITING, and all other unhandled events.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from src.routers.base import BaseRxHandler, RxMeta
@@ -51,6 +52,10 @@ class SystemHandler(BaseRxHandler):
 
         evt_json = json.dumps(payload, sort_keys=True)
         router_ctx.mqtt.publish_safe(config.TOPIC_RX_ALL, evt_json, qos=0)
+        if event_type in ("log_data", "rx_log_data"):
+            router_ctx.mqtt.publish_safe(config.TOPIC_RX_LOG, evt_json, qos=0)
+
+        logging.info(f"[RX-SISTEMA] Evento de red: {event_type.upper()} | Carga: {payload}")
 
         if router_ctx.web_server:
             import asyncio

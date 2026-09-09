@@ -6,6 +6,32 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Auditoría y Optimización del Módulo Sniffer y Sistema de Logging y Diagnóstico (Trazabilidad Total de Eventos LoRa, MQTT y Persistencia en Disco)
+- **Fecha**: 2026-09-09
+- **Estado**: ✅ COMPLETADO (Garantizada persistencia rotativa automática a disco en `logs/meshcore-bridge.log`, trazabilidad completa de transmisiones `[TX-TRANSMISIÓN]` y `[TX-ERROR]`, logs de peticiones entrantes `[MQTT-TX-IN]` y `[MQTT-ADMIN-IN]`, registro de eventos misceláneos `[RX-SISTEMA]` y publicación en `config.TOPIC_RX_LOG`, trazabilidad de nuevos vecinos `[NODO-DESCUBIERTO]`, reseteo sincronizado de buffers y contadores en `clear_logs`, soporte para filtro y estilizado dedicado de tráfico RF/LoRa en SnifferModule y app.css, ruff 100% PASS, mypy strict 100% PASS, linter frontend 100% PASS y sincronización en /deploy/).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - El usuario solicitó comprobar la función del módulo sniffer y el sistema de log de la app para asegurar que se documenten correctamente todos los eventos ocurridos y que no se pierda información.
+- **Causas Raíz Identificadas y Mejoras Implementadas**:
+  1. **Persistencia en Disco Desacoplada ([`src/bridge_core.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/bridge_core.py))**:
+     - *Causa*: `setup_file_logging()` solo se invocaba desde `meshcore_bridge.py:main()`.
+     - *Corrección*: Se añadió una guarda en `BridgeCore._init_adapters_and_watchdog()` que comprueba si existe un manejador de archivo rotativo y, en caso contrario, configura `setup_file_logging()` de forma automática.
+  2. **Transmisiones LoRa Salientes Invisibles ([`src/bridge_core.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/bridge_core.py))**:
+     - *Causa*: `_execute_tx` transmitía a la radio y publicaba en MQTT pero no emitía ningún log `INFO` de transmisión.
+     - *Corrección*: Se agregó `logging.info(f"[TX-TRANSMISIÓN] Destino: {dest_label} | Canal: #{ch_idx} | Texto: '{text}' | ACK esperado: {expected_ack_hex}")` y `logging.warning(f"[TX-ERROR] ...")`.
+  3. **Peticiones MQTT Entrantes no Trazadas ([`src/mqtt_dispatcher.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/mqtt_dispatcher.py))**:
+     - *Corrección*: Se agregaron registros `logging.info(f"[MQTT-TX-IN] ...")` y `logging.info(f"[MQTT-ADMIN-IN] ...")`.
+  4. **Eventos de Sistema Misceláneos no Registrados ([`src/routers/system_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/routers/system_handler.py))**:
+     - *Corrección*: Se agregó `logging.info(f"[RX-SISTEMA] Evento de red: {event_type.upper()} | Carga: {payload}")` y se activó la publicación en `config.TOPIC_RX_LOG` cuando llegan eventos de tipo `log_data` / `rx_log_data`.
+  5. **Descubrimiento de Nuevos Nodos sin Log ([`src/routers/advert_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/routers/advert_handler.py))**:
+     - *Corrección*: Se añadió `logging.info(f"[NODO-DESCUBIERTO] Nuevo nodo detectado en la malla: {c_name} ({c_pk[:8]}) | Rol: {c_role} | RSSI: {meta.effective_rssi} dBm, SNR: {meta.effective_snr} dB, Saltos: {meta.effective_hops}")`.
+  6. **Desincronización en "Limpiar Logs" ([`src/web/controllers/system_controller.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/controllers/system_controller.py))**:
+     - *Causa*: `clear_logs()` solo limpiaba `self.ctx.system_logs`, dejando intacto el búfer en memoria y los contadores de `DiagnosticManager.log_handler`.
+     - *Corrección*: Se añadió `diag.log_handler.clear()`, sincronizando los búferes y reiniciando a cero los contadores de error/advertencia.
+  7. **Filtro y Resaltado Visual Dedicado de Tráfico RF/LoRa ([`src/web/static/js/modules/sniffer.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/sniffer.js), [`src/web/static/index.html`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/index.html), [`src/web/static/css/app.css`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/css/app.css), [`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py))**:
+     - *Corrección*: Se añadió la opción `<option value="RF">📡 Tráfico LoRa / RF ([RX] &amp; [TX])</option>` al selector `#logLevelFilter`, soporte de filtrado reactivo en `sniffer.js` aislando `[RX-`, `[TX-`, `[NODO-DESCUBIERTO]` y `[ESTACIÓN LOCAL]`, clase CSS `.log-row-rf` con borde y fondo esmeralda táctico, y se aumentó el límite de descarga de historial a 2000 líneas en `/api/logs/download`.
+- **Módulos Modificados**: `src/bridge_core.py`, `src/mqtt_dispatcher.py`, `src/routers/system_handler.py`, `src/routers/advert_handler.py`, `src/web/controllers/system_controller.py`, `src/web/api_router.py`, `src/web/static/js/modules/sniffer.js`, `src/web/static/index.html`, `src/web/static/css/app.css`, `deploy/**`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Corrección Integral de Frontend: Vista de Chat, Libreta de Contactos con Favoritos, Posicionamiento y Centrado Cartográfico y Limpieza de Código
 - **Fecha**: 2026-09-09
 - **Estado**: ✅ COMPLETADO (Corrección de clases en burbujas CSS de chat, acuses de recibo ACK e inserción de punto GPS con fallback; botón interactivo y persistencia backend de nodos favoritos en contact-card y filtrado reactivo robusto con estado vacío; posicionamiento de nodos con GPS en Leaflet, centrado automático en el nodo local, botón "Centrar Local" y alimentación del panel lateral de nodos; linter de frontend 100% PASS y sincronización en /deploy/).

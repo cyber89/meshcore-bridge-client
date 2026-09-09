@@ -93,6 +93,10 @@ class MqttInboundDispatcher:
         if not text:
             return
 
+        logging.info(
+            f"[MQTT-TX-IN] Solicitud TX recibida vía MQTT: '{text[:50]}' -> Destino: {target or 'broadcast'} (Canal #{channel_idx})"
+        )
+
         future = await self._ctx.rate_limiter.submit(
             payload=text,
             priority=priority,
@@ -138,4 +142,5 @@ class MqttInboundDispatcher:
         except Exception:
             action = payload_str
 
+        logging.info(f"[MQTT-ADMIN-IN] Comando admin recibido vía MQTT: '{action}'")
         await self._ctx.handle_admin(params if isinstance(params, dict) else {"action": action})

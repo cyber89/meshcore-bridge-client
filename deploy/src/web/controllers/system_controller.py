@@ -99,8 +99,11 @@ class SystemController(BaseController):
         }
 
     async def clear_logs(self) -> tuple[int, dict[str, Any]]:
-        """Limpia el buffer de registros del sistema."""
+        """Limpia el buffer de registros del sistema tanto en API como en el handler de diagnóstico."""
         self.ctx.system_logs.clear()
+        diag = getattr(self.ctx.bridge, "diagnostics", None)
+        if diag and hasattr(diag, "log_handler") and diag.log_handler:
+            diag.log_handler.clear()
         self.ctx.log_system_event("INFO", "Buffer de logs del sistema limpiado por el usuario", source="web_admin")
         return 200, {
             "status": "ok",

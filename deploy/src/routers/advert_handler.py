@@ -5,6 +5,7 @@ Handles node advertisements and contact book synchronization.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from src.contact_manager import NodeContactUpdate, NodeDiscoveryEvent, is_valid_node_key
@@ -116,6 +117,11 @@ class AdvertHandler(BaseRxHandler):
                     hops=meta.effective_hops,
                 )
             )
+            if is_c_new:
+                logging.info(
+                    f"[NODO-DESCUBIERTO] Nuevo nodo detectado en la malla: {c_name} ({c_pk[:8]}) | "
+                    f"Rol: {c_role} | RSSI: {meta.effective_rssi} dBm, SNR: {meta.effective_snr} dB, Saltos: {meta.effective_hops}"
+                )
             router_ctx.node_registry.add_or_update(
                 c_pk,
                 NodeContactUpdate(

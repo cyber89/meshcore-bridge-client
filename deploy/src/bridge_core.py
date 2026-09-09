@@ -18,7 +18,7 @@ import config
 from src.admin_handler import AdminCommandHandler, AdminContext
 from src.contact_manager import NodeContactUpdate, NodeRegistry
 from src.deduplicator import PacketDeduplicator
-from src.diagnostics import DiagnosticManager, SystemLogHandler
+from src.diagnostics import DiagnosticManager, SystemLogHandler, setup_file_logging
 from src.health_reporter import HealthContext, HealthReporter
 from src.mqtt_client import AsyncBridgeMQTTClient, MQTTConfig
 from src.mqtt_dispatcher import MqttInboundContext, MqttInboundDispatcher
@@ -118,6 +118,20 @@ class MeshCoreBridge:
         )
         logging.getLogger().addHandler(self.log_handler)
         self.diagnostics = DiagnosticManager(bridge=self, log_handler=self.log_handler)
+
+        # Asegurar logging persistente rotativo a disco si no fue configurado previamente
+        has_file_handler = any(
+            isinstance(h, logging.Handler) and getattr(h, "baseFilename", None)
+            for h in logging.getLogger().handlers
+        )
+        if not has_file_handler:
+            setup_file_logging(
+                log_file_path=getattr(config, "LOG_FILE_PATH", "logs/meshcore-bridge.log"),
+                error_file_path=getattr(config, "LOG_ERROR_FILE_PATH", "logs/meshcore-bridge.error.log"),
+                max_bytes=getattr(config, "LOG_MAX_BYTES", 5 * 1024 * 1024),
+                backup_count=getattr(config, "LOG_BACKUP_COUNT", 3),
+                level=getattr(config, "LOG_LEVEL", "INFO"),
+            )
 
         self.serial_adapter = self._create_serial_adapter()
         self.serial_adapter.set_rx_callback(self.on_mesh_event)
@@ -694,6 +708,18 @@ class MeshCoreBridge:
             ack_payload["error"] = error_detail
 
         self.publish_mqtt_safe(config.TOPIC_TX_STATUS, json.dumps(ack_payload), qos=1)
+
+        if status_val == "sent":
+            dest_label = "Broadcast / Canal 0" if is_broadcast else f"Nodo [{target[:8] if len(str(target)) >= 8 else target}]"
+            logging.info(
+                f"[TX-TRANSMISIÓN] Destino: {dest_label} | Canal: #{ch_idx} | "
+                f"Texto: '{text}' | ACK esperado: {expected_ack_hex or 'None'}"
+            )
+        else:
+            logging.warning(
+                f"[TX-ERROR] Fallo transmitiendo a {target} (Canal #{ch_idx}): {error_detail or 'Desconocido'}"
+            )
+
         return ack_payload
 
     async def handle_admin(self, admin_data: dict[str, Any]) -> dict[str, Any]:

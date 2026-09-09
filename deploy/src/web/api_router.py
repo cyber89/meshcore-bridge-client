@@ -578,7 +578,7 @@ class WebAPIRouter:
             from src.diagnostics import DiagnosticManager
 
             if isinstance(diag, DiagnosticManager):
-                tail = diag.get_raw_log_tail(lines=500)
+                tail = diag.get_raw_log_tail(lines=2000)
                 log_file = diag.get_raw_log_path()
             else:
                 tail = "\n".join(f"[{r.get('iso_time')}] [{r.get('level')}] {r.get('message')}" for r in self.recent_system_logs)
