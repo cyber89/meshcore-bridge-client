@@ -736,10 +736,9 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             self.rx_callback(data)
 
     async def _handle_log_data(self, data: Any) -> None:
-        """Maneja datos de log RF."""
-        logging.debug(f"Log data: {data}")
-        if self.rx_callback:
-            self.rx_callback(data)
+        """Maneja datos de log del firmware de radio UART (diagnóstico local)."""
+        logging.debug(f"[RADIO-FIRMWARE-LOG] {data}")
+        # Los logs de depuración del firmware no deben inyectarse en el pipeline de paquetes de radio
 
     async def _handle_control_data(self, data: Any) -> None:
         """Maneja datos de control."""
@@ -750,6 +749,9 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
     async def _handle_generic_event(self, event_type: Any, data: Any) -> None:
         """Maneja eventos genéricos no categorizados."""
         logging.debug(f"Generic event {event_type}: {data}")
+        ev_str = str(event_type).upper()
+        if "LOG" in ev_str or "DEBUG" in ev_str:
+            return
         if self.rx_callback:
             self.rx_callback(data)
 

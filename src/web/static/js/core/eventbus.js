@@ -57,5 +57,7 @@ export const EVENTS = Object.freeze({
   HEATMAP_UPDATED: "meshcore:heatmap_updated",
   SETTINGS_SAVED: "meshcore:settings_saved",
   SYSTEM_LOG_RECV: "meshcore:system_log_recv",
+  SYSTEM_LOG: "meshcore:system_log",
+  METRICS_UPDATE: "meshcore:metrics_update",
   RF_PACKET: "meshcore:rf_packet",
 });

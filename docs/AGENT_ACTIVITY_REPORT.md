@@ -6,6 +6,44 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Eliminación del Registro Indebido de Logs de Depuración y Eventos Internos como Paquetes Entrantes (RX) en el Nodo Local
+- **Fecha**: 2026-09-09
+- **Estado**: ✅ COMPLETADO (Aislados logs de depuración UART del firmware para evitar su inyección en rx_callback; filtrados eventos internos, diagnósticos y de nodo local en rx_router para prevenir incremento espurio de contadores RX y contaminación de buffers; añadida guarda en NodeRegistry.record_packet para impedir acumulación de paquetes RX en el nodo local; canalizada separación de tipos de eventos WebSocket y reactividad en frontend; ruff 100% PASS, mypy strict 100% PASS, sincronización en /deploy/).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - El usuario reportó: "algo sucede que el nodo local esta registrando los logs como paquetes entrantes que sun muchos por segundo" (El nodo local registraba ráfagas continuas de paquetes RX generadas por los propios logs de depuración del firmware y eventos internos).
+- **Causas Raíz Identificadas**:
+  1. **Inyección de Logs de Firmware en Callback de Red (`src/serial_driver.py`)**:
+     - *Causa*: En `_handle_log_data`, además de emitir `logging.debug(f"[RADIO-LOG] {data}")`, se llamaba a `self.rx_callback(data)`. Cada línea de depuración UART emitida por el firmware (`EventType.LOG_DATA`, opcode `0x88`) se introducía en el pipeline de paquetes de red.
+     - *Causa secundaria*: En `_handle_generic_event`, eventos de depuración no capturados también caían al fallback de `self.rx_callback(event)`.
+  2. **Clasificación por Defecto como "LOCAL" y Paquete RX (`src/rx_router.py`)**:
+     - *Causa*: En `handle_event`, al inicio se ejecutaba `self._ctx.metrics.rx_count += 1` incondicionalmente para cualquier evento que llegase.
+     - *Causa*: En `_extract_normalized_meta`, si un evento no poseía emisor (`sender`), se asignaba por defecto `sender = local_pk or "LOCAL"` y `name = "Estación Base Local"`.
+     - *Causa*: `is_valid_node_key("LOCAL")` devolvía `False` (al no ser una cadena hexadecimal válida de clave pública), provocando que la comprobación `is_local_sender = bool(sender and is_valid_node_key(sender) and ...)` evaluara a `False` para `"LOCAL"`, evadiendo las protecciones de nodo local.
+     - *Resultado*: Los logs del firmware se empaquetaban como `MeshcoreFrame` con `direction="rx"`, `is_rx=True` y remitente `"Estación Base Local"`, incrementando el contador RX y saturando el búfer de paquetes del sniffer decenas de veces por segundo.
+  3. **Ausencia de Guarda Protectora en Registro de Contactos / Nodos (`src/contact_manager.py`)**:
+     - *Causa*: `NodeRegistry.record_packet` acumulaba paquetes y bytes RX sin verificar si el nodo era la estación base local.
+  4. **Contaminación Cruzada de Eventos WebSocket en Frontend (`src/web/static/js/core/websocket.js`, `eventbus.js`)**:
+     - *Causa*: `websocket.js` re-emitía indiscriminadamente `EVENTS.RX_PACKET` para mensajes `rf_packet`, `system_log` y `metrics_update`, haciendo que la UI tratara eventos de log y telemetría como nuevos paquetes de radio recibidos.
+- **Correcciones Implementadas**:
+  1. **Desacoplamiento Estricto de Logs UART en Driver Serie ([`src/serial_driver.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/serial_driver.py))**:
+     - En `_handle_log_data`: Se eliminó la llamada a `self.rx_callback(data)`. Los logs del microcontrolador se emiten exclusivamente con `logging.debug(f"[RADIO-FIRMWARE-LOG] {data}")` sin pasar por la cola de paquetes de red.
+     - En `_handle_generic_event`: Se filtran los eventos de tipo `LOG` o `DEBUG` para evitar que caigan en `rx_callback`.
+  2. **Filtrado Determinista en Enrutador RX ([`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py))**:
+     - En `handle_event`: Se eliminó el incremento incondicional `rx_count += 1`. Ahora sólo se incrementa `rx_count` y se registra en `packet_buffer` si el frame es un `MeshcoreFrame` legítimo recibido por radio (`is_rx=True` y no proviene de eventos de depuración o diagnósticos locales).
+     - Se reforzó `is_local_sender` reconociendo `"local"`, `"000000000000"` y `self._ctx.node_registry.is_local_key(sender)` incluso si `is_valid_node_key` falla por texto literal.
+     - Se filtran eventos de tipos internos (`meta.is_local_sender`, `SELF`, `BATTERY`, `DEVICE_INFO`, `STATUS`, `STATS`, `TUNING`, `CUSTOM_VARS`, `MSG_SENT`, `ACK`, `LOGIN`, `CONTROL`, `LOG`, `DEBUG`, `system_log`, `metrics_update`, etc.).
+  3. **Guarda Protectora en NodeRegistry ([`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py))**:
+     - En `NodeRegistry.record_packet`: Se agregó la guarda `if is_local_node and event.is_rx: return` para garantizar a nivel de modelo que la estación base local nunca acumule paquetes RX recibidos de sí misma.
+     - En `NodeRegistry.is_local_key`: Se reconocen explícitamente `"local"` y `"000000000000"`.
+  4. **Guarda en Telemetría REST ([`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py))**:
+     - En `record_incoming_event`: Se expandió la lista de eventos ignorados para métricas de paquetes e impidió que la telemetría local incremente contadores RX.
+  5. **Desacoplamiento de Eventos WebSocket y Reactividad Frontend ([`src/web/static/js/core/websocket.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/core/websocket.js), [`eventbus.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/core/eventbus.js), [`sniffer.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/sniffer.js), [`nodes.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/nodes.js), [`app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js))**:
+     - Se crearon las constantes canónicas `SYSTEM_LOG: "meshcore:system_log"` y `METRICS_UPDATE: "meshcore:metrics_update"` en `eventbus.js`.
+     - `websocket.js` ahora emite `EVENTS.SYSTEM_LOG` para logs y `EVENTS.METRICS_UPDATE` para métricas, reservando `EVENTS.RF_PACKET` y `EVENTS.RX_PACKET` exclusivamente para tráfico de radio real.
+     - `sniffer.js` y `app.js` se suscribieron a sus eventos específicos, y en `nodes.js` se corrigió la actualización reactiva de presencia en memoria sin invocar métodos inexistentes.
+- **Módulos Modificados**: `src/serial_driver.py`, `src/rx_router.py`, `src/contact_manager.py`, `src/web/api_router.py`, `src/web/static/js/core/eventbus.js`, `src/web/static/js/core/websocket.js`, `src/web/static/js/modules/sniffer.js`, `src/web/static/js/modules/nodes.js`, `src/web/static/js/app.js`, `docs/AGENT_ACTIVITY_REPORT.md`, `deploy/**`.
+
 ### Hito: Auditoría y Optimización del Módulo Sniffer y Sistema de Logging y Diagnóstico (Trazabilidad Total de Eventos LoRa, MQTT y Persistencia en Disco)
 - **Fecha**: 2026-09-09
 - **Estado**: ✅ COMPLETADO (Garantizada persistencia rotativa automática a disco en `logs/meshcore-bridge.log`, trazabilidad completa de transmisiones `[TX-TRANSMISIÓN]` y `[TX-ERROR]`, logs de peticiones entrantes `[MQTT-TX-IN]` y `[MQTT-ADMIN-IN]`, registro de eventos misceláneos `[RX-SISTEMA]` y publicación en `config.TOPIC_RX_LOG`, trazabilidad de nuevos vecinos `[NODO-DESCUBIERTO]`, reseteo sincronizado de buffers y contadores en `clear_logs`, soporte para filtro y estilizado dedicado de tráfico RF/LoRa en SnifferModule y app.css, ruff 100% PASS, mypy strict 100% PASS, linter frontend 100% PASS y sincronización en /deploy/).

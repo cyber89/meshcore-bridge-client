@@ -101,7 +101,16 @@ export class NodesModule {
       // Actualizar presencia
       const sender = payload.sender || payload.public_key || payload.from || payload.pubkey || payload.target_node;
       if (sender && this.isValidNodeKey(sender)) {
-        this.updateNodePresenceRealtime(this.resolveCanonicalPubkey(sender), payload);
+        const canonicalPk = this.resolveCanonicalPubkey(sender);
+        if (canonicalPk && canonicalPk !== "local") {
+          const existing = this.knownNodes.get(canonicalPk);
+          if (existing) {
+            existing.last_seen = Math.floor(Date.now() / 1000);
+            if (payload.rssi != null) existing.last_rssi = payload.rssi;
+            if (payload.snr != null) existing.last_snr = payload.snr;
+            this.knownNodes.set(canonicalPk, existing);
+          }
+        }
       }
     });
   }

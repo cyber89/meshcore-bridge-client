@@ -235,6 +235,19 @@ class MeshCoreApp {
       }
     });
 
+    this.eventBus.on(EVENTS.METRICS_UPDATE, (payload) => {
+      if (!payload) return;
+      if (this.dom.headerRxCount && payload.rx_count != null) {
+        this.dom.headerRxCount.textContent = String(payload.rx_count);
+      }
+      if (this.dom.headerTxCount && payload.tx_count != null) {
+        this.dom.headerTxCount.textContent = String(payload.tx_count);
+      }
+      if (payload.radio_connected != null) {
+        this.updateRadioBadge(Boolean(payload.radio_connected), payload.radio_port || "");
+      }
+    });
+
     this.eventBus.on(EVENTS.RX_PACKET, (payload) => {
       if (!payload) return;
       if (this.dom.headerRxCount && payload.rx_count != null) {

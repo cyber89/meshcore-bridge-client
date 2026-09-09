@@ -202,11 +202,11 @@ class RxEventRouter:
 
     def handle_event(self, event: Any) -> None:
         """Procesa y enruta eventos de la red Mesh hacia MQTT y n8n."""
-        self._ctx.counters.rx_count += 1
         self._ctx.serial_adapter.heartbeat()
 
         try:
             if isinstance(event, MeshcoreFrame):
+                self._ctx.counters.rx_count += 1
                 if getattr(self._ctx, "packet_buffer", None) is not None:
                     try:
                         raw_b = getattr(event, "raw_payload", b"")
@@ -238,29 +238,43 @@ class RxEventRouter:
 
             payload_dict, meta = normalized
 
-            # Registro en el búfer circular de tramas LoRa para el Sniffer
-            if getattr(self._ctx, "packet_buffer", None) is not None:
-                try:
-                    raw_b = getattr(event, "raw_data", None) or getattr(event, "raw", None)
-                    if not raw_b and isinstance(payload_dict.get("raw"), (bytes, bytearray)):
-                        raw_b = bytes(payload_dict["raw"])
-                    pkt = self._ctx.packet_buffer.record(
-                        direction="rx",
-                        channel_idx=meta.channel_idx,
-                        packet_type=meta.ev_upper or "PACKET",
-                        sender=meta.sender or "",
-                        sender_name=meta.sender_name or "",
-                        target=str(payload_dict.get("to") or payload_dict.get("target") or "broadcast"),
-                        text=meta.text or str(payload_dict.get("text") or ""),
-                        rssi=meta.effective_rssi,
-                        snr=meta.effective_snr,
-                        raw_bytes=raw_b if isinstance(raw_b, (bytes, bytearray)) else None,
-                        payload_dict=payload_dict,
-                    )
-                    if pkt and self._ctx.web_server:
-                        self._spawn_broadcast_task({"type": "rf_packet", "event": "rf_packet", "data": pkt.to_dict()})
-                except Exception as ex:
-                    logging.debug(f"Error registrando paquete RX en packet_buffer: {ex}")
+            # Filtrar eventos internos, diagnóstico y logs para que no se contabilicen como paquetes RF de entrada
+            is_internal_or_diag = (
+                meta.is_local_sender
+                or any(k in meta.ev_upper for k in (
+                    "SELF", "BATTERY", "DEVICE_INFO", "STATUS", "STATS", "TUNING",
+                    "CUSTOM_VARS", "MSG_SENT", "ACK", "LOGIN", "CONTROL", "LOG", "DEBUG"
+                ))
+                or payload_dict.get("event_type") in (
+                    "system_log", "log_data", "rx_log_data", "metrics_update", "status", "ping", "pong"
+                )
+            )
+
+            # Registro en el búfer circular de tramas LoRa para el Sniffer y contador RX (exclusivo para RF legítimo)
+            if not is_internal_or_diag:
+                self._ctx.counters.rx_count += 1
+                if getattr(self._ctx, "packet_buffer", None) is not None:
+                    try:
+                        raw_b = getattr(event, "raw_data", None) or getattr(event, "raw", None)
+                        if not raw_b and isinstance(payload_dict.get("raw"), (bytes, bytearray)):
+                            raw_b = bytes(payload_dict["raw"])
+                        pkt = self._ctx.packet_buffer.record(
+                            direction="rx",
+                            channel_idx=meta.channel_idx,
+                            packet_type=meta.ev_upper or "PACKET",
+                            sender=meta.sender or "",
+                            sender_name=meta.sender_name or "",
+                            target=str(payload_dict.get("to") or payload_dict.get("target") or "broadcast"),
+                            text=meta.text or str(payload_dict.get("text") or ""),
+                            rssi=meta.effective_rssi,
+                            snr=meta.effective_snr,
+                            raw_bytes=raw_b if isinstance(raw_b, (bytes, bytearray)) else None,
+                            payload_dict=payload_dict,
+                        )
+                        if pkt and self._ctx.web_server:
+                            self._spawn_broadcast_task({"type": "rf_packet", "event": "rf_packet", "data": pkt.to_dict()})
+                    except Exception as ex:
+                        logging.debug(f"Error registrando paquete RX en packet_buffer: {ex}")
 
             loop = self._ctx.loop or asyncio.get_running_loop()
 
@@ -379,7 +393,14 @@ class RxEventRouter:
         rssi = payload_dict.get("rssi", payload_dict.get("RSSI", payload_dict.get("last_rssi")))
         snr = payload_dict.get("snr", payload_dict.get("SNR", payload_dict.get("last_snr")))
 
-        is_local_sender = bool(sender and is_valid_node_key(sender) and self._ctx.node_registry.is_local_key(sender))
+        is_local_sender = bool(
+            sender
+            and (
+                str(sender).lower() in ("local", "000000000000")
+                or self._ctx.node_registry.is_local_key(sender)
+                or (is_valid_node_key(sender) and self._ctx.node_registry.is_local_key(sender))
+            )
+        )
         effective_rssi = None if is_local_sender else (int(rssi) if isinstance(rssi, (int, float)) else None)
         effective_snr = None if is_local_sender else (float(snr) if isinstance(snr, (int, float)) else None)
         effective_hops = 0 if is_local_sender else hops

@@ -322,7 +322,7 @@ class NodeRegistry:
     def is_local_key(self, raw_key: str) -> bool:
         """Determina si una clave o prefijo corresponde a la estación base local."""
         norm = str(raw_key).strip().lower()
-        if not norm or norm == "local":
+        if not norm or norm in ("local", "000000000000"):
             return True
         if not self._local_pubkey:
             return False
@@ -705,6 +705,9 @@ class NodeRegistry:
         if is_local_node:
             event.rssi = None
             event.snr = None
+            # El nodo local (estación base) nunca debe contabilizar paquetes entrantes (RX) de sí mismo
+            if event.is_rx:
+                return
 
         existing_key = self._find_existing_key(norm_key)
         existing = self._nodes_by_key.get(existing_key) if existing_key else None

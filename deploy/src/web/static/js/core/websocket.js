@@ -57,10 +57,26 @@ export class MeshCoreWebSocketClient {
     this.ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-        if (payload && (payload.type === "pong" || payload.event_type === "pong")) return;
-        if (payload && (payload.type === "rf_packet" || payload.event === "rf_packet")) {
+        if (!payload || typeof payload !== "object") return;
+        const pType = String(payload.type || payload.event_type || payload.event || "").toLowerCase();
+
+        if (pType === "pong") return;
+
+        if (pType === "rf_packet") {
           this.eventBus.emit(EVENTS.RF_PACKET, payload.data || payload.packet || payload);
+          return;
         }
+
+        if (pType === "system_log") {
+          this.eventBus.emit(EVENTS.SYSTEM_LOG, payload.data || payload);
+          return;
+        }
+
+        if (pType === "metrics_update") {
+          this.eventBus.emit(EVENTS.METRICS_UPDATE, payload);
+          return;
+        }
+
         this.eventBus.emit(EVENTS.RX_PACKET, payload);
       } catch (err) {
         console.error("Error parseando WebSocket payload:", err);

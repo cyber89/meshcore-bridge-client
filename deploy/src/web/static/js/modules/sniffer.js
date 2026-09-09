@@ -255,6 +255,27 @@ export class SnifferModule {
       }
     });
 
+    this.ctx.eventBus.on(EVENTS.SYSTEM_LOG, (logData) => {
+      if (!logData) return;
+      this.systemLogs.push(logData);
+      if (this.systemLogs.length > MAX_SYSTEM_LOGS) {
+        this.systemLogs.shift();
+      }
+      this.appendLogEntryToDom(logData);
+    });
+
+    this.ctx.eventBus.on(EVENTS.METRICS_UPDATE, (payload) => {
+      if (payload && payload.radio_connected != null && this.dom.chipSerialHealth) {
+        const isSerOk = Boolean(payload.radio_connected);
+        const portName = payload.radio_port || "";
+        const el = this.dom.chipSerialHealth.querySelector(".val");
+        if (el) {
+          el.textContent = isSerOk ? `Conectado (${portName || "/dev/ttyACM0"})` : "Desconectado";
+          el.className = `val ${isSerOk ? "ok" : "err"}`;
+        }
+      }
+    });
+
     this.ctx.eventBus.on(EVENTS.RX_PACKET, (payload) => {
       if (payload && (payload.type === "system_log" || payload.event_type === "system_log")) {
         const logData = payload.data || payload;
@@ -263,16 +284,6 @@ export class SnifferModule {
           this.systemLogs.shift();
         }
         this.appendLogEntryToDom(logData);
-      } else if (payload && (payload.type === "metrics_update" || payload.event === "metrics_update")) {
-        if (payload.radio_connected != null && this.dom.chipSerialHealth) {
-          const isSerOk = Boolean(payload.radio_connected);
-          const portName = payload.radio_port || "";
-          const el = this.dom.chipSerialHealth.querySelector(".val");
-          if (el) {
-            el.textContent = isSerOk ? `Conectado (${portName || "/dev/ttyACM0"})` : "Desconectado";
-            el.className = `val ${isSerOk ? "ok" : "err"}`;
-          }
-        }
       }
     });
   }

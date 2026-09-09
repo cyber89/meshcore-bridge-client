@@ -126,7 +126,10 @@ class WebAPIRouter:
 
         if not data or not isinstance(data, dict):
             return
-        if ev_type in ("system_log", "metrics_update", "status"):
+        if ev_type in (
+            "system_log", "metrics_update", "status", "rf_packet", "trace_data",
+            "log_data", "rx_log_data", "ping", "pong"
+        ):
             return
 
         from src.event_utils import extract_sender_from_payload
@@ -172,7 +175,12 @@ class WebAPIRouter:
         ):
             self.recent_telemetry.append(data)
             if canonical_sender and is_valid_node_key(canonical_sender):
-                self.bridge.node_registry.record_packet(PacketRecord(public_key=canonical_sender, is_rx=True, rssi=rssi, snr=snr, telemetry=data))
+                contact = self.bridge.node_registry.get_by_key_or_prefix(canonical_sender) if hasattr(self.bridge, "node_registry") else None
+                is_local = (contact.is_local if contact else False) or (
+                    hasattr(self.bridge, "node_registry") and self.bridge.node_registry.is_local_key(canonical_sender)
+                )
+                if not is_local:
+                    self.bridge.node_registry.record_packet(PacketRecord(public_key=canonical_sender, is_rx=True, rssi=rssi, snr=snr, telemetry=data))
 
             readings = []
             if "temperature_c" in extracted_telem:
