@@ -48,6 +48,8 @@ class LocalConfigExecutor:
         self._local_config = local_config
         self._init_time = init_time
         self._publish_safe = publish_safe
+        self._last_fetch_time: float = 0.0
+        self._fetch_lock = asyncio.Lock()
 
     def get_local_config(self) -> dict[str, Any]:
         """Devuelve la configuración consolidada del nodo local y su telemetría."""
@@ -198,13 +200,23 @@ class LocalConfigExecutor:
         cfg["max_tx_power"] = max_p
         cfg["default_tx_power"] = def_p
 
-    async def fetch_device_config(self) -> dict[str, Any]:
-        """Consulta directamente al hardware serial los parámetros de configuración."""
-        mc = self._ctx.mc_provider()
-        if mc and hasattr(mc, "commands"):
-            await self._query_hardware_device_and_battery(mc)
-            await self._query_hardware_stats_and_packets(mc)
-        return self.get_local_config()
+    async def fetch_device_config(self, force: bool = False) -> dict[str, Any]:
+        """Consulta directamente al hardware serial los parámetros de configuración respetando cooldown de seguridad."""
+        now = time.time()
+        if not force and (now - self._last_fetch_time) < 30.0:
+            return self.get_local_config()
+
+        async with self._fetch_lock:
+            now = time.time()
+            if not force and (now - self._last_fetch_time) < 30.0:
+                return self.get_local_config()
+            self._last_fetch_time = now
+
+            mc = self._ctx.mc_provider()
+            if mc and hasattr(mc, "commands"):
+                await self._query_hardware_device_and_battery(mc)
+                await self._query_hardware_stats_and_packets(mc)
+            return self.get_local_config()
 
     async def _query_hardware_device_and_battery(self, mc: Any) -> None:
         """Consulta identidad, modo repetidor, parámetros avanzados y nivel de batería por serial."""

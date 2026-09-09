@@ -6,6 +6,44 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Ruptura del Bucle Infinito de Consulta de Configuración de Hardware, Silenciado de Telemetría Interna y Perfeccionamiento del Cierre del Modal de Administración
+- **Fecha**: 2026-09-09
+- **Estado**: ✅ COMPLETADO (Roto bucle infinito circular frontend-backend en app.js que disparaba fetchLocalNodeConfig ante cada paquete device_info/self_info; implementado cooldown de 30s con asyncio.Lock en LocalConfigExecutor.fetch_device_config y consulta en memoria por defecto en ConfigController.get_device_config; silenciada telemetría interna y tramas vacías en rx_router enviándolas a DEBUG; añadidos endpoints /api/config y /api/contacts a is_routine en SecurityTrafficInspector; añadidos estilos CSS explícitos a .modal-close y botón secundario Cancelar en auth-gate de repetidor; ruff 100% PASS, mypy strict 100% PASS, linter frontend 100% PASS y sincronización en /deploy/).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - El usuario proporcionó un extracto temporal de logs en vivo (`23:48:49.701` a `23:48:50.090`) evidenciando ráfagas continuas de `[RX-TELEMETRÍA] De: Desconocido -> Para: Gateway/MQTT | Tipo: telemetry | Sin lecturas adicionales` y `⚡ [REST-API] IP: ... -> GET /api/config`, junto a la imposibilidad percibida de cerrar el diálogo de administración.
+- **Causas Raíz Identificadas**:
+  1. **Bucle Infinito Circular Frontend-Backend (`src/web/static/js/app.js` & `src/web/controllers/config_controller.py`)**:
+     - *Causa*: En `app.js` (`this.eventBus.on(EVENTS.RX_PACKET)`), al recibir eventos de tipo `self_info` o `device_info` emitidos por el bridge, el frontend ejecutaba `fetchLocalNodeConfig()`.
+     - *Causa*: `fetchLocalNodeConfig()` invocaba `GET /api/config`.
+     - *Causa*: `ConfigController.get_device_config()` ejecutaba síncronamente `await admin.fetch_device_config()`.
+     - *Causa*: `LocalConfigExecutor.fetch_device_config()` despachaba de inmediato múltiples comandos serie por UART al hardware Heltec (`send_appstart`, `send_device_query`, `get_bat`, `get_tuning`, `get_stats_core`, `get_stats_radio`).
+     - *Causa*: El transceptor físico respondía por serie con tramas `device_info` y `self_info`.
+     - *Causa*: El backend retransmitía `device_info` por WebSocket al frontend, el cual volvía a disparar `fetchLocalNodeConfig()`, generando un bucle infinito que saturaba la CPU del microcontrolador, el puerto serie, la API REST y los logs a un ritmo de 6 a 10 consultas por segundo.
+  2. **Registro a Nivel INFO de Consultas Diagnósticas Internas y Tramas Vacías (`src/rx_router.py`)**:
+     - *Causa*: Las respuestas a consultas de hardware (`tuning`, `stats`, `battery`, o `telemetry` sin lecturas) no traían clave de emisor remoto OTA, asignándose por defecto `Desconocido` y emitiéndose con `logging.info([RX-TELEMETRÍA] De: Desconocido... Sin lecturas adicionales)`.
+  3. **Ausencia de `/api/config` en Lista Rutinaria de Seguridad (`src/web/security_inspector.py`)**:
+     - *Causa*: Las peticiones HTTP a `/api/config` no estaban en `is_routine`, registrándose como `⚡ [REST-API]` a nivel `INFO`.
+  4. **Falta de Botón de Cancelación en Puerta de Autenticación de Repetidor y Falta de Estilos en `.modal-close` (`index.html`, `app.css`, `repeater.js`)**:
+     - *Causa*: La tarjeta de autenticación de repetidor (#repeaterAuthGate) no disponía de un botón "Cancelar", obligando a usar únicamente la cruz superior; la clase `.modal-close` no contaba con reglas CSS explícitas de área táctil (`padding`, `z-index`, `cursor: pointer`).
+- **Correcciones Implementadas**:
+  1. **Ruptura Definitiva del Bucle Circular en Frontend ([`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js))**:
+     - Se eliminó la reactividad que llamaba a `fetchLocalNodeConfig()` ante eventos `self_info` o `device_info` entrantes.
+  2. **Cooldown de 30s y Protección Hardware en Bridge ([`src/admin/local_config_executor.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin/local_config_executor.py), [`admin_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin_handler.py))**:
+     - Se incorporó `_last_fetch_time` y `_fetch_lock = asyncio.Lock()` en `LocalConfigExecutor`.
+     - Se fijó un cooldown de 30 segundos: si se solicita `fetch_device_config(force=False)` dentro de los 30 segundos, devuelve de inmediato la configuración consolidada en memoria (`get_local_config()`) sin consultar al transceptor.
+  3. **Consulta en Memoria por Defecto en API REST ([`src/web/controllers/config_controller.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/controllers/config_controller.py), [`api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py))**:
+     - `GET /api/config` ahora entrega directamente `admin.get_local_config()` desde memoria. Solo si se especifica explícitamente `?refresh=true` en la URI se invoca `fetch_device_config(force=True)`.
+  4. **Aislamiento y Silenciado de Telemetría Interna en Router RX ([`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py))**:
+     - Eventos de la estación base local y respuestas vacías ("Sin lecturas adicionales" de origen desconocido) se desvían a `logging.debug`, reservando `logging.info` para telemetría RF legítima de nodos remotos de la malla.
+  5. **Silenciado de Consultas REST Rutinarias ([`src/web/security_inspector.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/security_inspector.py))**:
+     - Se agregaron `/api/config`, `/api/node/config`, `/api/node/settings` y `/api/contacts` a `is_routine`, registrándose a nivel `DEBUG`.
+  6. **Ergonomía y Estilos en Cierre de Modal de Administración ([`src/web/static/index.html`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/index.html), [`app.css`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/css/app.css), [`repeater.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/repeater.js))**:
+     - Se agregó el botón `#btnRepeaterGateCancel` ("Cancelar") en la tarjeta de autenticación con manejador asociado.
+     - Se implementó la clase CSS `.modal-close` con `padding: 6px 12px`, `z-index: 10`, `cursor: pointer` y efecto hover.
+     - Se añadieron `e.preventDefault()` y `e.stopPropagation()` a los manejadores de cierre.
+- **Módulos Modificados**: `src/web/static/js/app.js`, `src/admin/local_config_executor.py`, `src/admin_handler.py`, `src/web/controllers/config_controller.py`, `src/web/api_router.py`, `src/rx_router.py`, `src/web/security_inspector.py`, `src/web/static/index.html`, `src/web/static/css/app.css`, `src/web/static/js/modules/repeater.js`, `docs/AGENT_ACTIVITY_REPORT.md`, `deploy/**`.
+
 ### Hito: Corrección del Cierre del Modal de Administración de Nodo y Supresión del Desbordamiento Incontrolado de Logs
 - **Fecha**: 2026-09-09
 - **Estado**: ✅ COMPLETADO (Implementado cierre determinista de modal #repeaterAdminModal con botón ✕, clic fuera del diálogo en backdrop y tecla Escape; suprimido desbordamiento de logs de radio firmware en serial_driver silenciando paquetes LOG_DATA/RX_LOG_DATA 0x88; filtrado estricto de severidad en SystemLogHandler respetando LOG_LEVEL; enrutamiento de accesos HTTP rutinarios a nivel DEBUG en SecurityTrafficInspector; filtrado reactivo estricto en appendLogEntryToDom de sniffer.js; ruff 100% PASS, mypy strict 100% PASS, linter frontend 100% PASS y sincronización en /deploy/).

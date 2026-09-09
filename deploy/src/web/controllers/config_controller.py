@@ -15,12 +15,12 @@ from src.web.controllers.base import BaseController, problem_details
 class ConfigController(BaseController):
     """Controlador para lectura y actualización de configuración del nodo local y módem LoRa."""
 
-    async def get_device_config(self) -> tuple[int, dict[str, Any]]:
+    async def get_device_config(self, refresh: bool = False) -> tuple[int, dict[str, Any]]:
         """Obtiene la configuración completa del nodo local consolidada con métricas en tiempo real."""
         admin = getattr(self.ctx.bridge, "admin_handler", None)
-        if admin and hasattr(admin, "fetch_device_config"):
+        if refresh and admin and hasattr(admin, "fetch_device_config"):
             try:
-                local_cfg = await admin.fetch_device_config()
+                local_cfg = await admin.fetch_device_config(force=True)
             except Exception:
                 local_cfg = admin.get_local_config()
         elif admin and hasattr(admin, "get_local_config"):

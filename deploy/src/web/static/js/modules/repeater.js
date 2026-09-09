@@ -112,7 +112,20 @@ export class RepeaterModule {
     // Cierre del modal de administración de repetidor
     const closeBtn = this.dom.btnCloseRepeaterAdminModal || document.getElementById("btnCloseRepeaterAdminModal");
     if (closeBtn) {
-      closeBtn.addEventListener("click", () => this.closeRepeaterAdminModal());
+      closeBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.closeRepeaterAdminModal();
+      });
+    }
+
+    const gateCancelBtn = document.getElementById("btnRepeaterGateCancel");
+    if (gateCancelBtn) {
+      gateCancelBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.closeRepeaterAdminModal();
+      });
     }
 
     const modal = this.dom.repeaterAdminModal || document.getElementById("repeaterAdminModal");

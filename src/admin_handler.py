@@ -109,9 +109,9 @@ class AdminCommandHandler:
         """Devuelve la configuración consolidada del nodo local y su telemetría."""
         return self._local_config_executor.get_local_config()
 
-    async def fetch_device_config(self) -> dict[str, Any]:
+    async def fetch_device_config(self, force: bool = False) -> dict[str, Any]:
         """Consulta directamente al hardware serial los parámetros de configuración y telemetría."""
-        return await self._local_config_executor.fetch_device_config()
+        return await self._local_config_executor.fetch_device_config(force=force)
 
     async def broadcast_advert(self, flood: bool = False) -> dict[str, Any]:
         """Difunde un paquete de anuncio Advert por radio (0-hop o flood routed)."""

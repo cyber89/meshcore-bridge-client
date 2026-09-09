@@ -274,7 +274,7 @@ class WebAPIRouter:
                 return await self._dispatch_repeater(method, clean_path, req_body)
 
             if clean_path.startswith(("/api/node", "/api/config")):
-                return await self._dispatch_config(method, clean_path, req_body)
+                return await self._dispatch_config(method, path, clean_path, req_body)
 
             if clean_path.startswith("/api/packets"):
                 return await self._dispatch_packets(method, path, clean_path, req_body)
@@ -454,11 +454,12 @@ class WebAPIRouter:
 
         return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
-    async def _dispatch_config(self, method: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+    async def _dispatch_config(self, method: str, raw_path: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Despacha rutas de configuración de nodo local y módem LoRa."""
+        force_refresh = "refresh=true" in raw_path.lower()
         if clean_path in ("/api/config", "/api/node/config", "/api/node/settings"):
             if method == "GET":
-                return await self.config_ctrl.get_device_config()
+                return await self.config_ctrl.get_device_config(refresh=force_refresh)
             if method == "POST":
                 return await self.config_ctrl.set_local_config(req_body)
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
@@ -467,7 +468,7 @@ class WebAPIRouter:
             if method == "POST":
                 return await self.config_ctrl.set_local_config(req_body)
             if method == "GET":
-                return await self.config_ctrl.get_device_config()
+                return await self.config_ctrl.get_device_config(refresh=force_refresh)
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
         if clean_path in ("/api/config/identity", "/api/node/config/identity"):

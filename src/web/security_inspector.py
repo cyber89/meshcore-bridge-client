@@ -236,6 +236,10 @@ class SecurityTrafficInspector:
             "/api/system/logs",
             "/api/nodes",
             "/api/channels",
+            "/api/contacts",
+            "/api/config",
+            "/api/node/config",
+            "/api/node/settings",
         )
         is_static_ok = not is_api and event.status_code in (200, 304)
 

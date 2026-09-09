@@ -929,6 +929,26 @@ class RxEventRouter:
             payload_dict["lqi_status"] = lqi_stat
 
         telem_summary = format_telemetry_summary(payload_dict)
+
+        # Distinguir telemetría de hardware local o tramas vacías vs telemetría RF legítima de nodos remotos
+        is_local_station = (
+            sender_label.startswith("Estación Base Local")
+            or (sender and self._ctx.node_registry and sender == self._ctx.node_registry.local_pubkey)
+        )
+        has_readings = telem_summary != "Sin lecturas adicionales"
+
+        if is_local_station:
+            logging.debug(
+                f"[ESTACIÓN LOCAL] Telemetría/Diagnóstico ({ev_name}): {telem_summary}"
+            )
+            return
+
+        if sender_label == "Desconocido" and not has_readings:
+            logging.debug(
+                f"[RX-TELEMETRÍA] Respuesta interna/vacía sin emisor (Tipo: {ev_name})"
+            )
+            return
+
         logging.info(
             f"[RX-TELEMETRÍA] De: {sender_label} -> Para: Gateway/MQTT | "
             f"Tipo: {ev_name} | {telem_summary} | RSSI: {rssi_str}, SNR: {snr_str}{lqi_part}"
