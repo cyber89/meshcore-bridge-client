@@ -188,7 +188,6 @@ export class MapModule {
       console.warn("No se pudo inicializar el mapa Leaflet:", err);
     }
   }
-  }
 
   setMapLayer(mode) {
     if (!this.map || !this.tileLayers) return;
