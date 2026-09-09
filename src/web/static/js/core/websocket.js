@@ -58,6 +58,9 @@ export class MeshCoreWebSocketClient {
       try {
         const payload = JSON.parse(event.data);
         if (payload && (payload.type === "pong" || payload.event_type === "pong")) return;
+        if (payload && (payload.type === "rf_packet" || payload.event === "rf_packet")) {
+          this.eventBus.emit(EVENTS.RF_PACKET, payload.data || payload.packet || payload);
+        }
         this.eventBus.emit(EVENTS.RX_PACKET, payload);
       } catch (err) {
         console.error("Error parseando WebSocket payload:", err);

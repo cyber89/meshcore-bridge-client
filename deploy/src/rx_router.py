@@ -170,6 +170,7 @@ class RxRouterContext:
     admin_handler: Any = None
     last_rx_rssi: int | None = None
     last_rx_snr: float | None = None
+    packet_buffer: Any = None
 
 
 class RxEventRouter:
@@ -206,6 +207,25 @@ class RxEventRouter:
 
         try:
             if isinstance(event, MeshcoreFrame):
+                if getattr(self._ctx, "packet_buffer", None) is not None:
+                    try:
+                        raw_b = getattr(event, "raw_payload", b"")
+                        pkt = self._ctx.packet_buffer.record(
+                            direction="rx",
+                            channel_idx=getattr(event, "channel_idx", 0),
+                            packet_type=str(getattr(event, "frame_type", "FRAME")),
+                            sender=str(getattr(event, "sender_pubkey", "")),
+                            target=str(getattr(event, "recipient_pubkey", "broadcast")),
+                            text="",
+                            rssi=getattr(event, "rssi", None),
+                            snr=getattr(event, "snr", None),
+                            raw_bytes=raw_b,
+                        )
+                        if pkt and self._ctx.web_server:
+                            self._spawn_broadcast_task({"type": "rf_packet", "event": "rf_packet", "data": pkt.to_dict()})
+                    except Exception as ex:
+                        logging.debug(f"Error registrando MeshcoreFrame en packet_buffer: {ex}")
+
                 loop = self._ctx.loop or asyncio.get_running_loop()
                 task = loop.create_task(self._dispatch_parsed_frame(event))
                 self._ctx.background_tasks.add(task)
@@ -217,6 +237,31 @@ class RxEventRouter:
                 return
 
             payload_dict, meta = normalized
+
+            # Registro en el búfer circular de tramas LoRa para el Sniffer
+            if getattr(self._ctx, "packet_buffer", None) is not None:
+                try:
+                    raw_b = getattr(event, "raw_data", None) or getattr(event, "raw", None)
+                    if not raw_b and isinstance(payload_dict.get("raw"), (bytes, bytearray)):
+                        raw_b = bytes(payload_dict["raw"])
+                    pkt = self._ctx.packet_buffer.record(
+                        direction="rx",
+                        channel_idx=meta.channel_idx,
+                        packet_type=meta.ev_upper or "PACKET",
+                        sender=meta.sender or "",
+                        sender_name=meta.sender_name or "",
+                        target=str(payload_dict.get("to") or payload_dict.get("target") or "broadcast"),
+                        text=meta.text or str(payload_dict.get("text") or ""),
+                        rssi=meta.effective_rssi,
+                        snr=meta.effective_snr,
+                        raw_bytes=raw_b if isinstance(raw_b, (bytes, bytearray)) else None,
+                        payload_dict=payload_dict,
+                    )
+                    if pkt and self._ctx.web_server:
+                        self._spawn_broadcast_task({"type": "rf_packet", "event": "rf_packet", "data": pkt.to_dict()})
+                except Exception as ex:
+                    logging.debug(f"Error registrando paquete RX en packet_buffer: {ex}")
+
             loop = self._ctx.loop or asyncio.get_running_loop()
 
             for handler in self._handlers:

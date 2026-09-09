@@ -22,6 +22,7 @@ from src.diagnostics import DiagnosticManager, SystemLogHandler, setup_file_logg
 from src.health_reporter import HealthContext, HealthReporter
 from src.mqtt_client import AsyncBridgeMQTTClient, MQTTConfig
 from src.mqtt_dispatcher import MqttInboundContext, MqttInboundDispatcher
+from src.packet_buffer import PacketBuffer
 from src.preflight import PreflightChecker
 from src.rate_limiter import CustomTxQueue, LoRaRadioConfig, TxItem, TxRateLimiter
 from src.repeater_manager import RepeaterManager
@@ -83,6 +84,7 @@ class MeshCoreBridge:
         self.deduplicator = PacketDeduplicator(
             window_seconds=getattr(config, "DEDUPLICATION_WINDOW_SEC", 60.0),
         )
+        self.packet_buffer = PacketBuffer(max_packets=500)
         self.node_registry = NodeRegistry()
         try:
             self.node_registry.load_from_file()
@@ -259,6 +261,7 @@ class MeshCoreBridge:
                 loop=self._custom_loop,
                 background_tasks=self._background_tasks,
                 counters=self,
+                packet_buffer=self.packet_buffer,
             )
         )
 
@@ -708,6 +711,25 @@ class MeshCoreBridge:
             ack_payload["error"] = error_detail
 
         self.publish_mqtt_safe(config.TOPIC_TX_STATUS, json.dumps(ack_payload), qos=1)
+
+        # Registro de trama TX en el Sniffer PacketBuffer y notificación Web
+        if hasattr(self, "packet_buffer") and self.packet_buffer:
+            try:
+                tx_pkt = self.packet_buffer.record(
+                    direction="tx",
+                    channel_idx=ch_idx,
+                    packet_type="CHAT" if not is_admin_cmd else "ADMIN",
+                    sender=self.node_registry.get_local_pubkey() or "LOCAL",
+                    sender_name="Estación Base Local",
+                    target=str(target),
+                    text=text,
+                    raw_bytes=text.encode("utf-8", errors="replace"),
+                    payload_dict=ack_payload,
+                )
+                if tx_pkt and self.web_server:
+                    self._broadcast_system_log({"type": "rf_packet", "event": "rf_packet", "data": tx_pkt.to_dict()})
+            except Exception as ex:
+                logging.debug(f"Error grabando paquete TX en packet_buffer: {ex}")
 
         if status_val == "sent":
             dest_label = "Broadcast / Canal 0" if is_broadcast else f"Nodo [{target[:8] if len(str(target)) >= 8 else target}]"

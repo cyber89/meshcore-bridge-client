@@ -174,6 +174,39 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
     - Despliegue sincronizado en `/deploy/` con `python scripts/sync_deploy.py`.
 - **Módulos Modificados**: `requirements.txt`, `pyproject.toml`, `src/web/static/index.html`, `src/web/static/css/app.css`, `src/web/static/js/app.js`, `src/web/static/js/modules/chat.js`, `src/web/static/js/modules/settings.js`, `src/web/static/js/modules/repeater.js`, `src/web/static/js/modules/sniffer.js`, `deploy/**`, `docs/AGENT_ACTIVITY_REPORT.md`.
 
+### Hito: Dual Sniffer (Logs & RF Packets Monitor), Frame Inspector con Wireshark Hex Dump y Módulo de Analítica con Airtime Duty Cycle
+- **Fecha**: 2026-09-09
+- **Estado**: ✅ COMPLETADO (Implementación de PacketBuffer en RAM con exportación PCAP Wireshark DLT_USER0, JSON y CSV; división de #tab-logs en subpaneles Duales; Inspector de tramas LoRa con Hex Dump estilo Wireshark/xxd; activación de #tab-analytics con AnalyticsModule, KPIs, ranking de calidad de enlace SNR/RSSI y barra de progreso de Duty Cycle 1%/10%; 100% verificado con ruff, mypy strict y linter frontend; sincronización limpia en /deploy/)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 4 (Web Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - Tras el proceso de entrevista de diseño (/grill-me), el usuario requirió:
+    1. Dividir la consola `#tab-logs` en dos subpestañas operativas: "Logs del Sistema & Diagnóstico" y "Monitor de Paquetes RF (LoRa Sniffer)".
+    2. Integrar un Frame Inspector modal interactivo con triple vista: Estructura Semántica (metadatos LoRa/Cayenne/GPS/texto), Hex Dump estilo Wireshark (offset, hex bytes en 2 grupos de 8, ascii printable) y JSON crudo con copia al portapapeles.
+    3. Motor de exportación REST en `/api/packets/export` para PCAP binario (libpcap DLT_USER0 147), JSON estructurado y CSV tabular.
+    4. Activación completa de la pestaña `#tab-analytics` mediante un nuevo `AnalyticsModule`, tarjetas KPI, tablas de tráfico/nodos activos, ranking de señal RF (SNR/RSSI), repetidores y medidor visual de presupuesto de Airtime / Duty Cycle horario (umbrales regulatorios de 1.0% y 10.0%).
+- **Acciones Realizadas**:
+  - **Búfer de Paquetes en Memoria y Exportación ([`src/packet_buffer.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/packet_buffer.py))**:
+    - Dataclass `@dataclass(slots=True) class CapturedPacket` y clase `PacketBuffer` con cola circular no bloqueante en RAM (`deque(maxlen=500)`).
+    - Generador `generate_pcap()` compatible con Wireshark: Cabecera global libpcap de 24 bytes (magic `0xa1b2c3d4`, DLT `147` `USER0`) y cabeceras por paquete de 16 bytes.
+    - Generadores `generate_csv()` y `generate_json()`.
+  - **Controladores y Enrutamiento REST ([`src/web/controllers/packets_controller.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/controllers/packets_controller.py), [`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py))**:
+    - `PacketsController` implementando `get_packets(limit, offset, direction, p_type)`, `export_packets(export_format)` y `clear_packets()`.
+    - `_dispatch_packets` en `WebAPIRouter` atendiendo `/api/packets` (GET, DELETE) y `/api/packets/export` (GET).
+  - **Integración con el Núcleo del Bridge y Enrutador RX ([`src/bridge_core.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/bridge_core.py), [`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py))**:
+    - Instanciación de `self.packet_buffer = PacketBuffer(max_packets=500)` en `_init_storage_and_network`.
+    - Inyección de `packet_buffer` en `RxRouterContext` y registro automático de tramas RX (`MeshcoreFrame` y eventos de radio normalizados).
+    - Registro de tramas salientes TX en `_execute_tx` con difusión en tiempo real vía WebSocket con evento `rf_packet`.
+  - **Interfaz de Usuario Web, Dual Sniffer y Analítica ([`src/web/static/index.html`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/index.html), [`src/web/static/css/app.css`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/css/app.css), [`src/web/static/js/modules/sniffer.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/sniffer.js), [`src/web/static/js/modules/analytics.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/analytics.js), [`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js))**:
+    - Subpestañas Dual Sniffer `#btnSubtabLogs` y `#btnSubtabSniffer` con contador reactivo de paquetes.
+    - Tabla `#snifferPacketsTable` con controles de pausa/reanudación, limpieza y descarga multi-formato.
+    - Modal `#packetInspectorModal` con formateador Hex Dump Wireshark/xxd y decodificador semántico.
+    - Módulo `AnalyticsModule` (`analytics.js`) que puebla KPIs, tablas de actividad, SNR y barra de progreso de Airtime / Duty Cycle.
+  - **Verificación y Calidad de Código**:
+    - `ruff check`: 100% PASS en todo `src/`.
+    - `mypy --strict`: 100% PASS en todas las fuentes modificadas.
+    - `lint_frontend_standards.py`: 100% de cumplimiento en estándares web.
+    - Sincronización completa de la carpeta autónoma `/deploy/` con `python scripts/sync_deploy.py`.
+
 ### Hito: Auditoría de Conexión, Resolución 404 en /api/diagnostics y Sincronización Hardware-Web
 - **Fecha**: 2026-09-02
 - **Estado**: ✅ COMPLETADO (Resolución del error 404 en /api/diagnostics, corrección del estado permanente 'Desconectada' del transceptor en la SPA, implementación canónica de MeshCoreBridge.get_health, sincronización WebSocket multi-canal y 100% PASS en validación)

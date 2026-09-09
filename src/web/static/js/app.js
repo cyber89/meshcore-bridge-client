@@ -14,6 +14,7 @@ import { MapModule } from "./modules/map.js";
 import { SettingsModule } from "./modules/settings.js";
 import { NodesModule } from "./modules/nodes.js";
 import { ChatModule } from "./modules/chat.js";
+import { AnalyticsModule } from "./modules/analytics.js";
 
 class MeshCoreApp {
   constructor() {
@@ -53,6 +54,7 @@ class MeshCoreApp {
     this.settingsModule = new SettingsModule(this.context);
     this.nodesModule = new NodesModule(this.context);
     this.chatModule = new ChatModule(this.context);
+    this.analyticsModule = new AnalyticsModule(this.context);
 
     this.modules = {
       sniffer: this.snifferModule,
@@ -61,6 +63,7 @@ class MeshCoreApp {
       settings: this.settingsModule,
       nodes: this.nodesModule,
       chat: this.chatModule,
+      analytics: this.analyticsModule,
     };
 
     this.init();
@@ -81,6 +84,7 @@ class MeshCoreApp {
     this.settingsModule.init();
     this.nodesModule.init();
     this.chatModule.init();
+    this.analyticsModule.init();
 
     // Renderizar iconos vectoriales Lucide en el DOM cargado
     if (window.initLucideIcons) window.initLucideIcons();

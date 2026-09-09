@@ -422,66 +422,175 @@
                   </div>
                 </div>
               </div>
+
+              <!-- Presupuesto Horario de Airtime & Duty Cycle -->
+              <div class="analytics-card">
+                <div class="analytics-card-header">
+                  <span class="card-icon"><span data-lucide="clock" data-size="18"></span></span>
+                  <div>
+                    <h3>Presupuesto Horario de Airtime (Duty Cycle)</h3>
+                    <p>Monitoreo regulatorio de tiempo en el aire LoRa en ventana móvil de 1 hora</p>
+                  </div>
+                </div>
+                <div class="airtime-progress-container" style="padding: 1rem 0;">
+                  <div class="airtime-progress-header" style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                    <span id="analyticsAirtimeLabel" class="font-semibold text-sm">Uso actual: 0.0%</span>
+                    <span id="analyticsAirtimeMs" class="text-sm font-mono text-muted">0 ms / 360,000 ms</span>
+                  </div>
+                  <div class="airtime-progress-bar-bg" style="width: 100%; height: 12px; background: var(--bg-tertiary, #1f293d); border-radius: 6px; overflow: hidden; position: relative;">
+                    <div id="analyticsAirtimeFill" class="airtime-progress-bar-fill" style="width: 0%; height: 100%; background: var(--accent-primary, #3b82f6); transition: width 0.4s ease, background 0.4s ease;"></div>
+                    <div style="position: absolute; left: 10%; top: 0; bottom: 0; width: 2px; background: rgba(234, 179, 8, 0.7); z-index: 2;" title="Umbral regulatorio europeo (1.0%)"></div>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+                    <span>0% (Libre)</span>
+                    <span style="color: var(--accent-warning, #eab308);">▲ 1.0% Límite Legal EU</span>
+                    <span style="color: var(--accent-danger, #ef4444);">10.0% Saturación</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
 
-        <!-- Pestaña: Logs del Sistema y Diagnóstico -->
+        <!-- Pestaña: Logs del Sistema y Monitor RF Sniffer -->
         <section id="tab-logs" class="tab-pane" role="tabpanel" aria-labelledby="navTabLogs">
           <div class="logs-view-container">
-            <div class="pane-header">
-              <div class="header-title-group">
-                <h2><span class="section-icon" data-lucide="file-text" data-size="20"></span> Consola de Logs y Diagnóstico en Vivo</h2>
-                <p class="header-subtitle">Registro de eventos, depuración en tiempo real y estado de salud de subsistemas.</p>
-              </div>
-              <div class="pane-actions">
-                <button class="btn-secondary" id="btnToggleDebugMode" title="Alternar nivel de logging DEBUG"><span data-lucide="bug" data-size="14"></span> Modo DEBUG</button>
-                <button class="btn-secondary" id="btnQuickDiag" title="Comprobar salud de subsistemas"><span data-lucide="stethoscope" data-size="14"></span> Auto-Diagnóstico</button>
-                <button class="btn-secondary" id="btnDownloadRawLogs" title="Descargar archivo de logs completo del servidor (.log)"><span data-lucide="download" data-size="14"></span> Descargar .log</button>
-                <button class="btn-secondary" id="btnClearLogs" title="Limpiar búfer de logs"><span data-lucide="trash-2" data-size="14"></span> Limpiar</button>
-              </div>
+            <!-- Barra de Subpestañas Dual Sniffer -->
+            <div class="subtabs-nav-bar" style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border-color, #1e293b); padding-bottom: 8px;">
+              <button type="button" class="subtab-btn active" id="btnSubtabLogs" data-target="subpanelSystemLogs">
+                <span data-lucide="file-text" data-size="15"></span> Logs del Sistema &amp; Diagnóstico
+              </button>
+              <button type="button" class="subtab-btn" id="btnSubtabSniffer" data-target="subpanelRfPackets">
+                <span data-lucide="radio" data-size="15"></span> Monitor de Paquetes RF (LoRa Sniffer)
+                <span class="badge-pill badge-primary text-xs" id="snifferPacketsBadge" style="margin-left: 6px;">0</span>
+              </button>
             </div>
 
-            <!-- Chips de Salud de Subsistemas -->
-            <div class="subsystems-health-bar" id="subsystemsHealthBar">
-              <span class="health-chip" id="chipSerialHealth"><span class="chip-icon" data-lucide="radio" data-size="13"></span> Serial: <strong class="val">Comprobando...</strong></span>
-              <span class="health-chip" id="chipMqttHealth"><span class="chip-icon" data-lucide="wifi" data-size="13"></span> MQTT: <strong class="val">Comprobando...</strong></span>
-              <span class="health-chip" id="chipTxHealth"><span class="chip-icon" data-lucide="clock" data-size="13"></span> TX Queue: <strong class="val">0</strong></span>
-              <span class="health-chip" id="chipErrorsCount"><span class="chip-icon" data-lucide="alert-triangle" data-size="13"></span> Errores: <strong class="val">0</strong></span>
+            <!-- Subpanel 1: Logs del Sistema y Diagnóstico -->
+            <div id="subpanelSystemLogs" class="sniffer-subpanel active">
+              <div class="pane-header">
+                <div class="header-title-group">
+                  <h2><span class="section-icon" data-lucide="file-text" data-size="20"></span> Consola de Logs y Diagnóstico en Vivo</h2>
+                  <p class="header-subtitle">Registro de eventos, depuración en tiempo real y estado de salud de subsistemas.</p>
+                </div>
+                <div class="pane-actions">
+                  <button class="btn-secondary" id="btnToggleDebugMode" title="Alternar nivel de logging DEBUG"><span data-lucide="bug" data-size="14"></span> Modo DEBUG</button>
+                  <button class="btn-secondary" id="btnQuickDiag" title="Comprobar salud de subsistemas"><span data-lucide="stethoscope" data-size="14"></span> Auto-Diagnóstico</button>
+                  <button class="btn-secondary" id="btnDownloadRawLogs" title="Descargar archivo de logs completo del servidor (.log)"><span data-lucide="download" data-size="14"></span> Descargar .log</button>
+                  <button class="btn-secondary" id="btnClearLogs" title="Limpiar búfer de logs"><span data-lucide="trash-2" data-size="14"></span> Limpiar</button>
+                </div>
+              </div>
+
+              <!-- Chips de Salud de Subsistemas -->
+              <div class="subsystems-health-bar" id="subsystemsHealthBar">
+                <span class="health-chip" id="chipSerialHealth"><span class="chip-icon" data-lucide="radio" data-size="13"></span> Serial: <strong class="val">Comprobando...</strong></span>
+                <span class="health-chip" id="chipMqttHealth"><span class="chip-icon" data-lucide="wifi" data-size="13"></span> MQTT: <strong class="val">Comprobando...</strong></span>
+                <span class="health-chip" id="chipTxHealth"><span class="chip-icon" data-lucide="clock" data-size="13"></span> TX Queue: <strong class="val">0</strong></span>
+                <span class="health-chip" id="chipErrorsCount"><span class="chip-icon" data-lucide="alert-triangle" data-size="13"></span> Errores: <strong class="val">0</strong></span>
+              </div>
+
+              <!-- Panel de Diagnóstico Rápido (Oculto por defecto) -->
+              <div id="quickDiagPanel" class="card-panel quick-diag-card hidden">
+                <div class="diag-header">
+                  <h3><span class="section-icon" data-lucide="stethoscope" data-size="18"></span> Resumen de Auto-Diagnóstico</h3>
+                  <button class="btn-icon" id="btnCloseQuickDiag">✕</button>
+                </div>
+                <div id="quickDiagBody" class="diag-body"></div>
+              </div>
+
+              <!-- Barra de Filtros de Logs -->
+              <div class="logs-filter-bar">
+                <div class="filter-group">
+                  <label for="logLevelFilter">Nivel:</label>
+                  <select id="logLevelFilter" class="select-input">
+                    <option value="ALL">Todos los Niveles</option>
+                    <option value="RF">📡 Tráfico LoRa / RF ([RX] &amp; [TX])</option>
+                    <option value="SECURITY">Tráfico Sospechoso &amp; Seguridad</option>
+                    <option value="NET">Conexiones IP (Web / API / TCP)</option>
+                    <option value="ERROR">Solo Errores (ERROR/CRIT)</option>
+                    <option value="WARNING">Advertencias (WARN)</option>
+                    <option value="INFO">Información (INFO)</option>
+                    <option value="DEBUG">Depuración (DEBUG)</option>
+                  </select>
+                </div>
+                <div class="search-group">
+                  <input type="text" id="logSearchInput" placeholder="Buscar en logs (módulo, error, texto)..." autocomplete="off" aria-label="Buscar en logs del sistema" />
+                </div>
+                <button class="btn-outline btn-sm" id="btnPauseLogsScroll" title="Pausar o reanudar auto-scroll">Pausar Scroll</button>
+              </div>
+
+              <!-- Contenedor Principal de Logs -->
+              <div class="system-logs-box" id="systemLogsFeed" role="log"></div>
             </div>
 
-            <!-- Panel de Diagnóstico Rápido (Oculto por defecto) -->
-            <div id="quickDiagPanel" class="card-panel quick-diag-card hidden">
-              <div class="diag-header">
-                <h3><span class="section-icon" data-lucide="stethoscope" data-size="18"></span> Resumen de Auto-Diagnóstico</h3>
-                <button class="btn-icon" id="btnCloseQuickDiag">✕</button>
+            <!-- Subpanel 2: Monitor de Paquetes RF (LoRa Sniffer) -->
+            <div id="subpanelRfPackets" class="sniffer-subpanel hidden">
+              <div class="pane-header">
+                <div class="header-title-group">
+                  <h2><span class="section-icon" data-lucide="radio" data-size="20"></span> Monitor de Paquetes RF en Tránsito (LoRa Sniffer)</h2>
+                  <p class="header-subtitle">Inspección de tramas en tiempo real (RX/TX), cálculo de LQI, decodificación semántica y exportación Wireshark.</p>
+                </div>
+                <div class="pane-actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                  <button type="button" class="btn-outline btn-sm" id="btnToggleSnifferPause" title="Pausar o reanudar captura"><span data-lucide="pause" data-size="14"></span> Pausar Captura</button>
+                  <button type="button" class="btn-outline btn-sm" id="btnClearSnifferPackets" title="Limpiar búfer de paquetes"><span data-lucide="trash-2" data-size="14"></span> Limpiar</button>
+                  <div class="btn-group" style="display: flex; gap: 4px;">
+                    <button type="button" class="btn-secondary btn-sm" id="btnExportPcap" title="Descargar captura PCAP binaria (Wireshark DLT_USER0)"><span data-lucide="download" data-size="14"></span> PCAP (Wireshark)</button>
+                    <button type="button" class="btn-secondary btn-sm" id="btnExportJson" title="Descargar paquetes en formato JSON"><span data-lucide="code" data-size="14"></span> JSON</button>
+                    <button type="button" class="btn-secondary btn-sm" id="btnExportCsv" title="Descargar paquetes en formato CSV"><span data-lucide="file-spreadsheet" data-size="14"></span> CSV</button>
+                  </div>
+                </div>
               </div>
-              <div id="quickDiagBody" class="diag-body"></div>
-            </div>
 
-            <!-- Barra de Filtros de Logs -->
-            <div class="logs-filter-bar">
-              <div class="filter-group">
-                <label for="logLevelFilter">Nivel:</label>
-                <select id="logLevelFilter" class="select-input">
-                  <option value="ALL">Todos los Niveles</option>
-                  <option value="RF">📡 Tráfico LoRa / RF ([RX] &amp; [TX])</option>
-                  <option value="SECURITY">Tráfico Sospechoso &amp; Seguridad</option>
-                  <option value="NET">Conexiones IP (Web / API / TCP)</option>
-                  <option value="ERROR">Solo Errores (ERROR/CRIT)</option>
-                  <option value="WARNING">Advertencias (WARN)</option>
-                  <option value="INFO">Información (INFO)</option>
-                  <option value="DEBUG">Depuración (DEBUG)</option>
-                </select>
+              <!-- Barra de Filtros del Sniffer -->
+              <div class="logs-filter-bar" style="margin-bottom: 12px;">
+                <div class="filter-group">
+                  <label for="snifferDirFilter">Dirección:</label>
+                  <select id="snifferDirFilter" class="select-input">
+                    <option value="">Todas (RX &amp; TX)</option>
+                    <option value="rx">Solo RX (Entrantes)</option>
+                    <option value="tx">Solo TX (Salientes)</option>
+                  </select>
+                </div>
+                <div class="filter-group">
+                  <label for="snifferTypeFilter">Tipo:</label>
+                  <select id="snifferTypeFilter" class="select-input">
+                    <option value="">Todos los Tipos</option>
+                    <option value="CHAT">Chat / Mensajería</option>
+                    <option value="ADVERT">Advert / Descubrimiento</option>
+                    <option value="TELEMETRY">Telemetría / Sensores</option>
+                    <option value="ADMIN">Admin / Comandos</option>
+                    <option value="ACK">ACK Confirmación</option>
+                  </select>
+                </div>
+                <div class="search-group">
+                  <input type="text" id="snifferSearchInput" placeholder="Filtrar por nodo, texto o canal..." autocomplete="off" aria-label="Filtrar paquetes RF" />
+                </div>
               </div>
-              <div class="search-group">
-                <input type="text" id="logSearchInput" placeholder="Buscar en logs (módulo, error, texto)..." autocomplete="off" aria-label="Buscar en logs del sistema" />
-              </div>
-              <button class="btn-outline btn-sm" id="btnPauseLogsScroll" title="Pausar o reanudar auto-scroll">Pausar Scroll</button>
-            </div>
 
-            <!-- Contenedor Principal de Logs -->
-            <div class="system-logs-box" id="systemLogsFeed" role="log"></div>
+              <!-- Tabla de Paquetes Capturados -->
+              <div class="table-responsive" style="max-height: 550px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px;">
+                <table class="data-table sniffer-table" style="font-size: 13px;">
+                  <thead>
+                    <tr>
+                      <th style="width: 50px;">#</th>
+                      <th style="width: 85px;">Hora</th>
+                      <th style="width: 60px;">Dir</th>
+                      <th style="width: 80px;">Tipo</th>
+                      <th style="width: 60px;">CH</th>
+                      <th style="width: 130px;">Origen</th>
+                      <th style="width: 130px;">Destino</th>
+                      <th style="width: 100px;">SNR / RSSI</th>
+                      <th style="width: 60px;">Bytes</th>
+                      <th>Contenido / Resumen</th>
+                      <th style="width: 70px; text-align: center;">Inspeccionar</th>
+                    </tr>
+                  </thead>
+                  <tbody id="snifferPacketsBody">
+                    <tr><td colspan="11" class="text-center text-muted" style="padding: 24px;">No hay paquetes LoRa capturados en el búfer.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -1662,6 +1771,70 @@
             <button type="submit" class="btn-primary" id="btnExecuteImport"><span data-lucide="download" data-size="14"></span> Procesar e Importar</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- Modal: Inspector de Trama LoRa (Wireshark / Decodificador Semántico) -->
+    <div id="packetInspectorModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="packetInspectorTitle">
+      <div class="modal-card packet-inspector-card" style="max-width: 820px; width: 95%;">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <h3 id="packetInspectorTitle" style="margin: 0;"><span class="modal-title-icon" data-lucide="scan" data-size="18"></span> Trama LoRa <span id="inspectorPktIdDisplay" class="badge-pill badge-primary font-mono">#0</span></h3>
+            <span id="inspectorDirBadge" class="badge-pill badge-info">RX</span>
+            <span id="inspectorTypeBadge" class="badge-pill badge-secondary">CHAT</span>
+          </div>
+          <button class="btn-icon modal-close" id="btnClosePacketInspector" aria-label="Cerrar inspector">✕</button>
+        </div>
+        <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px; max-height: 75vh; overflow-y: auto;">
+          <!-- Barra de Pestañas del Inspector -->
+          <div class="subtabs-nav-bar" style="display: flex; gap: 8px; border-bottom: 1px solid var(--border-color, #1e293b); padding-bottom: 8px;">
+            <button type="button" class="subtab-btn active" id="inspectorTabSemantic" data-panel="inspectorPanelSemantic">
+              <span data-lucide="layers" data-size="14"></span> Estructura Semántica
+            </button>
+            <button type="button" class="subtab-btn" id="inspectorTabHex" data-panel="inspectorPanelHex">
+              <span data-lucide="binary" data-size="14"></span> Hex Dump (Wireshark)
+            </button>
+            <button type="button" class="subtab-btn" id="inspectorTabJson" data-panel="inspectorPanelJson">
+              <span data-lucide="code" data-size="14"></span> JSON Crudo
+            </button>
+          </div>
+
+          <!-- Panel 1: Estructura Semántica -->
+          <div id="inspectorPanelSemantic" class="inspector-panel">
+            <div class="table-responsive">
+              <table class="data-table" style="font-size: 13px;">
+                <tbody>
+                  <tr><th style="width: 160px;">Timestamp ISO</th><td id="inspFieldTime" class="font-mono">--</td></tr>
+                  <tr><th>Dirección / Flujo</th><td id="inspFieldDir">--</td></tr>
+                  <tr><th>Canal LoRa</th><td id="inspFieldChannel">--</td></tr>
+                  <tr><th>Tipo de Trama</th><td id="inspFieldType">--</td></tr>
+                  <tr><th>Emisor</th><td id="inspFieldSender" class="font-mono">--</td></tr>
+                  <tr><th>Destinatario</th><td id="inspFieldTarget" class="font-mono">--</td></tr>
+                  <tr><th>Métricas RF</th><td id="inspFieldRf">SNR: -- | RSSI: -- | LQI: --</td></tr>
+                  <tr><th>Tamaño Payload</th><td id="inspFieldSize">0 bytes</td></tr>
+                  <tr><th>Contenido / Decodificación</th><td><div id="inspFieldDecoded" style="white-space: pre-wrap; font-family: var(--font-mono); background: var(--bg-tertiary); padding: 8px; border-radius: 6px;">--</div></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Panel 2: Hex Dump Wireshark Style -->
+          <div id="inspectorPanelHex" class="inspector-panel hidden">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span class="text-xs text-muted font-mono">Offset: 00000000  00 01 02 03 04 05 06 07  08 09 0a 0b 0c 0d 0e 0f  |ASCII|</span>
+              <button type="button" class="btn-outline btn-xs" id="btnCopyHexDump">Copiar Hex</button>
+            </div>
+            <pre id="inspHexDumpView" class="hex-dump-view" style="font-family: var(--font-mono); font-size: 12px; background: #0b0f19; color: #38bdf8; padding: 12px; border-radius: 6px; overflow-x: auto; line-height: 1.5; border: 1px solid var(--border-color);"></pre>
+          </div>
+
+          <!-- Panel 3: JSON Crudo -->
+          <div id="inspectorPanelJson" class="inspector-panel hidden">
+            <div style="display: flex; justify-content: flex-end; margin-bottom: 6px;">
+              <button type="button" class="btn-outline btn-xs" id="btnCopyJsonDump">Copiar JSON</button>
+            </div>
+            <pre id="inspJsonDumpView" class="json-dump-view" style="font-family: var(--font-mono); font-size: 12px; background: #0b0f19; color: #a5f3fc; padding: 12px; border-radius: 6px; overflow-x: auto; max-height: 350px; border: 1px solid var(--border-color);"></pre>
+          </div>
+        </div>
       </div>
     </div>
   </div>

@@ -21,6 +21,7 @@ class ApiContext:
     log_system_event: Callable[..., None]
     broadcast_ws: Callable[[dict[str, Any]], Any] | None = None
     start_time: float = 0.0
+    packet_buffer: Any = None
 
 
 def problem_details(

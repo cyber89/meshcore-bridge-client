@@ -5965,3 +5965,103 @@ body {
   flex-direction: column;
   gap: 1.25rem;
 }
+
+/* ==============================================================================
+   Sniffer Dual View, Packet Inspector & Analytics Duty Cycle Styles
+   ============================================================================== */
+
+.sniffer-subpanel {
+  display: block;
+}
+
+.sniffer-subpanel.hidden {
+  display: none !important;
+}
+
+.sniffer-table th,
+.sniffer-table td {
+  padding: 8px 10px;
+  vertical-align: middle;
+}
+
+.sniffer-table tbody tr:hover {
+  background-color: var(--bg-surface-hover, rgba(255, 255, 255, 0.04));
+}
+
+.badge-dir-rx {
+  background-color: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  font-weight: 600;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.badge-dir-tx {
+  background-color: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  font-weight: 600;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.badge-type-chat {
+  background-color: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.badge-type-advert {
+  background-color: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.badge-type-telemetry {
+  background-color: rgba(20, 184, 166, 0.15);
+  color: #2dd4bf;
+  border: 1px solid rgba(20, 184, 166, 0.3);
+}
+
+.badge-type-admin {
+  background-color: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badge-type-ack {
+  background-color: rgba(100, 116, 139, 0.2);
+  color: #94a3b8;
+  border: 1px solid rgba(100, 116, 139, 0.3);
+}
+
+.hex-dump-view {
+  user-select: text;
+  white-space: pre;
+  tab-size: 4;
+}
+
+.json-dump-view {
+  user-select: text;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.inspector-panel.hidden {
+  display: none !important;
+}
+
+.airtime-progress-bar-fill.normal {
+  background-color: #22c55e !important;
+}
+
+.airtime-progress-bar-fill.warning {
+  background-color: #eab308 !important;
+}
+
+.airtime-progress-bar-fill.danger {
+  background-color: #ef4444 !important;
+}

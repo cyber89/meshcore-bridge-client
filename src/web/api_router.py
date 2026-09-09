@@ -21,6 +21,7 @@ from src.web.controllers import (
     ConfigController,
     ContactsController,
     NodesController,
+    PacketsController,
     RepeaterController,
     SystemController,
     TxController,
@@ -47,6 +48,7 @@ class WebAPIRouter:
             log_system_event=self.log_system_event,
             broadcast_ws=self._notify_web_clients,
             start_time=getattr(bridge, "start_time", time.time()),
+            packet_buffer=getattr(bridge, "packet_buffer", None),
         )
 
         # Controladores especializados por dominio (Modular REST Architecture)
@@ -57,6 +59,7 @@ class WebAPIRouter:
         self.tx_ctrl = TxController(self.api_ctx)
         self.repeater_ctrl = RepeaterController(self.api_ctx)
         self.config_ctrl = ConfigController(self.api_ctx)
+        self.packets_ctrl = PacketsController(self.api_ctx)
 
         # Referencia compartida de canales para retrocompatibilidad
         self.channels: dict[int, dict[str, Any]] = self.channels_ctrl.channels
@@ -265,6 +268,9 @@ class WebAPIRouter:
             if clean_path.startswith(("/api/node", "/api/config")):
                 return await self._dispatch_config(method, clean_path, req_body)
 
+            if clean_path.startswith("/api/packets"):
+                return await self._dispatch_packets(method, path, clean_path, req_body)
+
             if clean_path.startswith("/api/map") or clean_path in ("/api/logs", "/api/telemetry", "/api/diagnostics", "/api/diagnostics/report.md", "/api/diagnostics/report", "/api/logs/download", "/api/logs/raw"):
                 return await self._dispatch_misc(method, path, clean_path, req_body)
 
@@ -309,6 +315,42 @@ class WebAPIRouter:
                 return await self.system_ctrl.clear_logs()
             if method == "GET":
                 return self._route_logs(raw_path, clean_path)
+
+        return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+    async def _dispatch_packets(self, method: str, raw_path: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        """Despacha rutas de inspección y exportación de paquetes LoRa al PacketsController."""
+        if clean_path == "/api/packets/export" and method == "GET":
+            export_fmt = "json"
+            if "?" in raw_path:
+                for part in raw_path.split("?", 1)[1].split("&"):
+                    if "=" in part:
+                        k, v = part.split("=", 1)
+                        if k.lower() == "format":
+                            export_fmt = v.lower()
+            return await self.packets_ctrl.export_packets(export_fmt)
+
+        if clean_path == "/api/packets":
+            if method == "DELETE":
+                return await self.packets_ctrl.clear_packets()
+            if method == "GET":
+                limit = int(req_body.get("limit", 100))
+                offset = int(req_body.get("offset", 0))
+                direction = ""
+                p_type = ""
+                if "?" in raw_path:
+                    for part in raw_path.split("?", 1)[1].split("&"):
+                        if "=" in part:
+                            k, v = part.split("=", 1)
+                            if k.lower() == "limit" and v.isdigit():
+                                limit = int(v)
+                            elif k.lower() == "offset" and v.isdigit():
+                                offset = int(v)
+                            elif k.lower() == "direction":
+                                direction = v
+                            elif k.lower() == "type":
+                                p_type = v
+                return await self.packets_ctrl.get_packets(limit, offset, direction, p_type)
 
         return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
