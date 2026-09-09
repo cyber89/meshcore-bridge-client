@@ -32,6 +32,11 @@ export class MapModule {
     this.initMapOverlayToggle();
     this.initAirtimeMonitoring();
     this.initTraceroute();
+
+    if (this.ctx) {
+      this.ctx.centerMapOnCoords = (lat, lon, zoom) => this.centerMapOnCoords(lat, lon, zoom);
+      this.ctx.centerOnLocalNode = (zoom, showToast) => this.centerOnLocalNode(zoom, showToast);
+    }
   }
 
   _bindElements() {
@@ -41,6 +46,8 @@ export class MapModule {
       btnToggleMapNodes: document.getElementById("btnToggleMapNodes"),
       mapOverlayHeader: document.getElementById("mapOverlayHeader"),
       mapNodesList: document.getElementById("mapNodesList"),
+      mapNodesCount: document.getElementById("mapNodesCount"),
+      btnCenterLocalNode: document.getElementById("btnCenterLocalNode"),
       btnToggleHeatmap: document.getElementById("btnToggleHeatmap"),
       tracerouteModal: document.getElementById("tracerouteModal"),
       btnCloseTracerouteModal: document.getElementById("btnCloseTracerouteModal"),
@@ -63,6 +70,12 @@ export class MapModule {
       });
     });
 
+    if (this.dom.btnCenterLocalNode) {
+      this.dom.btnCenterLocalNode.addEventListener("click", () => {
+        this.centerOnLocalNode(14, true);
+      });
+    }
+
     if (this.dom.btnToggleHeatmap) {
       this.dom.btnToggleHeatmap.addEventListener("click", () => this.toggleRfHeatmap());
     }
@@ -76,14 +89,33 @@ export class MapModule {
         setTimeout(() => {
           try {
             this.map.invalidateSize();
+            if (this.ctx.knownNodes && this.ctx.knownNodes.size > 0) {
+              this.updateMapMarkers(Array.from(this.ctx.knownNodes.values()));
+            }
+            this.centerOnLocalNode(13, false);
           } catch (_) {}
         }, 150);
       }
     });
 
-    this.ctx.eventBus.on(EVENTS.NODE_UPDATED, (node) => {
-      if (node && node.latitude != null && node.longitude != null) {
-        this.updateSingleNodeMarker(node);
+    this.ctx.eventBus.on(EVENTS.NODE_UPDATED, (data) => {
+      if (!data && this.ctx.knownNodes) {
+        this.updateMapMarkers(Array.from(this.ctx.knownNodes.values()));
+        this.centerOnLocalNode(13, false);
+      } else if (Array.isArray(data)) {
+        this.updateMapMarkers(data);
+        this.centerOnLocalNode(13, false);
+      } else if (data && typeof data === "object") {
+        this.updateSingleNodeMarker(data);
+        if (data.is_local || data.role === "LOCAL") {
+          this.centerOnLocalNode(13, false);
+        }
+      }
+    });
+
+    this.ctx.eventBus.on("CENTER_MAP_COORDS", (coords) => {
+      if (coords && coords.lat != null && coords.lon != null) {
+        this.centerMapOnCoords(coords.lat, coords.lon, coords.zoom || 14);
       }
     });
   }
@@ -150,9 +182,12 @@ export class MapModule {
       if (this.ctx.knownNodes && this.ctx.knownNodes.size > 0) {
         this.updateMapMarkers(Array.from(this.ctx.knownNodes.values()));
       }
+
+      this.centerOnLocalNode(13, false);
     } catch (err) {
       console.warn("No se pudo inicializar el mapa Leaflet:", err);
     }
+  }
   }
 
   setMapLayer(mode) {
@@ -555,11 +590,140 @@ export class MapModule {
     this.tacticalRadarGroup.addLayer(eastWest);
   }
 
+  centerMapOnCoords(lat, lon, zoom = 14) {
+    if (!this.map) return;
+    const fLat = parseFloat(lat);
+    const fLon = parseFloat(lon);
+    if (!isNaN(fLat) && !isNaN(fLon)) {
+      this.map.setView([fLat, fLon], zoom);
+    }
+  }
+
+  getLocalNodeCoordinates() {
+    // 1. Buscar en knownNodes
+    if (this.ctx.knownNodes) {
+      for (const n of this.ctx.knownNodes.values()) {
+        if (n.is_local || String(n.role).toUpperCase() === "LOCAL") {
+          const lat = parseFloat(n.latitude ?? n.lat);
+          const lon = parseFloat(n.longitude ?? n.lon);
+          if (!isNaN(lat) && !isNaN(lon) && (lat !== 0 || lon !== 0)) {
+            return { lat, lon, name: n.name || "Estación Base Local", node: n };
+          }
+        }
+      }
+    }
+
+    // 2. Buscar en inputs del DOM de configuración
+    const latEl = document.getElementById("localGpsLat");
+    const lonEl = document.getElementById("localGpsLon");
+    if (latEl && lonEl) {
+      const lat = parseFloat(latEl.value);
+      const lon = parseFloat(lonEl.value);
+      if (!isNaN(lat) && !isNaN(lon) && (lat !== 0 || lon !== 0)) {
+        return { lat, lon, name: "Estación Base Local" };
+      }
+    }
+
+    return null;
+  }
+
+  centerOnLocalNode(zoom = 13, showToast = false) {
+    if (!this.map) return;
+    const localCoords = this.getLocalNodeCoordinates();
+
+    if (localCoords) {
+      this.map.setView([localCoords.lat, localCoords.lon], zoom);
+      const pk = localCoords.node?.public_key?.toLowerCase?.() || "local";
+      const localMarker = this.mapMarkers.get(pk);
+      if (localMarker && showToast) {
+        localMarker.openPopup();
+      }
+      if (showToast && this.ctx.showToast) {
+        this.ctx.showToast(`🎯 Centrado en nodo local (${localCoords.lat.toFixed(4)}, ${localCoords.lon.toFixed(4)})`, "success");
+      }
+      return;
+    }
+
+    // Fallback: si el nodo local no tiene GPS pero hay nodos posicionados
+    if (this.mapMarkers.size > 0) {
+      const bounds = [];
+      this.mapMarkers.forEach((m) => bounds.push(m.getLatLng()));
+      if (bounds.length > 0) {
+        this.map.fitBounds(L.latLngBounds(bounds), { padding: [40, 40], maxZoom: 14 });
+        if (showToast && this.ctx.showToast) {
+          this.ctx.showToast("🗺️ Mapa ajustado a los nodos activos con GPS", "info");
+        }
+        return;
+      }
+    }
+
+    if (showToast && this.ctx.showToast) {
+      this.ctx.showToast("No se encontraron coordenadas GPS para el nodo local.", "warning");
+    }
+  }
+
   updateMapMarkers(nodes) {
     if (!this.map || !Array.isArray(nodes)) return;
 
     nodes.forEach((node) => {
       this.updateSingleNodeMarker(node);
+    });
+
+    this.updateMapNodesOverlayList(nodes);
+  }
+
+  updateMapNodesOverlayList(nodes) {
+    if (!this.dom.mapNodesList) return;
+
+    const positionedNodes = nodes.filter((n) => {
+      const lat = parseFloat(n.latitude ?? n.lat);
+      const lon = parseFloat(n.longitude ?? n.lon);
+      return !isNaN(lat) && !isNaN(lon) && (lat !== 0 || lon !== 0);
+    });
+
+    if (this.dom.mapNodesCount) {
+      this.dom.mapNodesCount.textContent = String(positionedNodes.length);
+    }
+
+    this.dom.mapNodesList.innerHTML = "";
+
+    if (positionedNodes.length === 0) {
+      this.dom.mapNodesList.innerHTML = `<div class="map-node-empty-hint">No hay nodos con posición GPS en la malla.</div>`;
+      return;
+    }
+
+    positionedNodes.forEach((node) => {
+      const lat = parseFloat(node.latitude ?? node.lat);
+      const lon = parseFloat(node.longitude ?? node.lon);
+      const isLocal = Boolean(node.is_local || String(node.role).toUpperCase() === "LOCAL");
+      const isRepeater = String(node.role || "").toUpperCase() === "REPEATER";
+      const isSensor = String(node.role || "").toUpperCase() === "SENSOR";
+      const cleanName = node.name || node.alias || (node.public_key ? node.public_key.slice(0, 8) : "Nodo");
+
+      const itemEl = document.createElement("div");
+      itemEl.className = `map-node-item ${isLocal ? "is-local local-node-item" : ""}`;
+      itemEl.innerHTML = `
+        <div class="map-node-item-header">
+          <span class="map-node-icon">${isLocal ? "🏠" : (isRepeater ? "📡" : (isSensor ? "🌡️" : "👤"))}</span>
+          <strong class="map-node-name font-mono">${escapeHtml(cleanName)}</strong>
+          <span class="badge-pill" style="font-size: 9.5px;">${escapeHtml(node.role || (isLocal ? "LOCAL" : "CLIENT"))}</span>
+        </div>
+        <div class="map-node-item-sub font-mono">
+          <span>📍 ${lat.toFixed(4)}, ${lon.toFixed(4)}</span>
+          ${node.last_snr != null ? `<span>📶 ${node.last_snr} dB</span>` : ""}
+        </div>
+      `;
+
+      itemEl.addEventListener("click", () => {
+        this.map.setView([lat, lon], 15);
+        const pk = (node.public_key || "").toLowerCase();
+        const marker = this.mapMarkers.get(pk);
+        if (marker) {
+          marker.openPopup();
+        }
+      });
+
+      this.dom.mapNodesList.appendChild(itemEl);
     });
   }
 
@@ -569,43 +733,48 @@ export class MapModule {
     const lon = parseFloat(node.longitude ?? node.lon);
     if (isNaN(lat) || isNaN(lon) || (lat === 0 && lon === 0)) return;
 
-    const pk = (node.public_key || "").toLowerCase();
+    const pk = (node.public_key || (node.is_local ? "local" : "")).toLowerCase();
     if (!pk) return;
 
-    const isLocal = Boolean(node.is_local || node.role === "LOCAL");
+    const isLocal = Boolean(node.is_local || String(node.role).toUpperCase() === "LOCAL");
     const isRepeater = String(node.role || "").toUpperCase() === "REPEATER";
-    const markerColor = isLocal ? "#10b981" : (isRepeater ? "#8b5cf6" : "#0ea5e9");
+    const isSensor = String(node.role || "").toUpperCase() === "SENSOR";
+    const markerColor = isLocal ? "#10b981" : (isRepeater ? "#8b5cf6" : (isSensor ? "#f59e0b" : "#0ea5e9"));
+    const iconSymbol = isLocal ? "🏠" : (isRepeater ? "📡" : (isSensor ? "🌡️" : "👤"));
+    const name = node.name || node.alias || (isLocal ? "Estación Base Local (Tú)" : pk.slice(0, 8));
+
+    const popupHtml = `
+      <div class="custom-map-popup">
+        <div class="popup-title" style="color: ${markerColor};">
+          <span>${iconSymbol}</span> <strong>${escapeHtml(name)}</strong>
+        </div>
+        <div class="popup-info">
+          <div><span>Rol:</span> <span class="badge-pill">${escapeHtml(node.role || (isLocal ? "LOCAL" : "CLIENT"))}</span></div>
+          <div><span>Clave:</span> <code>${escapeHtml(pk.slice(0, 8))}...</code></div>
+          <div><span>Posición:</span> <code>${lat.toFixed(5)}, ${lon.toFixed(5)}</code></div>
+          ${node.last_rssi != null ? `<div><span>RSSI:</span> <strong>${node.last_rssi} dBm</strong></div>` : ""}
+          ${node.last_snr != null ? `<div><span>SNR:</span> <strong>${node.last_snr} dB</strong></div>` : ""}
+          ${isLocal ? `<div style="color: #10b981; font-weight: 600; margin-top: 4px;">📍 Transceptor Local Conectado</div>` : ""}
+        </div>
+      </div>
+    `;
 
     if (this.mapMarkers.has(pk)) {
       const m = this.mapMarkers.get(pk);
       m.setLatLng([lat, lon]);
+      m.setPopupContent(popupHtml);
       return;
     }
 
     const customIcon = L.divIcon({
-      className: "custom-leaflet-marker",
-      html: `<div style="background: ${markerColor}; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 6px ${markerColor};"></div>`,
-      iconSize: [14, 14],
-      iconAnchor: [7, 7],
+      className: `custom-leaflet-marker ${isLocal ? "marker-local-station" : ""}`,
+      html: `<div style="background: ${markerColor}; width: ${isLocal ? 22 : 16}px; height: ${isLocal ? 22 : 16}px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 ${isLocal ? "10px #10b981" : "6px " + markerColor}; display: flex; align-items: center; justify-content: center; font-size: ${isLocal ? "11px" : "9px"}; color: white;">${iconSymbol}</div>`,
+      iconSize: [isLocal ? 22 : 16, isLocal ? 22 : 16],
+      iconAnchor: [isLocal ? 11 : 8, isLocal ? 11 : 8],
     });
 
     const marker = L.marker([lat, lon], { icon: customIcon });
-    const name = node.name || node.alias || pk.slice(0, 8);
-
-    marker.bindPopup(`
-      <div class="custom-map-popup">
-        <div class="popup-title" style="color: ${markerColor};">
-          <strong>${escapeHtml(name)}</strong>
-        </div>
-        <div class="popup-info">
-          <div><span>Rol:</span> <span class="badge-pill">${escapeHtml(node.role || "CLIENT")}</span></div>
-          <div><span>Clave:</span> <code>${escapeHtml(pk.slice(0, 8))}...</code></div>
-          ${node.last_rssi != null ? `<div><span>RSSI:</span> <strong>${node.last_rssi} dBm</strong></div>` : ""}
-          ${node.last_snr != null ? `<div><span>SNR:</span> <strong>${node.last_snr} dB</strong></div>` : ""}
-        </div>
-      </div>
-    `);
-
+    marker.bindPopup(popupHtml);
     marker.addTo(this.map);
     this.mapMarkers.set(pk, marker);
   }

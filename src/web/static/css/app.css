@@ -152,7 +152,8 @@ body.light-theme .chat-messages-container {
   background-color: #EAF0F6;
 }
 
-body.light-theme .incoming .msg-bubble {
+body.light-theme .incoming .msg-bubble,
+body.light-theme .incoming .message-bubble {
   background: #FFFFFF;
   border-color: #D2DEEB;
   box-shadow: 0 1px 3px rgba(10, 25, 47, 0.05);
@@ -1096,7 +1097,8 @@ body {
   font-weight: 600;
 }
 
-.msg-bubble {
+.msg-bubble,
+.message-bubble {
   background: var(--bg-surface-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
@@ -1109,7 +1111,8 @@ body {
   word-break: break-word;
 }
 
-.outgoing .msg-bubble {
+.outgoing .msg-bubble,
+.outgoing .message-bubble {
   background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
   border: 1px solid rgba(56, 189, 248, 0.4);
   color: #ffffff;
@@ -1117,7 +1120,21 @@ body {
   box-shadow: 0 2px 8px rgba(2, 132, 199, 0.25);
 }
 
-.incoming .msg-bubble {
+.outgoing .msg-meta {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.outgoing .msg-sender {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.outgoing .msg-time {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.incoming .msg-bubble,
+.incoming .message-bubble {
   background: var(--bg-surface-elevated);
   border-color: var(--border-medium);
   border-top-left-radius: 2px;
@@ -1707,6 +1724,51 @@ body {
   justify-content: space-between;
   gap: 8px;
   width: 100%;
+}
+
+.btn-toggle-fav {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  flex-shrink: 0;
+}
+
+.btn-toggle-fav:hover {
+  color: #f59e0b;
+  transform: scale(1.18);
+}
+
+.btn-toggle-fav.is-fav {
+  color: #f59e0b;
+  filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.5));
+}
+
+.btn-toggle-fav.is-fav svg {
+  fill: #f59e0b;
+}
+
+.contact-card[data-favorite="1"] {
+  border-color: rgba(245, 158, 11, 0.35);
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.08);
+}
+
+.contacts-empty-filter-state {
+  grid-column: 1 / -1;
+  padding: 32px 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13.5px;
+  background: var(--bg-surface);
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-md);
+  margin-top: 8px;
 }
 
 .node-card-name,
@@ -3164,6 +3226,16 @@ body {
 
 .map-node-item.selected.is-local {
   border-left: 3px solid #ef4444 !important;
+}
+
+.marker-local-station {
+  animation: localStationPulse 2s ease-in-out infinite alternate;
+  z-index: 1000 !important;
+}
+
+@keyframes localStationPulse {
+  0% { transform: scale(1); filter: drop-shadow(0 0 3px rgba(16, 185, 129, 0.6)); }
+  100% { transform: scale(1.15); filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.9)); }
 }
 
 .map-node-item-header {
@@ -5401,7 +5473,8 @@ body {
 /* ==============================================================================
    ✓✓ DELIVERY RECEIPTS IN CHAT
    ============================================================================== */
-.msg-ack-status {
+.msg-ack-status,
+.msg-status-indicator {
   font-size: 11px;
   font-family: var(--font-mono);
   color: var(--text-muted);
@@ -5410,11 +5483,13 @@ body {
   align-items: center;
   gap: 3px;
 }
-.msg-ack-status.sent {
+.msg-ack-status.sent,
+.msg-status-indicator.sent {
   color: var(--text-muted);
   opacity: 0.85;
 }
-.msg-ack-status.delivered {
+.msg-ack-status.delivered,
+.msg-status-indicator.delivered {
   color: var(--accent-success, #10b981);
   font-weight: 700;
   text-shadow: 0 0 8px rgba(16, 185, 129, 0.35);

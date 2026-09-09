@@ -278,6 +278,9 @@ export class NodesModule {
               <div class="contact-title-row">
                 <span class="contact-name font-mono" title="${escapeHtml(cleanName)}">${escapeHtml(cleanName)}</span>
                 ${batText ? `<span class="contact-battery-chip" title="Batería: ${batText}">🔋 ${escapeHtml(batText)}</span>` : ""}
+                <button type="button" class="btn-toggle-fav ${node.is_favorite ? "is-fav" : ""}" title="${node.is_favorite ? "Quitar de favoritos" : "Marcar como favorito"}" aria-label="Favorito">
+                  <span data-lucide="star" data-size="14"></span>
+                </button>
               </div>
               <div class="node-card-sub-row">
                 <span class="node-card-activity font-mono">${escapeHtml(lastSeenText)}</span>
@@ -317,6 +320,51 @@ export class NodesModule {
             </button>
           </div>
         `;
+
+        const favBtn = cCard.querySelector(".btn-toggle-fav");
+        if (favBtn) {
+          favBtn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            const newFav = !node.is_favorite;
+            node.is_favorite = newFav;
+            cCard.setAttribute("data-favorite", newFav ? "1" : "0");
+            favBtn.classList.toggle("is-fav", newFav);
+            favBtn.title = newFav ? "Quitar de favoritos" : "Marcar como favorito";
+
+            const known = this.knownNodes.get(node.public_key.toLowerCase());
+            if (known) known.is_favorite = newFav;
+
+            let favCount = 0;
+            document.querySelectorAll("#contactsGridUi .contact-card").forEach((card) => {
+              if (card.getAttribute("data-favorite") === "1") favCount++;
+            });
+            const cCFav = document.getElementById("countFavContacts");
+            if (cCFav) cCFav.textContent = String(favCount);
+
+            const q = this.dom.contactsSearchInput ? this.dom.contactsSearchInput.value : "";
+            this.filterContactsGrid(q);
+
+            if (this.ctx.showToast) {
+              this.ctx.showToast(newFav ? `⭐ "${cleanName}" añadido a Favoritos` : `"${cleanName}" quitado de Favoritos`, "info");
+            }
+
+            try {
+              await fetch("/api/contacts", {
+                method: "POST",
+                headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  public_key: node.public_key,
+                  name: cleanName,
+                  alias: node.alias || "",
+                  role: node.role || "CLIENT",
+                  is_favorite: newFav,
+                }),
+              });
+            } catch (err) {
+              console.warn("Error guardando estado de favorito:", err);
+            }
+          });
+        }
 
         cCard.querySelector(".btn-contact-dm")?.addEventListener("click", () => {
           if (this.ctx.openDmConversation) this.ctx.openDmConversation(node.public_key, cleanName);
@@ -507,8 +555,8 @@ export class NodesModule {
     const qN = this.dom.nodesSearchInput ? this.dom.nodesSearchInput.value : "";
     this.filterNodesGrid(qN);
 
-    // Notificar al bus para actualizar mapa
-    this.ctx.eventBus.emit(EVENTS.NODE_UPDATED, null);
+    // Notificar al bus para actualizar mapa con la lista completa de nodos
+    this.ctx.eventBus.emit(EVENTS.NODE_UPDATED, deduplicatedNodes);
   }
 
   updateNodePresenceRealtime(canonicalSender, payload) {
@@ -563,8 +611,10 @@ export class NodesModule {
   filterContactsGrid(query) {
     const q = (query || "").toLowerCase().trim();
     const filter = this.activeContactsFilter || "all";
+    const cards = document.querySelectorAll("#contactsGridUi .contact-card");
+    let visibleCount = 0;
 
-    document.querySelectorAll("#contactsGridUi .contact-card").forEach((card) => {
+    cards.forEach((card) => {
       const text = card.textContent.toLowerCase();
       const matchText = !q || text.includes(q);
 
@@ -577,8 +627,35 @@ export class NodesModule {
         matchPill = card.getAttribute("data-has-gps") === "1";
       }
 
-      card.classList.toggle("hidden", !(matchText && matchPill));
+      const isVisible = matchText && matchPill;
+      card.classList.toggle("hidden", !isVisible);
+      if (isVisible) visibleCount++;
     });
+
+    const grid = this.dom.contactsGridUi;
+    if (grid) {
+      let emptyMsg = grid.querySelector(".contacts-empty-filter-state");
+      if (visibleCount === 0 && cards.length > 0) {
+        if (!emptyMsg) {
+          emptyMsg = document.createElement("div");
+          emptyMsg.className = "contacts-empty-filter-state empty-state";
+          grid.appendChild(emptyMsg);
+        }
+        let desc = "No se encontraron contactos para los filtros seleccionados.";
+        if (filter === "favorites") {
+          desc = "⭐ No tienes contactos marcados como favoritos. Haz clic en la estrella de cualquier tarjeta para añadirlo.";
+        } else if (filter === "online") {
+          desc = "📡 No hay contactos en línea en este momento.";
+        } else if (filter === "gps") {
+          desc = "📍 No hay contactos con posición GPS registrada.";
+        } else if (q) {
+          desc = `🔍 No se encontraron contactos que coincidan con "${escapeHtml(q)}".`;
+        }
+        emptyMsg.innerHTML = `<p>${desc}</p>`;
+      } else if (emptyMsg) {
+        emptyMsg.remove();
+      }
+    }
   }
 
   filterNodesGrid(query) {

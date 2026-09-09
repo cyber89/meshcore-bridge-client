@@ -218,6 +218,59 @@ export class ChatModule {
     }
   }
 
+  shareCurrentLocation() {
+    if (!navigator.geolocation) {
+      this._fallbackShareLocalStationLocation("Geolocalización no soportada en el navegador");
+      return;
+    }
+
+    if (this.ctx.showToast) {
+      this.ctx.showToast("📍 Obteniendo coordenadas GPS...", "info", 2000);
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude.toFixed(5);
+        const lon = pos.coords.longitude.toFixed(5);
+        const text = `📍 Mi ubicación GPS: ${lat}, ${lon}`;
+        if (this.dom.chatInputText) {
+          this.dom.chatInputText.value = text;
+          this.dom.chatInputText.focus();
+        }
+        if (this.ctx.showToast) {
+          this.ctx.showToast(`📍 Coordenadas listas para enviar: ${lat}, ${lon}`, "success");
+        }
+      },
+      (err) => {
+        this._fallbackShareLocalStationLocation(`No se pudo obtener GPS del navegador (${err.message})`);
+      },
+      { timeout: 8000, enableHighAccuracy: true }
+    );
+  }
+
+  _fallbackShareLocalStationLocation(reason) {
+    const latInput = document.getElementById("localGpsLat");
+    const lonInput = document.getElementById("localGpsLon");
+    const latVal = latInput ? parseFloat(latInput.value) : NaN;
+    const lonVal = lonInput ? parseFloat(lonInput.value) : NaN;
+
+    if (!isNaN(latVal) && !isNaN(lonVal) && (latVal !== 0 || lonVal !== 0)) {
+      const text = `📍 Ubicación de estación: ${latVal.toFixed(5)}, ${lonVal.toFixed(5)}`;
+      if (this.dom.chatInputText) {
+        this.dom.chatInputText.value = text;
+        this.dom.chatInputText.focus();
+      }
+      if (this.ctx.showToast) {
+        this.ctx.showToast(`📍 Usando ubicación configurada de la estación base: ${latVal.toFixed(5)}, ${lonVal.toFixed(5)}`, "info");
+      }
+      return;
+    }
+
+    if (this.ctx.showToast) {
+      this.ctx.showToast(`${reason}. Configura latitud/longitud en Ajustes.`, "warning");
+    }
+  }
+
   async clearCurrentChat() {
     const feedKey = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
     this.channelFeeds.delete(feedKey);
@@ -304,19 +357,71 @@ export class ChatModule {
     row.className = `message-bubble-row ${msg.is_outgoing ? "outgoing" : "incoming"}`;
     row.setAttribute("data-msg-id", msg.id || msg.msg_id || "");
 
-    const timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : "";
+    const timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
     const sender = msg.is_outgoing ? "Tú" : (msg.sender_name || msg.sender || "Anónimo");
 
+    // Detección de coordenadas GPS en el texto
+    const text = msg.text || "";
+    const gpsMatch = text.match(/(-?\d{1,3}\.\d{3,7}),\s*(-?\d{1,3}\.\d{3,7})/);
+    let locationCardHtml = "";
+    let detectedLat = null;
+    let detectedLon = null;
+
+    if (gpsMatch) {
+      detectedLat = parseFloat(gpsMatch[1]);
+      detectedLon = parseFloat(gpsMatch[2]);
+      if (!isNaN(detectedLat) && !isNaN(detectedLon)) {
+        locationCardHtml = `
+          <div class="chat-location-card">
+            <div class="loc-card-header">
+              <span>📍</span> <strong>Punto GPS Compartido</strong>
+            </div>
+            <div class="loc-coords-badge">${detectedLat.toFixed(5)}, ${detectedLon.toFixed(5)}</div>
+            <button type="button" class="btn-view-on-map" data-lat="${detectedLat}" data-lon="${detectedLon}">
+              <span data-lucide="map-pin" data-size="12"></span> Ver en Mapa
+            </button>
+          </div>
+        `;
+      }
+    }
+
     row.innerHTML = `
-      <div class="message-bubble">
+      <div class="msg-bubble message-bubble">
         <div class="msg-meta">
           <span class="msg-sender">${escapeHtml(sender)}</span>
           <span class="msg-time">${escapeHtml(timeStr)}</span>
         </div>
-        <div class="msg-body">${escapeHtml(msg.text)}</div>
-        ${msg.is_outgoing ? `<div class="msg-status-indicator font-mono">${msg.delivered ? "✓✓ Entregado" : "✓ Enviado"}</div>` : ""}
+        <div class="msg-body">${escapeHtml(text)}</div>
+        ${locationCardHtml}
+        ${msg.is_outgoing ? `
+          <div class="msg-footer">
+            <span class="msg-ack-status font-mono ${msg.delivered ? "delivered" : "sent"}">
+              ${msg.delivered ? "✓✓ Entregado" : "✓ Enviado"}
+            </span>
+          </div>
+        ` : ""}
       </div>
     `;
+
+    if (gpsMatch && detectedLat !== null && detectedLon !== null) {
+      const btnViewMap = row.querySelector(".btn-view-on-map");
+      if (btnViewMap) {
+        btnViewMap.addEventListener("click", () => {
+          const navBtn = document.querySelector('.nav-btn[data-tab="tab-map"]');
+          if (navBtn) navBtn.click();
+          if (this.ctx.centerMapOnCoords) {
+            this.ctx.centerMapOnCoords(detectedLat, detectedLon, 14);
+          } else if (this.ctx.eventBus) {
+            this.ctx.eventBus.emit("CENTER_MAP_COORDS", { lat: detectedLat, lon: detectedLon, zoom: 14 });
+          }
+        });
+      }
+    }
+
+    if (window.initLucideIcons) {
+      window.initLucideIcons(row);
+    }
+
     return row;
   }
 
@@ -456,9 +561,10 @@ export class ChatModule {
 
     const row = this.dom.chatMessageFeed?.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
     if (row) {
-      const indicator = row.querySelector(".msg-status-indicator");
+      const indicator = row.querySelector(".msg-ack-status, .msg-status-indicator");
       if (indicator) {
         indicator.textContent = "✓✓ Entregado";
+        indicator.classList.remove("sent");
         indicator.classList.add("delivered");
       }
     }

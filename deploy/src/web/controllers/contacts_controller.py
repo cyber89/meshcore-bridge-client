@@ -113,9 +113,17 @@ class ContactsController(BaseController):
         if not pubkey:
             return problem_details(400, "Bad Request", "Se requiere 'public_key'", "missing_public_key")
 
+        is_fav = req_body.get("is_favorite")
+        is_favorite_val = bool(is_fav) if is_fav is not None else None
+
         contact = self.ctx.bridge.node_registry.add_or_update(
             pubkey,
-            NodeContactUpdate(name=name or f"Node_{pubkey[:6]}", alias=alias, role=role),
+            NodeContactUpdate(
+                name=name or f"Node_{pubkey[:6]}",
+                alias=alias,
+                role=role,
+                is_favorite=is_favorite_val,
+            ),
         )
         if hasattr(self.ctx.bridge.node_registry, "save_to_file"):
             self.ctx.bridge.node_registry.save_to_file()

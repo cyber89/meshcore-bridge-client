@@ -6,23 +6,7 @@
 import { eventBus, EVENTS } from "./core/eventbus.js";
 import { MeshCoreStorage } from "./core/storage.js";
 import { MeshCoreWebSocketClient } from "./core/websocket.js";
-import { debounce } from "./core/utils.js";
-
-/**
- * Función de sanitización XSS estricta para escape en el DOM.
- * @param {string} str Cadena a sanitizar
- * @returns {string} Cadena sanitizada
- */
-export function escapeHtml(str) {
-  if (str === null || str === undefined) return "";
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
+import { debounce, escapeHtml } from "./core/utils.js";
 
 import { SnifferModule } from "./modules/sniffer.js";
 import { RepeaterModule } from "./modules/repeater.js";
@@ -57,6 +41,8 @@ class MeshCoreApp {
       openDmConversation: (pk, name) => this.chatModule.openDmConversation(pk, name),
       openRepeaterAdminModal: (pk, name) => this.repeaterModule.openRepeaterAdminModal(pk, name),
       openTracerouteModal: (pk, name) => this.mapModule.openTracerouteModal(pk, name),
+      centerMapOnCoords: (lat, lon, zoom) => this.mapModule.centerMapOnCoords(lat, lon, zoom),
+      centerOnLocalNode: (zoom, showToast) => this.mapModule.centerOnLocalNode(zoom, showToast),
       updateRadioBadge: (ok, port) => this.updateRadioBadge(ok, port),
     };
 

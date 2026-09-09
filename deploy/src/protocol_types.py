@@ -492,7 +492,7 @@ class NodeAdvertisement:
         )
 
     @classmethod
-    def unpack(cls, data: bytes) -> 'NodeAdvertisement':
+    def unpack(cls, data: bytes) -> NodeAdvertisement:
         if len(data) < 39:
             raise ValueError(f"Payload de anuncio demasiado corto: {len(data)}B < 39B")
         node_id, sname_raw, lname_raw, hw, fw, lat_e7, lon_e7, alt = struct.unpack("<H4s20sBHiih", data[:39])
