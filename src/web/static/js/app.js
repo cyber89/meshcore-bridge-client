@@ -41,6 +41,7 @@ class MeshCoreApp {
       setDmTarget: (pk, name) => this.chatModule.setDmTarget(pk, name),
       openDmConversation: (pk, name) => this.chatModule.openDmConversation(pk, name),
       openRepeaterAdminModal: (pk, name) => this.repeaterModule.openRepeaterAdminModal(pk, name),
+      closeRepeaterAdminModal: () => this.repeaterModule.closeRepeaterAdminModal(),
       openTracerouteModal: (pk, name) => this.mapModule.openTracerouteModal(pk, name),
       centerMapOnCoords: (lat, lon, zoom) => this.mapModule.centerMapOnCoords(lat, lon, zoom),
       centerOnLocalNode: (zoom, showToast) => this.mapModule.centerOnLocalNode(zoom, showToast),

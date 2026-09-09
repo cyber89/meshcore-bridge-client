@@ -224,8 +224,28 @@ class SecurityTrafficInspector:
     def log_http_access(cls, event: HttpAccessEvent) -> None:
         """Registra una conexión HTTP o consulta REST de forma limpia y estructurada."""
         is_api = event.path.startswith("/api/")
-        tag = "[REST-API]" if is_api else "[HTTP-CLIENT]"
         clean_path = event.path.split("?")[0]
+
+        # Consultas de sondeo periódicas de la UI o estáticos exitosos no deben saturar el feed a nivel INFO
+        is_routine = clean_path in (
+            "/api/status",
+            "/api/health",
+            "/api/airtime/stats",
+            "/api/diagnostics",
+            "/api/packets",
+            "/api/system/logs",
+            "/api/nodes",
+            "/api/channels",
+        )
+        is_static_ok = not is_api and event.status_code in (200, 304)
+
+        if is_routine or is_static_ok:
+            logging.debug(
+                f"⚡ [HTTP-ROUTINE] IP: {event.client_ip} -> {event.method} {clean_path} | {event.status_code} | {event.duration_ms:.1f}ms"
+            )
+            return
+
+        tag = "[REST-API]" if is_api else "[HTTP-CLIENT]"
         ua_summary = (
             event.user_agent[:40] + "..." if len(event.user_agent) > 40 else (event.user_agent or "N/D")
         )

@@ -60,8 +60,9 @@ class SystemLogHandler(logging.Handler):
         self,
         max_records: int = 500,
         broadcast_callback: Callable[[dict[str, Any]], None] | None = None,
+        level: int = logging.INFO,
     ) -> None:
-        super().__init__()
+        super().__init__(level=level)
         self.buffer: collections.deque[SystemLogRecord] = collections.deque(maxlen=max_records)
         self.broadcast_callback = broadcast_callback
         self.error_count = 0
@@ -75,6 +76,10 @@ class SystemLogHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         """Procesa y almacena un registro de logging estándar de Python."""
         try:
+            # Descartar registros con severidad menor a la configurada
+            if record.levelno < self.level:
+                return
+
             msg = self.format(record) if self.formatter else record.getMessage()
 
             exc_text = None
@@ -180,6 +185,8 @@ class DiagnosticManager:
             if isinstance(level_val, int):
                 logging.getLogger().setLevel(level_val)
                 logging.getLogger("meshcore").setLevel(level_val)
+                if hasattr(self, "log_handler") and self.log_handler:
+                    self.log_handler.setLevel(level_val)
                 logging.info(f"Nivel global de logging cambiado dinámicamente a: {lvl}")
                 return lvl
         raise ValueError(f"Nivel de log inválido: {level_name}")

@@ -6,6 +6,43 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Corrección del Cierre del Modal de Administración de Nodo y Supresión del Desbordamiento Incontrolado de Logs
+- **Fecha**: 2026-09-09
+- **Estado**: ✅ COMPLETADO (Implementado cierre determinista de modal #repeaterAdminModal con botón ✕, clic fuera del diálogo en backdrop y tecla Escape; suprimido desbordamiento de logs de radio firmware en serial_driver silenciando paquetes LOG_DATA/RX_LOG_DATA 0x88; filtrado estricto de severidad en SystemLogHandler respetando LOG_LEVEL; enrutamiento de accesos HTTP rutinarios a nivel DEBUG en SecurityTrafficInspector; filtrado reactivo estricto en appendLogEntryToDom de sniffer.js; ruff 100% PASS, mypy strict 100% PASS, linter frontend 100% PASS y sincronización en /deploy/).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web Architect), Agente 2 (Bridge Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - El usuario reportó dos incidencias críticas: (1) Al intentar cerrar el diálogo de administración de un nodo no funciona; (2) El sistema de log sigue recibiendo logs descontroladamente.
+- **Causas Raíz Identificadas**:
+  1. **Falta de Manejadores de Cierre en Modal de Administración (`src/web/static/js/modules/repeater.js`)**:
+     - *Causa*: El botón `#btnCloseRepeaterAdminModal` en el DOM no tenía asignado ningún event listener; no existía el método `closeRepeaterAdminModal()` en `RepeaterModule`; tampoco se escuchaban clics sobre el backdrop `#repeaterAdminModal` ni la pulsación de la tecla `Escape`.
+  2. **Inundación de Logs por Tramas RF Firmware UART (`src/serial_driver.py`, `src/routers/system_handler.py`)**:
+     - *Causa*: El microcontrolador emite tramas `0x88` (`PUSH_CODE_LOG_RX_DATA` / `EventType.RX_LOG_DATA`) cada vez que detecta preámbulos o ruido en la radio. En `serial_driver.py`, esto se logueaba como `Evento SDK MeshCore recibido: rx_log_data` y `Generic event EventType.RX_LOG_DATA: ...` o `[RADIO-FIRMWARE-LOG]`, produciendo docenas de logs por segundo. En `system_handler.py`, además se logueaba como `[RX-SISTEMA] Evento de red: LOG_DATA` a nivel `INFO`.
+  3. **Falta de Filtrado de Nivel en `SystemLogHandler` (`src/diagnostics.py`, `src/bridge_core.py`)**:
+     - *Causa*: `SystemLogHandler` se inicializaba con `level = NOTSET (0)` y en `emit()` procesaba y transmitía por WebSocket hacia la interfaz gráfica cualquier registro emitido por Python sin discriminar si su nivel era menor a `INFO`.
+  4. **Logs Ruidosos de Accesos HTTP Rutinarios (`src/web/security_inspector.py`)**:
+     - *Causa*: Cada consulta REST exitosa (incluyendo sondeos de `/api/status`, `/api/airtime/stats`, `/api/system/logs`, `/api/nodes`) y cada archivo estático servido se logueaba como `logging.info(f"⚡ [REST-API] ...")` o `logging.info(f"🌐 [HTTP-CLIENT] ...")`, generando una avalancha continua de logs hacia el WebSocket y el frontend.
+  5. **Inserción Incondicional en DOM sin Filtrado (`src/web/static/js/modules/sniffer.js`)**:
+     - *Causa*: `appendLogEntryToDom()` inyectaba cualquier log recibido por WebSocket directamente en el contenedor `#systemLogsFeed` ignorando los filtros activos (`#logLevelFilter` y `#logSearchInput`), y existían suscripciones redundantes en el event bus.
+- **Correcciones Implementadas**:
+  1. **Cierre Integral de Modal de Administración ([`src/web/static/js/modules/repeater.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/repeater.js), [`app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js))**:
+     - Se enlazó `btnCloseRepeaterAdminModal` al método `closeRepeaterAdminModal()`.
+     - Se añadió soporte para cerrar al hacer clic en el fondo oscuro exterior (backdrop).
+     - Se añadió listener global para tecla `Escape`.
+     - Se expuso `closeRepeaterAdminModal` en el contexto global de la aplicación.
+  2. **Silenciado de Tramas RF de Firmware UART ([`src/serial_driver.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/serial_driver.py), [`src/routers/system_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/routers/system_handler.py))**:
+     - En `_on_sdk_event`: Se filtran `log_data` y `rx_log_data` para evitar emisión de logs de depuración.
+     - En `_handle_log_data`: Se descartan en silencio las tramas `0x88` sin emitir logs ruidosos.
+     - En `system_handler.py`: Se eliminaron `LOG_DATA` y `RX_LOG_DATA` del conjunto de eventos no controlados y se protegió la emisión de `logging.info`.
+  3. **Control Estricto de Severidad en `SystemLogHandler` ([`src/diagnostics.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/diagnostics.py), [`bridge_core.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/bridge_core.py))**:
+     - `SystemLogHandler` ahora respeta `self.level` (por defecto `INFO` salvo activación explícita de Modo DEBUG) y descarta en `emit()` cualquier log por debajo de su umbral.
+     - `DiagnosticManager.set_log_level` actualiza dinámicamente el nivel de `self.log_handler`.
+  4. **Enrutamiento de Sondeos HTTP a DEBUG ([`src/web/security_inspector.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/security_inspector.py))**:
+     - Consultas rutinarias y estáticos 200/304 se registran a nivel `DEBUG`, evitando contaminar el feed `INFO` en vivo.
+  5. **Filtrado Reactivo y Scroll Suave en Sniffer ([`src/web/static/js/modules/sniffer.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/sniffer.js))**:
+     - Se implementó `matchesLogFilter(log)` unificado y `appendLogEntryToDom()` ahora valida los filtros activos antes de insertar elementos en el DOM.
+     - Se eliminó la suscripción duplicada a `EVENTS.RX_PACKET` para logs de sistema.
+- **Módulos Modificados**: `src/web/static/js/modules/repeater.js`, `src/web/static/js/app.js`, `src/web/security_inspector.py`, `src/serial_driver.py`, `src/diagnostics.py`, `src/bridge_core.py`, `src/routers/system_handler.py`, `src/web/static/js/modules/sniffer.js`, `docs/AGENT_ACTIVITY_REPORT.md`, `deploy/**`.
+
 ### Hito: Eliminación del Registro Indebido de Logs de Depuración y Eventos Internos como Paquetes Entrantes (RX) en el Nodo Local
 - **Fecha**: 2026-09-09
 - **Estado**: ✅ COMPLETADO (Aislados logs de depuración UART del firmware para evitar su inyección en rx_callback; filtrados eventos internos, diagnósticos y de nodo local en rx_router para prevenir incremento espurio de contadores RX y contaminación de buffers; añadida guarda en NodeRegistry.record_packet para impedir acumulación de paquetes RX en el nodo local; canalizada separación de tipos de eventos WebSocket y reactividad en frontend; ruff 100% PASS, mypy strict 100% PASS, sincronización en /deploy/).

@@ -458,7 +458,8 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         self.heartbeat()
 
         event_name = getattr(event_type, "value", str(event_type))
-        logging.debug(f"Evento SDK MeshCore recibido: {event_name}")
+        if event_name not in ("log_data", "rx_log_data"):
+            logging.debug(f"Evento SDK MeshCore recibido: {event_name}")
 
         # Messages
         if event_type == getattr(EventType, "CONTACT_MSG_RECV", None):
@@ -523,7 +524,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             await self._handle_trace_data(data)
         elif event_type == getattr(EventType, "RAW_DATA", None):
             await self._handle_raw_data(data)
-        elif event_type == getattr(EventType, "LOG_DATA", None):
+        elif event_type in (getattr(EventType, "LOG_DATA", None), getattr(EventType, "RX_LOG_DATA", None)):
             await self._handle_log_data(data)
 
         # Path & Discovery
@@ -736,9 +737,9 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             self.rx_callback(data)
 
     async def _handle_log_data(self, data: Any) -> None:
-        """Maneja datos de log del firmware de radio UART (diagnóstico local)."""
-        logging.debug(f"[RADIO-FIRMWARE-LOG] {data}")
-        # Los logs de depuración del firmware no deben inyectarse en el pipeline de paquetes de radio
+        """Maneja datos de log del firmware de radio UART (PUSH_CODE_LOG_RX_DATA 0x88)."""
+        # Descartar en silencio para evitar saturación de logs y de la interfaz web
+        return
 
     async def _handle_control_data(self, data: Any) -> None:
         """Maneja datos de control."""
@@ -748,10 +749,10 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
     async def _handle_generic_event(self, event_type: Any, data: Any) -> None:
         """Maneja eventos genéricos no categorizados."""
-        logging.debug(f"Generic event {event_type}: {data}")
         ev_str = str(event_type).upper()
         if "LOG" in ev_str or "DEBUG" in ev_str:
             return
+        logging.debug(f"Generic event {event_type}: {data}")
         if self.rx_callback:
             self.rx_callback(data)
 

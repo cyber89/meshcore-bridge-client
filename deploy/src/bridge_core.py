@@ -114,10 +114,13 @@ class MeshCoreBridge:
 
     def _init_adapters_and_watchdog(self) -> None:
         """Inicializa adaptador serial, watchdog, gestor de diagnóstico y servidor web."""
+        default_lvl = getattr(logging, getattr(config, "LOG_LEVEL", "INFO").upper(), logging.INFO)
         self.log_handler = SystemLogHandler(
             max_records=500,
             broadcast_callback=self._broadcast_system_log,
+            level=default_lvl,
         )
+        self.log_handler.setLevel(default_lvl)
         logging.getLogger().addHandler(self.log_handler)
         self.diagnostics = DiagnosticManager(bridge=self, log_handler=self.log_handler)
 

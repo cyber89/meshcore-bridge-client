@@ -43,6 +43,7 @@ export class RepeaterModule {
       repeaterTerminalInput: document.getElementById("repeaterTerminalInput"),
       repeaterTerminalForm: document.getElementById("repeaterTerminalForm"),
       repeaterTerminalOutput: document.getElementById("repeaterTerminalOutput"),
+      btnCloseRepeaterAdminModal: document.getElementById("btnCloseRepeaterAdminModal"),
     };
   }
 
@@ -106,6 +107,30 @@ export class RepeaterModule {
         const panel = document.getElementById(panelId);
         if (panel) panel.classList.add("active");
       });
+    });
+
+    // Cierre del modal de administración de repetidor
+    const closeBtn = this.dom.btnCloseRepeaterAdminModal || document.getElementById("btnCloseRepeaterAdminModal");
+    if (closeBtn) {
+      closeBtn.addEventListener("click", () => this.closeRepeaterAdminModal());
+    }
+
+    const modal = this.dom.repeaterAdminModal || document.getElementById("repeaterAdminModal");
+    if (modal) {
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal) {
+          this.closeRepeaterAdminModal();
+        }
+      });
+    }
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        const m = this.dom.repeaterAdminModal || document.getElementById("repeaterAdminModal");
+        if (m && !m.classList.contains("hidden")) {
+          this.closeRepeaterAdminModal();
+        }
+      }
     });
 
     // Desplegable de Ayuda de Comandos
@@ -824,6 +849,15 @@ export class RepeaterModule {
     }
 
     if (modal) modal.classList.remove("hidden");
+  }
+
+  closeRepeaterAdminModal() {
+    const modal = this.dom.repeaterAdminModal || document.getElementById("repeaterAdminModal");
+    if (modal) {
+      modal.classList.add("hidden");
+    }
+    this.selectedRepeaterTarget = null;
+    this.selectedRepeaterName = null;
   }
 
   populateRepeaterModalData(node) {

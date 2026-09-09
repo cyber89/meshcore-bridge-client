@@ -21,7 +21,7 @@ class SystemHandler(BaseRxHandler):
             "CONTROL_DATA", "MMA_RESPONSE", "ACL_RESPONSE", "SIGN_START", "SIGNATURE",
             "ALLOWED_REPEAT_FREQ", "DEFAULT_FLOOD_SCOPE", "STATS_PACKETS", "TUNING_PARAMS",
             "CUSTOM_VARS", "AUTOADD_CONFIG", "ADVERT_PATH", "CHANNEL_INFO", "CONTACT_URI",
-            "LOG_DATA", "STATUS_RESPONSE", "LOGIN_SUCCESS", "LOGIN_FAILED", "RX_LOG_DATA",
+            "STATUS_RESPONSE", "LOGIN_SUCCESS", "LOGIN_FAILED",
             "STATS_CORE", "STATS_RADIO"
         }
         if meta.ev_upper in unhandled or str(payload.get("event_type", "")).upper() in unhandled:
@@ -55,7 +55,8 @@ class SystemHandler(BaseRxHandler):
         if event_type in ("log_data", "rx_log_data"):
             router_ctx.mqtt.publish_safe(config.TOPIC_RX_LOG, evt_json, qos=0)
 
-        logging.info(f"[RX-SISTEMA] Evento de red: {event_type.upper()} | Carga: {payload}")
+        if event_type not in ("log_data", "rx_log_data"):
+            logging.info(f"[RX-SISTEMA] Evento de red: {event_type.upper()} | Carga: {payload}")
 
         if router_ctx.web_server:
             import asyncio

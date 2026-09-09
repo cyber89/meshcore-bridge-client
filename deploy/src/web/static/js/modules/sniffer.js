@@ -239,16 +239,6 @@ export class SnifferModule {
   _subscribeBus() {
     if (!this.ctx.eventBus) return;
 
-    this.ctx.eventBus.on(EVENTS.SYSTEM_LOG_RECV, (log) => {
-      if (log) {
-        this.systemLogs.push(log);
-        if (this.systemLogs.length > MAX_SYSTEM_LOGS) {
-          this.systemLogs.shift();
-        }
-        this.appendLogEntryToDom(log);
-      }
-    });
-
     this.ctx.eventBus.on(EVENTS.RF_PACKET, (pkt) => {
       if (pkt) {
         this.onRfPacketReceived(pkt);
@@ -273,17 +263,6 @@ export class SnifferModule {
           el.textContent = isSerOk ? `Conectado (${portName || "/dev/ttyACM0"})` : "Desconectado";
           el.className = `val ${isSerOk ? "ok" : "err"}`;
         }
-      }
-    });
-
-    this.ctx.eventBus.on(EVENTS.RX_PACKET, (payload) => {
-      if (payload && (payload.type === "system_log" || payload.event_type === "system_log")) {
-        const logData = payload.data || payload;
-        this.systemLogs.push(logData);
-        if (this.systemLogs.length > MAX_SYSTEM_LOGS) {
-          this.systemLogs.shift();
-        }
-        this.appendLogEntryToDom(logData);
       }
     });
   }
@@ -666,39 +645,44 @@ export class SnifferModule {
     }
   }
 
-  renderFilteredLogs() {
-    if (!this.dom.systemLogsFeed) return;
+  matchesLogFilter(log) {
+    if (!log) return false;
     const levelFilter = this.dom.logLevelFilter?.value || "ALL";
     const searchQuery = (this.dom.logSearchInput?.value || "").toLowerCase().trim();
+    const msg = log.message || "";
 
-    const filtered = this.systemLogs.filter((log) => {
-      const msg = log.message || "";
-      if (levelFilter !== "ALL") {
-        if (levelFilter === "RF") {
-          const isRf = msg.includes("[RX-") || msg.includes("[TX-") || msg.includes("[NODO-DESCUBIERTO]") || msg.includes("[ESTACIÓN LOCAL]") || msg.includes("Advertisement recibido");
-          if (!isRf) return false;
-        } else if (levelFilter === "SECURITY") {
-          const isSec = msg.includes("[TRAFICO-SOSPECHOSO]") || msg.includes("[SEGURIDAD]") || msg.includes("403 Forbidden") || msg.includes("Unauthorized");
-          if (!isSec) return false;
-        } else if (levelFilter === "NET") {
-          const isNet = msg.includes("[HTTP-CLIENT]") || msg.includes("[REST-API]") || msg.includes("[TCP-COMPANION]") || msg.includes("[WEBSOCKET]");
-          if (!isNet) return false;
-        } else if (levelFilter === "ERROR" && !["ERROR", "CRITICAL"].includes(log.level)) {
-          return false;
-        } else if (levelFilter === "WARNING" && !["WARNING", "WARN"].includes(log.level)) {
-          return false;
-        } else if (levelFilter === "INFO" && log.level !== "INFO") {
-          return false;
-        } else if (levelFilter === "DEBUG" && log.level !== "DEBUG") {
-          return false;
-        }
+    if (levelFilter !== "ALL") {
+      if (levelFilter === "RF") {
+        const isRf = msg.includes("[RX-") || msg.includes("[TX-") || msg.includes("[NODO-DESCUBIERTO]") || msg.includes("[ESTACIÓN LOCAL]") || msg.includes("Advertisement recibido");
+        if (!isRf) return false;
+      } else if (levelFilter === "SECURITY") {
+        const isSec = msg.includes("[TRAFICO-SOSPECHOSO]") || msg.includes("[SEGURIDAD]") || msg.includes("403 Forbidden") || msg.includes("Unauthorized");
+        if (!isSec) return false;
+      } else if (levelFilter === "NET") {
+        const isNet = msg.includes("[HTTP-CLIENT]") || msg.includes("[REST-API]") || msg.includes("[TCP-COMPANION]") || msg.includes("[WEBSOCKET]");
+        if (!isNet) return false;
+      } else if (levelFilter === "ERROR" && !["ERROR", "CRITICAL"].includes(log.level)) {
+        return false;
+      } else if (levelFilter === "WARNING" && !["WARNING", "WARN"].includes(log.level)) {
+        return false;
+      } else if (levelFilter === "INFO" && log.level !== "INFO") {
+        return false;
+      } else if (levelFilter === "DEBUG" && log.level !== "DEBUG") {
+        return false;
       }
-      if (searchQuery) {
-        const text = `${escapeHtml(log.message)} ${log.module} ${log.logger} ${log.exception || ""}`.toLowerCase();
-        if (!text.includes(searchQuery)) return false;
-      }
-      return true;
-    });
+    }
+
+    if (searchQuery) {
+      const text = `${msg} ${log.module || ""} ${log.logger || ""} ${log.exception || ""}`.toLowerCase();
+      if (!text.includes(searchQuery)) return false;
+    }
+
+    return true;
+  }
+
+  renderFilteredLogs() {
+    if (!this.dom.systemLogsFeed) return;
+    const filtered = this.systemLogs.filter((log) => this.matchesLogFilter(log));
 
     this.dom.systemLogsFeed.textContent = "";
     if (filtered.length === 0) {
@@ -747,7 +731,7 @@ export class SnifferModule {
   }
 
   appendLogEntryToDom(log) {
-    if (!this.dom.systemLogsFeed) return;
+    if (!this.dom.systemLogsFeed || !this.matchesLogFilter(log)) return;
     if (this.dom.systemLogsFeed.querySelector("div[style]")) {
       this.dom.systemLogsFeed.textContent = "";
     }
@@ -755,6 +739,9 @@ export class SnifferModule {
     this.dom.systemLogsFeed.appendChild(el);
     while (this.dom.systemLogsFeed.children.length > MAX_SYSTEM_LOGS) {
       this.dom.systemLogsFeed.removeChild(this.dom.systemLogsFeed.firstElementChild);
+    }
+    if (!this.logsScrollPaused) {
+      this.dom.systemLogsFeed.scrollTop = this.dom.systemLogsFeed.scrollHeight;
     }
   }
 
