@@ -142,6 +142,7 @@ class NodeContactUpdate:
     name: str | None = None
     alias: str | None = None
     role: str | None = None
+    last_seen: float | None = None
     is_local: bool | None = None
     auto_discovered: bool | None = None
     discovery_time: float | None = None
@@ -473,6 +474,19 @@ class NodeRegistry:
         clean_name, clean_alias, final_role, is_local_flag = identity_meta
         eff_hops, eff_rssi, eff_snr, calc_lqi, calc_status, calc_route = rf_meta
         now = time.time()
+        if update.last_seen is not None:
+            new_ls = float(update.last_seen)
+            if existing and existing.last_seen > 0:
+                eff_last_seen = max(float(existing.last_seen), new_ls)
+            else:
+                eff_last_seen = new_ls
+        elif is_local_flag:
+            eff_last_seen = now
+        elif existing and existing.last_seen > 0:
+            eff_last_seen = float(existing.last_seen)
+        else:
+            eff_last_seen = 0.0
+
         return NodeContactInfo(
             public_key=canonical_key,
             name=clean_name,
@@ -486,7 +500,7 @@ class NodeRegistry:
             lqi_status=calc_status,
             best_route=calc_route,
             battery_pct=update.battery_pct if update.battery_pct is not None else (existing.battery_pct if existing else None),
-            last_seen=now,
+            last_seen=eff_last_seen,
             rx_packets=update.rx_packets if update.rx_packets is not None else (existing.rx_packets if existing else 0),
             tx_packets=update.tx_packets if update.tx_packets is not None else (existing.tx_packets if existing else 0),
             error_count=update.error_count if update.error_count is not None else (existing.error_count if existing else 0),
@@ -642,11 +656,13 @@ class NodeRegistry:
             return self._handle_local_discovery(norm_key, clean_name)
 
         existing_key = self._find_existing_key(norm_key, evt.name)
+        now_ts = time.time()
         if existing_key:
             existing = self._nodes_by_key[existing_key]
             updated = self.add_or_update(
                 existing_key,
                 NodeContactUpdate(
+                    last_seen=now_ts,
                     last_rssi=evt.rssi,
                     last_snr=evt.snr,
                     hops=evt.hops,
@@ -660,13 +676,14 @@ class NodeRegistry:
         contact = self.add_or_update(
             norm_key,
             NodeContactUpdate(
+                last_seen=now_ts,
                 name=clean_name,
                 role=effective_role,
                 last_rssi=evt.rssi,
                 last_snr=evt.snr,
                 hops=evt.hops,
                 auto_discovered=is_auto_discovered,
-                discovery_time=time.time(),
+                discovery_time=now_ts,
                 verified_identity=len(norm_key) >= 12,
             ),
         )
@@ -736,9 +753,11 @@ class NodeRegistry:
         if alt_raw is None and isinstance(gps, dict):
             alt_raw = gps.get("altitude", gps.get("alt", gps.get("altitude_m")))
 
+        rx_observed_ts = time.time() if event.is_rx else None
         self.add_or_update(
             target_key,
             NodeContactUpdate(
+                last_seen=rx_observed_ts,
                 name=existing.name if existing else f"Node_{target_key[:6]}",
                 alias=existing.alias if existing else "",
                 hops=event.hop_count if event.hop_count is not None else (existing.hops if existing else None),

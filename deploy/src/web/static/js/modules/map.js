@@ -368,7 +368,7 @@ export class MapModule {
 
   initAirtimeMonitoring() {
     this.fetchAirtimeStats();
-    setInterval(() => this.fetchAirtimeStats(), 15000);
+    setInterval(() => this.fetchAirtimeStats(), 60000);
   }
 
   async fetchAirtimeStats() {

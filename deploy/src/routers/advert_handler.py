@@ -6,6 +6,7 @@ Handles node advertisements and contact book synchronization.
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from src.contact_manager import NodeContactUpdate, NodeDiscoveryEvent, is_valid_node_key
@@ -125,6 +126,7 @@ class AdvertHandler(BaseRxHandler):
             router_ctx.node_registry.add_or_update(
                 c_pk,
                 NodeContactUpdate(
+                    last_seen=time.time(),
                     name=c_name,
                     alias=c_name,
                     role=c_role,

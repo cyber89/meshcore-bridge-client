@@ -1049,6 +1049,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                     raw_type = 1
                     adv_lat = None
                     adv_lon = None
+                    last_advert = None
                     if isinstance(c, dict):
                         pk = str(c.get("public_key", c.get("key", ""))).strip()
                         adv_name = str(c.get("adv_name", c.get("name", c.get("alias", f"Node_{pk[:6]}")))).strip()
@@ -1056,6 +1057,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                         raw_type = int(raw_type_val) if raw_type_val is not None else 1
                         adv_lat = c.get("adv_lat", c.get("latitude"))
                         adv_lon = c.get("adv_lon", c.get("longitude"))
+                        last_advert = c.get("last_advert")
                     elif hasattr(c, "public_key") or hasattr(c, "adv_name") or hasattr(c, "name"):
                         pk = str(getattr(c, "public_key", "")).strip()
                         adv_name = str(getattr(c, "adv_name", getattr(c, "name", getattr(c, "alias", f"Node_{pk[:6]}")))).strip()
@@ -1063,6 +1065,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                         raw_type = int(raw_type_val) if raw_type_val is not None else 1
                         adv_lat = getattr(c, "adv_lat", getattr(c, "latitude", None))
                         adv_lon = getattr(c, "adv_lon", getattr(c, "longitude", None))
+                        last_advert = getattr(c, "last_advert", None)
 
                     if pk:
                         norm_pk = pk.strip().lower()
@@ -1080,6 +1083,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                             "adv_type": raw_type,
                             "latitude": adv_lat,
                             "longitude": adv_lon,
+                            "last_advert": last_advert,
                             "is_local": is_local_contact,
                         })
         except Exception as e:

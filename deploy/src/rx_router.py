@@ -9,6 +9,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 from collections.abc import Coroutine
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -517,6 +518,7 @@ class RxEventRouter:
                 self._ctx.node_registry.add_or_update(
                     sender,
                     NodeContactUpdate(
+                        last_seen=time.time() if not is_local_sender else None,
                         battery_pct=bat_pct,
                         latitude=lat_val,
                         longitude=lon_val,
@@ -554,6 +556,7 @@ class RxEventRouter:
             self._ctx.node_registry.add_or_update(
                 msg.sender,
                 NodeContactUpdate(
+                    last_seen=time.time(),
                     name=msg.sender_name,
                     role="REPEATER",
                     last_rssi=int(msg.rssi) if isinstance(msg.rssi, (int, float)) else extracted_telem.get("last_rssi"),
@@ -779,9 +782,11 @@ class RxEventRouter:
                 else:
                     telem_role = "CLIENT"
 
+            is_local_telem = self._ctx.node_registry.is_local_key(sender)
             self._ctx.node_registry.add_or_update(
                 sender,
                 NodeContactUpdate(
+                    last_seen=time.time() if not is_local_telem else None,
                     name=sender_name_cand,
                     role=telem_role,
                     battery_pct=calc_bat_pct,

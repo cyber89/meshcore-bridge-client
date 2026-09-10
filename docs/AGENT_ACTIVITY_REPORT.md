@@ -6,6 +6,43 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Corrección de Preservación de `last_seen` en Nodos Fuera de Línea y Reducción del Intervalo de Monitoreo de Airtime
+- **Fecha**: 2026-09-09
+- **Estado**: ✅ COMPLETADO (Corrección del contrato last_seen en NodeRegistry.add_or_update para preservar timestamps existentes y no pisar con now(); extracción de last_advert del almacenamiento flash del firmware en sync_all_contacts; sanitización de eventos de presencia en nodes.js eliminando target_node y paquetes TX; reducción del polling de /api/airtime/stats en map.js de 15s a 60s; ruff 100% PASS, mypy strict 100% PASS, linter frontend 100% PASS y sincronización en /deploy/).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 4 (Web Architect).
+- **Problema / Requerimiento**:
+  - El usuario reportó dos comportamientos anómalos:
+    1. "he desconectado hace mas de 24horas mi repetidor y mi otro cliente, por que me muestra que estubieron activo hace 3 minuto si no estan activos realmente porque estan descoenctados de la corriente."
+    2. "y por que este log se repite en tan poco tiemnpo: 23:59:45.896 DEBUG security_inspector ⚡ [HTTP-ROUTINE] IP: 192.168.0.249 -> GET /api/airtime/stats | 200 | 0.2ms ..."
+- **Causas Raíz Identificadas**:
+  1. **Sobreescritura incondicional de `last_seen` en `NodeRegistry.add_or_update` (`src/contact_manager.py`)**:
+     - Cada vez que el bridge iniciaba o reconectaba, `_auto_bootstrap_heltec_state()` en `src/bridge_core.py` ejecutaba `sync_all_contacts()` leyendo la tabla de contactos guardados en la memoria flash/EEPROM del hardware Heltec.
+     - Para cada contacto importado, se llamaba a `NodeRegistry.add_or_update(pk, NodeContactUpdate(...))`.
+     - `_build_updated_contact()` asignaba incondicionalmente `last_seen=now` (`time.time()`).
+     - Al no haber transcurrido más que unos minutos desde el arranque del bridge, ¡todos los nodos guardados en el radio (incluyendo repetidores y clientes apagados hace días) quedaban marcados con `last_seen = now` ("Hace 3 min")!
+     - Además, `NodeContactUpdate` carecía del campo `last_seen`, impidiendo que los invocadores suministraran la marca temporal real observada por RF.
+  2. **Actualización errónea de presencia en el Frontend con `payload.target_node` y eventos TX (`src/web/static/js/modules/nodes.js`)**:
+     - Al procesar `EVENTS.RX_PACKET`, `nodes.js` resolvía el emisor como `payload.sender || payload.public_key || payload.from || payload.pubkey || payload.target_node`.
+     - Cuando el bridge transmitía paquetes hacia un nodo fuera de línea (ping, traceroute o mensaje con `target_node`), el frontend interpretaba el destino (`target_node`) como el emisor y ejecutaba `existing.last_seen = Math.floor(Date.now() / 1000)`, marcándolo como activo al instante.
+     - Tampoco discriminaba paquetes salientes (`payload.direction === "tx"`, `is_rx === false`).
+  3. **Polling agresivo de `/api/airtime/stats` cada 15 segundos (`src/web/static/js/modules/map.js`)**:
+     - En `map.js`, `initAirtimeMonitoring()` ejecutaba `setInterval(() => this.fetchAirtimeStats(), 15000)`.
+     - Esto generaba 240 peticiones HTTP por hora solo para actualizar el badge de duty cycle en el encabezado, generando líneas continuas de `[HTTP-ROUTINE]` en los logs de depuración (`DEBUG`).
+- **Correcciones Implementadas**:
+  1. **Contrato Riguroso de `last_seen` en Backend (`src/contact_manager.py`)**:
+     - Se añadió `last_seen: float | None = None` a `NodeContactUpdate`.
+     - En `_build_updated_contact`: si se especifica `update.last_seen`, se adopta de forma monótona; si es la estación base local activa (`is_local`), se fija en `now`; si el contacto ya existía con `last_seen > 0`, se PRESERVA intacto; si es un contacto remoto nuevo sin observación RF previa, se fija en `0.0` (Desconocido / Offline).
+     - En `discover_node`, `rx_router.py` (mensajes, telemetría) y `advert_handler.py`, se pasa explícitamente `last_seen=time.time()` únicamente cuando se recibe una trama RF legítima.
+     - En `record_packet`, solo se actualiza `last_seen` si `event.is_rx == True`. Los paquetes transmitidos (`is_rx == False`) no modifican `last_seen`.
+  2. **Extracción de `last_advert` desde la Memoria Flash del Transceptor (`src/serial_driver.py`, `src/bridge_core.py`, `src/web/controllers/contacts_controller.py`)**:
+     - `sync_all_contacts()` extrae el campo `last_advert` de las estructuras `ContactInfo` del firmware. Si contiene una marca temporal UNIX válida, se utiliza como `last_seen`, mostrando con precisión el tiempo transcurrido real (ej. "Hace 1 d"). Si no existe o es cero, queda en `0.0` ("Desconocido" / "status-offline").
+  3. **Blindaje de Presencia en Frontend (`src/web/static/js/modules/nodes.js`)**:
+     - Eliminado `payload.target_node` y `payload.public_key` de la asignación automática de presencia en tiempo real.
+     - Filtrado estricto: solo actualiza `existing.last_seen` si `!isTx` y el evento es de RF entrante (`telemetry`, `chat_msg`, `advert`, `packet_rx`, `ping_reply`).
+  4. **Optimización del Intervalo de Airtime (`src/web/static/js/modules/map.js`)**:
+     - Aumentado el temporizador de sondeo de `/api/airtime/stats` de 15,000 ms (15s) a 60,000 ms (60s / 1 minuto), reduciendo en un 75% el tráfico y la recurrencia en el registro de seguridad.
+- **Módulos Modificados**: `src/contact_manager.py`, `src/serial_driver.py`, `src/bridge_core.py`, `src/rx_router.py`, `src/routers/advert_handler.py`, `src/web/controllers/contacts_controller.py`, `src/web/static/js/modules/nodes.js`, `src/web/static/js/modules/map.js`, `docs/AGENT_ACTIVITY_REPORT.md`, `deploy/**`.
+
 ### Hito: Sincronización Dinámica del Resumen de Telemetría/Estado y Estado de Reenvío (Repeat) del Nodo Local
 - **Fecha**: 2026-09-09
 - **Estado**: ✅ COMPLETADO (Reemplazados valores estáticos predeterminados en index.html por placeholders dinámicos; implementada población integral de las 6 pills de resumen localSummaryFreq, localSummaryPower, localSummaryModem, localSummaryRepeat, localSummaryQueue, localSummaryPos en settings.js; vinculados conmutador localRepeatMode e indicador localRepeatBadge para reflejar fielmente el estado desactivado del nodo; actualizado app.js para actualizar la UI directamente desde paquetes self_info/device_info sin peticiones HTTP; ruff 100% PASS, mypy strict 100% PASS, linter frontend 100% PASS y sincronización en /deploy/).
