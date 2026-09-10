@@ -6,6 +6,30 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Sincronización Dinámica del Resumen de Telemetría/Estado y Estado de Reenvío (Repeat) del Nodo Local
+- **Fecha**: 2026-09-09
+- **Estado**: ✅ COMPLETADO (Reemplazados valores estáticos predeterminados en index.html por placeholders dinámicos; implementada población integral de las 6 pills de resumen localSummaryFreq, localSummaryPower, localSummaryModem, localSummaryRepeat, localSummaryQueue, localSummaryPos en settings.js; vinculados conmutador localRepeatMode e indicador localRepeatBadge para reflejar fielmente el estado desactivado del nodo; actualizado app.js para actualizar la UI directamente desde paquetes self_info/device_info sin peticiones HTTP; ruff 100% PASS, mypy strict 100% PASS, linter frontend 100% PASS y sincronización en /deploy/).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web Architect), Agente 2 (Bridge Architect).
+- **Problema / Requerimiento**:
+  - El usuario preguntó: "¿si mi nodo tiene desactivado el reenvío de paquete por qué en la vista de configuración Telemetría y estado aparece: Frecuencia: 915.000 MHz, Potencia TX: 20 dBm, Módem: SF11 / BW250, Reenvío (Repeat): Activado, Cola TX: 0 paquetes, Posición: --?"
+- **Causa Raíz Identificada**:
+  - En [`src/web/static/index.html`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/index.html), la barra de resumen `#panel-summary-strip` tenía codificados como texto estático inicial los valores `"915.000 MHz"`, `"20 dBm"`, `"SF11 / BW250"` y `"Activado"`.
+  - En [`src/web/static/js/modules/settings.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/settings.js), `populateLocalConfig(cfg)` actualizaba únicamente los campos del formulario (`#localFreq`, `#localTxPower`, `#localSf`, etc.) y las métricas numéricas (`#localBatValue`, etc.), pero **nunca actualizaba los elementos `#localSummaryFreq`, `#localSummaryPower`, `#localSummaryModem`, `#localSummaryRepeat`, `#localSummaryQueue`, `#localSummaryPos`**.
+  - Además, el checkbox `#localRepeatMode` y el badge `#localRepeatBadge` en el formulario tampoco eran actualizados con `cfg.repeat`.
+  - Como consecuencia, aunque el backend y el firmware del Heltec tenían `repeat = False` (Repetidor: OFF) y parámetros reales (`910.525 MHz`, `TX 4 dBm`, `SF7/BW62.5`), el frontend siempre mostraba el texto estático de plantilla que decía `"Activado"` y `"915.000 MHz"`.
+- **Correcciones Implementadas**:
+  1. **Actualización Dinámica de Resumen ([`src/web/static/js/modules/settings.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/modules/settings.js))**:
+     - En `populateLocalConfig(cfg)` se enlazó la actualización de `#localSummaryFreq`, `#localSummaryPower`, `#localSummaryModem`, `#localSummaryRepeat`, `#localSummaryQueue` y `#localSummaryPos`.
+     - Se vinculó `#localRepeatMode` (`checked = Boolean(cfg.repeat)`) y `#localRepeatBadge` (`"ON"` / `"OFF"` con clase `.badge-active`).
+     - Se configuró `#localSummaryRepeat` para mostrar `"Activado"` o `"Desactivado"` con colores semánticos (`text-success` o `text-muted`).
+     - Se añadieron listeners en tiempo real en `_bindEvents()` para que al mover los controles (frecuencia, slider TX, selectores SF/BW o toggle de repetidor) las pills de resumen se actualicen al instante.
+     - Se incluyeron `repeat`, `hop_limit`, `telemetry_interval` y `advert_interval` en el payload de `saveLocalRadioConfig()`.
+  2. **Actualización Reactiva sin HTTP en Frontend ([`src/web/static/js/app.js`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/js/app.js))**:
+     - Al recibir eventos de red `self_info` o `device_info` vía WebSocket, `app.js` invoca directamente `populateLocalConfig(payload)` en memoria, reflejando inmediatamente cualquier cambio de la radio sin generar ninguna petición HTTP.
+  3. **Placeholders Limpios en Plantilla HTML ([`src/web/static/index.html`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/static/index.html))**:
+     - Se reemplazaron los textos estáticos falsos en `.panel-summary-strip` por placeholders neutrales `--` para evitar lecturas engañosas antes de la carga de datos.
+- **Módulos Modificados**: `src/web/static/js/modules/settings.js`, `src/web/static/js/app.js`, `src/web/static/index.html`, `docs/AGENT_ACTIVITY_REPORT.md`, `deploy/**`.
+
 ### Hito: Ruptura del Bucle Infinito de Consulta de Configuración de Hardware, Silenciado de Telemetría Interna y Perfeccionamiento del Cierre del Modal de Administración
 - **Fecha**: 2026-09-09
 - **Estado**: ✅ COMPLETADO (Roto bucle infinito circular frontend-backend en app.js que disparaba fetchLocalNodeConfig ante cada paquete device_info/self_info; implementado cooldown de 30s con asyncio.Lock en LocalConfigExecutor.fetch_device_config y consulta en memoria por defecto en ConfigController.get_device_config; silenciada telemetría interna y tramas vacías en rx_router enviándolas a DEBUG; añadidos endpoints /api/config y /api/contacts a is_routine en SecurityTrafficInspector; añadidos estilos CSS explícitos a .modal-close y botón secundario Cancelar en auth-gate de repetidor; ruff 100% PASS, mypy strict 100% PASS, linter frontend 100% PASS y sincronización en /deploy/).

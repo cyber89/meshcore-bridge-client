@@ -236,11 +236,52 @@ export class SettingsModule {
       });
     }
 
+    if (freqInput) {
+      freqInput.addEventListener("input", (e) => {
+        const sumFreq = document.getElementById("localSummaryFreq");
+        if (sumFreq && e.target.value) sumFreq.textContent = `${Number(e.target.value).toFixed(3)} MHz`;
+      });
+    }
+
     const txSlider = document.getElementById("localTxPower");
     const txVal = document.getElementById("localTxPowerVal");
     if (txSlider && txVal) {
       txSlider.addEventListener("input", (e) => {
         txVal.textContent = `${e.target.value} dBm`;
+        const sumPower = document.getElementById("localSummaryPower");
+        if (sumPower) sumPower.textContent = `${e.target.value} dBm`;
+      });
+    }
+
+    const sfSelect = document.getElementById("localSf");
+    const bwSelect = document.getElementById("localBw");
+    const updateModemSummary = () => {
+      const sumModem = document.getElementById("localSummaryModem");
+      if (sumModem && sfSelect && bwSelect) {
+        sumModem.textContent = `SF${sfSelect.value} / BW${bwSelect.value}`;
+      }
+    };
+    if (sfSelect) sfSelect.addEventListener("change", updateModemSummary);
+    if (bwSelect) bwSelect.addEventListener("change", updateModemSummary);
+
+    const repeatSwitch = document.getElementById("localRepeatMode");
+    const repeatBadge = document.getElementById("localRepeatBadge");
+    if (repeatSwitch) {
+      repeatSwitch.addEventListener("change", (e) => {
+        const checked = e.target.checked;
+        if (repeatBadge) {
+          repeatBadge.textContent = checked ? "ON" : "OFF";
+          if (checked) {
+            repeatBadge.classList.add("badge-active");
+          } else {
+            repeatBadge.classList.remove("badge-active");
+          }
+        }
+        const sumRepeat = document.getElementById("localSummaryRepeat");
+        if (sumRepeat) {
+          sumRepeat.textContent = checked ? "Activado" : "Desactivado";
+          sumRepeat.style.color = checked ? "var(--accent-success, #22c55e)" : "var(--text-muted, #94a3b8)";
+        }
       });
     }
 
@@ -393,34 +434,102 @@ export class SettingsModule {
     }
 
     // Parámetros de radio
+    const freqVal = cfg.frequency ?? cfg.radio_freq;
     const freqInput = document.getElementById("localFreq");
-    if (freqInput && cfg.frequency) freqInput.value = cfg.frequency;
+    if (freqInput && freqVal != null) freqInput.value = freqVal;
 
+    const sfVal = cfg.spreading_factor ?? cfg.radio_sf ?? cfg.sf;
     const sfInput = document.getElementById("localSf");
-    if (sfInput && cfg.spreading_factor) sfInput.value = cfg.spreading_factor;
+    if (sfInput && sfVal != null) sfInput.value = String(sfVal);
 
+    const bwVal = cfg.bandwidth ?? cfg.radio_bw ?? cfg.bw;
     const bwInput = document.getElementById("localBw");
-    if (bwInput && cfg.bandwidth) bwInput.value = cfg.bandwidth;
+    if (bwInput && bwVal != null) bwInput.value = String(bwVal);
 
+    const crVal = cfg.coding_rate ?? cfg.radio_cr ?? cfg.cr;
     const crInput = document.getElementById("localCr");
-    if (crInput && cfg.coding_rate) crInput.value = cfg.coding_rate;
-
-    const pwrInput = document.getElementById("localTxPower");
-    const pwrVal = document.getElementById("localTxPowerVal");
-    if (pwrInput && cfg.tx_power != null) {
-      pwrInput.value = cfg.tx_power;
-      if (pwrVal) pwrVal.textContent = `${cfg.tx_power} dBm`;
+    if (crInput && crVal != null) {
+      const crStr = String(crVal).includes("/") ? String(crVal) : (crVal === 5 ? "4/5" : (crVal === 6 ? "4/6" : (crVal === 7 ? "4/7" : (crVal === 8 ? "4/8" : String(crVal)))));
+      crInput.value = crStr;
     }
 
-    // Posición GPS
+    const pwrVal = cfg.tx_power ?? cfg.power;
+    const pwrInput = document.getElementById("localTxPower");
+    const pwrValBadge = document.getElementById("localTxPowerVal");
+    if (pwrInput && pwrVal != null) {
+      pwrInput.value = pwrVal;
+      if (pwrValBadge) pwrValBadge.textContent = `${pwrVal} dBm`;
+    }
+
+    const hopVal = cfg.hop_limit ?? cfg.hops;
+    const hopInput = document.getElementById("localHopLimit");
+    if (hopInput && hopVal != null) hopInput.value = hopVal;
+
+    // Modo Repetidor / Router
+    if (cfg.repeat != null || cfg.repeat_enabled != null) {
+      const isRepeat = Boolean(cfg.repeat ?? cfg.repeat_enabled);
+      const repeatChk = document.getElementById("localRepeatMode");
+      const repeatBadge = document.getElementById("localRepeatBadge");
+      if (repeatChk) repeatChk.checked = isRepeat;
+      if (repeatBadge) {
+        repeatBadge.textContent = isRepeat ? "ON" : "OFF";
+        if (isRepeat) {
+          repeatBadge.classList.add("badge-active");
+        } else {
+          repeatBadge.classList.remove("badge-active");
+        }
+      }
+      const sumRepeat = document.getElementById("localSummaryRepeat");
+      if (sumRepeat) {
+        sumRepeat.textContent = isRepeat ? "Activado" : "Desactivado";
+        sumRepeat.style.color = isRepeat ? "var(--accent-success, #22c55e)" : "var(--text-muted, #94a3b8)";
+      }
+    }
+
+    // Intervalos
+    const telemIntVal = cfg.telemetry_interval;
+    const telemIntInput = document.getElementById("localTelemetryInterval");
+    if (telemIntInput && telemIntVal != null) telemIntInput.value = telemIntVal;
+
+    const advIntVal = cfg.advert_interval ?? cfg.beacon_interval;
+    const advIntInput = document.getElementById("localAdvertInterval");
+    if (advIntInput && advIntVal != null) advIntInput.value = advIntVal;
+
+    // Resumen de Configuración Actual (Pills superiores)
+    const sumFreq = document.getElementById("localSummaryFreq");
+    if (sumFreq && freqVal != null) sumFreq.textContent = `${Number(freqVal).toFixed(3)} MHz`;
+
+    const sumPower = document.getElementById("localSummaryPower");
+    if (sumPower && pwrVal != null) sumPower.textContent = `${pwrVal} dBm`;
+
+    const sumModem = document.getElementById("localSummaryModem");
+    if (sumModem && (sfVal != null || bwVal != null)) {
+      sumModem.textContent = `SF${sfVal || "--"} / BW${bwVal || "--"}`;
+    }
+
+    const sumQueue = document.getElementById("localSummaryQueue");
+    if (sumQueue) sumQueue.textContent = `${cfg.queue_len ?? 0} paquetes`;
+
+    const sumPos = document.getElementById("localSummaryPos");
+    if (sumPos) {
+      const lat = cfg.latitude ?? cfg.adv_lat;
+      const lon = cfg.longitude ?? cfg.adv_lon;
+      if (lat != null && lon != null && !isNaN(Number(lat)) && !isNaN(Number(lon))) {
+        sumPos.textContent = `${Number(lat).toFixed(4)}, ${Number(lon).toFixed(4)}`;
+      } else {
+        sumPos.textContent = "--";
+      }
+    }
+
+    // Posición GPS Form Inputs
     const latInput = document.getElementById("localGpsLat");
-    if (latInput && cfg.latitude != null) latInput.value = cfg.latitude;
+    if (latInput && (cfg.latitude != null || cfg.adv_lat != null)) latInput.value = cfg.latitude ?? cfg.adv_lat;
 
     const lonInput = document.getElementById("localGpsLon");
-    if (lonInput && cfg.longitude != null) lonInput.value = cfg.longitude;
+    if (lonInput && (cfg.longitude != null || cfg.adv_lon != null)) lonInput.value = cfg.longitude ?? cfg.adv_lon;
 
     const altInput = document.getElementById("localGpsAlt");
-    if (altInput && cfg.altitude != null) altInput.value = cfg.altitude;
+    if (altInput && (cfg.altitude != null || cfg.alt != null)) altInput.value = cfg.altitude ?? cfg.alt;
 
     // Tarjetas de Telemetría en Vivo
     const elBat = document.getElementById("localBatValue");
@@ -468,22 +577,46 @@ export class SettingsModule {
     const sf = parseInt(document.getElementById("localSf")?.value || "11", 10);
     const bw = parseFloat(document.getElementById("localBw")?.value || "250");
     const cr = document.getElementById("localCr")?.value || "4/5";
+    const hop_limit = parseInt(document.getElementById("localHopLimit")?.value || "3", 10);
+    const repeat = Boolean(document.getElementById("localRepeatMode")?.checked);
+    const telemetry_interval = parseInt(document.getElementById("localTelemetryInterval")?.value || "60", 10);
+    const advert_interval = parseInt(document.getElementById("localAdvertInterval")?.value || "300", 10);
 
     try {
       const res = await fetch("/api/config/radio", {
         method: "POST",
         headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
-        body: JSON.stringify({ frequency: freq, tx_power, spreading_factor: sf, bandwidth: bw, coding_rate: cr }),
+        body: JSON.stringify({
+          frequency: freq,
+          tx_power,
+          spreading_factor: sf,
+          bandwidth: bw,
+          coding_rate: cr,
+          repeat,
+          hop_limit,
+          telemetry_interval,
+          advert_interval,
+        }),
       });
       const data = await res.json();
       if (data.status === "ok") {
+        this.populateLocalConfig({
+          frequency: freq,
+          tx_power,
+          spreading_factor: sf,
+          bandwidth: bw,
+          coding_rate: cr,
+          repeat,
+          hop_limit,
+          telemetry_interval,
+          advert_interval,
+        });
         if (this.ctx.showToast) this.ctx.showToast("📻 Parámetros de radio locales actualizados", "success");
       } else {
         alert("Error guardando radio: " + (data.message || "desconocido"));
       }
     } catch (e) {
       alert("Error de red guardando radio: " + e.message);
-    }
   }
 
   async saveLocalIdentityAndPosition() {

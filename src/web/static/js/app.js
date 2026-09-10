@@ -260,6 +260,12 @@ class MeshCoreApp {
       if (payload.radio_connected != null) {
         this.updateRadioBadge(Boolean(payload.radio_connected), payload.radio_port || "");
       }
+      const evType = String(payload.event || payload.event_type || payload.type || "").toLowerCase();
+      if (evType === "self_info" || evType === "device_info") {
+        if (this.modules?.settings?.populateLocalConfig) {
+          this.modules.settings.populateLocalConfig(payload);
+        }
+      }
     });
   }
 
