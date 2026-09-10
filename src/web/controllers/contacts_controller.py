@@ -161,8 +161,7 @@ class ContactsController(BaseController):
             except Exception as e:
                 logging.debug(f"Error eliminando contacto del transceptor serial: {e}")
 
-        if pubkey and pubkey in self.ctx.bridge.node_registry._nodes_by_key:
-            del self.ctx.bridge.node_registry._nodes_by_key[pubkey]
+        if pubkey and self.ctx.bridge.node_registry.remove_node(pubkey):
             if hasattr(self.ctx.bridge.node_registry, "save_to_file"):
                 self.ctx.bridge.node_registry.save_to_file()
             if self.ctx.broadcast_ws:

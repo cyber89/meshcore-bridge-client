@@ -584,6 +584,12 @@ class NodeRegistry:
             (eff_hops, eff_rssi, eff_snr, calc_lqi, calc_status, calc_route),
         )
 
+        if existing:
+            if existing.name and existing.name.lower() != clean_name.lower():
+                self._nodes_by_name.pop(existing.name.lower(), None)
+            if existing.alias and existing.alias.lower() != clean_alias.lower():
+                self._nodes_by_name.pop(existing.alias.lower(), None)
+
         self._nodes_by_key[canonical_key] = contact
         self._nodes_by_name[clean_name.lower()] = canonical_key
         if clean_alias:
@@ -869,6 +875,23 @@ class NodeRegistry:
         if node:
             return node.alias or node.name or prefix
         return prefix
+
+    def remove_node(self, public_key: str) -> bool:
+        """Elimina un nodo del registro y limpia sus índices asociados (nombre/alias)."""
+        if not public_key:
+            return False
+        canon = self.get_canonical_key(public_key)
+        if not canon or canon not in self._nodes_by_key:
+            return False
+        node = self._nodes_by_key.pop(canon)
+        if node.name:
+            self._nodes_by_name.pop(node.name.lower(), None)
+        if node.alias:
+            self._nodes_by_name.pop(node.alias.lower(), None)
+        stale_names = [k for k, v in self._nodes_by_name.items() if v == canon]
+        for sn in stale_names:
+            self._nodes_by_name.pop(sn, None)
+        return True
 
     def list_nodes(self) -> list[dict[str, Any]]:
         """Retorna la lista de todos los nodos registrados en formato serializable sin duplicados."""

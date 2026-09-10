@@ -169,6 +169,23 @@ export class ChatModule {
   openDmConversation(pubkey, name) {
     if (!pubkey) return;
     const canonicalPk = this.resolveCanonicalPubkey(pubkey);
+    const normTarget = canonicalPk.toLowerCase().trim();
+
+    const localPk = (document.getElementById("localNodePubkey")?.value || "").toLowerCase().trim();
+    if (normTarget === "local" || (localPk && (normTarget === localPk || normTarget.startsWith(localPk) || localPk.startsWith(normTarget)))) {
+      if (this.ctx.showToast) this.ctx.showToast("⚠️ No se puede abrir conversación DM con la estación local", "warning");
+      return;
+    }
+
+    const targetNode = (this.ctx.knownNodes ? Array.from(this.ctx.knownNodes.values()) : []).find(
+      (n) => (n.public_key && n.public_key.toLowerCase() === normTarget) ||
+             (n.key_prefix && normTarget.startsWith(n.key_prefix.toLowerCase()))
+    );
+    const roleUpper = String(targetNode?.role || "").toUpperCase();
+    if (roleUpper === "REPEATER" || roleUpper === "ROUTER") {
+      if (this.ctx.showToast) this.ctx.showToast("🚫 Los repetidores son nodos de infraestructura y no procesan chat.", "warning");
+      return;
+    }
 
     this.activeDmTarget = canonicalPk;
     this.activeDmName = name || canonicalPk.slice(0, 8);
@@ -436,8 +453,17 @@ export class ChatModule {
     if (canonicalTarget) {
       const normTarget = canonicalTarget.toLowerCase().trim();
       const localPk = (document.getElementById("localNodePubkey")?.value || "").toLowerCase().trim();
-      if (normTarget === "local" || (localPk && normTarget === localPk)) {
+      if (normTarget === "local" || (localPk && (normTarget === localPk || normTarget.startsWith(localPk) || localPk.startsWith(normTarget)))) {
         if (this.ctx.showToast) this.ctx.showToast("No se puede enviar mensajes de chat hacia el nodo local", "warning");
+        return;
+      }
+      const targetNode = (this.ctx.knownNodes ? Array.from(this.ctx.knownNodes.values()) : []).find(
+        (n) => (n.public_key && n.public_key.toLowerCase() === normTarget) ||
+               (n.key_prefix && normTarget.startsWith(n.key_prefix.toLowerCase()))
+      );
+      const roleUpper = String(targetNode?.role || "").toUpperCase();
+      if (roleUpper === "REPEATER" || roleUpper === "ROUTER") {
+        if (this.ctx.showToast) this.ctx.showToast("🚫 Los repetidores son nodos de infraestructura y no procesan chat.", "warning");
         return;
       }
     }

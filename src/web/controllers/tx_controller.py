@@ -22,6 +22,14 @@ class TxController(BaseController):
             return problem_details(400, "Bad Request", "El campo 'text' no puede estar vacío", "missing_text_field")
 
         target = req_body.get("to", req_body.get("target", "broadcast"))
+        target_str = str(target).strip()
+        if target_str.lower() not in ("broadcast", "public", "0xffff", "*"):
+            if self.ctx.bridge.node_registry.is_local_key(target_str):
+                return problem_details(400, "Bad Request", "No se permite enviar mensajes de chat a la estación base local", "tx_to_local_forbidden")
+            dest_node = self.ctx.bridge.node_registry.get_by_key_or_prefix(target_str)
+            if dest_node and dest_node.role in ("REPEATER", "ROUTER"):
+                return problem_details(400, "Bad Request", "Los repetidores son nodos de infraestructura y no procesan mensajes de chat", "tx_to_repeater_forbidden")
+
         try:
             ch_idx = int(req_body.get("channel_index", req_body.get("channel_idx", 0)))
         except (ValueError, TypeError):

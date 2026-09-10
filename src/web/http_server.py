@@ -304,7 +304,13 @@ class MeshCoreWebServer:
         if "content-length" not in headers:
             return {}
 
-        content_len = int(headers["content-length"])
+        try:
+            content_len = int(headers["content-length"])
+            if content_len < 0:
+                return {}
+        except (ValueError, TypeError):
+            return {}
+
         if content_len > 1024 * 1024:  # 1 MB max
             SecurityTrafficInspector.log_suspicious_traffic(
                 SuspiciousTrafficEvent(
@@ -321,7 +327,11 @@ class MeshCoreWebServer:
             writer.close()
             return None
 
-        body_bytes = await reader.readexactly(content_len)
+        try:
+            body_bytes = await asyncio.wait_for(reader.readexactly(content_len), timeout=10.0)
+        except (asyncio.TimeoutError, asyncio.IncompleteReadError):
+            writer.close()
+            return None
         try:
             parsed: Any = json.loads(body_bytes.decode("utf-8"))
             if isinstance(parsed, dict):
@@ -605,11 +615,10 @@ class MeshCoreWebServer:
     ) -> tuple[int, bytes] | None:
         """Lee una trama WebSocket completa (opcode, payload) o None si la conexión cerró."""
         timeout_sec = float(os.getenv("WS_IDLE_TIMEOUT_SEC", "30.0"))
+        max_ws_payload = 1024 * 1024  # 1 MB max frame
         while self.running:
             try:
-                head = await asyncio.wait_for(reader.read(2), timeout=timeout_sec)
-                if len(head) < 2:
-                    return None
+                head = await asyncio.wait_for(reader.readexactly(2), timeout=timeout_sec)
                 b1, b2 = head[0], head[1]
                 opcode = b1 & 0x0F
                 masked = bool(b2 & 0x80)
@@ -620,6 +629,10 @@ class MeshCoreWebServer:
                 elif length == 127:
                     len_bytes = await reader.readexactly(8)
                     length = struct.unpack(">Q", len_bytes)[0]
+
+                if length > max_ws_payload:
+                    logging.warning("Trama WebSocket excede el límite permitido: %d > %d", length, max_ws_payload)
+                    return None
 
                 mask_key = await reader.readexactly(4) if masked else b""
                 payload = await reader.readexactly(length) if length > 0 else b""
@@ -639,6 +652,8 @@ class MeshCoreWebServer:
                         continue
                     except Exception:
                         return None
+                return None
+            except (asyncio.IncompleteReadError, ConnectionResetError):
                 return None
             except Exception:
                 return None

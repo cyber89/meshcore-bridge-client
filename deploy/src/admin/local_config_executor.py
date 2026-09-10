@@ -459,7 +459,7 @@ class LocalConfigExecutor:
             applied["owner_info"] = owner
 
     async def _apply_radio_settings(self, params: dict[str, Any], applied: dict[str, Any], mc: Any) -> None:
-        """Aplica potencia TX, frecuencia y parámetros de modulación."""
+        """Aplica potencia TX, frecuencia y parámetros de modulación en el hardware y la memoria local."""
         if "tx_power" in params or "power" in params:
             hw_board = self._local_config.get("hardware_board")
             raw_p = int(params.get("tx_power", params.get("power", 20)))
@@ -474,18 +474,68 @@ class LocalConfigExecutor:
                 except Exception as e:
                     logging.warning(f"Aviso actualizando potencia TX: {e}")
 
-        if "frequency" in params or "radio_freq" in params:
+        radio_keys = ("frequency", "radio_freq", "bandwidth", "bw", "spreading_factor", "sf", "coding_rate", "cr", "repeat", "repeat_enabled")
+        if any(k in params for k in radio_keys):
             try:
-                new_f = float(params.get("frequency", params.get("radio_freq", 915.0)))
-                self._local_config["frequency"] = new_f
-                applied["frequency"] = new_f
+                freq_raw = params.get("frequency", params.get("radio_freq", self._local_config.get("frequency", 915.0)))
+                new_f = float(freq_raw)
             except (ValueError, TypeError):
-                pass
+                new_f = float(self._local_config.get("frequency", 915.0))
 
-        if "repeat" in params or "repeat_enabled" in params:
-            rep = bool(params.get("repeat", params.get("repeat_enabled", False)))
-            self._local_config["repeat"] = rep
-            applied["repeat"] = rep
+            try:
+                bw_raw = params.get("bandwidth", params.get("bw", self._local_config.get("bandwidth", 250.0)))
+                new_bw = float(bw_raw)
+            except (ValueError, TypeError):
+                new_bw = float(self._local_config.get("bandwidth", 250.0))
+
+            try:
+                sf_raw = params.get("spreading_factor", params.get("sf", self._local_config.get("spreading_factor", 11)))
+                new_sf = int(sf_raw)
+            except (ValueError, TypeError):
+                new_sf = int(self._local_config.get("spreading_factor", 11))
+
+            try:
+                cr_raw = params.get("coding_rate", params.get("cr", self._local_config.get("coding_rate", 5)))
+                if isinstance(cr_raw, str) and "/" in cr_raw:
+                    new_cr = int(cr_raw.split("/")[-1])
+                else:
+                    new_cr = int(cr_raw)
+            except (ValueError, TypeError):
+                new_cr = 5
+
+            rep_val = params.get("repeat", params.get("repeat_enabled", self._local_config.get("repeat", False)))
+            new_rep = bool(rep_val)
+
+            self._local_config["frequency"] = new_f
+            self._local_config["radio_freq"] = new_f
+            self._local_config["bandwidth"] = new_bw
+            self._local_config["radio_bw"] = new_bw
+            self._local_config["spreading_factor"] = new_sf
+            self._local_config["sf"] = new_sf
+            self._local_config["coding_rate"] = new_cr
+            self._local_config["cr"] = new_cr
+            self._local_config["repeat"] = new_rep
+
+            applied["frequency"] = new_f
+            applied["bandwidth"] = new_bw
+            applied["spreading_factor"] = new_sf
+            applied["coding_rate"] = new_cr
+            applied["repeat"] = new_rep
+
+            if mc and hasattr(mc, "commands") and hasattr(mc.commands, "set_radio"):
+                try:
+                    res_radio = mc.commands.set_radio(new_f, new_bw, new_sf, new_cr, int(new_rep))
+                    if asyncio.iscoroutine(res_radio):
+                        await asyncio.wait_for(res_radio, timeout=3.0)
+                except Exception as e:
+                    logging.warning(f"Aviso actualizando parámetros de radio por serial: {e}")
+
+            if mc:
+                raw_si = getattr(mc, "self_info", None)
+                if isinstance(raw_si, dict):
+                    raw_si.update({"freq": new_f, "radio_freq": new_f, "bw": new_bw, "radio_bw": new_bw, "sf": new_sf, "radio_sf": new_sf, "cr": new_cr, "radio_cr": new_cr, "repeat": new_rep})
+                if hasattr(mc, "_self_info") and isinstance(mc._self_info, dict):
+                    mc._self_info.update({"freq": new_f, "radio_freq": new_f, "bw": new_bw, "radio_bw": new_bw, "sf": new_sf, "radio_sf": new_sf, "cr": new_cr, "radio_cr": new_cr, "repeat": new_rep})
 
     def _apply_timing_settings(self, params: dict[str, Any], applied: dict[str, Any], mc: Any) -> None:
         """Aplica intervalos de baliza (advert) y telemetría."""

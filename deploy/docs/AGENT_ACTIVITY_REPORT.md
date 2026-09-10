@@ -6,6 +6,36 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ## 🎯 Registro de Hitos y Tareas Recientes
 
+### Hito: Auditoría Exhaustiva y Corrección de Errores de Lógica en Radio, Identificación de Tráfico, Contactos y Red
+- **Fecha**: 2026-09-09
+- **Estado**: ✅ COMPLETADO (Despacho real de parámetros RF y modo repetidor al hardware físico vía CMD_SET_RADIO_PARAMS 0x0B en local_config_executor.py; eliminación de target_node como falso emisor en event_utils.py; método encapsulado remove_node en NodeRegistry con limpieza de índices por nombre/alias; normalización consistente de saltos a 4 hex en traceroute_executor.py; lectura exacta de tramas WebSocket con readexactly(2), límite de 1MB y protección anti-Slowloris en http_server.py; guardas contra DMs a repetidores y nodo local en chat.js y tx_controller.py; retención de referencias en _add_background_task en bridge_core.py; ruff 100% PASS, mypy strict 100% PASS, linter frontend 100% PASS y sincronización en /deploy/).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 4 (Web Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - El usuario solicitó: "comprueba otros errores de logica en el codigo que puedan estar dañando la calidad del software".
+- **Errores de Lógica Identificados y Correcciones**:
+  1. **Parámetros de Radio y Repetidor nunca despachados al chip LoRa (`src/admin/local_config_executor.py`)**:
+     - *Causa*: `_apply_radio_settings` actualizaba `self._local_config["frequency"]` y `self._local_config["repeat"]` solo en la memoria RAM de Python. No invocaba `mc.commands.set_radio(...)` (opcode `0x0B` `CMD_SET_RADIO_PARAMS`). Al guardar la configuración desde la WebUI, el transceptor físico nunca cambiaba su frecuencia ni su modo de reenvío.
+     - *Corrección*: Se implementó el llamado asíncrono a `mc.commands.set_radio(new_f, new_bw, new_sf, new_cr, int(new_rep))` actualizando hardware, `mc.self_info` y `self._local_config`.
+  2. **Destino (`target_node`) confundido con Remitente en Extracción de Eventos (`src/event_utils.py`)**:
+     - *Causa*: `extract_sender_from_payload()` incluía `data.get("target_node")` y `data.get("target")` en la cadena de candidatos a remitente. Al transmitirse paquetes hacia nodos remotos (traceroutes, pings, comandos), el destino se extraía erróneamente como remitente de una trama entrante, registrando actividad RX y marcando nodos desconectados como activos.
+     - *Corrección*: Se eliminaron `target_node` y `target` de los candidatos a remitente.
+  3. **Fugas de Memoria e Índices Huérfanos al Eliminar o Renombrar Contactos (`src/contact_manager.py`, `src/web/controllers/contacts_controller.py`)**:
+     - *Causa*: `contacts_controller.py` eliminaba contactos mediante `del node_registry._nodes_by_key[pubkey]`, accediendo a un miembro privado, fallando si la clave era un prefijo y dejando intacto `_nodes_by_name`, lo que permitía que búsquedas por nombre resolvieran a contactos eliminados. Asimismo, si un contacto cambiaba de alias, el nombre anterior permanecía en el índice.
+     - *Corrección*: Se implementó el método público encapsulado `NodeRegistry.remove_node(public_key) -> bool`, que limpia `_nodes_by_key` y todos los alias en `_nodes_by_name`. En `add_or_update()`, se purgan los nombres/aliases anteriores al registrar un cambio.
+  4. **Disparidad de Longitud de Hashes en Traceroute (`src/admin/traceroute_executor.py`)**:
+     - *Causa*: En `_format_trace_hops`, si una clave tenía `>= 16` caracteres tomaba 4, pero si tenía `>= 8` tomaba 8. Esto producía listas mixtas (longitud 4 y 8) que hacían fallar `all(len(h) == 4)` y `all(len(h) == 8)`, cayendo en el fallback de 1 byte (`h[:2]`, modo 0).
+     - *Corrección*: Se normalizaron todos los saltos consistentemente a 4 caracteres hexadecimales (modo 1, hashes de 2 bytes canónicos de MeshCore), o a 2 caracteres si la longitud disponible es de 1 byte.
+  5. **Desconexiones Prematuras de WebSockets y Vulnerabilidad Slowloris (`src/web/http_server.py`)**:
+     - *Causa*: `_read_websocket_frame` usaba `reader.read(2)` que puede retornar 1 byte en segmentaciones TCP, provocando cierre inmediato de la conexión. Además, no validaba el tamaño máximo de la trama (riesgo de agotamiento de RAM), y `_read_request_body` carecía de timeout y manejo seguro de errores en `Content-Length`.
+     - *Corrección*: Se reemplazó por `reader.readexactly(2)`, se estableció un límite máximo de payload de 1 MB por trama WS, se protegió la conversión de `Content-Length` y se envolvió la lectura del cuerpo HTTP con `asyncio.wait_for(..., timeout=10.0)`.
+  6. **Violación de Restricción Inmutable: Envío de DMs a Repetidores o Nodo Local (`src/web/static/js/modules/chat.js`, `src/web/controllers/tx_controller.py`)**:
+     - *Causa*: La interfaz y el endpoint `/api/tx` no verificaban si el destinatario de un mensaje directo era un repetidor o router de infraestructura, ni prevenían la apertura de chats hacia el nodo local.
+     - *Corrección*: Se agregaron guardas tanto en el frontend (`openDmConversation` y `sendMessage` en `chat.js`) como en el backend (`tx_controller.py`) rechazando con error 400 transmisiones de chat dirigidas a repetidores o a la propia estación base local.
+  7. **Riesgo de Garbage Collection Prematuro en Emisiones de Logs (`src/bridge_core.py`)**:
+     - *Causa*: `_broadcast_system_log` lanzaba `asyncio.create_task(web.broadcast_event(payload))` sin guardar referencia, arriesgando la recolección de basura de la corutina antes de su finalización.
+     - *Corrección*: Se asociaron las tareas al conjunto de seguimiento mediante `self._add_background_task(task)`.
+- **Módulos Modificados**: `src/admin/local_config_executor.py`, `src/event_utils.py`, `src/contact_manager.py`, `src/web/controllers/contacts_controller.py`, `src/web/controllers/tx_controller.py`, `src/admin/traceroute_executor.py`, `src/web/http_server.py`, `src/web/static/js/modules/chat.js`, `src/bridge_core.py`, `deploy/**`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Corrección de Preservación de `last_seen` en Nodos Fuera de Línea y Reducción del Intervalo de Monitoreo de Airtime
 - **Fecha**: 2026-09-09
 - **Estado**: ✅ COMPLETADO (Corrección del contrato last_seen en NodeRegistry.add_or_update para preservar timestamps existentes y no pisar con now(); extracción de last_advert del almacenamiento flash del firmware en sync_all_contacts; sanitización de eventos de presencia en nodes.js eliminando target_node y paquetes TX; reducción del polling de /api/airtime/stats en map.js de 15s a 60s; ruff 100% PASS, mypy strict 100% PASS, linter frontend 100% PASS y sincronización en /deploy/).

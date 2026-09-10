@@ -17,8 +17,6 @@ def extract_sender_from_payload(data: dict[str, Any]) -> tuple[str, str]:
         or data.get("pubkey")
         or data.get("pubkey_pre")
         or data.get("pubkey_prefix")
-        or data.get("target_node")
-        or data.get("target")
         or data.get("from_node")
         or data.get("from")
         or data.get("source")

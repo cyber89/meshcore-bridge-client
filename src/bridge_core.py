@@ -161,14 +161,16 @@ class MeshCoreBridge:
             try:
                 running_loop = asyncio.get_running_loop()
                 if running_loop is loop:
-                    asyncio.create_task(web.broadcast_event(payload))
+                    task = asyncio.create_task(web.broadcast_event(payload))
+                    self._add_background_task(task)
                 else:
                     asyncio.run_coroutine_threadsafe(web.broadcast_event(payload), loop)
             except RuntimeError:
                 asyncio.run_coroutine_threadsafe(web.broadcast_event(payload), loop)
         else:
             try:
-                asyncio.create_task(web.broadcast_event(payload))
+                task = asyncio.create_task(web.broadcast_event(payload))
+                self._add_background_task(task)
             except Exception:
                 pass
 

@@ -94,14 +94,10 @@ class TracerouteExecutor:
             if not clean_hex:
                 found = self._ctx.node_registry.get_by_key_or_prefix(clean_p)
                 if found:
-                    clean_hex = found.public_key.lower()[:4]
+                    clean_hex = found.public_key.lower()
 
             if clean_hex:
-                if len(clean_hex) >= 16:
-                    formatted.append(clean_hex[:4])
-                elif len(clean_hex) >= 8:
-                    formatted.append(clean_hex[:8])
-                elif len(clean_hex) >= 4:
+                if len(clean_hex) >= 4:
                     formatted.append(clean_hex[:4])
                 elif len(clean_hex) >= 2:
                     formatted.append(clean_hex[:2])
@@ -111,10 +107,6 @@ class TracerouteExecutor:
 
         if all(len(h) == 4 for h in formatted):
             return ",".join(formatted), 1
-        if all(len(h) == 8 for h in formatted):
-            return ",".join(formatted), 2
-        if all(len(h) == 16 for h in formatted):
-            return ",".join(formatted), 3
         return ",".join(h[:2] for h in formatted), 0
 
     async def _dispatch_trace_rf(self, mc: Any, trace_path_arg: str | None, trace_flags: int) -> None:
