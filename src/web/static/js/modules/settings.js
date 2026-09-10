@@ -617,6 +617,7 @@ export class SettingsModule {
       }
     } catch (e) {
       alert("Error de red guardando radio: " + e.message);
+    }
   }
 
   async saveLocalIdentityAndPosition() {
