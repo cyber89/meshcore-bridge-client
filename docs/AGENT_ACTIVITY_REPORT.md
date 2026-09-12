@@ -3,7 +3,6 @@
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
 ---
----
 
 ### Hito: Integración de Archify y Creación de Mapas Interactivos de Arquitectura, Pipeline de Tramas y Secuencia Operativa
 - **Fecha**: 2026-09-12
