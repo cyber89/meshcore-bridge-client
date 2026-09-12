@@ -8,7 +8,6 @@ anidamientos profundos (> 4 niveles) y clases sobredimensionadas.
 from __future__ import annotations
 
 import ast
-import os
 import sys
 from pathlib import Path
 

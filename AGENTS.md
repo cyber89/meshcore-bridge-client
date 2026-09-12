@@ -40,8 +40,11 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
 ### Agente 0: Lead Orchestrator & System Architect Agent (Agente Principal)
 - **Objetivo**: Coordinar la ejecución global, analizar requerimientos del usuario, asignar tareas a los agentes especializados, auditar el Reporte de Actividad y garantizar la compatibilidad armónica e integral entre todos los componentes de la aplicación.
 - **Área de Trabajo**:
-  - Lectura: Todo el repositorio (`/docs/**`, `/src/**`, `/reference/**`, `docs/AGENT_ACTIVITY_REPORT.md`).
+  - Lectura: Todo el repositorio (`/docs/**`, `/src/**`, `/reference/**`, `docs/AGENT_ACTIVITY_REPORT.md`, `CONTEXT.md`).
   - Escritura: Coordinación general, conciliación de compatibilidad cruzada entre backend, frontend y protocolos.
+- **Herramientas**:
+  - Skill: `domain-adr-keeper` (Gobernanza de CONTEXT.md y ADRs)
+  - Skill: `clean-code-solid` (Deep Modules y auditoría de complejidad)
 - **Responsabilidades y Reglas Estrictas**:
   1. **Desglose y Asignación**: Al iniciar una tarea, desglosa los requerimientos y delega subtareas a los agentes correspondientes (Investigador, Arquitecto de Bridge, Arquitecto Web, Auditor de Seguridad).
   2. **Auditoría del Reporte**: Consulta obligatoriamente `docs/AGENT_ACTIVITY_REPORT.md` tras cada fase para verificar qué módulos fueron modificados y qué contratos cambiaron.
@@ -72,6 +75,8 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
   - Escritura: `/src/**` (excepto `protocol_types.py`), `/docs/ARCHITECTURE.md`
 - **Herramientas**:
   - Skill: `lora_frame_validator`
+  - Skill: `lora-packet-simulator` (Simulación en memoria y virtual mesh replay)
+  - Skill: `asyncio-profiler-leak-detector` (Monitoreo de event loop y memoria RAM)
 - **Reglas y Restricciones Estrictas**:
   1. Todo código asíncrono debe usar `asyncio` nativo, sin llamadas bloqueantes en el event loop.
   2. Implementar siempre descompresión/framing determinista (Byte Stuffing / SOF / EOF / CRC validation).
@@ -100,6 +105,9 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
 - **Área de Trabajo**:
   - Lectura: `/docs/ARCHITECTURE.md`, `/src/protocol_types.py`
   - Escritura: `/src/web/static/**`, `/src/web/templates/**`
+- **Herramientas**:
+  - Skill: `contract-openapi-sync` (Verificación de paridad API Python/JS)
+  - Skill: `web-browser-inspection` (Inspección Playwright)
 - **Reglas y Restricciones Estrictas**:
   1. **Cero Dependencias Pesadas**: Vanilla CSS y Vanilla JS nativo sin frameworks bloqueantes (React/Vue/Tailwind) para arranque instantáneo (< 100ms) en SBCs.
   2. **Diseño Visual de Grado Profesional**: Cumplir guía de diseño, responsividad total y actualización en vivo vía WebSockets.

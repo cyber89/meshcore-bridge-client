@@ -92,3 +92,28 @@ ignore = [
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.xenon]
+max_absolute = "B"
+max_modules = "A"
+max_average = "A"
+exclude = ["reference/*", "tests/*", "scratch/*"]
+
+[tool.importlinter]
+root_package = "src"
+
+[[tool.importlinter.contracts]]
+name = "Clean Architecture: Dominio aislado de Infraestructura Web y MQTT"
+type = "forbidden"
+source_modules = [
+    "src.protocol_types",
+    "src.lqi_engine",
+    "src.sensor_decoder",
+    "src.deduplicator",
+]
+forbidden_modules = [
+    "src.web",
+    "src.mqtt_client",
+    "src.serial_driver",
+]
+
