@@ -86,8 +86,21 @@ Esta skill define los lineamientos arquitectónicos de nivel enterprise para sis
 
 ---
 
-## 4. Script de Auditoría Arquitectónica
+## 4. Lenguaje Ubicuo (CONTEXT.md) y Registro de Decisiones de Arquitectura (ADR)
+
+1. **Lenguaje Ubicuo Centralizado (`CONTEXT.md`)**:
+   - Todo término técnico, rol de nodo (`CLIENT`, `REPEATER`, `ROOM`, `SENSOR`, `LOCAL`), concepto de framing (`Byte Stuffing`, `SOF/EOF`, `Hop Limit`) y métricas (`Airtime`, `LQI`) deben coincidir estrictamente con [`CONTEXT.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/CONTEXT.md).
+   - Prohibido inventar sinónimos o jerga ambigua ("dispositivo", "router cliente", "peer") cuando el dominio define contratos canónicos.
+
+2. **Architecture Decision Records (`docs/adr/`)**:
+   - Toda decisión de diseño significativa, restricción inmutable o compensación técnica se documenta en un ADR numerado secuencialmente (`docs/adr/XXXX-titulo.md`).
+   - Los ADRs evitan re-debatir soluciones ya consensuadas (ej. aislamiento estricto de repetidores, gestión de backpressure en colas `asyncio`).
+
+---
+
+## 5. Script de Auditoría Arquitectónica
 
 ```bash
 python .agents/skills/software-architecture-patterns/scripts/audit_architecture.py
 ```
+

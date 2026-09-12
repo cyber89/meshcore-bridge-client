@@ -33,8 +33,26 @@ Esta skill guía la refactorización arquitectónica para mantener el código mo
 - **Too Many Parameters**: Funciones con > 5 argumentos $\to$ Encapsular en `@dataclass` o *Parameter Object*.
 - **Deep Nesting**: Anidamientos de `if`/`for` mayores a 3 niveles $\to$ Usar *Guard Clauses* y *Early Returns*.
 - **Primitive Obsession**: Uso excesivo de enteros o strings para conceptos de dominio $\to$ Crear Value Objects o `IntEnum`.
+- **Shallow Modules**: Clases o wrappers delgados donde la interfaz pública es casi tan compleja como la implementación interna $\to$ Consolidar en *Deep Modules*.
+
+## Principio de Módulos Profundos (Deep Modules & Seams)
+Basado en *A Philosophy of Software Design* (John Ousterhout) y *Working Effectively with Legacy Code* (Michael Feathers):
+
+1. **Deep Modules (Módulos Profundos)**:
+   - Diseñar módulos con **abundante comportamiento y complejidad interna encapsulada** detrás de una **interfaz pública diminuta y determinista**.
+   - *Apalancamiento (Leverage)*: El llamador aprende 1 o 2 métodos públicos para resolver un subsistema completo (ej. `NodeRegistry.get_contact()`, `RepeaterManager.send_command()`).
+   - *Localidad (Locality)*: Errores, mutaciones de estado y validaciones deben concentrarse en una única implementación, evitando esparcir lógica por múltiples archivos llamadores.
+
+2. **Seams (Costuras Arquitectónicas)**:
+   - Identificar los puntos exactos donde el comportamiento puede alterarse o inyectarse (mocks de radio, adaptadores de transceptor, storage backends) sin modificar el código de los llamadores.
+   - El número ideal de costuras en el core debe ser mínimo y estratégico (ej. `BaseSerialAdapter` en la frontera hardware).
+
+3. **The Deletion Test (Test de Eliminación)**:
+   - Al sospechar de un módulo poco profundo (*shallow module*), evaluar: *¿Si eliminamos este wrapper o clase intermedia, la complejidad se concentra o simplemente se traslada?*
+   - Si se concentra y desaparece la fricción, refactorizar eliminando la capa innecesaria.
 
 ## Herramientas de Verificación
 ```bash
 python .agents/skills/clean-code-solid/scripts/detect_code_smells.py
 ```
+

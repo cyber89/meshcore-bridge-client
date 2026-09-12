@@ -1,0 +1,373 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "MeshCore Bridge v3.0 - Arquitectura de Sistema",
+    "output": "docs/diagrams/meshcore_architecture.html",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "rf-ingress",
+        "label": "Ingreso LoRa y Framing",
+        "focus": [
+          "lora_radio",
+          "tcp_companion",
+          "serial_adapter",
+          "protocol_engine",
+          "bridge_core"
+        ],
+        "note": "Recepción física por transceptor LoRa o túnel TCP Companion hacia el motor HDLC."
+      },
+      {
+        "id": "core-routing",
+        "label": "Enrutamiento y Negocio",
+        "focus": [
+          "bridge_core",
+          "rx_router",
+          "node_registry",
+          "repeater_mgr",
+          "sensor_decoder"
+        ],
+        "note": "Despacho desacoplado a handlers de eventos, registro SSoT y gestión de repetidores."
+      },
+      {
+        "id": "egress-integration",
+        "label": "Web SPA y Broker MQTT",
+        "focus": [
+          "node_registry",
+          "web_server",
+          "web_ui",
+          "mqtt_client",
+          "mqtt_broker"
+        ],
+        "note": "Consumo en tiempo real por la interfaz web SPA y publicación hacia brokers IoT (n8n/HA)."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "lora_radio",
+      "type": "external",
+      "label": "Transceptor LoRa",
+      "sublabel": "SX1262 / UART 115200",
+      "pos": [
+        40,
+        100
+      ],
+      "size": [
+        130,
+        60
+      ],
+      "tag": "RF 868/915 MHz"
+    },
+    {
+      "id": "tcp_companion",
+      "type": "external",
+      "label": "TCP Companion",
+      "sublabel": "Puerto :5000",
+      "pos": [
+        40,
+        260
+      ],
+      "size": [
+        130,
+        60
+      ],
+      "tag": "Túnel IP"
+    },
+    {
+      "id": "serial_adapter",
+      "type": "backend",
+      "label": "Driver Serie",
+      "sublabel": "Watchdog + Framing",
+      "pos": [
+        240,
+        100
+      ],
+      "size": [
+        136,
+        60
+      ],
+      "tag": "pyserial-asyncio"
+    },
+    {
+      "id": "protocol_engine",
+      "type": "backend",
+      "label": "Motor Protocolo",
+      "sublabel": "HDLC SOF/EOF/CRC",
+      "pos": [
+        240,
+        260
+      ],
+      "size": [
+        136,
+        60
+      ],
+      "tag": "Determinista"
+    },
+    {
+      "id": "bridge_core",
+      "type": "backend",
+      "label": "MeshCore Core",
+      "sublabel": "Asyncio Facade",
+      "pos": [
+        450,
+        100
+      ],
+      "size": [
+        140,
+        60
+      ],
+      "tag": "Python 3.10+"
+    },
+    {
+      "id": "rx_router",
+      "type": "backend",
+      "label": "RxEventRouter",
+      "sublabel": "Despacho Tipado",
+      "pos": [
+        450,
+        260
+      ],
+      "size": [
+        140,
+        60
+      ],
+      "tag": "Event Bus"
+    },
+    {
+      "id": "node_registry",
+      "type": "database",
+      "label": "NodeRegistry",
+      "sublabel": "Contactos & LQI",
+      "pos": [
+        680,
+        100
+      ],
+      "size": [
+        136,
+        60
+      ],
+      "tag": "SQLite SSoT"
+    },
+    {
+      "id": "repeater_mgr",
+      "type": "security",
+      "label": "Repeater Manager",
+      "sublabel": "Admin & Telemetría",
+      "pos": [
+        680,
+        260
+      ],
+      "size": [
+        136,
+        60
+      ],
+      "tag": "Hop 0 Guard"
+    },
+    {
+      "id": "sensor_decoder",
+      "type": "backend",
+      "label": "Sensor Decoder",
+      "sublabel": "CayenneLPP & Metrics",
+      "pos": [
+        680,
+        400
+      ],
+      "size": [
+        136,
+        60
+      ],
+      "tag": "Telemetría"
+    },
+    {
+      "id": "mqtt_client",
+      "type": "messagebus",
+      "label": "Cliente MQTT",
+      "sublabel": "Async In/Outbound",
+      "pos": [
+        680,
+        540
+      ],
+      "size": [
+        136,
+        60
+      ],
+      "tag": "paho-mqtt"
+    },
+    {
+      "id": "web_server",
+      "type": "backend",
+      "label": "Servidor Web",
+      "sublabel": "aiohttp REST & WS",
+      "pos": [
+        920,
+        100
+      ],
+      "size": [
+        136,
+        60
+      ],
+      "tag": "Puerto :8000"
+    },
+    {
+      "id": "web_ui",
+      "type": "frontend",
+      "label": "Web SPA UI",
+      "sublabel": "HTML5 / Vanilla JS",
+      "pos": [
+        1160,
+        100
+      ],
+      "size": [
+        130,
+        60
+      ],
+      "tag": "Cliente Web"
+    },
+    {
+      "id": "mqtt_broker",
+      "type": "cloud",
+      "label": "Broker MQTT",
+      "sublabel": "n8n / Home Assistant",
+      "pos": [
+        920,
+        540
+      ],
+      "size": [
+        136,
+        60
+      ],
+      "tag": "IoT Broker"
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Capa Ingress RF & Enlace Físico",
+      "wraps": [
+        "lora_radio",
+        "tcp_companion",
+        "serial_adapter",
+        "protocol_engine"
+      ]
+    },
+    {
+      "kind": "security-group",
+      "label": "Núcleo Asíncrono de MeshCore Bridge",
+      "wraps": [
+        "bridge_core",
+        "rx_router",
+        "node_registry",
+        "repeater_mgr",
+        "sensor_decoder",
+        "mqtt_client",
+        "web_server"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Red Externa & Clientes IP",
+      "wraps": [
+        "web_ui",
+        "mqtt_broker"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "lora_radio",
+      "to": "serial_adapter",
+      "label": "UART",
+      "variant": "emphasis"
+    },
+    {
+      "from": "tcp_companion",
+      "to": "protocol_engine",
+      "variant": "dashed"
+    },
+    {
+      "from": "serial_adapter",
+      "to": "protocol_engine"
+    },
+    {
+      "from": "protocol_engine",
+      "to": "bridge_core",
+      "label": "Tramas",
+      "variant": "emphasis"
+    },
+    {
+      "from": "bridge_core",
+      "to": "rx_router",
+      "label": "Eventos RX",
+      "labelDy": 24
+    },
+    {
+      "from": "bridge_core",
+      "to": "node_registry",
+      "label": "SSoT",
+      "variant": "emphasis"
+    },
+    {
+      "from": "node_registry",
+      "to": "web_server",
+      "label": "REST API"
+    },
+    {
+      "from": "web_server",
+      "to": "web_ui",
+      "label": "WebSocket",
+      "variant": "emphasis"
+    },
+    {
+      "from": "rx_router",
+      "to": "repeater_mgr",
+      "label": "Admin",
+      "variant": "security"
+    },
+    {
+      "from": "rx_router",
+      "to": "sensor_decoder"
+    },
+    {
+      "from": "rx_router",
+      "to": "mqtt_client",
+      "variant": "dashed"
+    },
+    {
+      "from": "mqtt_client",
+      "to": "mqtt_broker",
+      "label": "MQTT JSON",
+      "variant": "emphasis"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Protocolo & Resiliencia RF",
+      "items": [
+        "Framing HDLC determinista con delimitadores SOF/EOF y byte-stuffing",
+        "Validación estricta de CRC-16 y deduplicación por hash de paquete",
+        "Watchdog serie con reconexión automática y backoff exponencial"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Pipeline Asíncrono Core",
+      "items": [
+        "Bucle de eventos asyncio sin bloqueos para concurrencia masiva",
+        "RxEventRouter tipado con handlers desacoplados para Adverts, Canales y DMs",
+        "Gestión rigurosa de Nodos (SSoT) y aislamiento total de Repetidores"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Integración IP & Telemetría",
+      "items": [
+        "Servidor aiohttp con WebSocket Hub en tiempo real y REST API",
+        "Cliente MQTT bidireccional asíncrono para n8n y Home Assistant",
+        "Decodificación integrada de métricas de sensor y CayenneLPP"
+      ]
+    }
+  ]
+}

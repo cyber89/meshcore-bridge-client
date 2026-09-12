@@ -4,6 +4,30 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ---
 
+### Hito: Adopción Metodológica Selectiva de mattpocock/skills (CONTEXT.md, ADRs, Deep Modules y Seams)
+- **Fecha**: 2026-09-12
+- **Estado**: ✅ COMPLETADO (Evaluación técnica exhaustiva del repositorio mattpocock/skills. Rechazo de la instalación externa con npm/Node por redundancia e incompatibilidad de stack. Adopción nativa de sus 4 mejores disciplinas: creación de CONTEXT.md como lenguaje ubicuo canónico, apertura de docs/adr/ con ADRs 0001, 0002 y 0003, enriquecimiento de clean-code-solid con principios de Deep Modules de Ousterhout y Seams de Feathers, fortalecimiento de software-architecture-patterns y actualización del SSoT en AGENTS.md; sincronización en /deploy/).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect).
+- **Problema / Requerimiento**:
+  - El usuario solicitó: "/plan comprueba si debamos implementar esto: https://github.com/mattpocock/skills en nuestro proyecto para mejorar nuestras habilidades".
+- **Decisiones e Implementaciones Realizadas**:
+  1. **Evaluación de Compatibilidad y Rechazo de Dependencia Externa**:
+     - Se determinó no instalar el paquete `mattpocock/skills` vía npm ni como plugin de Claude Code para evitar dependencias innecesarias de Node.js en SBCs, evitar duplicación de herramientas nativas (como `/grill-me` en Antigravity) y prevenir la ejecución forzada de suites de tests que viola la regla 2.0 de `AGENTS.md`.
+  2. **Creación de `CONTEXT.md` (Lenguaje Ubicuo y Modelo de Dominio)**:
+     - Documento formal en la raíz del repositorio que establece la terminología unificada: roles de nodos (`CLIENT`, `REPEATER`, `ROOM`, `SENSOR`, `LOCAL`), componentes del bridge, métricas LoRa (`Airtime`, `Hop Limit`, `Duty Cycle`, `Byte Stuffing`, `Deduplication Window`) y principios de diseño.
+  3. **Establecimiento de Architecture Decision Records (`docs/adr/`)**:
+     - `docs/adr/0001-strict-repeater-contact-exclusion.md`: Aislamiento formal de repetidores fuera de la libreta de contactos y bloqueo de chat directo.
+     - `docs/adr/0002-lora-airtime-guardrails.md`: Formalización del checklist de impacto en la malla LoRa antes de transmisiones.
+     - `docs/adr/0003-asyncio-serial-resilience.md`: Arquitectura asíncrona no bloqueante, backpressure y reconexión serial con exponential backoff.
+  4. **Evolución de Skills Internas en `.agents/skills/`**:
+     - `clean-code-solid/SKILL.md`: Incorporación de conceptos de *Deep Modules* (John Ousterhout), *Seams* (Michael Feathers) y *The Deletion Test*.
+     - `software-architecture-patterns/SKILL.md`: Vinculación directa con `CONTEXT.md` y `docs/adr/`.
+     - `AGENTS.md`: Integración de `CONTEXT.md` y `docs/adr/` en el Single Source of Truth (SSoT).
+  5. **Sincronización y Empaquetado**:
+     - Sincronizado el directorio `/deploy/` mediante `python scripts/sync_deploy.py` (incluyendo `deploy/docs/adr/`).
+
+---
+
 ### Hito: Resolución de 12 Fallos de Pruebas, Corrección de Sintaxis de Frontend e i18n, y Expansión Integral de Pruebas Unitarias
 - **Fecha**: 2026-09-12
 - **Estado**: ✅ COMPLETADO (227 tests pasados, 10 skipped, 0 failed en pytest. Resolución del 100% de los 12 fallos pre-existentes; corrección de sintaxis JS e interpolación de comillas en sniffer.js, nodes.js, chat.js; inyección de 70+ claves en i18n.js; creación de 6 nuevas suites de pruebas dedicadas para PacketBuffer, MQTT, Health/Events, Web Security/Maps, Admin Executors y Controladores REST; sincronización obligatoria en /deploy/ y push a GitHub).
@@ -3255,3 +3279,34 @@ Cada vez que un agente comience o finalice una tarea, agregarÃ¡ una entrada en
   - .gitignore: Ignorar la carpeta data y db local.
 - **Estado**: COMPLETADO
 Fase 5 - COMPAT-001 to COMPAT-012 terminados
+
+---
+
+### Hito: Resolución Integral de Vulnerabilidades, Fallos de Lógica y Frontend de `report.md`
+- **Fecha**: 2026-09-12
+- **Estado**: ✅ COMPLETADO (100% de problemas reales clasificados y corregidos; 247 tests pasando en pytest, suite E2E de Playwright en verde, sincronización y empaquetado autónomo en /deploy/)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect), Agente 5 (Security Auditor).
+- **Problemas Reales Identificados y Resueltos**:
+  1. **C-1 (Serial Driver)**: Resuelto `AttributeError` por asignación a property de solo lectura `self_info` en `MeshcoreSDKAdapter` (`src/serial_driver.py`). Se implementó setter interno y almacenamiento en `_self_info`.
+  2. **A-1 (Bridge Core)**: Inicializado `is_admin_cmd = False` antes del bloque de broadcast en `_execute_tx` (`src/bridge_core.py`), eliminando `UnboundLocalError`/`NameError` en transmisiones de canal.
+  3. **A-2 (Rx Router)**: Eliminada reclasificación errónea de nodos `CLIENT` a `REPEATER` ante mensajes de chat con palabras tipo telemetría (`src/rx_router.py`).
+  4. **A-5 (Async Concurrency)**: Envuelto `self.node_registry.save_to_file()` en `await asyncio.to_thread(...)` en `_cleanup_loop` (`src/bridge_core.py`), previniendo bloqueos de I/O en el event loop.
+  5. **M-1 (Repeater Executor)**: Envoltorios `try...finally` garantizados en `_execute_ping_zero`, `_execute_auth_command` y `_execute_unit_command` (`src/admin/repeater_executor.py`), eliminando fugas de futuros huérfanos en `WaiterRegistry`.
+  6. **B-01 (QR Code Generator)**: Adaptador global `window.QRCode` y `QRCode.CorrectLevel` en `src/web/static/js/qrcode.js` delegando en `QRCodeGenerator.renderToCanvas`, habilitando el modal de compartir contactos y canales.
+  7. **B-02 (Contacts REST Controller)**: Extracción de `pubkey` desde el sufijo de ruta en `DELETE /api/contacts/{pubkey}` y soporte de parámetro `path_pubkey` en `src/web/controllers/contacts_controller.py`, reparando la eliminación de contactos.
+  8. **B-03 (API Router)**: Registrada la ruta `POST /api/repeater/traceroute` en `src/web/api_router.py`.
+  9. **B-04 (Mobile Drawer)**: Eliminado listener duplicado sobre `btnToggleChannelsMobile` en `settings.js`, permitiendo abrir el drawer de canales en dispositivos móviles.
+  10. **B-05 / B-17 (Tactical Map)**: Añadida la capa `tacticalRadarGroup` al mapa en `MapModule.renderTacticalRadarOverlay()` e `initLeafletMap()`. Se protegió el zoom/pan manual del usuario contra recentrados agresivos en `NODE_UPDATED`.
+  11. **B-06 (i18n)**: Agregadas las 8 claves faltantes `app.*` (`app.web_online`, `app.web_connecting`, `app.web_offline`, `app.radio_online`, `app.radio_online_fallback`, `app.radio_offline`, `app.dark_theme_title`, `app.light_theme_title`) a `DICT.es` y `DICT.en` en `src/web/static/js/i18n.js`.
+  12. **B-07 / A01-02 (Web Security)**: Ampliado `protected_prefixes` en `src/web/http_server.py` para requerir API key en todas las mutaciones críticas (`/api/config/radio`, `/api/config/identity`, `/api/channels`, `/api/contacts`, `/api/system/logs`).
+  13. **B-08 (Repeater Logout)**: Invocación asíncrona de `POST /api/repeater/remote/logout` antes de limpiar credenciales locales en `src/web/static/js/modules/repeater.js`.
+  14. **B-10 (Header Metrics)**: Conectados `headerErrorRate` y `headerQueueDepth` en `app.js` al recibir eventos `METRICS_UPDATE` y `RX_PACKET`.
+  15. **B-11 / B-12 / O-01 (Context Decoupling)**: Expuestos `activeChannelIdx`, `activeDmTarget`, `renderNodesDirectory` y `updateNodeInDom` en el contexto compartido de `MeshCoreApp` (`app.js`). Implementado `updateNodeInDom` en `NodesModule` para actualizaciones reactivas sin re-render completo del grid.
+  16. **B-13 (Security Inspector)**: Extracción limpia de `path.split("?")[0]` en `http_server.py:_inspect_request_security`, evitando falsos 403 al buscar patrones en logs.
+  17. **B-18 (CSS Layouts)**: Añadidos estilos CSS para `.trace-visual-graph`, `.trace-node-item`, `.trace-node-circle`, `.trace-node-name`, `.trace-node-snr`, `.trace-arrow` y `.term-resp` en `src/web/static/css/app.css`.
+  18. **A01-04 (Channel Security)**: Enmascaramiento de claves PSK AES-128 con `••••••••` y bandera booleana `has_psk` en `src/web/controllers/channels_controller.py`.
+  19. **Spec SSoT (Protocol Spec)**: Actualizada la tabla de comandos y códigos de notificación de la Sección 9 de `docs/PROTOCOL_SPEC.md` para coincidir 1:1 con los opcodes del SDK oficial de MeshCore y `src/protocol_types.py`.
+  20. **Testing**: Creada suite unitaria modular `tests/test_rx_routers.py` cubriendo las estrategias de enrutamiento y corregidos los tests de Playwright y Tile Server.
+- **Verificación**:
+  - `python -m pytest --no-cov -q`: 247 passed, 10 skipped, 0 failed.
+  - `python scripts/sync_deploy.py`: Despliegue limpio sincronizado en `/deploy/` con SHA256SUMS y paquetes `.zip` / `.tar.gz`.

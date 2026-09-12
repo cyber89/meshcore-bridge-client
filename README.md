@@ -55,6 +55,8 @@ Puente bidireccional asíncrono, resiliente y de grado industrial para conectar 
   - Almacenamiento no volátil en la radio LoRa para contactos y persistencia atómica en archivos JSON (`data/channels.json`, `data/node_registry.json`) sin dependencias de motores de bases de datos pesados.
 - **Serial Watchdog Activo**:
   - Detección automática de bloqueos silenciosos del puerto USB y reconexión automática con estabilización USB CDC.
+- **🗺️ Mapas de Arquitectura Interactivos (Archify)**:
+  - Documentación interactiva en HTML + SVG autónomo dentro de [`docs/diagrams/`](docs/diagrams/): arquitectura general del puente, pipeline de tramas LoRa a IP y secuencia operativa de comandos.
 
 ---
 

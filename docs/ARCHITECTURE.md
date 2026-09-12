@@ -3,6 +3,19 @@
 ## 1. Resumen Ejecutivo
 MeshCore Bridge v3.0 es una pasarela asíncrona avanzada que interconecta redes de radio LoRa (mediante protocolo serial en formato HDLC derivado con SOF/EOF) con infraestructuras IP a través de MQTT y una interfaz de usuario Web moderna (SPA). Construida sobre Python 3.10+ y la biblioteca `asyncio`, ofrece un puente bidireccional transparente, concurrente y resiliente entre mallas de radiofrecuencia (RF) y redes IP, todo sin depender de frameworks web pesados.
 
+## 1.1 Mapas Interactivos de Arquitectura (Generados con Archify)
+El sistema cuenta con mapas interactivos de alta fidelidad compilados determinísticamente con el motor [**Archify** (`tt-a1i/archify`)](https://github.com/tt-a1i/archify). Estos artefactos son completamente autónomos en **HTML + SVG**, no requieren conexión a internet y cuentan con soporte para tema Claro/Oscuro, modos visuales (*classic*, *signal-flow*, *blueprint*), zoom, paneo, búsqueda y capítulos guiados:
+
+- 🗺️ [**Arquitectura General del Sistema (`meshcore_architecture.html`)**](diagrams/meshcore_architecture.html): Mapeo completo de subsistemas, capas de aislamiento, drivers serie, núcleo asyncio, persistencia y clientes IP.
+- ⚡ [**Pipeline de Tramas LoRa a IP (`meshcore_packet_pipeline.html`)**](diagrams/meshcore_packet_pipeline.html): Flujo determinista paso a paso desde el paquete RF, framing HDLC, chequeo CRC-16, deduplicador, hasta el WebSocket Hub y broker MQTT.
+- ⏱️ [**Secuencia Operativa Bidireccional (`meshcore_rx_tx_sequence.html`)**](diagrams/meshcore_rx_tx_sequence.html): Diagrama de secuencia temporal que ilustra la recepción reactiva de tramas y la ejecución de comandos administrativos Hop 0 con rate limiter.
+
+> **Regeneración de diagramas**:
+> Para compilar o validar los diagramas tras cualquier modificación arquitectónica, ejecute:
+> ```bash
+> python scripts/build_diagrams.py
+> ```
+
 ## 2. Diagrama de Arquitectura General
 
 ```mermaid

@@ -3,6 +3,27 @@
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
 ---
+---
+
+### Hito: Integración de Archify y Creación de Mapas Interactivos de Arquitectura, Pipeline de Tramas y Secuencia Operativa
+- **Fecha**: 2026-09-12
+- **Estado**: ✅ COMPLETADO (Instalación de la skill Archify en .agents/skills/archify; autoría y compilación determinista de 3 especificaciones JSON IR bajo perfil showcase con 9 checks de artefacto y 0 errores: arquitectura del sistema en meshcore_architecture.html, pipeline de tramas LoRa a IP en meshcore_packet_pipeline.html, y secuencia operativa de comandos Hop 0 en meshcore_rx_tx_sequence.html; script de compilación y verificación automática en scripts/build_diagrams.py; actualización de docs/ARCHITECTURE.md y README.md; sincronización en /deploy/ y push a GitHub).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 4 (Web Architect).
+- **Problema / Requerimiento**:
+  - El usuario solicitó: "quiero que veas esto: https://github.com/tt-a1i/archify e intenta utilizarlo para hacer diagramas del proyecto".
+- **Resultados e Implementación**:
+  1. **Investigación e Integración de Archify**:
+     - Motor de compilación determinista en Node.js que procesa especificaciones tipadas JSON IR en documentos HTML interactivos y autónomos con SVG en línea.
+     - Instalado como skill local del proyecto bajo `.agents/skills/archify/` mediante `npx skills add tt-a1i/archify`.
+  2. **Tres Diagramas Interactivos de Producción en `docs/diagrams/`**:
+     - `meshcore_architecture.html` (`architecture`): Mapa de componentes estructurado en 6 columnas (Radio/TCP -> Adaptación Serie -> Core Asyncio -> Subtemas & Handlers -> Egress Web & MQTT Broker -> Web SPA UI) con límites limpios de seguridad, vistas guiadas y tarjetas de evidencia.
+     - `meshcore_packet_pipeline.html` (`workflow` v2): Pipeline determinista de tramas con 5 carriles (*Radio*, *Serie HDLC*, *Core Router*, *Web Server*, *MQTT Integration*) y fases de recepción, validación CRC-16, deduplicación y despacho.
+     - `meshcore_rx_tx_sequence.html` (`sequence`): Traza temporal de un paquete entrante de RF hasta la actualización por WebSocket en la SPA y publicación MQTT, complementado con la ejecución saliente protegida de un Ping Hop 0 con rate limiter.
+  3. **Script de Automatización**:
+     - Creación de `scripts/build_diagrams.py` que resuelve el binario local o global de Archify, valida los tres diagramas con `--quality showcase` y los entrega en HTML con reporte de tamaño y checksums.
+  4. **Documentación y Despliegue**:
+     - Enlaces y descripción añadidos a `docs/ARCHITECTURE.md` y `README.md`.
+     - Sincronización automática de producción en `/deploy/` ejecutando `python scripts/sync_deploy.py`.
 
 ### Hito: Resolución de 12 Fallos de Pruebas, Corrección de Sintaxis de Frontend e i18n, y Expansión Integral de Pruebas Unitarias
 - **Fecha**: 2026-09-12

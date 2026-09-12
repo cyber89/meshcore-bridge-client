@@ -1,0 +1,275 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "MeshCore Bridge v3.0 - Secuencia Operativa RF & Web",
+    "output": "docs/diagrams/meshcore_rx_tx_sequence.html",
+    "viewBox": [
+      1080,
+      600
+    ],
+    "column_fit": "spread",
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "inbound-flow",
+        "label": "Recepción Inbound RF a IP",
+        "focus": [
+          "lora_node",
+          "radio_dev",
+          "serial_drv",
+          "rx_router",
+          "registry",
+          "web_server",
+          "web_ui"
+        ],
+        "note": "Trayectoria desde la transmisión en la malla LoRa hasta la actualización en la SPA."
+      },
+      {
+        "id": "outbound-admin",
+        "label": "Comando Administrativo Outbound",
+        "focus": [
+          "web_ui",
+          "web_server",
+          "rx_router",
+          "serial_drv",
+          "radio_dev",
+          "lora_node"
+        ],
+        "note": "Ejecución de un comando Hop 0 con rate limiter y recepción de confirmación ACK."
+      }
+    ]
+  },
+  "participants": [
+    {
+      "id": "lora_node",
+      "type": "external",
+      "label": "Nodo LoRa",
+      "sublabel": "malla RF"
+    },
+    {
+      "id": "radio_dev",
+      "type": "external",
+      "label": "Transceptor",
+      "sublabel": "SX1262 UART"
+    },
+    {
+      "id": "serial_drv",
+      "type": "backend",
+      "label": "Driver Serie",
+      "sublabel": "pyserial"
+    },
+    {
+      "id": "rx_router",
+      "type": "backend",
+      "label": "RxRouter",
+      "sublabel": "Core Facade"
+    },
+    {
+      "id": "registry",
+      "type": "database",
+      "label": "NodeRegistry",
+      "sublabel": "SQLite SSoT"
+    },
+    {
+      "id": "web_server",
+      "type": "backend",
+      "label": "Servidor Web",
+      "sublabel": "aiohttp WS/REST"
+    },
+    {
+      "id": "web_ui",
+      "type": "frontend",
+      "label": "Web SPA",
+      "sublabel": "Vanilla JS"
+    }
+  ],
+  "segments": [
+    {
+      "from": 145,
+      "to": 335,
+      "label": "1. Recepción Inbound RF a IP"
+    },
+    {
+      "from": 345,
+      "to": 525,
+      "label": "2. Comando Administrativo Outbound"
+    }
+  ],
+  "messages": [
+    {
+      "id": "rf-in",
+      "from": "lora_node",
+      "to": "radio_dev",
+      "y": 165,
+      "label": "Trama RF LoRa",
+      "variant": "default"
+    },
+    {
+      "id": "uart-rx",
+      "from": "radio_dev",
+      "to": "serial_drv",
+      "y": 195,
+      "label": "Stream UART 115200",
+      "variant": "emphasis"
+    },
+    {
+      "id": "hdlc-valid",
+      "from": "serial_drv",
+      "to": "rx_router",
+      "y": 225,
+      "label": "Trama HDLC válida",
+      "variant": "emphasis"
+    },
+    {
+      "id": "reg-upd",
+      "from": "rx_router",
+      "to": "registry",
+      "y": 255,
+      "label": "Actualiza telemetría",
+      "variant": "default"
+    },
+    {
+      "id": "ws-push",
+      "from": "rx_router",
+      "to": "web_server",
+      "y": 285,
+      "label": "Push evento RX",
+      "variant": "emphasis"
+    },
+    {
+      "id": "spa-render",
+      "from": "web_server",
+      "to": "web_ui",
+      "y": 315,
+      "label": "WS frame update",
+      "variant": "emphasis"
+    },
+    {
+      "id": "ping-req",
+      "from": "web_ui",
+      "to": "web_server",
+      "y": 355,
+      "label": "POST /api/repeaters/ping",
+      "variant": "emphasis"
+    },
+    {
+      "id": "exec-cmd",
+      "from": "web_server",
+      "to": "rx_router",
+      "y": 385,
+      "label": "Ejecuta Ping Hop 0",
+      "variant": "security"
+    },
+    {
+      "id": "hdlc-tx",
+      "from": "rx_router",
+      "to": "serial_drv",
+      "y": 415,
+      "label": "HDLC frame TX",
+      "variant": "security"
+    },
+    {
+      "id": "uart-tx",
+      "from": "serial_drv",
+      "to": "radio_dev",
+      "y": 445,
+      "label": "UART stream TX",
+      "variant": "emphasis"
+    },
+    {
+      "id": "rf-ping",
+      "from": "radio_dev",
+      "to": "lora_node",
+      "y": 475,
+      "label": "RF Ping Request",
+      "variant": "security"
+    },
+    {
+      "id": "rf-pong",
+      "from": "lora_node",
+      "to": "radio_dev",
+      "y": 505,
+      "label": "RF Pong (Hop 0 ACK)",
+      "variant": "return"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "radio_dev",
+      "from": 160,
+      "to": 200,
+      "type": "external"
+    },
+    {
+      "participant": "serial_drv",
+      "from": 190,
+      "to": 230,
+      "type": "backend"
+    },
+    {
+      "participant": "rx_router",
+      "from": 220,
+      "to": 290,
+      "type": "backend"
+    },
+    {
+      "participant": "web_server",
+      "from": 280,
+      "to": 320,
+      "type": "backend"
+    },
+    {
+      "participant": "web_ui",
+      "from": 350,
+      "to": 510,
+      "type": "frontend"
+    },
+    {
+      "participant": "web_server",
+      "from": 350,
+      "to": 390,
+      "type": "backend"
+    },
+    {
+      "participant": "rx_router",
+      "from": 380,
+      "to": 420,
+      "type": "backend"
+    },
+    {
+      "participant": "serial_drv",
+      "from": 410,
+      "to": 450,
+      "type": "backend"
+    },
+    {
+      "participant": "radio_dev",
+      "from": 440,
+      "to": 510,
+      "type": "external"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Pipeline Inbound Reactivo",
+      "items": [
+        "Des-empaquetado y chequeo de CRC inmediatos sin bloqueos",
+        "Persistencia asíncrona de telemetría y actualización en SQLite",
+        "Notificación instantánea simultánea por WebSockets hacia la UI"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Comando Outbound Protegido",
+      "items": [
+        "Guardas estrictas contra envíos hacia el nodo local",
+        "Rate limiting por canal y nodo para proteger el airtime LoRa",
+        "Medición de latencia RTT y timeout automático"
+      ]
+    }
+  ]
+}

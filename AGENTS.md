@@ -9,7 +9,8 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
 - **`/reference/meshcore/`**: Firmware oficial de MeshCore en C/C++ (Solo Lectura).
 - **`/reference/meshcore_py/`**: SDK oficial en Python de MeshCore (Solo Lectura).
 - **`/reference/meshcore_cli/`**: Implementación CLI oficial de MeshCore (Solo Lectura).
-- **`/docs/`**: Especificaciones formales del protocolo (`PROTOCOL_SPEC.md`), arquitectura (`ARCHITECTURE.md`) y Reporte de Actividad Multi-Agente (`AGENT_ACTIVITY_REPORT.md`).
+- **`CONTEXT.md`**: Lenguaje Ubicuo y Modelo de Dominio canónico del proyecto (Glosario, roles de nodos, principios de Deep Modules).
+- **`/docs/`**: Especificaciones formales del protocolo (`PROTOCOL_SPEC.md`), arquitectura (`ARCHITECTURE.md`), Decisiones de Arquitectura (`/docs/adr/`) y Reporte de Actividad Multi-Agente (`AGENT_ACTIVITY_REPORT.md`).
 - **`/src/`**: Código fuente de producción del bridge en Python (`asyncio`, `pyserial-asyncio`, `paho-mqtt`).
 - **`/deploy/`**: Paquete autónomo de instalación y despliegue limpio en producción (`python scripts/sync_deploy.py`).
 - **`/tests/`**: Suites de pruebas automatizadas con `pytest` (**Solo ejecutadas bajo demanda explícita del usuario**).
