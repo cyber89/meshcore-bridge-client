@@ -86,6 +86,13 @@ export class RepeaterModule {
       logoutBtn.addEventListener("click", () => {
         const target = this.selectedRepeaterTarget;
         if (target) {
+          try {
+            fetch("/api/repeater/remote/logout", {
+              method: "POST",
+              headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+              body: JSON.stringify({ target_node: target }),
+            }).catch(() => {});
+          } catch (_) {}
           this.clearStoredRepeaterPassword(target);
           this.lockRepeaterAdminView(target);
           if (repeaterGatePassword) {

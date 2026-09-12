@@ -89,9 +89,7 @@ class ChannelsController(BaseController):
             except Exception as e:
                 logging.debug(f"Fallo sincronizando canales del nodo serial: {e}")
 
-        channels_list = list(self.channels.values())
-        channels_list.sort(key=lambda c: int(c.get("index", 0)))
-        return 200, {"status": "ok", "data": channels_list, "count": len(channels_list)}
+        return await self._get_channels()
 
     async def _get_channels(self) -> tuple[int, dict[str, Any]]:
         """Devuelve los canales configurados."""
@@ -109,7 +107,16 @@ class ChannelsController(BaseController):
 
         channels_list = list(self.channels.values())
         channels_list.sort(key=lambda c: int(c.get("index", 0)))
-        return 200, {"status": "ok", "data": channels_list, "count": len(channels_list)}
+        masked_list = []
+        for ch in channels_list:
+            c_dict = dict(ch)
+            if c_dict.get("psk"):
+                c_dict["psk"] = "••••••••"
+                c_dict["has_psk"] = True
+            else:
+                c_dict["has_psk"] = False
+            masked_list.append(c_dict)
+        return 200, {"status": "ok", "data": masked_list, "count": len(masked_list)}
 
     async def _create_or_update_channel(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Crea o actualiza un canal en el rango 0..7."""

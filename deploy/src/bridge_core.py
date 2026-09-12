@@ -219,7 +219,7 @@ class MeshCoreBridge:
                 self._background_tasks = {t for t in self._background_tasks if not t.done()}
             try:
                 if hasattr(self, "node_registry") and hasattr(self.node_registry, "save_to_file"):
-                    self.node_registry.save_to_file()
+                    await asyncio.to_thread(self.node_registry.save_to_file)
             except Exception as e:
                 logging.debug(f"Fallo en guardado periódico de NodeRegistry: {e}")
 
@@ -641,6 +641,9 @@ class MeshCoreBridge:
         is_broadcast = target_str in ("broadcast", "public", "0xffff", "") or target_str.startswith("channel")
 
         # Validación de reglas inmutables de destinatario
+        clean_txt = text.strip().lower()
+        is_admin_cmd = clean_txt.startswith(("login", "cmd", "set", "get", "reboot", "ping", "trace", "ver", "status", "info"))
+
         if not is_broadcast:
             if self.node_registry.is_local_key(target_str):
                 return {
@@ -648,8 +651,6 @@ class MeshCoreBridge:
                     "error": "No se puede enviar mensajes de chat hacia el nodo local.",
                     "request_id": req_id,
                 }
-            clean_txt = text.strip().lower()
-            is_admin_cmd = clean_txt.startswith(("login", "cmd", "set", "get", "reboot", "ping", "trace", "ver", "status", "info"))
             if not is_admin_cmd and self.node_registry.is_repeater_key(target_str):
                 return {
                     "status": "error",

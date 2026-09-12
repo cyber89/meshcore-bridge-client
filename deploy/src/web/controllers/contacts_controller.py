@@ -42,8 +42,14 @@ class ContactsController(BaseController):
         if method == "POST":
             return await self._create_or_update_contact(req_body)
 
+        path_pubkey = ""
+        if path.startswith("/api/contacts/"):
+            sub = path.removeprefix("/api/contacts/").strip()
+            if sub and "/" not in sub and sub not in ("sync", "share", "export", "import", "discovered", "accept"):
+                path_pubkey = sub
+
         if method == "DELETE":
-            return await self._delete_contact(req_body)
+            return await self._delete_contact(req_body, path_pubkey=path_pubkey)
 
         return problem_details(405, "Method Not Allowed", f"Método {method} no permitido para /api/contacts", "method_not_allowed")
 
@@ -151,9 +157,9 @@ class ContactsController(BaseController):
         self.ctx.log_system_event("INFO", f"Contacto guardado: {pubkey} ({alias or name})", source="contacts")
         return 200, {"status": "ok", "data": contact.to_dict()}
 
-    async def _delete_contact(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+    async def _delete_contact(self, req_body: dict[str, Any], path_pubkey: str = "") -> tuple[int, dict[str, Any]]:
         """Elimina un contacto de la libreta."""
-        pubkey = str(req_body.get("public_key", req_body.get("key", ""))).strip().lower()
+        pubkey = str(req_body.get("public_key", req_body.get("key", path_pubkey))).strip().lower()
         ser = getattr(self.ctx.bridge, "serial_adapter", None)
         if ser and hasattr(ser, "remove_contact"):
             try:

@@ -196,14 +196,16 @@ class RepeaterAdminExecutor:
             waiter_keys.append(str(target_info["name"]).lower())
 
         self._register_waiters(waiter_keys, fut, include_ping=True)
-        await self._ensure_radio_contact(req.mc, dest_target, target_name)
+        try:
+            await self._ensure_radio_contact(req.mc, dest_target, target_name)
 
-        t_start = time.perf_counter()
-        cmd_text = "ping 0"
-        await self._send_rf_command(req.mc, dest_target, cmd_text, str(req.target_node), req.req_id)
+            t_start = time.perf_counter()
+            cmd_text = "ping 0"
+            await self._send_rf_command(req.mc, dest_target, cmd_text, str(req.target_node), req.req_id)
 
-        resp_data = await self._wait_for_repeater_response(req.mc, fut, timeout=5.0) or {}
-        self._unregister_waiters(waiter_keys, fut, include_ping=True)
+            resp_data = await self._wait_for_repeater_response(req.mc, fut, timeout=5.0) or {}
+        finally:
+            self._unregister_waiters(waiter_keys, fut, include_ping=True)
 
         elapsed_rtt = round((time.perf_counter() - t_start) * 1000, 1)
         if resp_data:
@@ -320,24 +322,25 @@ class RepeaterAdminExecutor:
             except Exception as e:
                 logging.debug(f"send_login_sync falló ({e}), usando fallback...")
 
-        if not login_success and error_msg is None:
-            await self._send_login_fallback(rf_ctx, cmd_text)
-            resp_data = await self._wait_for_repeater_response(req.mc, rf_ctx.fut, timeout=6.0) or {}
-            raw_resp = resp_data.get("text") or resp_data.get("message") or ""
-            resp_text = raw_resp[2:].strip() if raw_resp.startswith("> ") else raw_resp.strip()
-            lower = resp_text.lower()
+        try:
+            if not login_success and error_msg is None:
+                await self._send_login_fallback(rf_ctx, cmd_text)
+                resp_data = await self._wait_for_repeater_response(req.mc, rf_ctx.fut, timeout=6.0) or {}
+                raw_resp = resp_data.get("text") or resp_data.get("message") or ""
+                resp_text = raw_resp[2:].strip() if raw_resp.startswith("> ") else raw_resp.strip()
+                lower = resp_text.lower()
 
-            if resp_data.get("auth_status") == "failed" or any(p in lower for p in ("invalid", "denied", "wrong", "failed")):
-                login_success = False
-                error_msg = resp_text or "Contraseña incorrecta en el repetidor"
-            elif resp_data.get("auth_status") == "success" or any(p in lower for p in ("ok", "success", "logged in", "auth ok")):
-                login_success = True
-            elif resp_text:
-                login_success = True
-            else:
-                error_msg = f"Sin respuesta del repetidor {str(req.target_node)[:8]}"
-
-        self._unregister_waiters(rf_ctx.waiter_keys, rf_ctx.fut, include_ping=False)
+                if resp_data.get("auth_status") == "failed" or any(p in lower for p in ("invalid", "denied", "wrong", "failed")):
+                    login_success = False
+                    error_msg = resp_text or "Contraseña incorrecta en el repetidor"
+                elif resp_data.get("auth_status") == "success" or any(p in lower for p in ("ok", "success", "logged in", "auth ok")):
+                    login_success = True
+                elif resp_text:
+                    login_success = True
+                else:
+                    error_msg = f"Sin respuesta del repetidor {str(req.target_node)[:8]}"
+        finally:
+            self._unregister_waiters(rf_ctx.waiter_keys, rf_ctx.fut, include_ping=False)
         status_str = "ok" if login_success else "error"
         rf_ctx.res.update({
             "status": status_str,
@@ -371,9 +374,11 @@ class RepeaterAdminExecutor:
         self._ctx.repeater_manager.record_command_sent(str(req.target_node), is_full_query=False)
         t_start = time.perf_counter()
 
-        await self._send_rf_command(req.mc, rf_ctx.dest_target, cmd_text, str(req.target_node), req.req_id)
-        resp_data = await self._wait_for_repeater_response(req.mc, rf_ctx.fut, timeout=6.0) or {}
-        self._unregister_waiters(rf_ctx.waiter_keys, rf_ctx.fut, include_ping=False)
+        try:
+            await self._send_rf_command(req.mc, rf_ctx.dest_target, cmd_text, str(req.target_node), req.req_id)
+            resp_data = await self._wait_for_repeater_response(req.mc, rf_ctx.fut, timeout=6.0) or {}
+        finally:
+            self._unregister_waiters(rf_ctx.waiter_keys, rf_ctx.fut, include_ping=False)
 
         elapsed = round((time.perf_counter() - t_start) * 1000, 1)
         raw_resp = resp_data.get("text") or resp_data.get("message") or ""

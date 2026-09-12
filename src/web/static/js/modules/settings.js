@@ -69,14 +69,7 @@ export class SettingsModule {
   }
 
   _bindEvents() {
-    // 1. Mobile Channel Drawer Toggle
-    if (this.dom.btnToggleChannelsMobile && this.dom.sidebarChannelList) {
-      this.dom.btnToggleChannelsMobile.addEventListener("click", () => {
-        this.dom.sidebarChannelList.classList.toggle("mobile-open");
-      });
-    }
-
-    // 2. Crear Canal Modal
+    // 1. Crear Canal Modal
     const openCreateChannel = () => {
       if (!this.dom.createChannelModal) return;
       this.dom.createChannelModal.classList.remove("hidden");
@@ -658,17 +651,24 @@ export class SettingsModule {
       this.dom.qrShareJson.value = typeof rawJson === "object" ? JSON.stringify(rawJson, null, 2) : String(rawJson || "");
     }
 
-    if (this.dom.qrCanvas && window.QRCode) {
+    if (this.dom.qrCanvas && (window.QRCodeGenerator || window.QRCode)) {
       this.dom.qrCanvas.innerHTML = "";
       try {
-        new QRCode(this.dom.qrCanvas, {
-          text: uri || "meshcore://",
-          width: 180,
-          height: 180,
-          colorDark: "#000000",
-          colorLight: "#ffffff",
-          correctLevel: QRCode.CorrectLevel.M,
-        });
+        if (window.QRCodeGenerator && typeof window.QRCodeGenerator.renderToCanvas === "function") {
+          window.QRCodeGenerator.renderToCanvas(this.dom.qrCanvas, uri || "meshcore://", {
+            size: 180,
+            margin: 8,
+          });
+        } else if (typeof window.QRCode === "function") {
+          new window.QRCode(this.dom.qrCanvas, {
+            text: uri || "meshcore://",
+            width: 180,
+            height: 180,
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            correctLevel: window.QRCode.CorrectLevel ? window.QRCode.CorrectLevel.M : 0,
+          });
+        }
       } catch (err) {
         console.warn("Error generando QR:", err);
       }

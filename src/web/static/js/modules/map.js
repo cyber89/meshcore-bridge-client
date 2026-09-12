@@ -22,6 +22,8 @@ export class MapModule {
     const savedLayer = localStorage.getItem("meshcore_map_layer_mode");
     this.mapLayerMode = (savedLayer === "cartodb" || !savedLayer) ? "dark" : savedLayer;
     this.dom = {};
+    this._hasInitiallyCentered = false;
+    this._userInteractedWithMap = false;
   }
 
   init() {
@@ -72,6 +74,7 @@ export class MapModule {
 
     if (this.dom.btnCenterLocalNode) {
       this.dom.btnCenterLocalNode.addEventListener("click", () => {
+        this._userInteractedWithMap = false;
         this.centerOnLocalNode(14, true);
       });
     }
@@ -92,7 +95,10 @@ export class MapModule {
             if (this.ctx.knownNodes && this.ctx.knownNodes.size > 0) {
               this.updateMapMarkers(Array.from(this.ctx.knownNodes.values()));
             }
-            this.centerOnLocalNode(13, false);
+            if (!this._hasInitiallyCentered) {
+              this.centerOnLocalNode(13, false);
+              this._hasInitiallyCentered = true;
+            }
           } catch (_) {}
         }, 150);
       }
@@ -101,13 +107,19 @@ export class MapModule {
     this.ctx.eventBus.on(EVENTS.NODE_UPDATED, (data) => {
       if (!data && this.ctx.knownNodes) {
         this.updateMapMarkers(Array.from(this.ctx.knownNodes.values()));
-        this.centerOnLocalNode(13, false);
+        if (!this._hasInitiallyCentered) {
+          this.centerOnLocalNode(13, false);
+          this._hasInitiallyCentered = true;
+        }
       } else if (Array.isArray(data)) {
         this.updateMapMarkers(data);
-        this.centerOnLocalNode(13, false);
+        if (!this._hasInitiallyCentered) {
+          this.centerOnLocalNode(13, false);
+          this._hasInitiallyCentered = true;
+        }
       } else if (data && typeof data === "object") {
         this.updateSingleNodeMarker(data);
-        if (data.is_local || data.role === "LOCAL") {
+        if ((data.is_local || data.role === "LOCAL") && !this._userInteractedWithMap) {
           this.centerOnLocalNode(13, false);
         }
       }
@@ -175,7 +187,12 @@ export class MapModule {
       };
 
       this.tacticalRadarGroup = L.layerGroup();
+      this.tacticalRadarGroup.addTo(this.map);
       this.rfHeatmapGroup = L.layerGroup();
+
+      this.map.on("movestart", () => {
+        this._userInteractedWithMap = true;
+      });
 
       this.setMapLayer(this.mapLayerMode || "dark");
 
@@ -530,6 +547,9 @@ export class MapModule {
 
   renderTacticalRadarOverlay() {
     if (!this.map || !this.tacticalRadarGroup) return;
+    if (!this.map.hasLayer(this.tacticalRadarGroup)) {
+      this.tacticalRadarGroup.addTo(this.map);
+    }
     this.tacticalRadarGroup.clearLayers();
 
     let center = this.map.getCenter();

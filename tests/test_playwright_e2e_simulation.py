@@ -13,6 +13,8 @@ import tempfile
 from pathlib import Path
 
 import pytest
+
+playwright = pytest.importorskip("playwright")
 from playwright.async_api import async_playwright
 
 from src.bridge_core import MeshCoreBridge

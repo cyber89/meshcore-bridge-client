@@ -3,8 +3,11 @@ import sys
 import json
 import urllib.request
 import urllib.error
+from pathlib import Path
 
-sys.path.insert(0, r"c:\Users\Ruby\Desktop\meshcore-bridge")
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 from src.bridge_core import MeshCoreBridge
 from src.virtual_mesh_adapter import VirtualMeshAdapter

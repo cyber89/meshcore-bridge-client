@@ -589,4 +589,21 @@
   };
 
   global.QRCodeGenerator = QRCodeGenerator;
+  global.QRCode = function (element, options) {
+    if (typeof options === "string") options = { text: options };
+    options = options || {};
+    const text = options.text || "";
+    let canvas = element;
+    if (element && element.tagName !== "CANVAS") {
+      canvas = element.querySelector("canvas");
+      if (!canvas) {
+        canvas = document.createElement("canvas");
+        element.appendChild(canvas);
+      }
+    }
+    if (canvas) {
+      QRCodeGenerator.renderToCanvas(canvas, text, options);
+    }
+  };
+  global.QRCode.CorrectLevel = { L: 1, M: 0, Q: 3, H: 2 };
 })(typeof window !== "undefined" ? window : this);

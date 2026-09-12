@@ -303,6 +303,16 @@
       'lang.current':      'ES',
       'lang.switch':       '🌐 EN',
       'lang.title':        'Switch to English',
+
+      // App orchestration & status
+      'app.web_online':             'Web: Conectado',
+      'app.web_connecting':         'Web: Conectando…',
+      'app.web_offline':            'Web: Desconectado',
+      'app.radio_online':           'Radio: Conectada ({port})',
+      'app.radio_online_fallback':  'Radio: Conectada',
+      'app.radio_offline':          'Radio: Desconectada',
+      'app.dark_theme_title':       'Cambiar a tema claro',
+      'app.light_theme_title':      'Cambiar a tema oscuro',
     },
 
     en: {
@@ -595,6 +605,16 @@
       'lang.current':      'EN',
       'lang.switch':       '🌐 ES',
       'lang.title':        'Cambiar a Español',
+
+      // App orchestration & status
+      'app.web_online':             'Web: Connected',
+      'app.web_connecting':         'Web: Connecting…',
+      'app.web_offline':            'Web: Disconnected',
+      'app.radio_online':           'Radio: Connected ({port})',
+      'app.radio_online_fallback':  'Radio: Connected',
+      'app.radio_offline':          'Radio: Disconnected',
+      'app.dark_theme_title':       'Switch to light theme',
+      'app.light_theme_title':      'Switch to dark theme',
     },
   };
 

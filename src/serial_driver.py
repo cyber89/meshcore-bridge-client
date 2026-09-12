@@ -229,11 +229,18 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         self.node_registry = node_registry
         self.mc: MeshCoreSDKProtocol | Any = None
         self._initial_sync_task: asyncio.Task[None] | None = None
+        self._self_info: dict[str, Any] | None = None
 
     @property
     def self_info(self) -> Any:
         """Información del nodo local obtenida del SDK."""
+        if self._self_info is not None:
+            return self._self_info
         return getattr(self.mc, "self_info", None) if self.mc else None
+
+    @self_info.setter
+    def self_info(self, value: Any) -> None:
+        self._self_info = value
 
     async def connect(self) -> bool:
         if MeshCore is None:

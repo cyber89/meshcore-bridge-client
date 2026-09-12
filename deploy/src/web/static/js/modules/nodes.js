@@ -399,7 +399,8 @@ export class NodesModule {
           try {
             await fetch(`/api/contacts/${encodeURIComponent(node.public_key)}`, {
               method: "DELETE",
-              headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
+              headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+              body: JSON.stringify({ public_key: node.public_key }),
             });
             cCard.remove();
             if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.contact_deleted'), "info");
@@ -699,5 +700,28 @@ export class NodesModule {
         // Renderizar analítica
       }
     } catch (_) {}
+  }
+
+  updateNodeInDom(arg1, arg2) {
+    const node = (arg2 && typeof arg2 === "object") ? arg2 : (arg1 && typeof arg1 === "object" ? arg1 : null);
+    if (!node) return;
+    if (!node.public_key && typeof arg1 === "string") node.public_key = arg1;
+    if (!node.public_key) return;
+    const pk = String(node.public_key).toLowerCase();
+    const cards = document.querySelectorAll(`[data-pubkey="${pk}"]`);
+    if (!cards || cards.length === 0) {
+      this.renderNodesDirectory();
+      return;
+    }
+    cards.forEach((card) => {
+      const snrEl = card.querySelector(".metric-snr");
+      if (snrEl && node.last_snr != null) snrEl.textContent = `${node.last_snr} dB`;
+      const rssiEl = card.querySelector(".metric-rssi");
+      if (rssiEl && node.last_rssi != null) rssiEl.textContent = `${node.last_rssi} dBm`;
+      const lqiBadge = card.querySelector(".lqi-score");
+      if (lqiBadge && node.lqi_score != null) lqiBadge.textContent = `${Math.round(node.lqi_score)}%`;
+      const timeEl = card.querySelector(".node-last-seen");
+      if (timeEl && node.last_seen != null) timeEl.textContent = this.formatLastSeen(node.last_seen);
+    });
   }
 }

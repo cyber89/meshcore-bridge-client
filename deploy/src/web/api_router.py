@@ -457,7 +457,7 @@ class WebAPIRouter:
             return await self.repeater_ctrl.execute_remote_action(req_body)
         if clean_path in ("/api/repeater/ping_zero", "/api/node/ping_zero") and method == "POST":
             return await self.repeater_ctrl.ping_zero(req_body)
-        if clean_path in ("/api/traceroute", "/api/trace") and method == "POST":
+        if clean_path in ("/api/traceroute", "/api/trace", "/api/repeater/traceroute") and method == "POST":
             return await self.repeater_ctrl.traceroute(req_body)
 
         return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")

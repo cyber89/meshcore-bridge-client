@@ -254,9 +254,10 @@ class MeshCoreWebServer:
         client_ip: str,
     ) -> bool:
         """Inspecciona anomalías perimetrales y previene ataques de Directory Traversal."""
+        path_without_query = path.split("?")[0]
         is_suspicious, anomaly_type, anomaly_detail = SecurityTrafficInspector.inspect_http_request(
             method=method,
-            path=path,
+            path=path_without_query,
             headers=headers,
             body_dict=None,
             client_ip=client_ip,
@@ -451,10 +452,22 @@ class MeshCoreWebServer:
     async def _is_api_auth_valid(self, ctx: HttpRequestContext) -> bool:
         """Verifica la autenticación con BRIDGE_API_KEY si el endpoint está protegido."""
         api_key = os.getenv("BRIDGE_API_KEY", "")
-        protected_prefixes = ("/api/node/reboot", "/api/config/reboot", "/api/admin/", "/api/tx", "/api/repeater/")
+        protected_prefixes = (
+            "/api/node/reboot",
+            "/api/config/reboot",
+            "/api/admin",
+            "/api/tx",
+            "/api/repeater",
+            "/api/config/radio",
+            "/api/node/config/radio",
+        )
         needs_auth = False
-        if any(ctx.path.startswith(p) for p in protected_prefixes):
-            if not (ctx.path.startswith("/api/nodes") and ctx.method == "GET"):
+        clean_p = ctx.path.split("?")[0]
+        if any(clean_p.startswith(p) for p in protected_prefixes):
+            if not (clean_p.startswith("/api/nodes") and ctx.method == "GET"):
+                needs_auth = True
+        elif ctx.method in ("POST", "PUT", "DELETE", "PATCH"):
+            if clean_p.startswith(("/api/channels", "/api/contacts", "/api/packets/clear", "/api/system/logs/level")):
                 needs_auth = True
 
         if not needs_auth:

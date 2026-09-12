@@ -6086,3 +6086,115 @@ body {
 .airtime-progress-bar-fill.danger {
   background-color: #ef4444 !important;
 }
+
+/* ==============================================================================
+   🗺️ TRACEROUTE VISUAL GRAPH & TERMINAL STYLES (B-18)
+   ============================================================================== */
+.trace-visual-graph {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 16px 12px;
+  background: var(--bg-surface-secondary, rgba(15, 23, 42, 0.6));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  border-radius: var(--radius-md, 8px);
+  min-height: 100px;
+}
+
+.trace-node-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 72px;
+  text-align: center;
+}
+
+.trace-node-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  background: var(--bg-surface-elevated, #1e293b);
+  border: 2px solid var(--border-color, #334155);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s ease;
+}
+
+.trace-node-circle.start {
+  border-color: var(--accent-success, #22c55e);
+  background: rgba(34, 197, 94, 0.15);
+}
+
+.trace-node-circle.target {
+  border-color: var(--accent-primary, #0ea5e9);
+  background: rgba(14, 165, 233, 0.15);
+}
+
+.trace-node-circle.repeater {
+  border-color: var(--accent-warning, #f59e0b);
+  background: rgba(245, 158, 11, 0.15);
+}
+
+.trace-node-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-bright, #f8fafc);
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trace-node-snr {
+  font-size: 10px;
+  color: var(--text-muted, #94a3b8);
+}
+
+.trace-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-primary, #0ea5e9);
+  font-size: 18px;
+  opacity: 0.8;
+  padding: 0 4px;
+}
+
+/* Terminal output styles */
+.term-line {
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 2px 4px;
+  border-radius: 2px;
+  word-break: break-all;
+}
+
+.term-cmd {
+  color: var(--accent-primary, #38bdf8);
+  font-weight: 600;
+}
+
+.term-resp {
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.term-success {
+  color: var(--accent-success, #4ade80);
+}
+
+.term-error {
+  color: var(--accent-danger, #f87171);
+}
+
+.term-info {
+  color: var(--text-muted, #94a3b8);
+}
+

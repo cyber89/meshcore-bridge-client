@@ -236,38 +236,76 @@ MeshCore soporta hasta **8 canales concurrentes** (Canales 0 al 7):
 
 ---
 
-## 9. Comandos Seriales Host $\leftrightarrow$ Radio (`CommandType` y `PushCode`)
+## 9. Comandos Seriales Host $\leftrightarrow$ Radio (`CommandType` y `PacketType`)
 
-### Comandos del Host hacia la Radio (`packets.py`):
-| Código | OpCode | Descripción |
+### Comandos del Host hacia la Radio (`meshcore_py/packets.py` - `CommandType`):
+| Código (Dec / Hex) | Mnemónico | Descripción |
 | :--- | :--- | :--- |
-| `0x01` | `APP_START` | Inicializa la sesión y consulta capabilities del hardware |
-| `0x02` | `SET_RADIO` | Configura frecuencia (Hz), BW (kHz), SF y CR |
-| `0x03` | `SET_PARAMS` | Modifica potencia TX (dBm), Hop Limit y timeouts |
-| `0x04` | `GET_CONTACTS` | Solicita la descarga de la libreta de contactos almacenada |
-| `0x05` | `SEND_TXT_MSG` | Transmite mensaje de texto directo hacia una clave pública |
-| `0x06` | `SEND_CHAN_MSG` | Transmite mensaje de texto hacia un índice de canal |
-| `0x07` | `SET_CHANNEL` | Guarda o actualiza un canal (índice, nombre, clave PSK) |
-| `0x08` | `SEND_DEVICE_QUERY` | Consulta telemetría de hardware, versión y voltaje |
-| `0x09` | `UPDATE_CONTACT` | Añade o actualiza un contacto en la memoria flash |
-| `0x0D` | `RESET_PATH` | Reinicia la ruta de saltos guardada para un nodo |
-| `0x0F` | `REMOVE_CONTACT` | Elimina un contacto de la memoria flash del nodo |
-| `0x10` | `SHARE_CONTACT` | Comparte una tarjeta de contacto por radio |
-| `0x11` | `EXPORT_CONTACT` | Genera URI `meshcore://contact?...` del nodo o contacto |
-| `0x12` | `IMPORT_CONTACT` | Importa una tarjeta de contacto desde datos binarios o URI |
-| `0x1E` | `GET_CONTACT_BY_KEY` | Consulta un contacto específico por su clave pública |
-| `0x3A` | `SET_AUTOADD_CONFIG` | Configura la máscara de auto-adición de nodos |
+| `1` / `0x01` | `APP_START` | Inicializa la sesión y handshake con la radio |
+| `2` / `0x02` | `SEND_TXT_MSG` | Transmite mensaje de texto directo a una clave pública (DM) |
+| `3` / `0x03` | `SEND_CHANNEL_TXT_MSG` | Transmite mensaje de texto a un índice de canal |
+| `4` / `0x04` | `GET_CONTACTS` | Solicita la libreta de contactos almacenada en el nodo |
+| `5` / `0x05` | `GET_DEVICE_TIME` | Consulta la hora del RTC del transceptor |
+| `6` / `0x06` | `SET_DEVICE_TIME` | Sincroniza la hora del transceptor con el host |
+| `7` / `0x07` | `SEND_SELF_ADVERT` | Emite un anuncio de presencia (*advert*) por RF |
+| `8` / `0x08` | `SET_ADVERT_NAME` | Configura el nombre / alias de difusión del nodo |
+| `9` / `0x09` | `ADD_UPDATE_CONTACT` | Añade o actualiza un contacto en memoria flash |
+| `10` / `0x0A` | `SYNC_NEXT_MESSAGE` | Solicita el siguiente mensaje pendiente en buffer |
+| `11` / `0x0B` | `SET_RADIO_PARAMS` | Configura parámetros LoRa (frecuencia, BW, SF, CR) |
+| `12` / `0x0C` | `SET_RADIO_TX_POWER`| Configura la potencia de transmisión de RF (dBm) |
+| `13` / `0x0D` | `RESET_PATH` | Reinicia la ruta multi-salto guardada para un contacto |
+| `14` / `0x0E` | `SET_ADVERT_LATLON` | Configura latitud y longitud fijas del nodo |
+| `15` / `0x0F` | `REMOVE_CONTACT` | Elimina un contacto de la memoria del transceptor |
+| `16` / `0x10` | `SHARE_CONTACT` | Comparte una tarjeta de contacto por radio LoRa |
+| `17` / `0x11` | `EXPORT_CONTACT` | Genera URI `meshcore://contact?...` exportable |
+| `18` / `0x12` | `IMPORT_CONTACT` | Importa una tarjeta de contacto desde datos / URI |
+| `19` / `0x13` | `REBOOT` | Reinicia el microcontrolador del transceptor |
+| `20` / `0x14` | `GET_BATT_AND_STORAGE`| Consulta nivel de batería y almacenamiento libre |
+| `21` / `0x15` | `SET_TUNING_PARAMS` | Aplica parámetros de calibración de radio |
+| `22` / `0x16` | `DEVICE_QUERY` | Consulta información y versión de firmware |
+| `23` / `0x17` | `EXPORT_PRIVATE_KEY`| Exporta la clave privada de identidad del nodo |
+| `24` / `0x18` | `IMPORT_PRIVATE_KEY`| Importa una clave privada de identidad al nodo |
+| `25` / `0x19` | `SEND_RAW_DATA` | Transmite payload binario sin enmarcado previo |
+| `26` / `0x1A` | `SEND_LOGIN` | Envía credencial de autenticación a un repetidor |
+| `27` / `0x1B` | `SEND_STATUS_REQ` | Consulta estado operativo a un nodo remoto |
+| `28` / `0x1C` | `HAS_CONNECTION` | Verifica estado de conexión con un nodo |
+| `29` / `0x1D` | `LOGOUT` | Cierra sesión administrativa remota |
+| `30` / `0x1E` | `GET_CONTACT_BY_KEY`| Consulta contacto específico por clave pública |
+| `31` / `0x1F` | `GET_CHANNEL` | Consulta configuración de un canal específico |
+| `32` / `0x20` | `SET_CHANNEL` | Guarda o actualiza un canal (nombre, PSK) |
+| `36` / `0x24` | `SEND_TRACE_PATH` | Inicia trazado de ruta de radio (Traceroute) |
+| `39` / `0x27` | `SEND_TELEMETRY_REQ`| Solicita reporte de telemetría a nodo remoto |
+| `46` / `0x2E` | `SET_AUTOADD_CONFIG`| Configura la directiva de auto-adición de nodos |
 
-### Códigos de Notificación Push (Radio $\to$ Host):
-| Código | Mnemónico | Descripción |
+### Notificaciones Asíncronas Push y Respuestas (`PacketType` - Radio $\to$ Host):
+| Código (Dec / Hex) | Mnemónico | Descripción |
 | :--- | :--- | :--- |
-| `0x80` | `PUSH_CODE_ADVERT` | Anuncio de nodo recibido por RF |
-| `0x81` | `PUSH_CODE_MSG` | Mensaje directo entrante recibido |
-| `0x82` | `PUSH_CODE_ANON_REQ` | Solicitud anónima de descubrimiento |
-| `0x86` | `PUSH_CODE_NEW_ADVERT` | Nuevo nodo descubierto que no estaba en libreta |
-| `0x88` | `PUSH_CODE_RAW_CUSTOM` | Trama RF en bruto interceptada (Sniffer / Logs) |
-| `0x89` | `PUSH_CODE_TRACE` | Respuesta de trazado de ruta de radio |
-| `0x8A` | `PUSH_CODE_CHANNEL_MSG`| Mensaje recibido en canal público o privado |
+| `0` / `0x00` | `OK` | ACK positivo a comando ejecutado con éxito |
+| `1` / `0x01` | `ERROR` | NACK o error de procesamiento de comando |
+| `2` / `0x02` | `CONTACT_START` | Inicio de transmisión de contactos almacenados |
+| `3` / `0x03` | `CONTACT` | Datos de un contacto individual (137 bytes) |
+| `4` / `0x04` | `CONTACT_END` | Fin del listado de contactos |
+| `5` / `0x05` | `SELF_INFO` | Identidad, clave pública y configuración local |
+| `6` / `0x06` | `MSG_SENT` | Confirmación de trama transmitida al medio RF |
+| `7` / `0x07` | `CONTACT_MSG_RECV` | Mensaje directo (DM) entrante recibido |
+| `8` / `0x08` | `CHANNEL_MSG_RECV` | Mensaje de canal público/privado entrante recibido |
+| `12` / `0x0C` | `BATTERY` | Reporte de telemetría de batería y voltaje |
+| `13` / `0x0D` | `DEVICE_INFO` | Modelo de hardware y versión de firmware |
+| `16` / `0x10` | `CONTACT_MSG_RECV_V3` | Mensaje DM con cabeceras v3 y métricas RF |
+| `17` / `0x11` | `CHANNEL_MSG_RECV_V3` | Mensaje de canal v3 con métricas RF |
+| `18` / `0x12` | `CHANNEL_INFO` | Información de canal configurado |
+| `128` / `0x80`| `ADVERTISEMENT` | Anuncio de presencia (*advert*) recibido por RF |
+| `129` / `0x81`| `PATH_UPDATE` | Actualización de ruta descubierta |
+| `130` / `0x82`| `ACK` | Reconocimiento de entrega punto a punto |
+| `133` / `0x85`| `LOGIN_SUCCESS` | Confirmación de login en repetidor remoto |
+| `134` / `0x86`| `LOGIN_FAILED` | Fallo de login por clave errónea |
+| `135` / `0x87`| `STATUS_RESPONSE` | Respuesta de estado y telemetría de nodo |
+| `136` / `0x88`| `LOG_DATA` | Registro de log del sistema o evento RF |
+| `137` / `0x89`| `TRACE_DATA` | Datos de salto del trazado de ruta (*Traceroute*) |
+| `138` / `0x8A`| `NEW_ADVERT` | Anuncio de nodo desconocido no presente en libreta |
+| `139` / `0x8B`| `TELEMETRY_RESPONSE`| Telemetría ambiental o hardware recibida |
+| `143` / `0x8F`| `CONTACT_DELETED` | Notificación de contacto purgado |
+| `144` / `0x90`| `CONTACTS_FULL` | Libreta de contactos de hardware llena |
 
 ---
 

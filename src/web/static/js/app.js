@@ -28,6 +28,7 @@ class MeshCoreApp {
     this.dom = {};
 
     // Contexto compartido desacoplado
+    const self = this;
     this.context = {
       eventBus: this.eventBus,
       storage: this.storage,
@@ -46,6 +47,10 @@ class MeshCoreApp {
       centerMapOnCoords: (lat, lon, zoom) => this.mapModule.centerMapOnCoords(lat, lon, zoom),
       centerOnLocalNode: (zoom, showToast) => this.mapModule.centerOnLocalNode(zoom, showToast),
       updateRadioBadge: (ok, port) => this.updateRadioBadge(ok, port),
+      get activeChannelIdx() { return self.chatModule ? self.chatModule.activeChannelIdx : 0; },
+      get activeDmTarget() { return self.chatModule ? self.chatModule.activeDmTarget : null; },
+      renderNodesDirectory: () => self.nodesModule?.renderNodesDirectory?.(),
+      updateNodeInDom: (a, b) => self.nodesModule?.updateNodeInDom?.(a, b),
     };
 
     // Instanciación de módulos especializados
@@ -107,6 +112,8 @@ class MeshCoreApp {
       wsStatus: document.getElementById("ws-status"),
       headerRxCount: document.getElementById("headerRxCount"),
       headerTxCount: document.getElementById("headerTxCount"),
+      headerErrorRate: document.getElementById("headerErrorRate"),
+      headerQueueDepth: document.getElementById("headerQueueDepth"),
     };
   }
 
@@ -244,6 +251,12 @@ class MeshCoreApp {
       if (this.dom.headerTxCount && payload.tx_count != null) {
         this.dom.headerTxCount.textContent = String(payload.tx_count);
       }
+      if (this.dom.headerErrorRate && payload.error_rate != null) {
+        this.dom.headerErrorRate.textContent = `${Number(payload.error_rate).toFixed(1)}%`;
+      }
+      if (this.dom.headerQueueDepth && payload.queue_depth != null) {
+        this.dom.headerQueueDepth.textContent = String(payload.queue_depth);
+      }
       if (payload.radio_connected != null) {
         this.updateRadioBadge(Boolean(payload.radio_connected), payload.radio_port || "");
       }
@@ -256,6 +269,12 @@ class MeshCoreApp {
       }
       if (this.dom.headerTxCount && payload.tx_count != null) {
         this.dom.headerTxCount.textContent = String(payload.tx_count);
+      }
+      if (this.dom.headerErrorRate && payload.error_rate != null) {
+        this.dom.headerErrorRate.textContent = `${Number(payload.error_rate).toFixed(1)}%`;
+      }
+      if (this.dom.headerQueueDepth && payload.queue_depth != null) {
+        this.dom.headerQueueDepth.textContent = String(payload.queue_depth);
       }
       if (payload.radio_connected != null) {
         this.updateRadioBadge(Boolean(payload.radio_connected), payload.radio_port || "");

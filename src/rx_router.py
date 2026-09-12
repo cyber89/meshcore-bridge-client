@@ -552,7 +552,22 @@ class RxEventRouter:
 
     async def _handle_mesh_msg_common(self, msg: MeshMessageEvent, event_type_str: str) -> dict[str, Any] | None:
         extracted_telem = self._ctx.repeater_manager.parse_repeater_telemetry_or_response(msg.text)
-        if extracted_telem:
+        existing_contact = self._ctx.node_registry.get_contact(msg.sender)
+        is_known_client = bool(existing_contact and existing_contact.role == "CLIENT")
+        is_explicit_rep_name = bool(
+            msg.sender_name and (
+                msg.sender_name.upper().startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-", "REP_", "ROUTER_"))
+                or "REPEATER" in msg.sender_name.upper()
+                or "ROUTER" in msg.sender_name.upper()
+            )
+        )
+        should_treat_as_repeater = (
+            (existing_contact and existing_contact.role in ("REPEATER", "ROUTER"))
+            or is_explicit_rep_name
+            or (bool(extracted_telem) and not is_known_client)
+        )
+
+        if extracted_telem and should_treat_as_repeater:
             self._ctx.node_registry.add_or_update(
                 msg.sender,
                 NodeContactUpdate(
@@ -596,12 +611,7 @@ class RxEventRouter:
         sender_contact = self._ctx.node_registry.get_contact(msg.sender)
         is_repeater_sender = (
             (sender_contact and sender_contact.role in ("REPEATER", "ROUTER"))
-            or bool(extracted_telem)
-            or (msg.sender_name and (
-                msg.sender_name.upper().startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-"))
-                or "REPEATER" in msg.sender_name.upper()
-                or "ROUTER" in msg.sender_name.upper()
-            ))
+            or should_treat_as_repeater
         )
         is_cmd_response = (
             msg.txt_type == 1
