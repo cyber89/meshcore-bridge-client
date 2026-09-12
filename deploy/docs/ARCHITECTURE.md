@@ -363,7 +363,15 @@ sequenceDiagram
 | `{prefix}/tx/status` | Sí | No | Notificación de éxito o falla (ACK/NAK de capa L2/L3) al enviar el paquete a los nodos aéreos. |
 | `{prefix}/admin/cmd` | No | Sí | Interfaz de administración remota; acepta comandos CLI puros. |
 | `{prefix}/admin/status` | Sí | No | Proporciona una salida JSON formateada y serializada confirmando los comandos remotos al broker MQTT. |
+| `{prefix}/admin/repeater/{node_id}/cmd` | No | Sí | Comandos remotos específicos para repetidores suscritos vía wildcard (`{prefix}/admin/repeater/+/cmd`). |
 | `{prefix}/admin/repeater/{node_id}/status` | Sí | No | Reportes específicos dirigidos que confirman latencias y estados de repetidores tras comandos remotos por RF. |
 | `{prefix}/admin/repeater/{node_id}/ping_zero` | Sí | No | Información en tiempo real que documenta el nivel L2 (Zero Ping) y RF métricas hacia nodos concretos. |
 | `{prefix}/admin/repeater/{node_id}/trace` | Sí | No | Rutas punto-a-punto decodificadas y saltos en formato Traceroute dirigidos al hub MQTT externo. |
 | `{prefix}/{channel}/public` | Sí | No | Salidas del chat global encriptado a canales MQTT si la función de Forwarder está activa. |
+
+## 10. Seguridad y Resiliencia Perimetral
+
+- **Autenticación API (`BRIDGE_API_KEY`)**: Cuando está configurada, se exige la cabecera `X-Api-Key` o parámetro `?api_key=` en todas las mutaciones (`POST`, `PUT`, `DELETE`, `PATCH`), endpoints de administración, inyección RF (`/api/tx`), descargas de logs (`/api/logs/download`, `/api/logs/raw`) y handshakes de WebSocket. Modo permisivo por defecto para desarrollo local si la variable no está definida.
+- **Límite de Conexiones WebSocket**: Máximo 32 conexiones simultáneas concurrentes para prevenir agotamiento de descriptores de sockets y memoria en SBCs.
+- **Protección de Teselas Cartográficas**: Validación estricta de coordenadas y zoom ($0 \le z \le 22$, $0 \le x < 2^z$, $0 \le y < 2^z$) para evitar desbordamientos de enteros o caídas por desplazamiento negativo de bits.
+- **Protección contra Inyección de Roles**: Los nodos clientes en la red conservan su rol de mensajería; sólo las balizas de firmware oficiales (`FirmwareAdvertType.REPEATER`) o nombres canónicos coincidentes son asignados al rol `REPEATER`.

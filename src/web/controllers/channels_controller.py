@@ -105,6 +105,8 @@ class ChannelsController(BaseController):
             except Exception as e:
                 logging.debug(f"Fallo sincronizando canales del nodo serial: {e}")
 
+    def _get_masked_channels_list(self) -> list[dict[str, Any]]:
+        """Devuelve una lista ordenada de canales con PSK enmascarado por seguridad."""
         channels_list = list(self.channels.values())
         channels_list.sort(key=lambda c: int(c.get("index", 0)))
         masked_list = []
@@ -116,6 +118,33 @@ class ChannelsController(BaseController):
             else:
                 c_dict["has_psk"] = False
             masked_list.append(c_dict)
+        return masked_list
+
+    def _mask_channel(self, ch: dict[str, Any]) -> dict[str, Any]:
+        """Enmascara la PSK de un único canal."""
+        c_dict = dict(ch)
+        if c_dict.get("psk"):
+            c_dict["psk"] = "••••••••"
+            c_dict["has_psk"] = True
+        else:
+            c_dict["has_psk"] = False
+        return c_dict
+
+    async def _get_channels(self) -> tuple[int, dict[str, Any]]:
+        """Devuelve los canales configurados con PSK enmascarada."""
+        ser = getattr(self.ctx.bridge, "serial_adapter", None)
+        if ser and hasattr(ser, "get_channels"):
+            try:
+                node_channels = await ser.get_channels()
+                if node_channels:
+                    for ch in node_channels:
+                        idx = int(ch.get("index", 0))
+                        self.channels[idx] = ch
+                    self._save_channels()
+            except Exception as e:
+                logging.debug(f"Fallo sincronizando canales del nodo serial: {e}")
+
+        masked_list = self._get_masked_channels_list()
         return 200, {"status": "ok", "data": masked_list, "count": len(masked_list)}
 
     async def _create_or_update_channel(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -141,10 +170,10 @@ class ChannelsController(BaseController):
                 logging.debug(f"Error despachando canal al transceptor serial: {e}")
 
         if self.ctx.broadcast_ws:
-            self.ctx.broadcast_ws({"type": "channels_updated", "data": list(self.channels.values())})
+            self.ctx.broadcast_ws({"type": "channels_updated", "data": self._get_masked_channels_list()})
 
         self.ctx.log_system_event("INFO", f"Canal {idx} configurado: {name}", source="channels")
-        return 200, {"status": "ok", "data": self.channels[idx]}
+        return 200, {"status": "ok", "data": self._mask_channel(self.channels[idx])}
 
     async def _delete_channel(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Elimina un canal secundario (1..7)."""
@@ -160,7 +189,7 @@ class ChannelsController(BaseController):
             del self.channels[idx]
             self._save_channels()
             if self.ctx.broadcast_ws:
-                self.ctx.broadcast_ws({"type": "channels_updated", "data": list(self.channels.values())})
+                self.ctx.broadcast_ws({"type": "channels_updated", "data": self._get_masked_channels_list()})
             return 200, {"status": "ok", "message": f"Canal {idx} eliminado"}
 
         return problem_details(404, "Not Found", f"Canal {idx} no encontrado", "channel_not_found")

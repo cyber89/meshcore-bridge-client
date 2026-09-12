@@ -432,6 +432,11 @@ class MeshCoreWebServer:
                 x = int(parts[1])
                 y_raw = parts[2].split(".")[0]
                 y = int(y_raw)
+                if not (0 <= z <= 22):
+                    return False
+                max_coord = 1 << z
+                if not (0 <= x < max_coord and 0 <= y < max_coord):
+                    return False
                 status_code, tile_bytes, mime = self.tile_service.get_tile(z, x, y)
                 if status_code == 200 and tile_bytes:
                     await self._write_http_response(
@@ -445,7 +450,7 @@ class MeshCoreWebServer:
                         ),
                     )
                     return True
-            except ValueError:
+            except (ValueError, TypeError, OverflowError):
                 pass
         return False
 
@@ -461,14 +466,20 @@ class MeshCoreWebServer:
             "/api/config/radio",
             "/api/node/config/radio",
         )
+        sensitive_read_paths = (
+            "/api/logs/download",
+            "/api/logs/raw",
+            "/api/diagnostics/export",
+        )
         needs_auth = False
         clean_p = ctx.path.split("?")[0]
         if any(clean_p.startswith(p) for p in protected_prefixes):
             if not (clean_p.startswith("/api/nodes") and ctx.method == "GET"):
                 needs_auth = True
-        elif ctx.method in ("POST", "PUT", "DELETE", "PATCH"):
-            if clean_p.startswith(("/api/channels", "/api/contacts", "/api/packets/clear", "/api/system/logs/level")):
-                needs_auth = True
+        elif clean_p in sensitive_read_paths:
+            needs_auth = True
+        elif ctx.method in ("POST", "PUT", "DELETE", "PATCH") and clean_p.startswith("/api/"):
+            needs_auth = True
 
         if not needs_auth:
             return True
@@ -478,6 +489,11 @@ class MeshCoreWebServer:
             return True
 
         req_api_key = ctx.headers.get("x-api-key", "")
+        if not req_api_key and "?" in ctx.path:
+            for param in ctx.path.split("?", 1)[1].split("&"):
+                if param.startswith("api_key="):
+                    req_api_key = param.split("=", 1)[1]
+
         if not hmac.compare_digest(req_api_key, api_key):
             SecurityTrafficInspector.log_suspicious_traffic(
                 SuspiciousTrafficEvent(
@@ -524,6 +540,41 @@ class MeshCoreWebServer:
 
     async def _handle_websocket_handshake(self, ctx: HttpRequestContext, sec_key: str) -> None:
         """Ejecuta el handshake RFC 6455 de WebSocket y mantiene el bucle de escucha."""
+        if len(self.active_websockets) >= 32:
+            SecurityTrafficInspector.log_suspicious_traffic(
+                SuspiciousTrafficEvent(
+                    client_ip=ctx.client_ip,
+                    source_type="WEBSOCKET",
+                    endpoint=ctx.path,
+                    anomaly_type="CONEXIONES_WS_AGOTADAS",
+                    detail="Límite máximo de 32 conexiones concurrentes WebSocket alcanzado",
+                    user_agent=ctx.headers.get("user-agent", ""),
+                )
+            )
+            await self._write_http_response(ctx.writer, "429 Too Many Requests", b"429 Too Many Requests - WS Limit Reached")
+            return
+
+        api_key = os.getenv("BRIDGE_API_KEY", "")
+        if api_key:
+            ws_key = ctx.headers.get("x-api-key", "")
+            if not ws_key and "?" in ctx.path:
+                for param in ctx.path.split("?", 1)[1].split("&"):
+                    if param.startswith("api_key="):
+                        ws_key = param.split("=", 1)[1]
+            if not hmac.compare_digest(ws_key, api_key):
+                SecurityTrafficInspector.log_suspicious_traffic(
+                    SuspiciousTrafficEvent(
+                        client_ip=ctx.client_ip,
+                        source_type="WEBSOCKET",
+                        endpoint=ctx.path,
+                        anomaly_type="AUTENTICACION_WS_FALLIDA",
+                        detail="Handshake WebSocket rechazado por API Key ausente o inválida",
+                        user_agent=ctx.headers.get("user-agent", ""),
+                    )
+                )
+                await self._write_http_response(ctx.writer, "401 Unauthorized", b"401 Unauthorized")
+                return
+
         await self._send_websocket_handshake_response(ctx.writer, sec_key)
         self.active_websockets.add(ctx.writer)
         SecurityTrafficInspector.log_websocket_connection(

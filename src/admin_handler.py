@@ -50,6 +50,7 @@ class AdminContext:
     mqtt: AsyncBridgeMQTTClient
     execute_tx: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
     web_server: Any = None
+    serial_adapter: Any = None
     last_rx_rssi: int | None = None
     last_rx_snr: float | None = None
     rate_limiter: Any = None
@@ -142,16 +143,22 @@ class AdminCommandHandler:
             k_lower = k.lower()
             is_match = (
                 k_lower == s_clean
-                or (len(k_lower) >= 4 and s_clean.startswith(k_lower))
-                or (len(s_clean) >= 4 and k_lower.startswith(s_clean))
+                or (len(k_lower) >= 8 and s_clean.startswith(k_lower))
+                or (len(s_clean) >= 8 and k_lower.startswith(s_clean))
                 or (bool(tag_clean) and k_lower == tag_clean)
             )
             if is_match:
-                waiters = self._ping_waiters.pop(k, [])
-                for fut in waiters:
+                waiters = self._ping_waiters.get(k, [])
+                while waiters:
+                    fut = waiters.pop(0)
                     if not fut.done():
                         fut.set_result(data)
                         matched = True
+                        break
+                if not waiters:
+                    self._ping_waiters.pop(k, None)
+                if matched:
+                    break
         return matched
 
     def notify_command_response(self, sender_or_data: Any, data: dict[str, Any] | None = None) -> bool:
@@ -178,26 +185,28 @@ class AdminCommandHandler:
             is_match = (
                 k_lower == s_clean
                 or canon_k == canon_sender
-                or (len(k_lower) >= 4 and s_clean.startswith(k_lower))
-                or (len(s_clean) >= 4 and k_lower.startswith(s_clean))
-                or (len(canon_k) >= 4 and canon_sender.startswith(canon_k))
-                or (len(canon_sender) >= 4 and canon_k.startswith(canon_sender))
+                or (len(k_lower) >= 8 and s_clean.startswith(k_lower))
+                or (len(s_clean) >= 8 and k_lower.startswith(s_clean))
+                or (len(canon_k) >= 8 and canon_sender.startswith(canon_k))
+                or (len(canon_sender) >= 8 and canon_k.startswith(canon_sender))
                 or (bool(tag_clean) and k_lower == tag_clean)
             )
             if is_match:
-                waiters = self._cmd_waiters.pop(k, [])
-                for fut in waiters:
+                waiters = self._cmd_waiters.get(k, [])
+                while waiters:
+                    fut = waiters.pop(0)
                     if not fut.done():
                         fut.set_result(data)
                         matched = True
+                        break
+                if not waiters:
+                    self._cmd_waiters.pop(k, None)
+                if matched:
+                    break
         return matched
 
     def _resolve_target(self, name_or_key: str, min_hex_len: int = 12) -> Any:
-        """Resuelve un identificador de destino a clave pública o contacto SDK.
-
-        Delega a TargetResolver (Single Source of Truth) para evitar
-        duplicación de lógica con serial_driver.py.
-        """
+        """Resuelve el identificador de un nodo a su clave de radio."""
         resolver = TargetResolver(
             mc_provider=self._ctx.mc_provider,
             node_registry=self._ctx.node_registry,
@@ -220,6 +229,7 @@ class AdminCommandHandler:
                     await mc.commands.get_msg(timeout=0.8)
                     if fut.done():
                         return fut.result()
+                    await asyncio.sleep(0.05)
                 except Exception:
                     await asyncio.sleep(0.15)
             else:

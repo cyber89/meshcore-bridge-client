@@ -11,6 +11,7 @@ from typing import Any
 
 from src.contact_manager import NodeContactUpdate, NodeDiscoveryEvent, is_valid_node_key
 from src.routers.base import BaseRxHandler, RxMeta
+from src.shared_utils import is_repeater_name
 
 
 def _get_coord(data: dict[str, Any], keys: tuple[str, ...]) -> float | None:
@@ -95,7 +96,7 @@ class AdvertHandler(BaseRxHandler):
             c_raw_type = c_item.get("type", c_item.get("adv_type", 1))
             c_name_upper = c_name.upper()
 
-            if c_raw_type == 2 or c_name_upper.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-")) or "REPEATER" in c_name_upper or "ROUTER" in c_name_upper:
+            if c_raw_type == 2 or is_repeater_name(c_name):
                 c_role = "REPEATER"
             elif c_raw_type == 3 or "ROOM" in c_name_upper or "BBS" in c_name_upper:
                 c_role = "ROOM"

@@ -33,6 +33,7 @@ from src.sensor_decoder import (
     extract_telemetry_fields,
     format_telemetry_summary,
 )
+from src.shared_utils import is_repeater_name
 
 _SENDER_PREFIX_RE = re.compile(
     r"^(?:\[([a-zA-Z0-9_\-\.]{2,32})\]|<([a-zA-Z0-9_\-\.]{2,32})>|([a-zA-Z0-9_\-\.]{2,32})):\s*(.*)$",
@@ -122,7 +123,7 @@ def is_command_or_system_message(text: str, txt_type: int = 0) -> bool:
 
     # Normalizar si contiene prefijos de prompt como "-> ", "- > ", "> "
     if clean_lower.startswith(("->", "- >", ">")):
-        clean_lower = clean_lower.lstrip("-> ").strip()
+        clean_lower = re.sub(r"^(?:->|- >|>)\s*", "", clean_lower)
 
     if clean_lower.startswith(_SYSTEM_PREFIXES) or clean_lower in _SYSTEM_EXACT_MATCHES:
         return True
@@ -479,11 +480,7 @@ class RxEventRouter:
             elif v_flt >= 3.0:
                 bat_pct = max(0, min(100, int((v_flt - 3.3) / (4.2 - 3.3) * 100)))
 
-        sender_name_cand = (sender_name or "").upper()
-        is_named_rep = (
-            sender_name_cand.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-", "REP_", "ROUTER_"))
-            or "REPEATER" in sender_name_cand or "ROUTER" in sender_name_cand or "REPETIDOR" in sender_name_cand
-        )
+        is_named_rep = is_repeater_name(sender_name)
 
         role_val = payload_dict.get("role")
         if not role_val:
@@ -551,20 +548,15 @@ class RxEventRouter:
         return str(self._ctx.serial_adapter.resolve_sender_name(prefix_or_key))
 
     async def _handle_mesh_msg_common(self, msg: MeshMessageEvent, event_type_str: str) -> dict[str, Any] | None:
+        if self._ctx.node_registry.is_local_key(msg.sender):
+            return None
+
         extracted_telem = self._ctx.repeater_manager.parse_repeater_telemetry_or_response(msg.text)
         existing_contact = self._ctx.node_registry.get_contact(msg.sender)
-        is_known_client = bool(existing_contact and existing_contact.role == "CLIENT")
-        is_explicit_rep_name = bool(
-            msg.sender_name and (
-                msg.sender_name.upper().startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-", "REP_", "ROUTER_"))
-                or "REPEATER" in msg.sender_name.upper()
-                or "ROUTER" in msg.sender_name.upper()
-            )
-        )
-        should_treat_as_repeater = (
+        is_explicit_rep_name = is_repeater_name(msg.sender_name)
+        should_treat_as_repeater = bool(
             (existing_contact and existing_contact.role in ("REPEATER", "ROUTER"))
             or is_explicit_rep_name
-            or (bool(extracted_telem) and not is_known_client)
         )
 
         if extracted_telem and should_treat_as_repeater:
@@ -755,12 +747,10 @@ class RxEventRouter:
                 or payload_dict.get("alias")
                 or self._resolve_sender_name(sender)
             )
-            name_cand_upper = sender_name_cand.upper()
             existing_contact = self._ctx.node_registry.get_contact(sender)
             is_known_rep = bool(
                 (existing_contact and existing_contact.role in ("REPEATER", "ROUTER"))
-                or name_cand_upper.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-", "REP_", "ROUTER_"))
-                or "REPEATER" in name_cand_upper or "ROUTER" in name_cand_upper or "REPETIDOR" in name_cand_upper
+                or is_repeater_name(sender_name_cand)
             )
 
             raw_telem_bat = payload_dict.get("battery_pct", payload_dict.get("battery", payload_dict.get("batt", payload_dict.get("bat"))))
@@ -989,13 +979,14 @@ class RxEventRouter:
                 if isinstance(frame.payload, TextMessagePayload):
                     if not is_common_chat_message(frame.payload.text):
                         return
-                    if frame.payload.channel_idx == 0:
-                        self._ctx.mqtt.publish_safe(config.TOPIC_RX_PUBLIC, evt_json, qos=0)
-                    else:
-                        self._ctx.mqtt.publish_safe(f"{config.TOPIC_RX_CHANNEL}/ch_{frame.payload.channel_idx}", evt_json, qos=0)
-
-                    src_hex = f"0x{frame.header.src_node_id:04X}"
-                    self._ctx.mqtt.publish_safe(f"{config.TOPIC_RX_DIRECT}/{src_hex}", evt_json, qos=0)
+                    if frame.header.packet_type == PacketType.CHANNEL_MSG_RECV:
+                        if frame.payload.channel_idx == 0:
+                            self._ctx.mqtt.publish_safe(config.TOPIC_RX_PUBLIC, evt_json, qos=0)
+                        else:
+                            self._ctx.mqtt.publish_safe(f"{config.TOPIC_RX_CHANNEL}/ch_{frame.payload.channel_idx}", evt_json, qos=0)
+                    elif frame.header.packet_type == PacketType.CONTACT_MSG_RECV:
+                        src_hex = f"0x{frame.header.src_node_id:04X}"
+                        self._ctx.mqtt.publish_safe(f"{config.TOPIC_RX_DIRECT}/{src_hex}", evt_json, qos=0)
 
             logging.info(
                 f"[RX-FRAME] De: 0x{frame.header.src_node_id:04X} -> Para: 0x{frame.header.dst_node_id:04X} | "

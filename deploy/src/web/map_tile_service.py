@@ -69,6 +69,13 @@ class MapTileService:
         Recupera los bytes de una tesela XYZ específica.
         Busca primero en directorios XYZ y posteriormente en archivos MBTiles indexados.
         """
+        # Validación estricta de límites de zoom (0..22) y coordenadas Web Mercator
+        if not (0 <= z <= 22):
+            return 404, b"", "text/plain"
+        max_coord = 1 << z
+        if not (0 <= x < max_coord and 0 <= y < max_coord):
+            return 404, b"", "text/plain"
+
         # 1. Búsqueda en directorio de archivos sueltos XYZ (data/maps/tiles/{z}/{x}/{y}.ext)
         for ext in ("png", "jpg", "jpeg", "webp", "pbf"):
             tile_path = self.tiles_dir / str(z) / str(x) / f"{y}.{ext}"

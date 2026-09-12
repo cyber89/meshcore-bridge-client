@@ -135,8 +135,8 @@ class AsyncBridgeMQTTClient:
                 pass
 
         try:
-            self.client.loop_stop()
             self.client.disconnect()
+            self.client.loop_stop()
         except Exception:
             pass
         self.is_connected = False
@@ -197,8 +197,13 @@ class AsyncBridgeMQTTClient:
             self.client.publish(self.topic_state, online_payload, qos=1, retain=True)
 
             # Suscribir a tópicos de entrada
-            self.client.subscribe([(self.topic_tx, 1), (self.topic_admin_cmd, 1)])
-            logging.info(f"Suscrito a: {self.topic_tx} y {self.topic_admin_cmd}")
+            subscriptions = [
+                (self.topic_tx, 1),
+                (self.topic_admin_cmd, 1),
+                (f"{config.TOPIC_ADMIN_REPEATER}/+/cmd", 1),
+            ]
+            self.client.subscribe(subscriptions)
+            logging.info(f"Suscrito a: {self.topic_tx}, {self.topic_admin_cmd} y {config.TOPIC_ADMIN_REPEATER}/+/cmd")
         else:
             self.is_connected = False
             logging.error(f"Fallo de conexión MQTT (rc: {rc})")

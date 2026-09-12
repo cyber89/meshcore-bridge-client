@@ -130,8 +130,8 @@ class TracerouteExecutor:
             "hop_index": 0,
             "pubkey": cfg.get("public_key", "local"),
             "name": cfg.get("name", "Estación Base"),
-            "snr_in": 12.0,
-            "snr_out": 12.0,
+            "snr_in": None,
+            "snr_out": None,
             "rtt_segment_ms": 0.0,
         })
 
@@ -140,13 +140,13 @@ class TracerouteExecutor:
         for idx, hop_key in enumerate(path_list, start=1):
             n_info = self._find_node_info(hop_key)
             h_name = (n_info.get("name") or n_info.get("alias")) if n_info else f"Repetidor {hop_key[:6]}"
-            h_snr = float(n_info.get("last_snr") or 8.5) if n_info else 8.5
+            h_snr = float(n_info["last_snr"]) if n_info and n_info.get("last_snr") is not None else None
             hops.append({
                 "hop_index": idx,
                 "pubkey": hop_key,
                 "name": h_name,
                 "snr_in": h_snr,
-                "snr_out": max(2.0, h_snr - 1.5),
+                "snr_out": h_snr,
                 "rtt_segment_ms": seg_rtt,
             })
 
@@ -154,7 +154,7 @@ class TracerouteExecutor:
         if not path_list or path_list[-1] != target_node:
             d_info = self._find_node_info(target_node)
             d_name = (d_info.get("name") or d_info.get("alias")) if d_info else f"Destino {target_node[:8]}"
-            d_snr = float(d_info.get("last_snr") or 7.0) if d_info else 7.0
+            d_snr = float(d_info["last_snr"]) if d_info and d_info.get("last_snr") is not None else None
             hops.append({
                 "hop_index": len(hops),
                 "pubkey": target_node,

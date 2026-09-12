@@ -397,15 +397,23 @@ export class NodesModule {
         cCard.querySelector(".btn-contact-del")?.addEventListener("click", async () => {
           if (!confirm(I18n.t('nodes.del_confirm').replace('{name}', cleanName))) return;
           try {
-            await fetch(`/api/contacts/${encodeURIComponent(node.public_key)}`, {
+            const res = await fetch(`/api/contacts/${encodeURIComponent(node.public_key)}`, {
               method: "DELETE",
               headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
               body: JSON.stringify({ public_key: node.public_key }),
             });
+            if (!res.ok) {
+              const errData = await res.json().catch(() => ({}));
+              const msg = errData.detail || errData.error || `HTTP ${res.status}`;
+              if (this.ctx.showToast) this.ctx.showToast(`Error: ${msg}`, "error");
+              return;
+            }
             cCard.remove();
+            this.knownNodes.delete(node.public_key.toLowerCase());
             if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.contact_deleted'), "info");
           } catch (e) {
             console.warn("Fallo eliminando contacto:", e);
+            if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.network_error') || "Error de red", "error");
           }
         });
 
@@ -432,7 +440,7 @@ export class NodesModule {
 
         let telemLine2 = `${I18n.t('nodes.route_label')} <strong>${escapeHtml(node.best_route || (node.hops === 0 ? I18n.t('nodes.route_direct') : I18n.t('nodes.route_mesh')))}</strong>`;
         if (node.temperature_c != null) {
-          telemLine2 = `🌡️ <strong>${node.temperature_c}°C</strong> ${node.humidity_pct != null ? `💧 ${node.humidity_pct}%` : ""}`;
+          telemLine2 = `🌡️ <strong>${escapeHtml(String(node.temperature_c))}°C</strong> ${node.humidity_pct != null ? `💧 ${escapeHtml(String(node.humidity_pct))}%` : ""}`;
         } else if (node.owner_name) {
           telemLine2 = `${I18n.t('nodes.owner_label')} <strong>${escapeHtml(node.owner_name)}</strong>`;
         }
@@ -609,6 +617,28 @@ export class NodesModule {
 
   initContactDiscovery() {
     this.fetchDiscoveredContacts();
+    const banner = document.getElementById("discoveryBanner");
+    const countEl = document.getElementById("discoveryCount");
+    const acceptBtn = document.getElementById("btnAcceptAllDiscovered");
+    const discoveredPks = new Set();
+
+    if (acceptBtn && banner) {
+      acceptBtn.addEventListener("click", () => {
+        banner.classList.add("hidden");
+        discoveredPks.clear();
+        if (this.ctx.showToast) this.ctx.showToast("Contactos aceptados en el directorio", "success");
+      });
+    }
+
+    if (this.ctx.eventBus) {
+      this.ctx.eventBus.on("contact_discovered", (evt) => {
+        if (evt && evt.is_new && evt.contact && evt.contact.public_key && banner && countEl) {
+          discoveredPks.add(evt.contact.public_key.toLowerCase());
+          countEl.textContent = String(discoveredPks.size);
+          banner.classList.remove("hidden");
+        }
+      });
+    }
   }
 
   async fetchDiscoveredContacts() {
@@ -708,20 +738,21 @@ export class NodesModule {
     if (!node.public_key && typeof arg1 === "string") node.public_key = arg1;
     if (!node.public_key) return;
     const pk = String(node.public_key).toLowerCase();
-    const cards = document.querySelectorAll(`[data-pubkey="${pk}"]`);
+    const cards = document.querySelectorAll(`[data-pk="${pk}"], [data-pubkey="${pk}"]`);
     if (!cards || cards.length === 0) {
-      this.renderNodesDirectory();
+      this.knownNodes.set(pk, { ...(this.knownNodes.get(pk) || {}), ...node });
+      this.renderNodesDirectory(Array.from(this.knownNodes.values()));
       return;
     }
     cards.forEach((card) => {
-      const snrEl = card.querySelector(".metric-snr");
+      const snrEl = card.querySelector(".metric-snr, .stat-pill:nth-child(2) strong");
       if (snrEl && node.last_snr != null) snrEl.textContent = `${node.last_snr} dB`;
-      const rssiEl = card.querySelector(".metric-rssi");
+      const rssiEl = card.querySelector(".metric-rssi, .stat-pill:nth-child(1) strong");
       if (rssiEl && node.last_rssi != null) rssiEl.textContent = `${node.last_rssi} dBm`;
-      const lqiBadge = card.querySelector(".lqi-score");
+      const lqiBadge = card.querySelector(".lqi-score, .node-meta-sub strong:last-child");
       if (lqiBadge && node.lqi_score != null) lqiBadge.textContent = `${Math.round(node.lqi_score)}%`;
-      const timeEl = card.querySelector(".node-last-seen");
-      if (timeEl && node.last_seen != null) timeEl.textContent = this.formatLastSeen(node.last_seen);
+      const timeEl = card.querySelector(".node-last-seen, .node-card-activity");
+      if (timeEl && node.last_seen != null) timeEl.textContent = this.formatLastSeen(node.last_seen, node.is_local);
     });
   }
 }

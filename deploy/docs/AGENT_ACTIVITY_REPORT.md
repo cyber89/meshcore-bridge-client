@@ -4,6 +4,54 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ---
 
+### Hito: Auditoría Exhaustiva y Resolución Integral de Hallazgos Críticos y Operativos de report.md
+- **Fecha**: 2026-09-12
+- **Estado**: ✅ COMPLETADO (Resolución integral de todos los hallazgos confirmados en report.md: R1-R4, C1, W1-W15, N1-N30, A1-A13. Implementación de thread-safety con locks y snapshots atómicos en NodeRegistry; eliminación de barrido de nodos en DOM en nodes.js; prevención de silenciamiento de chat de usuarios en rx_router.py; separación estricta de tópicos directos y de canal en MQTT; suscripción de comandos de repetidores en MQTT; desalojo de baja prioridad en CustomTxQueue; enmascaramiento seguro de PSK en canales; autenticación perimetral estricta en mutaciones y endpoints sensibles; límite de 32 WebSockets; protección contra desbordamiento de teselas cartográficas; cableado completo de terminal interactiva, paleta de comandos, IndexedDB y GPS; generación de claves con window.crypto.getRandomValues).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 4 (Web Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - El usuario solicitó: "/plan utilizando los agentes, skills y herramientas disponibles. haz un analisis detallado del fichero report.md comprueba que los problemas encontrados en el reporte son reales y dales solucion. Ten presente documentar los cambios y comprobar que las modificaciones no generen problemas en la app".
+- **Resoluciones Implementadas por Componente**:
+  1. **Concurrencia y Thread-Safety (`src/contact_manager.py`) [R1, N17, N22]**:
+     - `NodeRegistry` dotado de `threading.Lock()` protegiendo accesos concurrentes entre el event loop de asyncio y threads auxiliares (`asyncio.to_thread`).
+     - `list_nodes()` genera snapshots atómicos (`list(self._nodes_by_key.values())`) bajo el lock, eliminando `RuntimeError: dictionary changed size during iteration`.
+     - `save_to_file()` toma snapshots seguros y persiste atómicamente mediante archivos temporales con PID y nano-timestamp (`f"{stem}_{os.getpid()}_{time.time_ns()}.tmp"`).
+     - `set_local_pubkey()` y `cleanup_inactive()` operan de forma thread-safe bajo el lock.
+  2. **Interrupción de UI y Barrido del DOM en Frontend (`src/web/static/js/modules/nodes.js`) [R2, W5, W6]**:
+     - `updateNodeInDom`: Corregido selector a `[data-pk="${pk}"], [data-pubkey="${pk}"]`, resolviendo la causa raíz de R2.
+     - Si la tarjeta no existe aún, se preserva el estado en `this.knownNodes` y se re-renderiza pasando la lista completa, evitando que `renderNodesDirectory()` llamado sin argumentos borre los directorios de Nodos y Contactos.
+     - En eliminación de contacto (`.btn-contact-del`): validación `if (!res.ok)` previa a la remoción del elemento DOM con alertas toast.
+     - En `renderNodesDirectory`: sanitización obligatoria con `escapeHtml` para telemetría ambiental (`temperature_c` y `humidity_pct`).
+  3. **Clasificación Errónea y Silenciamiento de Chat (`src/rx_router.py`, `src/shared_utils.py`) [R3, N7, N18, A2]**:
+     - Eliminada la cláusula `(bool(extracted_telem) and not is_known_client)` en `_handle_mesh_msg_common`. Nuevos usuarios con mensajes que contienen palabras similares a telemetría permanecen como `CLIENT` y no se bloquean de la libreta de contactos ni del chat.
+     - Incorporada guarda de origen local: si `node_registry.is_local_key(msg.sender)` es verdadero, el mensaje se ignora previniendo bucles de feedback de radio.
+     - Unificados 11 bloques repetidos de prefijos de repetidores en la función canónica `is_repeater_name(name)` en `src/shared_utils.py`.
+     - En `route_incoming_frame`: mensajes de tipo `CHANNEL_MSG_RECV` ya no se publican erróneamente en el tópico directo `TOPIC_RX_DIRECT`.
+  4. **Persistencia y Caché de Configuración Local (`src/serial_driver.py`, `src/admin/local_config_executor.py`) [R4]**:
+     - `disconnect()` en `BaseSerialAdapter` limpia el estado en caché (`self._self_info = None`).
+     - Al invocar `set_radio`, `LocalConfigExecutor` actualiza de forma síncrona el diccionario local y los atributos `self_info` y `_self_info` del adaptador serial.
+  5. **Resiliencia de Ciclo de Vida y Colas de Transmisión (`src/bridge_core.py`, `src/rate_limiter.py`) [N1, N5, N6, N10]**:
+     - `BridgeCore.stop()` es idempotente mediante bandera `self._is_stopped`, previniendo llamadas recursivas o cancelaciones duplicadas.
+     - Tarea `_cleanup_task` cancelada y esperada ordenadamente en `stop()`.
+     - Señales POSIX (SIGINT/SIGTERM) programan corutina asíncrona que detiene el bridge antes de detener el bucle de eventos.
+     - `CustomTxQueue`: overrides en `put_nowait()` y `put()` para desalojar automáticamente el elemento más antiguo de baja prioridad (`priority >= 2`) cuando la cola está llena, antes de propagar a la cola base de asyncio.
+  6. **Suscripción y Despacho MQTT (`src/mqtt_client.py`, `src/mqtt_dispatcher.py`) [A1, N8, N20]**:
+     - `_on_connect` suscribe automáticamente a `(f"{config.TOPIC_ADMIN_REPEATER}/+/cmd", 1)`, permitiendo recibir comandos remotos de repetidores.
+     - `stop()` en `AsyncBridgeMQTTClient` invoca `disconnect()` antes de `loop_stop()`, garantizando la emisión limpia del paquete de desconexión.
+     - `_handle_tx_request` captura excepciones generales durante la ejecución de futuros TX y publica un payload de error a `TOPIC_TX_STATUS`.
+  7. **Cierre de Sockets y Enmascaramiento de Canales (`src/preflight.py`, `src/web/controllers/channels_controller.py`) [N9, W1]**:
+     - `PreflightChecker` utiliza context managers `with socket.socket(...) as sock:` garantizando el cierre inmediato de descriptores de socket TCP.
+     - `ChannelsController` enmascara PSKs (`"••••••••"`) tanto en respuestas REST (`POST`, `GET`) como en transmisiones en vivo vía WebSockets (`channels_updated`).
+  8. **Seguridad Perimetral HTTP, WebSockets y Teselas (`src/web/http_server.py`, `src/web/map_tile_service.py`) [C1, W2, W3, W4, A13]**:
+     - Todas las peticiones mutativas (`POST`, `PUT`, `DELETE`, `PATCH`) y lecturas sensibles (`/api/logs/download`, `/api/logs/raw`, `/api/diagnostics/export`, `/api/packets`) requieren autenticación cuando `BRIDGE_API_KEY` está configurada.
+     - Límite estricto de concurrencia a un máximo de 32 clientes WebSocket activos (código 429).
+     - Validación estricta de límites de teselas cartográficas ($0 \le z \le 22$, coordenadas dentro de $2^z$) para evitar desbordamientos y caídas de servicio.
+  9. **Cableado de Controles Frontend y Criptografía (`src/web/static/js/modules/settings.js`, `src/web/static/js/app.js`, `index.html`) [W15]**:
+     - `localTerminalForm` implementa `e.preventDefault()` y envía comandos a `/api/admin` con display en la consola interactiva.
+     - Paleta de comandos (Ctrl+K) con filtrado reactivo y ejecución de acciones (`tab-*`, auto-diagnóstico, alternancia de DEBUG, balizas advert).
+     - Cableados controles de vaciado IndexedDB, reindexación de mapas, obtención de GPS por navegador y banner de nuevos nodos descubiertos.
+     - Reemplazo de `Math.random()` por `window.crypto.getRandomValues()` para generación de claves y PSKs.
+     - Inclusión de atributos SRI `integrity` y `crossorigin=""` para Leaflet en `index.html`.
+
 ### Hito: Implementación de 4 Nuevas Skills de Productividad y Herramientas de Calidad Arquitectónica
 - **Fecha**: 2026-09-12
 - **Estado**: ✅ COMPLETADO (Creación e integración de 4 nuevas skills en .agents/skills/: lora-packet-simulator con simulación de malla virtual multi-hop y replay en memoria; asyncio-profiler-leak-detector con medición de latencia del event loop y tracemalloc diferencial; contract-openapi-sync con verificación estática de 29 rutas JS vs 58 rutas REST del backend; domain-adr-keeper para gobernanza de CONTEXT.md y scaffolding de ADRs; auditoría de contratos de Clean Architecture con AST y límites de complejidad de McCabe en pyproject.toml y clean-code-solid; actualización de AGENTS.md y sincronización en /deploy/).

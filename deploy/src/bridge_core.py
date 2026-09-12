@@ -71,6 +71,8 @@ class MeshCoreBridge:
         db_path: str | None = None,
     ) -> None:
         self.running = True
+        self._is_stopped = False
+        self._cleanup_task: asyncio.Task[None] | None = None
         self.start_time = time.time()
         self._custom_loop = loop
 
@@ -218,10 +220,13 @@ class MeshCoreBridge:
             async with self._tasks_lock:
                 self._background_tasks = {t for t in self._background_tasks if not t.done()}
             try:
-                if hasattr(self, "node_registry") and hasattr(self.node_registry, "save_to_file"):
-                    await asyncio.to_thread(self.node_registry.save_to_file)
+                if hasattr(self, "node_registry"):
+                    if hasattr(self.node_registry, "cleanup_inactive"):
+                        await asyncio.to_thread(self.node_registry.cleanup_inactive)
+                    if hasattr(self.node_registry, "save_to_file"):
+                        await asyncio.to_thread(self.node_registry.save_to_file)
             except Exception as e:
-                logging.debug(f"Fallo en guardado periódico de NodeRegistry: {e}")
+                logging.debug(f"Fallo en mantenimiento periódico de NodeRegistry: {e}")
 
     def _create_web_server(self) -> MeshCoreWebServer | None:
         """Crea el servidor HTTP/WebSocket asíncrono si está habilitado por configuración."""
@@ -278,6 +283,7 @@ class MeshCoreBridge:
                 mqtt=self.mqtt,
                 execute_tx=self._execute_tx,
                 web_server=self.web_server,
+                serial_adapter=self.serial_adapter,
                 rate_limiter=self.rate_limiter,
                 counters=self,
                 start_time=self.start_time,
@@ -459,8 +465,19 @@ class MeshCoreBridge:
 
     async def stop(self) -> None:
         """Detención ordenada de todos los subsistemas."""
+        if getattr(self, "_is_stopped", False):
+            return
+        self._is_stopped = True
         logging.info("Deteniendo MeshCore Bridge...")
         self.running = False
+
+        if getattr(self, "_cleanup_task", None) and not self._cleanup_task.done():
+            self._cleanup_task.cancel()
+            try:
+                await self._cleanup_task
+            except (asyncio.CancelledError, Exception):
+                pass
+            self._cleanup_task = None
 
         # Detención resiliente: cada subsistema se cierra independientemente
         # para evitar que un fallo deje zombies activos (BUG-02 fix)
@@ -642,7 +659,8 @@ class MeshCoreBridge:
 
         # Validación de reglas inmutables de destinatario
         clean_txt = text.strip().lower()
-        is_admin_cmd = clean_txt.startswith(("login", "cmd", "set", "get", "reboot", "ping", "trace", "ver", "status", "info"))
+        first_token = clean_txt.split()[0] if clean_txt.split() else ""
+        is_admin_cmd = first_token in ("login", "cmd", "set", "get", "reboot", "ping", "trace", "ver", "status", "info")
 
         if not is_broadcast:
             if self.node_registry.is_local_key(target_str):
@@ -805,7 +823,13 @@ class MeshCoreBridge:
             logging.getLogger("asyncio").setLevel(logging.DEBUG)
 
         def _stop_task() -> None:
-            task = asyncio.create_task(self.stop())
+            async def _async_shutdown() -> None:
+                try:
+                    await self.stop()
+                finally:
+                    loop.stop()
+
+            task = loop.create_task(_async_shutdown())
             self._add_background_task(task)
 
         for sig in (signal.SIGINT, signal.SIGTERM):

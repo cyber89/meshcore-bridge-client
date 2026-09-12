@@ -33,10 +33,9 @@ class PreflightChecker:
     def check_mqtt_broker(self, host: str, port: int, timeout: float = 2.0) -> PreflightCheckResult:
         """Comprueba la disponibilidad del broker MQTT mediante socket TCP directo."""
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(timeout)
-            sock.connect((host, port))
-            sock.close()
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.settimeout(timeout)
+                sock.connect((host, port))
             return PreflightCheckResult(
                 name="Broker MQTT",
                 passed=True,
@@ -67,10 +66,9 @@ class PreflightChecker:
                 host, port_str = addr.split(":", 1)
                 try:
                     p = int(port_str)
-                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    sock.settimeout(2.0)
-                    sock.connect((host, p))
-                    sock.close()
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                        sock.settimeout(2.0)
+                        sock.connect((host, p))
                     return PreflightCheckResult(
                         name="Puerto Serial Remoto TCP",
                         passed=True,

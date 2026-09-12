@@ -154,3 +154,21 @@ def clamp_tx_power(
     """
     min_p, max_p, _ = get_hardware_power_limits(hardware_info, max_tx_power_hint)
     return max(min_p, min(max_p, int(power)))
+
+
+REPEATER_NAME_PREFIXES: tuple[str, ...] = (
+    "R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-", "REP_", "ROUTER_"
+)
+REPEATER_SUBSTRINGS: tuple[str, ...] = (
+    "REPEATER", "ROUTER", "REPETIDOR"
+)
+
+
+def is_repeater_name(name: str | None) -> bool:
+    """Determina si un nombre de nodo corresponde canónicamente a un repetidor según SSoT."""
+    if not name or not isinstance(name, str):
+        return False
+    name_clean = name.strip().upper()
+    if name_clean.startswith(REPEATER_NAME_PREFIXES):
+        return True
+    return any(sub in name_clean for sub in REPEATER_SUBSTRINGS)

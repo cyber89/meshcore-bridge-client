@@ -471,7 +471,7 @@ class RepeaterManager:
             pct_in_paren = bat_m.group(2) if bat_m.lastindex and bat_m.lastindex >= 2 else None
             try:
                 val_num = float(raw_val_str)
-                if "%" in bat_m.group(0) or (val_num <= 100.0 and val_num > 4.5):
+                if "%" in bat_m.group(0) or ("v" not in bat_m.group(0).lower() and 5.0 < val_num <= 100.0 and "." not in raw_val_str):
                     extracted["battery_pct"] = int(val_num)
                 elif val_num > 100.0:  # mV
                     extracted["voltage_v"] = round(val_num / 1000.0, 2)
@@ -479,7 +479,7 @@ class RepeaterManager:
                         extracted["battery_pct"] = int(pct_in_paren)
                     else:
                         extracted["battery_pct"] = max(0, min(100, int((val_num - 3300) / (4200 - 3300) * 100)))
-                else:  # V
+                elif 0.0 < val_num <= 5.5:  # Volts (ej. 3.7V, 4.2V, 4.7V)
                     extracted["voltage_v"] = round(val_num, 2)
                     if pct_in_paren:
                         extracted["battery_pct"] = int(pct_in_paren)
@@ -574,7 +574,7 @@ class RepeaterManager:
         if clock_m:
             extracted["clock"] = clock_m.group(1).strip()
 
-        uptime_m = re.search(r'(?:uptime|up)\s*[:=]?\s*([0-9a-zA-Z\s]+?)(?:,|$|\n)', text, re.IGNORECASE)
+        uptime_m = re.search(r'\b(?:uptime\s*[:=]?\s*|up\s*[:=]\s*)(\d+[0-9a-zA-Z\s:]*?)(?:,|$|\n)', text, re.IGNORECASE)
         if uptime_m:
             extracted["uptime"] = uptime_m.group(1).strip()
 

@@ -193,11 +193,23 @@ class MeshCoreApp {
   }
 
   _initCommandPalette() {
-    const { btnCommandPalette, commandPaletteModal, cmdPaletteInput, btnCloseCmdPalette } = this.dom;
+    const { btnCommandPalette, commandPaletteModal, cmdPaletteInput, cmdPaletteResults } = this.dom;
+    const filterCmdItems = (q) => {
+      const query = (q || "").toLowerCase().trim();
+      document.querySelectorAll("#cmdPaletteResults .cmd-item").forEach((item) => {
+        const text = item.textContent.toLowerCase();
+        item.style.display = (!query || text.includes(query)) ? "" : "none";
+      });
+    };
+
     if (btnCommandPalette && commandPaletteModal) {
       btnCommandPalette.addEventListener("click", () => {
         commandPaletteModal.classList.remove("hidden");
-        if (cmdPaletteInput) cmdPaletteInput.focus();
+        if (cmdPaletteInput) {
+          cmdPaletteInput.value = "";
+          cmdPaletteInput.focus();
+        }
+        filterCmdItems("");
       });
     }
     if (commandPaletteModal) {
@@ -213,13 +225,90 @@ class MeshCoreApp {
         if (commandPaletteModal) {
           commandPaletteModal.classList.toggle("hidden");
           if (!commandPaletteModal.classList.contains("hidden") && cmdPaletteInput) {
+            cmdPaletteInput.value = "";
             cmdPaletteInput.focus();
+            filterCmdItems("");
           }
         }
       } else if (e.key === "Escape" && commandPaletteModal && !commandPaletteModal.classList.contains("hidden")) {
         commandPaletteModal.classList.add("hidden");
       }
     });
+
+    if (cmdPaletteInput) {
+      cmdPaletteInput.addEventListener("input", (e) => {
+        filterCmdItems(e.target.value);
+      });
+    }
+
+    if (cmdPaletteResults) {
+      cmdPaletteResults.addEventListener("click", async (e) => {
+        const item = e.target.closest(".cmd-item");
+        if (!item) return;
+        const action = item.getAttribute("data-action");
+        if (!action) return;
+        if (commandPaletteModal) commandPaletteModal.classList.add("hidden");
+
+        if (action.startsWith("tab-")) {
+          const navBtn = document.querySelector(`.nav-btn[data-tab="${action}"]`);
+          if (navBtn) navBtn.click();
+        } else if (action === "action-diag") {
+          const navBtn = document.querySelector('.nav-btn[data-tab="tab-logs"]');
+          if (navBtn) navBtn.click();
+          try {
+            const res = await fetch("/api/diagnostics/report", {
+              headers: this.getAuthHeaders ? this.getAuthHeaders() : {},
+            });
+            const data = await res.json();
+            this.showToast(data.status === "ok" ? "Auto-diagnóstico completado" : "Error en diagnóstico", data.status === "ok" ? "success" : "error");
+          } catch (err) {
+            this.showToast(`Error: ${err.message}`, "error");
+          }
+        } else if (action === "action-debug-toggle") {
+          try {
+            const res = await fetch("/api/system/logs/level", {
+              method: "POST",
+              headers: this.getAuthHeaders ? this.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+              body: JSON.stringify({ level: "DEBUG" }),
+            });
+            const data = await res.json();
+            this.showToast(`Nivel de log: ${data.level || "DEBUG"}`, "info");
+          } catch (err) {
+            this.showToast(`Error: ${err.message}`, "error");
+          }
+        } else if (action === "action-advert-hop") {
+          try {
+            await fetch("/api/admin", {
+              method: "POST",
+              headers: this.getAuthHeaders ? this.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "advert", hops: 0 }),
+            });
+            this.showToast("Baliza Advert (0 saltos) transmitida", "success");
+          } catch (err) {
+            this.showToast(`Error: ${err.message}`, "error");
+          }
+        } else if (action === "action-advert-flood") {
+          try {
+            await fetch("/api/admin", {
+              method: "POST",
+              headers: this.getAuthHeaders ? this.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "advert", hops: 7 }),
+            });
+            this.showToast("Baliza Advert Flood transmitida", "success");
+          } catch (err) {
+            this.showToast(`Error: ${err.message}`, "error");
+          }
+        } else if (action === "action-advert-clipboard") {
+          const localPk = this.localNodePubkey || (document.getElementById("localNodePubkey")?.value || "");
+          if (localPk) {
+            navigator.clipboard.writeText(`meshcore://node?pubkey=${encodeURIComponent(localPk)}`);
+            this.showToast("Enlace de nodo copiado al portapapeles", "success");
+          } else {
+            this.showToast("Clave de nodo local no disponible", "info");
+          }
+        }
+      });
+    }
   }
 
   _subscribeBus() {

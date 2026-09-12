@@ -190,7 +190,7 @@ export class MapModule {
       this.tacticalRadarGroup.addTo(this.map);
       this.rfHeatmapGroup = L.layerGroup();
 
-      this.map.on("movestart", () => {
+      this.map.on("movestart zoomstart", () => {
         this._userInteractedWithMap = true;
       });
 

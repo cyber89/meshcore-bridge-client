@@ -132,6 +132,16 @@ class RepeaterAdminExecutor:
 
     async def _execute_batch_config(self, req: RemoteRepeaterRequest, res: dict[str, Any]) -> dict[str, Any]:
         """Aplica múltiples parámetros de configuración remota en el repetidor."""
+        can_send, rem_cd = self._ctx.repeater_manager.check_airtime_cooldown(str(req.target_node), is_full_query=True)
+        if not can_send:
+            return {
+                "status": "error",
+                "message": f"Protección de Airtime LoRa activa: Espera {rem_cd}s para reconfiguración",
+                "code": 429,
+                "cooldown_remaining": rem_cd,
+            }
+
+        self._ctx.repeater_manager.record_command_sent(str(req.target_node), is_full_query=True)
         params = req.admin_data.get("params", {})
         dispatched: list[str] = []
 
@@ -139,12 +149,14 @@ class RepeaterAdminExecutor:
             login_cmd = f"cmd login {req.password}"
             await self._ctx.execute_tx({"to": str(req.target_node), "text": login_cmd, "request_id": req.req_id})
             dispatched.append(f"login {'*' * len(req.password)}")
+            await asyncio.sleep(0.35)
 
         for p_key, p_val in params.items():
             cmd_str = self._ctx.repeater_manager.build_repeater_command_payload(f"set_{p_key}", {p_key: p_val})
             if cmd_str:
                 await self._ctx.execute_tx({"to": str(req.target_node), "text": f"cmd {cmd_str}", "request_id": req.req_id})
                 dispatched.append(cmd_str)
+                await asyncio.sleep(0.35)
 
         self._update_local_registry_from_params(str(req.target_node), params)
         res["dispatched_commands"] = dispatched
@@ -279,25 +291,28 @@ class RepeaterAdminExecutor:
             waiter_keys.append(str(target_info["name"]).lower())
 
         self._register_waiters(waiter_keys, fut, include_ping=False)
-        await self._ensure_radio_contact(req.mc, dest_target, "Repeater")
+        try:
+            await self._ensure_radio_contact(req.mc, dest_target, "Repeater")
 
-        rf_ctx = RfExecutionContext(
-            req=req,
-            dest_target=dest_target,
-            dest_login_target=dest_login_target,
-            waiter_keys=waiter_keys,
-            fut=fut,
-            res=res,
-        )
+            rf_ctx = RfExecutionContext(
+                req=req,
+                dest_target=dest_target,
+                dest_login_target=dest_login_target,
+                waiter_keys=waiter_keys,
+                fut=fut,
+                res=res,
+            )
 
-        if req.action in ("login", "auth"):
-            return await self._execute_auth_command(rf_ctx)
+            if req.action in ("login", "auth"):
+                return await self._execute_auth_command(rf_ctx)
 
-        if req.action in ("get_stats_core", "get_stats_radio", "get_stats_packets"):
-            # Expose via binary/anon req logic if supported by SDK, otherwise fallback to unit command
+            if req.action in ("get_stats_core", "get_stats_radio", "get_stats_packets"):
+                # Expose via binary/anon req logic if supported by SDK, otherwise fallback to unit command
+                return await self._execute_unit_command(rf_ctx)
+
             return await self._execute_unit_command(rf_ctx)
-
-        return await self._execute_unit_command(rf_ctx)
+        finally:
+            self._unregister_waiters(waiter_keys, fut, include_ping=False)
 
     async def _execute_auth_command(self, rf_ctx: RfExecutionContext) -> dict[str, Any]:
         """Ejecuta inicio de sesión remoto en el repetidor."""
@@ -429,14 +444,14 @@ class RepeaterAdminExecutor:
         """Asegura que el nodo destino esté presente en la tabla del firmware."""
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "add_contact"):
             try:
-                if isinstance(dest_target, dict):
+                if isinstance(dest_target, dict) and len(str(dest_target.get("public_key", ""))) >= 32:
                     await mc.commands.add_contact(dest_target)
                 elif hasattr(dest_target, "to_radio_dict"):
                     await mc.commands.add_contact(dest_target.to_radio_dict())
-                elif hasattr(dest_target, "public_key"):
+                elif hasattr(dest_target, "public_key") and len(str(dest_target.public_key)) >= 32:
                     await mc.commands.add_contact({"public_key": dest_target.public_key, "name": target_name})
-                elif isinstance(dest_target, str) and len(dest_target) >= 12:
-                    await mc.commands.add_contact({"public_key": (dest_target + "0" * 64)[:64], "name": target_name})
+                elif isinstance(dest_target, str) and len(dest_target) >= 32:
+                    await mc.commands.add_contact({"public_key": dest_target, "name": target_name})
             except Exception as e:
                 logging.debug(f"Asegurando contacto en radio: {e}")
 

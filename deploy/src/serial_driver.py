@@ -366,6 +366,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                 logging.warning(f"Error cerrando MeshCore SDK: {e}")
             finally:
                 self.mc = None
+        self._self_info = None
         self.is_connected = False
 
     def is_hardware_alive(self) -> bool:
@@ -700,6 +701,13 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
     async def _handle_self_info(self, data: Any) -> None:
         """Maneja información del nodo local."""
         logging.debug(f"Self info: {data}")
+        if isinstance(data, dict):
+            if self._self_info is None or not isinstance(self._self_info, dict):
+                self._self_info = dict(data)
+            else:
+                self._self_info.update(data)
+        elif data is not None:
+            self._self_info = data
         if self.rx_callback:
             self.rx_callback(data)
 
@@ -810,11 +818,11 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             # Asegurar contacto en la radio antes de transmitir
             if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "add_contact"):
                 try:
-                    if isinstance(dest_target, str) and len(dest_target) >= 12:
-                        target_name = target_clean if target_clean != dest_target else f"Node_{dest_target[:6]}"
-                        await self.mc.commands.add_contact({"public_key": (dest_target + "0" * 64)[:64], "name": target_name})
-                    elif isinstance(dest_target, dict):
+                    if isinstance(dest_target, dict) and len(str(dest_target.get("public_key", ""))) >= 32:
                         await self.mc.commands.add_contact(dest_target)
+                    elif isinstance(dest_target, str) and len(dest_target) >= 32:
+                        target_name = target_clean if target_clean != dest_target else f"Node_{dest_target[:6]}"
+                        await self.mc.commands.add_contact({"public_key": dest_target, "name": target_name})
                 except Exception as e_ac:
                     logging.debug(f"Asegurando contacto en radio para TX: {e_ac}")
 
@@ -1377,9 +1385,11 @@ class SerialWatchdog:
         self._task: asyncio.Task[None] | None = None
         self._running = False
         self._consecutive_ping_failures = 0
-        self._reconnect_backoff_sec = 5.0
-        self.max_reconnect_attempts = int(os.getenv("MAX_RECONNECT_ATTEMPTS", "0"))
-        self._total_reconnect_attempts = 0
+        try:
+            import config
+            self.max_reconnect_attempts = int(getattr(config, "MAX_RECONNECT_ATTEMPTS", os.getenv("MAX_RECONNECT_ATTEMPTS", "0")))
+        except Exception:
+            self.max_reconnect_attempts = int(os.getenv("MAX_RECONNECT_ATTEMPTS", "0"))
 
     def start(self) -> None:
         if self._task is None or self._task.done():

@@ -1,9 +1,9 @@
-# Reporte de Auditoría Integral — MeshCore Universal Bridge v3.0 Pro
+# Reporte de Auditoría Profunda #2 — MeshCore Universal Bridge v3.0 Pro
 
-**Fecha**: 2026-09-12
-**Alcance**: 106 archivos Python (src/, tests/, scripts/, config.py), 15 archivos JS, index.html, app.css (5.304 líneas), pyproject.toml y documentación (docs/, README, AGENTS.md).
-**Metodología**: Análisis multi-agente (4 auditorías paralelas: módulos core, subsistema web, suite de pruebas, arquitectura/patrones) + verificación manual de cada hallazgo CRÍTICO/ALTO + compilación de sintaxis completa.
-**Modo**: Solo lectura. No se modificó ningún archivo de producción ni se ejecutaron pruebas.
+**Fecha**: 2026-09-12 (2ª ronda)
+**Base auditada**: HEAD post-commit `f61d91f` ("fix: resolve verified audit findings from report.md") + commits posteriores de skills/docs.
+**Alcance**: Re-auditoría completa con mayor profundidad: 4 auditorías secuenciales especializadas (core backend, subsistema web, suite de pruebas, arquitectura/scripts/deploy) + verificación manual de todos los hallazgos CRÍTICOS/ALTOS nuevos.
+**Modo**: Solo lectura. No se modificó código ni se ejecutaron pruebas.
 
 ---
 
@@ -11,304 +11,254 @@
 
 | Indicador | Resultado |
 |---|---|
-| Compilación Python (`py_compile`) | **106/106 OK** — sin código truncado ni errores de sintaxis |
-| Sintaxis JavaScript (`node --check`) | **15/15 OK** — sin errores |
-| Estado de pruebas (reportado por docs/AGENT_ACTIVITY_REPORT.md) | 227 pasados, 10 skipped, 0 fallidos |
-| Hallazgos totales | **~145** (4 CRÍTICOS, 16 ALTOS, 37 MEDIOS, ~88 BAJOS) |
-| Verificación del sistema con pruebas existentes | **PARCIAL (~60-65%)** — ver §6 |
-| Cumplimiento arquitectura y patrones | **SÓLIDO (B+)** con desviaciones documentadas — ver §5 |
-| Sincronización `/deploy/` | 100% sincronizado (44+ archivos idénticos, MD5 verificado) |
+| Hallazgos previos corregidos por f61d91f | 12 de ~20 verificados (ver §2) |
+| **Nuevos hallazgos esta auditoría** | **~90** (5 CRÍTICOS, 12 ALTOS, 27 MEDIOS, ~46 BAJOS) |
+| Regresiones introducidas por las correcciones de f61d91f | 4 (2 CRÍTICAS, 2 ALTAS) — ver §3 |
+| Estado de pruebas (docs actualizados) | 247 passed, 10 skipped, 0 failed (~257 instancias con parametrize) |
+| Verificabilidad del sistema | ~55-60% líneas ejecutadas; ~45-50% comportamiento verificable con confianza |
+| deploy/ | 100% sincronizado (hashes verificados) |
+| Arquitectura | Los fixes fueron puntuales y correctos en síntoma, pero **no abordaron causas estructurales** |
 
-**Conclusión general**: El proyecto está **estructuralmente sano** (sin truncados, sin errores de sintaxis, arquitectura en capas bien implementada), pero existen **4 defectos críticos** (1 de seguridad, 3 de lógica), varios **contratos frontend/backend rotos**, y **huecos estructurales de cobertura de pruebas** en las zonas de mayor riesgo (pipeline RX, ciclo de vida del bridge, autenticación web, protección de airtime).
+**Conclusión general**: f61d91f resolvió bien los síntomas urgentes del reporte anterior (C2, C3, A12, A14-GET, parte de la auth), pero **introdujo 2 regresiones críticas nuevas** (race de persistencia por `to_thread` sin lock; `updateNodeInDom` en el frontend que vacía el directorio de nodos), **dejó 3 hallazgos críticos previos sin cerrar** (fail-open de API key, DoS de tiles pre-auth, Leaflet CDN sin SRI) y **agravó la deuda estructural** (la heurística de clasificación de repetidores pasó de 9 a 11 copias divergentes).
 
 ---
 
-## 2. Hallazgos CRÍTICOS (verificados manualmente)
+## 2. Estado de los Hallazgos Previos (verificación commit f61d91f)
 
-### C1. Bypass de autenticación API con `BRIDGE_API_KEY` vacía — fail-open
-- **Archivo**: `src/web/http_server.py:463-465`
+### Corregidos ✅
+| ID previo | Hallazgo | Corrección aplicada |
+|---|---|---|
+| C2 | `UnboundLocalError` en TX broadcast (`is_admin_cmd`) | `bridge_core.py:644-645` — definición movida fuera del bloque condicional ✔ |
+| C3 | Property `self_info` sin setter (AttributeError) | `serial_driver.py:232-243` — setter + cache `_self_info` ✔ (pero ver regresión R2) |
+| A3 (parcial) | `save_to_file` síncrono en `_cleanup_loop` | `bridge_core.py:222` — `asyncio.to_thread` ✔ (pero ver regresión R1: introdujo race) |
+| A7 (parcial) | PSK expuesto en `GET /api/channels` | `channels_controller.py:110-118` — masking `"••••••••"` + `has_psk` ✔ (pero ver N1: fuga por WS persiste) |
+| A12 | Contrato DELETE contactos roto | `contacts_controller.py:45-52,160` — acepta `path_pubkey` de URL; `nodes.js:400-404` envía body ✔ (pero ver R5: sigue sin comprobar `res.ok`) |
+| A8 (parcial) | Fugas de waiters en repeater_executor | try/finally en `_execute_ping_zero`, `_dispatch_rf_command`, `_execute_unit_command` ✔ (huecos residuales, ver R4) |
+| — | Ruta `/api/repeater/traceroute` inexistente | `api_router.py:460` añadida ✔ |
+| — | `test_tile_server.py` ruta absoluta Windows | Corregida a `Path(__file__)` ✔ |
+| — | Cobertura de `src/routers/*` (0 tests) | `test_rx_routers.py` nuevo (20 tests) ✔ (con limitaciones, ver §5) |
+| — | QR Code con wrapper incompatible | `qrcode.js:591-608` — `QRCodeGenerator.renderToCanvas` + fallback `QRCode` con CorrectLevel ✔ |
+| — | Recentrado compulsivo del mapa | `map.js` — `_hasInitiallyCentered` + `_userInteractedWithMap` + listener `movestart` ✔ (hueco: zoom no marca, ver N14) |
+| — | Auth ampliada | `protected_prefixes` + POST/PUT/DELETE/PATCH en channels/contacts ✔ (incompleta, ver N2) |
+
+### Persisten sin corregir ❌
+| ID previo | Hallazgo | Estado |
+|---|---|---|
+| C1 | **Fail-open de `BRIDGE_API_KEY` vacía** | `http_server.py:476-478` — idéntico: warning + return True. Endpoints protegidos abiertos por defecto. |
+| A13 | **DoS de tiles pre-auth con `z` sin acotar** | `http_server.py:400` despacha tiles ANTES de `_is_api_auth_valid`; `map_tile_service.py:85` — `(1 << z)` sin límite. Sin cambios. |
+| A16 | **Leaflet CDN unpkg sin SRI** | `index.html:20-21` — sin cambios. CSP sigue permitiéndolo. |
+| A1 | **Suscripción MQTT faltante `admin/repeater/+/cmd`** | `mqtt_client.py:200` — solo suscribe `topic_tx` y `topic_admin_cmd`; rama de `mqtt_dispatcher.py:54` sigue muerta. |
+| A2 | **Doble publicación channel→TOPIC_RX_DIRECT** | `rx_router.py:998` — sin cambios: todo mensaje de canal se duplica al tópico de DMs. |
+| A4 | **`cleanup_inactive` nunca llamado** | `contact_manager.py:1042` — sin llamadores en producción. |
+| A8 (parcial) | **`_execute_batch_config` sin cooldown de airtime** | `repeater_executor.py:133-151` — sin `check_airtime_cooldown` ni `record_command_sent` en batch. |
+| A5/A6 | O(n) lookups de prefijo; rama `item is None` en rate limiter | Sin cambios. |
+| H-web | **WS sin auth + Origin LAN RFC1918** | `http_server.py:510-522` — sin cambios. |
+| H-web | **`GET /api/logs/download` y `GET /api/messages` sin auth** | Sin cambios. |
+| H-web | I/O síncrono en handlers (estáticos, SQLite, preflight) | `read_bytes()` en `http_server.py:826`; `run_preflight` bloqueante. Sin cambios. |
+| H-web | `Math.random()` para PSK | `settings.js:347-354` — sin cambios. |
+| H-web | Paleta de comandos (Ctrl+K) stub decorativo | Confirmado + ampliado: ~20 controles muertos más (ver §4-web). |
+| A-arch | Accesos a privados entre capas (`_execute_tx`, `_ctx` hack) | Sin cambios; verificado en 6 handlers. |
+| A-arch | God Classes (SDKAdapter 66 defs, NodeRegistry 38 métodos) | Sin cambios. |
+
+---
+
+## 3. REGRESIONES INTRODUCIDAS POR f61d91f (nuevas, verificadas manualmente)
+
+### R1 — CRÍTICA: Race de concurrencia real en `save_to_file` por `to_thread` sin lock
+- **Archivos**: `bridge_core.py:222` ↔ `contact_manager.py:1059-1080`
+- **Evidencia**: `_cleanup_loop` ejecuta `await asyncio.to_thread(self.node_registry.save_to_file)` mientras el event loop sigue mutando `_nodes_by_key` (`add_or_update`, `remove_node`, `discover_node`) por cada paquete RX. `save_to_file` → `list_nodes()` itera `_nodes_by_key.values()` en el **hilo del threadpool** sin lock ni snapshot:
+  ```python
+  # contact_manager.py:904 (llamado desde el hilo worker)
+  nodes_list = [n.to_dict() for n in self._nodes_by_key.values()]
+  ```
+- **Impacto**: `RuntimeError: dictionary changed size during iteration` intermitente bajo tráfico (capturado como warning en L223 → **guardados periódicos fallan aleatoriamente = persistencia silenciosamente corrupta**) o snapshot inconsistente en disco. El `.tmp` de nombre fijo además permite colisión entre writers.
+- **Agravante**: la misma operación sigue **síncrona y bloqueante** en `stop()` (bridge_core.py:485) y en 3 puntos de `contacts_controller.py:85,145,172` — inconsistencia directa dentro del mismo commit.
+
+### R2 — CRÍTICA (frontend): `updateNodeInDom` vacía el directorio de nodos por selector incorrecto
+- **Archivo**: `nodes.js:705-727` (nuevo de f61d91f)
+- **Evidencia verificada manualmente**:
+  ```js
+  const cards = document.querySelectorAll(`[data-pubkey="${pk}"]`);  // L711
+  if (!cards || cards.length === 0) { this.renderNodesDirectory(); return; }  // L713-715
+  ```
+  Pero las tarjetas se generan con **`data-pk`** (nodes.js:275, 422), no `data-pubkey` (ese atributo solo existe en los `<li>` de chat.js:327). El selector **jamás matchea** → cae al fallback `renderNodesDirectory()` **sin argumentos** → L183: `if (!nodes || nodes.length === 0)` → **borra ambas grillas** ("Sin contactos" / "Sin nodos").
+- **Disparadores**: `repeater.js:286, 543, 1133, 1206` lo invocan con cada telemetría/ping/config de repetidor → **cada interacción con el modal de repetidor vacía la UI**.
+- **Impacto adicional**: los sub-selectores `.metric-snr`, `.lqi-score`, `.node-last-seen` tampoco existen en el DOM generado (usa `.stat-pill`) — el método completo es incompatible con el markup real.
+
+### R3 — ALTA: `should_treat_as_repeater` clasifica CLIENTs desconocidos como REPEATERs permanentes
+- **Archivo**: `rx_router.py:553-570` (nuevo de f61d91f)
 - **Evidencia**:
   ```python
-  if not api_key:
-      logging.warning("BRIDGE_API_KEY no configurada, omitiendo autenticación (modo desarrollo)")
-      return True
+  should_treat_as_repeater = (
+      (existing_contact and existing_contact.role in ("REPEATER", "ROUTER"))
+      or is_explicit_rep_name
+      or (bool(extracted_telem) and not is_known_client)  # ← CLIENT desconocido + telemetría
+  )
   ```
-- **Impacto**: Si la variable de entorno no está definida (despliegue por defecto del `.env.example` — vacía), TODOS los endpoints protegidos (`/api/tx`, `/api/admin/*`, `/api/repeater/*`, `/api/node/reboot`) quedan abiertos a cualquier cliente de la LAN: transmisión RF arbitraria, comandos admin, traceroutes, reinicio de nodos y borrado de logs.
-- **Recomendación**: Fail-closed (401) con flag explícito tipo `ALLOW_UNAUTHENTICATED=true` para desarrollo.
+  Un **CLIENT nuevo** (aún no en registry) cuyo mensaje contenga texto que el parser laxo de `RepeaterManager` interprete como telemetría ("battery: 90%", "up 5", "airtime 200ms" — regexes conversacionales) activa `add_or_update(role="REPEATER")`. El rol **persiste** en el registry (`_resolve_node_role` respeta `existing.role`) → todos sus mensajes futuros caen en `is_cmd_response → return None`: **el chat de ese usuario deja de llegar permanentemente a MQTT/WebUI** y desaparece de Contactos.
+- **Falsos positivos por nombre**: los prefijos `REP_`/`ROUTER_` añadidos como válidos marcan a "R2-D2", "R-Studio", "REP_Solar-User" como repetidores.
 
-### C2. `UnboundLocalError` en todo TX broadcast — Sniffer nunca registra broadcasts
-- **Archivo**: `src/bridge_core.py:735` (uso) vs `652` (definición condicional)
-- **Evidencia**: `is_admin_cmd` se define SOLO dentro de `if not is_broadcast:` (L652), pero se usa en L735:
-  ```python
-  packet_type="CHAT" if not is_admin_cmd else "ADMIN",
-  ```
-  Cuando `is_broadcast=True` (todo mensaje a canal público), la variable no existe → `NameError`/`UnboundLocalError` → capturada por `except Exception` (L745) con `logging.debug` silencioso → **el paquete TX broadcast nunca se registra en el PacketBuffer/Sniffer**.
-- **Impacto**: La pestaña Sniffer/WebUI no muestra los broadcasts TX; error enmascarado. Falla en 100% de transmisiones a canal.
-
-### C3. Asignación a property `self_info` sin setter — invalida conexiones exitosas
-- **Archivo**: `src/serial_driver.py:289, 299` (asignación) vs `233-236` (property sin setter)
-- **Evidencia**:
-  ```python
-  self.self_info = res_app.payload   # L289 — AttributeError: can't set attribute
-  ```
-  `MeshcoreSDKAdapter.self_info` es `@property` SIN setter. La `AttributeError` es tragada por el `except Exception as ex_init` (L304) que cae al **fallback `create_serial`** — la conexión directa con estabilización (ruta preferida y mejor instrumentada) se marca fallida aunque `send_appstart` haya tenido éxito.
-- **Impacto**: En producción con SDK real, toda conexión inicial exitosa cae innecesariamente al path de fallback, degradando estabilidad del arranque (y posiblemente provocando reconexiones/retries adicionales).
-
-### C4. Guarda anti-repetidor vulnerable con prefijos cortos — bypass de regla inmutable §1.1
-- **Archivo**: `src/bridge_core.py:640-658` + `src/contact_manager.py:325-333, 832, 925-940`
-- **Evidencia**: El target se valida con `target_str` **sin resolver primero a clave canónica**. `is_local_key` exige prefijos ≥6 chars y `get_by_key_or_prefix` (L832) exige `len(q) < len(key)` con matching de prefijo; un target de 4-5 chars hex (ej. `"a1b2"`) que sea prefijo real de la clave de un repetidor **no matchea** → `is_repeater_key()` retorna `False` → el DM de chat se envía al repetidor.
-- **Impacto**: Viola la regla inmutable de AGENTS.md §1.1-1 (NUNCA mensajería a repetidores). `resolve_recipient_target` (bridge_core.py:393) y `get_canonical_key` (contact_manager.py:361) existen pero **no se invocan antes de la guarda**.
-- **Recomendación**: Resolver `target → get_canonical_key(target)` antes de validar; rechazar claves no resolubles en DMs.
+### R4 — ALTA: Cache `_self_info` sin invalidación (stale tras reconexión)
+- **Archivos**: `serial_driver.py:232-243` (setter nuevo), `:348-369` (`disconnect`), `:700-704` (`_handle_self_info`), `local_config_executor.py:534-538`
+- **Problemas verificados**:
+  1. `_handle_self_info` (cuando el firmware emite SELF_INFO tras cambios de config) **no actualiza `_self_info`** — el getter seguirá devolviendo el payload del `send_appstart` original para siempre.
+  2. `disconnect()` no limpia el cache → tras reconexión por el fallback `MeshCore.create_serial` (L313-317, que no setea self_info), el adapter sirve el self_info **obsoleto de la conexión anterior** (posiblemente de otro nodo).
+  3. `local_config_executor` muta `mc.self_info`/`mc._self_info` pero no `adapter._self_info` → la WebUI ve datos viejos tras cambiar config.
+  4. La doble mutación en `_handle_device_info` (L675-678) parchó ad-hoc UN solo campo (`repeat`), dejando freq/sf/name/tx_power desincronizados — evidencia de que el autor detectó la divergencia sin cerrarla.
 
 ---
 
-## 3. Hallazgos ALTOS
+## 4. NUEVOS HALLAZGOS (no presentes en auditorías previas; verificación manual de críticos/altos)
 
-### Backend core
+### 4.1 Backend core
 
-| # | Archivo:línea | Hallazgo |
-|---|---|---|
-| A1 | `mqtt_client.py:200` + `mqtt_dispatcher.py:54` | **Ruta MQTT muerta**: el dispatcher gestiona `TOPIC_ADMIN_REPEATER` pero `_on_connect` solo suscribe `topic_tx` y `topic_admin_cmd` — los comandos publicados en `{prefix}/admin/repeater/{node}/cmd` **nunca llegan** (contrato documentado en README §Mapa MQTT no operativo). |
-| A2 | `rx_router.py:987-988` | Mensajes de canal (`CHANNEL_MSG_RECV`) se publican en `TOPIC_RX_CHANNEL/ch_N` **Y ADEMÁS** en `TOPIC_RX_DIRECT/{src}` — duplicación que contamina consumidores n8n de DMs. |
-| A3 | `contact_manager.py:1073-1075` + `bridge_core.py:215-224` | **I/O síncrono bloqueante en event loop**: `save_to_file()` con `open()+json.dump()` se invoca desde la corrutina `_cleanup_loop` cada 60s — congela el bridge en SBCs con SD lenta. Violación directa de AGENTS.md (Agente 2, regla 1). Debería usar `asyncio.to_thread()`. |
-| A4 | `contact_manager.py:1042` | `cleanup_inactive()` **nunca se invoca en producción** (solo tests) — el registro de nodos crece ilimitadamente (fuga de memoria lenta + JSON de persistencia creciente). |
-| A5 | `contact_manager.py:345-358, 832` | Lookups por prefijo con escaneo O(n) completo de `_nodes_by_key` en cada `add_or_update`/`discover_node`/`record_packet` → O(n²) en mallas activas. |
-| A6 | `rate_limiter.py:335-336` | `if item is None: continue` **salta el delay regulatorio** (el `finally` ejecuta `task_done` pero el `await asyncio.sleep(delay)` de L370 nunca corre) — múltiples `None` encolados producen busy-loop sin espaciado RF. |
-| A7 | `admin_handler.py:417-467` | Patrón `except Exception: pass` ×3 en `_cli_version/_cli_battery/_cli_time` → reportan valores default hardcodeados como reales (batería "100%", "5.0V") — **telemetría falsa** al usuario. |
-| A8 | `admin/repeater_executor.py:143-147` | `_execute_batch_config` envía login + N comandos `set_*` en ráfaga **sin `check_airtime_cooldown`** (que sí aplica `_execute_unit_command` L360-368) — viola checklist de airtime AGENTS.md §4-P1. |
-| A9 | `serial_driver.py:429-441` | Monkey-patch de `self.mc._reader.handle_rx` (miembro privado del SDK) — si el SDK cambia o no expone `_reader`, falla silenciosa; doble registro apila callbacks (tramas duplicadas a companions). |
-| A10 | `serial_driver.py:801-812` | Contacto sintético con clave padeada `(dest_target + "0"*64)[:64]` — contamina la libreta del firmware y reaparece como fantasma en `sync_all_contacts`. |
-| A11 | `serial_driver.py:262-263` | Sombreado de `port_str` (puerto original vs puerto+baudrate del parseo TCP) + mutación de `self.port` en L259 — la reconexión pierde la config original del usuario. |
-
-### Subsistema web
-
-| # | Archivo:línea | Hallazgo |
-|---|---|---|
-| A12 | `contacts_controller.py:154-156` + `nodes.js:400` | **DELETE de contactos roto (contrato frontend/backend)**: el frontend envía `DELETE /api/contacts/{pubkey}` con clave en la URL, pero `_delete_contact` lee `req_body.get("public_key")` → siempre vacío → 404. **El botón "Eliminar contacto" nunca elimina nada en el servidor**; además `nodes.js:404` ejecuta `cCard.remove()` sin comprobar `res.ok` → borrado visual inconsistente (el contacto "revive"). |
-| A13 | `map_tile_service.py:85` + `http_server.py:399` | **DoS de memoria sin auth**: `/api/map/tiles/{z}/x/y.png` se sirve ANTES de `_is_api_auth_valid` y `tms_y = (1 << z) - 1 - y` sin acotar `z` → `z=2147483647` asigna enteros de ~256 MB por petición simple y repetible. Acotar `0 <= z <= 22`. |
-| A14 | `channels_controller.py:96-112` + `http_server.py:454` | **PSK de canales cifrados expuestos sin autenticación**: `GET /api/channels` no está en `protected_prefixes` y devuelve `{"psk": "..."}` en claro a cualquier cliente LAN. |
-| A15 | `http_server.py:257-263` | Inspección de inyección en el **cuerpo HTTP muerta**: `_inspect_request_security` se invoca con `body_dict=None` antes de leer el body — la regla `INJECTION_EN_PAYLOAD` nunca recibe datos reales. |
-| A16 | `index.html:20-21` | **Leaflet desde `https://unpkg.com` sin SRI** (subresource integrity) — (a) rompe autonomía offline en SBCs, (b) riesgo supply-chain: si unpkg se compromete, la CSP que lo permite habilita XSS total. `qrcode.js`/`icons.js` ya son self-hosted; Leaflet debería igualarlo. |
-
----
-
-## 4. Hallazgos MEDIOS (selección por impacto)
-
-### Backend
-- `bridge_core.py:460-503` — `stop()` puede ejecutarse hasta 3 veces (run_until_complete + finally + señal) sin idempotencia garantizada.
-- `mqtt_dispatcher.py:109` — cada TX MQTT crea una tarea que espera `wait_for(future, 30s)`; un flood de 500 mensajes genera 500 tareas colgadas; `CancelledError` del future no se captura.
-- `mqtt_client.py:133-135` — `publish(offline)` en `stop()` sin `wait_for_publish` puede perderse (LWT lo cubre; redundante).
-- `admin_handler.py:214-229` — `_wait_for_repeater_response` interroga serial cada ~1s durante 6s por comando; re-despacha eventos (dedup solo cubre frames, no eventos).
-- `admin_handler.py:116-129` — fallback de `broadcast_advert` envía texto "ADVERT" como **mensaje de chat broadcast** (spam visual en canal público).
-- `admin/traceroute_executor.py:50-51` — RTT calculado sin esperar el evento `TRACE_DATA`; los saltos se sintetizan del input del usuario (medición ficticia).
-- `admin/local_config_executor.py:425-451` — mutación de `mc.self_info` local ANTES de confirmar el resultado del comando → desincronización RAM vs firmware ante fallo.
-- `deduplicator.py:34-51` — doble lock (asyncio + threading) sobre el mismo `_cache` sin coordinación — race condition latente entre hilo y corrutina.
-- `tcp_companion_server.py:242-258` — de-framing con `find(0x3C)` vulnerable a desincronización si `0x3C` aparece en payload de trama previa; limpiado total de buffer >128 bytes puede descartar tramas parciales legítimas.
-- `routers/channel_handler.py:29-30` — fallback demasiado amplio: cualquier evento con texto no-direct cae al channel handler (eventos de sistema con texto incidental publicados como chat de canal).
-- `routers/advert_handler.py:63` — heurística frágil: payloads de telemetría con claves largas matchean como "contact sync".
-- `rx_router.py:282-287` — solo el PRIMER handler que matchea procesa; excepción en `can_handle` pierde el evento completo.
-- `rate_limiter.py:367-369` — `AirtimeTracker.is_throttled` se calcula pero **nadie lo consulta antes de transmitir** (solo en `get_stats`); delay post-TX de airtime*0.1 insuficiente en SF12.
-- `virtual_mesh_adapter.py:508-515` — eco a destinos desconocidos creando nodos fantasma (enmascara errores de routing en pruebas).
-- `health_reporter.py:76` — `while True` sin sleep garantizado antes del catch: si `interval_sec=0` por config, busy-loop.
-- `diagnostics.py:376-382` — `get_raw_log_tail` lee TODO el archivo de 5MB (deque maxlen) síncronamente desde contexto async.
-
-### Web
-- `http_server.py:813, 767-833` — `read_bytes()` de estáticos (index.html 120KB, app.css 129KB) y SQLite de tiles **síncronos en handlers async** — head-of-line blocking en SBCs.
-- `http_server.py:224-244` — `_parse_request_head` sin `wait_for` en `readline()` → slowloris; sin límite de conexiones/`active_websockets`.
-- `http_server.py:512-523` — WebSocket sin autenticación: cualquier navegador LAN recibe broadcast de chat/telemetría. Combinado con `GET /api/messages` y `GET /api/logs/download` (api_router.py:635-650) también sin auth → divulgación de mensajería y logs.
-- `http_server.py:733-741` — CSP con `'unsafe-inline'` en script-src innecesario.
-- `http_server.py:149-164` — `broadcast_event` hace `drain()` secuencial por cliente (timeout 2s c/u) — head-of-line blocking.
-- `tx_controller.py:29-31` — guarda de repetidor "best-effort": solo bloquea si el repetidor está registrado; destino desconocido con rol indeterminado pasa.
-- `contacts_controller.py:117-137` — `_create_or_update_contact` no valida `role` contra el enum canónico: acepta `role="REPEATER"` vía API directa (violación §1.1 explotable aunque el frontend filtre).
-- `config_controller.py:86-91` — `set_local_config` devuelve 200/"ok" siempre sin inspeccionar `res.get("status")`; y L67-83 muta el dict devuelto por `get_local_config()` (contaminación de caché por referencia).
-- `channels_controller.py:98-108` — cada `GET /api/channels` dispara `ser.get_channels()` (consulta activa al transceptor en cada poll) — contradice principio de recepción pasiva AGENTS.md §4.
-- `system_controller.py:113-131` — `run_preflight` síncrono (pings MQTT, escaneo serial) congela el event loop.
-- `api_router.py:84-90` — `asyncio.create_task(res)` fire-and-forget sin guardar referencia (GC prematuro).
-- `api_router.py:38-40` — `GET /api/contacts/<cualquier-ruta-inexistente>` devuelve 200 con listado completo (rompe semántica REST).
-- `api_router.py:426` — `/api/contacts/accept` fallido devuelve 200 con `status:"error"`.
-
-### Frontend
-- `nodes.js:587-606`, `map.js:370-372` — `setInterval` sin guardar id ni `clearInterval` (módulos sin `destroy()`).
-- `map.js:101-114` — `NODE_UPDATED` recentra el mapa compulsivamente (`centerOnLocalNode(13)`) en cada actualización de nodo — UX rota en mallas activas; y polling de airtime duplicado (WS ya entrega `metrics_update`).
-- `repeater.js:702-720` — **ráfaga de 10 comandos RF por apertura de modal** (espaciados 350ms) — coste airtime O(10) por click; contraviene §4-P1 (límites definidos unilateralmente).
-- `repeater.js:551-582` — contraseñas de repetidores cacheadas en memoria y reinyectadas al reabrir (sobreviven al logout visual).
-- `storage.js:84-111` — `updateMessageDelivery` abre cursor sobre TODA la tabla IndexedDB por cada ACK (O(n) por mensaje); `chat_messages` crece sin límite en disco.
-- `sniffer.js:302-312` — re-render completo de 200 filas por cada paquete RF recibido.
-- `index.html:1079-1090` + `app.js:188-216` — **paleta de comandos (Ctrl+K) stub muerto**: abre el modal pero nunca filtra/renderiza resultados.
-- `chat.js` — `btnShareLocation` sin handler registrado (botón inerte).
-- `settings.js:354-361` — `generateRandomHex` con `Math.random()` (no cripto-seguro) para PSKs de canales cifrados → usar `crypto.getRandomValues`.
-- `settings.js:152` — `contactModalRole` no existe en DOM ni `_bindElements` → rol de contacto nuevo siempre "CLIENT" hardcodeado.
-- `settings.js`/`map.js:21` — input de URL de tiles locales (`inputLocalTileUrl`) sin wiring: **nada escribe `meshcore_local_tile_url`** — feature de tiles personalizados no operativa.
-- `nodes.js:294-464` — interpolaciones `innerHTML` sin `escapeHtml` (valores numéricos hoy; vector XSS latente si una fuente futura inyecta strings).
-- `repeater.js:1159-1202` / `settings.js:120` — doble escape visible (`&amp;`) en terminal y toasts.
-- i18n — cadenas hardcodeadas en español fuera del sistema i18n en `map.js:422-550`, `repeater.js:615-697` (mezcla de idiomas al cambiar a EN).
-
----
-
-## 5. Arquitectura y Patrones de Diseño
-
-### 5.1 Cumplimiento de patrones declarados (docs/ARCHITECTURE.md)
-
-| Patrón | Módulo | Estado | Nota |
+| # | Sev | Archivo:línea | Hallazgo |
 |---|---|---|---|
-| Facade | `MeshCoreBridge` | ⚠️ CUMPLE con desviación | `_execute_tx` (146 líneas) retiene lógica de negocio (validación+TX+ACK MQTT+sniffer+broadcast). |
-| Adapter | `serial_driver.py` | ✅ CUMPLE | `BaseSerialAdapter(abc.ABC)` real con 4 abstractmethods; 3 adaptadores sustituibles. Desviación ISP: ~15 métodos por defecto inflan la interfaz. |
-| Strategy | `routers/*` | ⚠️ DESVIADO | `BaseRxHandler(Protocol)` + registro correcto, PERO las estrategias hacen callback a métodos privados del router (`ctx._handle_mesh_telemetry_msg`) y hack `getattr(ctx, "_ctx", ctx)` — acoplamiento inverso. |
-| Command | `admin_handler.py` + `admin/*` | ✅ CUMPLE parcial | Despacho a executors correcto; handler retiene 646 líneas / 31 defs con métodos de ~100 líneas. |
-| Repository | `NodeRegistry` | ⚠️ CUMPLE / God Class | API correcta, pero `get_analytics_summary`+`_extract_top_repeaters` son responsabilidad de analítica, no del repositorio (Feature Envy). |
-| MVC Controllers | `web/controllers/*` | ✅ CUMPLE | 8 controladores por dominio + `ApiContext` (DI). Residuos: `record_incoming_event` (~122 l.) y `_route_logs` (~112 l.) viven aún en `api_router.py`. |
-| Observer | Watchdog / WS Hub | ✅ CUMPLE informal | Sin bus de eventos en backend (existe solo `eventbus.js` en frontend). |
-| Rate Limiter / Deduplicator | `rate_limiter.py` / `deduplicator.py` | ✅ CUMPLE | PriorityQueue + fórmula Semtech correcta; dedup con ventana deslizante. |
+| N1 | **CRÍTICA** | `bridge_core.py:807-819` | **Shutdown zombi en POSIX**: `_stop_task` crea `asyncio.create_task(self.stop())` pero **nunca llama `loop.stop()`** → `run_forever()` (L819) no retorna tras SIGINT/SIGTERM. El bridge apaga todos los subsistemas pero el **proceso queda vivo indefinidamente**. Además `stop()` se ejecuta 2 veces (task de señal + `finally` L823) sin idempotencia. (Verificado: código confirmado en L807-823.) |
+| N2 | **CRÍTICA** | `admin_handler.py:140-192` | **Cross-talk de waiters**: `notify_ping_response`/`notify_command_response` hacen `pop(k)` de TODA la lista de waiters de la clave y `set_result(data)` a todos con la **misma respuesta** → dos comandos concurrentes al mismo repetidor (WebUI + MQTT simultáneos) reciben ambos la respuesta del primero; el segundo nunca ve su respuesta real. Matching por prefijos ≥4 chars cruza respuestas entre nodos con prefijos solapados. |
+| N3 | ALTA | `repeater_executor.py:281-282, 360-361` | **Huecos residuales en try/finally**: `_dispatch_rf_command` llama `_ensure_radio_contact` con waiters ya registrados **fuera** de try/finally; `_send_pre_login` + `sleep(0.35)` corren antes del try en `_execute_unit_command` → una `CancelledError` de shutdown en ese hueco deja el future en `_cmd_waiters` **para siempre** (leak no corregido por f61d91f). |
+| N4 | ALTA | `serial_driver.py:813-815` + `repeater_executor.py:439` | **Contacto con clave falsa en la radio**: pad de claves cortas `(dest_target + "0"*64)[:64]` + `add_contact` en **cada DM** sin cooldown (flash wear del firmware + contacto fantasma que reaparece en `sync_all_contacts`). |
+| N5 | MEDIA | `bridge_core.py:644-645` | **`is_admin_cmd` sigue vulnerando la regla inmutable §1.1**: prefijos laxos (`"ver"`, `"get"`, `"info"`, `"status"`, `"set"`) permiten **chat hacia repetidores** cuando el texto empieza con ellos ("verdad?", "info urgente") — `if not is_admin_cmd and is_repeater_key(...)` se salta la guarda. En español "ver…" es prefijo común. |
+| N6 | MEDIA | `bridge_core.py:456` | `_cleanup_task` no se detiene en `stop()` (falta en la lista de subsistemas L467-474). |
+| N7 | MEDIA | `rx_router.py:559 vs 762` | **Inconsistencia intra-archivo introducida**: la nueva heurística L559 omite `"REPETIDOR"` pero la de L762 lo incluye → un nodo "REPETIDOR-NORTE" es repetidor por un path y no por otro. La lista de prefijos pasó de 9 a **11 copias con 3 variantes** (ver §6.2). |
+| N8 | MEDIA | `mqtt_client.py:137-141` | **Orden de stop incorrecto**: `loop_stop()` ANTES de `disconnect()` → el DISCONNECT puede no transmitirse → el broker publica el LWT (`unexpected_disconnect`, retained) que **sobrescribe el estado offline limpio** ~keepalive después de un shutdown correcto. |
+| N9 | MEDIA | `preflight.py:33-131` + `bridge_core.py:424` | `run_all` ejecuta **sockets bloqueantes** (2-3s × 3 checks) dentro del event loop en cada arranque y bajo demanda vía API de diagnóstico en caliente → loop congelado hasta ~6s. `sock.close()` fuera de `finally` → leak de FD si `connect` lanza. |
+| N10 | MEDIA | `rate_limiter.py:89-98, 316-318` | **Eviction de `CustomTxQueue` es código muerto bajo carga**: `put_nowait` lanza `QueueFull` ANTES de invocar `_put` (donde vive la expulsión) cuando la cola está llena; además compara contra la constante `MAX_QUEUE_SIZE=500` ignorando `MAX_TX_QUEUE_SIZE` del env → doble límite divergente. |
+| N11 | MEDIA | `serial_driver.py:1300-1357` | **`RawSerialFramingAdapter` (fallback) no funcional**: `connect()` marca `is_connected=True` sin abrir puerto; `send_message` retorna `{"status": "SENT_RAW"}` sin transmitir → si falla el SDK adapter, el bridge "envía" mensajes al vacío **sin error aparente** (pérdida silenciosa total). |
+| N12 | MEDIA | `serial_driver.py:456-464` | `_make_handler` con `except RuntimeError: pass` → evento RF perdido en silencio si el callback llega de otro hilo; `create_task` sin referencia (GC-risk). |
+| N13 | MEDIA | `tcp_companion_server.py:108-120, 77-83` | `broadcast_companion_frame` con `drain()` serial por cliente (2s × 8 clientes = hasta 16s por trama, HOL blocking); `stop()` sin timeout en `wait_closed` → shutdown colgado con half-close. |
+| N14 | MEDIA | `admin_handler.py:207-229` | `_wait_for_repeater_response`: polling `get_msg(timeout=0.8)` sin else-sleep en la rama de éxito → spin puro si el SDK retorna de inmediato sin datos. |
+| N15 | MEDIA | `traceroute_executor.py:112-121` | `_build_hops_breakdown` **fabrica** SNR (12.0/8.5/7.0) y RTT sintético cuando no hay datos reales → la WebUI muestra traceroute con telemetría inventada como medición. Sin cooldown/rate-limit (spam vía MQTT `admin/cmd`). |
+| N16 | MEDIA | `repeater_manager.py:461-467, 577-579` | Parser de telemetría laxo (raíz de R3): regexes casan texto conversacional normal ("up 2 it", "battery low") → falsos positivos que disparan reclasificación a REPEATER. Heurística `val_num <= 100.0 and val_num > 4.5` clasifica 4.7V como "battery_pct". |
+| N17 | MEDIA | `contact_manager.py:286-314` | `set_local_pubkey` consolida tomando SOLO la entrada "primary" → datos de otras entradas locales (coordenadas, telemetría) se pierden; índice `_nodes_by_name` puede quedar apuntando a clave purgada. |
+| N18 | MEDIA | `rx_router.py:126` | `lstrip("-> ")` elimina el **conjunto** de caracteres, no el prefijo literal → mensajes que empiezan con `-`/`>`/espacio se truncan mal en detección de sistema. |
+| N19 | BAJA | `serial_driver.py:1381` | `max_reconnect_attempts` lee `os.getenv` directo ignorando `config` ya parseado → divergencia de configuración. |
+| N20 | BAJA | `mqtt_dispatcher.py:108-129` | Solo se captura `TimeoutError` del future TX → `QueueFull`/`CancelledError` nunca publican status a `TOPIC_TX_STATUS` (n8n ciego ante errores de cola llena). |
+| N21 | BAJA | `mqtt_client.py:166-167` | `total_published += 1` sin lock desde event loop y hilo paho (race de métrica). |
+| N22 | BAJA | `contact_manager.py:1072` | `.tmp` de nombre fijo (sin PID) → colisión si dos procesos guardan a la vez. |
+| N23 | BAJA | `virtual_mesh_adapter.py:703-705` | `create_task` sin referencia (GC prematuro). |
+| N24 | BAJA | `bridge_core.py:210` + `rx_router.py:210/256` | `rx_count` se incrementa **antes** del dedup → duplicados inflan métricas de salud/analítica. |
+| N25 | BAJA | `packet_buffer.py:64-113` | `self._lock = asyncio.Lock()` declarado pero **nunca adquirido** — seguro hoy, trampa si se añade concurrencia. |
+| N26 | BAJA | `routers/channel_handler.py:29` | Fallback `(bool(meta.text) and not is_direct)` → DMs mal tipados por el firmware se publican como canal. |
+| N27 | BAJA | `routers/advert_handler.py:63` | Heurística frágil "contact sync": payload con clave larga y valores dict se procesa como lista de contactos (CPU gastada; filtrado posterior lo hace benigno). |
+| N28 | BAJA | `local_config_executor.py:206-213` | Cooldown de fetch se consume aunque el hardware falle. |
+| N29 | BAJA | `diagnostics.py:378-380` | `get_raw_log_tail` lee el archivo de log completo síncronamente (deque maxlen) desde contexto async. |
+| N30 | BAJA | `rx_router.py:700-708` | Mensajes de canal sin guard de origen propio explícito (solo DM lo tiene en direct_handler:35) — riesgo de re-publicación si el firmware refleja el propio mensaje local en canal. |
 
-### 5.2 Violaciones de dependencias
+### 4.2 Subsistema web
 
-1. **Acceso a miembros privados entre capas (ALTA)**: `tx_controller.py:47` (`bridge._execute_tx`), `bridge_core.py:286` (inyección post-construcción vía `rx_router._ctx`), `routers/telemetry_handler.py:46-54` (cadena `admin_handler._ctx.last_rx_rssi`, 3 niveles — Ley de Demeter), `api_router.py:73-79` (`channels_ctrl._load_channels()`).
-2. **SSoT de roles roto (ALTA)**: `shared_utils.classify_device_role` se declara Single Source of Truth pero solo lo usa `serial_driver.py:1080`; `advert_handler.py:98-105`, `rx_router.py:484-499` y `contact_manager.py:448-465` reimplementan la clasificación con heurísticas de nombre divergentes — riesgo directo sobre las reglas inmutables §1.1.
-3. **Contratos débiles con `Any` (MEDIA)**: `ApiContext.bridge: Any`, `RxRouterContext.serial_adapter/web_server/admin_handler: Any`, `AdminContext.web_server: Any` — los `Protocol` correctos existen (`bridge_core.py:40-62`) pero no se aplican a estos campos, socavando `mypy --strict`.
-4. **Imports circulares defensivos (MEDIA)**: `TYPE_CHECKING` en los 3 executors + imports diferidos en `api_router.py:233,301` — grafo de dependencias tenso.
-5. **`config` global singleton por importación (BAJA)** en 10+ módulos — DI bien hecha excepto configuración.
+| # | Sev | Archivo:línea | Hallazgo |
+|---|---|---|---|
+| W1 | **CRÍTICA** | `channels_controller.py:143-144, 162-163` | **Fuga de PSK por WebSocket (anula el masking de f61d91f)**: `_create_or_update_channel` y `_delete_channel` difunden `channels_updated` con `list(self.channels.values())` — **PSKs AES reales en claro** a todos los clientes WS, que no requieren autenticación (http_server.py:510-522). El masking del GET queda cosmetico. (Verificado manualmente: L143-144 y L162-163 pasan `self.channels.values()` sin filtrar.) |
+| W2 | **CRÍTICA** | `http_server.py:455-471` | **9 brechas de auth en el esquema ampliado** (verificación manual contra api_router): sin protección quedan `POST /api/config` y `/api/config/identity` (modifican identidad/radio), `POST /api/node/advert` (emite radio), `POST /api/traceroute` y `/api/trace` (sondas RF), `/api/node/ping_zero`, **`DELETE /api/packets`** (la ruta real que usa el frontend — la lista protege `/api/packets/clear` que **no existe**) y **`DELETE /api/system/logs`** (borra logs de auditoría sin credencial → anti-forense). |
+| W3 | ALTA | `http_server.py:510-522` | WS handshake sin auth + Origin RFC1918 (`192.168.*`, `10.*`, `172.16-31.*`) autorizado + sin límite de conexiones `active_websockets` → cualquier dispositivo LAN recibe chat, telemetría, RF y (vía W1) PSKs. |
+| W4 | ALTA | `api_router.py:635-650` | `GET /api/logs/download` sin auth: filtra últimas 2000 líneas con IPs/user-agents de atacantes (reconocimiento interno) + **ruta absoluta del filesystem** del servidor. |
+| W5 | ALTA | `nodes.js:397-409` | **DELETE sin comprobar `res.ok`** (regresión parcial del fix A12): el fetch envía body correctamente pero `cCard.remove()` se ejecuta incondicional dentro del try — un 401/404/500 elimina la tarjeta en UI aunque el contacto persista en backend (estado divergente). |
+| W6 | MEDIA | `nodes.js:434-435` | `telemLine2` interpola `node.temperature_c` y `node.humidity_pct` **sin escapeHtml** — única interpolación sin sanitizar del render de nodos (vector XSS latente). |
+| W7 | MEDIA | `security_inspector.py:119-135` | `extract_client_ip` confía ciegamente en `X-Forwarded-For`/`X-Real-IP` sin proxy confiable → **IP falsificable en logs de auditoría** (anti-forense). |
+| W8 | MEDIA | `chat.js:499-516` | `sendMessage` persiste en IndexedDB y renderiza el bubble ANTES del resultado de `/api/tx`; si el POST falla (401/400), el catch solo hace `console.warn` → el mensaje queda como "Enviado" en historial **sin retroalimentar el error**. |
+| W9 | MEDIA | `map.js:193, 122-124` | **El zoom con botones no dispara `movestart`** → `_userInteractedWithMap` queda false y cada `NODE_UPDATED` LOCAL fuerza `centerOnLocalNode(13)` **pisando el zoom del usuario**. Falta listener `zoomstart`. |
+| W10 | MEDIA | `http_server.py:652-655` | Unmasking WS byte a byte en Python puro (`for i in range(len(payload))`) — frame 1MB = 1M iteraciones → amplificación CPU DoS. Sin rate-limit de frames. |
+| W11 | MEDIA | `repeater.js:709-727` | **Ráfaga de 9 comandos RF** (350ms) por cada login/re-apertura de modal de repetidor — sin cooldown persistente (checklist airtime §4). |
+| W12 | MEDIA | `repeater.js:567-589` | `getRepeaterPassword` hace fallback al input visible del DOM → la pwd sobrevive al logout parcial en el input. |
+| W13 | MEDIA | `storage.js:84-155` | `updateMessageDelivery`/`updateMessageStatus`/`purgeNonCommonMessages` hacen `openCursor()` **full-scan** por cada ACK (O(n) por entrega); `chat_messages` crece sin límite en IndexedDB. |
+| W14 | MEDIA | `repeater_controller.py:59-118` | Contraseñas de repetidores viajan en JSON plaintext por HTTP sin TLS en LAN. |
+| W15 | ALTA (funcional) | `index.html` + `settings.js` | **UI muerta masiva (verificación manual)**: sin handler quedan: `localTerminalForm` (submit recarga la página), `btnImportData`/`importModal`, `btnSaveMapSettings`/`inputLocalTileUrl` (`meshcore_local_tile_url` nunca se escribe → capa "Local" siempre default), `btnReloadLocalMaps`, `btnClearIndexedDbStorage`, `btnGetBrowserGps`, `btnCopyLocalPubkey`, `btnRefreshNodes`, `btnRefreshLocalConfig`, y **toda la toolbar de acciones hardware** (`btnActionAdvertHop/Flood`, `btnSyncLocalClock`, `btnActionRebootLocal`, etc.) + paleta de comandos Ctrl+K (items `data-action` sin listeners) + banner de descubrimiento (`discoveryBanner`/`btnAcceptAllDiscovered` sin consumidor, endpoints `/api/contacts/discovered|accept` huérfanos) + `contactModalRole` (referencia a elemento inexistente → rol siempre "CLIENT"). **~20 controles anunciados en la UI no funcionan.** |
+| W16 | BAJA | `http_server.py:746-754` | CSP `unsafe-inline` innecesario (2 `onsubmit` inline en index.html:1057,1234 lo justifican a medias); ping WS sin contador de pongs sin respuesta (conexiones zombie). |
+| W17 | BAJA | `nodes.js:614-624` | `fetchDiscoveredContacts` fetch y descarta resultado (fetch muerto redundante). |
+| W18 | BAJA | `app.js:41-42` | `ctx.switchChannel`/`setDmTarget` arrow sin null-guard (a diferencia de los nuevos getters de L50-51 que sí lo tienen). |
+| W19 | BAJA | `settings.js:113` | Doble escape visible (`&amp;`) en toasts con nombres con `&`. |
+| W20 | BAJA | `map.js:160-163, 388` | Botón "Oscuro" dice "Esri World Dark Gray" pero la capa es OSM con filtro CSS; interval 60s sin handle; polling airtime redundante. |
+| W21 | BAJA | `api_router.py:507-519` | Dead code: ramas de `_dispatch_misc` inalcanzables (capturadas antes por `_dispatch_system`/`_dispatch_tx`); `SystemController.get_logs` casi inaccesible. |
 
-### 5.3 Cumplimiento de reglas inmutables AGENTS.md
+### 4.3 Arquitectura (métricas actualizadas post-f61d91f)
+
+- **God Classes confirmadas con conteo exacto**: `MeshcoreSDKAdapter` (66 defs / ~1070 líneas), `MeshCoreBridge` (47 métodos / 831 líneas, de ellos 12 properties de compatibilidad = facade poroso), `NodeRegistry` (38 métodos / 921 líneas — al límite de ambos umbrales).
+- **Long Methods (>80 líneas)**: `_handle_mesh_telemetry_msg` (242 l.), `_execute_tx` (148 l.), `_handle_mesh_msg_common` (145 l., ahora 15 líneas más largo por `should_treat_as_repeater`), `_extract_normalized_meta` (139 l.), `record_incoming_event` (122 l.), `handle_event` (97 l.), `_connect_with_stabilization` (94 l.), `_update_node_registry_presence` (92 l.), `_build_updated_contact` (87 l.).
+- **Dependencia inversa core→web**: `tcp_companion_server.py:14` importa `src.web.security_inspector` — componente de transporte core depende de la capa web.
+- **9 campos `Any`** en contextos dataclass (`RxRouterContext`: serial_adapter/web_server/admin_handler/packet_buffer; `AdminContext`: web_server/rate_limiter/counters; `ApiContext`: bridge/packet_buffer) pese a que los `Protocol` aptos ya existen.
+- **Deploy**: 100% sincronizado (SHA256 verificado archivo a archivo: src 56 archivos, static 17, docs, scripts, root) — PERO `deploy/scripts/run_all_test_categories.py` referencia `tests/` que **no se empaqueta** → roto dentro del bundle. `deploy/README.md:51` documenta puerto de simulación 8085 pero el script usa 8080.
+- **Docs/código**: `ARCHITECTURE.md §7` documenta 38 rutas; el router contiene 63 — faltan 15+ incluyendo `/api/repeater/traceroute` **añadida por el propio f61d91f**. `AGENT_ACTIVITY_REPORT.md` sí registra el hito completo (247 tests, aritmética verificada: 227 + 20 de test_rx_routers.py).
+- **Scripts**: `simulate_heltec_v4_mesh.py` fija `WEB_PORT=8080` (colisión con bridge real); `simulate_tcp_mesh_network.py` duplica `MeshCoreTcpClient` internamente + puertos 127.0.0.1:5000 hardcodeados (colisión con TCP_SERVER_PORT); `simulate_mesh_network.py` duplica el wiring de composición del bridge (drift risk). Los simuladores operan sobre VirtualMeshAdapter en memoria — checklist airtime §4 no aplica (correcto por diseño).
+
+---
+
+## 5. Estado de la Suite de Pruebas (post-f61d91f)
+
+| Indicador | Valor |
+|---|---|
+| Funciones `def test_` | 229 en 39 archivos (~257 instancias con parametrize) |
+| Último reporte documentado | 247 passed, 10 skipped, 0 failed (verificado aritméticamente consistente) |
+| Suite nueva | `test_rx_routers.py` (20 tests): `can_handle` de los 6 handlers, `handle` con mocks, `handle_event` con MeshcoreFrame real, guard de loopback DM, orden de instanciación |
+
+**Cobertura de los cambios de f61d91f** (grep confirmado, 0 matches en tests/):
+- ❌ Setter/property `self_info` con cache — sin test.
+- ❌ `should_treat_as_repeater` — **el edge case CLIENT desconocido + telemetría → REPEATER (regresión R3 activa) no tiene test**.
+- ❌ `_delete_contact` con `path_pubkey` — DELETE vía URL sin prueba.
+- ❌ PSK masking `"••••••••"` — `test_rest_controllers` crea canal con psk="secret" pero nunca verifica el enmascaramiento en el GET.
+- ❌ `protected_prefixes` ampliadas / `_is_api_auth_valid` — **0 tests** de auth en toda la suite (ni 401, ni fail-open, ni compare_digest).
+- ❌ `to_thread(save_to_file)` — sin test de no-bloqueo ni de la race R1.
+- ❌ try/finally de waiters — sin test de excepción.
+- ❌ Cambios JS (`updateNodeInDom` — bug R2 activo sin detectar, `_hasInitiallyCentered`).
+
+**Huecos estructurales que permanecen**: ciclo de vida del bridge (`start`/`stop`/`run_forever`/`_stop_task` — donde vive el shutdown zombi N1), `_is_api_auth_valid` (donde vive el fail-open C1), `check_airtime_cooldown` + parsers de `repeater_manager` (donde viven N16 y el batch sin cooldown), `save_to_file`/`load_from_file` (donde vive la race R1), ~80% de `MeshcoreSDKAdapter`, cross-talk de `notify_*` (N2), handshake WebSocket.
+
+**Problemas de calidad persistentes**: 2 suites fantasma (`test_bridge_logic.py`, `test_n8n_parser_matrix.py` — 9 tests que no importan src/ y no detectarían ninguna regresión real); mocks tan amplios en `test_rx_routers.py` (MagicMock ctx) que un bug real en los handlers pasaría (solo asertan `add_or_update` llamado, no el rol asignado); mutación de `config.TX_INTERVAL_SEC` sin restaurar en 2 archivos; `test_tile_server.py` no hermético (requiere mbtiles reales + puerto fijo); contradicción latente `store_and_forward`; flakiness (sleeps 1.1s wall-clock, esperas Playwright 250-2500ms).
+
+**Verificabilidad estimada**: ~55-60% de líneas ejecutadas; **~45-50% de comportamiento verificable con asserts fuertes sobre código real**. Los tests nuevos cerraron parcialmente el hueco del pipeline RX, pero ninguna de las 5 CRÍTICAS de este reporte es detectada por la suite actual.
+
+---
+
+## 6. Cumplimiento de Reglas Inmutables (AGENTS.md) — estado actualizado
 
 | Regla | Estado | Evidencia |
 |---|---|---|
-| Repetidores nunca en Contactos | ⚠️ PARCIAL | `list_client_contacts` filtra ✔ (contact_manager.py:942-949), PERO `_create_or_update_contact` acepta `role="REPEATER"` vía API (contacts_controller.py:117-137). |
-| NUNCA chat a repetidores/local | ⚠️ PARCIAL | Triple guarda ✔ (bridge_core.py:644-658, tx_controller.py:27-31, chat.js:453-468) PERO vulnerable a prefijos cortos (C4) y best-effort si el repetidor no está registrado. |
-| Guarda de origen propio | ✅ CUMPLE | `is_outgoing` + `is_local_sender` en rx_router.py:332, 397-404; eco local filtrado. |
-| Anti-spam/anti-bucle (rate limiter, dedup, backoff) | ⚠️ PARCIAL | Rate limiter y dedup implementados ✔, PERO `is_throttled` nunca se aplica, batch config sin cooldown (A8), A6 busy-loop con `None`. |
-| asyncio sin bloqueantes | ❌ INCUMPLE | save_to_file en corrutina (A3), read_bytes/SQLite/preflight síncronos en handlers async, `get_raw_log_tail` O(archivo completo). |
-| Persistencia atómica JSON | ✅ CUMPLE | `os.replace` sobre `.tmp` en contact_manager.py:1072 y channels_controller.py:50-53. |
-| `protocol_types.py` aislado | ✅ CUMPLE | Solo importa stdlib; 7 dataclasses `frozen=True`, Enums, `Protocol` (V3/V4 verificados). |
-| Frontend Vanilla sin frameworks | ⚠️ PARCIAL | SPA 100% vanilla ✔ PERO Leaflet CDN externo sin SRI (A16) + Google Fonts externas. |
-| RFC 7807 Problem Details | ✅ CUMPLE | `problem_details()` en controllers/base.py con type/title/status/detail. |
-
-### 5.4 Code smells
-
-- **God Class**: `MeshcoreSDKAdapter` (~84 defs, ~1.063 líneas), `NodeRegistry` (~35 métodos, 1.178 líneas), `MeshCoreBridge` residual (~50 métodos), `serial_driver.py` (1.477 líneas, 4 clases).
-- **Long Methods (>80 líneas)**: `rx_router._handle_mesh_telemetry_msg` (~243 l.), `_extract_normalized_meta` (~140 l.), `_handle_mesh_msg_common` (~136 l.), `serial_driver._on_sdk_event` (~133 l.), `api_router.record_incoming_event` (~122 l.), `repeater_manager._parse_json_telemetry` (~117 l.), `virtual_mesh_adapter.__init__` (~213 l.) — 10 archivos afectados.
-- **Primitive Obsession**: `NodeContactInfo` con ~60 campos escalares agrupables en value objects (`RfMetrics`, `GeoPosition`, `RadioParams`, `OwnerInfo`); `_build_updated_contact` repite el patrón `update.X if ... else existing.X` ~50 veces.
-- **Duplicación DRY divergente (peligrosa)**: `_get_coord` en `rx_router.py:43` (sin límite) vs `advert_handler.py:16` (con rango ±180); `_safe_int` duplicado; heurística de repetidores `startswith(("R-","R1-",...))` repetida en **5+ ubicaciones** con variantes.
-- **Dead code**: `TelemetryPayload` deprecado (protocol_types.py:320-359), `_watchdog_loop` dummy "compatibilidad tests" (bridge_core.py:609-612), `_flush_offline_buffer` stub que retorna 0, `fetchDiscoveredContacts` que descarta el resultado (nodes.js:613-623), capas `darkLayer`/`cartodb` duplicadas (map.js:148-167), paleta de comandos stub.
+| Repetidores nunca en Contactos | ⚠️ **DEGRADADO** | `list_client_contacts` filtra ✔, pero R3 reclasifica CLIENTs como REPEATERs (desaparición de usuarios de Contactos) y N5 permite chat a repetidores con prefijos laxos. Inconsistencia de prefijos ×11 copias. |
+| NUNCA chat a repetidores/local | ⚠️ PARCIAL | Guardas presentes en 3 capas ✔, pero bypass por prefijos cortos (C4 previo, no corregido) y por `is_admin_cmd` laxo (N5). |
+| Guarda de origen propio | ✅ CUMPLE | `is_outgoing`/`is_local_sender` + loopback en direct_handler:35 ✔ (hueco menor N30 en canales). |
+| Anti-spam/anti-bucle | ⚠️ PARCIAL | Rate limiter/dedup implementados ✔, pero eviction muerta (N10), batch config sin cooldown (A8), cross-talk waiters (N2), traceroute sin rate-limit (N15), ráfaga 9 comandos por modal (W11). |
+| asyncio sin bloqueantes | ❌ **INCUMPLE** | Race introducida por to_thread (R1), `stop()` síncrono, 3 sites en contacts_controller, preflight bloqueante (N9), estáticos/SQLite síncronos, `get_raw_log_tail`. |
+| Persistencia atómica JSON | ⚠️ **DEGRADADO** | `os.replace` ✔ pero `.tmp` fijo sin lock con writers concurrentes (R1) = corrupción posible. |
+| `protocol_types.py` aislado | ✅ CUMPLE | Solo stdlib, frozen dataclasses ✔. |
+| Frontend Vanilla | ⚠️ PARCIAL | Vanilla ✔ pero Leaflet unpkg sin SRI + Google Fonts (A16) y ~20 controles muertos (W15). |
+| RFC 7807 / códigos HTTP | ✅ CUMPLE mayormente | `problem_details` ✔. |
 
 ---
 
-## 6. Suite de Pruebas y Verificabilidad del Sistema
-
-### 6.1 Configuración de calidad (pyproject.toml)
-
-- pytest ✅ (`testpaths`, `asyncio_mode="auto"`, `pythonpath`), mypy `--strict` ✅, ruff ✅.
-- **pytest-cov sin umbral**: `--cov=src --cov-report=term-missing` existe pero NO hay `--cov-fail-under` ni `[tool.coverage] fail_under` — la build nunca falla por cobertura insuficiente.
-- `filterwarnings` ignora `DeprecationWarning` globalmente — puede enmascarar APIs obsoletas.
-
-### 6.2 Inventario y tipos (38 archivos, ~209 funciones test, ~250 casos)
-
-| Tipo | Volumen | Archivos |
-|---|---|---|
-| Unitarias | ~140 tests / ~28 archivos | protocol_types, contact_manager, lqi (5/5 públicos), packet_buffer, dedup, sensor_decoder+fuzz, rate limiter, preflight, sanitization_fixes (51 micro-tests), security, health, event_utils, target_resolver, shared_utils… |
-| Integración | ~50 tests | web_server, rest_controllers (9/9 controllers), diagnostics, admin_executors (9), node_and_repeater_config (8), mqtt_subsystem (6), tcp_companion (5/5), virtual_mesh, tile_server, tx_rate_limiter |
-| E2E in-process | 4 | e2e_simulation, virtual_mesh_simulation |
-| E2E Playwright | 11 (condicionadas a servidor 8080) | e2e_playwright (10 flujos navegador), playwright_e2e_simulation (autocontenida) |
-| Fuzzing | ~45 casos | fuzzing_and_edge_cases (≈34 param), sensor_decoder, mutation_resilience (bit-flips CRC) |
-| Stress | 3 | stress_flood (500 RX / 50 TX), concurrency_and_flapping (10 hilos) |
-| Mutación | 3 (tramas binarias, NO mutación de código) | mutation_resilience |
-
-**Skips**: ~10-11 tests E2E Playwright via `pytest.skip(allow_module_level=True)` en fixture session-scoped si no hay servidor en `localhost:8080` — patrón frágil (allow_module_level dentro de fixture).
-
-### 6.3 Matriz de cobertura por módulo
-
-| Módulo | Estado | Qué falta |
-|---|---|---|
-| protocol_types, packet_buffer, lqi_engine, event_utils, health_reporter, diagnostics, sensor_decoder, target_resolver, shared_utils, mqtt_client, mqtt_dispatcher, tcp_companion, map_tile_service, security_inspector, web/controllers (9/9) | ✅ DIRECTA | — |
-| contact_manager | 🟡 PARCIAL | `discover_node`, `list_discovered`, `accept_discovered_contact`, `record_packet`, `record_neighbors`, `find_by_name`, `remove_node`, `save_to_file`/`load_from_file` (persistencia sin probar), `is_repeater_key`, **`list_client_contacts`** (regla §1.1 sin verificación automática), `get_analytics_summary` |
-| serial_driver | 🟡 PARCIAL | ~25 métodos SDK sin probar (`send_login`, `get_stats_*`, `device_query`, `send_path_discovery_sync`, `set_flood_scope`…), `detect_serial_port()`, `_connect_with_stabilization` (crítica de arranque), los ~25 handlers `_handle_*`, `SerialWatchdog._supervise_loop` |
-| bridge_core (MeshCoreBridge) | 🟡 INDIRECTA | Sin tests directos de `start()/stop()/shutdown()/run_forever()`, `_auto_bootstrap_heltec_state`, `_reconnect_serial`, `_cleanup_loop`, `resolve_recipient_target`, `on_mqtt_connect/disconnect` |
-| **rx_router** | 🔴 MUY PARCIAL | Solo 2 funciones puras. **`handle_event`, `_dispatch_parsed_frame` y todos los `_handle_mesh_*` sin pruebas aisladas** (solo indirectos vía E2E) |
-| **src/routers/** (6 handlers) | 🔴 SIN PRUEBAS | Cero importaciones en tests/ — toda la estrategia de eventos RX sin cobertura aislada |
-| repeater_manager | 🔴 MUY PARCIAL (~20%) | `check_airtime_cooldown`, `record_command_sent` (protección §4 sin verificación), `parse_repeater_telemetry_or_response`, 5 parsers `_parse_*` (~350 líneas), `get_repeater` |
-| http_server | 🟡 PARCIAL | **`_is_api_auth_valid` SIN PRUEBAS** (autenticación API no verificada), handshake WebSocket real, `_read_websocket_frame`, `_serve_static_file`, `start()/stop()` |
-| preflight | 🟡 PARCIAL | Solo serial "AUTO"; checks MQTT/versión/permisos sin probar |
-| virtual_mesh_adapter | 🟡 INDIRECTA | Sin unitarios propios |
-| `__main__.py` | 🔴 SIN PRUEBAS | Punto de entrada |
-
-### 6.4 Problemas de la suite
-
-| Severidad | Problema | Ubicación |
-|---|---|---|
-| ALTA | **Tests fantasma**: no importan código de producción; validan lógica re-implementada en el propio test (falsa seguridad si `src/` cambia) | `test_bridge_logic.py` (0 imports src), `test_n8n_parser_matrix.py` (0 imports src, incluye dead-code `raw_text.toLowerCase()` L67) |
-| ALTA | Mutación de `config.TX_INTERVAL_SEC` global sin restaurar (riesgo de orden entre tests) | `test_tx_rate_limiter.py:35`, `test_stress_flood.py:94` |
-| ALTA | Autenticación API (`_is_api_auth_valid`) y handshake WebSocket sin NINGUNA prueba — superficie OWASP no verificada | http_server.py:451,512 |
-| MEDIA | `try/except pass` alrededor del assert central: tramas mutadas que lanzan excepción pasan silenciosamente | `test_mutation_resilience.py:60-64` |
-| MEDIA | Tests de estructura via `hasattr`/`inspect.getsource` — frágiles, no prueban comportamiento | `test_sanitization_fixes.py:385-408` |
-| MEDIA | `test_tile_server.py` no idiomático: ruta absoluta Windows hardcodeada, requiere MBTiles reales, puerto fijo 8082, `if __name__ == "__main__"` | test_tile_server.py:7,32-33 |
-| MEDIA | Contradicción entre tests: uno afirma `assertFalse(hasattr(bridge, "store_and_forward"))` mientras otros lo mockean | test_store_and_forward.py:34 vs test_web_server.py:37 |
-| MEDIA | Flakiness: márgenes de 200ms en eco (sleep 1.0 vs 800ms), watchdog 2×, `time.sleep(1.1)` wall-clock, 31 `wait_for_timeout` en Playwright | test_virtual_mesh_simulation.py:69, test_store_forward_modular.py:26 |
-| BAJA | Solapamientos: `test_repeater_manager` ⊂ `test_node_and_repeater_config` (~90% redundante); `test_store_and_forward` ≈ `test_store_forward_modular` (kwargs legacy); `test_ha_discovery` no prueba HA; eco DM probado 3 veces; 2 vías de importación del bridge (`meshcore_bridge` vs `src.bridge_core`) | — |
-| BAJA | `tearDown` manipula handlers del logger raíz global; fixtures con `new_event_loop()` manual mezcladas con `asyncio_mode="auto"`; `tests/artifacts/` creado en import-time | test_diagnostics_export.py:28-33 |
-
-### 6.5 Verificación de "¿cada función tiene su prueba unitaria?"
-
-**No.** La cobertura por función es desigual:
-- **Bien cubiertas (≈90-100%)**: `LinkQualityEngine` (5/5 funciones públicas), `protocol_types`, `packet_buffer`, `tcp_companion_server` (5/5), `web/controllers` (9/9), `lqi_engine`, `event_utils`, `target_resolver`, `shared_utils`, `deduplicator`, `sensor_decoder`.
-- **Parciales (≈40-60%)**: `NodeRegistry` (~15/35 métodos), `MeshcoreSDKAdapter` (~5/84 defs), `MeshCoreBridge` (indirecta), `AdminCommandHandler` (parcial), `preflight`.
-- **Huecos críticos (0-20%)**: `RxEventRouter.handle_event` + `_handle_mesh_*`, **los 6 handlers de `src/routers/`** (0 pruebas), `RepeaterManager` (solo `build_repeater_command_payload`), `_is_api_auth_valid`, handshake WebSocket, `check_airtime_cooldown`, persistencia `save_to_file/load_from_file`, ciclo de vida completo del bridge.
-
-### 6.6 ¿Se puede comprobar TODO el sistema con las pruebas existentes?
-
-**NO — verificabilidad estimada ~60-65%.** La suite es amplia y de buena calidad en utilidades puras y API REST, pero el sistema NO es verificable al 100% porque:
-1. El **pipeline RX completo** (router + 6 estrategias) no tiene pruebas aisladas — un refactor ahí puede romper silenciosamente (los tests "fantasma" no lo detectarían).
-2. El **orquestador central** (`MeshCoreBridge`) no tiene tests de ciclo de vida/bootstrap/reconexión.
-3. La **seguridad web** (API key, WebSocket auth) — precisamente donde está el hallazgo C1 — carece de toda verificación automática.
-4. La **protección de airtime LoRa** (§4 AGENTS.md, donde están A6/A8) no tiene tests.
-5. No existe umbral de cobertura (`--cov-fail-under`) que impida regresiones silenciosas.
-
----
-
-## 7. Optimización y Rendimiento (resumen)
-
-1. **Event loop bloqueado** (violación directa directivas): `save_to_file` (A3), `read_bytes` estáticos, SQLite tiles, `run_preflight`, `get_raw_log_tail` — todos candidatos a `asyncio.to_thread()`.
-2. **O(n²) potencial**: lookups de prefijo en `NodeRegistry` (A5); `_collect_target_info` reconstruye `to_dict()` de todos los nodos por comando admin.
-3. **Sin límites**: registro de nodos sin `cleanup_inactive` programado (A4); `chat_messages` IndexedDB ilimitado; sin límite de conexiones HTTP/WS concurrentes.
-4. **Frontend**: re-render completo del sniffer por paquete; `updateMessageDelivery` O(n) por ACK; recentrado compulsivo del mapa; polling redundante de airtime; ráfaga de 10 comandos RF por modal de repetidor.
-5. **Broadcast WS secuencial** (`drain()` por cliente) — paralelizar con `asyncio.gather`.
-6. **Desperdicio silencioso**: bytes de estáticos releídos de disco en cada petición (sin cache en RAM para SBCs).
-
----
-
-## 8. Plan de Remediación Priorizado (recomendado, sin cambios aplicados)
+## 7. Plan de Remediación Priorizado (recomendado — sin cambios aplicados)
 
 | Prioridad | Acción | Hallazgos |
 |---|---|---|
-| P0 (inmediato) | Fail-closed en API key (401 si no configurada) | C1 |
-| P0 | Resolver target a clave canónica ANTES de guardas repetidor/local | C4 |
-| P0 | Corregir `UnboundLocalError` (`is_admin_cmd` definido fuera del bloque) | C2 |
-| P0 | Eliminar asignación a property `self_info` (guardar en `self._self_info_cache` con setter o atributo distinto) | C3 |
-| P1 | Contrato DELETE contactos (leer pubkey de URL o body) + verificar `res.ok` en UI | A12 |
-| P1 | Acotar `z/x/y` en tiles + mover despacho de tiles tras la autenticación | A13 |
-| P1 | Suscribir `admin/repeater/+/cmd` o eliminar rama muerta | A1 |
-| P1 | Mover I/O a `asyncio.to_thread()` (save_to_file, estáticos, tiles, preflight, log tail) | A3 + §7.1 |
-| P1 | Sanitizar PSK en respuestas GET + auth en `/api/logs/download` y `/api/messages` | A14, §4-web |
-| P2 | Self-host de Leaflet con SRI | A16 |
-| P2 | Aplicar `check_airtime_cooldown` en batch config; aplicar `is_throttled` en el worker; arreglar busy-loop `None` | A8, A6, §4 |
-| P2 | `cleanup_inactive` programado + `asyncio.to_thread` en persistencia | A4 |
-| P2 | Unificar clasificación de roles en `shared_utils.classify_device_role` (SSoT) | §5.2-2 |
-| P3 | Tests directos para `src/routers/*` + `rx_router.handle_event` + `_is_api_auth_valid` + `check_airtime_cooldown` + ciclo de vida del bridge | §6.3-6.5 |
-| P3 | Umbral `--cov-fail-under` en pyproject; eliminar/reescribir tests fantasma contra código real; `monkeypatch` para config global | §6.4 |
-| P3 | Descomposición God Classes (SDKAdapter, NodeRegistry, `_handle_mesh_telemetry_msg`); extraer analítica del repositorio; agrupar `NodeContactInfo` en value objects | §5.4 |
-| P3 | Frontend: paleta de comandos funcional o eliminada; wiring de `btnShareLocation`/`inputLocalTileUrl`; `crypto.getRandomValues` para PSKs; `escapeHtml` en interpolaciones pendientes; i18n completo | §4-frontend |
+| **P0** | Lock/snapshot en `NodeRegistry.save_to_file` (lock de escritura o snapshot inmutable en el loop + to_thread del dump); unificar los 5 callers | R1 |
+| **P0** | `loop.stop()` en `_stop_task` tras completar `stop()` + idempotencia de `stop()` | N1 |
+| **P0** | Corregir `updateNodeInDom`: selector `data-pk`, sub-selectores `.stat-pill`, fallback NO destructivo (return si no hay cards) | R2 |
+| **P0** | Enmascarar PSK en TODOS los payloads salientes (mover masking a serialización compartida REST+WS) + auth en handshake WS | W1, W3 |
+| **P0** | Cerrar fail-open de API key (401 si no configurada) + las 9 brechas de auth (deny-by-default: lista blanca de GETs públicos; corregir `/api/packets/clear` → `/api/packets`) | C1, W2 |
+| **P1** | Reclasificación: solo marcar REPEATER con `FirmwareAdvertType` oficial (SSoT en `shared_utils`), nunca por telemetría laxa de CLIENT desconocido; consolidar las 11 copias de prefijos | R3, N7, §6.2 |
+| **P1** | Resolver waiters por `request_id` (no por clave de nodo); invalidar `_self_info` en `_handle_self_info` y `disconnect()`; sync con `local_config_executor` | N2, R4 |
+| **P1** | Comprobar `res.ok` en DELETE contacts + `zoomstart` en mapa | W5, W9 |
+| **P1** | Suscribir `admin/repeater/+/cmd` o eliminar rama muerta; orden `disconnect()` → `loop_stop()` | A1, N8 |
+| **P2** | Acotar `z` en tiles (0-22) + despacho tras auth; `crypto.getRandomValues` para PSK; XFF solo con proxy confiable; Self-host Leaflet con SRI | A13, Math.random, W7, A16 |
+| **P2** | `check_airtime_cooldown` en batch config + traceroute rate-limit; else-sleep en polling de waiters; `contacto fantasma` por pad de claves | A8, N14, N4 |
+| **P2** | Tests: `_is_api_auth_valid` (401/fail-open/prefijos), PSK masking, DELETE por path, `should_treat_as_repeater` con registry real, race de `save_to_file`, excepciones en try/finally de waiters | §5 |
+| **P3** | Cablear o eliminar la UI muerta (~20 controles); eliminar/reescribir suites fantasma; `monkeypatch` para config global; umbral `--cov-fail-under` | W15, §5 |
+| **P3** | Refactor estructural: extraer analítica de NodeRegistry, descomponer God Classes, reemplazar `Any` por Protocol existentes, mover security_inspector a módulo compartido, actualizar ARCHITECTURE.md §7 (15+ rutas) | §4.3 |
 
 ---
 
-## 9. Conclusión Final
+## 8. Conclusión Final
 
-**MeshCore Bridge v3.0 es un proyecto de madurez arquitectónica sólida (B+)**: la separación en capas es real, los patrones declarados existen y funcionan (con desviaciones documentadas), las reglas inmutables críticas están implementadas en triple capa, la persistencia es atómica, `deploy/` está 100% sincronizado y no existe código truncado ni errores de sintaxis en ningún archivo.
+El commit **f61d91f demuestra buena capacidad de corrección puntual**: 12 de los ~20 hallazgos previos fueron cerrados correctamente (incluidos los 2 bugs de sintaxis-lógica más graves), el deploy quedó 100% sincronizado y verificable, y la suite creció de forma real (+20 tests del pipeline RX, 247 total).
 
-**Sin embargo, no está listo para considerarse verificable ni seguro al 100%**:
-- 4 defectos críticos (1 fail-open de seguridad, 1 bypass de regla inmutable, 2 bugs de lógica enrutinas centrales) requieren corrección inmediata.
-- La suite de pruebas (227 tests) es fuerte en API REST y utilidades puras pero deja sin cobertura precisamente las zonas de mayor riesgo: pipeline RX, ciclo de vida, autenticación y protección de airtime.
-- La deuda de optimización (event loop bloqueado en 6+ puntos, God Classes, O(n²)) es manejable pero acumulativa en SBCs.
+Sin embargo, esta auditoría profunda revela que **el patrón de corrección es reactivo y local**, lo que produjo:
+1. **4 regresiones nuevas** — la más grave una **race de persistencia** (R1) que el código síncrono original no tenía, y un **bucle de UI destructivo** (R2) en el frontend.
+2. **3 críticos previos sin cerrar** (fail-open C1, DoS de tiles A13, Leaflet A16) y la **fuga de PSK por WebSocket (W1)** que anula el masking recién añadido.
+3. **Deuda estructural agravada**: la heurística de clasificación pasó de 9 a 11 copias con 3 variantes (la propia corrección R3 añadió una copia más), y la regla inmutable de repetidores §1.1 ahora es más frágil que antes.
 
-**El sistema puede verificarse de forma confiable en ~60-65% de su comportamiento con las pruebas actuales**; el 35-40% restante (radio routing, seguridad perimetral, ciclo de vida) depende de verificación manual hasta cerrar los huecos identificados en §6.
+**El sistema sigue sin ser verificable al 100% (~45-50% con confianza)**: ninguna de las 5 CRÍTICAS de este reporte sería detectada por la suite actual, y los cambios de seguridad del último commit (masking, auth ampliada, path_pubkey) están sin pruebas.
+
+**Recomendación central**: el siguiente ciclo de corrección debe abordar **causas estructurales** (SSoT de roles vía `FirmwareAdvertType` como manda AGENTS §1.1.3, lock del Repository, contratos de concurrencia) en lugar de seguir parcheando en la capa donde aparece cada síntoma — cada parche local está añadiendo copias divergentes y regresiones nuevas.
 
 ---
 
-*Reporte generado por análisis multi-agente (Agente 0 Lead Orchestrator, Agente 2 Bridge Architect, Agente 4 Web Architect, Agente 5 Security Auditor, Agente 3 QA) con verificación manual de hallazgos críticos. Sin modificaciones aplicadas al código.*
+*Reporte generado por 4 auditorías secuenciales de agente único (Agente 2 Bridge Architect → Agente 4+5 Web/Security → Agente 3 QA → Agente 0/1 Arquitectura) con verificación manual de todos los hallazgos CRÍTICOS y ALTOS. Sin modificaciones aplicadas al código. Conteo total: 5 CRÍTICOS, 12 ALTOS, 27 MEDIOS, ~46 BAJOS (nuevos + regresiones + previos persistentes documentados).*

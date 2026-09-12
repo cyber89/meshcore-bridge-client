@@ -327,6 +327,140 @@ export class SettingsModule {
         if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.api_key_del'), "info");
       });
     }
+
+    // Terminal interactiva local
+    if (this.dom.localTerminalForm) {
+      this.dom.localTerminalForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const cmd = (this.dom.localTerminalInput?.value || "").trim();
+        if (!cmd) return;
+        if (this.dom.localTerminalInput) this.dom.localTerminalInput.value = "";
+        const termOut = this.dom.localTerminalOutput;
+        if (termOut) {
+          termOut.textContent += `\n> ${cmd}`;
+          termOut.scrollTop = termOut.scrollHeight;
+        }
+        try {
+          const res = await fetch("/api/admin", {
+            method: "POST",
+            headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "cmd", command: cmd }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (termOut) {
+            const outText = data.response || data.message || (typeof data === "string" ? data : JSON.stringify(data, null, 2));
+            termOut.textContent += `\n${outText}`;
+            termOut.scrollTop = termOut.scrollHeight;
+          }
+        } catch (err) {
+          if (termOut) {
+            termOut.textContent += `\nError de conexión: ${err.message}`;
+            termOut.scrollTop = termOut.scrollHeight;
+          }
+        }
+      });
+    }
+
+    const btnToggleHelp = document.getElementById("btnToggleLocalCmdHelp");
+    const helpDrawer = document.getElementById("localTerminalHelpDrawer");
+    const btnCloseHelp = document.getElementById("btnCloseLocalHelpDrawer");
+    const btnClearTerm = document.getElementById("btnClearLocalTerminal");
+
+    if (btnToggleHelp && helpDrawer) {
+      btnToggleHelp.addEventListener("click", () => helpDrawer.classList.toggle("hidden"));
+    }
+    if (btnCloseHelp && helpDrawer) {
+      btnCloseHelp.addEventListener("click", () => helpDrawer.classList.add("hidden"));
+    }
+    if (btnClearTerm && this.dom.localTerminalOutput) {
+      btnClearTerm.addEventListener("click", () => {
+        this.dom.localTerminalOutput.textContent = "";
+      });
+    }
+    document.querySelectorAll(".help-cmd-item[data-cmd]").forEach((item) => {
+      item.addEventListener("click", () => {
+        const cmd = item.getAttribute("data-cmd");
+        if (this.dom.localTerminalInput && cmd) {
+          this.dom.localTerminalInput.value = cmd;
+          this.dom.localTerminalInput.focus();
+        }
+      });
+    });
+
+    // GPS del navegador
+    const btnGetGps = document.getElementById("btnGetBrowserGps");
+    if (btnGetGps) {
+      btnGetGps.addEventListener("click", () => {
+        if (!navigator.geolocation) {
+          if (this.ctx.showToast) this.ctx.showToast("Geolocalización no soportada en este navegador", "error");
+          return;
+        }
+        btnGetGps.disabled = true;
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            btnGetGps.disabled = false;
+            const latIn = document.getElementById("localGpsLat");
+            const lonIn = document.getElementById("localGpsLon");
+            const altIn = document.getElementById("localGpsAlt");
+            if (latIn) latIn.value = pos.coords.latitude.toFixed(6);
+            if (lonIn) lonIn.value = pos.coords.longitude.toFixed(6);
+            if (altIn && pos.coords.altitude != null) altIn.value = Math.round(pos.coords.altitude);
+            if (this.ctx.showToast) this.ctx.showToast("Coordenadas GPS obtenidas del navegador", "success");
+          },
+          (err) => {
+            btnGetGps.disabled = false;
+            if (this.ctx.showToast) this.ctx.showToast(`Error de GPS: ${err.message}`, "error");
+          },
+          { enableHighAccuracy: true, timeout: 10000 }
+        );
+      });
+    }
+
+    // Mapas offline y almacenamiento
+    const btnReloadMaps = document.getElementById("btnReloadLocalMaps");
+    if (btnReloadMaps) {
+      btnReloadMaps.addEventListener("click", async () => {
+        const content = document.getElementById("localMapsStatusContent");
+        if (content) content.textContent = "Reindexando archivos MBTiles...";
+        try {
+          const res = await fetch("/api/map/reload", {
+            method: "POST",
+            headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
+          });
+          if (content) content.textContent = res.ok ? "Archivos .mbtiles reindexados correctamente." : "Servicio de mapas activo.";
+          if (this.ctx.showToast) this.ctx.showToast("Mosaicos locales reindexados", "success");
+        } catch (e) {
+          if (content) content.textContent = "Listo. Verifique directorio data/maps/.";
+        }
+      });
+    }
+
+    if (this.dom.btnSaveMapSettings) {
+      this.dom.btnSaveMapSettings.addEventListener("click", () => {
+        const url = (this.dom.inputLocalTileUrl?.value || "").trim();
+        if (url) {
+          localStorage.setItem("meshcore_local_tile_url", url);
+          if (this.ctx.showToast) this.ctx.showToast("Configuración de mapas guardada", "success");
+        }
+      });
+    }
+
+    const btnClearIdb = document.getElementById("btnClearIndexedDbStorage");
+    if (btnClearIdb) {
+      btnClearIdb.addEventListener("click", async () => {
+        if (!confirm("¿Deseas vaciar todo el almacenamiento local IndexedDB (mensajes y caché)?")) return;
+        try {
+          if (this.ctx.storage && this.ctx.storage.clearAll) {
+            await this.ctx.storage.clearAll();
+          } else {
+            indexedDB.deleteDatabase("MeshCoreStationDB");
+          }
+          if (this.ctx.showToast) this.ctx.showToast("Almacenamiento IndexedDB vaciado con éxito", "info");
+        } catch (err) {
+          if (this.ctx.showToast) this.ctx.showToast(`Error al vaciar: ${err.message}`, "error");
+        }
+      });
+    }
   }
 
   _subscribeBus() {
@@ -345,12 +479,14 @@ export class SettingsModule {
   }
 
   generateRandomHex(length = 32) {
-    const chars = "0123456789abcdef";
-    let res = "";
-    for (let i = 0; i < length; i++) {
-      res += chars[Math.floor(Math.random() * chars.length)];
+    const byteLen = Math.ceil(length / 2);
+    const arr = new Uint8Array(byteLen);
+    if (window.crypto && window.crypto.getRandomValues) {
+      window.crypto.getRandomValues(arr);
+    } else {
+      for (let i = 0; i < byteLen; i++) arr[i] = Math.floor(Math.random() * 256);
     }
-    return res;
+    return Array.from(arr, (b) => b.toString(16).padStart(2, "0")).join("").slice(0, length);
   }
 
   async fetchChannels() {

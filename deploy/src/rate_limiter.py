@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import collections
+import heapq
 import logging
 import math
 import random
@@ -86,17 +87,30 @@ class CustomTxQueue(asyncio.PriorityQueue[Any]):
         self._seq = 0
         self.total_dropped: int = 0
 
-    def _put(self, item: Any) -> None:
-        if self.qsize() >= MAX_QUEUE_SIZE:
+    def _evict_low_priority_if_needed(self) -> bool:
+        """Si la cola está llena o supera MAX_QUEUE_SIZE, desaloja el elemento más antiguo de baja prioridad."""
+        is_full_limit = self.full() or (self.qsize() >= MAX_QUEUE_SIZE)
+        if is_full_limit:
             low_items = [x for x in self._queue if getattr(x, "priority", 1) >= 2]
             if low_items:
                 oldest = min(low_items, key=lambda x: getattr(x, "counter", 0))
                 self._queue.remove(oldest)
-                import heapq
                 heapq.heapify(self._queue)
                 self.total_dropped += 1
                 logging.warning("CustomTxQueue: Evicted oldest LOW priority item to make room.")
+                return True
+        return False
 
+    def put_nowait(self, item: Any) -> None:
+        self._evict_low_priority_if_needed()
+        super().put_nowait(item)
+
+    async def put(self, item: Any) -> None:
+        self._evict_low_priority_if_needed()
+        await super().put(item)
+
+    def _put(self, item: Any) -> None:
+        self._evict_low_priority_if_needed()
         self._seq += 1
         if isinstance(item, TxItem):
             wrapped = item

@@ -10,13 +10,14 @@ import heapq
 import json
 import logging
 import os
+import threading
 import time
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
 from src.lqi_engine import LinkQualityEngine, LQIStatus
-from src.shared_utils import get_hardware_power_limits
+from src.shared_utils import get_hardware_power_limits, is_repeater_name
 
 
 def _safe_int(val: Any) -> int | None:
@@ -258,6 +259,7 @@ class NodeRegistry:
     """Directorio en memoria para contactos y resolución de nombres de la red MeshCore."""
 
     def __init__(self) -> None:
+        self._lock = threading.Lock()
         self._nodes_by_key: dict[str, NodeContactInfo] = {}
         self._nodes_by_name: dict[str, str] = {}  # lower(name) -> public_key
         self._local_pubkey: str = ""
@@ -277,41 +279,46 @@ class NodeRegistry:
         if not self._local_pubkey:
             return
 
-        # Consolidar y purgar cualquier entrada local previa bajo la clave canónica oficial
-        local_entries = [
-            (k, node) for k, node in list(self._nodes_by_key.items())
-            if node.is_local or self.is_local_key(k) or str(node.role).upper() == "LOCAL"
-        ]
+        with self._lock:
+            # Consolidar y purgar cualquier entrada local previa bajo la clave canónica oficial
+            local_entries = [
+                (k, node) for k, node in list(self._nodes_by_key.items())
+                if node.is_local or self.is_local_key(k) or str(node.role).upper() == "LOCAL"
+            ]
 
-        if local_entries:
-            # Encontrar la entrada local con datos más completos
-            primary_k, primary_node = local_entries[0]
-            for k, node in local_entries:
-                if len(k) > len(primary_k) or (node.name and not node.name.startswith("Node_")):
-                    primary_k, primary_node = k, node
+            if local_entries:
+                # Encontrar la entrada local con datos más completos
+                primary_k, primary_node = local_entries[0]
+                for k, node in local_entries:
+                    if len(k) > len(primary_k) or (node.name and not node.name.startswith("Node_")):
+                        primary_k, primary_node = k, node
 
-            # Eliminar todas las entradas locales detectadas
-            for k, node in local_entries:
-                if k in self._nodes_by_key:
-                    del self._nodes_by_key[k]
-                if node.name:
-                    self._nodes_by_name.pop(node.name.lower(), None)
-                if node.alias:
-                    self._nodes_by_name.pop(node.alias.lower(), None)
+                # Eliminar todas las entradas locales detectadas
+                for k, node in local_entries:
+                    self._nodes_by_key.pop(k, None)
+                    if node.name:
+                        self._nodes_by_name.pop(node.name.lower(), None)
+                    if node.alias:
+                        self._nodes_by_name.pop(node.alias.lower(), None)
 
-            # Reinsertar única y exclusivamente bajo la clave canónica local
-            consolidated = replace(
-                primary_node,
-                public_key=self._local_pubkey,
-                is_local=True,
-                role="LOCAL",
-                hops=0,
-            )
-            self._nodes_by_key[self._local_pubkey] = consolidated
-            if consolidated.name:
-                self._nodes_by_name[consolidated.name.lower()] = self._local_pubkey
-            if consolidated.alias:
-                self._nodes_by_name[consolidated.alias.lower()] = self._local_pubkey
+                # Fusionar todos los atributos de las entradas locales (GPS, telemetría, batería)
+                merged_fields = asdict(primary_node)
+                for _, node in local_entries:
+                    node_fields = asdict(node)
+                    for f_name, f_val in node_fields.items():
+                        if f_val is not None and merged_fields.get(f_name) is None:
+                            merged_fields[f_name] = f_val
+
+                merged_fields["public_key"] = self._local_pubkey
+                merged_fields["is_local"] = True
+                merged_fields["role"] = "LOCAL"
+                merged_fields["hops"] = 0
+                consolidated = NodeContactInfo(**merged_fields)
+                self._nodes_by_key[self._local_pubkey] = consolidated
+                if consolidated.name:
+                    self._nodes_by_name[consolidated.name.lower()] = self._local_pubkey
+                if consolidated.alias:
+                    self._nodes_by_name[consolidated.alias.lower()] = self._local_pubkey
 
     def get_local_pubkey(self) -> str:
         """Devuelve la clave pública del nodo local."""
@@ -443,15 +450,7 @@ class NodeRegistry:
         is_local_flag: bool,
     ) -> str:
         """Determina el rol canónico del nodo respetando la clasificación oficial y repetidores."""
-        name_upper = clean_name.upper()
-        alias_upper = clean_alias.upper()
-        is_named_repeater = (
-            name_upper.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-", "REP_", "ROUTER_"))
-            or alias_upper.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-", "REP_", "ROUTER_"))
-            or "REPEATER" in name_upper or "REPEATER" in alias_upper
-            or "ROUTER" in name_upper or "ROUTER" in alias_upper
-            or "REPETIDOR" in name_upper or "REPETIDOR" in alias_upper
-        )
+        is_named_repeater = is_repeater_name(clean_name) or is_repeater_name(clean_alias)
         if is_local_flag:
             return "LOCAL"
         if is_named_repeater:
@@ -567,52 +566,52 @@ class NodeRegistry:
         if update.role and str(update.role).upper() == "LOCAL":
             is_local_flag = True
 
-        canonical_key, existing = self._resolve_canonical_key_and_clean_locals(norm_key, clean_name_candidate, is_local_flag)
-        clean_name = clean_name_candidate or (existing.name if existing else f"Node_{canonical_key[:6]}")
-        clean_alias = (update.alias or "").strip() or (existing.alias if existing else clean_name)
-        final_role = self._resolve_node_role(clean_name, clean_alias, update, existing, is_local_flag)
+        with self._lock:
+            canonical_key, existing = self._resolve_canonical_key_and_clean_locals(norm_key, clean_name_candidate, is_local_flag)
+            clean_name = clean_name_candidate or (existing.name if existing else f"Node_{canonical_key[:6]}")
+            clean_alias = (update.alias or "").strip() or (existing.alias if existing else clean_name)
+            final_role = self._resolve_node_role(clean_name, clean_alias, update, existing, is_local_flag)
 
-        calc_lqi, calc_status = self._compute_node_lqi(update, existing, is_local_flag)
-        eff_hops = 0 if is_local_flag else (update.hops if update.hops is not None else (existing.hops if existing else 0))
-        eff_rssi = None if is_local_flag else (update.last_rssi if update.last_rssi is not None else (existing.last_rssi if existing else None))
-        eff_snr = None if is_local_flag else (update.last_snr if update.last_snr is not None else (existing.last_snr if existing else None))
-        calc_route = update.best_route if update.best_route is not None else (existing.best_route if existing else "DIRECT")
+            calc_lqi, calc_status = self._compute_node_lqi(update, existing, is_local_flag)
+            eff_hops = 0 if is_local_flag else (update.hops if update.hops is not None else (existing.hops if existing else 0))
+            eff_rssi = None if is_local_flag else (update.last_rssi if update.last_rssi is not None else (existing.last_rssi if existing else None))
+            eff_snr = None if is_local_flag else (update.last_snr if update.last_snr is not None else (existing.last_snr if existing else None))
+            calc_route = update.best_route if update.best_route is not None else (existing.best_route if existing else "DIRECT")
 
-        contact = self._build_updated_contact(
-            canonical_key,
-            update,
-            existing,
-            (clean_name, clean_alias, final_role, is_local_flag),
-            (eff_hops, eff_rssi, eff_snr, calc_lqi, calc_status, calc_route),
-        )
+            contact = self._build_updated_contact(
+                canonical_key,
+                update,
+                existing,
+                (clean_name, clean_alias, final_role, is_local_flag),
+                (eff_hops, eff_rssi, eff_snr, calc_lqi, calc_status, calc_route),
+            )
 
-        if existing:
-            if existing.name and existing.name.lower() != clean_name.lower():
-                self._nodes_by_name.pop(existing.name.lower(), None)
-            if existing.alias and existing.alias.lower() != clean_alias.lower():
-                self._nodes_by_name.pop(existing.alias.lower(), None)
+            if existing:
+                if existing.name and existing.name.lower() != clean_name.lower():
+                    self._nodes_by_name.pop(existing.name.lower(), None)
+                if existing.alias and existing.alias.lower() != clean_alias.lower():
+                    self._nodes_by_name.pop(existing.alias.lower(), None)
 
-        self._nodes_by_key[canonical_key] = contact
-        self._nodes_by_name[clean_name.lower()] = canonical_key
-        if clean_alias:
-            self._nodes_by_name[clean_alias.lower()] = canonical_key
+            self._nodes_by_key[canonical_key] = contact
+            self._nodes_by_name[clean_name.lower()] = canonical_key
+            if clean_alias:
+                self._nodes_by_name[clean_alias.lower()] = canonical_key
 
-        return contact
+            return contact
 
     def _classify_advert_role(self, clean_name: str, role: str) -> tuple[str, bool]:
         """Clasifica el rol de un nodo descubierto y si es parte de la infraestructura de red."""
         name_upper = clean_name.upper()
         role_upper = (role or "CLIENT").upper()
+        rep_by_name = is_repeater_name(clean_name)
         is_infrastructure = (
             role_upper in ("REPEATER", "ROUTER", "ROOM", "SENSOR")
-            or name_upper.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-"))
-            or "REPEATER" in name_upper
-            or "ROUTER" in name_upper
+            or rep_by_name
             or "SENSOR" in name_upper
             or "ROOM" in name_upper
             or "BBS" in name_upper
         )
-        effective_role = "REPEATER" if ("REPEATER" in name_upper or name_upper.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-"))) else role
+        effective_role = "REPEATER" if rep_by_name else role
         return effective_role, is_infrastructure
 
     def _handle_local_discovery(self, norm_key: str, clean_name: str) -> tuple[bool, NodeContactInfo]:
@@ -882,18 +881,19 @@ class NodeRegistry:
         """Elimina un nodo del registro y limpia sus índices asociados (nombre/alias)."""
         if not public_key:
             return False
-        canon = self.get_canonical_key(public_key)
-        if not canon or canon not in self._nodes_by_key:
-            return False
-        node = self._nodes_by_key.pop(canon)
-        if node.name:
-            self._nodes_by_name.pop(node.name.lower(), None)
-        if node.alias:
-            self._nodes_by_name.pop(node.alias.lower(), None)
-        stale_names = [k for k, v in self._nodes_by_name.items() if v == canon]
-        for sn in stale_names:
-            self._nodes_by_name.pop(sn, None)
-        return True
+        with self._lock:
+            canon = self.get_canonical_key(public_key)
+            if not canon or canon not in self._nodes_by_key:
+                return False
+            node = self._nodes_by_key.pop(canon)
+            if node.name:
+                self._nodes_by_name.pop(node.name.lower(), None)
+            if node.alias:
+                self._nodes_by_name.pop(node.alias.lower(), None)
+            stale_names = [k for k, v in self._nodes_by_name.items() if v == canon]
+            for sn in stale_names:
+                self._nodes_by_name.pop(sn, None)
+            return True
 
     def list_nodes(self) -> list[dict[str, Any]]:
         """Retorna la lista de todos los nodos registrados en formato serializable sin duplicados."""
@@ -901,7 +901,10 @@ class NodeRegistry:
         local_included = False
         result: list[dict[str, Any]] = []
 
-        for c in self._nodes_by_key.values():
+        with self._lock:
+            contacts_snapshot = list(self._nodes_by_key.values())
+
+        for c in contacts_snapshot:
             if not is_valid_node_key(c.public_key) or c.name.startswith("Node_unknow"):
                 continue
 
@@ -931,12 +934,11 @@ class NodeRegistry:
             return False
         if contact.is_local or str(contact.role).upper() == "LOCAL":
             return False
-        name_upper = (contact.alias or contact.name or "").upper()
         role_upper = str(contact.role).upper()
         return bool(
             role_upper in ("REPEATER", "ROUTER")
-            or name_upper.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-", "REP_", "ROUTER_"))
-            or "REPEATER" in name_upper or "ROUTER" in name_upper or "REPETIDOR" in name_upper
+            or is_repeater_name(contact.alias)
+            or is_repeater_name(contact.name)
         )
 
     def list_client_contacts(self) -> list[dict[str, Any]]:
@@ -954,16 +956,13 @@ class NodeRegistry:
             if n.get("is_local") or str(n.get("role")).upper() == "LOCAL":
                 return False
             role_str = str(n.get("role", "")).upper()
-            name_str = str(n.get("alias") or n.get("name") or "").upper()
             return bool(
                 role_str in ("REPEATER", "ROUTER")
                 or n.get("type") == 2
                 or n.get("adv_type") == 2
                 or n.get("repeat_enabled") is True
-                or name_str.startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-", "REP_", "ROUTER_"))
-                or "REPEATER" in name_str
-                or "ROUTER" in name_str
-                or "REPETIDOR" in name_str
+                or is_repeater_name(n.get("alias"))
+                or is_repeater_name(n.get("name"))
             )
 
         repeaters_list = []
@@ -1042,15 +1041,19 @@ class NodeRegistry:
     def cleanup_inactive(self, max_idle_seconds: float = 86400.0 * 7) -> int:
         """Elimina nodos inactivos que no hayan transmitido durante el período especificado."""
         now = time.time()
-        to_remove = [
-            k for k, c in self._nodes_by_key.items()
-            if (now - c.last_seen) > max_idle_seconds
-        ]
-        for k in to_remove:
-            contact = self._nodes_by_key.pop(k, None)
-            if contact:
-                self._nodes_by_name.pop(contact.name.lower(), None)
-                self._nodes_by_name.pop(contact.alias.lower(), None)
+        with self._lock:
+            to_remove = [
+                k for k, c in self._nodes_by_key.items()
+                if (now - c.last_seen) > max_idle_seconds
+                and not c.is_local
+                and not self.is_local_key(k)
+                and str(c.role).upper() != "LOCAL"
+            ]
+            for k in to_remove:
+                contact = self._nodes_by_key.pop(k, None)
+                if contact:
+                    self._nodes_by_name.pop(contact.name.lower(), None)
+                    self._nodes_by_name.pop(contact.alias.lower(), None)
 
         if to_remove:
             logging.info(f"Limpieza de NodeRegistry: eliminados {len(to_remove)} nodos obsoletos.")
@@ -1063,13 +1066,14 @@ class NodeRegistry:
         try:
             target_path.parent.mkdir(parents=True, exist_ok=True)
             nodes_list = self.list_nodes()
-            data = {
-                "local_pubkey": self._local_pubkey,
-                "saved_at": time.time(),
-                "nodes": nodes_list,
-                "error_categories": self.error_categories,
-            }
-            tmp_path = target_path.with_suffix(".tmp")
+            with self._lock:
+                data = {
+                    "local_pubkey": self._local_pubkey,
+                    "saved_at": time.time(),
+                    "nodes": nodes_list,
+                    "error_categories": dict(self.error_categories),
+                }
+            tmp_path = target_path.with_name(f"{target_path.stem}_{os.getpid()}_{time.time_ns()}.tmp")
             with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
             tmp_path.replace(target_path)

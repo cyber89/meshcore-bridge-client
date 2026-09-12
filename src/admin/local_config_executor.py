@@ -530,12 +530,30 @@ class LocalConfigExecutor:
                 except Exception as e:
                     logging.warning(f"Aviso actualizando parámetros de radio por serial: {e}")
 
+            update_fields = {
+                "freq": new_f,
+                "radio_freq": new_f,
+                "bw": new_bw,
+                "radio_bw": new_bw,
+                "sf": new_sf,
+                "radio_sf": new_sf,
+                "cr": new_cr,
+                "radio_cr": new_cr,
+                "repeat": new_rep,
+            }
             if mc:
                 raw_si = getattr(mc, "self_info", None)
                 if isinstance(raw_si, dict):
-                    raw_si.update({"freq": new_f, "radio_freq": new_f, "bw": new_bw, "radio_bw": new_bw, "sf": new_sf, "radio_sf": new_sf, "cr": new_cr, "radio_cr": new_cr, "repeat": new_rep})
+                    raw_si.update(update_fields)
                 if hasattr(mc, "_self_info") and isinstance(mc._self_info, dict):
-                    mc._self_info.update({"freq": new_f, "radio_freq": new_f, "bw": new_bw, "radio_bw": new_bw, "sf": new_sf, "radio_sf": new_sf, "cr": new_cr, "radio_cr": new_cr, "repeat": new_rep})
+                    mc._self_info.update(update_fields)
+
+            ser = getattr(self._ctx, "serial_adapter", None)
+            if ser:
+                if hasattr(ser, "_self_info") and isinstance(ser._self_info, dict):
+                    ser._self_info.update(update_fields)
+                if hasattr(ser, "self_info") and isinstance(ser.self_info, dict):
+                    ser.self_info.update(update_fields)
 
     def _apply_timing_settings(self, params: dict[str, Any], applied: dict[str, Any], mc: Any) -> None:
         """Aplica intervalos de baliza (advert) y telemetría."""
