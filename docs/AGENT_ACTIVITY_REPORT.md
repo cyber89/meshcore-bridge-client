@@ -3376,3 +3376,32 @@ Fase 5 - COMPAT-001 to COMPAT-012 terminados
 - **Verificación**:
   - `python -m pytest --no-cov -q`: 247 passed, 10 skipped, 0 failed.
   - `python scripts/sync_deploy.py`: Despliegue limpio sincronizado en `/deploy/` con SHA256SUMS y paquetes `.zip` / `.tar.gz`.
+
+---
+
+### Hito: Optimización Cartográfica (Eliminación de Radar y Anclaje Estable de Nodo Local en Zoom), Terminal Local y Sistema de Toasts
+- **Fecha**: 2026-09-12
+- **Estado**: ✅ COMPLETADO (Modificaciones aplicadas, verificadas con py_compile y ruff, desplegadas en /deploy/)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect).
+- **Problemas Identificados y Resueltos**:
+  1. **Anclaje Estable del Nodo Local en Zoom Cartográfico**:
+     - *Causa Raíz*: La regla CSS `@keyframes localStationPulse` con `transform: scale(...)` estaba asociada al contenedor externo del icono de Leaflet (`.marker-local-station`). Al hacer zoom, Leaflet calcula la posición del marcador mediante `transform: translate3d(...)` en línea. La animación CSS colisionaba con la traslación de Leaflet, provocando que el marcador flotara o saltara fuera de su posición geográfica real. Además, la ausencia de banderas de interacción en eventos de arrastre/zoom provocaba que los eventos de fondo `NODE_UPDATED` forzaran `centerOnLocalNode(13)` interrumpiendo el zoom del operador.
+     - *Solución*: Se desacopló la animación `@keyframes localStationPulse` hacia el elemento `div` hijo interno (`.local-station-pulse-pin` / `.marker-local-station > div`) con `transform-origin: center center`. Se agregaron listeners a `movestart`, `zoomstart` y `dragstart` en Leaflet para garantizar que los eventos posteriores no interfieran con la interacción manual del mapa.
+  2. **Eliminación Total de la Capa Radar del Mapa**:
+     - Se eliminó el botón de capa `<button data-layer="tactical_radar">` de `src/web/static/index.html`.
+     - Se eliminó la propiedad `tacticalRadarGroup`, el método `renderTacticalRadarOverlay()` y sus invocaciones en `src/web/static/js/modules/map.js`.
+     - Se limpió la entrada correspondiente en `src/web/static/js/i18n.js`.
+  3. **Corrección Integral del Terminal del Nodo Local**:
+     - *Enrutamiento REST*: Se amplió `src/web/api_router.py` para permitir `POST /api/admin` además de `/api/admin/command`, eliminando el error `405 Method Not Allowed`.
+     - *Desempaquetado de Comandos*: Se ajustó `src/admin_handler.py:handle` para extraer el comando real cuando `action` es `"cmd"`, `"exec"`, `"terminal"`, `"cli"` o `"run"`.
+     - *Formato de Respuesta*: `RepeaterController.execute_admin_command` ahora retorna los campos de nivel superior `response` y `message`.
+     - *UI y Experiencia de Usuario*: `SettingsModule` en `src/web/static/js/modules/settings.js` ahora utiliza `appendLocalTerminalLine` con estilos semánticos (`term-cmd`, `term-success`, `term-error`), implementa historial interactivo con las teclas `ArrowUp` y `ArrowDown`, y limpia correctamente la consola con innerHTML vacío.
+  4. **Unificación Estilística y Funcional del Sistema de Toasts**:
+     - *Causa Raíz*: `app.js` asignaba la clase `.toast`, pero `app.css` definía únicamente `.toast-item`, dejando los avisos sin fondo oscuro, bordes, padding, sombras ni animaciones. Tampoco existía regla para `.toast-warning`.
+     - *Solución*: Se unificó el selector `.toast, .toast-item` en `src/web/static/css/app.css`, se añadió `.toast-warning`, soporte para iconos de estado (`✓`, `ℹ`, `⚠`, `✕`), botón de cierre accesible (`&times;`), y adaptación responsiva a dispositivos móviles.
+- **Verificación**:
+  - `python -m py_compile src/web/api_router.py src/admin_handler.py src/web/controllers/repeater_controller.py`: 0 errores.
+  - `ruff check src/`: 0 warnings, 0 errores.
+  - `node -c src/web/static/js/app.js src/web/static/js/modules/settings.js src/web/static/js/modules/map.js src/web/static/js/i18n.js`: Sintaxis JS 100% válida.
+  - `python scripts/sync_deploy.py`: Sincronización completa con `/deploy/` y regeneración de paquetes de producción.
+

@@ -651,7 +651,6 @@
     { s: '.map-layer-btn[data-layer="osm"]',          k: 'map.streets',   last: true },
     { s: '.map-layer-btn[data-layer="satellite"]',    k: 'map.satellite', last: true },
     { s: '.map-layer-btn[data-layer="local"]',        k: 'map.local',     last: true },
-    { s: '.map-layer-btn[data-layer="tactical_radar"]',k: 'map.radar',    last: true },
     { s: '#btnToggleHeatmap',            k: 'map.heatmap', last: true },
 
     // Lang toggle button

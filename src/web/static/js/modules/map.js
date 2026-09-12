@@ -12,7 +12,6 @@ export class MapModule {
     this.map = null;
     this.tileLayers = {};
     this.mapMarkers = new Map();
-    this.tacticalRadarGroup = null;
     this.rfHeatmapGroup = null;
     this.rfHeatmapActive = false;
     this.rfHeatmapInterval = null;
@@ -20,7 +19,7 @@ export class MapModule {
     this.selectedTraceName = null;
     this.localTileUrl = localStorage.getItem("meshcore_local_tile_url") || "/api/map/tiles/{z}/{x}/{y}.png";
     const savedLayer = localStorage.getItem("meshcore_map_layer_mode");
-    this.mapLayerMode = (savedLayer === "cartodb" || !savedLayer) ? "dark" : savedLayer;
+    this.mapLayerMode = (savedLayer === "cartodb" || savedLayer === "tactical_radar" || !savedLayer) ? "dark" : savedLayer;
     this.dom = {};
     this._hasInitiallyCentered = false;
     this._userInteractedWithMap = false;
@@ -119,8 +118,9 @@ export class MapModule {
         }
       } else if (data && typeof data === "object") {
         this.updateSingleNodeMarker(data);
-        if ((data.is_local || data.role === "LOCAL") && !this._userInteractedWithMap) {
+        if ((data.is_local || data.role === "LOCAL") && !this._hasInitiallyCentered && !this._userInteractedWithMap) {
           this.centerOnLocalNode(13, false);
+          this._hasInitiallyCentered = true;
         }
       }
     });
@@ -186,11 +186,9 @@ export class MapModule {
         }),
       };
 
-      this.tacticalRadarGroup = L.layerGroup();
-      this.tacticalRadarGroup.addTo(this.map);
       this.rfHeatmapGroup = L.layerGroup();
 
-      this.map.on("movestart zoomstart", () => {
+      this.map.on("movestart zoomstart dragstart", () => {
         this._userInteractedWithMap = true;
       });
 
@@ -209,6 +207,10 @@ export class MapModule {
   setMapLayer(mode) {
     if (!this.map || !this.tileLayers) return;
 
+    if (mode === "tactical_radar" || !this.tileLayers[mode]) {
+      mode = "dark";
+    }
+
     Object.values(this.tileLayers).forEach((layer) => {
       if (this.map.hasLayer(layer)) {
         this.map.removeLayer(layer);
@@ -223,8 +225,6 @@ export class MapModule {
     document.querySelectorAll(".map-layer-switcher .map-layer-btn").forEach((btn) => {
       btn.classList.toggle("active", btn.getAttribute("data-layer") === mode);
     });
-
-    this.renderTacticalRadarOverlay();
   }
 
   initMapOverlayToggle() {
@@ -545,70 +545,6 @@ export class MapModule {
     });
   }
 
-  renderTacticalRadarOverlay() {
-    if (!this.map || !this.tacticalRadarGroup) return;
-    if (!this.map.hasLayer(this.tacticalRadarGroup)) {
-      this.tacticalRadarGroup.addTo(this.map);
-    }
-    this.tacticalRadarGroup.clearLayers();
-
-    let center = this.map.getCenter();
-    if (this.ctx.knownNodes) {
-      for (const node of this.ctx.knownNodes.values()) {
-        if (node.is_local || node.role === "LOCAL") {
-          const lat = parseFloat(node.latitude || node.lat);
-          const lon = parseFloat(node.longitude || node.lon);
-          if (!isNaN(lat) && !isNaN(lon) && lat !== 0) {
-            center = L.latLng(lat, lon);
-            break;
-          }
-        }
-      }
-    }
-
-    const ranges = [
-      { radius: 1000, label: "1 km (LoRa Urbana)", color: "#38bdf8" },
-      { radius: 5000, label: "5 km (LoRa Suburbana)", color: "#0ea5e9" },
-      { radius: 10000, label: "10 km (Línea de Vista)", color: "#0284c7" },
-      { radius: 25000, label: "25 km (Largo Alcance RF)", color: "#0369a1" },
-    ];
-
-    for (const r of ranges) {
-      const circle = L.circle(center, {
-        radius: r.radius,
-        color: r.color,
-        weight: 1.2,
-        opacity: 0.7,
-        dashArray: "4, 6",
-        fillColor: r.color,
-        fillOpacity: 0.03,
-      });
-
-      circle.bindTooltip(`🎯 ${r.label}`, {
-        permanent: false,
-        direction: "top",
-        className: "radar-range-tooltip",
-      });
-
-      this.tacticalRadarGroup.addLayer(circle);
-    }
-
-    const delta = 0.35;
-    const northSouth = L.polyline([[center.lat - delta, center.lng], [center.lat + delta, center.lng]], {
-      color: "rgba(56, 189, 248, 0.25)",
-      weight: 1,
-      dashArray: "2, 4",
-    });
-    const eastWest = L.polyline([[center.lat, center.lng - delta], [center.lat, center.lng + delta]], {
-      color: "rgba(56, 189, 248, 0.25)",
-      weight: 1,
-      dashArray: "2, 4",
-    });
-
-    this.tacticalRadarGroup.addLayer(northSouth);
-    this.tacticalRadarGroup.addLayer(eastWest);
-  }
-
   centerMapOnCoords(lat, lon, zoom = 14) {
     if (!this.map) return;
     const fLat = parseFloat(lat);
@@ -787,7 +723,7 @@ export class MapModule {
 
     const customIcon = L.divIcon({
       className: `custom-leaflet-marker ${isLocal ? "marker-local-station" : ""}`,
-      html: `<div style="background: ${markerColor}; width: ${isLocal ? 22 : 16}px; height: ${isLocal ? 22 : 16}px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 ${isLocal ? "10px #10b981" : "6px " + markerColor}; display: flex; align-items: center; justify-content: center; font-size: ${isLocal ? "11px" : "9px"}; color: white;">${iconSymbol}</div>`,
+      html: `<div class="${isLocal ? "local-station-pulse-pin" : ""}" style="background: ${markerColor}; width: ${isLocal ? 22 : 16}px; height: ${isLocal ? 22 : 16}px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 ${isLocal ? "10px #10b981" : "6px " + markerColor}; display: flex; align-items: center; justify-content: center; font-size: ${isLocal ? "11px" : "9px"}; color: white;">${iconSymbol}</div>`,
       iconSize: [isLocal ? 22 : 16, isLocal ? 22 : 16],
       iconAnchor: [isLocal ? 11 : 8, isLocal ? 11 : 8],
     });

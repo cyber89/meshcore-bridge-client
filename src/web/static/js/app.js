@@ -394,18 +394,48 @@ class MeshCoreApp {
       container = document.createElement("div");
       container.id = "toastContainer";
       container.className = "toast-container";
+      container.setAttribute("aria-live", "polite");
       document.body.appendChild(container);
     }
 
-    const toast = document.createElement("div");
-    toast.className = `toast toast-${type}`;
-    toast.innerHTML = `<span class="toast-message">${escapeHtml(message)}</span>`;
-    container.appendChild(toast);
+    const icons = {
+      success: "✓",
+      info: "ℹ",
+      warning: "⚠",
+      error: "✕",
+    };
+    const icon = icons[type] || "ℹ";
 
-    setTimeout(() => {
+    const toast = document.createElement("div");
+    toast.className = `toast toast-item toast-${type}`;
+    toast.setAttribute("role", "alert");
+    toast.innerHTML = `
+      <span class="toast-icon" aria-hidden="true">${icon}</span>
+      <span class="toast-message">${escapeHtml(message)}</span>
+      <button type="button" class="toast-close" aria-label="Cerrar notificación">&times;</button>
+    `;
+
+    let dismissed = false;
+    const dismiss = () => {
+      if (dismissed) return;
+      dismissed = true;
       toast.classList.add("toast-fade-out");
       setTimeout(() => toast.remove(), 300);
-    }, durationMs);
+    };
+
+    const closeBtn = toast.querySelector(".toast-close");
+    if (closeBtn) {
+      closeBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        dismiss();
+      });
+    }
+
+    container.appendChild(toast);
+
+    if (durationMs > 0) {
+      setTimeout(dismiss, durationMs);
+    }
   }
 
   getAuthHeaders(customHeaders = {}) {

@@ -12,6 +12,7 @@ export class SettingsModule {
     this.channelsList = [];
     this._localCliHistory = [];
     this._localCliHistoryIdx = -1;
+    this._localCliTempInput = "";
     this.dom = {};
   }
 
@@ -334,12 +335,14 @@ export class SettingsModule {
         e.preventDefault();
         const cmd = (this.dom.localTerminalInput?.value || "").trim();
         if (!cmd) return;
+
+        this._localCliHistory.push(cmd);
+        this._localCliHistoryIdx = -1;
+        this._localCliTempInput = "";
+
         if (this.dom.localTerminalInput) this.dom.localTerminalInput.value = "";
-        const termOut = this.dom.localTerminalOutput;
-        if (termOut) {
-          termOut.textContent += `\n> ${cmd}`;
-          termOut.scrollTop = termOut.scrollHeight;
-        }
+        this.appendLocalTerminalLine(`meshcore@base:~$ ${cmd}`, "term-cmd");
+
         try {
           const res = await fetch("/api/admin", {
             method: "POST",
@@ -347,15 +350,36 @@ export class SettingsModule {
             body: JSON.stringify({ action: "cmd", command: cmd }),
           });
           const data = await res.json().catch(() => ({}));
-          if (termOut) {
-            const outText = data.response || data.message || (typeof data === "string" ? data : JSON.stringify(data, null, 2));
-            termOut.textContent += `\n${outText}`;
-            termOut.scrollTop = termOut.scrollHeight;
-          }
+          const isError = !res.ok || data.status === "error";
+          const outText = data.response || data.message || data.result?.result || data.result?.message || (typeof data.result === "string" ? data.result : (typeof data === "string" ? data : JSON.stringify(data, null, 2)));
+          this.appendLocalTerminalLine(outText, isError ? "term-error" : "term-success");
         } catch (err) {
-          if (termOut) {
-            termOut.textContent += `\nError de conexión: ${err.message}`;
-            termOut.scrollTop = termOut.scrollHeight;
+          this.appendLocalTerminalLine(`✗ Error de conexión: ${err.message}`, "term-error");
+        }
+      });
+    }
+
+    if (this.dom.localTerminalInput) {
+      this.dom.localTerminalInput.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowUp") {
+          if (!this._localCliHistory || this._localCliHistory.length === 0) return;
+          e.preventDefault();
+          if (this._localCliHistoryIdx === -1) {
+            this._localCliTempInput = this.dom.localTerminalInput.value;
+            this._localCliHistoryIdx = this._localCliHistory.length - 1;
+          } else if (this._localCliHistoryIdx > 0) {
+            this._localCliHistoryIdx--;
+          }
+          this.dom.localTerminalInput.value = this._localCliHistory[this._localCliHistoryIdx] || "";
+        } else if (e.key === "ArrowDown") {
+          if (this._localCliHistoryIdx === -1) return;
+          e.preventDefault();
+          if (this._localCliHistoryIdx < this._localCliHistory.length - 1) {
+            this._localCliHistoryIdx++;
+            this.dom.localTerminalInput.value = this._localCliHistory[this._localCliHistoryIdx] || "";
+          } else {
+            this._localCliHistoryIdx = -1;
+            this.dom.localTerminalInput.value = this._localCliTempInput || "";
           }
         }
       });
@@ -374,7 +398,7 @@ export class SettingsModule {
     }
     if (btnClearTerm && this.dom.localTerminalOutput) {
       btnClearTerm.addEventListener("click", () => {
-        this.dom.localTerminalOutput.textContent = "";
+        this.dom.localTerminalOutput.innerHTML = "";
       });
     }
     document.querySelectorAll(".help-cmd-item[data-cmd]").forEach((item) => {
@@ -811,5 +835,19 @@ export class SettingsModule {
     }
 
     this.dom.qrShareModal.classList.remove("hidden");
+  }
+
+  appendLocalTerminalLine(text, cssClass = "term-info") {
+    if (!text) return;
+    const strText = String(text).trim();
+    if (!strText) return;
+    const termOut = this.dom.localTerminalOutput;
+    if (!termOut) return;
+
+    const line = document.createElement("div");
+    line.className = `term-line ${cssClass}`;
+    line.textContent = strText;
+    termOut.appendChild(line);
+    termOut.scrollTop = termOut.scrollHeight;
   }
 }

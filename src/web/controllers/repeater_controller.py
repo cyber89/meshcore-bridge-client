@@ -19,7 +19,10 @@ class RepeaterController(BaseController):
         action = req_body.get("action")
         res = await self.ctx.bridge.handle_admin(req_body)
         self.ctx.log_system_event("INFO", f"Comando admin ejecutado: {action}", source="admin")
-        return 200, {"status": "ok", "result": res}
+        out_msg = ""
+        if isinstance(res, dict):
+            out_msg = str(res.get("result") or res.get("message") or "")
+        return 200, {"status": "ok", "result": res, "response": out_msg, "message": out_msg}
 
     async def execute_repeater_command(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Enruta un comando hacia un repetidor remoto."""

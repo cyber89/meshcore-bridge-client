@@ -240,7 +240,15 @@ class AdminCommandHandler:
 
     async def handle(self, admin_data: dict[str, Any]) -> dict[str, Any]:
         """Ejecuta comandos de administración sobre la radio o repetidores."""
-        action = str(admin_data.get("action", admin_data.get("command", ""))).strip()
+        raw_cmd = str(admin_data.get("command", admin_data.get("cmd", ""))).strip()
+        raw_act = str(admin_data.get("action", "")).strip()
+        if raw_act.lower() in ("cmd", "exec", "terminal", "cli", "run") and raw_cmd:
+            action = raw_cmd
+        elif not raw_act and raw_cmd:
+            action = raw_cmd
+        else:
+            action = raw_act or raw_cmd
+
         req_id = admin_data.get("request_id", admin_data.get("id"))
         target_node = admin_data.get("target_node", admin_data.get("repeater"))
         password = str(admin_data.get("password", "")).strip()

@@ -443,7 +443,7 @@ class WebAPIRouter:
 
     async def _dispatch_repeater(self, method: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Despacha rutas de gestión de repetidores y comandos remotos."""
-        if clean_path == "/api/admin/command" and method == "POST":
+        if clean_path in ("/api/admin", "/api/admin/command") and method == "POST":
             return await self.repeater_ctrl.execute_admin_command(req_body)
         if clean_path == "/api/admin/repeater" and method == "POST":
             return await self.repeater_ctrl.execute_repeater_command(req_body)
