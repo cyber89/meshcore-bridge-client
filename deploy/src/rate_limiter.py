@@ -24,6 +24,8 @@ class TxPriority(IntEnum):
     NORMAL = 1  # Mensajes de texto directo y canales secundarios
     LOW = 2     # Telemetría periódica, Anuncios y Broadcasts
 
+MAX_QUEUE_SIZE = 500
+
 
 @dataclass(frozen=True, slots=True)
 class LoRaRadioConfig:
@@ -85,6 +87,16 @@ class CustomTxQueue(asyncio.PriorityQueue[Any]):
         self.total_dropped: int = 0
 
     def _put(self, item: Any) -> None:
+        if self.qsize() >= MAX_QUEUE_SIZE:
+            low_items = [x for x in self._queue if getattr(x, "priority", 1) >= 2]
+            if low_items:
+                oldest = min(low_items, key=lambda x: getattr(x, "counter", 0))
+                self._queue.remove(oldest)
+                import heapq
+                heapq.heapify(self._queue)
+                self.total_dropped += 1
+                logging.warning("CustomTxQueue: Evicted oldest LOW priority item to make room.")
+
         self._seq += 1
         if isinstance(item, TxItem):
             wrapped = item

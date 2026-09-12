@@ -34,9 +34,8 @@ class PacketDeduplicator:
     async def is_duplicate(self, key: str) -> bool:
         """Verifica si la clave ha sido vista recientemente dentro de la ventana de tiempo."""
         async with self._async_lock:
-            with self._thread_lock:
-                now = time.time()
-                self._prune(now)
+            now = time.time()
+            self._prune(now)
 
                 if key in self._cache:
                     last_seen = self._cache[key]

@@ -75,28 +75,59 @@ meshcore-bridge/
 ├── src/                              # Código fuente modular de producción
 │   ├── __init__.py                   # Exportaciones públicas del paquete
 │   ├── __main__.py                   # Entrypoint 'python -m src'
+│   ├── admin/                        # Ejecutores de comandos administrativos
+│   │   ├── __init__.py
+│   │   ├── local_config_executor.py
+│   │   ├── repeater_executor.py
+│   │   └── traceroute_executor.py
 │   ├── admin_handler.py              # Comandos de administración RF y repetidores remotos
 │   ├── bridge_core.py                # Orquestador central MeshCoreBridge (facade/composition root)
 │   ├── contact_manager.py            # Registro dinámico de nodos, métricas top y libreta
 │   ├── deduplicator.py               # Deduplicador de paquetes en RAM con ventana deslizante TTL
+│   ├── diagnostics.py                # Sistema extendido de diagnósticos
 │   ├── event_utils.py                # Extractor canónico de remitentes y utilidades de eventos
 │   ├── health_reporter.py            # Reporte periódico de salud en meshcore/bridge/health
 │   ├── lqi_engine.py                 # Motor de cálculo de calidad de enlace LQI (SNR/RSSI/Hops)
 │   ├── mqtt_client.py                # Cliente MQTT asíncrono con soporte ReasonCodes v2.x
 │   ├── mqtt_dispatcher.py            # Despachador de mensajes MQTT entrantes (TX/Admin)
+│   ├── packet_buffer.py              # Buffer de paquetes en tránsito
 │   ├── preflight.py                  # Motor de diagnósticos previos al arranque
 │   ├── protocol_types.py             # Dataclasses inmutables y tipadas con CRC-16 y PacketType oficial
 │   ├── rate_limiter.py               # Rate Limiter con PriorityQueue y LoRa Airtime Tracker
 │   ├── repeater_manager.py           # Gestor de repetidores remotos y telemetría
+│   ├── routers/                      # Manejadores de enrutamiento por tipo de paquete
+│   │   ├── __init__.py
+│   │   ├── advert_handler.py
+│   │   ├── base.py
+│   │   ├── channel_handler.py
+│   │   ├── direct_handler.py
+│   │   ├── repeater_handler.py
+│   │   ├── system_handler.py
+│   │   └── telemetry_handler.py
 │   ├── rx_router.py                  # Enrutador de eventos LoRa/RF → MQTT + WebSocket
 │   ├── sensor_decoder.py             # Decodificador CayenneLPP para sensores ambientales
 │   ├── serial_driver.py              # Adaptadores de comunicación serial, TCP y Watchdog
+│   ├── shared_utils.py               # Utilidades compartidas del proyecto
+│   ├── target_resolver.py            # Resolución de destinatarios y alias
 │   ├── tcp_companion_server.py       # Servidor TCP para Companion Apps oficiales (Android/iOS/CLI)
 │   ├── virtual_mesh_adapter.py       # Emulador de hardware Heltec v4 y topología de nodos
 │   └── web/                          # Subsistema del Servidor Web y Cliente SPA
 │       ├── __init__.py               # Exportaciones de MeshCoreWebServer y WebAPIRouter
 │       ├── api_router.py             # Enrutador REST API para contactos, canales y repetidores
+│       ├── controllers/              # Controladores de la API REST
+│       │   ├── __init__.py
+│       │   ├── base.py
+│       │   ├── channels_controller.py
+│       │   ├── config_controller.py
+│       │   ├── contacts_controller.py
+│       │   ├── nodes_controller.py
+│       │   ├── packets_controller.py
+│       │   ├── repeater_controller.py
+│       │   ├── system_controller.py
+│       │   └── tx_controller.py
 │       ├── http_server.py            # Servidor HTTP 1.1 y WebSocket Hub asíncrono
+│       ├── map_tile_service.py       # Servicio local de teselas de mapas offline
+│       ├── security_inspector.py     # Inspector de seguridad de peticiones
 │       └── static/                   # Assets estáticos de la interfaz web
 │           ├── index.html            # Maquetación semántica SPA accesible (WCAG 2.2)
 │           ├── css/app.css           # Sistema de diseño Cyberpunk Slate en Vanilla CSS
@@ -110,12 +141,26 @@ meshcore-bridge/
 │   └── inspect_web.py                # Automatización de capturas Playwright Desktop/Mobile
 ├── docs/                             # Documentación técnica completa
 │   ├── ARCHITECTURE.md               # Diagramas de arquitectura v3.0, clases y flujos
-│   ├── PROTOCOL_SPEC.md              # Especificación de tramas binarias y contratos JSON
-│   ├── DEPLOYMENT_GUIDE.md           # Guía paso a paso de instalación en Linux/Raspberry Pi
+│   ├── AUDIT_REPORT_2026-08-17.md    # Reporte de auditoría de seguridad
 │   ├── CODE_EXPLANATION.md           # Explicación detallada de módulos y patrones
+│   ├── DEPLOYMENT_GUIDE.md           # Guía paso a paso de instalación en Linux/Raspberry Pi
+│   ├── FINAL_PROJECT_REPORT.md       # Reporte final del proyecto
+│   ├── PROTOCOL_SPEC.md              # Especificación de tramas binarias y contratos JSON
 │   └── AGENT_ACTIVITY_REPORT.md      # Registro de actividad y cambios multi-agente
 ├── deploy/                           # Paquete autónomo de instalación en producción
 └── tests/                            # Suites de pruebas automatizadas (bajo demanda)
+```
+
+### Arquitectura Simplificada
+
+```mermaid
+flowchart TB
+    UI[Cliente Web SPA / n8n] <--> WS(WebSocket / MQTT)
+    WS <--> Bridge[MeshCore Bridge Core]
+    Bridge <--> Routers[Routers & Handlers]
+    Routers <--> IO[Serial Driver / TCP Server]
+    IO <--> HW((Hardware LoRa RF))
+```
 ```
 
 ---

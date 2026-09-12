@@ -551,7 +551,7 @@ export class RepeaterModule {
   getStoredRepeaterPassword(pubkey) {
     if (!pubkey) return "";
     try {
-      return sessionStorage.getItem(`rep_pwd_${pubkey.toLowerCase()}`) || "";
+      return this.repeaterPasswords.get(pubkey.toLowerCase()) || "";
     } catch (_) {
       return "";
     }
@@ -560,7 +560,6 @@ export class RepeaterModule {
   setStoredRepeaterPassword(pubkey, pwd) {
     if (!pubkey || !pwd) return;
     try {
-      sessionStorage.setItem(`rep_pwd_${pubkey.toLowerCase()}`, pwd);
       this.repeaterPasswords.set(pubkey.toLowerCase(), pwd);
     } catch (_) {}
   }
@@ -568,7 +567,6 @@ export class RepeaterModule {
   clearStoredRepeaterPassword(pubkey) {
     if (!pubkey) return;
     try {
-      sessionStorage.removeItem(`rep_pwd_${pubkey.toLowerCase()}`);
       this.authenticatedRepeaters.delete(pubkey.toLowerCase());
       this.repeaterPasswords.delete(pubkey.toLowerCase());
     } catch (_) {}

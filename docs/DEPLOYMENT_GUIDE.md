@@ -204,3 +204,25 @@ mosquitto_sub -t "meshcore/bridge/health" -v
 ```bash
 curl -s http://127.0.0.1:8080/api/status | jq .
 ```
+
+### Instalación en Windows (PowerShell)
+Documenta el uso de `install.ps1`:
+```powershell
+# Instalación completa
+.\install.ps1
+
+# Solo instalar dependencias
+.\install.ps1 -InstallDeps
+
+# Ejecutar el bridge
+.\install.ps1 -Run
+```
+
+### Modo de Simulación
+Documenta cómo ejecutar sin hardware usando VirtualMeshAdapter:
+```bash
+python meshcore_bridge.py --simulate
+```
+
+### Mapas Offline
+Documenta la configuración del servicio de teselas offline (`map_tile_service.py`) para SBCs sin Internet. Para usarlo, arranca el puente y asegúrate de que `WEB_ENABLED` esté en `true`. Las teselas se sirven localmente evitando peticiones a proveedores externos.

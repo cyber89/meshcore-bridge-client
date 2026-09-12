@@ -1,6 +1,6 @@
 # Explicación Técnica del Código: MeshCore Universal Bridge
 
-Este documento detalla la arquitectura, decisiones de diseño, flujo de concurrencia, mecanismos de resiliencia de grado industrial (**Persistencia Atómica JSON**, **LoRa Rate Limiter**, **Serial Watchdog**, **Health Metrics**) y el funcionamiento del puente **`meshcore_bridge.py`** con cualquier placa compatible (Heltec, LilyGO, RAKwireless, Seeed, RP2040) y el workflow de **n8n**.
+Este documento detalla la arquitectura, decisiones de diseño, flujo de concurrencia, mecanismos de resiliencia de grado industrial (**Persistencia Atómica JSON**, **LoRa Rate Limiter**, **Serial Watchdog**, **Health Metrics**) y el funcionamiento del núcleo **`src/bridge_core.py`** (la clase `MeshCoreBridge`) y su CLI wrapper/entrypoint **`meshcore_bridge.py`**, con cualquier placa compatible (Heltec, LilyGO, RAKwireless, Seeed, RP2040) y el workflow de **n8n**.
 
 ---
 
@@ -168,9 +168,9 @@ En redes LoRa Mesh, cuando un nodo emite un paquete, este puede ser recibido dir
 
 ## 5. Suite de Pruebas Automatizadas
 
-El proyecto incluye **106 pruebas** (unitarias, fuzzing, concurrencia, E2E) organizadas en:
+El proyecto incluye **más de 30 archivos de test** (unitarias, fuzzing, concurrencia, E2E) organizados en:
 1. **`test_bridge_logic.py`**: Parsing de caracteres `:`, fallback de texto plano en TX y deduplicación.
-2. **`test_store_and_forward.py`** y **`test_store_forward_modular.py`**: Retención persistente en SQLite durante caídas de red, supervivencia a reinicios del proceso y vaciado ordenado FIFO con la API asíncrona.
+2. **`test_deduplicator.py`** y **`test_packet_buffer.py`**: Retención persistente con JSON y deduplicación en memoria RAM mediante `PacketBuffer` y `PacketDeduplicator` para la supervivencia a reinicios del proceso.
 3. **`test_tx_rate_limiter.py`** y **`test_rate_limiter_priority.py`**: Espaciado temporal de paquetes LoRa y emisión de ACKs en `meshcore/tx/status`.
 4. **`test_serial_watchdog.py`** y **`test_serial_adapter.py`**: Detección de bloqueos de hardware y reconexión automática.
 5. **`test_e2e_simulation.py`**: Simulación completa End-to-End de nodo, MQTT y flujos n8n.
@@ -192,14 +192,23 @@ python .agents/skills/bridge-test-runner/scripts/run_checks.py
 
 Como parte de la auditoría de calidad (`clean-code-solid`), la *God Class* `MeshCoreBridge` (46 métodos) se dividió en **cuatro clases de responsabilidad única** más **cuatro Parameter Objects**. La API pública del bridge se conservó intacta mediante delegadores.
 
-### 6.1 Nuevos módulos y clases
+### 6.1 Nuevos módulos, clases y subpaquetes
 
-| Módulo | Clase(s) | Responsabilidad | Métodos extraídos de `MeshCoreBridge` |
+| Módulo / Paquete | Clase(s) | Responsabilidad | Métodos extraídos de `MeshCoreBridge` |
 | :--- | :--- | :--- | :--- |
 | `src/rx_router.py` | `RxEventRouter` | Enrutamiento LoRa/RF → MQTT + WebSocket | `on_mesh_event`, `_handle_mesh_channel_msg`, `_handle_mesh_direct_msg`, `_handle_mesh_telemetry_msg`, `_dispatch_parsed_frame` |
 | `src/health_reporter.py` | `HealthReporter` | Reporte periódico de salud MQTT | `_health_reporter_loop` |
 | `src/admin_handler.py` | `AdminCommandHandler` | Comandos de administración RF/repetidores | `handle_admin` |
 | `src/mqtt_dispatcher.py` | `MqttInboundDispatcher` | Mensajes MQTT entrantes (TX/Admin) | `_process_mqtt_input`, `_handle_tx_request`, `_handle_admin_request` |
+| `src/routers/` | (Strategy Pattern) | Subpaquete con handlers de enrutamiento: `base.py`, `advert_handler.py`, `channel_handler.py`, `direct_handler.py`, `repeater_handler.py`, `system_handler.py`, `telemetry_handler.py` | Desacoplamiento de las estrategias de enrutamiento |
+| `src/admin/` | (Command Pattern) | Subpaquete con executores: `local_config_executor.py`, `repeater_executor.py`, `traceroute_executor.py` | Desacoplamiento de la ejecución de comandos |
+| `src/virtual_mesh_adapter.py` | `VirtualMeshAdapter` | Simulador de malla LoRa virtual | |
+| `src/lqi_engine.py` | `LQIEngine` | Motor de calidad de enlace (LQI/EMA) | |
+| `src/diagnostics.py` | `Diagnostics` | Diagnóstico de enlaces y rotación de logs | |
+| `src/target_resolver.py` | `TargetResolver` | Resolución de destinatarios y alias | |
+| `src/tcp_companion_server.py` | `TCPCompanionServer` | Servidor TCP Companion (puerto 5000) | |
+| `src/web/map_tile_service.py` | `MapTileService` | Servicio de teselas cartográficas offline | |
+| `src/web/security_inspector.py` | `SecurityInspector` | Inspector de seguridad HTTP | |
 
 Cada componente recibe sus dependencias mediante un **dataclass de contexto** (`RxRouterContext`, `HealthContext`, `AdminContext`, `MqttInboundContext`), evitando constructores con demasiados parámetros.
 
@@ -209,7 +218,7 @@ Cada componente recibe sus dependencias mediante un **dataclass de contexto** (`
 | :--- | :--- | :--- |
 | `src/contact_manager.py` | `NodeContactUpdate`, `PacketRecord` | `add_or_update(public_key, update)` (19→2), `record_packet(event)` (7→1) |
 | `src/rate_limiter.py` | `LoRaRadioConfig` | `estimate_lora_airtime_ms(payload_len_bytes, radio)` (8→2); `TxRateLimiter(radio_config=...)` |
-| `src/store_forward.py` | `StoredMessage` | `enqueue(message: StoredMessage)` (7→1) |
+| `src/packet_buffer.py` | `PacketBuffer` | Buffer circular de paquetes en RAM para retención y retransmisión |
 | `src/mqtt_client.py` | `MQTTConfig` | `AsyncBridgeMQTTClient(config: MQTTConfig, ...)` (9→3) |
 | `src/rx_router.py` | `MeshMessageEvent`, `BridgeCounters` (Protocol) | `_handle_mesh_channel_msg(msg)` (7→2), contadores compartidos |
 
