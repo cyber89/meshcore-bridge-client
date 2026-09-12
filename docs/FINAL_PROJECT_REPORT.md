@@ -117,9 +117,10 @@ flowchart TB
 
 ### 5.1 Framing Serial UART
 Toda trama binaria sin procesar se delimita mediante bytes de inicio y fin con escape de bytes (*Byte Stuffing*):
-* `SOF`: `0x7E` (Inicio de trama)
-* `EOF`: `0x7F` (Fin de trama)
-* `ESC`: `0x7D` (Byte de escape; el byte siguiente se transmite como `b ^ 0x20`)
+* `SOF`: `0xAA` (Inicio de trama)
+* `EOF`: `0x55` (Fin de trama)
+* `ESC`: `0x1B` (Byte de escape; el byte siguiente se transmite como `b ^ ESC_MASK`)
+* `ESC_MASK`: `0x20` (Máscara XOR para escape de bytes)
 * `CRC`: Verificación mediante CRC-16-CCITT (`Poly: 0x1021`, `Init: 0xFFFF`).
 
 ### 5.2 Decodificación Ambiental CayenneLPP (`src/sensor_decoder.py`)
@@ -173,7 +174,7 @@ La estación web (`http://<IP>:8080` o `http://<IP>:8085`) provee **11 paneles o
 
 Ejecutada mediante la skill `security-code-auditor` y validada con `bandit`:
 
-1. **Inmunidad contra Inyección SQL**: 100% de sentencias en `src/store_forward.py` usan consultas preparadas parametrizadas (`?`).
+1. **Inmunidad contra Inyección de Datos**: Se eliminó SQLite en favor de persistencia atómica JSON (`data/channels.json`, `data/node_registry.json`) y memoria RAM (`PacketBuffer` en `src/packet_buffer.py`, `PacketDeduplicator` en `src/deduplicator.py`), erradicando cualquier vector de inyección SQL.
 2. **Aislamiento de Rutas (Directory Traversal)**: Validación estricta con `.resolve()` en `src/web/http_server.py` confinando el acceso a `src/web/static/`. Además, rechazo explícito `403 Forbidden` de rutas con segmentos `..`, barras inversas `\`, marcadores URL-encoded (`%2e`/`%2f`) y patrones `....`.
 3. **Protección contra Ataques DoS**: Límite estricto `MAX_BODY_SIZE = 1 MB` con respuesta `413 Payload Too Large`.
 4. **Cabeceras de Hardening HTTP**: Inclusión de `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` y `Referrer-Policy: strict-origin-when-cross-origin`.
@@ -196,7 +197,7 @@ Ejecutada mediante la skill `security-code-auditor` y validada con `bandit`:
   Resumen:  100% tipado estricto (--strict) en los 21 archivos de producción.
 
 [✅ PASS] pytest / Playwright E2E (Test Runner)
-  Resumen:  117/117 pruebas unitarias, de integración, E2E y de seguridad superadas.
+  Resumen:  La suite contiene más de 30 archivos de test con pruebas unitarias, de integración, E2E y de seguridad superadas.
 
 [✅ PASS] Skills Custom Validation:
   - python-patterns-typing: 100% funciones con anotaciones de tipo completas.
