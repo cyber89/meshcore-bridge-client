@@ -92,7 +92,7 @@ export class RepeaterModule {
             repeaterGatePassword.value = "";
             repeaterGatePassword.focus();
           }
-          if (this.ctx.showToast) this.ctx.showToast("🔒 Sesión de administración cerrada para este repetidor", "info");
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.rep_logout'), "info");
         }
       });
     }
@@ -252,7 +252,7 @@ export class RepeaterModule {
           const data = await res.json();
           if (data.status === "ok") {
             this.appendTerminalLine(`✓ [RX OK] Parámetros RF aplicados al repetidor ${target.slice(0, 8)}.`, "term-success");
-            if (this.ctx.showToast) this.ctx.showToast("📻 Configuración RF transmitida al repetidor", "success");
+            if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.rep_cfg_ok'), "success");
 
             const sFreq = document.getElementById("repSummaryFreq");
             if (sFreq) sFreq.textContent = `${freq.toFixed(3)} MHz`;
@@ -336,7 +336,7 @@ export class RepeaterModule {
           const data = await res.json();
           if (data.status === "ok") {
             this.appendTerminalLine(`✓ [RX OK] Información y coordenadas guardadas en repetidor ${target.slice(0, 8)}.`, "term-success");
-            if (this.ctx.showToast) this.ctx.showToast("📍 Información y posición aplicadas al repetidor", "success");
+            if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.rep_pos_ok'), "success");
 
             if (this.ctx.knownNodes) {
               const existing = this.ctx.knownNodes.get(target);
@@ -376,7 +376,7 @@ export class RepeaterModule {
         btnRefreshTelem.textContent = "🔄 Consultando...";
         try {
           this.refreshRepeaterFullTelemetry(target, password);
-          if (this.ctx.showToast) this.ctx.showToast("📡 Consultando telemetría, batería y estado al repetidor por RF...", "info");
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.rep_telem_req'), "info");
         } catch (_) {}
         finally {
           setTimeout(() => {
@@ -640,7 +640,7 @@ export class RepeaterModule {
     }
   }
 
-  handleRepeaterAuthError(pubkey, message = "Contraseña incorrecta o cambiada en el repetidor") {
+  handleRepeaterAuthError(pubkey, message = I18n.t('rep.auth_err')) {
     if (this.ctx.showToast) this.ctx.showToast(message, "error");
     this.clearStoredRepeaterPassword(pubkey);
     this.lockRepeaterAdminView(pubkey, `⚠️ ${message}`);
@@ -658,7 +658,7 @@ export class RepeaterModule {
 
     if (statusEl) {
       statusEl.className = "auth-gate-status loading";
-      statusEl.textContent = "⏳ Verificando credenciales con el repetidor por RF...";
+      statusEl.textContent = I18n.t('rep.verifying');
       statusEl.classList.remove("hidden");
     }
     if (submitBtn) {
@@ -679,7 +679,7 @@ export class RepeaterModule {
         this.authenticatedRepeaters.add(pubkey);
         this.setStoredRepeaterPassword(canonicalPk, password);
         this.unlockRepeaterAdminView(canonicalPk);
-        if (this.ctx.showToast) this.ctx.showToast("🔓 Repetidor autenticado con éxito", "success");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.rep_auth_ok'), "success");
 
         this.refreshRepeaterFullTelemetry(canonicalPk, password);
         return true;

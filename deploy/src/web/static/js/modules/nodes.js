@@ -158,13 +158,13 @@ export class NodesModule {
   }
 
   formatLastSeen(lastSeen, isLocal = false) {
-    if (isLocal) return "En línea (Host)";
-    if (!lastSeen || lastSeen <= 0) return "Desconocido";
+    if (isLocal) return I18n.t('time.online_host');
+    if (!lastSeen || lastSeen <= 0) return I18n.t('time.unknown');
     const diff = Math.floor(Date.now() / 1000) - lastSeen;
-    if (diff < 0 || diff < 60) return "Hace un momento";
-    if (diff < 3600) return `Hace ${Math.floor(diff / 60)} min`;
-    if (diff < 86400) return `Hace ${Math.floor(diff / 3600)} h`;
-    return `Hace ${Math.floor(diff / 86400)} d`;
+    if (diff < 0 || diff < 60) return I18n.t('time.just_now');
+    if (diff < 3600) return I18n.t('time.mins_ago').replace('{n}', Math.floor(diff / 60));
+    if (diff < 86400) return I18n.t('time.hours_ago').replace('{n}', Math.floor(diff / 3600));
+    return I18n.t('time.days_ago').replace('{n}', Math.floor(diff / 86400));
   }
 
   getPresenceState(lastSeen, isLocal = false) {
@@ -181,8 +181,8 @@ export class NodesModule {
     const unifiedNodesGrid = this.dom.nodesUnifiedGridUi;
 
     if (!nodes || nodes.length === 0) {
-      if (contactsGrid) contactsGrid.innerHTML = '<div class="empty-state">No hay contactos registrados en el dispositivo.</div>';
-      if (unifiedNodesGrid) unifiedNodesGrid.innerHTML = '<div class="empty-state">No se han descubierto nodos en la malla LoRa.</div>';
+      if (contactsGrid) contactsGrid.innerHTML = '<div class="empty-state">${I18n.t('nodes.no_contacts')}</div>';
+      if (unifiedNodesGrid) unifiedNodesGrid.innerHTML = '<div class="empty-state">${I18n.t('nodes.no_nodes')}</div>';
       return;
     }
 
@@ -280,7 +280,7 @@ export class NodesModule {
         const batText = node.battery_pct != null ? `${node.battery_pct}%` : (node.voltage_v != null ? `${node.voltage_v}V` : null);
         const snrVal = node.last_snr != null ? `${node.last_snr} dB` : "--";
         const rssiVal = node.last_rssi != null ? `${node.last_rssi} dBm` : "--";
-        const hopsVal = node.hops != null ? (node.hops === 0 ? "Directo" : `${node.hops} saltos`) : "--";
+        const hopsVal = node.hops != null ? (node.hops === 0 ? I18n.t('nodes.route_direct') : `${node.hops} saltos`) : "--";
 
         cCard.innerHTML = `
           <div class="contact-card-header">
@@ -291,8 +291,8 @@ export class NodesModule {
             <div class="contact-info">
               <div class="contact-title-row">
                 <span class="contact-name font-mono" title="${escapeHtml(cleanName)}">${escapeHtml(cleanName)}</span>
-                ${batText ? `<span class="contact-battery-chip" title="Batería: ${batText}">🔋 ${escapeHtml(batText)}</span>` : ""}
-                <button type="button" class="btn-toggle-fav ${node.is_favorite ? "is-fav" : ""}" title="${node.is_favorite ? "Quitar de favoritos" : "Marcar como favorito"}" aria-label="Favorito">
+                ${batText ? `<span class="contact-battery-chip" title="${I18n.t('nodes.battery_title').replace('{val}', batText)}">🔋 ${escapeHtml(batText)}</span>` : ""}
+                <button type="button" class="btn-toggle-fav ${node.is_favorite ? "is-fav" : ""}" title="${node.is_favorite ? I18n.t('nodes.remove_fav') : I18n.t('nodes.add_fav')}" aria-label="Favorito">
                   <span data-lucide="star" data-size="14"></span>
                 </button>
               </div>
@@ -305,11 +305,11 @@ export class NodesModule {
           <div class="node-telemetry-panel">
             <div class="node-meta-row">
               <span>Clave: <code>${escapeHtml(node.public_key.slice(0, 8))}…</code></span>
-              <span>${hasGps ? `📍 ${node.latitude.toFixed(3)}, ${node.longitude.toFixed(3)}` : `<span class="color-dim font-mono">Sin GPS</span>`}</span>
+              <span>${hasGps ? `📍 ${node.latitude.toFixed(3)}, ${node.longitude.toFixed(3)}` : `<span class="color-dim font-mono">${I18n.t('common.no_gps')}</span>`}</span>
             </div>
             <div class="node-meta-sub">
-              <span>Ruta: <strong>${escapeHtml(node.best_route || (node.hops === 0 ? "Directo" : "Malla"))}</strong></span>
-              <span>LQI: <strong>${node.lqi_score ? `${Math.round(node.lqi_score)}%` : "--"}</strong></span>
+              <span>${I18n.t('nodes.route_label')} <strong>${escapeHtml(node.best_route || (node.hops === 0 ? I18n.t('nodes.route_direct') : I18n.t('nodes.route_mesh')))}</strong></span>
+              <span>${I18n.t('nodes.lqi_label')} <strong>${node.lqi_score ? `${Math.round(node.lqi_score)}%` : "--"}</strong></span>
             </div>
           </div>
 
@@ -321,10 +321,10 @@ export class NodesModule {
 
           <div class="contact-card-actions">
             <button type="button" class="btn-primary btn-sm btn-contact-dm" title="Abrir chat con este contacto">
-              <span data-lucide="message-square" data-size="13"></span> Chat
+              <span data-lucide="message-square" data-size="13"></span>${I18n.t('nodes.chat_btn')}
             </button>
             <button type="button" class="btn-secondary btn-sm btn-contact-trace" title="Trazar ruta traceroute">
-              <span data-lucide="git-commit" data-size="13"></span> Ruta
+              <span data-lucide="git-commit" data-size="13"></span>${I18n.t('nodes.trace_btn')}
             </button>
             <button type="button" class="btn-outline btn-sm btn-contact-qr" title="Compartir QR del contacto">
               <span data-lucide="qr-code" data-size="13"></span>
@@ -343,7 +343,7 @@ export class NodesModule {
             node.is_favorite = newFav;
             cCard.setAttribute("data-favorite", newFav ? "1" : "0");
             favBtn.classList.toggle("is-fav", newFav);
-            favBtn.title = newFav ? "Quitar de favoritos" : "Marcar como favorito";
+            favBtn.title = newFav ? I18n.t('nodes.remove_fav') : I18n.t('nodes.add_fav');
 
             const known = this.knownNodes.get(node.public_key.toLowerCase());
             if (known) known.is_favorite = newFav;
@@ -359,7 +359,7 @@ export class NodesModule {
             this.filterContactsGrid(q);
 
             if (this.ctx.showToast) {
-              this.ctx.showToast(newFav ? `⭐ "${cleanName}" añadido a Favoritos` : `"${cleanName}" quitado de Favoritos`, "info");
+              this.ctx.showToast(newFav ? I18n.t('toast.fav_added').replace('{name}', cleanName) : I18n.t('toast.fav_removed').replace('{name}', cleanName), "info");
             }
 
             try {
@@ -395,14 +395,14 @@ export class NodesModule {
         });
 
         cCard.querySelector(".btn-contact-del")?.addEventListener("click", async () => {
-          if (!confirm(`¿Eliminar al contacto "${cleanName}"?`)) return;
+          if (!confirm(I18n.t('nodes.del_confirm').replace('{name}', cleanName))) return;
           try {
             await fetch(`/api/contacts/${encodeURIComponent(node.public_key)}`, {
               method: "DELETE",
               headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
             });
             cCard.remove();
-            if (this.ctx.showToast) this.ctx.showToast("Contacto eliminado", "info");
+            if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.contact_deleted'), "info");
           } catch (e) {
             console.warn("Fallo eliminando contacto:", e);
           }
@@ -427,13 +427,13 @@ export class NodesModule {
         const batText = isLocal ? "⚡ Host" : (node.battery_pct != null ? `${node.battery_pct}%` : (node.voltage_v != null ? `${node.voltage_v}V` : null));
         const snrVal = isLocal ? "Local" : (node.last_snr != null ? `${node.last_snr} dB` : "--");
         const rssiVal = isLocal ? "Local" : (node.last_rssi != null ? `${node.last_rssi} dBm` : "--");
-        const hopsVal = isLocal ? "0 (Host)" : (node.hops != null ? (node.hops === 0 ? "Directo" : `${node.hops} saltos`) : "--");
+        const hopsVal = isLocal ? "0 (Host)" : (node.hops != null ? (node.hops === 0 ? I18n.t('nodes.route_direct') : `${node.hops} saltos`) : "--");
 
-        let telemLine2 = `Ruta: <strong>${escapeHtml(node.best_route || (node.hops === 0 ? "Directo" : "Malla"))}</strong>`;
+        let telemLine2 = `${I18n.t('nodes.route_label')} <strong>${escapeHtml(node.best_route || (node.hops === 0 ? I18n.t('nodes.route_direct') : I18n.t('nodes.route_mesh')))}</strong>`;
         if (node.temperature_c != null) {
           telemLine2 = `🌡️ <strong>${node.temperature_c}°C</strong> ${node.humidity_pct != null ? `💧 ${node.humidity_pct}%` : ""}`;
         } else if (node.owner_name) {
-          telemLine2 = `Dueño: <strong>${escapeHtml(node.owner_name)}</strong>`;
+          telemLine2 = `${I18n.t('nodes.owner_label')} <strong>${escapeHtml(node.owner_name)}</strong>`;
         }
 
         nCard.innerHTML = `
@@ -461,11 +461,11 @@ export class NodesModule {
           <div class="node-telemetry-panel">
             <div class="node-meta-row">
               <span>Clave: <code>${escapeHtml(node.public_key.slice(0, 8))}…</code></span>
-              <span>${hasGps ? `📍 ${node.latitude.toFixed(3)}, ${node.longitude.toFixed(3)}` : `<span class="color-dim font-mono">Sin GPS</span>`}</span>
+              <span>${hasGps ? `📍 ${node.latitude.toFixed(3)}, ${node.longitude.toFixed(3)}` : `<span class="color-dim font-mono">${I18n.t('common.no_gps')}</span>`}</span>
             </div>
             <div class="node-meta-sub">
               <span>${telemLine2}</span>
-              <span>LQI: <strong>${node.lqi_score ? `${Math.round(node.lqi_score)}%` : "--"}</strong></span>
+              <span>${I18n.t('nodes.lqi_label')} <strong>${node.lqi_score ? `${Math.round(node.lqi_score)}%` : "--"}</strong></span>
             </div>
           </div>
 
@@ -478,22 +478,22 @@ export class NodesModule {
           <div class="node-actions-bar">
             ${isRepeater ? `
               <button type="button" class="btn-primary btn-sm btn-manage-repeater" title="Administrar Repetidor Remoto">
-                <span data-lucide="sliders" data-size="13"></span> Administrar
+                <span data-lucide="sliders" data-size="13"></span>${I18n.t('nodes.manage_btn')}
               </button>
             ` : ""}
             ${!isLocal && !isRepeater ? `
               <button type="button" class="btn-primary btn-sm btn-dm-node" title="Enviar Mensaje Directo">
-                <span data-lucide="message-square" data-size="13"></span> Chat DM
+                <span data-lucide="message-square" data-size="13"></span>${I18n.t('nodes.chat_btn')} DM
               </button>
             ` : ""}
             ${isLocal ? `
               <button type="button" class="btn-secondary btn-sm btn-configure-local" title="Configurar Nodo Local">
-                <span data-lucide="settings" data-size="13"></span> Ajustes
+                <span data-lucide="settings" data-size="13"></span>${I18n.t('nodes.settings_btn')}
               </button>
             ` : ""}
             ${!isLocal ? `
               <button type="button" class="btn-secondary btn-sm btn-trace-node" title="Trazar ruta de red">
-                <span data-lucide="git-commit" data-size="13"></span> Ruta
+                <span data-lucide="git-commit" data-size="13"></span>${I18n.t('nodes.trace_btn')}
               </button>
             ` : ""}
             <button type="button" class="btn-outline btn-sm btn-node-qr" title="Compartir QR">
@@ -655,15 +655,15 @@ export class NodesModule {
           emptyMsg.className = "contacts-empty-filter-state empty-state";
           grid.appendChild(emptyMsg);
         }
-        let desc = "No se encontraron contactos para los filtros seleccionados.";
+        let desc = I18n.t('nodes.empty_filter');
         if (filter === "favorites") {
-          desc = "⭐ No tienes contactos marcados como favoritos. Haz clic en la estrella de cualquier tarjeta para añadirlo.";
+          desc = I18n.t('nodes.empty_fav');
         } else if (filter === "online") {
-          desc = "📡 No hay contactos en línea en este momento.";
+          desc = I18n.t('nodes.empty_online');
         } else if (filter === "gps") {
-          desc = "📍 No hay contactos con posición GPS registrada.";
+          desc = I18n.t('nodes.empty_gps');
         } else if (q) {
-          desc = `🔍 No se encontraron contactos que coincidan con "${escapeHtml(q)}".`;
+          desc = I18n.t('nodes.empty_search').replace('{q}', escapeHtml(q));
         }
         emptyMsg.innerHTML = `<p>${desc}</p>`;
       } else if (emptyMsg) {

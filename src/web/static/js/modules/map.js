@@ -260,7 +260,7 @@ export class MapModule {
         clearInterval(this.rfHeatmapInterval);
         this.rfHeatmapInterval = null;
       }
-      if (this.ctx.showToast) this.ctx.showToast("🔥 Mapa de calor RF desactivado", "info");
+      if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.heatmap_off'), "info");
       return;
     }
 
@@ -295,16 +295,16 @@ export class MapModule {
           const baseRadius = Math.max(500, Math.min(3500, (ptRssi + 135) * 45));
 
           let color = "#ef4444";
-          let qualityLabel = "Débil";
+          let qualityLabel = I18n.t('signal.weak');
           if (ptRssi >= -75 || (isLocal && ptRssi >= -85)) {
             color = "#10b981";
-            qualityLabel = "Excelente";
+            qualityLabel = I18n.t('signal.excellent');
           } else if (ptRssi >= -95) {
             color = "#06b6d4";
-            qualityLabel = "Buena";
+            qualityLabel = I18n.t('signal.good');
           } else if (ptRssi >= -110) {
             color = "#f59e0b";
-            qualityLabel = "Marginal";
+            qualityLabel = I18n.t('signal.marginal');
           }
 
           const outerCircle = L.circle([pt.lat, pt.lon], {
@@ -335,11 +335,11 @@ export class MapModule {
                 <span data-lucide="flame" data-size="14"></span> <strong>${escapeHtml(pt.name)}</strong>
               </div>
               <div class="popup-info">
-                <div><span>Rol:</span> <span class="badge-pill" style="font-size: 10px;">${escapeHtml(roleLabel)}</span></div>
-                <div><span>Calidad Enlace:</span> <strong style="color: ${color};">${qualityLabel}</strong></div>
-                <div><span>RSSI / SNR:</span> <strong>${rssiPart} / ${snrPart}</strong></div>
-                <div><span>Piso Ruido:</span> <strong>${noisePart}</strong></div>
-                <div><span>Radio Cobertura:</span> <code>~${(baseRadius / 1000).toFixed(1)} km</code></div>
+                <div><span>${I18n.t('map.role_label')}</span> <span class="badge-pill" style="font-size: 10px;">${escapeHtml(roleLabel)}</span></div>
+                <div><span>${I18n.t('map.link_qual')}</span> <strong style="color: ${color};">${qualityLabel}</strong></div>
+                <div><span>${I18n.t('map.rssi_snr')}</span> <strong>${rssiPart} / ${snrPart}</strong></div>
+                <div><span>${I18n.t('map.noise_floor')}</span> <strong>${noisePart}</strong></div>
+                <div><span>${I18n.t('map.cov_radius')}</span> <code>~${(baseRadius / 1000).toFixed(1)} km</code></div>
               </div>
             </div>
           `;
@@ -356,12 +356,12 @@ export class MapModule {
         }
 
         if (showToast && this.ctx.showToast) {
-          this.ctx.showToast(`🔥 Heatmap RF generado con ${points.length} puntos de cobertura activa`, "success");
+          this.ctx.showToast(I18n.t('toast.heatmap_on').replace('{n}', points.length), "success");
         }
       }
     } catch (err) {
       if (showToast && this.ctx.showToast) {
-        this.ctx.showToast(`Error cargando Heatmap RF: ${err.message}`, "error");
+        this.ctx.showToast(I18n.t('toast.heatmap_err').replace('{err}', err.message), "error");
       }
     }
   }
@@ -409,13 +409,13 @@ export class MapModule {
 
   openTracerouteModal(targetNode, targetName) {
     this.selectedTraceTarget = targetNode;
-    this.selectedTraceName = targetName || (targetNode ? targetNode.slice(0, 8) : "Nodo");
+    this.selectedTraceName = targetName || (targetNode ? targetNode.slice(0, 8) : I18n.t('common.node'));
 
     if (this.dom.traceTargetNameDisplay) this.dom.traceTargetNameDisplay.textContent = this.selectedTraceName;
     if (this.dom.traceTargetPkDisplay) this.dom.traceTargetPkDisplay.textContent = targetNode;
     if (this.dom.traceCustomPathInput) this.dom.traceCustomPathInput.value = "";
     if (this.dom.traceStatusPill) {
-      this.dom.traceStatusPill.textContent = "Listo para trazar";
+      this.dom.traceStatusPill.textContent = I18n.t('map.trace_ready');
       this.dom.traceStatusPill.className = "trace-status-pill";
     }
     if (this.dom.traceVisualGraph) {
@@ -435,12 +435,12 @@ export class MapModule {
     const customPath = this.dom.traceCustomPathInput ? this.dom.traceCustomPathInput.value.trim() : "";
 
     if (this.dom.traceStatusPill) {
-      this.dom.traceStatusPill.textContent = "Transmitiendo sonda RF...";
+      this.dom.traceStatusPill.textContent = I18n.t('map.trace_transmitting');
       this.dom.traceStatusPill.className = "trace-status-pill running";
     }
     if (this.dom.btnExecuteTrace) {
       this.dom.btnExecuteTrace.disabled = true;
-      this.dom.btnExecuteTrace.textContent = "⏳ Trazando...";
+      this.dom.btnExecuteTrace.textContent = I18n.t('map.tracing');
     }
 
     try {
@@ -453,29 +453,29 @@ export class MapModule {
       if (data.status === "ok" && data.data) {
         const trace = data.data;
         if (this.dom.traceStatusPill) {
-          this.dom.traceStatusPill.textContent = `✓ Completado (${trace.total_hops || 0} saltos, ${trace.total_rtt_ms || 0}ms)`;
+          this.dom.traceStatusPill.textContent = I18n.t('map.trace_completed').replace('{hops}', trace.total_hops || 0).replace('{rtt}', trace.total_rtt_ms || 0);
           this.dom.traceStatusPill.className = "trace-status-pill success";
         }
         this.renderTracerouteGraph(trace.hops_breakdown || []);
         this.renderTracerouteTable(trace.hops_breakdown || []);
-        if (this.ctx.showToast) this.ctx.showToast(`🗺️ Ruta completada en ${trace.total_hops || 0} saltos (${trace.total_rtt_ms || 0} ms)`, "success");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.trace_completed').replace('{hops}', trace.total_hops || 0).replace('{rtt}', trace.total_rtt_ms || 0), "success");
       } else {
         if (this.dom.traceStatusPill) {
-          this.dom.traceStatusPill.textContent = "✗ Fallo de traza o sin respuesta";
+          this.dom.traceStatusPill.textContent = I18n.t('map.trace_failed');
           this.dom.traceStatusPill.className = "trace-status-pill error";
         }
-        if (this.ctx.showToast) this.ctx.showToast(`Error en traza: ${data.message || "Sin respuesta"}`, "error");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.trace_err').replace('{msg}', data.message || 'Sin respuesta'), "error");
       }
     } catch (err) {
       if (this.dom.traceStatusPill) {
-        this.dom.traceStatusPill.textContent = "✗ Error de conexión";
+        this.dom.traceStatusPill.textContent = I18n.t('map.trace_conn_err');
         this.dom.traceStatusPill.className = "trace-status-pill error";
       }
-      if (this.ctx.showToast) this.ctx.showToast(`Error de red: ${err.message}`, "error");
+      if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.net_err').replace('{msg}', err.message), "error");
     } finally {
       if (this.dom.btnExecuteTrace) {
         this.dom.btnExecuteTrace.disabled = false;
-        this.dom.btnExecuteTrace.textContent = "🚀 Iniciar Traza";
+        this.dom.btnExecuteTrace.textContent = I18n.t('map.start_trace');
       }
     }
   }
@@ -519,7 +519,7 @@ export class MapModule {
       tr.innerHTML = `
         <td><strong>#${i}</strong></td>
         <td><code>${escapeHtml(h.pubkey ? h.pubkey.slice(0, 8) : "--")}</code></td>
-        <td>${escapeHtml(h.name || "Nodo")}</td>
+        <td>${escapeHtml(h.name || I18n.t('common.node'))}</td>
         <td><span class="badge-pill">${escapeHtml(h.role || "NODE")}</span></td>
         <td>${h.snr != null ? `${h.snr} dB` : "--"}</td>
         <td>${h.rtt_ms != null ? `${h.rtt_ms} ms` : "--"}</td>
@@ -606,7 +606,7 @@ export class MapModule {
           const lat = parseFloat(n.latitude ?? n.lat);
           const lon = parseFloat(n.longitude ?? n.lon);
           if (!isNaN(lat) && !isNaN(lon) && (lat !== 0 || lon !== 0)) {
-            return { lat, lon, name: n.name || "Estación Base Local", node: n };
+            return { lat, lon, name: n.name || I18n.t('map.local_station'), node: n };
           }
         }
       }
@@ -619,7 +619,7 @@ export class MapModule {
       const lat = parseFloat(latEl.value);
       const lon = parseFloat(lonEl.value);
       if (!isNaN(lat) && !isNaN(lon) && (lat !== 0 || lon !== 0)) {
-        return { lat, lon, name: "Estación Base Local" };
+        return { lat, lon, name: I18n.t('map.local_station') };
       }
     }
 
@@ -638,7 +638,7 @@ export class MapModule {
         localMarker.openPopup();
       }
       if (showToast && this.ctx.showToast) {
-        this.ctx.showToast(`🎯 Centrado en nodo local (${localCoords.lat.toFixed(4)}, ${localCoords.lon.toFixed(4)})`, "success");
+        this.ctx.showToast(I18n.t('toast.map_centered_local').replace('{lat}', localCoords.lat.toFixed(4)).replace('{lon}', localCoords.lon.toFixed(4)), "success");
       }
       return;
     }
@@ -650,14 +650,14 @@ export class MapModule {
       if (bounds.length > 0) {
         this.map.fitBounds(L.latLngBounds(bounds), { padding: [40, 40], maxZoom: 14 });
         if (showToast && this.ctx.showToast) {
-          this.ctx.showToast("🗺️ Mapa ajustado a los nodos activos con GPS", "info");
+          this.ctx.showToast(I18n.t('toast.map_adjusted'), "info");
         }
         return;
       }
     }
 
     if (showToast && this.ctx.showToast) {
-      this.ctx.showToast("No se encontraron coordenadas GPS para el nodo local.", "warning");
+      this.ctx.showToast(I18n.t('toast.map_no_local_gps'), "warning");
     }
   }
 
@@ -687,7 +687,7 @@ export class MapModule {
     this.dom.mapNodesList.innerHTML = "";
 
     if (positionedNodes.length === 0) {
-      this.dom.mapNodesList.innerHTML = `<div class="map-node-empty-hint">No hay nodos con posición GPS en la malla.</div>`;
+      this.dom.mapNodesList.innerHTML = `<div class="map-node-empty-hint">${I18n.t('map.no_gps_nodes')}</div>`;
       return;
     }
 
@@ -697,7 +697,7 @@ export class MapModule {
       const isLocal = Boolean(node.is_local || String(node.role).toUpperCase() === "LOCAL");
       const isRepeater = String(node.role || "").toUpperCase() === "REPEATER";
       const isSensor = String(node.role || "").toUpperCase() === "SENSOR";
-      const cleanName = node.name || node.alias || (node.public_key ? node.public_key.slice(0, 8) : "Nodo");
+      const cleanName = node.name || node.alias || (node.public_key ? node.public_key.slice(0, 8) : I18n.t('common.node'));
 
       const itemEl = document.createElement("div");
       itemEl.className = `map-node-item ${isLocal ? "is-local local-node-item" : ""}`;
@@ -740,7 +740,7 @@ export class MapModule {
     const isSensor = String(node.role || "").toUpperCase() === "SENSOR";
     const markerColor = isLocal ? "#10b981" : (isRepeater ? "#8b5cf6" : (isSensor ? "#f59e0b" : "#0ea5e9"));
     const iconSymbol = isLocal ? "🏠" : (isRepeater ? "📡" : (isSensor ? "🌡️" : "👤"));
-    const name = node.name || node.alias || (isLocal ? "Estación Base Local (Tú)" : pk.slice(0, 8));
+    const name = node.name || node.alias || (isLocal ? I18n.t('map.local_station_you') : pk.slice(0, 8));
 
     const popupHtml = `
       <div class="custom-map-popup">
@@ -748,12 +748,12 @@ export class MapModule {
           <span>${iconSymbol}</span> <strong>${escapeHtml(name)}</strong>
         </div>
         <div class="popup-info">
-          <div><span>Rol:</span> <span class="badge-pill">${escapeHtml(node.role || (isLocal ? "LOCAL" : "CLIENT"))}</span></div>
-          <div><span>Clave:</span> <code>${escapeHtml(pk.slice(0, 8))}...</code></div>
-          <div><span>Posición:</span> <code>${lat.toFixed(5)}, ${lon.toFixed(5)}</code></div>
-          ${node.last_rssi != null ? `<div><span>RSSI:</span> <strong>${node.last_rssi} dBm</strong></div>` : ""}
-          ${node.last_snr != null ? `<div><span>SNR:</span> <strong>${node.last_snr} dB</strong></div>` : ""}
-          ${isLocal ? `<div style="color: #10b981; font-weight: 600; margin-top: 4px;">📍 Transceptor Local Conectado</div>` : ""}
+          <div><span>${I18n.t('map.role_label')}</span> <span class="badge-pill">${escapeHtml(node.role || (isLocal ? "LOCAL" : "CLIENT"))}</span></div>
+          <div><span>${I18n.t('map.key_label')}</span> <code>${escapeHtml(pk.slice(0, 8))}...</code></div>
+          <div><span>${I18n.t('map.pos_label')}</span> <code>${lat.toFixed(5)}, ${lon.toFixed(5)}</code></div>
+          ${node.last_rssi != null ? `<div><span>${I18n.t('map.rssi_label')}</span> <strong>${node.last_rssi} dBm</strong></div>` : ""}
+          ${node.last_snr != null ? `<div><span>${I18n.t('map.snr_label')}</span> <strong>${node.last_snr} dB</strong></div>` : ""}
+          ${isLocal ? `<div style="color: #10b981; font-weight: 600; margin-top: 4px;">📍 ${I18n.t('map.local_connected')}</div>` : ""}
         </div>
       </div>
     `;

@@ -117,7 +117,7 @@ export class SettingsModule {
             closeCreateChannel();
             await this.fetchChannels();
             if (this.ctx.switchChannel) this.ctx.switchChannel(index);
-            if (this.ctx.showToast) this.ctx.showToast(`✅ Canal ${index} (${escapeHtml(name)}) guardado y sincronizado`, "success");
+            if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.ch_saved').replace('{index}', index).replace('{name}', escapeHtml(name)), "success");
           } else {
             alert(`Error guardando canal: ${data.message || "Fallo desconocido"}`);
           }
@@ -163,7 +163,7 @@ export class SettingsModule {
             closeCreateContact();
             if (this.ctx.fetchNodes) await this.ctx.fetchNodes();
             if (this.ctx.setDmTarget) this.ctx.setDmTarget(pubkey, name || pubkey);
-            if (this.ctx.showToast) this.ctx.showToast(`✅ Contacto ${name || pubkey.slice(0, 8)} agregado`, "success");
+            if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.contact_added').replace('{name}', name || pubkey.slice(0, 8)), "success");
           } else {
             alert(`Error agregando contacto: ${data.message || "Fallo desconocido"}`);
           }
@@ -189,7 +189,7 @@ export class SettingsModule {
         const uri = this.dom.qrUriDisplay ? (this.dom.qrUriDisplay.value || this.dom.qrUriDisplay.textContent || "") : "";
         if (uri) {
           navigator.clipboard.writeText(uri);
-          if (this.ctx.showToast) this.ctx.showToast("📋 Enlace URI copiado al portapapeles", "success");
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.uri_copied'), "success");
         }
       });
     }
@@ -312,14 +312,14 @@ export class SettingsModule {
             this.dom.apiKeyStatusHint.classList.remove("hidden");
             this.dom.apiKeyStatusHint.textContent = "✓ API Key guardada con éxito en este navegador";
           }
-          if (this.ctx.showToast) this.ctx.showToast("🔑 API Key guardada en el navegador", "success");
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.api_key_saved'), "success");
         } else {
           localStorage.removeItem("meshcore_bridge_api_key");
           if (this.dom.apiKeyStatusHint) {
             this.dom.apiKeyStatusHint.classList.remove("hidden");
             this.dom.apiKeyStatusHint.textContent = "ℹ️ Clave eliminada (modo sin autenticación)";
           }
-          if (this.ctx.showToast) this.ctx.showToast("ℹ️ API Key eliminada", "info");
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.api_key_del'), "info");
         }
       });
     }
@@ -329,9 +329,9 @@ export class SettingsModule {
         localStorage.removeItem("meshcore_bridge_api_key");
         if (this.dom.apiKeyStatusHint) {
           this.dom.apiKeyStatusHint.classList.remove("hidden");
-          this.dom.apiKeyStatusHint.textContent = "ℹ️ API Key eliminada";
+          this.dom.apiKeyStatusHint.textContent = I18n.t('toast.api_key_del');
         }
-        if (this.ctx.showToast) this.ctx.showToast("ℹ️ API Key eliminada de este navegador", "info");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.api_key_del'), "info");
       });
     }
   }
@@ -611,7 +611,7 @@ export class SettingsModule {
           telemetry_interval,
           advert_interval,
         });
-        if (this.ctx.showToast) this.ctx.showToast("📻 Parámetros de radio locales actualizados", "success");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.radio_cfg_ok'), "success");
       } else {
         alert("Error guardando radio: " + (data.message || "desconocido"));
       }
@@ -641,7 +641,7 @@ export class SettingsModule {
       });
       const data = await res.json();
       if (data.status === "ok") {
-        if (this.ctx.showToast) this.ctx.showToast("📍 Identidad y ubicación guardadas", "success");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.identity_ok'), "success");
       } else {
         alert("Error guardando identidad: " + (data.message || "desconocido"));
       }

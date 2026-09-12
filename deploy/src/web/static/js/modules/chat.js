@@ -81,9 +81,9 @@ export class ChatModule {
         localStorage.setItem("meshcore_chat_sound_enabled", String(this.chatSoundEnabled));
         if (this.chatSoundEnabled) {
           this.playNotificationChime();
-          if (this.ctx.showToast) this.ctx.showToast("🔔 Alertas sonoras de chat activadas", "info");
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t('chat.sound_on'), "info");
         } else {
-          if (this.ctx.showToast) this.ctx.showToast("🔕 Alertas sonoras de chat desactivadas", "info");
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t('chat.sound_off'), "info");
         }
       });
     }
@@ -144,14 +144,14 @@ export class ChatModule {
     this.activeDmName = null;
 
     if (this.dom.chatTargetName) {
-      this.dom.chatTargetName.textContent = this.activeChannelIdx === 0 ? "Canal 0 (Public / Broadcast)" : `Canal #${this.activeChannelIdx}`;
+      this.dom.chatTargetName.textContent = this.activeChannelIdx === 0 ? I18n.t('chat.ch_0_title') : I18n.t('chat.ch_n_title').replace('{n}', this.activeChannelIdx);
     }
     if (this.dom.chatTargetSub) {
-      this.dom.chatTargetSub.textContent = this.activeChannelIdx === 0 ? "Difusión comunitaria abierta por radio LoRa" : `Canal privado cifrado #${this.activeChannelIdx}`;
+      this.dom.chatTargetSub.textContent = this.activeChannelIdx === 0 ? I18n.t('chat.ch_0_sub') : I18n.t('chat.ch_n_sub').replace('{n}', this.activeChannelIdx);
     }
     if (this.dom.chatTargetBadge) {
       const isPublic = this.activeChannelIdx === 0;
-      this.dom.chatTargetBadge.innerHTML = `<span data-lucide="${isPublic ? "unlock" : "lock"}" data-size="13"></span> ${isPublic ? "Abierto" : "Cifrado"}`;
+      this.dom.chatTargetBadge.innerHTML = `<span data-lucide="${isPublic ? "unlock" : "lock"}" data-size="13"></span> ${isPublic ? I18n.t('chat.open_badge') : I18n.t('chat.encrypted_badge')}`;
       if (window.initLucideIcons) window.initLucideIcons(this.dom.chatTargetBadge);
     }
 
@@ -173,7 +173,7 @@ export class ChatModule {
 
     const localPk = (document.getElementById("localNodePubkey")?.value || "").toLowerCase().trim();
     if (normTarget === "local" || (localPk && (normTarget === localPk || normTarget.startsWith(localPk) || localPk.startsWith(normTarget)))) {
-      if (this.ctx.showToast) this.ctx.showToast("⚠️ No se puede abrir conversación DM con la estación local", "warning");
+      if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.dm_local_err'), "warning");
       return;
     }
 
@@ -183,7 +183,7 @@ export class ChatModule {
     );
     const roleUpper = String(targetNode?.role || "").toUpperCase();
     if (roleUpper === "REPEATER" || roleUpper === "ROUTER") {
-      if (this.ctx.showToast) this.ctx.showToast("🚫 Los repetidores son nodos de infraestructura y no procesan chat.", "warning");
+      if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.repeater_chat_err'), "warning");
       return;
     }
 
@@ -194,7 +194,7 @@ export class ChatModule {
       this.dom.chatTargetName.textContent = `DM: ${this.activeDmName}`;
     }
     if (this.dom.chatTargetSub) {
-      this.dom.chatTargetSub.textContent = `Mensaje directo punto a punto • ${canonicalPk}`;
+      this.dom.chatTargetSub.textContent = I18n.t('chat.dm_sub').replace('{pk}', canonicalPk);
     }
     if (this.dom.chatTargetBadge) {
       this.dom.chatTargetBadge.innerHTML = `<span data-lucide="user" data-size="13"></span> DM`;
@@ -221,16 +221,16 @@ export class ChatModule {
         window.showQrModal(`Contacto: ${this.activeDmName}`, uri, json);
       } else if (this.ctx.showToast) {
         navigator.clipboard.writeText(uri);
-        this.ctx.showToast("📋 Enlace de contacto copiado al portapapeles", "success");
+        this.ctx.showToast(I18n.t('toast.contact_copied'), "success");
       }
     } else {
       const uri = `meshcore://channel?index=${this.activeChannelIdx}&name=${encodeURIComponent(this.activeChannelIdx === 0 ? "Public" : `Ch_${this.activeChannelIdx}`)}`;
       const json = JSON.stringify({ type: "channel", index: this.activeChannelIdx, name: this.activeChannelIdx === 0 ? "Public" : `Ch_${this.activeChannelIdx}` }, null, 2);
       if (window.showQrModal) {
-        window.showQrModal(`Canal #${this.activeChannelIdx}`, uri, json);
+        window.showQrModal(I18n.t('chat.ch_n_title').replace('{n}', this.activeChannelIdx), uri, json);
       } else if (this.ctx.showToast) {
         navigator.clipboard.writeText(uri);
-        this.ctx.showToast("📋 Enlace de canal copiado al portapapeles", "success");
+        this.ctx.showToast(I18n.t('toast.channel_copied'), "success");
       }
     }
   }
@@ -242,20 +242,20 @@ export class ChatModule {
     }
 
     if (this.ctx.showToast) {
-      this.ctx.showToast("📍 Obteniendo coordenadas GPS...", "info", 2000);
+      this.ctx.showToast(I18n.t('toast.gps_loading'), "info", 2000);
     }
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const lat = pos.coords.latitude.toFixed(5);
         const lon = pos.coords.longitude.toFixed(5);
-        const text = `📍 Mi ubicación GPS: ${lat}, ${lon}`;
+        const text = I18n.t('chat.my_location').replace('{lat}', lat).replace('{lon}', lon);
         if (this.dom.chatInputText) {
           this.dom.chatInputText.value = text;
           this.dom.chatInputText.focus();
         }
         if (this.ctx.showToast) {
-          this.ctx.showToast(`📍 Coordenadas listas para enviar: ${lat}, ${lon}`, "success");
+          this.ctx.showToast(I18n.t('toast.gps_ready').replace('{lat}', lat).replace('{lon}', lon), "success");
         }
       },
       (err) => {
@@ -272,13 +272,13 @@ export class ChatModule {
     const lonVal = lonInput ? parseFloat(lonInput.value) : NaN;
 
     if (!isNaN(latVal) && !isNaN(lonVal) && (latVal !== 0 || lonVal !== 0)) {
-      const text = `📍 Ubicación de estación: ${latVal.toFixed(5)}, ${lonVal.toFixed(5)}`;
+      const text = I18n.t('chat.station_location').replace('{lat}', latVal.toFixed(5)).replace('{lon}', lonVal.toFixed(5));
       if (this.dom.chatInputText) {
         this.dom.chatInputText.value = text;
         this.dom.chatInputText.focus();
       }
       if (this.ctx.showToast) {
-        this.ctx.showToast(`📍 Usando ubicación configurada de la estación base: ${latVal.toFixed(5)}, ${lonVal.toFixed(5)}`, "info");
+        this.ctx.showToast(I18n.t('toast.gps_station').replace('{lat}', latVal.toFixed(5)).replace('{lon}', lonVal.toFixed(5)), "info");
       }
       return;
     }
@@ -301,14 +301,14 @@ export class ChatModule {
     if (this.dom.chatMessageFeed) {
       this.dom.chatMessageFeed.innerHTML = `
         <div class="chat-empty-state">
-          <p>Conversación limpiada.</p>
-          <small>Escribe un mensaje abajo para transmitir por la malla LoRa.</small>
+          <p>${I18n.t('chat.cleared')}</p>
+          <small>${I18n.t('chat.write_below')}</small>
         </div>
       `;
     }
 
     if (this.ctx.showToast) {
-      this.ctx.showToast("Conversación limpiada", "info");
+      this.ctx.showToast(I18n.t('chat.cleared'), "info");
     }
   }
 
@@ -354,8 +354,8 @@ export class ChatModule {
     if (!msgs || msgs.length === 0) {
       this.dom.chatMessageFeed.innerHTML = `
         <div class="chat-empty-state">
-          <p>No hay mensajes en esta conversación aún.</p>
-          <small>Escribe un mensaje abajo para transmitir por la malla LoRa.</small>
+          <p>${I18n.t('chat.no_messages')}</p>
+          <small>${I18n.t('chat.write_below')}</small>
         </div>
       `;
       return;
@@ -375,7 +375,7 @@ export class ChatModule {
     row.setAttribute("data-msg-id", msg.id || msg.msg_id || "");
 
     const timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
-    const sender = msg.is_outgoing ? "Tú" : (msg.sender_name || msg.sender || "Anónimo");
+    const sender = msg.is_outgoing ? I18n.t('common.you') : (msg.sender_name || msg.sender || I18n.t('common.anonymous'));
 
     // Detección de coordenadas GPS en el texto
     const text = msg.text || "";
@@ -391,11 +391,11 @@ export class ChatModule {
         locationCardHtml = `
           <div class="chat-location-card">
             <div class="loc-card-header">
-              <span>📍</span> <strong>Punto GPS Compartido</strong>
+              <span>📍</span> <strong>${I18n.t('chat.gps_shared')}</strong>
             </div>
             <div class="loc-coords-badge">${detectedLat.toFixed(5)}, ${detectedLon.toFixed(5)}</div>
             <button type="button" class="btn-view-on-map" data-lat="${detectedLat}" data-lon="${detectedLon}">
-              <span data-lucide="map-pin" data-size="12"></span> Ver en Mapa
+              <span data-lucide="map-pin" data-size="12"></span> ${I18n.t('chat.view_map')}
             </button>
           </div>
         `;
@@ -413,7 +413,7 @@ export class ChatModule {
         ${msg.is_outgoing ? `
           <div class="msg-footer">
             <span class="msg-ack-status font-mono ${msg.delivered ? "delivered" : "sent"}">
-              ${msg.delivered ? "✓✓ Entregado" : "✓ Enviado"}
+              ${msg.delivered ? "${I18n.t('chat.delivered')}" : "${I18n.t('chat.sent')}"}
             </span>
           </div>
         ` : ""}
@@ -463,7 +463,7 @@ export class ChatModule {
       );
       const roleUpper = String(targetNode?.role || "").toUpperCase();
       if (roleUpper === "REPEATER" || roleUpper === "ROUTER") {
-        if (this.ctx.showToast) this.ctx.showToast("🚫 Los repetidores son nodos de infraestructura y no procesan chat.", "warning");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.repeater_chat_err'), "warning");
         return;
       }
     }
@@ -474,7 +474,7 @@ export class ChatModule {
       id: msgId,
       msg_id: msgId,
       sender: "local",
-      sender_name: "Estación Local (Tú)",
+      sender_name: I18n.t('common.local_station'),
       text: rawInput,
       is_outgoing: true,
       channel_idx: this.activeChannelIdx,
@@ -589,7 +589,7 @@ export class ChatModule {
     if (row) {
       const indicator = row.querySelector(".msg-ack-status, .msg-status-indicator");
       if (indicator) {
-        indicator.textContent = "✓✓ Entregado";
+        indicator.textContent = "${I18n.t('chat.delivered')}";
         indicator.classList.remove("sent");
         indicator.classList.add("delivered");
       }

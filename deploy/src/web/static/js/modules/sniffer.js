@@ -404,7 +404,7 @@ export class SnifferModule {
     this.dom.snifferPacketsBody.textContent = "";
     if (filtered.length === 0) {
       const emptyRow = document.createElement("tr");
-      emptyRow.innerHTML = '<td colspan="11" class="text-center text-muted" style="padding: 24px;">No hay paquetes que coincidan con los filtros actuales.</td>';
+      emptyRow.innerHTML = '<td colspan="11" class="text-center text-muted" style="padding: 24px;">${I18n.t('sniffer.no_packets_filter')}</td>';
       this.dom.snifferPacketsBody.appendChild(emptyRow);
       return;
     }
@@ -452,7 +452,7 @@ export class SnifferModule {
         <td class="font-mono text-xs">${escapeHtml(String(pkt.size_bytes || 0))} B</td>
         <td class="text-xs truncate" style="max-width: 280px;" title="${escapeHtml(pkt.text || "")}">${escapeHtml(summaryText)}</td>
         <td style="text-align: center;">
-          <button type="button" class="btn-icon btn-xs" title="Inspeccionar trama" data-pkt-id="${escapeHtml(String(pkt.packet_id))}">
+          <button type="button" class="btn-icon btn-xs" title="${I18n.t('sniffer.inspect_btn')}" data-pkt-id="${escapeHtml(String(pkt.packet_id))}">
             🔍
           </button>
         </td>
@@ -483,7 +483,7 @@ export class SnifferModule {
     }
     if (this.dom.inspectorDirBadge) {
       const isRx = (pkt.direction || "").toLowerCase() === "rx";
-      this.dom.inspectorDirBadge.textContent = isRx ? "RX (Entrante)" : "TX (Saliente)";
+      this.dom.inspectorDirBadge.textContent = isRx ? "${I18n.t('sniffer.rx_incoming')}" : "${I18n.t('sniffer.tx_outgoing')}";
       this.dom.inspectorDirBadge.className = isRx ? "badge-pill badge-success" : "badge-pill badge-primary";
     }
     if (this.dom.inspectorTypeBadge) {
@@ -510,7 +510,7 @@ export class SnifferModule {
       decodedDetails.push(JSON.stringify(pkt.payload_dict, null, 2));
     }
     if (this.dom.inspFieldDecoded) {
-      this.dom.inspFieldDecoded.textContent = decodedDetails.length > 0 ? decodedDetails.join("\n\n") : "(Sin payload decodificado)";
+      this.dom.inspFieldDecoded.textContent = decodedDetails.length > 0 ? decodedDetails.join("\n\n") : "${I18n.t('sniffer.no_decoded')}";
     }
 
     // Panel Hex Dump Wireshark Style
@@ -550,7 +550,7 @@ export class SnifferModule {
       navigator.clipboard.writeText(this.dom.inspHexDumpView.textContent);
       if (this.dom.btnCopyHexDump) {
         const orig = this.dom.btnCopyHexDump.textContent;
-        this.dom.btnCopyHexDump.textContent = "✓ ¡Copiado!";
+        this.dom.btnCopyHexDump.textContent = I18n.t('sniffer.copied');
         setTimeout(() => { this.dom.btnCopyHexDump.textContent = orig; }, 1500);
       }
     }
@@ -561,7 +561,7 @@ export class SnifferModule {
       navigator.clipboard.writeText(this.dom.inspJsonDumpView.textContent);
       if (this.dom.btnCopyJsonDump) {
         const orig = this.dom.btnCopyJsonDump.textContent;
-        this.dom.btnCopyJsonDump.textContent = "✓ ¡Copiado!";
+        this.dom.btnCopyJsonDump.textContent = I18n.t('sniffer.copied');
         setTimeout(() => { this.dom.btnCopyJsonDump.textContent = orig; }, 1500);
       }
     }
@@ -686,7 +686,7 @@ export class SnifferModule {
 
     this.dom.systemLogsFeed.textContent = "";
     if (filtered.length === 0) {
-      this.dom.systemLogsFeed.innerHTML = '<div style="color: var(--text-muted); padding: 14px; text-align: center;">No hay logs que coincidan con los filtros actuales.</div>';
+      this.dom.systemLogsFeed.innerHTML = '<div style="color: var(--text-muted); padding: 14px; text-align: center;">${I18n.t('sniffer.no_logs_filter')}</div>';
       return;
     }
 

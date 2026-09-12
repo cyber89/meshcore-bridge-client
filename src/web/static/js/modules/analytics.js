@@ -133,7 +133,7 @@ export class AnalyticsModule {
     }
     if (this.dom.kpiRepeatersCount) {
       const reps = Array.isArray(rootData.top_repeaters_by_clients) ? rootData.top_repeaters_by_clients.length : 0;
-      this.dom.kpiRepeatersCount.textContent = `${reps} Repetidores en Malla`;
+      this.dom.kpiRepeatersCount.textContent = I18n.t('analytics.repeater_count').replace('{n}', reps);
     }
 
     if (this.dom.kpiErrorRate) {
@@ -143,12 +143,12 @@ export class AnalyticsModule {
     }
     if (this.dom.kpiErrorsTotal) {
       const errTotal = Number(summary.total_errors || 0);
-      this.dom.kpiErrorsTotal.textContent = `${errTotal} errores acumulados`;
+      this.dom.kpiErrorsTotal.textContent = I18n.t('analytics.errors_acc').replace('{n}', errTotal);
     }
 
     if (this.dom.kpiQueueDepth) {
       const qDepth = Number(rootData.queue_depth || 0);
-      this.dom.kpiQueueDepth.textContent = `${qDepth} paquetes`;
+      this.dom.kpiQueueDepth.textContent = I18n.t('analytics.packets_count').replace('{n}', qDepth);
     }
   }
 
@@ -214,17 +214,17 @@ export class AnalyticsModule {
       const snr = n.last_snr != null ? Number(n.last_snr).toFixed(1) : "--";
       const rssi = n.last_rssi != null ? `${Number(n.last_rssi)} dBm` : "--";
 
-      let lqiStatus = "Excelente";
+      let lqiStatus = I18n.t('signal.excellent');
       let lqiClass = "badge-success";
       const snrVal = Number(n.last_snr);
       if (snrVal < -10) {
-        lqiStatus = "Crítico";
+        lqiStatus = I18n.t('signal.critical');
         lqiClass = "badge-danger";
       } else if (snrVal < 0) {
-        lqiStatus = "Débil";
+        lqiStatus = I18n.t('signal.weak');
         lqiClass = "badge-warning";
       } else if (snrVal < 6) {
-        lqiStatus = "Aceptable";
+        lqiStatus = I18n.t('signal.acceptable');
         lqiClass = "badge-primary";
       }
 
@@ -251,10 +251,10 @@ export class AnalyticsModule {
     const frag = document.createDocumentFragment();
     for (const r of repeaters) {
       const tr = document.createElement("tr");
-      const name = r.name || r.alias || (r.public_key ? `[${r.public_key.substring(0, 8)}]` : "Repetidor");
+      const name = r.name || r.alias || (r.public_key ? `[${r.public_key.substring(0, 8)}]` : I18n.t('common.repeater'));
       const clientCount = r.routed_clients_count != null ? r.routed_clients_count : (r.client_count || 0);
-      const txPower = r.tx_power != null ? `${r.tx_power} dBm` : "Estándar";
-      const hopLimit = r.hop_limit != null ? `${r.hop_limit} saltos` : "3 saltos";
+      const txPower = r.tx_power != null ? `${r.tx_power} dBm` : I18n.t('analytics.standard');
+      const hopLimit = r.hop_limit != null ? I18n.t('analytics.hops_count').replace('{n}', r.hop_limit) : I18n.t('analytics.hops_count').replace('{n}', 3);
 
       tr.innerHTML = `
         <td><strong class="font-mono text-sm">${escapeHtml(name)}</strong></td>
@@ -270,19 +270,19 @@ export class AnalyticsModule {
   renderBridgeHealth(data) {
     if (this.dom.statDeduplication) {
       const dupCount = data.deduplication_count || 0;
-      this.dom.statDeduplication.textContent = `En RAM (${dupCount} duplicados filtrados)`;
+      this.dom.statDeduplication.textContent = I18n.t('analytics.in_ram_dup').replace('{n}', dupCount);
     }
     if (this.dom.statQueueDepth) {
-      this.dom.statQueueDepth.textContent = `${data.queue_depth || 0} paquetes en espera`;
+      this.dom.statQueueDepth.textContent = I18n.t('analytics.pkts_waiting').replace('{n}', data.queue_depth || 0);
     }
     if (this.dom.statSerialStatus) {
       const isSerOk = Boolean(data.serial_connected);
-      this.dom.statSerialStatus.textContent = isSerOk ? "Conectado y Operativo" : "Desconectado";
+      this.dom.statSerialStatus.textContent = isSerOk ? I18n.t('analytics.connected_ok') : I18n.t('analytics.disconnected');
       this.dom.statSerialStatus.style.color = isSerOk ? "var(--accent-success)" : "var(--accent-danger)";
     }
     if (this.dom.statMqttStatus) {
       const isMqttOk = Boolean(data.mqtt_connected);
-      this.dom.statMqttStatus.textContent = isMqttOk ? "En Línea (Broker Bridge)" : "Desconectado";
+      this.dom.statMqttStatus.textContent = isMqttOk ? I18n.t('analytics.online_broker') : I18n.t('analytics.disconnected');
       this.dom.statMqttStatus.style.color = isMqttOk ? "var(--accent-success)" : "var(--accent-danger)";
     }
   }
@@ -293,7 +293,7 @@ export class AnalyticsModule {
     const dutyCyclePct = Number(airtime.hourly_duty_cycle_pct || 0.0);
 
     if (this.dom.analyticsAirtimeLabel) {
-      this.dom.analyticsAirtimeLabel.textContent = `Uso actual: ${dutyCyclePct.toFixed(2)}% del ciclo horario`;
+      this.dom.analyticsAirtimeLabel.textContent = I18n.t('analytics.usage_pct').replace('{pct}', dutyCyclePct.toFixed(2));
     }
     if (this.dom.analyticsAirtimeMs) {
       this.dom.analyticsAirtimeMs.textContent = `${usedMs.toLocaleString()} ms / ${budgetMs.toLocaleString()} ms`;

@@ -143,8 +143,8 @@ class MeshCoreApp {
     } else {
       this.dom.themeToggleBtn.innerHTML = `<span data-lucide="${iconName}" data-size="16"></span>`;
     }
-    this.dom.themeToggleBtn.title = isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro";
-    this.dom.themeToggleBtn.setAttribute("aria-label", isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro");
+    this.dom.themeToggleBtn.title = isDark ? I18n.t('app.light_theme_title') : I18n.t('app.dark_theme_title');
+    this.dom.themeToggleBtn.setAttribute("aria-label", isDark ? I18n.t('app.light_theme_title') : I18n.t('app.dark_theme_title'));
   }
 
   _initNavigation() {
@@ -220,7 +220,7 @@ class MeshCoreApp {
       if (!this.dom.wsStatus) return;
       if (status === "connected") {
         this.dom.wsStatus.className = "ws-badge ws-badge--connected";
-        this.dom.wsStatus.textContent = "Web: Online";
+        this.dom.wsStatus.textContent = I18n.t('app.web_online');
         if (this.modules?.settings?.fetchLocalNodeConfig) {
           this.modules.settings.fetchLocalNodeConfig();
         }
@@ -229,10 +229,10 @@ class MeshCoreApp {
         }
       } else if (status === "connecting") {
         this.dom.wsStatus.className = "ws-badge ws-badge--connecting";
-        this.dom.wsStatus.textContent = "Web: Conectando…";
+        this.dom.wsStatus.textContent = I18n.t('app.web_connecting');
       } else {
         this.dom.wsStatus.className = "ws-badge ws-badge--disconnected";
-        this.dom.wsStatus.textContent = "Web: Desconectada";
+        this.dom.wsStatus.textContent = I18n.t('app.web_offline');
       }
     });
 
@@ -273,10 +273,10 @@ class MeshCoreApp {
     if (!this.dom.radioStatus) return;
     if (connected) {
       this.dom.radioStatus.className = "ws-badge ws-badge--connected";
-      this.dom.radioStatus.textContent = `Radio: ${portName || "Online"}`;
+      this.dom.radioStatus.textContent = portName ? I18n.t('app.radio_online').replace('{port}', portName) : I18n.t('app.radio_online_fallback');
     } else {
       this.dom.radioStatus.className = "ws-badge ws-badge--disconnected";
-      this.dom.radioStatus.textContent = "Radio: Desconectada";
+      this.dom.radioStatus.textContent = I18n.t('app.radio_offline');
     }
   }
 
