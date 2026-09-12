@@ -245,6 +245,8 @@ def is_valid_node_key(key: Any) -> bool:
     norm = key.strip().lower()
     if not norm or norm in INVALID_NODE_KEYS or len(norm) < 4:
         return False
+    if norm == "local":
+        return True
     if norm.startswith("unknow") or norm.startswith("broadcast") or norm.startswith("0x0000"):
         return False
     if not all(c in "0123456789abcdef" for c in norm):
@@ -1017,6 +1019,21 @@ class NodeRegistry:
             "top_repeaters_by_clients": top_repeaters,
             "top_error_breakdown": sorted_errors,
         }
+
+    def get_all_lqi_metrics(self) -> list[dict[str, Any]]:
+        """Retorna métricas LQI de todos los nodos ordenadas por puntaje descendente."""
+        metrics: list[dict[str, Any]] = []
+        for node in self.list_nodes():
+            metrics.append({
+                "public_key": node.get("public_key", ""),
+                "name": node.get("name") or node.get("alias", ""),
+                "role": node.get("role", "CLIENT"),
+                "lqi_score": float(node.get("lqi_score", 0.0)),
+                "lqi_status": node.get("lqi_status", "UNKNOWN"),
+                "best_route": node.get("best_route", "DIRECT"),
+                "last_seen": float(node.get("last_seen", 0.0)),
+            })
+        return sorted(metrics, key=lambda x: x["lqi_score"], reverse=True)
 
     def get_count(self) -> int:
         """Retorna el conteo exacto de nodos únicos registrados deduplicando el nodo local y colisiones."""

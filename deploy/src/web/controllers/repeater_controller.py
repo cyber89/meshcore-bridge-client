@@ -156,7 +156,7 @@ class RepeaterController(BaseController):
 
     async def traceroute(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Inicia una traza de ruta multi-salto hacia un nodo remoto."""
-        target = str(req_body.get("target_node", req_body.get("target", req_body.get("repeater", "")))).strip()
+        target = str(req_body.get("target_node", req_body.get("target", req_body.get("repeater", req_body.get("to", ""))))).strip()
         if not target:
             return problem_details(400, "Bad Request", "Se requiere 'target_node'", "missing_target_node")
 

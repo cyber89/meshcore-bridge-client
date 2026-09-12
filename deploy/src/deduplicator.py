@@ -37,18 +37,18 @@ class PacketDeduplicator:
             now = time.time()
             self._prune(now)
 
-                if key in self._cache:
-                    last_seen = self._cache[key]
-                    if (now - last_seen) < self.window_seconds:
-                        return True
+            if key in self._cache:
+                last_seen = self._cache[key]
+                if (now - last_seen) < self.window_seconds:
+                    return True
 
-                self._cache[key] = now
-                self._cache.move_to_end(key)
+            self._cache[key] = now
+            self._cache.move_to_end(key)
 
-                if len(self._cache) > self.max_entries:
-                    self._cache.popitem(last=False)
+            if len(self._cache) > self.max_entries:
+                self._cache.popitem(last=False)
 
-                return False
+            return False
 
     def is_duplicate_sync(self, key: str) -> bool:
         """Versión síncrona para comprobaciones directas."""

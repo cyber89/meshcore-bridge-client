@@ -117,7 +117,7 @@ class TestSerialAdapter(unittest.IsolatedAsyncioTestCase):
 
             self.assertTrue(res)
             self.assertTrue(adapter.is_connected)
-            MockMeshCoreClass.create_serial.assert_awaited_once_with("/dev/ttyACM0", 115200, auto_reconnect=True)
+            MockMeshCoreClass.create_serial.assert_awaited_once_with(adapter.port, 115200, auto_reconnect=True)
             mock_mc.start_auto_message_fetching.assert_awaited_once()
             mock_mc.ensure_contacts.assert_awaited_once()
 

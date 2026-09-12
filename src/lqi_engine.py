@@ -204,7 +204,7 @@ class LinkQualityEngine:
 
             if role in ("REPEATER", "ROUTER"):
                 rep_lqi_raw = node.get("lqi_score", 0.0)
-                rep_last_seen = node.get("last_seen", cur_time)
+                rep_last_seen = node.get("last_seen") or cur_time
                 rep_lqi = cls.apply_time_decay(rep_lqi_raw, rep_last_seen, cur_time)
 
                 # Penalizar un salto adicional para la ruta indirecta

@@ -7,13 +7,13 @@
   },
   {
     "index": 1,
-    "name": "Operaciones T\u00e1cticas",
+    "name": "Operaciones Tácticas",
     "psk": "A1B2C3D4E5F67890123456789ABCDEF0",
     "is_public": false
   },
   {
     "index": 2,
-    "name": "Telemetr\u00eda Sensores",
+    "name": "Telemetría Sensores",
     "psk": "FEEDFACECAFED00D1234567890ABCDEF",
     "is_public": false
   },
@@ -25,7 +25,7 @@
   },
   {
     "index": 4,
-    "name": "Canal T\u00e1ctico",
+    "name": "Canal Táctico",
     "psk": "KEY_12345",
     "is_public": false
   }

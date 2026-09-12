@@ -13,7 +13,10 @@ class TestRepeaterManager(unittest.TestCase):
 
     def test_build_repeater_command_payload(self) -> None:
         cmd1 = self.manager.build_repeater_command_payload("stats-radio", {})
-        self.assertEqual(cmd1, "get radio")
+        self.assertEqual(cmd1, "stats-radio")
+
+        cmd1_radio = self.manager.build_repeater_command_payload("get_radio", {})
+        self.assertEqual(cmd1_radio, "get radio")
 
         cmd2 = self.manager.build_repeater_command_payload("set_tx_power", {"power": 18})
         self.assertEqual(cmd2, "set tx 18")

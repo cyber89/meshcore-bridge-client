@@ -230,6 +230,11 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         self.mc: MeshCoreSDKProtocol | Any = None
         self._initial_sync_task: asyncio.Task[None] | None = None
 
+    @property
+    def self_info(self) -> Any:
+        """Información del nodo local obtenida del SDK."""
+        return getattr(self.mc, "self_info", None) if self.mc else None
+
     async def connect(self) -> bool:
         if MeshCore is None:
             logging.warning("SDK meshcore_py no disponible en el entorno.")

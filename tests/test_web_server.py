@@ -44,8 +44,8 @@ class TestWebServerRouter(unittest.IsolatedAsyncioTestCase):
     async def test_get_status_endpoint(self) -> None:
         code, data = await self.router.handle_request("GET", "/api/status")
         self.assertEqual(code, 200)
-        self.assertEqual(data["data"]["bridge_status"], "online")
-        self.assertEqual(data["data"]["known_mesh_nodes"], 1)
+        self.assertEqual(data["status"], "ok")
+        self.assertIn("health", data)
 
     async def test_get_nodes_and_contacts(self) -> None:
         code, data = await self.router.handle_request("GET", "/api/nodes")

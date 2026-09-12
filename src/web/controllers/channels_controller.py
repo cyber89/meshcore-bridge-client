@@ -16,9 +16,9 @@ from src.web.controllers.base import ApiContext, BaseController, problem_details
 class ChannelsController(BaseController):
     """Controlador para configuración y sincronización de canales LoRa."""
 
-    def __init__(self, ctx: ApiContext, channels_file: str = "data/channels.json") -> None:
+    def __init__(self, ctx: ApiContext, channels_file: str | None = None) -> None:
         super().__init__(ctx)
-        self.channels_file = channels_file
+        self.channels_file = channels_file or os.getenv("CHANNELS_STORAGE_PATH", "data/channels.json")
         self.channels: dict[int, dict[str, Any]] = {}
         self._load_channels()
 
@@ -38,7 +38,7 @@ class ChannelsController(BaseController):
         if 0 not in self.channels:
             self.channels[0] = {
                 "index": 0,
-                "name": "General",
+                "name": "Public / Broadcast",
                 "psk": "",
                 "is_public": True,
             }

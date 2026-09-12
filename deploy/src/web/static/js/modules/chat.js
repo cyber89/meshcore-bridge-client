@@ -413,7 +413,7 @@ export class ChatModule {
         ${msg.is_outgoing ? `
           <div class="msg-footer">
             <span class="msg-ack-status font-mono ${msg.delivered ? "delivered" : "sent"}">
-              ${msg.delivered ? "${I18n.t('chat.delivered')}" : "${I18n.t('chat.sent')}"}
+              ${msg.delivered ? I18n.t('chat.delivered') : I18n.t('chat.sent')}
             </span>
           </div>
         ` : ""}
@@ -589,7 +589,7 @@ export class ChatModule {
     if (row) {
       const indicator = row.querySelector(".msg-ack-status, .msg-status-indicator");
       if (indicator) {
-        indicator.textContent = "${I18n.t('chat.delivered')}";
+        indicator.textContent = I18n.t('chat.delivered');
         indicator.classList.remove("sent");
         indicator.classList.add("delivered");
       }

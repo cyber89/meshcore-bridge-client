@@ -155,7 +155,7 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
             {"target_node": "a1b2c3d4e5f6", "password": "wrong_password"},
         )
         self.assertEqual(code_fail, 401)
-        self.assertEqual(resp_fail["status"], "error")
+        self.assertEqual(resp_fail["status"], 401)
 
         # 2. Login remoto exitoso con send_login_sync
         self.mock_mc.commands.send_login_sync = AsyncMock(return_value=MagicMock(type="LOGIN_SUCCESS"))

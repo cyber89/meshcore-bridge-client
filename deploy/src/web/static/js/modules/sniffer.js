@@ -404,7 +404,7 @@ export class SnifferModule {
     this.dom.snifferPacketsBody.textContent = "";
     if (filtered.length === 0) {
       const emptyRow = document.createElement("tr");
-      emptyRow.innerHTML = '<td colspan="11" class="text-center text-muted" style="padding: 24px;">${I18n.t('sniffer.no_packets_filter')}</td>';
+      emptyRow.innerHTML = `<td colspan="11" class="text-center text-muted" style="padding: 24px;">${I18n.t('sniffer.no_packets_filter')}</td>`;
       this.dom.snifferPacketsBody.appendChild(emptyRow);
       return;
     }
@@ -483,7 +483,7 @@ export class SnifferModule {
     }
     if (this.dom.inspectorDirBadge) {
       const isRx = (pkt.direction || "").toLowerCase() === "rx";
-      this.dom.inspectorDirBadge.textContent = isRx ? "${I18n.t('sniffer.rx_incoming')}" : "${I18n.t('sniffer.tx_outgoing')}";
+      this.dom.inspectorDirBadge.textContent = isRx ? I18n.t('sniffer.rx_incoming') : I18n.t('sniffer.tx_outgoing');
       this.dom.inspectorDirBadge.className = isRx ? "badge-pill badge-success" : "badge-pill badge-primary";
     }
     if (this.dom.inspectorTypeBadge) {
@@ -510,7 +510,7 @@ export class SnifferModule {
       decodedDetails.push(JSON.stringify(pkt.payload_dict, null, 2));
     }
     if (this.dom.inspFieldDecoded) {
-      this.dom.inspFieldDecoded.textContent = decodedDetails.length > 0 ? decodedDetails.join("\n\n") : "${I18n.t('sniffer.no_decoded')}";
+      this.dom.inspFieldDecoded.textContent = decodedDetails.length > 0 ? decodedDetails.join("\n\n") : I18n.t('sniffer.no_decoded');
     }
 
     // Panel Hex Dump Wireshark Style
@@ -686,7 +686,7 @@ export class SnifferModule {
 
     this.dom.systemLogsFeed.textContent = "";
     if (filtered.length === 0) {
-      this.dom.systemLogsFeed.innerHTML = '<div style="color: var(--text-muted); padding: 14px; text-align: center;">${I18n.t('sniffer.no_logs_filter')}</div>';
+      this.dom.systemLogsFeed.innerHTML = `<div style="color: var(--text-muted); padding: 14px; text-align: center;">${I18n.t('sniffer.no_logs_filter')}</div>`;
       return;
     }
 

@@ -35,14 +35,18 @@ class MapTileService:
         except Exception as e:
             logging.warning("Error inicializando almacenamiento de mapas offline: %s", e)
 
-    def reload_mbtiles(self) -> None:
-        """Cierra y vuelve a cargar los archivos .mbtiles presentes en data/maps/."""
+    def close(self) -> None:
+        """Cierra todas las conexiones activas a bases de datos MBTiles."""
         for _, conn in self.mbtiles_conns:
             try:
                 conn.close()
             except Exception:
                 pass
         self.mbtiles_conns.clear()
+
+    def reload_mbtiles(self) -> None:
+        """Cierra y vuelve a cargar los archivos .mbtiles presentes en data/maps/."""
+        self.close()
 
         if not self.maps_dir.exists():
             return

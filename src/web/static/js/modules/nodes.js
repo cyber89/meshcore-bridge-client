@@ -181,8 +181,8 @@ export class NodesModule {
     const unifiedNodesGrid = this.dom.nodesUnifiedGridUi;
 
     if (!nodes || nodes.length === 0) {
-      if (contactsGrid) contactsGrid.innerHTML = '<div class="empty-state">${I18n.t('nodes.no_contacts')}</div>';
-      if (unifiedNodesGrid) unifiedNodesGrid.innerHTML = '<div class="empty-state">${I18n.t('nodes.no_nodes')}</div>';
+      if (contactsGrid) contactsGrid.innerHTML = `<div class="empty-state">${I18n.t('nodes.no_contacts')}</div>`;
+      if (unifiedNodesGrid) unifiedNodesGrid.innerHTML = `<div class="empty-state">${I18n.t('nodes.no_nodes')}</div>`;
       return;
     }
 

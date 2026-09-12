@@ -255,6 +255,7 @@ class WebAPIRouter:
                 "/api/diagnostics",
                 "/api/diagnostics/report.md",
                 "/api/diagnostics/report",
+                "/api/diagnostics/export",
             ) or clean_path.startswith("/api/system/logs"):
                 return await self._dispatch_system(method, path, clean_path, req_body)
 
@@ -292,7 +293,7 @@ class WebAPIRouter:
     async def _dispatch_system(self, method: str, raw_path: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Despacha rutas de salud, estado y logs al SystemController."""
         if clean_path == "/api/status" and method == "GET":
-            return await self._route_status()
+            return await self.system_ctrl.get_status()
         if clean_path in ("/api/health", "/api/diagnostics") and method == "GET":
             return await self.system_ctrl.get_health()
         if clean_path in ("/api/diagnostics/report.md", "/api/diagnostics/report") and method == "GET":
@@ -304,6 +305,13 @@ class WebAPIRouter:
             else:
                 md_text = "# Reporte de Diagnóstico no disponible"
             return 200, {"status": "ok", "markdown": md_text, "text": md_text}
+        if clean_path == "/api/diagnostics/export" and method == "GET":
+            diag = getattr(self.bridge, "diagnostics", None)
+            from src.diagnostics import DiagnosticManager
+
+            if isinstance(diag, DiagnosticManager):
+                return 200, {"status": "ok", "data": diag.generate_full_diagnostic_bundle()}
+            return 200, {"status": "error", "message": "No diagnostics"}
         if clean_path == "/api/preflight" and method == "GET":
             return await self.system_ctrl.run_preflight()
         if clean_path == "/api/system/logs/level":
