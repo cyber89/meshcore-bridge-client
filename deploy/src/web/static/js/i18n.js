@@ -36,6 +36,14 @@
       // Global search
       'search.global_placeholder': 'Buscar nodo, comando o canal...',
 
+      // Header metrics tooltips
+      'header.active_nodes':       'Nodos Activos en Malla',
+      'header.rx_packets':         'Paquetes Recibidos',
+      'header.tx_packets':         'Paquetes Emitidos',
+      'header.airtime':            'Presupuesto de Airtime LoRa y Duty Cycle (1h)',
+      'header.error_rate':         'Tasa de Error',
+      'header.tx_queue':           'Cola TX / Buffer',
+
       // Chat section
       'chat.channels':             'Canales',
       'chat.direct_messages':      'Mensajes Directos',
@@ -234,6 +242,24 @@
       // Repeater
       'rep.auth_err':              'Contraseña incorrecta o cambiada en el repetidor',
       'rep.verifying':             '⏳ Verificando credenciales con el repetidor por RF...',
+      'rep.restricted_access':     'Acceso de Administración Restringido',
+      'rep.restricted_desc':       'Para consultar la telemetría, modificar parámetros RF y despachar comandos remotos a este repetidor, es obligatorio validar la contraseña de administración.',
+      'rep.pin_label':             'Contraseña de Administración (PIN):',
+      'rep.pin_placeholder':       'PIN / Contraseña del repetidor...',
+      'rep.unlock_btn':            'Desbloquear & Autenticar Repetidor',
+
+      // Modals
+      'modal.channel_title':       'Configurar Canal LoRa',
+      'modal.contact_title':       'Agregar Nuevo Contacto',
+      'modal.save_channel':        'Guardar y Sincronizar al Nodo',
+      'modal.save_contact':        'Guardar Contacto',
+      'qr.title':                  'Compartir por Código QR',
+      'qr.scan_hint':              'Escanea con la app MeshCore o cámara',
+      'qr.uri_label':              'Enlace URI MeshCore:',
+      'qr.copy_btn':               'Copiar',
+      'qr.json_label':             'Esquema JSON:',
+      'qr.download_json':          'Descargar JSON',
+      'qr.done':                   'Listo',
 
       // Sniffer
       'sniffer.no_packets_filter': 'No hay paquetes que coincidan con los filtros actuales.',
@@ -299,6 +325,53 @@
       'common.repeater':           'Repetidor',
       'common.node':               'Nodo',
 
+      // Additional Chat keys
+      'chat.add_channel_title':    'Crear / Unirse a canal',
+      'chat.import_channel_title': 'Importar canal o contacto',
+      'chat.share_location_title': 'Compartir mi ubicación GPS actual en el chat',
+      'chat.qr':                   'QR',
+
+      // Additional Map keys
+      'map.fit_bounds':            'Ajustar mapa a todos los nodos con GPS',
+      'map.center_local':          'Centrar en mi nodo local',
+
+      // Additional Logs & Sniffer keys
+      'logs.subtab_logs':          'Logs del Sistema',
+      'logs.subtab_sniffer':       'Monitor de Paquetes RF (LoRa Sniffer)',
+      'logs.debug_mode':           'Modo DEBUG',
+      'logs.download_log':         'Descargar .log',
+      'logs.pause_scroll':         'Pausar Scroll',
+      'logs.resume_scroll':        'Reanudar Scroll',
+      'logs.level_label':          'Nivel:',
+      'logs.search_placeholder':   'Buscar en logs (módulo, error, texto)...',
+      'sniffer.title':             'Monitor de Paquetes RF (LoRa Sniffer)',
+      'sniffer.subtitle':          'Captura y análisis en vivo de tramas binarias LoRa MeshCore sobre el aire.',
+      'sniffer.pause_btn':         'Pausar Captura',
+      'sniffer.resume_btn':        'Reanudar Captura',
+      'sniffer.clear_btn':         'Limpiar Paquetes',
+      'sniffer.export_pcap':       'Exportar PCAP',
+      'sniffer.export_json':       'Exportar JSON',
+      'sniffer.export_csv':        'Exportar CSV',
+      'sniffer.search_placeholder':'Buscar por pubkey, texto o hex...',
+
+      // Additional Settings keys
+      'settings.subtab_telem':     'Telemetría & Estado',
+      'settings.subtab_radio':     'Parámetros RF & Radio',
+      'settings.subtab_identity':  'Identidad & Posición GPS',
+      'settings.subtab_terminal':  'Terminal',
+      'settings.subtab_maps':      'Mapas Offline',
+      'settings.subtab_security':  'Seguridad & API',
+      'settings.refresh':          'Actualizar Parámetros',
+      'settings.hw_actions_title': 'Acciones Rápidas de Hardware',
+      'settings.hw_actions_sub':   'Comandos de ejecución y control directo sobre el microcontrolador y transceptor LoRa',
+      'settings.action_advert_hop':'Advert Hop 0',
+      'settings.action_advert_flood':'Advert Flood',
+      'settings.action_stats':     'Stats Hardware',
+      'settings.action_sync_rtc':  'Sincronizar RTC',
+      'settings.action_clear_stats':'Limpiar Stats',
+      'settings.action_reconnect_serial':'Reconectar Serial',
+      'settings.action_reboot':    'Reiniciar Nodo',
+
       // Language toggle
       'lang.current':      'ES',
       'lang.switch':       '🌐 EN',
@@ -337,6 +410,14 @@
 
       // Global search
       'search.global_placeholder': 'Search node, command or channel...',
+
+      // Header metrics tooltips
+      'header.active_nodes':       'Active Nodes in Mesh',
+      'header.rx_packets':         'Received Packets',
+      'header.tx_packets':         'Transmitted Packets',
+      'header.airtime':            'LoRa Airtime Budget & Duty Cycle (1h)',
+      'header.error_rate':         'Error Rate',
+      'header.tx_queue':           'TX Queue / Buffer',
 
       // Chat section
       'chat.channels':             'Channels',
@@ -536,6 +617,24 @@
       // Repeater
       'rep.auth_err':              'Incorrect password or changed on the repeater',
       'rep.verifying':             '⏳ Verifying credentials with repeater via RF...',
+      'rep.restricted_access':     'Restricted Administration Access',
+      'rep.restricted_desc':       'To view telemetry, modify RF parameters, and dispatch remote commands to this repeater, admin password validation is required.',
+      'rep.pin_label':             'Administration Password (PIN):',
+      'rep.pin_placeholder':       'Repeater PIN / Password...',
+      'rep.unlock_btn':            'Unlock & Authenticate Repeater',
+
+      // Modals
+      'modal.channel_title':       'Configure LoRa Channel',
+      'modal.contact_title':       'Add New Contact',
+      'modal.save_channel':        'Save and Sync to Node',
+      'modal.save_contact':        'Save Contact',
+      'qr.title':                  'Share via QR Code',
+      'qr.scan_hint':              'Scan with MeshCore app or camera',
+      'qr.uri_label':              'MeshCore URI Link:',
+      'qr.copy_btn':               'Copy',
+      'qr.json_label':             'JSON Schema:',
+      'qr.download_json':          'Download JSON',
+      'qr.done':                   'Done',
 
       // Sniffer
       'sniffer.no_packets_filter': 'No packets match current filters.',
@@ -601,6 +700,53 @@
       'common.repeater':           'Repeater',
       'common.node':               'Node',
 
+      // Additional Chat keys
+      'chat.add_channel_title':    'Create / Join channel',
+      'chat.import_channel_title': 'Import channel or contact',
+      'chat.share_location_title': 'Share my current GPS location in chat',
+      'chat.qr':                   'QR',
+
+      // Additional Map keys
+      'map.fit_bounds':            'Fit map to all nodes with GPS',
+      'map.center_local':          'Center on my local node',
+
+      // Additional Logs & Sniffer keys
+      'logs.subtab_logs':          'System Logs',
+      'logs.subtab_sniffer':       'RF Packet Monitor (LoRa Sniffer)',
+      'logs.debug_mode':           'DEBUG Mode',
+      'logs.download_log':         'Download .log',
+      'logs.pause_scroll':         'Pause Scroll',
+      'logs.resume_scroll':        'Resume Scroll',
+      'logs.level_label':          'Level:',
+      'logs.search_placeholder':   'Search in logs (module, error, text)...',
+      'sniffer.title':             'RF Packet Monitor (LoRa Sniffer)',
+      'sniffer.subtitle':          'Live capture and analysis of on-air LoRa MeshCore binary frames.',
+      'sniffer.pause_btn':         'Pause Capture',
+      'sniffer.resume_btn':        'Resume Capture',
+      'sniffer.clear_btn':         'Clear Packets',
+      'sniffer.export_pcap':       'Export PCAP',
+      'sniffer.export_json':       'Export JSON',
+      'sniffer.export_csv':        'Export CSV',
+      'sniffer.search_placeholder':'Search by pubkey, text or hex...',
+
+      // Additional Settings keys
+      'settings.subtab_telem':     'Telemetry & Status',
+      'settings.subtab_radio':     'RF & Radio Parameters',
+      'settings.subtab_identity':  'Identity & GPS Position',
+      'settings.subtab_terminal':  'Terminal',
+      'settings.subtab_maps':      'Offline Maps',
+      'settings.subtab_security':  'Security & API',
+      'settings.refresh':          'Refresh Parameters',
+      'settings.hw_actions_title': 'Quick Hardware Actions',
+      'settings.hw_actions_sub':   'Execution commands and direct control over microcontroller and LoRa transceiver',
+      'settings.action_advert_hop':'Advert Hop 0',
+      'settings.action_advert_flood':'Advert Flood',
+      'settings.action_stats':     'Hardware Stats',
+      'settings.action_sync_rtc':  'Sync RTC',
+      'settings.action_clear_stats':'Clear Stats',
+      'settings.action_reconnect_serial':'Reconnect Serial',
+      'settings.action_reboot':    'Reboot Node',
+
       // Language toggle
       'lang.current':      'EN',
       'lang.switch':       '🌐 ES',
@@ -620,7 +766,6 @@
 
   // ── Selector → i18n key map (static DOM elements) ──────────────────────────
   // Each entry: { s: CSS selector, k: key, a?: attribute, last?: bool }
-  // last:true → update only the last text node (for icon+text buttons)
   const DOM_MAP = [
     // Nav labels
     { s: '#navTabChat .nav-label',       k: 'nav.chat' },
@@ -632,26 +777,135 @@
     { s: '#navTabSettings .nav-label',   k: 'nav.settings' },
     { s: '.sidebar-toggle-label',        k: 'nav.collapse' },
 
-    // Global search hint
+    // Global search hint & Header metrics
     { s: '.search-hint',                 k: 'search.global_placeholder' },
+    { s: '#globalSearchInput',           k: 'search.global_placeholder', a: 'placeholder' },
+    { s: '.header-metrics .metric-chip:nth-child(1)', k: 'header.active_nodes', a: 'title' },
+    { s: '.header-metrics .metric-chip:nth-child(2)', k: 'header.rx_packets', a: 'title' },
+    { s: '.header-metrics .metric-chip:nth-child(3)', k: 'header.tx_packets', a: 'title' },
+    { s: '#headerAirtimeChip',           k: 'header.airtime', a: 'title' },
+    { s: '.header-metrics .metric-chip:nth-child(5)', k: 'header.error_rate', a: 'title' },
+    { s: '.header-metrics .metric-chip:nth-child(6)', k: 'header.tx_queue', a: 'title' },
 
     // Chat
+    { s: '#sidebarChannelList .chat-channels-header:first-of-type .panel-title', k: 'chat.channels' },
+    { s: '#sidebarChannelList .chat-channels-header:nth-of-type(2) .panel-title', k: 'chat.direct_messages' },
+    { s: '#btnAddChannel',               k: 'chat.add_channel_title', a: 'title' },
+    { s: '#btnImportData',               k: 'chat.import_channel_title', a: 'title' },
     { s: '#chatInputText',               k: 'chat.input_placeholder', a: 'placeholder' },
     { s: '#clearChatBtn',                k: 'chat.clear', last: true },
+    { s: '#btnShareTargetQr',            k: 'chat.qr', last: true },
+    { s: '#btnShareLocation',            k: 'chat.share_location_title', a: 'title' },
     { s: '#btnSendMsg span:first-child', k: 'chat.send' },
 
     // Nodes section
+    { s: '#tab-nodes .pane-header h2',   k: 'nodes.title', last: true },
+    { s: '#tab-nodes .pane-header .header-subtitle', k: 'nodes.subtitle' },
     { s: '#nodesSearchInput',            k: 'nodes.search_placeholder', a: 'placeholder' },
+    { s: '.filter-pill[data-filter="all"]', k: 'nodes.filter_all', last: true },
+    { s: '.filter-pill[data-filter="REPEATER"]', k: 'nodes.filter_repeaters', last: true },
+    { s: '.filter-pill[data-filter="SENSOR"]', k: 'nodes.filter_sensors', last: true },
+    { s: '.filter-pill[data-filter="ROOM"]', k: 'nodes.filter_rooms', last: true },
+    { s: '.filter-pill[data-filter="CLIENT"]', k: 'nodes.filter_clients', last: true },
 
     // Contacts section
+    { s: '#tab-contacts .pane-header h2', k: 'contacts.title', last: true },
+    { s: '#tab-contacts .pane-header .header-subtitle', k: 'contacts.subtitle' },
     { s: '#contactsSearchInput',         k: 'contacts.search_placeholder', a: 'placeholder' },
+    { s: '#btnRefreshContacts',          k: 'contacts.refresh', last: true },
+    { s: '#btnOpenAddContact',           k: 'contacts.add', last: true },
+    { s: '.contact-filter-pill[data-filter="all"]', k: 'contacts.filter_all', last: true },
+    { s: '.contact-filter-pill[data-filter="favorites"]', k: 'contacts.filter_favorites', last: true },
+    { s: '.contact-filter-pill[data-filter="online"]', k: 'contacts.filter_online', last: true },
+    { s: '.contact-filter-pill[data-filter="gps"]', k: 'contacts.filter_gps', last: true },
 
-    // Map layers (last text node — icon + text)
+    // Map layers
     { s: '.map-layer-btn[data-layer="dark"]',         k: 'map.dark',      last: true },
     { s: '.map-layer-btn[data-layer="osm"]',          k: 'map.streets',   last: true },
     { s: '.map-layer-btn[data-layer="satellite"]',    k: 'map.satellite', last: true },
     { s: '.map-layer-btn[data-layer="local"]',        k: 'map.local',     last: true },
     { s: '#btnToggleHeatmap',            k: 'map.heatmap', last: true },
+    { s: '#btnFitBounds',                k: 'map.fit_bounds', a: 'title' },
+    { s: '#btnCenterLocal',              k: 'map.center_local', a: 'title' },
+
+    // Analytics section
+    { s: '#tab-analytics .pane-header h2', k: 'analytics.title', last: true },
+    { s: '#tab-analytics .pane-header .header-subtitle', k: 'analytics.subtitle' },
+    { s: '#btnRefreshAnalytics',         k: 'analytics.refresh', last: true },
+    { s: '#cardKpiPackets .kpi-label',   k: 'analytics.kpi_packets' },
+    { s: '#cardKpiNodes .kpi-label',     k: 'analytics.kpi_nodes' },
+    { s: '#cardKpiErrorRate .kpi-label', k: 'analytics.kpi_error_rate' },
+    { s: '#cardKpiQueue .kpi-label',     k: 'analytics.kpi_queue' },
+    { s: '#cardTopActive .card-header h3', k: 'analytics.top_active', last: true },
+    { s: '#cardTopActive .card-header .card-sub', k: 'analytics.top_active_sub' },
+    { s: '#cardSignal .card-header h3',  k: 'analytics.signal', last: true },
+    { s: '#cardSignal .card-header .card-sub', k: 'analytics.signal_sub' },
+    { s: '#cardRepeaters .card-header h3', k: 'analytics.repeaters', last: true },
+    { s: '#cardRepeaters .card-header .card-sub', k: 'analytics.repeaters_sub' },
+    { s: '#cardBridge .card-header h3',  k: 'analytics.bridge', last: true },
+    { s: '#cardBridge .card-header .card-sub', k: 'analytics.bridge_sub' },
+
+    // Logs section
+    { s: '#btnSubtabLogs',               k: 'logs.subtab_logs', last: true },
+    { s: '#btnSubtabSniffer',            k: 'logs.subtab_sniffer', last: true },
+    { s: '#subpanelSystemLogs .pane-header h2', k: 'logs.title', last: true },
+    { s: '#subpanelSystemLogs .pane-header .header-subtitle', k: 'logs.subtitle' },
+    { s: '#btnToggleDebugMode',          k: 'logs.debug_mode', last: true },
+    { s: '#btnDownloadRawLogs',          k: 'logs.download_log', last: true },
+    { s: '#btnClearLogs',                k: 'logs.clear', last: true },
+    { s: '#btnPauseLogsScroll',          k: 'logs.pause_scroll' },
+    { s: 'label[for="logLevelFilter"]',  k: 'logs.level_label' },
+    { s: '#logSearchInput',              k: 'logs.search_placeholder', a: 'placeholder' },
+
+    // Sniffer
+    { s: '#subpanelRfPackets .pane-header h2', k: 'sniffer.title', last: true },
+    { s: '#subpanelRfPackets .pane-header .header-subtitle', k: 'sniffer.subtitle' },
+    { s: '#btnToggleSnifferPause',       k: 'sniffer.pause_btn', last: true },
+    { s: '#btnClearSnifferPackets',      k: 'sniffer.clear_btn', last: true },
+    { s: '#btnExportPcap',               k: 'sniffer.export_pcap', last: true },
+    { s: '#btnExportJson',               k: 'sniffer.export_json', last: true },
+    { s: '#btnExportCsv',                k: 'sniffer.export_csv', last: true },
+    { s: '#snifferSearchInput',          k: 'sniffer.search_placeholder', a: 'placeholder' },
+
+    // Settings
+    { s: '#tab-settings .pane-header h2', k: 'settings.title', last: true },
+    { s: '#tab-settings .pane-header .header-subtitle', k: 'settings.subtitle' },
+    { s: '#btnRefreshLocalConfig',       k: 'settings.refresh', last: true },
+    { s: '.local-subtab-btn[data-subtab="local-telemetry"]', k: 'settings.subtab_telem', last: true },
+    { s: '.local-subtab-btn[data-subtab="local-radio"]', k: 'settings.subtab_radio', last: true },
+    { s: '.local-subtab-btn[data-subtab="local-owner-pos"]', k: 'settings.subtab_identity', last: true },
+    { s: '.local-subtab-btn[data-subtab="local-console"]', k: 'settings.subtab_terminal', last: true },
+    { s: '.local-subtab-btn[data-subtab="local-storage-maps"]', k: 'settings.subtab_maps', last: true },
+    { s: '.local-subtab-btn[data-subtab="local-security"]', k: 'settings.subtab_security', last: true },
+    { s: '.hardware-actions-section .micro-title', k: 'settings.hw_actions_title', last: true },
+    { s: '.hardware-actions-section .micro-subtitle', k: 'settings.hw_actions_sub' },
+    { s: '#btnActionAdvertHop .btn-compact-label', k: 'settings.action_advert_hop' },
+    { s: '#btnActionAdvertFlood .btn-compact-label', k: 'settings.action_advert_flood' },
+    { s: '#btnRefreshLocalTelem .btn-compact-label', k: 'settings.action_stats' },
+    { s: '#btnSyncLocalClock .btn-compact-label', k: 'settings.action_sync_rtc' },
+    { s: '#btnActionReconnectSerial .btn-compact-label', k: 'settings.action_reconnect_serial' },
+    { s: '#btnActionRebootLocal .btn-compact-label', k: 'settings.action_reboot' },
+
+    // Modals
+    { s: '#createChannelTitle',          k: 'modal.channel_title', last: true },
+    { s: '#btnCancelCreateChannel',      k: 'modal.cancel' },
+    { s: '#btnSaveChannel',              k: 'modal.save_channel', last: true },
+    { s: '#createContactTitle',          k: 'modal.contact_title', last: true },
+    { s: '#btnCancelCreateContact',      k: 'modal.cancel' },
+    { s: '#btnSaveContact',              k: 'modal.save_contact', last: true },
+    { s: '#qrShareTitle',                k: 'qr.title', last: true },
+    { s: '#qrShareDesc',                 k: 'qr.scan_hint', last: true },
+    { s: 'label[for="qrShareUri"]',      k: 'qr.uri_label' },
+    { s: '#btnCopyQrUri',                k: 'qr.copy_btn', last: true },
+    { s: 'label[for="qrShareJson"]',     k: 'qr.json_label' },
+    { s: '#btnDownloadQrJson',           k: 'qr.download_json', last: true },
+    { s: '#btnCloseQrModalAction',       k: 'qr.done' },
+    { s: '#repeaterAuthGate h4',         k: 'rep.restricted_access' },
+    { s: '#repeaterAuthGate p',          k: 'rep.restricted_desc' },
+    { s: 'label[for="repeaterGatePassword"]', k: 'rep.pin_label' },
+    { s: '#repeaterGatePassword',        k: 'rep.pin_placeholder', a: 'placeholder' },
+    { s: '#btnRepeaterGateSubmit',       k: 'rep.unlock_btn', last: true },
+    { s: '#btnRepeaterGateCancel',       k: 'modal.cancel' },
 
     // Lang toggle button
     { s: '#langToggleBtn',               k: 'lang.switch' },
@@ -671,18 +925,25 @@
   }
 
   /**
-   * Set the last text node of an element, preserving child elements (icons).
-   * Falls back to textContent if no text node is found.
+   * Set text of an element while preserving child icons/elements.
    */
-  function _setLastTextNode(el, text) {
-    const children = Array.from(el.childNodes);
-    const textNodes = children.filter(
+  function _setElementText(el, text) {
+    if (!el) return;
+    if (el.children.length === 0) {
+      el.textContent = text;
+      return;
+    }
+    const textChild = el.querySelector('.btn-text, .nav-label, .subtab-text, .btn-compact-label, .kpi-label, .card-label, .val-label');
+    if (textChild) {
+      textChild.textContent = text;
+      return;
+    }
+    const textNodes = Array.from(el.childNodes).filter(
       n => n.nodeType === Node.TEXT_NODE && n.textContent.trim().length > 0
     );
     if (textNodes.length > 0) {
       textNodes[textNodes.length - 1].textContent = '\u00A0' + text;
     } else {
-      // No text node found — create one after existing children
       el.appendChild(document.createTextNode('\u00A0' + text));
     }
   }
@@ -694,7 +955,7 @@
       if (entry.a) {
         el.setAttribute(entry.a, text);
       } else if (entry.last) {
-        _setLastTextNode(el, text);
+        _setElementText(el, text);
       } else {
         el.textContent = text;
       }
@@ -704,8 +965,35 @@
   /** Apply all static DOM translations */
   function apply() {
     document.documentElement.lang = _lang;
+    
+    // 1. Static DOM_MAP rules
     DOM_MAP.forEach(_applyEntry);
-    // Update lang button text + title separately
+
+    // 2. Declarative data-i18n attributes
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const k = el.getAttribute('data-i18n');
+      _setElementText(el, t(k));
+    });
+
+    // 3. Declarative data-i18n-placeholder
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+      const k = el.getAttribute('data-i18n-placeholder');
+      el.setAttribute('placeholder', t(k));
+    });
+
+    // 4. Declarative data-i18n-title
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+      const k = el.getAttribute('data-i18n-title');
+      el.setAttribute('title', t(k));
+    });
+
+    // 5. Declarative data-i18n-aria-label
+    document.querySelectorAll('[data-i18n-aria-label]').forEach(el => {
+      const k = el.getAttribute('data-i18n-aria-label');
+      el.setAttribute('aria-label', t(k));
+    });
+
+    // Update lang button text + title
     const btn = document.getElementById('langToggleBtn');
     if (btn) {
       btn.textContent = t('lang.switch');
@@ -718,7 +1006,7 @@
     _lang = _lang === 'es' ? 'en' : 'es';
     localStorage.setItem(LS_KEY, _lang);
     apply();
-    // Dispatch event so app.js can react (re-render dynamic content if needed)
+    // Dispatch event so app.js and other modules can react
     window.dispatchEvent(new CustomEvent('mc:langchange', { detail: { lang: _lang } }));
   }
 

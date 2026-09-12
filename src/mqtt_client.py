@@ -117,7 +117,7 @@ class AsyncBridgeMQTTClient:
 
         # connect_async + loop_start garantizan reintentos automáticos en segundo plano
         # aunque el broker esté caído al arrancar (loop_forever con retry_first_connection=True).
-        logging.info(f"Conectando al Broker MQTT en {self.broker}:{self.port}...")
+        logging.debug(f"Conectando al Broker MQTT en {self.broker}:{self.port}...")
         self.client.connect_async(self.broker, self.port, self.keepalive)
         self.client.loop_start()
 
@@ -140,7 +140,7 @@ class AsyncBridgeMQTTClient:
         except Exception:
             pass
         self.is_connected = False
-        logging.info("Cliente MQTT detenido correctamente.")
+        logging.debug("Cliente MQTT detenido correctamente.")
 
     def publish_safe(
         self,
@@ -186,7 +186,7 @@ class AsyncBridgeMQTTClient:
         if is_success:
             self.is_connected = True
             self.reconnect_count += 1
-            logging.info(f"Conexión exitosa con MQTT Broker ({self.broker}:{self.port})")
+            logging.debug(f"Conexión exitosa con MQTT Broker ({self.broker}:{self.port})")
 
             # Publicar estado online retenido
             online_payload = json.dumps({
@@ -203,10 +203,10 @@ class AsyncBridgeMQTTClient:
                 (f"{config.TOPIC_ADMIN_REPEATER}/+/cmd", 1),
             ]
             self.client.subscribe(subscriptions)
-            logging.info(f"Suscrito a: {self.topic_tx}, {self.topic_admin_cmd} y {config.TOPIC_ADMIN_REPEATER}/+/cmd")
+            logging.debug(f"Suscrito a: {self.topic_tx}, {self.topic_admin_cmd} y {config.TOPIC_ADMIN_REPEATER}/+/cmd")
         else:
             self.is_connected = False
-            logging.error(f"Fallo de conexión MQTT (rc: {rc})")
+            logging.debug(f"Fallo de conexión MQTT (rc: {rc})")
 
     def _on_disconnect(
         self,
@@ -224,7 +224,7 @@ class AsyncBridgeMQTTClient:
         is_clean = (rc_code == 0) or str(rc).lower() in ("0", "success", "clean disconnect", "disconnect", "none")
         if not is_clean:
             reason = getattr(rc, "getName", lambda: str(rc))()
-            logging.warning(f"Desconexión de MQTT detectada ({reason}). Reconectando automáticamente...")
+            logging.debug(f"Desconexión de MQTT detectada ({reason}). Reconectando automáticamente...")
 
     def _on_message(self, client: Any, userdata: Any, msg: Any) -> None:
         """Callback ejecutado al recibir un mensaje suscrito en MQTT."""

@@ -435,7 +435,7 @@ class MeshCoreBridge:
             tcp_server_enabled=getattr(config, "TCP_SERVER_ENABLED", True),
             tcp_server_host=getattr(config, "TCP_SERVER_HOST", "0.0.0.0"),  # nosec B104
         )
-        logging.info(f"Preflight Diagnostics: Estado {report['status']} ({len(report['checks'])} comprobaciones realizadas)")
+        logging.debug(f"Preflight Diagnostics: Estado {report['status']} ({len(report['checks'])} comprobaciones realizadas)")
 
         # Iniciar Rate Limiter y Cliente MQTT
         self.rate_limiter.start()

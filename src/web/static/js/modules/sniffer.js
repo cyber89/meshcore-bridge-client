@@ -95,15 +95,10 @@ export class SnifferModule {
       logLevelFilter: document.getElementById("logLevelFilter"),
       logSearchInput: document.getElementById("logSearchInput"),
       btnToggleDebugMode: document.getElementById("btnToggleDebugMode"),
-      btnQuickDiag: document.getElementById("btnQuickDiag"),
       btnDownloadRawLogs: document.getElementById("btnDownloadRawLogs"),
       btnClearLogs: document.getElementById("btnClearLogs"),
       btnPauseLogsScroll: document.getElementById("btnPauseLogsScroll"),
-      quickDiagPanel: document.getElementById("quickDiagPanel"),
-      quickDiagBody: document.getElementById("quickDiagBody"),
-      btnCloseQuickDiag: document.getElementById("btnCloseQuickDiag"),
       chipSerialHealth: document.getElementById("chipSerialHealth"),
-      chipMqttHealth: document.getElementById("chipMqttHealth"),
       chipTxHealth: document.getElementById("chipTxHealth"),
       chipErrorsCount: document.getElementById("chipErrorsCount"),
 
@@ -159,9 +154,6 @@ export class SnifferModule {
     if (this.dom.btnToggleDebugMode) {
       this.dom.btnToggleDebugMode.addEventListener("click", () => this.toggleDebugMode());
     }
-    if (this.dom.btnQuickDiag) {
-      this.dom.btnQuickDiag.addEventListener("click", () => this.runQuickDiagnostic());
-    }
     if (this.dom.btnDownloadRawLogs) {
       this.dom.btnDownloadRawLogs.addEventListener("click", () => this.downloadRawLogs());
     }
@@ -179,11 +171,6 @@ export class SnifferModule {
         "input",
         debounce(() => this.renderFilteredLogs(), 150)
       );
-    }
-    if (this.dom.btnCloseQuickDiag) {
-      this.dom.btnCloseQuickDiag.addEventListener("click", () => {
-        if (this.dom.quickDiagPanel) this.dom.quickDiagPanel.classList.add("hidden");
-      });
     }
 
     // Controles del Sniffer de Paquetes RF
@@ -619,15 +606,6 @@ export class SnifferModule {
       }
     }
 
-    if (this.dom.chipMqttHealth) {
-      const isMqttOk = sub.mqtt_broker?.connected ?? diag.mqtt_connected ?? false;
-      const brokerName = sub.mqtt_broker?.broker || "MQTT";
-      const el = this.dom.chipMqttHealth.querySelector(".val");
-      if (el) {
-        el.textContent = isMqttOk ? `Online (${brokerName})` : "Offline";
-        el.className = `val ${isMqttOk ? "ok" : "err"}`;
-      }
-    }
 
     if (this.dom.chipTxHealth) {
       const depth = sub.rate_limiter?.queue_depth || 0;
@@ -795,23 +773,6 @@ export class SnifferModule {
     }
   }
 
-  async runQuickDiagnostic() {
-    if (!this.dom.quickDiagPanel || !this.dom.quickDiagBody) return;
-    this.dom.quickDiagPanel.classList.remove("hidden");
-    this.dom.quickDiagBody.textContent = "Ejecutando auto-diagnóstico de subsistemas...";
-    try {
-      const res = await fetch("/api/diagnostics", {
-        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
-      });
-      const data = await res.json();
-      if (data.status === "ok") {
-        this.dom.quickDiagBody.innerHTML = `<pre>${escapeHtml(JSON.stringify(data.data, null, 2))}</pre>`;
-        this.updateHealthChips(data.data);
-      }
-    } catch (e) {
-      this.dom.quickDiagBody.innerHTML = `<span style="color: var(--accent-danger)">Error: ${escapeHtml(e.message)}</span>`;
-    }
-  }
 
   async downloadRawLogs() {
     try {

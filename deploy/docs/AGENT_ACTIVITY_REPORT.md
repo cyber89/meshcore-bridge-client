@@ -4,6 +4,46 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 
 ---
 
+### Hito: Internacionalización Completa al Inglés (i18n), Rediseño de Vista de Chat, Estandarización de Sistema de Diseño y Depuración de Logs
+- **Fecha**: 2026-09-12
+- **Estado**: ✅ COMPLETADO (Soporte i18n bidireccional Inglés/Español en toda la SPA con preservación de iconos e interfaz reactiva; modernización estética y ergonómica de la vista de Chat con burbujas asimétricas, acuse de recibo ACK, barra de canales y compositor flotante; estandarización de sistema de diseño y paleta cromática de botones y tarjetas en modo oscuro y claro; rediseño de badge de radio con icono sugestivo y dot de pulso; eliminación de auto-diagnóstico en logs y restricción del estado MQTT a métricas exclusivas).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  1. Internacionalización integral al inglés (`i18n`) en toda la aplicación web.
+  2. Mejora estética y de confort visual en la vista de mensajería (Chat).
+  3. Estandarización de colores, tokens, iconos y botones tanto en modo oscuro como claro en todas las vistas.
+  4. Cabecera: Quitar "Web: Connected" y reemplazar "Radio: Connected" por un badge/pill sugerente con dot de estado palpitante y diseño unificado.
+  5. Limpieza de logs: Eliminar el auto-diagnóstico de los logs del sistema y mostrar el estado de MQTT exclusivamente en métricas.
+- **Acciones Realizadas**:
+  1. **Internacionalización Integral (`src/web/static/js/i18n.js`, `app.js`, `index.html`)**:
+     - Expandidos los diccionarios `DICT.es` y `DICT.en` con claves exhaustivas para navegación, cabecera, métricas globales, chat, nodos, contactos, mapa, métricas/analítica, logs/sniffer, subpestañas de ajustes y todos los modales interactivos.
+     - En `i18n.js`: `DOM_MAP` ampliado para cubrir todos los encabezados estructurales, subtítulos, botones, filtros y chips. `apply()` dotado de soporte para selectores `[data-i18n]`, `[data-i18n-placeholder]`, `[data-i18n-title]` y `[data-i18n-aria-label]`.
+     - Implementado `_setElementText(el, text)` que actualiza el texto de los elementos interactivos preservando íntegramente los iconos Lucide (`<span data-lucide="...">`) y etiquetas secundarias.
+     - En `app.js`: Conectado el evento `mc:langchange` para re-renderizar de inmediato el badge de radio, títulos de modo claro/oscuro, tarjetas de nodos/contactos y feed de conversación activa.
+  2. **Modernización de la Vista de Chat (`src/web/static/css/app.css`, `index.html`, `chat.js`)**:
+     - Creado sistema de estilos completo para `.channel-list` y `.channel-item` con estados hover, active (borde de acento izquierdo y resaltado primario sutil), badges de canal y soporte para mensajes directos.
+     - Rediseñadas las burbujas de chat: Salientes con gradiente azul oceánico moderno (`16px 16px 4px 16px`), sombra sutil y acuse de recibo visual (✓ / ✓✓); Entrantes con superficie elevada y radio asimétrico (`16px 16px 16px 4px`).
+     - Diseñado el estado vacío `.chat-empty-state` con tipografía limpia y animación de entrada suave.
+     - Perfeccionado el compositor de chat flotante con campo de entrada redondeado, anillo de foco con glow y botones de herramientas GPS y transmisión.
+  3. **Estandarización de Componentes y Tokens de Diseño (`src/web/static/css/app.css`)**:
+     - Estandarizadas las familias de botones `.btn-primary`, `.btn-secondary`, `.btn-outline`, `.btn-danger`, `.btn-icon`, `.btn-sm` y `.btn-xs` con radios (`var(--radius-md)` / `var(--radius-sm)`), padding consistente, tipografía y transiciones suaves (`0.18s cubic-bezier`).
+     - Garantizado contraste accesible WCAG 2.2 AA (>= 4.5:1) en ambos modos (Oscuro OLED y Claro pizarra azulado) mediante tokens semánticos `--text-inverse`, `--accent-primary`, `--bg-surface-elevated` y `--border-subtle`.
+  4. **Badge de Radio y Encabezado Limpio (`index.html`, `app.js`, `app.css`)**:
+     - Eliminado el mensaje de texto `Web: Connected`.
+     - Reemplazado `#radio-status` por un badge `.radio-status-pill` con dot de estado palpitante (`.status-indicator-dot` con `@keyframes statusPulse`), icono de radio Lucide y texto localizado dinámicamente en `.status-text`.
+  5. **Depuración de Logs y Restricción de MQTT a Métricas (`src/mqtt_client.py`, `src/bridge_core.py`, `sniffer.js`, `index.html`)**:
+     - En `mqtt_client.py`: Reducidos los eventos rutinarios de conexión/desconexión MQTT a `logging.debug` para que no inunden el búfer de logs del sistema visible en la web.
+     - En `bridge_core.py`: Ajustado el reporte de preflight a `logging.debug`.
+     - En `index.html` y `sniffer.js`: Eliminados `#btnQuickDiag`, `#quickDiagPanel`, `#chipMqttHealth` y `runQuickDiagnostic()`. El estado del broker MQTT se monitorea limpia y exclusivamente en `#statMqttStatus` dentro de la pestaña de Métricas.
+  6. **Verificación y Sincronización**:
+     - `ruff check src/`: 100% PASS (0 advertencias, 0 errores).
+     - `node -c`: 100% PASS en todos los scripts JS.
+     - Verificación HTML: 100% balance de etiquetas y estructura válida.
+     - `/deploy/`: Totalmente sincronizado mediante `python scripts/sync_deploy.py`.
+- **Módulos Modificados**: `src/mqtt_client.py`, `src/bridge_core.py`, `src/web/static/index.html`, `src/web/static/css/app.css`, `src/web/static/js/app.js`, `src/web/static/js/i18n.js`, `src/web/static/js/modules/sniffer.js`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
+---
+
 ### Hito: Auditoría Exhaustiva y Resolución Integral de Hallazgos Críticos y Operativos de report.md
 - **Fecha**: 2026-09-12
 - **Estado**: ✅ COMPLETADO (Resolución integral de todos los hallazgos confirmados en report.md: R1-R4, C1, W1-W15, N1-N30, A1-A13. Implementación de thread-safety con locks y snapshots atómicos en NodeRegistry; eliminación de barrido de nodos en DOM en nodes.js; prevención de silenciamiento de chat de usuarios en rx_router.py; separación estricta de tópicos directos y de canal en MQTT; suscripción de comandos de repetidores en MQTT; desalojo de baja prioridad en CustomTxQueue; enmascaramiento seguro de PSK en canales; autenticación perimetral estricta en mutaciones y endpoints sensibles; límite de 32 WebSockets; protección contra desbordamiento de teselas cartográficas; cableado completo de terminal interactiva, paleta de comandos, IndexedDB y GPS; generación de claves con window.crypto.getRandomValues).

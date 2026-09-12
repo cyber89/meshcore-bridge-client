@@ -33,9 +33,12 @@
             <span class="logo-version">v3.0 Pro</span>
           </div>
         </div>
-        <div class="connection-status" role="status" aria-live="polite" style="display: flex; gap: 6px; align-items: center;">
-          <span id="radio-status" class="ws-badge ws-badge--disconnected" aria-live="polite" title="Estado del transceptor LoRa conectado por USB"><span class="chip-icon" data-lucide="radio" data-size="13"></span> Radio: Desconectada</span>
-          <span id="ws-status" class="ws-badge ws-badge--connecting" aria-live="polite" title="Estado de la conexión WebSocket con el servidor"><span class="chip-icon" data-lucide="wifi" data-size="13"></span> Web: Conectando…</span>
+        <div class="connection-status" role="status" aria-live="polite">
+          <div id="radio-status" class="radio-status-pill radio-status--disconnected" title="Estado del transceptor LoRa conectado por USB">
+            <span class="status-indicator-dot" aria-hidden="true"></span>
+            <span class="status-icon" aria-hidden="true" data-lucide="radio" data-size="13"></span>
+            <span class="status-text">Radio: Desconectada</span>
+          </div>
         </div>
       </div>
 
@@ -457,7 +460,7 @@
             <!-- Barra de Subpestañas Dual Sniffer -->
             <div class="subtabs-nav-bar" style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border-color, #1e293b); padding-bottom: 8px;">
               <button type="button" class="subtab-btn active" id="btnSubtabLogs" data-target="subpanelSystemLogs">
-                <span data-lucide="file-text" data-size="15"></span> Logs del Sistema &amp; Diagnóstico
+                <span data-lucide="file-text" data-size="15"></span> Logs del Sistema
               </button>
               <button type="button" class="subtab-btn" id="btnSubtabSniffer" data-target="subpanelRfPackets">
                 <span data-lucide="radio" data-size="15"></span> Monitor de Paquetes RF (LoRa Sniffer)
@@ -465,36 +468,25 @@
               </button>
             </div>
 
-            <!-- Subpanel 1: Logs del Sistema y Diagnóstico -->
+            <!-- Subpanel 1: Logs del Sistema -->
             <div id="subpanelSystemLogs" class="sniffer-subpanel active">
               <div class="pane-header">
                 <div class="header-title-group">
-                  <h2><span class="section-icon" data-lucide="file-text" data-size="20"></span> Consola de Logs y Diagnóstico en Vivo</h2>
-                  <p class="header-subtitle">Registro de eventos, depuración en tiempo real y estado de salud de subsistemas.</p>
+                  <h2><span class="section-icon" data-lucide="file-text" data-size="20"></span> Consola de Logs del Sistema</h2>
+                  <p class="header-subtitle">Registro de eventos y depuración en tiempo real del puente MeshCore.</p>
                 </div>
                 <div class="pane-actions">
                   <button class="btn-secondary" id="btnToggleDebugMode" title="Alternar nivel de logging DEBUG"><span data-lucide="bug" data-size="14"></span> Modo DEBUG</button>
-                  <button class="btn-secondary" id="btnQuickDiag" title="Comprobar salud de subsistemas"><span data-lucide="stethoscope" data-size="14"></span> Auto-Diagnóstico</button>
                   <button class="btn-secondary" id="btnDownloadRawLogs" title="Descargar archivo de logs completo del servidor (.log)"><span data-lucide="download" data-size="14"></span> Descargar .log</button>
                   <button class="btn-secondary" id="btnClearLogs" title="Limpiar búfer de logs"><span data-lucide="trash-2" data-size="14"></span> Limpiar</button>
                 </div>
               </div>
 
-              <!-- Chips de Salud de Subsistemas -->
+              <!-- Chips de Salud de Subsistemas (Serial / TX / Errores) -->
               <div class="subsystems-health-bar" id="subsystemsHealthBar">
                 <span class="health-chip" id="chipSerialHealth"><span class="chip-icon" data-lucide="radio" data-size="13"></span> Serial: <strong class="val">Comprobando...</strong></span>
-                <span class="health-chip" id="chipMqttHealth"><span class="chip-icon" data-lucide="wifi" data-size="13"></span> MQTT: <strong class="val">Comprobando...</strong></span>
                 <span class="health-chip" id="chipTxHealth"><span class="chip-icon" data-lucide="clock" data-size="13"></span> TX Queue: <strong class="val">0</strong></span>
                 <span class="health-chip" id="chipErrorsCount"><span class="chip-icon" data-lucide="alert-triangle" data-size="13"></span> Errores: <strong class="val">0</strong></span>
-              </div>
-
-              <!-- Panel de Diagnóstico Rápido (Oculto por defecto) -->
-              <div id="quickDiagPanel" class="card-panel quick-diag-card hidden">
-                <div class="diag-header">
-                  <h3><span class="section-icon" data-lucide="stethoscope" data-size="18"></span> Resumen de Auto-Diagnóstico</h3>
-                  <button class="btn-icon" id="btnCloseQuickDiag">✕</button>
-                </div>
-                <div id="quickDiagBody" class="diag-body"></div>
               </div>
 
               <!-- Barra de Filtros de Logs -->

@@ -136,6 +136,18 @@ class MeshCoreApp {
     if (langBtn && window.I18n) {
       langBtn.addEventListener("click", () => window.I18n.toggle());
     }
+    window.addEventListener("mc:langchange", () => {
+      this.updateRadioBadge(this._lastRadioConnected ?? false, this._lastRadioPort ?? "");
+      const isDark = !document.body.classList.contains("light-theme");
+      this._updateThemeIcon(isDark ? "dark" : "light");
+      if (this.nodesModule) {
+        if (typeof this.nodesModule.renderNodesDirectory === "function") this.nodesModule.renderNodesDirectory();
+        if (typeof this.nodesModule.renderContactsGrid === "function") this.nodesModule.renderContactsGrid();
+      }
+      if (this.chatModule && typeof this.chatModule.renderCurrentConversation === "function") {
+        this.chatModule.renderCurrentConversation();
+      }
+    });
     // Apply translations on init (i18n.js auto-applies on DOMContentLoaded,
     // but calling again here ensures post-module-load elements are covered)
     if (window.I18n) window.I18n.apply();
@@ -313,22 +325,13 @@ class MeshCoreApp {
 
   _subscribeBus() {
     this.eventBus.on(EVENTS.WS_STATUS_CHANGE, (status) => {
-      if (!this.dom.wsStatus) return;
       if (status === "connected") {
-        this.dom.wsStatus.className = "ws-badge ws-badge--connected";
-        this.dom.wsStatus.textContent = I18n.t('app.web_online');
         if (this.modules?.settings?.fetchLocalNodeConfig) {
           this.modules.settings.fetchLocalNodeConfig();
         }
         if (this.modules?.nodes?.fetchNodes) {
           this.modules.nodes.fetchNodes();
         }
-      } else if (status === "connecting") {
-        this.dom.wsStatus.className = "ws-badge ws-badge--connecting";
-        this.dom.wsStatus.textContent = I18n.t('app.web_connecting');
-      } else {
-        this.dom.wsStatus.className = "ws-badge ws-badge--disconnected";
-        this.dom.wsStatus.textContent = I18n.t('app.web_offline');
       }
     });
 
@@ -378,14 +381,35 @@ class MeshCoreApp {
   }
 
   updateRadioBadge(connected, portName = "") {
-    if (!this.dom.radioStatus) return;
+    this._lastRadioConnected = connected;
+    this._lastRadioPort = portName;
+    const el = this.dom.radioStatus;
+    if (!el) return;
+
+    el.classList.toggle("radio-status--connected", connected);
+    el.classList.toggle("radio-status--disconnected", !connected);
+
+    const txtEl = el.querySelector(".status-text");
+    const portClean = portName ? String(portName).trim() : "";
+
+    let label = "";
     if (connected) {
-      this.dom.radioStatus.className = "ws-badge ws-badge--connected";
-      this.dom.radioStatus.textContent = portName ? I18n.t('app.radio_online').replace('{port}', portName) : I18n.t('app.radio_online_fallback');
+      label = portClean
+        ? I18n.t('app.radio_online').replace('{port}', portClean)
+        : I18n.t('app.radio_online_fallback');
     } else {
-      this.dom.radioStatus.className = "ws-badge ws-badge--disconnected";
-      this.dom.radioStatus.textContent = I18n.t('app.radio_offline');
+      label = I18n.t('app.radio_offline');
     }
+
+    if (txtEl) {
+      txtEl.textContent = label;
+    } else {
+      el.textContent = label;
+    }
+
+    el.title = connected
+      ? `Transceptor LoRa Conectado${portClean ? ` (${portClean})` : ""} - Enlace RF activo`
+      : "Transceptor LoRa Desconectado - Verifique el puerto USB o adaptador serial";
   }
 
   showToast(message, type = "info", durationMs = 3500) {
