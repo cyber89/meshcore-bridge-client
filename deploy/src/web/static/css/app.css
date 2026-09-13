@@ -559,6 +559,12 @@ body {
   margin-right: 4px;
 }
 
+.btn-xs .lucide-icon:only-child,
+.btn-sm .lucide-icon:only-child,
+.panel-btn-group .btn-xs .lucide-icon {
+  margin-right: 0;
+}
+
 .btn-copy-pk .lucide-icon {
   width: 12px;
   height: 12px;
@@ -1087,6 +1093,15 @@ body {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.panel-btn-group .btn-xs {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 24px;
+  padding: 0 6px;
 }
 
 .panel-title {

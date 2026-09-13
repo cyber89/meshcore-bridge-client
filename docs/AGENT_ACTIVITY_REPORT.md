@@ -2,6 +2,30 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Mejora del Botón de Agregar Canal en Mensajes con Icono Vectorial del Sistema
+- **Fecha**: 2026-09-12
+- **Estado**: ✅ COMPLETADO (Reemplazo del glifo matemático '+' por el icono vectorial del sistema 'plus-circle' en el botón #btnAddChannel; registro en LUCIDE_ICONS de plus-circle, circle-plus y message-square-plus; refinamiento de estilos CSS en panel-btn-group para centrado óptimo sin margen lateral espurio; adición de claves i18n chat.add_channel_title y chat.import_channel_title en DICT.es y DICT.en para tooltips traducidos; sincronización y empaquetado en /deploy/).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect).
+- **Problema / Requerimiento**:
+  - El usuario solicitó: "quiero mejorar el boton de agregar un canal en mensajes para que en vez de usar un + use un icono del tipo de iconos usados por el sistema".
+- **Acciones Realizadas**:
+  1. **Librería de Iconos Vectoriales (`src/web/static/js/icons.js`)**:
+     - Añadidos los iconos vectoriales SVG `plus-circle`, `circle-plus` y `message-square-plus` al catálogo offline `LUCIDE_ICONS`.
+  2. **Estructura HTML (`src/web/static/index.html`)**:
+     - Actualizado el botón `#btnAddChannel` para utilizar `<span data-lucide="plus-circle" data-size="13"></span>`.
+  3. **Estilos CSS y Centrado Óptico (`src/web/static/css/app.css`)**:
+     - Añadida regla para anular el `margin-right: 4px` en botones `.btn-xs` que contienen solo un icono (`.btn-xs .lucide-icon:only-child`, `.panel-btn-group .btn-xs .lucide-icon`).
+     - Definidas dimensiones fijas y centrado flex (`min-width: 26px; height: 24px; padding: 0 6px`) para `.panel-btn-group .btn-xs`, logrando perfecta simetría geométrica con `#btnImportData`.
+  4. **Internacionalización y Tooltips (`src/web/static/js/i18n.js`)**:
+     - Incorporadas las claves `chat.add_channel_title` y `chat.import_channel_title` en `DICT.es` y `DICT.en` para evitar que el tooltip muestre el identificador técnico de la clave.
+  5. **Verificación y Sincronización**:
+     - Verificación estática con `node -c` (icons.js, i18n.js): 100% PASS.
+     - Verificación sintáctica con `html.parser`: 100% PASS.
+     - Paquete `/deploy/` totalmente sincronizado con `python scripts/sync_deploy.py`.
+- **Módulos Modificados**: `src/web/static/js/icons.js`, `src/web/static/index.html`, `src/web/static/css/app.css`, `src/web/static/js/i18n.js`, `deploy/**`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
+---
+
 ### Hito: Optimización de Tarjeta de Nodo Local, Restablecimiento Global de Métricas y Sincronización i18n Completa
 - **Fecha**: 2026-09-12
 - **Estado**: ✅ COMPLETADO (Eliminación de la pastilla '⚡ Host' en la vista de Nodos y tarjeta local, preservando la insignia canónica 'LOCAL' y mostrando batería únicamente cuando el hardware la reporta; simplificación de saltos a '0' sin etiqueta '(Host)'; implementación de endpoint REST POST/DELETE /api/analytics/reset con reset_analytics atómico en NodeRegistry y reset_counters en bridge_core; adición de botón 'Restablecer Métricas' en tab-analytics con diálogo de confirmación y enlace en tab-settings; sincronización exhaustiva de diccionarios i18n en español e inglés para toda la vista de nodos y analítica con soporte dinámico mc:langchange).
