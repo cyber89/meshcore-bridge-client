@@ -158,7 +158,7 @@ export class NodesModule {
   }
 
   formatLastSeen(lastSeen, isLocal = false) {
-    if (isLocal) return I18n.t('time.online_host');
+    if (isLocal) return I18n.t('time.online_local') || I18n.t('common.online');
     if (!lastSeen || lastSeen <= 0) return I18n.t('time.unknown');
     const diff = Math.floor(Date.now() / 1000) - lastSeen;
     if (diff < 0 || diff < 60) return I18n.t('time.just_now');
@@ -280,13 +280,13 @@ export class NodesModule {
         const batText = node.battery_pct != null ? `${node.battery_pct}%` : (node.voltage_v != null ? `${node.voltage_v}V` : null);
         const snrVal = node.last_snr != null ? `${node.last_snr} dB` : "--";
         const rssiVal = node.last_rssi != null ? `${node.last_rssi} dBm` : "--";
-        const hopsVal = node.hops != null ? (node.hops === 0 ? I18n.t('nodes.route_direct') : `${node.hops} saltos`) : "--";
+        const hopsVal = node.hops != null ? (node.hops === 0 ? I18n.t('nodes.route_direct') : `${node.hops} ${I18n.t('nodes.hops')}`) : "--";
 
         cCard.innerHTML = `
           <div class="contact-card-header">
             <div class="node-card-avatar-wrapper">
               <div class="contact-avatar font-mono">${escapeHtml(cleanName.slice(0, 2).toUpperCase())}</div>
-              <span class="avatar-status-dot ${presenceClass}" title="${isOnline ? 'En línea' : 'Inactivo'}"></span>
+              <span class="avatar-status-dot ${presenceClass}" title="${isOnline ? I18n.t('common.online') : I18n.t('common.offline')}"></span>
             </div>
             <div class="contact-info">
               <div class="contact-title-row">
@@ -304,7 +304,7 @@ export class NodesModule {
 
           <div class="node-telemetry-panel">
             <div class="node-meta-row">
-              <span>Clave: <code>${escapeHtml(node.public_key.slice(0, 8))}…</code></span>
+              <span>${I18n.t('nodes.key_label')} <code>${escapeHtml(node.public_key.slice(0, 8))}…</code></span>
               <span>${hasGps ? `📍 ${node.latitude.toFixed(3)}, ${node.longitude.toFixed(3)}` : `<span class="color-dim font-mono">${I18n.t('common.no_gps')}</span>`}</span>
             </div>
             <div class="node-meta-sub">
@@ -314,22 +314,22 @@ export class NodesModule {
           </div>
 
           <div class="contact-card-chips">
-            <div class="stat-pill" title="RSSI de última recepción">📡 <strong>${escapeHtml(rssiVal)}</strong></div>
-            <div class="stat-pill" title="SNR de señal">📶 <strong>${escapeHtml(snrVal)}</strong></div>
-            <div class="stat-pill" title="Saltos en la malla">🔀 <strong>${escapeHtml(hopsVal)}</strong></div>
+            <div class="stat-pill" title="${I18n.t('nodes.tooltip_rssi')}">📡 <strong>${escapeHtml(rssiVal)}</strong></div>
+            <div class="stat-pill" title="${I18n.t('nodes.tooltip_snr')}">📶 <strong>${escapeHtml(snrVal)}</strong></div>
+            <div class="stat-pill" title="${I18n.t('nodes.tooltip_hops')}">🔀 <strong>${escapeHtml(hopsVal)}</strong></div>
           </div>
 
           <div class="contact-card-actions">
-            <button type="button" class="btn-primary btn-sm btn-contact-dm" title="Abrir chat con este contacto">
+            <button type="button" class="btn-primary btn-sm btn-contact-dm" title="${I18n.t('contacts.title_chat')}">
               <span data-lucide="message-square" data-size="13"></span>${I18n.t('nodes.chat_btn')}
             </button>
-            <button type="button" class="btn-secondary btn-sm btn-contact-trace" title="Trazar ruta traceroute">
+            <button type="button" class="btn-secondary btn-sm btn-contact-trace" title="${I18n.t('contacts.title_trace')}">
               <span data-lucide="git-commit" data-size="13"></span>${I18n.t('nodes.trace_btn')}
             </button>
-            <button type="button" class="btn-outline btn-sm btn-contact-qr" title="Compartir QR del contacto">
+            <button type="button" class="btn-outline btn-sm btn-contact-qr" title="${I18n.t('contacts.title_qr')}">
               <span data-lucide="qr-code" data-size="13"></span>
             </button>
-            <button type="button" class="btn-outline btn-sm btn-contact-del" title="Eliminar de contactos">
+            <button type="button" class="btn-outline btn-sm btn-contact-del" title="${I18n.t('contacts.title_del')}">
               <span data-lucide="trash-2" data-size="13"></span>
             </button>
           </div>
@@ -433,10 +433,10 @@ export class NodesModule {
         nCard.setAttribute("data-has-gps", hasGps ? "1" : "0");
 
         const avatarIcon = isLocal ? "🏠" : (isRepeater ? "📡" : (isSensor ? "🌡️" : (isRoom ? "💬" : "👤")));
-        const batText = isLocal ? "⚡ Host" : (node.battery_pct != null ? `${node.battery_pct}%` : (node.voltage_v != null ? `${node.voltage_v}V` : null));
+        const batText = node.battery_pct != null ? `${node.battery_pct}%` : (node.voltage_v != null ? `${node.voltage_v}V` : null);
         const snrVal = isLocal ? "Local" : (node.last_snr != null ? `${node.last_snr} dB` : "--");
         const rssiVal = isLocal ? "Local" : (node.last_rssi != null ? `${node.last_rssi} dBm` : "--");
-        const hopsVal = isLocal ? "0 (Host)" : (node.hops != null ? (node.hops === 0 ? I18n.t('nodes.route_direct') : `${node.hops} saltos`) : "--");
+        const hopsVal = isLocal ? "0" : (node.hops != null ? (node.hops === 0 ? I18n.t('nodes.route_direct') : `${node.hops} ${I18n.t('nodes.hops')}`) : "--");
 
         let telemLine2 = `${I18n.t('nodes.route_label')} <strong>${escapeHtml(node.best_route || (node.hops === 0 ? I18n.t('nodes.route_direct') : I18n.t('nodes.route_mesh')))}</strong>`;
         if (node.temperature_c != null) {
@@ -451,13 +451,13 @@ export class NodesModule {
               <div class="node-card-avatar avatar-${roleClass === "role-local" ? "local" : (roleClass === "role-repeater" ? "repeater" : (roleClass === "role-sensor" ? "sensor" : "client"))}">
                 ${avatarIcon}
               </div>
-              <span class="avatar-status-dot ${presenceClass}" title="${isOnline ? 'En línea' : 'Inactivo'}"></span>
+              <span class="avatar-status-dot ${presenceClass}" title="${isOnline ? I18n.t('common.online') : I18n.t('common.offline')}"></span>
             </div>
             <div class="node-card-info">
               <div class="node-card-top-row">
                 <span class="node-card-name font-mono" title="${escapeHtml(cleanName)}">${escapeHtml(cleanName)}</span>
                 <div class="node-card-badges-group">
-                  ${batText ? `<span class="contact-battery-chip" title="Energía">${escapeHtml(batText)}</span>` : ""}
+                  ${batText ? `<span class="contact-battery-chip" title="${I18n.t('nodes.battery_title').replace('{val}', batText)}">🔋 ${escapeHtml(batText)}</span>` : ""}
                   <span class="node-role-badge ${roleClass}">${escapeHtml(roleUpper)}</span>
                 </div>
               </div>
@@ -469,7 +469,7 @@ export class NodesModule {
 
           <div class="node-telemetry-panel">
             <div class="node-meta-row">
-              <span>Clave: <code>${escapeHtml(node.public_key.slice(0, 8))}…</code></span>
+              <span>${I18n.t('nodes.key_label')} <code>${escapeHtml(node.public_key.slice(0, 8))}…</code></span>
               <span>${hasGps ? `📍 ${node.latitude.toFixed(3)}, ${node.longitude.toFixed(3)}` : `<span class="color-dim font-mono">${I18n.t('common.no_gps')}</span>`}</span>
             </div>
             <div class="node-meta-sub">
@@ -479,33 +479,33 @@ export class NodesModule {
           </div>
 
           <div class="node-rf-strip">
-            <div class="stat-pill" title="RSSI recibido">📡 <strong>${escapeHtml(rssiVal)}</strong></div>
-            <div class="stat-pill" title="SNR">📶 <strong>${escapeHtml(snrVal)}</strong></div>
-            <div class="stat-pill" title="Saltos en la red">🔀 <strong>${escapeHtml(hopsVal)}</strong></div>
+            <div class="stat-pill" title="${I18n.t('nodes.tooltip_rssi')}">📡 <strong>${escapeHtml(rssiVal)}</strong></div>
+            <div class="stat-pill" title="${I18n.t('nodes.tooltip_snr')}">📶 <strong>${escapeHtml(snrVal)}</strong></div>
+            <div class="stat-pill" title="${I18n.t('nodes.tooltip_hops')}">🔀 <strong>${escapeHtml(hopsVal)}</strong></div>
           </div>
 
           <div class="node-actions-bar">
             ${isRepeater ? `
-              <button type="button" class="btn-primary btn-sm btn-manage-repeater" title="Administrar Repetidor Remoto">
+              <button type="button" class="btn-primary btn-sm btn-manage-repeater" title="${I18n.t('nodes.title_manage')}">
                 <span data-lucide="sliders" data-size="13"></span>${I18n.t('nodes.manage_btn')}
               </button>
             ` : ""}
             ${!isLocal && !isRepeater ? `
-              <button type="button" class="btn-primary btn-sm btn-dm-node" title="Enviar Mensaje Directo">
+              <button type="button" class="btn-primary btn-sm btn-dm-node" title="${I18n.t('nodes.title_dm')}">
                 <span data-lucide="message-square" data-size="13"></span>${I18n.t('nodes.chat_btn')} DM
               </button>
             ` : ""}
             ${isLocal ? `
-              <button type="button" class="btn-secondary btn-sm btn-configure-local" title="Configurar Nodo Local">
+              <button type="button" class="btn-secondary btn-sm btn-configure-local" title="${I18n.t('nodes.title_settings')}">
                 <span data-lucide="settings" data-size="13"></span>${I18n.t('nodes.settings_btn')}
               </button>
             ` : ""}
             ${!isLocal ? `
-              <button type="button" class="btn-secondary btn-sm btn-trace-node" title="Trazar ruta de red">
+              <button type="button" class="btn-secondary btn-sm btn-trace-node" title="${I18n.t('nodes.title_trace')}">
                 <span data-lucide="git-commit" data-size="13"></span>${I18n.t('nodes.trace_btn')}
               </button>
             ` : ""}
-            <button type="button" class="btn-outline btn-sm btn-node-qr" title="Compartir QR">
+            <button type="button" class="btn-outline btn-sm btn-node-qr" title="${I18n.t('nodes.title_qr')}">
               <span data-lucide="qr-code" data-size="13"></span>
             </button>
           </div>
@@ -706,14 +706,33 @@ export class NodesModule {
   filterNodesGrid(query) {
     const q = (query || "").toLowerCase().trim();
     const roleFilter = (this.activeNodesFilter || "all").toUpperCase();
+    const cards = document.querySelectorAll("#nodesUnifiedGridUi .node-card");
+    let visibleCount = 0;
 
-    document.querySelectorAll("#nodesUnifiedGridUi .node-card").forEach((card) => {
+    cards.forEach((card) => {
       const text = card.textContent.toLowerCase();
       const role = (card.getAttribute("data-role") || "ALL").toUpperCase();
       const matchRole = roleFilter === "ALL" || role === roleFilter || (roleFilter === "CLIENT" && role === "CLIENT");
       const matchText = !q || text.includes(q);
-      card.classList.toggle("hidden", !(matchRole && matchText));
+      const isVisible = matchRole && matchText;
+      card.classList.toggle("hidden", !isVisible);
+      if (isVisible) visibleCount++;
     });
+
+    const grid = this.dom.nodesUnifiedGridUi;
+    if (grid) {
+      let emptyMsg = grid.querySelector(".nodes-empty-filter-state");
+      if (visibleCount === 0 && cards.length > 0) {
+        if (!emptyMsg) {
+          emptyMsg = document.createElement("div");
+          emptyMsg.className = "nodes-empty-filter-state empty-state";
+          grid.appendChild(emptyMsg);
+        }
+        emptyMsg.innerHTML = `<p>${I18n.t('nodes.empty_filter')}</p>`;
+      } else if (emptyMsg) {
+        emptyMsg.remove();
+      }
+    }
   }
 
   initAnalytics() {

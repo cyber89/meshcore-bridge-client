@@ -5,6 +5,7 @@ Handles /api/nodes, /api/lqi, /api/analytics, /api/rf/heatmap, and /api/airtime/
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from src.web.controllers.base import BaseController
@@ -73,6 +74,36 @@ class NodesController(BaseController):
         analytics["summary"]["global_error_rate_pct"] = round((final_err / (total_p or 1)) * 100, 2)
 
         return 200, {"status": "ok", "data": analytics}
+
+    async def reset_metrics(self) -> tuple[int, dict[str, Any]]:
+        """Restablece los contadores de paquetes y errores de la red y el bridge."""
+        bridge = self.ctx.bridge
+        res: dict[str, Any] = {"nodes_reset": 0}
+        if hasattr(bridge, "reset_counters"):
+            res = bridge.reset_counters()
+        elif hasattr(bridge, "node_registry") and hasattr(bridge.node_registry, "reset_analytics"):
+            bridge.rx_count = 0
+            bridge.tx_count = 0
+            bridge.tx_error_count = 0
+            bridge.err_count = 0
+            res = bridge.node_registry.reset_analytics()
+
+        # Emitir actualización por WebSocket si está disponible
+        ws_server = getattr(self.ctx, "ws_server", None)
+        if ws_server and hasattr(ws_server, "broadcast_json"):
+            import asyncio
+            asyncio.create_task(
+                ws_server.broadcast_json({
+                    "event_type": "metrics_reset",
+                    "timestamp": int(time.time()),
+                })
+            )
+
+        return 200, {
+            "status": "ok",
+            "message": "Metrics reset successfully",
+            "data": res,
+        }
 
     async def get_rf_heatmap(self) -> tuple[int, dict[str, Any]]:
         """Genera los puntos geolocalizados para el Heatmap táctico RF."""

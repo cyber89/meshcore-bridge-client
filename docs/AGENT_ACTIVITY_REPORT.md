@@ -2,6 +2,43 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Optimización de Tarjeta de Nodo Local, Restablecimiento Global de Métricas y Sincronización i18n Completa
+- **Fecha**: 2026-09-12
+- **Estado**: ✅ COMPLETADO (Eliminación de la pastilla '⚡ Host' en la vista de Nodos y tarjeta local, preservando la insignia canónica 'LOCAL' y mostrando batería únicamente cuando el hardware la reporta; simplificación de saltos a '0' sin etiqueta '(Host)'; implementación de endpoint REST POST/DELETE /api/analytics/reset con reset_analytics atómico en NodeRegistry y reset_counters en bridge_core; adición de botón 'Restablecer Métricas' en tab-analytics con diálogo de confirmación y enlace en tab-settings; sincronización exhaustiva de diccionarios i18n en español e inglés para toda la vista de nodos y analítica con soporte dinámico mc:langchange).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect).
+- **Problema / Requerimiento**:
+  1. En la vista de nodos, retirar "⚡ Host" en el nodo local porque "Local" ya especifica claramente su rol.
+  2. Implementar un botón para restablecer las métricas y contadores de tráfico en la interfaz web.
+  3. Verificar que toda la vista funcione correctamente con traducción íntegra al inglés (HTML, CSS y JS).
+- **Acciones Realizadas**:
+  1. **Tarjeta de Nodo Local y Limpieza (`src/web/static/js/modules/nodes.js`)**:
+     - Eliminada la asignación incondicional `⚡ Host` para `isLocal`. Ahora se evalúa uniformemente `node.battery_pct` / `node.voltage_v`, ocultando el chip de batería si el hardware local no posee sensor de alimentación.
+     - Simplificado `hopsVal` para que nodos locales muestren `"0"` en vez de `"0 (Host)"`.
+     - Reemplazado `${node.hops} saltos` por `${node.hops} ${I18n.t('nodes.hops')}`.
+     - Actualizado `formatLastSeen` para retornar `I18n.t('time.online_local')` ("En línea (Local)" / "Online (Local)").
+  2. **Restablecimiento de Métricas (`src/contact_manager.py`, `src/bridge_core.py`, `src/web/controllers/nodes_controller.py`, `src/web/api_router.py`)**:
+     - En `contact_manager.py`: Añadido método thread-safe `NodeRegistry.reset_analytics()` que reinicia contadores (`rx_packets=0`, `tx_packets=0`, `error_count=0`, `packets_sent=0`, `packets_recv=0`, `duplicate_packets=0`, `packet_errors=0`) en todas las entradas de `_nodes_by_key` mediante `dataclasses.replace` y vacía `self.error_categories`.
+     - En `bridge_core.py`: Añadido `MeshCoreBridge.reset_counters()` que reinicia contadores en memoria (`rx_count`, `tx_count`, `tx_error_count`, `err_count`) y delega en `node_registry.reset_analytics()`.
+     - En `nodes_controller.py`: Implementado `NodesController.reset_metrics()` retornando respuesta JSON estandarizada y notificando evento WebSocket `metrics_reset`.
+     - En `api_router.py`: Enrutados `POST` y `DELETE` en `/api/analytics/reset` y `/api/metrics/reset` hacia `nodes_ctrl.reset_metrics()`.
+  3. **Interfaz de Usuario y Botones (`src/web/static/index.html`, `analytics.js`, `settings.js`, `app.css`)**:
+     - En `index.html`: Incorporado botón `#btnResetMetrics` en el encabezado de `#tab-analytics`.
+     - En `analytics.js`: Enlazado `#btnResetMetrics` con método interactivo `resetMetrics()`, diálogo de confirmación `confirm()`, llamada REST, notificación Toast y refresco automático de KPIs y tablas.
+     - En `settings.js`: Enlazado el botón `#btnActionClearLocalStats` para ejecutar el mismo procedimiento de reinicio.
+     - En `app.css`: Creada la clase táctica `.btn-danger-hover` con contraste accesible en temas claro y oscuro.
+  4. **Internacionalización y Traducción Integral (`src/web/static/js/i18n.js`, `app.js`, `nodes.js`, `analytics.js`)**:
+     - Sincronizados los diccionarios `DICT.es` y `DICT.en` incorporando todas las claves de botones, tooltips, etiquetas de clave, presencia y confirmación.
+     - Registrados `#btnResetMetricsText`, `#btnResetMetrics` y `#btnActionClearLocalStats` en `DOM_MAP`.
+     - En `app.js`: Conectado `mc:langchange` para refrescar reactivamente `analyticsModule.fetchAnalytics()`.
+     - En `nodes.js`: Localizados los tooltips de las pastillas RF, botones de acción, clave pública y estado vacío de filtros en `#nodesUnifiedGridUi`.
+  5. **Verificación y Sincronización**:
+     - Verificación de sintaxis Python (`py_compile`): 100% PASS.
+     - Verificación de linter (`ruff check src/`): 100% PASS (0 advertencias).
+     - Verificación de sintaxis JS (`node -c` en 5 módulos): 100% PASS.
+     - Verificación de HTML (`html.parser`): 100% PASS.
+     - Paquete de despliegue `/deploy/` totalmente sincronizado con `python scripts/sync_deploy.py`.
+- **Módulos Modificados**: `src/contact_manager.py`, `src/bridge_core.py`, `src/web/controllers/nodes_controller.py`, `src/web/api_router.py`, `src/web/static/index.html`, `src/web/static/css/app.css`, `src/web/static/js/i18n.js`, `src/web/static/js/modules/nodes.js`, `src/web/static/js/modules/analytics.js`, `src/web/static/js/modules/settings.js`, `src/web/static/js/app.js`, `deploy/**`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ---
 
 ### Hito: Internacionalización Completa al Inglés (i18n), Rediseño de Vista de Chat, Estandarización de Sistema de Diseño y Depuración de Logs

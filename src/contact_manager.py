@@ -12,7 +12,7 @@ import logging
 import os
 import threading
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -1018,6 +1018,26 @@ class NodeRegistry:
             "top_repeaters_by_clients": top_repeaters,
             "top_error_breakdown": sorted_errors,
         }
+
+    def reset_analytics(self) -> dict[str, int]:
+        """Restablece los contadores de paquetes y errores de todos los nodos y categorías."""
+        with self._lock:
+            reset_count = 0
+            for k, contact in list(self._nodes_by_key.items()):
+                new_contact = replace(
+                    contact,
+                    rx_packets=0,
+                    tx_packets=0,
+                    error_count=0,
+                    packets_sent=0,
+                    packets_recv=0,
+                    duplicate_packets=0,
+                    packet_errors=0,
+                )
+                self._nodes_by_key[k] = new_contact
+                reset_count += 1
+            self.error_categories.clear()
+            return {"nodes_reset": reset_count}
 
     def get_all_lqi_metrics(self) -> list[dict[str, Any]]:
         """Retorna métricas LQI de todos los nodos ordenadas por puntaje descendente."""

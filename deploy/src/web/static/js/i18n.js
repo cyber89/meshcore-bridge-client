@@ -171,6 +171,9 @@
       'analytics.repeater_count':  '{n} Repetidores en Malla',
       'analytics.errors_acc':      '{n} errores acumulados',
       'analytics.packets_count':   '{n} paquetes',
+      'analytics.reset':           'Restablecer Métricas',
+      'analytics.reset_title':     'Restablecer contadores y estadísticas acumuladas',
+      'analytics.confirm_reset':   '¿Deseas restablecer todos los contadores de paquetes y métricas acumuladas de la red?',
 
       // Chat
       'chat.sound_on':             '🔔 Alertas sonoras de chat activadas',
@@ -238,6 +241,20 @@
       'nodes.battery_title':       'Batería: {val}',
       'nodes.route_label':         'Ruta:',
       'nodes.lqi_label':           'LQI:',
+      'nodes.hops':                'saltos',
+      'nodes.key_label':           'Clave:',
+      'nodes.tooltip_rssi':        'RSSI recibido',
+      'nodes.tooltip_snr':         'Relación señal/ruido (SNR)',
+      'nodes.tooltip_hops':        'Saltos en la red',
+      'nodes.title_manage':        'Administrar Repetidor Remoto',
+      'nodes.title_dm':            'Enviar Mensaje Directo',
+      'nodes.title_settings':      'Configurar Nodo Local',
+      'nodes.title_trace':         'Trazar ruta de red',
+      'nodes.title_qr':            'Compartir QR',
+      'contacts.title_chat':       'Abrir chat con este contacto',
+      'contacts.title_trace':      'Trazar ruta traceroute',
+      'contacts.title_qr':         'Compartir QR del contacto',
+      'contacts.title_del':        'Eliminar de contactos',
 
       // Repeater
       'rep.auth_err':              'Contraseña incorrecta o cambiada en el repetidor',
@@ -272,6 +289,7 @@
 
       // Time & Signals
       'time.online_host':          'En línea (Host)',
+      'time.online_local':         'En línea (Local)',
       'time.unknown':              'Desconocido',
       'time.just_now':             'Hace un momento',
       'time.mins_ago':             'Hace {n} min',
@@ -316,14 +334,21 @@
       'toast.api_key_del':         'ℹ️ API Key eliminada',
       'toast.radio_cfg_ok':        '📻 Parámetros de radio locales actualizados',
       'toast.identity_ok':         '📍 Identidad y ubicación guardadas',
+      'toast.metrics_reset':       'Métricas y contadores restablecidos correctamente',
 
       // Common
       'common.you':                'Tú',
       'common.anonymous':          'Anónimo',
       'common.local_station':      'Estación Local (Tú)',
+      'common.online':             'En línea',
+      'common.offline':            'Inactivo',
       'common.no_gps':             'Sin GPS',
       'common.repeater':           'Repetidor',
       'common.node':               'Nodo',
+
+      // Settings actions
+      'settings.action_clear_stats': 'Limpiar Stats',
+      'settings.action_clear_stats_title': 'Restablece contadores de paquetes, duplicados y tiempos de aire',
 
       // Additional Chat keys
       'chat.add_channel_title':    'Crear / Unirse a canal',
@@ -546,6 +571,9 @@
       'analytics.repeater_count':  '{n} Repeaters in Mesh',
       'analytics.errors_acc':      '{n} accumulated errors',
       'analytics.packets_count':   '{n} packets',
+      'analytics.reset':           'Reset Metrics',
+      'analytics.reset_title':     'Reset counters and accumulated statistics',
+      'analytics.confirm_reset':   'Do you want to reset all packet counters and accumulated network metrics?',
 
       // Chat
       'chat.sound_on':             '🔔 Chat sound alerts enabled',
@@ -613,6 +641,20 @@
       'nodes.battery_title':       'Battery: {val}',
       'nodes.route_label':         'Route:',
       'nodes.lqi_label':           'LQI:',
+      'nodes.hops':                'hops',
+      'nodes.key_label':           'Key:',
+      'nodes.tooltip_rssi':        'Received RSSI',
+      'nodes.tooltip_snr':         'Signal-to-noise ratio (SNR)',
+      'nodes.tooltip_hops':        'Hops in network',
+      'nodes.title_manage':        'Manage Remote Repeater',
+      'nodes.title_dm':            'Send Direct Message',
+      'nodes.title_settings':      'Configure Local Node',
+      'nodes.title_trace':         'Trace network route',
+      'nodes.title_qr':            'Share QR',
+      'contacts.title_chat':       'Open chat with this contact',
+      'contacts.title_trace':      'Trace network route',
+      'contacts.title_qr':         'Share contact QR',
+      'contacts.title_del':        'Delete from contacts',
 
       // Repeater
       'rep.auth_err':              'Incorrect password or changed on the repeater',
@@ -647,6 +689,7 @@
 
       // Time & Signals
       'time.online_host':          'Online (Host)',
+      'time.online_local':         'Online (Local)',
       'time.unknown':              'Unknown',
       'time.just_now':             'Just now',
       'time.mins_ago':             '{n} mins ago',
@@ -691,14 +734,21 @@
       'toast.api_key_del':         'ℹ️ API Key deleted',
       'toast.radio_cfg_ok':        '📻 Local radio parameters updated',
       'toast.identity_ok':         '📍 Identity and location saved',
+      'toast.metrics_reset':       'Metrics and counters reset successfully',
 
       // Common
       'common.you':                'You',
       'common.anonymous':          'Anonymous',
       'common.local_station':      'Local Station (You)',
+      'common.online':             'Online',
+      'common.offline':            'Offline',
       'common.no_gps':             'No GPS',
       'common.repeater':           'Repeater',
       'common.node':               'Node',
+
+      // Settings actions
+      'settings.action_clear_stats': 'Clear Stats',
+      'settings.action_clear_stats_title': 'Reset packet counters, duplicates and airtimes',
 
       // Additional Chat keys
       'chat.add_channel_title':    'Create / Join channel',
@@ -832,6 +882,8 @@
     { s: '#tab-analytics .pane-header h2', k: 'analytics.title', last: true },
     { s: '#tab-analytics .pane-header .header-subtitle', k: 'analytics.subtitle' },
     { s: '#btnRefreshAnalytics',         k: 'analytics.refresh', last: true },
+    { s: '#btnResetMetricsText',         k: 'analytics.reset', last: true },
+    { s: '#btnResetMetrics',             k: 'analytics.reset_title', a: 'title' },
     { s: '#cardKpiPackets .kpi-label',   k: 'analytics.kpi_packets' },
     { s: '#cardKpiNodes .kpi-label',     k: 'analytics.kpi_nodes' },
     { s: '#cardKpiErrorRate .kpi-label', k: 'analytics.kpi_error_rate' },
@@ -883,6 +935,8 @@
     { s: '#btnActionAdvertFlood .btn-compact-label', k: 'settings.action_advert_flood' },
     { s: '#btnRefreshLocalTelem .btn-compact-label', k: 'settings.action_stats' },
     { s: '#btnSyncLocalClock .btn-compact-label', k: 'settings.action_sync_rtc' },
+    { s: '#btnActionClearLocalStats .btn-compact-label', k: 'settings.action_clear_stats' },
+    { s: '#btnActionClearLocalStats',    k: 'settings.action_clear_stats_title', a: 'title' },
     { s: '#btnActionReconnectSerial .btn-compact-label', k: 'settings.action_reconnect_serial' },
     { s: '#btnActionRebootLocal .btn-compact-label', k: 'settings.action_reboot' },
 

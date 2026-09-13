@@ -23,6 +23,7 @@ export class AnalyticsModule {
   _bindElements() {
     this.dom = {
       btnRefreshAnalytics: document.getElementById("btnRefreshAnalytics"),
+      btnResetMetrics: document.getElementById("btnResetMetrics"),
 
       // KPIs Principales
       kpiTotalPackets: document.getElementById("kpiTotalPackets"),
@@ -57,6 +58,33 @@ export class AnalyticsModule {
       this.dom.btnRefreshAnalytics.addEventListener("click", () => {
         this.fetchAnalytics();
       });
+    }
+    if (this.dom.btnResetMetrics) {
+      this.dom.btnResetMetrics.addEventListener("click", () => {
+        this.resetMetrics();
+      });
+    }
+  }
+
+  async resetMetrics() {
+    const confirmMsg = I18n.t('analytics.confirm_reset') || "¿Deseas restablecer todos los contadores de paquetes y métricas acumuladas de la red?";
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      const res = await fetch("/api/analytics/reset", {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (data.status === "ok") {
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.metrics_reset') || "Métricas y contadores restablecidos correctamente", "success");
+        await this.fetchAnalytics();
+        if (this.ctx.fetchNodes) await this.ctx.fetchNodes();
+      } else {
+        if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || "Fallo al restablecer"}`, "error");
+      }
+    } catch (err) {
+      if (this.ctx.showToast) this.ctx.showToast(`Error de red: ${err.message}`, "error");
     }
   }
 
@@ -157,7 +185,7 @@ export class AnalyticsModule {
     this.dom.analyticsTopActiveTable.textContent = "";
 
     if (!Array.isArray(nodes) || nodes.length === 0) {
-      this.dom.analyticsTopActiveTable.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No hay nodos con tráfico registrado todavía.</td></tr>';
+      this.dom.analyticsTopActiveTable.innerHTML = `<tr><td colspan="5" class="text-center text-muted">${I18n.t('analytics.no_traffic')}</td></tr>`;
       return;
     }
 
@@ -200,7 +228,7 @@ export class AnalyticsModule {
     }
 
     if (combined.length === 0) {
-      this.dom.analyticsSignalTable.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No hay mediciones de SNR/RSSI registradas en la malla.</td></tr>';
+      this.dom.analyticsSignalTable.innerHTML = `<tr><td colspan="4" class="text-center text-muted">${I18n.t('analytics.no_signal')}</td></tr>`;
       return;
     }
 
@@ -244,7 +272,7 @@ export class AnalyticsModule {
     this.dom.analyticsRepeatersTable.textContent = "";
 
     if (!Array.isArray(repeaters) || repeaters.length === 0) {
-      this.dom.analyticsRepeatersTable.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No se detectaron repetidores o routers en la topología.</td></tr>';
+      this.dom.analyticsRepeatersTable.innerHTML = `<tr><td colspan="4" class="text-center text-muted">${I18n.t('analytics.no_repeaters')}</td></tr>`;
       return;
     }
 
@@ -258,7 +286,7 @@ export class AnalyticsModule {
 
       tr.innerHTML = `
         <td><strong class="font-mono text-sm">${escapeHtml(name)}</strong></td>
-        <td class="font-mono text-xs">${Number(clientCount).toLocaleString()} nodos</td>
+        <td class="font-mono text-xs">${I18n.t('analytics.nodes_count').replace('{n}', Number(clientCount).toLocaleString())}</td>
         <td class="font-mono text-xs">${escapeHtml(txPower)}</td>
         <td class="font-mono text-xs">${escapeHtml(hopLimit)}</td>
       `;

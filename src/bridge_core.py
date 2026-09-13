@@ -205,6 +205,17 @@ class MeshCoreBridge:
         self._tx_metrics_lock = asyncio.Lock()
         self._cleanup_task: asyncio.Task[None] | None = None
 
+    def reset_counters(self) -> dict[str, Any]:
+        """Restablece los contadores de paquetes y errores acumulados del bridge."""
+        self.rx_count = 0
+        self.tx_count = 0
+        self.tx_error_count = 0
+        self.err_count = 0
+        res: dict[str, Any] = {"nodes_reset": 0}
+        if hasattr(self, "node_registry") and hasattr(self.node_registry, "reset_analytics"):
+            res = self.node_registry.reset_analytics()
+        return res
+
     def _add_background_task(self, task: asyncio.Task[Any]) -> asyncio.Task[Any]:
         """Registra una tarea asíncrona previniendo recolección prematura por GC."""
         self._background_tasks.add(task)

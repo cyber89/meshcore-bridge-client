@@ -259,7 +259,15 @@ class WebAPIRouter:
             ) or clean_path.startswith("/api/system/logs"):
                 return await self._dispatch_system(method, path, clean_path, req_body)
 
-            if clean_path in ("/api/nodes", "/api/lqi", "/api/link_quality", "/api/analytics", "/api/metrics/analytics", "/api/rf/heatmap", "/api/airtime/stats", "/api/rf/noise"):
+            if (
+                clean_path in (
+                    "/api/nodes", "/api/lqi", "/api/link_quality",
+                    "/api/analytics", "/api/metrics/analytics",
+                    "/api/analytics/reset", "/api/metrics/reset",
+                    "/api/rf/heatmap", "/api/airtime/stats", "/api/rf/noise",
+                )
+                or clean_path.startswith(("/api/analytics/", "/api/metrics/"))
+            ):
                 return await self._dispatch_nodes(method, path, clean_path, req_body)
 
             if clean_path.startswith("/api/contacts"):
@@ -387,6 +395,8 @@ class WebAPIRouter:
 
         if clean_path in ("/api/lqi", "/api/link_quality") and method == "GET":
             return await self.nodes_ctrl.get_lqi()
+        if clean_path in ("/api/analytics/reset", "/api/metrics/reset") and method in ("POST", "DELETE"):
+            return await self.nodes_ctrl.reset_metrics()
         if clean_path in ("/api/analytics", "/api/metrics/analytics") and method == "GET":
             return await self.nodes_ctrl.get_analytics()
         if clean_path == "/api/rf/heatmap" and method == "GET":

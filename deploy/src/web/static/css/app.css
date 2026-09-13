@@ -1534,6 +1534,12 @@ body {
   border-color: transparent;
 }
 
+.btn-danger-hover:hover {
+  background-color: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: var(--accent-danger);
+}
+
 .btn-icon {
   background: var(--bg-surface-elevated);
   border: 1px solid var(--border-subtle);

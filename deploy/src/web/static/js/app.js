@@ -147,6 +147,9 @@ class MeshCoreApp {
       if (this.chatModule && typeof this.chatModule.renderCurrentConversation === "function") {
         this.chatModule.renderCurrentConversation();
       }
+      if (this.analyticsModule && typeof this.analyticsModule.fetchAnalytics === "function") {
+        this.analyticsModule.fetchAnalytics();
+      }
     });
     // Apply translations on init (i18n.js auto-applies on DOMContentLoaded,
     // but calling again here ensures post-module-load elements are covered)

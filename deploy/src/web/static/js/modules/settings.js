@@ -485,6 +485,30 @@ export class SettingsModule {
         }
       });
     }
+
+    const btnClearStats = document.getElementById("btnActionClearLocalStats");
+    if (btnClearStats) {
+      btnClearStats.addEventListener("click", async () => {
+        const confirmMsg = I18n.t('analytics.confirm_reset') || "¿Deseas restablecer todos los contadores de paquetes y métricas acumuladas de la red?";
+        if (!confirm(confirmMsg)) return;
+        try {
+          const res = await fetch("/api/analytics/reset", {
+            method: "POST",
+            headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+          });
+          const data = await res.json();
+          if (data.status === "ok") {
+            if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.metrics_reset') || "Métricas y contadores restablecidos correctamente", "success");
+            await this.fetchLocalNodeConfig();
+            if (this.ctx.fetchNodes) await this.ctx.fetchNodes();
+          } else {
+            if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || "Fallo al restablecer"}`, "error");
+          }
+        } catch (err) {
+          if (this.ctx.showToast) this.ctx.showToast(`Error de red: ${err.message}`, "error");
+        }
+      });
+    }
   }
 
   _subscribeBus() {
