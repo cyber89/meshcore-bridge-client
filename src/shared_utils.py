@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from src.protocol_types import FirmwareAdvertType
 
@@ -181,3 +182,26 @@ def is_repeater_name(name: str | None) -> bool:
     if name_clean.startswith(REPEATER_NAME_PREFIXES):
         return True
     return any(sub in name_clean for sub in REPEATER_SUBSTRINGS)
+
+
+def to_bool(val: Any, default: bool = False) -> bool:
+    """Convierte de forma robusta cualquier valor a booleano canónico.
+
+    Maneja cadenas ('true', 'false', '1', '0', 'yes', 'no'), enteros y valores nulos
+    sin falsos positivos causados por bool("false") == True.
+    """
+    if val is None:
+        return default
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, (int, float)):
+        return val != 0
+    if isinstance(val, str):
+        clean = val.strip().lower()
+        if clean in ("true", "1", "yes", "on", "t"):
+            return True
+        if clean in ("false", "0", "no", "off", "f", ""):
+            return False
+        return default
+    return bool(val)
+

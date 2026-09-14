@@ -2,6 +2,41 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Auditoría Integral Web/API, Estilos Universales y Conmutadores Toggle para Parámetros Booleanos
+- **Fecha**: 2026-09-14
+- **Estado**: ✅ COMPLETADO (Auditoría profunda de frontend HTML5/CSS3/ES6, backend REST API y WebSockets; estandarización universal de estilos para inputs, selects y textareas; conversión de todos los parámetros booleanos y controles de estado en toggle switches interactivos con badges semánticos reactivos; creación de la función canónica to_bool() en shared_utils.py; verificación completa de paridad de contratos API 100% PASS; auditoría automatizada en navegador headless Playwright con 0 excepciones, 0 errores de consola y 0 peticiones fallidas; 25 tests unitarios de servidor y controladores web pasando al 100%; linter ruff y mypy limpios; sincronización en /deploy/).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect), Agente 5 (Security Auditor).
+- **Acciones Realizadas**:
+  1. **Tokens de Diseño y Estilos Universales (`src/web/static/css/app.css`)**:
+     - Estilos globales para `select`, `.select-input` con indicador SVG inline de flecha y estado `:focus-visible` accesible (WCAG 2.2 AA).
+     - Reglas de estilo para campos de formulario fuera de `.form-group` (`input[type="search"]`, `.search-input`, `textarea`).
+     - Creación de la variante compacta `.toggle-switch.toggle-sm` (36px × 20px, botón deslizante de 14px × 14px, recorrido de 16px).
+     - Creación del contenedor de barra de herramientas `.toggle-field-inline` con badges semánticos compactos (`.toggle-state-badge.badge-sm`).
+     - Creación de chips de datos tabulares `.table-boolean-badge` con variantes `.is-true` y `.is-false`.
+  2. **Estructura Semántica HTML5 y Controles Interactivos (`src/web/static/index.html`)**:
+     - Modernización de los `<select>` de Repeater Admin (`#radioRegion`, `#radioSf`, `#radioBw`, `#radioCr`, `#secAclMode`) con la clase `.select-input`.
+     - Reemplazo de botones con intercambio de texto plano en Sniffer/Logs por toggle switches: `#chkDebugMode` (`#debugModeBadge`), `#chkLogsAutoScroll` (`#logsAutoScrollBadge`) y `#chkSnifferCapture` (`#snifferCaptureBadge`).
+     - Conmutador toggle para el RF Heatmap en el mapa táctico: `#chkMapHeatmap` (`#mapHeatmapBadge`).
+     - Adición de conmutador toggle para transmisión de Posición GPS Fija en el formulario de identidad local: `#localPosFixed` (`#localPosFixedBadge`).
+     - Adición de conmutador toggle para Cifrado AES-128 en el modal de canales: `#chModalIsEncrypted` (`#chModalEncryptedBadge`), con alternancia reactiva del campo de clave PSK.
+     - Adición de conmutador toggle de Favorito en el modal de contactos: `#contactModalFavorite` (`#contactModalFavBadge`).
+  3. **Módulos JavaScript Asíncronos (`src/web/static/js/modules/`)**:
+     - `sniffer.js`: Vinculados eventos `change` reactivos para `#chkDebugMode` (conmutación REST `/api/system/logs/level`), `#chkLogsAutoScroll` y `#chkSnifferCapture`.
+     - `map.js`: Vinculado evento `change` para `#chkMapHeatmap` integrando el refresco de capa de calor RF con el estado del badge.
+     - `settings.js`: Vinculada la persistencia de `#localPosFixed` en el payload de identidad local, `#chModalIsEncrypted` para validación dinámica de canal privado/abierto, y `#contactModalFavorite` para creación de contactos favoritos.
+  4. **Robustez de Backend y Normalización de Booleanos (`src/shared_utils.py`, `src/web/api_router.py`)**:
+     - Implementada la función canónica `to_bool(val: Any, default: bool = False) -> bool` en `src/shared_utils.py` para prevenir la evaluación errónea de strings `"false"` o `"0"` como `True`.
+     - Actualizado `src/web/api_router.py` para utilizar `to_bool()` en la conversión de query params y campos de cuerpo JSON (`flood`, etc.).
+  5. **Verificación Automatizada Integral**:
+     - `scripts/audit_frontend_browser.py` (Playwright Chromium Headless): 0 page errors, 0 console errors, 0 failed HTTP requests (100% PASS).
+     - `verify_api_parity.py`: 100% de paridad verificada (36/36 llamadas API REST y eventos WebSocket).
+     - `pytest tests/test_web_server.py tests/test_rest_controllers.py tests/test_web_security_and_maps.py`: 25 passed en 2.53s.
+     - `ruff check src/web/ src/shared_utils.py scripts/audit_frontend_browser.py`: 100% PASS (0 errores).
+     - `mypy src/shared_utils.py src/web/api_router.py`: 100% SUCCESS (0 errores).
+- **Módulos Modificados**: `src/shared_utils.py`, `src/web/api_router.py`, `src/web/static/css/app.css`, `src/web/static/index.html`, `src/web/static/js/modules/map.js`, `src/web/static/js/modules/settings.js`, `src/web/static/js/modules/sniffer.js`, `scripts/audit_frontend_browser.py`, `docs/AGENT_ACTIVITY_REPORT.md`, `deploy/**`.
+
+---
+
 ### Hito: Búsqueda Recursiva y Remediación de Deudas Técnicas, God Classes, SSoT y Desempeño
 - **Fecha**: 2026-09-14
 - **Estado**: ✅ COMPLETADO (Búsqueda recursiva y resolución integral de deudas técnicas, bugs sutiles, clases con baja cohesión, duplicación de código y optimización de rendimiento: corrección de cabeceras HTTP status line en http_server.py; extracción de LogsController en el subsistema REST; desacoplamiento de CliCommandExecutor de AdminCommandHandler; unificación canónica SSoT de rangos de batería y milivoltios en shared_utils.py, rx_router.py y repeater_manager.py; extracción de constantes DEFAULT_VIRTUAL_NODES/CHANNELS en virtual_mesh_adapter.py; optimización O(1) con tabla de despacho en serial_driver.py y búsqueda de repetidores en lqi_engine.py; 0 vulnerabilidades Bandit SAST; 100% de paridad API frontend/backend; 0 errores de tipado mypy; 0 errores de linter ruff; 267 pruebas pasando al 100%; sincronización y empaquetado autónomo en /deploy/).

@@ -3964,7 +3964,12 @@ body {
 .form-group input[type="text"],
 .form-group input[type="number"],
 .form-group input[type="password"],
-.form-group select {
+.form-group select,
+.select-input,
+select,
+input[type="search"],
+.search-input,
+textarea {
   background: var(--bg-surface-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
@@ -3972,12 +3977,31 @@ body {
   font-size: 13px;
   padding: 8px 12px;
   outline: none;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  font-family: inherit;
 }
 
 .form-group input:focus,
-.form-group select:focus {
+.form-group select:focus,
+.select-input:focus,
+select:focus,
+input[type="search"]:focus,
+.search-input:focus,
+textarea:focus {
   border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+}
+
+.select-input,
+select {
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px;
+  padding-right: 32px;
 }
 
 .input-readonly {
@@ -4178,6 +4202,85 @@ body {
   color: var(--accent-success);
   border-color: rgba(34, 197, 94, 0.35);
   box-shadow: 0 0 8px rgba(34, 197, 94, 0.2);
+}
+
+/* Compact variant for toolbars, headers, modals and tables */
+.toggle-switch.toggle-sm {
+  width: 36px;
+  height: 20px;
+}
+
+.toggle-switch.toggle-sm .toggle-slider {
+  border-radius: 20px;
+}
+
+.toggle-switch.toggle-sm .toggle-slider::before {
+  height: 14px;
+  width: 14px;
+  left: 2px;
+  bottom: 2px;
+}
+
+.toggle-switch.toggle-sm input[type="checkbox"]:checked + .toggle-slider::before {
+  transform: translateX(16px);
+}
+
+/* Inline toggle container for toolbars and compact views */
+.toggle-field-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  min-height: 32px;
+  user-select: none;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.toggle-field-inline:hover {
+  border-color: var(--border-medium);
+  background: rgba(30, 41, 59, 0.9);
+}
+
+.toggle-field-inline .toggle-field-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-main);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.toggle-state-badge.badge-sm {
+  font-size: 10px;
+  padding: 2px 6px;
+  letter-spacing: 0.02em;
+}
+
+/* Boolean Indicators for Tables and Cards */
+.table-boolean-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+}
+
+.table-boolean-badge.is-true {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--accent-success);
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.table-boolean-badge.is-false {
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text-dim);
+  border-color: rgba(148, 163, 184, 0.25);
 }
 
 .remote-response-box {

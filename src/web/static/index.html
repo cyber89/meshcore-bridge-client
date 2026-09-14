@@ -206,7 +206,14 @@
               <button type="button" class="map-layer-btn" data-layer="satellite" title="Vista Satelital (Esri World Imagery)"><span data-lucide="globe" data-size="14"></span> Satelital</button>
               <button type="button" class="map-layer-btn" data-layer="local" title="Teselas Locales (Offline)"><span data-lucide="database" data-size="14"></span> Local</button>
               <button type="button" class="map-layer-btn" id="btnCenterLocalNode" title="Centrar mapa en la posición de mi estación base local"><span data-lucide="crosshair" data-size="14"></span> Centrar Local</button>
-              <button type="button" class="map-layer-btn" id="btnToggleHeatmap" title="Mostrar/Ocultar Mapa de Calor de Cobertura RF"><span data-lucide="flame" data-size="14"></span> Heatmap RF</button>
+              <div class="toggle-field-inline map-toggle-inline" title="Mostrar/Ocultar Mapa de Calor de Cobertura RF">
+                <span class="toggle-field-label"><span data-lucide="flame" data-size="14"></span> Heatmap RF</span>
+                <span class="toggle-state-badge badge-sm" id="mapHeatmapBadge">OFF</span>
+                <label class="toggle-switch toggle-sm" for="chkMapHeatmap">
+                  <input type="checkbox" id="chkMapHeatmap" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
             </div>
             <div class="map-overlay-info" id="mapOverlayInfo">
               <div class="map-overlay-header" id="mapOverlayHeader">
@@ -476,8 +483,15 @@
                   <h2><span class="section-icon" data-lucide="file-text" data-size="20"></span> Consola de Logs del Sistema</h2>
                   <p class="header-subtitle">Registro de eventos y depuración en tiempo real del puente MeshCore.</p>
                 </div>
-                <div class="pane-actions">
-                  <button class="btn-secondary" id="btnToggleDebugMode" title="Alternar nivel de logging DEBUG"><span data-lucide="bug" data-size="14"></span> Modo DEBUG</button>
+                <div class="pane-actions" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  <div class="toggle-field-inline" title="Alternar nivel de logging DEBUG">
+                    <span class="toggle-field-label"><span data-lucide="bug" data-size="14"></span> Modo DEBUG</span>
+                    <span class="toggle-state-badge badge-sm" id="debugModeBadge">OFF</span>
+                    <label class="toggle-switch toggle-sm" for="chkDebugMode">
+                      <input type="checkbox" id="chkDebugMode" />
+                      <span class="toggle-slider"></span>
+                    </label>
+                  </div>
                   <button class="btn-secondary" id="btnDownloadRawLogs" title="Descargar archivo de logs completo del servidor (.log)"><span data-lucide="download" data-size="14"></span> Descargar .log</button>
                   <button class="btn-secondary" id="btnClearLogs" title="Limpiar búfer de logs"><span data-lucide="trash-2" data-size="14"></span> Limpiar</button>
                 </div>
@@ -508,7 +522,14 @@
                 <div class="search-group">
                   <input type="text" id="logSearchInput" placeholder="Buscar en logs (módulo, error, texto)..." autocomplete="off" aria-label="Buscar en logs del sistema" />
                 </div>
-                <button class="btn-outline btn-sm" id="btnPauseLogsScroll" title="Pausar o reanudar auto-scroll">Pausar Scroll</button>
+                <div class="toggle-field-inline" title="Pausar o reanudar desplazamiento automático">
+                  <span class="toggle-field-label"><span data-lucide="arrow-down" data-size="14"></span> Auto-Scroll</span>
+                  <span class="toggle-state-badge badge-sm is-active-success" id="logsAutoScrollBadge">ON</span>
+                  <label class="toggle-switch toggle-sm toggle-success" for="chkLogsAutoScroll">
+                    <input type="checkbox" id="chkLogsAutoScroll" checked />
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
               </div>
 
               <!-- Contenedor Principal de Logs -->
@@ -522,8 +543,15 @@
                   <h2><span class="section-icon" data-lucide="radio" data-size="20"></span> Monitor de Paquetes RF en Tránsito (LoRa Sniffer)</h2>
                   <p class="header-subtitle">Inspección de tramas en tiempo real (RX/TX), cálculo de LQI, decodificación semántica y exportación Wireshark.</p>
                 </div>
-                <div class="pane-actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
-                  <button type="button" class="btn-outline btn-sm" id="btnToggleSnifferPause" title="Pausar o reanudar captura"><span data-lucide="pause" data-size="14"></span> Pausar Captura</button>
+                <div class="pane-actions" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  <div class="toggle-field-inline" title="Pausar o reanudar captura de tramas RF">
+                    <span class="toggle-field-label"><span data-lucide="radio" data-size="14"></span> Captura RF</span>
+                    <span class="toggle-state-badge badge-sm is-active-success" id="snifferCaptureBadge">ON</span>
+                    <label class="toggle-switch toggle-sm toggle-success" for="chkSnifferCapture">
+                      <input type="checkbox" id="chkSnifferCapture" checked />
+                      <span class="toggle-slider"></span>
+                    </label>
+                  </div>
                   <button type="button" class="btn-outline btn-sm" id="btnClearSnifferPackets" title="Limpiar búfer de paquetes"><span data-lucide="trash-2" data-size="14"></span> Limpiar</button>
                   <div class="btn-group" style="display: flex; gap: 4px;">
                     <button type="button" class="btn-secondary btn-sm" id="btnExportPcap" title="Descargar captura PCAP binaria (Wireshark DLT_USER0)"><span data-lucide="download" data-size="14"></span> PCAP (Wireshark)</button>
@@ -849,6 +877,21 @@
                     <label for="localGpsAlt">Altitud (metros):</label>
                     <input type="number" id="localGpsAlt" step="1" placeholder="Ej: 35" />
                   </div>
+                  <div class="form-group toggle-field-group">
+                    <div class="toggle-field-row">
+                      <div class="toggle-field-info">
+                        <span class="toggle-field-title">Posición GPS Fija</span>
+                        <span class="toggle-field-desc">Difundir coordenadas fijas configuradas (ON) o desactivar emisión (OFF)</span>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="toggle-state-badge is-active" id="localPosFixedBadge">FIJA</span>
+                        <label class="toggle-switch" for="localPosFixed" title="Alternar entre difusión de coordenadas fijas o desactivada">
+                          <input type="checkbox" id="localPosFixed" checked />
+                          <span class="toggle-slider"></span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
                   <div class="form-group flex-row-align">
                     <button type="button" class="btn-secondary" id="btnGetBrowserGps"><span data-lucide="compass" data-size="14"></span> Obtener GPS del Navegador</button>
                   </div>
@@ -1117,7 +1160,23 @@
             <input type="text" id="chModalName" placeholder="Ej: Operaciones, Táctico, Emergencias..." maxlength="32" required />
           </div>
 
-          <div class="form-group">
+          <div class="form-group toggle-field-group" style="margin-bottom: 12px;">
+            <div class="toggle-field-row">
+              <div class="toggle-field-info">
+                <span class="toggle-field-title">Canal Cifrado (AES-128)</span>
+                <span class="toggle-field-desc">Proteger mensajes con clave precompartida secreta</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="toggle-state-badge is-active" id="chModalEncryptedBadge">CIFRADO</span>
+                <label class="toggle-switch toggle-sm" for="chModalIsEncrypted" title="Activar o desactivar cifrado AES-128">
+                  <input type="checkbox" id="chModalIsEncrypted" checked />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group" id="chModalPskGroup">
             <label for="chModalPsk">Clave Precompartida (PSK / AES-128):</label>
             <div class="input-with-action">
               <input type="text" id="chModalPsk" placeholder="Clave secreta o token hexadecimal..." required />
@@ -1151,6 +1210,22 @@
           <div class="form-group">
             <label for="contactModalName">Nombre / Alias del Contacto:</label>
             <input type="text" id="contactModalName" placeholder="Ej: Carlos Heltec, Base Operador..." maxlength="32" required />
+          </div>
+
+          <div class="form-group toggle-field-group" style="margin-bottom: 12px;">
+            <div class="toggle-field-row">
+              <div class="toggle-field-info">
+                <span class="toggle-field-title">Marcar como Favorito</span>
+                <span class="toggle-field-desc">Destacar en la libreta y en el filtro rápido</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="toggle-state-badge" id="contactModalFavBadge">NO</span>
+                <label class="toggle-switch toggle-sm" for="contactModalFavorite" title="Marcar como contacto favorito">
+                  <input type="checkbox" id="contactModalFavorite" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
           </div>
 
           <div class="modal-footer">
@@ -1410,7 +1485,7 @@
                 </div>
                 <div class="form-group">
                   <label for="radioRegion">Región / Banda:</label>
-                  <select id="radioRegion">
+                  <select id="radioRegion" class="select-input">
                     <option value="US915" selected>US915 (América - 915 MHz)</option>
                     <option value="EU868">EU868 (Europa - 868 MHz)</option>
                     <option value="AU915">AU915 (Australia - 915 MHz)</option>
@@ -1429,7 +1504,7 @@
                 </div>
                 <div class="form-group">
                   <label for="radioSf">Spreading Factor (SF):</label>
-                  <select id="radioSf">
+                  <select id="radioSf" class="select-input">
                     <option value="7">SF7 (Alta velocidad)</option>
                     <option value="8">SF8</option>
                     <option value="9">SF9</option>
@@ -1440,7 +1515,7 @@
                 </div>
                 <div class="form-group">
                   <label for="radioBw">Ancho de Banda (BW):</label>
-                  <select id="radioBw">
+                  <select id="radioBw" class="select-input">
                     <option value="125">125 kHz</option>
                     <option value="250" selected>250 kHz</option>
                     <option value="500">500 kHz</option>
@@ -1448,7 +1523,7 @@
                 </div>
                 <div class="form-group">
                   <label for="radioCr">Coding Rate (CR):</label>
-                  <select id="radioCr">
+                  <select id="radioCr" class="select-input">
                     <option value="4/5" selected>4/5 (Estándar)</option>
                     <option value="4/6">4/6</option>
                     <option value="4/7">4/7</option>
@@ -1548,7 +1623,7 @@
                 <div class="form-section-title span-full"><span class="section-icon" data-lucide="shield" data-size="16"></span> Control de Acceso de Malla (Access Control - ACL)</div>
                 <div class="form-group">
                   <label for="secAclMode">Modo de Control de Acceso:</label>
-                  <select id="secAclMode">
+                  <select id="secAclMode" class="select-input">
                     <option value="public" selected>Público (Reenvía paquetes de todos los nodos)</option>
                     <option value="whitelist">Lista Blanca / Whitelist (Solo nodos autorizados)</option>
                     <option value="restricted">Restringido (Reenvío condicional)</option>

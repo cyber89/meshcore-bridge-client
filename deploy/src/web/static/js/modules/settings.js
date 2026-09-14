@@ -37,6 +37,9 @@ export class SettingsModule {
       createChannelForm: document.getElementById("createChannelForm"),
       chModalIndex: document.getElementById("chModalIndex"),
       chModalName: document.getElementById("chModalName"),
+      chModalIsEncrypted: document.getElementById("chModalIsEncrypted"),
+      chModalEncryptedBadge: document.getElementById("chModalEncryptedBadge"),
+      chModalPskGroup: document.getElementById("chModalPskGroup"),
       chModalPsk: document.getElementById("chModalPsk"),
       btnGenRandomPsk: document.getElementById("btnGenRandomPsk"),
       btnHeaderAddContact: document.getElementById("btnHeaderAddContact"),
@@ -46,6 +49,8 @@ export class SettingsModule {
       createContactForm: document.getElementById("createContactForm"),
       contactModalPubKey: document.getElementById("contactModalPubKey"),
       contactModalName: document.getElementById("contactModalName"),
+      contactModalFavorite: document.getElementById("contactModalFavorite"),
+      contactModalFavBadge: document.getElementById("contactModalFavBadge"),
       qrShareModal: document.getElementById("qrShareModal"),
       btnCloseQrModal: document.getElementById("btnCloseQrShareModal"),
       btnCloseQrModalAction: document.getElementById("btnCloseQrModalAction"),
@@ -75,7 +80,20 @@ export class SettingsModule {
       if (!this.dom.createChannelModal) return;
       this.dom.createChannelModal.classList.remove("hidden");
       if (this.dom.chModalName) this.dom.chModalName.value = "";
-      if (this.dom.chModalPsk) this.dom.chModalPsk.value = this.generateRandomHex(32);
+      if (this.dom.chModalIsEncrypted) {
+        this.dom.chModalIsEncrypted.checked = true;
+      }
+      if (this.dom.chModalEncryptedBadge) {
+        this.dom.chModalEncryptedBadge.textContent = "CIFRADO";
+        this.dom.chModalEncryptedBadge.classList.add("is-active");
+      }
+      if (this.dom.chModalPskGroup) {
+        this.dom.chModalPskGroup.classList.remove("hidden");
+      }
+      if (this.dom.chModalPsk) {
+        this.dom.chModalPsk.required = true;
+        this.dom.chModalPsk.value = this.generateRandomHex(32);
+      }
       if (this.dom.chModalName) this.dom.chModalName.focus();
     };
     const closeCreateChannel = () => {
@@ -85,6 +103,27 @@ export class SettingsModule {
     if (this.dom.btnAddChannel) this.dom.btnAddChannel.addEventListener("click", openCreateChannel);
     if (this.dom.btnCloseCreateChannelModal) this.dom.btnCloseCreateChannelModal.addEventListener("click", closeCreateChannel);
     if (this.dom.btnCancelCreateChannel) this.dom.btnCancelCreateChannel.addEventListener("click", closeCreateChannel);
+
+    if (this.dom.chModalIsEncrypted) {
+      this.dom.chModalIsEncrypted.addEventListener("change", (e) => {
+        const isEnc = e.target.checked;
+        if (this.dom.chModalEncryptedBadge) {
+          this.dom.chModalEncryptedBadge.textContent = isEnc ? "CIFRADO" : "ABIERTO";
+          this.dom.chModalEncryptedBadge.classList.toggle("is-active", isEnc);
+        }
+        if (this.dom.chModalPskGroup) {
+          this.dom.chModalPskGroup.classList.toggle("hidden", !isEnc);
+        }
+        if (this.dom.chModalPsk) {
+          this.dom.chModalPsk.required = isEnc;
+          if (isEnc && !this.dom.chModalPsk.value) {
+            this.dom.chModalPsk.value = this.generateRandomHex(32);
+          } else if (!isEnc) {
+            this.dom.chModalPsk.value = "";
+          }
+        }
+      });
+    }
 
     if (this.dom.btnGenRandomPsk) {
       this.dom.btnGenRandomPsk.addEventListener("click", () => {
@@ -97,7 +136,8 @@ export class SettingsModule {
         e.preventDefault();
         const index = parseInt(this.dom.chModalIndex.value, 10);
         const name = this.dom.chModalName.value.trim();
-        const psk = this.dom.chModalPsk.value.trim();
+        const isEnc = this.dom.chModalIsEncrypted ? this.dom.chModalIsEncrypted.checked : true;
+        const psk = isEnc ? this.dom.chModalPsk.value.trim() : "";
         if (!name) return;
 
         try {
@@ -127,6 +167,13 @@ export class SettingsModule {
       this.dom.createContactModal.classList.remove("hidden");
       if (this.dom.contactModalPubKey) this.dom.contactModalPubKey.value = "";
       if (this.dom.contactModalName) this.dom.contactModalName.value = "";
+      if (this.dom.contactModalFavorite) {
+        this.dom.contactModalFavorite.checked = false;
+      }
+      if (this.dom.contactModalFavBadge) {
+        this.dom.contactModalFavBadge.textContent = "NO";
+        this.dom.contactModalFavBadge.classList.remove("is-active");
+      }
       if (this.dom.contactModalPubKey) this.dom.contactModalPubKey.focus();
     };
     const closeCreateContact = () => {
@@ -138,19 +185,30 @@ export class SettingsModule {
     if (this.dom.btnCloseCreateContactModal) this.dom.btnCloseCreateContactModal.addEventListener("click", closeCreateContact);
     if (this.dom.btnCancelCreateContact) this.dom.btnCancelCreateContact.addEventListener("click", closeCreateContact);
 
+    if (this.dom.contactModalFavorite) {
+      this.dom.contactModalFavorite.addEventListener("change", (e) => {
+        const isFav = e.target.checked;
+        if (this.dom.contactModalFavBadge) {
+          this.dom.contactModalFavBadge.textContent = isFav ? "SÍ" : "NO";
+          this.dom.contactModalFavBadge.classList.toggle("is-active", isFav);
+        }
+      });
+    }
+
     if (this.dom.createContactForm) {
       this.dom.createContactForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         const pubkey = this.dom.contactModalPubKey.value.trim();
         const name = this.dom.contactModalName.value.trim();
         const role = this.dom.contactModalRole ? this.dom.contactModalRole.value : "CLIENT";
+        const isFavorite = Boolean(this.dom.contactModalFavorite?.checked);
         if (!pubkey) return;
 
         try {
           const res = await fetch("/api/contacts", {
             method: "POST",
             headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
-            body: JSON.stringify({ public_key: pubkey, name: name, alias: name, role: role }),
+            body: JSON.stringify({ public_key: pubkey, name: name, alias: name, role: role, is_favorite: isFavorite }),
           });
           const data = await res.json();
           if (data.status === "ok") {
@@ -290,6 +348,18 @@ export class SettingsModule {
       this.dom.localOwnerPosForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         await this.saveLocalIdentityAndPosition();
+      });
+    }
+
+    const posFixedSwitch = document.getElementById("localPosFixed");
+    const posFixedBadge = document.getElementById("localPosFixedBadge");
+    if (posFixedSwitch) {
+      posFixedSwitch.addEventListener("change", (e) => {
+        const checked = e.target.checked;
+        if (posFixedBadge) {
+          posFixedBadge.textContent = checked ? "FIJA" : "OFF";
+          posFixedBadge.classList.toggle("is-active", checked);
+        }
       });
     }
 
@@ -708,6 +778,17 @@ export class SettingsModule {
     const altInput = document.getElementById("localGpsAlt");
     if (altInput && (cfg.altitude != null || cfg.alt != null)) altInput.value = cfg.altitude ?? cfg.alt;
 
+    const posFixedSwitch = document.getElementById("localPosFixed");
+    const posFixedBadge = document.getElementById("localPosFixedBadge");
+    if (posFixedSwitch && (cfg.fixed_position != null || cfg.pos_fixed != null)) {
+      const isFixed = Boolean(cfg.fixed_position ?? cfg.pos_fixed);
+      posFixedSwitch.checked = isFixed;
+      if (posFixedBadge) {
+        posFixedBadge.textContent = isFixed ? "FIJA" : "OFF";
+        posFixedBadge.classList.toggle("is-active", isFixed);
+      }
+    }
+
     // Tarjetas de Telemetría en Vivo
     const elBat = document.getElementById("localBatValue");
     if (elBat) elBat.textContent = cfg.battery_pct != null ? `${cfg.battery_pct} %` : "100 % (USB)";
@@ -804,6 +885,10 @@ export class SettingsModule {
     const alt = parseFloat(document.getElementById("localGpsAlt")?.value || "");
 
     const payload = { name };
+    const posFixedElem = document.getElementById("localPosFixed");
+    if (posFixedElem) {
+      payload.fixed_position = Boolean(posFixedElem.checked);
+    }
     if (!isNaN(lat) && !isNaN(lon)) {
       payload.latitude = lat;
       payload.longitude = lon;

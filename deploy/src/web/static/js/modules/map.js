@@ -50,6 +50,8 @@ export class MapModule {
       mapNodesCount: document.getElementById("mapNodesCount"),
       btnCenterLocalNode: document.getElementById("btnCenterLocalNode"),
       btnToggleHeatmap: document.getElementById("btnToggleHeatmap"),
+      chkMapHeatmap: document.getElementById("chkMapHeatmap"),
+      mapHeatmapBadge: document.getElementById("mapHeatmapBadge"),
       tracerouteModal: document.getElementById("tracerouteModal"),
       btnCloseTracerouteModal: document.getElementById("btnCloseTracerouteModal"),
       btnExecuteTrace: document.getElementById("btnExecuteTrace"),
@@ -76,6 +78,10 @@ export class MapModule {
         this._userInteractedWithMap = false;
         this.centerOnLocalNode(14, true);
       });
+    }
+
+    if (this.dom.chkMapHeatmap) {
+      this.dom.chkMapHeatmap.addEventListener("change", (e) => this.setRfHeatmap(e.target.checked));
     }
 
     if (this.dom.btnToggleHeatmap) {
@@ -264,12 +270,10 @@ export class MapModule {
     }
   }
 
-  async toggleRfHeatmap() {
+  async setRfHeatmap(active) {
     if (!this.map) return;
-    this.rfHeatmapActive = !this.rfHeatmapActive;
-    if (this.dom.btnToggleHeatmap) {
-      this.dom.btnToggleHeatmap.classList.toggle("active", this.rfHeatmapActive);
-    }
+    this.rfHeatmapActive = Boolean(active);
+    this.updateRfHeatmapToggleState();
 
     if (!this.rfHeatmapActive) {
       if (this.rfHeatmapGroup) this.rfHeatmapGroup.clearLayers();
@@ -287,6 +291,23 @@ export class MapModule {
       this.rfHeatmapInterval = setInterval(() => {
         if (this.rfHeatmapActive) this.refreshRfHeatmap(false);
       }, 10000);
+    }
+  }
+
+  async toggleRfHeatmap() {
+    await this.setRfHeatmap(!this.rfHeatmapActive);
+  }
+
+  updateRfHeatmapToggleState() {
+    if (this.dom.chkMapHeatmap) {
+      this.dom.chkMapHeatmap.checked = this.rfHeatmapActive;
+    }
+    if (this.dom.mapHeatmapBadge) {
+      this.dom.mapHeatmapBadge.textContent = this.rfHeatmapActive ? "ON" : "OFF";
+      this.dom.mapHeatmapBadge.classList.toggle("is-active", this.rfHeatmapActive);
+    }
+    if (this.dom.btnToggleHeatmap) {
+      this.dom.btnToggleHeatmap.classList.toggle("active", this.rfHeatmapActive);
     }
   }
 

@@ -16,6 +16,7 @@ from typing import Any
 from src.contact_manager import PacketRecord, is_valid_node_key
 from src.event_utils import extract_sender_from_payload
 from src.sensor_decoder import extract_telemetry_fields
+from src.shared_utils import to_bool
 from src.web.controllers import (
     ApiContext,
     ChannelsController,
@@ -501,7 +502,7 @@ class WebAPIRouter:
 
         if clean_path in ("/api/node/advert", "/api/config/advert"):
             if method == "POST":
-                flood = bool(req_body.get("flood", False))
+                flood = to_bool(req_body.get("flood", False))
                 return await self.config_ctrl.broadcast_advert(flood)
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 

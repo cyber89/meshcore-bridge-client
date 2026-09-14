@@ -114,43 +114,127 @@ async def run_browser_audit() -> int:
             sidebar_btn = page.locator("#btnToggleSidebar")
             if await sidebar_btn.count() > 0:
                 await sidebar_btn.click()
-                await page.wait_for_timeout(200)
+                await page.wait_for_timeout(150)
                 await sidebar_btn.click()
-                await page.wait_for_timeout(200)
+                await page.wait_for_timeout(150)
 
             # Toggle theme (light/dark)
             theme_btn = page.locator("#themeToggleBtn")
             if await theme_btn.count() > 0:
                 await theme_btn.click()
-                await page.wait_for_timeout(200)
+                await page.wait_for_timeout(150)
                 await theme_btn.click()
-                await page.wait_for_timeout(200)
+                await page.wait_for_timeout(150)
 
-            # 4. Probar Modales
-            print("  📦 Probando Modales...")
-            # Modal Canales
+            # Toggle Heatmap en Mapa
+            await page.locator('.nav-btn[data-tab="tab-map"]').click()
+            await page.wait_for_timeout(200)
+            chk_heatmap = page.locator('label[for="chkMapHeatmap"]')
+            if await chk_heatmap.count() > 0:
+                print("    🔥 Probando toggle Heatmap RF...")
+                await chk_heatmap.click()
+                await page.wait_for_timeout(200)
+                await chk_heatmap.click()
+                await page.wait_for_timeout(150)
+
+            # Toggle Debug Mode y Auto-Scroll en Logs
+            await page.locator('.nav-btn[data-tab="tab-logs"]').click()
+            await page.wait_for_timeout(200)
+            chk_debug = page.locator('label[for="chkDebugMode"]')
+            if await chk_debug.count() > 0:
+                print("    🐞 Probando toggle Modo DEBUG...")
+                await chk_debug.click()
+                await page.wait_for_timeout(200)
+                await chk_debug.click()
+                await page.wait_for_timeout(150)
+
+            chk_scroll = page.locator('label[for="chkLogsAutoScroll"]')
+            if await chk_scroll.count() > 0:
+                print("    📜 Probando toggle Auto-Scroll...")
+                await chk_scroll.click()
+                await page.wait_for_timeout(150)
+                await chk_scroll.click()
+                await page.wait_for_timeout(150)
+
+            # Subpestaña Sniffer y Toggle Captura RF
+            btn_sub_sniffer = page.locator("#btnSubtabSniffer")
+            if await btn_sub_sniffer.count() > 0:
+                await btn_sub_sniffer.click()
+                await page.wait_for_timeout(200)
+                chk_cap = page.locator('label[for="chkSnifferCapture"]')
+                if await chk_cap.count() > 0:
+                    print("    📡 Probando toggle Captura RF...")
+                    await chk_cap.click()
+                    await page.wait_for_timeout(150)
+                    await chk_cap.click()
+                    await page.wait_for_timeout(150)
+
+            # Toggle Modo Repetidor y Posición Fija en Ajustes
+            await page.locator('.nav-btn[data-tab="tab-settings"]').click()
+            await page.wait_for_timeout(200)
+            btn_sub_radio = page.locator('.local-subtab-btn[data-subtab="local-radio"]')
+            if await btn_sub_radio.count() > 0:
+                await btn_sub_radio.click()
+                await page.wait_for_timeout(200)
+                chk_rep = page.locator('label[for="localRepeatMode"]')
+                if await chk_rep.count() > 0:
+                    print("    📻 Probando toggle Modo Repetidor Local...")
+                    await chk_rep.click()
+                    await page.wait_for_timeout(150)
+                    await chk_rep.click()
+                    await page.wait_for_timeout(150)
+
+            btn_sub_pos = page.locator('.local-subtab-btn[data-subtab="local-owner-pos"]')
+            if await btn_sub_pos.count() > 0:
+                await btn_sub_pos.click()
+                await page.wait_for_timeout(200)
+                chk_pos = page.locator('label[for="localPosFixed"]')
+                if await chk_pos.count() > 0:
+                    print("    📍 Probando toggle Posición GPS Fija Local...")
+                    await chk_pos.click()
+                    await page.wait_for_timeout(150)
+                    await chk_pos.click()
+                    await page.wait_for_timeout(150)
+
+            # 4. Probar Modales y sus Toggle Switches
+            print("  📦 Probando Modales y Toggles Internos...")
+            # Modal Canales y Toggle Cifrado AES-128
             await page.locator('.nav-btn[data-tab="tab-chat"]').click()
-            await page.wait_for_timeout(300)
+            await page.wait_for_timeout(200)
             btn_add_ch = page.locator("#btnAddChannel")
             if await btn_add_ch.count() > 0:
                 await btn_add_ch.click()
                 await page.wait_for_timeout(200)
+                chk_enc = page.locator('label[for="chModalIsEncrypted"]')
+                if await chk_enc.count() > 0:
+                    print("    🔐 Probando toggle Cifrado AES-128...")
+                    await chk_enc.click()
+                    await page.wait_for_timeout(150)
+                    await chk_enc.click()
+                    await page.wait_for_timeout(150)
                 btn_close_ch = page.locator("#btnCancelCreateChannel")
                 if await btn_close_ch.count() > 0:
                     await btn_close_ch.click()
-                    await page.wait_for_timeout(200)
+                    await page.wait_for_timeout(150)
 
-            # Modal Contactos
+            # Modal Contactos y Toggle Favorito
             await page.locator('.nav-btn[data-tab="tab-contacts"]').click()
             await page.wait_for_timeout(200)
             btn_add_ct = page.locator("#btnHeaderAddContact")
             if await btn_add_ct.count() > 0:
                 await btn_add_ct.click()
                 await page.wait_for_timeout(200)
+                chk_fav = page.locator('label[for="contactModalFavorite"]')
+                if await chk_fav.count() > 0:
+                    print("    ⭐ Probando toggle Favorito en Contacto...")
+                    await chk_fav.click()
+                    await page.wait_for_timeout(150)
+                    await chk_fav.click()
+                    await page.wait_for_timeout(150)
                 btn_close_ct = page.locator("#btnCloseCreateContactModal")
                 if await btn_close_ct.count() > 0:
                     await btn_close_ct.click()
-                    await page.wait_for_timeout(200)
+                    await page.wait_for_timeout(150)
 
             # Command Palette
             btn_cmd = page.locator("#btnCommandPalette")
@@ -160,7 +244,7 @@ async def run_browser_audit() -> int:
                 btn_close_cmd = page.locator("#btnCloseCmdPalette")
                 if await btn_close_cmd.count() > 0:
                     await btn_close_cmd.click()
-                    await page.wait_for_timeout(200)
+                    await page.wait_for_timeout(150)
 
             await browser.close()
 
