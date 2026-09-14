@@ -43,12 +43,13 @@ async def test_ip_and_security_logging():
     log_capture = io.StringIO()
     handler = logging.StreamHandler(log_capture)
     logging.getLogger().addHandler(handler)
-    logging.getLogger().setLevel(logging.INFO)
+    logging.getLogger().setLevel(logging.DEBUG)
 
     web_port = 8098
     tcp_port = 5098
 
     bridge = MeshCoreBridge()
+    bridge.diagnostics.set_log_level("DEBUG")
     if bridge.web_server:
         bridge.web_server.port = web_port
     if bridge.tcp_server:
@@ -117,15 +118,15 @@ async def test_ip_and_security_logging():
         logs_output = log_capture.getvalue()
         print("\n=================== AUDITORÍA DE LOGS CAPTURADOS ===================")
 
-        has_http_log = "[HTTP-CLIENT]" in logs_output
-        has_api_log = "[REST-API]" in logs_output
+        has_http_log = "[HTTP-CLIENT]" in logs_output or "[HTTP-ROUTINE]" in logs_output
+        has_api_log = "[REST-API]" in logs_output or "[HTTP-ROUTINE]" in logs_output
         has_tcp_log = "[TCP-COMPANION]" in logs_output
         has_suspicious_log = "[TRAFICO-SOSPECHOSO]" in logs_output
 
-        print(f"✓ Logs de Acceso HTTP [HTTP-CLIENT]:      {'PRESENTE' if has_http_log else 'FALTANTE'}")
-        print(f"✓ Logs de Consultas API [REST-API]:        {'PRESENTE' if has_api_log else 'FALTANTE'}")
-        print(f"✓ Logs de Servidor TCP [TCP-COMPANION]:    {'PRESENTE' if has_tcp_log else 'FALTANTE'}")
-        print(f"✓ Alertas de Seguridad [TRAFICO-SOSPECHOSO]: {'PRESENTE' if has_suspicious_log else 'FALTANTE'}")
+        print(f"✓ Logs de Acceso HTTP [HTTP-CLIENT/ROUTINE]: {'PRESENTE' if has_http_log else 'FALTANTE'}")
+        print(f"✓ Logs de Consultas API [REST-API/ROUTINE]:   {'PRESENTE' if has_api_log else 'FALTANTE'}")
+        print(f"✓ Logs de Servidor TCP [TCP-COMPANION]:      {'PRESENTE' if has_tcp_log else 'FALTANTE'}")
+        print(f"✓ Alertas de Seguridad [TRAFICO-SOSPECHOSO]:   {'PRESENTE' if has_suspicious_log else 'FALTANTE'}")
 
         assert has_http_log, "Falta registro de accesos HTTP con IP"
         assert has_api_log, "Falta registro de consultas REST con IP"

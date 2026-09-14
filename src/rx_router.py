@@ -308,9 +308,11 @@ class RxEventRouter:
             loop = self._ctx.loop or asyncio.get_running_loop()
         except RuntimeError:
             return
-        task = loop.create_task(self._ctx.web_server.broadcast_event(payload))
-        self._ctx.background_tasks.add(task)
-        task.add_done_callback(self._ctx.background_tasks.discard)
+        coro = self._ctx.web_server.broadcast_event(payload)
+        if asyncio.iscoroutine(coro):
+            task: asyncio.Task[Any] = loop.create_task(coro)
+            self._ctx.background_tasks.add(task)
+            task.add_done_callback(self._ctx.background_tasks.discard)
 
     def _extract_normalized_meta(self, event: Any) -> tuple[dict[str, Any], RxMeta] | None:
         ev_type_str = str(getattr(event, "type", getattr(event, "event_type", "")))

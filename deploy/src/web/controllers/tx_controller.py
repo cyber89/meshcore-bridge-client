@@ -23,7 +23,8 @@ class TxController(BaseController):
 
         target = req_body.get("to", req_body.get("target", "broadcast"))
         target_str = str(target).strip()
-        if target_str.lower() not in ("broadcast", "public", "0xffff", "*"):
+        is_broadcast = target_str.lower() in ("broadcast", "public", "0xffff", "*", "") or target_str.lower().startswith("channel")
+        if not is_broadcast:
             if self.ctx.bridge.node_registry.is_local_key(target_str):
                 return problem_details(400, "Bad Request", "No se permite enviar mensajes de chat a la estación base local", "tx_to_local_forbidden")
             dest_node = self.ctx.bridge.node_registry.get_by_key_or_prefix(target_str)
@@ -50,7 +51,7 @@ class TxController(BaseController):
             self.ctx.log_system_event("ERROR", f"Fallo en TX hacia {target}: {err_msg}", source="mesh_tx")
             return problem_details(400, "Bad Request", err_msg, "tx_transmission_failed", {"data": res})
 
-        if target and str(target).lower() not in ("broadcast", "public", "0xffff"):
+        if target and not is_broadcast:
             self.ctx.bridge.node_registry.record_packet(PacketRecord(public_key=str(target), is_rx=False))
 
         self.ctx.log_system_event("INFO", f"Transmisión TX enviada a {target} (Ch {ch_idx})", source="mesh_tx")

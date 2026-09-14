@@ -33,16 +33,22 @@ TEST_CATEGORIES = {
         "tests/test_sensor_decoder.py",
         "tests/test_contact_manager.py",
         "tests/test_rate_limiter_priority.py",
-        "tests/test_store_forward_modular.py",
+        "tests/test_packet_buffer.py",
+        "tests/test_packet_deduplicator.py",
         "tests/test_serial_adapter.py",
-        "tests/test_ha_discovery.py",
+        "tests/test_node_registry_telemetry.py",
         "tests/test_lqi_routing.py",
+        "tests/test_shared_utils_unit.py",
+        "tests/test_target_resolver_unit.py",
+        "tests/test_repeater_manager_unit.py",
     ],
     "2. E2E Tests (End-to-End)": [
         "tests/test_e2e_simulation.py",
+        "tests/test_playwright_e2e_simulation.py",
     ],
     "3. Contract Tests (Pruebas de Contrato)": [
         "tests/test_n8n_parser_matrix.py",
+        "tests/test_channels_and_contacts_controllers.py",
     ],
     "4. Chaos Tests (Pruebas de Caos & Hardware Flapping)": [
         "tests/test_concurrency_and_flapping.py",
@@ -51,6 +57,7 @@ TEST_CATEGORIES = {
     "5. Smoke Tests (Pruebas de Humo & Preflight)": [
         "tests/test_preflight.py",
         "tests/test_diagnostics.py",
+        "tests/test_health_and_events.py",
     ],
     "6. Integration Tests (Pruebas de Integración)": [
         "tests/test_bridge_logic.py",
@@ -58,10 +65,15 @@ TEST_CATEGORIES = {
         "tests/test_websocket_live.py",
         "tests/test_repeater_manager.py",
         "tests/test_tcp_companion_server.py",
+        "tests/test_mqtt_subsystem.py",
+        "tests/test_rest_controllers.py",
+        "tests/test_rx_routers.py",
+        "tests/test_admin_executors.py",
     ],
     "7. Snapshot Tests (Pruebas de Snapshot & Formatos)": [
         "tests/test_diagnostics_export.py",
         "tests/test_node_and_repeater_config.py",
+        "tests/test_tile_server.py",
     ],
     "8. Load Tests (Pruebas de Carga & Saturación)": [
         "tests/test_stress_flood.py",
@@ -73,7 +85,8 @@ TEST_CATEGORIES = {
     "10. Regression Tests (Pruebas de Regresión & Seguridad)": [
         "tests/test_virtual_mesh_simulation.py",
         "tests/test_security_audit.py",
-        "tests/test_store_and_forward.py",
+        "tests/test_sanitization_fixes.py",
+        "tests/test_web_security_and_maps.py",
         "tests/test_fuzzing_and_edge_cases.py",
     ],
 }

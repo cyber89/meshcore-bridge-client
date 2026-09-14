@@ -91,7 +91,7 @@ class MockWebSocketHub:
     def __init__(self) -> None:
         self.streamed_events: list[dict[str, Any]] = []
 
-    def broadcast_event(self, event_data: dict[str, Any]) -> None:
+    async def broadcast_event(self, event_data: dict[str, Any]) -> None:
         self.streamed_events.append({"event": event_data, "timestamp": time.time()})
 
 

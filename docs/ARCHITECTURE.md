@@ -56,6 +56,7 @@ flowchart TB
         LocConf[LocalConfigExecutor]
         RepConf[RepeaterExecutor]
         Trace[TracerouteExecutor]
+        CliExec[CliCommandExecutor]
     end
 
     subgraph Capa de Gestión
@@ -278,12 +279,14 @@ sequenceDiagram
 | `LocalConfigExecutor` | `admin/local_config_executor.py` | Ejecuta comandos de configuración en el nodo base local. | Command | `serial_driver` |
 | `RepeaterExecutor` | `admin/repeater_executor.py` | Envía comandos remotos a repetidores vía RF. | Command | `serial_driver` |
 | `TracerouteExecutor` | `admin/traceroute_executor.py` | Realiza pings progresivos e inspecciona rutas (Saltos L3). | Command | `serial_driver` |
+| `CliCommandExecutor` | `admin/cli_command_executor.py` | Ejecuta comandos de terminal CLI de radio local (ver, bat, stats_core, etc.). | Command / Executor | `serial_driver` |
 | `CayenneLPPDecoder` | `sensor_decoder.py` | Convierte flujos de bytes Cayenne LPP a valores decimales estructurados. | Decoder | `protocol_types` |
 | `LinkQualityEngine` | `lqi_engine.py` | Evalúa las condiciones SNR, RSSI y califica enlaces bidireccionales en la malla. | Engine | Ninguna |
 | `DiagnosticManager` | `diagnostics.py` | Colecta métricas de OS, proceso y logs para reportes de salud avanzados. | Manager | Ninguna |
 | `HealthReporter` | `health_reporter.py` | Monitorea la RAM, estado del hardware y publica un pulso periódico en MQTT. | Worker | `mqtt_client` |
 | `MeshCoreWebServer` | `web/http_server.py` | Servidor HTTP nativo de asyncio para servir SPA, UI y WebSockets. | Server | `WebAPIRouter` |
 | `WebAPIRouter` | `web/api_router.py` | Enrutador HTTP que dirige el tráfico a módulos tipo API de dominio. | Router / Dispatcher | `controllers/*` |
+| `LogsController` | `web/controllers/logs_controller.py` | Controlador REST dedicado para mensajes, telemetría y logs del sistema. | Controller (MVC) | `diagnostics`, `PacketBuffer` |
 | `VirtualMeshAdapter` | `virtual_mesh.py` | Simula la interfaz de radio completa para pruebas de integración continua. | Mock / Adapter | Ninguna |
 | `MeshCoreCompanionServer` | `tcp_companion_server.py`| Permite conectar radios remotamente mediante un túnel TCP (Proxy). | Server | Ninguna |
 | `PacketBuffer` | `shared_utils.py` | Búfer rotatorio (Ring Buffer) que registra temporalmente los paquetes TX/RX. | Buffer | Ninguna |
@@ -302,12 +305,12 @@ sequenceDiagram
 | GET | `/api/status` | `ConfigController` | Obtiene el estado físico y variables lógicas del nodo local. |
 | GET | `/api/health` | `SystemController` | Reporta el estado de uso de memoria, disco, y CPU del servidor puente. |
 | GET | `/api/diagnostics` | `SystemController` | Idéntico a `/api/health`. |
-| GET | `/api/diagnostics/report.md` | `SystemController` | Genera un volcado completo de diagnósticos exportable en formato Markdown. |
+| GET | `/api/diagnostics/report.md` | `LogsController` | Genera un volcado completo de diagnósticos exportable en formato Markdown. |
 | GET | `/api/preflight` | `SystemController` | Analiza disponibilidad de sistema de archivos, hardware y dependencias. |
-| GET | `/api/system/logs/level` | `SystemController` | Obtiene el nivel de severidad de logs actual del módulo principal. |
-| POST | `/api/system/logs/level` | `SystemController` | Altera en caliente la verbosidad global de logs del sistema (`INFO`, `DEBUG`, etc.). |
-| DELETE | `/api/system/logs` | `SystemController` | Depura el historial de logs del sistema residentes en la memoria RAM del bridge. |
-| GET | `/api/system/logs` | `SystemController` | Interfaz paginable para visualizar logs del sistema filtrables. |
+| GET | `/api/system/logs/level` | `LogsController` | Obtiene el nivel de severidad de logs actual del módulo principal. |
+| POST | `/api/system/logs/level` | `LogsController` | Altera en caliente la verbosidad global de logs del sistema (`INFO`, `DEBUG`, etc.). |
+| DELETE | `/api/system/logs` | `LogsController` | Depura el historial de logs del sistema residentes en la memoria RAM del bridge. |
+| GET | `/api/system/logs` | `LogsController` | Interfaz paginable para visualizar logs del sistema filtrables. |
 | GET | `/api/packets/export` | `PacketsController` | Exportación JSON de todos los paquetes (TX/RX) capturados localmente. |
 | DELETE | `/api/packets` | `PacketsController` | Purgado de historial en disco de la base de datos de paquetes LoRa. |
 | GET | `/api/packets` | `PacketsController` | Interfaz de análisis paginada para la depuración forense RF del tráfico en aire. |
@@ -322,6 +325,7 @@ sequenceDiagram
 | GET, POST... | `/api/contacts/*` | `ContactsController` | Manejo CRUD base para la agenda telefónica del nodo. |
 | GET, POST... | `/api/channels/*` | `ChannelsController` | Manejo CRUD para perfiles o bandas de criptografía precompartida y frecuencia de canal de red. |
 | POST | `/api/tx` | `TxController` | Comando de inyección directa de un mensaje de texto para salida al aire. |
+| GET | `/api/messages` | `LogsController` | Consulta paginada y filtrada de mensajes textuales almacenados. |
 | GET | `/api/messages/recent` | `TxController` | Lee y devuelve los mensajes textuales en memoria no consumidos en la base de datos local. |
 | POST | `/api/admin/command` | `RepeaterController` | API universal de ingreso libre de cadenas de terminal CLI (Ej: `/help`, `/reboot`). |
 | POST | `/api/admin/repeater` | `RepeaterController` | Invocador base que interactúa con la lógica central de repetición remota en el aire. |
@@ -339,8 +343,8 @@ sequenceDiagram
 | POST | `/api/node/reboot` | `ConfigController` | Ordena apagado y encendido de MCU del módem RF adjunto al puente local. |
 | GET | `/api/map/status` | `MapTileService` | Valida si el módulo local dispone de cartografía sin conexión funcional en el dispositivo base. |
 | GET | `/api/map/tiles/...` | `MapTileService` | Despacho binario nativo (blob) para teselas OSM/Slippy pre-cachadas. |
-| GET | `/api/telemetry` | `WebAPIRouter` | Recupera el buffer histórico (RAM) de variables métricas medioambientales procesadas. |
-| GET | `/api/logs/download` | `WebAPIRouter` | Inicia una descarga física de los archivos de registro brutos del framework. |
+| GET | `/api/telemetry` | `LogsController` | Recupera el buffer histórico (RAM) de variables métricas medioambientales procesadas. |
+| GET | `/api/logs/download` | `LogsController` | Inicia una descarga física de los archivos de registro brutos del framework. |
 
 ## 8. Mapa de Eventos WebSocket
 

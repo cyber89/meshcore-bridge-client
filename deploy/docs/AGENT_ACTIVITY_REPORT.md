@@ -2,6 +2,31 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Auditoría Exhaustiva del Sistema, Saneamiento de Herramientas/Scripts y Benchmark de Mercado (report.md)
+- **Fecha**: 2026-09-14
+- **Estado**: ✅ COMPLETADO (Comprobación exhaustiva del sistema; saneamiento de broadcast en tx_controller.py y guarda defensiva en rx_router.py; resolución de callbacks síncronos y caracteres no hexadecimales en scripts de simulación y validación; actualización de documentación técnica en ARCHITECTURE.md y CODE_EXPLANATION.md; sincronización del catálogo de 10 disciplinas de prueba en run_all_test_categories.py superadas al 100%; redacción de report.md con auditoría técnica integral y análisis comparativo multidimensional con Meshtastic, Reticulum, ATAK y las referencias locales; 0 errores ruff; 0 errores mypy en 53 módulos; 100% de paridad API; sincronización en /deploy/).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 3 (Protocol QA), Agente 4 (Web UI Architect), Agente 5 (Security Auditor).
+- **Acciones Realizadas**:
+  1. **Remediación en Controladores y Concurrencia (`src/web/controllers/tx_controller.py`, `src/rx_router.py`)**:
+     - `tx_controller.py`: Incorporada la cadena vacía `""` y `"*"` a la tupla de destinatarios de difusión pública, resolviendo el rechazo erróneo con código HTTP 400 en broadcasts hacia la malla.
+     - `rx_router.py`: Añadida guarda defensiva `asyncio.iscoroutine()` y tipado estricto `task: asyncio.Task[Any]` en `_spawn_broadcast_task()`, evitando excepciones `TypeError` al interactuar con mocks o servidores web síncronos en entornos de prueba.
+  2. **Saneamiento y Actualización de Herramientas (`scripts/`)**:
+     - `simulate_concurrent_network.py`: Declarado `async def broadcast_event` en `MockWebSocketHub`, superando la simulación de ráfagas con 407 eventos auditados y 0 tracebacks.
+     - `simulate_heltec_v4_mesh.py`: Convertido `logging_broadcast` a corrutina asíncrona `async def`, completando la simulación de 40 paquetes RX, 2 TX y 81 mensajes MQTT con 0 errores.
+     - `validate_all_node_parameters.py`: Corregidas las claves simuladas con caracteres no hexadecimales ('r', 's'), validando con éxito los 126 parámetros en los 5 roles de nodo.
+     - `test_ip_and_security_logging.py`: Configurado el nivel de logging en `DEBUG` para validar los accesos rutinarios (`[HTTP-ROUTINE]`) y la detección de escáneres/inyecciones de forma determinista.
+     - `run_all_test_categories.py`: Sincronizado el catálogo de suites para reflejar los 42 archivos de prueba actuales, logrando 10/10 categorías superadas en 66.88s.
+  3. **Actualización de Documentación de Arquitectura (`docs/`)**:
+     - `docs/ARCHITECTURE.md`: Reflejada la extracción de `CliCommandExecutor` en la Capa Admin y `LogsController` en la Capa Web y catálogo de endpoints REST.
+     - `docs/CODE_EXPLANATION.md`: Actualizada la tabla de componentes de grado industrial con `CliCommandExecutor` y el subpaquete modular `src/web/controllers/`.
+  4. **Elaboración de `report.md` (Auditoría y Benchmark de Mercado)**:
+     - Elaborado el informe formal analizando las referencias locales (`meshcore`, `meshcore_py`, `meshcore_cli`, `akita-bridge`, `ipnet-meshcore-mqtt`, `meshcoretomqtt`, `meshcore-proxy`, `remote-terminal`, `michaelhart-mqtt-broker`) y los ecosistemas externos (Meshtastic, Reticulum, ATAK LoRa Forwarder, Disaster Radio).
+     - Detallados los puntos fuertes de MeshCore Universal Bridge v3.0 Pro (< 100ms startup en SBCs, cero dependencias pesadas, guardarraíles LoRa ADR 0002, cartografía MBTiles offline).
+     - Documentadas las oportunidades y hoja de ruta conceptual a futuro (DTN Store-and-Forward, compresión LZ, matriz de calidad de enlace, pasarela CoT) sin implementar código en este ciclo.
+- **Módulos Modificados**: `src/rx_router.py`, `src/web/controllers/tx_controller.py`, `scripts/run_all_test_categories.py`, `scripts/simulate_concurrent_network.py`, `scripts/simulate_heltec_v4_mesh.py`, `scripts/test_ip_and_security_logging.py`, `scripts/validate_all_node_parameters.py`, `docs/ARCHITECTURE.md`, `docs/CODE_EXPLANATION.md`, `report.md`, `docs/AGENT_ACTIVITY_REPORT.md`, `deploy/**`.
+
+---
+
 ### Hito: Auditoría Integral Web/API, Estilos Universales y Conmutadores Toggle para Parámetros Booleanos
 - **Fecha**: 2026-09-14
 - **Estado**: ✅ COMPLETADO (Auditoría profunda de frontend HTML5/CSS3/ES6, backend REST API y WebSockets; estandarización universal de estilos para inputs, selects y textareas; conversión de todos los parámetros booleanos y controles de estado en toggle switches interactivos con badges semánticos reactivos; creación de la función canónica to_bool() en shared_utils.py; verificación completa de paridad de contratos API 100% PASS; auditoría automatizada en navegador headless Playwright con 0 excepciones, 0 errores de consola y 0 peticiones fallidas; 25 tests unitarios de servidor y controladores web pasando al 100%; linter ruff y mypy limpios; sincronización en /deploy/).

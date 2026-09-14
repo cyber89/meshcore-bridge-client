@@ -228,7 +228,7 @@ class NodeParameterValidator:
 
     def validate_repeater_node(self) -> None:
         """Audita parámetros de nodos REPEATER (Infraestructura)."""
-        repeater_pk = "r1r1r1r1r1r100112233445566778899aabbccddeeff00112233445566778899"
+        repeater_pk = "d1d1d1d1d1d100112233445566778899aabbccddeeff00112233445566778899"
 
         raw_cli_output = (
             "ver: MeshCore v1.6.0-Router\n"
@@ -302,7 +302,7 @@ class NodeParameterValidator:
 
     def validate_sensor_node(self) -> None:
         """Audita parámetros de nodos SENSOR (CayenneLPP ambiental)."""
-        sensor_pk = "s1s1s1s1s1s100112233445566778899aabbccddeeff00112233445566778899"
+        sensor_pk = "51515151515100112233445566778899aabbccddeeff00112233445566778899"
 
         update = NodeContactUpdate(
             name="Sensor-BME280-Solar",

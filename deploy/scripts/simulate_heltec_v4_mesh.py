@@ -242,7 +242,7 @@ async def run_simulation(duration_sec: int = 15) -> None:
     # Interceptar eventos para registro JSONL
     orig_broadcast = bridge.web_server.broadcast_event
 
-    def logging_broadcast(event_data: dict[str, Any]) -> None:
+    async def logging_broadcast(event_data: dict[str, Any]) -> None:
         try:
             entry = {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -254,7 +254,9 @@ async def run_simulation(duration_sec: int = 15) -> None:
                 f.write(json.dumps(entry, ensure_ascii=False) + "\n")
         except Exception:
             pass
-        orig_broadcast(event_data)
+        res = orig_broadcast(event_data)
+        if asyncio.iscoroutine(res):
+            await res
 
     bridge.web_server.broadcast_event = logging_broadcast
 

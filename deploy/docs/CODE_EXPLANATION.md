@@ -201,7 +201,8 @@ Como parte de la auditoría de calidad (`clean-code-solid`), la *God Class* `Mes
 | `src/admin_handler.py` | `AdminCommandHandler` | Comandos de administración RF/repetidores | `handle_admin` |
 | `src/mqtt_dispatcher.py` | `MqttInboundDispatcher` | Mensajes MQTT entrantes (TX/Admin) | `_process_mqtt_input`, `_handle_tx_request`, `_handle_admin_request` |
 | `src/routers/` | (Strategy Pattern) | Subpaquete con handlers de enrutamiento: `base.py`, `advert_handler.py`, `channel_handler.py`, `direct_handler.py`, `repeater_handler.py`, `system_handler.py`, `telemetry_handler.py` | Desacoplamiento de las estrategias de enrutamiento |
-| `src/admin/` | (Command Pattern) | Subpaquete con executores: `local_config_executor.py`, `repeater_executor.py`, `traceroute_executor.py` | Desacoplamiento de la ejecución de comandos |
+| `src/admin/` | (Command Pattern) | Subpaquete con ejecutores: `local_config_executor.py`, `repeater_executor.py`, `traceroute_executor.py`, `cli_command_executor.py` | Desacoplamiento de la ejecución de comandos y terminal CLI |
+| `src/web/controllers/` | (MVC Pattern) | Subpaquete con controladores REST: `base.py`, `channels_controller.py`, `config_controller.py`, `contacts_controller.py`, `logs_controller.py`, `nodes_controller.py`, `packets_controller.py`, `repeater_controller.py`, `system_controller.py`, `tx_controller.py` | Desacoplamiento de endpoints REST por dominio funcional |
 | `src/virtual_mesh_adapter.py` | `VirtualMeshAdapter` | Simulador de malla LoRa virtual | |
 | `src/lqi_engine.py` | `LQIEngine` | Motor de calidad de enlace (LQI/EMA) | |
 | `src/diagnostics.py` | `Diagnostics` | Diagnóstico de enlaces y rotación de logs | |
