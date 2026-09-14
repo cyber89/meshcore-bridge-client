@@ -14,7 +14,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-
 # ================================================================== #
 #  1. Rate Limiter Fixes                                              #
 # ================================================================== #
@@ -61,7 +60,7 @@ class TestRateLimiterWorkerLoop:
 
         queue = CustomTxQueue(maxsize=10)
         queue.put_nowait(None)  # type: ignore[arg-type]
-        item = queue.get_nowait()
+        _ = queue.get_nowait()
         # En el código original, esto habría hecho continue sin task_done
         # Ahora debe completar sin error
         queue.task_done()
@@ -70,8 +69,9 @@ class TestRateLimiterWorkerLoop:
     @pytest.mark.asyncio
     async def test_stop_cancels_orphaned_futures(self) -> None:
         """Verifica que stop() cancela futures pendientes en la queue."""
-        from src.rate_limiter import CustomTxQueue, TxItem, TxRateLimiter
         import time
+
+        from src.rate_limiter import TxItem, TxRateLimiter
 
         limiter = TxRateLimiter(transmit_callback=None)
         limiter.start()
@@ -403,6 +403,7 @@ class TestAdminHandlerStructure:
     def test_resolve_target_uses_target_resolver(self) -> None:
         """Verifica que _resolve_target delega a TargetResolver."""
         import inspect
+
         from src.admin_handler import AdminCommandHandler
         source = inspect.getsource(AdminCommandHandler._resolve_target)
         assert "TargetResolver" in source
@@ -463,6 +464,7 @@ class TestChannelsPersistence:
     async def test_channels_persistence_and_reload(self, tmp_path: Any, monkeypatch: Any) -> None:
         import json
         from unittest.mock import MagicMock
+
         from src.web.api_router import WebAPIRouter
 
         storage_file = tmp_path / "channels.json"
@@ -512,6 +514,7 @@ class TestChannelsPersistence:
     @pytest.mark.asyncio
     async def test_serial_driver_set_channel_psk_conversion(self) -> None:
         from unittest.mock import AsyncMock, MagicMock
+
         from src.serial_driver import MeshcoreSDKAdapter
 
         driver = MeshcoreSDKAdapter(port="COM3")

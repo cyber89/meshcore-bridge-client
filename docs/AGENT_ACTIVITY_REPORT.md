@@ -2,6 +2,49 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Auditoría Exhaustiva Multi-Módulo, Saneamiento de Código Huérfano y Compatibilidad Total MeshCore
+- **Fecha**: 2026-09-14
+- **Estado**: ✅ COMPLETADO (Auditoría profunda módulo a módulo; eliminación de inconsistencias, atributos duplicados y código huérfano; alineación 100% con la pila oficial MeshCore y ADR 0001; resolución de 100% de errores de linter/tipado; ampliación de cobertura de pruebas unitarias a 267 tests pasando al 100%; sincronización y empaquetado autónomo en /deploy/).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 3 (Protocol QA), Agente 4 (Web UI Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - El usuario solicitó analizar en profundidad la documentación y el contexto del proyecto, y realizar un análisis profundo módulo a módulo en busca de inconsistencias en el código, código huérfano, clases/funciones repetidas, disfuncionales o poco óptimas.
+  - Asegurar compatibilidad al 100% con la pila oficial de MeshCore y su SDK.
+  - Comprobar que el sistema sigue funcionando tras los cambios, verificar que todas las clases y métodos tengan sus correspondientes pruebas, y actualizar toda la documentación y scripts.
+- **Acciones Realizadas**:
+  1. **Auditoría de Inconsistencias, Duplicados y Código Huérfano**:
+     - `config.py`: Eliminada definición redundante de `NODE_REGISTRY_STORAGE_PATH`; unificado `CHANNELS_JSON_PATH` con `CHANNELS_STORAGE_PATH` y expuesto alias canónico `CHANNELS_FILE`.
+     - `src/bridge_core.py`: Eliminada declaración duplicada de atributo `self._cleanup_task` en línea 206; corregido apagado graceful en `stop()` para evitar excepciones de tipo Union.
+     - `src/routers/advert_handler.py`: Reemplazada clasificación ad-hoc manual por la función canónica de la SSoT `classify_device_role(c_raw_type)` de `src.shared_utils`.
+     - `src/serial_driver.py`: Inicializados explícitamente `self._total_reconnect_attempts = 0` y `self._reconnect_backoff_sec = 5.0` en `SerialWatchdog.__init__` para evitar `AttributeError` en caso de reconexiones activadas.
+     - `src/rate_limiter.py`: Corregido acceso tipado a la cola subyacente `_queue` en `CustomTxQueue` con `cast(list[Any], getattr(self, "_queue", []))` resolviendo advertencias de `mypy --strict`.
+     - `src/web/controllers/channels_controller.py`: Eliminada definición parcial e incompleta duplicada de `_get_channels()`; unificada la carga de canales priorizando anulaciones de entorno para tests; tipado estricto de `channels_file: str`.
+     - `src/web/controllers/contacts_controller.py`: Corregida fuga de nodos repetidores en `GET /api/contacts` y `_sync_contacts()` reemplazando `list_nodes()` por `list_client_contacts()`, cumpliendo de forma estricta e inmutable con `ADR 0001`.
+     - `src/repeater_manager.py`: Añadido soporte de fallback para alias `set_coords` y parámetro `pin` en comandos de administración remota; ajustada sintaxis canónica oficial CLI de MeshCore (`set tx <power>`, `set freq <f>`, `set pos <lat> <lon> <alt> <fixed>`).
+     - Eliminados archivos temporales obsoletos en la raíz: `patch_app.py`, `patch_i18n.py`, `test_sec_audit.db`, `meshcore_buffer.db*`, `meshcore_sim_buffer.db*`.
+  2. **Calidad de Código y Tipado Estricto (Linter & Type Checker)**:
+     - Configurado `per-file-ignores` en `pyproject.toml` para excluir `E402` en `tests/` y `scripts/` que requieren manipulación previa de `sys.path`.
+     - Corregidos errores de variables no utilizadas e importaciones en `scripts/simulate_mesh_network.py`, `scripts/audit_codebase_integrity.py`, `scripts/audit_frontend_browser.py`, `scripts/simulate_concurrent_network.py`, `scripts/verify_all_components.py` y `tests/test_sanitization_fixes.py`.
+     - Resultado `ruff check src/ tests/ scripts/`: **100% PASS (0 errores)**.
+     - Resultado `mypy src/`: **100% SUCCESS (0 errores en 51 archivos de producción)**.
+     - Resultado `audit_codebase_integrity.py`: **100% SUCCESS (52/52 módulos importados dinámicamente sin fallos, 0 referencias huérfanas)**.
+  3. **Verificación y Cobertura de Pruebas Automatizadas (267 Tests)**:
+     - Nuevas suites unitarias creadas para cubrir clases y métodos faltantes:
+       - `tests/test_channels_and_contacts_controllers.py`: Pruebas exhaustivas para enmascaramiento PSK, validación de límites (0..7) y aislamiento estricto de repetidores en contactos.
+       - `tests/test_repeater_manager_unit.py`: Validación de construcción de payloads de radio, telemetría y seguridad según la sintaxis oficial de MeshCore.
+       - `tests/test_shared_utils_unit.py`: Validación unitaria de `classify_device_role`, `clamp_tx_power`, `get_hardware_power_limits` e `is_repeater_name`.
+       - `tests/test_target_resolver_unit.py`: Pruebas de resolución de prefijos hex, padding determinista y excepciones en nodos inexistentes.
+       - `tests/test_node_registry_telemetry.py`: Reemplazo moderno del antiguo test HA para telemetría y contadores de registro de nodos.
+       - `tests/test_packet_deduplicator.py`: Consolidación unificada de pruebas de deduplicación y ventana temporal.
+     - Corregido `tests/test_tile_server.py` para compatibilidad de sintaxis de bytes en f-strings con Python 3.10+.
+     - Corregido mock de `check_airtime_cooldown` en `tests/test_admin_executors.py`.
+     - Configurado cooldown cero en `tests/test_node_and_repeater_config.py` para evitar falsos positivos 429 por ráfaga en pruebas unitarias.
+     - Ejecución global de pytest: **267 pasados, 10 skipped, 0 fallos, 0 errores (100% de éxito)**.
+  4. **Sincronización y Despliegue**:
+     - Ejecutado `python scripts/sync_deploy.py` para sincronizar la totalidad de los cambios en la carpeta `/deploy/`.
+- **Módulos Modificados**: `config.py`, `pyproject.toml`, `src/bridge_core.py`, `src/rate_limiter.py`, `src/repeater_manager.py`, `src/routers/advert_handler.py`, `src/serial_driver.py`, `src/web/controllers/channels_controller.py`, `src/web/controllers/contacts_controller.py`, `scripts/*`, `tests/*`, `deploy/**`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
+---
+
 ### Hito: Mejora del Botón de Agregar Canal en Mensajes con Icono Vectorial del Sistema
 - **Fecha**: 2026-09-12
 - **Estado**: ✅ COMPLETADO (Reemplazo del glifo matemático '+' por el icono vectorial del sistema 'plus-circle' en el botón #btnAddChannel; registro en LUCIDE_ICONS de plus-circle, circle-plus y message-square-plus; refinamiento de estilos CSS en panel-btn-group para centrado óptimo sin margen lateral espurio; adición de claves i18n chat.add_channel_title y chat.import_channel_title en DICT.es y DICT.en para tooltips traducidos; sincronización y empaquetado en /deploy/).

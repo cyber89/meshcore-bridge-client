@@ -11,7 +11,7 @@ from typing import Any
 
 from src.contact_manager import NodeContactUpdate, NodeDiscoveryEvent, is_valid_node_key
 from src.routers.base import BaseRxHandler, RxMeta
-from src.shared_utils import is_repeater_name
+from src.shared_utils import classify_device_role, is_repeater_name
 
 
 def _get_coord(data: dict[str, Any], keys: tuple[str, ...]) -> float | None:
@@ -96,14 +96,14 @@ class AdvertHandler(BaseRxHandler):
             c_raw_type = c_item.get("type", c_item.get("adv_type", 1))
             c_name_upper = c_name.upper()
 
-            if c_raw_type == 2 or is_repeater_name(c_name):
+            if is_repeater_name(c_name):
                 c_role = "REPEATER"
-            elif c_raw_type == 3 or "ROOM" in c_name_upper or "BBS" in c_name_upper:
+            elif "ROOM" in c_name_upper or "BBS" in c_name_upper:
                 c_role = "ROOM"
-            elif c_raw_type == 4 or "SENSOR" in c_name_upper:
+            elif "SENSOR" in c_name_upper:
                 c_role = "SENSOR"
             else:
-                c_role = "CLIENT"
+                c_role = classify_device_role(c_raw_type)
 
             c_lat = _get_coord(c_item, ("adv_lat", "lat", "latitude", "gps_lat"))
             c_lon = _get_coord(c_item, ("adv_lon", "lon", "longitude", "gps_lon"))

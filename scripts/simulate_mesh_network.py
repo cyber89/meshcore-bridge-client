@@ -18,7 +18,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.admin_handler import AdminCommandHandler, AdminContext
 from src.contact_manager import NodeContactUpdate, NodeRegistry
 from src.deduplicator import PacketDeduplicator
-from src.rate_limiter import TxRateLimiter
 from src.repeater_manager import RepeaterManager
 from src.rx_router import RxEventRouter, RxRouterContext
 
@@ -113,7 +112,6 @@ async def run_mesh_simulation() -> bool:
 
     repeater_mgr = RepeaterManager()
     deduplicator = PacketDeduplicator()
-    rate_limiter = TxRateLimiter()
     mqtt_client = MockMqttClient()
     web_server = MockWebServer()
     serial_adapter = MockSerialAdapter()

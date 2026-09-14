@@ -18,7 +18,12 @@ class ChannelsController(BaseController):
 
     def __init__(self, ctx: ApiContext, channels_file: str | None = None) -> None:
         super().__init__(ctx)
-        self.channels_file = channels_file or os.getenv("CHANNELS_STORAGE_PATH", "data/channels.json")
+        self.channels_file: str = str(
+            channels_file
+            or os.getenv("CHANNELS_STORAGE_PATH")
+            or os.getenv("CHANNELS_JSON_PATH")
+            or "data/channels.json"
+        )
         self.channels: dict[int, dict[str, Any]] = {}
         self._load_channels()
 
@@ -75,35 +80,25 @@ class ChannelsController(BaseController):
 
         return problem_details(405, "Method Not Allowed", f"Método {method} no permitido para /api/channels", "method_not_allowed")
 
+    async def _sync_from_serial(self) -> None:
+        """Sincroniza la tabla de canales desde el hardware serial si está disponible."""
+        ser = getattr(self.ctx.bridge, "serial_adapter", None)
+        if ser and hasattr(ser, "get_channels"):
+            try:
+                node_channels = await ser.get_channels()
+                if node_channels:
+                    for ch in node_channels:
+                        idx = int(ch.get("index", 0))
+                        self.channels[idx] = ch
+                    self._save_channels()
+            except Exception as e:
+                logging.debug(f"Fallo sincronizando canales del nodo serial: {e}")
+
     async def _sync_channels(self) -> tuple[int, dict[str, Any]]:
-        """Sincroniza los canales desde el hardware serial."""
-        ser = getattr(self.ctx.bridge, "serial_adapter", None)
-        if ser and hasattr(ser, "get_channels"):
-            try:
-                node_channels = await ser.get_channels()
-                if node_channels:
-                    for ch in node_channels:
-                        idx = int(ch.get("index", 0))
-                        self.channels[idx] = ch
-                    self._save_channels()
-            except Exception as e:
-                logging.debug(f"Fallo sincronizando canales del nodo serial: {e}")
-
-        return await self._get_channels()
-
-    async def _get_channels(self) -> tuple[int, dict[str, Any]]:
-        """Devuelve los canales configurados."""
-        ser = getattr(self.ctx.bridge, "serial_adapter", None)
-        if ser and hasattr(ser, "get_channels"):
-            try:
-                node_channels = await ser.get_channels()
-                if node_channels:
-                    for ch in node_channels:
-                        idx = int(ch.get("index", 0))
-                        self.channels[idx] = ch
-                    self._save_channels()
-            except Exception as e:
-                logging.debug(f"Fallo sincronizando canales del nodo serial: {e}")
+        """Sincroniza los canales desde el hardware serial y retorna la lista enmascarada."""
+        await self._sync_from_serial()
+        masked_list = self._get_masked_channels_list()
+        return 200, {"status": "ok", "data": masked_list, "count": len(masked_list)}
 
     def _get_masked_channels_list(self) -> list[dict[str, Any]]:
         """Devuelve una lista ordenada de canales con PSK enmascarado por seguridad."""
@@ -130,20 +125,10 @@ class ChannelsController(BaseController):
             c_dict["has_psk"] = False
         return c_dict
 
-    async def _get_channels(self) -> tuple[int, dict[str, Any]]:
+    async def _get_channels(self, sync_serial: bool = True) -> tuple[int, dict[str, Any]]:
         """Devuelve los canales configurados con PSK enmascarada."""
-        ser = getattr(self.ctx.bridge, "serial_adapter", None)
-        if ser and hasattr(ser, "get_channels"):
-            try:
-                node_channels = await ser.get_channels()
-                if node_channels:
-                    for ch in node_channels:
-                        idx = int(ch.get("index", 0))
-                        self.channels[idx] = ch
-                    self._save_channels()
-            except Exception as e:
-                logging.debug(f"Fallo sincronizando canales del nodo serial: {e}")
-
+        if sync_serial:
+            await self._sync_from_serial()
         masked_list = self._get_masked_channels_list()
         return 200, {"status": "ok", "data": masked_list, "count": len(masked_list)}
 

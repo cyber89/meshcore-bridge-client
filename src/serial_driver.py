@@ -1385,6 +1385,8 @@ class SerialWatchdog:
         self._task: asyncio.Task[None] | None = None
         self._running = False
         self._consecutive_ping_failures = 0
+        self._total_reconnect_attempts: int = 0
+        self._reconnect_backoff_sec: float = 5.0
         try:
             import config
             self.max_reconnect_attempts = int(getattr(config, "MAX_RECONNECT_ATTEMPTS", os.getenv("MAX_RECONNECT_ATTEMPTS", "0")))

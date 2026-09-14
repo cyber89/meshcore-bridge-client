@@ -254,7 +254,7 @@ async def run_master_20s_simulation() -> bool:
         },
     }
 
-    for n_id, n_data in NODES.items():
+    for n_data in NODES.values():
         serial_transceiver.contacts_db[n_data["pk"]] = {
             "public_key": n_data["pk"],
             "name": n_data["name"],

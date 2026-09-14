@@ -84,7 +84,8 @@ DEDUPLICATION_WINDOW_SEC = _safe_float("DEDUPLICATION_WINDOW_SEC", 60.0) # Venta
 WATCHDOG_INTERVAL_SEC = _safe_float("WATCHDOG_INTERVAL_SEC", 60.0)     # Intervalo de supervisión de vivacidad serial
 HEALTH_METRICS_INTERVAL_SEC = _safe_float("HEALTH_METRICS_INTERVAL_SEC", 60.0) # Intervalo de reporte de salud
 MAX_RECONNECT_ATTEMPTS = _safe_int("MAX_RECONNECT_ATTEMPTS", 0)       # 0 = reintentos ilimitados
-NODE_REGISTRY_STORAGE_PATH = os.getenv("NODE_REGISTRY_STORAGE_PATH", os.path.join("data", "node_registry.json"))
+DATA_DIR = os.getenv("DATA_DIR", "data")
+NODE_REGISTRY_STORAGE_PATH = os.getenv("NODE_REGISTRY_STORAGE_PATH", os.path.join(DATA_DIR, "node_registry.json"))
 
 # ================= Parámetros de Concurrencia (Nuevos) =================
 MAX_TX_QUEUE_SIZE = _safe_int("MAX_TX_QUEUE_SIZE", 500)
@@ -121,9 +122,8 @@ LOG_MAX_BYTES = _safe_int("LOG_MAX_BYTES", 5 * 1024 * 1024)       # 5 MB por arc
 LOG_BACKUP_COUNT = _safe_int("LOG_BACKUP_COUNT", 3)                # Mantener hasta 3 copias históricas (.1, .2, .3)
 
 # ================= Persistencia de Datos (JSON Atómico) =================
-DATA_DIR = os.getenv("DATA_DIR", "data")
-CHANNELS_JSON_PATH = os.getenv("CHANNELS_JSON_PATH", os.path.join(DATA_DIR, "channels.json"))
-NODE_REGISTRY_STORAGE_PATH = os.getenv("NODE_REGISTRY_STORAGE_PATH", os.path.join(DATA_DIR, "node_registry.json"))
+CHANNELS_JSON_PATH = os.getenv("CHANNELS_JSON_PATH", os.getenv("CHANNELS_STORAGE_PATH", os.path.join(DATA_DIR, "channels.json")))
+CHANNELS_FILE = CHANNELS_JSON_PATH  # Alias canónico para retrocompatibilidad
 
 def _validate_config() -> None:
     import sys

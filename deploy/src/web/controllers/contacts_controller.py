@@ -36,7 +36,7 @@ class ContactsController(BaseController):
             return await self._import_contact(req_body)
 
         if method == "GET":
-            nodes = self.ctx.bridge.node_registry.list_nodes()
+            nodes = self.ctx.bridge.node_registry.list_client_contacts()
             return 200, {"status": "ok", "data": nodes, "count": len(nodes)}
 
         if method == "POST":
@@ -86,7 +86,7 @@ class ContactsController(BaseController):
             except Exception as e:
                 logging.warning(f"Error sincronizando contactos con el nodo: {e}")
 
-        nodes = self.ctx.bridge.node_registry.list_nodes()
+        nodes = self.ctx.bridge.node_registry.list_client_contacts()
         return 200, {"status": "ok", "imported": imported_count, "data": nodes, "count": len(nodes)}
 
     async def _share_contact(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:

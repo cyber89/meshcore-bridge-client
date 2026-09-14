@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.contact_manager import NodeContactInfo, NodeRegistry
+from src.contact_manager import NodeRegistry
 from src.protocol_types import FirmwareAdvertType, MeshcoreFrame
 from src.routers.advert_handler import AdvertHandler
 from src.routers.base import MeshMessageEvent, RxMeta
@@ -27,7 +27,7 @@ from src.routers.direct_handler import DirectMessageHandler
 from src.routers.repeater_handler import RepeaterAdminHandler
 from src.routers.system_handler import SystemHandler
 from src.routers.telemetry_handler import TelemetryHandler
-from src.rx_router import RxEventRouter, RxRouterContext
+from src.rx_router import RxEventRouter
 
 
 def _dummy_meta(

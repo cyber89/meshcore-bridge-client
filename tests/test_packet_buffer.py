@@ -8,7 +8,7 @@ import json
 import struct
 import unittest
 
-from src.packet_buffer import CapturedPacket, PacketBuffer
+from src.packet_buffer import PacketBuffer
 
 
 class TestPacketBuffer(unittest.TestCase):
@@ -30,7 +30,7 @@ class TestPacketBuffer(unittest.TestCase):
                 text=f"Mensaje {i}",
                 rssi=-60 - i,
                 snr=10.0 - (i * 0.5),
-                raw_bytes=f"raw_{i}".encode("utf-8"),
+                raw_bytes=f"raw_{i}".encode(),
             )
             self.assertIsNotNone(pkt)
             self.assertEqual(pkt.packet_id, i)

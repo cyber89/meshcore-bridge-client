@@ -1,8 +1,8 @@
 import asyncio
-import sys
 import json
-import urllib.request
+import sys
 import urllib.error
+import urllib.request
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -12,6 +12,7 @@ if str(ROOT_DIR) not in sys.path:
 from src.bridge_core import MeshCoreBridge
 from src.virtual_mesh_adapter import VirtualMeshAdapter
 from src.web.http_server import MeshCoreWebServer
+
 
 def fetch_url(url: str):
     req = urllib.request.Request(url, headers={"User-Agent": "TileTester/1.0"})
@@ -39,8 +40,10 @@ async def test_tile_server():
     status, mime, tile_bytes = await asyncio.to_thread(fetch_url, "http://127.0.0.1:8092/api/map/tiles/0/0/0.png")
     assert status == 200
     assert mime == "image/png"
-    print(f"TILE 0/0/0 bytes: {len(tile_bytes)}, PNG header: {tile_bytes[:4] == b'\x89PNG'}")
-    assert tile_bytes[:4] == b'\x89PNG'
+    png_magic = b"\x89PNG"
+    is_png = bool(tile_bytes[:4] == png_magic)
+    print(f"TILE 0/0/0 bytes: {len(tile_bytes)}, PNG header: {is_png}")
+    assert tile_bytes[:4] == png_magic
 
     # 3. Test non-existing tile
     def fetch_404():
@@ -48,7 +51,7 @@ async def test_tile_server():
             return fetch_url("http://127.0.0.1:8092/api/map/tiles/18/999/999.png")
         except urllib.error.HTTPError as e:
             return e.code, None, None
-            
+
     code, _, _ = await asyncio.to_thread(fetch_404)
     print(f"Non-existing tile returned expected code: {code}")
     assert code == 404

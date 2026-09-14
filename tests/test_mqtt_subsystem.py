@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import json
 import unittest
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.mqtt_client import AsyncBridgeMQTTClient, MQTTConfig

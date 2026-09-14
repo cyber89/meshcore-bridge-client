@@ -11,7 +11,9 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from src.web.map_tile_service import MapTileService
-from src.web.security_inspector import HttpAccessEvent, SecurityTrafficInspector, SuspiciousTrafficEvent
+from src.web.security_inspector import (
+    SecurityTrafficInspector,
+)
 
 
 class TestSecurityTrafficInspector(unittest.TestCase):

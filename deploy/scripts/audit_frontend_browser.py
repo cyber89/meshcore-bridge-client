@@ -173,8 +173,8 @@ async def run_browser_audit() -> int:
     print("="*60)
 
     # Filtrar errores reales vs logs informativos
-    errors = [l for l in console_logs if l["type"] == "error"]
-    warnings = [l for l in console_logs if l["type"] == "warning"]
+    errors = [entry for entry in console_logs if entry["type"] == "error"]
+    warnings = [entry for entry in console_logs if entry["type"] == "warning"]
 
     print(f"Total Logs en Consola:    {len(console_logs)}")
     print(f"Excepciones de Página:    {len(page_errors)}")

@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.contact_manager import NodeContactInfo, NodeContactUpdate, NodeRegistry
+from src.contact_manager import NodeContactUpdate, NodeRegistry
 from src.packet_buffer import PacketBuffer
 from src.web.controllers.base import ApiContext
 from src.web.controllers.channels_controller import ChannelsController

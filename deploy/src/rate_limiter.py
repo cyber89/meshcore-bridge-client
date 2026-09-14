@@ -16,7 +16,7 @@ import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Any
+from typing import Any, cast
 
 
 class TxPriority(IntEnum):
@@ -91,11 +91,12 @@ class CustomTxQueue(asyncio.PriorityQueue[Any]):
         """Si la cola está llena o supera MAX_QUEUE_SIZE, desaloja el elemento más antiguo de baja prioridad."""
         is_full_limit = self.full() or (self.qsize() >= MAX_QUEUE_SIZE)
         if is_full_limit:
-            low_items = [x for x in self._queue if getattr(x, "priority", 1) >= 2]
+            queue_list = cast(list[Any], getattr(self, "_queue", []))
+            low_items = [x for x in queue_list if getattr(x, "priority", 1) >= 2]
             if low_items:
                 oldest = min(low_items, key=lambda x: getattr(x, "counter", 0))
-                self._queue.remove(oldest)
-                heapq.heapify(self._queue)
+                queue_list.remove(oldest)
+                heapq.heapify(queue_list)
                 self.total_dropped += 1
                 logging.warning("CustomTxQueue: Evicted oldest LOW priority item to make room.")
                 return True

@@ -231,7 +231,7 @@ class RepeaterManager:
             interval = params.get("advert_interval", params.get("beacon_interval", params.get("interval", params.get("beacon", 300))))
             return f"set advert.interval {interval}"
 
-        if act in ("set_position", "set_pos", "position"):
+        if act in ("set_position", "set_pos", "position", "set_coords", "coords"):
             lat = params.get("lat", params.get("latitude", 0.0))
             lon = params.get("lon", params.get("longitude", 0.0))
             alt = params.get("alt", params.get("altitude", 0.0))
@@ -261,7 +261,7 @@ class RepeaterManager:
     def _build_acl_and_security_cmd(self, act: str, params: dict[str, Any]) -> str | None:
         """Construye comandos de autenticación, ACL y sincronización horaria."""
         if act in ("login", "auth"):
-            password = params.get("password", "")
+            password = params.get("password", params.get("pin", ""))
             return f"login {password}"
 
         if act in ("acl_add", "add_acl", "acl.add"):

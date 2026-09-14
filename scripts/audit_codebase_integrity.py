@@ -106,7 +106,7 @@ def main():
 
     if non_critical_findings:
         print(f"\nReferencias en tests o skills encontradas: {len(non_critical_findings)}")
-        for rel_path, term, line_num, line in non_critical_findings:
+        for rel_path, term, line_num, _line in non_critical_findings:
             print(f"  * {rel_path}:{line_num} -> [{term}]")
 
     print("\n[PASO 2] Probando importacion dinamica de cada modulo de produccion...")

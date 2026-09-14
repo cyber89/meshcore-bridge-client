@@ -203,7 +203,6 @@ class MeshCoreBridge:
         self._background_tasks: set[asyncio.Task[Any]] = set()
         self._tasks_lock = asyncio.Lock()
         self._tx_metrics_lock = asyncio.Lock()
-        self._cleanup_task: asyncio.Task[None] | None = None
 
     def reset_counters(self) -> dict[str, Any]:
         """Restablece los contadores de paquetes y errores acumulados del bridge."""
@@ -482,10 +481,11 @@ class MeshCoreBridge:
         logging.info("Deteniendo MeshCore Bridge...")
         self.running = False
 
-        if getattr(self, "_cleanup_task", None) and not self._cleanup_task.done():
-            self._cleanup_task.cancel()
+        cleanup_task = self._cleanup_task
+        if cleanup_task is not None and not cleanup_task.done():
+            cleanup_task.cancel()
             try:
-                await self._cleanup_task
+                await cleanup_task
             except (asyncio.CancelledError, Exception):
                 pass
             self._cleanup_task = None

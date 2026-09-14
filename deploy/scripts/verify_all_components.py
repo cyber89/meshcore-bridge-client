@@ -41,7 +41,7 @@ async def test_security_features() -> None:
         await adapter.set_channel(0, "ValidChannel", "abcdef0123456789")
         print("  ✓ Validación PSK: Acepta PSK hexadecimal válido.")
     except Exception as e:
-        raise AssertionError(f"Fallo inesperado con PSK válido: {e}")
+        raise AssertionError(f"Fallo inesperado con PSK válido: {e}") from e
 
     try:
         await adapter.set_channel(0, "InvalidChannel", "invalid!psk$symbols")
