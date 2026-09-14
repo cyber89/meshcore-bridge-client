@@ -22,6 +22,7 @@ class ApiContext:
     broadcast_ws: Callable[[dict[str, Any]], Any] | None = None
     start_time: float = 0.0
     packet_buffer: Any = None
+    recent_telemetry: deque[dict[str, Any]] | None = None
 
 
 def problem_details(

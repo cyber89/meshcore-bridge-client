@@ -8,6 +8,7 @@ from src.web.controllers.base import ApiContext, BaseController, problem_details
 from src.web.controllers.channels_controller import ChannelsController
 from src.web.controllers.config_controller import ConfigController
 from src.web.controllers.contacts_controller import ContactsController
+from src.web.controllers.logs_controller import LogsController
 from src.web.controllers.nodes_controller import NodesController
 from src.web.controllers.packets_controller import PacketsController
 from src.web.controllers.repeater_controller import RepeaterController
@@ -20,6 +21,7 @@ __all__ = [
     "ChannelsController",
     "ConfigController",
     "ContactsController",
+    "LogsController",
     "NodesController",
     "PacketsController",
     "RepeaterController",

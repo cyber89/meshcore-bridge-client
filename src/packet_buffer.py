@@ -5,7 +5,6 @@ PacketBuffer: Búfer circular en RAM para tramas LoRa con generadores de exporta
 
 from __future__ import annotations
 
-import asyncio
 import csv
 import io
 import json
@@ -58,7 +57,6 @@ class PacketBuffer:
         self.max_packets = max_packets
         self._buffer: deque[CapturedPacket] = deque(maxlen=max_packets)
         self._counter = 0
-        self._lock = asyncio.Lock()
         self.capture_enabled = True
 
     def record(

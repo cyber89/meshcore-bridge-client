@@ -27,13 +27,14 @@ def classify_device_role(advert_type: int, is_local: bool = False) -> str:
         return "CLIENT"
 
 
-def normalize_battery(raw_value: int) -> tuple[float, float]:
+def normalize_battery(raw_value: int | float) -> tuple[float, float]:
     """Conversión canónica de valor crudo de batería a porcentaje y voltaje.
 
     El firmware MeshCore reporta batería en diferentes formatos según hardware:
     - 0-100: Porcentaje directo
     - 101-255: Valor ADC que requiere conversión
     - 300-420: Voltaje en centésimas (3.00V - 4.20V)
+    - 2500-5500: Voltaje en milivoltios (2500mV - 5500mV)
 
     Args:
         raw_value: Valor crudo reportado por el firmware.
@@ -59,7 +60,15 @@ def normalize_battery(raw_value: int) -> tuple[float, float]:
         percent = max(0.0, min(100.0, ((voltage - 3.0) / 1.2) * 100.0))
         return round(percent, 1), round(voltage, 2)
 
-    logging.warning("Valor de batería fuera de rango: %d", raw_value)
+    if 2500 <= raw_value <= 5500:
+        voltage = round(raw_value / 1000.0, 2)
+        if voltage >= 4.8:
+            percent = 100.0
+        else:
+            percent = max(0.0, min(100.0, ((voltage - 3.0) / 1.2) * 100.0))
+        return round(percent, 1), voltage
+
+    logging.warning("Valor de batería fuera de rango: %s", raw_value)
     return 0.0, 0.0
 
 

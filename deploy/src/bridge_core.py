@@ -171,8 +171,12 @@ class MeshCoreBridge:
                 asyncio.run_coroutine_threadsafe(web.broadcast_event(payload), loop)
         else:
             try:
-                task = asyncio.create_task(web.broadcast_event(payload))
-                self._add_background_task(task)
+                coro = web.broadcast_event(payload)
+                try:
+                    task = asyncio.create_task(coro)
+                    self._add_background_task(task)
+                except RuntimeError:
+                    coro.close()
             except Exception:
                 pass
 
@@ -633,12 +637,6 @@ class MeshCoreBridge:
             await self.serial_adapter.connect()
         except Exception as e:
             logging.warning(f"Error reconnecting in _force_serial_reconnect: {e}")
-
-    async def _watchdog_loop(self) -> None:
-        """Bucle de supervisión del Watchdog para compatibilidad de tests."""
-        while getattr(self, "running", True):
-            await asyncio.sleep(config.WATCHDOG_INTERVAL_SEC)
-
 
     async def _execute_tx(self, item: Any) -> dict[str, Any]:
         """Ejecuta una transmisión directa sobre el transceptor LoRa."""

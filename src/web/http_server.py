@@ -420,7 +420,8 @@ class MeshCoreWebServer:
             )
         )
         resp_bytes = json.dumps(resp_json, indent=2, default=str).encode("utf-8")
-        await self._write_http_response(ctx.writer, f"{status_code} OK", resp_bytes, "application/json", cors_origin=ctx.cors_origin)
+        status_text = self.HTTP_STATUS_TEXTS.get(status_code, "OK")
+        await self._write_http_response(ctx.writer, f"{status_code} {status_text}", resp_bytes, "application/json", cors_origin=ctx.cors_origin)
 
     async def _serve_map_tile(self, ctx: HttpRequestContext) -> bool:
         """Sirve una tesela cartográfica si la ruta es válida y existe."""

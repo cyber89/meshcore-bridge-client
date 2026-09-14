@@ -125,7 +125,7 @@ class SystemController(BaseController):
             serial_port=str(getattr(config, "SERIAL_PORT", "AUTO")),
             tcp_server_port=int(getattr(config, "TCP_SERVER_PORT", 5000)),
             tcp_server_enabled=bool(getattr(config, "TCP_SERVER_ENABLED", True)),
-            tcp_server_host=str(getattr(config, "TCP_SERVER_HOST", "0.0.0.0")),
+            tcp_server_host=str(getattr(config, "TCP_SERVER_HOST", "0.0.0.0")),  # nosec B104
         )
         report_dict: dict[str, Any] = report if isinstance(report, dict) else (report.to_dict() if hasattr(report, "to_dict") else {"passed": getattr(report, "all_passed", False)})
         return 200, {"status": "ok", "data": report_dict}

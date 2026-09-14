@@ -12,7 +12,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from src.shared_utils import clamp_tx_power
+from src.shared_utils import clamp_tx_power, normalize_battery
 
 
 class RepeaterManager:
@@ -352,11 +352,10 @@ class RepeaterManager:
             if "battery_mv" in data_json or "batt_mv" in data_json or "battery" in data_json:
                 raw_bat = data_json.get("battery_mv", data_json.get("batt_mv", data_json.get("battery")))
                 if isinstance(raw_bat, (int, float)):
-                    if raw_bat > 100:
-                        extracted["voltage_v"] = round(raw_bat / 1000.0, 2)
-                        extracted["battery_pct"] = max(0, min(100, int((raw_bat - 3300) / (4200 - 3300) * 100)))
-                    else:
-                        extracted["battery_pct"] = int(raw_bat)
+                    pct_norm, volt_norm = normalize_battery(raw_bat)
+                    extracted["battery_pct"] = int(pct_norm)
+                    if volt_norm > 0:
+                        extracted["voltage_v"] = volt_norm
 
             if "voltage_v" in data_json or "voltage" in data_json:
                 raw_v = data_json.get("voltage_v", data_json.get("voltage"))

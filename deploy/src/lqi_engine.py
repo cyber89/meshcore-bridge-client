@@ -196,22 +196,36 @@ class LinkQualityEngine:
         best_repeater_pk: str | None = None
         best_repeater_lqi = 0.0
 
-        for node in node_registry.list_nodes():
-            pk = node.get("public_key")
-            role = node.get("role", "")
-            if not pk or pk == target_pk:
-                continue
-
-            if role in ("REPEATER", "ROUTER"):
-                rep_lqi_raw = node.get("lqi_score", 0.0)
-                rep_last_seen = node.get("last_seen") or cur_time
+        if hasattr(node_registry, "_nodes_by_key") and hasattr(node_registry, "_lock"):
+            with node_registry._lock:
+                rep_items = [
+                    (c.public_key, c.lqi_score or 0.0, c.last_seen or cur_time)
+                    for c in node_registry._nodes_by_key.values()
+                    if not c.is_local and c.public_key != target_pk and str(c.role).upper() in ("REPEATER", "ROUTER")
+                ]
+            for pk, rep_lqi_raw, rep_last_seen in rep_items:
                 rep_lqi = cls.apply_time_decay(rep_lqi_raw, rep_last_seen, cur_time)
-
-                # Penalizar un salto adicional para la ruta indirecta
                 effective_via_lqi = max(0.0, rep_lqi - cls.PENALTY_PER_HOP)
                 if effective_via_lqi > best_repeater_lqi:
                     best_repeater_lqi = effective_via_lqi
                     best_repeater_pk = pk
+        else:
+            for node in node_registry.list_nodes():
+                pk = node.get("public_key")
+                role = node.get("role", "")
+                if not pk or pk == target_pk:
+                    continue
+
+                if role in ("REPEATER", "ROUTER"):
+                    rep_lqi_raw = node.get("lqi_score", 0.0)
+                    rep_last_seen = node.get("last_seen") or cur_time
+                    rep_lqi = cls.apply_time_decay(rep_lqi_raw, rep_last_seen, cur_time)
+
+                    # Penalizar un salto adicional para la ruta indirecta
+                    effective_via_lqi = max(0.0, rep_lqi - cls.PENALTY_PER_HOP)
+                    if effective_via_lqi > best_repeater_lqi:
+                        best_repeater_lqi = effective_via_lqi
+                        best_repeater_pk = pk
 
         # Si encontramos un repetidor significativamente mejor que el enlace directo
         if best_repeater_pk and best_repeater_lqi > (direct_lqi + 10.0) and best_repeater_lqi >= 40.0:

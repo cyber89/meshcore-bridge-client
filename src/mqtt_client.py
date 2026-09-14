@@ -128,7 +128,7 @@ class AsyncBridgeMQTTClient:
                 offline_payload = json.dumps({
                     "status": "offline",
                     "reason": "graceful_shutdown",
-                    "timestamp": int(time.time()),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 })
                 self.client.publish(self.topic_state, offline_payload, qos=1, retain=True)
             except Exception:

@@ -6,6 +6,7 @@ Separa la ejecución de comandos en ejecutores de dominio:
 - LocalConfigExecutor: Lectura y modificación de parámetros locales de radio y telemetría.
 """
 
+from src.admin.cli_command_executor import CliCommandExecutor
 from src.admin.local_config_executor import LocalConfigExecutor
 from src.admin.repeater_executor import (
     RemoteRepeaterRequest,
@@ -15,6 +16,7 @@ from src.admin.repeater_executor import (
 from src.admin.traceroute_executor import TracerouteExecutor
 
 __all__ = [
+    "CliCommandExecutor",
     "LocalConfigExecutor",
     "RemoteRepeaterRequest",
     "RepeaterAdminExecutor",

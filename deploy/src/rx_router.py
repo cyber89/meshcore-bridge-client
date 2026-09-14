@@ -33,7 +33,7 @@ from src.sensor_decoder import (
     extract_telemetry_fields,
     format_telemetry_summary,
 )
-from src.shared_utils import is_repeater_name
+from src.shared_utils import is_repeater_name, normalize_battery
 
 _SENDER_PREFIX_RE = re.compile(
     r"^(?:\[([a-zA-Z0-9_\-\.]{2,32})\]|<([a-zA-Z0-9_\-\.]{2,32})>|([a-zA-Z0-9_\-\.]{2,32})):\s*(.*)$",
@@ -756,20 +756,17 @@ class RxEventRouter:
             raw_telem_bat = payload_dict.get("battery_pct", payload_dict.get("battery", payload_dict.get("batt", payload_dict.get("bat"))))
             calc_bat_pct: int | None = None
             if raw_telem_bat is not None and isinstance(raw_telem_bat, (int, float)):
-                if 0 <= raw_telem_bat <= 100:
-                    calc_bat_pct = int(raw_telem_bat)
-                elif raw_telem_bat > 100:
-                    calc_bat_pct = max(0, min(100, int((raw_telem_bat - 3300) / (4200 - 3300) * 100)))
+                pct_norm, _ = normalize_battery(raw_telem_bat)
+                calc_bat_pct = int(pct_norm)
 
             telem_volt = payload_dict.get("voltage_v", payload_dict.get("voltage", payload_dict.get("vbat")))
             if calc_bat_pct is None and telem_volt is not None and isinstance(telem_volt, (int, float)):
                 v_flt = float(telem_volt)
                 if v_flt > 100:
-                    v_flt = v_flt / 1000.0
-                if v_flt >= 4.8:
-                    calc_bat_pct = 100
-                elif v_flt >= 3.0:
-                    calc_bat_pct = max(0, min(100, int((v_flt - 3.3) / (4.2 - 3.3) * 100)))
+                    pct_norm, _ = normalize_battery(v_flt)
+                else:
+                    pct_norm, _ = normalize_battery(v_flt * 1000.0)
+                calc_bat_pct = int(pct_norm)
 
             telem_role = payload_dict.get("role")
             if not telem_role:

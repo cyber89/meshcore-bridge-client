@@ -230,6 +230,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         self.mc: MeshCoreSDKProtocol | Any = None
         self._initial_sync_task: asyncio.Task[None] | None = None
         self._self_info: dict[str, Any] | None = None
+        self._sdk_dispatch_cache: dict[Any, Callable[[Any], Any]] | None = None
 
     @property
     def self_info(self) -> Any:
@@ -466,6 +467,43 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                 except Exception as e:
                     logging.debug(f"Suscripción a evento {ev_type}: {e}")
 
+    def _get_sdk_dispatch_map(self) -> dict[Any, Callable[[Any], Any]]:
+        """Construye o retorna la tabla de despacho determinista para eventos del SDK."""
+        if not hasattr(self, "_sdk_dispatch_cache") or self._sdk_dispatch_cache is None:
+            if EventType is None:
+                self._sdk_dispatch_cache = {}
+            else:
+                self._sdk_dispatch_cache = {
+                    EventType.CONTACT_MSG_RECV: self._handle_direct_message,
+                    EventType.CHANNEL_MSG_RECV: self._handle_channel_message,
+                    EventType.CHANNEL_DATA_RECV: self._handle_channel_data,
+                    EventType.STATUS_RESPONSE: self._handle_status_response,
+                    EventType.TELEMETRY_RESPONSE: self._handle_telemetry_response,
+                    EventType.STATS_CORE: lambda d: self._handle_stats("core", d),
+                    EventType.STATS_RADIO: lambda d: self._handle_stats("radio", d),
+                    EventType.STATS_PACKETS: lambda d: self._handle_stats("packets", d),
+                    EventType.BATTERY: self._handle_battery,
+                    EventType.DEVICE_INFO: self._handle_device_info,
+                    EventType.CONTACTS: self._handle_contacts_list,
+                    EventType.NEXT_CONTACT: self._handle_contact,
+                    EventType.NEW_CONTACT: self._handle_new_contact,
+                    EventType.SELF_INFO: self._handle_self_info,
+                    EventType.CONTACT_DELETED: self._handle_contact_deleted,
+                    EventType.MSG_SENT: self._handle_msg_sent,
+                    EventType.ACK: self._handle_ack,
+                    EventType.LOGIN_SUCCESS: lambda d: self._handle_login_result(d, success=True),
+                    EventType.LOGIN_FAILED: lambda d: self._handle_login_result(d, success=False),
+                    EventType.BINARY_RESPONSE: self._handle_binary_response,
+                    EventType.TRACE_DATA: self._handle_trace_data,
+                    EventType.RAW_DATA: self._handle_raw_data,
+                    EventType.CONTROL_DATA: self._handle_control_data,
+                }
+                if hasattr(EventType, "LOG_DATA"):
+                    self._sdk_dispatch_cache[EventType.LOG_DATA] = self._handle_log_data
+                if hasattr(EventType, "RX_LOG_DATA"):
+                    self._sdk_dispatch_cache[EventType.RX_LOG_DATA] = self._handle_log_data
+        return self._sdk_dispatch_cache
+
     async def _on_sdk_event(self, event_type: Any, data: Any) -> None:
         """Maneja eventos del SDK MeshCore y los despacha a los callbacks apropiados."""
         self.heartbeat()
@@ -474,130 +512,51 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         if event_name not in ("log_data", "rx_log_data"):
             logging.debug(f"Evento SDK MeshCore recibido: {event_name}")
 
-        # Messages
-        if event_type == getattr(EventType, "CONTACT_MSG_RECV", None):
-            await self._handle_direct_message(data)
-        elif event_type == getattr(EventType, "CHANNEL_MSG_RECV", None):
-            await self._handle_channel_message(data)
-        elif event_type == getattr(EventType, "CHANNEL_DATA_RECV", None):
-            await self._handle_channel_data(data)
+        dispatch_map = self._get_sdk_dispatch_map()
+        handler = dispatch_map.get(event_type)
+        if handler is not None:
+            res = handler(data)
+            if asyncio.iscoroutine(res):
+                await res
+            return
 
-        # Status & Telemetry
-        elif event_type == getattr(EventType, "STATUS_RESPONSE", None):
-            await self._handle_status_response(data)
-        elif event_type == getattr(EventType, "TELEMETRY_RESPONSE", None):
-            await self._handle_telemetry_response(data)
-        elif event_type == getattr(EventType, "STATS_CORE", None):
-            await self._handle_stats("core", data)
-        elif event_type == getattr(EventType, "STATS_RADIO", None):
-            await self._handle_stats("radio", data)
-        elif event_type == getattr(EventType, "STATS_PACKETS", None):
-            await self._handle_stats("packets", data)
-        elif event_type == getattr(EventType, "BATTERY", None):
-            await self._handle_battery(data)
-        elif event_type == getattr(EventType, "DEVICE_INFO", None):
-            await self._handle_device_info(data)
+        if EventType is not None:
+            if event_type == getattr(EventType, "ADVERTISEMENT", None):
+                pk_hint = ""
+                if isinstance(data, dict):
+                    pk_hint = str(data.get("public_key", data.get("key", "")))[:12]
+                elif hasattr(data, "public_key"):
+                    pk_hint = str(data.public_key)[:12]
+                logging.info(f"Advertisement recibido: pk={pk_hint or '?'} data={data}")
+                if self.rx_callback:
+                    self.rx_callback(data)
+                return
 
-        # Contacts
-        elif event_type == getattr(EventType, "CONTACTS", None):
-            await self._handle_contacts_list(data)
-        elif event_type == getattr(EventType, "NEXT_CONTACT", None):
-            await self._handle_contact(data)
-        elif event_type == getattr(EventType, "NEW_CONTACT", None):
-            await self._handle_new_contact(data)
-        elif event_type == getattr(EventType, "SELF_INFO", None):
-            await self._handle_self_info(data)
-        elif event_type == getattr(EventType, "CONTACT_DELETED", None):
-            await self._handle_contact_deleted(data)
-        elif event_type == getattr(EventType, "CONTACTS_FULL", None):
-            logging.warning("Contactos llenos en el dispositivo")
+            if event_type in (
+                getattr(EventType, "ADVERT_PATH", None),
+                getattr(EventType, "DISCOVER_RESPONSE", None),
+                getattr(EventType, "NEIGHBOURS_RESPONSE", None),
+                getattr(EventType, "TUNING_PARAMS", None),
+                getattr(EventType, "CUSTOM_VARS", None),
+                getattr(EventType, "ALLOWED_REPEAT_FREQ", None),
+                getattr(EventType, "PATH_HASH_MODE", None),
+            ):
+                if self.rx_callback:
+                    self.rx_callback(data)
+                return
 
-        # ACK & Messages
-        elif event_type == getattr(EventType, "MSG_SENT", None):
-            await self._handle_msg_sent(data)
-        elif event_type == getattr(EventType, "ACK", None):
-            await self._handle_ack(data)
-        elif event_type == getattr(EventType, "MESSAGES_WAITING", None):
-            logging.debug("Mensajes esperando en cola")
+            if event_type == getattr(EventType, "ERROR", None):
+                logging.warning(f"SDK Error: {data}")
+                return
+            if event_type == getattr(EventType, "CONNECTED", None):
+                logging.info("SDK connected")
+                return
+            if event_type == getattr(EventType, "DISCONNECTED", None):
+                logging.warning("SDK disconnected")
+                return
 
-        # Time
-        elif event_type == getattr(EventType, "CURRENT_TIME", None):
-            logging.debug(f"Tiempo del dispositivo: {data}")
-
-        # Login
-        elif event_type == getattr(EventType, "LOGIN_SUCCESS", None):
-            await self._handle_login_result(data, success=True)
-        elif event_type == getattr(EventType, "LOGIN_FAILED", None):
-            await self._handle_login_result(data, success=False)
-
-        # Binary responses
-        elif event_type == getattr(EventType, "BINARY_RESPONSE", None):
-            await self._handle_binary_response(data)
-        elif event_type == getattr(EventType, "TRACE_DATA", None):
-            await self._handle_trace_data(data)
-        elif event_type == getattr(EventType, "RAW_DATA", None):
-            await self._handle_raw_data(data)
-        elif event_type in (getattr(EventType, "LOG_DATA", None), getattr(EventType, "RX_LOG_DATA", None)):
-            await self._handle_log_data(data)
-
-        # Path & Discovery
-        elif event_type == getattr(EventType, "PATH_UPDATE", None):
-            logging.debug(f"Path update: {data}")
-        elif event_type == getattr(EventType, "PATH_RESPONSE", None):
-            logging.debug(f"Path response: {data}")
-        elif event_type == getattr(EventType, "ADVERT_PATH", None):
-            logging.debug(f"Advert path: {data}")
-            if self.rx_callback:
-                self.rx_callback(data)
-        elif event_type == getattr(EventType, "DISCOVER_RESPONSE", None):
-            logging.debug(f"Discover response: {data}")
-            if self.rx_callback:
-                self.rx_callback(data)
-        elif event_type == getattr(EventType, "NEIGHBOURS_RESPONSE", None):
-            logging.debug(f"Neighbours response: {data}")
-            if self.rx_callback:
-                self.rx_callback(data)
-
-        # Control
-        elif event_type == getattr(EventType, "CONTROL_DATA", None):
-            await self._handle_control_data(data)
-        elif event_type == getattr(EventType, "ADVERTISEMENT", None):
-            pk_hint = ""
-            if isinstance(data, dict):
-                pk_hint = str(data.get("public_key", data.get("key", "")))[:12]
-            elif hasattr(data, "public_key"):
-                pk_hint = str(data.public_key)[:12]
-            logging.info(f"Advertisement recibido: pk={pk_hint or '?'} data={data}")
-            if self.rx_callback:
-                self.rx_callback(data)
-
-        # Channel info
-        elif event_type == getattr(EventType, "CHANNEL_INFO", None):
-            logging.debug(f"Channel info: {data}")
-
-        # Errors
-        elif event_type == getattr(EventType, "ERROR", None):
-            logging.warning(f"SDK Error: {data}")
-
-        # Connection events
-        elif event_type == getattr(EventType, "CONNECTED", None):
-            logging.info("SDK connected")
-        elif event_type == getattr(EventType, "DISCONNECTED", None):
-            logging.warning("SDK disconnected")
-
-        # Hardware params & custom vars
-        elif event_type in (
-            getattr(EventType, "TUNING_PARAMS", None),
-            getattr(EventType, "CUSTOM_VARS", None),
-            getattr(EventType, "ALLOWED_REPEAT_FREQ", None),
-            getattr(EventType, "PATH_HASH_MODE", None),
-        ):
-            if self.rx_callback:
-                self.rx_callback(data)
-
-        # Other events - forward to generic handler
-        else:
-            await self._handle_generic_event(event_type, data)
+        # Otros eventos - enviar al handler genérico
+        await self._handle_generic_event(event_type, data)
 
     async def _initial_hardware_sync(self) -> None:
         """Interroga parámetros extendidos y telemetría de hardware al conectar."""
