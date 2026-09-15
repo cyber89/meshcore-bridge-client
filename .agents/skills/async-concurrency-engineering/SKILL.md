@@ -47,9 +47,31 @@ async def shutdown(signal_name: str, loop: asyncio.AbstractEventLoop) -> None:
 
 ---
 
-## 3. Manejo de Excepciones en Tareas en Segundo Plano
+## 3. Manejo de Excepciones y Retención de Referencias de Tareas
 
-* Cada tarea creada con `asyncio.create_task()` debe contar con manejo de excepciones local (`try/except`) o registrar un callback de finalización con `task.add_done_callback(handle_task_result)` para evitar advertencias de *Task exception was never retrieved*.
+1. **Retención de Referencias contra Garbage Collection**:
+   - `asyncio.create_task()` crea referencias débiles internamente en el loop. Si la tarea no se referencia en una colección del contexto (`self._background_tasks.add(task)`), el Garbage Collector de Python puede destruirla prematuramente.
+   - **Patrón Obligatorio**:
+     ```python
+     task = loop.create_task(coro)
+     self._background_tasks.add(task)
+     task.add_done_callback(self._background_tasks.discard)
+     ```
+
+2. **Concurrencia Estructurada (Python 3.11+ TaskGroup)**:
+   - Para operaciones concurrentes con ciclo de vida acotado, preferir `asyncio.TaskGroup()` sobre `asyncio.gather()`. Si una sub-corrutina falla, las demás se cancelan automáticamente y se agrupan en un `ExceptionGroup`.
+   ```python
+   async with asyncio.TaskGroup() as tg:
+       t1 = tg.create_task(query_node(node_a))
+       t2 = tg.create_task(query_node(node_b))
+   ```
+
+3. **Timeouts Canónicos con `asyncio.timeout`**:
+   - Usar el context manager nativo `async with asyncio.timeout(seconds):` en lugar de `asyncio.wait_for()`, permitiendo una cancelación más limpia y evitando pérdidas de contexto.
+
+4. **Contrapresión (Backpressure) con Colas Acotadas**:
+   - **Prohibido**: `asyncio.Queue()` sin límite máximo de capacidad (`maxsize=0`) en productores no controlados (como tráfico RF o mensajes MQTT).
+   - **Solución**: Fijar siempre un `maxsize` prudente (ej. 200 a 1000 items) y manejar `asyncio.QueueFull` con descarte controlado de tramas de baja prioridad o señalización de contrapresión.
 
 ---
 
@@ -57,4 +79,6 @@ async def shutdown(signal_name: str, loop: asyncio.AbstractEventLoop) -> None:
 
 ```bash
 python .agents/skills/async-concurrency-engineering/scripts/audit_async_concurrency.py
+python .agents/skills/asyncio-profiler-leak-detector/scripts/profile_async_health.py
 ```
+

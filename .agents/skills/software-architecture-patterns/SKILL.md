@@ -2,11 +2,12 @@
 name: software-architecture-patterns
 description: >-
   Estándares y directrices para Arquitectura Hexagonal (Ports & Adapters), Arquitectura Dirigida
-  por Eventos (EDA), Domain-Driven Design (DDD), State Machines y Patrones de Resiliencia
+  por Eventos (EDA), Domain-Driven Design (DDD), CQRS, State Machines y Patrones de Resiliencia
   (Circuit Breaker, Exponential Backoff, Bulkhead, Fallback).
 ---
 
 # Software Architecture Patterns Skill
+
 
 Esta skill define los lineamientos arquitectónicos de nivel enterprise para sistemas asíncronos y distribuidos como MeshCore Bridge.
 

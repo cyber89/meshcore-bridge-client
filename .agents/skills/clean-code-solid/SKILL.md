@@ -51,8 +51,18 @@ Basado en *A Philosophy of Software Design* (John Ousterhout) y *Working Effecti
    - Al sospechar de un módulo poco profundo (*shallow module*), evaluar: *¿Si eliminamos este wrapper o clase intermedia, la complejidad se concentra o simplemente se traslada?*
    - Si se concentra y desaparece la fricción, refactorizar eliminando la capa innecesaria.
 
+## Umbrales Estrictos de Métricas y Complejidad
+- **Complejidad Ciclomática de McCabe ($CC$)**:
+  - $CC \le 10$: Excelente modularidad y facilidad de prueba.
+  - $11 \le CC \le 15$: Moderada complejidad, aceptable en routers o parsers de tramas densas.
+  - $CC > 15$: **Alerta / Code Smell**. Obligatorio descomponer en métodos auxiliares privados o aplicar Strategy Pattern.
+- **Longitud Máxima de Método**: $\le 70$ líneas de código ejecutable (excluyendo docstrings y comentarios).
+- **Parámetros Máximos por Función**: $\le 6$ argumentos posicionales/nombrados. Superado este límite, empaquetar en Parameter Object o `@dataclass`.
+
 ## Herramientas de Verificación
 ```bash
 python .agents/skills/clean-code-solid/scripts/detect_code_smells.py
+python .agents/skills/refactoring-clean-architecture/scripts/evaluate_refactoring_metrics.py
 ```
+
 

@@ -3641,3 +3641,49 @@ Fase 5 - COMPAT-001 to COMPAT-012 terminados
   - `node -c src/web/static/js/app.js src/web/static/js/modules/settings.js src/web/static/js/modules/map.js src/web/static/js/i18n.js`: Sintaxis JS 100% válida.
   - `python scripts/sync_deploy.py`: Sincronización completa con `/deploy/` y regeneración de paquetes de producción.
 
+---
+
+### Hito: Modernización de Skills de Desarrollo, Auditoría Integral de Complejidad, Verificación de Pruebas y Simulación Extrema Multi-Escenario
+- **Fecha**: 2026-09-15
+- **Estado**: ✅ COMPLETADO (Modernización e incorporación de skills en `.agents/skills/`; refactorización de complejidad ciclomática en `contact_manager.py`, `rx_router.py` y `bridge_core.py`; 10/10 categorías de pruebas unitarias/fuzzing superadas al 100%; suite de simulación extrema de 8 fases `scripts/simulate_extreme_scenarios.py` ejecutada con 100% PDR, 0 excepciones no capturadas y 0 violaciones de ADRs; despliegue sincronizado en `/deploy/`).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 3 (Protocol QA & Fuzzing), Agente 4 (Web UI/UX Architect), Agente 5 (Security Auditor).
+- **Acciones y Mejoras Realizadas**:
+  1. **Investigación, Modernización e Integración de Skills (`.agents/skills/`)**:
+     - Creado `.agents/skills/ui-ux-pro-max/SKILL.md`: Guía de diseño NextLevelBuilder (79 estilos, 192 paletas armónicas, 74 tipografías, 119 reglas UX, WCAG 2.2 AA).
+     - Creado `.agents/skills/distributed-mesh-simulation/SKILL.md`: Protocolos de ingeniería del caos para redes LoRa/MeshCore, inyección de tramas binarias corruptas, saturación de colas y análisis automatizado de logs.
+     - Modernizados 7 skills existentes: `api-design-testing` (OpenAPI 3.1, RFC 7807 Problem Details), `async-concurrency-engineering` (Python 3.11+ TaskGroups, timeouts asíncronos y backpressure con colas acotadas), `clean-code-solid` (Deep Modules, límite de complejidad ciclomática de McCabe $CC \le 15$ y métodos $\le 70$ líneas), `html-css-modern-js` (CSS moderno, fluid typography `clamp()`, toggles semánticos y WebSockets autorreparables), `python-patterns-typing` (mypy strict, `typing.Self`, `assert_never`, `TypeGuard`), `security-code-auditor` (OWASP API Security Top 10, sanitización XSS y comparación en tiempo constante), `software-architecture-patterns` (Arquitectura Hexagonal, Event-Driven Architecture, CQRS y Circuit Breaker).
+  2. **Auditoría de Código y Refactorización Estructural (`src/`)**:
+     - `src/contact_manager.py`:
+       - Refactorizado `_build_updated_contact` dividiendo la asignación masiva de campos en la función auxiliar pura `_merge_field`, reduciendo su complejidad ciclomática de $CC = 104$ a $CC < 10$.
+       - Modularizado `record_packet` mediante la extracción de `_extract_telemetry_fields`, desacoplando la lectura de sensores de la gestión de presencia.
+     - `src/rx_router.py`:
+       - Extraídas funciones de extracción pura `_extract_battery_percentage` y `_resolve_effective_role`.
+       - Refactorizado `_update_node_registry_presence` reduciendo sus parámetros de 8 a 2 (`meta: RxMeta, payload_dict: dict[str, Any]`), bajando su longitud a menos de 70 líneas y eliminando el code smell de parámetro excesivo.
+     - `src/bridge_core.py`:
+       - Modularizado el método de transmisión `_execute_tx` (previamente de 146 líneas y $CC = 53$) extrayendo `_parse_tx_input`, `_validate_tx_target` y `_record_tx_packet`.
+  3. **Verificación Estática y de Seguridad**:
+     - `ruff check src/ scripts/ tests/`: 100% PASS (0 errores).
+     - `mypy src/`: 100% STRICT SUCCESS (0 incidencias en 53 módulos).
+     - Paridad de API REST/WebSocket (`verify_api_parity.py`): 36/36 rutas sincronizadas sin discrepancias de contrato.
+     - Auditoría SAST (`run_security_audit.py`): 0 vulnerabilidades de seguridad detectadas.
+  4. **Ejecución Exhaustiva de Suites de Pruebas Automatizadas**:
+     - Ejecutada la suite completa bajo demanda (`python scripts/run_all_test_categories.py`):
+     - 10 de 10 categorías (42 suites unitarias, de integración, framing, LQI, seguridad, API y base de datos) aprobadas al 100% en 65.76 segundos.
+  5. **Simulación Extrema Multi-Escenario (`scripts/simulate_extreme_scenarios.py`)**:
+     - Desarrollado y ejecutado el simulador de estrés extremo multi-nodo con 8 fases:
+       - *Fase 1*: Despliegue de topología heterogénea (12 nodos: Base Station, 3 repetidores, 4 clientes, 2 sensores, 1 BBS, 1 atacante) y auditoría estricta de ADR 0001 (0 repetidores en contactos).
+       - *Fase 2*: Ráfagas concurrentes de tráfico broadcast y DMs multihop con verificación de confirmaciones ACK.
+       - *Fase 3*: Ingeniería del caos y conmutación dinámica de rutas por caída simulada del repetidor principal Alpha, recalculando ruta óptima vía repetidor Bravo.
+       - *Fase 4*: Inyección masiva de tramas deformes, con encabezados truncados, opcodes inexistentes y desbordamiento de búfer (0 caídas, resiliencia total).
+       - *Fase 5*: Saturación de cola con ráfaga de 30 mensajes y verificación de contrapresión (cola acotada y sin fugas de memoria).
+       - *Fase 6*: Mutación en caliente de parámetros RF (frecuencia, potencia TX, SF) y alias de nodos remotos bajo transmisión activa.
+       - *Fase 7*: Martilleo concurrente con 5 conexiones y desconexiones rápidas sobre el socket TCP Companion (:5000) con handshakes `CMD_APP_START`.
+       - *Fase 8*: Analizador automatizado de logs con lectura de 147 líneas: 0 excepciones/tracebacks, 0 errores críticos, 100.0% PDR, latencia RTT de 100.34 ms y 0 violaciones de ADRs.
+     - Artefactos generados y preservados en `logs/`: `extreme_simulation.log`, `extreme_simulation_metrics.json` y `extreme_simulation_report.md`.
+  6. **Validación de Simuladores Existentes**:
+     - `python scripts/simulate_tcp_mesh_network.py`: 8 de 8 suites superadas con éxito.
+     - `python scripts/simulate_full_mesh_validation.py`: 7 de 7 fases superadas con éxito.
+  7. **Despliegue y Empaquetado**:
+     - Ejecutado `python scripts/sync_deploy.py`: carpeta `/deploy/` actualizada, y generados paquetes limpios `meshcore-bridge-v3.0.0.tar.gz` y `meshcore-bridge-v3.0.0.zip` junto con `SHA256SUMS`.
+
+

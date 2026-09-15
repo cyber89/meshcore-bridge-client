@@ -428,17 +428,6 @@ class RxEventRouter:
         if effective_snr is not None:
             payload_dict["snr"] = effective_snr
 
-        if sender and is_valid_node_key(sender):
-            self._update_node_registry_presence(
-                sender=sender,
-                sender_name=sender_name,
-                payload_dict=payload_dict,
-                effective_rssi=effective_rssi,
-                effective_snr=effective_snr,
-                effective_hops=effective_hops,
-                is_local_sender=is_local_sender,
-            )
-
         meta = RxMeta(
             ev_type_str=ev_type_str,
             ev_upper=ev_type_str.upper(),
@@ -452,87 +441,96 @@ class RxEventRouter:
             effective_hops=effective_hops,
             is_local_sender=is_local_sender,
         )
+
+        if sender and is_valid_node_key(sender):
+            self._update_node_registry_presence(meta, payload_dict)
+
         return payload_dict, meta
 
-    def _update_node_registry_presence(
-        self,
-        sender: str,
-        sender_name: str,
-        payload_dict: dict[str, Any],
-        effective_rssi: int | None,
-        effective_snr: float | None,
-        effective_hops: int,
-        is_local_sender: bool,
-    ) -> None:
+    @staticmethod
+    def _extract_battery_percentage(payload_dict: dict[str, Any]) -> int | None:
+        """Calcula el porcentaje de batería de telemetría a partir de lecturas raw o voltaje."""
         raw_bat = payload_dict.get("battery_pct", payload_dict.get("battery", payload_dict.get("batt", payload_dict.get("bat"))))
-        bat_pct: int | None = None
         if raw_bat is not None and isinstance(raw_bat, (int, float)):
             if 0 <= raw_bat <= 100:
-                bat_pct = int(raw_bat)
-            elif raw_bat > 100:
-                bat_pct = max(0, min(100, int((raw_bat - 3300) / (4200 - 3300) * 100)))
+                return int(raw_bat)
+            if raw_bat > 100:
+                return max(0, min(100, int((raw_bat - 3300) / (4200 - 3300) * 100)))
 
         volt_val = payload_dict.get("voltage_v", payload_dict.get("voltage", payload_dict.get("vbat")))
-        if bat_pct is None and volt_val is not None and isinstance(volt_val, (int, float)):
+        if volt_val is not None and isinstance(volt_val, (int, float)):
             v_flt = float(volt_val)
             if v_flt > 100:
                 v_flt = v_flt / 1000.0
             if v_flt >= 4.8:
-                bat_pct = 100
-            elif v_flt >= 3.0:
-                bat_pct = max(0, min(100, int((v_flt - 3.3) / (4.2 - 3.3) * 100)))
+                return 100
+            if v_flt >= 3.0:
+                return max(0, min(100, int((v_flt - 3.3) / (4.2 - 3.3) * 100)))
+        return None
 
-        is_named_rep = is_repeater_name(sender_name)
-
+    @staticmethod
+    def _resolve_effective_role(payload_dict: dict[str, Any], sender_name: str, is_local_sender: bool) -> str:
+        """Determina el rol canónico del nodo participante."""
+        if is_local_sender:
+            return "LOCAL"
         role_val = payload_dict.get("role")
-        if not role_val:
-            raw_type = payload_dict.get("adv_type", payload_dict.get("type"))
-            if raw_type == 2 or raw_type == "REPEATER" or is_named_rep:
-                role_val = "REPEATER"
-            elif raw_type == 3 or raw_type == "ROOM":
-                role_val = "ROOM"
-            elif raw_type == 4 or raw_type == "SENSOR":
-                role_val = "SENSOR"
-            elif raw_type == 1 or raw_type == "CHAT" or raw_type == "CLIENT":
-                role_val = "CLIENT"
+        if role_val:
+            return str(role_val)
+        is_named_rep = is_repeater_name(sender_name)
+        raw_type = payload_dict.get("adv_type", payload_dict.get("type"))
+        if raw_type in (2, "REPEATER") or is_named_rep:
+            return "REPEATER"
+        if raw_type in (3, "ROOM"):
+            return "ROOM"
+        if raw_type in (4, "SENSOR"):
+            return "SENSOR"
+        if raw_type in (1, "CHAT", "CLIENT"):
+            return "CLIENT"
+        return "REPEATER" if is_named_rep else "CLIENT"
+
+    def _update_node_registry_presence(
+        self,
+        meta: RxMeta,
+        payload_dict: dict[str, Any],
+    ) -> None:
+        bat_pct = self._extract_battery_percentage(payload_dict)
+        effective_role = self._resolve_effective_role(payload_dict, meta.sender_name, meta.is_local_sender)
 
         lat_val = _get_coord(payload_dict, ("lat", "latitude", "gps_lat"))
         lon_val = _get_coord(payload_dict, ("lon", "longitude", "gps_lon"))
 
-        effective_role = "LOCAL" if is_local_sender else (role_val or ("REPEATER" if is_named_rep else "CLIENT"))
-
         is_new, contact_info = self._ctx.node_registry.discover_node(
             NodeDiscoveryEvent(
-                public_key=sender,
-                name=sender_name if sender_name and sender_name != sender else None,
+                public_key=meta.sender,
+                name=meta.sender_name if meta.sender_name and meta.sender_name != meta.sender else None,
                 role=effective_role,
-                rssi=effective_rssi,
-                snr=effective_snr,
-                hops=effective_hops,
+                rssi=meta.effective_rssi,
+                snr=meta.effective_snr,
+                hops=meta.effective_hops,
             )
         )
 
         if is_valid_node_key(contact_info.public_key):
             if lat_val is not None or lon_val is not None or bat_pct is not None:
                 self._ctx.node_registry.add_or_update(
-                    sender,
+                    meta.sender,
                     NodeContactUpdate(
-                        last_seen=time.time() if not is_local_sender else None,
+                        last_seen=time.time() if not meta.is_local_sender else None,
                         battery_pct=bat_pct,
                         latitude=lat_val,
                         longitude=lon_val,
-                        is_local=is_local_sender,
+                        is_local=meta.is_local_sender,
                     ),
                 )
 
-            if not is_local_sender:
+            if not meta.is_local_sender:
                 self._ctx.node_registry.record_packet(
                     PacketRecord(
-                        public_key=sender,
+                        public_key=meta.sender,
                         is_rx=True,
-                        rssi=effective_rssi,
-                        snr=effective_snr,
-                        hop_count=effective_hops,
+                        rssi=meta.effective_rssi,
+                        snr=meta.effective_snr,
+                        hop_count=meta.effective_hops,
                     )
                 )
                 self._spawn_broadcast_task({

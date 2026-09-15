@@ -638,13 +638,9 @@ class MeshCoreBridge:
         except Exception as e:
             logging.warning(f"Error reconnecting in _force_serial_reconnect: {e}")
 
-    async def _execute_tx(self, item: Any) -> dict[str, Any]:
-        """Ejecuta una transmisión directa sobre el transceptor LoRa."""
-        req_id = None
-        target = "broadcast"
-        ch_idx = 0
-        text = ""
-
+    @staticmethod
+    def _parse_tx_input(item: Any) -> tuple[Any, str, int, str]:
+        """Normaliza el payload de entrada de transmisión (dict, TxItem o string)."""
         if isinstance(item, dict):
             req_id = item.get("request_id", item.get("id"))
             target_raw = item.get("to", item.get("target", "broadcast"))
@@ -652,7 +648,8 @@ class MeshCoreBridge:
             raw_ch = item.get("channel_index", item.get("channel_idx", item.get("channel", 0)))
             ch_idx = int(raw_ch) if raw_ch is not None else 0
             text = str(item.get("text", item.get("message", "")))
-        elif isinstance(item, TxItem):
+            return req_id, target, ch_idx, text
+        if isinstance(item, TxItem):
             req_id = item.request_id
             target = item.target or "broadcast"
             ch_idx = item.channel_idx
@@ -660,37 +657,71 @@ class MeshCoreBridge:
                 text = str(item.payload.get("text", item.payload.get("message", "")))
             else:
                 text = str(item.payload)
-        else:
-            text = str(item)
+            return req_id, target, ch_idx, text
+        return None, "broadcast", 0, str(item)
 
-        target_str = str(target).lower().strip()
-        is_broadcast = target_str in ("broadcast", "public", "0xffff", "") or target_str.startswith("channel")
-
-        # Validación de reglas inmutables de destinatario
+    def _validate_tx_target(self, target_str: str, text: str, is_broadcast: bool) -> str | None:
+        """Valida que el destino no viole reglas inmutables de dominio."""
+        if is_broadcast:
+            return None
         clean_txt = text.strip().lower()
         first_token = clean_txt.split()[0] if clean_txt.split() else ""
         is_admin_cmd = first_token in ("login", "cmd", "set", "get", "reboot", "ping", "trace", "ver", "status", "info")
 
-        if not is_broadcast:
-            if self.node_registry.is_local_key(target_str):
-                return {
-                    "status": "error",
-                    "error": "No se puede enviar mensajes de chat hacia el nodo local.",
-                    "request_id": req_id,
-                }
-            if not is_admin_cmd and self.node_registry.is_repeater_key(target_str):
-                return {
-                    "status": "error",
-                    "error": "Los repetidores son nodos de infraestructura y no admiten mensajería de chat.",
-                    "request_id": req_id,
-                }
+        if self.node_registry.is_local_key(target_str):
+            return "No se puede enviar mensajes de chat hacia el nodo local."
+        if not is_admin_cmd and self.node_registry.is_repeater_key(target_str):
+            return "Los repetidores son nodos de infraestructura y no admiten mensajería de chat."
+        return None
+
+    def _record_tx_packet(
+        self,
+        target: str,
+        ch_idx: int,
+        text: str,
+        is_admin_cmd: bool,
+        ack_payload: dict[str, Any],
+    ) -> None:
+        """Graba la trama de transmisión en el búfer circular y la notifica vía Web."""
+        if not (hasattr(self, "packet_buffer") and self.packet_buffer):
+            return
+        try:
+            tx_pkt = self.packet_buffer.record(
+                direction="tx",
+                channel_idx=ch_idx,
+                packet_type="CHAT" if not is_admin_cmd else "ADMIN",
+                sender=self.node_registry.get_local_pubkey() or "LOCAL",
+                sender_name="Estación Base Local",
+                target=str(target),
+                text=text,
+                raw_bytes=text.encode("utf-8", errors="replace"),
+                payload_dict=ack_payload,
+            )
+            if tx_pkt and self.web_server:
+                self._broadcast_system_log({"type": "rf_packet", "event": "rf_packet", "data": tx_pkt.to_dict()})
+        except Exception as ex:
+            logging.debug(f"Error grabando paquete TX en packet_buffer: {ex}")
+
+    async def _execute_tx(self, item: Any) -> dict[str, Any]:
+        """Ejecuta una transmisión directa sobre el transceptor LoRa."""
+        req_id, target, ch_idx, text = self._parse_tx_input(item)
+        target_str = str(target).lower().strip()
+        is_broadcast = target_str in ("broadcast", "public", "0xffff", "") or target_str.startswith("channel")
+
+        clean_txt = text.strip().lower()
+        first_token = clean_txt.split()[0] if clean_txt.split() else ""
+        is_admin_cmd = first_token in ("login", "cmd", "set", "get", "reboot", "ping", "trace", "ver", "status", "info")
+
+        err_msg = self._validate_tx_target(target_str, text, is_broadcast)
+        if err_msg:
+            return {"status": "error", "error": err_msg, "request_id": req_id}
 
         async with self._tx_metrics_lock:
             self.tx_count += 1
         status_val = "sent"
         error_detail: str | None = None
-
         expected_ack_hex: str | None = None
+
         try:
             if self.serial_adapter and self.serial_adapter.is_connected:
                 target_arg = str(target) if not is_broadcast else None
@@ -707,8 +738,8 @@ class MeshCoreBridge:
                             error_detail = str(getattr(res_obj, "payload", "Radio returned error event"))
             elif self.mc and hasattr(self.mc, "commands"):
                 res_obj = None
-                target_str = str(target).lower()
-                if target and target_str not in ("broadcast", "public", "0xffff") and not target_str.startswith("channel"):
+                target_lower = str(target).lower()
+                if target and target_lower not in ("broadcast", "public", "0xffff") and not target_lower.startswith("channel"):
                     dest = self.resolve_recipient_target(str(target))
                     if hasattr(self.mc.commands, "send_msg"):
                         res_obj = await self.mc.commands.send_msg(dest, text)
@@ -753,25 +784,7 @@ class MeshCoreBridge:
             ack_payload["error"] = error_detail
 
         self.publish_mqtt_safe(config.TOPIC_TX_STATUS, json.dumps(ack_payload), qos=1)
-
-        # Registro de trama TX en el Sniffer PacketBuffer y notificación Web
-        if hasattr(self, "packet_buffer") and self.packet_buffer:
-            try:
-                tx_pkt = self.packet_buffer.record(
-                    direction="tx",
-                    channel_idx=ch_idx,
-                    packet_type="CHAT" if not is_admin_cmd else "ADMIN",
-                    sender=self.node_registry.get_local_pubkey() or "LOCAL",
-                    sender_name="Estación Base Local",
-                    target=str(target),
-                    text=text,
-                    raw_bytes=text.encode("utf-8", errors="replace"),
-                    payload_dict=ack_payload,
-                )
-                if tx_pkt and self.web_server:
-                    self._broadcast_system_log({"type": "rf_packet", "event": "rf_packet", "data": tx_pkt.to_dict()})
-            except Exception as ex:
-                logging.debug(f"Error grabando paquete TX en packet_buffer: {ex}")
+        self._record_tx_packet(str(target), ch_idx, text, is_admin_cmd, ack_payload)
 
         if status_val == "sent":
             dest_label = "Broadcast / Canal 0" if is_broadcast else f"Nodo [{target[:8] if len(str(target)) >= 8 else target}]"

@@ -463,6 +463,16 @@ class NodeRegistry:
             return existing.role
         return "CLIENT"
 
+    @staticmethod
+    def _merge_field(new_val: Any, existing: NodeContactInfo | None, attr: str, default: Any = None) -> Any:
+        if new_val is not None:
+            return new_val
+        if existing is not None:
+            old_val = getattr(existing, attr, None)
+            if old_val is not None:
+                return old_val
+        return default
+
     def _build_updated_contact(
         self,
         canonical_key: str,
@@ -477,10 +487,7 @@ class NodeRegistry:
         now = time.time()
         if update.last_seen is not None:
             new_ls = float(update.last_seen)
-            if existing and existing.last_seen > 0:
-                eff_last_seen = max(float(existing.last_seen), new_ls)
-            else:
-                eff_last_seen = new_ls
+            eff_last_seen = max(float(existing.last_seen), new_ls) if (existing and existing.last_seen > 0) else new_ls
         elif is_local_flag:
             eff_last_seen = now
         elif existing and existing.last_seen > 0:
@@ -488,6 +495,7 @@ class NodeRegistry:
         else:
             eff_last_seen = 0.0
 
+        m = self._merge_field
         return NodeContactInfo(
             public_key=canonical_key,
             name=clean_name,
@@ -500,55 +508,55 @@ class NodeRegistry:
             lqi_score=calc_lqi,
             lqi_status=calc_status,
             best_route=calc_route,
-            battery_pct=update.battery_pct if update.battery_pct is not None else (existing.battery_pct if existing else None),
+            battery_pct=m(update.battery_pct, existing, "battery_pct"),
             last_seen=eff_last_seen,
-            rx_packets=update.rx_packets if update.rx_packets is not None else (existing.rx_packets if existing else 0),
-            tx_packets=update.tx_packets if update.tx_packets is not None else (existing.tx_packets if existing else 0),
-            error_count=update.error_count if update.error_count is not None else (existing.error_count if existing else 0),
-            connected_clients_count=update.connected_clients_count if update.connected_clients_count is not None else (existing.connected_clients_count if existing else 0),
+            rx_packets=m(update.rx_packets, existing, "rx_packets", 0),
+            tx_packets=m(update.tx_packets, existing, "tx_packets", 0),
+            error_count=m(update.error_count, existing, "error_count", 0),
+            connected_clients_count=m(update.connected_clients_count, existing, "connected_clients_count", 0),
             neighbors=tuple(update.neighbors) if update.neighbors is not None else (existing.neighbors if existing else ()),
-            temperature_c=update.temperature_c if update.temperature_c is not None else (existing.temperature_c if existing else None),
-            humidity_pct=update.humidity_pct if update.humidity_pct is not None else (existing.humidity_pct if existing else None),
-            pressure_hpa=update.pressure_hpa if update.pressure_hpa is not None else (existing.pressure_hpa if existing else None),
-            voltage_v=update.voltage_v if update.voltage_v is not None else (existing.voltage_v if existing else None),
-            solar_v=update.solar_v if update.solar_v is not None else (existing.solar_v if existing else None),
-            latitude=update.latitude if update.latitude is not None else (existing.latitude if existing else None),
-            longitude=update.longitude if update.longitude is not None else (existing.longitude if existing else None),
-            altitude_m=update.altitude_m if update.altitude_m is not None else (existing.altitude_m if existing else None),
-            uptime=update.uptime if update.uptime is not None else (existing.uptime if existing else None),
-            clock=update.clock if update.clock is not None else (existing.clock if existing else None),
-            airtime_ms=update.airtime_ms if update.airtime_ms is not None else (existing.airtime_ms if existing else None),
-            noise_floor_dbm=update.noise_floor_dbm if update.noise_floor_dbm is not None else (existing.noise_floor_dbm if existing else None),
-            packets_sent=update.packets_sent if update.packets_sent is not None else (existing.packets_sent if existing else None),
-            packets_recv=update.packets_recv if update.packets_recv is not None else (existing.packets_recv if existing else None),
-            duplicate_packets=update.duplicate_packets if update.duplicate_packets is not None else (existing.duplicate_packets if existing else None),
-            packet_errors=update.packet_errors if update.packet_errors is not None else (existing.packet_errors if existing else None),
-            queue_len=update.queue_len if update.queue_len is not None else (existing.queue_len if existing else None),
-            owner_name=update.owner_name if update.owner_name is not None else (existing.owner_name if existing else None),
-            owner_info=update.owner_info if update.owner_info is not None else (existing.owner_info if existing else None),
-            firmware_version=update.firmware_version if update.firmware_version is not None else (existing.firmware_version if existing else None),
-            hardware_board=update.hardware_board if update.hardware_board is not None else (existing.hardware_board if existing else None),
-            advert_interval=update.advert_interval if update.advert_interval is not None else (existing.advert_interval if existing else None),
-            repeat_enabled=update.repeat_enabled if update.repeat_enabled is not None else (existing.repeat_enabled if existing else None),
-            tx_power=update.tx_power if update.tx_power is not None else (existing.tx_power if existing else None),
-            max_tx_power=update.max_tx_power if update.max_tx_power is not None else (existing.max_tx_power if existing else None),
-            hop_limit=update.hop_limit if update.hop_limit is not None else (existing.hop_limit if existing else None),
-            frequency=update.frequency if update.frequency is not None else (existing.frequency if existing else None),
-            spreading_factor=update.spreading_factor if update.spreading_factor is not None else (existing.spreading_factor if existing else None),
-            bandwidth=update.bandwidth if update.bandwidth is not None else (existing.bandwidth if existing else None),
-            coding_rate=update.coding_rate if update.coding_rate is not None else (existing.coding_rate if existing else None),
-            fixed_position=update.fixed_position if update.fixed_position is not None else (existing.fixed_position if existing else None),
-            flags=update.flags if update.flags is not None else (existing.flags if existing else None),
-            last_advert=update.last_advert if update.last_advert is not None else (existing.last_advert if existing else None),
-            out_path=update.out_path if update.out_path is not None else (existing.out_path if existing else None),
-            out_path_len=update.out_path_len if update.out_path_len is not None else (existing.out_path_len if existing else None),
-            out_path_hash_mode=update.out_path_hash_mode if update.out_path_hash_mode is not None else (existing.out_path_hash_mode if existing else None),
-            adv_lat=update.adv_lat if update.adv_lat is not None else (existing.adv_lat if existing else None),
-            adv_lon=update.adv_lon if update.adv_lon is not None else (existing.adv_lon if existing else None),
-            auto_discovered=update.auto_discovered if update.auto_discovered is not None else (existing.auto_discovered if existing else False),
-            discovery_time=update.discovery_time if update.discovery_time is not None else (existing.discovery_time if existing else 0.0),
-            verified_identity=update.verified_identity if update.verified_identity is not None else (existing.verified_identity if existing else False),
-            is_favorite=update.is_favorite if update.is_favorite is not None else (existing.is_favorite if existing else False),
+            temperature_c=m(update.temperature_c, existing, "temperature_c"),
+            humidity_pct=m(update.humidity_pct, existing, "humidity_pct"),
+            pressure_hpa=m(update.pressure_hpa, existing, "pressure_hpa"),
+            voltage_v=m(update.voltage_v, existing, "voltage_v"),
+            solar_v=m(update.solar_v, existing, "solar_v"),
+            latitude=m(update.latitude, existing, "latitude"),
+            longitude=m(update.longitude, existing, "longitude"),
+            altitude_m=m(update.altitude_m, existing, "altitude_m"),
+            uptime=m(update.uptime, existing, "uptime"),
+            clock=m(update.clock, existing, "clock"),
+            airtime_ms=m(update.airtime_ms, existing, "airtime_ms"),
+            noise_floor_dbm=m(update.noise_floor_dbm, existing, "noise_floor_dbm"),
+            packets_sent=m(update.packets_sent, existing, "packets_sent"),
+            packets_recv=m(update.packets_recv, existing, "packets_recv"),
+            duplicate_packets=m(update.duplicate_packets, existing, "duplicate_packets"),
+            packet_errors=m(update.packet_errors, existing, "packet_errors"),
+            queue_len=m(update.queue_len, existing, "queue_len"),
+            owner_name=m(update.owner_name, existing, "owner_name"),
+            owner_info=m(update.owner_info, existing, "owner_info"),
+            firmware_version=m(update.firmware_version, existing, "firmware_version"),
+            hardware_board=m(update.hardware_board, existing, "hardware_board"),
+            advert_interval=m(update.advert_interval, existing, "advert_interval"),
+            repeat_enabled=m(update.repeat_enabled, existing, "repeat_enabled"),
+            tx_power=m(update.tx_power, existing, "tx_power"),
+            max_tx_power=m(update.max_tx_power, existing, "max_tx_power"),
+            hop_limit=m(update.hop_limit, existing, "hop_limit"),
+            frequency=m(update.frequency, existing, "frequency"),
+            spreading_factor=m(update.spreading_factor, existing, "spreading_factor"),
+            bandwidth=m(update.bandwidth, existing, "bandwidth"),
+            coding_rate=m(update.coding_rate, existing, "coding_rate"),
+            fixed_position=m(update.fixed_position, existing, "fixed_position"),
+            flags=m(update.flags, existing, "flags"),
+            last_advert=m(update.last_advert, existing, "last_advert"),
+            out_path=m(update.out_path, existing, "out_path"),
+            out_path_len=m(update.out_path_len, existing, "out_path_len"),
+            out_path_hash_mode=m(update.out_path_hash_mode, existing, "out_path_hash_mode"),
+            adv_lat=m(update.adv_lat, existing, "adv_lat"),
+            adv_lon=m(update.adv_lon, existing, "adv_lon"),
+            auto_discovered=m(update.auto_discovered, existing, "auto_discovered", False),
+            discovery_time=m(update.discovery_time, existing, "discovery_time", 0.0),
+            verified_identity=m(update.verified_identity, existing, "verified_identity", False),
+            is_favorite=m(update.is_favorite, existing, "is_favorite", False),
         )
 
     def add_or_update(self, public_key: str, update: NodeContactUpdate) -> NodeContactInfo:
@@ -719,6 +727,41 @@ class NodeRegistry:
         )
         return True
 
+    @staticmethod
+    def _extract_telemetry_fields(telem: dict[str, Any]) -> dict[str, Any]:
+        """Extrae de forma segura métricas ambientales y coordenadas GPS de telemetría."""
+        temp = _safe_float(telem.get("temperature_c", telem.get("temperature")))
+        hum = _safe_float(telem.get("humidity_pct", telem.get("humidity")))
+        press = _safe_float(telem.get("pressure_hpa", telem.get("pressure")))
+        volt = _safe_float(telem.get("voltage_v", telem.get("voltage")))
+        solar = _safe_float(telem.get("solar_v", telem.get("solar_voltage", telem.get("solar"))))
+        batt = _safe_int(telem.get("battery_pct", telem.get("battery", telem.get("batt"))))
+
+        gps = telem.get("gps", {})
+        lat_raw = telem.get("lat", telem.get("latitude", telem.get("gps_lat", telem.get("adv_lat"))))
+        if lat_raw is None and isinstance(gps, dict):
+            lat_raw = gps.get("latitude", gps.get("lat"))
+        lon_raw = telem.get("lon", telem.get("longitude", telem.get("gps_lon", telem.get("adv_lon"))))
+        if lon_raw is None and isinstance(gps, dict):
+            lon_raw = gps.get("longitude", gps.get("lon"))
+        alt_raw = telem.get("alt", telem.get("altitude", telem.get("altitude_m")))
+        if alt_raw is None and isinstance(gps, dict):
+            alt_raw = gps.get("altitude", gps.get("alt", gps.get("altitude_m")))
+
+        return {
+            "temperature_c": temp,
+            "humidity_pct": hum,
+            "pressure_hpa": press,
+            "voltage_v": volt,
+            "solar_v": solar,
+            "battery_pct": batt,
+            "latitude": _safe_float(lat_raw),
+            "longitude": _safe_float(lon_raw),
+            "altitude_m": _safe_float(alt_raw),
+            "uptime": str(telem["uptime"]) if "uptime" in telem else None,
+            "clock": str(telem["clock"]) if "clock" in telem else None,
+        }
+
     def record_packet(self, event: PacketRecord) -> None:
         """Registra un evento de paquete para actualizar contadores de tráfico y salud."""
         norm_key = event.public_key.strip().lower()
@@ -742,48 +785,33 @@ class NodeRegistry:
         curr_err = (existing.error_count if existing else 0) + (1 if event.is_error else 0)
 
         telem = event.telemetry or {}
-        temp = _safe_float(telem.get("temperature_c", telem.get("temperature")))
-        hum = _safe_float(telem.get("humidity_pct", telem.get("humidity")))
-        press = _safe_float(telem.get("pressure_hpa", telem.get("pressure")))
-        volt = _safe_float(telem.get("voltage_v", telem.get("voltage")))
-        solar = _safe_float(telem.get("solar_v", telem.get("solar_voltage", telem.get("solar"))))
-        batt = _safe_int(telem.get("battery_pct", telem.get("battery", telem.get("batt"))))
-
-        gps = telem.get("gps", {})
-        lat_raw = telem.get("lat", telem.get("latitude", telem.get("gps_lat", telem.get("adv_lat"))))
-        if lat_raw is None and isinstance(gps, dict):
-            lat_raw = gps.get("latitude", gps.get("lat"))
-        lon_raw = telem.get("lon", telem.get("longitude", telem.get("gps_lon", telem.get("adv_lon"))))
-        if lon_raw is None and isinstance(gps, dict):
-            lon_raw = gps.get("longitude", gps.get("lon"))
-        alt_raw = telem.get("alt", telem.get("altitude", telem.get("altitude_m")))
-        if alt_raw is None and isinstance(gps, dict):
-            alt_raw = gps.get("altitude", gps.get("alt", gps.get("altitude_m")))
+        extracted = self._extract_telemetry_fields(telem)
 
         rx_observed_ts = time.time() if event.is_rx else None
+        m = self._merge_field
         self.add_or_update(
             target_key,
             NodeContactUpdate(
                 last_seen=rx_observed_ts,
                 name=existing.name if existing else f"Node_{target_key[:6]}",
                 alias=existing.alias if existing else "",
-                hops=event.hop_count if event.hop_count is not None else (existing.hops if existing else None),
+                hops=m(event.hop_count, existing, "hops"),
                 last_rssi=int(event.rssi) if event.rssi is not None else (existing.last_rssi if existing else None),
                 last_snr=float(event.snr) if event.snr is not None else (existing.last_snr if existing else None),
-                battery_pct=batt if batt is not None else (existing.battery_pct if existing else None),
+                battery_pct=m(extracted["battery_pct"], existing, "battery_pct"),
                 rx_packets=curr_rx,
                 tx_packets=curr_tx,
                 error_count=curr_err,
-                temperature_c=temp if temp is not None else (existing.temperature_c if existing else None),
-                humidity_pct=hum if hum is not None else (existing.humidity_pct if existing else None),
-                pressure_hpa=press if press is not None else (existing.pressure_hpa if existing else None),
-                voltage_v=volt if volt is not None else (existing.voltage_v if existing else None),
-                solar_v=solar if solar is not None else (existing.solar_v if existing else None),
-                latitude=_safe_float(lat_raw) if lat_raw is not None else (existing.latitude if existing else None),
-                longitude=_safe_float(lon_raw) if lon_raw is not None else (existing.longitude if existing else None),
-                altitude_m=_safe_float(alt_raw) if alt_raw is not None else (existing.altitude_m if existing else None),
-                uptime=str(telem["uptime"]) if "uptime" in telem else (existing.uptime if existing else None),
-                clock=str(telem["clock"]) if "clock" in telem else (existing.clock if existing else None),
+                temperature_c=m(extracted["temperature_c"], existing, "temperature_c"),
+                humidity_pct=m(extracted["humidity_pct"], existing, "humidity_pct"),
+                pressure_hpa=m(extracted["pressure_hpa"], existing, "pressure_hpa"),
+                voltage_v=m(extracted["voltage_v"], existing, "voltage_v"),
+                solar_v=m(extracted["solar_v"], existing, "solar_v"),
+                latitude=m(extracted["latitude"], existing, "latitude"),
+                longitude=m(extracted["longitude"], existing, "longitude"),
+                altitude_m=m(extracted["altitude_m"], existing, "altitude_m"),
+                uptime=m(extracted["uptime"], existing, "uptime"),
+                clock=m(extracted["clock"], existing, "clock"),
             ),
         )
 

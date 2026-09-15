@@ -16,6 +16,9 @@ Esta skill establece las directrices de ingeniería y tipado estático estricto 
    - Uso de uniones modernas con sintaxis de pipe (`str | None`, `int | float`) en lugar de `Optional` o `Union`.
    - Colecciones nativas parametrizadas (`list[dict[str, Any]]`, `tuple[int, ...]`, `set[str]`) importando `from __future__ import annotations`.
    - Prohibido el uso indiscriminado de `Any`. Utilizar `TypeVar`, `Generic[T]`, o `typing.Protocol` para polimorfismo estructural.
+   - Uso de `typing.Self` para métodos fluidos o constructores alternativos que retornan la instancia de la clase.
+   - Uso de `typing.assert_never()` en ramas de exhaustividad de `match`/`if-elif` sobre Enums.
+   - `typing.TypeGuard` para funciones de estrechamiento de tipos seguras en tiempo de análisis estático.
 
 2. **Inmutabilidad y Eficiencia de Memoria**:
    - Modelos de datos y tramas de protocolo deben usar `@dataclass(frozen=True, slots=True)` para optimización de memoria (reducción de `__dict__`) e inmutabilidad garantizada.
@@ -34,4 +37,6 @@ Esta skill establece las directrices de ingeniería y tipado estático estricto 
 ## Herramientas de Verificación
 ```bash
 python .agents/skills/python-patterns-typing/scripts/verify_python_standards.py
+python -m mypy src/
 ```
+
