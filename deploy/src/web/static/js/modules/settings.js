@@ -10,6 +10,10 @@ export class SettingsModule {
   constructor(context) {
     this.ctx = context;
     this.channelsList = [];
+    this.cachedConfig = {};
+    this._deviceClockHostBase = null;
+    this._uptimeHostBase = null;
+    this._tickInterval = null;
     this._localCliHistory = [];
     this._localCliHistoryIdx = -1;
     this._localCliTempInput = "";
@@ -22,7 +26,37 @@ export class SettingsModule {
     this._subscribeBus();
     this.fetchChannels();
     this.fetchLocalNodeConfig();
+    this._startLiveTick();
     window.showQrModal = (title, uri, rawJson) => this.showQrModal(title, uri, rawJson);
+  }
+
+  _startLiveTick() {
+    if (this._tickInterval) clearInterval(this._tickInterval);
+    this._tickInterval = setInterval(() => {
+      if (!this.cachedConfig) return;
+      if (this.cachedConfig.device_epoch_time && this._deviceClockHostBase) {
+        const elClock = document.getElementById("localClockValue");
+        if (elClock) {
+          const elapsedMs = Date.now() - this._deviceClockHostBase;
+          const liveDate = new Date((this.cachedConfig.device_epoch_time * 1000) + elapsedMs);
+          elClock.textContent = liveDate.toLocaleTimeString();
+        }
+      }
+      if (this.cachedConfig.uptime && this._uptimeHostBase) {
+        const elUptime = document.getElementById("localUptimeValue");
+        if (elUptime) {
+          const elapsedSec = Math.floor((Date.now() - this._uptimeHostBase) / 1000);
+          const totalSec = this.cachedConfig.uptime + elapsedSec;
+          const days = Math.floor(totalSec / 86400);
+          const hours = Math.floor((totalSec % 86400) / 3600);
+          const mins = Math.floor((totalSec % 3600) / 60);
+          const secs = totalSec % 60;
+          elUptime.textContent = days > 0
+            ? `${days}d ${hours}h ${mins}m ${secs}s`
+            : (hours > 0 ? `${hours}h ${mins}m ${secs}s` : `${mins}m ${secs}s`);
+        }
+      }
+    }, 1000);
   }
 
   _bindElements() {
@@ -755,8 +789,50 @@ export class SettingsModule {
     });
 
     this.ctx.eventBus.on(EVENTS.METRICS_UPDATE, (payload) => {
-      if (payload && typeof payload === "object") {
-        this.populateLocalConfig(payload);
+      if (!payload || typeof payload !== "object") return;
+      if (!this.cachedConfig) this.cachedConfig = {};
+
+      if (payload.rx_count != null) this.cachedConfig.rx_count = payload.rx_count;
+      if (payload.tx_count != null) this.cachedConfig.tx_count = payload.tx_count;
+      if (payload.error_rate != null) this.cachedConfig.error_rate = payload.error_rate;
+      if (payload.queue_depth != null) this.cachedConfig.queue_depth = payload.queue_depth;
+      if (payload.uptime_str != null) this.cachedConfig.uptime_str = payload.uptime_str;
+      if (payload.uptime != null) {
+        this.cachedConfig.uptime = payload.uptime;
+        this._uptimeHostBase = Date.now();
+      }
+      if (payload.airtime_ms != null) this.cachedConfig.airtime_ms = payload.airtime_ms;
+      if (payload.duty_cycle_pct != null) this.cachedConfig.duty_cycle_pct = payload.duty_cycle_pct;
+      if (payload.packet_errors != null) this.cachedConfig.packet_errors = payload.packet_errors;
+      if (payload.duplicate_packets != null) this.cachedConfig.duplicate_packets = payload.duplicate_packets;
+
+      const elPkts = document.getElementById("localPacketsValue");
+      if (elPkts && (payload.tx_count != null || payload.rx_count != null)) {
+        const tx = payload.tx_count ?? this.cachedConfig.tx_count ?? 0;
+        const rx = payload.rx_count ?? this.cachedConfig.rx_count ?? 0;
+        elPkts.textContent = `${tx} TX / ${rx} RX`;
+      }
+      const elPktErrs = document.getElementById("localPacketErrorsValue");
+      if (elPktErrs && (payload.packet_errors != null || payload.duplicate_packets != null)) {
+        const dups = payload.duplicate_packets ?? this.cachedConfig.duplicate_packets ?? 0;
+        const errs = payload.packet_errors ?? this.cachedConfig.packet_errors ?? 0;
+        elPktErrs.textContent = `Duplicados: ${dups} | Errores: ${errs}`;
+      }
+      const sumQueue = document.getElementById("localSummaryQueue");
+      if (sumQueue && payload.queue_depth != null) {
+        sumQueue.textContent = `${payload.queue_depth} paquetes`;
+      }
+      const elUptime = document.getElementById("localUptimeValue");
+      if (elUptime && (payload.uptime_str || payload.uptime != null)) {
+        elUptime.textContent = payload.uptime_str || `${payload.uptime} s`;
+      }
+      const elAirtime = document.getElementById("localAirtimeValue");
+      if (elAirtime && payload.airtime_ms != null) {
+        elAirtime.textContent = `${payload.airtime_ms} ms`;
+      }
+      const elDuty = document.getElementById("localAirtimeDuty");
+      if (elDuty && payload.duty_cycle_pct != null) {
+        elDuty.textContent = `Duty Cycle: ${payload.duty_cycle_pct}%`;
       }
     });
   }
@@ -836,8 +912,25 @@ export class SettingsModule {
     }
   }
 
-  populateLocalConfig(cfg) {
-    if (!cfg) return;
+  populateLocalConfig(incoming) {
+    if (!incoming || typeof incoming !== "object") return;
+    if (!this.cachedConfig) this.cachedConfig = {};
+
+    // Combinar de forma atómica ignorando propiedades undefined y null para evitar pérdida de estado
+    for (const [k, v] of Object.entries(incoming)) {
+      if (v !== undefined && v !== null) {
+        this.cachedConfig[k] = v;
+      }
+    }
+
+    if (incoming.device_epoch_time) {
+      this._deviceClockHostBase = Date.now();
+    }
+    if (incoming.uptime != null) {
+      this._uptimeHostBase = Date.now();
+    }
+    const cfg = this.cachedConfig;
+
     const nameInput = document.getElementById("localNodeName");
     if (nameInput && cfg.name) nameInput.value = cfg.name;
 
@@ -864,7 +957,7 @@ export class SettingsModule {
     }
 
     const roleBadge = document.getElementById("localNodeRoleBadge");
-    if (roleBadge) {
+    if (roleBadge && (cfg.repeat != null || cfg.repeat_enabled != null || cfg.role != null)) {
       const isRepeat = Boolean(cfg.repeat ?? cfg.repeat_enabled);
       roleBadge.textContent = isRepeat ? "Repeater / Router" : (cfg.role || "Base Station");
       roleBadge.className = `badge-pill ${isRepeat ? "badge-warning" : "badge-primary"}`;
@@ -945,7 +1038,9 @@ export class SettingsModule {
     }
 
     const sumQueue = document.getElementById("localSummaryQueue");
-    if (sumQueue) sumQueue.textContent = `${cfg.queue_len ?? 0} paquetes`;
+    if (sumQueue && (cfg.queue_len != null || cfg.queue_depth != null)) {
+      sumQueue.textContent = `${cfg.queue_len ?? cfg.queue_depth} paquetes`;
+    }
 
     const sumPos = document.getElementById("localSummaryPos");
     if (sumPos) {
@@ -953,7 +1048,7 @@ export class SettingsModule {
       const lon = cfg.longitude ?? cfg.adv_lon;
       if (lat != null && lon != null && !isNaN(Number(lat)) && !isNaN(Number(lon))) {
         sumPos.textContent = `${Number(lat).toFixed(4)}, ${Number(lon).toFixed(4)}`;
-      } else {
+      } else if (cfg.latitude != null || cfg.adv_lat != null) {
         sumPos.textContent = "--";
       }
     }
@@ -979,16 +1074,20 @@ export class SettingsModule {
       }
     }
 
-    // Tarjetas de Telemetría en Vivo
+    // Tarjetas de Telemetría en Vivo (Preservación estricta de valores conocidos)
     const elBat = document.getElementById("localBatValue");
-    if (elBat) elBat.textContent = cfg.battery_pct != null ? `${cfg.battery_pct} %` : "100 % (USB)";
+    if (elBat && cfg.battery_pct != null) {
+      elBat.textContent = `${cfg.battery_pct} %`;
+    }
 
     const elVolt = document.getElementById("localVoltValue");
-    if (elVolt) elVolt.textContent = cfg.voltage != null ? `${cfg.voltage} V` : (cfg.battery_mv ? `${(cfg.battery_mv / 1000).toFixed(2)} V` : "5.00 V");
+    if (elVolt && (cfg.voltage != null || cfg.battery_mv != null)) {
+      elVolt.textContent = cfg.voltage != null ? `${cfg.voltage} V` : `${(cfg.battery_mv / 1000).toFixed(2)} V`;
+    }
 
     const elSolar = document.getElementById("localSolarValue");
     const elSolarStatus = document.getElementById("localSolarStatus");
-    if (elSolar) {
+    if (elSolar && (cfg.power_source != null || cfg.battery_pct != null)) {
       if (cfg.power_source) {
         elSolar.textContent = cfg.power_source;
       } else if (cfg.battery_pct != null && cfg.battery_pct < 100) {
@@ -997,12 +1096,10 @@ export class SettingsModule {
         elSolar.textContent = "USB Conectado";
       }
     }
-    if (elSolarStatus) {
-      if (cfg.battery_mv != null) {
-        elSolarStatus.textContent = `${cfg.battery_mv} mV (${cfg.voltage ? cfg.voltage + " V" : (cfg.battery_mv / 1000).toFixed(2) + " V"})`;
-      } else {
-        elSolarStatus.textContent = "USB 5V Directo";
-      }
+    if (elSolarStatus && (cfg.battery_mv != null || cfg.voltage != null)) {
+      const mv = cfg.battery_mv != null ? cfg.battery_mv : Math.round((cfg.voltage || 5) * 1000);
+      const vStr = cfg.voltage != null ? `${cfg.voltage} V` : `${(mv / 1000).toFixed(2)} V`;
+      elSolarStatus.textContent = `${mv} mV (${vStr})`;
     }
 
     const elClock = document.getElementById("localClockValue");
@@ -1032,28 +1129,44 @@ export class SettingsModule {
     }
 
     const elUptime = document.getElementById("localUptimeValue");
-    if (elUptime) elUptime.textContent = cfg.uptime_str || (cfg.uptime ? `${cfg.uptime} s` : "--");
+    if (elUptime && (cfg.uptime_str != null || cfg.uptime != null)) {
+      elUptime.textContent = cfg.uptime_str || `${cfg.uptime} s`;
+    }
 
     const elAirtime = document.getElementById("localAirtimeValue");
-    if (elAirtime) elAirtime.textContent = cfg.airtime_ms != null ? `${cfg.airtime_ms} ms` : "--";
+    if (elAirtime && cfg.airtime_ms != null) {
+      elAirtime.textContent = `${cfg.airtime_ms} ms`;
+    }
 
     const elDuty = document.getElementById("localAirtimeDuty");
-    if (elDuty) elDuty.textContent = `Duty Cycle: ${cfg.duty_cycle_pct != null ? cfg.duty_cycle_pct : 0}%`;
+    if (elDuty && cfg.duty_cycle_pct != null) {
+      elDuty.textContent = `Duty Cycle: ${cfg.duty_cycle_pct}%`;
+    }
 
     const elSnr = document.getElementById("localSnrValue");
-    if (elSnr) elSnr.textContent = cfg.last_snr != null ? `${cfg.last_snr} dB` : "Local";
+    if (elSnr && cfg.last_snr != null) {
+      elSnr.textContent = `${cfg.last_snr} dB`;
+    }
 
     const elRssi = document.getElementById("localRssiValue");
-    if (elRssi) elRssi.textContent = `RSSI: ${cfg.last_rssi != null ? `${cfg.last_rssi} dBm` : "Local"}`;
+    if (elRssi && cfg.last_rssi != null) {
+      elRssi.textContent = `RSSI: ${cfg.last_rssi} dBm`;
+    }
 
     const elNoise = document.getElementById("localNoiseValue");
-    if (elNoise) elNoise.textContent = cfg.noise_floor_dbm != null ? `${cfg.noise_floor_dbm} dBm` : "--";
+    if (elNoise && cfg.noise_floor_dbm != null) {
+      elNoise.textContent = `${cfg.noise_floor_dbm} dBm`;
+    }
 
     const elPkts = document.getElementById("localPacketsValue");
-    if (elPkts) elPkts.textContent = `${cfg.tx_count ?? 0} TX / ${cfg.rx_count ?? 0} RX`;
+    if (elPkts && (cfg.tx_count != null || cfg.rx_count != null)) {
+      elPkts.textContent = `${cfg.tx_count ?? 0} TX / ${cfg.rx_count ?? 0} RX`;
+    }
 
     const elPktErrs = document.getElementById("localPacketErrorsValue");
-    if (elPktErrs) elPktErrs.textContent = `Duplicados: ${cfg.duplicate_packets ?? 0} | Errores: ${cfg.packet_errors ?? 0}`;
+    if (elPktErrs && (cfg.duplicate_packets != null || cfg.packet_errors != null)) {
+      elPktErrs.textContent = `Duplicados: ${cfg.duplicate_packets ?? 0} | Errores: ${cfg.packet_errors ?? 0}`;
+    }
 
     if (this.ctx.updateRadioBadge && (cfg.serial_connected != null || cfg.radio_connected != null)) {
       const isConnected = Boolean(cfg.serial_connected ?? cfg.radio_connected);

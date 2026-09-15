@@ -45,8 +45,8 @@ class ConfigController(BaseController):
         tx_val = getattr(self.ctx.bridge, "tx_count", 0)
         err_tx = getattr(self.ctx.bridge, "tx_error_count", 0)
         err_gen = getattr(self.ctx.bridge, "err_count", 0)
-        last_snr = getattr(self.ctx.bridge, "last_rx_snr", None)
-        last_rssi = getattr(self.ctx.bridge, "last_rx_rssi", None)
+        last_snr = getattr(self.ctx.bridge, "last_rx_snr", None) or local_cfg.get("last_snr")
+        last_rssi = getattr(self.ctx.bridge, "last_rx_rssi", None) or local_cfg.get("last_rssi")
 
         if (last_snr is None or last_rssi is None) and hasattr(self.ctx.bridge, "node_registry") and hasattr(self.ctx.bridge.node_registry, "list_nodes"):
             remote_nodes = [

@@ -2,6 +2,33 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Persistencia de Estado de Telemetría Local, Prevención de Sobreescritura y Tick en Tiempo Real
+- **Fecha**: 2026-09-15
+- **Estado**: ✅ COMPLETADO (Resolución del bug de reseteo de tarjetas de telemetría a '--' o 'Local' a los 2 segundos: desacoplado del listener METRICS_UPDATE de la sobreescritura destructiva de configuración; implementación de caché atómica no destructiva this.cachedConfig en SettingsModule; inclusión de métricas vivas de uptime_str, airtime_ms y contadores en _metrics_broadcaster_loop y _send_initial_state de http_server.py; preservación de SNR/RSSI en ConfigController; incorporación de _startLiveTick() con actualización de reloj RTC y uptime en vivo segundo a segundo sin costo de red; 0 errores ruff; 0 errores mypy en 53 módulos; auditoría Playwright 100% PASS con 0 excepciones; sincronización en /deploy/).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI Architect).
+- **Acciones Realizadas**:
+  1. **Diagnóstico Causa Raíz**:
+     - El bucle periódico `_metrics_broadcaster_loop` en `http_server.py` emite cada 2.0s un evento WebSocket `metrics_update` con solo 7 claves de cabecera (`rx_count`, `tx_count`, `queue_depth`, etc.).
+     - `settings.js` escuchaba `EVENTS.METRICS_UPDATE` e invocaba `populateLocalConfig(payload)` pasando este objeto parcial.
+     - `populateLocalConfig` carecía de caché y no verificaba si las propiedades estaban definidas, sobreescribiendo campos ausentes (`uptime_str`, `airtime_ms`, `noise_floor_dbm`, `last_snr`, etc.) con valores de fallback (`--`, `Local`, `100 % (USB)`).
+  2. **Remediación en Frontend SPA (`src/web/static/js/modules/settings.js`)**:
+     - Inicializado `this.cachedConfig = {}` en el constructor de `SettingsModule`.
+     - Actualizado `populateLocalConfig(incoming)` para combinar de forma atómica (`incoming -> this.cachedConfig`) omitiendo propiedades `undefined` y `null`.
+     - Actualizadas todas las tarjetas de telemetría para condicionar la renderización en el DOM a la presencia de datos reales, impidiendo el borrado de información válida previa.
+     - Desacoplado el listener `EVENTS.METRICS_UPDATE`: ahora actualiza selectivamente contadores de paquetes, cola y métricas vivas en la caché sin disparar reseteo de la UI.
+     - Implementado `_startLiveTick()`: actualiza en el cliente segundo a segundo el reloj RTC sincronizado y el contador de Uptime de forma fluida y sin llamadas a red ni tráfico LoRa.
+  3. **Remediación en Backend (`src/web/http_server.py`, `src/web/controllers/config_controller.py`)**:
+     - `http_server.py`: Incorporados `uptime_sec`, `uptime_str`, `airtime_ms`, `duty_cycle_pct`, `packet_errors` y `duplicate_packets` tanto en el bucle periódico `_metrics_broadcaster_loop` como en `_send_initial_state`.
+     - `config_controller.py`: Preservado `last_snr` y `last_rssi` desde `local_cfg` si no hay paquetes RF remotos entrantes inmediatos.
+  4. **Verificación Estática y Dinámica**:
+     - `python -m ruff check src/ scripts/` $\to$ All checks passed!
+     - `python -m mypy src/` $\to$ Success: 0 issues in 53 source files.
+     - `scripts/audit_frontend_browser.py` (Playwright Chromium) $\to$ 0 logs, 0 errores, 0 peticiones fallidas (100% PASS).
+     - `scratch/verify_metrics_persistence.py` $\to$ 100% PASS.
+- **Módulos Modificados**: `src/web/http_server.py`, `src/web/controllers/config_controller.py`, `src/web/static/js/modules/settings.js`, `docs/AGENT_ACTIVITY_REPORT.md`, `deploy/**`.
+
+---
+
 ### Hito: Soporte Completo y Verificación de los 17 Comandos Locales (Hardware, RF, Topología, Sensores y Logs)
 - **Fecha**: 2026-09-15
 - **Estado**: ✅ COMPLETADO (Implementación, mapeo y verificación integral de los 17 comandos y alias de estado local del transceptor MeshCore en cli_command_executor.py: info, status, battery/pwr, version, uptime, mem/heap, radio, stats, channel info, nodes, neighbors, routes, snr/rssi, config get/show config, gps, sensors, log; drawer de ayuda interactiva en index.html con tarjetas ejecutables a un clic; consumo de 0 segundos de airtime LoRa garantizado por aislamiento UART Companion; 100% de éxito en verificación programática de 22/22 comandos; 0 errores ruff; 0 errores mypy en 53 módulos; 100% paridad API; simulaciones de malla y casos extremos superadas al 100%; sincronización en /deploy/).

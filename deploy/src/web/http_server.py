@@ -73,6 +73,7 @@ class MeshCoreWebServer:
         self.server: asyncio.Server | None = None
         self.active_websockets: set[asyncio.StreamWriter] = set()
         self.running = False
+        self.start_time: float = time.time()
         self._metrics_task: asyncio.Task[None] | None = None
 
     async def start(self) -> None:
@@ -121,6 +122,18 @@ class MeshCoreWebServer:
                     else:
                         serial_connected = getattr(ser_adapter, "is_connected", False) if ser_adapter else False
 
+                    b_start = getattr(self.bridge, "start_time", None)
+                    t_start = float(b_start) if isinstance(b_start, (int, float)) else self.start_time
+                    uptime_sec = max(0, int(time.time() - t_start))
+                    days = uptime_sec // 86400
+                    hours = (uptime_sec % 86400) // 3600
+                    mins = (uptime_sec % 3600) // 60
+                    secs = uptime_sec % 60
+                    uptime_str = f"{days}d {hours}h {mins}m {secs}s" if days > 0 else (f"{hours}h {mins}m {secs}s" if hours > 0 else f"{mins}m {secs}s")
+
+                    limiter = getattr(self.bridge, "rate_limiter", None)
+                    airtime_stats = limiter.airtime_tracker.get_stats() if (limiter and hasattr(limiter, "airtime_tracker")) else {}
+
                     await self.broadcast_event({
                         "event": "metrics_update",
                         "type": "metrics_update",
@@ -131,6 +144,12 @@ class MeshCoreWebServer:
                         "queue_depth": q_depth,
                         "serial_connected": serial_connected,
                         "radio_connected": serial_connected,
+                        "uptime": uptime_sec,
+                        "uptime_str": uptime_str,
+                        "airtime_ms": airtime_stats.get("hourly_used_ms", 0),
+                        "duty_cycle_pct": airtime_stats.get("hourly_duty_cycle_pct", 0.0),
+                        "duplicate_packets": getattr(self.bridge, "dup_count", 0),
+                        "packet_errors": total_err,
                     })
             except asyncio.CancelledError:
                 break
@@ -623,6 +642,18 @@ class MeshCoreWebServer:
         is_radio_ok = getattr(serial_adapter, "is_connected", False) if serial_adapter else False
         radio_port = getattr(serial_adapter, "port", "") if serial_adapter else ""
 
+        b_start = getattr(self.bridge, "start_time", None)
+        t_start = float(b_start) if isinstance(b_start, (int, float)) else self.start_time
+        uptime_sec = max(0, int(time.time() - t_start))
+        days = uptime_sec // 86400
+        hours = (uptime_sec % 86400) // 3600
+        mins = (uptime_sec % 3600) // 60
+        secs = uptime_sec % 60
+        uptime_str = f"{days}d {hours}h {mins}m {secs}s" if days > 0 else (f"{hours}h {mins}m {secs}s" if hours > 0 else f"{mins}m {secs}s")
+
+        limiter = getattr(self.bridge, "rate_limiter", None)
+        airtime_stats = limiter.airtime_tracker.get_stats() if (limiter and hasattr(limiter, "airtime_tracker")) else {}
+
         initial_metrics = {
             "event": "metrics_update",
             "type": "metrics_update",
@@ -633,6 +664,12 @@ class MeshCoreWebServer:
             "queue_depth": q_depth,
             "radio_connected": is_radio_ok,
             "radio_port": radio_port,
+            "uptime": uptime_sec,
+            "uptime_str": uptime_str,
+            "airtime_ms": airtime_stats.get("hourly_used_ms", 0),
+            "duty_cycle_pct": airtime_stats.get("hourly_duty_cycle_pct", 0.0),
+            "duplicate_packets": getattr(self.bridge, "dup_count", 0),
+            "packet_errors": total_err,
         }
         writer.write(self._build_websocket_frame(json.dumps(initial_metrics, default=str).encode("utf-8")))
         await writer.drain()
