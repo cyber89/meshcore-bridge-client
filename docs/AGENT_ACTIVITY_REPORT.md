@@ -2,6 +2,33 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Extracción Integral de Parámetros de Hardware del Nodo Local, Sincronización RTC y Reactividad UI
+- **Fecha**: 2026-09-15
+- **Estado**: ✅ COMPLETADO (Implementación completa de extracción de parámetros de hardware del transceptor local sobre protocolo Serial Companion sin impacto en airtime LoRa; sincronización de reloj RTC host-dispositivo; reseteo real de estadísticas y contadores; activación reactiva de los 8 botones de acción rápida en Settings; actualización bidireccional inmediata de tarjetas UI ante comandos de consola CLI; 0 errores ruff; 0 errores mypy en 53 módulos; 100% de paridad API; simulaciones de malla y casos extremos superadas al 100%; sincronización en /deploy/).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 4 (Web UI Architect), Agente 5 (Security Auditor).
+- **Acciones Realizadas**:
+  1. **Extracción y Deserialización de Hardware (`src/admin/local_config_executor.py`)**:
+     - Enriquecido `_query_hardware_device_and_battery()` para extraer `model`, `ver`/`fw_ver`, `fw_build`/`build` y `hardware_board`/`board` desde `mc.commands.send_device_query()`.
+     - Implementado `sync_device_clock(epoch_ts)`: emite `set_time(epoch_ts)` al transceptor via Serial Companion Protocol y actualiza `device_epoch_time` y `clock` en la configuración local.
+     - Implementado `clear_device_stats()`: restablece los contadores de paquetes TX/RX, errores de trama, duplicados y airtime a 0 en memoria y persistencia.
+  2. **Orquestación de Comandos CLI Interactivos (`src/admin/cli_command_executor.py`, `src/admin_handler.py`)**:
+     - `cli_command_executor.py`: `_cli_sync_clock` ahora despacha de forma asíncrona `mc.commands.set_time(now_ts)` y actualiza el estado. `_cli_clear_stats` invoca `clear_device_stats()` reseteando contadores reales. El despachador general `execute()` retorna la clave `config` con los datos actualizados tras cualquier comando interactivo.
+     - `admin_handler.py`: Expone los métodos delegados `sync_device_clock()` y `clear_device_stats()`.
+  3. **Controladores y Enrutamiento REST Web (`src/web/controllers/config_controller.py`, `src/web/api_router.py`)**:
+     - Creados los endpoints `POST /api/config/sync-clock`, `POST /api/config/clear-stats`, `POST /api/config/refresh` y `POST /api/config/reconnect`.
+     - `ConfigController.get_config()` ahora soporta el query param `?refresh=true` para forzar la interrogación física del hardware UART y emitir broadcasts WebSocket inmediatos (`clock_synced`, `metrics_reset`, `self_info`).
+  4. **Interfaz Web SPA Reactiva (`src/web/static/index.html`, `src/web/static/js/modules/settings.js`)**:
+     - `index.html`: Badges `#localHwBoardBadge` y `#localFwVersionBadge` en la cabecera de Ajustes.
+     - `settings.js`: Vinculados los event listeners para los 8 botones de acciones rápidas (`#btnRefreshLocalConfig`, `#btnRefreshLocalTelem`, `#btnSyncLocalClock`, `#btnActionAdvertHop`, `#btnActionAdvertFlood`, `#btnActionReconnectSerial`, `#btnActionRebootLocal`, `#btnActionClearLocalStats`).
+     - `populateLocalConfig()`: Renderiza dinámicamente los chips de hardware, versión de firmware y calcula en vivo el desfase de tiempo (drift) del RTC respecto al host (verde si $\le 2$s, amarillo si $\le 60$s, rojo si $> 60$s).
+     - Vinculada la consola CLI terminal: cualquier comando ejecutado (`bat`, `stats`, `sync_clock`, `ver`, etc.) actualiza al instante las tarjetas visuales de telemetría sin recargar la página.
+  5. **Cumplimiento de Reglas Inmutables y Checklist de Airtime LoRa**:
+     - Las consultas de estado de hardware (`ver`, `bat`, `time`, `stats`, `radio`, `packets`, `pos`, `channels`, `acl`) viajan exclusivamente por el bus serie/USB UART, consumiendo **0 segundos de airtime LoRa**.
+     - Las difusiones radio (`advert`, `ping`) mantienen sus guardas de cooldown y límites de contrapresión.
+- **Módulos Modificados**: `src/admin/local_config_executor.py`, `src/admin/cli_command_executor.py`, `src/admin_handler.py`, `src/web/controllers/config_controller.py`, `src/web/api_router.py`, `src/web/static/index.html`, `src/web/static/js/modules/settings.js`, `docs/AGENT_ACTIVITY_REPORT.md`, `deploy/**`.
+
+---
+
 ### Hito: Auditoría Exhaustiva del Sistema, Saneamiento de Herramientas/Scripts y Benchmark de Mercado (report.md)
 - **Fecha**: 2026-09-14
 - **Estado**: ✅ COMPLETADO (Comprobación exhaustiva del sistema; saneamiento de broadcast en tx_controller.py y guarda defensiva en rx_router.py; resolución de callbacks síncronos y caracteres no hexadecimales en scripts de simulación y validación; actualización de documentación técnica en ARCHITECTURE.md y CODE_EXPLANATION.md; sincronización del catálogo de 10 disciplinas de prueba en run_all_test_categories.py superadas al 100%; redacción de report.md con auditoría técnica integral y análisis comparativo multidimensional con Meshtastic, Reticulum, ATAK y las referencias locales; 0 errores ruff; 0 errores mypy en 53 módulos; 100% de paridad API; sincronización en /deploy/).

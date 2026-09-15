@@ -124,6 +124,14 @@ class AdminCommandHandler:
         """Consulta directamente al hardware serial los parámetros de configuración y telemetría."""
         return await self._local_config_executor.fetch_device_config(force=force)
 
+    async def sync_device_clock(self, epoch_ts: int | None = None) -> dict[str, Any]:
+        """Sincroniza el reloj RTC de hardware del dispositivo con la hora del host."""
+        return await self._local_config_executor.sync_device_clock(epoch_ts=epoch_ts)
+
+    async def clear_device_stats(self) -> dict[str, Any]:
+        """Restablece los contadores de estadísticas y airtime en el nodo local."""
+        return await self._local_config_executor.clear_device_stats()
+
     async def broadcast_advert(self, flood: bool = False) -> dict[str, Any]:
         """Difunde un paquete de anuncio Advert por radio (0-hop o flood routed)."""
         mc = self._ctx.mc_provider()

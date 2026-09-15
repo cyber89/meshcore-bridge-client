@@ -249,6 +249,16 @@ class LocalConfigExecutor:
                 dev_res = await mc.commands.send_device_query()
                 dev_data = _extract_payload_dict(dev_res)
                 if dev_data and isinstance(dev_data, dict):
+                    if "model" in dev_data:
+                        self._local_config["model"] = dev_data["model"]
+                    if "ver" in dev_data or "fw_ver" in dev_data:
+                        fw_v = dev_data.get("ver", dev_data.get("fw_ver"))
+                        self._local_config["ver"] = fw_v
+                        self._local_config["fw_ver"] = fw_v
+                    if "fw_build" in dev_data or "build" in dev_data:
+                        self._local_config["fw_build"] = dev_data.get("fw_build", dev_data.get("build"))
+                    if "hardware_board" in dev_data or "board" in dev_data:
+                        self._local_config["hardware_board"] = dev_data.get("hardware_board", dev_data.get("board"))
                     if "repeat" in dev_data:
                         self._local_config["repeat"] = bool(dev_data["repeat"])
                     if "path_hash_mode" in dev_data:
@@ -375,6 +385,48 @@ class LocalConfigExecutor:
                     self._local_config["allowed_repeat_freq"] = arf_data.get("allowed_freqs", arf_data)
             except Exception as e:
                 logging.warning(f"Error consultando get_allowed_repeat_freq de radio: {e}")
+
+    async def sync_device_clock(self, epoch_ts: int | None = None) -> dict[str, Any]:
+        """Sincroniza el reloj de tiempo real RTC del hardware con la hora exacta del host."""
+        ts = int(epoch_ts if epoch_ts is not None else time.time())
+        now_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts))
+        mc = self._ctx.mc_provider()
+        success = False
+        if mc and hasattr(mc, "commands") and hasattr(mc.commands, "set_time"):
+            try:
+                res = mc.commands.set_time(ts)
+                if asyncio.iscoroutine(res):
+                    await asyncio.wait_for(res, timeout=3.0)
+                success = True
+            except Exception as e:
+                logging.warning(f"Error sincronizando reloj RTC de radio: {e}")
+
+        self._local_config["clock"] = time.strftime("%I:%M:%S %p", time.localtime(ts))
+        self._local_config["device_epoch_time"] = ts
+        return {
+            "status": "ok" if success else "partial",
+            "clock": now_str,
+            "epoch": ts,
+            "message": f"Reloj RTC sincronizado exitosamente con la hora del host: {now_str}" if success else "Hora del host registrada localmente",
+        }
+
+    async def clear_device_stats(self) -> dict[str, Any]:
+        """Restablece los contadores de estadísticas y airtime en el nodo local."""
+        self._local_config["tx_count"] = 0
+        self._local_config["rx_count"] = 0
+        self._local_config["packet_errors"] = 0
+        self._local_config["airtime_ms"] = 0
+        self._local_config["duplicate_packets"] = 0
+        if hasattr(self._ctx, "counters") and self._ctx.counters:
+            try:
+                self._ctx.counters.tx_count = 0
+                self._ctx.counters.rx_count = 0
+            except Exception:
+                pass
+        return {
+            "status": "ok",
+            "message": "Contadores de paquetes y tiempos de aire restablecidos correctamente a cero",
+        }
 
     async def set_local_config(self, admin_data: dict[str, Any], res: dict[str, Any], mc: Any) -> dict[str, Any]:
         """Aplica configuraciones locales sobre el nodo conectado."""

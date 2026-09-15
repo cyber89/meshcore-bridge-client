@@ -71,6 +71,16 @@ export class SettingsModule {
       apiKeyStatusHint: document.getElementById("apiKeyStatusHint"),
       inputLocalTileUrl: document.getElementById("inputLocalTileUrl"),
       btnSaveMapSettings: document.getElementById("btnSaveMapSettings"),
+      btnRefreshLocalConfig: document.getElementById("btnRefreshLocalConfig"),
+      btnRefreshLocalTelem: document.getElementById("btnRefreshLocalTelem"),
+      btnSyncLocalClock: document.getElementById("btnSyncLocalClock"),
+      btnActionAdvertHop: document.getElementById("btnActionAdvertHop"),
+      btnActionAdvertFlood: document.getElementById("btnActionAdvertFlood"),
+      btnActionReconnectSerial: document.getElementById("btnActionReconnectSerial"),
+      btnActionRebootLocal: document.getElementById("btnActionRebootLocal"),
+      btnActionClearLocalStats: document.getElementById("btnActionClearLocalStats"),
+      localHwBoardBadge: document.getElementById("localHwBoardBadge"),
+      localFwVersionBadge: document.getElementById("localFwVersionBadge"),
     };
   }
 
@@ -423,6 +433,13 @@ export class SettingsModule {
           const isError = !res.ok || data.status === "error";
           const outText = data.response || data.message || data.result?.result || data.result?.message || (typeof data.result === "string" ? data.result : (typeof data === "string" ? data : JSON.stringify(data, null, 2)));
           this.appendLocalTerminalLine(outText, isError ? "term-error" : "term-success");
+
+          if (!isError) {
+            const freshCfg = data.config || data.result?.config || (typeof data.data === "object" ? data.data : null);
+            if (freshCfg) {
+              this.populateLocalConfig(freshCfg);
+            }
+          }
         } catch (err) {
           this.appendLocalTerminalLine(`✗ Error de conexión: ${err.message}`, "term-error");
         }
@@ -556,20 +573,149 @@ export class SettingsModule {
       });
     }
 
-    const btnClearStats = document.getElementById("btnActionClearLocalStats");
-    if (btnClearStats) {
-      btnClearStats.addEventListener("click", async () => {
-        const confirmMsg = I18n.t('analytics.confirm_reset') || "¿Deseas restablecer todos los contadores de paquetes y métricas acumuladas de la red?";
+    // Acciones Rápidas de Hardware
+    const refreshHardware = async () => {
+      const btn = this.dom.btnRefreshLocalConfig || this.dom.btnRefreshLocalTelem;
+      const icon = btn ? btn.querySelector("[data-lucide]") : null;
+      if (icon) icon.classList.add("spin-animation");
+      try {
+        await this.fetchLocalNodeConfig(true);
+        if (this.ctx.showToast) this.ctx.showToast("Parámetros de hardware actualizados desde la radio", "success");
+      } catch (err) {
+        if (this.ctx.showToast) this.ctx.showToast(`Error consultando radio: ${err.message}`, "error");
+      } finally {
+        if (icon) icon.classList.remove("spin-animation");
+      }
+    };
+
+    if (this.dom.btnRefreshLocalConfig) {
+      this.dom.btnRefreshLocalConfig.addEventListener("click", refreshHardware);
+    }
+    if (this.dom.btnRefreshLocalTelem) {
+      this.dom.btnRefreshLocalTelem.addEventListener("click", refreshHardware);
+    }
+
+    if (this.dom.btnSyncLocalClock) {
+      this.dom.btnSyncLocalClock.addEventListener("click", async () => {
+        try {
+          const res = await fetch("/api/config/sync-clock", {
+            method: "POST",
+            headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+            body: JSON.stringify({ epoch: Math.floor(Date.now() / 1000) }),
+          });
+          const data = await res.json();
+          if (data.status === "ok") {
+            const clockEl = document.getElementById("localClockValue");
+            if (clockEl) clockEl.textContent = data.data?.clock || new Date().toLocaleTimeString();
+            const statusEl = document.getElementById("localClockStatus");
+            if (statusEl) {
+              statusEl.textContent = "Sincronizado con Host";
+              statusEl.style.color = "var(--accent-success, #22c55e)";
+            }
+            if (this.ctx.showToast) this.ctx.showToast("Reloj RTC sincronizado exitosamente con el host", "success");
+            await this.fetchLocalNodeConfig(false);
+          } else {
+            if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || "Fallo al sincronizar"}`, "error");
+          }
+        } catch (err) {
+          if (this.ctx.showToast) this.ctx.showToast(`Error de red: ${err.message}`, "error");
+        }
+      });
+    }
+
+    if (this.dom.btnActionAdvertHop) {
+      this.dom.btnActionAdvertHop.addEventListener("click", async () => {
+        try {
+          const res = await fetch("/api/node/advert", {
+            method: "POST",
+            headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+            body: JSON.stringify({ flood: false }),
+          });
+          const data = await res.json();
+          if (data.status === "ok") {
+            if (this.ctx.showToast) this.ctx.showToast("Baliza Advert Hop 0 emitida a vecinos directos", "success");
+          } else {
+            if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || "Fallo al emitir advert"}`, "error");
+          }
+        } catch (err) {
+          if (this.ctx.showToast) this.ctx.showToast(`Error de red: ${err.message}`, "error");
+        }
+      });
+    }
+
+    if (this.dom.btnActionAdvertFlood) {
+      this.dom.btnActionAdvertFlood.addEventListener("click", async () => {
+        try {
+          const res = await fetch("/api/node/advert", {
+            method: "POST",
+            headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+            body: JSON.stringify({ flood: true }),
+          });
+          const data = await res.json();
+          if (data.status === "ok") {
+            if (this.ctx.showToast) this.ctx.showToast("Baliza Advert Flood propagada a la malla", "success");
+          } else {
+            if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || "Fallo al emitir flood"}`, "error");
+          }
+        } catch (err) {
+          if (this.ctx.showToast) this.ctx.showToast(`Error de red: ${err.message}`, "error");
+        }
+      });
+    }
+
+    if (this.dom.btnActionReconnectSerial) {
+      this.dom.btnActionReconnectSerial.addEventListener("click", async () => {
+        try {
+          const res = await fetch("/api/config/reconnect", {
+            method: "POST",
+            headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
+          });
+          const data = await res.json();
+          if (data.status === "ok") {
+            if (this.ctx.showToast) this.ctx.showToast("Reconexión de puerto serial completada", "success");
+            setTimeout(() => this.fetchLocalNodeConfig(true), 1500);
+          } else {
+            if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || "Fallo al reconectar"}`, "error");
+          }
+        } catch (err) {
+          if (this.ctx.showToast) this.ctx.showToast(`Error de red: ${err.message}`, "error");
+        }
+      });
+    }
+
+    if (this.dom.btnActionRebootLocal) {
+      this.dom.btnActionRebootLocal.addEventListener("click", async () => {
+        if (!confirm("¿Deseas reiniciar el microcontrolador de hardware del nodo local?")) return;
+        try {
+          const res = await fetch("/api/config/reboot", {
+            method: "POST",
+            headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
+          });
+          const data = await res.json();
+          if (data.status === "ok") {
+            if (this.ctx.showToast) this.ctx.showToast("Comando de reinicio de hardware transmitido al dispositivo", "warning");
+          } else {
+            if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || "Fallo al reiniciar"}`, "error");
+          }
+        } catch (err) {
+          if (this.ctx.showToast) this.ctx.showToast(`Error de red: ${err.message}`, "error");
+        }
+      });
+    }
+
+    if (this.dom.btnActionClearLocalStats) {
+      this.dom.btnActionClearLocalStats.addEventListener("click", async () => {
+        const confirmMsg = I18n.t('analytics.confirm_reset') || "¿Deseas restablecer todos los contadores de paquetes y métricas acumuladas?";
         if (!confirm(confirmMsg)) return;
         try {
-          const res = await fetch("/api/analytics/reset", {
+          const res = await fetch("/api/config/clear-stats", {
             method: "POST",
             headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
           });
           const data = await res.json();
           if (data.status === "ok") {
-            if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.metrics_reset') || "Métricas y contadores restablecidos correctamente", "success");
-            await this.fetchLocalNodeConfig();
+            if (this.ctx.showToast) this.ctx.showToast("Contadores y métricas restablecidos a cero", "success");
+            await this.fetchLocalNodeConfig(false);
             if (this.ctx.fetchNodes) await this.ctx.fetchNodes();
           } else {
             if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || "Fallo al restablecer"}`, "error");
@@ -584,6 +730,15 @@ export class SettingsModule {
   _subscribeBus() {
     if (!this.ctx.eventBus) return;
 
+    this.ctx.eventBus.on(EVENTS.TAB_CHANGED, (tabId) => {
+      if (tabId === "tab-settings") {
+        const now = Date.now();
+        if (!this._lastFetchTime || (now - this._lastFetchTime) > 30000) {
+          this.fetchLocalNodeConfig(false);
+        }
+      }
+    });
+
     this.ctx.eventBus.on(EVENTS.RX_PACKET, (payload) => {
       if (!payload || typeof payload !== "object") return;
       if (payload.type === "channels_updated" || payload.event_type === "channels_updated") {
@@ -592,6 +747,16 @@ export class SettingsModule {
         } else {
           this.fetchChannels();
         }
+      }
+      const evType = String(payload.event || payload.event_type || payload.type || "").toLowerCase();
+      if (evType === "self_info" || evType === "device_info" || evType === "battery" || evType === "clock_synced") {
+        this.populateLocalConfig(payload.data || payload);
+      }
+    });
+
+    this.ctx.eventBus.on(EVENTS.METRICS_UPDATE, (payload) => {
+      if (payload && typeof payload === "object") {
+        this.populateLocalConfig(payload);
       }
     });
   }
@@ -655,13 +820,15 @@ export class SettingsModule {
     }
   }
 
-  async fetchLocalNodeConfig() {
+  async fetchLocalNodeConfig(force = false) {
     try {
-      const res = await fetch("/api/config", {
+      const url = force ? "/api/config?refresh=true" : "/api/config";
+      const res = await fetch(url, {
         headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
       });
       const data = await res.json();
       if (data.status === "ok" && data.data) {
+        this._lastFetchTime = Date.now();
         this.populateLocalConfig(data.data);
       }
     } catch (e) {
@@ -678,6 +845,29 @@ export class SettingsModule {
     if (pkInput && cfg.public_key) {
       pkInput.value = cfg.public_key;
       this.ctx.localNodePubkey = cfg.public_key.toLowerCase();
+    }
+
+    // Badges de Cabecera del Nodo Local
+    const hwBadge = document.getElementById("localHwBoardBadge");
+    if (hwBadge) {
+      const hwName = cfg.hardware_board || cfg.board || cfg.model;
+      if (hwName) hwBadge.textContent = hwName;
+    }
+
+    const fwBadge = document.getElementById("localFwVersionBadge");
+    if (fwBadge) {
+      const fw = cfg.fw_ver || cfg.ver || cfg.fw_version;
+      const build = cfg.fw_build || cfg.build;
+      if (fw) {
+        fwBadge.textContent = build ? `FW: v${fw} (b${build})` : `FW: v${fw}`;
+      }
+    }
+
+    const roleBadge = document.getElementById("localNodeRoleBadge");
+    if (roleBadge) {
+      const isRepeat = Boolean(cfg.repeat ?? cfg.repeat_enabled);
+      roleBadge.textContent = isRepeat ? "Repeater / Router" : (cfg.role || "Base Station");
+      roleBadge.className = `badge-pill ${isRepeat ? "badge-warning" : "badge-primary"}`;
     }
 
     // Parámetros de radio
@@ -796,8 +986,50 @@ export class SettingsModule {
     const elVolt = document.getElementById("localVoltValue");
     if (elVolt) elVolt.textContent = cfg.voltage != null ? `${cfg.voltage} V` : (cfg.battery_mv ? `${(cfg.battery_mv / 1000).toFixed(2)} V` : "5.00 V");
 
+    const elSolar = document.getElementById("localSolarValue");
+    const elSolarStatus = document.getElementById("localSolarStatus");
+    if (elSolar) {
+      if (cfg.power_source) {
+        elSolar.textContent = cfg.power_source;
+      } else if (cfg.battery_pct != null && cfg.battery_pct < 100) {
+        elSolar.textContent = "Batería LiPo";
+      } else {
+        elSolar.textContent = "USB Conectado";
+      }
+    }
+    if (elSolarStatus) {
+      if (cfg.battery_mv != null) {
+        elSolarStatus.textContent = `${cfg.battery_mv} mV (${cfg.voltage ? cfg.voltage + " V" : (cfg.battery_mv / 1000).toFixed(2) + " V"})`;
+      } else {
+        elSolarStatus.textContent = "USB 5V Directo";
+      }
+    }
+
     const elClock = document.getElementById("localClockValue");
-    if (elClock) elClock.textContent = cfg.clock || (cfg.device_epoch_time ? new Date(cfg.device_epoch_time * 1000).toLocaleTimeString() : "--:--:--");
+    const elClockStatus = document.getElementById("localClockStatus");
+    if (cfg.device_epoch_time) {
+      const devDate = new Date(cfg.device_epoch_time * 1000);
+      if (elClock) elClock.textContent = devDate.toLocaleTimeString();
+      if (elClockStatus) {
+        const drift = Math.abs(Math.floor(Date.now() / 1000) - cfg.device_epoch_time);
+        if (drift <= 2) {
+          elClockStatus.textContent = "Sincronizado (±0s)";
+          elClockStatus.style.color = "var(--accent-success, #22c55e)";
+        } else if (drift <= 60) {
+          elClockStatus.textContent = `Desfase: ${drift}s`;
+          elClockStatus.style.color = "var(--accent-warning, #eab308)";
+        } else {
+          elClockStatus.textContent = `Desfase: ${Math.round(drift / 60)}m`;
+          elClockStatus.style.color = "var(--accent-danger, #ef4444)";
+        }
+      }
+    } else if (cfg.clock) {
+      if (elClock) elClock.textContent = cfg.clock;
+      if (elClockStatus) {
+        elClockStatus.textContent = "Sincronizado con Host";
+        elClockStatus.style.color = "var(--accent-success, #22c55e)";
+      }
+    }
 
     const elUptime = document.getElementById("localUptimeValue");
     if (elUptime) elUptime.textContent = cfg.uptime_str || (cfg.uptime ? `${cfg.uptime} s` : "--");

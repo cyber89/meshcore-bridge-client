@@ -514,6 +514,28 @@ class WebAPIRouter:
                 return await self.config_ctrl.reboot_local()
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
+        if clean_path in ("/api/config/sync-clock", "/api/node/sync-clock", "/api/config/sync_clock"):
+            if method == "POST":
+                raw_epoch = req_body.get("epoch", req_body.get("timestamp"))
+                epoch_ts = int(raw_epoch) if raw_epoch is not None else None
+                return await self.config_ctrl.sync_clock(epoch_ts=epoch_ts)
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+        if clean_path in ("/api/config/clear-stats", "/api/node/clear-stats", "/api/config/clear_stats"):
+            if method == "POST":
+                return await self.config_ctrl.clear_stats()
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+        if clean_path in ("/api/config/refresh", "/api/node/refresh"):
+            if method in ("POST", "GET"):
+                return await self.config_ctrl.refresh_hardware_config()
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+        if clean_path in ("/api/config/reconnect", "/api/node/reconnect", "/api/config/reconnect-serial"):
+            if method == "POST":
+                return await self.config_ctrl.reconnect_serial()
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
         return problem_details(404, "Not Found", f"Ruta no encontrada: {method} {clean_path}", "route_not_found")
 
     async def _dispatch_misc(self, method: str, raw_path: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:

@@ -101,6 +101,80 @@ class ConfigController(BaseController):
 
         return problem_details(400, "Bad Request", "Admin handler no disponible", "admin_handler_unavailable")
 
+    async def sync_clock(self, epoch_ts: int | None = None) -> tuple[int, dict[str, Any]]:
+        """Sincroniza el reloj RTC de hardware del microcontrolador con la hora del host."""
+        admin = getattr(self.ctx.bridge, "admin_handler", None)
+        if admin and hasattr(admin, "sync_device_clock"):
+            res = await admin.sync_device_clock(epoch_ts=epoch_ts)
+        else:
+            now_ts = int(epoch_ts if epoch_ts is not None else time.time())
+            now_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now_ts))
+            res = {"status": "ok", "clock": now_str, "epoch": now_ts, "message": "Hora del host registrada"}
+
+        self.ctx.log_system_event("INFO", f"Reloj RTC sincronizado: {res.get('clock')}", source="admin")
+        if self.ctx.broadcast_ws:
+            self.ctx.broadcast_ws({
+                "type": "clock_synced",
+                "clock": res.get("clock"),
+                "epoch": res.get("epoch"),
+                "timestamp": int(time.time()),
+            })
+        return 200, {"status": "ok", "data": res}
+
+    async def clear_stats(self) -> tuple[int, dict[str, Any]]:
+        """Restablece los contadores de paquetes, duplicados y estadísticas de radio a cero."""
+        admin = getattr(self.ctx.bridge, "admin_handler", None)
+        if admin and hasattr(admin, "clear_device_stats"):
+            res = await admin.clear_device_stats()
+        else:
+            res = {"status": "ok", "message": "Estadísticas restablecidas"}
+
+        if hasattr(self.ctx.bridge, "rx_count"):
+            self.ctx.bridge.rx_count = 0
+        if hasattr(self.ctx.bridge, "tx_count"):
+            self.ctx.bridge.tx_count = 0
+        if hasattr(self.ctx.bridge, "dup_count"):
+            self.ctx.bridge.dup_count = 0
+        if hasattr(self.ctx.bridge, "err_count"):
+            self.ctx.bridge.err_count = 0
+        if hasattr(self.ctx.bridge, "tx_error_count"):
+            self.ctx.bridge.tx_error_count = 0
+
+        self.ctx.log_system_event("INFO", "Estadísticas y contadores de paquetes locales restablecidos a cero", source="admin")
+        if self.ctx.broadcast_ws:
+            self.ctx.broadcast_ws({
+                "type": "metrics_reset",
+                "timestamp": int(time.time()),
+            })
+        return 200, {"status": "ok", "data": res}
+
+    async def refresh_hardware_config(self) -> tuple[int, dict[str, Any]]:
+        """Fuerza la consulta completa y en tiempo real al hardware físico sobre el enlace serial."""
+        code, resp = await self.get_device_config(refresh=True)
+        if code == 200 and self.ctx.broadcast_ws and "data" in resp:
+            self.ctx.broadcast_ws({
+                "type": "self_info",
+                "data": resp["data"],
+                "timestamp": int(time.time()),
+            })
+        return code, resp
+
+    async def reconnect_serial(self) -> tuple[int, dict[str, Any]]:
+        """Cierra y reabre de forma segura la conexión USB/Serial con el transceptor."""
+        serial_adapter = getattr(self.ctx.bridge, "serial_adapter", None)
+        if serial_adapter and hasattr(serial_adapter, "reconnect"):
+            try:
+                await serial_adapter.reconnect()
+                self.ctx.log_system_event("INFO", "Reconexión de puerto serial completada", source="serial")
+                return 200, {"status": "ok", "message": "Puerto serial reconectado exitosamente"}
+            except Exception as e:
+                self.ctx.log_system_event("ERROR", f"Fallo al reconectar puerto serial: {e}", source="serial")
+                return 500, {"status": "error", "message": f"Error reconectando: {e}"}
+
+        # Fallback a comando admin
+        res = await self.ctx.bridge.handle_admin({"action": "reconnect_serial"})
+        return 200, {"status": "ok", "data": res}
+
     async def reboot_local(self) -> tuple[int, dict[str, Any]]:
         """Solicita reinicio de hardware del nodo local."""
         cmd = {"action": "reboot_local"}

@@ -5,6 +5,7 @@ Interpreta y despacha comandos de consola CLI emitidos hacia la estación base l
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -135,7 +136,18 @@ class CliCommandExecutor:
                 res["result"] = "🔄 [REBOOT] Comando de reinicio de hardware ejecutado en el microcontrolador local."
 
             elif act_clean in ("clear stats", "clear_stats", "clear"):
-                res["result"] = "🧹 [STATS] Contadores de paquetes locales y tiempos de aire restablecidos."
+                self._local_config["tx_count"] = 0
+                self._local_config["rx_count"] = 0
+                self._local_config["packet_errors"] = 0
+                self._local_config["airtime_ms"] = 0
+                self._local_config["duplicate_packets"] = 0
+                if hasattr(self._ctx, "counters") and self._ctx.counters:
+                    try:
+                        self._ctx.counters.tx_count = 0
+                        self._ctx.counters.rx_count = 0
+                    except Exception:
+                        pass
+                res["result"] = "🧹 [STATS] Contadores de paquetes locales y tiempos de aire restablecidos a cero."
 
             elif act_clean in ("help", "?", "ayuda"):
                 res["result"] = self._cli_help_text()
@@ -151,6 +163,7 @@ class CliCommandExecutor:
             res["error"] = str(e)
             res["result"] = f"✗ ERROR ejecutando comando '{action}': {e}"
 
+        res["config"] = self._get_local_config()
         self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
         return res
 
@@ -220,9 +233,17 @@ class CliCommandExecutor:
         now_ts = int(time.time())
         now_str = time.strftime("%Y-%m-%d %H:%M:%S")
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "set_time"):
-            await mc.commands.set_time(now_ts)
-        self._local_config["clock"] = now_str
+            try:
+                res_cmd = mc.commands.set_time(now_ts)
+                if asyncio.iscoroutine(res_cmd):
+                    await asyncio.wait_for(res_cmd, timeout=3.0)
+            except Exception as e:
+                logging.warning(f"Error enviando set_time a radio: {e}")
+        self._local_config["clock"] = time.strftime("%I:%M:%S %p", time.localtime(now_ts))
+        self._local_config["device_epoch_time"] = now_ts
         res["result"] = f"✓ [RTC OK] Reloj RTC sincronizado exitosamente con la hora del host: {now_str}"
+        res["clock"] = self._local_config["clock"]
+        res["epoch"] = now_ts
         return res
 
     async def _cli_stats_core(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
