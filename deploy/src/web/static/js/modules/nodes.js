@@ -3,7 +3,7 @@
  * filtrado reactivo, presencia en tiempo real y telemetría analítica.
  */
 
-import { escapeHtml, debounce } from "../core/utils.js";
+import { escapeHtml, debounce, buildMeshCoreContactUri } from "../core/utils.js";
 import { EVENTS } from "../core/eventbus.js";
 
 export class NodesModule {
@@ -389,8 +389,8 @@ export class NodesModule {
         });
 
         cCard.querySelector(".btn-contact-qr")?.addEventListener("click", () => {
-          const uri = `meshcore://contact?pubkey=${encodeURIComponent(node.public_key)}&name=${encodeURIComponent(cleanName)}`;
-          const json = JSON.stringify({ type: "contact", pubkey: node.public_key, name: cleanName, role: node.role }, null, 2);
+          const uri = buildMeshCoreContactUri(cleanName, node.public_key, node.role || "CLIENT");
+          const json = JSON.stringify({ type: "contact", public_key: node.public_key, name: cleanName, role: node.role || "CLIENT", uri }, null, 2);
           if (window.showQrModal) window.showQrModal(`Contacto: ${cleanName}`, uri, json);
         });
 
@@ -533,8 +533,8 @@ export class NodesModule {
           });
         }
         nCard.querySelector(".btn-node-qr")?.addEventListener("click", () => {
-          const uri = `meshcore://node?pubkey=${encodeURIComponent(node.public_key)}&name=${encodeURIComponent(cleanName)}`;
-          const json = JSON.stringify({ type: "node", pubkey: node.public_key, name: cleanName, role: node.role }, null, 2);
+          const uri = buildMeshCoreContactUri(cleanName, node.public_key, node.role || "CLIENT");
+          const json = JSON.stringify({ type: "node", public_key: node.public_key, name: cleanName, role: node.role || "CLIENT", uri }, null, 2);
           if (window.showQrModal) window.showQrModal(`Nodo: ${cleanName}`, uri, json);
         });
 

@@ -2,7 +2,33 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
-### Hito: Corrección Integral de Canales (Ranuras Dinámicas, Candado Abierto y Eliminación) e Importación de Contactos Multi-Formato
+### Hito: Estandarización Canónica de Exportación e Importación MeshCore (URLs y Códigos QR)
+- **Fecha**: 2026-09-15
+- **Estado**: ✅ COMPLETADO (Estandarización al 100% de todas las exportaciones e importaciones de canales y contactos/nodos conforme a la especificación oficial de la pila MeshCore: URLs canónicas meshcore://channel/add?name=...&secret=...[&index=...] y meshcore://contact/add?name=...&public_key=...&type=...; inclusión de clave canónica 8b3387e9c5cdea6ac9e5edbaa115cd72 para canal público/abierto; extracción unificada de query params en api_router.py; incorporación de botones QR individuales en cada canal de la lista; soporte simétrico bidireccional de importación en frontend y backend; 0 ms de airtime LoRa; 0 errores ruff; 0 errores mypy; 100% paridad API; suite determinista superada; sincronización en /deploy/).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 4 (Web UI Architect).
+- **Acciones Realizadas**:
+  1. **Investigación y Adherencia al Canon Oficial SSoT**:
+     - Canales: `meshcore://channel/add?name=<name>&secret=<secret>[&index=<idx>]`. Se utiliza `8b3387e9c5cdea6ac9e5edbaa115cd72` como secreto público para canales abiertos/canal 0, permitiendo que la app oficial de MeshCore (Android/iOS) y el CLI se sincronicen de inmediato.
+     - Contactos / Nodos: `meshcore://contact/add?name=<name>&public_key=<public_key>&type=<type>`, donde `type` mapea a `FirmwareAdvertType` (`1`: CLIENT/CHAT, `2`: REPEATER, `3`: ROOM, `4`: SENSOR).
+  2. **Controladores Backend (`src/web/controllers/` y `src/web/api_router.py`)**:
+     - `ChannelsController`: Implementado `_export_channel` devolviendo la URI canónica oficial y el `secret` sin enmascarar para el renderizado local del código QR.
+     - `ContactsController`: Implementado `_export_contact` con resolución de nombre y rol numérico canónico. Actualizado `_import_contact` para parsear parámetros `type` numéricos y rechazar amigablemente importaciones cruzadas de canales.
+     - `WebAPIRouter`: Extraídos automáticamente los parámetros query string hacia `req_body` en `handle_request`, habilitando peticiones `GET /api/channels/export?index=...` y `GET /api/contacts/export?public_key=...`.
+     - `NodeRegistry`: Agregado método `get()` compatible con acceso directo por clave o prefijo.
+  3. **Frontend SPA Modular (`src/web/static/js/`)**:
+     - `src/web/static/js/core/utils.js`: Implementados `buildMeshCoreContactUri`, `buildMeshCoreChannelUri`, `parseMeshCoreUri` y constante canónica `MESHCORE_PUBLIC_CHANNEL_SECRET`.
+     - `src/web/static/js/modules/chat.js`: Actualizado `shareActiveTargetQr()` para consultar `/api/channels/export` en canales y usar `buildMeshCoreContactUri` en chats directos.
+     - `src/web/static/js/modules/nodes.js`: Actualizados los botones `.btn-contact-qr` y `.btn-node-qr` para generar URLs y QRs canónicos con tipo numérico.
+     - `src/web/static/js/modules/settings.js`: Añadido botón `.btn-item-qr` en `renderChannelsList` para permitir exportar cualquier canal (0..7) y conectada la importación con `parseMeshCoreUri`.
+     - `src/web/static/js/app.js`: Actualizado `action-advert-clipboard` para copiar el URI canónico oficial.
+     - `src/web/static/css/app.css`: Estilizado botón `.btn-item-qr` en acciones de canales.
+  4. **Verificación Determinista y Calidad**:
+     - Verificación determinista programática (6/6 tests PASS).
+     - Paridad de contratos API: 44/44 endpoints válidos (100% PASS).
+     - Verificación estática con `ruff` y `mypy`: 0 errores.
+- **Módulos Modificados**: `src/web/api_router.py`, `src/web/controllers/channels_controller.py`, `src/web/controllers/contacts_controller.py`, `src/contact_manager.py`, `src/web/static/js/core/utils.js`, `src/web/static/js/modules/chat.js`, `src/web/static/js/modules/nodes.js`, `src/web/static/js/modules/settings.js`, `src/web/static/js/app.js`, `src/web/static/css/app.css`, `docs/AGENT_ACTIVITY_REPORT.md`, `deploy/**`.
+
+---
 - **Fecha**: 2026-09-15
 - **Estado**: ✅ COMPLETADO (Resolución de los 4 incidentes solicitados: 1. Reparación total de importación de contactos soportando URIs meshcore://, esquemas JSON y hex con persistencia en NodeRegistry y broadcast reactivo; 2. Selector dinámico de canales libres 1..7 que previene duplicados y colisiones con código 409 Conflict en backend; 3. Visualización correcta de candado abierto 'unlock' y etiquetas 'Abierto / Sin Cifrar' para canales sin clave PSK en sidebar y chat header; 4. Incorporación de botón de eliminación con advertencia/confirmación modal de seguridad para canales 1..7 protegiendo el canal público 0; 0 errores ruff; 0 errores mypy; 100% paridad API; 8/8 tests deterministas superados; sincronización en /deploy/).
 - **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI Architect).

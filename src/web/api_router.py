@@ -252,7 +252,16 @@ class WebAPIRouter:
     ) -> tuple[int, dict[str, Any]]:
         """Maneja una solicitud REST despachando limpiamente a controladores modulares especializados."""
         clean_path = path.split("?")[0].rstrip("/")
-        req_body = body or {}
+        req_body = dict(body) if body else {}
+        if "?" in path:
+            try:
+                import urllib.parse
+                parsed_qs = urllib.parse.parse_qs(path.split("?", 1)[1], keep_blank_values=True)
+                for k, v in parsed_qs.items():
+                    if k not in req_body:
+                        req_body[k] = v[0] if len(v) == 1 else v
+            except Exception:
+                pass
 
         try:
             if clean_path in (

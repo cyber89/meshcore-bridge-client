@@ -216,3 +216,131 @@ export function getHardwarePowerLimits(node) {
   return { min: 2, max: 22, def: 20 };
 }
 
+/**
+ * Clave oficial canónica de canal público por defecto en la pila MeshCore.
+ * SSoT: reference/meshcore/docs/companion_protocol.md, faq.md, qr_codes.md
+ */
+export const MESHCORE_PUBLIC_CHANNEL_SECRET = "8b3387e9c5cdea6ac9e5edbaa115cd72";
+
+/**
+ * Mapea el rol de dispositivo a su tipo numérico oficial de MeshCore.
+ * SSoT: FirmwareAdvertType (CHAT=1, REPEATER=2, ROOM=3, SENSOR=4).
+ * @param {string} role
+ * @returns {number}
+ */
+export function getNumericContactType(role) {
+  const r = String(role || "CLIENT").trim().toUpperCase();
+  if (r === "REPEATER" || r === "ROUTER") return 2;
+  if (r === "ROOM") return 3;
+  if (r === "SENSOR") return 4;
+  return 1; // CHAT / CLIENT
+}
+
+/**
+ * Mapea el tipo numérico oficial de MeshCore al rol canónico.
+ * @param {number|string} typeNum
+ * @returns {string}
+ */
+export function getRoleFromNumericType(typeNum) {
+  const n = parseInt(typeNum, 10);
+  if (n === 2) return "REPEATER";
+  if (n === 3) return "ROOM";
+  if (n === 4) return "SENSOR";
+  return "CLIENT";
+}
+
+/**
+ * Genera un enlace URI canónico oficial para compartir un contacto según la especificación MeshCore.
+ * Formato: meshcore://contact/add?name=<name>&public_key=<public_key>&type=<type>
+ * @param {string} name
+ * @param {string} publicKey
+ * @param {string} role
+ * @returns {string}
+ */
+export function buildMeshCoreContactUri(name, publicKey, role = "CLIENT") {
+  const cleanName = String(name || "Contact").trim();
+  const cleanPk = String(publicKey || "").trim().toLowerCase();
+  const typeNum = getNumericContactType(role);
+  return `meshcore://contact/add?name=${encodeURIComponent(cleanName)}&public_key=${encodeURIComponent(cleanPk)}&type=${typeNum}`;
+}
+
+/**
+ * Genera un enlace URI canónico oficial para compartir un canal según la especificación MeshCore.
+ * Formato: meshcore://channel/add?name=<name>&secret=<secret>[&index=<index>]
+ * @param {string} name
+ * @param {string} secret
+ * @param {number|null} index
+ * @returns {string}
+ */
+export function buildMeshCoreChannelUri(name, secret = "", index = null) {
+  const cleanName = String(name || "Public").trim();
+  const rawSec = String(secret || "").trim();
+  const cleanSec = (rawSec && rawSec !== "••••••••") ? rawSec.toLowerCase() : MESHCORE_PUBLIC_CHANNEL_SECRET;
+  let uri = `meshcore://channel/add?name=${encodeURIComponent(cleanName)}&secret=${encodeURIComponent(cleanSec)}`;
+  if (index !== null && index !== undefined && !isNaN(Number(index))) {
+    uri += `&index=${Number(index)}`;
+  }
+  return uri;
+}
+
+/**
+ * Parsea un enlace URI de MeshCore (tanto en formato canónico como legado/binario).
+ * @param {string} rawUri
+ * @returns {object|null}
+ */
+export function parseMeshCoreUri(rawUri) {
+  if (!rawUri || typeof rawUri !== "string") return null;
+  const str = rawUri.trim();
+  if (!str.startsWith("meshcore://")) return null;
+
+  // Caso A: Canal (Canónico meshcore://channel/add o legado meshcore://channel?...)
+  if (str.includes("channel")) {
+    let qs = "";
+    const qIdx = str.indexOf("?");
+    if (qIdx !== -1) qs = str.slice(qIdx + 1);
+    const params = new URLSearchParams(qs);
+    const name = params.get("name") || "Canal Importado";
+    const secret = params.get("secret") || params.get("psk") || "";
+    const idxStr = params.get("index");
+    const index = idxStr !== null ? parseInt(idxStr, 10) : null;
+    return {
+      type: "channel",
+      name,
+      secret,
+      psk: secret,
+      index,
+    };
+  }
+
+  // Caso B: Contacto / Nodo (Canónico meshcore://contact/add o legado meshcore://contact? / meshcore://node?)
+  if (str.includes("contact") || str.includes("node")) {
+    let qs = "";
+    const qIdx = str.indexOf("?");
+    if (qIdx !== -1) qs = str.slice(qIdx + 1);
+    const params = new URLSearchParams(qs);
+    const name = params.get("name") || params.get("alias") || "Contacto Importado";
+    const publicKey = (params.get("public_key") || params.get("pubkey") || params.get("key") || "").trim().toLowerCase();
+    const typeParam = params.get("type");
+    const role = typeParam ? getRoleFromNumericType(typeParam) : (params.get("role") || "CLIENT");
+    return {
+      type: "contact",
+      name,
+      public_key: publicKey,
+      pubkey: publicKey,
+      role,
+      contact_type: getNumericContactType(role),
+    };
+  }
+
+  // Caso C: Tarjeta binaria hexadecimal (meshcore://<hex>)
+  const hexPart = str.replace("meshcore://", "").replace(/^\/+/, "");
+  if (/^[0-9a-fA-F]{64,}$/.test(hexPart)) {
+    return {
+      type: "binary_card",
+      hex: hexPart,
+    };
+  }
+
+  return null;
+}
+

@@ -3,7 +3,16 @@
  * importación/exportación de contactos y diagnósticos preflight.
  */
 
-import { escapeHtml, getHardwarePowerLimits, REGION_FREQUENCIES, debounce } from "../core/utils.js";
+import {
+  escapeHtml,
+  getHardwarePowerLimits,
+  REGION_FREQUENCIES,
+  debounce,
+  buildMeshCoreContactUri,
+  buildMeshCoreChannelUri,
+  parseMeshCoreUri,
+  MESHCORE_PUBLIC_CHANNEL_SECRET,
+} from "../core/utils.js";
 import { EVENTS } from "../core/eventbus.js";
 
 export class SettingsModule {
@@ -952,6 +961,9 @@ export class SettingsModule {
           <span class="ch-lock ${isEnc ? 'ch-locked' : 'ch-open'}" title="${lockTitle}">
             <span data-lucide="${lockIcon}" data-size="13"></span>
           </span>
+          <button type="button" class="btn-item-qr" data-ch-idx="${ch.index}" data-ch-name="${escapeHtml(chDisplayName)}" title="Compartir canal vía QR / URI oficial" aria-label="Compartir canal ${ch.index}">
+            <span data-lucide="qr-code" data-size="13"></span>
+          </button>
           ${ch.index > 0 ? `
             <button type="button" class="btn-item-delete" data-ch-idx="${ch.index}" data-ch-name="${escapeHtml(chDisplayName)}" title="Eliminar canal ${ch.index}" aria-label="Eliminar canal ${ch.index}">
               <span data-lucide="trash-2" data-size="13"></span>
@@ -961,10 +973,33 @@ export class SettingsModule {
       `;
 
       li.addEventListener("click", (e) => {
-        if (e.target.closest(".btn-item-delete")) return;
+        if (e.target.closest(".btn-item-delete, .btn-item-qr")) return;
         if (this.ctx.switchChannel) this.ctx.switchChannel(ch.index);
         if (this.dom.sidebarChannelList) this.dom.sidebarChannelList.classList.remove("mobile-open");
       });
+
+      const btnQr = li.querySelector(".btn-item-qr");
+      if (btnQr) {
+        btnQr.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const chIdx = Number(btnQr.getAttribute("data-ch-idx"));
+          try {
+            const res = await fetch(`/api/channels/export?index=${chIdx}`, {
+              headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
+            });
+            const data = await res.json();
+            if (data.status === "ok" && data.uri) {
+              if (window.showQrModal) {
+                window.showQrModal(`Canal ${chIdx}: ${chDisplayName}`, data.uri, data.data);
+              }
+            } else {
+              alert(`Error exportando canal: ${data.message || "Fallo desconocido"}`);
+            }
+          } catch (err) {
+            alert(`Error obteniendo datos del canal: ${err.message}`);
+          }
+        });
+      }
 
       const btnDelete = li.querySelector(".btn-item-delete");
       if (btnDelete) {
@@ -1013,23 +1048,13 @@ export class SettingsModule {
   async processImportPayload(raw, closeCallback) {
     try {
       const cleanRaw = String(raw).trim();
+      const parsedUri = parseMeshCoreUri(cleanRaw);
 
-      // Caso 1: URI meshcore://channel?...
-      if (cleanRaw.startsWith("meshcore://channel")) {
-        let idx = 1;
-        let name = "Canal Importado";
-        let psk = "";
-        try {
-          const qIndex = cleanRaw.indexOf("?");
-          if (qIndex !== -1) {
-            const qs = new URLSearchParams(cleanRaw.slice(qIndex + 1));
-            idx = parseInt(qs.get("index") || "1", 10);
-            name = qs.get("name") || `Canal ${idx}`;
-            psk = qs.get("psk") || "";
-          }
-        } catch (e) {
-          console.warn("Error parseando URI de canal:", e);
-        }
+      // Caso 1: Es un Canal (URI canónica meshcore://channel/add?... o compatible)
+      if (parsedUri && parsedUri.kind === "channel") {
+        const idx = parsedUri.index ?? 1;
+        const name = parsedUri.name || `Canal ${idx}`;
+        const psk = (parsedUri.secret && parsedUri.secret !== MESHCORE_PUBLIC_CHANNEL_SECRET) ? parsedUri.secret : "";
 
         const exists = this.channelsList.some((c) => Number(c.index) === idx);
         if (exists) {
@@ -1060,10 +1085,11 @@ export class SettingsModule {
       if (cleanRaw.startsWith("{") || cleanRaw.startsWith("[")) {
         try {
           const parsed = JSON.parse(cleanRaw);
-          if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && (parsed.type === "channel" || (parsed.index !== undefined && parsed.name))) {
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && (parsed.type === "channel" || (parsed.index !== undefined && parsed.name && !parsed.public_key))) {
             const idx = parseInt(parsed.index, 10) || 1;
             const name = parsed.name || `Canal ${idx}`;
-            const psk = parsed.psk || "";
+            const psk = parsed.secret || parsed.psk || "";
+            const cleanPsk = (psk && psk !== MESHCORE_PUBLIC_CHANNEL_SECRET) ? psk : "";
             const exists = this.channelsList.some((c) => Number(c.index) === idx);
             if (exists) {
               const overwrite = window.confirm(
@@ -1075,7 +1101,7 @@ export class SettingsModule {
             const res = await fetch("/api/channels", {
               method: "POST",
               headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
-              body: JSON.stringify({ index: idx, name, psk, overwrite: exists }),
+              body: JSON.stringify({ index: idx, name, psk: cleanPsk, overwrite: exists }),
             });
             const data = await res.json();
             if (data.status === "ok") {
@@ -1091,7 +1117,7 @@ export class SettingsModule {
         } catch (ignore) {}
       }
 
-      // Caso 3: Contacto(s) (URI meshcore://contact, meshcore://node, JSON o hexadecimal)
+      // Caso 3: Contacto(s) (URI meshcore://contact/add?..., JSON o hexadecimal)
       const res = await fetch("/api/contacts/import", {
         method: "POST",
         headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },

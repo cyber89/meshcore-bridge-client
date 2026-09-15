@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import urllib.parse
 from typing import Any
 
 from src.web.controllers.base import ApiContext, BaseController, problem_details
@@ -68,6 +69,9 @@ class ChannelsController(BaseController):
         """Enruta solicitudes hacia /api/channels y /api/channels/sync."""
         if path == "/api/channels/sync" and method in ("POST", "GET"):
             return await self._sync_channels()
+
+        if path == "/api/channels/export" and method in ("GET", "POST"):
+            return await self._export_channel(req_body)
 
         if method == "GET":
             return await self._get_channels()
@@ -137,6 +141,46 @@ class ChannelsController(BaseController):
             await self._sync_from_serial()
         masked_list = self._get_masked_channels_list()
         return 200, {"status": "ok", "data": masked_list, "count": len(masked_list)}
+
+    async def _export_channel(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        """Exporta un canal en formato URI oficial de MeshCore (meshcore://channel/add?name=...&secret=...)."""
+        try:
+            idx = int(req_body.get("index", 0))
+        except (ValueError, TypeError):
+            return problem_details(400, "Bad Request", "Índice de canal inválido", "invalid_channel_index")
+
+        if idx not in self.channels:
+            return problem_details(404, "Not Found", f"Canal {idx} no encontrado", "channel_not_found")
+
+        ch = self.channels[idx]
+        name = str(ch.get("name") or (f"Canal {idx}" if idx > 0 else "Public / Broadcast")).strip()
+        raw_psk = str(ch.get("psk") or "").strip()
+
+        # Si es canal 0 (público) o canal abierto sin clave, usar la clave canónica oficial de MeshCore
+        # SSoT: reference/meshcore/docs/qr_codes.md y companion_protocol.md
+        public_secret = "8b3387e9c5cdea6ac9e5edbaa115cd72"
+        secret = raw_psk if (raw_psk and raw_psk != "••••••••") else public_secret
+
+        encoded_name = urllib.parse.quote(name)
+        canonical_uri = f"meshcore://channel/add?name={encoded_name}&secret={secret}"
+        if idx > 0:
+            canonical_uri += f"&index={idx}"
+
+        channel_data = {
+            "type": "channel",
+            "index": idx,
+            "name": name,
+            "secret": secret,
+            "is_encrypted": bool(raw_psk and raw_psk != "••••••••" and idx != 0),
+            "is_public": (idx == 0),
+        }
+
+        return 200, {
+            "status": "ok",
+            "uri": canonical_uri,
+            "qr_uri": canonical_uri,
+            "data": channel_data,
+        }
 
     async def _create_or_update_channel(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Crea o actualiza un canal en el rango 0..7."""

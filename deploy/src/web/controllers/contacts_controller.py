@@ -103,14 +103,74 @@ class ContactsController(BaseController):
         return 200, {"status": "ok", "result": res}
 
     async def _export_contact(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-        """Exporta los datos binarios de un contacto para respaldo."""
-        pubkey = str(req_body.get("public_key", req_body.get("key", ""))).strip()
+        """Exporta los datos de un contacto en URI oficial de MeshCore (meshcore://contact/add?name=...&public_key=...&type=...)."""
+        pubkey = str(req_body.get("public_key") or req_body.get("pubkey") or req_body.get("key") or "").strip()
+        if not pubkey:
+            return problem_details(400, "Bad Request", "Se requiere 'public_key' para exportar", "missing_public_key")
+
+        name = ""
+        role = "CLIENT"
+
+        # 1. Buscar en el registro de nodos
+        node = None
+        if hasattr(self.ctx.bridge, "node_registry"):
+            reg = self.ctx.bridge.node_registry
+            if hasattr(reg, "get"):
+                node = reg.get(pubkey)
+            elif hasattr(reg, "get_by_key_or_prefix"):
+                node = reg.get_by_key_or_prefix(pubkey)
+            if not node and hasattr(reg, "is_local_key") and reg.is_local_key(pubkey):
+                local_ident = getattr(reg, "local_identity", None)
+                if local_ident:
+                    name = getattr(local_ident, "name", "") or getattr(local_ident, "node_name", "")
+                role = "CLIENT"
+
+        if node:
+            name = str(getattr(node, "name", "") or getattr(node, "alias", "") or "").strip()
+            role = str(getattr(node, "role", "CLIENT") or "CLIENT").strip().upper()
+
+        if not name:
+            name = str(req_body.get("name") or req_body.get("alias") or f"Node_{pubkey[:6]}").strip()
+
+        # Mapeo numérico oficial MeshCore FirmwareAdvertType:
+        # 1: CHAT / CLIENT, 2: REPEATER, 3: ROOM, 4: SENSOR
+        type_map = {
+            "CLIENT": 1,
+            "CHAT": 1,
+            "USER": 1,
+            "REPEATER": 2,
+            "ROUTER": 2,
+            "ROOM": 3,
+            "SENSOR": 4,
+        }
+        type_num = type_map.get(role, 1)
+
         ser = getattr(self.ctx.bridge, "serial_adapter", None)
         res = await ser.export_contact(pubkey) if ser and hasattr(ser, "export_contact") else None
-        return 200, {"status": "ok", "result": res}
+
+        encoded_name = urllib.parse.quote(name)
+        canonical_uri = f"meshcore://contact/add?name={encoded_name}&public_key={pubkey}&type={type_num}"
+
+        contact_data = {
+            "type": "contact",
+            "name": name,
+            "public_key": pubkey,
+            "role": role,
+            "contact_type": type_num,
+            "uri": canonical_uri,
+            "raw_hex": res,
+        }
+
+        return 200, {
+            "status": "ok",
+            "uri": canonical_uri,
+            "qr_uri": canonical_uri,
+            "data": contact_data,
+            "result": res,
+        }
 
     async def _import_contact(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-        """Importa contactos desde URI (meshcore://...), JSON estructurado o volcado hexadecimal."""
+        """Importa contactos desde URI canónica (meshcore://contact/add?...), JSON estructurado o volcado hexadecimal."""
         raw_payload = str(req_body.get("data") or req_body.get("payload") or req_body.get("uri") or "").strip()
         contacts_to_add: list[dict[str, Any]] = []
 
@@ -126,10 +186,20 @@ class ContactsController(BaseController):
             if raw_payload.startswith("meshcore://"):
                 try:
                     parsed_uri = urllib.parse.urlparse(raw_payload)
+                    # Si es canal, alertar
+                    if "channel" in parsed_uri.netloc.lower() or "channel" in parsed_uri.path.lower():
+                        return problem_details(400, "Bad Request", "El contenido corresponde a un canal, no a un contacto. Usa la sección Canales para importarlo.", "channel_payload_in_contacts")
+
                     qs = urllib.parse.parse_qs(parsed_uri.query)
-                    pk = (qs.get("pubkey") or qs.get("public_key") or qs.get("key") or [""])[0].strip()
+                    pk = (qs.get("public_key") or qs.get("pubkey") or qs.get("key") or [""])[0].strip()
                     nm = (qs.get("name") or qs.get("alias") or [""])[0].strip()
-                    rl = (qs.get("role") or ["CLIENT"])[0].strip()
+                    raw_type = (qs.get("type") or [""])[0].strip()
+                    rl = (qs.get("role") or [""])[0].strip().upper()
+                    if not rl and raw_type:
+                        type_map_rev = {"1": "CLIENT", "2": "REPEATER", "3": "ROOM", "4": "SENSOR"}
+                        rl = type_map_rev.get(raw_type, "CLIENT")
+                    if not rl:
+                        rl = "CLIENT"
                     if pk:
                         contacts_to_add.append({"public_key": pk, "name": nm, "alias": nm, "role": rl})
                 except Exception as e:
@@ -163,10 +233,18 @@ class ContactsController(BaseController):
                                 contacts_to_add.extend(c for c in loaded if isinstance(c, dict))
                         elif utf8_text.startswith("meshcore://"):
                             parsed_uri = urllib.parse.urlparse(utf8_text)
+                            if "channel" in parsed_uri.netloc.lower() or "channel" in parsed_uri.path.lower():
+                                return problem_details(400, "Bad Request", "El contenido corresponde a un canal, no a un contacto", "channel_payload_in_contacts")
                             qs = urllib.parse.parse_qs(parsed_uri.query)
-                            pk = (qs.get("pubkey") or qs.get("public_key") or qs.get("key") or [""])[0].strip()
+                            pk = (qs.get("public_key") or qs.get("pubkey") or qs.get("key") or [""])[0].strip()
                             nm = (qs.get("name") or qs.get("alias") or [""])[0].strip()
-                            rl = (qs.get("role") or ["CLIENT"])[0].strip()
+                            raw_type = (qs.get("type") or [""])[0].strip()
+                            rl = (qs.get("role") or [""])[0].strip().upper()
+                            if not rl and raw_type:
+                                type_map_rev = {"1": "CLIENT", "2": "REPEATER", "3": "ROOM", "4": "SENSOR"}
+                                rl = type_map_rev.get(raw_type, "CLIENT")
+                            if not rl:
+                                rl = "CLIENT"
                             if pk:
                                 contacts_to_add.append({"public_key": pk, "name": nm, "alias": nm, "role": rl})
                     except Exception:

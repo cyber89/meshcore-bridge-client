@@ -3,7 +3,16 @@
  * Incluye tracking de entrega (ACKs), alertas sonoras e historial persistente IndexedDB.
  */
 
-import { escapeHtml, extractSenderAndText, isCommandOrSystemText, isCommonChatMessage, MAX_FEED_MESSAGES } from "../core/utils.js";
+import {
+  escapeHtml,
+  extractSenderAndText,
+  isCommandOrSystemText,
+  isCommonChatMessage,
+  MAX_FEED_MESSAGES,
+  buildMeshCoreContactUri,
+  buildMeshCoreChannelUri,
+  MESHCORE_PUBLIC_CHANNEL_SECRET,
+} from "../core/utils.js";
 import { EVENTS } from "../core/eventbus.js";
 
 export class ChatModule {
@@ -227,8 +236,8 @@ export class ChatModule {
 
   shareActiveTargetQr() {
     if (this.activeDmTarget) {
-      const uri = `meshcore://contact?pubkey=${encodeURIComponent(this.activeDmTarget)}&name=${encodeURIComponent(this.activeDmName || "")}`;
-      const json = JSON.stringify({ type: "contact", pubkey: this.activeDmTarget, name: this.activeDmName }, null, 2);
+      const uri = buildMeshCoreContactUri(this.activeDmName, this.activeDmTarget, "CLIENT");
+      const json = JSON.stringify({ type: "contact", public_key: this.activeDmTarget, name: this.activeDmName, role: "CLIENT", uri }, null, 2);
       if (window.showQrModal) {
         window.showQrModal(`Contacto: ${this.activeDmName}`, uri, json);
       } else if (this.ctx.showToast) {
@@ -236,14 +245,38 @@ export class ChatModule {
         this.ctx.showToast(I18n.t('toast.contact_copied'), "success");
       }
     } else {
-      const uri = `meshcore://channel?index=${this.activeChannelIdx}&name=${encodeURIComponent(this.activeChannelIdx === 0 ? "Public" : `Ch_${this.activeChannelIdx}`)}`;
-      const json = JSON.stringify({ type: "channel", index: this.activeChannelIdx, name: this.activeChannelIdx === 0 ? "Public" : `Ch_${this.activeChannelIdx}` }, null, 2);
-      if (window.showQrModal) {
-        window.showQrModal(I18n.t('chat.ch_n_title').replace('{n}', this.activeChannelIdx), uri, json);
-      } else if (this.ctx.showToast) {
-        navigator.clipboard.writeText(uri);
-        this.ctx.showToast(I18n.t('toast.channel_copied'), "success");
-      }
+      const chIdx = this.activeChannelIdx ?? 0;
+      fetch(`/api/channels/export?index=${chIdx}`, {
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          let uri = "";
+          let jsonStr = "";
+          if (data.status === "ok" && data.uri) {
+            uri = data.uri;
+            jsonStr = JSON.stringify(data.data || { type: "channel", index: chIdx, uri }, null, 2);
+          } else {
+            uri = buildMeshCoreChannelUri(chIdx === 0 ? "Public" : `Ch_${chIdx}`, MESHCORE_PUBLIC_CHANNEL_SECRET, chIdx);
+            jsonStr = JSON.stringify({ type: "channel", index: chIdx, uri }, null, 2);
+          }
+          if (window.showQrModal) {
+            window.showQrModal(I18n.t('chat.ch_n_title').replace('{n}', chIdx), uri, jsonStr);
+          } else if (this.ctx.showToast) {
+            navigator.clipboard.writeText(uri);
+            this.ctx.showToast(I18n.t('toast.channel_copied'), "success");
+          }
+        })
+        .catch(() => {
+          const uri = buildMeshCoreChannelUri(chIdx === 0 ? "Public" : `Ch_${chIdx}`, MESHCORE_PUBLIC_CHANNEL_SECRET, chIdx);
+          const jsonStr = JSON.stringify({ type: "channel", index: chIdx, uri }, null, 2);
+          if (window.showQrModal) {
+            window.showQrModal(I18n.t('chat.ch_n_title').replace('{n}', chIdx), uri, jsonStr);
+          } else if (this.ctx.showToast) {
+            navigator.clipboard.writeText(uri);
+            this.ctx.showToast(I18n.t('toast.channel_copied'), "success");
+          }
+        });
     }
   }
 

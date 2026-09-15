@@ -6,7 +6,7 @@
 import { eventBus, EVENTS } from "./core/eventbus.js";
 import { MeshCoreStorage } from "./core/storage.js";
 import { MeshCoreWebSocketClient } from "./core/websocket.js";
-import { debounce, escapeHtml } from "./core/utils.js";
+import { debounce, escapeHtml, buildMeshCoreContactUri } from "./core/utils.js";
 
 import { SnifferModule } from "./modules/sniffer.js";
 import { RepeaterModule } from "./modules/repeater.js";
@@ -315,7 +315,9 @@ class MeshCoreApp {
         } else if (action === "action-advert-clipboard") {
           const localPk = this.localNodePubkey || (document.getElementById("localNodePubkey")?.value || "");
           if (localPk) {
-            navigator.clipboard.writeText(`meshcore://node?pubkey=${encodeURIComponent(localPk)}`);
+            const localName = (document.getElementById("localNodeName")?.value || "").trim() || "MeshCore Base";
+            const uri = buildMeshCoreContactUri(localName, localPk, "CLIENT");
+            navigator.clipboard.writeText(uri);
             this.showToast("Enlace de nodo copiado al portapapeles", "success");
           } else {
             this.showToast("Clave de nodo local no disponible", "info");
