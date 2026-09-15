@@ -109,7 +109,6 @@ class MeshCoreApp {
       cmdPaletteInput: document.getElementById("cmdPaletteInput"),
       cmdPaletteResults: document.getElementById("cmdPaletteResults"),
       radioStatus: document.getElementById("radio-status"),
-      wsStatus: document.getElementById("ws-status"),
       headerRxCount: document.getElementById("headerRxCount"),
       headerTxCount: document.getElementById("headerTxCount"),
       headerErrorRate: document.getElementById("headerErrorRate"),

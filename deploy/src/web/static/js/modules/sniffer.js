@@ -94,12 +94,10 @@ export class SnifferModule {
       systemLogsFeed: document.getElementById("systemLogsFeed"),
       logLevelFilter: document.getElementById("logLevelFilter"),
       logSearchInput: document.getElementById("logSearchInput"),
-      btnToggleDebugMode: document.getElementById("btnToggleDebugMode"),
       chkDebugMode: document.getElementById("chkDebugMode"),
       debugModeBadge: document.getElementById("debugModeBadge"),
       btnDownloadRawLogs: document.getElementById("btnDownloadRawLogs"),
       btnClearLogs: document.getElementById("btnClearLogs"),
-      btnPauseLogsScroll: document.getElementById("btnPauseLogsScroll"),
       chkLogsAutoScroll: document.getElementById("chkLogsAutoScroll"),
       logsAutoScrollBadge: document.getElementById("logsAutoScrollBadge"),
       chipSerialHealth: document.getElementById("chipSerialHealth"),
@@ -107,7 +105,6 @@ export class SnifferModule {
       chipErrorsCount: document.getElementById("chipErrorsCount"),
 
       // Panel 2: Monitor de Paquetes RF (LoRa Sniffer)
-      btnToggleSnifferPause: document.getElementById("btnToggleSnifferPause"),
       chkSnifferCapture: document.getElementById("chkSnifferCapture"),
       snifferCaptureBadge: document.getElementById("snifferCaptureBadge"),
       btnClearSnifferPackets: document.getElementById("btnClearSnifferPackets"),
@@ -160,9 +157,6 @@ export class SnifferModule {
     if (this.dom.chkDebugMode) {
       this.dom.chkDebugMode.addEventListener("change", (e) => this.setDebugMode(e.target.checked));
     }
-    if (this.dom.btnToggleDebugMode) {
-      this.dom.btnToggleDebugMode.addEventListener("click", () => this.toggleDebugMode());
-    }
     if (this.dom.btnDownloadRawLogs) {
       this.dom.btnDownloadRawLogs.addEventListener("click", () => this.downloadRawLogs());
     }
@@ -171,9 +165,6 @@ export class SnifferModule {
     }
     if (this.dom.chkLogsAutoScroll) {
       this.dom.chkLogsAutoScroll.addEventListener("change", (e) => this.setLogsScroll(e.target.checked));
-    }
-    if (this.dom.btnPauseLogsScroll) {
-      this.dom.btnPauseLogsScroll.addEventListener("click", () => this.toggleLogsScroll());
     }
     if (this.dom.logLevelFilter) {
       this.dom.logLevelFilter.addEventListener("change", () => this.renderFilteredLogs());
@@ -188,9 +179,6 @@ export class SnifferModule {
     // Controles del Sniffer de Paquetes RF
     if (this.dom.chkSnifferCapture) {
       this.dom.chkSnifferCapture.addEventListener("change", (e) => this.setSnifferCapture(e.target.checked));
-    }
-    if (this.dom.btnToggleSnifferPause) {
-      this.dom.btnToggleSnifferPause.addEventListener("click", () => this.toggleSnifferPause());
     }
     if (this.dom.btnClearSnifferPackets) {
       this.dom.btnClearSnifferPackets.addEventListener("click", () => this.clearCapturedPackets());
@@ -337,14 +325,6 @@ export class SnifferModule {
     if (this.dom.snifferCaptureBadge) {
       this.dom.snifferCaptureBadge.textContent = isCapturing ? "ON" : "OFF";
       this.dom.snifferCaptureBadge.classList.toggle("is-active-success", isCapturing);
-    }
-    if (this.dom.btnToggleSnifferPause) {
-      this.dom.btnToggleSnifferPause.innerHTML = this.isSnifferPaused
-        ? '<span data-lucide="play" data-size="14"></span> Reanudar Captura'
-        : '<span data-lucide="pause" data-size="14"></span> Pausar Captura';
-      this.dom.btnToggleSnifferPause.className = this.isSnifferPaused
-        ? "btn-secondary btn-sm"
-        : "btn-outline btn-sm";
     }
   }
 
@@ -785,10 +765,6 @@ export class SnifferModule {
       this.dom.debugModeBadge.textContent = this.isDebugMode ? "ON" : "OFF";
       this.dom.debugModeBadge.classList.toggle("is-active", this.isDebugMode);
     }
-    if (this.dom.btnToggleDebugMode) {
-      this.dom.btnToggleDebugMode.textContent = this.isDebugMode ? "🐞 Modo DEBUG: ON" : "🐞 Modo DEBUG: OFF";
-      this.dom.btnToggleDebugMode.className = this.isDebugMode ? "btn-primary" : "btn-secondary";
-    }
   }
 
   async clearSystemLogs() {
@@ -822,10 +798,6 @@ export class SnifferModule {
     if (this.dom.logsAutoScrollBadge) {
       this.dom.logsAutoScrollBadge.textContent = isAutoScroll ? "ON" : "OFF";
       this.dom.logsAutoScrollBadge.classList.toggle("is-active-success", isAutoScroll);
-    }
-    if (this.dom.btnPauseLogsScroll) {
-      this.dom.btnPauseLogsScroll.textContent = this.logsScrollPaused ? "▶️ Reanudar Scroll" : "⏸️ Pausar Scroll";
-      this.dom.btnPauseLogsScroll.className = this.logsScrollPaused ? "btn-secondary btn-sm" : "btn-outline btn-sm";
     }
   }
 

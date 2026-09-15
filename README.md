@@ -79,6 +79,7 @@ meshcore-bridge/
 │   ├── __main__.py                   # Entrypoint 'python -m src'
 │   ├── admin/                        # Ejecutores de comandos administrativos
 │   │   ├── __init__.py
+│   │   ├── cli_command_executor.py
 │   │   ├── local_config_executor.py
 │   │   ├── repeater_executor.py
 │   │   └── traceroute_executor.py
@@ -122,6 +123,7 @@ meshcore-bridge/
 │       │   ├── channels_controller.py
 │       │   ├── config_controller.py
 │       │   ├── contacts_controller.py
+│       │   ├── logs_controller.py
 │       │   ├── nodes_controller.py
 │       │   ├── packets_controller.py
 │       │   ├── repeater_controller.py

@@ -339,6 +339,114 @@ class RepeaterManager:
         elif any(p in lower_text for p in ("login ok", "logged in", "auth ok", "welcome admin", "access granted", "login success")):
             extracted["auth_status"] = "success"
 
+    @staticmethod
+    def _extract_json_power(data_json: dict[str, Any], extracted: dict[str, Any]) -> None:
+        if "battery_mv" in data_json or "batt_mv" in data_json or "battery" in data_json:
+            raw_bat = data_json.get("battery_mv", data_json.get("batt_mv", data_json.get("battery")))
+            if isinstance(raw_bat, (int, float)):
+                pct_norm, volt_norm = normalize_battery(raw_bat)
+                extracted["battery_pct"] = int(pct_norm)
+                if volt_norm > 0:
+                    extracted["voltage_v"] = volt_norm
+
+        if "voltage_v" in data_json or "voltage" in data_json:
+            raw_v = data_json.get("voltage_v", data_json.get("voltage"))
+            if isinstance(raw_v, (int, float)):
+                extracted["voltage_v"] = round(float(raw_v), 2)
+
+        if "solar_mv" in data_json or "solar_v" in data_json or "solar" in data_json:
+            raw_sol = data_json.get("solar_mv", data_json.get("solar_v", data_json.get("solar")))
+            if isinstance(raw_sol, (int, float)):
+                extracted["solar_v"] = round(raw_sol / 1000.0, 2) if raw_sol > 100 else round(float(raw_sol), 2)
+
+    @staticmethod
+    def _extract_json_system(data_json: dict[str, Any], extracted: dict[str, Any]) -> None:
+        if "uptime_secs" in data_json or "uptime" in data_json:
+            raw_up = data_json.get("uptime_secs", data_json.get("uptime"))
+            if isinstance(raw_up, (int, float)):
+                secs = int(raw_up)
+                days, rem = divmod(secs, 86400)
+                hours, rem = divmod(rem, 3600)
+                mins, s = divmod(rem, 60)
+                extracted["uptime"] = f"{days}d {hours}h {mins}m" if days > 0 else f"{hours}h {mins}m {s}s"
+            else:
+                extracted["uptime"] = str(raw_up)
+
+        if "errors" in data_json:
+            extracted["packet_errors"] = int(data_json["errors"])
+        if "queue_len" in data_json:
+            extracted["queue_len"] = int(data_json["queue_len"])
+        if "noise_floor" in data_json:
+            extracted["noise_floor_dbm"] = int(data_json["noise_floor"])
+        if "last_rssi" in data_json:
+            extracted["last_rssi"] = int(data_json["last_rssi"])
+        if "last_snr" in data_json:
+            extracted["last_snr"] = round(float(data_json["last_snr"]), 1)
+        if "tx_air_secs" in data_json:
+            extracted["airtime_ms"] = int(float(data_json["tx_air_secs"]) * 1000)
+        if "sent" in data_json:
+            extracted["packets_sent"] = int(data_json["sent"])
+        if "recv" in data_json:
+            extracted["packets_recv"] = int(data_json["recv"])
+        if "recv_errors" in data_json:
+            extracted["packet_errors"] = int(data_json["recv_errors"])
+
+    @staticmethod
+    def _extract_json_radio_and_coords(data_json: dict[str, Any], extracted: dict[str, Any]) -> None:
+        if "repeat" in data_json or "repeat_enabled" in data_json or "repeating" in data_json:
+            raw_rep = data_json.get("repeat", data_json.get("repeat_enabled", data_json.get("repeating")))
+            extracted["repeat_enabled"] = bool(raw_rep) if not isinstance(raw_rep, str) else raw_rep.lower() in ("1", "true", "on", "enabled", "activado")
+
+        if "hop_limit" in data_json or "hops" in data_json or "max_hops" in data_json:
+            raw_hl = data_json.get("hop_limit", data_json.get("max_hops", data_json.get("hops")))
+            if isinstance(raw_hl, (int, float)):
+                extracted["hop_limit"] = int(raw_hl)
+
+        if "tx_power" in data_json or "power" in data_json:
+            raw_pwr = data_json.get("tx_power", data_json.get("power"))
+            if raw_pwr is not None:
+                extracted["tx_power"] = int(raw_pwr)
+
+        if "freq" in data_json or "frequency" in data_json:
+            raw_fr = data_json.get("freq", data_json.get("frequency"))
+            if raw_fr is not None:
+                extracted["frequency"] = round(float(raw_fr), 3)
+
+        if "sf" in data_json or "spreading_factor" in data_json:
+            raw_sf = data_json.get("sf", data_json.get("spreading_factor"))
+            if raw_sf is not None:
+                extracted["spreading_factor"] = int(raw_sf)
+
+        if "bw" in data_json or "bandwidth" in data_json:
+            raw_bw = data_json.get("bw", data_json.get("bandwidth"))
+            if raw_bw is not None:
+                extracted["bandwidth"] = float(raw_bw)
+
+        if "cr" in data_json or "coding_rate" in data_json:
+            raw_cr = data_json.get("cr", data_json.get("coding_rate"))
+            if raw_cr is not None:
+                extracted["coding_rate"] = str(raw_cr).strip()
+
+        if "owner" in data_json or "owner_name" in data_json:
+            raw_ow = data_json.get("owner_name", data_json.get("owner"))
+            if raw_ow is not None:
+                extracted["owner_name"] = str(raw_ow)
+
+        if "lat" in data_json or "latitude" in data_json:
+            raw_la = data_json.get("lat", data_json.get("latitude"))
+            if raw_la is not None:
+                extracted["latitude"] = round(float(raw_la), 5)
+
+        if "lon" in data_json or "longitude" in data_json:
+            raw_lo = data_json.get("lon", data_json.get("longitude"))
+            if raw_lo is not None:
+                extracted["longitude"] = round(float(raw_lo), 5)
+
+        if "alt" in data_json or "altitude" in data_json:
+            raw_al = data_json.get("alt", data_json.get("altitude"))
+            if raw_al is not None:
+                extracted["altitude_m"] = round(float(raw_al), 1)
+
     def _parse_json_telemetry(self, text: str, extracted: dict[str, Any]) -> bool:
         """Parsea telemetría si viene serializada en JSON oficial MeshCore."""
         if not (text.startswith("{") and text.endswith("}")):
@@ -349,108 +457,9 @@ class RepeaterManager:
             if not isinstance(data_json, dict):
                 return False
 
-            if "battery_mv" in data_json or "batt_mv" in data_json or "battery" in data_json:
-                raw_bat = data_json.get("battery_mv", data_json.get("batt_mv", data_json.get("battery")))
-                if isinstance(raw_bat, (int, float)):
-                    pct_norm, volt_norm = normalize_battery(raw_bat)
-                    extracted["battery_pct"] = int(pct_norm)
-                    if volt_norm > 0:
-                        extracted["voltage_v"] = volt_norm
-
-            if "voltage_v" in data_json or "voltage" in data_json:
-                raw_v = data_json.get("voltage_v", data_json.get("voltage"))
-                if isinstance(raw_v, (int, float)):
-                    extracted["voltage_v"] = round(float(raw_v), 2)
-
-            if "solar_mv" in data_json or "solar_v" in data_json or "solar" in data_json:
-                raw_sol = data_json.get("solar_mv", data_json.get("solar_v", data_json.get("solar")))
-                if isinstance(raw_sol, (int, float)):
-                    extracted["solar_v"] = round(raw_sol / 1000.0, 2) if raw_sol > 100 else round(float(raw_sol), 2)
-
-            if "uptime_secs" in data_json or "uptime" in data_json:
-                raw_up = data_json.get("uptime_secs", data_json.get("uptime"))
-                if isinstance(raw_up, (int, float)):
-                    secs = int(raw_up)
-                    days, rem = divmod(secs, 86400)
-                    hours, rem = divmod(rem, 3600)
-                    mins, s = divmod(rem, 60)
-                    extracted["uptime"] = f"{days}d {hours}h {mins}m" if days > 0 else f"{hours}h {mins}m {s}s"
-                else:
-                    extracted["uptime"] = str(raw_up)
-
-            if "errors" in data_json:
-                extracted["packet_errors"] = int(data_json["errors"])
-            if "queue_len" in data_json:
-                extracted["queue_len"] = int(data_json["queue_len"])
-            if "noise_floor" in data_json:
-                extracted["noise_floor_dbm"] = int(data_json["noise_floor"])
-            if "last_rssi" in data_json:
-                extracted["last_rssi"] = int(data_json["last_rssi"])
-            if "last_snr" in data_json:
-                extracted["last_snr"] = round(float(data_json["last_snr"]), 1)
-            if "tx_air_secs" in data_json:
-                extracted["airtime_ms"] = int(float(data_json["tx_air_secs"]) * 1000)
-            if "sent" in data_json:
-                extracted["packets_sent"] = int(data_json["sent"])
-            if "recv" in data_json:
-                extracted["packets_recv"] = int(data_json["recv"])
-            if "recv_errors" in data_json:
-                extracted["packet_errors"] = int(data_json["recv_errors"])
-
-            if "repeat" in data_json or "repeat_enabled" in data_json or "repeating" in data_json:
-                raw_rep = data_json.get("repeat", data_json.get("repeat_enabled", data_json.get("repeating")))
-                extracted["repeat_enabled"] = bool(raw_rep) if not isinstance(raw_rep, str) else raw_rep.lower() in ("1", "true", "on", "enabled", "activado")
-
-            if "hop_limit" in data_json or "hops" in data_json or "max_hops" in data_json:
-                raw_hl = data_json.get("hop_limit", data_json.get("max_hops", data_json.get("hops")))
-                if isinstance(raw_hl, (int, float)):
-                    extracted["hop_limit"] = int(raw_hl)
-
-            if "tx_power" in data_json or "power" in data_json:
-                raw_pwr = data_json.get("tx_power", data_json.get("power"))
-                if raw_pwr is not None:
-                    extracted["tx_power"] = int(raw_pwr)
-
-            if "freq" in data_json or "frequency" in data_json:
-                raw_fr = data_json.get("freq", data_json.get("frequency"))
-                if raw_fr is not None:
-                    extracted["frequency"] = round(float(raw_fr), 3)
-
-            if "sf" in data_json or "spreading_factor" in data_json:
-                raw_sf = data_json.get("sf", data_json.get("spreading_factor"))
-                if raw_sf is not None:
-                    extracted["spreading_factor"] = int(raw_sf)
-
-            if "bw" in data_json or "bandwidth" in data_json:
-                raw_bw = data_json.get("bw", data_json.get("bandwidth"))
-                if raw_bw is not None:
-                    extracted["bandwidth"] = float(raw_bw)
-
-            if "cr" in data_json or "coding_rate" in data_json:
-                raw_cr = data_json.get("cr", data_json.get("coding_rate"))
-                if raw_cr is not None:
-                    extracted["coding_rate"] = str(raw_cr).strip()
-
-            if "owner" in data_json or "owner_name" in data_json:
-                raw_ow = data_json.get("owner_name", data_json.get("owner"))
-                if raw_ow is not None:
-                    extracted["owner_name"] = str(raw_ow)
-
-            if "lat" in data_json or "latitude" in data_json:
-                raw_la = data_json.get("lat", data_json.get("latitude"))
-                if raw_la is not None:
-                    extracted["latitude"] = round(float(raw_la), 5)
-
-            if "lon" in data_json or "longitude" in data_json:
-                raw_lo = data_json.get("lon", data_json.get("longitude"))
-                if raw_lo is not None:
-                    extracted["longitude"] = round(float(raw_lo), 5)
-
-            if "alt" in data_json or "altitude" in data_json:
-                raw_al = data_json.get("alt", data_json.get("altitude"))
-                if raw_al is not None:
-                    extracted["altitude_m"] = round(float(raw_al), 1)
-
+            self._extract_json_power(data_json, extracted)
+            self._extract_json_system(data_json, extracted)
+            self._extract_json_radio_and_coords(data_json, extracted)
             return True
         except Exception:
             return False

@@ -129,6 +129,12 @@ class ContactsController(BaseController):
         if not pubkey:
             return problem_details(400, "Bad Request", "Se requiere 'public_key'", "missing_public_key")
 
+        if hasattr(self.ctx.bridge, "node_registry") and self.ctx.bridge.node_registry.is_local_key(pubkey):
+            return problem_details(400, "Bad Request", "No se permite agregar la estación base local a la libreta de contactos", "cannot_add_local_station")
+
+        if role.upper() in ("REPEATER", "ROUTER"):
+            return problem_details(400, "Bad Request", "Los repetidores son nodos de infraestructura y no pueden agregarse a contactos", "repeater_contact_forbidden")
+
         is_fav = req_body.get("is_favorite")
         is_favorite_val = bool(is_fav) if is_fav is not None else None
 

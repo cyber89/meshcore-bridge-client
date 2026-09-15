@@ -3686,4 +3686,37 @@ Fase 5 - COMPAT-001 to COMPAT-012 terminados
   7. **Despliegue y Empaquetado**:
      - Ejecutado `python scripts/sync_deploy.py`: carpeta `/deploy/` actualizada, y generados paquetes limpios `meshcore-bridge-v3.0.0.tar.gz` y `meshcore-bridge-v3.0.0.zip` junto con `SHA256SUMS`.
 
+### Hito: Sincronización Canónica de Documentación/Skills, Corrección de Contradicciones y Fortalecimiento Integral de API, Bridge y Frontend
+- **Fecha**: 2026-09-15
+- **Estado**: ✅ COMPLETADO (Resolución de discrepancias de framing en CONTEXT.md y SKILL.md pasando a 1-byte canónico; corrección de tablas y árboles en ARCHITECTURE.md y README.md; blindaje de PSK masking en ChannelsController; enforcement de ADR 0001 en ContactsController ante repetidores y estación local; corrección de broadcast WebSocket en NodesController; unificación de paginación REST en api_router; dataclass PacketInput para desacoplar parámetros en PacketBuffer; modularización de telemetría JSON en RepeaterManager; purga del 100% de IDs huérfanos en JavaScript frontend; mypy strict y ruff 100% PASS; simulación multi-nodo y escenarios extremos 100% PASS con cero excepciones; sincronización en /deploy/ y push a GitHub).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 4 (Web Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  - El usuario solicitó leer y comprobar toda la documentación y skills, solucionar errores y contradicciones, analizar el código buscando errores en la API, el backend, el bridge y el frontend, y solucionarlos.
+- **Acciones y Mejoras Realizadas**:
+  1. **SSoT de Documentación y Skills**:
+     - `CONTEXT.md`: Corregida la definición de Byte Stuffing de 2 bytes (`SOF 0xAA 0x55` / `EOF 0x55 0xAA`) a la especificación canónica de 1 byte de MeshCore (`SOF 0xAA` / `EOF 0x55`, `ESC 0x1B`, `ESC_MASK 0x20`).
+     - `.agents/skills/lora-packet-simulator/SKILL.md`: Actualizada la documentación de tramas para reflejar con exactitud `SOF (0xAA)`, `EOF (0x55)` y `ESC (0x1B)`.
+     - `docs/ARCHITECTURE.md`: Corregida la tabla de componentes de la Sección 5 con las rutas correctas (`virtual_mesh_adapter.py`, `packet_buffer.py`, `target_resolver.py`).
+     - `README.md`: Sincronizado el árbol del proyecto incorporando `cli_command_executor.py` y `logs_controller.py`.
+  2. **API REST y Controladores Web (`src/web/`)**:
+     - `src/web/controllers/channels_controller.py`: Implementada guarda defensiva en `_create_or_update_channel` para que si el frontend envía el valor enmascarado `"••••••••"`, se conserve la clave AES-128 real sin corromper la configuración.
+     - `src/web/controllers/contacts_controller.py`: Enforzadas las reglas inmutables de ADR 0001 rechazando con HTTP 400 cualquier intento de registrar como contacto al nodo local (`cannot_add_local_station`) o a nodos repetidores (`repeater_contact_forbidden`).
+     - `src/web/controllers/nodes_controller.py`: Corregido fallo en `reset_metrics` que invocaba `ws_server` inexistente en vez de `self.ctx.broadcast_ws({"type": "metrics_reset", ...})`.
+     - `src/web/api_router.py`: Corregido despacho de rutas para que `/api/messages` invoque `LogsController` para paginación REST completa (`limit`, `offset`, `total_count`), mientras que `/api/messages/recent` sirve las memorias recientes en anillo; añadidas referencias activas a `_background_tasks` para proteger las corutinas de broadcast de recolección prematura de basura.
+  3. **Backend y Bridge (`src/`)**:
+     - `src/packet_buffer.py`: Introducido `@dataclass(slots=True) class PacketInput` eliminando el code smell de 14 parámetros en `record()` manteniendo compatibilidad total hacia atrás.
+     - `src/repeater_manager.py`: Modularizado `_parse_json_telemetry` en 3 extractores puros (`_extract_json_power`, `_extract_json_system`, `_extract_json_radio_and_coords`), reduciendo drásticamente la complejidad ciclomática.
+  4. **Frontend SPA (`src/web/static/js/`)**:
+     - Eliminadas referencias a 5 elementos DOM obsoletos/inexistentes en `index.html`: `ws-status` en `app.js`, `btnToggleHeatmap` en `map.js`, y `btnToggleDebugMode`, `btnPauseLogsScroll`, `btnToggleSnifferPause` en `sniffer.js`.
+     - Verificados 390 IDs en 8 módulos JS contra `src/web/static/index.html`: 0 elementos huérfanos (100% de cobertura y paridad exacta).
+  5. **Verificación y Simulaciones**:
+     - `ruff check src/ scripts/`: 100% PASS.
+     - `mypy src/`: Strict success (0 incidencias en 53 archivos).
+     - `verify_api_parity.py`: 36/36 rutas sincronizadas sin discrepancias.
+     - `run_security_audit.py`: Cero vulnerabilidades SAST/DAST.
+     - `simulate_full_mesh_validation.py`: 8 de 8 fases superadas con éxito.
+     - `simulate_extreme_scenarios.py`: 8 de 8 fases superadas con éxito (0 excepciones, 0 logs críticos, 100% PDR).
+  6. **Empaquetado y Despliegue**:
+     - `python scripts/sync_deploy.py`: Despliegue sincronizado en `/deploy/` y paquetes `.tar.gz` y `.zip` actualizados con `SHA256SUMS`.
+
 

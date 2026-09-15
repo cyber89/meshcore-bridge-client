@@ -16,7 +16,7 @@ Esta skill proporciona un entorno de simulación en memoria para depurar y verif
 
 1. **`VirtualSerialAdapter` en Memoria**:
    - Emula la capa UART del transceptor MeshCore utilizando colas asíncronas `asyncio.Queue`.
-   - Permite inyectar tramas serie delimitadas con `SOF` (`0xAA 0x55`), byte stuffing y `EOF` (`0x55 0xAA`).
+   - Permite inyectar tramas serie delimitadas con `SOF` (`0xAA`), byte stuffing (`ESC 0x1B`) y `EOF` (`0x55`).
 2. **Reproducción de Trazas (Packet Replay)**:
    - Lee archivos de captura en formato JSON, CSV o volcado hexadecimal (`.hex`, `.log`) y los reproduce con temporización configurable.
 3. **Simulación de Topologías de Malla**:

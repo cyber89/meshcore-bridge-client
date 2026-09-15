@@ -49,7 +49,6 @@ export class MapModule {
       mapNodesList: document.getElementById("mapNodesList"),
       mapNodesCount: document.getElementById("mapNodesCount"),
       btnCenterLocalNode: document.getElementById("btnCenterLocalNode"),
-      btnToggleHeatmap: document.getElementById("btnToggleHeatmap"),
       chkMapHeatmap: document.getElementById("chkMapHeatmap"),
       mapHeatmapBadge: document.getElementById("mapHeatmapBadge"),
       tracerouteModal: document.getElementById("tracerouteModal"),
@@ -82,10 +81,6 @@ export class MapModule {
 
     if (this.dom.chkMapHeatmap) {
       this.dom.chkMapHeatmap.addEventListener("change", (e) => this.setRfHeatmap(e.target.checked));
-    }
-
-    if (this.dom.btnToggleHeatmap) {
-      this.dom.btnToggleHeatmap.addEventListener("click", () => this.toggleRfHeatmap());
     }
   }
 
@@ -305,9 +300,6 @@ export class MapModule {
     if (this.dom.mapHeatmapBadge) {
       this.dom.mapHeatmapBadge.textContent = this.rfHeatmapActive ? "ON" : "OFF";
       this.dom.mapHeatmapBadge.classList.toggle("is-active", this.rfHeatmapActive);
-    }
-    if (this.dom.btnToggleHeatmap) {
-      this.dom.btnToggleHeatmap.classList.toggle("active", this.rfHeatmapActive);
     }
   }
 

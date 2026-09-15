@@ -47,6 +47,24 @@ class CapturedPacket:
         return res
 
 
+@dataclass(slots=True)
+class PacketInput:
+    """Objeto de parámetros para record() en PacketBuffer."""
+    direction: str = "rx"
+    channel_idx: int = 0
+    packet_type: str = "PACKET"
+    sender: str = ""
+    sender_name: str = ""
+    target: str = "broadcast"
+    text: str = ""
+    rssi: int | None = None
+    snr: float | None = None
+    lqi_score: float | None = None
+    lqi_status: str = "N/A"
+    raw_bytes: bytes | bytearray | None = None
+    payload_dict: dict[str, Any] | None = None
+
+
 class PacketBuffer:
     """
     Búfer circular no bloqueante en memoria RAM para almacenar los últimos N paquetes LoRa.
@@ -61,7 +79,7 @@ class PacketBuffer:
 
     def record(
         self,
-        direction: str,
+        direction: str | PacketInput = "rx",
         channel_idx: int = 0,
         packet_type: str = "PACKET",
         sender: str = "",
@@ -75,9 +93,27 @@ class PacketBuffer:
         raw_bytes: bytes | bytearray | None = None,
         payload_dict: dict[str, Any] | None = None,
     ) -> CapturedPacket | None:
-        """Registra una trama en el búfer circular."""
+        """Registra una trama en el búfer circular aceptando PacketInput o parámetros individuales."""
         if not self.capture_enabled:
             return None
+
+        if isinstance(direction, PacketInput):
+            inp = direction
+            direction_str = inp.direction
+            channel_idx = inp.channel_idx
+            packet_type = inp.packet_type
+            sender = inp.sender
+            sender_name = inp.sender_name
+            target = inp.target
+            text = inp.text
+            rssi = inp.rssi
+            snr = inp.snr
+            lqi_score = inp.lqi_score
+            lqi_status = inp.lqi_status
+            raw_bytes = inp.raw_bytes
+            payload_dict = inp.payload_dict
+        else:
+            direction_str = str(direction)
 
         self._counter += 1
         now_ts = time.time()
@@ -91,7 +127,7 @@ class PacketBuffer:
             packet_id=self._counter,
             timestamp=now_ts,
             iso_time=iso_time,
-            direction=direction.lower(),
+            direction=direction_str.lower(),
             channel_idx=channel_idx,
             packet_type=str(packet_type).upper(),
             sender=str(sender),

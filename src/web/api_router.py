@@ -68,6 +68,7 @@ class WebAPIRouter:
 
         # Referencia compartida de canales para retrocompatibilidad
         self.channels: dict[int, dict[str, Any]] = self.channels_ctrl.channels
+        self._background_tasks: set[asyncio.Task[Any]] = set()
 
     def _get_storage_path(self) -> Path:
         """Obtiene la ruta persistente del archivo JSON de canales."""
@@ -92,7 +93,9 @@ class WebAPIRouter:
         if web and hasattr(web, "broadcast_event"):
             res = web.broadcast_event(event)
             if asyncio.iscoroutine(res):
-                asyncio.create_task(res)
+                task = asyncio.create_task(res)
+                self._background_tasks.add(task)
+                task.add_done_callback(self._background_tasks.discard)
 
     def log_system_event(self, level: str, message: str, source: str = "bridge") -> None:
         """Registra un evento interno en el búfer de logs del sistema."""
@@ -280,7 +283,7 @@ class WebAPIRouter:
             if clean_path.startswith("/api/channels"):
                 return await self._dispatch_channels(method, clean_path, req_body)
 
-            if clean_path in ("/api/tx", "/api/messages/recent", "/api/messages"):
+            if clean_path in ("/api/tx", "/api/messages/recent"):
                 return await self._dispatch_tx(method, clean_path, req_body)
 
             if clean_path.startswith(("/api/admin", "/api/repeater", "/api/traceroute", "/api/trace")):
@@ -451,7 +454,7 @@ class WebAPIRouter:
         """Despacha rutas de transmisión de mensajes al TxController."""
         if clean_path == "/api/tx" and method == "POST":
             return await self.tx_ctrl.send_tx(req_body)
-        if clean_path in ("/api/messages/recent", "/api/messages") and method == "GET":
+        if clean_path == "/api/messages/recent" and method == "GET":
             return await self.tx_ctrl.get_recent_messages()
         return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 

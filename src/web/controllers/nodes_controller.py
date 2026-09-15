@@ -89,15 +89,12 @@ class NodesController(BaseController):
             res = bridge.node_registry.reset_analytics()
 
         # Emitir actualización por WebSocket si está disponible
-        ws_server = getattr(self.ctx, "ws_server", None)
-        if ws_server and hasattr(ws_server, "broadcast_json"):
-            import asyncio
-            asyncio.create_task(
-                ws_server.broadcast_json({
-                    "event_type": "metrics_reset",
-                    "timestamp": int(time.time()),
-                })
-            )
+        if self.ctx.broadcast_ws:
+            self.ctx.broadcast_ws({
+                "type": "metrics_reset",
+                "event": "metrics_reset",
+                "timestamp": int(time.time()),
+            })
 
         return 200, {
             "status": "ok",

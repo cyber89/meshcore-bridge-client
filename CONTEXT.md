@@ -46,7 +46,7 @@ La clasificación de cualquier dispositivo en la red se determina **exclusivamen
 - **Airtime**: Tiempo en milisegundos durante el cual la portadora de radio está ocupada transmitiendo un paquete LoRa (depende de Spreading Factor, Bandwidth y longitud del payload).
 - **Hop Limit**: Contador de saltos de un paquete dentro de la malla para evitar bucles infinitos (valor estándar: 3–4, máximo: 7). Cada salto decrementa el contador.
 - **Duty Cycle**: Límite regulatorio regional (ej. sub-bandas de 868 MHz al 1% o 10%) que restringe el tiempo acumulado de transmisión por hora.
-- **Byte Stuffing**: Técnica de delimitación de tramas serie (UART) utilizando bytes especiales de inicio (`SOF` / `0xAA 0x55`) y fin (`EOF`), con secuencias de escape para evitar colisiones con datos binarios arbitrarios.
+- **Byte Stuffing**: Técnica de delimitación de tramas serie (UART) utilizando bytes especiales de inicio (`SOF` / `0xAA`) y fin (`EOF` / `0x55`), con secuencias de escape (`ESC` / `0x1B`) para evitar colisiones con datos binarios arbitrarios.
 - **LQI (Link Quality Indicator)**: Métrica compuesta calculada a partir de RSSI, SNR y tasa de pérdida de paquetes para estimar la calidad de enlace entre dos nodos.
 - **Deduplication Window**: Búfer temporal (LRU con caducidad en segundos) que descarta tramas idénticas retransmitidas por repetidores vecinos.
 

@@ -144,6 +144,8 @@ class ChannelsController(BaseController):
 
         name = str(req_body.get("name", f"Canal {idx}")).strip()
         psk = str(req_body.get("psk", "")).strip()
+        if psk == "••••••••" and idx in self.channels:
+            psk = str(self.channels[idx].get("psk", ""))
         self.channels[idx] = {"index": idx, "name": name, "psk": psk, "is_public": (idx == 0)}
         self._save_channels()
 
