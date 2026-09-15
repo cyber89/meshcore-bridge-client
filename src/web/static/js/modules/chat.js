@@ -143,15 +143,27 @@ export class ChatModule {
     this.activeDmTarget = null;
     this.activeDmName = null;
 
+    const chList = this.ctx.settingsModule?.channelsList || [];
+    const ch = chList.find((c) => Number(c.index) === this.activeChannelIdx);
+    const isEncrypted = ch ? Boolean(ch.has_psk || (ch.psk && ch.psk.trim().length > 0)) : (this.activeChannelIdx !== 0);
+    const chName = ch?.name || (this.activeChannelIdx === 0 ? I18n.t('chat.ch_0_title') : I18n.t('chat.ch_n_title').replace('{n}', this.activeChannelIdx));
+
     if (this.dom.chatTargetName) {
-      this.dom.chatTargetName.textContent = this.activeChannelIdx === 0 ? I18n.t('chat.ch_0_title') : I18n.t('chat.ch_n_title').replace('{n}', this.activeChannelIdx);
+      this.dom.chatTargetName.textContent = chName;
     }
     if (this.dom.chatTargetSub) {
-      this.dom.chatTargetSub.textContent = this.activeChannelIdx === 0 ? I18n.t('chat.ch_0_sub') : I18n.t('chat.ch_n_sub').replace('{n}', this.activeChannelIdx);
+      if (this.activeChannelIdx === 0) {
+        this.dom.chatTargetSub.textContent = I18n.t('chat.ch_0_sub');
+      } else if (isEncrypted) {
+        this.dom.chatTargetSub.textContent = I18n.t('chat.ch_n_sub').replace('{n}', this.activeChannelIdx);
+      } else {
+        this.dom.chatTargetSub.textContent = (I18n.t('chat.ch_n_open_sub') || 'Canal abierto sin cifrar #{n}').replace('{n}', this.activeChannelIdx);
+      }
     }
     if (this.dom.chatTargetBadge) {
-      const isPublic = this.activeChannelIdx === 0;
-      this.dom.chatTargetBadge.innerHTML = `<span data-lucide="${isPublic ? "unlock" : "lock"}" data-size="13"></span> ${isPublic ? I18n.t('chat.open_badge') : I18n.t('chat.encrypted_badge')}`;
+      const lockIcon = isEncrypted ? "lock" : "unlock";
+      const badgeText = isEncrypted ? I18n.t('chat.encrypted_badge') : I18n.t('chat.open_badge');
+      this.dom.chatTargetBadge.innerHTML = `<span data-lucide="${lockIcon}" data-size="13"></span> ${badgeText}`;
       if (window.initLucideIcons) window.initLucideIcons(this.dom.chatTargetBadge);
     }
 

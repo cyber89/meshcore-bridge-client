@@ -107,22 +107,28 @@ class ChannelsController(BaseController):
         masked_list = []
         for ch in channels_list:
             c_dict = dict(ch)
-            if c_dict.get("psk"):
+            raw_psk = str(c_dict.get("psk") or "").strip()
+            has_psk = bool(raw_psk)
+            c_dict["has_psk"] = has_psk
+            c_dict["is_encrypted"] = has_psk and (int(c_dict.get("index", 0)) != 0)
+            if has_psk:
                 c_dict["psk"] = "••••••••"
-                c_dict["has_psk"] = True
             else:
-                c_dict["has_psk"] = False
+                c_dict["psk"] = ""
             masked_list.append(c_dict)
         return masked_list
 
     def _mask_channel(self, ch: dict[str, Any]) -> dict[str, Any]:
         """Enmascara la PSK de un único canal."""
         c_dict = dict(ch)
-        if c_dict.get("psk"):
+        raw_psk = str(c_dict.get("psk") or "").strip()
+        has_psk = bool(raw_psk)
+        c_dict["has_psk"] = has_psk
+        c_dict["is_encrypted"] = has_psk and (int(c_dict.get("index", 0)) != 0)
+        if has_psk:
             c_dict["psk"] = "••••••••"
-            c_dict["has_psk"] = True
         else:
-            c_dict["has_psk"] = False
+            c_dict["psk"] = ""
         return c_dict
 
     async def _get_channels(self, sync_serial: bool = True) -> tuple[int, dict[str, Any]]:
@@ -141,6 +147,15 @@ class ChannelsController(BaseController):
 
         if idx < 0 or idx > 7:
             return problem_details(400, "Bad Request", "El índice de canal debe estar entre 0 y 7", "channel_index_out_of_bounds")
+
+        overwrite = bool(req_body.get("overwrite", False))
+        if idx in self.channels and not overwrite:
+            return problem_details(
+                409,
+                "Conflict",
+                f"El canal {idx} ya existe. No se permite duplicar ni sobrescribir sin confirmación explícita (overwrite=true).",
+                "channel_already_exists",
+            )
 
         name = str(req_body.get("name", f"Canal {idx}")).strip()
         psk = str(req_body.get("psk", "")).strip()

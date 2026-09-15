@@ -2,6 +2,30 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Corrección Integral de Canales (Ranuras Dinámicas, Candado Abierto y Eliminación) e Importación de Contactos Multi-Formato
+- **Fecha**: 2026-09-15
+- **Estado**: ✅ COMPLETADO (Resolución de los 4 incidentes solicitados: 1. Reparación total de importación de contactos soportando URIs meshcore://, esquemas JSON y hex con persistencia en NodeRegistry y broadcast reactivo; 2. Selector dinámico de canales libres 1..7 que previene duplicados y colisiones con código 409 Conflict en backend; 3. Visualización correcta de candado abierto 'unlock' y etiquetas 'Abierto / Sin Cifrar' para canales sin clave PSK en sidebar y chat header; 4. Incorporación de botón de eliminación con advertencia/confirmación modal de seguridad para canales 1..7 protegiendo el canal público 0; 0 errores ruff; 0 errores mypy; 100% paridad API; 8/8 tests deterministas superados; sincronización en /deploy/).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI Architect).
+- **Acciones Realizadas**:
+  1. **Importación de Contactos Multi-Formato (`ContactsController._import_contact`)**:
+     - Soporte para enlaces URI (`meshcore://contact?...`, `meshcore://node?...`), esquemas JSON (objeto único o lista de contactos) y volcados hexadecimales.
+     - Cumplimiento estricto de Regla 1.1 SSoT: rechazo de la clave local de la base station y exclusión de repetidores/routers de la libreta de contactos.
+     - Persistencia atómica en disco (`node_registry.save_to_file()`) y despacho de notificación WebSocket `contacts_updated`.
+  2. **Prevención de Duplicados en Canales (`ChannelsController` & `SettingsModule`)**:
+     - `openCreateChannelModal`: Calcula dinámicamente las ranuras disponibles entre 1 y 7 excluyendo las ya existentes en `this.channelsList`. Si las 7 están ocupadas, alerta al usuario e impide abrir el modal.
+     - `_create_or_update_channel`: Retorna `409 Conflict` si se intenta crear sobre un índice existente sin confirmación explícita (`overwrite=true`).
+  3. **Visualización de Candado y Estado de Cifrado Dinámico**:
+     - Corregido `renderChannelsList` en `settings.js` para evaluar `isEncrypted = Boolean(ch.has_psk || (ch.psk && ch.psk.trim().length > 0))`, mostrando candado abierto `unlock` y tooltip "Canal Abierto (Sin Cifrar)" cuando no hay PSK configurada.
+     - Corregido `switchChannel` en `chat.js` para consultar el canal activo en `this.ctx.settingsModule?.channelsList` y renderizar `unlock` y badge "Abierto" en `#chatSecurityChip` si el canal no está cifrado.
+  4. **Eliminación de Canales Secundarios con Advertencia**:
+     - Renderizado del botón `.btn-item-delete` (icono Lucide `trash-2`) en cada canal secundario (`index > 0`).
+     - Alerta de advertencia con `window.confirm()` detallando el canal y nombre antes de proceder.
+     - Despacho de `DELETE /api/channels`, conmutación de seguridad automática a Canal 0 si el canal activo fue eliminado y refresco de la lista.
+     - Protección inmutable del Canal Público 0 contra eliminación.
+- **Módulos Modificados**: `src/web/controllers/contacts_controller.py`, `src/web/controllers/channels_controller.py`, `src/web/static/index.html`, `src/web/static/js/modules/settings.js`, `src/web/static/js/modules/chat.js`, `src/web/static/js/i18n.js`, `src/web/static/css/app.css`, `docs/AGENT_ACTIVITY_REPORT.md`, `deploy/**`.
+
+---
+
 ### Hito: Persistencia de Estado de Telemetría Local, Prevención de Sobreescritura y Tick en Tiempo Real
 - **Fecha**: 2026-09-15
 - **Estado**: ✅ COMPLETADO (Resolución del bug de reseteo de tarjetas de telemetría a '--' o 'Local' a los 2 segundos: desacoplado del listener METRICS_UPDATE de la sobreescritura destructiva de configuración; implementación de caché atómica no destructiva this.cachedConfig en SettingsModule; inclusión de métricas vivas de uptime_str, airtime_ms y contadores en _metrics_broadcaster_loop y _send_initial_state de http_server.py; preservación de SNR/RSSI en ConfigController; incorporación de _startLiveTick() con actualización de reloj RTC y uptime en vivo segundo a segundo sin costo de red; 0 errores ruff; 0 errores mypy en 53 módulos; auditoría Playwright 100% PASS con 0 excepciones; sincronización en /deploy/).

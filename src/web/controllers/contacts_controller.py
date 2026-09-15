@@ -5,8 +5,10 @@ Handles /api/contacts, /api/contacts/sync, /api/contacts/share, export, and impo
 
 from __future__ import annotations
 
+import json
 import logging
 import time
+import urllib.parse
 from typing import Any
 
 from src.contact_manager import NodeContactUpdate
@@ -108,17 +110,132 @@ class ContactsController(BaseController):
         return 200, {"status": "ok", "result": res}
 
     async def _import_contact(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-        """Importa un contacto desde un volcado hexadecimal."""
-        hex_data = str(req_body.get("data", "")).strip()
-        ser = getattr(self.ctx.bridge, "serial_adapter", None)
-        try:
-            bin_data = bytes.fromhex(hex_data) if hex_data else b""
-        except ValueError:
-            return problem_details(400, "Bad Request", "Formato hexadecimal inválido en 'data'", "invalid_hex_data")
+        """Importa contactos desde URI (meshcore://...), JSON estructurado o volcado hexadecimal."""
+        raw_payload = str(req_body.get("data") or req_body.get("payload") or req_body.get("uri") or "").strip()
+        contacts_to_add: list[dict[str, Any]] = []
 
-        res = await ser.import_contact(bin_data) if ser and hasattr(ser, "import_contact") else None
-        self.ctx.log_system_event("INFO", "Contacto importado vía API", source="contacts")
-        return 200, {"status": "ok", "result": res}
+        # 1. Si req_body ya tiene campos directos de contacto
+        if "public_key" in req_body or "pubkey" in req_body or "key" in req_body:
+            contacts_to_add.append(req_body)
+        elif isinstance(req_body.get("contacts"), list):
+            contacts_to_add.extend(c for c in req_body["contacts"] if isinstance(c, dict))
+
+        # 2. Parseo de string si viene en raw_payload
+        if raw_payload and not contacts_to_add:
+            # Caso 2a: URI meshcore://contact o meshcore://node
+            if raw_payload.startswith("meshcore://"):
+                try:
+                    parsed_uri = urllib.parse.urlparse(raw_payload)
+                    qs = urllib.parse.parse_qs(parsed_uri.query)
+                    pk = (qs.get("pubkey") or qs.get("public_key") or qs.get("key") or [""])[0].strip()
+                    nm = (qs.get("name") or qs.get("alias") or [""])[0].strip()
+                    rl = (qs.get("role") or ["CLIENT"])[0].strip()
+                    if pk:
+                        contacts_to_add.append({"public_key": pk, "name": nm, "alias": nm, "role": rl})
+                except Exception as e:
+                    logging.warning(f"Error parseando URI meshcore: {e}")
+
+            # Caso 2b: JSON string
+            elif raw_payload.startswith("{") or raw_payload.startswith("["):
+                try:
+                    loaded = json.loads(raw_payload)
+                    if isinstance(loaded, dict):
+                        if "type" in loaded and loaded.get("type") == "channel":
+                            return problem_details(400, "Bad Request", "El contenido corresponde a un canal, no a un contacto", "channel_payload_in_contacts")
+                        contacts_to_add.append(loaded)
+                    elif isinstance(loaded, list):
+                        contacts_to_add.extend(c for c in loaded if isinstance(c, dict))
+                except Exception as e:
+                    logging.warning(f"Error deserializando JSON de contacto: {e}")
+
+            # Caso 2c: Volcado binario hexadecimal (legado)
+            if not contacts_to_add:
+                try:
+                    bin_data = bytes.fromhex(raw_payload)
+                    # Intentar si el binario decodifica como texto UTF-8 JSON o URI
+                    try:
+                        utf8_text = bin_data.decode("utf-8").strip()
+                        if utf8_text.startswith("{") or utf8_text.startswith("["):
+                            loaded = json.loads(utf8_text)
+                            if isinstance(loaded, dict):
+                                contacts_to_add.append(loaded)
+                            elif isinstance(loaded, list):
+                                contacts_to_add.extend(c for c in loaded if isinstance(c, dict))
+                        elif utf8_text.startswith("meshcore://"):
+                            parsed_uri = urllib.parse.urlparse(utf8_text)
+                            qs = urllib.parse.parse_qs(parsed_uri.query)
+                            pk = (qs.get("pubkey") or qs.get("public_key") or qs.get("key") or [""])[0].strip()
+                            nm = (qs.get("name") or qs.get("alias") or [""])[0].strip()
+                            rl = (qs.get("role") or ["CLIENT"])[0].strip()
+                            if pk:
+                                contacts_to_add.append({"public_key": pk, "name": nm, "alias": nm, "role": rl})
+                    except Exception:
+                        pass
+
+                    # Si es binario crudo del firmware
+                    if not contacts_to_add:
+                        ser = getattr(self.ctx.bridge, "serial_adapter", None)
+                        res = await ser.import_contact(bin_data) if ser and hasattr(ser, "import_contact") else None
+                        self.ctx.log_system_event("INFO", "Contacto binario importado hacia el firmware", source="contacts")
+                        return 200, {"status": "ok", "result": res}
+                except ValueError:
+                    return problem_details(400, "Bad Request", "Formato de datos no reconocido (no es URI, JSON ni hexadecimal válido)", "invalid_import_data")
+
+        if not contacts_to_add:
+            return problem_details(400, "Bad Request", "No se detectaron contactos válidos para importar", "no_valid_contacts")
+
+        imported_records: list[dict[str, Any]] = []
+        ser = getattr(self.ctx.bridge, "serial_adapter", None)
+
+        for c_dict in contacts_to_add:
+            pubkey = str(c_dict.get("public_key") or c_dict.get("pubkey") or c_dict.get("key") or "").strip()
+            if not pubkey:
+                continue
+
+            # Regla 1.1: Prohibido agregar transceptor local a contactos
+            if hasattr(self.ctx.bridge, "node_registry") and self.ctx.bridge.node_registry.is_local_key(pubkey):
+                continue
+
+            name = str(c_dict.get("name") or "").strip()
+            alias = str(c_dict.get("alias") or name or f"Node_{pubkey[:6]}").strip()
+            role = str(c_dict.get("role") or "CLIENT").strip().upper()
+
+            # Regla 1.1: Prohibido agregar repetidores a libreta de contactos
+            if role in ("REPEATER", "ROUTER"):
+                continue
+
+            is_fav = c_dict.get("is_favorite")
+            is_favorite_val = bool(is_fav) if is_fav is not None else None
+
+            contact = self.ctx.bridge.node_registry.add_or_update(
+                pubkey,
+                NodeContactUpdate(
+                    name=name or alias,
+                    alias=alias,
+                    role=role,
+                    is_favorite=is_favorite_val,
+                ),
+            )
+            imported_records.append(contact.to_dict())
+
+            # Enviar al transceptor serial si está activo
+            if ser and hasattr(ser, "add_contact"):
+                try:
+                    await ser.add_contact({"public_key": pubkey, "name": name or alias, "role": role})
+                except Exception as e:
+                    logging.debug(f"Error sincronizando contacto importado con serial: {e}")
+
+        if imported_records:
+            if hasattr(self.ctx.bridge.node_registry, "save_to_file"):
+                self.ctx.bridge.node_registry.save_to_file()
+
+            if self.ctx.broadcast_ws:
+                self.ctx.broadcast_ws({"type": "contacts_updated", "data": self.ctx.bridge.node_registry.list_nodes()})
+
+            self.ctx.log_system_event("INFO", f"Se importaron {len(imported_records)} contactos exitosamente", source="contacts")
+            return 200, {"status": "ok", "imported": len(imported_records), "data": imported_records}
+
+        return problem_details(400, "Bad Request", "Ningún contacto válido pudo ser agregado (verifique que no sean nodos repetidores o la estación base local)", "import_rejected")
 
     async def _create_or_update_contact(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Crea o actualiza un contacto en la libreta del bridge."""

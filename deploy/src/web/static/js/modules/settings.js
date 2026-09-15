@@ -76,6 +76,14 @@ export class SettingsModule {
       chModalPskGroup: document.getElementById("chModalPskGroup"),
       chModalPsk: document.getElementById("chModalPsk"),
       btnGenRandomPsk: document.getElementById("btnGenRandomPsk"),
+      btnImportData: document.getElementById("btnImportData"),
+      btnHeaderImportContact: document.getElementById("btnHeaderImportContact"),
+      importModal: document.getElementById("importModal"),
+      btnCloseImportModal: document.getElementById("btnCloseImportModal"),
+      btnCancelImport: document.getElementById("btnCancelImport"),
+      importForm: document.getElementById("importForm"),
+      importPayloadInput: document.getElementById("importPayloadInput"),
+      btnExecuteImport: document.getElementById("btnExecuteImport"),
       btnHeaderAddContact: document.getElementById("btnHeaderAddContact"),
       createContactModal: document.getElementById("createContactModal"),
       btnCloseCreateContactModal: document.getElementById("btnCloseCreateContactModal"),
@@ -122,6 +130,31 @@ export class SettingsModule {
     // 1. Crear Canal Modal
     const openCreateChannel = () => {
       if (!this.dom.createChannelModal) return;
+
+      const occupiedIndices = new Set(this.channelsList.map((c) => Number(c.index)));
+      const availableIndices = [1, 2, 3, 4, 5, 6, 7].filter((idx) => !occupiedIndices.has(idx));
+
+      if (availableIndices.length === 0) {
+        const msg = "No hay ranuras disponibles de canales secundarios (canales 1 a 7 ocupados). Elimina un canal antes de crear uno nuevo.";
+        if (this.ctx.showToast) {
+          this.ctx.showToast(msg, "warning");
+        } else {
+          alert(msg);
+        }
+        return;
+      }
+
+      if (this.dom.chModalIndex) {
+        this.dom.chModalIndex.innerHTML = "";
+        availableIndices.forEach((idx) => {
+          const opt = document.createElement("option");
+          opt.value = String(idx);
+          opt.textContent = `Canal ${idx} (Secundario)`;
+          this.dom.chModalIndex.appendChild(opt);
+        });
+        this.dom.chModalIndex.value = String(availableIndices[0]);
+      }
+
       this.dom.createChannelModal.classList.remove("hidden");
       if (this.dom.chModalName) this.dom.chModalName.value = "";
       if (this.dom.chModalIsEncrypted) {
@@ -304,7 +337,33 @@ export class SettingsModule {
       });
     }
 
-    // 5. Navegación subpestañas locales
+    // 5. Modal de Importación (Canal o Contacto)
+    const openImportModal = () => {
+      if (!this.dom.importModal) return;
+      if (this.dom.importPayloadInput) this.dom.importPayloadInput.value = "";
+      this.dom.importModal.classList.remove("hidden");
+      if (this.dom.importPayloadInput) this.dom.importPayloadInput.focus();
+    };
+    const closeImportModal = () => {
+      if (this.dom.importModal) this.dom.importModal.classList.add("hidden");
+    };
+
+    if (this.dom.btnImportData) this.dom.btnImportData.addEventListener("click", openImportModal);
+    if (this.dom.btnHeaderImportContact) this.dom.btnHeaderImportContact.addEventListener("click", openImportModal);
+    if (this.dom.btnCloseImportModal) this.dom.btnCloseImportModal.addEventListener("click", closeImportModal);
+    if (this.dom.btnCancelImport) this.dom.btnCancelImport.addEventListener("click", closeImportModal);
+
+    if (this.dom.importForm) {
+      this.dom.importForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const raw = this.dom.importPayloadInput ? this.dom.importPayloadInput.value.trim() : "";
+        if (!raw) return;
+
+        await this.processImportPayload(raw, closeImportModal);
+      });
+    }
+
+    // 6. Navegación subpestañas locales
     document.querySelectorAll(".local-subtab-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         document.querySelectorAll(".local-subtab-btn").forEach((b) => b.classList.remove("active"));
@@ -877,22 +936,178 @@ export class SettingsModule {
       li.setAttribute("data-channel-idx", String(ch.index));
       li.setAttribute("role", "option");
       li.setAttribute("aria-selected", isActive ? "true" : "false");
+
+      const isEnc = Boolean(ch.has_psk || (ch.psk && ch.psk.trim().length > 0));
+      const lockIcon = isEnc ? "lock" : "unlock";
+      const lockTitle = isEnc
+        ? "Canal Cifrado (AES-128)"
+        : (ch.index === 0 ? "Canal Público (Abierto)" : "Canal Abierto (Sin Cifrar)");
+
+      const chDisplayName = ch.name || (ch.index === 0 ? "Public / Broadcast" : `Canal ${ch.index}`);
+
       li.innerHTML = `
         <span class="ch-badge font-mono">Ch ${ch.index}</span>
-        <span class="ch-name">${escapeHtml(ch.name || (ch.index === 0 ? "Public / Broadcast" : `Canal ${ch.index}`))}</span>
-        <span class="ch-lock" title="${ch.index === 0 ? "Canal Público" : "Canal Cifrado"}">
-          <span data-lucide="${ch.index === 0 ? "unlock" : "lock"}" data-size="13"></span>
-        </span>
+        <span class="ch-name">${escapeHtml(chDisplayName)}</span>
+        <div class="ch-actions">
+          <span class="ch-lock ${isEnc ? 'ch-locked' : 'ch-open'}" title="${lockTitle}">
+            <span data-lucide="${lockIcon}" data-size="13"></span>
+          </span>
+          ${ch.index > 0 ? `
+            <button type="button" class="btn-item-delete" data-ch-idx="${ch.index}" data-ch-name="${escapeHtml(chDisplayName)}" title="Eliminar canal ${ch.index}" aria-label="Eliminar canal ${ch.index}">
+              <span data-lucide="trash-2" data-size="13"></span>
+            </button>
+          ` : ''}
+        </div>
       `;
-      li.addEventListener("click", () => {
+
+      li.addEventListener("click", (e) => {
+        if (e.target.closest(".btn-item-delete")) return;
         if (this.ctx.switchChannel) this.ctx.switchChannel(ch.index);
         if (this.dom.sidebarChannelList) this.dom.sidebarChannelList.classList.remove("mobile-open");
       });
+
+      const btnDelete = li.querySelector(".btn-item-delete");
+      if (btnDelete) {
+        btnDelete.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const chIdx = Number(btnDelete.getAttribute("data-ch-idx"));
+          const chName = btnDelete.getAttribute("data-ch-name") || `Canal ${chIdx}`;
+
+          const confirmed = window.confirm(
+            `⚠️ ADVERTENCIA: ¿Estás seguro de que deseas eliminar el Canal ${chIdx} ("${chName}")?\n\nEsta acción borrará la configuración y desvinculará este canal.`
+          );
+          if (!confirmed) return;
+
+          try {
+            const res = await fetch("/api/channels", {
+              method: "DELETE",
+              headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+              body: JSON.stringify({ index: chIdx }),
+            });
+            const data = await res.json();
+            if (data.status === "ok") {
+              if (this.ctx.showToast) {
+                this.ctx.showToast(`Canal ${chIdx} ("${chName}") eliminado correctamente`, "success");
+              }
+              if (this.ctx.activeChannelIdx === chIdx) {
+                if (this.ctx.switchChannel) this.ctx.switchChannel(0);
+              }
+              await this.fetchChannels();
+            } else {
+              alert(`Error al eliminar canal: ${data.message || "Fallo desconocido"}`);
+            }
+          } catch (err) {
+            alert(`Error de red al eliminar canal: ${err.message}`);
+          }
+        });
+      }
+
       listEl.appendChild(li);
     });
 
     if (window.initLucideIcons) {
       window.initLucideIcons(listEl);
+    }
+  }
+
+  async processImportPayload(raw, closeCallback) {
+    try {
+      const cleanRaw = String(raw).trim();
+
+      // Caso 1: URI meshcore://channel?...
+      if (cleanRaw.startsWith("meshcore://channel")) {
+        let idx = 1;
+        let name = "Canal Importado";
+        let psk = "";
+        try {
+          const qIndex = cleanRaw.indexOf("?");
+          if (qIndex !== -1) {
+            const qs = new URLSearchParams(cleanRaw.slice(qIndex + 1));
+            idx = parseInt(qs.get("index") || "1", 10);
+            name = qs.get("name") || `Canal ${idx}`;
+            psk = qs.get("psk") || "";
+          }
+        } catch (e) {
+          console.warn("Error parseando URI de canal:", e);
+        }
+
+        const exists = this.channelsList.some((c) => Number(c.index) === idx);
+        if (exists) {
+          const overwrite = window.confirm(
+            `El Canal ${idx} ("${name}") ya existe en la configuración.\n\n¿Deseas sobreescribirlo con los datos importados?`
+          );
+          if (!overwrite) return;
+        }
+
+        const res = await fetch("/api/channels", {
+          method: "POST",
+          headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+          body: JSON.stringify({ index: idx, name, psk, overwrite: exists }),
+        });
+        const data = await res.json();
+        if (data.status === "ok") {
+          if (closeCallback) closeCallback();
+          await this.fetchChannels();
+          if (this.ctx.switchChannel) this.ctx.switchChannel(idx);
+          if (this.ctx.showToast) this.ctx.showToast(`Canal ${idx} ("${name}") importado correctamente`, "success");
+        } else {
+          alert(`Error importando canal: ${data.message || "Fallo desconocido"}`);
+        }
+        return;
+      }
+
+      // Caso 2: JSON estructurado
+      if (cleanRaw.startsWith("{") || cleanRaw.startsWith("[")) {
+        try {
+          const parsed = JSON.parse(cleanRaw);
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && (parsed.type === "channel" || (parsed.index !== undefined && parsed.name))) {
+            const idx = parseInt(parsed.index, 10) || 1;
+            const name = parsed.name || `Canal ${idx}`;
+            const psk = parsed.psk || "";
+            const exists = this.channelsList.some((c) => Number(c.index) === idx);
+            if (exists) {
+              const overwrite = window.confirm(
+                `El Canal ${idx} ("${name}") ya existe en la configuración.\n\n¿Deseas sobreescribirlo con los datos importados?`
+              );
+              if (!overwrite) return;
+            }
+
+            const res = await fetch("/api/channels", {
+              method: "POST",
+              headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+              body: JSON.stringify({ index: idx, name, psk, overwrite: exists }),
+            });
+            const data = await res.json();
+            if (data.status === "ok") {
+              if (closeCallback) closeCallback();
+              await this.fetchChannels();
+              if (this.ctx.switchChannel) this.ctx.switchChannel(idx);
+              if (this.ctx.showToast) this.ctx.showToast(`Canal ${idx} ("${name}") importado correctamente`, "success");
+            } else {
+              alert(`Error importando canal: ${data.message || "Fallo desconocido"}`);
+            }
+            return;
+          }
+        } catch (ignore) {}
+      }
+
+      // Caso 3: Contacto(s) (URI meshcore://contact, meshcore://node, JSON o hexadecimal)
+      const res = await fetch("/api/contacts/import", {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: cleanRaw }),
+      });
+      const data = await res.json();
+      if (data.status === "ok") {
+        if (closeCallback) closeCallback();
+        if (this.ctx.fetchNodes) await this.ctx.fetchNodes();
+        const count = data.imported ?? (data.data ? (Array.isArray(data.data) ? data.data.length : 1) : 1);
+        if (this.ctx.showToast) this.ctx.showToast(`Se importaron ${count} contacto(s) correctamente a la libreta`, "success");
+      } else {
+        alert(`Error importando: ${data.message || "Formato no válido o contacto rechazado"}`);
+      }
+    } catch (err) {
+      alert(`Error de red al procesar importación: ${err.message}`);
     }
   }
 
