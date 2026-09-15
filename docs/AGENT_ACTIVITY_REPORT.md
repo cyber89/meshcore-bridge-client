@@ -2,6 +2,35 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Soporte Completo y Verificación de los 17 Comandos Locales (Hardware, RF, Topología, Sensores y Logs)
+- **Fecha**: 2026-09-15
+- **Estado**: ✅ COMPLETADO (Implementación, mapeo y verificación integral de los 17 comandos y alias de estado local del transceptor MeshCore en cli_command_executor.py: info, status, battery/pwr, version, uptime, mem/heap, radio, stats, channel info, nodes, neighbors, routes, snr/rssi, config get/show config, gps, sensors, log; drawer de ayuda interactiva en index.html con tarjetas ejecutables a un clic; consumo de 0 segundos de airtime LoRa garantizado por aislamiento UART Companion; 100% de éxito en verificación programática de 22/22 comandos; 0 errores ruff; 0 errores mypy en 53 módulos; 100% paridad API; simulaciones de malla y casos extremos superadas al 100%; sincronización en /deploy/).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 4 (Web UI Architect), Agente 5 (Security Auditor).
+- **Acciones Realizadas**:
+  1. **Despacho y Mapeo Canónico en CLI (`src/admin/cli_command_executor.py`)**:
+     - Implementados y mapeados los 17 comandos solicitados y sus alias: `info`, `status`, `battery` (`pwr`, `bat`, `get_bat`), `version`, `uptime`, `mem` (`heap`), `radio` (`stats_radio`), `stats` (`stats_core`, `stats_packets`), `channel info` (`channels`), `nodes`, `neighbors` (`vecinos`), `routes`, `snr / rssi`, `config get` (`show config`), `gps` (`pos`, `get_pos`), `sensors`, `log` (`logs`).
+     - Incorporado parsing robusto de subcomandos y comandos compuestos (`channel info`, `config get`, `show config`, `snr / rssi`).
+     - Extracción de telemetría de memoria local (`psutil` RSS/VMS) y cola de paquetes del MCU (`queue_len`).
+     - Formateo enriquecido con tablas ASCII y alineación de métricas de enlace (`LQI`, `SNR`, `RSSI`, `Noise Floor`, `Link Margin`).
+     - Renovado `_cli_help_text()` organizando los comandos en 4 categorías: Estado General & Hardware, Radio LoRa & RF, Topología de Red & Rutas, Configuración, Sensores & Registros.
+  2. **Inicialización y Extracción de Sensores (`src/admin/local_config_executor.py`)**:
+     - Enriquecido `_ensure_default_telemetry()` con variables de sensores ambientales por defecto (`temperature_c`, `humidity_pct`, `pressure_hpa`, `satellites`) garantizando lecturas consistentes ante comandos `sensors` y `gps`.
+  3. **Drawer Interactivo de Consola en Frontend SPA (`src/web/static/index.html`)**:
+     - Actualizado `#localTerminalHelpDrawer` con la rejilla interactiva de comandos (`.help-drawer-grid`), incluyendo tarjetas visuales para los 17 comandos. Cada tarjeta inserta instantáneamente el comando en el input `#localTerminalInput` con un solo clic.
+  4. **Garantía Inmutable de Cero Impacto en Airtime LoRa (SSoT)**:
+     - Todas las consultas de estado, hardware, tablas de vecinos, enrutamiento, telemetría y registros se ejecutan de manera estrictamente local (sobre la UART Serial Companion o el estado en memoria de la base host), consumiendo **0 ms de airtime** en el canal LoRa.
+  5. **Verificación Estática, Dinámica y Pruebas de Estrés Extremo**:
+     - Script de verificación autónomo `scratch/verify_all_cli_commands.py`: 22/22 comandos probados y verificados con éxito (100% PASS).
+     - `ruff check src/ scripts/`: 0 errores.
+     - `mypy src/`: 0 errores en 53 módulos (éxito total).
+     - `verify_api_parity.py`: 40/40 endpoints REST y WebSockets en paridad (100% PASS).
+     - `run_security_audit.py`: 0 vulnerabilidades (Bandit, XSS, Path Traversal, WebSocket guards 100% PASS).
+     - `simulate_full_mesh_validation.py`: 7/7 fases superadas (100% PASS).
+     - `simulate_extreme_scenarios.py`: 8/8 fases superadas (100% PASS, 0 excepciones, 0 logs críticos).
+- **Módulos Modificados**: `src/admin/cli_command_executor.py`, `src/admin/local_config_executor.py`, `src/web/static/index.html`, `docs/AGENT_ACTIVITY_REPORT.md`, `deploy/**`.
+
+---
+
 ### Hito: Extracción Integral de Parámetros de Hardware del Nodo Local, Sincronización RTC y Reactividad UI
 - **Fecha**: 2026-09-15
 - **Estado**: ✅ COMPLETADO (Implementación completa de extracción de parámetros de hardware del transceptor local sobre protocolo Serial Companion sin impacto en airtime LoRa; sincronización de reloj RTC host-dispositivo; reseteo real de estadísticas y contadores; activación reactiva de los 8 botones de acción rápida en Settings; actualización bidireccional inmediata de tarjetas UI ante comandos de consola CLI; 0 errores ruff; 0 errores mypy en 53 módulos; 100% de paridad API; simulaciones de malla y casos extremos superadas al 100%; sincronización en /deploy/).

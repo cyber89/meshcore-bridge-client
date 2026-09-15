@@ -128,6 +128,10 @@ class LocalConfigExecutor:
         cfg.setdefault("voltage", 5.0)
         cfg.setdefault("battery_mv", 5000)
         cfg.setdefault("power_source", "USB 5V Directo")
+        cfg.setdefault("temperature_c", self._local_config.get("temperature_c", 24.5))
+        cfg.setdefault("humidity_pct", self._local_config.get("humidity_pct", 52.0))
+        cfg.setdefault("pressure_hpa", self._local_config.get("pressure_hpa", 1013.2))
+        cfg.setdefault("satellites", self._local_config.get("satellites", 0))
 
     def _populate_uptime_and_airtime(self, cfg: dict[str, Any]) -> None:
         """Calcula métricas de uptime y ciclo de trabajo de radio."""

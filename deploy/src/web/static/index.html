@@ -927,13 +927,77 @@
                     <button type="button" class="btn-icon btn-xs" id="btnCloseLocalHelpDrawer">✕</button>
                   </div>
                   <div class="help-drawer-grid">
-                    <div class="help-cmd-item" data-cmd="ver">
-                      <code>ver / query</code>
-                      <span>Modelo, firmware, build y estado repetidor</span>
+                    <div class="help-cmd-item" data-cmd="info">
+                      <code>info</code>
+                      <span>Resumen general (ID, alias, rol, firmware y uptime)</span>
+                    </div>
+                    <div class="help-cmd-item" data-cmd="status">
+                      <code>status</code>
+                      <span>Estado operativo en tiempo real, módem, serial y colas</span>
                     </div>
                     <div class="help-cmd-item" data-cmd="bat">
-                      <code>bat / get_bat</code>
+                      <code>bat / pwr</code>
                       <span>Nivel de batería, voltaje (mV/V) y alimentación</span>
+                    </div>
+                    <div class="help-cmd-item" data-cmd="ver">
+                      <code>ver / version</code>
+                      <span>Versión firmware, compilación y arquitectura HW</span>
+                    </div>
+                    <div class="help-cmd-item" data-cmd="uptime">
+                      <code>uptime</code>
+                      <span>Tiempo ininterrumpido transcurrido desde el inicio</span>
+                    </div>
+                    <div class="help-cmd-item" data-cmd="mem">
+                      <code>mem / heap</code>
+                      <span>Memoria RAM del proceso, colas de paquetes y flash</span>
+                    </div>
+                    <div class="help-cmd-item" data-cmd="radio">
+                      <code>radio / stats_radio</code>
+                      <span>Parámetros RF, frecuencia, potencia, SF, BW y CR</span>
+                    </div>
+                    <div class="help-cmd-item" data-cmd="stats">
+                      <code>stats / stats_core</code>
+                      <span>Estadísticas de uptime, memoria, errores y airtime</span>
+                    </div>
+                    <div class="help-cmd-item" data-cmd="packets">
+                      <code>packets</code>
+                      <span>Contadores de paquetes TX, RX, dup y errores</span>
+                    </div>
+                    <div class="help-cmd-item" data-cmd="channel info">
+                      <code>channel info</code>
+                      <span>Canal actual, nombre de difusión y cifrado AES</span>
+                    </div>
+                    <div class="help-cmd-item" data-cmd="nodes">
+                      <code>nodes</code>
+                      <span>Directorio completo de nodos descubiertos en malla</span>
+                    </div>
+                    <div class="help-cmd-item" data-cmd="neighbors">
+                      <code>neighbors / vecinos</code>
+                      <span>Nodos a 1 salto directo con métricas de enlace</span>
+                    </div>
+                    <div class="help-cmd-item" data-cmd="routes">
+                      <code>routes</code>
+                      <span>Tabla de enrutamiento, destinos, métricas LQI y saltos</span>
+                    </div>
+                    <div class="help-cmd-item" data-cmd="snr">
+                      <code>snr / rssi</code>
+                      <span>Relación señal/ruido, RSSI y piso de ruido del transceptor</span>
+                    </div>
+                    <div class="help-cmd-item" data-cmd="config get">
+                      <code>config get / show config</code>
+                      <span>Volcado completo de parámetros de configuración NVS</span>
+                    </div>
+                    <div class="help-cmd-item" data-cmd="pos">
+                      <code>pos / gps</code>
+                      <span>Coordenadas GPS, altitud, satélites y modo fijo</span>
+                    </div>
+                    <div class="help-cmd-item" data-cmd="sensors">
+                      <code>sensors / telemetry</code>
+                      <span>Lecturas ambientales y variables telemétricas de sensores</span>
+                    </div>
+                    <div class="help-cmd-item" data-cmd="log">
+                      <code>log</code>
+                      <span>Registros recientes del sistema y advertencias de serial</span>
                     </div>
                     <div class="help-cmd-item" data-cmd="time">
                       <code>time / clock</code>
@@ -943,29 +1007,9 @@
                       <code>sync_clock / st</code>
                       <span>Sincroniza RTC con la hora exacta del host</span>
                     </div>
-                    <div class="help-cmd-item" data-cmd="stats">
-                      <code>stats / stats_core</code>
-                      <span>Estadísticas de uptime, memoria y airtime</span>
-                    </div>
-                    <div class="help-cmd-item" data-cmd="radio">
-                      <code>radio / stats_radio</code>
-                      <span>Parámetros RF, SNR, RSSI y piso de ruido</span>
-                    </div>
-                    <div class="help-cmd-item" data-cmd="packets">
-                      <code>packets / stats_packets</code>
-                      <span>Contadores de paquetes TX, RX, dup y errores</span>
-                    </div>
-                    <div class="help-cmd-item" data-cmd="pos">
-                      <code>pos / get_pos</code>
-                      <span>Consulta coordenadas GPS y posición fija</span>
-                    </div>
                     <div class="help-cmd-item" data-cmd="owner">
                       <code>owner / identity</code>
                       <span>Identidad del nodo y datos del propietario</span>
-                    </div>
-                    <div class="help-cmd-item" data-cmd="neighbors">
-                      <code>neighbors / vecinos</code>
-                      <span>Tabla de nodos vecinos y rutas de malla</span>
                     </div>
                     <div class="help-cmd-item" data-cmd="channels">
                       <code>channels</code>
