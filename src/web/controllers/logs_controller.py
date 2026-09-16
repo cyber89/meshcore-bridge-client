@@ -14,7 +14,7 @@ from src.web.controllers.base import BaseController, problem_details
 class LogsController(BaseController):
     """Controlador para consulta de historial de mensajes, telemetría y logs de diagnóstico."""
 
-    def route_logs(self, raw_path: str, clean_path: str) -> tuple[int, dict[str, Any]]:
+    async def route_logs(self, raw_path: str, clean_path: str) -> tuple[int, dict[str, Any]]:
         """Enruta consultas de logs, telemetría e informes diagnósticos."""
         limit = 100
         offset = 0
@@ -59,7 +59,7 @@ class LogsController(BaseController):
             return self._handle_diagnostics_report()
 
         if clean_path in ("/api/logs/download", "/api/logs/raw"):
-            return self._handle_raw_logs_download()
+            return await self._handle_raw_logs_download()
 
         return problem_details(404, "Not Found", "Registro no encontrado", "log_not_found")
 
@@ -120,10 +120,14 @@ class LogsController(BaseController):
             md_text = "# Reporte de Diagnóstico no disponible"
         return 200, {"status": "ok", "markdown": md_text, "text": md_text}
 
-    def _handle_raw_logs_download(self) -> tuple[int, dict[str, Any]]:
+    async def _handle_raw_logs_download(self) -> tuple[int, dict[str, Any]]:
         diag = getattr(self.ctx.bridge, "diagnostics", None)
         if isinstance(diag, DiagnosticManager):
-            tail = diag.get_raw_log_tail(lines=2000)
+            if hasattr(diag, "get_raw_log_tail_async"):
+                tail = await diag.get_raw_log_tail_async(lines=2000)
+            else:
+                import asyncio
+                tail = await asyncio.to_thread(diag.get_raw_log_tail, 2000)
             log_file = diag.get_raw_log_path()
         else:
             tail = "\n".join(f"[{r.get('iso_time')}] [{r.get('level')}] {r.get('message')}" for r in self.ctx.system_logs)

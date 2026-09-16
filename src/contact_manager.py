@@ -538,6 +538,8 @@ class NodeRegistry:
             eff_last_seen = max(float(existing.last_seen), new_ls) if (existing and existing.last_seen > 0) else new_ls
         elif is_local_flag:
             eff_last_seen = now
+        elif update.last_rssi is not None or update.last_snr is not None:
+            eff_last_seen = now
         elif existing and existing.last_seen > 0:
             eff_last_seen = float(existing.last_seen)
         else:
@@ -1183,6 +1185,11 @@ class NodeRegistry:
             logging.warning(f"Error guardando NodeRegistry en {target_path}: {e}")
             return False
 
+    async def save_to_file_async(self, filepath: str | Path | None = None) -> bool:
+        """Guarda la libreta de contactos y estado de nodos de forma asíncrona sin bloquear el event loop."""
+        import asyncio
+        return await asyncio.to_thread(self.save_to_file, filepath)
+
     def _deserialize_node_contact(self, nd: dict[str, Any]) -> NodeContactInfo | None:
         """Reconstruye un objeto NodeContactInfo a partir de un diccionario serializado."""
         pk = nd.get("public_key")
@@ -1280,3 +1287,8 @@ class NodeRegistry:
         except Exception as e:
             logging.warning(f"Error cargando NodeRegistry desde {target_path}: {e}")
             return 0
+
+    async def load_from_file_async(self, filepath: str | Path | None = None) -> int:
+        """Carga la libreta de contactos y estado de nodos de forma asíncrona sin bloquear el event loop."""
+        import asyncio
+        return await asyncio.to_thread(self.load_from_file, filepath)

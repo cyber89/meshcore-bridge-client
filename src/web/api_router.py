@@ -354,7 +354,7 @@ class WebAPIRouter:
             if method == "DELETE":
                 return await self.system_ctrl.clear_logs()
             if method == "GET":
-                return self._route_logs(raw_path, clean_path)
+                return await self._route_logs(raw_path, clean_path)
 
         return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
@@ -565,7 +565,7 @@ class WebAPIRouter:
             "/api/logs/download",
             "/api/logs/raw",
         ) and method == "GET":
-            return self._route_logs(raw_path, clean_path)
+            return await self._route_logs(raw_path, clean_path)
 
         return problem_details(404, "Not Found", "Recurso no encontrado", "not_found")
 
@@ -585,5 +585,5 @@ class WebAPIRouter:
     async def _route_tx(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         return await self.tx_ctrl.send_tx(req_body)
 
-    def _route_logs(self, raw_path: str, clean_path: str) -> tuple[int, dict[str, Any]]:
-        return self.logs_ctrl.route_logs(raw_path, clean_path)
+    async def _route_logs(self, raw_path: str, clean_path: str) -> tuple[int, dict[str, Any]]:
+        return await self.logs_ctrl.route_logs(raw_path, clean_path)

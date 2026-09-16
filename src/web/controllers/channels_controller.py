@@ -5,6 +5,7 @@ Handles /api/channels and /api/channels/sync.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -61,6 +62,10 @@ class ChannelsController(BaseController):
         except Exception as e:
             logging.error(f"Error persistiendo canales en {self.channels_file}: {e}")
 
+    async def _save_channels_async(self) -> None:
+        """Persiste la tabla de canales a disco de forma atómica y no bloqueante en thread pool."""
+        await asyncio.to_thread(self._save_channels)
+
     async def handle_channels_route(
         self,
         path: str,
@@ -110,7 +115,7 @@ class ChannelsController(BaseController):
                             continue
 
                         self.channels[idx] = ch
-                    self._save_channels()
+                    await self._save_channels_async()
             except Exception as e:
                 logging.debug(f"Fallo sincronizando canales del nodo serial: {e}")
 
@@ -225,13 +230,14 @@ class ChannelsController(BaseController):
                 "channel_already_exists",
             )
 
+        is_new_channel = idx not in self.channels
         name = str(req_body.get("name", f"Canal {idx}")).strip()
         psk = str(req_body.get("psk", "")).strip()
         if psk == "••••••••" and idx in self.channels:
             psk = str(self.channels[idx].get("psk", ""))
         self.channels[idx] = {"index": idx, "name": name, "psk": psk, "is_public": (idx == 0)}
         self._deleted_channels.discard(idx)
-        self._save_channels()
+        await self._save_channels_async()
 
         ser = getattr(self.ctx.bridge, "serial_adapter", None)
         if ser and hasattr(ser, "set_channel"):
@@ -244,7 +250,8 @@ class ChannelsController(BaseController):
             self.ctx.broadcast_ws({"type": "channels_updated", "data": self._get_masked_channels_list()})
 
         self.ctx.log_system_event("INFO", f"Canal {idx} configurado: {name}", source="channels")
-        return 200, {"status": "ok", "data": self._mask_channel(self.channels[idx])}
+        status_code = 201 if is_new_channel else 200
+        return status_code, {"status": "ok", "data": self._mask_channel(self.channels[idx])}
 
     async def _delete_channel(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Elimina un canal secundario (1..7) tanto del bridge como del transceptor físico."""
@@ -256,10 +263,12 @@ class ChannelsController(BaseController):
         if idx == 0:
             return problem_details(400, "Bad Request", "No se puede eliminar el canal público 0", "cannot_delete_public_channel")
 
+        if idx not in self.channels:
+            return problem_details(404, "Not Found", f"Canal {idx} no encontrado", "channel_not_found")
+
         self._deleted_channels.add(idx)
-        if idx in self.channels:
-            del self.channels[idx]
-        self._save_channels()
+        del self.channels[idx]
+        await self._save_channels_async()
 
         # Enviar orden de vaciado de slot al transceptor serial si está activo
         ser = getattr(self.ctx.bridge, "serial_adapter", None)
@@ -276,4 +285,4 @@ class ChannelsController(BaseController):
             self.ctx.broadcast_ws({"type": "channels_updated", "data": self._get_masked_channels_list()})
 
         self.ctx.log_system_event("INFO", f"Canal {idx} eliminado del sistema", source="channels")
-        return 200, {"status": "ok", "message": f"Canal {idx} eliminado"}
+        return 204, {}

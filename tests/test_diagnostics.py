@@ -160,5 +160,5 @@ class TestDiagnosticsAndLogging(unittest.IsolatedAsyncioTestCase):
 
         # 5. DELETE /api/system/logs
         status, resp = await router.handle_request("DELETE", "/api/system/logs")
-        self.assertEqual(status, 200)
+        self.assertIn(status, (200, 204))
         self.assertEqual(len(handler.buffer), 0)

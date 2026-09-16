@@ -16,11 +16,5 @@
     "name": "Emergencias Malla",
     "psk": "99887766554433221100FFEEDDCCBBAA",
     "is_public": false
-  },
-  {
-    "index": 4,
-    "name": "Canal Táctico",
-    "psk": "KEY_12345",
-    "is_public": false
   }
 ]

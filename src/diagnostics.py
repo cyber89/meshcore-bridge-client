@@ -381,6 +381,11 @@ class DiagnosticManager:
         except Exception as e:
             return f"Error leyendo archivo de logs: {e}"
 
+    async def get_raw_log_tail_async(self, lines: int = 100) -> str:
+        """Lee y retorna las últimas N líneas del archivo de log principal de forma asíncrona en thread pool."""
+        import asyncio
+        return await asyncio.to_thread(self.get_raw_log_tail, lines)
+
     def get_raw_log_path(self) -> str | None:
         """Devuelve la ruta absoluta al archivo de log si existe."""
         import config

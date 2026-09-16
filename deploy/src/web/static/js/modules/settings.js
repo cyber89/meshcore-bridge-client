@@ -1037,8 +1037,7 @@ export class SettingsModule {
               headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
               body: JSON.stringify({ index: chIdx }),
             });
-            const data = await res.json();
-            if (data.status === "ok") {
+            if (res.ok) {
               if (this.ctx.showToast) {
                 this.ctx.showToast(`Canal ${chIdx} ("${chName}") eliminado correctamente`, "success");
               }
@@ -1050,7 +1049,8 @@ export class SettingsModule {
               }
               await this.fetchChannels();
             } else {
-              alert(`Error al eliminar canal: ${data.message || "Fallo desconocido"}`);
+              const data = await res.json().catch(() => ({}));
+              alert(`Error al eliminar canal: ${data.detail || data.message || "Fallo desconocido"}`);
             }
           } catch (err) {
             alert(`Error de red al eliminar canal: ${err.message}`);

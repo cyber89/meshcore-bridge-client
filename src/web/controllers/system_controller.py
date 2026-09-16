@@ -105,10 +105,7 @@ class SystemController(BaseController):
         if diag and hasattr(diag, "log_handler") and diag.log_handler:
             diag.log_handler.clear()
         self.ctx.log_system_event("INFO", "Buffer de logs del sistema limpiado por el usuario", source="web_admin")
-        return 200, {
-            "status": "ok",
-            "message": "Logs limpiados con éxito",
-        }
+        return 204, {}
 
     async def run_preflight(self) -> tuple[int, dict[str, Any]]:
         """Ejecuta la suite de verificación preflight."""
@@ -119,13 +116,25 @@ class SystemController(BaseController):
         if not isinstance(checker, PreflightChecker):
             checker = PreflightChecker()
 
-        report = checker.run_all(
-            mqtt_host=str(getattr(config, "MQTT_BROKER", "127.0.0.1")),
-            mqtt_port=int(getattr(config, "MQTT_PORT", 1883)),
-            serial_port=str(getattr(config, "SERIAL_PORT", "AUTO")),
-            tcp_server_port=int(getattr(config, "TCP_SERVER_PORT", 5000)),
-            tcp_server_enabled=bool(getattr(config, "TCP_SERVER_ENABLED", True)),
-            tcp_server_host=str(getattr(config, "TCP_SERVER_HOST", "0.0.0.0")),  # nosec B104
-        )
+        if hasattr(checker, "run_all_async"):
+            report = await checker.run_all_async(
+                mqtt_host=str(getattr(config, "MQTT_BROKER", "127.0.0.1")),
+                mqtt_port=int(getattr(config, "MQTT_PORT", 1883)),
+                serial_port=str(getattr(config, "SERIAL_PORT", "AUTO")),
+                tcp_server_port=int(getattr(config, "TCP_SERVER_PORT", 5000)),
+                tcp_server_enabled=bool(getattr(config, "TCP_SERVER_ENABLED", True)),
+                tcp_server_host=str(getattr(config, "TCP_SERVER_HOST", "0.0.0.0")),  # nosec B104
+            )
+        else:
+            import asyncio
+            report = await asyncio.to_thread(
+                checker.run_all,
+                mqtt_host=str(getattr(config, "MQTT_BROKER", "127.0.0.1")),
+                mqtt_port=int(getattr(config, "MQTT_PORT", 1883)),
+                serial_port=str(getattr(config, "SERIAL_PORT", "AUTO")),
+                tcp_server_port=int(getattr(config, "TCP_SERVER_PORT", 5000)),
+                tcp_server_enabled=bool(getattr(config, "TCP_SERVER_ENABLED", True)),
+                tcp_server_host=str(getattr(config, "TCP_SERVER_HOST", "0.0.0.0")),  # nosec B104
+            )
         report_dict: dict[str, Any] = report if isinstance(report, dict) else (report.to_dict() if hasattr(report, "to_dict") else {"passed": getattr(report, "all_passed", False)})
         return 200, {"status": "ok", "data": report_dict}

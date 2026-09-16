@@ -168,6 +168,27 @@ class PreflightChecker:
             "warning_count": len(warnings),
         }
 
+    async def run_all_async(
+        self,
+        mqtt_host: str = "127.0.0.1",
+        mqtt_port: int = 1883,
+        serial_port: str = "AUTO",
+        tcp_server_port: int = 5000,
+        tcp_server_enabled: bool = True,
+        tcp_server_host: str = "0.0.0.0",
+    ) -> dict[str, Any]:
+        """Ejecuta todos los chequeos preflight de forma no bloqueante en thread pool."""
+        import asyncio
+        return await asyncio.to_thread(
+            self.run_all,
+            mqtt_host=mqtt_host,
+            mqtt_port=mqtt_port,
+            serial_port=serial_port,
+            tcp_server_port=tcp_server_port,
+            tcp_server_enabled=tcp_server_enabled,
+            tcp_server_host=tcp_server_host,
+        )
+
 
 def run_preflight_checks(
     mqtt_host: str | None = None,

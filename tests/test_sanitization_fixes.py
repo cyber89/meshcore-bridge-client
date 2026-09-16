@@ -489,7 +489,7 @@ class TestChannelsPersistence:
             "POST",
             {"index": 1, "name": "Operaciones", "psk": "d57078c90eef5f5a7e949f1892ba744e"},
         )
-        assert code == 200
+        assert code in (200, 201)
         assert res["status"] == "ok"
         assert len(router1.channels) == 2
         assert router1.channels[1]["name"] == "Operaciones"

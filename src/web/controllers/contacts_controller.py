@@ -5,6 +5,7 @@ Handles /api/contacts, /api/contacts/sync, /api/contacts/share, export, and impo
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -17,6 +18,15 @@ from src.web.controllers.base import BaseController, problem_details
 
 class ContactsController(BaseController):
     """Controlador para libreta de contactos (clientes LoRa) y sincronización con el firmware."""
+
+    async def _save_registry_async(self) -> None:
+        """Persiste el registro de nodos en un thread pool sin bloquear el event loop."""
+        reg = getattr(self.ctx.bridge, "node_registry", None)
+        if reg:
+            if hasattr(reg, "save_to_file_async"):
+                await reg.save_to_file_async()
+            elif hasattr(reg, "save_to_file"):
+                await asyncio.to_thread(reg.save_to_file)
 
     async def handle_contacts_route(
         self,
@@ -83,8 +93,7 @@ class ContactsController(BaseController):
                             ),
                         )
                         imported_count += 1
-                if hasattr(self.ctx.bridge.node_registry, "save_to_file"):
-                    self.ctx.bridge.node_registry.save_to_file()
+                await self._save_registry_async()
             except Exception as e:
                 logging.warning(f"Error sincronizando contactos con el nodo: {e}")
 
@@ -257,7 +266,7 @@ class ContactsController(BaseController):
                         self.ctx.log_system_event("INFO", "Contacto binario importado hacia el firmware", source="contacts")
                         return 200, {"status": "ok", "result": res}
                 except ValueError:
-                    return problem_details(400, "Bad Request", "Formato de datos no reconocido (no es URI, JSON ni hexadecimal válido)", "invalid_import_data")
+                    return problem_details(400, "Bad Request", "Formato de datos no reconocido (no es URI, JSON ni hexadecimal válido)", "invalid_hex_data")
 
         if not contacts_to_add:
             return problem_details(400, "Bad Request", "No se detectaron contactos válidos para importar", "no_valid_contacts")
@@ -304,14 +313,13 @@ class ContactsController(BaseController):
                     logging.debug(f"Error sincronizando contacto importado con serial: {e}")
 
         if imported_records:
-            if hasattr(self.ctx.bridge.node_registry, "save_to_file"):
-                self.ctx.bridge.node_registry.save_to_file()
+            await self._save_registry_async()
 
             if self.ctx.broadcast_ws:
                 self.ctx.broadcast_ws({"type": "contacts_updated", "data": self.ctx.bridge.node_registry.list_nodes()})
 
             self.ctx.log_system_event("INFO", f"Se importaron {len(imported_records)} contactos exitosamente", source="contacts")
-            return 200, {"status": "ok", "imported": len(imported_records), "data": imported_records}
+            return 201, {"status": "ok", "imported": len(imported_records), "data": imported_records}
 
         return problem_details(400, "Bad Request", "Ningún contacto válido pudo ser agregado (verifique que no sean nodos repetidores o la estación base local)", "import_rejected")
 
@@ -330,6 +338,7 @@ class ContactsController(BaseController):
         if role.upper() in ("REPEATER", "ROUTER"):
             return problem_details(400, "Bad Request", "Los repetidores son nodos de infraestructura y no pueden agregarse a contactos", "repeater_contact_forbidden")
 
+        is_new_contact = hasattr(self.ctx.bridge, "node_registry") and self.ctx.bridge.node_registry.get_node(pubkey) is None
         is_fav = req_body.get("is_favorite")
         is_favorite_val = bool(is_fav) if is_fav is not None else None
 
@@ -342,8 +351,7 @@ class ContactsController(BaseController):
                 is_favorite=is_favorite_val,
             ),
         )
-        if hasattr(self.ctx.bridge.node_registry, "save_to_file"):
-            self.ctx.bridge.node_registry.save_to_file()
+        await self._save_registry_async()
 
         ser = getattr(self.ctx.bridge, "serial_adapter", None)
         if ser and hasattr(ser, "add_contact"):
@@ -356,7 +364,8 @@ class ContactsController(BaseController):
             self.ctx.broadcast_ws({"type": "contacts_updated", "data": self.ctx.bridge.node_registry.list_nodes()})
 
         self.ctx.log_system_event("INFO", f"Contacto guardado: {pubkey} ({alias or name})", source="contacts")
-        return 200, {"status": "ok", "data": contact.to_dict()}
+        status_code = 201 if is_new_contact else 200
+        return status_code, {"status": "ok", "data": contact.to_dict()}
 
     async def _delete_contact(self, req_body: dict[str, Any], path_pubkey: str = "") -> tuple[int, dict[str, Any]]:
         """Elimina un contacto de la libreta."""
@@ -373,10 +382,9 @@ class ContactsController(BaseController):
                 logging.debug(f"Error eliminando contacto del transceptor serial: {e}")
 
         if pubkey and self.ctx.bridge.node_registry.remove_node(pubkey):
-            if hasattr(self.ctx.bridge.node_registry, "save_to_file"):
-                self.ctx.bridge.node_registry.save_to_file()
+            await self._save_registry_async()
             if self.ctx.broadcast_ws:
                 self.ctx.broadcast_ws({"type": "contacts_updated", "data": self.ctx.bridge.node_registry.list_nodes()})
-            return 200, {"status": "ok", "message": f"Contacto {pubkey} eliminado"}
+            return 204, {}
 
         return problem_details(404, "Not Found", "Contacto no encontrado", "contact_not_found")

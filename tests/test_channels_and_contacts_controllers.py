@@ -69,7 +69,7 @@ async def test_channels_controller_bounds_validation(mock_api_context: ApiContex
     status_ok, resp_ok = await ctrl.handle_channels_route(
         "/api/channels", "POST", {"index": 3, "name": "Canal 3", "psk": ""}
     )
-    assert status_ok == 200
+    assert status_ok in (200, 201)
 
     # Índice fuera de rango (< 0 o > 7)
     status_bad, resp_bad = await ctrl.handle_channels_route(

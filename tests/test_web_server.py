@@ -64,7 +64,7 @@ class TestWebServerRouter(unittest.IsolatedAsyncioTestCase):
             "alias": "Repeater_Alpha",
         }
         code, data = await self.router.handle_request("POST", "/api/contacts", body)
-        self.assertEqual(code, 200)
+        self.assertIn(code, (200, 201))
         self.assertEqual(data["status"], "ok")
         self.assertEqual(data["data"]["alias"], "Repeater_Alpha")
 
@@ -78,8 +78,9 @@ class TestWebServerRouter(unittest.IsolatedAsyncioTestCase):
 
         new_ch = {"index": 4, "name": "Canal Táctico", "psk": "KEY_12345"}
         code, data = await self.router.handle_request("POST", "/api/channels", new_ch)
-        self.assertEqual(code, 200)
+        self.assertIn(code, (200, 201))
         self.assertEqual(data["data"]["name"], "Canal Táctico")
+        await self.router.handle_request("DELETE", "/api/channels", {"index": 4})
 
     async def test_tx_message_endpoint(self) -> None:
         body = {

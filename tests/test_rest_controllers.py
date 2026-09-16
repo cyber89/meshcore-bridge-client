@@ -153,7 +153,7 @@ async def test_channels_controller_crud(api_context: ApiContext, tmp_path: Any) 
 
     # POST create channel 1
     status, res = await ctrl.handle_channels_route("/api/channels", "POST", {"index": 1, "name": "Team", "psk": "secret"})
-    assert status == 200
+    assert status in (200, 201)
     assert res["data"]["name"] == "Team"
 
     # POST invalid channel index 9
@@ -168,7 +168,7 @@ async def test_channels_controller_crud(api_context: ApiContext, tmp_path: Any) 
 
     # DELETE channel 1 (success)
     status, res = await ctrl.handle_channels_route("/api/channels", "DELETE", {"index": 1})
-    assert status == 200
+    assert status == 204
 
     # DELETE non-existent channel
     status, res = await ctrl.handle_channels_route("/api/channels", "DELETE", {"index": 5})
@@ -193,7 +193,7 @@ async def test_contacts_controller(api_context: ApiContext) -> None:
         "POST",
         {"public_key": "3344556677889900", "name": "Charlie", "role": "CLIENT"},
     )
-    assert status == 200
+    assert status in (200, 201)
     assert res["data"]["name"] == "Charlie"
 
     # POST without public key
@@ -218,7 +218,7 @@ async def test_contacts_controller(api_context: ApiContext) -> None:
 
     # DELETE contact
     status, res = await ctrl.handle_contacts_route("/api/contacts", "DELETE", {"public_key": "3344556677889900"})
-    assert status == 200
+    assert status == 204
 
 
 # ------------------ NodesController Tests ------------------
@@ -280,7 +280,7 @@ async def test_packets_controller(api_context: ApiContext) -> None:
 
     # Clear packets
     status, clr_res = await ctrl.clear_packets()
-    assert status == 200
+    assert status in (200, 204)
     status, res = await ctrl.get_packets()
     assert res["count"] == 0
 

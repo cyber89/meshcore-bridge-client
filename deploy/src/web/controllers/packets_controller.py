@@ -108,7 +108,4 @@ class PacketsController(BaseController):
         if packet_buf:
             packet_buf.clear()
 
-        return 200, {
-            "status": "ok",
-            "message": "Búfer de paquetes RF limpiado con éxito",
-        }
+        return 204, {}
