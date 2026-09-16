@@ -48,6 +48,8 @@
       'chat.channels':             'Canales',
       'chat.direct_messages':      'Mensajes Directos',
       'chat.no_conversations':     'Sin conversaciones activas',
+      'chat.channel_prefix':       'Canal',
+      'chat.ch_0_default':         'Public / Broadcast',
       'chat.add_channel_title':    'Crear / Unirse a canal',
       'chat.import_channel_title': 'Importar canal o contacto',
       'chat.send':                 'Enviar',
@@ -59,6 +61,8 @@
       'nodes.title':               'Directorio de Nodos en la Malla',
       'nodes.subtitle':            'Todos los nodos descubiertos en la red LoRa MeshCore con su telemetría y estado en vivo.',
       'nodes.search_placeholder':  'Buscar nodo por nombre, alias, rol o clave pública...',
+      'nodes.ping_btn':            'Ping',
+      'nodes.ping_title':          'Ping directo de 0 saltos',
       'nodes.filter_all':          'Todos',
       'nodes.filter_repeaters':    'Repetidores',
       'nodes.filter_sensors':      'Sensores',
@@ -338,6 +342,9 @@
       'toast.radio_cfg_ok':        '📻 Parámetros de radio locales actualizados',
       'toast.identity_ok':         '📍 Identidad y ubicación guardadas',
       'toast.metrics_reset':       'Métricas y contadores restablecidos correctamente',
+      'toast.ping_sending':        '🎯 Enviando Ping (0 saltos) a {name}...',
+      'toast.ping_ok':             '🎯 Pong recibido de {name}: {rtt}{snr}',
+      'toast.ping_err':            '⚠️ Sin respuesta de Ping desde {name}',
 
       // Common
       'common.you':                'Tú',
@@ -462,6 +469,8 @@
       'chat.channels':             'Channels',
       'chat.direct_messages':      'Direct Messages',
       'chat.no_conversations':     'No active conversations',
+      'chat.channel_prefix':       'Channel',
+      'chat.ch_0_default':         'Public / Broadcast',
       'chat.add_channel_title':    'Create / Join Channel',
       'chat.import_channel_title': 'Import Channel or Contact',
       'chat.send':                 'Send',
@@ -473,6 +482,8 @@
       'nodes.title':               'Mesh Node Directory',
       'nodes.subtitle':            'All nodes discovered in the MeshCore LoRa network with live telemetry and status.',
       'nodes.search_placeholder':  'Search node by name, alias, role or public key...',
+      'nodes.ping_btn':            'Ping',
+      'nodes.ping_title':          'Direct 0-hop Ping',
       'nodes.filter_all':          'All',
       'nodes.filter_repeaters':    'Repeaters',
       'nodes.filter_sensors':      'Sensors',
@@ -752,6 +763,9 @@
       'toast.radio_cfg_ok':        '📻 Local radio parameters updated',
       'toast.identity_ok':         '📍 Identity and location saved',
       'toast.metrics_reset':       'Metrics and counters reset successfully',
+      'toast.ping_sending':        '🎯 Sending Ping (0 hops) to {name}...',
+      'toast.ping_ok':             '🎯 Pong received from {name}: {rtt}{snr}',
+      'toast.ping_err':            '⚠️ No Ping response from {name}',
 
       // Common
       'common.you':                'You',
@@ -872,7 +886,6 @@
     { s: '#btnImportData',               k: 'chat.import_channel_title', a: 'title' },
     { s: '#chatInputText',               k: 'chat.input_placeholder', a: 'placeholder' },
     { s: '#clearChatBtn',                k: 'chat.clear', last: true },
-    { s: '#btnShareTargetQr',            k: 'chat.qr', last: true },
     { s: '#btnShareLocation',            k: 'chat.share_location_title', a: 'title' },
     { s: '#btnSendMsg span:first-child', k: 'chat.send' },
 

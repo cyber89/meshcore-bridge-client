@@ -95,12 +95,24 @@ export class AnalyticsModule {
     this.ctx.eventBus.on(EVENTS.TAB_CHANGED, (tabId) => {
       if (tabId === "tab-analytics") {
         this.fetchAnalytics();
+        if (this._liveAnalyticsInterval) clearInterval(this._liveAnalyticsInterval);
+        this._liveAnalyticsInterval = setInterval(() => {
+          const activeTab = document.querySelector(".tab-pane.active")?.id;
+          if (activeTab === "tab-analytics") {
+            this.fetchAnalytics();
+          } else {
+            clearInterval(this._liveAnalyticsInterval);
+            this._liveAnalyticsInterval = null;
+          }
+        }, 10000);
+      } else if (this._liveAnalyticsInterval) {
+        clearInterval(this._liveAnalyticsInterval);
+        this._liveAnalyticsInterval = null;
       }
     });
 
-    // Actualización reactiva periódica si llegan paquetes
-    this.ctx.eventBus.on(EVENTS.RF_PACKET, () => {
-      // Debounce suave para no saturar si hay ráfagas
+    // Actualización reactiva periódica si llegan métricas o paquetes
+    const triggerDebouncedRefresh = () => {
       if (!this.refreshTimer) {
         this.refreshTimer = setTimeout(() => {
           this.refreshTimer = null;
@@ -108,9 +120,14 @@ export class AnalyticsModule {
           if (activeTab === "tab-analytics") {
             this.fetchAnalytics();
           }
-        }, 5000);
+        }, 3000);
       }
-    });
+    };
+
+    this.ctx.eventBus.on(EVENTS.RF_PACKET, triggerDebouncedRefresh);
+    if (EVENTS.METRICS_UPDATE) {
+      this.ctx.eventBus.on(EVENTS.METRICS_UPDATE, triggerDebouncedRefresh);
+    }
   }
 
   async fetchAnalytics() {

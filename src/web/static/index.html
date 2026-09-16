@@ -140,14 +140,11 @@
               <div class="chat-header">
                 <div class="header-title-group active-target-info">
                   <div class="target-title-row">
-                    <button class="btn-xs btn-outline mobile-only-inline" id="btnToggleChannelsMobile" title="Mostrar/Ocultar lista de canales"><span data-lucide="layers" data-size="13"></span> Canales</button>
-                    <h2 id="chatActiveTitle">Canal 0 (Public / Broadcast)</h2>
-                    <span class="security-chip" id="chatSecurityChip"><span data-lucide="unlock" data-size="13"></span> Abierto</span>
+                    <h2 id="chatActiveTitle">Canal #0: Public</h2>
                   </div>
                   <p class="header-subtitle target-sub" id="chatActiveSub">Difusión comunitaria abierta por radio LoRa</p>
                 </div>
                 <div class="chat-header-actions">
-                  <button class="btn-secondary btn-sm hidden" id="btnShareTargetQr" title="Compartir destino activo por QR"><span data-lucide="qr-code" data-size="14"></span> QR</button>
                   <button class="btn-secondary btn-sm" id="clearChatBtn" aria-label="Limpiar vista de chat"><span data-lucide="trash-2" data-size="14"></span> Limpiar</button>
                 </div>
               </div>
@@ -686,14 +683,7 @@
                     <span class="card-sub" id="localAirtimeDuty">Duty Cycle: --%</span>
                   </div>
                 </div>
-                <div class="metric-card">
-                  <div class="card-icon"><span data-lucide="signal" data-size="20"></span></div>
-                  <div class="card-data">
-                    <span class="card-label">Calidad de Señal RF</span>
-                    <strong class="card-value" id="localSnrValue">-- dB</strong>
-                    <span class="card-sub" id="localRssiValue">RSSI: -- dBm</span>
-                  </div>
-                </div>
+
                 <div class="metric-card">
                   <div class="card-icon"><span data-lucide="volume-2" data-size="20"></span></div>
                   <div class="card-data">
@@ -1008,7 +998,7 @@
                     <span class="linux-term-dot dot-yellow"></span>
                     <span class="linux-term-dot dot-green"></span>
                   </div>
-                  <span class="linux-term-title">meshcore@base:~ (Terminal)</span>
+                  <span class="linux-term-title">MeshCore Node CLI — Transceptor Local</span>
                   <div class="linux-term-actions">
                     <button type="button" class="btn-xs btn-outline-term" id="btnToggleLocalCmdHelp"><span data-lucide="info" data-size="13"></span> Ayuda (help)</button>
                     <button type="button" class="btn-xs btn-outline-term" id="btnClearLocalTerminal"><span data-lucide="trash-2" data-size="13"></span> Limpiar</button>
@@ -1134,13 +1124,13 @@
                 </div>
 
                 <div class="linux-term-body" id="localTerminalOutput" role="log">
-                  <div class="term-line term-sys">meshcore-base v3.0.0 (Linux x86_64 / ESP32-S3 Serial Direct)</div>
-                  <div class="term-line term-sys">Conexión serial establecida. Escribe 'help' o presiona ↑ / ↓ para navegar el historial de comandos.</div>
+                  <div class="term-line term-sys">MeshCore Transceiver Firmware CLI (Companion Protocol v1.0)</div>
+                  <div class="term-line term-sys">Enlace serie activo con el nodo local. Escribe 'help' para listar comandos de la radio.</div>
                 </div>
 
                 <form id="localTerminalForm" class="linux-term-input-bar">
-                  <span class="linux-term-prompt">meshcore@base:~$</span>
-                  <input type="text" id="localTerminalInput" class="linux-term-input" placeholder="Escribe comando (ej: bat, stats, radio, time, help)..." autocomplete="off" spellcheck="false" aria-label="Comando interactivo terminal local" />
+                  <span class="linux-term-prompt">meshcore&gt;</span>
+                  <input type="text" id="localTerminalInput" class="linux-term-input" placeholder="Comando de firmware (ej: help, info, stats, radio, bat, ver)..." autocomplete="off" spellcheck="false" aria-label="Comando interactivo de firmware MeshCore" />
                   <button type="submit" class="btn-term-send" id="btnSendLocalTerminal">↵ Ejecutar</button>
                 </form>
               </div>
@@ -1817,7 +1807,7 @@
                   <span class="linux-term-dot dot-yellow"></span>
                   <span class="linux-term-dot dot-green"></span>
                 </div>
-                <span class="linux-term-title">meshcore@repeater:~ (Terminal)</span>
+                <span class="linux-term-title">MeshCore Remote CLI — Repetidor</span>
                 <div class="linux-term-actions">
                   <button type="button" class="btn-xs btn-outline-term" id="btnToggleCmdHelp"><span data-lucide="info" data-size="13"></span> Ayuda (help)</button>
                   <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="ping"><span data-lucide="crosshair" data-size="13"></span> ping</button>
@@ -1902,12 +1892,12 @@
               </div>
 
               <div class="linux-term-body" id="repeaterTerminalOutput" role="log">
-                <div class="term-line term-sys">meshcore-remote-admin v3.0.0 (RF LoRa / Mesh Protocol)</div>
+                <div class="term-line term-sys">MeshCore Remote CLI — Consola RF LoRa</div>
                 <div class="term-line term-sys">Consola remota lista. Envía comandos RF o presiona ↑ / ↓ para navegar el historial.</div>
               </div>
 
               <form id="repeaterTerminalForm" class="linux-term-input-bar">
-                <span class="linux-term-prompt">meshcore@remote:~$</span>
+                <span class="linux-term-prompt">repeater&gt;</span>
                 <input type="text" id="repeaterTerminalInput" class="linux-term-input" placeholder="Escribe comando RF (ej: ver, get radio, neighbors, clock, get lat)..." autocomplete="off" spellcheck="false" aria-label="Comando interactivo terminal de repetidor" />
                 <button type="submit" class="btn-term-send">↵ Ejecutar</button>
               </form>

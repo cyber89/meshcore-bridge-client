@@ -45,21 +45,6 @@ class ConfigController(BaseController):
         tx_val = getattr(self.ctx.bridge, "tx_count", 0)
         err_tx = getattr(self.ctx.bridge, "tx_error_count", 0)
         err_gen = getattr(self.ctx.bridge, "err_count", 0)
-        last_snr = getattr(self.ctx.bridge, "last_rx_snr", None) or local_cfg.get("last_snr")
-        last_rssi = getattr(self.ctx.bridge, "last_rx_rssi", None) or local_cfg.get("last_rssi")
-
-        if (last_snr is None or last_rssi is None) and hasattr(self.ctx.bridge, "node_registry") and hasattr(self.ctx.bridge.node_registry, "list_nodes"):
-            remote_nodes = [
-                n for n in self.ctx.bridge.node_registry.list_nodes()
-                if not n.get("is_local") and str(n.get("role")).upper() != "LOCAL" and (n.get("last_snr") is not None or n.get("last_rssi") is not None)
-            ]
-            if remote_nodes:
-                remote_nodes.sort(key=lambda x: float(x.get("last_seen") or 0.0), reverse=True)
-                if last_snr is None and remote_nodes[0].get("last_snr") is not None:
-                    last_snr = remote_nodes[0].get("last_snr")
-                if last_rssi is None and remote_nodes[0].get("last_rssi") is not None:
-                    last_rssi = remote_nodes[0].get("last_rssi")
-
         serial_adapter = getattr(self.ctx.bridge, "serial_adapter", None)
         is_ser_ok = getattr(serial_adapter, "is_connected", False) if serial_adapter else False
         serial_port = getattr(serial_adapter, "port", "none") if serial_adapter else "none"
@@ -75,8 +60,6 @@ class ConfigController(BaseController):
             "packet_errors": (int(err_tx) if isinstance(err_tx, (int, float)) else 0) + (int(err_gen) if isinstance(err_gen, (int, float)) else 0),
             "noise_floor_dbm": local_cfg.get("noise_floor_dbm", -118),
             "clock": datetime.now().strftime("%I:%M:%S %p"),
-            "last_snr": last_snr,
-            "last_rssi": last_rssi,
             "serial_connected": is_ser_ok,
             "radio_connected": is_ser_ok,
             "serial_port": serial_port,

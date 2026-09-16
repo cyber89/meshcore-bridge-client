@@ -1230,7 +1230,7 @@ export class RepeaterModule {
 
   async executeRepeaterCommand(target, action, params = {}, password = "") {
     const pwd = password || this.getRepeaterPassword(target) || "";
-    this.appendTerminalLine(`meshcore@remote:~$ ${action}`, "term-cmd");
+    this.appendTerminalLine(`repeater> ${action}`, "term-cmd");
     try {
       const res = await fetch("/api/repeater/remote/action", {
         method: "POST",

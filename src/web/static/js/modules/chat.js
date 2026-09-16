@@ -34,7 +34,6 @@ export class ChatModule {
     this._bindElements();
     this._bindEvents();
     this._subscribeBus();
-    this._updateQrButtonVisibility();
     this.loadInitialHistory();
   }
 
@@ -44,14 +43,11 @@ export class ChatModule {
       chatInputForm: document.getElementById("chatInputForm"),
       chatInputText: document.getElementById("chatInputText"),
       chatTargetName: document.getElementById("chatActiveTitle"),
-      chatTargetBadge: document.getElementById("chatSecurityChip"),
       chatTargetSub: document.getElementById("chatActiveSub"),
-      btnShareTargetQr: document.getElementById("btnShareTargetQr"),
       btnShareLocation: document.getElementById("btnShareLocation"),
       dmListUi: document.getElementById("dmListUi"),
       clearChatBtn: document.getElementById("clearChatBtn"),
       dmCountBadge: document.getElementById("dmCountBadge"),
-      btnToggleChannelsMobile: document.getElementById("btnToggleChannelsMobile"),
       sidebarChannelList: document.getElementById("sidebarChannelList"),
       globalChatUnreadBadge: document.getElementById("globalChatUnreadBadge"),
       chkChatSoundAlerts: document.getElementById("chkChatSoundAlerts"),
@@ -68,16 +64,6 @@ export class ChatModule {
 
     if (this.dom.clearChatBtn) {
       this.dom.clearChatBtn.addEventListener("click", () => this.clearCurrentChat());
-    }
-
-    if (this.dom.btnToggleChannelsMobile && this.dom.sidebarChannelList) {
-      this.dom.btnToggleChannelsMobile.addEventListener("click", () => {
-        this.dom.sidebarChannelList.classList.toggle("mobile-open");
-      });
-    }
-
-    if (this.dom.btnShareTargetQr) {
-      this.dom.btnShareTargetQr.addEventListener("click", () => this.shareActiveTargetQr());
     }
 
     if (this.dom.btnShareLocation) {
@@ -134,11 +120,28 @@ export class ChatModule {
       if (dmThreads && dmThreads.length > 0) {
         for (const thread of dmThreads) {
           const canonicalPk = this.resolveCanonicalPubkey(thread.pubkey);
+          if (this._isLocalTarget(canonicalPk)) continue;
+          const node = this.ctx.knownNodes?.get(canonicalPk.toLowerCase());
+          const roleUpper = String(node?.role || "").toUpperCase();
+          if (roleUpper === "REPEATER" || roleUpper === "ROUTER") continue;
           this.conversationsWithMessages.add(canonicalPk);
           this.addDmContact(canonicalPk, thread.name || canonicalPk.slice(0, 8));
         }
       }
     } catch (_) {}
+  }
+
+  _isLocalTarget(pubkey) {
+    if (!pubkey) return true;
+    const norm = String(pubkey).trim().toLowerCase();
+    if (norm === "local" || norm === "000000000000") return true;
+    const localPk = (document.getElementById("localNodePubkey")?.value || "").toLowerCase().trim();
+    if (localPk && (norm === localPk || (localPk.length >= 8 && norm.startsWith(localPk.slice(0, 8))) || (norm.length >= 8 && localPk.startsWith(norm.slice(0, 8))))) {
+      return true;
+    }
+    const node = this.ctx.knownNodes?.get(norm);
+    if (node && (node.is_local || String(node.role).toUpperCase() === "LOCAL")) return true;
+    return false;
   }
 
   resolveCanonicalPubkey(pubkey) {
@@ -156,43 +159,34 @@ export class ChatModule {
     const chList = this.ctx.settingsModule?.channelsList || [];
     const ch = chList.find((c) => Number(c.index) === this.activeChannelIdx);
     const isEncrypted = ch ? Boolean(ch.has_psk || (ch.psk && ch.psk.trim().length > 0)) : (this.activeChannelIdx !== 0);
-    const chName = ch?.name || (this.activeChannelIdx === 0 ? I18n.t('chat.ch_0_title') : I18n.t('chat.ch_n_title').replace('{n}', this.activeChannelIdx));
+    const prefix = window.I18n ? window.I18n.t('chat.channel_prefix') || 'Canal' : 'Canal';
+    let chTitle = `${prefix} #${this.activeChannelIdx}`;
+    if (ch?.name && ch.name.trim()) {
+      chTitle += `: ${ch.name.trim()}`;
+    } else if (this.activeChannelIdx === 0) {
+      chTitle += `: ${window.I18n ? window.I18n.t('chat.ch_0_default') || 'Public / Broadcast' : 'Public / Broadcast'}`;
+    }
 
     if (this.dom.chatTargetName) {
-      this.dom.chatTargetName.textContent = chName;
+      this.dom.chatTargetName.textContent = chTitle;
     }
     if (this.dom.chatTargetSub) {
       if (this.activeChannelIdx === 0) {
-        this.dom.chatTargetSub.textContent = I18n.t('chat.ch_0_sub');
+        this.dom.chatTargetSub.textContent = (window.I18n ? window.I18n.t('chat.ch_0_sub') : null) || 'Difusión comunitaria abierta por radio LoRa';
       } else if (isEncrypted) {
-        this.dom.chatTargetSub.textContent = I18n.t('chat.ch_n_sub').replace('{n}', this.activeChannelIdx);
+        const subTemplate = (window.I18n ? window.I18n.t('chat.ch_n_sub') : null) || 'Canal de equipo cifrado #{n}';
+        this.dom.chatTargetSub.textContent = subTemplate.replace('{n}', this.activeChannelIdx);
       } else {
-        this.dom.chatTargetSub.textContent = (I18n.t('chat.ch_n_open_sub') || 'Canal abierto sin cifrar #{n}').replace('{n}', this.activeChannelIdx);
+        const subTemplate = (window.I18n ? window.I18n.t('chat.ch_n_open_sub') : null) || 'Canal abierto sin cifrar #{n}';
+        this.dom.chatTargetSub.textContent = subTemplate.replace('{n}', this.activeChannelIdx);
       }
-    }
-    if (this.dom.chatTargetBadge) {
-      const lockIcon = isEncrypted ? "lock" : "unlock";
-      const badgeText = isEncrypted ? I18n.t('chat.encrypted_badge') : I18n.t('chat.open_badge');
-      this.dom.chatTargetBadge.innerHTML = `<span data-lucide="${lockIcon}" data-size="13"></span> ${badgeText}`;
-      if (window.initLucideIcons) window.initLucideIcons(this.dom.chatTargetBadge);
     }
 
     document.querySelectorAll(".channel-item").forEach((el) => el.classList.remove("active"));
     const activeItem = document.querySelector(`.channel-item[data-channel-idx="${this.activeChannelIdx}"]`);
     if (activeItem) activeItem.classList.add("active");
 
-    this._updateQrButtonVisibility();
     this.renderCurrentConversation();
-  }
-
-  _updateQrButtonVisibility() {
-    if (!this.dom.btnShareTargetQr) return;
-    const isChannelZero = !this.activeDmTarget && (this.activeChannelIdx === 0 || this.activeChannelIdx == null);
-    if (isChannelZero) {
-      this.dom.btnShareTargetQr.classList.add("hidden");
-    } else {
-      this.dom.btnShareTargetQr.classList.remove("hidden");
-    }
   }
 
   setDmTarget(pubkey, name) {
@@ -202,14 +196,12 @@ export class ChatModule {
   openDmConversation(pubkey, name) {
     if (!pubkey) return;
     const canonicalPk = this.resolveCanonicalPubkey(pubkey);
-    const normTarget = canonicalPk.toLowerCase().trim();
-
-    const localPk = (document.getElementById("localNodePubkey")?.value || "").toLowerCase().trim();
-    if (normTarget === "local" || (localPk && (normTarget === localPk || normTarget.startsWith(localPk) || localPk.startsWith(normTarget)))) {
+    if (this._isLocalTarget(canonicalPk)) {
       if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.dm_local_err'), "warning");
       return;
     }
 
+    const normTarget = canonicalPk.toLowerCase().trim();
     const targetNode = (this.ctx.knownNodes ? Array.from(this.ctx.knownNodes.values()) : []).find(
       (n) => (n.public_key && n.public_key.toLowerCase() === normTarget) ||
              (n.key_prefix && normTarget.startsWith(n.key_prefix.toLowerCase()))
@@ -222,16 +214,15 @@ export class ChatModule {
 
     this.activeDmTarget = canonicalPk;
     this.activeDmName = name || canonicalPk.slice(0, 8);
+    if (this.activeDmName.includes("Estación Local") || this.activeDmName.includes("Local Station")) {
+      this.activeDmName = targetNode?.name || canonicalPk.slice(0, 8);
+    }
 
     if (this.dom.chatTargetName) {
       this.dom.chatTargetName.textContent = `DM: ${this.activeDmName}`;
     }
     if (this.dom.chatTargetSub) {
       this.dom.chatTargetSub.textContent = I18n.t('chat.dm_sub').replace('{pk}', canonicalPk);
-    }
-    if (this.dom.chatTargetBadge) {
-      this.dom.chatTargetBadge.innerHTML = `<span data-lucide="user" data-size="13"></span> DM`;
-      if (window.initLucideIcons) window.initLucideIcons(this.dom.chatTargetBadge);
     }
 
     this.addDmContact(canonicalPk, this.activeDmName);
@@ -243,61 +234,9 @@ export class ChatModule {
     const navBtn = document.querySelector('.nav-btn[data-tab="tab-chat"]');
     if (navBtn) navBtn.click();
 
-    this._updateQrButtonVisibility();
     this.renderCurrentConversation();
   }
 
-  shareActiveTargetQr() {
-    if (this.activeDmTarget) {
-      const uri = buildMeshCoreContactUri(this.activeDmName, this.activeDmTarget, "CLIENT");
-      const json = JSON.stringify({ type: "contact", public_key: this.activeDmTarget, name: this.activeDmName, role: "CLIENT", uri }, null, 2);
-      if (window.showQrModal) {
-        window.showQrModal(`Contacto: ${this.activeDmName}`, uri, json);
-      } else if (this.ctx.showToast) {
-        navigator.clipboard.writeText(uri);
-        this.ctx.showToast(I18n.t('toast.contact_copied'), "success");
-      }
-    } else {
-      const chIdx = this.activeChannelIdx ?? 0;
-      if (chIdx === 0) {
-        if (this.ctx.showToast) {
-          this.ctx.showToast("El canal público 0 está preconfigurado por defecto en MeshCore y no requiere exportación.", "info");
-        }
-        return;
-      }
-      fetch(`/api/channels/export?index=${chIdx}`, {
-        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          let uri = "";
-          let jsonStr = "";
-          if (data.status === "ok" && data.uri) {
-            uri = data.uri;
-            jsonStr = JSON.stringify(data.data || { type: "channel", index: chIdx, uri }, null, 2);
-          } else {
-            uri = buildMeshCoreChannelUri(chIdx === 0 ? "Public" : `Ch_${chIdx}`, MESHCORE_PUBLIC_CHANNEL_SECRET, chIdx);
-            jsonStr = JSON.stringify({ type: "channel", index: chIdx, uri }, null, 2);
-          }
-          if (window.showQrModal) {
-            window.showQrModal(I18n.t('chat.ch_n_title').replace('{n}', chIdx), uri, jsonStr);
-          } else if (this.ctx.showToast) {
-            navigator.clipboard.writeText(uri);
-            this.ctx.showToast(I18n.t('toast.channel_copied'), "success");
-          }
-        })
-        .catch(() => {
-          const uri = buildMeshCoreChannelUri(chIdx === 0 ? "Public" : `Ch_${chIdx}`, MESHCORE_PUBLIC_CHANNEL_SECRET, chIdx);
-          const jsonStr = JSON.stringify({ type: "channel", index: chIdx, uri }, null, 2);
-          if (window.showQrModal) {
-            window.showQrModal(I18n.t('chat.ch_n_title').replace('{n}', chIdx), uri, jsonStr);
-          } else if (this.ctx.showToast) {
-            navigator.clipboard.writeText(uri);
-            this.ctx.showToast(I18n.t('toast.channel_copied'), "success");
-          }
-        });
-    }
-  }
 
   shareCurrentLocation() {
     if (!navigator.geolocation) {
@@ -379,6 +318,17 @@ export class ChatModule {
   addDmContact(pubkey, name) {
     if (!pubkey || !this.dom.dmListUi) return;
     const canonicalPk = this.resolveCanonicalPubkey(pubkey);
+    if (this._isLocalTarget(canonicalPk)) return;
+
+    // SSoT Rule 1: Repeaters must NEVER be in contacts or DM list
+    const node = this.ctx.knownNodes?.get(canonicalPk.toLowerCase());
+    const roleUpper = String(node?.role || "").toUpperCase();
+    if (roleUpper === "REPEATER" || roleUpper === "ROUTER") return;
+
+    let cleanDisplayName = name || canonicalPk.slice(0, 8);
+    if (cleanDisplayName.includes("Estación Local") || cleanDisplayName.includes("Local Station")) {
+      cleanDisplayName = node?.name || canonicalPk.slice(0, 8);
+    }
 
     const emptyHint = this.dom.dmListUi.querySelector(".empty-hint");
     if (emptyHint) emptyHint.remove();
@@ -391,10 +341,10 @@ export class ChatModule {
     li.setAttribute("data-pubkey", canonicalPk);
     li.innerHTML = `
       <span class="channel-icon">💬</span>
-      <span class="channel-name ch-name">${escapeHtml(name || canonicalPk.slice(0, 8))}</span>
+      <span class="channel-name ch-name">${escapeHtml(cleanDisplayName)}</span>
       <span class="channel-idx font-mono">DM</span>
     `;
-    li.addEventListener("click", () => this.openDmConversation(canonicalPk, name));
+    li.addEventListener("click", () => this.openDmConversation(canonicalPk, cleanDisplayName));
     this.dom.dmListUi.appendChild(li);
 
     const totalDms = this.dom.dmListUi.querySelectorAll(".channel-item").length;
@@ -543,6 +493,7 @@ export class ChatModule {
       is_outgoing: true,
       channel_idx: this.activeChannelIdx,
       dm_target: canonicalTarget,
+      dm_target_name: this.activeDmName || canonicalTarget,
       timestamp: new Date().toISOString(),
       delivered: false,
       status: "queued",

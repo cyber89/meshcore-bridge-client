@@ -192,10 +192,24 @@ export class MeshCoreStorage {
             const pubkey = feedKey.slice(3).trim();
             if (!pubkey || pubkey.toLowerCase() === "unknown" || pubkey.toLowerCase() === "local") continue;
 
+            const localPk = (document.getElementById("localNodePubkey")?.value || "").toLowerCase().trim();
+            const normPk = pubkey.toLowerCase();
+            if (localPk && (normPk === localPk || (localPk.length >= 8 && normPk.startsWith(localPk.slice(0, 8))))) continue;
+
+            const isOut = Boolean(msg.is_outgoing);
+            const fallbackName = pubkey.slice(0, 8);
+            let initialName = isOut
+              ? (msg.dm_target_name || (msg.dm_target && msg.dm_target !== pubkey ? msg.dm_target : fallbackName))
+              : (msg.sender_name || fallbackName);
+
+            if (initialName && (initialName.includes("Estación Local") || initialName.includes("Local Station"))) {
+              initialName = msg.dm_target_name || fallbackName;
+            }
+
             if (!threadsMap.has(pubkey)) {
               threadsMap.set(pubkey, {
                 pubkey: pubkey,
-                name: msg.sender_name || (msg.dm_target && msg.dm_target !== pubkey ? msg.dm_target : pubkey),
+                name: initialName,
                 lastMessage: msg.text || "",
                 lastTimestamp: msg.timestamp || "",
                 role: "CLIENT",
@@ -205,7 +219,9 @@ export class MeshCoreStorage {
             const thread = threadsMap.get(pubkey);
             thread.messages.push(msg);
             if (!msg.is_outgoing && msg.sender_name && msg.sender_name.toLowerCase() !== "unknown" && msg.sender_name !== pubkey) {
-              thread.name = msg.sender_name;
+              if (!msg.sender_name.includes("Estación Local") && !msg.sender_name.includes("Local Station")) {
+                thread.name = msg.sender_name;
+              }
             }
             if (msg.timestamp && (!thread.lastTimestamp || new Date(msg.timestamp) > new Date(thread.lastTimestamp))) {
               thread.lastTimestamp = msg.timestamp;

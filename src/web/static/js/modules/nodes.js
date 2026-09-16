@@ -177,24 +177,33 @@ export class NodesModule {
   formatLastSeen(lastSeen, isLocal = false) {
     if (isLocal) return (window.I18n ? window.I18n.t('time.online_local') : null) || "En línea (Local)";
     if (!lastSeen || lastSeen <= 0) return (window.I18n ? window.I18n.t('time.offline_no_signal') : null) || "Desconectado (Sin señal)";
-    const diff = Math.floor(Date.now() / 1000) - lastSeen;
-    if (diff < 0 || diff < 60) {
+    let effTs = Number(lastSeen);
+    if (effTs > 1e11) effTs = Math.floor(effTs / 1000);
+    let diff = Math.floor(Date.now() / 1000) - effTs;
+    if (diff < 0) diff = 0;
+
+    if (diff < 60) {
       return (window.I18n ? window.I18n.t('time.active_now') : null) || "Activo (ahora mismo)";
     }
-    if (diff < 3600) {
-      const mins = Math.floor(diff / 60);
+    if (diff < 1800) {
+      const mins = Math.max(1, Math.floor(diff / 60));
       const str = window.I18n ? window.I18n.t('time.active_mins') : null;
       return str ? str.replace('{n}', mins) : `Activo (hace ${mins}m)`;
     }
-    if (diff < 12 * 3600) {
-      const hours = Math.floor(diff / 3600);
-      const str = window.I18n ? window.I18n.t('time.active_hours') : null;
-      return str ? str.replace('{n}', hours) : `Activo (hace ${hours}h)`;
-    }
-    if (diff < 24 * 3600) {
+    if (diff < 7200) {
+      const mins = Math.floor(diff / 60);
+      if (mins < 60) {
+        const str = window.I18n ? window.I18n.t('time.idle_mins') : null;
+        return str ? str.replace('{n}', mins) : `Inactivo (hace ${mins}m)`;
+      }
       const hours = Math.floor(diff / 3600);
       const str = window.I18n ? window.I18n.t('time.idle_hours') : null;
       return str ? str.replace('{n}', hours) : `Inactivo (hace ${hours}h)`;
+    }
+    if (diff < 86400) {
+      const hours = Math.floor(diff / 3600);
+      const str = window.I18n ? window.I18n.t('time.offline_hours') : null;
+      return str ? str.replace('{n}', hours) : `Desconectado (hace ${hours}h)`;
     }
     const days = Math.max(1, Math.floor(diff / 86400));
     const str = window.I18n ? window.I18n.t('time.offline_days') : null;
@@ -204,9 +213,13 @@ export class NodesModule {
   getPresenceState(lastSeen, isLocal = false) {
     if (isLocal) return "status-online";
     if (!lastSeen || lastSeen <= 0) return "status-offline";
-    const diff = Math.floor(Date.now() / 1000) - lastSeen;
-    if (diff < 12 * 3600) return "status-online";
-    if (diff < 24 * 3600) return "status-idle";
+    let effTs = Number(lastSeen);
+    if (effTs > 1e11) effTs = Math.floor(effTs / 1000);
+    let diff = Math.floor(Date.now() / 1000) - effTs;
+    if (diff < 0) diff = 0;
+
+    if (diff < 1800) return "status-online";
+    if (diff < 7200) return "status-idle";
     return "status-offline";
   }
 
@@ -361,6 +374,9 @@ export class NodesModule {
             <button type="button" class="btn-primary btn-sm btn-contact-dm" title="${I18n.t('contacts.title_chat')}">
               <span data-lucide="message-square" data-size="13"></span>${I18n.t('nodes.chat_btn')}
             </button>
+            <button type="button" class="btn-secondary btn-sm btn-contact-ping" title="${I18n.t('nodes.ping_title') || 'Ping directo de 0 saltos'}">
+              <span data-lucide="crosshair" data-size="13"></span> ${I18n.t('nodes.ping_btn') || 'Ping'}
+            </button>
             <button type="button" class="btn-secondary btn-sm btn-contact-trace" title="${I18n.t('contacts.title_trace')}">
               <span data-lucide="git-commit" data-size="13"></span>${I18n.t('nodes.trace_btn')}
             </button>
@@ -420,6 +436,10 @@ export class NodesModule {
 
         cCard.querySelector(".btn-contact-dm")?.addEventListener("click", () => {
           if (this.ctx.openDmConversation) this.ctx.openDmConversation(node.public_key, cleanName);
+        });
+
+        cCard.querySelector(".btn-contact-ping")?.addEventListener("click", () => {
+          this.pingNode(node.public_key, cleanName);
         });
 
         cCard.querySelector(".btn-contact-trace")?.addEventListener("click", () => {
@@ -534,6 +554,11 @@ export class NodesModule {
                 <span data-lucide="message-square" data-size="13"></span>${I18n.t('nodes.chat_btn')} DM
               </button>
             ` : ""}
+            ${!isLocal ? `
+              <button type="button" class="btn-secondary btn-sm btn-ping-node" title="${I18n.t('nodes.ping_title') || 'Ping directo de 0 saltos'}">
+                <span data-lucide="crosshair" data-size="13"></span> ${I18n.t('nodes.ping_btn') || 'Ping'}
+              </button>
+            ` : ""}
             ${isLocal ? `
               <button type="button" class="btn-secondary btn-sm btn-configure-local" title="${I18n.t('nodes.title_settings')}">
                 <span data-lucide="settings" data-size="13"></span>${I18n.t('nodes.settings_btn')}
@@ -567,6 +592,9 @@ export class NodesModule {
           });
         }
         if (!isLocal) {
+          nCard.querySelector(".btn-ping-node")?.addEventListener("click", () => {
+            this.pingNode(node.public_key, cleanName);
+          });
           nCard.querySelector(".btn-trace-node")?.addEventListener("click", () => {
             if (this.ctx.openTracerouteModal) this.ctx.openTracerouteModal(node.public_key, cleanName);
           });
@@ -901,5 +929,37 @@ export class NodesModule {
         timeEl.title = signalTooltip;
       }
     });
+  }
+
+  async pingNode(pubkey, name) {
+    if (!pubkey) return;
+    const cleanName = name || pubkey.slice(0, 8);
+    if (this.ctx.showToast) {
+      const sendingMsg = (window.I18n ? window.I18n.t('toast.ping_sending') : null)?.replace('{name}', cleanName) || `🎯 Enviando Ping (Hop 0) a ${cleanName}...`;
+      this.ctx.showToast(sendingMsg, "info");
+    }
+    try {
+      const res = await fetch("/api/node/ping_zero", {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_node: pubkey }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.status === "ok") {
+        const rtt = data.data?.rtt_ms != null ? `${data.data.rtt_ms} ms` : "OK";
+        const snr = data.data?.snr != null ? ` | SNR: ${data.data.snr} dB` : "";
+        const msg = (window.I18n ? window.I18n.t('toast.ping_ok') : null)
+          ?.replace('{name}', cleanName)
+          ?.replace('{rtt}', rtt)
+          ?.replace('{snr}', snr) || `🎯 Pong recibido de ${cleanName}: RTT ${rtt}${snr}`;
+        if (this.ctx.showToast) this.ctx.showToast(msg, "success");
+      } else {
+        const errMsg = data.detail || data.message || data.error || `HTTP ${res.status}`;
+        const msg = (window.I18n ? window.I18n.t('toast.ping_err') : null)?.replace('{name}', cleanName) || `⚠️ Sin respuesta de Ping desde ${cleanName} (${errMsg})`;
+        if (this.ctx.showToast) this.ctx.showToast(msg, "warning");
+      }
+    } catch (err) {
+      if (this.ctx.showToast) this.ctx.showToast(`Error ejecutando Ping: ${err.message}`, "error");
+    }
   }
 }

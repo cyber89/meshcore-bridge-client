@@ -12,6 +12,7 @@ import hashlib
 import shutil
 import sys
 import tarfile
+import time
 import zipfile
 from pathlib import Path
 
@@ -64,6 +65,22 @@ def calculate_sha256(file_path: Path) -> str:
         while chunk := f.read(65536):
             hasher.update(chunk)
     return hasher.hexdigest()
+
+
+def safe_copy_file(src: Path, dst: Path) -> None:
+    """Copia un archivo manejando posibles bloqueos transitorios en sistemas Windows."""
+    for _ in range(5):
+        try:
+            if dst.exists():
+                try:
+                    dst.unlink()
+                except OSError:
+                    pass
+            shutil.copy2(src, dst)
+            return
+        except OSError:
+            time.sleep(0.3)
+    shutil.copy2(src, dst)
 
 
 def sync_deploy_bundle() -> None:
@@ -166,7 +183,7 @@ Una vez en ejecución, la estación web estará disponible en:
         for item in DEPLOY_DIR.iterdir():
             if item.name not in (tar_name, f"meshcore-bridge-v{VERSION}.zip", "SHA256SUMS"):
                 tar.add(item, arcname=item.name)
-    shutil.copy2(tar_path_deploy, tar_path_root)
+    safe_copy_file(tar_path_deploy, tar_path_root)
     print(f"  ✓ Generado paquete comprimido Linux: {tar_name}")
 
     # 6. Generar archivo ZIP para Windows / Multiplataforma
@@ -182,7 +199,7 @@ Una vez en ejecución, la estación web estará disponible en:
                 file_full = Path(root) / file
                 rel_path = file_full.relative_to(DEPLOY_DIR)
                 zip_file.write(file_full, arcname=str(rel_path))
-    shutil.copy2(zip_path_deploy, zip_path_root)
+    safe_copy_file(zip_path_deploy, zip_path_root)
     print(f"  ✓ Generado paquete comprimido ZIP: {zip_name}")
 
     # 7. Generar sumas de verificación SHA256
@@ -192,7 +209,7 @@ Una vez en ejecución, la estación web estará disponible en:
         f"{calculate_sha256(zip_path_deploy)}  {zip_name}",
     ]
     sha_file.write_text("\n".join(sha_lines) + "\n", encoding="utf-8")
-    shutil.copy2(sha_file, ROOT_DIR / "SHA256SUMS")
+    safe_copy_file(sha_file, ROOT_DIR / "SHA256SUMS")
     print("  ✓ Generado archivo de sumas de verificación: SHA256SUMS")
 
     print("\n🎉 [DEPLOY] Sincronización y empaquetado completados con éxito.")

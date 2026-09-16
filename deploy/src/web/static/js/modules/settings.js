@@ -72,7 +72,6 @@ export class SettingsModule {
     this.dom = {
       channelListUi: document.getElementById("channelListUi"),
       sidebarChannelList: document.getElementById("sidebarChannelList"),
-      btnToggleChannelsMobile: document.getElementById("btnToggleChannelsMobile"),
       btnAddChannel: document.getElementById("btnAddChannel"),
       createChannelModal: document.getElementById("createChannelModal"),
       btnCloseCreateChannelModal: document.getElementById("btnCloseCreateChannelModal"),
@@ -540,7 +539,7 @@ export class SettingsModule {
         this._localCliTempInput = "";
 
         if (this.dom.localTerminalInput) this.dom.localTerminalInput.value = "";
-        this.appendLocalTerminalLine(`meshcore@base:~$ ${cmd}`, "term-cmd");
+        this.appendLocalTerminalLine(`meshcore> ${cmd}`, "term-cmd");
 
         try {
           const res = await fetch("/api/admin", {
@@ -1478,16 +1477,6 @@ export class SettingsModule {
     const elDuty = document.getElementById("localAirtimeDuty");
     if (elDuty && cfg.duty_cycle_pct != null) {
       elDuty.textContent = `Duty Cycle: ${cfg.duty_cycle_pct}%`;
-    }
-
-    const elSnr = document.getElementById("localSnrValue");
-    if (elSnr && cfg.last_snr != null) {
-      elSnr.textContent = `${cfg.last_snr} dB`;
-    }
-
-    const elRssi = document.getElementById("localRssiValue");
-    if (elRssi && cfg.last_rssi != null) {
-      elRssi.textContent = `RSSI: ${cfg.last_rssi} dBm`;
     }
 
     const elNoise = document.getElementById("localNoiseValue");

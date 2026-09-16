@@ -2,6 +2,49 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Rectificación Integral UI/UX Chat, Presencia Realista LoRa, Acción Ping Directa, Métricas en Vivo y CLI Oficial MeshCore
+- **Fecha**: 2026-09-16
+- **Estado**: ✅ COMPLETADO (1. Supresión de chip redundante `#chatSecurityChip` y botón QR `#btnShareTargetQr` en cabecera de chat; 2. Visualización dinámica y explícita del nombre del canal en `#chatActiveTitle` (Canal #0: Public, Canal #1: Operaciones, etc.); 3. Paridad bilingüe completa ES/EN en `i18n.js` y depuración de selectores DOM_MAP; 4. Erradicación de la fuga de la estación base local "Estación Local (Tú)" en la lista de Contactos y DMs en storage.js y chat.js; 5. Eliminación de control residual móvil `#btnToggleChannelsMobile`; 6. Corrección de la presencia permanente de nodos con umbrales realistas LoRa (<30m Activo, 30m-2h Inactivo, >=2h Desconectado) y purga de timestamps futuros en node_registry.json; 7. Botón interactivo 🎯 Ping directo en tarjetas de contactos y nodos con feedback RTT/SNR en toast; 8. Actualización en tiempo real de métricas analíticas por WebSockets y refresco periódico; 9. Eliminación de métricas de SNR espurias en transceptor local y verificación de los 19 parámetros configurables; 10. Rectificación del emulador de terminal web hacia el CLI canónico del Companion Protocol MeshCore (meshcore> y repeater>); 11. Suite de pruebas con 267 tests PASSED, 137/137 parámetros auditados, 45/45 paridad API REST/WS, 0 errores ruff, 0 errores mypy strict, sincronización limpia en /deploy/).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 4 (Web UI Architect), Agente 5 (Security Auditor).
+- **Acciones Realizadas**:
+  1. **Frontend SPA Modular y Maquetación (`index.html`, `chat.js`, `settings.js`, `repeater.js`, `nodes.js`, `analytics.js`, `i18n.js`)**:
+     - En `index.html`:
+       - Eliminados `#btnToggleChannelsMobile`, `#chatSecurityChip` y `#btnShareTargetQr` de la cabecera del chat.
+       - Configurado `#chatActiveTitle` por defecto como `Canal #0: Public`.
+       - Eliminada la tarjeta errónea `#localSnrValue` ("Calidad de Señal RF") del transceptor local en configuración.
+       - Sustituido el entorno de terminal emulado de Linux (`meshcore@base:~$`) por el CLI de firmware MeshCore oficial (`meshcore> `) y el CLI de repetidor remoto (`repeater> `).
+     - En `chat.js`:
+       - Limpieza de listeners y referencias a los elementos eliminados.
+       - Implementado helper estricto `_isLocalTarget(pubkey)` e incorporado a `addDmContact()` y `loadInitialHistory()`.
+       - Mapeo dinámico de títulos de chat en `switchChannel` formateando `${prefix} #${idx}: ${name}`.
+     - En `nodes.js`:
+       - Añadidos botones `.btn-contact-ping` y `.btn-ping-node` con icono 🎯 Ping en tarjetas de contactos y nodos unificados.
+       - Implementado método `pingNode(pubkey, name)` con llamadas asíncronas a `/api/node/ping_zero` y feedback mediante toasts (`toast.ping_sending`, `toast.ping_ok`, `toast.ping_err`).
+       - Normalización de timestamps en milisegundos (`ts > 1e11`), clamp contra deltas negativos (`Math.max(0, ...)`), y umbrales de presencia calibrados: Activo < 30m, Inactivo 30m-2h, Desconectado >= 2h.
+     - En `analytics.js`:
+       - Suscripción al evento reactivo `EVENTS.METRICS_UPDATE` e intervalo de auto-refresco de 10s cuando `#tab-analytics` está activa.
+     - En `i18n.js`:
+       - Adición de claves de internacionalización completas (`chat.channel_prefix`, `chat.ch_0_default`, `nodes.ping_btn`, `nodes.ping_title`, `toast.ping_sending`, `toast.ping_ok`, `toast.ping_err`) en `DICT.es` y `DICT.en`.
+  2. **Almacenamiento Local y DMs (`storage.js`)**:
+     - En `getDmConversations()`: Descartada la clave pública de la estación base local y evitada la sobrescritura del nombre del hilo con el nombre de remitente propio (`Estación Local (Tú)`), prefiriendo `msg.dm_target_name` o la clave del destinatario.
+  3. **Backend y Controladores (`contact_manager.py`, `config_controller.py`, `node_registry.json`)**:
+     - En `contact_manager.py`:
+       - Calibrado `_build_updated_contact` para asignar `eff_last_seen = now` únicamente ante telemetría RF fresca (`last_rssi` / `last_snr`) o marcas de tiempo explícitas, evitando que actualizaciones administrativas mantengan indefinidamente como "online" a nodos apagados.
+     - En `config_controller.py`:
+       - Suprimida la lógica que copiaba de forma errónea el SNR/RSSI del último paquete RF remoto a la configuración del transceptor local.
+     - En `node_registry.json`:
+       - Depuradas entradas de prueba sintéticas con marcas de tiempo en el futuro.
+  4. **Calidad y Verificación**:
+     - `pytest tests/`: 267 pruebas pasadas, 10 omitidas (0 fallos).
+     - `ruff check src/`: 0 errores.
+     - `mypy src/`: 0 errores en 53 módulos.
+     - `verify_api_parity.py`: 45/45 llamadas del frontend en paridad exacta con el backend.
+     - `validate_all_node_parameters.py`: 137/137 parámetros auditados y verificados al 100%.
+  5. **Sincronización de Despliegue (`/deploy/`)**:
+     - Paquete desplegable autónomo y archivos comprimidos sincronizados mediante `python scripts/sync_deploy.py`.
+
+---
+
 ### Hito: Paridad 100% de Parámetros del Nodo Local MeshCore, Sanitización Integral de Código y Sincronización de Scripts
 - **Fecha**: 2026-09-15
 - **Estado**: ✅ COMPLETADO (1. Paridad 100% de parámetros configurables del nodo local con el firmware y cliente oficial MeshCore: PIN de dispositivo, compresión Path Hash Mode 0/1/2, tuning RX Delay y Airtime Factor, modos de telemetría Base/Loc/Env, directiva de ubicación en advert, multi-acks y aprobación manual de contactos; 2. Corrección en UI/JS de lectura y población de Información del Propietario (Owner Info); 3. Actualización y sanitización de scripts de validación, alcanzando 137/137 parámetros auditados y aprobados al 100% con regla de presencia <12h; 4. Reparación de test_search_filters.py para coincidencia de texto "Alfa"; 5. Sanitización de código ruff 0 errores, mypy strict 0 errores en 53 módulos, paridad de contratos REST/WebSocket 44/44 OK; 6. Actualización de dependencias, scripts y documentación; 7. Sincronización completa en /deploy/).
