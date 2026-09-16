@@ -2,6 +2,42 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Eliminación Efectiva de Canales en Hardware, Ciclo de Vida de Presencia (12h/24h) y Restricción de Canal 0
+- **Fecha**: 2026-09-15
+- **Estado**: ✅ COMPLETADO (1. Eliminación efectiva de canales en hardware físico y virtual evitando resurrección tras sincronización serial; 2. Implementación canónica de estados de presencia de nodos: Activo <12h verde, Inactivo 12-24h ámbar, Desconectado >24h gris/rojo, con tooltip de fecha/hora exacta y vaciado estricto de métricas en nodos desconectados; 3. Restricción del canal público 0 para no mostrar QR ni permitir exportación al ser el canal predeterminado de la red; 0 ms de airtime LoRa; 0 errores ruff; 0 errores mypy; 100% paridad API; suite determinista superada; sincronización en /deploy/).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 4 (Web UI Architect).
+- **Acciones Realizadas**:
+  1. **Eliminación y Sincronización de Canales en Hardware (`ChannelsController`, `SerialDriver`, `VirtualMeshAdapter`)**:
+     - Diagnóstico Causa Raíz: El backend borraba el canal 2 de su JSON local pero no enviaba el comando de vaciado al transceptor. Al ejecutar `_sync_from_serial()`, el firmware retornaba el slot todavía ocupado y el bridge lo reinsertaba.
+     - Implementado método `delete_channel(index)` en `ISerialDriver`, `MeshCoreSerialDriver` y `VirtualMeshAdapter` enviando `set_channel(index, "", b"\x00"*16)` para liberar el slot.
+     - `_sync_from_serial` ahora filtra y limpia ranuras vacías (`is_empty_slot`), impidiendo que canales borrados resuciten.
+     - En `settings.js`: `btnDelete` actualiza inmediatamente `this.channelsList` en memoria y re-renderiza antes de sincronizar.
+  2. **Ciclo de Vida de Presencia y Limpieza de Métricas (`contact_manager.py`, `rx_router.py`, `repeater_handler.py`, `nodes.js`)**:
+     - `NodeContactInfo.to_dict()`: Implementado cálculo determinista según `diff = now - last_seen`:
+       - `< 12h`: `presence_status = "online"`, `status_label = "Activo"`, métricas SNR/RSSI/LQI vivas.
+       - `12h - 24h`: `presence_status = "idle"`, `status_label = "Inactivo"`, métricas SNR/RSSI/LQI preservadas.
+       - `> 24h`: `presence_status = "offline"`, `status_label = "Desconectado"`, **métricas vaciadas estrictamente** (`last_rssi=None`, `last_snr=None`, `lqi_score=0.0`, `lqi_status="DISCONNECTED"`).
+       - Inclusión de `last_seen_iso` y `last_seen_formatted` con fecha y hora local completa.
+     - En `rx_router.py` y `repeater_handler.py`: ante la recepción de cualquier chat, telemetría o ACK de un nodo no local, se actualiza `last_seen=time.time()` y se emite `contact_updated` por WebSocket.
+     - En `nodes.js`:
+       - `getPresenceState`: `< 12h` -> `"status-online"`, `12h - 24h` -> `"status-idle"`, `> 24h` -> `"status-offline"`.
+       - `formatLastSeen`: "Activo (hace Xm/Xh)", "Inactivo (hace Xh)", "Desconectado (hace Xd)".
+       - `renderNodesDirectory` y `updateNodeInDom`: si el nodo está desconectado, forzar `--` en RSSI, SNR y LQI; tooltip con fecha/hora completa en `.node-card-activity` y avatar status dot.
+       - `initPresenceTicker`: cada 30s re-evalúa el estado y si un nodo pasa a desconectado limpia sus métricas en el DOM.
+       - `_subscribeBus`: reactividad inmediata ante `contact_updated`, `chat_msg`, `channel_msg`, `telemetry`, `message_delivered` y `rf_packet`.
+  3. **Restricción de Código QR y Exportación para el Canal Público 0**:
+     - `ChannelsController._export_channel`: Rechaza con HTTP 400 (`cannot_export_public_channel`) si `index == 0`, informando que el canal público 0 está preconfigurado por defecto en MeshCore.
+     - `settings.js`: El botón `.btn-item-qr` en `renderChannelsList` solo se renderiza para canales secundarios (`ch.index > 0`).
+     - `chat.js`: El botón `#btnShareTargetQr` en la cabecera del chat se oculta automáticamente cuando se está en el canal 0, y se muestra si se cambia a un canal secundario (>0) o a una conversación DM. Bloqueo de seguridad en `shareActiveTargetQr()` para canal 0.
+  4. **Internacionalización y Calidad**:
+     - Incorporadas claves `time.*` en `i18n.js` para español e inglés.
+     - Verificación estática con `ruff` (0 errores) y `mypy` estricto (0 errores).
+     - Paridad API con `contract-openapi-sync`: 44/44 endpoints (100% OK).
+     - Sincronización completa del paquete `/deploy/`.
+- **Módulos Modificados**: `src/serial_driver.py`, `src/virtual_mesh_adapter.py`, `src/web/controllers/channels_controller.py`, `src/contact_manager.py`, `src/rx_router.py`, `src/routers/repeater_handler.py`, `src/web/static/js/i18n.js`, `src/web/static/js/modules/nodes.js`, `src/web/static/js/modules/settings.js`, `src/web/static/js/modules/chat.js`, `docs/AGENT_ACTIVITY_REPORT.md`, `deploy/**`.
+
+---
+
 ### Hito: Estandarización Canónica de Exportación e Importación MeshCore (URLs y Códigos QR)
 - **Fecha**: 2026-09-15
 - **Estado**: ✅ COMPLETADO (Estandarización al 100% de todas las exportaciones e importaciones de canales y contactos/nodos conforme a la especificación oficial de la pila MeshCore: URLs canónicas meshcore://channel/add?name=...&secret=...[&index=...] y meshcore://contact/add?name=...&public_key=...&type=...; inclusión de clave canónica 8b3387e9c5cdea6ac9e5edbaa115cd72 para canal público/abierto; extracción unificada de query params en api_router.py; incorporación de botones QR individuales en cada canal de la lista; soporte simétrico bidireccional de importación en frontend y backend; 0 ms de airtime LoRa; 0 errores ruff; 0 errores mypy; 100% paridad API; suite determinista superada; sincronización en /deploy/).

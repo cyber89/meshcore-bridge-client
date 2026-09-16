@@ -90,9 +90,18 @@ class ChannelsController(BaseController):
         if ser and hasattr(ser, "get_channels"):
             try:
                 node_channels = await ser.get_channels()
-                if node_channels:
+                if node_channels is not None:
                     for ch in node_channels:
                         idx = int(ch.get("index", 0))
+                        ch_name = str(ch.get("name") or "").strip()
+                        raw_psk = str(ch.get("psk") or "").strip()
+                        # Un canal con nombre vacío y clave vacía o de ceros se considera slot libre/borrado
+                        is_empty_slot = (not ch_name and (not raw_psk or raw_psk == "0" * 32 or raw_psk == "00" * 16))
+                        if idx > 0 and is_empty_slot:
+                            if idx in self.channels:
+                                del self.channels[idx]
+                            continue
+
                         self.channels[idx] = ch
                     self._save_channels()
             except Exception as e:
@@ -148,6 +157,14 @@ class ChannelsController(BaseController):
             idx = int(req_body.get("index", 0))
         except (ValueError, TypeError):
             return problem_details(400, "Bad Request", "Índice de canal inválido", "invalid_channel_index")
+
+        if idx == 0:
+            return problem_details(
+                400,
+                "Bad Request",
+                "El canal público 0 está preconfigurado por defecto en MeshCore y no requiere exportación",
+                "cannot_export_public_channel",
+            )
 
         if idx not in self.channels:
             return problem_details(404, "Not Found", f"Canal {idx} no encontrado", "channel_not_found")
@@ -222,7 +239,7 @@ class ChannelsController(BaseController):
         return 200, {"status": "ok", "data": self._mask_channel(self.channels[idx])}
 
     async def _delete_channel(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-        """Elimina un canal secundario (1..7)."""
+        """Elimina un canal secundario (1..7) tanto del bridge como del transceptor físico."""
         try:
             idx = int(req_body.get("index", 0))
         except (ValueError, TypeError):
@@ -234,8 +251,22 @@ class ChannelsController(BaseController):
         if idx in self.channels:
             del self.channels[idx]
             self._save_channels()
+
+            # Enviar orden de vaciado de slot al transceptor serial si está activo
+            ser = getattr(self.ctx.bridge, "serial_adapter", None)
+            if ser:
+                try:
+                    if hasattr(ser, "delete_channel"):
+                        await ser.delete_channel(idx)
+                    elif hasattr(ser, "set_channel"):
+                        await ser.set_channel(idx, "", "00" * 16)
+                except Exception as e:
+                    logging.warning(f"Error borrando canal {idx} en el transceptor serial: {e}")
+
             if self.ctx.broadcast_ws:
                 self.ctx.broadcast_ws({"type": "channels_updated", "data": self._get_masked_channels_list()})
+
+            self.ctx.log_system_event("INFO", f"Canal {idx} eliminado del sistema", source="channels")
             return 200, {"status": "ok", "message": f"Canal {idx} eliminado"}
 
         return problem_details(404, "Not Found", f"Canal {idx} no encontrado", "channel_not_found")

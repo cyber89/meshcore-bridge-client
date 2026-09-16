@@ -34,6 +34,7 @@ export class ChatModule {
     this._bindElements();
     this._bindEvents();
     this._subscribeBus();
+    this._updateQrButtonVisibility();
     this.loadInitialHistory();
   }
 
@@ -180,7 +181,18 @@ export class ChatModule {
     const activeItem = document.querySelector(`.channel-item[data-channel-idx="${this.activeChannelIdx}"]`);
     if (activeItem) activeItem.classList.add("active");
 
+    this._updateQrButtonVisibility();
     this.renderCurrentConversation();
+  }
+
+  _updateQrButtonVisibility() {
+    if (!this.dom.btnShareTargetQr) return;
+    const isChannelZero = !this.activeDmTarget && (this.activeChannelIdx === 0 || this.activeChannelIdx == null);
+    if (isChannelZero) {
+      this.dom.btnShareTargetQr.classList.add("hidden");
+    } else {
+      this.dom.btnShareTargetQr.classList.remove("hidden");
+    }
   }
 
   setDmTarget(pubkey, name) {
@@ -231,6 +243,7 @@ export class ChatModule {
     const navBtn = document.querySelector('.nav-btn[data-tab="tab-chat"]');
     if (navBtn) navBtn.click();
 
+    this._updateQrButtonVisibility();
     this.renderCurrentConversation();
   }
 
@@ -246,6 +259,12 @@ export class ChatModule {
       }
     } else {
       const chIdx = this.activeChannelIdx ?? 0;
+      if (chIdx === 0) {
+        if (this.ctx.showToast) {
+          this.ctx.showToast("El canal público 0 está preconfigurado por defecto en MeshCore y no requiere exportación.", "info");
+        }
+        return;
+      }
       fetch(`/api/channels/export?index=${chIdx}`, {
         headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
       })

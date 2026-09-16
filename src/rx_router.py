@@ -660,6 +660,32 @@ class RxEventRouter:
         lqi_val = LinkQualityEngine.compute_instant_lqi(msg.snr, msg.rssi, 0)
         lqi_stat = LinkQualityEngine.classify_lqi_status(lqi_val)
 
+        # Actualizar presencia y métricas del nodo emisor en NodeRegistry si es remoto
+        if msg.sender and is_valid_node_key(msg.sender) and not self._ctx.node_registry.is_local_key(msg.sender):
+            self._ctx.node_registry.record_packet(
+                PacketRecord(
+                    public_key=msg.sender,
+                    is_rx=True,
+                    rssi=int(msg.rssi) if isinstance(msg.rssi, (int, float)) else None,
+                    snr=float(msg.snr) if isinstance(msg.snr, (int, float)) else None,
+                )
+            )
+            updated_contact = self._ctx.node_registry.add_or_update(
+                msg.sender,
+                NodeContactUpdate(
+                    last_seen=time.time(),
+                    name=msg.sender_name if msg.sender_name and msg.sender_name != msg.sender else None,
+                    last_rssi=int(msg.rssi) if isinstance(msg.rssi, (int, float)) else None,
+                    last_snr=float(msg.snr) if isinstance(msg.snr, (int, float)) else None,
+                ),
+            )
+            if updated_contact:
+                self._spawn_broadcast_task({
+                    "type": "contact_updated",
+                    "event_type": "contact_updated",
+                    "contact": updated_contact.to_dict(),
+                })
+
         evt_payload = {
             "event_type": event_type_str,
             "sender": msg.sender,
@@ -780,7 +806,7 @@ class RxEventRouter:
                     telem_role = "CLIENT"
 
             is_local_telem = self._ctx.node_registry.is_local_key(sender)
-            self._ctx.node_registry.add_or_update(
+            updated_telem_contact = self._ctx.node_registry.add_or_update(
                 sender,
                 NodeContactUpdate(
                     last_seen=time.time() if not is_local_telem else None,
@@ -817,6 +843,12 @@ class RxEventRouter:
                     hops=payload_dict.get("hops"),
                 ),
             )
+            if updated_telem_contact and not is_local_telem:
+                self._spawn_broadcast_task({
+                    "type": "contact_updated",
+                    "event_type": "contact_updated",
+                    "contact": updated_telem_contact.to_dict(),
+                })
 
         # Sanitizar cualquier otro campo bytes restante
         for k, v in list(payload_dict.items()):

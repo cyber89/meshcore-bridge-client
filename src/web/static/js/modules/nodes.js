@@ -77,7 +77,7 @@ export class NodesModule {
   _subscribeBus() {
     if (!this.ctx.eventBus) return;
 
-    this.ctx.eventBus.on(EVENTS.RX_PACKET, (payload) => {
+    const handlePayload = (payload) => {
       if (!payload || typeof payload !== "object") return;
       const evType = payload.type || payload.event_type;
 
@@ -87,37 +87,54 @@ export class NodesModule {
         } else {
           this.fetchNodes();
         }
-      } else if (evType === "contact_discovered" || evType === "contact_updated") {
+        return;
+      }
+
+      if (evType === "contact_discovered" || evType === "contact_updated") {
         const c = payload.contact || payload.data;
         if (c && c.public_key && this.isValidNodeKey(c.public_key)) {
           const canonicalPk = this.resolveCanonicalPubkey(c.public_key) || c.public_key.toLowerCase().trim();
-          this.knownNodes.set(canonicalPk, { ...c, public_key: canonicalPk });
-          this.renderNodesDirectory(Array.from(this.knownNodes.values()));
+          const prev = this.knownNodes.get(canonicalPk) || {};
+          const merged = { ...prev, ...c, public_key: canonicalPk };
+          this.knownNodes.set(canonicalPk, merged);
+          this.updateNodeInDom(canonicalPk, merged);
         } else {
           this.fetchNodes();
         }
+        return;
       }
 
-      // Actualizar presencia solo ante paquetes de RF entrantes legítimos (RX)
+      // Actualizar presencia y métricas ante paquetes y eventos entrantes (RX)
       const isTx = payload.direction === "tx" || payload.is_rx === false || payload.status === "sent" || payload.type === "tx_sent";
-      const isPresenceEvent = evType === "telemetry" || evType === "chat_msg" || evType === "advert" || evType === "packet_rx" || evType === "ping_reply";
+      const isPresenceEvent = evType === "telemetry" || evType === "chat_msg" || evType === "channel_msg" ||
+                              evType === "advert" || evType === "packet_rx" || evType === "ping_reply" ||
+                              evType === "message_delivered" || evType === "rf_packet";
 
       if (!isTx && isPresenceEvent) {
-        const sender = payload.sender || payload.from;
+        const sender = payload.sender || payload.from || payload.pubkey || (payload.contact && payload.contact.public_key);
         if (sender && this.isValidNodeKey(sender)) {
           const canonicalPk = this.resolveCanonicalPubkey(sender);
           if (canonicalPk && canonicalPk !== "local") {
-            const existing = this.knownNodes.get(canonicalPk);
-            if (existing) {
-              existing.last_seen = Math.floor(Date.now() / 1000);
-              if (payload.rssi != null) existing.last_rssi = payload.rssi;
-              if (payload.snr != null) existing.last_snr = payload.snr;
-              this.knownNodes.set(canonicalPk, existing);
-            }
+            const existing = this.knownNodes.get(canonicalPk) || { public_key: canonicalPk, role: "CLIENT" };
+            existing.last_seen = Math.floor(Date.now() / 1000);
+            if (payload.rssi != null) existing.last_rssi = payload.rssi;
+            if (payload.snr != null) existing.last_snr = payload.snr;
+            if (payload.battery_pct != null) existing.battery_pct = payload.battery_pct;
+            if (payload.voltage_v != null) existing.voltage_v = payload.voltage_v;
+            if (payload.hops != null) existing.hops = payload.hops;
+            if (payload.sender_name && !existing.name) existing.name = payload.sender_name;
+
+            this.knownNodes.set(canonicalPk, existing);
+            this.updateNodeInDom(canonicalPk, existing);
           }
         }
       }
-    });
+    };
+
+    this.ctx.eventBus.on(EVENTS.RX_PACKET, handlePayload);
+    if (EVENTS.RF_PACKET) {
+      this.ctx.eventBus.on(EVENTS.RF_PACKET, handlePayload);
+    }
   }
 
   isValidNodeKey(key) {
@@ -158,21 +175,38 @@ export class NodesModule {
   }
 
   formatLastSeen(lastSeen, isLocal = false) {
-    if (isLocal) return I18n.t('time.online_local') || I18n.t('common.online');
-    if (!lastSeen || lastSeen <= 0) return I18n.t('time.unknown');
+    if (isLocal) return (window.I18n ? window.I18n.t('time.online_local') : null) || "En línea (Local)";
+    if (!lastSeen || lastSeen <= 0) return (window.I18n ? window.I18n.t('time.offline_no_signal') : null) || "Desconectado (Sin señal)";
     const diff = Math.floor(Date.now() / 1000) - lastSeen;
-    if (diff < 0 || diff < 60) return I18n.t('time.just_now');
-    if (diff < 3600) return I18n.t('time.mins_ago').replace('{n}', Math.floor(diff / 60));
-    if (diff < 86400) return I18n.t('time.hours_ago').replace('{n}', Math.floor(diff / 3600));
-    return I18n.t('time.days_ago').replace('{n}', Math.floor(diff / 86400));
+    if (diff < 0 || diff < 60) {
+      return (window.I18n ? window.I18n.t('time.active_now') : null) || "Activo (ahora mismo)";
+    }
+    if (diff < 3600) {
+      const mins = Math.floor(diff / 60);
+      const str = window.I18n ? window.I18n.t('time.active_mins') : null;
+      return str ? str.replace('{n}', mins) : `Activo (hace ${mins}m)`;
+    }
+    if (diff < 12 * 3600) {
+      const hours = Math.floor(diff / 3600);
+      const str = window.I18n ? window.I18n.t('time.active_hours') : null;
+      return str ? str.replace('{n}', hours) : `Activo (hace ${hours}h)`;
+    }
+    if (diff < 24 * 3600) {
+      const hours = Math.floor(diff / 3600);
+      const str = window.I18n ? window.I18n.t('time.idle_hours') : null;
+      return str ? str.replace('{n}', hours) : `Inactivo (hace ${hours}h)`;
+    }
+    const days = Math.max(1, Math.floor(diff / 86400));
+    const str = window.I18n ? window.I18n.t('time.offline_days') : null;
+    return str ? str.replace('{n}', days) : `Desconectado (hace ${days}d)`;
   }
 
   getPresenceState(lastSeen, isLocal = false) {
     if (isLocal) return "status-online";
     if (!lastSeen || lastSeen <= 0) return "status-offline";
     const diff = Math.floor(Date.now() / 1000) - lastSeen;
-    if (diff < 900) return "status-online";
-    if (diff < 3600) return "status-idle";
+    if (diff < 12 * 3600) return "status-online";
+    if (diff < 24 * 3600) return "status-idle";
     return "status-offline";
   }
 
@@ -260,8 +294,11 @@ export class NodesModule {
       const cleanName = node.name || node.alias || node.public_key.slice(0, 8);
       const presenceClass = this.getPresenceState(node.last_seen, isLocal);
       const isOnline = presenceClass === "status-online";
+      const isDisconnected = !isLocal && (presenceClass === "status-offline" || node.presence_status === "offline");
       const hasGps = node.latitude != null && node.longitude != null;
       const lastSeenText = this.formatLastSeen(node.last_seen, isLocal);
+      const fullDateTime = node.last_seen_formatted || (node.last_seen && node.last_seen > 0 ? new Date(node.last_seen * 1000).toLocaleString() : (window.I18n ? window.I18n.t('time.no_signal') : "Sin señal registrada"));
+      const signalTooltip = isLocal ? "Estación Base Local (En línea permanente)" : (window.I18n ? window.I18n.t('time.last_signal_tooltip').replace('{time}', fullDateTime) : `Última señal recibida: ${fullDateTime}`);
 
       // 1. Tarjetas para Contactos (Exclusivamente Clientes de Usuario)
       if (contactsGrid && !isLocal && !isRepeater && (node.role === "CLIENT" || isClient)) {
@@ -271,22 +308,23 @@ export class NodesModule {
         if (hasGps) cntGpsContacts++;
 
         const cCard = document.createElement("div");
-        cCard.className = `contact-card ${presenceClass === "status-offline" ? "contact-card-offline" : ""}`;
+        cCard.className = `contact-card ${isDisconnected ? "contact-card-offline" : ""}`;
         cCard.setAttribute("data-pk", node.public_key);
         cCard.setAttribute("data-favorite", node.is_favorite ? "1" : "0");
         cCard.setAttribute("data-online", isOnline ? "1" : "0");
         cCard.setAttribute("data-has-gps", hasGps ? "1" : "0");
 
         const batText = node.battery_pct != null ? `${node.battery_pct}%` : (node.voltage_v != null ? `${node.voltage_v}V` : null);
-        const snrVal = node.last_snr != null ? `${node.last_snr} dB` : "--";
-        const rssiVal = node.last_rssi != null ? `${node.last_rssi} dBm` : "--";
-        const hopsVal = node.hops != null ? (node.hops === 0 ? I18n.t('nodes.route_direct') : `${node.hops} ${I18n.t('nodes.hops')}`) : "--";
+        const snrVal = isDisconnected ? "--" : (node.last_snr != null ? `${node.last_snr} dB` : "--");
+        const rssiVal = isDisconnected ? "--" : (node.last_rssi != null ? `${node.last_rssi} dBm` : "--");
+        const lqiVal = isDisconnected ? "--" : (node.lqi_score ? `${Math.round(node.lqi_score)}%` : "--");
+        const hopsVal = isDisconnected ? "--" : (node.hops != null ? (node.hops === 0 ? I18n.t('nodes.route_direct') : `${node.hops} ${I18n.t('nodes.hops')}`) : "--");
 
         cCard.innerHTML = `
           <div class="contact-card-header">
             <div class="node-card-avatar-wrapper">
               <div class="contact-avatar font-mono">${escapeHtml(cleanName.slice(0, 2).toUpperCase())}</div>
-              <span class="avatar-status-dot ${presenceClass}" title="${isOnline ? I18n.t('common.online') : I18n.t('common.offline')}"></span>
+              <span class="avatar-status-dot ${presenceClass}" title="${escapeHtml(signalTooltip)}"></span>
             </div>
             <div class="contact-info">
               <div class="contact-title-row">
@@ -297,7 +335,7 @@ export class NodesModule {
                 </button>
               </div>
               <div class="node-card-sub-row">
-                <span class="node-card-activity font-mono">${escapeHtml(lastSeenText)}</span>
+                <span class="node-card-activity font-mono" title="${escapeHtml(signalTooltip)}">${escapeHtml(lastSeenText)}</span>
               </div>
             </div>
           </div>
@@ -309,7 +347,7 @@ export class NodesModule {
             </div>
             <div class="node-meta-sub">
               <span>${I18n.t('nodes.route_label')} <strong>${escapeHtml(node.best_route || (node.hops === 0 ? I18n.t('nodes.route_direct') : I18n.t('nodes.route_mesh')))}</strong></span>
-              <span>${I18n.t('nodes.lqi_label')} <strong>${node.lqi_score ? `${Math.round(node.lqi_score)}%` : "--"}</strong></span>
+              <span>${I18n.t('nodes.lqi_label')} <strong>${escapeHtml(lqiVal)}</strong></span>
             </div>
           </div>
 
@@ -426,7 +464,7 @@ export class NodesModule {
         const roleUpper = isLocal ? "LOCAL" : (isRepeater ? "REPEATER" : (node.role || "CLIENT").toUpperCase());
         const roleClass = isLocal ? "role-local" : (isRepeater ? "role-repeater" : (isSensor ? "role-sensor" : (isRoom ? "role-room" : "role-client")));
 
-        nCard.className = `node-card ${roleClass}-card ${presenceClass === "status-offline" ? "node-card-offline" : ""}`;
+        nCard.className = `node-card ${roleClass}-card ${isDisconnected ? "node-card-offline" : ""}`;
         nCard.setAttribute("data-pk", node.public_key);
         nCard.setAttribute("data-role", roleUpper);
         nCard.setAttribute("data-online", isOnline ? "1" : "0");
@@ -434,9 +472,10 @@ export class NodesModule {
 
         const avatarIcon = isLocal ? "🏠" : (isRepeater ? "📡" : (isSensor ? "🌡️" : (isRoom ? "💬" : "👤")));
         const batText = node.battery_pct != null ? `${node.battery_pct}%` : (node.voltage_v != null ? `${node.voltage_v}V` : null);
-        const snrVal = isLocal ? "Local" : (node.last_snr != null ? `${node.last_snr} dB` : "--");
-        const rssiVal = isLocal ? "Local" : (node.last_rssi != null ? `${node.last_rssi} dBm` : "--");
-        const hopsVal = isLocal ? "0" : (node.hops != null ? (node.hops === 0 ? I18n.t('nodes.route_direct') : `${node.hops} ${I18n.t('nodes.hops')}`) : "--");
+        const snrVal = isLocal ? "Local" : (isDisconnected ? "--" : (node.last_snr != null ? `${node.last_snr} dB` : "--"));
+        const rssiVal = isLocal ? "Local" : (isDisconnected ? "--" : (node.last_rssi != null ? `${node.last_rssi} dBm` : "--"));
+        const lqiVal = isLocal ? "100%" : (isDisconnected ? "--" : (node.lqi_score ? `${Math.round(node.lqi_score)}%` : "--"));
+        const hopsVal = isLocal ? "0" : (isDisconnected ? "--" : (node.hops != null ? (node.hops === 0 ? I18n.t('nodes.route_direct') : `${node.hops} ${I18n.t('nodes.hops')}`) : "--"));
 
         let telemLine2 = `${I18n.t('nodes.route_label')} <strong>${escapeHtml(node.best_route || (node.hops === 0 ? I18n.t('nodes.route_direct') : I18n.t('nodes.route_mesh')))}</strong>`;
         if (node.temperature_c != null) {
@@ -451,7 +490,7 @@ export class NodesModule {
               <div class="node-card-avatar avatar-${roleClass === "role-local" ? "local" : (roleClass === "role-repeater" ? "repeater" : (roleClass === "role-sensor" ? "sensor" : "client"))}">
                 ${avatarIcon}
               </div>
-              <span class="avatar-status-dot ${presenceClass}" title="${isOnline ? I18n.t('common.online') : I18n.t('common.offline')}"></span>
+              <span class="avatar-status-dot ${presenceClass}" title="${escapeHtml(signalTooltip)}"></span>
             </div>
             <div class="node-card-info">
               <div class="node-card-top-row">
@@ -462,7 +501,7 @@ export class NodesModule {
                 </div>
               </div>
               <div class="node-card-sub-row">
-                <span class="node-card-activity font-mono">${escapeHtml(lastSeenText)}</span>
+                <span class="node-card-activity font-mono" title="${escapeHtml(signalTooltip)}">${escapeHtml(lastSeenText)}</span>
               </div>
             </div>
           </div>
@@ -474,7 +513,7 @@ export class NodesModule {
             </div>
             <div class="node-meta-sub">
               <span>${telemLine2}</span>
-              <span>${I18n.t('nodes.lqi_label')} <strong>${node.lqi_score ? `${Math.round(node.lqi_score)}%` : "--"}</strong></span>
+              <span>${I18n.t('nodes.lqi_label')} <strong>${escapeHtml(lqiVal)}</strong></span>
             </div>
           </div>
 
@@ -594,22 +633,41 @@ export class NodesModule {
 
   initPresenceTicker() {
     setInterval(() => {
-      // Actualización visual periódica de estados en línea/inactivo
-      const now = Math.floor(Date.now() / 1000);
+      // Actualización visual periódica de estados en línea/inactivo/desconectado
       document.querySelectorAll(".node-card, .contact-card").forEach((card) => {
         const pk = card.getAttribute("data-pk");
         if (!pk) return;
         const node = this.knownNodes.get(pk.toLowerCase());
         if (!node) return;
+        const isLoc = Boolean(node.is_local);
+        const st = this.getPresenceState(node.last_seen, isLoc);
+        const isDisc = !isLoc && (st === "status-offline" || node.presence_status === "offline");
+        const fullDateTime = node.last_seen_formatted || (node.last_seen && node.last_seen > 0 ? new Date(node.last_seen * 1000).toLocaleString() : (window.I18n ? window.I18n.t('time.no_signal') : "Sin señal registrada"));
+        const signalTooltip = isLoc ? "Estación Base Local (En línea permanente)" : (window.I18n ? window.I18n.t('time.last_signal_tooltip').replace('{time}', fullDateTime) : `Última señal recibida: ${fullDateTime}`);
+
         const dot = card.querySelector(".avatar-status-dot");
         const act = card.querySelector(".node-card-activity");
         if (dot) {
-          const isLoc = node.is_local;
-          const st = this.getPresenceState(node.last_seen, isLoc);
           dot.className = `avatar-status-dot ${st}`;
+          dot.title = signalTooltip;
         }
         if (act) {
-          act.textContent = this.formatLastSeen(node.last_seen, node.is_local);
+          act.textContent = this.formatLastSeen(node.last_seen, isLoc);
+          act.title = signalTooltip;
+        }
+
+        if (isDisc) {
+          card.classList.add("node-card-offline", "contact-card-offline");
+          card.setAttribute("data-online", "0");
+          const snrEl = card.querySelector(".metric-snr, .stat-pill:nth-child(2) strong");
+          if (snrEl) snrEl.textContent = "--";
+          const rssiEl = card.querySelector(".metric-rssi, .stat-pill:nth-child(1) strong");
+          if (rssiEl) rssiEl.textContent = "--";
+          const lqiBadge = card.querySelector(".lqi-score, .node-meta-sub strong:last-child");
+          if (lqiBadge) lqiBadge.textContent = "--";
+        } else {
+          card.classList.remove("node-card-offline", "contact-card-offline");
+          card.setAttribute("data-online", st === "status-online" ? "1" : "0");
         }
       });
     }, 30000);
@@ -763,15 +821,45 @@ export class NodesModule {
       this.renderNodesDirectory(Array.from(this.knownNodes.values()));
       return;
     }
+
+    const isLocal = Boolean(node.is_local);
+    const presenceClass = this.getPresenceState(node.last_seen, isLocal);
+    const isDisconnected = !isLocal && (presenceClass === "status-offline" || node.presence_status === "offline");
+    const fullDateTime = node.last_seen_formatted || (node.last_seen && node.last_seen > 0 ? new Date(node.last_seen * 1000).toLocaleString() : (window.I18n ? window.I18n.t('time.no_signal') : "Sin señal registrada"));
+    const signalTooltip = isLocal ? "Estación Base Local (En línea permanente)" : (window.I18n ? window.I18n.t('time.last_signal_tooltip').replace('{time}', fullDateTime) : `Última señal recibida: ${fullDateTime}`);
+    const lastSeenText = this.formatLastSeen(node.last_seen, isLocal);
+
     cards.forEach((card) => {
+      const dot = card.querySelector(".avatar-status-dot");
+      if (dot) {
+        dot.className = `avatar-status-dot ${presenceClass}`;
+        dot.title = signalTooltip;
+      }
+      if (isDisconnected) {
+        card.classList.add("node-card-offline", "contact-card-offline");
+        card.setAttribute("data-online", "0");
+      } else {
+        card.classList.remove("node-card-offline", "contact-card-offline");
+        card.setAttribute("data-online", presenceClass === "status-online" ? "1" : "0");
+      }
+
       const snrEl = card.querySelector(".metric-snr, .stat-pill:nth-child(2) strong");
-      if (snrEl && node.last_snr != null) snrEl.textContent = `${node.last_snr} dB`;
+      if (snrEl) {
+        snrEl.textContent = isDisconnected ? "--" : (isLocal ? "Local" : (node.last_snr != null ? `${node.last_snr} dB` : "--"));
+      }
       const rssiEl = card.querySelector(".metric-rssi, .stat-pill:nth-child(1) strong");
-      if (rssiEl && node.last_rssi != null) rssiEl.textContent = `${node.last_rssi} dBm`;
+      if (rssiEl) {
+        rssiEl.textContent = isDisconnected ? "--" : (isLocal ? "Local" : (node.last_rssi != null ? `${node.last_rssi} dBm` : "--"));
+      }
       const lqiBadge = card.querySelector(".lqi-score, .node-meta-sub strong:last-child");
-      if (lqiBadge && node.lqi_score != null) lqiBadge.textContent = `${Math.round(node.lqi_score)}%`;
+      if (lqiBadge) {
+        lqiBadge.textContent = isDisconnected ? "--" : (isLocal ? "100%" : (node.lqi_score ? `${Math.round(node.lqi_score)}%` : "--"));
+      }
       const timeEl = card.querySelector(".node-last-seen, .node-card-activity");
-      if (timeEl && node.last_seen != null) timeEl.textContent = this.formatLastSeen(node.last_seen, node.is_local);
+      if (timeEl) {
+        timeEl.textContent = lastSeenText;
+        timeEl.title = signalTooltip;
+      }
     });
   }
 }

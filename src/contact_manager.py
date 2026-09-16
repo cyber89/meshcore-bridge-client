@@ -13,6 +13,7 @@ import os
 import threading
 import time
 from dataclasses import asdict, dataclass, field, replace
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -118,8 +119,6 @@ class NodeContactInfo:
         d["is_local"] = self.is_local
         d["lat"] = self.latitude
         d["lon"] = self.longitude
-        d["lqi_score"] = round(self.lqi_score, 1)
-        d["lqi_status"] = self.lqi_status
         d["best_route"] = self.best_route
         d["flags"] = self.flags
         d["last_advert"] = self.last_advert
@@ -134,6 +133,55 @@ class NodeContactInfo:
         d["min_tx_power"] = min_p
         d["max_tx_power"] = max_p
         d["default_tx_power"] = def_p
+
+        # Ciclo de vida y presencia: Activo (<12h), Inactivo (12h-24h), Desconectado (>24h)
+        now_ts = time.time()
+        if self.is_local or str(self.role).upper() == "LOCAL":
+            presence_status = "online"
+            status_label = "Local"
+            last_seen_iso = datetime.now(timezone.utc).isoformat()
+            last_seen_formatted = "En línea (Local)"
+            d["lqi_score"] = 100.0
+            d["lqi_status"] = "EXCELLENT"
+        elif self.last_seen and self.last_seen > 0:
+            diff = max(0.0, now_ts - float(self.last_seen))
+            ls_dt = datetime.fromtimestamp(float(self.last_seen))
+            last_seen_iso = ls_dt.isoformat()
+            last_seen_formatted = ls_dt.strftime("%Y-%m-%d %H:%M:%S")
+
+            if diff < 12 * 3600:
+                presence_status = "online"
+                status_label = "Activo"
+                d["lqi_score"] = round(self.lqi_score, 1)
+                d["lqi_status"] = self.lqi_status
+            elif diff < 24 * 3600:
+                presence_status = "idle"
+                status_label = "Inactivo"
+                d["lqi_score"] = round(self.lqi_score, 1)
+                d["lqi_status"] = self.lqi_status
+            else:
+                presence_status = "offline"
+                status_label = "Desconectado"
+                # Un nodo desconectado (>24h) no debe mantener métricas de RF activas
+                d["last_rssi"] = None
+                d["last_snr"] = None
+                d["lqi_score"] = 0.0
+                d["lqi_status"] = "DISCONNECTED"
+        else:
+            presence_status = "offline"
+            status_label = "Desconectado"
+            last_seen_iso = None
+            last_seen_formatted = "Sin señal registrada"
+            d["last_rssi"] = None
+            d["last_snr"] = None
+            d["lqi_score"] = 0.0
+            d["lqi_status"] = "DISCONNECTED"
+
+        d["presence_status"] = presence_status
+        d["status_label"] = status_label
+        d["last_seen_iso"] = last_seen_iso
+        d["last_seen_formatted"] = last_seen_formatted
+
         return d
 
 

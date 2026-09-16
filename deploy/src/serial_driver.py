@@ -114,6 +114,10 @@ class BaseSerialAdapter(abc.ABC):
         """Configura un canal en el firmware del transceptor serial."""
         return {"status": "OK", "index": index, "name": name}
 
+    async def delete_channel(self, index: int) -> dict[str, Any]:
+        """Elimina o vacía un canal en el firmware del transceptor serial."""
+        return {"status": "OK", "index": index}
+
     async def add_contact(self, contact_data: dict[str, Any]) -> dict[str, Any]:
         """Añade o actualiza un contacto en la memoria del transceptor serial."""
         return {"status": "OK", "contact": contact_data}
@@ -954,6 +958,28 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             logging.warning(f"Fallo aplicando canal al transceptor serial: {e}")
 
         return {"status": "SAVED", "index": index, "name": name}
+
+    async def delete_channel(self, index: int) -> dict[str, Any]:
+        """Elimina o vacía un canal en el firmware del transceptor serial enviando set_channel con nombre vacío y clave de ceros."""
+        if not (1 <= index <= 15):
+            raise ValueError("Channel index out of range for deletion (1-15)")
+
+        if not self.is_connected or not self.mc:
+            return {"status": "LOCAL_DELETED", "index": index}
+
+        zero_secret = b"\x00" * 16
+        try:
+            if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "set_channel"):
+                res = await self.mc.commands.set_channel(index, "", zero_secret)
+                return {"status": "OK", "response": str(res)}
+            if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "send_cmd"):
+                cmd_str = f'remove_channel {index}'
+                res = await self.mc.commands.send_cmd(cmd_str)
+                return {"status": "OK", "response": str(res)}
+        except Exception as e:
+            logging.warning(f"Fallo eliminando canal {index} en el transceptor serial: {e}")
+
+        return {"status": "DELETED", "index": index}
 
     async def add_contact(self, contact_data: dict[str, Any]) -> dict[str, Any]:
         """Añade o actualiza un contacto en la memoria flash del transceptor serial."""

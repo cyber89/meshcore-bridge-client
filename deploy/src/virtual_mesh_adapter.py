@@ -413,6 +413,11 @@ class VirtualMeshAdapter(BaseSerialAdapter):
         }
         return {"status": "OK", "channel": self.channels[index]}
 
+    async def delete_channel(self, index: int) -> dict[str, Any]:
+        """Elimina un canal virtual en el simulador."""
+        self.channels.pop(index, None)
+        return {"status": "DELETED", "index": index}
+
     async def sync_all_contacts(self) -> list[dict[str, Any]]:
         """Descarga e importa todos los nodos simulados como contactos."""
         contacts = []

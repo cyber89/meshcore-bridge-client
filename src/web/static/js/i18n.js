@@ -414,6 +414,17 @@
       'app.radio_offline':          'Radio: Desconectada',
       'app.dark_theme_title':       'Cambiar a tema claro',
       'app.light_theme_title':      'Cambiar a tema oscuro',
+
+      // Time & Presence
+      'time.online_local':          'En línea (Local)',
+      'time.offline_no_signal':     'Desconectado (Sin señal)',
+      'time.active_now':            'Activo (ahora mismo)',
+      'time.active_mins':           'Activo (hace {n}m)',
+      'time.active_hours':          'Activo (hace {n}h)',
+      'time.idle_hours':            'Inactivo (hace {n}h)',
+      'time.offline_days':          'Desconectado (hace {n}d)',
+      'time.last_signal_tooltip':   'Última señal recibida: {time}',
+      'time.no_signal':             'Sin señal registrada',
     },
 
     en: {
@@ -817,6 +828,17 @@
       'app.radio_offline':          'Radio: Disconnected',
       'app.dark_theme_title':       'Switch to light theme',
       'app.light_theme_title':      'Switch to dark theme',
+
+      // Time & Presence
+      'time.online_local':          'Online (Local)',
+      'time.offline_no_signal':     'Disconnected (No signal)',
+      'time.active_now':            'Active (just now)',
+      'time.active_mins':           'Active ({n}m ago)',
+      'time.active_hours':          'Active ({n}h ago)',
+      'time.idle_hours':            'Idle ({n}h ago)',
+      'time.offline_days':          'Disconnected ({n}d ago)',
+      'time.last_signal_tooltip':   'Last signal received: {time}',
+      'time.no_signal':             'No signal recorded',
     },
   };
 

@@ -961,10 +961,10 @@ export class SettingsModule {
           <span class="ch-lock ${isEnc ? 'ch-locked' : 'ch-open'}" title="${lockTitle}">
             <span data-lucide="${lockIcon}" data-size="13"></span>
           </span>
-          <button type="button" class="btn-item-qr" data-ch-idx="${ch.index}" data-ch-name="${escapeHtml(chDisplayName)}" title="Compartir canal vía QR / URI oficial" aria-label="Compartir canal ${ch.index}">
-            <span data-lucide="qr-code" data-size="13"></span>
-          </button>
           ${ch.index > 0 ? `
+            <button type="button" class="btn-item-qr" data-ch-idx="${ch.index}" data-ch-name="${escapeHtml(chDisplayName)}" title="Compartir canal vía QR / URI oficial" aria-label="Compartir canal ${ch.index}">
+              <span data-lucide="qr-code" data-size="13"></span>
+            </button>
             <button type="button" class="btn-item-delete" data-ch-idx="${ch.index}" data-ch-name="${escapeHtml(chDisplayName)}" title="Eliminar canal ${ch.index}" aria-label="Eliminar canal ${ch.index}">
               <span data-lucide="trash-2" data-size="13"></span>
             </button>
@@ -1024,6 +1024,9 @@ export class SettingsModule {
               if (this.ctx.showToast) {
                 this.ctx.showToast(`Canal ${chIdx} ("${chName}") eliminado correctamente`, "success");
               }
+              this.channelsList = (this.channelsList || []).filter((c) => Number(c.index) !== chIdx);
+              this.renderChannelsList(this.channelsList);
+
               if (this.ctx.activeChannelIdx === chIdx) {
                 if (this.ctx.switchChannel) this.ctx.switchChannel(0);
               }

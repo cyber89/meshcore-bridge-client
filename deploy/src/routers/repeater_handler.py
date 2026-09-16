@@ -8,9 +8,11 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from typing import Any
 
 import config
+from src.contact_manager import NodeContactUpdate, PacketRecord, is_valid_node_key
 from src.routers.base import BaseRxHandler, RxMeta
 
 
@@ -66,6 +68,37 @@ class RepeaterAdminHandler(BaseRxHandler):
                 t = asyncio.create_task(router_ctx.web_server.broadcast_event(ack_evt_data))
                 router_ctx.background_tasks.add(t)
                 t.add_done_callback(router_ctx.background_tasks.discard)
+
+            # Actualizar presencia del emisor del ACK si es un nodo remoto
+            ack_sender = meta.sender or str(payload.get("sender") or payload.get("from") or "").strip()
+            if ack_sender and is_valid_node_key(ack_sender) and not router_ctx.node_registry.is_local_key(ack_sender):
+                eff_rssi = meta.effective_rssi
+                eff_snr = meta.effective_snr
+                router_ctx.node_registry.record_packet(
+                    PacketRecord(
+                        public_key=ack_sender,
+                        is_rx=True,
+                        rssi=eff_rssi,
+                        snr=eff_snr,
+                        hop_count=meta.effective_hops,
+                    )
+                )
+                updated_node = router_ctx.node_registry.add_or_update(
+                    ack_sender,
+                    NodeContactUpdate(
+                        last_seen=time.time(),
+                        last_rssi=eff_rssi,
+                        last_snr=eff_snr,
+                    ),
+                )
+                if updated_node and router_ctx.web_server:
+                    t_node = asyncio.create_task(router_ctx.web_server.broadcast_event({
+                        "type": "contact_updated",
+                        "event_type": "contact_updated",
+                        "contact": updated_node.to_dict(),
+                    }))
+                    router_ctx.background_tasks.add(t_node)
+                    t_node.add_done_callback(router_ctx.background_tasks.discard)
 
             router_ctx.mqtt.publish_safe(
                 config.TOPIC_TX_STATUS,
