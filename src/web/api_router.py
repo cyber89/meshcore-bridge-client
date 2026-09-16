@@ -295,7 +295,15 @@ class WebAPIRouter:
             if clean_path in ("/api/tx", "/api/messages/recent"):
                 return await self._dispatch_tx(method, clean_path, req_body)
 
-            if clean_path.startswith(("/api/admin", "/api/repeater", "/api/traceroute", "/api/trace")):
+            if (
+                clean_path in (
+                    "/api/node/ping_zero", "/api/node/ping",
+                    "/api/nodes/ping_zero", "/api/nodes/ping",
+                    "/api/node/traceroute", "/api/node/trace",
+                    "/api/nodes/traceroute", "/api/nodes/trace",
+                )
+                or clean_path.startswith(("/api/admin", "/api/repeater", "/api/traceroute", "/api/trace"))
+            ):
                 return await self._dispatch_repeater(method, clean_path, req_body)
 
             if clean_path.startswith(("/api/node", "/api/config")):
@@ -436,6 +444,11 @@ class WebAPIRouter:
             ]
             return 200, {"status": "ok", "data": {"matrix": matrix}}
 
+        if clean_path in ("/api/nodes/ping_zero", "/api/nodes/ping", "/api/node/ping_zero", "/api/node/ping"):
+            if method == "POST":
+                return await self.repeater_ctrl.ping_zero(req_body)
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
         return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
     async def _dispatch_contacts(self, method: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -481,9 +494,15 @@ class WebAPIRouter:
             return await self.repeater_ctrl.set_remote_config(req_body)
         if clean_path == "/api/repeater/remote/action" and method == "POST":
             return await self.repeater_ctrl.execute_remote_action(req_body)
-        if clean_path in ("/api/repeater/ping_zero", "/api/node/ping_zero") and method == "POST":
+        if clean_path in (
+            "/api/repeater/ping_zero", "/api/node/ping_zero", "/api/node/ping",
+            "/api/nodes/ping_zero", "/api/nodes/ping", "/api/ping_zero",
+        ) and method == "POST":
             return await self.repeater_ctrl.ping_zero(req_body)
-        if clean_path in ("/api/traceroute", "/api/trace", "/api/repeater/traceroute") and method == "POST":
+        if clean_path in (
+            "/api/traceroute", "/api/trace", "/api/repeater/traceroute",
+            "/api/node/traceroute", "/api/node/trace", "/api/nodes/traceroute", "/api/nodes/trace",
+        ) and method == "POST":
             return await self.repeater_ctrl.traceroute(req_body)
 
         return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
@@ -543,6 +562,16 @@ class WebAPIRouter:
         if clean_path in ("/api/config/reconnect", "/api/node/reconnect", "/api/config/reconnect-serial"):
             if method == "POST":
                 return await self.config_ctrl.reconnect_serial()
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+        if clean_path in ("/api/node/ping_zero", "/api/node/ping", "/api/config/ping_zero"):
+            if method == "POST":
+                return await self.repeater_ctrl.ping_zero(req_body)
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+        if clean_path in ("/api/node/traceroute", "/api/node/trace", "/api/config/traceroute"):
+            if method == "POST":
+                return await self.repeater_ctrl.traceroute(req_body)
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
         return problem_details(404, "Not Found", f"Ruta no encontrada: {method} {clean_path}", "route_not_found")

@@ -27,7 +27,9 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
        - Adición de claves de internacionalización completas (`chat.channel_prefix`, `chat.ch_0_default`, `nodes.ping_btn`, `nodes.ping_title`, `toast.ping_sending`, `toast.ping_ok`, `toast.ping_err`) en `DICT.es` y `DICT.en`.
   2. **Almacenamiento Local y DMs (`storage.js`)**:
      - En `getDmConversations()`: Descartada la clave pública de la estación base local y evitada la sobrescritura del nombre del hilo con el nombre de remitente propio (`Estación Local (Tú)`), prefiriendo `msg.dm_target_name` o la clave del destinatario.
-  3. **Backend y Controladores (`contact_manager.py`, `config_controller.py`, `node_registry.json`)**:
+  3. **Backend y Controladores (`api_router.py`, `contact_manager.py`, `config_controller.py`, `node_registry.json`)**:
+     - En `api_router.py`:
+       - Corregido el enrutamiento de `/api/node/ping_zero` (y alias `/api/node/ping`, `/api/nodes/ping_zero`, `/api/nodes/ping`, `/api/node/traceroute`, `/api/node/trace`). Anteriormente, el prefijo `/api/node` en `handle_request` desviaba la petición a `_dispatch_config`, causando HTTP 404. Ahora se despachan adecuadamente a `RepeaterController.ping_zero()`, incorporando además handlers de defensa en profundidad en `_dispatch_config` y `_dispatch_nodes`.
      - En `contact_manager.py`:
        - Calibrado `_build_updated_contact` para asignar `eff_last_seen = now` únicamente ante telemetría RF fresca (`last_rssi` / `last_snr`) o marcas de tiempo explícitas, evitando que actualizaciones administrativas mantengan indefinidamente como "online" a nodos apagados.
      - En `config_controller.py`:

@@ -128,6 +128,13 @@ class TestWebServerRouter(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(code, 200)
         self.assertEqual(data["status"], "ok")
 
+    async def test_node_ping_zero_endpoint(self) -> None:
+        self.mock_bridge.handle_admin.return_value = {"status": "ok", "rtt_ms": 35.5, "snr": 4.2}
+        code, data = await self.router.handle_request("POST", "/api/node/ping_zero", {"target_node": "feedface0001"})
+        self.assertEqual(code, 200)
+        self.assertEqual(data["status"], "ok")
+        self.assertEqual(data["data"]["rtt_ms"], 35.5)
+
 
 if __name__ == "__main__":
     unittest.main()
