@@ -2,7 +2,41 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
-### Hito: Eliminación Efectiva de Canales en Hardware/SDK, Ciclo de Vida de Presencia (12h/24h) y Restricción de Canal 0
+### Hito: Paridad 100% de Parámetros del Nodo Local MeshCore, Sanitización Integral de Código y Sincronización de Scripts
+- **Fecha**: 2026-09-15
+- **Estado**: ✅ COMPLETADO (1. Paridad 100% de parámetros configurables del nodo local con el firmware y cliente oficial MeshCore: PIN de dispositivo, compresión Path Hash Mode 0/1/2, tuning RX Delay y Airtime Factor, modos de telemetría Base/Loc/Env, directiva de ubicación en advert, multi-acks y aprobación manual de contactos; 2. Corrección en UI/JS de lectura y población de Información del Propietario (Owner Info); 3. Actualización y sanitización de scripts de validación, alcanzando 137/137 parámetros auditados y aprobados al 100% con regla de presencia <12h; 4. Reparación de test_search_filters.py para coincidencia de texto "Alfa"; 5. Sanitización de código ruff 0 errores, mypy strict 0 errores en 53 módulos, paridad de contratos REST/WebSocket 44/44 OK; 6. Actualización de dependencias, scripts y documentación; 7. Sincronización completa en /deploy/).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 4 (Web UI Architect), Agente 5 (Security Auditor).
+- **Acciones Realizadas**:
+  1. **Backend y Ejecutores de Configuración Local (`LocalConfigExecutor` & `ConfigController`)**:
+     - En `LocalConfigExecutor`:
+       - Añadido soporte de lectura, fusión y consolidación de parámetros avanzados oficiales: `pin`, `rx_delay`, `airtime_factor`, `path_hash_mode`, `telemetry_mode_base`, `telemetry_mode_loc`, `telemetry_mode_env`, `adv_loc_policy`, `multi_acks`, `manual_add_contacts` y `custom_vars`.
+       - Mapeo de comandos del SDK oficial: `mc.commands.set_devicepin`, `mc.commands.set_tuning`, `mc.commands.set_path_hash_mode`, `mc.commands.set_custom_var`, y emisión de comandos UART.
+       - En `apply_identity_settings`: incorporación de `altitude` / `altitude_m` y `owner_info`.
+     - En `ConfigController`:
+       - En `set_local_radio_config`: procesado determinista y tipado seguro de todos los parámetros avanzados antes de la persistencia atómica en `data/radio_config.json`.
+       - Emisión reactiva de evento WebSocket `self_info` para actualización instantánea de todos los clientes conectados.
+  2. **Frontend SPA Modular (`index.html` & `settings.js`)**:
+     - En `index.html`:
+       - Maquetación de la nueva sección *"Parámetros Avanzados & Firmware MeshCore"* en el formulario de radio (`#localRadioForm`), con inputs para PIN, Path Hash Mode (select 0/1/2), Tuning RX Delay (µs), Tuning Airtime Factor, Modos de telemetría (Base, Ubicación, Ambiental: 0=Off, 1=All, 2=Contacts), y toggles con switches Cyberpunk para Compartir Ubicación en Advert, Multi-ACKs y Aprobación Manual de Contactos.
+     - En `settings.js`:
+       - Reparado bug donde `localOwnerInfo` no se poblaba ni se enviaba en `saveLocalIdentityAndPosition`.
+       - Actualizado `populateLocalConfig` para rellenar de forma atómica y no destructiva todos los nuevos campos avanzados.
+       - Actualizado `saveLocalRadioConfig` para recopilar y transmitir todo el payload avanzado a `/api/config/radio`.
+       - Agregados listeners reactivos para los toggles de advert, multi-acks y aprobación manual.
+  3. **Actualización y Reparación de Scripts (`scripts/`)**:
+     - `validate_all_node_parameters.py`:
+       - Incorporado `last_seen=time.time()` en todos los `NodeContactUpdate` de prueba para que los nodos activos (<12h) no sufran el vaciado de métricas de la regla de presencia.
+       - Incorporada la suite de verificación de paridad de firmware avanzado del nodo local (`validate_local_node_advanced_firmware`), alcanzando un total de **137/137 parámetros auditados y verificados con 100% de éxito**.
+     - `test_search_filters.py`:
+       - Corregida la consulta de búsqueda de "Alpha" a "Alfa" para coincidir exactamente con "Operador Alfa" del `VirtualMeshAdapter`.
+     - `audit_codebase_integrity.py`:
+       - 54/54 módulos de producción importados sin errores.
+  4. **Calidad de Código y Paridad**:
+     - `python -m ruff check src/ scripts/`: 0 errores (All checks passed!).
+     - `python -m mypy src/`: 0 errores (Success: no issues found in 53 source files).
+     - `verify_api_parity.py`: 44/44 llamadas del frontend verificadas contra el backend (100% OK).
+  5. **Sincronización de Despliegue (`/deploy/`)**:
+     - Ejecutada sincronización limpia con `python scripts/sync_deploy.py`.
 - **Fecha**: 2026-09-15
 - **Estado**: ✅ COMPLETADO (1. Eliminación efectiva de canales en hardware físico, SDK RAM cache y VirtualMeshAdapter evitando definitivamente la resurrección tras llamadas GET o sincronizaciones seriales; 2. Implementación canónica de estados de presencia de nodos: Activo <12h verde, Inactivo 12-24h ámbar, Desconectado >24h gris/rojo, con tooltip de fecha/hora exacta y vaciado estricto de métricas en nodos desconectados; 3. Restricción del canal público 0 para no mostrar QR ni permitir exportación al ser el canal predeterminado de la red; 0 ms de airtime LoRa; 0 errores ruff; 0 errores mypy; 100% paridad API; suite determinista superada; sincronización en /deploy/).
 - **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 4 (Web UI Architect).

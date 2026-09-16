@@ -132,14 +132,26 @@ meshcore-bridge/
 │       ├── http_server.py            # Servidor HTTP 1.1 y WebSocket Hub asíncrono
 │       ├── map_tile_service.py       # Servicio local de teselas de mapas offline
 │       ├── security_inspector.py     # Inspector de seguridad de peticiones
-│       └── static/                   # Assets estáticos de la interfaz web
 │           ├── index.html            # Maquetación semántica SPA accesible (WCAG 2.2)
 │           ├── css/app.css           # Sistema de diseño Cyberpunk Slate en Vanilla CSS
-│           └── js/app.js             # Lógica reactiva Vanilla JS y WebSocket
-├── scripts/                          # Herramientas de despliegue y simuladores
+│           └── js/                   # Lógica reactiva Vanilla JS modularizada
+│               ├── app.js            # Entrypoint y orquestador de la SPA
+│               └── modules/          # Módulos especializados por dominio
+│                   ├── analytics.js  # Métricas RF, LQI, Duty Cycle y gráficos
+│                   ├── chat.js       # Mensajería en canales públicos y DMs con ACK
+│                   ├── i18n.js       # Soporte multilingüe
+│                   ├── map.js        # Mapa GPS Leaflet con teselas offline
+│                   ├── nodes.js      # Directorio unificado de nodos (Filtros/Búsqueda)
+│                   ├── repeaters.js  # Centro de control y consola CLI de repetidores
+│                   ├── security.js   # Gestión visual de API Keys y permisos
+│                   ├── settings.js   # Paridad 100% de parámetros del nodo local MeshCore
+│                   ├── state.js      # EventBus y almacenamiento reactivo
+│                   └── ui.js         # Modales, toasts, atajos (Ctrl+K) y accesibilidad
+├── scripts/                          # Herramientas de despliegue, auditoría y simuladores
 │   ├── sync_deploy.py                # Generador del paquete de distribución autónomo (/deploy/)
+│   ├── validate_all_node_parameters.py # Validador exhaustivo de parámetros por tipo de nodo (137/137)
+│   ├── test_search_filters.py        # Validación automatizada de filtros y búsqueda reactiva
 │   ├── simulate_tcp_mesh_network.py  # Simulación integral TCP multi-nodo, saltos, DM, canales y repetidores
-│   ├── validate_all_node_parameters.py # Validador exhaustivo de parámetros por tipo de nodo
 │   ├── simulate_mesh_network.py      # Simulación determinista multi-nodo de red LoRa
 │   ├── simulate_heltec_v4_mesh.py    # Simulador en vivo de hardware Heltec v4 y red LoRa
 │   └── inspect_web.py                # Automatización de capturas Playwright Desktop/Mobile

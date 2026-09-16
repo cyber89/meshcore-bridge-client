@@ -64,11 +64,11 @@ async def test_search_filters():
 
             # Probar búsqueda por texto
             search_input = page.locator("#nodesSearchInput")
-            await search_input.fill("Alpha")
+            await search_input.fill("Alfa")
             await page.wait_for_timeout(400)
             matched = await page.locator("#nodesUnifiedGridUi .node-card:visible").count()
-            print(f"  • Búsqueda 'Alpha' -> Nodos visibles: {matched}")
-            assert matched >= 1, "Debería encontrar el nodo Alpha"
+            print(f"  • Búsqueda 'Alfa' -> Nodos visibles: {matched}")
+            assert matched >= 1, "Debería encontrar el nodo Alfa"
 
             # Limpiar búsqueda
             await search_input.fill("")

@@ -120,6 +120,11 @@ class LocalConfigExecutor:
             "adv_loc_policy": si.get("adv_loc_policy", cfg.get("adv_loc_policy")),
             "multi_acks": si.get("multi_acks", cfg.get("multi_acks")),
             "manual_add_contacts": si.get("manual_add_contacts", cfg.get("manual_add_contacts")),
+            "pin": si.get("pin", cfg.get("pin", 0)),
+            "rx_delay": si.get("rx_delay", cfg.get("rx_delay", 0)),
+            "airtime_factor": si.get("airtime_factor", cfg.get("airtime_factor", 0)),
+            "path_hash_mode": si.get("path_hash_mode", cfg.get("path_hash_mode", 0)),
+            "custom_vars": si.get("custom_vars", cfg.get("custom_vars", {})),
         })
 
     def _ensure_default_telemetry(self, cfg: dict[str, Any]) -> None:
@@ -128,6 +133,17 @@ class LocalConfigExecutor:
         cfg.setdefault("voltage", 5.0)
         cfg.setdefault("battery_mv", 5000)
         cfg.setdefault("power_source", "USB 5V Directo")
+        cfg.setdefault("pin", self._local_config.get("pin", 0))
+        cfg.setdefault("rx_delay", self._local_config.get("rx_delay", 0))
+        cfg.setdefault("airtime_factor", self._local_config.get("airtime_factor", 0))
+        cfg.setdefault("path_hash_mode", self._local_config.get("path_hash_mode", 0))
+        cfg.setdefault("telemetry_mode_base", self._local_config.get("telemetry_mode_base", 1))
+        cfg.setdefault("telemetry_mode_loc", self._local_config.get("telemetry_mode_loc", 1))
+        cfg.setdefault("telemetry_mode_env", self._local_config.get("telemetry_mode_env", 1))
+        cfg.setdefault("adv_loc_policy", self._local_config.get("adv_loc_policy", 0))
+        cfg.setdefault("multi_acks", self._local_config.get("multi_acks", 0))
+        cfg.setdefault("manual_add_contacts", self._local_config.get("manual_add_contacts", 0))
+        cfg.setdefault("custom_vars", self._local_config.get("custom_vars", {}))
         cfg.setdefault("temperature_c", self._local_config.get("temperature_c", 24.5))
         cfg.setdefault("humidity_pct", self._local_config.get("humidity_pct", 52.0))
         cfg.setdefault("pressure_hpa", self._local_config.get("pressure_hpa", 1013.2))
@@ -441,6 +457,7 @@ class LocalConfigExecutor:
         await self._apply_radio_settings(params, applied, mc)
         self._apply_timing_settings(params, applied, mc)
         await self._apply_other_params_settings(params, applied, mc)
+        await self._apply_advanced_meshcore_settings(params, applied, mc)
 
         # Actualizar en el NodeRegistry local
         cfg_now = self.get_local_config()
@@ -506,6 +523,17 @@ class LocalConfigExecutor:
                     if hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
                         mc.self_info["adv_lat"] = lat_f
                         mc.self_info["adv_lon"] = lon_f
+            except (ValueError, TypeError):
+                pass
+
+        alt_val = params.get("altitude", params.get("alt", params.get("altitude_m")))
+        if alt_val is not None:
+            try:
+                alt_f = float(alt_val)
+                self._local_config["altitude"] = alt_f
+                applied["altitude"] = alt_f
+                if mc and hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
+                    mc.self_info["altitude"] = alt_f
             except (ValueError, TypeError):
                 pass
 
@@ -630,30 +658,106 @@ class LocalConfigExecutor:
                 pass
 
     async def _apply_other_params_settings(self, params: dict[str, Any], applied: dict[str, Any], mc: Any) -> None:
+        """Aplica modos de telemetría, políticas de anuncios y multi-acks."""
         keys = ["telemetry_mode_base", "telemetry_mode_loc", "telemetry_mode_env", "multi_acks", "adv_loc_policy", "manual_add_contacts"]
         need_update = any(k in params for k in keys)
 
         if need_update:
             for k in keys:
                 if k in params:
-                    self._local_config[k] = params[k]
-                    applied[k] = params[k]
+                    val = params[k]
+                    if k in ("multi_acks", "manual_add_contacts", "adv_loc_policy"):
+                        int_val = int(bool(val)) if not isinstance(val, (int, float)) else int(val)
+                    else:
+                        int_val = int(val)
+                    self._local_config[k] = int_val
+                    applied[k] = int_val
 
             if mc and hasattr(mc, "commands") and hasattr(mc.commands, "set_other_params_from_infos"):
-                infos = {}
+                infos: dict[str, Any] = {}
                 if hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
                     infos = mc.self_info.copy()
                 else:
-                    infos = {k: self._local_config.get(k, 0) for k in keys}
+                    infos = {k: int(self._local_config.get(k, 0)) for k in keys}
 
                 for k in keys:
                     if k in params:
-                        infos[k] = params[k]
+                        infos[k] = applied[k]
+                    else:
+                        infos.setdefault(k, int(self._local_config.get(k, 0)))
 
                 try:
                     res = mc.commands.set_other_params_from_infos(infos)
                     if asyncio.iscoroutine(res):
                         await asyncio.wait_for(res, timeout=2.0)
                 except Exception as e:
-                    import logging
                     logging.warning(f"Aviso actualizando other params: {e}")
+
+    async def _apply_advanced_meshcore_settings(self, params: dict[str, Any], applied: dict[str, Any], mc: Any) -> None:
+        """Aplica PIN del dispositivo, tuning de radio, path hash mode y custom variables."""
+        # 1. PIN del dispositivo / BLE PIN
+        if "pin" in params or "devicepin" in params:
+            try:
+                pin_val = int(params.get("pin", params.get("devicepin", 0)))
+                self._local_config["pin"] = pin_val
+                applied["pin"] = pin_val
+                if mc and hasattr(mc, "commands") and hasattr(mc.commands, "set_devicepin"):
+                    try:
+                        res_pin = mc.commands.set_devicepin(pin_val)
+                        if asyncio.iscoroutine(res_pin):
+                            await asyncio.wait_for(res_pin, timeout=2.0)
+                    except Exception as ep:
+                        logging.warning(f"Aviso actualizando PIN del dispositivo: {ep}")
+            except (ValueError, TypeError) as err:
+                logging.warning(f"PIN inválido proporcionado: {err}")
+
+        # 2. Tuning de Radio (rx_delay y airtime_factor / af)
+        tuning_keys = ("rx_delay", "airtime_factor", "af", "rx_dly")
+        if any(k in params for k in tuning_keys):
+            try:
+                rx_dly = int(params.get("rx_delay", params.get("rx_dly", self._local_config.get("rx_delay", 0))))
+                af = int(params.get("airtime_factor", params.get("af", self._local_config.get("airtime_factor", 0))))
+                self._local_config["rx_delay"] = rx_dly
+                self._local_config["airtime_factor"] = af
+                applied["rx_delay"] = rx_dly
+                applied["airtime_factor"] = af
+                if mc and hasattr(mc, "commands") and hasattr(mc.commands, "set_tuning"):
+                    try:
+                        res_tun = mc.commands.set_tuning(rx_dly, af)
+                        if asyncio.iscoroutine(res_tun):
+                            await asyncio.wait_for(res_tun, timeout=2.0)
+                    except Exception as et:
+                        logging.warning(f"Aviso actualizando tuning de radio: {et}")
+            except (ValueError, TypeError) as err:
+                logging.warning(f"Parámetros de tuning inválidos: {err}")
+
+        # 3. Path Hash Mode
+        if "path_hash_mode" in params:
+            try:
+                phm = int(params["path_hash_mode"])
+                self._local_config["path_hash_mode"] = phm
+                applied["path_hash_mode"] = phm
+                if mc and hasattr(mc, "commands") and hasattr(mc.commands, "set_path_hash_mode"):
+                    try:
+                        res_phm = mc.commands.set_path_hash_mode(phm)
+                        if asyncio.iscoroutine(res_phm):
+                            await asyncio.wait_for(res_phm, timeout=2.0)
+                    except Exception as eh:
+                        logging.warning(f"Aviso actualizando path_hash_mode: {eh}")
+            except (ValueError, TypeError) as err:
+                logging.warning(f"Path hash mode inválido: {err}")
+
+        # 4. Variables personalizadas (custom_vars)
+        if "custom_vars" in params and isinstance(params["custom_vars"], dict):
+            if "custom_vars" not in self._local_config or not isinstance(self._local_config["custom_vars"], dict):
+                self._local_config["custom_vars"] = {}
+            for k, v in params["custom_vars"].items():
+                self._local_config["custom_vars"][str(k)] = str(v)
+                if mc and hasattr(mc, "commands") and hasattr(mc.commands, "set_custom_var"):
+                    try:
+                        res_cv = mc.commands.set_custom_var(str(k), str(v))
+                        if asyncio.iscoroutine(res_cv):
+                            await asyncio.wait_for(res_cv, timeout=2.0)
+                    except Exception as ec:
+                        logging.warning(f"Aviso configurando custom_var '{k}': {ec}")
+            applied["custom_vars"] = self._local_config["custom_vars"]

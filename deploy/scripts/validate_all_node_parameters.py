@@ -9,6 +9,7 @@ sean alcanzables, parseados, almacenados en NodeRegistry y exportados a REST, We
 import logging
 import pathlib
 import sys
+import time
 from typing import Any
 
 # Asegurar importación de src desde la raíz del proyecto
@@ -65,6 +66,7 @@ class NodeParameterValidator:
 
         # 1. Validación de Nodo LOCAL (Estación Base / Host Transceiver)
         self.validate_local_node()
+        self.validate_local_node_advanced_firmware()
 
         # 2. Validación de Nodo CLIENT (Usuario / Chat)
         self.validate_client_node()
@@ -171,6 +173,85 @@ class NodeParameterValidator:
             details=f"35/35 verificados (Hardware: {d['hardware_board']}, Uptime: {d['uptime']})",
         )
 
+    def validate_local_node_advanced_firmware(self) -> None:
+        """Audita paridad total de parámetros avanzados del firmware MeshCore para el nodo LOCAL."""
+        from src.admin.local_config_executor import LocalConfigExecutor
+        from src.admin_handler import AdminContext
+
+        mock_self_info = {
+            "name": "Base-MeshCore-Adv",
+            "owner_info": "SysAdmin MeshCore",
+            "pin": 123456,
+            "path_hash_mode": 2,
+            "rx_delay": 500,
+            "airtime_factor": 15,
+            "telemetry_mode_base": 2,
+            "telemetry_mode_loc": 1,
+            "telemetry_mode_env": 0,
+            "adv_loc_policy": 1,
+            "multi_acks": 1,
+            "manual_add_contacts": 0,
+            "custom_vars": {"region": "CU", "node_class": "alpha"},
+            "tx_power": 20,
+            "radio_freq": 915.0,
+            "sf": 11,
+            "bw": 250.0,
+            "cr": "4/5",
+            "hop_limit": 3,
+            "battery_pct": 100,
+            "voltage": 5.0,
+        }
+
+        class DummyMC:
+            self_info = mock_self_info
+
+        async def dummy_tx(d: dict[str, Any]) -> dict[str, Any]:
+            return {}
+
+        ctx = AdminContext(
+            mc_provider=lambda: DummyMC(),
+            node_registry=self.registry,
+            repeater_manager=self.repeater_mgr,
+            mqtt=self.mqtt,  # type: ignore[arg-type]
+            execute_tx=dummy_tx,
+            start_time=time.time() - 3600,
+        )
+        executor = LocalConfigExecutor(
+            ctx=ctx,
+            local_config={},
+            init_time=time.time() - 3600,
+            publish_safe=lambda t, p, q: None,
+        )
+        cfg = executor.get_local_config()
+
+        advanced_params = [
+            "pin", "path_hash_mode", "rx_delay", "airtime_factor",
+            "telemetry_mode_base", "telemetry_mode_loc", "telemetry_mode_env",
+            "adv_loc_policy", "multi_acks", "manual_add_contacts", "custom_vars"
+        ]
+        missing = [p for p in advanced_params if p not in cfg or cfg[p] is None]
+        success = (
+            len(missing) == 0
+            and cfg["pin"] == 123456
+            and cfg["path_hash_mode"] == 2
+            and cfg["rx_delay"] == 500
+            and cfg["airtime_factor"] == 15
+            and cfg["telemetry_mode_base"] == 2
+            and cfg["telemetry_mode_loc"] == 1
+            and cfg["telemetry_mode_env"] == 0
+            and cfg["adv_loc_policy"] == 1
+            and cfg["multi_acks"] == 1
+            and cfg["manual_add_contacts"] == 0
+            and cfg["custom_vars"] == {"region": "CU", "node_class": "alpha"}
+        )
+        self.record_result(
+            suite_name="Paridad Firmware Avanzado MeshCore (PIN, Tuning, Modos)",
+            node_type="LOCAL",
+            params_checked=advanced_params,
+            success=success,
+            details=f"11/11 verificados (PIN: {cfg['pin']}, PathHash: {cfg['path_hash_mode']}, Tuning: RX {cfg['rx_delay']}us/AF {cfg['airtime_factor']})",
+        )
+
     def validate_client_node(self) -> None:
         """Audita parámetros de nodos CLIENT (Chat / Usuario)."""
         client_pk = "a1b2c3d4e5f600112233445566778899aabbccddeeff00112233445566778899"
@@ -183,6 +264,7 @@ class NodeParameterValidator:
             hops=2,
             last_rssi=-78,
             last_snr=9.5,
+            last_seen=time.time(),
             battery_pct=85,
             voltage_v=3.95,
             latitude=20.1601,
@@ -250,6 +332,7 @@ class NodeParameterValidator:
             hops=1,
             last_rssi=extracted.get("last_rssi", -68),
             last_snr=extracted.get("last_snr", 11.5),
+            last_seen=time.time(),
             noise_floor_dbm=extracted.get("noise_floor_dbm", -119),
             battery_pct=extracted.get("battery_pct", 92),
             voltage_v=extracted.get("voltage_v", 4.15),
@@ -313,6 +396,7 @@ class NodeParameterValidator:
             hops=1,
             last_rssi=-72,
             last_snr=10.8,
+            last_seen=time.time(),
             temperature_c=24.5,
             humidity_pct=65.5,
             pressure_hpa=1013.2,
@@ -356,6 +440,7 @@ class NodeParameterValidator:
             hops=2,
             last_rssi=-81,
             last_snr=8.2,
+            last_seen=time.time(),
             battery_pct=98,
             voltage_v=4.20,
             connected_clients_count=12,
@@ -395,6 +480,7 @@ class NodeParameterValidator:
             hops=3,
             last_rssi=-84,
             last_snr=6.5,
+            last_seen=time.time(),
             rx_packets=120,
             tx_packets=95,
             error_count=2,

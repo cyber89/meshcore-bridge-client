@@ -88,6 +88,12 @@ class ConfigController(BaseController):
         cmd = {"action": "set_local_config", "params": params}
         res = await self.ctx.bridge.handle_admin(cmd)
         self.ctx.log_system_event("INFO", f"Configuración de nodo local actualizada: {list(params.keys())}", source="admin")
+        if self.ctx.broadcast_ws and isinstance(res, dict) and "config" in res:
+            self.ctx.broadcast_ws({
+                "type": "self_info",
+                "data": res["config"],
+                "timestamp": int(time.time()),
+            })
         return 200, {"status": "ok", "data": res}
 
     async def broadcast_advert(self, flood: bool = False) -> tuple[int, dict[str, Any]]:

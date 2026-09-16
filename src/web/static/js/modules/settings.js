@@ -448,6 +448,23 @@ export class SettingsModule {
         }
       });
     }
+ 
+    const setupToggle = (chkId, badgeId) => {
+      const chk = document.getElementById(chkId);
+      const badge = document.getElementById(badgeId);
+      if (chk) {
+        chk.addEventListener("change", (e) => {
+          const checked = e.target.checked;
+          if (badge) {
+            badge.textContent = checked ? "ON" : "OFF";
+            badge.classList.toggle("badge-active", checked);
+          }
+        });
+      }
+    };
+    setupToggle("localAdvLocPolicy", "localAdvLocBadge");
+    setupToggle("localMultiAcks", "localMultiAcksBadge");
+    setupToggle("localManualAddContacts", "localManualAddBadge");
 
     if (this.dom.localRadioForm) {
       this.dom.localRadioForm.addEventListener("submit", async (e) => {
@@ -1298,7 +1315,12 @@ export class SettingsModule {
       }
     }
 
-    // Posición GPS Form Inputs
+    // Posición GPS & Propietario Form Inputs
+    const ownerInput = document.getElementById("localOwnerInfo");
+    if (ownerInput && (cfg.owner_info !== undefined || cfg.owner !== undefined)) {
+      ownerInput.value = cfg.owner_info ?? cfg.owner ?? "";
+    }
+
     const latInput = document.getElementById("localGpsLat");
     if (latInput && (cfg.latitude != null || cfg.adv_lat != null)) latInput.value = cfg.latitude ?? cfg.adv_lat;
 
@@ -1316,6 +1338,76 @@ export class SettingsModule {
       if (posFixedBadge) {
         posFixedBadge.textContent = isFixed ? "FIJA" : "OFF";
         posFixedBadge.classList.toggle("is-active", isFixed);
+      }
+    }
+
+    // Parámetros Avanzados del Firmware MeshCore
+    const pinInput = document.getElementById("localDevicePin");
+    if (pinInput && (cfg.pin !== undefined || cfg.device_pin !== undefined)) {
+      const pinVal = cfg.pin ?? cfg.device_pin;
+      pinInput.value = pinVal != null ? String(pinVal) : "";
+    }
+
+    const pathHashSelect = document.getElementById("localPathHashMode");
+    if (pathHashSelect && cfg.path_hash_mode !== undefined) {
+      pathHashSelect.value = String(cfg.path_hash_mode);
+    }
+
+    const rxDelayInput = document.getElementById("localRxDelay");
+    if (rxDelayInput && cfg.rx_delay !== undefined) {
+      rxDelayInput.value = cfg.rx_delay != null ? String(cfg.rx_delay) : "";
+    }
+
+    const airtimeFactorInput = document.getElementById("localAirtimeFactor");
+    if (airtimeFactorInput && cfg.airtime_factor !== undefined) {
+      airtimeFactorInput.value = cfg.airtime_factor != null ? String(cfg.airtime_factor) : "";
+    }
+
+    const telemBaseSelect = document.getElementById("localTelemBase");
+    if (telemBaseSelect && cfg.telemetry_mode_base !== undefined) {
+      telemBaseSelect.value = String(cfg.telemetry_mode_base);
+    }
+
+    const telemLocSelect = document.getElementById("localTelemLoc");
+    if (telemLocSelect && cfg.telemetry_mode_loc !== undefined) {
+      telemLocSelect.value = String(cfg.telemetry_mode_loc);
+    }
+
+    const telemEnvSelect = document.getElementById("localTelemEnv");
+    if (telemEnvSelect && cfg.telemetry_mode_env !== undefined) {
+      telemEnvSelect.value = String(cfg.telemetry_mode_env);
+    }
+
+    if (cfg.adv_loc_policy !== undefined) {
+      const advLocChk = document.getElementById("localAdvLocPolicy");
+      const advLocBadge = document.getElementById("localAdvLocBadge");
+      const isAdv = Boolean(cfg.adv_loc_policy);
+      if (advLocChk) advLocChk.checked = isAdv;
+      if (advLocBadge) {
+        advLocBadge.textContent = isAdv ? "ON" : "OFF";
+        advLocBadge.classList.toggle("badge-active", isAdv);
+      }
+    }
+
+    if (cfg.multi_acks !== undefined) {
+      const multiAcksChk = document.getElementById("localMultiAcks");
+      const multiAcksBadge = document.getElementById("localMultiAcksBadge");
+      const isMulti = Boolean(cfg.multi_acks);
+      if (multiAcksChk) multiAcksChk.checked = isMulti;
+      if (multiAcksBadge) {
+        multiAcksBadge.textContent = isMulti ? "ON" : "OFF";
+        multiAcksBadge.classList.toggle("badge-active", isMulti);
+      }
+    }
+
+    if (cfg.manual_add_contacts !== undefined) {
+      const manualAddChk = document.getElementById("localManualAddContacts");
+      const manualAddBadge = document.getElementById("localManualAddBadge");
+      const isManual = Boolean(cfg.manual_add_contacts);
+      if (manualAddChk) manualAddChk.checked = isManual;
+      if (manualAddBadge) {
+        manualAddBadge.textContent = isManual ? "ON" : "OFF";
+        manualAddBadge.classList.toggle("badge-active", isManual);
       }
     }
 
@@ -1430,35 +1522,51 @@ export class SettingsModule {
     const telemetry_interval = parseInt(document.getElementById("localTelemetryInterval")?.value || "60", 10);
     const advert_interval = parseInt(document.getElementById("localAdvertInterval")?.value || "300", 10);
 
+    const pinVal = document.getElementById("localDevicePin")?.value.trim();
+    const pin = pinVal ? parseInt(pinVal, 10) : 0;
+    const path_hash_mode = parseInt(document.getElementById("localPathHashMode")?.value || "0", 10);
+    const rxDelayVal = document.getElementById("localRxDelay")?.value.trim();
+    const rx_delay = rxDelayVal ? parseInt(rxDelayVal, 10) : 0;
+    const airtimeFactorVal = document.getElementById("localAirtimeFactor")?.value.trim();
+    const airtime_factor = airtimeFactorVal ? parseInt(airtimeFactorVal, 10) : 0;
+    const telemetry_mode_base = parseInt(document.getElementById("localTelemBase")?.value || "1", 10);
+    const telemetry_mode_loc = parseInt(document.getElementById("localTelemLoc")?.value || "1", 10);
+    const telemetry_mode_env = parseInt(document.getElementById("localTelemEnv")?.value || "1", 10);
+    const adv_loc_policy = Boolean(document.getElementById("localAdvLocPolicy")?.checked);
+    const multi_acks = Boolean(document.getElementById("localMultiAcks")?.checked);
+    const manual_add_contacts = Boolean(document.getElementById("localManualAddContacts")?.checked);
+
+    const payload = {
+      frequency: freq,
+      tx_power,
+      spreading_factor: sf,
+      bandwidth: bw,
+      coding_rate: cr,
+      repeat,
+      hop_limit,
+      telemetry_interval,
+      advert_interval,
+      pin,
+      path_hash_mode,
+      rx_delay,
+      airtime_factor,
+      telemetry_mode_base,
+      telemetry_mode_loc,
+      telemetry_mode_env,
+      adv_loc_policy,
+      multi_acks,
+      manual_add_contacts,
+    };
+
     try {
       const res = await fetch("/api/config/radio", {
         method: "POST",
         headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          frequency: freq,
-          tx_power,
-          spreading_factor: sf,
-          bandwidth: bw,
-          coding_rate: cr,
-          repeat,
-          hop_limit,
-          telemetry_interval,
-          advert_interval,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (data.status === "ok") {
-        this.populateLocalConfig({
-          frequency: freq,
-          tx_power,
-          spreading_factor: sf,
-          bandwidth: bw,
-          coding_rate: cr,
-          repeat,
-          hop_limit,
-          telemetry_interval,
-          advert_interval,
-        });
+        this.populateLocalConfig(payload);
         if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.radio_cfg_ok'), "success");
       } else {
         alert("Error guardando radio: " + (data.message || "desconocido"));
@@ -1470,11 +1578,12 @@ export class SettingsModule {
 
   async saveLocalIdentityAndPosition() {
     const name = document.getElementById("localNodeName")?.value.trim() || "";
+    const owner_info = document.getElementById("localOwnerInfo")?.value.trim() || "";
     const lat = parseFloat(document.getElementById("localGpsLat")?.value || "");
     const lon = parseFloat(document.getElementById("localGpsLon")?.value || "");
     const alt = parseFloat(document.getElementById("localGpsAlt")?.value || "");
 
-    const payload = { name };
+    const payload = { name, owner_info };
     const posFixedElem = document.getElementById("localPosFixed");
     if (posFixedElem) {
       payload.fixed_position = Boolean(posFixedElem.checked);
@@ -1493,6 +1602,7 @@ export class SettingsModule {
       });
       const data = await res.json();
       if (data.status === "ok") {
+        this.populateLocalConfig(payload);
         if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.identity_ok'), "success");
       } else {
         alert("Error guardando identidad: " + (data.message || "desconocido"));

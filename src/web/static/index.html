@@ -839,6 +839,100 @@
                     <label for="localAdvertInterval">Intervalo de Anuncios Advert (seg):</label>
                     <input type="number" id="localAdvertInterval" min="30" max="86400" value="300" />
                   </div>
+
+                  <!-- Sección de Parámetros Avanzados del Firmware MeshCore -->
+                  <div class="form-section-title span-full" style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+                    <span class="section-icon" data-lucide="cpu" data-size="16"></span> Parámetros Avanzados &amp; Firmware MeshCore
+                  </div>
+                  <div class="form-group">
+                    <label for="localDevicePin">PIN del Dispositivo (BLE/Emparejamiento):</label>
+                    <input type="number" id="localDevicePin" min="0" max="999999" placeholder="0 = Desactivado" />
+                  </div>
+                  <div class="form-group">
+                    <label for="localPathHashMode">Modo Path Hash:</label>
+                    <select id="localPathHashMode" class="select-input">
+                      <option value="0">0 - Desactivado (Ruta Completa)</option>
+                      <option value="1">1 - Hash de 1 Byte (Compacto)</option>
+                      <option value="2">2 - Hash de 2 Bytes (Recomendado)</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="localRxDelay">Tuning: Retardo RX (µs):</label>
+                    <input type="number" id="localRxDelay" min="0" max="100000" placeholder="0" />
+                  </div>
+                  <div class="form-group">
+                    <label for="localAirtimeFactor">Tuning: Factor Tiempo Aire (AF):</label>
+                    <input type="number" id="localAirtimeFactor" min="0" max="1000" placeholder="0" />
+                  </div>
+                  <div class="form-group">
+                    <label for="localTelemBase">Modo Telemetría Base:</label>
+                    <select id="localTelemBase" class="select-input">
+                      <option value="0">0 - Desactivado</option>
+                      <option value="1" selected>1 - Todos los Nodos</option>
+                      <option value="2">2 - Solo Contactos</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="localTelemLoc">Modo Telemetría Ubicación:</label>
+                    <select id="localTelemLoc" class="select-input">
+                      <option value="0">0 - Desactivado</option>
+                      <option value="1" selected>1 - Todos los Nodos</option>
+                      <option value="2">2 - Solo Contactos</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="localTelemEnv">Modo Telemetría Ambiental:</label>
+                    <select id="localTelemEnv" class="select-input">
+                      <option value="0">0 - Desactivado</option>
+                      <option value="1" selected>1 - Solo Contactos</option>
+                      <option value="2">2 - Todos los Nodos</option>
+                    </select>
+                  </div>
+                  <div class="form-group toggle-field-group">
+                    <div class="toggle-field-row">
+                      <div class="toggle-field-info">
+                        <span class="toggle-field-title">Compartir Ubicación en Anuncio</span>
+                        <span class="toggle-field-desc">Incluye coordenadas en paquetes Advert</span>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="toggle-state-badge" id="localAdvLocBadge">OFF</span>
+                        <label class="toggle-switch toggle-blue" for="localAdvLocPolicy" title="Compartir coordenadas en balizas advert">
+                          <input type="checkbox" id="localAdvLocPolicy" />
+                          <span class="toggle-slider"></span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-group toggle-field-group">
+                    <div class="toggle-field-row">
+                      <div class="toggle-field-info">
+                        <span class="toggle-field-title">Multi-ACKs</span>
+                        <span class="toggle-field-desc">Permite confirmaciones múltiples</span>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="toggle-state-badge" id="localMultiAcksBadge">OFF</span>
+                        <label class="toggle-switch toggle-blue" for="localMultiAcks" title="Habilitar confirmaciones multi-ack">
+                          <input type="checkbox" id="localMultiAcks" />
+                          <span class="toggle-slider"></span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-group toggle-field-group">
+                    <div class="toggle-field-row">
+                      <div class="toggle-field-info">
+                        <span class="toggle-field-title">Aprobación Manual de Contactos</span>
+                        <span class="toggle-field-desc">Confirmación manual de contactos</span>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="toggle-state-badge" id="localManualAddBadge">OFF</span>
+                        <label class="toggle-switch toggle-blue" for="localManualAddContacts" title="Aprobación manual de contactos entrantes">
+                          <input type="checkbox" id="localManualAddContacts" />
+                          <span class="toggle-slider"></span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
                   <div class="form-actions-full">
                     <button type="submit" class="btn-primary" id="btnSaveLocalRadio"><span class="btn-icon" data-lucide="save" data-size="16"></span> Guardar</button>
                   </div>

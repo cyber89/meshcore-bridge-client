@@ -261,7 +261,7 @@ MeshCore soporta hasta **8 canales concurrentes** (Canales 0 al 7):
 | `18` / `0x12` | `IMPORT_CONTACT` | Importa una tarjeta de contacto desde datos / URI |
 | `19` / `0x13` | `REBOOT` | Reinicia el microcontrolador del transceptor |
 | `20` / `0x14` | `GET_BATT_AND_STORAGE`| Consulta nivel de batería y almacenamiento libre |
-| `21` / `0x15` | `SET_TUNING_PARAMS` | Aplica parámetros de calibración de radio |
+| `21` / `0x15` | `SET_TUNING_PARAMS` | Aplica parámetros de calibración de radio (`rx_delay`, `airtime_factor`) |
 | `22` / `0x16` | `DEVICE_QUERY` | Consulta información y versión de firmware |
 | `23` / `0x17` | `EXPORT_PRIVATE_KEY`| Exporta la clave privada de identidad del nodo |
 | `24` / `0x18` | `IMPORT_PRIVATE_KEY`| Importa una clave privada de identidad al nodo |
@@ -274,8 +274,14 @@ MeshCore soporta hasta **8 canales concurrentes** (Canales 0 al 7):
 | `31` / `0x1F` | `GET_CHANNEL` | Consulta configuración de un canal específico |
 | `32` / `0x20` | `SET_CHANNEL` | Guarda o actualiza un canal (nombre, PSK) |
 | `36` / `0x24` | `SEND_TRACE_PATH` | Inicia trazado de ruta de radio (Traceroute) |
+| `37` / `0x25` | `SET_DEVICE_PIN` | Configura PIN del dispositivo para emparejamiento BLE / acceso |
+| `38` / `0x26` | `SET_PATH_HASH_MODE`| Modo de compresión hash para rutas multi-salto (0=full, 1=1B, 2=2B) |
 | `39` / `0x27` | `SEND_TELEMETRY_REQ`| Solicita reporte de telemetría a nodo remoto |
-| `46` / `0x2E` | `SET_AUTOADD_CONFIG`| Configura la directiva de auto-adición de nodos |
+| `40` / `0x28` | `SET_TELEMETRY_MODE`| Modos de telemetría base, ubicación y ambiental (0=off, 1=all, 2=contacts) |
+| `41` / `0x29` | `SET_ADVERT_LOC_POLICY`| Política de inclusión de ubicación GPS en anuncios advert (0=off, 1=on) |
+| `46` / `0x2E` | `SET_AUTOADD_CONFIG`| Configura la directiva de auto-adición / aprobación manual de nodos |
+| `61` / `0x3D` | `SET_CUSTOM_VAR` | Asigna variable personalizada de firmware (`key=val`) |
+| `64` / `0x40` | `SET_MULTI_ACKS` | Habilita confirmaciones múltiples de entrega en la malla |
 
 ### Notificaciones Asíncronas Push y Respuestas (`PacketType` - Radio $\to$ Host):
 | Código (Dec / Hex) | Mnemónico | Descripción |
