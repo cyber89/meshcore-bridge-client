@@ -843,6 +843,7 @@ export class NodesModule {
         card.setAttribute("data-online", presenceClass === "status-online" ? "1" : "0");
       }
 
+      // Señal: SNR y RSSI
       const snrEl = card.querySelector(".metric-snr, .stat-pill:nth-child(2) strong");
       if (snrEl) {
         snrEl.textContent = isDisconnected ? "--" : (isLocal ? "Local" : (node.last_snr != null ? `${node.last_snr} dB` : "--"));
@@ -855,6 +856,45 @@ export class NodesModule {
       if (lqiBadge) {
         lqiBadge.textContent = isDisconnected ? "--" : (isLocal ? "100%" : (node.lqi_score ? `${Math.round(node.lqi_score)}%` : "--"));
       }
+
+      // Saltos / Hops
+      const hopsEl = card.querySelector(".stat-pill:nth-child(3) strong");
+      if (hopsEl) {
+        hopsEl.textContent = isLocal ? "0" : (isDisconnected ? "--" : (node.hops != null ? (node.hops === 0 ? (window.I18n ? window.I18n.t('nodes.route_direct') : "Directo") : `${node.hops} ${window.I18n ? window.I18n.t('nodes.hops') : 'Hops'}`) : "--"));
+      }
+
+      // Chip de Batería
+      const batText = node.battery_pct != null ? `${node.battery_pct}%` : (node.voltage_v != null ? `${node.voltage_v}V` : null);
+      if (batText) {
+        let batEl = card.querySelector(".contact-battery-chip");
+        if (batEl) {
+          batEl.textContent = `🔋 ${batText}`;
+          batEl.title = window.I18n ? window.I18n.t('nodes.battery_title').replace('{val}', batText) : `Batería: ${batText}`;
+        } else {
+          const titleRow = card.querySelector(".contact-title-row, .node-card-badges-group");
+          if (titleRow) {
+            const chip = document.createElement("span");
+            chip.className = "contact-battery-chip";
+            chip.title = window.I18n ? window.I18n.t('nodes.battery_title').replace('{val}', batText) : `Batería: ${batText}`;
+            chip.textContent = `🔋 ${batText}`;
+            titleRow.insertBefore(chip, titleRow.firstChild);
+          }
+        }
+      }
+
+      // Telemetría / Ruta
+      const telemEl = card.querySelector(".node-telemetry-panel .node-meta-sub span:first-child");
+      if (telemEl) {
+        if (node.temperature_c != null) {
+          telemEl.innerHTML = `🌡️ <strong>${escapeHtml(String(node.temperature_c))}°C</strong> ${node.humidity_pct != null ? `💧 ${escapeHtml(String(node.humidity_pct))}%` : ""}`;
+        } else if (node.owner_name) {
+          telemEl.innerHTML = `${window.I18n ? window.I18n.t('nodes.owner_label') : "Dueño:"} <strong>${escapeHtml(node.owner_name)}</strong>`;
+        } else if (node.best_route || node.hops != null) {
+          telemEl.innerHTML = `${window.I18n ? window.I18n.t('nodes.route_label') : "Ruta:"} <strong>${escapeHtml(node.best_route || (node.hops === 0 ? (window.I18n ? window.I18n.t('nodes.route_direct') : "Directo") : (window.I18n ? window.I18n.t('nodes.route_mesh') : "Malla")))}</strong>`;
+        }
+      }
+
+      // Tiempo de actividad y tooltip
       const timeEl = card.querySelector(".node-last-seen, .node-card-activity");
       if (timeEl) {
         timeEl.textContent = lastSeenText;

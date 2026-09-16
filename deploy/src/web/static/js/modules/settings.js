@@ -932,6 +932,7 @@ export class SettingsModule {
   }
 
   renderChannelsList(channels) {
+    this.channelsList = Array.isArray(channels) ? channels : [];
     const listEl = this.dom.channelListUi || document.getElementById("channelListUi");
     if (!listEl) return;
     listEl.textContent = "";

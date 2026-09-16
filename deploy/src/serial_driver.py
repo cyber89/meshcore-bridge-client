@@ -948,12 +948,33 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         try:
             if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "set_channel"):
                 res = await self.mc.commands.set_channel(index, name, secret_bytes)
-                return {"status": "OK", "response": str(res)}
-            if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "send_cmd"):
+            elif hasattr(self.mc, "commands") and hasattr(self.mc.commands, "send_cmd"):
                 clean_ch_name = name.strip().replace('"', "")
                 cmd_str = f'set_chan {index} "{clean_ch_name}" {psk}'
                 res = await self.mc.commands.send_cmd(cmd_str)
-                return {"status": "OK", "response": str(res)}
+            else:
+                res = "OK"
+
+            # Actualizar la memoria RAM del SDK de MeshCore para sincronización inmediata
+            try:
+                reader = getattr(self.mc, "_reader", None) or getattr(self.mc, "reader", None)
+                packet_parser = getattr(reader, "packet_parser", None) if reader else None
+                if packet_parser and hasattr(packet_parser, "channels"):
+                    if isinstance(packet_parser.channels, list):
+                        if len(packet_parser.channels) <= index:
+                            packet_parser.channels.extend([{} for _ in range(1 + index - len(packet_parser.channels))])
+                        packet_parser.channels[index] = {"channel_idx": index, "channel_name": name, "channel_secret": secret_bytes}
+                if hasattr(self.mc, "channels"):
+                    if isinstance(self.mc.channels, dict):
+                        self.mc.channels[index] = {"index": index, "name": name, "psk": psk}
+                    elif isinstance(self.mc.channels, list):
+                        if len(self.mc.channels) <= index:
+                            self.mc.channels.extend([{} for _ in range(1 + index - len(self.mc.channels))])
+                        self.mc.channels[index] = {"index": index, "name": name, "psk": psk}
+            except Exception as e:
+                logging.debug(f"Error actualizando canal {index} en memoria del SDK: {e}")
+
+            return {"status": "OK", "response": str(res)}
         except Exception as e:
             logging.warning(f"Fallo aplicando canal al transceptor serial: {e}")
 
@@ -967,6 +988,23 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         if not self.is_connected or not self.mc:
             return {"status": "LOCAL_DELETED", "index": index}
 
+        # 1. Purgar inmediatamente la memoria RAM del SDK de MeshCore
+        try:
+            reader = getattr(self.mc, "_reader", None) or getattr(self.mc, "reader", None)
+            packet_parser = getattr(reader, "packet_parser", None) if reader else None
+            if packet_parser and hasattr(packet_parser, "channels"):
+                if isinstance(packet_parser.channels, list) and 0 <= index < len(packet_parser.channels):
+                    packet_parser.channels[index] = {}
+            if hasattr(self.mc, "channels"):
+                if isinstance(self.mc.channels, dict):
+                    self.mc.channels.pop(index, None)
+                    self.mc.channels.pop(str(index), None)
+                elif isinstance(self.mc.channels, list) and 0 <= index < len(self.mc.channels):
+                    self.mc.channels[index] = {}
+        except Exception as e:
+            logging.debug(f"Error limpiando canal {index} de la memoria del SDK: {e}")
+
+        # 2. Enviar orden de vaciado al firmware
         zero_secret = b"\x00" * 16
         try:
             if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "set_channel"):

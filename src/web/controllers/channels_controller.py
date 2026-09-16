@@ -26,6 +26,7 @@ class ChannelsController(BaseController):
             or "data/channels.json"
         )
         self.channels: dict[int, dict[str, Any]] = {}
+        self._deleted_channels: set[int] = set()
         self._load_channels()
 
     def _load_channels(self) -> None:
@@ -74,7 +75,7 @@ class ChannelsController(BaseController):
             return await self._export_channel(req_body)
 
         if method == "GET":
-            return await self._get_channels()
+            return await self._get_channels(sync_serial=False)
 
         if method == "POST":
             return await self._create_or_update_channel(req_body)
@@ -93,6 +94,12 @@ class ChannelsController(BaseController):
                 if node_channels is not None:
                     for ch in node_channels:
                         idx = int(ch.get("index", 0))
+                        # Si el canal fue eliminado explícitamente por el usuario, nunca resucitarlo
+                        if idx in self._deleted_channels:
+                            if idx in self.channels:
+                                del self.channels[idx]
+                            continue
+
                         ch_name = str(ch.get("name") or "").strip()
                         raw_psk = str(ch.get("psk") or "").strip()
                         # Un canal con nombre vacío y clave vacía o de ceros se considera slot libre/borrado
@@ -223,6 +230,7 @@ class ChannelsController(BaseController):
         if psk == "••••••••" and idx in self.channels:
             psk = str(self.channels[idx].get("psk", ""))
         self.channels[idx] = {"index": idx, "name": name, "psk": psk, "is_public": (idx == 0)}
+        self._deleted_channels.discard(idx)
         self._save_channels()
 
         ser = getattr(self.ctx.bridge, "serial_adapter", None)
@@ -248,25 +256,24 @@ class ChannelsController(BaseController):
         if idx == 0:
             return problem_details(400, "Bad Request", "No se puede eliminar el canal público 0", "cannot_delete_public_channel")
 
+        self._deleted_channels.add(idx)
         if idx in self.channels:
             del self.channels[idx]
-            self._save_channels()
+        self._save_channels()
 
-            # Enviar orden de vaciado de slot al transceptor serial si está activo
-            ser = getattr(self.ctx.bridge, "serial_adapter", None)
-            if ser:
-                try:
-                    if hasattr(ser, "delete_channel"):
-                        await ser.delete_channel(idx)
-                    elif hasattr(ser, "set_channel"):
-                        await ser.set_channel(idx, "", "00" * 16)
-                except Exception as e:
-                    logging.warning(f"Error borrando canal {idx} en el transceptor serial: {e}")
+        # Enviar orden de vaciado de slot al transceptor serial si está activo
+        ser = getattr(self.ctx.bridge, "serial_adapter", None)
+        if ser:
+            try:
+                if hasattr(ser, "delete_channel"):
+                    await ser.delete_channel(idx)
+                elif hasattr(ser, "set_channel"):
+                    await ser.set_channel(idx, "", "00" * 16)
+            except Exception as e:
+                logging.warning(f"Error borrando canal {idx} en el transceptor serial: {e}")
 
-            if self.ctx.broadcast_ws:
-                self.ctx.broadcast_ws({"type": "channels_updated", "data": self._get_masked_channels_list()})
+        if self.ctx.broadcast_ws:
+            self.ctx.broadcast_ws({"type": "channels_updated", "data": self._get_masked_channels_list()})
 
-            self.ctx.log_system_event("INFO", f"Canal {idx} eliminado del sistema", source="channels")
-            return 200, {"status": "ok", "message": f"Canal {idx} eliminado"}
-
-        return problem_details(404, "Not Found", f"Canal {idx} no encontrado", "channel_not_found")
+        self.ctx.log_system_event("INFO", f"Canal {idx} eliminado del sistema", source="channels")
+        return 200, {"status": "ok", "message": f"Canal {idx} eliminado"}
