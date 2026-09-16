@@ -132,29 +132,47 @@ meshcore-bridge/
 │       ├── http_server.py            # Servidor HTTP 1.1 y WebSocket Hub asíncrono
 │       ├── map_tile_service.py       # Servicio local de teselas de mapas offline
 │       ├── security_inspector.py     # Inspector de seguridad de peticiones
+│       └── static/                   # Archivos estáticos del frontend SPA
 │           ├── index.html            # Maquetación semántica SPA accesible (WCAG 2.2)
 │           ├── css/app.css           # Sistema de diseño Cyberpunk Slate en Vanilla CSS
 │           └── js/                   # Lógica reactiva Vanilla JS modularizada
 │               ├── app.js            # Entrypoint y orquestador de la SPA
+│               ├── i18n.js           # Soporte multilingüe (ES/EN/PT/FR/DE/IT/ZH/JA)
+│               ├── icons.js          # Biblioteca de iconos SVG inline
+│               ├── qrcode.js         # Generador de códigos QR para canales y contactos
+│               ├── core/             # Infraestructura compartida del frontend
+│               │   ├── eventbus.js   # Bus de eventos pub/sub desacoplado
+│               │   ├── storage.js    # Persistencia IndexedDB / localStorage reactiva
+│               │   ├── utils.js      # Utilidades: escapeHtml, formateo, sanitización
+│               │   └── websocket.js  # Cliente WebSocket con auto-reconnect y heartbeat
 │               └── modules/          # Módulos especializados por dominio
 │                   ├── analytics.js  # Métricas RF, LQI, Duty Cycle y gráficos
 │                   ├── chat.js       # Mensajería en canales públicos y DMs con ACK
-│                   ├── i18n.js       # Soporte multilingüe
 │                   ├── map.js        # Mapa GPS Leaflet con teselas offline
 │                   ├── nodes.js      # Directorio unificado de nodos (Filtros/Búsqueda)
-│                   ├── repeaters.js  # Centro de control y consola CLI de repetidores
-│                   ├── security.js   # Gestión visual de API Keys y permisos
+│                   ├── repeater.js   # Centro de control y consola CLI de repetidores
 │                   ├── settings.js   # Paridad 100% de parámetros del nodo local MeshCore
-│                   ├── state.js      # EventBus y almacenamiento reactivo
-│                   └── ui.js         # Modales, toasts, atajos (Ctrl+K) y accesibilidad
+│                   └── sniffer.js    # Monitor de paquetes RF en tiempo real
 ├── scripts/                          # Herramientas de despliegue, auditoría y simuladores
 │   ├── sync_deploy.py                # Generador del paquete de distribución autónomo (/deploy/)
 │   ├── validate_all_node_parameters.py # Validador exhaustivo de parámetros por tipo de nodo (137/137)
+│   ├── verify_all_components.py      # Verificación integral de todos los componentes del bridge
+│   ├── audit_codebase_integrity.py   # Auditoría de importaciones y referencias de producción
+│   ├── audit_frontend_browser.py     # Auditoría automatizada del frontend con Playwright
 │   ├── test_search_filters.py        # Validación automatizada de filtros y búsqueda reactiva
-│   ├── simulate_tcp_mesh_network.py  # Simulación integral TCP multi-nodo, saltos, DM, canales y repetidores
+│   ├── test_ip_and_security_logging.py # Verificación de logging de seguridad IP
+│   ├── simulate_tcp_mesh_network.py  # Simulación integral TCP multi-nodo con repetidores
+│   ├── simulate_full_mesh_validation.py # Validación exhaustiva de malla completa
+│   ├── simulate_concurrent_network.py # Simulación de red concurrente bajo carga
+│   ├── simulate_extreme_scenarios.py # Simulación de escenarios extremos y edge cases
 │   ├── simulate_mesh_network.py      # Simulación determinista multi-nodo de red LoRa
-│   ├── simulate_heltec_v4_mesh.py    # Simulador en vivo de hardware Heltec v4 y red LoRa
-│   └── inspect_web.py                # Automatización de capturas Playwright Desktop/Mobile
+│   ├── simulate_heltec_v4_mesh.py    # Simulador en vivo de hardware Heltec v4
+│   ├── run_all_test_categories.py    # Ejecutor de todas las categorías de pruebas
+│   ├── inspect_web.py                # Capturas Playwright Desktop/Mobile
+│   ├── inspect_all_views.py          # Inspector automatizado de todas las vistas SPA
+│   ├── export_logs.py                # Exportador de logs estructurados
+│   ├── build_diagrams.py             # Generador de diagramas de arquitectura
+│   └── generate_sample_mbtiles.py    # Generador de teselas de muestra para mapas offline
 ├── docs/                             # Documentación técnica completa
 │   ├── ARCHITECTURE.md               # Diagramas de arquitectura v3.0, clases y flujos
 │   ├── AUDIT_REPORT_2026-08-17.md    # Reporte de auditoría de seguridad
@@ -176,7 +194,6 @@ flowchart TB
     Bridge <--> Routers[Routers & Handlers]
     Routers <--> IO[Serial Driver / TCP Server]
     IO <--> HW((Hardware LoRa RF))
-```
 ```
 
 ---
@@ -237,19 +254,34 @@ python scripts/simulate_heltec_v4_mesh.py --live
 | :--- | :--- | :--- |
 | `SERIAL_PORT` | `AUTO` | Puerto serie USB (`/dev/ttyACM0`, `COM3` o `AUTO`). |
 | `BAUD_RATE` | `115200` | Velocidad de comunicación en baudios. |
+| `SERIAL_TIMEOUT` | `30.0` | Timeout de lectura serial en segundos. |
 | `MQTT_BROKER` | `127.0.0.1` | Dirección IP o host del broker Mosquitto. |
 | `MQTT_PORT` | `1883` | Puerto TCP del broker MQTT. |
+| `MQTT_KEEPALIVE` | `60` | Intervalo de keepalive MQTT en segundos. |
+| `MQTT_MAX_PAYLOAD_BYTES` | `131072` | Tamaño máximo de payload MQTT (128 KB). |
 | `TOPIC_PREFIX`| `meshcore` | Prefijo raíz de tópicos MQTT. |
 | `WEB_ENABLED` | `true` | Habilitar/Deshabilitar servidor web SPA integrado. |
 | `WEB_PORT` | `8080` | Puerto HTTP para la interfaz web y API REST. |
 | `BRIDGE_API_KEY` | *(vacía)* | Clave de autenticación API para el frontend/REST. |
 | `BRIDGE_ALLOWED_ORIGINS` | `http://localhost:8080,http://127.0.0.1:8080` | Orígenes CORS (LAN autorizada automáticamente). |
+| `WS_IDLE_TIMEOUT_SEC` | `30.0` | Timeout de inactividad WebSocket antes de ping. |
 | `TCP_SERVER_ENABLED` | `true` | Habilitar servidor TCP Companion. |
 | `TCP_SERVER_PORT` | `5000` | Puerto TCP para Companion Apps (Android/iOS). |
 | `MAX_COMPANION_CLIENTS` | `8` | Límite de conexiones simultáneas TCP companion. |
+| `COMPANION_ALLOWED_IPS` | *(vacía)* | IPs permitidas para Companion (vacía = todas). |
+| `COMPANION_TOKEN` | *(vacía)* | Token de autenticación para conexiones TCP. |
 | `LORA_DEFAULT_SF` | `11` | Spreading Factor por defecto (SF7 a SF12). |
 | `LORA_DEFAULT_BW_KHZ` | `250.0` | Ancho de banda LoRa en kHz. |
+| `LORA_DEFAULT_CR` | `5` | Coding Rate LoRa (5 = 4/5, 6 = 4/6, etc.). |
+| `LORA_PREAMBLE_LEN` | `8` | Longitud del preámbulo LoRa en símbolos. |
 | `TX_INTERVAL_SEC` | `1.0` | Espaciado mínimo entre paquetes RF (Rate Limiter). |
+| `MAX_TX_QUEUE_SIZE` | `500` | Tamaño máximo de la cola de transmisión TX. |
+| `MAX_RX_CONCURRENCY` | `20` | Concurrencia máxima de procesamiento RX. |
+| `DEDUPLICATION_WINDOW_SEC` | `60.0` | Ventana de deduplicación de ecos RF en segundos. |
+| `WATCHDOG_INTERVAL_SEC` | `60.0` | Intervalo del watchdog de supervisión serial. |
+| `HEALTH_METRICS_INTERVAL_SEC` | `60.0` | Intervalo de publicación de métricas de salud. |
+| `MAX_RECONNECT_ATTEMPTS` | `0` | Reintentos de reconexión serial (0 = infinito). |
 | `DATA_DIR` | `data` | Directorio raíz para almacenamiento JSON y persistencia. |
 | `LOG_LEVEL` | `INFO` | Nivel de registro (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
+
 

@@ -219,9 +219,16 @@ Documenta el uso de `install.ps1`:
 ```
 
 ### Modo de Simulación
-Documenta cómo ejecutar sin hardware usando VirtualMeshAdapter:
+Para probar el bridge sin hardware LoRa físico, utiliza los scripts de simulación incluidos que emplean el `VirtualMeshAdapter`:
 ```bash
-python meshcore_bridge.py --simulate
+# Demo interactiva con malla virtual de 4 nodos
+python run_interactive_demo.py
+
+# Simulación de red Heltec v4 (con interfaz web activa)
+python scripts/simulate_heltec_v4_mesh.py --live
+
+# Simulación de red TCP multi-nodo
+python scripts/simulate_tcp_mesh_network.py
 ```
 
 ### Mapas Offline

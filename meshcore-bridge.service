@@ -1,5 +1,5 @@
 [Unit]
-Description=MeshCore Heltec v4 LoRa to MQTT Bridge Service
+Description=MeshCore Universal Bridge & Web Station v3.0 Service
 After=network.target mosquitto.service
 Wants=mosquitto.service
 

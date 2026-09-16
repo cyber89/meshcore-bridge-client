@@ -59,12 +59,12 @@ El sistema sigue la filosofía de **Deep Modules** (John Ousterhout, *A Philosop
 - **`BaseSerialAdapter` (Seam)**: Costura o interfaz abstracta que desacopla la lógica del bridge del driver de hardware serie o SDK.
 - **`MeshcoreSDKAdapter`**: Adaptador concreto que envuelve el SDK oficial de MeshCore para comunicación con el chip LoRa.
 - **`MeshCoreBridge`**: Módulo profundo que orquesta el ciclo de vida del servicio, backpressure de colas y apagado ordenado (*graceful shutdown*).
-- **`PacketParser`**: Deserializador y decodificador binario de tramas MeshCore con validación estricta de CRC y longitud.
+- **`RawSerialFramingAdapter`**: Deserializador y decodificador binario de tramas MeshCore con validación estricta de CRC y longitud.
 - **`NodeRegistry`**: Módulo profundo para indexación rápida por clave pública y alias, persistencia y filtrado de contactos vs nodos de infraestructura.
 - **`RepeaterManager`**: Gestor de comandos administrativos remotos con control de cooldowns y deduplicación de respuestas.
 - **`RateLimiter`**: Limitador de tasa con algoritmo Token Bucket para proteger el canal de radio contra ráfagas no autorizadas.
-- **`MessageDeduplicator`**: Filtro de idempotencia para eventos entrantes y salientes.
-- **`MqttSubsystem`**: Conector asíncrono MQTT con soporte LWT (*Last Will and Testament*) y reconexión automática.
+- **`PacketDeduplicator`**: Filtro de idempotencia para eventos entrantes y salientes.
+- **`AsyncBridgeMQTTClient`**: Conector asíncrono MQTT con soporte LWT (*Last Will and Testament*) y reconexión automática.
 - **`HttpServer / WebSocketServer`**: Servidor ASGI nativo ligero en Vanilla Python con autenticación de sesión y difusión de eventos en tiempo real.
 
 ---

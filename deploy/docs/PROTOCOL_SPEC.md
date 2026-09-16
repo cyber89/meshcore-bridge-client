@@ -275,13 +275,13 @@ MeshCore soporta hasta **8 canales concurrentes** (Canales 0 al 7):
 | `32` / `0x20` | `SET_CHANNEL` | Guarda o actualiza un canal (nombre, PSK) |
 | `36` / `0x24` | `SEND_TRACE_PATH` | Inicia trazado de ruta de radio (Traceroute) |
 | `37` / `0x25` | `SET_DEVICE_PIN` | Configura PIN del dispositivo para emparejamiento BLE / acceso |
-| `38` / `0x26` | `SET_PATH_HASH_MODE`| Modo de compresión hash para rutas multi-salto (0=full, 1=1B, 2=2B) |
+| `38` / `0x26` | `SET_OTHER_PARAMS` | Configura parámetros secundarios |
 | `39` / `0x27` | `SEND_TELEMETRY_REQ`| Solicita reporte de telemetría a nodo remoto |
-| `40` / `0x28` | `SET_TELEMETRY_MODE`| Modos de telemetría base, ubicación y ambiental (0=off, 1=all, 2=contacts) |
-| `41` / `0x29` | `SET_ADVERT_LOC_POLICY`| Política de inclusión de ubicación GPS en anuncios advert (0=off, 1=on) |
-| `46` / `0x2E` | `SET_AUTOADD_CONFIG`| Configura la directiva de auto-adición / aprobación manual de nodos |
-| `61` / `0x3D` | `SET_CUSTOM_VAR` | Asigna variable personalizada de firmware (`key=val`) |
-| `64` / `0x40` | `SET_MULTI_ACKS` | Habilita confirmaciones múltiples de entrega en la malla |
+| `40` / `0x28` | `GET_CUSTOM_VARS` | Consulta variables personalizadas |
+| `41` / `0x29` | `SET_CUSTOM_VAR` | Configura una variable personalizada |
+| `58` / `0x3A` | `SET_AUTOADD_CONFIG`| Configura la directiva de auto-adición / aprobación manual de nodos |
+| `61` / `0x3D` | `SET_PATH_HASH_MODE`| Modo de compresión hash para rutas multi-salto (0=full, 1=1B, 2=2B) |
+| `64` / `0x40` | `GET_DEFAULT_FLOOD_SCOPE` | Consulta límite de saltos de inundación |
 
 ### Notificaciones Asíncronas Push y Respuestas (`PacketType` - Radio $\to$ Host):
 | Código (Dec / Hex) | Mnemónico | Descripción |
@@ -289,7 +289,7 @@ MeshCore soporta hasta **8 canales concurrentes** (Canales 0 al 7):
 | `0` / `0x00` | `OK` | ACK positivo a comando ejecutado con éxito |
 | `1` / `0x01` | `ERROR` | NACK o error de procesamiento de comando |
 | `2` / `0x02` | `CONTACT_START` | Inicio de transmisión de contactos almacenados |
-| `3` / `0x03` | `CONTACT` | Datos de un contacto individual (137 bytes) |
+| `3` / `0x03` | `CONTACT` | Datos de un contacto individual (147 bytes) |
 | `4` / `0x04` | `CONTACT_END` | Fin del listado de contactos |
 | `5` / `0x05` | `SELF_INFO` | Identidad, clave pública y configuración local |
 | `6` / `0x06` | `MSG_SENT` | Confirmación de trama transmitida al medio RF |

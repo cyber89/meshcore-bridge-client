@@ -204,7 +204,7 @@ Como parte de la auditoría de calidad (`clean-code-solid`), la *God Class* `Mes
 | `src/admin/` | (Command Pattern) | Subpaquete con ejecutores: `local_config_executor.py`, `repeater_executor.py`, `traceroute_executor.py`, `cli_command_executor.py` | Desacoplamiento de la ejecución de comandos y terminal CLI |
 | `src/web/controllers/` | (MVC Pattern) | Subpaquete con controladores REST: `base.py`, `channels_controller.py`, `config_controller.py`, `contacts_controller.py`, `logs_controller.py`, `nodes_controller.py`, `packets_controller.py`, `repeater_controller.py`, `system_controller.py`, `tx_controller.py` | Desacoplamiento de endpoints REST por dominio funcional |
 | `src/virtual_mesh_adapter.py` | `VirtualMeshAdapter` | Simulador de malla LoRa virtual | |
-| `src/lqi_engine.py` | `LQIEngine` | Motor de calidad de enlace (LQI/EMA) | |
+| `src/lqi_engine.py` | `LinkQualityEngine` | Motor de calidad de enlace (LQI/EMA) | |
 | `src/diagnostics.py` | `Diagnostics` | Diagnóstico de enlaces y rotación de logs | |
 | `src/target_resolver.py` | `TargetResolver` | Resolución de destinatarios y alias | |
 | `src/tcp_companion_server.py` | `TCPCompanionServer` | Servidor TCP Companion (puerto 5000) | |

@@ -361,6 +361,10 @@ class ContactsController(BaseController):
     async def _delete_contact(self, req_body: dict[str, Any], path_pubkey: str = "") -> tuple[int, dict[str, Any]]:
         """Elimina un contacto de la libreta."""
         pubkey = str(req_body.get("public_key", req_body.get("key", path_pubkey))).strip().lower()
+
+        if hasattr(self.ctx.bridge, "node_registry") and self.ctx.bridge.node_registry.is_local_key(pubkey):
+            return problem_details(400, "Bad Request", "No se permite eliminar la estación base local", "cannot_delete_local_station")
+
         ser = getattr(self.ctx.bridge, "serial_adapter", None)
         if ser and hasattr(ser, "remove_contact"):
             try:
