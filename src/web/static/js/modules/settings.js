@@ -68,6 +68,14 @@ export class SettingsModule {
     }, 1000);
   }
 
+  _notify(msg, type = "info") {
+    if (this.ctx && typeof this.ctx.showToast === "function") {
+      this.ctx.showToast(msg, type);
+    } else {
+      alert(msg);
+    }
+  }
+
   _bindElements() {
     this.dom = {
       channelListUi: document.getElementById("channelListUi"),
@@ -84,14 +92,8 @@ export class SettingsModule {
       chModalPskGroup: document.getElementById("chModalPskGroup"),
       chModalPsk: document.getElementById("chModalPsk"),
       btnGenRandomPsk: document.getElementById("btnGenRandomPsk"),
-      btnImportData: document.getElementById("btnImportData"),
-      btnHeaderImportContact: document.getElementById("btnHeaderImportContact"),
-      importModal: document.getElementById("importModal"),
-      btnCloseImportModal: document.getElementById("btnCloseImportModal"),
-      btnCancelImport: document.getElementById("btnCancelImport"),
-      importForm: document.getElementById("importForm"),
-      importPayloadInput: document.getElementById("importPayloadInput"),
-      btnExecuteImport: document.getElementById("btnExecuteImport"),
+      btnSaveChannel: document.getElementById("btnSaveChannel"),
+      btnOpenAddContact: document.getElementById("btnOpenAddContact"),
       btnHeaderAddContact: document.getElementById("btnHeaderAddContact"),
       createContactModal: document.getElementById("createContactModal"),
       btnCloseCreateContactModal: document.getElementById("btnCloseCreateContactModal"),
@@ -102,11 +104,10 @@ export class SettingsModule {
       contactModalFavorite: document.getElementById("contactModalFavorite"),
       contactModalFavBadge: document.getElementById("contactModalFavBadge"),
       qrShareModal: document.getElementById("qrShareModal"),
-      btnCloseQrModal: document.getElementById("btnCloseQrShareModal"),
+      btnCloseQrShareModal: document.getElementById("btnCloseQrShareModal"),
       btnCloseQrModalAction: document.getElementById("btnCloseQrModalAction"),
-      qrModalTitle: document.getElementById("qrShareTitle"),
-      qrCanvas: document.getElementById("qrShareCanvas"),
-      qrUriDisplay: document.getElementById("qrShareUri"),
+      qrShareCanvas: document.getElementById("qrShareCanvas"),
+      qrShareUri: document.getElementById("qrShareUri"),
       qrShareJson: document.getElementById("qrShareJson"),
       btnCopyQrUri: document.getElementById("btnCopyQrUri"),
       btnDownloadQrJson: document.getElementById("btnDownloadQrJson"),
@@ -144,11 +145,7 @@ export class SettingsModule {
 
       if (availableIndices.length === 0) {
         const msg = "No hay ranuras disponibles de canales secundarios (canales 1 a 7 ocupados). Elimina un canal antes de crear uno nuevo.";
-        if (this.ctx.showToast) {
-          this.ctx.showToast(msg, "warning");
-        } else {
-          alert(msg);
-        }
+        this._notify(msg, "warning");
         return;
       }
 
@@ -182,12 +179,20 @@ export class SettingsModule {
       if (this.dom.chModalName) this.dom.chModalName.focus();
     };
     const closeCreateChannel = () => {
-      if (this.dom.createChannelModal) this.dom.createChannelModal.classList.add("hidden");
+      if (this.dom.createChannelModal) {
+        this.dom.createChannelModal.classList.add("hidden");
+      }
     };
 
-    if (this.dom.btnAddChannel) this.dom.btnAddChannel.addEventListener("click", openCreateChannel);
-    if (this.dom.btnCloseCreateChannelModal) this.dom.btnCloseCreateChannelModal.addEventListener("click", closeCreateChannel);
-    if (this.dom.btnCancelCreateChannel) this.dom.btnCancelCreateChannel.addEventListener("click", closeCreateChannel);
+    if (this.dom.btnAddChannel) {
+      this.dom.btnAddChannel.addEventListener("click", openCreateChannel);
+    }
+    if (this.dom.btnCloseCreateChannelModal) {
+      this.dom.btnCloseCreateChannelModal.addEventListener("click", closeCreateChannel);
+    }
+    if (this.dom.btnCancelCreateChannel) {
+      this.dom.btnCancelCreateChannel.addEventListener("click", closeCreateChannel);
+    }
 
     if (this.dom.chModalIsEncrypted) {
       this.dom.chModalIsEncrypted.addEventListener("change", (e) => {
@@ -203,8 +208,6 @@ export class SettingsModule {
           this.dom.chModalPsk.required = isEnc;
           if (isEnc && !this.dom.chModalPsk.value) {
             this.dom.chModalPsk.value = this.generateRandomHex(32);
-          } else if (!isEnc) {
-            this.dom.chModalPsk.value = "";
           }
         }
       });
@@ -212,7 +215,9 @@ export class SettingsModule {
 
     if (this.dom.btnGenRandomPsk) {
       this.dom.btnGenRandomPsk.addEventListener("click", () => {
-        if (this.dom.chModalPsk) this.dom.chModalPsk.value = this.generateRandomHex(32);
+        if (this.dom.chModalPsk) {
+          this.dom.chModalPsk.value = this.generateRandomHex(32);
+        }
       });
     }
 
@@ -221,14 +226,13 @@ export class SettingsModule {
         e.preventDefault();
         const index = parseInt(this.dom.chModalIndex.value, 10);
         const name = this.dom.chModalName.value.trim();
-        const isEnc = this.dom.chModalIsEncrypted ? this.dom.chModalIsEncrypted.checked : true;
-        const psk = isEnc ? this.dom.chModalPsk.value.trim() : "";
-        if (!name) return;
+        const isEncrypted = this.dom.chModalIsEncrypted ? this.dom.chModalIsEncrypted.checked : true;
+        const psk = isEncrypted ? this.dom.chModalPsk.value.trim() : "";
 
         try {
           const res = await fetch("/api/channels", {
             method: "POST",
-            headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ index, name, psk }),
           });
           const data = await res.json();
@@ -238,10 +242,10 @@ export class SettingsModule {
             if (this.ctx.switchChannel) this.ctx.switchChannel(index);
             if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.ch_saved').replace('{index}', index).replace('{name}', escapeHtml(name)), "success");
           } else {
-            alert(`Error guardando canal: ${data.message || "Fallo desconocido"}`);
+            this._notify(`Error guardando canal: ${data.message || "Fallo desconocido"}`, "error");
           }
         } catch (err) {
-          alert(`Error de red al guardar canal: ${err.message}`);
+          this._notify(`Error de red al guardar canal: ${err.message}`, "error");
         }
       });
     }
@@ -302,10 +306,10 @@ export class SettingsModule {
             if (this.ctx.setDmTarget) this.ctx.setDmTarget(pubkey, name || pubkey);
             if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.contact_added').replace('{name}', name || pubkey.slice(0, 8)), "success");
           } else {
-            alert(`Error agregando contacto: ${data.message || "Fallo desconocido"}`);
+            this._notify(`Error agregando contacto: ${data.message || "Fallo desconocido"}`, "error");
           }
         } catch (err) {
-          alert(`Error de red al agregar contacto: ${err.message}`);
+          this._notify(`Error de red al agregar contacto: ${err.message}`, "error");
         }
       });
     }
@@ -1010,10 +1014,10 @@ export class SettingsModule {
                 window.showQrModal(`Canal ${chIdx}: ${chDisplayName}`, data.uri, data.data);
               }
             } else {
-              alert(`Error exportando canal: ${data.message || "Fallo desconocido"}`);
+              this._notify(`Error exportando canal: ${data.message || "Fallo desconocido"}`, "error");
             }
           } catch (err) {
-            alert(`Error obteniendo datos del canal: ${err.message}`);
+            this._notify(`Error obteniendo datos del canal: ${err.message}`, "error");
           }
         });
       }
@@ -1049,10 +1053,10 @@ export class SettingsModule {
               await this.fetchChannels();
             } else {
               const data = await res.json().catch(() => ({}));
-              alert(`Error al eliminar canal: ${data.detail || data.message || "Fallo desconocido"}`);
+              this._notify(`Error al eliminar canal: ${data.detail || data.message || "Fallo desconocido"}`, "error");
             }
           } catch (err) {
-            alert(`Error de red al eliminar canal: ${err.message}`);
+            this._notify(`Error de red al eliminar canal: ${err.message}`, "error");
           }
         });
       }
@@ -1096,7 +1100,7 @@ export class SettingsModule {
           if (this.ctx.switchChannel) this.ctx.switchChannel(idx);
           if (this.ctx.showToast) this.ctx.showToast(`Canal ${idx} ("${name}") importado correctamente`, "success");
         } else {
-          alert(`Error importando canal: ${data.message || "Fallo desconocido"}`);
+          this._notify(`Error importando canal: ${data.message || "Fallo desconocido"}`, "error");
         }
         return;
       }
@@ -1130,7 +1134,7 @@ export class SettingsModule {
               if (this.ctx.switchChannel) this.ctx.switchChannel(idx);
               if (this.ctx.showToast) this.ctx.showToast(`Canal ${idx} ("${name}") importado correctamente`, "success");
             } else {
-              alert(`Error importando canal: ${data.message || "Fallo desconocido"}`);
+              this._notify(`Error importando canal: ${data.message || "Fallo desconocido"}`, "error");
             }
             return;
           }
@@ -1150,10 +1154,10 @@ export class SettingsModule {
         const count = data.imported ?? (data.data ? (Array.isArray(data.data) ? data.data.length : 1) : 1);
         if (this.ctx.showToast) this.ctx.showToast(`Se importaron ${count} contacto(s) correctamente a la libreta`, "success");
       } else {
-        alert(`Error importando: ${data.message || "Formato no válido o contacto rechazado"}`);
+        this._notify(`Error importando: ${data.message || "Formato no válido o contacto rechazado"}`, "error");
       }
     } catch (err) {
-      alert(`Error de red al procesar importación: ${err.message}`);
+      this._notify(`Error de red al procesar importación: ${err.message}`, "error");
     }
   }
 
@@ -1558,10 +1562,10 @@ export class SettingsModule {
         this.populateLocalConfig(payload);
         if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.radio_cfg_ok'), "success");
       } else {
-        alert("Error guardando radio: " + (data.message || "desconocido"));
+        this._notify("Error guardando radio: " + (data.message || "desconocido"), "error");
       }
     } catch (e) {
-      alert("Error de red guardando radio: " + e.message);
+      this._notify("Error de red guardando radio: " + e.message, "error");
     }
   }
 
@@ -1594,10 +1598,10 @@ export class SettingsModule {
         this.populateLocalConfig(payload);
         if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.identity_ok'), "success");
       } else {
-        alert("Error guardando identidad: " + (data.message || "desconocido"));
+        this._notify("Error guardando identidad: " + (data.message || "desconocido"), "error");
       }
     } catch (e) {
-      alert("Error de red: " + e.message);
+      this._notify("Error de red: " + e.message, "error");
     }
   }
 

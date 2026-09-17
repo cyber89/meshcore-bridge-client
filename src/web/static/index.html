@@ -112,8 +112,8 @@
               <div class="chat-channels-header">
                 <span class="panel-title">Canales</span>
                 <div class="panel-btn-group">
-                  <button class="btn-xs btn-outline" id="btnImportData" title="Importar canal o contacto"><span data-lucide="download" data-size="13"></span></button>
-                  <button class="btn-xs btn-primary" id="btnAddChannel" title="Crear / Unirse a canal"><span data-lucide="plus-circle" data-size="13"></span></button>
+                  <button class="btn-xs btn-outline" id="btnImportData" title="Importar canal o contacto" aria-label="Importar canal o contacto"><span data-lucide="download" data-size="13"></span></button>
+                  <button class="btn-xs btn-primary" id="btnAddChannel" title="Crear / Unirse a canal" aria-label="Crear o unirse a canal"><span data-lucide="plus-circle" data-size="13"></span></button>
                 </div>
               </div>
               <ul class="channel-list" id="channelListUi" role="listbox" aria-label="Canales disponibles">
@@ -140,6 +140,9 @@
               <div class="chat-header">
                 <div class="header-title-group active-target-info">
                   <div class="target-title-row">
+                    <button type="button" class="btn-icon btn-channels-toggle-mobile" id="btnToggleChannelsMobile" title="Alternar Canales" aria-label="Alternar lista de canales">
+                      <span data-lucide="menu" data-size="16"></span>
+                    </button>
                     <h2 id="chatActiveTitle">Canal #0: Public</h2>
                   </div>
                   <p class="header-subtitle target-sub" id="chatActiveSub">Difusión comunitaria abierta por radio LoRa</p>
@@ -207,7 +210,7 @@
                 <span class="toggle-field-label"><span data-lucide="flame" data-size="14"></span> Heatmap RF</span>
                 <span class="toggle-state-badge badge-sm" id="mapHeatmapBadge">OFF</span>
                 <label class="toggle-switch toggle-sm" for="chkMapHeatmap">
-                  <input type="checkbox" id="chkMapHeatmap" />
+                  <input type="checkbox" id="chkMapHeatmap" role="switch" aria-label="Mapa de calor RF" />
                   <span class="toggle-slider"></span>
                 </label>
               </div>
@@ -236,7 +239,7 @@
                 <p class="header-subtitle">Directorio de contactos, nodos amigos y gestión de claves públicas de la red.</p>
               </div>
               <div class="header-actions">
-                <button class="btn-secondary" id="btnRefreshNodes" aria-label="Actualizar lista de contactos"><span data-lucide="refresh-cw" data-size="14"></span> Actualizar</button>
+                <button class="btn-secondary" id="btnRefreshContacts" aria-label="Actualizar lista de contactos"><span data-lucide="refresh-cw" data-size="14"></span> Actualizar</button>
                 <button class="btn-secondary" id="btnHeaderImportContact" aria-label="Importar contacto"><span data-lucide="download" data-size="14"></span> Importar</button>
                 <button class="btn-primary" id="btnHeaderAddContact" aria-label="Agregar nuevo contacto"><span data-lucide="plus" data-size="14"></span> Agregar Contacto</button>
               </div>
@@ -287,7 +290,7 @@
 
             <!-- Fila de Tarjetas KPI Superiores -->
             <div class="analytics-kpi-grid">
-              <div class="analytics-kpi-card">
+              <div class="analytics-kpi-card" id="cardKpiPackets">
                 <div class="kpi-icon"><span data-lucide="package" data-size="22"></span></div>
                 <div class="kpi-data">
                   <span class="kpi-label">Paquetes Totales Malla</span>
@@ -295,7 +298,7 @@
                   <span class="kpi-sub" id="kpiPacketsRatio">RX: 0 | TX: 0</span>
                 </div>
               </div>
-              <div class="analytics-kpi-card">
+              <div class="analytics-kpi-card" id="cardKpiNodes">
                 <div class="kpi-icon"><span data-lucide="globe" data-size="22"></span></div>
                 <div class="kpi-data">
                   <span class="kpi-label">Nodos Activos Registrados</span>
@@ -303,7 +306,7 @@
                   <span class="kpi-sub" id="kpiRepeatersCount">0 Repetidores en Malla</span>
                 </div>
               </div>
-              <div class="analytics-kpi-card">
+              <div class="analytics-kpi-card" id="cardKpiErrorRate">
                 <div class="kpi-icon"><span data-lucide="shield" data-size="22"></span></div>
                 <div class="kpi-data">
                   <span class="kpi-label">Tasa de Error Global</span>
@@ -311,7 +314,7 @@
                   <span class="kpi-sub" id="kpiErrorsTotal">0 errores acumulados</span>
                 </div>
               </div>
-              <div class="analytics-kpi-card">
+              <div class="analytics-kpi-card" id="cardKpiQueue">
                 <div class="kpi-icon"><span data-lucide="zap" data-size="22"></span></div>
                 <div class="kpi-data">
                   <span class="kpi-label">Cola de Transmisión TX</span>
@@ -324,7 +327,7 @@
             <!-- Paneles de Análisis Detallado -->
             <div class="analytics-sections-grid">
               <!-- Top Nodos por Tráfico -->
-              <div class="analytics-card">
+              <div class="analytics-card" id="cardTopActive">
                 <div class="analytics-card-header">
                   <span class="card-icon"><span data-lucide="trophy" data-size="18"></span></span>
                   <div>
@@ -351,7 +354,7 @@
               </div>
 
               <!-- Calidad de Señal RF (SNR / RSSI) -->
-              <div class="analytics-card">
+              <div class="analytics-card" id="cardSignal">
                 <div class="analytics-card-header">
                   <span class="card-icon"><span data-lucide="signal" data-size="18"></span></span>
                   <div>
@@ -377,7 +380,7 @@
               </div>
 
               <!-- Top Repetidores y Enrutamiento -->
-              <div class="analytics-card">
+              <div class="analytics-card" id="cardRepeaters">
                 <div class="analytics-card-header">
                   <span class="card-icon"><span data-lucide="radio-tower" data-size="18"></span></span>
                   <div>
@@ -403,7 +406,7 @@
               </div>
 
               <!-- Rendimiento del Sistema & Puente -->
-              <div class="analytics-card">
+              <div class="analytics-card" id="cardBridge">
                 <div class="analytics-card-header">
                   <span class="card-icon"><span data-lucide="cpu" data-size="18"></span></span>
                   <div>
@@ -486,7 +489,7 @@
                     <span class="toggle-field-label"><span data-lucide="bug" data-size="14"></span> Modo DEBUG</span>
                     <span class="toggle-state-badge badge-sm" id="debugModeBadge">OFF</span>
                     <label class="toggle-switch toggle-sm" for="chkDebugMode">
-                      <input type="checkbox" id="chkDebugMode" />
+                      <input type="checkbox" id="chkDebugMode" role="switch" aria-label="Modo DEBUG" />
                       <span class="toggle-slider"></span>
                     </label>
                   </div>
@@ -524,7 +527,7 @@
                   <span class="toggle-field-label"><span data-lucide="arrow-down" data-size="14"></span> Auto-Scroll</span>
                   <span class="toggle-state-badge badge-sm is-active-success" id="logsAutoScrollBadge">ON</span>
                   <label class="toggle-switch toggle-sm toggle-success" for="chkLogsAutoScroll">
-                    <input type="checkbox" id="chkLogsAutoScroll" checked />
+                    <input type="checkbox" id="chkLogsAutoScroll" role="switch" checked aria-label="Auto-scroll de logs" />
                     <span class="toggle-slider"></span>
                   </label>
                 </div>
@@ -546,7 +549,7 @@
                     <span class="toggle-field-label"><span data-lucide="radio" data-size="14"></span> Captura RF</span>
                     <span class="toggle-state-badge badge-sm is-active-success" id="snifferCaptureBadge">ON</span>
                     <label class="toggle-switch toggle-sm toggle-success" for="chkSnifferCapture">
-                      <input type="checkbox" id="chkSnifferCapture" checked />
+                      <input type="checkbox" id="chkSnifferCapture" role="switch" checked aria-label="Captura de paquetes RF" />
                       <span class="toggle-slider"></span>
                     </label>
                   </div>
@@ -815,7 +818,7 @@
                       <div style="display: flex; align-items: center; gap: 8px;">
                         <span class="toggle-state-badge" id="localRepeatBadge">OFF</span>
                         <label class="toggle-switch toggle-purple" for="localRepeatMode" title="Activar/desactivar reenvío de paquetes repetidor">
-                          <input type="checkbox" id="localRepeatMode" />
+                          <input type="checkbox" id="localRepeatMode" role="switch" aria-label="Modo repetidor / router" />
                           <span class="toggle-slider"></span>
                         </label>
                       </div>
@@ -887,7 +890,7 @@
                       <div style="display: flex; align-items: center; gap: 8px;">
                         <span class="toggle-state-badge" id="localAdvLocBadge">OFF</span>
                         <label class="toggle-switch toggle-blue" for="localAdvLocPolicy" title="Compartir coordenadas en balizas advert">
-                          <input type="checkbox" id="localAdvLocPolicy" />
+                          <input type="checkbox" id="localAdvLocPolicy" role="switch" aria-label="Compartir ubicación en anuncios" />
                           <span class="toggle-slider"></span>
                         </label>
                       </div>
@@ -902,7 +905,7 @@
                       <div style="display: flex; align-items: center; gap: 8px;">
                         <span class="toggle-state-badge" id="localMultiAcksBadge">OFF</span>
                         <label class="toggle-switch toggle-blue" for="localMultiAcks" title="Habilitar confirmaciones multi-ack">
-                          <input type="checkbox" id="localMultiAcks" />
+                          <input type="checkbox" id="localMultiAcks" role="switch" aria-label="Habilitar multi-acks" />
                           <span class="toggle-slider"></span>
                         </label>
                       </div>
@@ -917,7 +920,7 @@
                       <div style="display: flex; align-items: center; gap: 8px;">
                         <span class="toggle-state-badge" id="localManualAddBadge">OFF</span>
                         <label class="toggle-switch toggle-blue" for="localManualAddContacts" title="Aprobación manual de contactos entrantes">
-                          <input type="checkbox" id="localManualAddContacts" />
+                          <input type="checkbox" id="localManualAddContacts" role="switch" aria-label="Aprobación manual de contactos" />
                           <span class="toggle-slider"></span>
                         </label>
                       </div>
@@ -973,7 +976,7 @@
                       <div style="display: flex; align-items: center; gap: 8px;">
                         <span class="toggle-state-badge is-active" id="localPosFixedBadge">FIJA</span>
                         <label class="toggle-switch" for="localPosFixed" title="Alternar entre difusión de coordenadas fijas o desactivada">
-                          <input type="checkbox" id="localPosFixed" checked />
+                          <input type="checkbox" id="localPosFixed" role="switch" checked aria-label="Posición GPS fija" />
                           <span class="toggle-slider"></span>
                         </label>
                       </div>
@@ -1164,7 +1167,7 @@
                           <div style="display: flex; align-items: center; gap: 8px;">
                             <span class="toggle-state-badge is-active-success" id="chatSoundBadge">ON</span>
                             <label class="toggle-switch toggle-success" for="chkChatSoundAlerts" title="Activar o desactivar timbre de audio">
-                              <input type="checkbox" id="chkChatSoundAlerts" checked />
+                              <input type="checkbox" id="chkChatSoundAlerts" role="switch" checked aria-label="Timbre de alerta sonora" />
                               <span class="toggle-slider"></span>
                             </label>
                           </div>
@@ -1269,7 +1272,7 @@
       <div class="modal-card">
         <div class="modal-header">
           <h3 id="createChannelTitle"><span class="modal-title-icon" data-lucide="radio" data-size="18"></span> Configurar Canal LoRa</h3>
-          <button class="btn-icon modal-close" id="btnCloseCreateChannelModal">✕</button>
+          <button class="btn-icon modal-close" id="btnCloseCreateChannelModal" aria-label="Cerrar modal">✕</button>
         </div>
         <form id="createChannelForm" class="modal-body">
           <div class="form-group">
@@ -1300,7 +1303,7 @@
               <div style="display: flex; align-items: center; gap: 8px;">
                 <span class="toggle-state-badge is-active" id="chModalEncryptedBadge">CIFRADO</span>
                 <label class="toggle-switch toggle-sm" for="chModalIsEncrypted" title="Activar o desactivar cifrado AES-128">
-                  <input type="checkbox" id="chModalIsEncrypted" checked />
+                  <input type="checkbox" id="chModalIsEncrypted" role="switch" checked aria-label="Canal cifrado AES-128" />
                   <span class="toggle-slider"></span>
                 </label>
               </div>
@@ -1329,7 +1332,7 @@
       <div class="modal-card">
         <div class="modal-header">
           <h3 id="createContactTitle"><span class="modal-title-icon" data-lucide="user" data-size="18"></span> Agregar Nuevo Contacto</h3>
-          <button class="btn-icon modal-close" id="btnCloseCreateContactModal">✕</button>
+          <button class="btn-icon modal-close" id="btnCloseCreateContactModal" aria-label="Cerrar modal">✕</button>
         </div>
         <form id="createContactForm" class="modal-body">
           <div class="form-group">
@@ -1352,7 +1355,7 @@
               <div style="display: flex; align-items: center; gap: 8px;">
                 <span class="toggle-state-badge" id="contactModalFavBadge">NO</span>
                 <label class="toggle-switch toggle-sm" for="contactModalFavorite" title="Marcar como contacto favorito">
-                  <input type="checkbox" id="contactModalFavorite" />
+                  <input type="checkbox" id="contactModalFavorite" role="switch" aria-label="Marcar como favorito" />
                   <span class="toggle-slider"></span>
                 </label>
               </div>
@@ -1372,7 +1375,7 @@
       <div class="modal-card qr-modal-card">
         <div class="modal-header">
           <h3 id="qrShareTitle"><span class="modal-title-icon" data-lucide="qr-code" data-size="18"></span> Compartir por Código QR</h3>
-          <button class="btn-icon modal-close" id="btnCloseQrShareModal">✕</button>
+          <button class="btn-icon modal-close" id="btnCloseQrShareModal" aria-label="Cerrar modal">✕</button>
         </div>
         <div class="modal-body qr-modal-body">
           <div class="qr-modal-layout">
@@ -1670,7 +1673,7 @@
                       <div style="display: flex; align-items: center; gap: 8px;">
                         <span class="toggle-state-badge is-active-purple" id="radioRepeatBadge">ON</span>
                         <label class="toggle-switch toggle-purple" for="radioRepeatMode" title="Activar/desactivar reenvío de paquetes repetidor">
-                          <input type="checkbox" id="radioRepeatMode" checked />
+                          <input type="checkbox" id="radioRepeatMode" role="switch" checked aria-label="Modo repetidor activo" />
                           <span class="toggle-slider"></span>
                         </label>
                       </div>
@@ -1723,7 +1726,7 @@
                     <div style="display: flex; align-items: center; gap: 8px;">
                       <span class="toggle-state-badge is-active" id="repPosFixedBadge">FIJA</span>
                       <label class="toggle-switch" for="repPosFixed" title="Alternar entre coordenadas fijas o GPS dinámico">
-                        <input type="checkbox" id="repPosFixed" checked />
+                        <input type="checkbox" id="repPosFixed" role="switch" checked aria-label="Posición GPS fija del repetidor" />
                         <span class="toggle-slider"></span>
                       </label>
                     </div>
@@ -1958,7 +1961,7 @@
       <div class="modal-card">
         <div class="modal-header">
           <h3 id="importModalTitle"><span class="modal-title-icon" data-lucide="download" data-size="18"></span> Importar Canal o Contacto</h3>
-          <button class="btn-icon modal-close" id="btnCloseImportModal">✕</button>
+          <button class="btn-icon modal-close" id="btnCloseImportModal" aria-label="Cerrar modal">✕</button>
         </div>
         <form id="importForm" class="modal-body">
           <div class="form-group">

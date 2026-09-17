@@ -2,6 +2,45 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Auditoría Exhaustiva de Frontend, API REST y Servidor Web, Accesibilidad WCAG 2.2 y Optimización Móvil
+- **Fecha**: 2026-09-17
+- **Estado**: ✅ COMPLETADO (1. Backend HTTP: rechazo de JSON malformado con 400 Bad Request y validación estricta de método GET en teselas cartográficas /api/map/tiles/; 2. Rutas & Router: adición del endpoint /api/map/reload con reindexación automática de MBTiles, eliminación de código ensombrecido en _dispatch_nodes, _dispatch_config y _dispatch_misc, y validación acotada _safe_int() para limit y offset evitando errores 500; 3. Frontend Navegación Móvil: restauración del drawer de canales en dispositivos móviles (<= 900px) con botón discreto #btnToggleChannelsMobile en cabecera de chat y auto-cierre al seleccionar canal/DM; 4. Libreta de Contactos: corrección de ID #btnRefreshContacts en HTML y enlace de evento de refresco en nodes.js; 5. Accesibilidad WCAG 2.2 AA: rol switch y etiquetas aria-label añadidas a los 14 interruptores del sistema, etiquetas accesibles añadidas a botones de solo icono y botones de cierre modal; 6. i18n DOM_MAP: corrección de selectores rotos para contactos, analítica (#cardKpiPackets, etc.), controles de mapa y logs; 7. UX & Diálogos: sustitución de llamadas alert() bloqueantes en settings.js por notificaciones en-app toast con _notify(); 8. CSS & Estilo Visual: depuración de clases huérfanas como .security-chip y estandarización responsiva; 9. Verificación: ruff 0 errores, mypy strict 0 errores en 53 módulos, paridad de contratos 45/45 OK y sincronización en /deploy/).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect), Agente 5 (Security Auditor).
+- **Acciones Realizadas**:
+  1. **Servidor HTTP & Seguridad (`src/web/http_server.py`)**:
+     - En `_read_request_body`: Las excepciones en `json.loads` ahora emiten respuesta formal `400 Bad Request` con JSON estructurado en lugar de enmascarar cargas corruptas con `{"raw": ...}`.
+     - En `_handle_api_response`: Las peticiones a `/api/map/tiles/` verifican que el método HTTP sea `GET`; ante otros métodos retornan `405 Method Not Allowed`.
+  2. **Enrutador API REST (`src/web/api_router.py`)**:
+     - Implementado helper `_safe_int(val, default, min_val, max_val)` para parseo seguro y acotado de parámetros numéricos en paquetes (`limit` 1-500, `offset` 0-100000) y nodos.
+     - Añadido endpoint `/api/map/reload` y `/api/map/refresh` para reindexar archivos `.mbtiles` en caliente invocando `self.map_tile_service.reload_mbtiles()`.
+     - Purgadas rutas ensombrecidas y código muerto en `_dispatch_nodes` y `_dispatch_config` (ping y traceroute interceptados de antemano por `_dispatch_repeater`).
+  3. **Frontend SPA Modular (`index.html`, `app.css`, `chat.js`, `nodes.js`, `settings.js`, `i18n.js`)**:
+     - En `index.html`:
+       - Añadido botón `#btnToggleChannelsMobile` en `.target-title-row` de la cabecera de chat.
+       - Corregido el ID del botón de actualizar contactos a `#btnRefreshContacts`.
+       - Asignados IDs semánticos a las tarjetas KPI de analítica (`#cardKpiPackets`, `#cardKpiNodes`, `#cardKpiErrorRate`, `#cardKpiQueue`) y paneles de detalle (`#cardTopActive`, `#cardSignal`, `#cardRepeaters`, `#cardBridge`).
+       - Asignados `role="switch"` y atributos `aria-label` a los 14 switches del sistema.
+       - Añadidos atributos `aria-label="Cerrar modal"` a todos los botones `✕`.
+     - En `app.css`:
+       - Añadidos estilos para `.btn-channels-toggle-mobile` (oculto en desktop, visible en `<= 900px`).
+       - Eliminada clase huérfana `.security-chip`.
+     - En `chat.js`:
+       - Vinculado `#btnToggleChannelsMobile` para alternar la clase `.mobile-open` en el panel de canales.
+       - Implementado auto-cierre del panel al seleccionar canal o DM en pantalla táctil o móvil.
+     - En `nodes.js`:
+       - Vinculado `#btnRefreshContacts` para refrescar la libreta de contactos con feedback toast.
+     - En `settings.js`:
+       - Implementado método `_notify(msg, type)` que canaliza mensajes hacia `this.ctx.showToast()` evitando popups `alert()` nativos.
+     - En `i18n.js`:
+       - Alineados selectores de `DOM_MAP` para Contactos, Analítica, Mapa y Logs.
+  4. **Calidad y Verificación**:
+     - `ruff check src/ scripts/ tests/`: 0 errores.
+     - `mypy src/`: 0 errores en 53 módulos.
+     - `verify_api_parity.py`: 45/45 endpoints del frontend verificados al 100%.
+     - `sync_deploy.py`: Despliegue empaquetado y sincronizado exitosamente.
+
+---
+
 ### Hito: Rectificación Integral UI/UX Chat, Presencia Realista LoRa, Acción Ping Directa, Métricas en Vivo y CLI Oficial MeshCore
 - **Fecha**: 2026-09-16
 - **Estado**: ✅ COMPLETADO (1. Supresión de chip redundante `#chatSecurityChip` y botón QR `#btnShareTargetQr` en cabecera de chat; 2. Visualización dinámica y explícita del nombre del canal en `#chatActiveTitle` (Canal #0: Public, Canal #1: Operaciones, etc.); 3. Paridad bilingüe completa ES/EN en `i18n.js` y depuración de selectores DOM_MAP; 4. Erradicación de la fuga de la estación base local "Estación Local (Tú)" en la lista de Contactos y DMs en storage.js y chat.js; 5. Eliminación de control residual móvil `#btnToggleChannelsMobile`; 6. Corrección de la presencia permanente de nodos con umbrales realistas LoRa (<30m Activo, 30m-2h Inactivo, >=2h Desconectado) y purga de timestamps futuros en node_registry.json; 7. Botón interactivo 🎯 Ping directo en tarjetas de contactos y nodos con feedback RTT/SNR en toast; 8. Actualización en tiempo real de métricas analíticas por WebSockets y refresco periódico; 9. Eliminación de métricas de SNR espurias en transceptor local y verificación de los 19 parámetros configurables; 10. Rectificación del emulador de terminal web hacia el CLI canónico del Companion Protocol MeshCore (meshcore> y repeater>); 11. Suite de pruebas con 267 tests PASSED, 137/137 parámetros auditados, 45/45 paridad API REST/WS, 0 errores ruff, 0 errores mypy strict, sincronización limpia en /deploy/).

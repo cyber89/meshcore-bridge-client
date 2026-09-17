@@ -358,7 +358,15 @@ class MeshCoreWebServer:
                 return parsed
             return {"data": parsed}
         except Exception:
-            return {"raw": body_bytes.decode("utf-8", errors="ignore")}
+            cors_origin = self._calculate_cors_origin(headers)
+            await self._write_http_response(
+                writer,
+                "400 Bad Request",
+                b'{"error": "Bad Request", "detail": "Malformed JSON payload"}',
+                "application/json",
+                cors_origin=cors_origin,
+            )
+            return None
 
     def _calculate_cors_origin(self, headers: dict[str, str]) -> str:
         """Calcula el origen CORS autorizado comparando cabeceras y variables de entorno."""
@@ -401,14 +409,15 @@ class MeshCoreWebServer:
         await self._serve_static_file(ctx)
 
     async def _handle_cors_preflight(self, writer: asyncio.StreamWriter, cors_origin: str) -> None:
+        """Emite cabeceras de respuesta estándar para peticiones preflight CORS."""
         cors_headers = f"Access-Control-Allow-Origin: {cors_origin}\r\n" if cors_origin else ""
         writer.write(
             b"HTTP/1.1 204 No Content\r\n"
             + cors_headers.encode() +
             b"Access-Control-Allow-Methods: GET, POST, OPTIONS, DELETE\r\n"
-            b"Access-Control-Allow-Headers: Content-Type, Authorization, X-Api-Key\r\n"
-            b"Access-Control-Max-Age: 86400\r\n"
-            b"Connection: close\r\n\r\n"
+            + b"Access-Control-Allow-Headers: Content-Type, Authorization, X-Api-Key\r\n"
+            + b"Access-Control-Max-Age: 86400\r\n"
+            + b"Connection: close\r\n\r\n"
         )
         await writer.drain()
         writer.close()
@@ -417,6 +426,15 @@ class MeshCoreWebServer:
         """Procesa endpoints de la API REST ejecutando validaciones de teselas y autenticación."""
         # 1. Despacho especializado de teselas cartográficas binarias (/api/map/tiles/{z}/{x}/{y}.ext)
         if ctx.path.startswith("/api/map/tiles/"):
+            if ctx.method != "GET":
+                await self._write_http_response(
+                    ctx.writer,
+                    "405 Method Not Allowed",
+                    b'{"error": "Method Not Allowed", "detail": "Only GET is supported for map tiles"}',
+                    "application/json",
+                    cors_origin=ctx.cors_origin,
+                )
+                return
             if await self._serve_map_tile(ctx):
                 return
             await self._write_http_response(ctx.writer, "404 Not Found", b"", "image/png", cors_origin=ctx.cors_origin)

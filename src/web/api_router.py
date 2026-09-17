@@ -33,6 +33,15 @@ from src.web.controllers import (
 from src.web.map_tile_service import MapTileService
 
 
+def _safe_int(val: Any, default: int, min_val: int = 0, max_val: int = 100000) -> int:
+    """Convierte de forma segura cualquier entrada a entero acotado."""
+    try:
+        res = int(val)
+        return max(min_val, min(max_val, res))
+    except (ValueError, TypeError):
+        return default
+
+
 class WebAPIRouter:
     """Enrutador modular de API REST para el cliente web de MeshCore Bridge."""
 
@@ -382,18 +391,18 @@ class WebAPIRouter:
             if method == "DELETE":
                 return await self.packets_ctrl.clear_packets()
             if method == "GET":
-                limit = int(req_body.get("limit", 100))
-                offset = int(req_body.get("offset", 0))
+                limit = _safe_int(req_body.get("limit", 100), default=100, min_val=1, max_val=500)
+                offset = _safe_int(req_body.get("offset", 0), default=0, min_val=0, max_val=100000)
                 direction = ""
                 p_type = ""
                 if "?" in raw_path:
                     for part in raw_path.split("?", 1)[1].split("&"):
                         if "=" in part:
                             k, v = part.split("=", 1)
-                            if k.lower() == "limit" and v.isdigit():
-                                limit = int(v)
-                            elif k.lower() == "offset" and v.isdigit():
-                                offset = int(v)
+                            if k.lower() == "limit":
+                                limit = _safe_int(v, default=limit, min_val=1, max_val=500)
+                            elif k.lower() == "offset":
+                                offset = _safe_int(v, default=offset, min_val=0, max_val=100000)
                             elif k.lower() == "direction":
                                 direction = v
                             elif k.lower() == "type":
@@ -405,16 +414,16 @@ class WebAPIRouter:
     async def _dispatch_nodes(self, method: str, raw_path: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Despacha rutas de directorio de nodos y analítica al NodesController."""
         if clean_path == "/api/nodes" and method == "GET":
-            limit = int(req_body.get("limit", 100))
-            offset = int(req_body.get("offset", 0))
+            limit = _safe_int(req_body.get("limit", 100), default=100, min_val=1, max_val=500)
+            offset = _safe_int(req_body.get("offset", 0), default=0, min_val=0, max_val=100000)
             if "?" in raw_path:
                 for part in raw_path.split("?", 1)[1].split("&"):
                     if "=" in part:
                         k, v = part.split("=", 1)
-                        if k.lower() == "limit" and v.isdigit():
-                            limit = int(v)
-                        elif k.lower() == "offset" and v.isdigit():
-                            offset = int(v)
+                        if k.lower() == "limit":
+                            limit = _safe_int(v, default=limit, min_val=1, max_val=500)
+                        elif k.lower() == "offset":
+                            offset = _safe_int(v, default=offset, min_val=0, max_val=100000)
             return await self.nodes_ctrl.list_nodes(limit, offset)
 
         if clean_path in ("/api/lqi", "/api/link_quality") and method == "GET":
@@ -443,11 +452,6 @@ class WebAPIRouter:
                 for n in nodes
             ]
             return 200, {"status": "ok", "data": {"matrix": matrix}}
-
-        if clean_path in ("/api/nodes/ping_zero", "/api/nodes/ping", "/api/node/ping_zero", "/api/node/ping"):
-            if method == "POST":
-                return await self.repeater_ctrl.ping_zero(req_body)
-            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
         return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
@@ -564,16 +568,6 @@ class WebAPIRouter:
                 return await self.config_ctrl.reconnect_serial()
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
-        if clean_path in ("/api/node/ping_zero", "/api/node/ping", "/api/config/ping_zero"):
-            if method == "POST":
-                return await self.repeater_ctrl.ping_zero(req_body)
-            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
-
-        if clean_path in ("/api/node/traceroute", "/api/node/trace", "/api/config/traceroute"):
-            if method == "POST":
-                return await self.repeater_ctrl.traceroute(req_body)
-            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
-
         return problem_details(404, "Not Found", f"Ruta no encontrada: {method} {clean_path}", "route_not_found")
 
     async def _dispatch_misc(self, method: str, raw_path: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -581,16 +575,21 @@ class WebAPIRouter:
         if clean_path == "/api/map/status" and method == "GET":
             return 200, {"status": "ok", "data": self.map_tile_service.get_status()}
 
-        if clean_path in ("/api/diagnostics", "/api/health") and method == "GET":
-            return await self.system_ctrl.get_health()
+        if clean_path in ("/api/map/reload", "/api/map/refresh") and method in ("GET", "POST"):
+            try:
+                self.map_tile_service.reload_mbtiles()
+            except Exception as e:
+                logging.warning("Error recargando mosaicos de mapas: %s", e)
+            return 200, {
+                "status": "ok",
+                "message": "Archivos MBTiles reindexados correctamente",
+                "data": self.map_tile_service.get_status(),
+            }
 
         if clean_path in (
             "/api/messages",
             "/api/telemetry",
             "/api/logs",
-            "/api/system/logs",
-            "/api/diagnostics/report.md",
-            "/api/diagnostics/report",
             "/api/logs/download",
             "/api/logs/raw",
         ) and method == "GET":

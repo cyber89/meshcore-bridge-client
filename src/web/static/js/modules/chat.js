@@ -45,6 +45,7 @@ export class ChatModule {
       chatTargetName: document.getElementById("chatActiveTitle"),
       chatTargetSub: document.getElementById("chatActiveSub"),
       btnShareLocation: document.getElementById("btnShareLocation"),
+      btnToggleChannelsMobile: document.getElementById("btnToggleChannelsMobile"),
       dmListUi: document.getElementById("dmListUi"),
       clearChatBtn: document.getElementById("clearChatBtn"),
       dmCountBadge: document.getElementById("dmCountBadge"),
@@ -55,6 +56,15 @@ export class ChatModule {
   }
 
   _bindEvents() {
+    if (this.dom.btnToggleChannelsMobile) {
+      this.dom.btnToggleChannelsMobile.addEventListener("click", () => {
+        const panel = document.querySelector(".chat-channels-panel");
+        if (panel) {
+          panel.classList.toggle("mobile-open");
+        }
+      });
+    }
+
     if (this.dom.chatInputForm) {
       this.dom.chatInputForm.addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -186,6 +196,11 @@ export class ChatModule {
     const activeItem = document.querySelector(`.channel-item[data-channel-idx="${this.activeChannelIdx}"]`);
     if (activeItem) activeItem.classList.add("active");
 
+    const panel = document.querySelector(".chat-channels-panel");
+    if (panel && window.innerWidth <= 900) {
+      panel.classList.remove("mobile-open");
+    }
+
     this.renderCurrentConversation();
   }
 
@@ -233,6 +248,11 @@ export class ChatModule {
 
     const navBtn = document.querySelector('.nav-btn[data-tab="tab-chat"]');
     if (navBtn) navBtn.click();
+
+    const panel = document.querySelector(".chat-channels-panel");
+    if (panel && window.innerWidth <= 900) {
+      panel.classList.remove("mobile-open");
+    }
 
     this.renderCurrentConversation();
   }

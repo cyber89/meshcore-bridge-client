@@ -33,10 +33,21 @@ export class NodesModule {
       contactsSearchInput: document.getElementById("contactsSearchInput"),
       nodesSearchInput: document.getElementById("nodesSearchInput"),
       headerNodeCount: document.getElementById("headerNodeCount"),
+      btnRefreshContacts: document.getElementById("btnRefreshContacts"),
     };
   }
 
   _bindEvents() {
+    if (this.dom.btnRefreshContacts) {
+      this.dom.btnRefreshContacts.addEventListener("click", () => {
+        this.fetchNodes();
+        if (this.ctx.showToast) {
+          const t = window.I18n ? window.I18n.t : (k) => k;
+          this.ctx.showToast(t("contacts.refreshed") || "Contactos actualizados", "info");
+        }
+      });
+    }
+
     if (this.dom.contactsSearchInput) {
       const handleContactSearch = debounce((val) => {
         this.filterContactsGrid(val);
