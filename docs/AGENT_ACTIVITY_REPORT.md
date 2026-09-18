@@ -2,6 +2,38 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Optimización de Airtime y Rendimiento RF: Control de Duty Cycle, Persistencia Atómica en Disco y Alertas Progresivas
+- **Fecha**: 2026-09-18
+- **Estado**: ✅ COMPLETADO (1. Motor de Airtime & Rate Limiter: Implementación de alertas progresivas de dos niveles en AirtimeTracker: advertencia preventiva al 80% y alerta crítica al 100% del cupo horario regulatorio, en modo solo alerta sin bloqueo; 2. Persistencia Atómica en Disco (data/airtime_history.json): Historial deslizante de 24h preservado atómicamente con debounce y recargado al arrancar para evitar que reinicios o guardados de configuración reseteen el duty cycle; 3. Notificaciones & Telemetría: Evento WebSocket duty_cycle_alert, publicación MQTT en topic TOPIC_ALERT (meshcore/bridge/alert) y actualización de TOPIC_HEALTH; 4. Frontend SPA Reactivo: Chip superior #headerAirtimeChip con clases .warning y .danger dinámicas, barra de progreso en Analytics ajustada a límites dinámicos, escucha de evento DUTY_CYCLE_ALERT y toasts en-app; 5. Gobernanza: Creación de ADR 0004 y validación estricta de tipos mypy y ruff).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect), Agente 5 (Security Auditor).
+- **Acciones Realizadas**:
+  1. **Configuración del Sistema (`config.py`)**:
+     - Agregados parámetros: `DUTY_CYCLE_LIMIT_PCT` (default: `1.0`%), `DUTY_CYCLE_WARN_THRESHOLD_PCT` (default: `80.0`%), `AIRTIME_HISTORY_FILE` (`data/airtime_history.json`) y tópico MQTT `TOPIC_ALERT` (`{TOPIC_PREFIX}/bridge/alert`).
+     - Validación en `_validate_config()` para rangos estrictos de duty cycle (0.01% a 100.0%).
+  2. **Motor de Airtime & Rate Limiter (`src/rate_limiter.py`)**:
+     - `AirtimeRecord`: Métodos de serialización y deserialización `to_dict()` y `from_dict()`.
+     - `AirtimeTracker`:
+       - Persistencia atómica no bloqueante en disco (`save_history(sync=False)`) con debounce de 10 segundos y guardado forzado en transiciones y `TxRateLimiter.stop(sync=True)`.
+       - Rehidratación de transacciones de la ventana de 24 horas (`load_history()`) y poda automática.
+       - Máquina de estados (`normal`, `warning`, `critical`) y disparo reactivo de `on_alert_callback`.
+       - Retorno de estadísticas completas: `hourly_limit_pct`, `warn_threshold_pct`, `is_warning`, `is_critical`, `status_level`, `last_tx_time`, `channel_stats`.
+  3. **Orquestador Central (`src/bridge_core.py`)**:
+     - Conexión de `TxRateLimiter` con parámetros de duty cycle y callback `_on_duty_cycle_alert`.
+     - Despacho de eventos `duty_cycle_alert` a clientes WebSockets activos y publicación en MQTT en `TOPIC_ALERT`.
+  4. **Servidor HTTP & Controladores (`src/web/http_server.py`, `src/web/controllers/config_controller.py`)**:
+     - Difusión de métricas completas de duty cycle en el bucle WebSocket periódico y en `initial_metrics`.
+     - Soporte en `config_controller.py` para consultar y aplicar parámetros de duty cycle en caliente.
+  5. **Frontend SPA & Experiencia de Usuario (`app.js`, `analytics.js`, `eventbus.js`, `websocket.js`, `app.css`, `i18n.js`)**:
+     - Añadido evento canónico `EVENTS.DUTY_CYCLE_ALERT` en `eventbus.js` y `websocket.js`.
+     - En `app.js`: Vinculación de `#headerAirtimeChip` y `#headerDutyCycle` en `_bindElements`, método `updateAirtimeBadge(payload)` con estados visuales y toasts no intrusivos.
+     - En `analytics.js`: Cálculo de barra de progreso respecto al límite horario dinámico (`hourly_limit_pct`), clases `.normal`, `.warning`, `.danger` y sufijos de estado.
+     - En `app.css`: Micro-animación de pulso `airtimeDangerPulse` y estilos de fondo ámbar/rojo translúcido para chips y barras de progreso.
+     - En `i18n.js`: Claves de traducción completas en `DICT.es` y `DICT.en` para `analytics.*`.
+  6. **Gobernanza de Arquitectura**:
+     - Formalizado `docs/adr/0004-airtime-duty-cycle-alerting-and-persistence.md`.
+
+---
+
 ### Hito: Auditoría Exhaustiva de Frontend, API REST y Servidor Web, Accesibilidad WCAG 2.2 y Optimización Móvil
 - **Fecha**: 2026-09-17
 - **Estado**: ✅ COMPLETADO (1. Backend HTTP: rechazo de JSON malformado con 400 Bad Request y validación estricta de método GET en teselas cartográficas /api/map/tiles/; 2. Rutas & Router: adición del endpoint /api/map/reload con reindexación automática de MBTiles, eliminación de código ensombrecido en _dispatch_nodes, _dispatch_config y _dispatch_misc, y validación acotada _safe_int() para limit y offset evitando errores 500; 3. Frontend Navegación Móvil: restauración del drawer de canales en dispositivos móviles (<= 900px) con botón discreto #btnToggleChannelsMobile en cabecera de chat y auto-cierre al seleccionar canal/DM; 4. Libreta de Contactos: corrección de ID #btnRefreshContacts en HTML y enlace de evento de refresco en nodes.js; 5. Accesibilidad WCAG 2.2 AA: rol switch y etiquetas aria-label añadidas a los 14 interruptores del sistema, etiquetas accesibles añadidas a botones de solo icono y botones de cierre modal; 6. i18n DOM_MAP: corrección de selectores rotos para contactos, analítica (#cardKpiPackets, etc.), controles de mapa y logs; 7. UX & Diálogos: sustitución de llamadas alert() bloqueantes en settings.js por notificaciones en-app toast con _notify(); 8. CSS & Estilo Visual: depuración de clases huérfanas como .security-chip y estandarización responsiva; 9. Verificación: ruff 0 errores, mypy strict 0 errores en 53 módulos, paridad de contratos 45/45 OK y sincronización en /deploy/).

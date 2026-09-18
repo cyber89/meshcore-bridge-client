@@ -113,6 +113,8 @@ class MeshCoreApp {
       headerTxCount: document.getElementById("headerTxCount"),
       headerErrorRate: document.getElementById("headerErrorRate"),
       headerQueueDepth: document.getElementById("headerQueueDepth"),
+      headerAirtimeChip: document.getElementById("headerAirtimeChip"),
+      headerDutyCycle: document.getElementById("headerDutyCycle"),
     };
   }
 
@@ -353,8 +355,17 @@ class MeshCoreApp {
       if (this.dom.headerQueueDepth && payload.queue_depth != null) {
         this.dom.headerQueueDepth.textContent = String(payload.queue_depth);
       }
+      if (payload.duty_cycle_pct != null || payload.hourly_duty_cycle_pct != null) {
+        this.updateAirtimeBadge(payload);
+      }
       if (payload.radio_connected != null) {
         this.updateRadioBadge(Boolean(payload.radio_connected), payload.radio_port || "");
+      }
+    });
+
+    this.eventBus.on(EVENTS.DUTY_CYCLE_ALERT, (payload) => {
+      if (payload) {
+        this.updateAirtimeBadge(payload);
       }
     });
 
@@ -372,6 +383,9 @@ class MeshCoreApp {
       if (this.dom.headerQueueDepth && payload.queue_depth != null) {
         this.dom.headerQueueDepth.textContent = String(payload.queue_depth);
       }
+      if (payload.duty_cycle_pct != null || payload.hourly_duty_cycle_pct != null) {
+        this.updateAirtimeBadge(payload);
+      }
       if (payload.radio_connected != null) {
         this.updateRadioBadge(Boolean(payload.radio_connected), payload.radio_port || "");
       }
@@ -382,6 +396,45 @@ class MeshCoreApp {
         }
       }
     });
+  }
+
+  updateAirtimeBadge(payload) {
+    const chip = this.dom.headerAirtimeChip;
+    const txt = this.dom.headerDutyCycle;
+    if (!txt) return;
+
+    const pct = Number(payload.duty_cycle_pct != null ? payload.duty_cycle_pct : (payload.hourly_duty_cycle_pct || 0.0));
+    const limitPct = Number(payload.hourly_limit_pct || 1.0);
+    const warnPct = Number(payload.warn_threshold_pct || 80.0);
+    txt.textContent = `${pct.toFixed(1)}%`;
+
+    const isCritical = Boolean(payload.is_critical || payload.level === "critical" || (pct >= limitPct));
+    const isWarning = Boolean(payload.is_warning || payload.level === "warning" || (!isCritical && pct >= (limitPct * (warnPct / 100.0))));
+
+    let newStatus = "normal";
+    if (isCritical) newStatus = "critical";
+    else if (isWarning) newStatus = "warning";
+
+    if (chip) {
+      chip.classList.toggle("warning", isWarning);
+      chip.classList.toggle("danger", isCritical);
+      chip.title = isCritical
+        ? `ALERTA CRÍTICA: Duty Cycle LoRa al ${pct.toFixed(1)}% (Límite horario ${limitPct}% superado)`
+        : (isWarning
+          ? `ADVERTENCIA: Duty Cycle LoRa al ${pct.toFixed(1)}% (Supera el ${warnPct}% del cupo horario)`
+          : `Presupuesto de Airtime LoRa y Duty Cycle (1h): ${pct.toFixed(1)}% / ${limitPct}%`);
+    }
+
+    if (this._lastAirtimeStatus && this._lastAirtimeStatus !== newStatus) {
+      if (newStatus === "critical") {
+        this.showToast(`⚠️ Alerta Crítica: Duty Cycle LoRa al ${pct.toFixed(1)}%`, "error");
+      } else if (newStatus === "warning") {
+        this.showToast(`⚠️ Advertencia: Consumo de Airtime al ${pct.toFixed(1)}%`, "warning");
+      } else if (newStatus === "normal" && this._lastAirtimeStatus !== "normal") {
+        this.showToast(`✅ Duty Cycle LoRa restablecido a normal (${pct.toFixed(1)}%)`, "info");
+      }
+    }
+    this._lastAirtimeStatus = newStatus;
   }
 
   updateRadioBadge(connected, portName = "") {

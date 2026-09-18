@@ -333,26 +333,33 @@ export class AnalyticsModule {
   }
 
   renderAirtimeStats(airtime) {
+    if (!airtime) return;
     const usedMs = Number(airtime.hourly_used_ms || 0);
-    const budgetMs = Number(airtime.hourly_budget_ms || 360000);
-    const dutyCyclePct = Number(airtime.hourly_duty_cycle_pct || 0.0);
+    const limitPct = Number(airtime.hourly_limit_pct || 1.0);
+    const warnThresholdPct = Number(airtime.warn_threshold_pct || 80.0);
+    const budgetMs = Number(airtime.hourly_budget_ms || (3600000.0 * (limitPct / 100.0)));
+    const dutyCyclePct = Number(airtime.hourly_duty_cycle_pct != null ? airtime.hourly_duty_cycle_pct : (airtime.duty_cycle_pct || 0.0));
+
+    const isCritical = Boolean(airtime.is_critical || airtime.level === "critical" || (dutyCyclePct >= limitPct));
+    const isWarning = Boolean(airtime.is_warning || airtime.level === "warning" || (!isCritical && dutyCyclePct >= (limitPct * (warnThresholdPct / 100.0))));
 
     if (this.dom.analyticsAirtimeLabel) {
-      this.dom.analyticsAirtimeLabel.textContent = I18n.t('analytics.usage_pct').replace('{pct}', dutyCyclePct.toFixed(2));
+      const statusSuffix = isCritical ? " — 🔴 CRÍTICO" : (isWarning ? " — ⚠️ ADVERTENCIA" : "");
+      this.dom.analyticsAirtimeLabel.textContent = `${I18n.t('analytics.usage_pct').replace('{pct}', dutyCyclePct.toFixed(2))}${statusSuffix}`;
     }
     if (this.dom.analyticsAirtimeMs) {
-      this.dom.analyticsAirtimeMs.textContent = `${usedMs.toLocaleString()} ms / ${budgetMs.toLocaleString()} ms`;
+      this.dom.analyticsAirtimeMs.textContent = `${usedMs.toLocaleString()} ms / ${budgetMs.toLocaleString()} ms (Límite: ${limitPct}%)`;
     }
 
     if (this.dom.analyticsAirtimeFill) {
-      // Clampear el ancho visual entre 0% y 100%
-      const fillWidth = Math.min(Math.max((dutyCyclePct / 10.0) * 100, 0), 100);
+      // Clampear el ancho visual con respecto al límite horario (100% = límite completo)
+      const fillWidth = limitPct > 0 ? Math.min(Math.max((dutyCyclePct / limitPct) * 100, 0), 100) : 0;
       this.dom.analyticsAirtimeFill.style.width = `${fillWidth}%`;
 
       this.dom.analyticsAirtimeFill.classList.remove("normal", "warning", "danger");
-      if (dutyCyclePct >= 10.0) {
+      if (isCritical) {
         this.dom.analyticsAirtimeFill.classList.add("danger");
-      } else if (dutyCyclePct >= 1.0) {
+      } else if (isWarning) {
         this.dom.analyticsAirtimeFill.classList.add("warning");
       } else {
         this.dom.analyticsAirtimeFill.classList.add("normal");

@@ -54,6 +54,13 @@ class ConfigController(BaseController):
             "uptime_str": uptime_str,
             "airtime_ms": airtime_stats.get("hourly_used_ms", 0),
             "duty_cycle_pct": airtime_stats.get("hourly_duty_cycle_pct", 0.0),
+            "hourly_limit_pct": airtime_stats.get("hourly_limit_pct", 1.0),
+            "warn_threshold_pct": airtime_stats.get("warn_threshold_pct", 80.0),
+            "is_warning": airtime_stats.get("is_warning", False),
+            "is_critical": airtime_stats.get("is_critical", False),
+            "status_level": airtime_stats.get("status_level", "normal"),
+            "channel_stats": airtime_stats.get("channel_stats", {}),
+            "airtime": airtime_stats,
             "tx_count": int(tx_val) if isinstance(tx_val, (int, float)) else 0,
             "rx_count": int(rx_val) if isinstance(rx_val, (int, float)) else 0,
             "duplicate_packets": getattr(self.ctx.bridge, "dup_count", 0),
@@ -68,6 +75,19 @@ class ConfigController(BaseController):
 
     async def set_local_config(self, params: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Aplica cambios en los parámetros del transceptor o configuración de red."""
+        limiter = getattr(self.ctx.bridge, "rate_limiter", None)
+        if limiter and hasattr(limiter, "airtime_tracker"):
+            if "duty_cycle_limit_pct" in params:
+                try:
+                    limiter.airtime_tracker.duty_cycle_limit_pct = float(params["duty_cycle_limit_pct"])
+                except (ValueError, TypeError):
+                    pass
+            if "warn_threshold_pct" in params:
+                try:
+                    limiter.airtime_tracker.warn_threshold_pct = float(params["warn_threshold_pct"])
+                except (ValueError, TypeError):
+                    pass
+
         cmd = {"action": "set_local_config", "params": params}
         res = await self.ctx.bridge.handle_admin(cmd)
         self.ctx.log_system_event("INFO", f"Configuración de nodo local actualizada: {list(params.keys())}", source="admin")

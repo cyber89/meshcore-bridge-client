@@ -5868,23 +5868,41 @@ select {
    ⏱️ AIRTIME BUDGET & DUTY CYCLE STYLES
    ============================================================================== */
 .airtime-metric-chip {
-  transition: all 0.2s ease;
+  transition: all 0.25s ease;
 }
-.airtime-metric-chip.airtime-normal strong {
+.airtime-metric-chip.airtime-normal strong,
+.airtime-metric-chip.normal strong {
   color: var(--accent-success);
 }
-.airtime-metric-chip.airtime-warning {
-  border-color: var(--accent-warning);
+.airtime-metric-chip.airtime-warning,
+.airtime-metric-chip.warning {
+  border-color: var(--accent-warning) !important;
+  background: rgba(245, 158, 11, 0.12) !important;
 }
-.airtime-metric-chip.airtime-warning strong {
-  color: var(--accent-warning);
+.airtime-metric-chip.airtime-warning strong,
+.airtime-metric-chip.warning strong {
+  color: var(--accent-warning) !important;
 }
-.airtime-metric-chip.airtime-danger {
-  border-color: var(--accent-danger);
-  animation: pingPulse 1s infinite alternate;
+.airtime-metric-chip.airtime-danger,
+.airtime-metric-chip.danger {
+  border-color: var(--accent-danger) !important;
+  background: rgba(239, 68, 68, 0.15) !important;
+  animation: airtimeDangerPulse 1.2s infinite ease-in-out alternate;
 }
-.airtime-metric-chip.airtime-danger strong {
-  color: var(--accent-danger);
+.airtime-metric-chip.airtime-danger strong,
+.airtime-metric-chip.danger strong {
+  color: var(--accent-danger) !important;
+}
+
+@keyframes airtimeDangerPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+    transform: scale(1);
+  }
+  100% {
+    box-shadow: 0 0 8px 2px rgba(239, 68, 68, 0.65);
+    transform: scale(1.02);
+  }
 }
 
 /* ==============================================================================

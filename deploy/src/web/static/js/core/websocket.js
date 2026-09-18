@@ -77,6 +77,11 @@ export class MeshCoreWebSocketClient {
           return;
         }
 
+        if (pType === "duty_cycle_alert") {
+          this.eventBus.emit(EVENTS.DUTY_CYCLE_ALERT, payload);
+          return;
+        }
+
         this.eventBus.emit(EVENTS.RX_PACKET, payload);
       } catch (err) {
         console.error("Error parseando WebSocket payload:", err);

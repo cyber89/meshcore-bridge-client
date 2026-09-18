@@ -432,6 +432,19 @@
       'time.offline_days':          'Desconectado (hace {n}d)',
       'time.last_signal_tooltip':   'Última señal recibida: {time}',
       'time.no_signal':             'Sin señal registrada',
+
+      // Analytics & Airtime
+      'analytics.usage_pct':        'Consumo horario: {pct}%',
+      'analytics.airtime_normal':   'Consumo de Airtime normal',
+      'analytics.airtime_warning':  'Advertencia: Umbral preventivo alcanzado',
+      'analytics.airtime_critical': 'Alerta Crítica: Límite horario superado',
+      'analytics.pkts_waiting':     '{n} paquetes',
+      'analytics.online_broker':    'En línea',
+      'analytics.disconnected':     'Desconectado',
+      'analytics.repeater_count':   '{n} repetidores activos',
+      'analytics.errors_acc':       '{n} acumulados',
+      'analytics.packets_count':    '{n} paquetes',
+      'analytics.no_traffic':       'No hay tráfico registrado',
     },
 
     en: {
@@ -853,6 +866,19 @@
       'time.offline_days':          'Disconnected ({n}d ago)',
       'time.last_signal_tooltip':   'Last signal received: {time}',
       'time.no_signal':             'No signal recorded',
+
+      // Analytics & Airtime
+      'analytics.usage_pct':        'Hourly usage: {pct}%',
+      'analytics.airtime_normal':   'Airtime consumption normal',
+      'analytics.airtime_warning':  'Warning: Preventive threshold reached',
+      'analytics.airtime_critical': 'Critical Alert: Hourly budget exceeded',
+      'analytics.pkts_waiting':     '{n} packets',
+      'analytics.online_broker':    'Online',
+      'analytics.disconnected':     'Disconnected',
+      'analytics.repeater_count':   '{n} active repeaters',
+      'analytics.errors_acc':       '{n} accumulated',
+      'analytics.packets_count':    '{n} packets',
+      'analytics.no_traffic':       'No traffic recorded',
     },
   };
 

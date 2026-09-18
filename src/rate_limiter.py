@@ -9,8 +9,10 @@ from __future__ import annotations
 import asyncio
 import collections
 import heapq
+import json
 import logging
 import math
+import os
 import random
 import time
 from collections.abc import Awaitable, Callable
@@ -159,31 +161,166 @@ class AirtimeRecord:
     channel_idx: int = 0
     target: str | None = None
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "timestamp": self.timestamp,
+            "airtime_ms": self.airtime_ms,
+            "channel_idx": self.channel_idx,
+            "target": self.target,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> AirtimeRecord:
+        return cls(
+            timestamp=float(data.get("timestamp", 0.0)),
+            airtime_ms=float(data.get("airtime_ms", 0.0)),
+            channel_idx=int(data.get("channel_idx", 0)),
+            target=data.get("target"),
+        )
+
 
 class AirtimeTracker:
     """
     Rastreador de tiempo en el aire (Airtime) y cumplimiento de ciclo de trabajo (Duty Cycle)
-    con soporte de ventanas deslizantes de 1 hora y 24 horas.
+    con soporte de ventanas deslizantes de 1 hora y 24 horas, alertas progresivas de dos niveles
+    (preventiva 80% y crítica 100%) y persistencia atómica en disco.
     """
 
-    def __init__(self, duty_cycle_limit_pct: float = 1.0) -> None:
+    def __init__(
+        self,
+        duty_cycle_limit_pct: float = 1.0,
+        warn_threshold_pct: float = 80.0,
+        history_file: str | None = None,
+        on_alert_callback: Callable[[str, dict[str, Any]], None] | None = None,
+    ) -> None:
         self.duty_cycle_limit_pct = duty_cycle_limit_pct
+        self.warn_threshold_pct = warn_threshold_pct
+        self.history_file = history_file
+        self.on_alert_callback = on_alert_callback
+
         self._history: collections.deque[AirtimeRecord] = collections.deque()
         self.total_airtime_ms: float = 0.0
         self.total_packets: int = 0
         self._channel_airtime: dict[int, float] = {}
         self._channel_packets: dict[int, int] = {}
+        self._current_status: str = "normal"  # "normal", "warning", "critical"
+        self._last_save_time: float = 0.0
+        self._last_tx_time: float | None = None
+
+        if self.history_file:
+            self.load_history()
+
+    def load_history(self) -> None:
+        """Carga y rehidrata el historial de transmisiones desde el archivo persistente en disco."""
+        if not self.history_file or not os.path.isfile(self.history_file):
+            return
+        try:
+            with open(self.history_file, encoding="utf-8") as f:
+                data = json.load(f)
+
+            now = time.time()
+            cutoff_24h = now - 86400.0
+            recs = data.get("records", [])
+            loaded_count = 0
+            for r_data in recs:
+                try:
+                    rec = AirtimeRecord.from_dict(r_data)
+                    if rec.timestamp >= cutoff_24h:
+                        self._history.append(rec)
+                        self.total_airtime_ms += rec.airtime_ms
+                        self.total_packets += 1
+                        self._channel_airtime[rec.channel_idx] = (
+                            self._channel_airtime.get(rec.channel_idx, 0.0) + rec.airtime_ms
+                        )
+                        self._channel_packets[rec.channel_idx] = (
+                            self._channel_packets.get(rec.channel_idx, 0) + 1
+                        )
+                        if self._last_tx_time is None or rec.timestamp > self._last_tx_time:
+                            self._last_tx_time = rec.timestamp
+                        loaded_count += 1
+                except Exception:
+                    continue
+
+            stats = self.get_stats()
+            self._current_status = stats["status_level"]
+            logging.info(
+                f"AirtimeTracker: Rehidratados {loaded_count} registros de airtime desde {self.history_file}. "
+                f"Consumo 1h: {stats['hourly_used_ms']}ms ({stats['hourly_duty_cycle_pct']}%), Estado: {self._current_status}."
+            )
+        except Exception as e:
+            logging.warning(f"AirtimeTracker: No se pudo cargar historial previo de {self.history_file}: {e}")
+
+    def save_history(self, sync: bool = False) -> None:
+        """Guarda atómicamente el historial activo (ventana 24h) en disco."""
+        if not self.history_file:
+            return
+
+        now = time.time()
+        if not sync and (now - self._last_save_time) < 10.0:
+            return
+
+        self._prune(now)
+        try:
+            target_dir = os.path.dirname(os.path.abspath(self.history_file))
+            os.makedirs(target_dir, exist_ok=True)
+            temp_path = f"{self.history_file}.tmp"
+
+            payload = {
+                "version": 1,
+                "saved_at": now,
+                "duty_cycle_limit_pct": self.duty_cycle_limit_pct,
+                "warn_threshold_pct": self.warn_threshold_pct,
+                "total_airtime_ms": round(self.total_airtime_ms, 1),
+                "total_packets": self.total_packets,
+                "records": [r.to_dict() for r in self._history],
+            }
+            with open(temp_path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2)
+            os.replace(temp_path, self.history_file)
+            self._last_save_time = now
+        except Exception as e:
+            logging.warning(f"AirtimeTracker: Error al persistir historial en {self.history_file}: {e}")
 
     def record_tx(self, airtime_ms: float, channel_idx: int = 0, target: str | None = None) -> None:
-        """Registra una transmisión realizada."""
+        """Registra una transmisión realizada y evalúa alertas de umbral progresivo."""
         now = time.time()
         rec = AirtimeRecord(timestamp=now, airtime_ms=airtime_ms, channel_idx=channel_idx, target=target)
         self._history.append(rec)
         self.total_airtime_ms += airtime_ms
         self.total_packets += 1
+        self._last_tx_time = now
         self._channel_airtime[channel_idx] = self._channel_airtime.get(channel_idx, 0.0) + airtime_ms
         self._channel_packets[channel_idx] = self._channel_packets.get(channel_idx, 0) + 1
         self._prune(now)
+
+        stats = self.get_stats()
+        new_status = stats["status_level"]
+        status_changed = new_status != self._current_status
+        if status_changed:
+            old_status = self._current_status
+            self._current_status = new_status
+            if new_status == "critical":
+                logging.warning(
+                    f"⚠️ ALERTA CRÍTICA: Duty Cycle LoRa al {stats['hourly_duty_cycle_pct']}% "
+                    f"(límite {self.duty_cycle_limit_pct}% superado). Consumo: {stats['hourly_used_ms']}ms / {stats['hourly_budget_ms']}ms."
+                )
+            elif new_status == "warning":
+                logging.warning(
+                    f"⚠️ ADVERTENCIA: Duty Cycle LoRa al {stats['hourly_duty_cycle_pct']}% "
+                    f"(alcanzado {self.warn_threshold_pct}% del cupo horario de {self.duty_cycle_limit_pct}%)."
+                )
+            elif new_status == "normal" and old_status != "normal":
+                logging.info(
+                    f"✅ Duty Cycle LoRa restablecido a nivel normal: {stats['hourly_duty_cycle_pct']}%."
+                )
+
+            if self.on_alert_callback:
+                try:
+                    self.on_alert_callback(new_status, stats)
+                except Exception as e:
+                    logging.error(f"Error en on_alert_callback de AirtimeTracker: {e}")
+
+        self.save_history(sync=status_changed)
 
     def _prune(self, now: float) -> None:
         """Elimina registros anteriores a 24 horas."""
@@ -192,7 +329,7 @@ class AirtimeTracker:
             self._history.popleft()
 
     def get_stats(self) -> dict[str, Any]:
-        """Retorna estadísticas completas de consumo de Airtime y Duty Cycle."""
+        """Retorna estadísticas completas de consumo de Airtime, Duty Cycle y estado de alertas."""
         now = time.time()
         self._prune(now)
 
@@ -207,22 +344,35 @@ class AirtimeTracker:
                 hourly_ms += r.airtime_ms
                 hourly_pkts += 1
 
-        # Presupuesto de 1 hora: por ejemplo al 1% = 36,000 ms (36s)
         hourly_budget_ms = 3600.0 * 1000.0 * (self.duty_cycle_limit_pct / 100.0)
-        duty_cycle_pct = (hourly_ms / 3600000.0) * 100.0
+        duty_cycle_pct = (hourly_ms / 3600000.0) * 100.0 if hourly_ms > 0 else 0.0
+        warn_duty_pct = self.duty_cycle_limit_pct * (self.warn_threshold_pct / 100.0)
 
-        is_throttled = duty_cycle_pct >= self.duty_cycle_limit_pct if self.duty_cycle_limit_pct > 0 else False
+        is_critical = duty_cycle_pct >= self.duty_cycle_limit_pct if self.duty_cycle_limit_pct > 0 else False
+        is_warning = (not is_critical) and (duty_cycle_pct >= warn_duty_pct) if self.duty_cycle_limit_pct > 0 else False
+
+        if is_critical:
+            status_level = "critical"
+        elif is_warning:
+            status_level = "warning"
+        else:
+            status_level = "normal"
 
         return {
             "hourly_used_ms": round(hourly_ms, 1),
             "hourly_budget_ms": round(hourly_budget_ms, 1),
             "hourly_duty_cycle_pct": round(duty_cycle_pct, 3),
             "hourly_limit_pct": self.duty_cycle_limit_pct,
+            "warn_threshold_pct": self.warn_threshold_pct,
             "hourly_packets": hourly_pkts,
             "daily_used_ms": round(daily_ms, 1),
             "total_airtime_ms": round(self.total_airtime_ms, 1),
             "total_packets": self.total_packets,
-            "is_throttled": is_throttled,
+            "is_throttled": is_critical,
+            "is_warning": is_warning,
+            "is_critical": is_critical,
+            "status_level": status_level,
+            "last_tx_time": self._last_tx_time,
             "channel_stats": {
                 ch: {
                     "airtime_ms": round(self._channel_airtime.get(ch, 0.0), 1),
@@ -245,6 +395,9 @@ class TxRateLimiter:
         radio_config: LoRaRadioConfig | None = None,
         transmit_callback: Callable[[Any], Awaitable[Any]] | None = None,
         duty_cycle_limit_pct: float = 1.0,
+        warn_threshold_pct: float = 80.0,
+        history_file: str | None = None,
+        on_alert_callback: Callable[[str, dict[str, Any]], None] | None = None,
     ) -> None:
         self.tx_interval_sec = tx_interval_sec
         self.radio_config = radio_config or LoRaRadioConfig()
@@ -253,7 +406,12 @@ class TxRateLimiter:
         import os
         MAX_TX_QUEUE_SIZE = int(os.getenv("MAX_TX_QUEUE_SIZE", "500"))
         self.queue: CustomTxQueue = CustomTxQueue(maxsize=MAX_TX_QUEUE_SIZE)
-        self.airtime_tracker: AirtimeTracker = AirtimeTracker(duty_cycle_limit_pct=duty_cycle_limit_pct)
+        self.airtime_tracker: AirtimeTracker = AirtimeTracker(
+            duty_cycle_limit_pct=duty_cycle_limit_pct,
+            warn_threshold_pct=warn_threshold_pct,
+            history_file=history_file,
+            on_alert_callback=on_alert_callback,
+        )
         self._seq_counter = 0
         self._worker_task: asyncio.Task[None] | None = None
         self._running = False
@@ -290,6 +448,9 @@ class TxRateLimiter:
                 break
         if drained:
             logging.debug("TxRateLimiter: drenados %d items huérfanos al detener.", drained)
+
+        # Persistir historial de transmisiones en disco de forma segura
+        self.airtime_tracker.save_history(sync=True)
         logging.debug("TxRateLimiter worker detenido.")
 
     async def submit(

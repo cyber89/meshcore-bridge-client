@@ -98,8 +98,14 @@ class MeshCoreBridge:
             radio_config=LoRaRadioConfig(
                 sf=getattr(config, "LORA_DEFAULT_SF", 11),
                 bw_khz=getattr(config, "LORA_DEFAULT_BW_KHZ", 250.0),
+                cr=getattr(config, "LORA_DEFAULT_CR", 5),
+                preamble_len=getattr(config, "LORA_PREAMBLE_LEN", 8),
             ),
             transmit_callback=self._execute_tx_transmission,
+            duty_cycle_limit_pct=getattr(config, "DUTY_CYCLE_LIMIT_PCT", 1.0),
+            warn_threshold_pct=getattr(config, "DUTY_CYCLE_WARN_THRESHOLD_PCT", 80.0),
+            history_file=getattr(config, "AIRTIME_HISTORY_FILE", None),
+            on_alert_callback=self._on_duty_cycle_alert,
         )
         self.mqtt = AsyncBridgeMQTTClient(
             config=MQTTConfig(
@@ -834,6 +840,40 @@ class MeshCoreBridge:
     async def _execute_tx_transmission(self, item: TxItem) -> dict[str, Any]:
         """Callback real de emisión hacia el adaptador serial."""
         return await self._execute_tx(item)
+
+    def _on_duty_cycle_alert(self, level: str, stats: dict[str, Any]) -> None:
+        """Maneja transiciones de advertencia/crítico del ciclo de trabajo de radio."""
+        payload = {
+            "type": "duty_cycle_alert",
+            "event": "duty_cycle_alert",
+            "level": level,
+            "status_level": level,
+            "hourly_duty_cycle_pct": stats.get("hourly_duty_cycle_pct", 0.0),
+            "hourly_limit_pct": stats.get("hourly_limit_pct", 1.0),
+            "warn_threshold_pct": stats.get("warn_threshold_pct", 80.0),
+            "hourly_used_ms": stats.get("hourly_used_ms", 0.0),
+            "hourly_budget_ms": stats.get("hourly_budget_ms", 0.0),
+            "timestamp": time.time(),
+        }
+
+        # 1. Notificar a clientes WebSockets de la SPA
+        ws_server = self.web_server
+        if ws_server is not None:
+            try:
+                loop = self._custom_loop or asyncio.get_running_loop()
+                loop.create_task(ws_server.broadcast_event(payload))
+            except RuntimeError:
+                pass
+            except Exception as e:
+                logging.debug(f"Error emitiendo duty_cycle_alert a WebSockets: {e}")
+
+        # 2. Publicar en tópico MQTT de alertas
+        if getattr(self, "mqtt", None):
+            try:
+                alert_topic = getattr(config, "TOPIC_ALERT", f"{config.TOPIC_PREFIX}/bridge/alert")
+                self.mqtt.publish_safe(alert_topic, json.dumps(payload), qos=1)
+            except Exception as e:
+                logging.debug(f"Error publicando duty_cycle_alert en MQTT: {e}")
 
     def run_forever(self) -> None:
         """Punto de entrada síncrono que corre el bucle asyncio con manejo de señales."""

@@ -61,6 +61,7 @@ TOPIC_PREFIX = os.getenv("TOPIC_PREFIX", "meshcore").strip("/")
 
 TOPIC_STATE       = f"{TOPIC_PREFIX}/bridge/state"      # LWT: online / offline (retained)
 TOPIC_HEALTH      = f"{TOPIC_PREFIX}/bridge/health"     # Reporte periódico de salud y métricas
+TOPIC_ALERT       = f"{TOPIC_PREFIX}/bridge/alert"      # Notificaciones y alertas operativas (Airtime, Duty Cycle, etc.)
 TOPIC_RX_ALL      = f"{TOPIC_PREFIX}/rx/all"           # Tópico unificado para todos los eventos RX
 TOPIC_RX_PUBLIC   = f"{TOPIC_PREFIX}/rx/public"        # Canal 0 / broadcast
 TOPIC_RX_CHANNEL  = f"{TOPIC_PREFIX}/rx/channel"       # Canales secundarios: {prefix}/rx/channel/ch_{idx}
@@ -97,6 +98,9 @@ LORA_DEFAULT_SF = _safe_int("LORA_DEFAULT_SF", 11)                     # Spreadi
 LORA_DEFAULT_BW_KHZ = _safe_float("LORA_DEFAULT_BW_KHZ", 250.0)       # Ancho de banda en kHz (125, 250, 500)
 LORA_DEFAULT_CR = _safe_int("LORA_DEFAULT_CR", 5)                      # Coding Rate (5 = 4/5, 6 = 4/6, etc.)
 LORA_PREAMBLE_LEN = _safe_int("LORA_PREAMBLE_LEN", 8)                 # Símbolos de preámbulo
+DUTY_CYCLE_LIMIT_PCT = _safe_float("DUTY_CYCLE_LIMIT_PCT", 1.0)           # Límite horario de Duty Cycle en % (1.0% = 36s/h)
+DUTY_CYCLE_WARN_THRESHOLD_PCT = _safe_float("DUTY_CYCLE_WARN_THRESHOLD_PCT", 80.0) # Umbral de advertencia preventiva (80% del límite)
+AIRTIME_HISTORY_FILE = os.getenv("AIRTIME_HISTORY_FILE", os.path.join(DATA_DIR, "airtime_history.json"))
 
 # ================= Servidor Web Embebido y Cliente Web SPA =================
 WEB_ENABLED = os.getenv("WEB_ENABLED", "true").lower() in ("true", "1", "yes")
@@ -155,6 +159,12 @@ def _validate_config() -> None:
         warnings.append(f"WATCHDOG_INTERVAL_SEC={WATCHDOG_INTERVAL_SEC} < 5s may cause false disconnects")
     if WS_IDLE_TIMEOUT_SEC < 5.0:
         warnings.append(f"WS_IDLE_TIMEOUT_SEC={WS_IDLE_TIMEOUT_SEC} < 5s may cause premature WS disconnects")
+
+    # Duty Cycle & Airtime
+    if not (0.01 <= DUTY_CYCLE_LIMIT_PCT <= 100.0):
+        errors.append(f"DUTY_CYCLE_LIMIT_PCT={DUTY_CYCLE_LIMIT_PCT} must be between 0.01% and 100.0%")
+    if not (1.0 <= DUTY_CYCLE_WARN_THRESHOLD_PCT <= 100.0):
+        warnings.append(f"DUTY_CYCLE_WARN_THRESHOLD_PCT={DUTY_CYCLE_WARN_THRESHOLD_PCT} is non-standard (use 50-95%)")
 
     import logging as _log
     for w in warnings:
