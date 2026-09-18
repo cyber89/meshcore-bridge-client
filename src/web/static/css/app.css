@@ -1887,6 +1887,37 @@ body.light-theme .outgoing .card-sub {
   box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
 }
 
+.chat-char-counter {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-canvas, rgba(0, 0, 0, 0.2));
+  padding: 4px 8px;
+  border-radius: var(--radius-sm, 4px);
+  border: 1px solid var(--border-subtle);
+  white-space: nowrap;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.chat-char-counter.is-warning {
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.chat-char-counter.is-danger {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.5);
+  background: rgba(239, 68, 68, 0.16);
+  font-weight: 700;
+}
+
 
 /* Botones Estandarizados */
 .btn-primary {
@@ -5157,8 +5188,8 @@ select {
     top: 0;
     left: 0;
     bottom: 0;
-    width: 280px;
-    max-width: 85vw;
+    width: 100%;
+    max-width: 100%;
     z-index: 50;
     box-shadow: 4px 0 16px rgba(0, 0, 0, 0.6);
     transform: translateX(-105%);

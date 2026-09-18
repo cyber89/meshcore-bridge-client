@@ -163,15 +163,15 @@
                 <!-- Menú Flotante de Adjuntos -->
                 <div class="chat-attach-menu hidden" id="chatAttachMenu" role="menu" aria-label="Opciones de adjuntos">
                   <button type="button" class="attach-item" id="attachOptionContact" role="menuitem">
-                    <span class="attach-icon attach-icon-contact">👤</span>
+                    <span class="attach-icon attach-icon-contact"><span data-lucide="user-plus" data-size="16"></span></span>
                     <span class="attach-label">Compartir Contacto</span>
                   </button>
                   <button type="button" class="attach-item" id="attachOptionChannel" role="menuitem">
-                    <span class="attach-icon attach-icon-channel">📻</span>
+                    <span class="attach-icon attach-icon-channel"><span data-lucide="radio" data-size="16"></span></span>
                     <span class="attach-label">Compartir Canal</span>
                   </button>
                   <button type="button" class="attach-item" id="attachOptionLocation" role="menuitem">
-                    <span class="attach-icon attach-icon-location">📍</span>
+                    <span class="attach-icon attach-icon-location"><span data-lucide="map-pin" data-size="16"></span></span>
                     <span class="attach-label">Ubicación GPS</span>
                   </button>
                 </div>
@@ -190,6 +190,7 @@
                   <button type="button" class="btn-icon btn-chat-tool" id="btnEmojiPicker" title="Insertar emoticones" aria-label="Insertar emoticones"><span data-lucide="smile" data-size="18"></span></button>
                   <button type="button" class="btn-icon btn-chat-tool" id="btnChatAttach" title="Adjuntar contacto, canal o ubicación" aria-label="Adjuntar contenido"><span data-lucide="paperclip" data-size="18"></span></button>
                   <input type="text" id="chatInputText" placeholder="Escribe un mensaje para transmitir por RF..." autocomplete="off" required aria-label="Texto del mensaje a transmitir" />
+                  <span class="chat-char-counter" id="chatCharCounter" title="Presupuesto de transmisión LoRa (160 bytes máx. en UTF-8)">0 / 160 B</span>
                   <button type="submit" class="btn-primary" id="btnSendMsg" aria-label="Enviar mensaje por radio">
                     <span>Enviar</span> <span aria-hidden="true" data-lucide="send" data-size="14"></span>
                   </button>

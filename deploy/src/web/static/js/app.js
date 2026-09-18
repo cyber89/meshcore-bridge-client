@@ -49,6 +49,9 @@ class MeshCoreApp {
       updateRadioBadge: (ok, port) => this.updateRadioBadge(ok, port),
       get activeChannelIdx() { return self.chatModule ? self.chatModule.activeChannelIdx : 0; },
       get activeDmTarget() { return self.chatModule ? self.chatModule.activeDmTarget : null; },
+      get settingsModule() { return self.settingsModule; },
+      get channelsList() { return self.settingsModule?.channelsList || []; },
+      get localConfig() { return self.settingsModule?.cachedConfig || {}; },
       renderNodesDirectory: () => self.nodesModule?.renderNodesDirectory?.(),
       updateNodeInDom: (a, b) => self.nodesModule?.updateNodeInDom?.(a, b),
     };

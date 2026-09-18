@@ -2,6 +2,35 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Modernización de Chat Estilo WhatsApp, Iconos Vectoriales Lucide, Exclusión de Canal 0 y Contador Dinámico LoRa UTF-8
+- **Fecha**: 2026-09-18
+- **Estado**: ✅ COMPLETADO (1. Estética WhatsApp Web/Mobile: Burbujas de chat asimétricas salientes verde WhatsApp / entrantes neutro con cola discreta, marcas temporales relativas inteligentes HH:mm / DD/MM/AAAA, separadores centrados de fecha HOY / AYER / fecha completa, e indicadores de entrega con doble check azul ✓✓; 2. Iconos Vectoriales Lucide: Incorporación en icons.js de definiciones SVG offline completas para smile, paperclip, user-plus, user-check, arrow-left, shield-alert y git-commit, garantizando renderizado nítido en compositor, menús de adjunto y tarjetas; 3. Modales y Tarjetas Interactivas: Menú de adjuntos con opciones de Compartir Contacto, Compartir Canal y Ubicación GPS con tarjetas interactivas meshcore:// en el feed; 4. Exclusión Estricta de Canal 0 en Compartir: En _populateShareChannelList de chat.js se filtra estrictamente ch.index > 0, excluyendo de forma absoluta el canal 0 (público universal) y mostrando estado vacío informativo si no hay canales privados; 5. Contador Dinámico LoRa UTF-8: Medición en tiempo real de longitud de carga útil en bytes considerando codificación multi-byte (4 bytes por emoji, 2 bytes por tildes/eñes) frente al límite físico/lógico del protocolo MeshCore (160 bytes máx. en MAX_LORA_TEXT_BYTES), cálculo de airtime estimado en milisegundos según modulación activa SF/BW/CR del transceptor y bloqueo preventivo de envíos con advertencia visual y toasts en caso de superación; 6. Navegación Móvil: Sincronización fluida con botón de retroceso #btnBackToChannelsMobile y panel de canales al 100% de ancho; 7. Verificación: ruff 0 errores, mypy strict 0 errores en 53 módulos, audit_codebase_integrity 100% PASS, frontend linter 100% PASS y sincronización en /deploy/).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Firmware Investigator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect), Agente 5 (Security Auditor).
+- **Acciones Realizadas**:
+  1. **Librería de Iconos Vectoriales (`src/web/static/js/icons.js`)**:
+     - Agregadas las definiciones SVG de `smile`, `paperclip`, `user-plus`, `user-check`, `arrow-left`, `shield-alert` y `git-commit`.
+     - Soporte para renderizado dinámico en tiempo de ejecución invocando `initLucideIcons(container)`.
+  2. **Estructura HTML & Compositor (`src/web/static/index.html`)**:
+     - Reemplazados los glifos planos en `#chatAttachMenu` por `<span data-lucide="user-plus">`, `<span data-lucide="radio">` y `<span data-lucide="map-pin">`.
+     - Añadido badge dinámico `#chatCharCounter` en el formulario `#chatInputForm`.
+  3. **Estilos CSS Modernos (`src/web/static/css/app.css`)**:
+     - Estilos para `.chat-char-counter` con tipografía monoespaciada, estados `.is-warning` (>= 80%) y `.is-danger` (> 160B).
+     - Ajuste del panel lateral `.chat-channels-panel` en pantallas móviles $\le 900\text{px}$ para ocupar el 100% de ancho.
+  4. **Utilidades Centrales (`src/web/static/js/core/utils.js`)**:
+     - Constante exportada `MAX_LORA_TEXT_BYTES = 160`.
+     - Función `getUtf8ByteLength(str)` para conteo exacto de bytes UTF-8 (emojis de 4 bytes, caracteres extendidos).
+     - Función `estimateLoraAirtimeMs(payloadBytes, sf, bwKhz, cr, preamble)` con la fórmula canónica de modulación LoRa de Semtech.
+  5. **Contexto de la Aplicación (`src/web/static/js/app.js`)**:
+     - Getters `settingsModule`, `channelsList` y `localConfig` expuestos reactivamente en `this.context`.
+  6. **Módulo de Mensajería (`src/web/static/js/modules/chat.js`)**:
+     - Filtro estricto en `_populateShareChannelList()` que excluye el canal 0 y despliega estado vacío guiado.
+     - Método `updateCharCounter()` con conteo en vivo de bytes, caracteres y cálculo de ocupación de espectro en ms.
+     - Guarda preventiva en `sendMessage()` que impide transmitir tramas que excedan los 160 bytes de carga útil.
+     - Invocación de `updateCharCounter()` en eventos `input`, al insertar emoticones (`insertEmoji`) y al enviar/limpiar.
+     - Reactivación automática de iconos en los modales de compartir mediante `window.initLucideIcons()`.
+
+---
+
 ### Hito: Optimización de Airtime y Rendimiento RF: Control de Duty Cycle, Persistencia Atómica en Disco y Alertas Progresivas
 - **Fecha**: 2026-09-18
 - **Estado**: ✅ COMPLETADO (1. Motor de Airtime & Rate Limiter: Implementación de alertas progresivas de dos niveles en AirtimeTracker: advertencia preventiva al 80% y alerta crítica al 100% del cupo horario regulatorio, en modo solo alerta sin bloqueo; 2. Persistencia Atómica en Disco (data/airtime_history.json): Historial deslizante de 24h preservado atómicamente con debounce y recargado al arrancar para evitar que reinicios o guardados de configuración reseteen el duty cycle; 3. Notificaciones & Telemetría: Evento WebSocket duty_cycle_alert, publicación MQTT en topic TOPIC_ALERT (meshcore/bridge/alert) y actualización de TOPIC_HEALTH; 4. Frontend SPA Reactivo: Chip superior #headerAirtimeChip con clases .warning y .danger dinámicas, barra de progreso en Analytics ajustada a límites dinámicos, escucha de evento DUTY_CYCLE_ALERT y toasts en-app; 5. Gobernanza: Creación de ADR 0004 y validación estricta de tipos mypy y ruff).

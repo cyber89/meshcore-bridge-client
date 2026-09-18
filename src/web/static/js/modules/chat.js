@@ -13,6 +13,9 @@ import {
   buildMeshCoreChannelUri,
   parseMeshCoreUri,
   MESHCORE_PUBLIC_CHANNEL_SECRET,
+  MAX_LORA_TEXT_BYTES,
+  getUtf8ByteLength,
+  estimateLoraAirtimeMs,
 } from "../core/utils.js";
 import { EVENTS } from "../core/eventbus.js";
 
@@ -69,6 +72,10 @@ export class ChatModule {
     this._subscribeBus();
     this.loadInitialHistory();
     this._renderEmojiGrid("smileys");
+    this.updateCharCounter();
+    if (window.innerWidth <= 900 && this.dom.sidebarChannelList) {
+      this.dom.sidebarChannelList.classList.add("mobile-open");
+    }
   }
 
   _bindElements() {
@@ -76,6 +83,8 @@ export class ChatModule {
       chatMessageFeed: document.getElementById("chatMessageFeed"),
       chatInputForm: document.getElementById("chatInputForm"),
       chatInputText: document.getElementById("chatInputText"),
+      chatCharCounter: document.getElementById("chatCharCounter"),
+      btnSendMsg: document.getElementById("btnSendMsg"),
       chatTargetName: document.getElementById("chatActiveTitle"),
       chatTargetSub: document.getElementById("chatActiveSub"),
       chatTargetAvatar: document.getElementById("chatTargetAvatar"),
@@ -117,7 +126,7 @@ export class ChatModule {
   _bindEvents() {
     // Botón de retorno a canales en móvil (estilo WhatsApp)
     const handleMobileBack = () => {
-      const panel = document.querySelector(".chat-channels-panel");
+      const panel = this.dom.sidebarChannelList || document.querySelector(".chat-channels-panel");
       if (panel) {
         panel.classList.toggle("mobile-open");
       }
@@ -127,6 +136,11 @@ export class ChatModule {
     }
     if (this.dom.btnToggleChannelsMobile) {
       this.dom.btnToggleChannelsMobile.addEventListener("click", handleMobileBack);
+    }
+
+    // Contador de caracteres/bytes en tiempo real
+    if (this.dom.chatInputText) {
+      this.dom.chatInputText.addEventListener("input", () => this.updateCharCounter());
     }
 
     if (this.dom.chatInputForm) {
@@ -346,6 +360,7 @@ export class ChatModule {
     const newPos = start + emoji.length;
     input.setSelectionRange(newPos, newPos);
     input.focus();
+    this.updateCharCounter();
   }
 
   openShareContactModal() {
@@ -355,6 +370,9 @@ export class ChatModule {
     if (this.dom.shareContactSearch) this.dom.shareContactSearch.value = "";
     this._populateShareContactList("");
     this.dom.modalShareContact.classList.remove("hidden");
+    if (window.initLucideIcons) {
+      window.initLucideIcons(this.dom.modalShareContact);
+    }
   }
 
   closeShareContactModal() {
@@ -443,6 +461,9 @@ export class ChatModule {
     if (this.dom.btnConfirmShareChannel) this.dom.btnConfirmShareChannel.disabled = true;
     this._populateShareChannelList();
     this.dom.modalShareChannel.classList.remove("hidden");
+    if (window.initLucideIcons) {
+      window.initLucideIcons(this.dom.modalShareChannel);
+    }
   }
 
   closeShareChannelModal() {
@@ -454,15 +475,32 @@ export class ChatModule {
     if (!this.dom.shareChannelList) return;
     this.dom.shareChannelList.innerHTML = "";
 
-    const chList = this.ctx.settingsModule?.channelsList || [
-      { index: 0, name: "Public / Broadcast", psk: MESHCORE_PUBLIC_CHANNEL_SECRET, has_psk: false }
-    ];
+    const rawList = this.ctx.channelsList || this.ctx.settingsModule?.channelsList || [];
+    // REGLA SSoT: El canal 0 (Public / Broadcast) es universal y todos los nodos ya lo tienen.
+    // NUNCA permitir compartir el canal público. Solo compartir canales privados/cifrados (índice >= 1).
+    const chList = rawList.filter((ch) => Number(ch.index) > 0);
+
+    if (chList.length === 0) {
+      const emptyDiv = document.createElement("div");
+      emptyDiv.className = "share-picker-empty";
+      emptyDiv.style.cssText = "padding: 24px 16px; text-align: center; color: var(--text-muted); font-size: 0.85rem;";
+      emptyDiv.innerHTML = `
+        <div style="font-size: 28px; margin-bottom: 8px; opacity: 0.6;">📻</div>
+        <strong>No hay canales privados para compartir</strong>
+        <p style="margin: 6px 0 0 0; font-size: 0.78rem; opacity: 0.8;">
+          El canal 0 es público y universal (todos los nodos de la malla ya lo tienen). Puedes configurar canales cifrados en la pestaña <strong>Ajustes</strong>.
+        </p>
+      `;
+      this.dom.shareChannelList.appendChild(emptyDiv);
+      if (this.dom.btnConfirmShareChannel) this.dom.btnConfirmShareChannel.disabled = true;
+      return;
+    }
 
     const frag = document.createDocumentFragment();
     chList.forEach((ch) => {
       const item = document.createElement("div");
       item.className = "share-picker-item";
-      const chName = ch.name || (ch.index === 0 ? "Public / Broadcast" : `Canal #${ch.index}`);
+      const chName = ch.name || `Canal #${ch.index}`;
       const isEncrypted = Boolean(ch.has_psk || (ch.psk && ch.psk.trim().length > 0 && ch.psk !== MESHCORE_PUBLIC_CHANNEL_SECRET));
 
       item.innerHTML = `
@@ -470,10 +508,10 @@ export class ChatModule {
           <span style="font-size: 18px;">${isEncrypted ? "🔒" : "📻"}</span>
           <div>
             <div class="share-picker-title">${escapeHtml(chName)}</div>
-            <div class="share-picker-sub">Índice #${ch.index} • ${isEncrypted ? "Canal Privado Cifrado" : "Canal Abierto Broadcast"}</div>
+            <div class="share-picker-sub">Índice #${ch.index} • ${isEncrypted ? "Canal Privado Cifrado" : "Canal Abierto Secundario"}</div>
           </div>
         </div>
-        <span class="badge-pill">${isEncrypted ? "Cifrado" : "Público"}</span>
+        <span class="badge-pill">${isEncrypted ? "Cifrado" : "Abierto"}</span>
       `;
 
       item.addEventListener("click", () => {
@@ -501,8 +539,42 @@ export class ChatModule {
     if (!text) return;
     if (this.dom.chatInputText) {
       this.dom.chatInputText.value = text;
+      this.updateCharCounter();
     }
     await this.sendMessage();
+  }
+
+  updateCharCounter() {
+    if (!this.dom.chatInputText || !this.dom.chatCharCounter) return;
+    const text = this.dom.chatInputText.value || "";
+    const byteLen = getUtf8ByteLength(text);
+    const maxBytes = MAX_LORA_TEXT_BYTES;
+    const charCount = [...text].length;
+
+    // Obtener parámetros RF de modulación en vivo del nodo
+    const cfg = this.ctx.localConfig || {};
+    const sf = Number(cfg.spreading_factor || cfg.sf || 11);
+    const bw = Number(cfg.bandwidth || cfg.bw || 250);
+    const cr = Number(cfg.coding_rate || cfg.cr || 5);
+    const airtimeMs = byteLen > 0 ? estimateLoraAirtimeMs(byteLen, sf, bw, cr) : 0;
+
+    // Actualizar texto del badge
+    this.dom.chatCharCounter.textContent = `${byteLen} / ${maxBytes} B`;
+
+    // Tooltip informativo con ocupación estimada de espectro
+    this.dom.chatCharCounter.title = `Carga útil LoRa: ${byteLen} bytes de ${maxBytes} B máx. (${charCount} car.). Modulación SF${sf}/${bw}kHz (Airtime estimado: ~${airtimeMs} ms)`;
+
+    // Manejo de umbrales visuales y estado del botón de envío
+    this.dom.chatCharCounter.classList.remove("is-warning", "is-danger");
+    if (byteLen > maxBytes) {
+      this.dom.chatCharCounter.classList.add("is-danger");
+      if (this.dom.btnSendMsg) this.dom.btnSendMsg.disabled = true;
+    } else if (byteLen >= Math.floor(maxBytes * 0.8)) {
+      this.dom.chatCharCounter.classList.add("is-warning");
+      if (this.dom.btnSendMsg) this.dom.btnSendMsg.disabled = false;
+    } else {
+      if (this.dom.btnSendMsg) this.dom.btnSendMsg.disabled = false;
+    }
   }
 
   _formatMessageTimestamp(timestamp) {
@@ -1052,7 +1124,21 @@ export class ChatModule {
   async sendMessage() {
     const rawInput = this.dom.chatInputText ? this.dom.chatInputText.value.trim() : "";
     if (!rawInput) return;
+
+    // Validación estricta del límite físico/lógico de trama LoRa (160 bytes UTF-8)
+    const byteLen = getUtf8ByteLength(rawInput);
+    if (byteLen > MAX_LORA_TEXT_BYTES) {
+      if (this.ctx.showToast) {
+        this.ctx.showToast(
+          `El mensaje excede el límite de transmisión LoRa (${byteLen}/${MAX_LORA_TEXT_BYTES} bytes). Reduce el texto o emoticones.`,
+          "warning"
+        );
+      }
+      return;
+    }
+
     if (this.dom.chatInputText) this.dom.chatInputText.value = "";
+    this.updateCharCounter();
 
     const msgId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
     const canonicalTarget = this.activeDmTarget ? this.resolveCanonicalPubkey(this.activeDmTarget) : null;

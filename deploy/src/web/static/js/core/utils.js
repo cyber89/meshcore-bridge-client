@@ -344,3 +344,62 @@ export function parseMeshCoreUri(rawUri) {
   return null;
 }
 
+/**
+ * Límite estándar de caracteres/bytes de texto en carga útil de trama LoRa para MeshCore.
+ */
+export const MAX_LORA_TEXT_BYTES = 160;
+
+/**
+ * Calcula la longitud exacta en bytes de una cadena codificada en UTF-8.
+ * Permite computar con precisión caracteres multi-byte como emojis (3-4 bytes) y tildes (2 bytes).
+ * @param {string} str Cadena de texto
+ * @returns {number} Número exacto de bytes en UTF-8
+ */
+export function getUtf8ByteLength(str) {
+  if (!str) return 0;
+  if (typeof TextEncoder !== "undefined") {
+    return new TextEncoder().encode(str).length;
+  }
+  let len = 0;
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i);
+    if (code <= 0x7f) len += 1;
+    else if (code <= 0x7ff) len += 2;
+    else if (code >= 0xd800 && code <= 0xdbff) {
+      len += 4;
+      i++;
+    } else len += 3;
+  }
+  return len;
+}
+
+/**
+ * Calcula el tiempo estimado de transmisión en el aire (Airtime) en milisegundos
+ * para una trama de LoRa según la fórmula estándar de Semtech.
+ * @param {number} payloadBytes Carga útil en bytes
+ * @param {number} sf Spreading Factor (7..12)
+ * @param {number} bwKhz Ancho de banda en kHz (125, 250, 500)
+ * @param {number} cr Coding Rate denominador (5 para 4/5, 8 para 4/8)
+ * @param {number} preamble Símbolos de preámbulo (habitualmente 8)
+ * @returns {number} Tiempo en el aire en milisegundos
+ */
+export function estimateLoraAirtimeMs(payloadBytes, sf = 11, bwKhz = 250, cr = 5, preamble = 8) {
+  const bwHz = (Number(bwKhz) || 250) * 1000.0;
+  const spreadFactor = Number(sf) || 11;
+  const codingRate = Number(cr) || 5;
+  const tSymMs = (Math.pow(2, spreadFactor) / bwHz) * 1000.0;
+  const tPreambleMs = (preamble + 4.25) * tSymMs;
+
+  const ih = 0;
+  const de = (spreadFactor >= 11 && bwHz <= 125000) ? 1 : 0;
+  const crcVal = 1;
+
+  const term1 = 8 * payloadBytes - 4 * spreadFactor + 28 + 16 * crcVal - 20 * ih;
+  const term2 = 4 * (spreadFactor - 2 * de);
+  const payloadSymbolsNum = Math.ceil(term1 / Math.max(1, term2)) * codingRate;
+  const symbolCount = 8 + Math.max(0, payloadSymbolsNum);
+  const tPayloadMs = symbolCount * tSymMs;
+
+  return Math.max(1, Math.round(tPreambleMs + tPayloadMs));
+}
+
