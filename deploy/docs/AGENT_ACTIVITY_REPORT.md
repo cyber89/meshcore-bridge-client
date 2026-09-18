@@ -4040,6 +4040,44 @@ Fase 5 - COMPAT-001 to COMPAT-012 terminados
      - `simulate_full_mesh_validation.py`: 8 de 8 fases superadas con éxito.
      - `simulate_extreme_scenarios.py`: 8 de 8 fases superadas con éxito (0 excepciones, 0 logs críticos, 100% PDR).
   6. **Empaquetado y Despliegue**:
-     - `python scripts/sync_deploy.py`: Despliegue sincronizado en `/deploy/` y paquetes `.tar.gz` y `.zip` actualizados con `SHA256SUMS`.
+     - Ejecutado `python scripts/sync_deploy.py`: carpeta `/deploy/` actualizada, y generados paquetes limpios `meshcore-bridge-v3.0.0.tar.gz` y `meshcore-bridge-v3.0.0.zip` junto con `SHA256SUMS`.
 
-
+### Hito: Rediseño Integral de la Interfaz de Mensajería (Chat Estilo WhatsApp, Fechas Dinámicas, Selector de Emojis y Compartir Contactos/Canales)
+- **Fecha**: 2026-09-18
+- **Estado**: ✅ COMPLETADO (Estética WhatsApp completa con burbujas asimétricas, fondo de cuadrícula táctica, doble tick azul de entrega #53bdeb; visualización dinámica de hora HH:mm para el día en curso o fecha completa/ayer para mensajes anteriores a 24h con separadores flotantes centrados HOY/AYER; compartir contactos y canales mediante URIs oficiales canónicas de MeshCore renderizadas como tarjetas interactivas enriquecidas con botones de acción directa "Guardar Contacto" y "Unirse al Canal"; selector integrado de emoticones UTF-8 organizado por pestañas; reemplazo del botón móvil por retorno WhatsApp; subtítulos dinámicos con presencia en vivo, batería, SNR y estado de cifrado; sincronización en /deploy/ y repositorio Git).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect), Agente 2 (Python Bridge Architect), Agente 5 (Security Auditor).
+- **Problema / Requerimiento**:
+  1. Rediseñar la estética de la vista de mensajería para que luzca más similar a WhatsApp.
+  2. Mostrar en los mensajes la hora en que se envió/recibió si fue en el día de hoy o la fecha si fue hace más de 24h, insertando separadores de fecha entre grupos de días.
+  3. Permitir compartir a través de un mensaje un contacto o un canal mediante la especificación canónica URI de MeshCore, representándolos en chat como tarjetas interactivas.
+  4. Analizar la utilidad de `#btnToggleChannelsMobile` y reemplazarlo por un botón de retroceso móvil (`←` `#btnBackToChannelsMobile`) al estilo WhatsApp.
+  5. Incorporar un selector de emoticones estandarizados nativos UTF-8 categorizados (Smileys, LoRa Radio/Emergencias 📻, Símbolos).
+  6. Reemplazar el subtítulo estático y sin sentido `#chatActiveSub` por un indicador dinámico con estado de presencia en línea, porcentaje de batería, SNR para DMs, o cifrado/broadcast para canales.
+- **Acciones Realizadas**:
+  1. **Estructura HTML (`src/web/static/index.html`)**:
+     - Modernizado `.chat-header` con `#btnBackToChannelsMobile`, `#chatTargetAvatar` y `#chatActiveSub`.
+     - Añadido selector de emoticones `#emojiPickerPopover` con selector de pestañas (`.emoji-tab`) y grilla responsiva `#emojiPickerGrid`.
+     - Añadido menú flotante de adjuntos `#chatAttachMenu` con opciones para compartir contacto, canal y ubicación GPS.
+     - Añadidos modales accesibles `#modalShareContact` y `#modalShareChannel` con listas de selección dinámica, filtros y advertencias de seguridad sobre claves PSK.
+  2. **Estilos CSS (`src/web/static/css/app.css`)**:
+     - Estilizadas las burbujas de chat asimétricas (`.msg-bubble`): verde WhatsApp (`#005c4b` en tema oscuro / `#d9fdd3` en tema claro) para salientes, pizarra neutra para entrantes.
+     - Fondo con textura de puntos sutil para `.chat-messages`.
+     - Indicador de entrega con doble tick azul oficial (`#53bdeb`) para mensajes confirmados (`.ack-delivered`).
+     - Separadores flotantes de fecha centrados `.chat-date-separator`.
+     - Tarjetas interactivas enriquecidas `.chat-contact-card` y `.chat-channel-card` con avatares, datos monoespaciados y botones `.card-action-btn`.
+     - Estilos para menú flotante `.chat-attach-menu`, popover `.emoji-picker-popover` y grilla `.share-picker-list`.
+  3. **Lógica Frontend (`src/web/static/js/modules/chat.js`)**:
+     - Implementados formateadores `_formatMessageTimestamp()` y `_getDateGroupLabel()`.
+     - Implementada detección de URIs `meshcore://contact/add?...` y `meshcore://channel/add?...` mediante `parseMeshCoreUri()` para renderizado de tarjetas interactivas.
+     - Cableados botones interactivos: `Guardar en Contactos` (invoca `POST /api/contacts` y actualiza a `✓ Guardado`) y `Unirse al Canal` (conmuta al canal indexado).
+     - Implementado catálogo de emojis nativos UTF-8 e inserción en el punto de inserción (cursor) de `chatInputText`.
+     - Implementados modales de selección de contactos y canales con exclusión estricta de nodos repetidores (`REPEATER`) y estación local (`LOCAL`) cumpliendo `ADR 0001`.
+     - Implementada navegación móvil WhatsApp con `#btnBackToChannelsMobile`.
+     - Actualizado dinámicamente el subtítulo `#chatActiveSub` y avatar `#chatTargetAvatar` con presencia en tiempo real, batería y calidad SNR.
+  4. **Internacionalización (`src/web/static/js/i18n.js`)**:
+     - Añadidas 28 nuevas claves de traducción bilingüe (ES/EN) para fechas relativas ("HOY", "AYER", "Ayer HH:mm"), acuses de recibo, tarjetas de adjuntos y subtítulos dinámicos.
+  5. **Verificación Estática y Sincronización**:
+     - `mypy src/`: 100% SUCCESS (0 errores en 53 módulos).
+     - `ruff check src/ scripts/`: 100% PASS (0 errores).
+     - `audit_codebase_integrity.py`: 100% PASS (54/54 módulos importados).
+     - `python scripts/sync_deploy.py`: Paquetes de despliegue sincronizados y sumas SHA256 actualizadas.

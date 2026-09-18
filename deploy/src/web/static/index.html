@@ -140,12 +140,15 @@
               <div class="chat-header">
                 <div class="header-title-group active-target-info">
                   <div class="target-title-row">
-                    <button type="button" class="btn-icon btn-channels-toggle-mobile" id="btnToggleChannelsMobile" title="Alternar Canales" aria-label="Alternar lista de canales">
-                      <span data-lucide="menu" data-size="16"></span>
+                    <button type="button" class="btn-icon btn-back-channels-mobile" id="btnBackToChannelsMobile" title="Volver a canales" aria-label="Volver a la lista de canales">
+                      <span data-lucide="arrow-left" data-size="18"></span>
                     </button>
-                    <h2 id="chatActiveTitle">Canal #0: Public</h2>
+                    <div class="chat-target-avatar" id="chatTargetAvatar">💬</div>
+                    <div class="chat-target-text">
+                      <h2 id="chatActiveTitle">Canal #0: Public</h2>
+                      <p class="header-subtitle target-sub" id="chatActiveSub">📢 Canal público broadcast • Sin cifrar</p>
+                    </div>
                   </div>
-                  <p class="header-subtitle target-sub" id="chatActiveSub">Difusión comunitaria abierta por radio LoRa</p>
                 </div>
                 <div class="chat-header-actions">
                   <button class="btn-secondary btn-sm" id="clearChatBtn" aria-label="Limpiar vista de chat"><span data-lucide="trash-2" data-size="14"></span> Limpiar</button>
@@ -155,15 +158,43 @@
               <!-- Feed de Mensajes Limpio -->
               <div class="chat-messages" id="chatMessageFeed" role="log" aria-live="polite" aria-label="Historial de mensajes de chat"></div>
 
-              <!-- Caja de Entrada de Mensaje -->
-              <form id="chatInputForm" class="chat-composer" aria-label="Formulario de envío de mensajes">
-                <button type="button" class="btn-icon btn-chat-tool" id="btnShareLocation" title="Compartir mi ubicación GPS actual en el chat" aria-label="Compartir ubicación GPS"><span data-lucide="map-pin" data-size="16"></span></button>
-                <input type="text" id="chatInputText" placeholder="Escribe un mensaje para transmitir por RF..." autocomplete="off" required aria-label="Texto del mensaje a transmitir" />
-                <button type="submit" class="btn-primary" id="btnSendMsg" aria-label="Enviar mensaje por radio">
-                  <span>Enviar</span> <span aria-hidden="true" data-lucide="send" data-size="14"></span>
-                </button>
-              </form>
-            </div>
+              <!-- Caja de Entrada de Mensaje con Adjuntos y Emojis -->
+              <div class="chat-composer-wrapper">
+                <!-- Menú Flotante de Adjuntos -->
+                <div class="chat-attach-menu hidden" id="chatAttachMenu" role="menu" aria-label="Opciones de adjuntos">
+                  <button type="button" class="attach-item" id="attachOptionContact" role="menuitem">
+                    <span class="attach-icon attach-icon-contact">👤</span>
+                    <span class="attach-label">Compartir Contacto</span>
+                  </button>
+                  <button type="button" class="attach-item" id="attachOptionChannel" role="menuitem">
+                    <span class="attach-icon attach-icon-channel">📻</span>
+                    <span class="attach-label">Compartir Canal</span>
+                  </button>
+                  <button type="button" class="attach-item" id="attachOptionLocation" role="menuitem">
+                    <span class="attach-icon attach-icon-location">📍</span>
+                    <span class="attach-label">Ubicación GPS</span>
+                  </button>
+                </div>
+
+                <!-- Popover de Emojis Estandarizados -->
+                <div class="emoji-picker-popover hidden" id="emojiPickerPopover" role="dialog" aria-label="Selector de emoticones">
+                  <div class="emoji-picker-tabs">
+                    <button type="button" class="emoji-tab active" data-tab="smileys" title="Caras y Gestos">😀</button>
+                    <button type="button" class="emoji-tab" data-tab="radio" title="Radio LoRa y Emergencias">📻</button>
+                    <button type="button" class="emoji-tab" data-tab="symbols" title="Símbolos y Navegación">📍</button>
+                  </div>
+                  <div class="emoji-picker-grid" id="emojiPickerGrid"></div>
+                </div>
+
+                <form id="chatInputForm" class="chat-composer" aria-label="Formulario de envío de mensajes">
+                  <button type="button" class="btn-icon btn-chat-tool" id="btnEmojiPicker" title="Insertar emoticones" aria-label="Insertar emoticones"><span data-lucide="smile" data-size="18"></span></button>
+                  <button type="button" class="btn-icon btn-chat-tool" id="btnChatAttach" title="Adjuntar contacto, canal o ubicación" aria-label="Adjuntar contenido"><span data-lucide="paperclip" data-size="18"></span></button>
+                  <input type="text" id="chatInputText" placeholder="Escribe un mensaje para transmitir por RF..." autocomplete="off" required aria-label="Texto del mensaje a transmitir" />
+                  <button type="submit" class="btn-primary" id="btnSendMsg" aria-label="Enviar mensaje por radio">
+                    <span>Enviar</span> <span aria-hidden="true" data-lucide="send" data-size="14"></span>
+                  </button>
+                </form>
+              </div>
           </div>
         </section>
 
@@ -1367,6 +1398,51 @@
             <button type="submit" class="btn-primary" id="btnSaveContact"><span data-lucide="save" data-size="14"></span> Guardar Contacto</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- Modal: Compartir Contacto en el Chat -->
+    <div id="modalShareContact" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalShareContactTitle">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 id="modalShareContactTitle"><span class="modal-title-icon" data-lucide="user-check" data-size="18"></span> Compartir Contacto</h3>
+          <button class="btn-icon modal-close" id="btnCloseShareContactModal" aria-label="Cerrar modal">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-instruction-text" id="shareContactModalInstruction">Selecciona un contacto de tu libreta para compartir su enlace oficial en esta conversación:</p>
+          <input type="search" id="shareContactSearch" class="search-input" placeholder="Buscar contacto por nombre o clave..." aria-label="Buscar contacto a compartir" style="margin-bottom: 12px; width: 100%;" />
+          <div class="share-picker-list" id="shareContactList" role="listbox" style="max-height: 260px; overflow-y: auto;">
+            <!-- Renderizado dinámico de contactos cliente -->
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" id="btnCancelShareContact">Cancelar</button>
+          <button type="button" class="btn-primary" id="btnConfirmShareContact" disabled><span data-lucide="send" data-size="14"></span> Compartir en Chat</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Compartir Canal en el Chat -->
+    <div id="modalShareChannel" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalShareChannelTitle">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 id="modalShareChannelTitle"><span class="modal-title-icon" data-lucide="radio" data-size="18"></span> Compartir Canal</h3>
+          <button class="btn-icon modal-close" id="btnCloseShareChannelModal" aria-label="Cerrar modal">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-instruction-text" id="shareChannelModalInstruction">Selecciona un canal para compartir sus parámetros de conexión y clave en esta conversación:</p>
+          <div class="share-picker-list" id="shareChannelList" role="listbox" style="max-height: 260px; overflow-y: auto;">
+            <!-- Renderizado dinámico de canales disponibles -->
+          </div>
+          <div class="callout-box warning-callout" style="margin-top: 12px; font-size: 0.8rem;">
+            <span data-lucide="shield-alert" data-size="14"></span>
+            <span id="shareChannelWarningText">Atención: Al compartir un canal privado, su clave secreta (PSK) se transmitirá por la radio para que los participantes puedan unirse.</span>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" id="btnCancelShareChannel">Cancelar</button>
+          <button type="button" class="btn-primary" id="btnConfirmShareChannel" disabled><span data-lucide="send" data-size="14"></span> Compartir en Chat</button>
+        </div>
       </div>
     </div>
 

@@ -11,6 +11,7 @@ import {
   MAX_FEED_MESSAGES,
   buildMeshCoreContactUri,
   buildMeshCoreChannelUri,
+  parseMeshCoreUri,
   MESHCORE_PUBLIC_CHANNEL_SECRET,
 } from "../core/utils.js";
 import { EVENTS } from "../core/eventbus.js";
@@ -28,6 +29,38 @@ export class ChatModule {
     this.chatSoundEnabled = localStorage.getItem("meshcore_chat_sound_enabled") !== "false";
     this._audioCtx = null;
     this.dom = {};
+
+    // Estado del selector de emojis y compartir
+    this.activeEmojiTab = "smileys";
+    this.selectedShareContact = null;
+    this.selectedShareChannel = null;
+    this.emojiCategories = {
+      smileys: [
+        "😀","😃","😄","😁","😆","😅","😂","🤣","😊","😇",
+        "🙂","🙃","😉","😌","😍","🥰","😘","😗","😙","😚",
+        "😋","😛","😝","😜","🤪","🤨","🧐","🤓","😎","🤩",
+        "🥳","😏","😒","😞","😔","😟","😕","🙁","☹️","😣",
+        "😖","😫","😩","🥺","😢","😭","😤","😠","😡","🤬",
+        "🤯","😳","🥵","🥶","😱","😨","😰","😥","😓","🤗",
+        "🤔","🤭","🤫","🤥","😶","😐","😑","😬","🙄","😯",
+        "😦","😧","😮","😲","🥱","😴","🤤","😪","😵","🤐",
+        "🥴","🤢","🤮","🤧","😷","🤒","🤕"
+      ],
+      radio: [
+        "📻","📡","📶","🔋","🔌","⚡","🚨","🆘","⚠️","🛰️",
+        "🗺️","🧭","🏔️","🌲","🏕️","🔦","🔨","🔧","🛡️","🔒",
+        "🔓","🔑","💬","📢","🔔","🔕","🎯","🚩","📍","🏁",
+        "🎙️","🔊","🔉","🔈","🛠️","⚙️","🚗","🚙","🚚","🚒",
+        "🚑","🚓","🚤","⛵","🚁","✈️","⛺","🌦️","🌧️","☀️"
+      ],
+      symbols: [
+        "👍","👎","👌","✌️","🤞","🤟","🤙","👋","✋","👏",
+        "🤝","🙏","💪","❤️","🧡","💛","💚","💙","💜","🖤",
+        "🤍","💯","💢","💥","🔥","✨","⭐","🌟","✅","❌",
+        "❓","❗","0️⃣","1️⃣","2️⃣","3️⃣","4️⃣","5️⃣","6️⃣","7️⃣",
+        "8️⃣","9️⃣","🔟","ℹ️","🆗","🛑","⛔","🚀","🎉","🏆"
+      ]
+    };
   }
 
   init() {
@@ -35,6 +68,7 @@ export class ChatModule {
     this._bindEvents();
     this._subscribeBus();
     this.loadInitialHistory();
+    this._renderEmojiGrid("smileys");
   }
 
   _bindElements() {
@@ -44,6 +78,8 @@ export class ChatModule {
       chatInputText: document.getElementById("chatInputText"),
       chatTargetName: document.getElementById("chatActiveTitle"),
       chatTargetSub: document.getElementById("chatActiveSub"),
+      chatTargetAvatar: document.getElementById("chatTargetAvatar"),
+      btnBackToChannelsMobile: document.getElementById("btnBackToChannelsMobile"),
       btnShareLocation: document.getElementById("btnShareLocation"),
       btnToggleChannelsMobile: document.getElementById("btnToggleChannelsMobile"),
       dmListUi: document.getElementById("dmListUi"),
@@ -52,17 +88,45 @@ export class ChatModule {
       sidebarChannelList: document.getElementById("sidebarChannelList"),
       globalChatUnreadBadge: document.getElementById("globalChatUnreadBadge"),
       chkChatSoundAlerts: document.getElementById("chkChatSoundAlerts"),
+
+      // Selector de emojis y adjuntos
+      btnEmojiPicker: document.getElementById("btnEmojiPicker"),
+      emojiPickerPopover: document.getElementById("emojiPickerPopover"),
+      emojiPickerGrid: document.getElementById("emojiPickerGrid"),
+      btnChatAttach: document.getElementById("btnChatAttach"),
+      chatAttachMenu: document.getElementById("chatAttachMenu"),
+      attachOptionContact: document.getElementById("attachOptionContact"),
+      attachOptionChannel: document.getElementById("attachOptionChannel"),
+      attachOptionLocation: document.getElementById("attachOptionLocation"),
+
+      // Modales de compartir contacto y canal
+      modalShareContact: document.getElementById("modalShareContact"),
+      modalShareChannel: document.getElementById("modalShareChannel"),
+      shareContactSearch: document.getElementById("shareContactSearch"),
+      shareContactList: document.getElementById("shareContactList"),
+      btnConfirmShareContact: document.getElementById("btnConfirmShareContact"),
+      btnCancelShareContact: document.getElementById("btnCancelShareContact"),
+      btnCloseShareContactModal: document.getElementById("btnCloseShareContactModal"),
+      shareChannelList: document.getElementById("shareChannelList"),
+      btnConfirmShareChannel: document.getElementById("btnConfirmShareChannel"),
+      btnCancelShareChannel: document.getElementById("btnCancelShareChannel"),
+      btnCloseShareChannelModal: document.getElementById("btnCloseShareChannelModal"),
     };
   }
 
   _bindEvents() {
+    // Botón de retorno a canales en móvil (estilo WhatsApp)
+    const handleMobileBack = () => {
+      const panel = document.querySelector(".chat-channels-panel");
+      if (panel) {
+        panel.classList.toggle("mobile-open");
+      }
+    };
+    if (this.dom.btnBackToChannelsMobile) {
+      this.dom.btnBackToChannelsMobile.addEventListener("click", handleMobileBack);
+    }
     if (this.dom.btnToggleChannelsMobile) {
-      this.dom.btnToggleChannelsMobile.addEventListener("click", () => {
-        const panel = document.querySelector(".chat-channels-panel");
-        if (panel) {
-          panel.classList.toggle("mobile-open");
-        }
-      });
+      this.dom.btnToggleChannelsMobile.addEventListener("click", handleMobileBack);
     }
 
     if (this.dom.chatInputForm) {
@@ -78,6 +142,95 @@ export class ChatModule {
 
     if (this.dom.btnShareLocation) {
       this.dom.btnShareLocation.addEventListener("click", () => this.shareCurrentLocation());
+    }
+
+    // Selector de Emojis
+    if (this.dom.btnEmojiPicker && this.dom.emojiPickerPopover) {
+      this.dom.btnEmojiPicker.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (this.dom.chatAttachMenu) this.dom.chatAttachMenu.classList.add("hidden");
+        this.dom.emojiPickerPopover.classList.toggle("hidden");
+      });
+    }
+
+    // Pestañas de categorías de Emojis
+    document.querySelectorAll(".emoji-tab").forEach((tab) => {
+      tab.addEventListener("click", (e) => {
+        e.stopPropagation();
+        document.querySelectorAll(".emoji-tab").forEach((t) => t.classList.remove("active"));
+        tab.classList.add("active");
+        const cat = tab.getAttribute("data-tab") || "smileys";
+        this.activeEmojiTab = cat;
+        this._renderEmojiGrid(cat);
+      });
+    });
+
+    // Menú flotante de adjuntos
+    if (this.dom.btnChatAttach && this.dom.chatAttachMenu) {
+      this.dom.btnChatAttach.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (this.dom.emojiPickerPopover) this.dom.emojiPickerPopover.classList.add("hidden");
+        this.dom.chatAttachMenu.classList.toggle("hidden");
+      });
+    }
+
+    if (this.dom.attachOptionLocation) {
+      this.dom.attachOptionLocation.addEventListener("click", () => {
+        if (this.dom.chatAttachMenu) this.dom.chatAttachMenu.classList.add("hidden");
+        this.shareCurrentLocation();
+      });
+    }
+
+    if (this.dom.attachOptionContact) {
+      this.dom.attachOptionContact.addEventListener("click", () => {
+        if (this.dom.chatAttachMenu) this.dom.chatAttachMenu.classList.add("hidden");
+        this.openShareContactModal();
+      });
+    }
+
+    if (this.dom.attachOptionChannel) {
+      this.dom.attachOptionChannel.addEventListener("click", () => {
+        if (this.dom.chatAttachMenu) this.dom.chatAttachMenu.classList.add("hidden");
+        this.openShareChannelModal();
+      });
+    }
+
+    // Cerrar menús flotantes al hacer clic en cualquier otra parte
+    document.addEventListener("click", (e) => {
+      if (this.dom.emojiPickerPopover && !this.dom.emojiPickerPopover.classList.contains("hidden")) {
+        if (!this.dom.emojiPickerPopover.contains(e.target) && e.target !== this.dom.btnEmojiPicker) {
+          this.dom.emojiPickerPopover.classList.add("hidden");
+        }
+      }
+      if (this.dom.chatAttachMenu && !this.dom.chatAttachMenu.classList.contains("hidden")) {
+        if (!this.dom.chatAttachMenu.contains(e.target) && e.target !== this.dom.btnChatAttach) {
+          this.dom.chatAttachMenu.classList.add("hidden");
+        }
+      }
+    });
+
+    // Eventos de Modales de Compartir
+    if (this.dom.btnCloseShareContactModal) {
+      this.dom.btnCloseShareContactModal.addEventListener("click", () => this.closeShareContactModal());
+    }
+    if (this.dom.btnCancelShareContact) {
+      this.dom.btnCancelShareContact.addEventListener("click", () => this.closeShareContactModal());
+    }
+    if (this.dom.btnConfirmShareContact) {
+      this.dom.btnConfirmShareContact.addEventListener("click", () => this.confirmShareContact());
+    }
+    if (this.dom.shareContactSearch) {
+      this.dom.shareContactSearch.addEventListener("input", (e) => this.filterShareContactList(e.target.value));
+    }
+
+    if (this.dom.btnCloseShareChannelModal) {
+      this.dom.btnCloseShareChannelModal.addEventListener("click", () => this.closeShareChannelModal());
+    }
+    if (this.dom.btnCancelShareChannel) {
+      this.dom.btnCancelShareChannel.addEventListener("click", () => this.closeShareChannelModal());
+    }
+    if (this.dom.btnConfirmShareChannel) {
+      this.dom.btnConfirmShareChannel.addEventListener("click", () => this.confirmShareChannel());
     }
 
     if (this.dom.chkChatSoundAlerts) {
@@ -161,36 +314,340 @@ export class ChatModule {
     return pubkey ? String(pubkey).trim().toLowerCase() : "";
   }
 
+  _renderEmojiGrid(category) {
+    if (!this.dom.emojiPickerGrid) return;
+    this.dom.emojiPickerGrid.innerHTML = "";
+    const list = this.emojiCategories[category] || this.emojiCategories.smileys;
+    const frag = document.createDocumentFragment();
+
+    list.forEach((emoji) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "emoji-btn";
+      btn.textContent = emoji;
+      btn.title = emoji;
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.insertEmoji(emoji);
+      });
+      frag.appendChild(btn);
+    });
+
+    this.dom.emojiPickerGrid.appendChild(frag);
+  }
+
+  insertEmoji(emoji) {
+    if (!this.dom.chatInputText) return;
+    const input = this.dom.chatInputText;
+    const start = input.selectionStart || 0;
+    const end = input.selectionEnd || 0;
+    const val = input.value;
+    input.value = val.substring(0, start) + emoji + val.substring(end);
+    const newPos = start + emoji.length;
+    input.setSelectionRange(newPos, newPos);
+    input.focus();
+  }
+
+  openShareContactModal() {
+    if (!this.dom.modalShareContact) return;
+    this.selectedShareContact = null;
+    if (this.dom.btnConfirmShareContact) this.dom.btnConfirmShareContact.disabled = true;
+    if (this.dom.shareContactSearch) this.dom.shareContactSearch.value = "";
+    this._populateShareContactList("");
+    this.dom.modalShareContact.classList.remove("hidden");
+  }
+
+  closeShareContactModal() {
+    if (this.dom.modalShareContact) this.dom.modalShareContact.classList.add("hidden");
+    this.selectedShareContact = null;
+  }
+
+  _populateShareContactList(filterQuery = "") {
+    if (!this.dom.shareContactList) return;
+    this.dom.shareContactList.innerHTML = "";
+    const q = (filterQuery || "").toLowerCase().trim();
+
+    // SSoT: Obtener nodos cliente exclusivamente (excluir REPEATER y LOCAL)
+    const allNodes = this.ctx.knownNodes ? Array.from(this.ctx.knownNodes.values()) : [];
+    const localPk = (document.getElementById("localNodePubkey")?.value || "").toLowerCase().trim();
+
+    const clientContacts = allNodes.filter((n) => {
+      if (!n || !n.public_key) return false;
+      const pk = n.public_key.toLowerCase().trim();
+      if (pk === "local" || (localPk && (pk === localPk || pk.startsWith(localPk.slice(0, 8)))) || n.is_local) return false;
+      const roleUpper = String(n.role || "").toUpperCase();
+      if (roleUpper === "REPEATER" || roleUpper === "ROUTER") return false;
+      if (q) {
+        const name = (n.name || n.alias || "").toLowerCase();
+        return name.includes(q) || pk.includes(q);
+      }
+      return true;
+    });
+
+    if (clientContacts.length === 0) {
+      this.dom.shareContactList.innerHTML = `
+        <div class="empty-state" style="padding: 18px; font-size: 12px; color: var(--text-muted); text-align: center;">
+          ${q ? `No se encontraron contactos para "${escapeHtml(q)}"` : "No hay contactos disponibles para compartir en este momento."}
+        </div>
+      `;
+      return;
+    }
+
+    const frag = document.createDocumentFragment();
+    clientContacts.forEach((contact) => {
+      const item = document.createElement("div");
+      item.className = "share-picker-item";
+      const cleanName = contact.name || contact.alias || contact.public_key.slice(0, 8);
+      const isSelected = this.selectedShareContact?.public_key === contact.public_key;
+      if (isSelected) item.classList.add("selected");
+
+      item.innerHTML = `
+        <div class="share-picker-left">
+          <span style="font-size: 18px;">👤</span>
+          <div>
+            <div class="share-picker-title">${escapeHtml(cleanName)}</div>
+            <div class="share-picker-sub">${contact.public_key.slice(0, 14)}… • ${contact.role || "CLIENT"}</div>
+          </div>
+        </div>
+        <span class="badge-pill">${contact.is_favorite ? "⭐" : "Contacto"}</span>
+      `;
+
+      item.addEventListener("click", () => {
+        this.dom.shareContactList.querySelectorAll(".share-picker-item").forEach((el) => el.classList.remove("selected"));
+        item.classList.add("selected");
+        this.selectedShareContact = contact;
+        if (this.dom.btnConfirmShareContact) this.dom.btnConfirmShareContact.disabled = false;
+      });
+
+      frag.appendChild(item);
+    });
+
+    this.dom.shareContactList.appendChild(frag);
+  }
+
+  filterShareContactList(query) {
+    this._populateShareContactList(query);
+  }
+
+  async confirmShareContact() {
+    if (!this.selectedShareContact) return;
+    const c = this.selectedShareContact;
+    const uri = buildMeshCoreContactUri(c.name || c.alias || "Contacto", c.public_key, c.role || "CLIENT");
+    this.closeShareContactModal();
+    await this.sendMessageWithText(uri);
+  }
+
+  openShareChannelModal() {
+    if (!this.dom.modalShareChannel) return;
+    this.selectedShareChannel = null;
+    if (this.dom.btnConfirmShareChannel) this.dom.btnConfirmShareChannel.disabled = true;
+    this._populateShareChannelList();
+    this.dom.modalShareChannel.classList.remove("hidden");
+  }
+
+  closeShareChannelModal() {
+    if (this.dom.modalShareChannel) this.dom.modalShareChannel.classList.add("hidden");
+    this.selectedShareChannel = null;
+  }
+
+  _populateShareChannelList() {
+    if (!this.dom.shareChannelList) return;
+    this.dom.shareChannelList.innerHTML = "";
+
+    const chList = this.ctx.settingsModule?.channelsList || [
+      { index: 0, name: "Public / Broadcast", psk: MESHCORE_PUBLIC_CHANNEL_SECRET, has_psk: false }
+    ];
+
+    const frag = document.createDocumentFragment();
+    chList.forEach((ch) => {
+      const item = document.createElement("div");
+      item.className = "share-picker-item";
+      const chName = ch.name || (ch.index === 0 ? "Public / Broadcast" : `Canal #${ch.index}`);
+      const isEncrypted = Boolean(ch.has_psk || (ch.psk && ch.psk.trim().length > 0 && ch.psk !== MESHCORE_PUBLIC_CHANNEL_SECRET));
+
+      item.innerHTML = `
+        <div class="share-picker-left">
+          <span style="font-size: 18px;">${isEncrypted ? "🔒" : "📻"}</span>
+          <div>
+            <div class="share-picker-title">${escapeHtml(chName)}</div>
+            <div class="share-picker-sub">Índice #${ch.index} • ${isEncrypted ? "Canal Privado Cifrado" : "Canal Abierto Broadcast"}</div>
+          </div>
+        </div>
+        <span class="badge-pill">${isEncrypted ? "Cifrado" : "Público"}</span>
+      `;
+
+      item.addEventListener("click", () => {
+        this.dom.shareChannelList.querySelectorAll(".share-picker-item").forEach((el) => el.classList.remove("selected"));
+        item.classList.add("selected");
+        this.selectedShareChannel = ch;
+        if (this.dom.btnConfirmShareChannel) this.dom.btnConfirmShareChannel.disabled = false;
+      });
+
+      frag.appendChild(item);
+    });
+
+    this.dom.shareChannelList.appendChild(frag);
+  }
+
+  async confirmShareChannel() {
+    if (!this.selectedShareChannel) return;
+    const ch = this.selectedShareChannel;
+    const uri = buildMeshCoreChannelUri(ch.name, ch.psk || ch.secret || "", ch.index);
+    this.closeShareChannelModal();
+    await this.sendMessageWithText(uri);
+  }
+
+  async sendMessageWithText(text) {
+    if (!text) return;
+    if (this.dom.chatInputText) {
+      this.dom.chatInputText.value = text;
+    }
+    await this.sendMessage();
+  }
+
+  _formatMessageTimestamp(timestamp) {
+    if (!timestamp) return "";
+    const msgDate = new Date(timestamp);
+    if (isNaN(msgDate.getTime())) return "";
+
+    const now = new Date();
+    const isToday = msgDate.toDateString() === now.toDateString();
+
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const isYesterday = msgDate.toDateString() === yesterday.toDateString();
+
+    const timeStr = msgDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+    if (isToday) {
+      return timeStr;
+    } else if (isYesterday) {
+      const ayerStr = (window.I18n ? window.I18n.t('chat.yesterday') : null) || "Ayer";
+      return `${ayerStr} ${timeStr}`;
+    } else {
+      const dateStr = msgDate.toLocaleDateString([], { day: "2-digit", month: "2-digit", year: "numeric" });
+      return `${dateStr} ${timeStr}`;
+    }
+  }
+
+  _getDateGroupLabel(timestamp) {
+    if (!timestamp) return "";
+    const msgDate = new Date(timestamp);
+    if (isNaN(msgDate.getTime())) return "";
+
+    const now = new Date();
+    if (msgDate.toDateString() === now.toDateString()) {
+      return (window.I18n ? window.I18n.t('chat.date_today') : null) || "HOY";
+    }
+
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (msgDate.toDateString() === yesterday.toDateString()) {
+      return (window.I18n ? window.I18n.t('chat.date_yesterday') : null) || "AYER";
+    }
+
+    return msgDate.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" }).toUpperCase();
+  }
+
+  _updateActiveChatHeader() {
+    if (this.activeDmTarget) {
+      // Caso Conversación Directa (DM)
+      if (this.dom.chatTargetAvatar) {
+        this.dom.chatTargetAvatar.textContent = "👤";
+      }
+      if (this.dom.chatTargetName) {
+        this.dom.chatTargetName.textContent = `DM: ${this.activeDmName || this.activeDmTarget.slice(0, 8)}`;
+      }
+      if (this.dom.chatTargetSub) {
+        const normTarget = this.activeDmTarget.toLowerCase().trim();
+        const node = (this.ctx.knownNodes ? Array.from(this.ctx.knownNodes.values()) : []).find(
+          (n) => (n.public_key && n.public_key.toLowerCase() === normTarget) ||
+                 (n.key_prefix && normTarget.startsWith(n.key_prefix.toLowerCase()))
+        );
+
+        let subParts = [];
+        if (node && node.last_seen && Number(node.last_seen) > 0) {
+          let effTs = Number(node.last_seen);
+          if (effTs > 1e11) effTs = Math.floor(effTs / 1000);
+          const diff = Math.max(0, Math.floor(Date.now() / 1000) - effTs);
+          if (diff < 900) {
+            subParts.push(window.I18n ? window.I18n.t('chat.online_now') || '🟢 En línea' : '🟢 En línea');
+          } else if (diff < 7200) {
+            const mins = Math.max(1, Math.floor(diff / 60));
+            const str = window.I18n ? window.I18n.t('chat.last_seen_mins') : null;
+            subParts.push(str ? str.replace('{n}', mins) : `Últ. vez hace ${mins} min`);
+          } else if (diff < 86400) {
+            const hours = Math.floor(diff / 3600);
+            const str = window.I18n ? window.I18n.t('chat.last_seen_hours') : null;
+            subParts.push(str ? str.replace('{n}', hours) : `Últ. vez hace ${hours} h`);
+          } else {
+            const days = Math.max(1, Math.floor(diff / 86400));
+            const str = window.I18n ? window.I18n.t('chat.last_seen_days') : null;
+            subParts.push(str ? str.replace('{n}', days) : `Últ. vez hace ${days} d`);
+          }
+        } else {
+          subParts.push(window.I18n ? window.I18n.t('chat.no_telemetry') || 'Sin telemetría reciente' : 'Sin telemetría reciente');
+        }
+
+        // Batería si está presente
+        if (node?.battery_pct != null) {
+          subParts.push(`🔋 ${node.battery_pct}%`);
+        } else if (node?.voltage_v != null) {
+          subParts.push(`🔋 ${node.voltage_v}V`);
+        }
+
+        // SNR si está disponible
+        if (node?.last_snr != null) {
+          subParts.push(`📶 SNR ${node.last_snr} dB`);
+        }
+
+        if (subParts.length === 1 && !node) {
+          subParts.push(`ID: ${this.activeDmTarget.slice(0, 10)}…`);
+        }
+
+        this.dom.chatTargetSub.textContent = subParts.join(" • ");
+      }
+    } else {
+      // Caso Canal
+      const chList = this.ctx.settingsModule?.channelsList || [];
+      const ch = chList.find((c) => Number(c.index) === this.activeChannelIdx);
+      const isEncrypted = ch ? Boolean(ch.has_psk || (ch.psk && ch.psk.trim().length > 0 && ch.psk !== MESHCORE_PUBLIC_CHANNEL_SECRET)) : (this.activeChannelIdx !== 0);
+      const prefix = window.I18n ? window.I18n.t('chat.channel_prefix') || 'Canal' : 'Canal';
+      let chTitle = `${prefix} #${this.activeChannelIdx}`;
+      if (ch?.name && ch.name.trim()) {
+        chTitle += `: ${ch.name.trim()}`;
+      } else if (this.activeChannelIdx === 0) {
+        chTitle += `: ${window.I18n ? window.I18n.t('chat.ch_0_default') || 'Public / Broadcast' : 'Public / Broadcast'}`;
+      }
+
+      if (this.dom.chatTargetName) {
+        this.dom.chatTargetName.textContent = chTitle;
+      }
+
+      if (this.dom.chatTargetAvatar) {
+        this.dom.chatTargetAvatar.textContent = this.activeChannelIdx === 0 ? "📢" : (isEncrypted ? "🔒" : "📻");
+      }
+
+      if (this.dom.chatTargetSub) {
+        if (this.activeChannelIdx === 0) {
+          this.dom.chatTargetSub.textContent = (window.I18n ? window.I18n.t('chat.ch_0_sub') : null) || '📢 Canal público broadcast • Sin cifrar';
+        } else if (isEncrypted) {
+          const subTemplate = (window.I18n ? window.I18n.t('chat.ch_n_encrypted_sub') : null) || '🔒 Canal privado cifrado #{n}';
+          this.dom.chatTargetSub.textContent = subTemplate.replace('{n}', this.activeChannelIdx);
+        } else {
+          const subTemplate = (window.I18n ? window.I18n.t('chat.ch_n_open_sub') : null) || '📻 Canal abierto sin cifrar #{n}';
+          this.dom.chatTargetSub.textContent = subTemplate.replace('{n}', this.activeChannelIdx);
+        }
+      }
+    }
+  }
+
   switchChannel(idx) {
     this.activeChannelIdx = Number(idx) || 0;
     this.activeDmTarget = null;
     this.activeDmName = null;
 
-    const chList = this.ctx.settingsModule?.channelsList || [];
-    const ch = chList.find((c) => Number(c.index) === this.activeChannelIdx);
-    const isEncrypted = ch ? Boolean(ch.has_psk || (ch.psk && ch.psk.trim().length > 0)) : (this.activeChannelIdx !== 0);
-    const prefix = window.I18n ? window.I18n.t('chat.channel_prefix') || 'Canal' : 'Canal';
-    let chTitle = `${prefix} #${this.activeChannelIdx}`;
-    if (ch?.name && ch.name.trim()) {
-      chTitle += `: ${ch.name.trim()}`;
-    } else if (this.activeChannelIdx === 0) {
-      chTitle += `: ${window.I18n ? window.I18n.t('chat.ch_0_default') || 'Public / Broadcast' : 'Public / Broadcast'}`;
-    }
-
-    if (this.dom.chatTargetName) {
-      this.dom.chatTargetName.textContent = chTitle;
-    }
-    if (this.dom.chatTargetSub) {
-      if (this.activeChannelIdx === 0) {
-        this.dom.chatTargetSub.textContent = (window.I18n ? window.I18n.t('chat.ch_0_sub') : null) || 'Difusión comunitaria abierta por radio LoRa';
-      } else if (isEncrypted) {
-        const subTemplate = (window.I18n ? window.I18n.t('chat.ch_n_sub') : null) || 'Canal de equipo cifrado #{n}';
-        this.dom.chatTargetSub.textContent = subTemplate.replace('{n}', this.activeChannelIdx);
-      } else {
-        const subTemplate = (window.I18n ? window.I18n.t('chat.ch_n_open_sub') : null) || 'Canal abierto sin cifrar #{n}';
-        this.dom.chatTargetSub.textContent = subTemplate.replace('{n}', this.activeChannelIdx);
-      }
-    }
+    this._updateActiveChatHeader();
 
     document.querySelectorAll(".channel-item").forEach((el) => el.classList.remove("active"));
     const activeItem = document.querySelector(`.channel-item[data-channel-idx="${this.activeChannelIdx}"]`);
@@ -233,13 +690,7 @@ export class ChatModule {
       this.activeDmName = targetNode?.name || canonicalPk.slice(0, 8);
     }
 
-    if (this.dom.chatTargetName) {
-      this.dom.chatTargetName.textContent = `DM: ${this.activeDmName}`;
-    }
-    if (this.dom.chatTargetSub) {
-      this.dom.chatTargetSub.textContent = I18n.t('chat.dm_sub').replace('{pk}', canonicalPk);
-    }
-
+    this._updateActiveChatHeader();
     this.addDmContact(canonicalPk, this.activeDmName);
 
     document.querySelectorAll(".channel-item").forEach((el) => el.classList.remove("active"));
@@ -257,7 +708,6 @@ export class ChatModule {
     this.renderCurrentConversation();
   }
 
-
   shareCurrentLocation() {
     if (!navigator.geolocation) {
       this._fallbackShareLocalStationLocation("Geolocalización no soportada en el navegador");
@@ -272,7 +722,7 @@ export class ChatModule {
       (pos) => {
         const lat = pos.coords.latitude.toFixed(5);
         const lon = pos.coords.longitude.toFixed(5);
-        const text = I18n.t('chat.my_location').replace('{lat}', lat).replace('{lon}', lon);
+        const text = `📍 ${lat}, ${lon}`;
         if (this.dom.chatInputText) {
           this.dom.chatInputText.value = text;
           this.dom.chatInputText.focus();
@@ -295,7 +745,7 @@ export class ChatModule {
     const lonVal = lonInput ? parseFloat(lonInput.value) : NaN;
 
     if (!isNaN(latVal) && !isNaN(lonVal) && (latVal !== 0 || lonVal !== 0)) {
-      const text = I18n.t('chat.station_location').replace('{lat}', latVal.toFixed(5)).replace('{lon}', lonVal.toFixed(5));
+      const text = `📍 ${latVal.toFixed(5)}, ${lonVal.toFixed(5)}`;
       if (this.dom.chatInputText) {
         this.dom.chatInputText.value = text;
         this.dom.chatInputText.focus();
@@ -324,14 +774,14 @@ export class ChatModule {
     if (this.dom.chatMessageFeed) {
       this.dom.chatMessageFeed.innerHTML = `
         <div class="chat-empty-state">
-          <p>${I18n.t('chat.cleared')}</p>
-          <small>${I18n.t('chat.write_below')}</small>
+          <p>${window.I18n ? window.I18n.t('chat.cleared') : 'Historial de chat limpiado'}</p>
+          <small>${window.I18n ? window.I18n.t('chat.write_below') : 'Escribe un mensaje abajo para comenzar'}</small>
         </div>
       `;
     }
 
     if (this.ctx.showToast) {
-      this.ctx.showToast(I18n.t('chat.cleared'), "info");
+      this.ctx.showToast(window.I18n ? window.I18n.t('chat.cleared') : "Historial de chat limpiado", "info");
     }
   }
 
@@ -388,17 +838,30 @@ export class ChatModule {
     if (!msgs || msgs.length === 0) {
       this.dom.chatMessageFeed.innerHTML = `
         <div class="chat-empty-state">
-          <p>${I18n.t('chat.no_messages')}</p>
-          <small>${I18n.t('chat.write_below')}</small>
+          <p>${window.I18n ? window.I18n.t('chat.no_messages') : 'No hay mensajes en esta conversación'}</p>
+          <small>${window.I18n ? window.I18n.t('chat.write_below') : 'Escribe un mensaje abajo para comenzar'}</small>
         </div>
       `;
       return;
     }
 
     const frag = document.createDocumentFragment();
+    let lastDateStr = null;
+
     msgs.forEach((m) => {
+      if (m.timestamp) {
+        const msgDateStr = new Date(m.timestamp).toDateString();
+        if (msgDateStr !== lastDateStr) {
+          lastDateStr = msgDateStr;
+          const sep = document.createElement("div");
+          sep.className = "chat-date-separator";
+          sep.innerHTML = `<span>${escapeHtml(this._getDateGroupLabel(m.timestamp))}</span>`;
+          frag.appendChild(sep);
+        }
+      }
       frag.appendChild(this.createMessageBubble(m));
     });
+
     this.dom.chatMessageFeed.appendChild(frag);
     this.dom.chatMessageFeed.scrollTop = this.dom.chatMessageFeed.scrollHeight;
   }
@@ -408,12 +871,70 @@ export class ChatModule {
     row.className = `message-bubble-row ${msg.is_outgoing ? "outgoing" : "incoming"}`;
     row.setAttribute("data-msg-id", msg.id || msg.msg_id || "");
 
-    const timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
-    const sender = msg.is_outgoing ? I18n.t('common.you') : (msg.sender_name || msg.sender || I18n.t('common.anonymous'));
+    const timeStr = this._formatMessageTimestamp(msg.timestamp);
+    const sender = msg.is_outgoing ? (window.I18n ? window.I18n.t('common.you') : "Tú") : (msg.sender_name || msg.sender || (window.I18n ? window.I18n.t('common.anonymous') : "Anónimo"));
 
-    // Detección de coordenadas GPS en el texto
     const text = msg.text || "";
-    const gpsMatch = text.match(/(-?\d{1,3}\.\d{3,7}),\s*(-?\d{1,3}\.\d{3,7})/);
+
+    // 1. Detección de URIs oficiales de MeshCore (Compartir Contacto o Canal)
+    let richCardHtml = "";
+    let cleanDisplayText = text;
+    const meshcoreUriMatch = text.match(/meshcore:\/\/[^\s]+/i);
+    let parsedUri = null;
+
+    if (meshcoreUriMatch) {
+      const rawUri = meshcoreUriMatch[0];
+      parsedUri = parseMeshCoreUri(rawUri);
+      if (parsedUri) {
+        cleanDisplayText = text.replace(rawUri, "").trim();
+
+        if (parsedUri.type === "contact") {
+          const cName = parsedUri.name || "Contacto MeshCore";
+          const cRole = parsedUri.role || "CLIENT";
+          const cPk = parsedUri.public_key || "";
+          const isKnown = this.ctx.knownNodes?.has(cPk.toLowerCase());
+
+          richCardHtml = `
+            <div class="chat-contact-card" data-pk="${escapeHtml(cPk)}">
+              <div class="card-top-row">
+                <div class="card-avatar">👤</div>
+                <div class="card-info">
+                  <span class="card-name">${escapeHtml(cName)}</span>
+                  <span class="card-sub"><span class="badge-pill">${escapeHtml(cRole)}</span> <span class="card-key-mono">${escapeHtml(cPk.slice(0, 10))}…</span></span>
+                </div>
+              </div>
+              <button type="button" class="card-action-btn btn-save-shared-contact ${isKnown ? 'btn-saved' : ''}" data-pk="${escapeHtml(cPk)}" data-name="${escapeHtml(cName)}" data-role="${escapeHtml(cRole)}" ${isKnown ? 'disabled' : ''}>
+                <span data-lucide="${isKnown ? 'check' : 'user-plus'}" data-size="13"></span>
+                <span>${isKnown ? (window.I18n ? window.I18n.t('chat.saved_contact') : '✓ Contacto Guardado') : (window.I18n ? window.I18n.t('chat.save_contact') : 'Guardar en Contactos')}</span>
+              </button>
+            </div>
+          `;
+        } else if (parsedUri.type === "channel") {
+          const chName = parsedUri.name || "Canal Compartido";
+          const chIdx = parsedUri.index !== null && parsedUri.index !== undefined ? parsedUri.index : "?";
+          const isEnc = Boolean(parsedUri.secret && parsedUri.secret.length > 0 && parsedUri.secret !== MESHCORE_PUBLIC_CHANNEL_SECRET);
+
+          richCardHtml = `
+            <div class="chat-channel-card" data-idx="${chIdx}">
+              <div class="card-top-row">
+                <div class="card-avatar">${isEnc ? "🔒" : "📻"}</div>
+                <div class="card-info">
+                  <span class="card-name">${escapeHtml(chName)} (Canal #${chIdx})</span>
+                  <span class="card-sub">${isEnc ? "🔒 Canal Privado Cifrado" : "📢 Canal Abierto Broadcast"}</span>
+                </div>
+              </div>
+              <button type="button" class="card-action-btn btn-join-shared-channel" data-name="${escapeHtml(chName)}" data-secret="${escapeHtml(parsedUri.secret || '')}" data-idx="${chIdx}">
+                <span data-lucide="radio" data-size="13"></span>
+                <span>${window.I18n ? window.I18n.t('chat.join_channel') : 'Unirse al Canal'}</span>
+              </button>
+            </div>
+          `;
+        }
+      }
+    }
+
+    // 2. Detección de coordenadas GPS en el texto
+    const gpsMatch = cleanDisplayText.match(/(-?\d{1,3}\.\d{3,7}),\s*(-?\d{1,3}\.\d{3,7})/);
     let locationCardHtml = "";
     let detectedLat = null;
     let detectedLon = null;
@@ -425,34 +946,86 @@ export class ChatModule {
         locationCardHtml = `
           <div class="chat-location-card">
             <div class="loc-card-header">
-              <span>📍</span> <strong>${I18n.t('chat.gps_shared')}</strong>
+              <span>📍</span> <strong>${window.I18n ? window.I18n.t('chat.gps_shared') : 'Ubicación GPS Compartida'}</strong>
             </div>
             <div class="loc-coords-badge">${detectedLat.toFixed(5)}, ${detectedLon.toFixed(5)}</div>
             <button type="button" class="btn-view-on-map" data-lat="${detectedLat}" data-lon="${detectedLon}">
-              <span data-lucide="map-pin" data-size="12"></span> ${I18n.t('chat.view_map')}
+              <span data-lucide="map-pin" data-size="12"></span> ${window.I18n ? window.I18n.t('chat.view_map') : 'Ver en Mapa'}
             </button>
           </div>
         `;
       }
     }
 
+    // 3. Indicador de entrega estilo WhatsApp (Checkmarks)
+    let ackHtml = "";
+    if (msg.is_outgoing) {
+      if (msg.delivered) {
+        ackHtml = `<span class="ack-indicator ack-delivered" title="${window.I18n ? window.I18n.t('chat.delivered') : 'Entregado'}">✓✓</span>`;
+      } else if (msg.status === "sent") {
+        ackHtml = `<span class="ack-indicator ack-sent" title="${window.I18n ? window.I18n.t('chat.sent') : 'Transmitido'}">✓</span>`;
+      } else {
+        ackHtml = `<span class="ack-indicator ack-queued" title="${window.I18n ? window.I18n.t('chat.queued') : 'En cola'}">✓</span>`;
+      }
+    }
+
+    // 4. Construcción de la burbuja WhatsApp
+    const showSender = !msg.is_outgoing && !this.activeDmTarget;
     row.innerHTML = `
       <div class="msg-bubble message-bubble">
-        <div class="msg-meta">
-          <span class="msg-sender">${escapeHtml(sender)}</span>
-          <span class="msg-time">${escapeHtml(timeStr)}</span>
-        </div>
-        <div class="msg-body">${escapeHtml(text)}</div>
+        ${showSender ? `<span class="msg-sender">${escapeHtml(sender)}</span>` : ""}
+        ${cleanDisplayText ? `<div class="msg-text">${escapeHtml(cleanDisplayText)}</div>` : ""}
+        ${richCardHtml}
         ${locationCardHtml}
-        ${msg.is_outgoing ? `
-          <div class="msg-footer">
-            <span class="msg-ack-status font-mono ${msg.delivered ? "delivered" : "sent"}">
-              ${msg.delivered ? I18n.t('chat.delivered') : I18n.t('chat.sent')}
-            </span>
-          </div>
-        ` : ""}
+        <div class="msg-footer">
+          <span class="msg-time">${escapeHtml(timeStr)}</span>
+          ${ackHtml}
+        </div>
       </div>
     `;
+
+    // 5. Cableado de interactividad en tarjetas
+    if (parsedUri?.type === "contact") {
+      const btnSave = row.querySelector(".btn-save-shared-contact");
+      if (btnSave && !btnSave.classList.contains("btn-saved")) {
+        btnSave.addEventListener("click", async () => {
+          const pk = btnSave.getAttribute("data-pk");
+          const name = btnSave.getAttribute("data-name");
+          const role = btnSave.getAttribute("data-role") || "CLIENT";
+          try {
+            const res = await fetch("/api/contacts", {
+              method: "POST",
+              headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+              body: JSON.stringify({ public_key: pk, name, role }),
+            });
+            if (res.ok) {
+              btnSave.classList.add("btn-saved");
+              btnSave.disabled = true;
+              btnSave.innerHTML = `<span>✓ ${window.I18n ? window.I18n.t('chat.saved_contact') : 'Contacto Guardado'}</span>`;
+              if (this.ctx.showToast) this.ctx.showToast(`Contacto ${name} guardado con éxito`, "success");
+            }
+          } catch (e) {
+            console.warn("Error guardando contacto compartido:", e);
+          }
+        });
+      }
+    }
+
+    if (parsedUri?.type === "channel") {
+      const btnJoin = row.querySelector(".btn-join-shared-channel");
+      if (btnJoin) {
+        btnJoin.addEventListener("click", () => {
+          const idx = parseInt(btnJoin.getAttribute("data-idx"), 10);
+          if (!isNaN(idx) && idx >= 0) {
+            this.switchChannel(idx);
+            if (this.ctx.showToast) this.ctx.showToast(`Cambiado al Canal #${idx}`, "info");
+          } else {
+            const navBtn = document.querySelector('.nav-btn[data-tab="tab-settings"]');
+            if (navBtn) navBtn.click();
+          }
+        });
+      }
+    }
 
     if (gpsMatch && detectedLat !== null && detectedLon !== null) {
       const btnViewMap = row.querySelector(".btn-view-on-map");
@@ -508,7 +1081,7 @@ export class ChatModule {
       id: msgId,
       msg_id: msgId,
       sender: "local",
-      sender_name: I18n.t('common.local_station'),
+      sender_name: window.I18n ? window.I18n.t('common.local_station') : "Estación Local",
       text: rawInput,
       is_outgoing: true,
       channel_idx: this.activeChannelIdx,
@@ -545,6 +1118,15 @@ export class ChatModule {
       const txData = await res.json();
       if (res.ok && txData && txData.status === "ok") {
         outgoingMsg.status = "sent";
+        const row = this.dom.chatMessageFeed?.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
+        if (row) {
+          const indicator = row.querySelector(".ack-indicator");
+          if (indicator && !outgoingMsg.delivered) {
+            indicator.className = "ack-indicator ack-sent";
+            indicator.textContent = "✓";
+            indicator.title = window.I18n ? window.I18n.t('chat.sent') : "Transmitido";
+          }
+        }
       }
     } catch (e) {
       console.warn("Error transmitiendo mensaje:", e);
@@ -555,6 +1137,31 @@ export class ChatModule {
     if (!this.dom.chatMessageFeed) return;
     const emptyState = this.dom.chatMessageFeed.querySelector(".chat-empty-state");
     if (emptyState) emptyState.remove();
+
+    // Comprobar si se necesita un nuevo separador de fecha estilo WhatsApp
+    if (msg.timestamp) {
+      const msgDateStr = new Date(msg.timestamp).toDateString();
+      const lastBubble = this.dom.chatMessageFeed.querySelector(".message-bubble-row:last-child");
+      let needSep = false;
+      if (!lastBubble) {
+        needSep = true;
+      } else {
+        const feedKey = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
+        const feed = this.channelFeeds.get(feedKey) || [];
+        if (feed.length >= 2) {
+          const prevMsg = feed[feed.length - 2];
+          if (prevMsg?.timestamp && new Date(prevMsg.timestamp).toDateString() !== msgDateStr) {
+            needSep = true;
+          }
+        }
+      }
+      if (needSep) {
+        const sep = document.createElement("div");
+        sep.className = "chat-date-separator";
+        sep.innerHTML = `<span>${escapeHtml(this._getDateGroupLabel(msg.timestamp))}</span>`;
+        this.dom.chatMessageFeed.appendChild(sep);
+      }
+    }
 
     const bubble = this.createMessageBubble(msg);
     this.dom.chatMessageFeed.appendChild(bubble);
@@ -622,11 +1229,11 @@ export class ChatModule {
 
     const row = this.dom.chatMessageFeed?.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
     if (row) {
-      const indicator = row.querySelector(".msg-ack-status, .msg-status-indicator");
+      const indicator = row.querySelector(".ack-indicator");
       if (indicator) {
-        indicator.textContent = I18n.t('chat.delivered');
-        indicator.classList.remove("sent");
-        indicator.classList.add("delivered");
+        indicator.textContent = "✓✓";
+        indicator.className = "ack-indicator ack-delivered";
+        indicator.title = window.I18n ? window.I18n.t('chat.delivered') : "Entregado";
       }
     }
 
