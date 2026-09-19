@@ -309,6 +309,12 @@ export class ChatModule {
     if (initialMsgs && initialMsgs.length > 0) {
       const cleanMsgs = initialMsgs.filter((m) => !isCommandOrSystemText(m.text, m.txt_type));
       this.channelFeeds.set("ch_0", cleanMsgs);
+      cleanMsgs.forEach((m) => {
+        if (m.is_outgoing && !m.delivered && m.expected_ack) {
+          const cleanAck = String(m.expected_ack).toLowerCase().replace(/^0x/, "").trim();
+          if (cleanAck) this.pendingOutgoingAcks.set(cleanAck, m.id || m.msg_id);
+        }
+      });
       if (this.activeChannelIdx === 0 && !this.activeDmTarget) {
         await this.renderCurrentConversation();
       }
@@ -1073,6 +1079,15 @@ export class ChatModule {
     const row = document.createElement("div");
     row.className = `message-bubble-row ${msg.is_outgoing ? "outgoing" : "incoming"}`;
     row.setAttribute("data-msg-id", msg.id || msg.msg_id || "");
+    if (msg.expected_ack) {
+      const cleanAck = String(msg.expected_ack).toLowerCase().replace(/^0x/, "").trim();
+      if (cleanAck) {
+        row.setAttribute("data-ack-code", cleanAck);
+        if (msg.is_outgoing && !msg.delivered) {
+          this.pendingOutgoingAcks.set(cleanAck, msg.id || msg.msg_id);
+        }
+      }
+    }
 
     const timeStr = this._formatMessageTimestamp(msg.timestamp);
     let sender = msg.is_outgoing ? (window.I18n ? window.I18n.t('common.you') : "Tú") : (msg.sender_name || msg.sender || (window.I18n ? window.I18n.t('common.anonymous') : "Anónimo"));
@@ -1350,8 +1365,22 @@ export class ChatModule {
       const txData = await res.json();
       if (res.ok && txData && txData.status === "ok") {
         outgoingMsg.status = "sent";
+        const rawExpectedAck = txData.data?.expected_ack || txData.expected_ack;
+        if (rawExpectedAck) {
+          const cleanExpectedAck = String(rawExpectedAck).toLowerCase().replace(/^0x/, "").trim();
+          if (cleanExpectedAck) {
+            outgoingMsg.expected_ack = cleanExpectedAck;
+            this.pendingOutgoingAcks.set(cleanExpectedAck, msgId);
+            if (this.ctx.storage) {
+              this.ctx.storage.updateMessageExpectedAck(msgId, cleanExpectedAck);
+            }
+          }
+        }
         const row = this.dom.chatMessageFeed?.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
         if (row) {
+          if (outgoingMsg.expected_ack) {
+            row.setAttribute("data-ack-code", outgoingMsg.expected_ack);
+          }
           const indicator = row.querySelector(".ack-indicator");
           if (indicator && !outgoingMsg.delivered) {
             indicator.className = "ack-indicator ack-sent";
@@ -1460,21 +1489,48 @@ export class ChatModule {
   }
 
   handleDeliveryAck(payload) {
-    const msgId = payload.msg_id;
-    if (!msgId) return;
+    if (!payload || typeof payload !== "object") return;
+    const rawAck = (payload.ack_code || payload.code || "").toString().toLowerCase().trim();
+    const ackClean = rawAck.startsWith("0x") ? rawAck.slice(2) : rawAck;
+    let msgId = payload.msg_id;
+    if (!msgId && ackClean) {
+      msgId = this.pendingOutgoingAcks.get(ackClean);
+    }
 
-    const row = this.dom.chatMessageFeed?.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
+    let row = null;
+    if (msgId) {
+      row = this.dom.chatMessageFeed?.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
+    }
+    if (!row && ackClean) {
+      row = this.dom.chatMessageFeed?.querySelector(`.message-bubble-row[data-ack-code="${ackClean}"]`);
+    }
+
+    const tripTime = payload.trip_time_ms || payload.trip_time || payload.rtt_ms;
+
     if (row) {
       const indicator = row.querySelector(".ack-indicator");
       if (indicator) {
         indicator.textContent = "✓✓";
         indicator.className = "ack-indicator ack-delivered";
-        indicator.title = window.I18n ? window.I18n.t('chat.delivered') : "Entregado";
+        const rttText = tripTime ? ` (${tripTime} ms)` : "";
+        indicator.title = (window.I18n ? window.I18n.t('chat.delivered') : "Entregado") + rttText;
+      }
+    }
+
+    // Actualizar estado en memoria de los feeds de conversación
+    for (const [feedKey, msgs] of this.channelFeeds.entries()) {
+      for (const m of msgs) {
+        const mExp = (m.expected_ack || "").toString().toLowerCase().replace(/^0x/, "").trim();
+        if ((msgId && (m.id === msgId || m.msg_id === msgId)) || (ackClean && mExp === ackClean)) {
+          m.delivered = true;
+          m.status = "delivered";
+          m.trip_time_ms = tripTime || 0;
+        }
       }
     }
 
     if (this.ctx.storage) {
-      this.ctx.storage.updateMessageDelivery(msgId, payload.ack_code, payload.trip_time_ms);
+      this.ctx.storage.updateMessageDelivery(msgId, ackClean, tripTime);
     }
   }
 

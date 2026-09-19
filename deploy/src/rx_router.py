@@ -173,6 +173,7 @@ class RxRouterContext:
     last_rx_rssi: int | None = None
     last_rx_snr: float | None = None
     packet_buffer: Any = None
+    bridge: Any = None
 
 
 class RxEventRouter:

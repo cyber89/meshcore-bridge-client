@@ -81,6 +81,29 @@ export class MeshCoreStorage {
     } catch (_) {}
   }
 
+  async updateMessageExpectedAck(msgId, expectedAck) {
+    await this.readyPromise;
+    if (!this.db || !msgId || !expectedAck) return;
+    try {
+      const tx = this.db.transaction("chat_messages", "readwrite");
+      const store = tx.objectStore("chat_messages");
+      const req = store.openCursor();
+      const normExp = String(expectedAck).toLowerCase().replace(/^0x/, "").trim();
+      req.onsuccess = (e) => {
+        const cursor = e.target.result;
+        if (cursor) {
+          const val = cursor.value;
+          if (val && (val.msg_id === msgId || String(val.id) === String(msgId))) {
+            val.expected_ack = normExp;
+            cursor.update(val);
+          } else {
+            cursor.continue();
+          }
+        }
+      };
+    } catch (_) {}
+  }
+
   async updateMessageDelivery(msgId, ackCode, tripTime) {
     await this.readyPromise;
     if (!this.db) return;
@@ -88,20 +111,20 @@ export class MeshCoreStorage {
       const tx = this.db.transaction("chat_messages", "readwrite");
       const store = tx.objectStore("chat_messages");
       const req = store.openCursor();
-      const rawAck = (ackCode || "").toLowerCase();
+      const rawAck = (ackCode || "").toString().toLowerCase().trim();
       const ackClean = rawAck.startsWith("0x") ? rawAck.slice(2) : rawAck;
       req.onsuccess = (e) => {
         const cursor = e.target.result;
         if (cursor) {
           const val = cursor.value;
-          const valExp = (val.expected_ack || "").toLowerCase();
+          const valExp = (val.expected_ack || "").toString().toLowerCase().trim();
           const valExpClean = valExp.startsWith("0x") ? valExp.slice(2) : valExp;
           const ackMatch = ackClean && valExpClean && valExpClean === ackClean;
           const match = (msgId && (val.msg_id === msgId || String(val.id) === String(msgId))) || ackMatch;
           if (match) {
             val.delivered = true;
             val.status = "delivered";
-            val.trip_time_ms = tripTime || 0;
+            val.trip_time_ms = tripTime || val.trip_time_ms || 0;
             cursor.update(val);
           }
           cursor.continue();

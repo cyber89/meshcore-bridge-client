@@ -2,6 +2,41 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Correlación de ACK de Entrega (Segunda Palomita ✓✓) en Mensajes Directos (DM)
+- **Fecha**: 2026-09-19
+- **Estado**: ✅ COMPLETADO — Correlación bidireccional entre `expected_ack` (4 bytes hex de MeshCore) y `msg_id` en backend y frontend. Renderizado de doble palomita `✓✓` (`ack-delivered`), tiempo RTT en ms y persistencia en IndexedDB.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Firmware Investigator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect).
+- **Causa Raíz Diagnosticada**:
+  - Al enviar un mensaje directo (DM) por LoRa, la radio genera y devuelve un código de 4 bytes (`expected_ack`). Cuando el receptor recibe el mensaje, transmite de vuelta un paquete ACK (`EventType.ACK` / `PacketType.ACK.value` = 0x05) que contiene dicho código (`code`) y el tiempo de viaje (`trip_time`).
+  - La radio no conoce el `msg_id` del frontend, por lo que `RepeaterAdminHandler` recibía el ACK pero transmitía `message_delivered` por WebSocket con `msg_id: None`.
+  - En `chat.js`, `handleDeliveryAck` descartaba el evento de inmediato si `!msgId`, impidiendo actualizar la palomita a `✓✓`. Además, `trip_time` se buscaba con claves incompatibles (`trip_time_ms` / `rtt_ms` en vez de `trip_time`), y el frontend no guardaba `expected_ack` en el mensaje ni en IndexedDB.
+- **Acciones Realizadas**:
+  1. **`src/bridge_core.py`**:
+     - Agregada tabla en memoria `_pending_acks` con TTL de 1 hora y métodos `register_pending_ack` y `resolve_pending_ack`.
+     - En `_execute_tx`: registro automático de `expected_ack_hex -> {req_id, target, timestamp}` en envíos exitosos.
+     - Pasado `bridge=self` al contexto `RxRouterContext`.
+  2. **`src/rx_router.py`**:
+     - Agregado campo `bridge: Any = None` a `RxRouterContext`.
+  3. **`src/routers/repeater_handler.py`**:
+     - Normalizado `ack_code` limpiando prefijos `0x`.
+     - Extracción defensiva de `trip_time = payload.get("trip_time_ms", payload.get("trip_time", payload.get("rtt_ms")))`.
+     - Resolución de `ack_msg_id` consultando `bridge.resolve_pending_ack(ack_code)`.
+     - Si `meta.sender` no venía en el paquete ACK, asignación desde el `target` registrado y actualización de presencia en `NodeRegistry`.
+  4. **`src/web/static/js/core/storage.js`**:
+     - Implementado método `updateMessageExpectedAck(msgId, expectedAck)` en IndexedDB.
+     - Robustecida la comparación de `updateMessageDelivery` para aceptar tanto `msgId` como `ackCode`.
+  5. **`src/web/static/js/modules/chat.js`**:
+     - Inicializado `pendingOutgoingAcks = new Map()`.
+     - En `createMessageBubble`: agregado atributo `data-ack-code` a la fila del mensaje.
+     - En `sendMessage`: captura de `expected_ack` devuelto por `/api/tx`, registro en `outgoingMsg`, en `pendingOutgoingAcks`, en `data-ack-code` y en IndexedDB.
+     - En `loadInitialHistory`: precarga de `expected_ack` en `pendingOutgoingAcks` desde mensajes previos no entregados.
+     - En `handleDeliveryAck`: resolución del mensaje por `msgId` o por `ackClean`, actualización del indicador visual a `✓✓` (`ack-delivered`) con tooltip `Entregado (X ms)`, actualización del feed en memoria y persistencia en IndexedDB.
+- **Verificación y Calidad**:
+  - `node --check src/web/static/js/core/storage.js` y `chat.js`: 0 errores.
+  - `ruff check`: 0 errores.
+  - `mypy --strict`: 0 errores en todos los módulos modificados.
+  - `sync_deploy.py`: Despliegue empaquetado y sincronizado.
+
 ### Hito: Restricción del Botón Ping (Hop 0) Exclusivamente a Repetidores Compatibles
 - **Fecha**: 2026-09-19
 - **Estado**: ✅ COMPLETADO — Eliminado el botón Ping de las tarjetas de contactos (clientes) y restringido en el directorio unificado de nodos para que solo se muestre en repetidores (`REPEATER` / `ROUTER`); agregada guarda preventiva en `pingNode()`.

@@ -119,6 +119,33 @@ class MeshCoreBridge:
             on_rx_message_callback=self._on_incoming_mqtt_message,
         )
         self.preflight = PreflightChecker()
+        self._pending_acks: dict[str, dict[str, Any]] = {}
+
+    def register_pending_ack(self, expected_ack: str, req_id: str, target: str = "") -> None:
+        """Registra un expected_ack para correlacionar la entrega con el msg_id."""
+        clean_ack = str(expected_ack).lower().strip()
+        if clean_ack.startswith("0x"):
+            clean_ack = clean_ack[2:]
+        if not clean_ack:
+            return
+        now = time.time()
+        # Podar entradas de más de 1 hora si la tabla supera 200 elementos
+        if len(self._pending_acks) > 200:
+            self._pending_acks = {k: v for k, v in self._pending_acks.items() if now - v.get("timestamp", 0) < 3600}
+        self._pending_acks[clean_ack] = {
+            "req_id": req_id,
+            "timestamp": now,
+            "target": target,
+        }
+
+    def resolve_pending_ack(self, ack_code: str) -> dict[str, Any] | None:
+        """Resuelve el msg_id y target asociados a un código ACK recibido."""
+        clean_ack = str(ack_code).lower().strip()
+        if clean_ack.startswith("0x"):
+            clean_ack = clean_ack[2:]
+        if not clean_ack:
+            return None
+        return self._pending_acks.get(clean_ack)
 
     def _init_adapters_and_watchdog(self) -> None:
         """Inicializa adaptador serial, watchdog, gestor de diagnóstico y servidor web."""
@@ -292,6 +319,7 @@ class MeshCoreBridge:
                 background_tasks=self._background_tasks,
                 counters=self,
                 packet_buffer=self.packet_buffer,
+                bridge=self,
             )
         )
 
@@ -794,6 +822,8 @@ class MeshCoreBridge:
         self._record_tx_packet(str(target), ch_idx, text, is_admin_cmd, ack_payload)
 
         if status_val == "sent":
+            if expected_ack_hex and req_id:
+                self.register_pending_ack(expected_ack_hex, req_id, str(target))
             dest_label = "Broadcast / Canal 0" if is_broadcast else f"Nodo [{target[:8] if len(str(target)) >= 8 else target}]"
             logging.info(
                 f"[TX-TRANSMISIÓN] Destino: {dest_label} | Canal: #{ch_idx} | "

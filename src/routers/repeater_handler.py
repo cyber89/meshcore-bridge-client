@@ -46,12 +46,29 @@ class RepeaterAdminHandler(BaseRxHandler):
             or "ACK" in p_type_upper
             or payload.get("event_type") in ("ack", "delivered", "message_delivered")
         ):
-            ack_code = payload.get("ack_code", payload.get("code", 0))
+            ack_code_raw = payload.get("ack_code", payload.get("code", 0))
+            if isinstance(ack_code_raw, int):
+                ack_code = f"{ack_code_raw:08x}"
+            elif isinstance(ack_code_raw, (bytes, bytearray)):
+                ack_code = ack_code_raw.hex().lower()
+            else:
+                ack_code = str(ack_code_raw).strip().lower()
+                if ack_code.startswith("0x"):
+                    ack_code = ack_code[2:]
+
             ack_msg_id = payload.get("msg_id", payload.get("id", payload.get("request_id")))
-            trip_time = payload.get("trip_time_ms", payload.get("rtt_ms"))
+            trip_time = payload.get("trip_time_ms", payload.get("trip_time", payload.get("rtt_ms")))
+
+            bridge = getattr(router_ctx, "bridge", None) or getattr(router_ctx, "_bridge", None)
+            if not ack_msg_id and ack_code and bridge and hasattr(bridge, "resolve_pending_ack"):
+                ack_info = bridge.resolve_pending_ack(ack_code)
+                if ack_info:
+                    ack_msg_id = ack_info.get("req_id")
+                    if not meta.sender and ack_info.get("target"):
+                        meta.sender = str(ack_info.get("target"))
 
             logging.info(
-                f"[RX-ACK] Mensaje {ack_msg_id} confirmado por la malla. "
+                f"[RX-ACK] Mensaje {ack_msg_id or 'desconocido'} confirmado por la malla. "
                 f"Código: {ack_code} | RTT: {trip_time} ms"
             )
 
