@@ -1071,10 +1071,10 @@ export class RepeaterModule {
     if (radioBw && (node.bandwidth != null || node.bw != null)) {
       let rawBw = parseFloat(node.bandwidth != null ? node.bandwidth : node.bw);
       if (rawBw > 1000) rawBw = rawBw / 1000.0;
-      const bwStr = String(Math.round(rawBw));
-      if (["125", "250", "500"].includes(bwStr)) {
-        radioBw.value = bwStr;
-      }
+      const bwStr = String(rawBw);
+      const supportedBws = ["7.8", "10.4", "15.6", "20.8", "31.25", "41.7", "62.5", "125", "250", "500"];
+      const found = supportedBws.find((opt) => parseFloat(opt) === rawBw);
+      radioBw.value = found || bwStr;
     }
     const radioCr = document.getElementById("radioCr");
     if (radioCr && (node.coding_rate != null || node.cr != null)) {

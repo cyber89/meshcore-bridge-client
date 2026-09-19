@@ -2,6 +2,23 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Soporte Completo de Anchos de Banda (BW) Oficiales de MeshCore (62.5 kHz, 31.25 kHz, etc.)
+- **Fecha**: 2026-09-19
+- **Estado**: ✅ COMPLETADO — Agregados todos los anchos de banda permitidos por el firmware MeshCore (7.8, 10.4, 15.6, 20.8, 31.25, 41.7, 62.5, 125, 250, 500 kHz) tanto para el nodo local como para repetidores remotos; corregido redondeo de enteros en la Web UI.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Firmware Investigator), Agente 4 (Web UI/UX Architect).
+- **Causa Raíz Diagnosticada**:
+  - En `index.html`, los elementos `<select id="localBw">` y `<select id="radioBw">` sólo incluían 3 opciones fijas (`125`, `250`, `500`).
+  - En `repeater.js`, el ancho de banda recibido se redondeaba con `Math.round()` (lo que convertía `62.5` en `63`) y luego se filtraba estrictamente contra `["125", "250", "500"]`, imposibilitando visualizar o asignar anchos de banda con decimales.
+  - El firmware de MeshCore (`MyMesh.cpp`, línea 1396: `bw >= 7000 && bw <= 500000`) y el SDK en Python soportan cualquier ancho de banda entre 7 kHz y 500 kHz (transmitidos en Hz en el comando binario `0x0b`).
+- **Acciones Realizadas**:
+  1. **`src/web/static/index.html`**:
+     - Actualizados los `<select id="localBw">` y `<select id="radioBw">` con la lista canónica de anchos de banda de LoRa/MeshCore: 7.8, 10.4, 15.6, 20.8, 31.25, 41.7, 62.5 (Narrow / Baja interferencia), 125, 250 y 500 kHz.
+  2. **`src/web/static/js/modules/settings.js`**:
+     - Adaptada la asignación de `bwInput.value` en `populateLocalConfig` para buscar coincidencia exacta con números de punto flotante y normalizar si viene en Hz (> 1000).
+  3. **`src/web/static/js/modules/repeater.js`**:
+     - Eliminado el redondeo entero `Math.round(rawBw)` y ampliado el soporte a toda la lista canónica de MeshCore.
+- **Contratos de Interfaz Modificados**: Sin cambios de backend ni de endpoints REST (la API `/api/config/radio` ya aceptaba valores tipo `float`).
+
 ### Hito: Capacidad de Cerrar/Archivar Chats Directos (DM) sin Pérdida de Historial en Mensajería Web
 - **Fecha**: 2026-09-19
 - **Estado**: ✅ COMPLETADO — Cierre de DMs activo con persistencia localStorage, preservación total en IndexedDB, botón rápido en lista lateral y cabecera, reapertura automática ante mensajes entrantes o clic en Contactos.

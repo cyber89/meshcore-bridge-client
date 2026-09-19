@@ -1276,7 +1276,14 @@ export class SettingsModule {
 
     const bwVal = cfg.bandwidth ?? cfg.radio_bw ?? cfg.bw;
     const bwInput = document.getElementById("localBw");
-    if (bwInput && bwVal != null) bwInput.value = String(bwVal);
+    if (bwInput && bwVal != null) {
+      let b = parseFloat(bwVal);
+      if (b > 1000) b = b / 1000.0;
+      const bStr = String(b);
+      const supportedBws = ["7.8", "10.4", "15.6", "20.8", "31.25", "41.7", "62.5", "125", "250", "500"];
+      const found = supportedBws.find((opt) => parseFloat(opt) === b);
+      bwInput.value = found || bStr;
+    }
 
     const crVal = cfg.coding_rate ?? cfg.radio_cr ?? cfg.cr;
     const crInput = document.getElementById("localCr");
