@@ -293,6 +293,11 @@ export class ChatModule {
 
       if (isCommonChatMessage(payload)) {
         await this.handleIncomingChatMessage(payload);
+        return;
+      }
+
+      if (evType === "contact_discovered" || evType === "contact_updated" || evType === "contacts_updated") {
+        this.refreshDmNamesFromKnownNodes();
       }
     });
   }
@@ -642,18 +647,33 @@ export class ChatModule {
   _updateActiveChatHeader() {
     if (this.activeDmTarget) {
       // Caso Conversación Directa (DM)
+      const normTarget = this.activeDmTarget.toLowerCase().trim();
+      const node = (this.ctx.knownNodes ? Array.from(this.ctx.knownNodes.values()) : []).find(
+        (n) => (n.public_key && n.public_key.toLowerCase() === normTarget) ||
+               (n.key_prefix && normTarget.startsWith(n.key_prefix.toLowerCase()))
+      );
+
+      const isHexOrFallback = !this.activeDmName ||
+        this.activeDmName.toLowerCase() === "unknown" ||
+        this.activeDmName.toLowerCase() === "anónimo" ||
+        this.activeDmName.toLowerCase() === "anonimo" ||
+        this.activeDmName === this.activeDmTarget ||
+        this.activeDmName === this.activeDmTarget.slice(0, 8) ||
+        this.activeDmName.startsWith("Nodo [") ||
+        this.activeDmName.includes("Estación Local") ||
+        this.activeDmName.includes("Local Station");
+
+      const displayName = (isHexOrFallback && (node?.name || node?.alias))
+        ? (node.alias || node.name)
+        : (this.activeDmName || node?.alias || node?.name || this.activeDmTarget.slice(0, 8));
+
       if (this.dom.chatTargetAvatar) {
         this.dom.chatTargetAvatar.textContent = "👤";
       }
       if (this.dom.chatTargetName) {
-        this.dom.chatTargetName.textContent = `DM: ${this.activeDmName || this.activeDmTarget.slice(0, 8)}`;
+        this.dom.chatTargetName.textContent = `DM: ${displayName}`;
       }
       if (this.dom.chatTargetSub) {
-        const normTarget = this.activeDmTarget.toLowerCase().trim();
-        const node = (this.ctx.knownNodes ? Array.from(this.ctx.knownNodes.values()) : []).find(
-          (n) => (n.public_key && n.public_key.toLowerCase() === normTarget) ||
-                 (n.key_prefix && normTarget.startsWith(n.key_prefix.toLowerCase()))
-        );
 
         let subParts = [];
         if (node && node.last_seen && Number(node.last_seen) > 0) {
@@ -921,6 +941,26 @@ export class ChatModule {
     }
   }
 
+  refreshDmNamesFromKnownNodes() {
+    if (!this.dom.dmListUi) return;
+    this.dom.dmListUi.querySelectorAll(".channel-item[data-pubkey]").forEach((item) => {
+      const pk = item.getAttribute("data-pubkey");
+      if (!pk) return;
+      const canonicalPk = this.resolveCanonicalPubkey(pk);
+      const node = this.ctx.knownNodes?.get(canonicalPk.toLowerCase());
+      if (node && (node.name || node.alias)) {
+        const nameSpan = item.querySelector(".ch-name");
+        const realName = node.alias || node.name;
+        if (nameSpan && realName && nameSpan.textContent !== realName) {
+          nameSpan.textContent = realName;
+        }
+      }
+    });
+    if (this.activeDmTarget) {
+      this._updateActiveChatHeader();
+    }
+  }
+
   addDmContact(pubkey, name) {
     if (!pubkey || !this.dom.dmListUi) return;
     const canonicalPk = this.resolveCanonicalPubkey(pubkey);
@@ -931,16 +971,33 @@ export class ChatModule {
     const roleUpper = String(node?.role || "").toUpperCase();
     if (roleUpper === "REPEATER" || roleUpper === "ROUTER") return;
 
-    let cleanDisplayName = name || canonicalPk.slice(0, 8);
-    if (cleanDisplayName.includes("Estación Local") || cleanDisplayName.includes("Local Station")) {
-      cleanDisplayName = node?.name || canonicalPk.slice(0, 8);
-    }
+    const isHexOrFallback = !name ||
+      name.toLowerCase() === "unknown" ||
+      name.toLowerCase() === "anónimo" ||
+      name.toLowerCase() === "anonimo" ||
+      name === canonicalPk ||
+      name === canonicalPk.slice(0, 8) ||
+      name.startsWith("Nodo [") ||
+      name.includes("Estación Local") ||
+      name.includes("Local Station");
+
+    let cleanDisplayName = (isHexOrFallback && (node?.name || node?.alias))
+      ? (node.alias || node.name)
+      : (name || node?.alias || node?.name || canonicalPk.slice(0, 8));
 
     const emptyHint = this.dom.dmListUi.querySelector(".empty-hint");
     if (emptyHint) emptyHint.remove();
 
     const existing = this.dom.dmListUi.querySelector(`.channel-item[data-pubkey="${canonicalPk}"]`);
-    if (existing) return;
+    if (existing) {
+      if (cleanDisplayName && (!isHexOrFallback || (node?.name || node?.alias))) {
+        const nameSpan = existing.querySelector(".ch-name");
+        if (nameSpan && nameSpan.textContent !== cleanDisplayName) {
+          nameSpan.textContent = cleanDisplayName;
+        }
+      }
+      return;
+    }
 
     const li = document.createElement("li");
     li.className = "channel-item";
@@ -1018,7 +1075,22 @@ export class ChatModule {
     row.setAttribute("data-msg-id", msg.id || msg.msg_id || "");
 
     const timeStr = this._formatMessageTimestamp(msg.timestamp);
-    const sender = msg.is_outgoing ? (window.I18n ? window.I18n.t('common.you') : "Tú") : (msg.sender_name || msg.sender || (window.I18n ? window.I18n.t('common.anonymous') : "Anónimo"));
+    let sender = msg.is_outgoing ? (window.I18n ? window.I18n.t('common.you') : "Tú") : (msg.sender_name || msg.sender || (window.I18n ? window.I18n.t('common.anonymous') : "Anónimo"));
+    if (!msg.is_outgoing && sender) {
+      const senderPk = msg.sender ? this.resolveCanonicalPubkey(msg.sender) : null;
+      if (senderPk) {
+        const node = this.ctx.knownNodes?.get(senderPk.toLowerCase());
+        const isHexOrFallback = sender === senderPk ||
+          sender === senderPk.slice(0, 8) ||
+          sender.startsWith("Nodo [") ||
+          sender.toLowerCase() === "unknown" ||
+          sender.toLowerCase() === "anónimo" ||
+          sender.toLowerCase() === "anonimo";
+        if (isHexOrFallback && (node?.name || node?.alias)) {
+          sender = node.alias || node.name;
+        }
+      }
+    }
 
     const text = msg.text || "";
 
