@@ -372,9 +372,9 @@
       'toast.radio_cfg_ok':        '📻 Parámetros de radio locales actualizados',
       'toast.identity_ok':         '📍 Identidad y ubicación guardadas',
       'toast.metrics_reset':       'Métricas y contadores restablecidos correctamente',
-      'toast.ping_sending':        '🎯 Enviando Ping (0 saltos) a {name}...',
-      'toast.ping_ok':             '🎯 Pong recibido de {name}: {rtt}{snr}',
-      'toast.ping_err':            '⚠️ Sin respuesta de Ping desde {name}',
+      'toast.ping_sending':        '🎯 Enviando Ping a {name}...',
+      'toast.ping_ok':             '🎯 Pong de {name}: {rtt}{snr}{rssi}',
+      'toast.ping_err':            '⚠️ Sin respuesta de Ping ({name})',
 
       // Common
       'common.you':                'Tú',
@@ -836,9 +836,9 @@
       'toast.radio_cfg_ok':        '📻 Local radio parameters updated',
       'toast.identity_ok':         '📍 Identity and location saved',
       'toast.metrics_reset':       'Metrics and counters reset successfully',
-      'toast.ping_sending':        '🎯 Sending Ping (0 hops) to {name}...',
-      'toast.ping_ok':             '🎯 Pong received from {name}: {rtt}{snr}',
-      'toast.ping_err':            '⚠️ No Ping response from {name}',
+      'toast.ping_sending':        '🎯 Sending Ping to {name}...',
+      'toast.ping_ok':             '🎯 Pong from {name}: {rtt}{snr}{rssi}',
+      'toast.ping_err':            '⚠️ No Ping response ({name})',
 
       // Common
       'common.you':                'You',

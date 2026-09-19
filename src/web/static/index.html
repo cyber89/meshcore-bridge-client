@@ -1547,10 +1547,10 @@
     </div>
 
     <!-- Modal: Compartir Canal / Contacto por Código QR -->
-    <div id="qrShareModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="qrShareTitle">
+    <div id="qrShareModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="qrModalTitle">
       <div class="modal-card qr-modal-card">
         <div class="modal-header">
-          <h3 id="qrShareTitle"><span class="modal-title-icon" data-lucide="qr-code" data-size="18"></span> Compartir por Código QR</h3>
+          <h3 id="qrModalTitle"><span class="modal-title-icon" data-lucide="qr-code" data-size="18"></span> Compartir por Código QR</h3>
           <button class="btn-icon modal-close" id="btnCloseQrShareModal" aria-label="Cerrar modal">✕</button>
         </div>
         <div class="modal-body qr-modal-body">
@@ -1558,7 +1558,7 @@
             <!-- Columna Izquierda: QR Canvas y Guía -->
             <div class="qr-preview-col">
               <div class="qr-canvas-container">
-                <canvas id="qrShareCanvas" width="180" height="180"></canvas>
+                <canvas id="qrCanvas" width="180" height="180"></canvas>
               </div>
               <span class="qr-scan-hint" id="qrShareDesc"><span data-lucide="qr-code" data-size="14"></span> Escanea con la app MeshCore o cámara</span>
             </div>
@@ -1566,16 +1566,16 @@
             <!-- Columna Derecha: Enlace URI, JSON y Acciones -->
             <div class="qr-details-col">
               <div class="form-group">
-                <label for="qrShareUri">Enlace URI MeshCore:</label>
+                <label for="qrUriDisplay">Enlace Canónico (URI):</label>
                 <div class="input-with-action">
-                  <input type="text" id="qrShareUri" readonly />
+                  <input type="text" id="qrUriDisplay" readonly />
                   <button type="button" class="btn-primary btn-sm" id="btnCopyQrUri"><span data-lucide="copy" data-size="13"></span> Copiar</button>
                 </div>
               </div>
 
               <div class="form-group">
-                <label for="qrShareJson">Esquema JSON:</label>
-                <textarea id="qrShareJson" readonly class="code-textarea"></textarea>
+                <label for="qrShareJson">Datos Estructurados (JSON):</label>
+                <textarea id="qrShareJson" readonly class="code-textarea" rows="3"></textarea>
               </div>
 
               <div class="qr-actions-row">
@@ -2147,41 +2147,6 @@
                 <tr><td colspan="6" class="text-center">Sin datos de traza</td></tr>
               </tbody>
             </table>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Modal: Compartir por Código QR -->
-    <div id="qrShareModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="qrModalTitle">
-      <div class="modal-card qr-modal-card">
-        <div class="modal-header">
-          <h3 id="qrModalTitle"><span class="modal-title-icon" data-lucide="qr-code" data-size="18"></span> Compartir por Código QR</h3>
-          <button class="btn-icon modal-close" id="btnCloseQrShareModal" aria-label="Cerrar modal">✕</button>
-        </div>
-        <div class="modal-body qr-modal-body">
-          <div class="qr-modal-layout">
-            <div class="qr-preview-col">
-              <div class="qr-canvas-container">
-                <canvas id="qrCanvas" width="180" height="180"></canvas>
-              </div>
-              <span class="qr-scan-hint">Escanea con la app MeshCore o cámara móvil</span>
-            </div>
-            <div class="qr-details-col">
-              <div class="form-group">
-                <label for="qrUriDisplay">Enlace Canónico (URI):</label>
-                <textarea id="qrUriDisplay" readonly class="code-textarea" rows="2"></textarea>
-              </div>
-              <div class="form-group">
-                <label for="qrShareJson">Datos Estructurados (JSON):</label>
-                <textarea id="qrShareJson" readonly class="code-textarea" rows="3"></textarea>
-              </div>
-              <div class="qr-actions-row">
-                <button type="button" class="btn-secondary btn-sm" id="btnCopyQrUri"><span data-lucide="copy" data-size="13"></span> Copiar URI</button>
-                <button type="button" class="btn-secondary btn-sm" id="btnDownloadQrJson"><span data-lucide="download" data-size="13"></span> Descargar JSON</button>
-                <button type="button" class="btn-primary btn-sm" id="btnCloseQrModalAction">Cerrar</button>
-              </div>
-            </div>
           </div>
         </div>
       </div>

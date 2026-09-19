@@ -249,8 +249,30 @@ class MeshCoreApp {
             filterCmdItems("");
           }
         }
-      } else if (e.key === "Escape" && commandPaletteModal && !commandPaletteModal.classList.contains("hidden")) {
-        commandPaletteModal.classList.add("hidden");
+      } else if (e.key === "Escape") {
+        const openModals = Array.from(document.querySelectorAll(".modal-overlay:not(.hidden)"));
+        if (openModals.length > 0) {
+          const topModal = openModals[openModals.length - 1];
+          // Close top modal via its close button or by adding hidden
+          const closeBtn = topModal.querySelector(".modal-close");
+          if (closeBtn) {
+            closeBtn.click();
+          } else {
+            topModal.classList.add("hidden");
+          }
+        }
+      }
+    });
+
+    // Cierre intuitivo al hacer clic en el backdrop de cualquier modal
+    document.addEventListener("click", (e) => {
+      if (e.target && e.target.classList && e.target.classList.contains("modal-overlay")) {
+        const closeBtn = e.target.querySelector(".modal-close");
+        if (closeBtn) {
+          closeBtn.click();
+        } else {
+          e.target.classList.add("hidden");
+        }
       }
     });
 
@@ -483,12 +505,12 @@ class MeshCoreApp {
     }
 
     const icons = {
-      success: "✓",
-      info: "ℹ",
-      warning: "⚠",
-      error: "✕",
+      success: `<svg class="toast-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`,
+      info: `<svg class="toast-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`,
+      warning: `<svg class="toast-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`,
+      error: `<svg class="toast-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>`,
     };
-    const icon = icons[type] || "ℹ";
+    const icon = icons[type] || icons.info;
 
     const toast = document.createElement("div");
     toast.className = `toast toast-item toast-${type}`;

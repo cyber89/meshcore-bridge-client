@@ -950,10 +950,6 @@ export class NodesModule {
       return;
     }
 
-    if (this.ctx.showToast) {
-      const sendingMsg = (window.I18n ? window.I18n.t('toast.ping_sending') : null)?.replace('{name}', cleanName) || `🎯 Enviando Ping (Hop 0) a ${cleanName}...`;
-      this.ctx.showToast(sendingMsg, "info");
-    }
     try {
       const res = await fetch("/api/node/ping_zero", {
         method: "POST",
@@ -964,14 +960,16 @@ export class NodesModule {
       if (res.ok && data.status === "ok") {
         const rtt = data.data?.rtt_ms != null ? `${data.data.rtt_ms} ms` : "OK";
         const snr = data.data?.snr != null ? ` | SNR: ${data.data.snr} dB` : "";
+        const rssi = data.data?.rssi != null ? ` | RSSI: ${data.data.rssi} dBm` : "";
         const msg = (window.I18n ? window.I18n.t('toast.ping_ok') : null)
           ?.replace('{name}', cleanName)
           ?.replace('{rtt}', rtt)
-          ?.replace('{snr}', snr) || `🎯 Pong recibido de ${cleanName}: RTT ${rtt}${snr}`;
+          ?.replace('{snr}', snr)
+          ?.replace('{rssi}', rssi) || `🎯 Pong de ${cleanName}: ${rtt}${snr}${rssi}`;
         if (this.ctx.showToast) this.ctx.showToast(msg, "success");
       } else {
-        const errMsg = data.detail || data.message || data.error || `HTTP ${res.status}`;
-        const msg = (window.I18n ? window.I18n.t('toast.ping_err') : null)?.replace('{name}', cleanName) || `⚠️ Sin respuesta de Ping desde ${cleanName} (${errMsg})`;
+        const errMsg = data.detail || data.message || data.error || "Timeout";
+        const msg = (window.I18n ? window.I18n.t('toast.ping_err') : null)?.replace('{name}', cleanName) || `⚠️ Sin respuesta de Ping (${errMsg})`;
         if (this.ctx.showToast) this.ctx.showToast(msg, "warning");
       }
     } catch (err) {

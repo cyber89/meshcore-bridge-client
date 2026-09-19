@@ -1242,19 +1242,19 @@ export class RepeaterModule {
           if (this.ctx.updateNodeInDom) this.ctx.updateNodeInDom(canonicalTarget, existing);
         }
 
-        if (this.ctx.showToast) this.ctx.showToast(`🎯 Ping a ${escapeHtml(name)}: Duration: ${rtt} ms | SNR: ${snrBack} | RSSI: ${rssi}`, "success");
+        if (this.ctx.showToast) this.ctx.showToast(`🎯 Pong: ${rtt} ms | SNR: ${snrBack} | RSSI: ${rssi}`, "success");
       } else {
-        const errMsg = data.message || "Timeout esperando respuesta";
+        const errMsg = data.message || "Timeout";
         this.appendTerminalLine(`✗ [PING FALLIDO] ${errMsg}`, "term-error");
         if (errMsg.toLowerCase().includes("password") || errMsg.toLowerCase().includes("auth") || errMsg.toLowerCase().includes("pin")) {
           this.handleRepeaterAuthError(target, errMsg);
         } else {
-          if (this.ctx.showToast) this.ctx.showToast(`⚠️ Ping: ${errMsg}`, "error");
+          if (this.ctx.showToast) this.ctx.showToast(`⚠️ Sin respuesta de Ping (${errMsg})`, "error");
         }
       }
     } catch (err) {
       this.appendTerminalLine(`✗ [PING ERROR] ${err.message}`, "term-error");
-      if (this.ctx.showToast) this.ctx.showToast(`Error de red en Ping: ${err.message}`, "error");
+      if (this.ctx.showToast) this.ctx.showToast(`Error de conexión en Ping: ${err.message}`, "error");
     } finally {
       const btnActionPingElFin = document.getElementById("btnModalActionPing");
       if (btnActionPingElFin) {

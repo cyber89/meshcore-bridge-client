@@ -2,6 +2,33 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Calidad de Diálogos, Optimización de Toasts (Respuesta Limpia de Ping) y Cobertura Visual Total de Componentes
+- **Fecha**: 2026-09-19
+- **Estado**: ✅ COMPLETADO — Diálogos y modales con glassmorphism, sombras profundas, soporte global de cierre por tecla `Escape` y backdrop, consolidación sin duplicados en el DOM; toasts rediseñados con iconos SVG nítidos y textos concisos (devolviendo únicamente la respuesta en el ping a un nodo); y cobertura del 100% de clases CSS en `app.css` con compatibilidad total en tema oscuro y tema claro.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX & Frontend Architect).
+- **Acciones Realizadas**:
+  1. **`src/web/static/index.html`**:
+     - Eliminada duplicidad de `#qrShareModal`, consolidando IDs y selectores canónicos (`#qrModalTitle`, `#qrCanvas`, `#qrUriDisplay`, etc.).
+     - Verificada la jerarquía ARIA completa (`role="dialog"`, `aria-modal="true"`, `aria-labelledby`, `aria-label`).
+  2. **`src/web/static/js/app.js`**:
+     - Implementado cierre global por teclado con la tecla `Escape` para cerrar limpiamente el modal superior abierto.
+     - Implementado listener global de clic en backdrop (`modal-overlay`) para cerrar diálogos de forma intuitiva.
+     - Rediseñado `showToast()` para renderizar iconos SVG vectoriales nítidos (estilo Lucide) en lugar de caracteres unicode planos.
+  3. **`src/web/static/js/modules/nodes.js` y `repeater.js`**:
+     - Suprimido el toast preliminar `"🎯 Enviando Ping..."` que causaba saturación y ruido en la pantalla.
+     - Al recibir respuesta, devuelta únicamente la respuesta limpia del ping: `🎯 Pong de {name}: {rtt} | SNR: {snr} | RSSI: {rssi}` (o `🎯 Pong: {rtt} ms | SNR: {snr} | RSSI: {rssi}`).
+     - Textos de error limpios y directos ante timeouts o fallos de conexión.
+  4. **`src/web/static/js/i18n.js`**:
+     - Sincronizadas las cadenas de traducción en español e inglés para `toast.ping_ok`, `toast.ping_err` y `toast.ping_sending`.
+  5. **`src/web/static/css/app.css`**:
+     - Incorporadas reglas para las 39 clases que carecían de estilos en el sistema de diseño: `.modal-close`, `.modal-instruction-text`, `.callout-box` (`.warning-callout`, `.info-callout`, `.success-callout`, `.danger-callout`), `.packet-inspector-card`, `.traceroute-modal-body`, `.subtabs-nav-bar`, `.badge-info`, `.badge-secondary`, `.badge-outline`, `.badge-active`, utilidades tipográficas (`.text-center`, `.text-muted`, `.text-sm`, `.text-xs`, `.text-success`, `.font-semibold`), barras de airtime (`.airtime-progress-container`, `.airtime-progress-header`, `.airtime-progress-bar-bg`), adjuntos (`.attach-icon-channel`, `.attach-icon-contact`, `.attach-icon-location`, `.attach-label`), y estados vacíos (`.nodes-empty-filter-state`, `.share-picker-empty`, `.spin-animation`, `.rep-quick-cmd`).
+     - Añadidas reglas de sobreescritura para `body.light-theme` garantizando contraste WCAG 2.2 AA.
+- **Verificación y Calidad**:
+  - `node --check` en `app.js`, `nodes.js`, `repeater.js`, `i18n.js`: 0 errores.
+  - Verificación exhaustiva de clases: 338/338 clases HTML y JS vinculadas a reglas CSS (0 clases huérfanas).
+  - `sync_deploy.py`: completado con éxito.
+
+
 ### Hito: Formato Canónico de Mensajes de Contacto (<pubkey:type:name>), Restauración de Modal QR e Importación Web Flexible
 - **Fecha**: 2026-09-19
 - **Estado**: ✅ COMPLETADO — Formato canónico `<pubkey:type:name>` implementado en chat (envío y recepción), renderizado de tarjeta de contacto enriquecida con botón de guardado en libreta; modal QR completamente restaurado y estilizado; e importación web extendida para soportar etiquetas canónicas de mensaje, enlaces URI, JSON y subida de archivos (.json / .txt).
