@@ -398,24 +398,6 @@ class MeshCoreApp {
 
     this.eventBus.on(EVENTS.RX_PACKET, (payload) => {
       if (!payload) return;
-      if (this.dom.headerRxCount && payload.rx_count != null) {
-        this.dom.headerRxCount.textContent = String(payload.rx_count);
-      }
-      if (this.dom.headerTxCount && payload.tx_count != null) {
-        this.dom.headerTxCount.textContent = String(payload.tx_count);
-      }
-      if (this.dom.headerErrorRate && payload.error_rate != null) {
-        this.dom.headerErrorRate.textContent = `${Number(payload.error_rate).toFixed(1)}%`;
-      }
-      if (this.dom.headerQueueDepth && payload.queue_depth != null) {
-        this.dom.headerQueueDepth.textContent = String(payload.queue_depth);
-      }
-      if (payload.duty_cycle_pct != null || payload.hourly_duty_cycle_pct != null) {
-        this.updateAirtimeBadge(payload);
-      }
-      if (payload.radio_connected != null) {
-        this.updateRadioBadge(Boolean(payload.radio_connected), payload.radio_port || "");
-      }
       const evType = String(payload.event || payload.event_type || payload.type || "").toLowerCase();
       if (evType === "self_info" || evType === "device_info") {
         if (this.modules?.settings?.populateLocalConfig) {

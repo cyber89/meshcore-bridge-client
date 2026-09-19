@@ -485,16 +485,16 @@
                 <div class="airtime-progress-container" style="padding: 1rem 0;">
                   <div class="airtime-progress-header" style="display: flex; justify-content: space-between; margin-bottom: 6px;">
                     <span id="analyticsAirtimeLabel" class="font-semibold text-sm">Uso actual: 0.0%</span>
-                    <span id="analyticsAirtimeMs" class="text-sm font-mono text-muted">0 ms / 360,000 ms</span>
+                    <span id="analyticsAirtimeMs" class="text-sm font-mono text-muted">0 ms / 36,000 ms (Límite: 1.0%)</span>
                   </div>
                   <div class="airtime-progress-bar-bg" style="width: 100%; height: 12px; background: var(--bg-tertiary, #1f293d); border-radius: 6px; overflow: hidden; position: relative;">
                     <div id="analyticsAirtimeFill" class="airtime-progress-bar-fill" style="width: 0%; height: 100%; background: var(--accent-primary, #3b82f6); transition: width 0.4s ease, background 0.4s ease;"></div>
-                    <div style="position: absolute; left: 10%; top: 0; bottom: 0; width: 2px; background: rgba(234, 179, 8, 0.7); z-index: 2;" title="Umbral regulatorio europeo (1.0%)"></div>
+                    <div id="analyticsAirtimeWarnMarker" style="position: absolute; left: 80%; top: 0; bottom: 0; width: 2px; background: rgba(234, 179, 8, 0.7); z-index: 2;" title="Umbral de advertencia (80% del límite)"></div>
                   </div>
                   <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 4px;">
                     <span>0% (Libre)</span>
-                    <span style="color: var(--accent-warning, #eab308);">▲ 1.0% Límite Legal EU</span>
-                    <span style="color: var(--accent-danger, #ef4444);">10.0% Saturación</span>
+                    <span id="analyticsAirtimeWarnLabel" style="color: var(--accent-warning, #eab308);">▲ 0.8% Advertencia (80%)</span>
+                    <span id="analyticsAirtimeLimitLabel" style="color: var(--accent-danger, #ef4444);">1.0% Límite Legal (Bloqueo)</span>
                   </div>
                 </div>
               </div>

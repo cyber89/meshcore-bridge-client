@@ -2,7 +2,29 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
-### Hito: Calidad de Diálogos, Optimización de Toasts (Respuesta Limpia de Ping) y Cobertura Visual Total de Componentes
+### Hito: Unificación y Sincronización en Tiempo Real del Airtime (Header vs Pestaña Analíticas)
+- **Fecha**: 2026-09-19
+- **Estado**: ✅ COMPLETADO — Sincronización reactiva 1:1 en tiempo real entre la barra de airtime del header y la tarjeta de presupuesto horario de la pestaña Analíticas, eliminación de interferencia de paquetes remotos y corrección de la escala visual del 1.0% (36,000 ms).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect).
+- **Causa Raíz Diagnosticada**:
+  1. **Desincronización de eventos y refresco pasivo**: `analytics.js` sólo actualizaba la tarjeta de airtime mediante polling HTTP GET `/api/airtime/stats` cada 3 segundos y exclusivamente si la pestaña `tab-analytics` estaba activa. Mientras tanto, el header se actualizaba cada 2s vía WebSocket `METRICS_UPDATE`. Esto provocaba que los valores en Analíticas se vieran desfasados o estáticos.
+  2. **Sobreescritura accidental por paquetes LoRa remotos (`RX_PACKET`)**: En `app.js`, el listener de `EVENTS.RX_PACKET` contenía una copia errónea del código de actualización de métricas que ejecutaba `this.updateAirtimeBadge(payload)`. Si un paquete recibido del aire (ej. telemetría o advert de un repetidor) contenía campos de duty cycle, sobreescribía el airtime local del bridge en el header con el del nodo remoto.
+  3. **Discrepancia en la escala visual y presupuesto de la tarjeta en `index.html`**: En `index.html`, la barra de progreso de analíticas mostraba un presupuesto fijo erróneo de `360,000 ms` (10% de 1 hora en lugar del 1.0% = 36,000 ms) y una escala visual fija con una marca a `10%` que decía "▲ 1.0% Límite Legal EU" y "10.0% Saturación" al 100%. Sin embargo, `analytics.js` calculaba el ancho de llenado como `(dutyCyclePct / limitPct) * 100` (donde `limitPct = 1.0%`). En consecuencia, con un uso de 0.5%, la barra se llenaba al 50%, sobrepasando visualmente la marca del 1.0% colocada al 10%, causando confusión total con respecto al header.
+- **Acciones Realizadas**:
+  1. **`src/web/controllers/nodes_controller.py`**:
+     - Corregido el valor fallback de `hourly_budget_ms` en `get_airtime_stats()` de `360000` a `36000` ms.
+  2. **`src/web/static/js/app.js`**:
+     - Limpiado el manejador de `EVENTS.RX_PACKET` eliminando la actualización de contadores y `updateAirtimeBadge(payload)`, garantizando que el airtime del bridge provenga únicamente de fuentes locales (`METRICS_UPDATE` y `DUTY_CYCLE_ALERT`).
+  3. **`src/web/static/js/modules/analytics.js`**:
+     - En `_subscribeBus()`: suscrito reactivamente a `EVENTS.METRICS_UPDATE` y `EVENTS.DUTY_CYCLE_ALERT` para llamar de inmediato a `this.renderAirtimeStats(payload.airtime || payload)`.
+     - En `renderAirtimeStats()`: formateo limpio de `usedMs` y `budgetMs`, soporte para `airtime_ms`, y actualización dinámica de la posición y etiqueta del marcador de advertencia (`warnThresholdPct`) y límite legal (`limitPct`).
+  4. **`src/web/static/index.html`**:
+     - Actualizado `#analyticsAirtimeMs` a `0 ms / 36,000 ms (Límite: 1.0%)`.
+     - Actualizado el marcador `#analyticsAirtimeWarnMarker` al 80% (`left: 80%`) y la escala inferior a `0% (Libre)`, `▲ 0.8% Advertencia (80%)` y `1.0% Límite Legal (Bloqueo)`.
+- **Verificación y Calidad**:
+  - `node --check` en `app.js` y `analytics.js`: 0 errores.
+  - `python -m py_compile src/web/controllers/nodes_controller.py`: 0 errores.
+  - `python scripts/sync_deploy.py`: completado con éxito.
 - **Fecha**: 2026-09-19
 - **Estado**: ✅ COMPLETADO — Diálogos y modales con glassmorphism, sombras profundas, soporte global de cierre por tecla `Escape` y backdrop, consolidación sin duplicados en el DOM; toasts rediseñados con iconos SVG nítidos y textos concisos (devolviendo únicamente la respuesta en el ping a un nodo); y cobertura del 100% de clases CSS en `app.css` con compatibilidad total en tema oscuro y tema claro.
 - **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX & Frontend Architect).
@@ -4449,5 +4471,35 @@ Fase 5 - COMPAT-001 to COMPAT-012 terminados
      - `node --check src/web/static/js/i18n.js`: 100% PASS.
      - `python scripts/sync_deploy.py`: Paquetes y sumas SHA256 actualizadas.
 - **Módulos Modificados**: `src/web/static/js/modules/chat.js`, `src/web/static/js/i18n.js`, `deploy/**`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
+---
+
+### Hito: Barra Dinámica de Consumo de Airtime en el Encabezado con Estados Cromáticos Reactivos
+- **Fecha**: 2026-09-19
+- **Estado**: ✅ COMPLETADO (Conversión del indicador de Airtime en el encabezado a una mini barra de progreso dinámica y fluida; cálculo proporcional del 0% al 100% respecto al presupuesto horario legal; transiciones cromáticas automáticas entre verde para consumo bajo/normal, amarillo para umbral preventivo warn_threshold_pct, y rojo con pulso de advertencia al alcanzar el límite horario duty_cycle_limit_pct; retorno suave al estado verde cuando la ventana deslizante horaria se poda y restablece el cupo; sincronización en app.js y map.js; empaquetado en /deploy/ y push a GitHub).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web Architect).
+- **Problema / Requerimiento**:
+  - El usuario solicitó: "el air time que se muestra en el header quiero que lo conbiertas a una barra que se vallenando y cambia de color verde cuando es poco , amarillo casi se cumple y rojo cuando ya no se puede mandar mas, tener en cuenta los parametros establecidos ya. tambien cuando pase el tiempo y se restablezca el airtime la barra regrese a su estado normal."
+- **Acciones Realizadas**:
+  1. **Estructura HTML (`src/web/static/index.html`)**:
+     - `#headerAirtimeChip` enriquecido con `<span class="header-airtime-track" id="headerAirtimeTrack"><span class="header-airtime-fill" id="headerAirtimeFill"></span></span>`, conservando el icono vectorial del reloj y el porcentaje numérico en `<strong id="headerDutyCycle">`.
+  2. **Diseño Visual y Animación (`src/web/static/css/app.css`)**:
+     - Creada la pista `.header-airtime-track` de 50px de ancho con esquinas redondeadas, fondo translúcido y borde sutil tanto en tema oscuro como claro.
+     - Estilizado el relleno `.header-airtime-fill` con transición fluida `transition: width 0.45s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.4s ease, box-shadow 0.4s ease`.
+     - Definidos los 3 estados cromáticos:
+       - `.normal`: Verde esmeralda (`#10b981`) con glow sutil para consumo bajo/seguro.
+       - `.warning`: Ámbar cálido (`#f59e0b`) cuando supera el umbral preventivo (80% del límite).
+       - `.danger`: Rojo intenso (`#ef4444`) con animación palpitante `@keyframes airtimeFillPulse` cuando se alcanza el límite (100% del cupo horario).
+  3. **Lógica Reactiva y Cálculo Proporcional (`src/web/static/js/app.js`, `map.js`)**:
+     - En `app.js`: `updateAirtimeBadge()` calcula el porcentaje de llenado de la barra `fillPct = Math.min(100, Math.round((pct / limitPct) * 100))%` basándose en los parámetros de la radio y el regulador (`duty_cycle_limit_pct` y `warn_threshold_pct`).
+     - Al avanzar el tiempo y podarse transmisiones de más de 3600 segundos en el backend, la barra disminuye de forma continua y vuelve a su color verde normal.
+     - En `map.js`: El sondeo periódico cada 60s invoca `this.ctx.updateAirtimeBadge(stats)` para mantener la barra actualizada incluso sin tráfico entrante.
+  4. **Verificación y Despliegue**:
+     - `node --check src/web/static/js/app.js`: 100% PASS.
+     - `node --check src/web/static/js/modules/map.js`: 100% PASS.
+     - Validador HTML: 100% PASS (estructura de etiquetas válida).
+     - Sincronizado en `/deploy/` con `python scripts/sync_deploy.py`.
+- **Módulos Modificados**: `src/web/static/index.html`, `src/web/static/css/app.css`, `src/web/static/js/app.js`, `src/web/static/js/modules/map.js`, `deploy/**`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 
 

@@ -50,6 +50,9 @@ export class AnalyticsModule {
       analyticsAirtimeLabel: document.getElementById("analyticsAirtimeLabel"),
       analyticsAirtimeMs: document.getElementById("analyticsAirtimeMs"),
       analyticsAirtimeFill: document.getElementById("analyticsAirtimeFill"),
+      analyticsAirtimeWarnMarker: document.getElementById("analyticsAirtimeWarnMarker"),
+      analyticsAirtimeWarnLabel: document.getElementById("analyticsAirtimeWarnLabel"),
+      analyticsAirtimeLimitLabel: document.getElementById("analyticsAirtimeLimitLabel"),
     };
   }
 
@@ -126,7 +129,22 @@ export class AnalyticsModule {
 
     this.ctx.eventBus.on(EVENTS.RF_PACKET, triggerDebouncedRefresh);
     if (EVENTS.METRICS_UPDATE) {
-      this.ctx.eventBus.on(EVENTS.METRICS_UPDATE, triggerDebouncedRefresh);
+      this.ctx.eventBus.on(EVENTS.METRICS_UPDATE, (payload) => {
+        triggerDebouncedRefresh();
+        if (payload) {
+          const airtimeData = payload.airtime || (payload.duty_cycle_pct != null || payload.hourly_duty_cycle_pct != null ? payload : null);
+          if (airtimeData) {
+            this.renderAirtimeStats(airtimeData);
+          }
+        }
+      });
+    }
+    if (EVENTS.DUTY_CYCLE_ALERT) {
+      this.ctx.eventBus.on(EVENTS.DUTY_CYCLE_ALERT, (payload) => {
+        if (payload) {
+          this.renderAirtimeStats(payload);
+        }
+      });
     }
   }
 
@@ -334,7 +352,7 @@ export class AnalyticsModule {
 
   renderAirtimeStats(airtime) {
     if (!airtime) return;
-    const usedMs = Number(airtime.hourly_used_ms || 0);
+    const usedMs = Number(airtime.hourly_used_ms != null ? airtime.hourly_used_ms : (airtime.airtime_ms || 0));
     const limitPct = Number(airtime.hourly_limit_pct || 1.0);
     const warnThresholdPct = Number(airtime.warn_threshold_pct || 80.0);
     const budgetMs = Number(airtime.hourly_budget_ms || (3600000.0 * (limitPct / 100.0)));
@@ -348,7 +366,19 @@ export class AnalyticsModule {
       this.dom.analyticsAirtimeLabel.textContent = `${I18n.t('analytics.usage_pct').replace('{pct}', dutyCyclePct.toFixed(2))}${statusSuffix}`;
     }
     if (this.dom.analyticsAirtimeMs) {
-      this.dom.analyticsAirtimeMs.textContent = `${usedMs.toLocaleString()} ms / ${budgetMs.toLocaleString()} ms (Límite: ${limitPct}%)`;
+      this.dom.analyticsAirtimeMs.textContent = `${Math.round(usedMs).toLocaleString()} ms / ${Math.round(budgetMs).toLocaleString()} ms (Límite: ${limitPct.toFixed(1)}%)`;
+    }
+
+    if (this.dom.analyticsAirtimeWarnMarker) {
+      this.dom.analyticsAirtimeWarnMarker.style.left = `${warnThresholdPct}%`;
+      this.dom.analyticsAirtimeWarnMarker.title = `Umbral de advertencia (${warnThresholdPct}% del límite)`;
+    }
+    if (this.dom.analyticsAirtimeWarnLabel) {
+      const warnLimitPct = (limitPct * (warnThresholdPct / 100.0)).toFixed(2);
+      this.dom.analyticsAirtimeWarnLabel.textContent = `▲ ${warnLimitPct}% Advertencia (${warnThresholdPct}%)`;
+    }
+    if (this.dom.analyticsAirtimeLimitLabel) {
+      this.dom.analyticsAirtimeLimitLabel.textContent = `${limitPct.toFixed(1)}% Límite Legal (Bloqueo)`;
     }
 
     if (this.dom.analyticsAirtimeFill) {

@@ -148,7 +148,7 @@ class NodesController(BaseController):
             "status": "ok",
             "data": {
                 "hourly_used_ms": 0,
-                "hourly_budget_ms": 360000,
+                "hourly_budget_ms": 36000,
                 "hourly_duty_cycle_pct": 0.0,
             },
         }

@@ -2,7 +2,29 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
-### Hito: Calidad de Diálogos, Optimización de Toasts (Respuesta Limpia de Ping) y Cobertura Visual Total de Componentes
+### Hito: Unificación y Sincronización en Tiempo Real del Airtime (Header vs Pestaña Analíticas)
+- **Fecha**: 2026-09-19
+- **Estado**: ✅ COMPLETADO — Sincronización reactiva 1:1 en tiempo real entre la barra de airtime del header y la tarjeta de presupuesto horario de la pestaña Analíticas, eliminación de interferencia de paquetes remotos y corrección de la escala visual del 1.0% (36,000 ms).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect).
+- **Causa Raíz Diagnosticada**:
+  1. **Desincronización de eventos y refresco pasivo**: `analytics.js` sólo actualizaba la tarjeta de airtime mediante polling HTTP GET `/api/airtime/stats` cada 3 segundos y exclusivamente si la pestaña `tab-analytics` estaba activa. Mientras tanto, el header se actualizaba cada 2s vía WebSocket `METRICS_UPDATE`. Esto provocaba que los valores en Analíticas se vieran desfasados o estáticos.
+  2. **Sobreescritura accidental por paquetes LoRa remotos (`RX_PACKET`)**: En `app.js`, el listener de `EVENTS.RX_PACKET` contenía una copia errónea del código de actualización de métricas que ejecutaba `this.updateAirtimeBadge(payload)`. Si un paquete recibido del aire (ej. telemetría o advert de un repetidor) contenía campos de duty cycle, sobreescribía el airtime local del bridge en el header con el del nodo remoto.
+  3. **Discrepancia en la escala visual y presupuesto de la tarjeta en `index.html`**: En `index.html`, la barra de progreso de analíticas mostraba un presupuesto fijo erróneo de `360,000 ms` (10% de 1 hora en lugar del 1.0% = 36,000 ms) y una escala visual fija con una marca a `10%` que decía "▲ 1.0% Límite Legal EU" y "10.0% Saturación" al 100%. Sin embargo, `analytics.js` calculaba el ancho de llenado como `(dutyCyclePct / limitPct) * 100` (donde `limitPct = 1.0%`). En consecuencia, con un uso de 0.5%, la barra se llenaba al 50%, sobrepasando visualmente la marca del 1.0% colocada al 10%, causando confusión total con respecto al header.
+- **Acciones Realizadas**:
+  1. **`src/web/controllers/nodes_controller.py`**:
+     - Corregido el valor fallback de `hourly_budget_ms` en `get_airtime_stats()` de `360000` a `36000` ms.
+  2. **`src/web/static/js/app.js`**:
+     - Limpiado el manejador de `EVENTS.RX_PACKET` eliminando la actualización de contadores y `updateAirtimeBadge(payload)`, garantizando que el airtime del bridge provenga únicamente de fuentes locales (`METRICS_UPDATE` y `DUTY_CYCLE_ALERT`).
+  3. **`src/web/static/js/modules/analytics.js`**:
+     - En `_subscribeBus()`: suscrito reactivamente a `EVENTS.METRICS_UPDATE` y `EVENTS.DUTY_CYCLE_ALERT` para llamar de inmediato a `this.renderAirtimeStats(payload.airtime || payload)`.
+     - En `renderAirtimeStats()`: formateo limpio de `usedMs` y `budgetMs`, soporte para `airtime_ms`, y actualización dinámica de la posición y etiqueta del marcador de advertencia (`warnThresholdPct`) y límite legal (`limitPct`).
+  4. **`src/web/static/index.html`**:
+     - Actualizado `#analyticsAirtimeMs` a `0 ms / 36,000 ms (Límite: 1.0%)`.
+     - Actualizado el marcador `#analyticsAirtimeWarnMarker` al 80% (`left: 80%`) y la escala inferior a `0% (Libre)`, `▲ 0.8% Advertencia (80%)` y `1.0% Límite Legal (Bloqueo)`.
+- **Verificación y Calidad**:
+  - `node --check` en `app.js` y `analytics.js`: 0 errores.
+  - `python -m py_compile src/web/controllers/nodes_controller.py`: 0 errores.
+  - `python scripts/sync_deploy.py`: completado con éxito.
 - **Fecha**: 2026-09-19
 - **Estado**: ✅ COMPLETADO — Diálogos y modales con glassmorphism, sombras profundas, soporte global de cierre por tecla `Escape` y backdrop, consolidación sin duplicados en el DOM; toasts rediseñados con iconos SVG nítidos y textos concisos (devolviendo únicamente la respuesta en el ping a un nodo); y cobertura del 100% de clases CSS en `app.css` con compatibilidad total en tema oscuro y tema claro.
 - **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX & Frontend Architect).
