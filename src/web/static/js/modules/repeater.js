@@ -581,6 +581,37 @@ export class RepeaterModule {
           }
         }
       }
+
+      // Actualización en vivo del modal de repetidor si llega telemetría o contacto actualizado
+      if (this.selectedRepeaterTarget) {
+        const canonicalTarget = this.resolveCanonicalPubkey(this.selectedRepeaterTarget) || this.selectedRepeaterTarget;
+
+        if (evType === "contact_updated" && payload.contact) {
+          const c = payload.contact;
+          const cPk = this.resolveCanonicalPubkey(c.public_key || c.pubkey || c.sender || "");
+          if (cPk && cPk === canonicalTarget) {
+            if (this.ctx.knownNodes) {
+              const existing = this.ctx.knownNodes.get(canonicalTarget) || {};
+              const updated = { ...existing, ...c, public_key: canonicalTarget };
+              this.ctx.knownNodes.set(canonicalTarget, updated);
+              this.populateRepeaterModalData(updated);
+            }
+          }
+        } else if (evType === "telemetry" || evType === "stats" || evType === "STATS") {
+          const sender = payload.sender || payload.pubkey || payload.from;
+          if (sender) {
+            const sPk = this.resolveCanonicalPubkey(sender);
+            if (sPk && sPk === canonicalTarget) {
+              if (this.ctx.knownNodes) {
+                const existing = this.ctx.knownNodes.get(canonicalTarget) || {};
+                const updated = { ...existing, ...payload, public_key: canonicalTarget };
+                this.ctx.knownNodes.set(canonicalTarget, updated);
+                this.populateRepeaterModalData(updated);
+              }
+            }
+          }
+        }
+      }
     });
   }
 

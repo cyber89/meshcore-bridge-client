@@ -639,6 +639,13 @@ class LocalConfigExecutor:
                 if hasattr(ser, "self_info") and isinstance(ser.self_info, dict):
                     ser.self_info.update(update_fields)
 
+            rl = getattr(self._ctx, "rate_limiter", None)
+            if rl and hasattr(rl, "radio_config") and rl.radio_config:
+                rl.radio_config.sf = new_sf
+                rl.radio_config.bw_khz = new_bw
+                rl.radio_config.cr = new_cr
+                logging.info("TxRateLimiter: Parámetros LoRa actualizados a SF%d, BW%.1f kHz, CR%d", new_sf, new_bw, new_cr)
+
     def _apply_timing_settings(self, params: dict[str, Any], applied: dict[str, Any], mc: Any) -> None:
         """Aplica intervalos de baliza (advert) y telemetría."""
         if "beacon_interval" in params or "advert_interval" in params:

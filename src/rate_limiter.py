@@ -45,14 +45,15 @@ class LoRaRadioConfig:
 def estimate_lora_airtime_ms(payload_len_bytes: int, radio: LoRaRadioConfig) -> float:
     """
     Calcula el tiempo de transmisión en el aire (Airtime) en milisegundos
-    según la fórmula estándar de modulación LoRa de Semtech.
+    según la fórmula estándar de modulación LoRa de Semtech (AN1200.13 / SX1276 / SX1262).
     """
     bw_hz = radio.bw_khz * 1000.0
     t_sym_ms = (2 ** radio.sf) / bw_hz * 1000.0
     t_preamble_ms = (radio.preamble_len + 4.25) * t_sym_ms
 
     ih = 0 if radio.explicit_header else 1
-    de = 1 if radio.low_data_rate_opt or (radio.sf >= 11 and radio.bw_khz <= 125.0) else 0
+    # Semtech AN1200.13: LDRO (Low Data Rate Optimization) debe habilitarse si T_sym > 16.0 ms
+    de = 1 if (radio.low_data_rate_opt or t_sym_ms > 16.0) else 0
     crc_val = 1 if radio.has_crc else 0
 
     term1 = 8 * payload_len_bytes - 4 * radio.sf + 28 + 16 * crc_val - 20 * ih
@@ -60,7 +61,9 @@ def estimate_lora_airtime_ms(payload_len_bytes: int, radio: LoRaRadioConfig) -> 
     if term2 <= 0:
         term2 = 1
 
-    payload_symbols_num = math.ceil(term1 / term2) * radio.cr
+    # Normalizar multiplicador de coding rate (admite 5..8 para 4/5..4/8, o 1..4)
+    cr_mult = radio.cr if radio.cr in (5, 6, 7, 8) else (radio.cr + 4 if radio.cr in (1, 2, 3, 4) else 5)
+    payload_symbols_num = math.ceil(term1 / term2) * cr_mult
     symbol_count = 8 + max(payload_symbols_num, 0)
     t_payload_ms = symbol_count * t_sym_ms
 

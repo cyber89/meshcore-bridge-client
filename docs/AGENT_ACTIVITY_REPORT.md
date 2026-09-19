@@ -4381,3 +4381,28 @@ Fase 5 - COMPAT-001 to COMPAT-012 terminados
      - `ruff check src/ scripts/`: 100% PASS (0 errores).
      - `audit_codebase_integrity.py`: 100% PASS (54/54 módulos importados).
      - `python scripts/sync_deploy.py`: Paquetes de despliegue sincronizados y sumas SHA256 actualizadas.
+
+---
+
+### Hito: Verificación y Optimización Integral de Telemetría, Actualización de Nodos y Precisión de Airtime LoRa
+- **Fecha**: 2026-09-19
+- **Estado**: ✅ COMPLETADO (Verificación integral del pipeline de telemetría desde la radio hasta el DOM web; confirmación de actualización en vivo de tarjetas de nodos en el directorio; sincronización dinámica de parámetros de radio en TxRateLimiter.radio_config tras cambios en la WebUI; refinamiento de la fórmula Semtech AN1200.13 con umbral de LDRO basado en T_sym > 16.0ms y normalización del multiplicador de Coding Rate; actualización reactiva del modal de administración de repetidores ante eventos contact_updated y telemetry; ruff y node --check 100% PASS; empaquetado en /deploy/ y push a GitHub).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 4 (Web Architect).
+- **Problema / Requerimiento**:
+  - El usuario solicitó: "quiero que compruebes si esta funcionando la telemetria y si actualiza la informacion de los nodos y si se esta calculando el airtime correctamente".
+- **Resultados de la Auditoría y Mejoras Implementadas**:
+  1. **Pipeline de Telemetría**:
+     - Confirmado: `TelemetryHandler` intercepta eventos de telemetría y delega en `RxRouter._handle_mesh_telemetry_msg`.
+     - `RxRouter` normaliza batería (porcentaje y voltaje), métricas ambientales (temperatura, humedad, presión) y actualiza de forma atómica y thread-safe `NodeRegistry.add_or_update()`.
+     - Emite eventos WebSocket `contact_updated` y publica en tópicos MQTT `config.TOPIC_RX_TELEMETRY` y `config.TOPIC_RX_ALL`.
+  2. **Actualización de Información de Nodos en la WebUI**:
+     - En `src/web/static/js/modules/nodes.js`: Las tarjetas de nodos se actualizan reactivamente en tiempo real con `updateNodeInDom()` (SNR, RSSI, LQI, saltos, chip de batería, temperatura/humedad y estado de presencia).
+     - En `src/web/static/js/modules/repeater.js`: Se mejoró `_subscribeBus()` para que el modal de administración de repetidor abierto se actualice en vivo si llega un evento `contact_updated` o `telemetry` correspondiente al repetidor seleccionado.
+  3. **Cálculo de Airtime LoRa y Sincronización de Radio**:
+     - *Corrección crítica*: En `src/admin/local_config_executor.py`, cuando el usuario modificaba parámetros de radio (SF, BW, CR) desde la WebUI, `self._ctx.rate_limiter.radio_config` no se actualizaba, provocando que el estimador de airtime siguiera calculando con los parámetros predeterminados de arranque. Se implementó la sincronización inmediata en `_apply_radio_settings()`.
+     - *Precisión Semtech AN1200.13*: En `src/rate_limiter.py` (`estimate_lora_airtime_ms`), se ajustó el flag de optimización de baja tasa de datos (`de`) para activarse cuando la duración de símbolo $T_{sym} > 16.0$ ms (cubriendo configuraciones como BW 62.5 kHz con SF10, donde $T_{sym} = 16.384$ ms), y se robusteció la normalización del multiplicador de tasa de código (CR) para aceptar tanto la notación 5..8 como 1..4.
+  4. **Verificación y Sincronización**:
+     - `node --check src/web/static/js/modules/repeater.js`: 100% PASS.
+     - `ruff check src/rate_limiter.py src/admin/local_config_executor.py`: 100% PASS (0 errores).
+     - `python scripts/sync_deploy.py`: Despliegue totalmente sincronizado.
+- **Módulos Modificados**: `src/rate_limiter.py`, `src/admin/local_config_executor.py`, `src/web/static/js/modules/repeater.js`, `deploy/**`, `docs/AGENT_ACTIVITY_REPORT.md`.
