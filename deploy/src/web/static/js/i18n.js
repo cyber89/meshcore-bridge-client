@@ -231,6 +231,13 @@
       'chat.view_map':             'Ver en Mapa',
       'chat.delivered':            '✓✓ Entregado',
       'chat.sent':                 '✓ Enviado',
+      'chat.no_channels_to_share': 'No hay canales que compartir',
+      'chat.my_contact':           'Mi Contacto',
+      'chat.my_contact_badge':     'Mi Contacto',
+      'chat.my_station_sub':       'Mi Estación Local',
+      'chat.save_contact':         'Guardar en Contactos',
+      'chat.saved_contact':        '✓ Contacto Guardado',
+      'chat.join_channel':         'Unirse al Canal',
 
       // Map
       'map.local_station_you':     'Estación Base Local (Tú)',
@@ -695,6 +702,13 @@
       'chat.view_map':             'View on Map',
       'chat.delivered':            '✓✓ Delivered',
       'chat.sent':                 '✓ Sent',
+      'chat.no_channels_to_share': 'No channels to share',
+      'chat.my_contact':           'My Contact',
+      'chat.my_contact_badge':     'My Contact',
+      'chat.my_station_sub':       'My Local Station',
+      'chat.save_contact':         'Save to Contacts',
+      'chat.saved_contact':        '✓ Contact Saved',
+      'chat.join_channel':         'Join Channel',
 
       // Map
       'map.local_station_you':     'Local Base Station (You)',

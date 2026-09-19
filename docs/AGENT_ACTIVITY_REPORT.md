@@ -4423,3 +4423,31 @@ Fase 5 - COMPAT-001 to COMPAT-012 terminados
   - Sincronización en `/deploy/` mediante `python scripts/sync_deploy.py`.
 - **Módulos Modificados**: `src/web/static/js/modules/chat.js`, `deploy/**`, `docs/AGENT_ACTIVITY_REPORT.md`.
 
+---
+
+### Hito: Optimización de Mensajería: Silenciamiento de Toasts en Ubicación, Toast Informativo para Canales y Compartición de Contacto Propio
+- **Fecha**: 2026-09-19
+- **Estado**: ✅ COMPLETADO (Eliminados toasts invasivos al compartir ubicación GPS en chat.js; implementada comprobación previa en openShareChannelModal que emite toast informativo 'No hay canales que compartir' en vez de desplegar el modal vacío con advertencias de PSK; habilitada compartición de 'Mi Contacto' anteponiendo la estación base local al inicio del selector de contactos con insignia especial y tarjeta enriquecida estelar en chat; sincronización bilingüe en i18n.js; empaquetado en /deploy/ y push a GitHub).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web Architect).
+- **Problema / Requerimiento**:
+  1. No mostrar toasts al enviar la ubicación por mensaje.
+  2. Al compartir canal, si solo está el público (canal 0), no desplegar el modal ni advertencias de PSK; mostrar en su lugar un toast informativo que diga: "No hay canales que compartir".
+  3. Permitir compartir "Mi Contacto" (nodo local).
+- **Acciones Realizadas**:
+  1. **Supresión de Toasts en Ubicación (`src/web/static/js/modules/chat.js`)**:
+     - Eliminadas las alertas emergentes `toast.gps_loading`, `toast.gps_ready` y `toast.gps_station` en `shareCurrentLocation()` y `_fallbackShareLocalStationLocation()`. Al pulsar compartir ubicación, las coordenadas se insertan directamente en el chat sin saturar visualmente al usuario.
+  2. **Comprobación Previa de Canales Compartibles (`src/web/static/js/modules/chat.js`)**:
+     - `openShareChannelModal()` filtra los canales privados (`ch.index > 0`). Si no hay ninguno configurado, aborta la apertura del modal y emite de inmediato un toast informativo: `"No hay canales que compartir"`.
+  3. **Compartición de Contacto Local (`src/web/static/js/modules/chat.js`, `i18n.js`)**:
+     - `_populateShareContactList()` ahora construye y antepone `myContact` ("Mi Contacto") en la parte superior de la lista si coincide con el filtro.
+     - `confirmShareContact()` genera el formato canónico MeshCore `<pubkey:1:name>`.
+     - `createMessageBubble()` reconoce si la tarjeta de contacto corresponde al nodo local (`isLocal`), mostrándola con icono estelar `⭐`, pastilla `Mi Contacto` y botón deshabilitado para evitar autoregistro en contactos conforme a `ADR 0001`.
+  4. **Internacionalización (`src/web/static/js/i18n.js`)**:
+     - Añadidas las claves `chat.no_channels_to_share`, `chat.my_contact`, `chat.my_contact_badge`, `chat.my_station_sub`, `chat.save_contact`, `chat.saved_contact`, `chat.join_channel` en `DICT.es` y `DICT.en`.
+  5. **Verificación y Despliegue**:
+     - `node -e "new vm.SourceTextModule(...)"`: 100% PASS.
+     - `node --check src/web/static/js/i18n.js`: 100% PASS.
+     - `python scripts/sync_deploy.py`: Paquetes y sumas SHA256 actualizadas.
+- **Módulos Modificados**: `src/web/static/js/modules/chat.js`, `src/web/static/js/i18n.js`, `deploy/**`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
+

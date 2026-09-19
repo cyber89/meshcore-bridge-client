@@ -416,13 +416,24 @@ export class ChatModule {
     this.dom.shareContactList.innerHTML = "";
     const q = (filterQuery || "").toLowerCase().trim();
 
-    // SSoT: Obtener nodos cliente exclusivamente (excluir REPEATER y LOCAL)
+    // SSoT: Obtener nodos cliente exclusivamente (excluir REPEATER)
     const allNodes = this.ctx.knownNodes ? Array.from(this.ctx.knownNodes.values()) : [];
-    const localPk = (document.getElementById("localNodePubkey")?.value || "").toLowerCase().trim();
+    const localPk = (this.ctx.localNodePubkey || document.getElementById("localNodePubkey")?.value || "").toLowerCase().trim();
+    const localName = (document.getElementById("localNodeName")?.value || "").trim() || "Estación Local";
+
+    // Mi Contacto (Estación Local)
+    const myContact = (localPk && localPk !== "local" && localPk !== "000000000000") ? {
+      public_key: localPk,
+      name: `${localName} (${window.I18n ? window.I18n.t('chat.my_contact') : 'Mi Contacto'})`,
+      alias: localName,
+      role: "CLIENT",
+      is_my_contact: true,
+    } : null;
 
     const clientContacts = allNodes.filter((n) => {
       if (!n || !n.public_key) return false;
       const pk = n.public_key.toLowerCase().trim();
+      // Excluir nodo local de los contactos remotos (se incluye explícitamente arriba como myContact)
       if (pk === "local" || (localPk && (pk === localPk || pk.startsWith(localPk.slice(0, 8)))) || n.is_local) return false;
       const roleUpper = String(n.role || "").toUpperCase();
       if (roleUpper === "REPEATER" || roleUpper === "ROUTER") return false;
@@ -432,6 +443,14 @@ export class ChatModule {
       }
       return true;
     });
+
+    // Si coincide con la búsqueda o la búsqueda está vacía, anteponer Mi Contacto al inicio
+    if (myContact) {
+      const matchMyContact = !q || "mi contacto".includes(q) || localName.toLowerCase().includes(q) || localPk.includes(q);
+      if (matchMyContact) {
+        clientContacts.unshift(myContact);
+      }
+    }
 
     if (clientContacts.length === 0) {
       this.dom.shareContactList.innerHTML = `
@@ -446,19 +465,20 @@ export class ChatModule {
     clientContacts.forEach((contact) => {
       const item = document.createElement("div");
       item.className = "share-picker-item";
+      const isMyContact = Boolean(contact.is_my_contact);
       const cleanName = contact.name || contact.alias || contact.public_key.slice(0, 8);
       const isSelected = this.selectedShareContact?.public_key === contact.public_key;
       if (isSelected) item.classList.add("selected");
 
       item.innerHTML = `
         <div class="share-picker-left">
-          <span style="font-size: 18px;">👤</span>
+          <span style="font-size: 18px;">${isMyContact ? "⭐" : "👤"}</span>
           <div>
             <div class="share-picker-title">${escapeHtml(cleanName)}</div>
-            <div class="share-picker-sub">${contact.public_key.slice(0, 14)}… • ${contact.role || "CLIENT"}</div>
+            <div class="share-picker-sub">${contact.public_key.slice(0, 14)}… • ${isMyContact ? (window.I18n ? window.I18n.t('chat.my_station_sub') : "Mi Estación Local") : (contact.role || "CLIENT")}</div>
           </div>
         </div>
-        <span class="badge-pill">${contact.is_favorite ? "⭐" : "Contacto"}</span>
+        <span class="badge-pill ${isMyContact ? 'badge-primary' : ''}">${isMyContact ? (window.I18n ? window.I18n.t('chat.my_contact_badge') : "Mi Contacto") : (contact.is_favorite ? "⭐" : "Contacto")}</span>
       `;
 
       item.addEventListener("click", () => {
@@ -481,13 +501,27 @@ export class ChatModule {
   async confirmShareContact() {
     if (!this.selectedShareContact) return;
     const c = this.selectedShareContact;
-    const contactMsg = formatMeshCoreContactMessage(c.name || c.alias || "Contacto", c.public_key, c.role || "CLIENT");
+    const shareName = c.is_my_contact ? (c.alias || (document.getElementById("localNodeName")?.value || "").trim() || "Mi Nodo") : (c.name || c.alias || "Contacto");
+    const contactMsg = formatMeshCoreContactMessage(shareName, c.public_key, "CLIENT");
     this.closeShareContactModal();
     await this.sendMessageWithText(contactMsg);
   }
 
   openShareChannelModal() {
     if (!this.dom.modalShareChannel) return;
+
+    const rawList = this.ctx.channelsList || this.ctx.settingsModule?.channelsList || [];
+    // REGLA SSoT: El canal 0 (Public / Broadcast) es universal y todos los nodos ya lo tienen.
+    // NUNCA permitir compartir el canal público. Solo compartir canales privados/cifrados (índice >= 1).
+    const chList = rawList.filter((ch) => Number(ch.index) > 0);
+
+    if (chList.length === 0) {
+      if (this.ctx.showToast) {
+        this.ctx.showToast(window.I18n ? window.I18n.t('chat.no_channels_to_share') : "No hay canales que compartir", "info");
+      }
+      return;
+    }
+
     this.selectedShareChannel = null;
     if (this.dom.btnConfirmShareChannel) this.dom.btnConfirmShareChannel.disabled = true;
     this._populateShareChannelList();
@@ -846,10 +880,6 @@ export class ChatModule {
       return;
     }
 
-    if (this.ctx.showToast) {
-      this.ctx.showToast(I18n.t('toast.gps_loading'), "info", 2000);
-    }
-
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const lat = pos.coords.latitude.toFixed(5);
@@ -858,9 +888,6 @@ export class ChatModule {
         if (this.dom.chatInputText) {
           this.dom.chatInputText.value = text;
           this.dom.chatInputText.focus();
-        }
-        if (this.ctx.showToast) {
-          this.ctx.showToast(I18n.t('toast.gps_ready').replace('{lat}', lat).replace('{lon}', lon), "success");
         }
       },
       (err) => {
@@ -881,9 +908,6 @@ export class ChatModule {
       if (this.dom.chatInputText) {
         this.dom.chatInputText.value = text;
         this.dom.chatInputText.focus();
-      }
-      if (this.ctx.showToast) {
-        this.ctx.showToast(I18n.t('toast.gps_station').replace('{lat}', latVal.toFixed(5)).replace('{lon}', lonVal.toFixed(5)), "info");
       }
       return;
     }
@@ -1147,20 +1171,23 @@ export class ChatModule {
           const cName = parsedUri.name || "Contacto MeshCore";
           const cRole = parsedUri.role || "CLIENT";
           const cPk = parsedUri.public_key || "";
-          const isKnown = this.ctx.knownNodes?.has(cPk.toLowerCase());
+          const localPk = (this.ctx.localNodePubkey || document.getElementById("localNodePubkey")?.value || "").toLowerCase().trim();
+          const isLocal = Boolean(cPk && localPk && (cPk === localPk || cPk.startsWith(localPk.slice(0, 8))));
+          const isKnown = isLocal || this.ctx.knownNodes?.has(cPk.toLowerCase());
+          const btnLabel = isLocal ? (window.I18n ? window.I18n.t('chat.my_contact') : "Mi Contacto") : (isKnown ? (window.I18n ? window.I18n.t('chat.saved_contact') : '✓ Contacto Guardado') : (window.I18n ? window.I18n.t('chat.save_contact') : 'Guardar en Contactos'));
 
           richCardHtml = `
             <div class="chat-contact-card" data-pk="${escapeHtml(cPk)}">
               <div class="card-top-row">
-                <div class="card-avatar">👤</div>
+                <div class="card-avatar">${isLocal ? "⭐" : "👤"}</div>
                 <div class="card-info">
                   <span class="card-name">${escapeHtml(cName)}</span>
-                  <span class="card-sub"><span class="badge-pill">${escapeHtml(cRole)}</span> <span class="card-key-mono">${escapeHtml(cPk.slice(0, 10))}…</span></span>
+                  <span class="card-sub"><span class="badge-pill ${isLocal ? 'badge-primary' : ''}">${isLocal ? (window.I18n ? window.I18n.t('chat.my_contact_badge') : "Mi Contacto") : escapeHtml(cRole)}</span> <span class="card-key-mono">${escapeHtml(cPk.slice(0, 10))}…</span></span>
                 </div>
               </div>
               <button type="button" class="card-action-btn btn-save-shared-contact ${isKnown ? 'btn-saved' : ''}" data-pk="${escapeHtml(cPk)}" data-name="${escapeHtml(cName)}" data-role="${escapeHtml(cRole)}" ${isKnown ? 'disabled' : ''}>
-                <span data-lucide="${isKnown ? 'check' : 'user-plus'}" data-size="13"></span>
-                <span>${isKnown ? (window.I18n ? window.I18n.t('chat.saved_contact') : '✓ Contacto Guardado') : (window.I18n ? window.I18n.t('chat.save_contact') : 'Guardar en Contactos')}</span>
+                <span data-lucide="${isLocal ? 'star' : (isKnown ? 'check' : 'user-plus')}" data-size="13"></span>
+                <span>${btnLabel}</span>
               </button>
             </div>
           `;
