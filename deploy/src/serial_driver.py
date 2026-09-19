@@ -639,7 +639,6 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             "get_stats_radio",
             "get_stats_packets",
             "get_tuning",
-            "get_time",
             "get_self_telemetry",
             "get_custom_vars",
         ):
@@ -650,6 +649,22 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                     await asyncio.sleep(0.15)
                 except Exception as e:
                     logging.warning(f"Aviso en sincronización inicial de radio ({cmd_name}): {e}")
+
+        # Sincronizar automáticamente el reloj RTC del ESP32 con la hora del host para eliminar desfase
+        if hasattr(cmds, "set_time"):
+            try:
+                import time
+                await cmds.set_time(int(time.time()))
+                await asyncio.sleep(0.15)
+            except Exception as e:
+                logging.debug(f"Aviso sincronizando reloj RTC inicial: {e}")
+
+        if hasattr(cmds, "get_time"):
+            try:
+                await cmds.get_time()
+                await asyncio.sleep(0.15)
+            except Exception as e:
+                logging.debug(f"Aviso consultando hora tras sincronización RTC: {e}")
 
 
     async def _handle_direct_message(self, data: Any) -> None:
