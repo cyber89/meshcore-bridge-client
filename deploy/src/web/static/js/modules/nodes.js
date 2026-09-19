@@ -596,8 +596,8 @@ export class NodesModule {
           });
         }
         if (!isLocal && isRepeater) {
-          nCard.querySelector(".btn-ping-node")?.addEventListener("click", () => {
-            this.pingNode(node.public_key, cleanName);
+          nCard.querySelector(".btn-ping-node")?.addEventListener("click", (e) => {
+            this.pingNode(node.public_key, cleanName, e.currentTarget);
           });
         }
         if (!isLocal) {
@@ -939,17 +939,46 @@ export class NodesModule {
     });
   }
 
-  async pingNode(pubkey, name) {
+  async pingNode(pubkey, name, btnEl) {
     if (!pubkey) return;
     const cleanName = name || pubkey.slice(0, 8);
+    const cleanKey = pubkey.toLowerCase();
 
-    const node = this.knownNodes?.get(pubkey.toLowerCase());
+    const node = this.knownNodes?.get(cleanKey);
     const roleUpper = String(node?.role || "").toUpperCase();
     if (roleUpper === "CLIENT") {
       if (this.ctx.showToast) {
         this.ctx.showToast("Ping (Hop 0) solo está disponible para repetidores de infraestructura", "warning");
       }
       return;
+    }
+
+    if (!this._pingCooldowns) this._pingCooldowns = new Map();
+    if (!this._pingingNodes) this._pingingNodes = new Set();
+
+    // 1. Evitar peticiones concurrentes hacia el mismo repetidor
+    if (this._pingingNodes.has(cleanKey)) {
+      return;
+    }
+
+    // 2. Comprobar cooldown de protección de Airtime LoRa del lado cliente
+    const now = Date.now();
+    const cooldownExpires = this._pingCooldowns.get(cleanKey) || 0;
+    if (now < cooldownExpires) {
+      const remainingSec = Math.ceil((cooldownExpires - now) / 1000);
+      if (this.ctx.showToast) {
+        this.ctx.showToast(`⏳ Protección de Airtime LoRa activa: Espera ${remainingSec}s para otro ping a ${cleanName}`, "warning");
+      }
+      return;
+    }
+
+    this._pingingNodes.add(cleanKey);
+
+    const originalHtml = btnEl ? btnEl.innerHTML : null;
+    if (btnEl) {
+      btnEl.disabled = true;
+      btnEl.innerHTML = `<span data-lucide="loader-2" data-size="13" class="spin"></span> ${window.I18n ? window.I18n.t('nodes.pinging') || 'Midiendo...' : 'Midiendo...'}`;
+      if (window.initLucideIcons) window.initLucideIcons(btnEl);
     }
 
     try {
@@ -959,7 +988,19 @@ export class NodesModule {
         body: JSON.stringify({ target_node: pubkey }),
       });
       const data = await res.json().catch(() => ({}));
+
+      // Si el servidor activa rate-limiting LoRa 429
+      if (res.status === 429 || data.code === 429) {
+        const remSec = data.cooldown_remaining || 15;
+        this._pingCooldowns.set(cleanKey, Date.now() + remSec * 1000);
+        const warnMsg = data.detail || data.message || `Protección de Airtime LoRa activa: Espera ${remSec}s`;
+        if (this.ctx.showToast) this.ctx.showToast(`⏳ ${warnMsg}`, "warning");
+        this._startPingButtonCooldown(btnEl, cleanKey, remSec, originalHtml);
+        return;
+      }
+
       if (res.ok && data.status === "ok") {
+        this._pingCooldowns.set(cleanKey, Date.now() + 15000);
         const rtt = data.data?.rtt_ms != null ? `${data.data.rtt_ms} ms` : "OK";
         const snr = data.data?.snr != null ? ` | SNR: ${data.data.snr} dB` : "";
         const rssi = data.data?.rssi != null ? ` | RSSI: ${data.data.rssi} dBm` : "";
@@ -969,13 +1010,50 @@ export class NodesModule {
           ?.replace('{snr}', snr)
           ?.replace('{rssi}', rssi) || `🎯 Pong de ${cleanName}: ${rtt}${snr}${rssi}`;
         if (this.ctx.showToast) this.ctx.showToast(msg, "success");
+        this._startPingButtonCooldown(btnEl, cleanKey, 15, originalHtml);
       } else {
         const errMsg = data.detail || data.message || data.error || "Timeout";
         const msg = (window.I18n ? window.I18n.t('toast.ping_err') : null)?.replace('{name}', cleanName) || `⚠️ Sin respuesta de Ping (${errMsg})`;
         if (this.ctx.showToast) this.ctx.showToast(msg, "warning");
+        if (btnEl && originalHtml) {
+          btnEl.disabled = false;
+          btnEl.innerHTML = originalHtml;
+          if (window.initLucideIcons) window.initLucideIcons(btnEl);
+        }
       }
     } catch (err) {
       if (this.ctx.showToast) this.ctx.showToast(`Error ejecutando Ping: ${err.message}`, "error");
+      if (btnEl && originalHtml) {
+        btnEl.disabled = false;
+        btnEl.innerHTML = originalHtml;
+        if (window.initLucideIcons) window.initLucideIcons(btnEl);
+      }
+    } finally {
+      this._pingingNodes.delete(cleanKey);
     }
+  }
+
+  _startPingButtonCooldown(btnEl, cleanKey, durationSec, originalHtml) {
+    if (!btnEl) return;
+    btnEl.disabled = true;
+
+    const tick = () => {
+      const expires = this._pingCooldowns?.get(cleanKey) || 0;
+      const remaining = Math.ceil((expires - Date.now()) / 1000);
+      if (remaining <= 0) {
+        btnEl.disabled = false;
+        if (originalHtml) {
+          btnEl.innerHTML = originalHtml;
+        } else {
+          btnEl.innerHTML = `<span data-lucide="crosshair" data-size="13"></span> ${window.I18n ? window.I18n.t('nodes.ping_btn') || 'Ping' : 'Ping'}`;
+        }
+        if (window.initLucideIcons) window.initLucideIcons(btnEl);
+      } else {
+        btnEl.innerHTML = `<span data-lucide="clock" data-size="13"></span> ${remaining}s`;
+        if (window.initLucideIcons) window.initLucideIcons(btnEl);
+        setTimeout(tick, 1000);
+      }
+    };
+    tick();
   }
 }

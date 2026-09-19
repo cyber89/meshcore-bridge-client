@@ -1186,7 +1186,7 @@ export class ChatModule {
             `;
           } else {
             const btnLabel = isKnown
-              ? (window.I18n ? window.I18n.t('chat.saved_contact') : '✓ Contacto Guardado')
+              ? (window.I18n ? window.I18n.t('chat.saved_contact') : 'Contacto Guardado')
               : (window.I18n ? window.I18n.t('chat.save_contact') : 'Guardar en Contactos');
             footerActionHtml = `
               <button type="button" class="card-action-btn btn-save-shared-contact ${isKnown ? 'btn-saved' : ''}" data-pk="${escapeHtml(cPk)}" data-name="${escapeHtml(cName)}" data-role="${escapeHtml(cRole)}" ${isKnown ? 'disabled' : ''}>
@@ -1303,7 +1303,11 @@ export class ChatModule {
             if (res.ok) {
               btnSave.classList.add("btn-saved");
               btnSave.disabled = true;
-              btnSave.innerHTML = `<span>✓ ${window.I18n ? window.I18n.t('chat.saved_contact') : 'Contacto Guardado'}</span>`;
+              btnSave.innerHTML = `
+                <span data-lucide="check" data-size="13"></span>
+                <span>${window.I18n ? window.I18n.t('chat.saved_contact') : 'Contacto Guardado'}</span>
+              `;
+              if (window.initLucideIcons) window.initLucideIcons(btnSave);
               if (this.ctx.showToast) this.ctx.showToast(`Contacto ${name} guardado con éxito`, "success");
             }
           } catch (e) {

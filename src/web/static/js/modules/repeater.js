@@ -1230,6 +1230,17 @@ export class RepeaterModule {
       }
     }
 
+    if (!this._pingCooldowns) this._pingCooldowns = new Map();
+    const cleanTarget = (target || "").toLowerCase();
+    const now = Date.now();
+    const cooldownExpires = this._pingCooldowns.get(cleanTarget) || 0;
+    if (now < cooldownExpires) {
+      const remainingSec = Math.ceil((cooldownExpires - now) / 1000);
+      this.appendTerminalLine(`⚠️ [COOLDOWN] Protección de Airtime LoRa activa: Espera ${remainingSec}s para otro ping a ${escapeHtml(name)}.`, "term-warning");
+      if (this.ctx.showToast) this.ctx.showToast(`⏳ Espera ${remainingSec}s para otro ping a este repetidor`, "warning");
+      return;
+    }
+
     this.appendTerminalLine(`meshcore@remote:~$ ping ${escapeHtml(name)} (${target.slice(0, 8)})`, "term-cmd");
 
     const btnActionPingEl = document.getElementById("btnModalActionPing");
@@ -1244,8 +1255,21 @@ export class RepeaterModule {
         headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
         body: JSON.stringify({ target_node: target }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+
+      // Si el servidor activa rate-limiting LoRa 429
+      if (res.status === 429 || data.code === 429) {
+        const remSec = data.cooldown_remaining || 15;
+        this._pingCooldowns.set(cleanTarget, Date.now() + remSec * 1000);
+        const warnMsg = data.detail || data.message || `Protección de Airtime LoRa activa: Espera ${remSec}s`;
+        this.appendTerminalLine(`⚠️ [COOLDOWN] ${warnMsg}`, "term-warning");
+        if (this.ctx.showToast) this.ctx.showToast(`⏳ ${warnMsg}`, "warning");
+        this._startModalPingCooldown(remSec);
+        return;
+      }
+
       if (data.status === "ok" && data.data) {
+        this._pingCooldowns.set(cleanTarget, Date.now() + 15000);
         const pingData = data.data;
         const rtt = Number(pingData.rtt_ms || pingData.duration_ms || 0);
         const rssi = pingData.rssi != null ? `${pingData.rssi} dBm` : "--";
@@ -1274,6 +1298,7 @@ export class RepeaterModule {
         }
 
         if (this.ctx.showToast) this.ctx.showToast(`🎯 Pong: ${rtt} ms | SNR: ${snrBack} | RSSI: ${rssi}`, "success");
+        this._startModalPingCooldown(15);
       } else {
         const errMsg = data.message || "Timeout";
         this.appendTerminalLine(`✗ [PING FALLIDO] ${errMsg}`, "term-error");
@@ -1287,12 +1312,45 @@ export class RepeaterModule {
       this.appendTerminalLine(`✗ [PING ERROR] ${err.message}`, "term-error");
       if (this.ctx.showToast) this.ctx.showToast(`Error de conexión en Ping: ${err.message}`, "error");
     } finally {
-      const btnActionPingElFin = document.getElementById("btnModalActionPing");
-      if (btnActionPingElFin) {
-        btnActionPingElFin.disabled = false;
-        btnActionPingElFin.textContent = "🎯 Ping";
+      if (!this._modalPingInterval) {
+        const btnActionPingElFin = document.getElementById("btnModalActionPing");
+        if (btnActionPingElFin) {
+          btnActionPingElFin.disabled = false;
+          btnActionPingElFin.textContent = "🎯 Ping";
+        }
       }
     }
+  }
+
+  _startModalPingCooldown(durationSec) {
+    const btn = document.getElementById("btnModalActionPing");
+    if (!btn) return;
+    btn.disabled = true;
+    if (this._modalPingInterval) clearInterval(this._modalPingInterval);
+
+    let remaining = durationSec;
+    btn.textContent = `🎯 Espera ${remaining}s...`;
+
+    this._modalPingInterval = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(this._modalPingInterval);
+        this._modalPingInterval = null;
+        const currentBtn = document.getElementById("btnModalActionPing");
+        if (currentBtn) {
+          currentBtn.disabled = false;
+          currentBtn.textContent = "🎯 Ping";
+        }
+      } else {
+        const currentBtn = document.getElementById("btnModalActionPing");
+        if (currentBtn) {
+          currentBtn.textContent = `🎯 Espera ${remaining}s...`;
+        } else {
+          clearInterval(this._modalPingInterval);
+          this._modalPingInterval = null;
+        }
+      }
+    }, 1000);
   }
 
   async executeRepeaterCommand(target, action, params = {}, password = "") {

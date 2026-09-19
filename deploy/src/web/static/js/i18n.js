@@ -73,9 +73,9 @@
       'chat.share_channel':        'Compartir Canal',
       'chat.share_location':       'Ubicación GPS',
       'chat.save_contact':         'Guardar en Contactos',
-      'chat.saved_contact':        '✓ Contacto Guardado',
+      'chat.saved_contact':        'Contacto Guardado',
       'chat.join_channel':         'Unirse al Canal',
-      'chat.joined_channel':       '✓ Canal Guardado',
+      'chat.joined_channel':       'Canal Guardado',
       'chat.ch_0_sub':             '📢 Canal público broadcast • Sin cifrar',
       'chat.ch_n_encrypted_sub':   '🔒 Canal privado cifrado #{n}',
       'chat.ch_n_open_sub':        '📻 Canal abierto sin cifrar #{n}',
@@ -236,7 +236,7 @@
       'chat.my_contact_badge':     'Mi Contacto',
       'chat.my_station_sub':       'Mi Estación Local',
       'chat.save_contact':         'Guardar en Contactos',
-      'chat.saved_contact':        '✓ Contacto Guardado',
+      'chat.saved_contact':        'Contacto Guardado',
       'chat.join_channel':         'Unirse al Canal',
 
       // Map
@@ -544,9 +544,9 @@
       'chat.share_channel':        'Share Channel',
       'chat.share_location':       'GPS Location',
       'chat.save_contact':         'Save to Contacts',
-      'chat.saved_contact':        '✓ Contact Saved',
+      'chat.saved_contact':        'Contact Saved',
       'chat.join_channel':         'Join Channel',
-      'chat.joined_channel':       '✓ Channel Saved',
+      'chat.joined_channel':       'Channel Saved',
       'chat.ch_0_sub':             '📢 Public broadcast channel • Unencrypted',
       'chat.ch_n_encrypted_sub':   '🔒 Private encrypted channel #{n}',
       'chat.ch_n_open_sub':        '📻 Open unencrypted channel #{n}',
@@ -707,7 +707,7 @@
       'chat.my_contact_badge':     'My Contact',
       'chat.my_station_sub':       'My Local Station',
       'chat.save_contact':         'Save to Contacts',
-      'chat.saved_contact':        '✓ Contact Saved',
+      'chat.saved_contact':        'Contact Saved',
       'chat.join_channel':         'Join Channel',
 
       // Map
