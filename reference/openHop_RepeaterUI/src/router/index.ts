@@ -1,0 +1,176 @@
+import { createRouter, createWebHistory } from 'vue-router';
+import { isAuthenticated } from '@/utils/auth';
+
+// Lazy-load all views for faster initial load
+const router = createRouter({
+  history: createWebHistory(import.meta.env.BASE_URL),
+  routes: [
+    {
+      path: '/setup',
+      name: 'setup',
+      component: () => import('@/views/Setup.vue'),
+      meta: { requiresAuth: false, requiresSetup: false },
+    },
+    {
+      path: '/login',
+      name: 'login',
+      component: () => import('@/views/Login.vue'),
+      meta: { requiresAuth: false },
+    },
+    {
+      path: '/',
+      name: 'dashboard',
+      component: () => import('@/views/Dashboard.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/neighbors',
+      name: 'neighbors',
+      component: () => import('@/views/Neighbors.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/statistics',
+      name: 'statistics',
+      component: () => import('@/views/Statistics.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/rf-health-correlation',
+      name: 'rf-health-correlation',
+      component: () => import('@/views/RfHealthCorrelation.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/neighbor-links',
+      name: 'neighbor-links',
+      component: () => import('@/views/NeighbourLinks.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/gps',
+      name: 'gps-diagnostics',
+      component: () => import('@/views/GPSDiagnostics.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/system-stats',
+      name: 'system-stats',
+      component: () => import('@/views/SystemStats.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/plugins',
+      name: 'plugins',
+      component: () => import('@/views/Plugins.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/sensors',
+      name: 'sensors',
+      component: () => import('@/views/Sensors.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/configuration',
+      name: 'configuration',
+      component: () => import('@/views/Configuration.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/cad-calibration',
+      name: 'cad-calibration',
+      component: () => import('@/views/CADCalibration.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/sessions',
+      name: 'sessions',
+      component: () => import('@/views/Sessions.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/room-servers',
+      name: 'room-servers',
+      component: () => import('@/views/RoomServers.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/companions',
+      name: 'companions',
+      component: () => import('@/views/Companions.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/packet-archive',
+      name: 'packet-archive',
+      component: () => import('@/views/PacketArchive.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/logs',
+      name: 'logs',
+      component: () => import('@/views/Logs.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/terminal',
+      name: 'terminal',
+      component: () => import('@/views/Terminal.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/help',
+      name: 'help',
+      component: () => import('@/views/Help.vue'),
+      meta: { requiresAuth: true },
+    },
+  ],
+});
+
+// Cached result: once the device confirms setup is complete we skip the HTTP
+// check on every subsequent navigation. Resets on page reload (intentional —
+// the user may have factory-reset the device).
+let _setupComplete = false;
+
+async function checkSetupStatus() {
+  if (_setupComplete) return false;
+  try {
+    const response = await fetch('/api/needs_setup', {
+      headers: {
+        Accept: 'application/json',
+      },
+    });
+    if (!response.ok) {
+      console.error('Setup check failed:', response.status);
+      return false;
+    }
+    const data = await response.json();
+    const needsSetup = data.needs_setup === true;
+    if (!needsSetup) _setupComplete = true;
+    return needsSetup;
+  } catch (error) {
+    console.error('Error checking setup status:', error);
+    return false;
+  }
+}
+
+// Navigation guard - check setup status and authentication
+router.beforeEach(async (to) => {
+  const needsSetup = await checkSetupStatus();
+
+  if (needsSetup) {
+    if (to.path !== '/setup') return '/setup';
+    return;
+  }
+
+  if (to.path === '/setup') return '/login';
+
+  const requiresAuth = to.meta.requiresAuth !== false;
+  const authenticated = isAuthenticated();
+
+  if (requiresAuth && !authenticated) return '/login';
+  if (to.path === '/login' && authenticated) return '/';
+});
+
+export default router;

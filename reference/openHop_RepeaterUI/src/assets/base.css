@@ -1,0 +1,275 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   OpenHop Design System
+   ============================================================ */
+
+:root {
+  /* Brand */
+
+  --openhop-blue: #3b82f6;
+  --openhop-blue-light: #60a5fa;
+
+  --openhop-purple: #8b5cf6;
+  --openhop-purple-light: #a855f7;
+
+  --openhop-gradient: linear-gradient(
+    135deg,
+    var(--openhop-blue) 0%,
+    var(--openhop-purple) 100%
+  );
+
+  /* Surfaces */
+
+  --color-surface: #ffffff;
+  --color-surface-elevated: #f8fbff;
+
+  /* Cool-tinted neutrals to complement blue/purple brand accents */
+  --color-background: #f6f8ff;
+  --color-background-soft: #eef3ff;
+  --color-background-mute: #e4eafb;
+
+  /* Typography */
+
+  --color-heading: #020617;
+
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #334155;
+  --color-text-muted: #64748b;
+
+  --color-text: var(--color-text-secondary);
+
+  /* Borders */
+
+  --color-border: #cbd5e1;
+  --color-border-subtle: #e2e8f0;
+  --color-border-hover: #94a3b8;
+
+  /* Brand accents */
+
+  --color-primary: var(--openhop-blue);
+  --color-secondary: var(--openhop-purple);
+
+  --color-accent-cyan: #38bdf8;
+  --color-accent-green: #22c55e;
+  --color-accent-green-light: #86efac;
+  --color-accent-orange: #c2410c;
+  --color-accent-amber: #f59e0b;
+  --color-accent-purple: var(--openhop-purple);
+  --color-accent-red: #ef4444;
+
+  /* Filled backgrounds */
+
+  --color-primary-bg: #dbeafe;
+  --color-secondary-bg: #ede9fe;
+
+  --color-accent-cyan-bg: #e0f2fe;
+  --color-accent-green-bg: #dcfce7;
+  --color-accent-purple-bg: #ede9fe;
+  --color-accent-red-bg: #fee2e2;
+
+  /* Badges */
+
+  --color-badge-cyan-bg: #dbeafe;
+  --color-badge-cyan-text: #2563eb;
+
+  --color-badge-neutral-bg: #f1f5f9;
+  --color-badge-neutral-text: #334155;
+
+  /* Glassmorphism */
+
+  --color-glass-bg: rgba(255, 255, 255, 0.72);
+
+  --color-glass-border: rgba(59, 130, 246, 0.08);
+
+  --color-glass-shadow:
+    0 8px 32px rgba(59, 130, 246, 0.06),
+    0 2px 8px rgba(0, 0, 0, 0.03);
+
+  --color-glass-green-bg: linear-gradient(
+    135deg,
+    rgba(34, 197, 94, 0.12),
+    rgba(34, 197, 94, 0.04)
+  );
+
+  --color-glass-green-border: rgba(34, 197, 94, 0.18);
+
+  --color-glass-orange-bg: linear-gradient(
+    135deg,
+    rgba(251, 146, 60, 0.12),
+    rgba(251, 146, 60, 0.04)
+  );
+
+  --color-glass-orange-border: rgba(251, 146, 60, 0.18);
+
+  --section-gap: 160px;
+
+  color-scheme: light;
+
+  --nav-hover-label-shadow:
+    0 0 8px rgba(59, 130, 246, 0.25);
+
+  --nav-hover-icon-shadow:
+    drop-shadow(0 0 4px rgba(59, 130, 246, 0.35));
+}
+
+/* ============================================================
+   Dark Mode
+   ============================================================ */
+
+.dark {
+  /* Brand */
+
+  --openhop-blue: #60a5fa;
+  --openhop-purple: #a855f7;
+
+  --openhop-gradient: linear-gradient(
+    135deg,
+    var(--openhop-blue) 0%,
+    var(--openhop-purple) 100%
+  );
+
+  /* Surfaces */
+
+  /* Deep blue-slate dark ramp for rich depth */
+  --color-background: #05070d;
+  --color-background-soft: #05070d;
+  --color-background-mute: #0d121f;
+
+  --color-surface: #05070d;
+  --color-surface-elevated: #0d121f;
+
+  /* Typography */
+
+  --color-heading: #ffffff;
+
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #cbd5e1;
+  --color-text-muted: #94a3b8;
+
+  --color-text: var(--color-text-secondary);
+
+  /* Borders */
+
+  --color-border: #374151;
+  --color-border-subtle: #1f2937;
+  --color-border-hover: #4b5563;
+
+  /* Brand accents */
+
+  --color-primary: var(--openhop-blue);
+  --color-secondary: var(--openhop-purple);
+
+  --color-accent-cyan: #38bdf8;
+  --color-accent-green: #4ade80;
+  --color-accent-green-light: #bbf7d0;
+  --color-accent-orange: #ea580c;
+  --color-accent-amber: #fbbf24;
+  --color-accent-purple: #c084fc;
+  --color-accent-red: #f87171;
+
+  /* Filled backgrounds */
+
+  --color-primary-bg: #1e3a8a;
+  --color-secondary-bg: #581c87;
+
+  --color-accent-cyan-bg: #164e63;
+  --color-accent-green-bg: #14532d;
+  --color-accent-purple-bg: #581c87;
+  --color-accent-red-bg: #7f1d1d;
+
+  /* Badges */
+
+  --color-badge-cyan-bg: rgba(59, 130, 246, 0.15);
+  --color-badge-cyan-text: #93c5fd;
+
+  --color-badge-neutral-bg: #1f2937;
+  --color-badge-neutral-text: #cbd5e1;
+
+  /* Glassmorphism */
+
+  --color-glass-bg: rgba(17, 24, 39, 0.72);
+
+  --color-glass-border: rgba(96, 165, 250, 0.08);
+
+  --color-glass-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.35);
+
+  --color-glass-green-bg: linear-gradient(
+    135deg,
+    rgba(34, 197, 94, 0.15),
+    rgba(34, 197, 94, 0.05)
+  );
+
+  --color-glass-green-border: rgba(34, 197, 94, 0.15);
+
+  --color-glass-orange-bg: linear-gradient(
+    135deg,
+    rgba(251, 146, 60, 0.15),
+    rgba(251, 146, 60, 0.05)
+  );
+
+  --color-glass-orange-border: rgba(251, 146, 60, 0.15);
+
+  color-scheme: dark;
+
+  --nav-hover-label-shadow:
+    0 0 4px var(--color-surface),
+    0 0 10px var(--openhop-blue),
+    0 0 20px var(--openhop-purple);
+
+  --nav-hover-icon-shadow:
+    drop-shadow(0 0 5px var(--openhop-blue));
+}
+
+html,
+body,
+#app {
+  background-color: var(--color-background);
+  color: var(--color-text);
+}
+
+.dark html,
+.dark body,
+.dark #app {
+  background-color: var(--color-background);
+  color: var(--color-text);
+}
+
+body {
+  min-height: 100vh;
+  font-size: 1rem;
+  line-height: 1.5;
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    Cantarell,
+    'Fira Sans',
+    'Droid Sans',
+    'Helvetica Neue',
+    sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition:
+    color 0.5s,
+    background-color 0.5s;
+}
+
+/* Global heading styles with Michroma font */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: 'Michroma', sans-serif;
+  font-weight: 700;
+}

@@ -1,0 +1,1069 @@
+<script setup lang="ts">
+import { ref, computed } from 'vue';
+import { Tag } from '@lucide/vue';
+import NeighborMenu from '@/components/ui/NeighborMenu.vue';
+import { describeScopes } from '@/utils/neighborScopes';
+import type { ScopeDisplay } from '@/utils/neighborScopes';
+import type { NeighborScopeRecord } from '@/generated/openapi';
+import { useCopyToClipboard } from '@/composables/useCopyToClipboard';
+import { useSignalQuality } from '@/composables/useSignalQuality';
+import SignalBars from '@/components/ui/SignalBars.vue';
+import {
+  formatRSSI,
+  formatSNR,
+  formatTimestamp,
+  formatPubkey,
+  formatDistance,
+  getRouteTypeBadge,
+} from '@/utils/formatters';
+
+// Reactive state
+const copiedPubkey = ref<string | null>(null);
+const { copy: _clipboardCopy } = useCopyToClipboard();
+
+// Signal quality utilities
+const { getSignalQuality } = useSignalQuality();
+
+// Sorting state
+const sortKey = ref<keyof Advert | ''>('advert_count'); // Default to advert_count
+const sortDirection = ref<'asc' | 'desc'>('desc'); // Default to descending (highest first)
+
+interface Advert {
+  id: number;
+  timestamp: number;
+  pubkey: string;
+  node_name: string | null;
+  is_repeater: boolean;
+  route_type: number | null;
+  contact_type: string;
+  latitude: number | null;
+  longitude: number | null;
+  first_seen: number;
+  last_seen: number;
+  rssi: number | null;
+  snr: number | null;
+  advert_count: number;
+  is_new_neighbor: boolean;
+  zero_hop: boolean;
+}
+
+interface Props {
+  contactType: string;
+  contactTypeKey: string;
+  adverts: Advert[];
+  originalCount: number;
+  color: string;
+  baseLatitude?: number | null;
+  baseLongitude?: number | null;
+  isCompactView?: boolean;
+  isFirstTable?: boolean;
+  showViewToggle?: boolean;
+  /** Region scopes keyed by lowercase pubkey hex; absent key = never queried. */
+  scopes?: Record<string, NeighborScopeRecord>;
+  /** Only the repeater table shows scopes — nothing else answers the query. */
+  showScopes?: boolean;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  originalCount: 0,
+  baseLatitude: null,
+  baseLongitude: null,
+  isCompactView: false,
+  isFirstTable: false,
+  showViewToggle: false,
+  scopes: () => ({}),
+  showScopes: false,
+});
+
+// Emits
+const emit = defineEmits<{
+  'highlight-node': [pubkey: string];
+  'unhighlight-node': [pubkey: string];
+  'menu-ping': [neighbor: unknown];
+  'menu-delete': [neighbor: unknown];
+  'show-details': [neighbor: unknown];
+  'show-scopes': [neighbor: unknown];
+  'query-scopes': [neighbor: unknown];
+  'toggle-view': [];
+}>();
+
+// Derived once per render pass rather than per cell: the template reads the state,
+// its label and its tooltip separately, and a table can carry hundreds of rows.
+const scopeDisplays = computed(() => {
+  const byId: Record<number, ScopeDisplay> = {};
+  if (!props.showScopes) return byId;
+  for (const advert of props.adverts) {
+    byId[advert.id] = describeScopes(props.scopes[advert.pubkey.toLowerCase()]);
+  }
+  return byId;
+});
+
+const scopeDisplay = (advert: Advert): ScopeDisplay =>
+  scopeDisplays.value[advert.id] ?? describeScopes(null);
+
+// Muted for a state that carries no scope names, and amber once a query has
+// failed — including when older names are still being shown, so a stale answer
+// does not read as a fresh one.
+const scopeToneClass = (advert: Advert) => {
+  const display = scopeDisplay(advert);
+  if (display.state === 'unknown') return 'text-content-muted';
+  if (display.state === 'failed' || display.stale) return 'text-accent-amber';
+  return 'text-primary';
+};
+
+
+const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+  const R = 6371; // Earth's radius in kilometers
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+const getDistanceFromBase = (advert: Advert) => {
+  if (
+    props.baseLatitude === null ||
+    props.baseLongitude === null ||
+    advert.latitude === null ||
+    advert.longitude === null
+  ) {
+    return 'N/A';
+  }
+
+  const distance = calculateDistance(
+    props.baseLatitude,
+    props.baseLongitude,
+    advert.latitude,
+    advert.longitude,
+  );
+  return formatDistance(distance);
+};
+
+const copyToClipboard = (text: string) => _clipboardCopy(text);
+
+// Relative time utility
+const getRelativeTime = (timestamp: number): string => {
+  const now = Date.now();
+  const time = timestamp * 1000; // Convert to milliseconds
+  const diff = now - time;
+
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (seconds < 60) return `${seconds}s ago`;
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  return `${days}d ago`;
+};
+
+// Get last seen status color
+const getLastSeenStatus = (timestamp: number): { color: string } => {
+  const now = Date.now();
+  const time = timestamp * 1000;
+  const diff = now - time;
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+
+  if (hours < 4) return { color: 'text-accent-green' };  // Within direct advert window (< 4 hours)
+  if (hours < 48) return { color: 'text-accent-amber' }; // Within flood advert window (4-47 hours)
+  return { color: 'text-accent-red' };                    // Stale (48+ hours)
+};
+
+// Location utilities
+const copyCoordinates = async (lat: number, lng: number) => {
+  const coords = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  await copyToClipboard(coords);
+};
+
+const openInMaps = (lat: number, lng: number) => {
+  const url = `https://www.google.com/maps?q=${lat},${lng}`;
+  window.open(url, '_blank');
+};
+
+// Public key copying utility
+const copyPubkey = async (pubkey: string) => {
+  await copyToClipboard(pubkey);
+  copiedPubkey.value = pubkey;
+  setTimeout(() => {
+    copiedPubkey.value = null;
+  }, 2000); // Reset after 2 seconds
+};
+
+// RSSI signal strength utility - now using SNR-based calculation
+const getRSSIStrength = (rssi: number | null): { bars: number; color: string } => {
+  const quality = getSignalQuality(rssi);
+  return {
+    bars: quality.bars,
+    color: quality.color,
+  };
+};
+
+// Signal bar height lookups — bar is 1-based (v-for="bar in 5")
+// SM variant: 6, 8, 10, 12, 14 px  →  h-1.5 h-2 h-2.5 h-3 h-3.5
+// MD variant: 8, 10, 12, 14, 16 px  →  h-2 h-2.5 h-3 h-3.5 h-4
+// Safelist: h-1.5 h-2 h-2.5 h-3 h-3.5 h-4
+
+// View mode utility
+const getCellPadding = () => {
+  return props.isCompactView ? 'py-2 px-2' : 'py-4 px-3';
+};
+
+const handleToggleView = () => {
+  emit('toggle-view');
+};
+
+// Event handlers
+const handleHighlight = (pubkey: string) => {
+  emit('highlight-node', pubkey);
+};
+
+const handleUnhighlight = (pubkey: string) => {
+  emit('unhighlight-node', pubkey);
+};
+
+const handleMenuPing = (neighbor: unknown) => {
+  emit('menu-ping', neighbor);
+};
+
+const handleMenuShowDetails = (neighbor: unknown) => {
+  emit('show-details', neighbor);
+};
+
+const handleMenuDelete = (neighbor: unknown) => {
+  emit('menu-delete', neighbor);
+};
+
+const handleShowScopes = (neighbor: unknown) => {
+  emit('show-scopes', neighbor);
+};
+
+const handleQueryScopes = (neighbor: unknown) => {
+  emit('query-scopes', neighbor);
+};
+
+// Sorting functionality
+const sortColumn = (key: keyof Advert) => {
+  if (sortKey.value === key) {
+    // Toggle direction if same column
+    sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc';
+  } else {
+    // New column, default to descending for numbers, ascending for text
+    sortKey.value = key;
+    sortDirection.value = typeof props.adverts[0]?.[key] === 'number' ? 'desc' : 'asc';
+  }
+};
+
+const sortedAdverts = computed(() => {
+  if (!sortKey.value) return props.adverts;
+
+  return [...props.adverts].sort((a, b) => {
+    const aVal = a[sortKey.value as keyof Advert];
+    const bVal = b[sortKey.value as keyof Advert];
+
+    // Handle null/undefined values
+    if (aVal === null || aVal === undefined) return 1;
+    if (bVal === null || bVal === undefined) return -1;
+
+    let comparison = 0;
+    if (typeof aVal === 'string' && typeof bVal === 'string') {
+      comparison = aVal.localeCompare(bVal);
+    } else if (typeof aVal === 'number' && typeof bVal === 'number') {
+      comparison = aVal - bVal;
+    } else if (typeof aVal === 'boolean' && typeof bVal === 'boolean') {
+      comparison = aVal === bVal ? 0 : aVal ? 1 : -1;
+    }
+
+    return sortDirection.value === 'asc' ? comparison : -comparison;
+  });
+});
+</script>
+
+<template>
+  <div
+    class="glass-card/30 backdrop-blur border border-stroke-subtle rounded-xl p-6 shadow-sm dark:shadow-none"
+  >
+    <!-- Contact Type Header -->
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-3">
+        <div
+          class="w-3 h-3 rounded-full border border-stroke-subtle"
+          :style="{ backgroundColor: color }"
+        ></div>
+        <h3 class="text-content-primary text-lg font-semibold">
+          {{ contactType }}
+        </h3>
+        <span
+          class="bg-background-mute text-content-secondary dark:text-content-primary text-xs px-2 py-1 rounded-full"
+        >
+          {{ adverts.length }}
+          <span
+            v-if="originalCount > 0 && adverts.length < originalCount"
+            class="text-content-muted"
+          >
+            / {{ originalCount }}
+          </span>
+        </span>
+      </div>
+
+      <!-- View Toggle (only show on first table and desktop) -->
+      <div
+        v-if="isFirstTable && showViewToggle"
+        class="hidden lg:flex bg-background-mute backdrop-blur rounded-lg border border-stroke-subtle p-1"
+      >
+        <!-- Comfortable View Button -->
+        <button
+          @click="handleToggleView"
+          :class="[
+            'p-2 rounded-md transition-colors',
+            !isCompactView
+              ? 'bg-primary/opacity-medium text-primary border border-primary/opacity-medium'
+              : 'text-content-secondary dark:text-content-muted hover:text-primary hover:bg-primary/opacity-light',
+          ]"
+          title="Comfortable view"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <rect x="3" y="3" width="18" height="6" rx="2" stroke="currentColor" stroke-width="2" />
+            <rect
+              x="3"
+              y="12"
+              width="18"
+              height="6"
+              rx="2"
+              stroke="currentColor"
+              stroke-width="2"
+            />
+          </svg>
+        </button>
+
+        <!-- Compact View Button -->
+        <button
+          @click="handleToggleView"
+          :class="[
+            'p-2 rounded-md transition-colors',
+            isCompactView
+              ? 'bg-primary/opacity-medium text-primary border border-primary/opacity-medium'
+              : 'text-content-secondary dark:text-content-muted hover:text-primary hover:bg-primary/opacity-light',
+          ]"
+          title="Compact view"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <rect x="3" y="3" width="18" height="4" rx="2" stroke="currentColor" stroke-width="2" />
+            <rect
+              x="3"
+              y="10"
+              width="18"
+              height="4"
+              rx="2"
+              stroke="currentColor"
+              stroke-width="2"
+            />
+            <rect
+              x="3"
+              y="17"
+              width="18"
+              height="4"
+              rx="2"
+              stroke="currentColor"
+              stroke-width="2"
+            />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Desktop Table (hidden on mobile) -->
+    <div class="hidden lg:block overflow-x-auto">
+      <table class="w-full">
+        <thead>
+          <tr class="bg-background-mute dark:bg-transparent">
+            <th
+              :class="`text-left text-content-secondary dark:text-content-muted text-xs font-medium py-3 ${getCellPadding().split(' ')[1]} border-b border-stroke-subtle dark:border-white/opacity-light`"
+            ></th>
+            <th
+              @click="sortColumn('node_name')"
+              :class="`text-left text-content-secondary dark:text-content-muted text-xs font-medium py-3 ${getCellPadding().split(' ')[1]} border-b border-stroke-subtle dark:border-white/opacity-light cursor-pointer hover:text-primary transition-colors select-none`"
+            >
+              <div class="flex items-center gap-1">
+                Node Name
+                <svg
+                  v-if="sortKey === 'node_name'"
+                  class="w-3 h-3"
+                  :class="sortDirection === 'asc' ? '' : 'rotate-180'"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </div>
+            </th>
+            <th
+              @click="sortColumn('pubkey')"
+              :class="`text-left text-content-secondary dark:text-content-muted text-xs font-medium py-3 ${getCellPadding().split(' ')[1]} border-b border-stroke-subtle dark:border-white/opacity-light cursor-pointer hover:text-primary transition-colors select-none`"
+            >
+              <div class="flex items-center gap-1">
+                Public Key
+                <svg
+                  v-if="sortKey === 'pubkey'"
+                  class="w-3 h-3"
+                  :class="sortDirection === 'asc' ? '' : 'rotate-180'"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </div>
+            </th>
+            <th
+              :class="`text-left text-content-secondary dark:text-content-muted text-xs font-medium py-3 ${getCellPadding().split(' ')[1]} border-b border-stroke-subtle dark:border-white/opacity-light`"
+            >
+              Location
+            </th>
+            <th
+              :class="`text-left text-content-secondary dark:text-content-muted text-xs font-medium py-3 ${getCellPadding().split(' ')[1]} border-b border-stroke-subtle dark:border-white/opacity-light`"
+            >
+              Distance
+            </th>
+            <th
+              @click="sortColumn('route_type')"
+              :class="`text-left text-content-secondary dark:text-content-muted text-xs font-medium py-3 ${getCellPadding().split(' ')[1]} border-b border-stroke-subtle dark:border-white/opacity-light cursor-pointer hover:text-primary transition-colors select-none`"
+            >
+              <div class="flex items-center gap-1">
+                Route Type
+                <svg
+                  v-if="sortKey === 'route_type'"
+                  class="w-3 h-3"
+                  :class="sortDirection === 'asc' ? '' : 'rotate-180'"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </div>
+            </th>
+            <th
+              @click="sortColumn('zero_hop')"
+              :class="`text-left text-content-secondary dark:text-content-muted text-xs font-medium py-3 ${getCellPadding().split(' ')[1]} border-b border-stroke-subtle dark:border-white/opacity-light cursor-pointer hover:text-primary transition-colors select-none`"
+            >
+              <div class="flex items-center gap-1">
+                Zero Hop
+                <svg
+                  v-if="sortKey === 'zero_hop'"
+                  class="w-3 h-3"
+                  :class="sortDirection === 'asc' ? '' : 'rotate-180'"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </div>
+            </th>
+            <th
+              @click="sortColumn('rssi')"
+              :class="`text-left text-content-secondary dark:text-content-muted text-xs font-medium py-3 ${getCellPadding().split(' ')[1]} border-b border-stroke-subtle dark:border-white/opacity-light cursor-pointer hover:text-primary transition-colors select-none`"
+            >
+              <div class="flex items-center gap-1">
+                RSSI
+                <svg
+                  v-if="sortKey === 'rssi'"
+                  class="w-3 h-3"
+                  :class="sortDirection === 'asc' ? '' : 'rotate-180'"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </div>
+            </th>
+            <th
+              @click="sortColumn('snr')"
+              :class="`text-left text-content-secondary dark:text-content-muted text-xs font-medium py-3 ${getCellPadding().split(' ')[1]} border-b border-stroke-subtle dark:border-white/opacity-light cursor-pointer hover:text-primary transition-colors select-none`"
+            >
+              <div class="flex items-center gap-1">
+                SNR
+                <svg
+                  v-if="sortKey === 'snr'"
+                  class="w-3 h-3"
+                  :class="sortDirection === 'asc' ? '' : 'rotate-180'"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </div>
+            </th>
+            <th
+              @click="sortColumn('last_seen')"
+              :class="`text-left text-content-secondary dark:text-content-muted text-xs font-medium py-3 ${getCellPadding().split(' ')[1]} border-b border-stroke-subtle dark:border-white/opacity-light cursor-pointer hover:text-primary transition-colors select-none`"
+            >
+              <div class="flex items-center gap-1">
+                Last Seen
+                <svg
+                  v-if="sortKey === 'last_seen'"
+                  class="w-3 h-3"
+                  :class="sortDirection === 'asc' ? '' : 'rotate-180'"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </div>
+            </th>
+            <th
+              @click="sortColumn('first_seen')"
+              :class="`text-left text-content-secondary dark:text-content-muted text-xs font-medium py-3 ${getCellPadding().split(' ')[1]} border-b border-stroke-subtle dark:border-white/opacity-light cursor-pointer hover:text-primary transition-colors select-none`"
+            >
+              <div class="flex items-center gap-1">
+                First Seen
+                <svg
+                  v-if="sortKey === 'first_seen'"
+                  class="w-3 h-3"
+                  :class="sortDirection === 'asc' ? '' : 'rotate-180'"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </div>
+            </th>
+            <th
+              @click="sortColumn('advert_count')"
+              :class="`text-left text-content-secondary dark:text-content-muted text-xs font-medium py-3 ${getCellPadding().split(' ')[1]} border-b border-stroke-subtle dark:border-white/opacity-light cursor-pointer hover:text-primary transition-colors select-none`"
+            >
+              <div class="flex items-center gap-1">
+                Advert Count
+                <svg
+                  v-if="sortKey === 'advert_count'"
+                  class="w-3 h-3"
+                  :class="sortDirection === 'asc' ? '' : 'rotate-180'"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </div>
+            </th>
+            <th
+              v-if="showScopes"
+              :class="`text-left text-content-secondary dark:text-content-muted text-xs font-medium py-3 ${getCellPadding().split(' ')[1]} border-b border-stroke-subtle dark:border-white/opacity-light`"
+              title="Region scopes this repeater serves, from the last scope query"
+            >
+              Scopes
+            </th>
+          </tr>
+        </thead>
+
+        <tbody class="bg-surface/opacity-heavy dark:bg-transparent">
+          <tr
+            v-for="advert in sortedAdverts"
+            :key="advert.id"
+            class="hover:bg-background-mute/opacity-heavy dark:hover:bg-white/opacity-light transition-colors cursor-pointer"
+            @mouseenter="handleHighlight(advert.pubkey)"
+            @mouseleave="handleUnhighlight(advert.pubkey)"
+            @click="handleMenuShowDetails(advert)"
+          >
+            <td :class="getCellPadding()" @click.stop>
+              <NeighborMenu
+                :neighbor="advert"
+                :can-query-scopes="showScopes"
+                @ping="handleMenuPing"
+                @show-details="handleMenuShowDetails"
+                @delete="handleMenuDelete"
+                @query-scopes="handleQueryScopes"
+              />
+            </td>
+            <td
+              :class="`${getCellPadding()} text-content-primary text-sm`"
+            >
+              {{ advert.node_name || 'Unknown' }}
+            </td>
+            <td
+              :class="`${getCellPadding()} text-content-primary text-sm font-mono`"
+            >
+              <button
+                @click.stop="copyPubkey(advert.pubkey)"
+                :class="[
+                  'text-content-primary hover:text-primary transition-colors cursor-pointer underline underline-offset-2 decoration-stroke-hover hover:decoration-primary/60',
+                  copiedPubkey === advert.pubkey
+                    ? 'text-primary decoration-primary/60'
+                    : '',
+                ]"
+                :title="
+                  copiedPubkey === advert.pubkey ? 'Copied!' : 'Click to copy full public key'
+                "
+              >
+                {{ formatPubkey(advert.pubkey) }}
+                <span v-if="copiedPubkey === advert.pubkey" class="ml-1 text-xs">✓</span>
+              </button>
+            </td>
+            <td
+              :class="`${getCellPadding()} text-content-primary text-sm`"
+            >
+              <div
+                v-if="advert.latitude !== null && advert.longitude !== null"
+                class="flex items-center gap-3"
+              >
+                <span class="text-content-secondary dark:text-content-muted"
+                  >{{ advert.latitude.toFixed(4) }}, {{ advert.longitude.toFixed(4) }}</span
+                >
+                <div class="flex gap-1">
+                  <button
+                    @click.stop="copyCoordinates(advert.latitude!, advert.longitude!)"
+                    class="text-content-muted hover:text-content-primary dark:hover:text-content-primary transition-colors cursor-pointer"
+                    title="Copy coordinates to clipboard"
+                  >
+                    <!-- Copy icon -->
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <rect
+                        x="9"
+                        y="9"
+                        width="13"
+                        height="13"
+                        rx="2"
+                        ry="2"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      />
+                      <path
+                        d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      />
+                    </svg>
+                  </button>
+                  <button
+                    @click.stop="openInMaps(advert.latitude!, advert.longitude!)"
+                    class="text-content-muted hover:text-primary transition-colors cursor-pointer"
+                    title="Open in Google Maps"
+                  >
+                    <!-- Map icon -->
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      />
+                      <circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="2" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <span v-else class="text-content-muted">Unknown</span>
+            </td>
+            <td
+              :class="`${getCellPadding()} text-content-primary text-sm`"
+            >
+              {{ getDistanceFromBase(advert) }}
+            </td>
+            <td
+              :class="`${getCellPadding()} text-content-primary text-sm`"
+            >
+              <span
+                :class="[
+                  'inline-block px-2 py-1 rounded-full text-xs border transition-colors',
+                  getRouteTypeBadge(advert.route_type).bgColor,
+                  getRouteTypeBadge(advert.route_type).borderColor,
+                  getRouteTypeBadge(advert.route_type).textColor,
+                ]"
+              >
+                {{ getRouteTypeBadge(advert.route_type).text }}
+              </span>
+            </td>
+            <td
+              :class="`${getCellPadding()} text-content-primary text-sm`"
+            >
+              <span
+                :class="[
+                  'inline-block px-2 py-1 rounded-full text-xs border transition-colors',
+                  advert.zero_hop
+                    ? 'bg-primary/opacity-medium border-primary/opacity-heavy text-primary'
+                    : 'bg-accent-amber/opacity-medium border-accent-amber/opacity-heavy text-accent-amber',
+                ]"
+              >
+                {{ advert.zero_hop ? 'Zero Hop' : 'Multi-Hop' }}
+              </span>
+            </td>
+            <td
+              :class="`${getCellPadding()} text-content-primary text-sm`"
+            >
+              <div class="flex items-center gap-2">
+                <!-- Signal strength bars -->
+                <SignalBars :bars="getRSSIStrength(advert.rssi).bars" :color="getRSSIStrength(advert.rssi).color" />
+                <!-- RSSI value -->
+                <span :class="getRSSIStrength(advert.rssi).color">
+                  {{ formatRSSI(advert.rssi) }}
+                </span>
+              </div>
+            </td>
+            <td
+              :class="`${getCellPadding()} text-content-primary text-sm`"
+            >
+              {{ formatSNR(advert.snr) }}
+            </td>
+            <td
+              :class="`${getCellPadding()} text-content-primary text-sm`"
+            >
+              <div class="flex items-center gap-2">
+                <!-- Status indicator -->
+                <div
+                  :class="[
+                    'w-2 h-2 rounded-full',
+                    getLastSeenStatus(advert.last_seen).color === 'text-primary'
+                      ? 'bg-primary'
+                      : '',
+                    getLastSeenStatus(advert.last_seen).color === 'text-accent-amber'
+                      ? 'bg-secondary'
+                      : '',
+                    getLastSeenStatus(advert.last_seen).color === 'text-accent-red'
+                      ? 'bg-accent-red'
+                      : '',
+                  ]"
+                ></div>
+                <span
+                  :class="getLastSeenStatus(advert.last_seen).color"
+                  :title="formatTimestamp(advert.last_seen)"
+                  class="cursor-help"
+                >
+                  {{ getRelativeTime(advert.last_seen) }}
+                </span>
+              </div>
+            </td>
+            <td
+              :class="`${getCellPadding()} text-content-primary text-sm`"
+            >
+              <span :title="formatTimestamp(advert.first_seen)" class="cursor-help">
+                {{ getRelativeTime(advert.first_seen) }}
+              </span>
+            </td>
+            <td
+              :class="`${getCellPadding()} text-content-primary text-sm text-center`"
+            >
+              {{ advert.advert_count }}
+            </td>
+            <td v-if="showScopes" :class="getCellPadding()" @click.stop>
+              <button
+                @click="handleShowScopes(advert)"
+                :class="[
+                  'inline-flex items-center gap-1 text-sm rounded px-1 py-0.5 hover:bg-primary/opacity-light transition-colors',
+                  scopeToneClass(advert),
+                ]"
+                :title="scopeDisplay(advert).title"
+              >
+                <Tag
+                  v-if="scopeDisplay(advert).state === 'scoped'"
+                  class="w-4 h-4"
+                  :stroke-width="2"
+                />
+                <span :class="scopeDisplay(advert).state === 'scoped' ? 'font-medium' : ''">
+                  {{ scopeDisplay(advert).label }}
+                </span>
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Mobile Cards (visible on mobile) -->
+    <div class="lg:hidden space-y-3">
+      <div
+        v-for="advert in sortedAdverts"
+        :key="advert.id"
+        class="bg-surface/opacity-heavy dark:bg-transparent border border-stroke-subtle rounded-lg p-4 hover:bg-background-mute/opacity-heavy dark:hover:bg-stroke/opacity-subtle transition-colors"
+        @click="handleHighlight(advert.pubkey)"
+      >
+        <!-- Card Header -->
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-3">
+            <h4 class="text-content-primary font-medium text-base">
+              {{ advert.node_name || 'Unknown Node' }}
+            </h4>
+            <div class="flex items-center gap-2">
+              <span
+                :class="[
+                  'inline-block px-2 py-1 rounded-full text-xs border',
+                  getRouteTypeBadge(advert.route_type).bgColor,
+                  getRouteTypeBadge(advert.route_type).borderColor,
+                  getRouteTypeBadge(advert.route_type).textColor,
+                ]"
+              >
+                {{ getRouteTypeBadge(advert.route_type).text }}
+              </span>
+              <span
+                :class="[
+                  'inline-block px-2 py-1 rounded-full text-xs border',
+                  advert.zero_hop
+                    ? 'bg-primary/opacity-medium border-primary/opacity-heavy text-primary'
+                    : 'bg-accent-amber/opacity-medium border-accent-amber/opacity-heavy text-accent-amber',
+                ]"
+              >
+                {{ advert.zero_hop ? 'Zero Hop' : 'Multi-Hop' }}
+              </span>
+            </div>
+          </div>
+          <NeighborMenu
+            :neighbor="advert"
+            :can-query-scopes="showScopes"
+            @ping="handleMenuPing"
+            @show-details="handleMenuShowDetails"
+            @delete="handleMenuDelete"
+            @query-scopes="handleQueryScopes"
+          />
+        </div>
+
+        <!-- Card Content Grid -->
+        <div class="grid grid-cols-1 gap-3">
+          <!-- Primary Info Row -->
+          <div class="grid grid-cols-2 gap-4">
+            <!-- Public Key -->
+            <div>
+              <div class="text-content-muted text-xs mb-1">Public Key</div>
+              <button
+                @click="copyPubkey(advert.pubkey)"
+                :class="[
+                  'text-content-primary hover:text-primary transition-colors cursor-pointer font-mono text-sm underline underline-offset-2 decoration-stroke-hover hover:decoration-primary/60 break-all',
+                  copiedPubkey === advert.pubkey
+                    ? 'text-primary decoration-primary/60'
+                    : '',
+                ]"
+                :title="
+                  copiedPubkey === advert.pubkey ? 'Copied!' : 'Click to copy full public key'
+                "
+              >
+                {{ formatPubkey(advert.pubkey) }}
+                <span v-if="copiedPubkey === advert.pubkey" class="ml-1 text-xs">✓</span>
+              </button>
+            </div>
+
+            <!-- Signal Strength -->
+            <div>
+              <div class="text-content-muted text-xs mb-1">Signal</div>
+              <div class="flex items-center gap-2 justify-end">
+                <!-- Signal strength bars -->
+                <SignalBars :bars="getRSSIStrength(advert.rssi).bars" :color="getRSSIStrength(advert.rssi).color" size="md" />
+                <!-- RSSI value -->
+                <span :class="`${getRSSIStrength(advert.rssi).color} text-sm font-medium`">
+                  {{ formatRSSI(advert.rssi) }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Secondary Info Row -->
+          <div class="grid grid-cols-2 gap-4">
+            <!-- Last Seen -->
+            <div>
+              <div class="text-content-muted text-xs mb-1">Last Seen</div>
+              <div class="flex items-center gap-2">
+                <div
+                  :class="[
+                    'w-2 h-2 rounded-full',
+                    getLastSeenStatus(advert.last_seen).color === 'text-primary'
+                      ? 'bg-primary'
+                      : '',
+                    getLastSeenStatus(advert.last_seen).color === 'text-accent-amber'
+                      ? 'bg-secondary'
+                      : '',
+                    getLastSeenStatus(advert.last_seen).color === 'text-accent-red'
+                      ? 'bg-accent-red'
+                      : '',
+                  ]"
+                ></div>
+                <span
+                  :class="`${getLastSeenStatus(advert.last_seen).color} text-sm`"
+                  :title="formatTimestamp(advert.last_seen)"
+                >
+                  {{ getRelativeTime(advert.last_seen) }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Distance -->
+            <div>
+              <div class="text-content-muted text-xs mb-1">Distance</div>
+              <span
+                class="text-content-primary text-sm block text-right"
+                >{{ getDistanceFromBase(advert) }}</span
+              >
+            </div>
+          </div>
+
+          <!-- Location (if available) -->
+          <div
+            v-if="advert.latitude !== null && advert.longitude !== null"
+            class="border-t border-stroke-subtle pt-3"
+          >
+            <div class="text-content-muted text-xs mb-1">Location</div>
+            <div class="flex items-center justify-between">
+              <span class="text-content-secondary dark:text-content-muted text-sm font-mono">
+                {{ advert.latitude.toFixed(4) }}, {{ advert.longitude.toFixed(4) }}
+              </span>
+              <div class="flex gap-2">
+                <button
+                  @click="copyCoordinates(advert.latitude!, advert.longitude!)"
+                  class="text-content-muted hover:text-content-primary dark:hover:text-content-primary transition-colors p-2 hover:bg-stroke-subtle dark:hover:bg-white/opacity-light rounded-lg"
+                  title="Copy coordinates"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <rect
+                      x="9"
+                      y="9"
+                      width="13"
+                      height="13"
+                      rx="2"
+                      ry="2"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    />
+                    <path
+                      d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    />
+                  </svg>
+                </button>
+                <button
+                  @click="openInMaps(advert.latitude!, advert.longitude!)"
+                  class="text-content-muted hover:text-primary transition-colors p-2 hover:bg-stroke/opacity-light rounded-lg"
+                  title="Open in Maps"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    />
+                    <circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="2" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Scopes (repeaters only) -->
+          <div v-if="showScopes" class="border-t border-stroke-subtle pt-3">
+            <div class="text-content-muted text-xs mb-1">Scopes</div>
+            <button
+              @click.stop="handleShowScopes(advert)"
+              :class="[
+                'inline-flex items-center gap-2 text-sm text-left',
+                scopeToneClass(advert),
+              ]"
+              :title="scopeDisplay(advert).title"
+            >
+              <Tag
+                v-if="scopeDisplay(advert).state === 'scoped'"
+                class="w-4 h-4 flex-shrink-0"
+                :stroke-width="2"
+              />
+              <span>{{ scopeDisplay(advert).summary }}</span>
+            </button>
+          </div>
+
+          <!-- Additional Stats -->
+          <div class="grid grid-cols-3 gap-4 pt-3 border-t border-stroke-subtle">
+            <div class="text-center">
+              <div class="text-content-muted text-xs mb-1">SNR</div>
+              <span class="text-content-primary text-sm font-medium">{{
+                formatSNR(advert.snr)
+              }}</span>
+            </div>
+            <div class="text-center">
+              <div class="text-content-muted text-xs mb-1">Adverts</div>
+              <span class="text-content-primary text-sm font-medium">{{
+                advert.advert_count
+              }}</span>
+            </div>
+            <div class="text-center">
+              <div class="text-content-muted text-xs mb-1">First Seen</div>
+              <span
+                class="text-content-primary text-sm"
+                :title="formatTimestamp(advert.first_seen)"
+              >
+                {{ getRelativeTime(advert.first_seen) }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>

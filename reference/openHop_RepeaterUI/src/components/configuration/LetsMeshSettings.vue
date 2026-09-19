@@ -1,0 +1,1019 @@
+<script setup lang="ts">
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { useSystemStore } from '@/stores/system';
+import ApiService from '@/utils/api';
+import RestartModal from '@/components/modals/RestartModal.vue';
+import BrokerEditModal from '@/components/modals/BrokerEditModal.vue';
+import UnsavedChangesModal from '@/components/ui/UnsavedChangesModal.vue';
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges';
+
+const systemStore = useSystemStore();
+const mqttConfig = computed(() => systemStore.stats?.config?.mqtt_brokers || {});
+
+// Broker templates are sourced from the repeater's bundled YAML presets
+// (`repeater/presets/*.yaml`), exposed via `GET /api/broker_presets`. This
+// keeps the network catalogue versioned with the repeater itself — adding a
+// new network is a one-file PR on the repeater side and every fresh UI fetch
+// picks it up without a frontend rebuild.
+interface BrokerTemplate {
+  id: string;          // preset filename stem, stable identifier
+  name: string;        // YAML `display_name`, or titlecased id fallback
+  website?: string;    // optional, omitted when absent from the YAML
+  brokers: Omit<CustomBroker, '_id'>[];
+}
+const BROKER_TEMPLATES = ref<BrokerTemplate[]>([]);
+// Tri-state UI signal for the dropdown header so operators can tell the
+// difference between "still loading", "no presets available", and "the
+// repeater doesn't support this endpoint yet".
+const templatesLoading = ref(false);
+const templatesError = ref('');
+// Per-template expansion state for the per-broker chooser. A template with
+// multiple brokers can be expanded by clicking its chevron; the default row
+// click still adds every broker in the template at once.
+const expandedTemplateId = ref<string | null>(null);
+
+interface CustomBroker {
+  _id: number;
+  enabled: boolean;
+  name: string;
+  host: string;
+  port: number;
+  format: string;
+  audience?: string;
+  use_jwt_auth?: boolean;
+  username?: string;
+  password?: string;
+  disallowedInput?: string[];
+  transport: string;
+  base_topic?: string;
+  retain_status: boolean;
+  neighbors: boolean;
+  tls: { enabled?: boolean; insecure?: boolean };
+}
+
+function cloneBroker(b: CustomBroker): CustomBroker {
+  return { ...b, tls: { ...b.tls }, disallowedInput: [...(b.disallowedInput ?? [])] };
+}
+
+// ── Global edit state ─────────────────────────────────────────────────────
+const isGlobalEditing = ref(false);
+const isSaving = ref(false);
+const errorMsg = ref('');
+const showRestartModal = ref(false);
+
+interface Snapshot {
+  iata: string;
+  interval: number;
+  owner: string;
+  email: string;
+  neighborsEnabled: boolean;
+  neighborsInterval: number;
+  brokers: CustomBroker[];
+}
+const globalSnapshot = ref<Snapshot | null>(null);
+
+// Schedule summary for the neighbours topic, from the repeater's publisher.
+// Absent (null/undefined) on repeaters that predate the feature.
+interface NeighborsStatus {
+  phase: 'disabled' | 'scheduled' | 'active' | 'due';
+  secs_until_next: number | null;
+  last_result: string | null;
+  last_publish_at: number | null;
+  interval_hours: number;
+}
+
+interface MqttStatus {
+  handler_active: boolean;
+  brokers: {
+    enabled: boolean;
+    name: string;
+    host: string;
+    status: { connected: boolean; reconnecting: boolean };
+    format: string;
+    neighbors?: boolean;
+  }[];
+  neighbors?: NeighborsStatus | null;
+}
+
+// ── Observer settings ─────────────────────────────────────────────────────
+const isEditingObserver = ref(false);
+const iataCodeInput = ref('');
+const statusIntervalInput = ref(300);
+const ownerInput = ref('');
+const emailInput = ref('');
+
+// ── Neighbours publication ────────────────────────────────────────────────
+// Master switch plus schedule for the `neighbors` topic. The repeater defaults
+// `enabled` to true and treats the per-broker flags as the real control, so the
+// same default is used here for a config block that has never been written.
+const NEIGHBORS_MIN_INTERVAL_HOURS = 12;
+const NEIGHBORS_MAX_INTERVAL_HOURS = 336;
+const NEIGHBORS_DEFAULT_INTERVAL_HOURS = 24;
+const neighborsEnabledInput = ref(true);
+const neighborsIntervalInput = ref(NEIGHBORS_DEFAULT_INTERVAL_HOURS);
+
+const neighborsIntervalError = computed(() => {
+  const v = neighborsIntervalInput.value;
+  if (!Number.isFinite(v) || !Number.isInteger(v)) return 'Interval must be a whole number of hours.';
+  if (v < NEIGHBORS_MIN_INTERVAL_HOURS || v > NEIGHBORS_MAX_INTERVAL_HOURS) {
+    return `Interval must be between ${NEIGHBORS_MIN_INTERVAL_HOURS} and ${NEIGHBORS_MAX_INTERVAL_HOURS} hours.`;
+  }
+  return '';
+});
+
+// ── Broker state ──────────────────────────────────────────────────────────
+const customBrokers = ref<CustomBroker[]>([]);
+const editingBrokerId = ref<number | null>(null);
+const isNewBroker = ref(false);
+const originalBrokerDraft = ref<CustomBroker | null>(null);
+const brokerDraft = ref<CustomBroker>({
+  _id: 0, enabled: true, name: '', host: '', port: 443, format: 'letsmesh',
+  use_jwt_auth: false, transport: 'websockets', disallowedInput: [],
+  retain_status: false, neighbors: false, tls: { enabled: true, insecure: false },
+});
+const showTemplateMenu = ref(false);
+
+// ── Live status ───────────────────────────────────────────────────────────
+const status = ref<MqttStatus | null>(null);
+const loadingStatus = ref(false);
+
+async function fetchStatus() {
+  if (loadingStatus.value) return;
+  loadingStatus.value = true;
+  try {
+    const res = await ApiService.get('/mqtt_status');
+    if (res.success) status.value = res.data as MqttStatus;
+  } catch { /* silent */ } finally {
+    loadingStatus.value = false;
+  }
+}
+
+// Which brokers have opted in — drives the "no broker opted in" hint, since the
+// master switch alone publishes nothing.
+const neighborsBrokerNames = computed(() =>
+  customBrokers.value.filter(b => b.enabled && b.neighbors).map(b => b.name || '(unnamed)'),
+);
+
+function formatDuration(totalSeconds: number): string {
+  const secs = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(secs / 3600);
+  const mins = Math.floor((secs % 3600) / 60);
+  if (hours >= 1) return `${hours}h ${mins}m`;
+  if (mins >= 1) return `${mins}m`;
+  return `${secs}s`;
+}
+
+// Brokers the *running* daemon has opted in, which is not the same as the saved
+// config until the service restarts. Used to tell the two causes of the
+// `disabled` phase apart, and to flag brokers whose opt-in is already live.
+const liveNeighborsBrokers = computed(
+  () => status.value?.brokers?.filter(b => b.neighbors).length ?? 0,
+);
+
+const neighborsPhaseLabel = computed(() => {
+  const n = status.value?.neighbors;
+  if (!n) return '';
+  switch (n.phase) {
+    case 'active': return 'Publishing now';
+    case 'due': return 'Due — next cycle';
+    case 'scheduled':
+      return n.secs_until_next === null
+        ? 'Scheduled'
+        : `Next in ${formatDuration(n.secs_until_next)}`;
+    default:
+      // `disabled` covers both the master switch being off and no broker having
+      // opted in. A live opt-in with the phase still disabled means the former.
+      return liveNeighborsBrokers.value
+        ? 'Disabled — master switch off'
+        : 'Idle — no broker opted in';
+  }
+});
+
+const neighborsLastPublish = computed(() => {
+  const at = status.value?.neighbors?.last_publish_at;
+  if (!at) return '';
+  // Backend sends epoch seconds (time.time()); JS wants milliseconds.
+  return new Date(at * 1000).toLocaleString();
+});
+
+// ── Manual cycle trigger ──────────────────────────────────────────────────
+const isTriggering = ref(false);
+const triggerMsg = ref('');
+const triggerError = ref('');
+
+// Why the button is unavailable, or '' when it can be pressed. The trigger acts
+// on the *running* config, so an open edit is blocked rather than silently
+// running the last-saved settings.
+const triggerDisabledReason = computed(() => {
+  const n = status.value?.neighbors;
+  if (!status.value) return 'Status unavailable — the service may not be running.';
+  if (n === undefined || n === null) return 'This repeater build does not support manual triggering.';
+  if (isGlobalEditing.value) return 'Save or cancel your changes first.';
+  if (n.phase === 'active') return 'A cycle is already running.';
+  if (n.phase === 'disabled') return 'Enable publishing and opt a broker in first.';
+  return '';
+});
+
+async function triggerNeighborsCycle() {
+  if (triggerDisabledReason.value || isTriggering.value) return;
+  isTriggering.value = true;
+  triggerMsg.value = '';
+  triggerError.value = '';
+  try {
+    // A cycle runs for minutes; the repeater schedules it and returns at once,
+    // so the default timeout is plenty.
+    const res = await ApiService.post('/publish_neighbors', {});
+    if (res.success) {
+      triggerMsg.value = 'Cycle started — discovery and scope queries take a few minutes.';
+      await fetchStatus();
+    } else {
+      triggerError.value = res.error || 'Failed to start the cycle';
+    }
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } }; message?: string };
+    triggerError.value = e?.response?.data?.error || e?.message || 'Request failed';
+  } finally {
+    isTriggering.value = false;
+  }
+}
+
+// Once the poll shows the cycle running, the status row says so — drop the
+// redundant banner instead of leaving it up until the next click.
+watch(() => status.value?.neighbors?.phase, (phase) => {
+  if (phase === 'active') triggerMsg.value = '';
+});
+
+// ── Sync form from store ──────────────────────────────────────────────────
+let _nextId = 1;
+function mkBroker(b: Partial<Omit<CustomBroker, '_id'>> = {}): CustomBroker {
+  return {
+    _id: _nextId++, enabled: b.enabled ?? true, name: b.name ?? '',
+    host: b.host ?? '', port: b.port ?? 0, audience: b.audience ?? '',
+    format: b.format ?? 'letsmesh', use_jwt_auth: b.use_jwt_auth ?? false,
+    username: b.username ?? '', password: b.password ?? '',
+    transport: b.transport ?? 'websockets',
+    disallowedInput: Array.isArray(b.disallowedInput) ? [...b.disallowedInput] : [],
+    retain_status: b.retain_status ?? false, base_topic: b.base_topic ?? '',
+    neighbors: b.neighbors ?? false,
+    tls: { enabled: b.tls?.enabled ?? false, insecure: b.tls?.insecure ?? false },
+  };
+}
+
+function syncForm() {
+  const c = mqttConfig.value;
+  iataCodeInput.value = c.iata_code ?? '';
+  statusIntervalInput.value = c.status_interval ?? 300;
+  ownerInput.value = c.owner ?? '';
+  emailInput.value = c.email ?? '';
+  const n = c.neighbors ?? {};
+  neighborsEnabledInput.value = n.enabled ?? true;
+  neighborsIntervalInput.value = n.interval_hours ?? NEIGHBORS_DEFAULT_INTERVAL_HOURS;
+  customBrokers.value = Array.isArray(c.brokers)
+    ? (c.brokers as Record<string, unknown>[]).map(b => mkBroker(b as Partial<Omit<CustomBroker, '_id'>>))
+    : [];
+}
+
+watch(mqttConfig, () => {
+  if (!isGlobalEditing.value) syncForm();
+}, { immediate: true });
+
+// ── API ───────────────────────────────────────────────────────────────────
+function buildPayload() {
+  return {
+    iata_code: iataCodeInput.value,
+    status_interval: statusIntervalInput.value,
+    owner: ownerInput.value,
+    email: emailInput.value,
+    // Only the two fields this form owns. The repeater merges them onto the
+    // stored block, so the tunables it does not surface (sweep budget, response
+    // window, …) survive a save from here.
+    neighbors: {
+      enabled: neighborsEnabledInput.value,
+      interval_hours: neighborsIntervalInput.value,
+    },
+    brokers: customBrokers.value.map(b => {
+      const base = {
+        name: b.name, enabled: b.enabled, transport: b.transport,
+        host: b.host, port: b.port, use_jwt_auth: b.use_jwt_auth,
+        format: b.format, disallowed_packet_types: b.disallowedInput,
+        base_topic: b.base_topic, retain_status: b.retain_status,
+        neighbors: b.neighbors,
+        tls: { enabled: b.tls?.enabled ?? false, insecure: b.tls?.insecure ?? false },
+      };
+      return b.use_jwt_auth
+        ? { ...base, audience: b.audience }
+        : { ...base, username: b.username, password: b.password };
+    }),
+  };
+}
+
+async function callSaveApi(): Promise<{ success: boolean; error?: string }> {
+  // The repeater rejects an out-of-range interval rather than clamping it, and a
+  // rejected POST drops the whole MQTT save — so catch it before the round trip.
+  if (neighborsIntervalError.value) return { success: false, error: neighborsIntervalError.value };
+  try {
+    const res = await ApiService.post('/update_mqtt_config', buildPayload());
+    if (res.success) {
+      await systemStore.fetchStats();
+      await fetchStatus();
+      return { success: true };
+    }
+    return { success: false, error: res.error || 'Save failed' };
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } }; message?: string };
+    return { success: false, error: e?.response?.data?.error || e?.message || 'Request failed' };
+  }
+}
+
+// ── Global edit/save/cancel ───────────────────────────────────────────────
+function startGlobalEditing() {
+  syncForm();
+  globalSnapshot.value = {
+    iata: iataCodeInput.value,
+    interval: statusIntervalInput.value,
+    owner: ownerInput.value,
+    email: emailInput.value,
+    neighborsEnabled: neighborsEnabledInput.value,
+    neighborsInterval: neighborsIntervalInput.value,
+    brokers: customBrokers.value.map(cloneBroker),
+  };
+  isGlobalEditing.value = true;
+  errorMsg.value = '';
+}
+
+function cancelGlobalEditing() {
+  if (globalSnapshot.value) {
+    iataCodeInput.value = globalSnapshot.value.iata;
+    statusIntervalInput.value = globalSnapshot.value.interval;
+    ownerInput.value = globalSnapshot.value.owner;
+    emailInput.value = globalSnapshot.value.email;
+    neighborsEnabledInput.value = globalSnapshot.value.neighborsEnabled;
+    neighborsIntervalInput.value = globalSnapshot.value.neighborsInterval;
+    customBrokers.value = globalSnapshot.value.brokers.map(cloneBroker);
+  }
+  editingBrokerId.value = null;
+  isNewBroker.value = false;
+  originalBrokerDraft.value = null;
+  isEditingObserver.value = false;
+  isGlobalEditing.value = false;
+  globalSnapshot.value = null;
+  errorMsg.value = '';
+}
+
+async function saveGlobalSettings() {
+  // Commit any open broker edit before saving
+  if (editingBrokerId.value !== null) {
+    const d = brokerDraft.value;
+    if (!d.name.trim() || !d.host.trim()) {
+      errorMsg.value = 'Please complete or cancel the open broker edit before saving.';
+      return;
+    }
+    commitBrokerDraft();
+  }
+  isSaving.value = true;
+  errorMsg.value = '';
+  const result = await callSaveApi();
+  isSaving.value = false;
+  if (result.success) {
+    isGlobalEditing.value = false;
+    isEditingObserver.value = false;
+    globalSnapshot.value = null;
+    showRestartModal.value = true;
+  } else {
+    errorMsg.value = result.error!;
+  }
+}
+
+// ── Observer (local only, no API) ─────────────────────────────────────────
+function doneEditingObserver() {
+  isEditingObserver.value = false;
+}
+
+// ── Broker management (local only, no API) ────────────────────────────────
+function addBroker() {
+  if (editingBrokerId.value !== null) cancelBrokerEdit();
+  const b = mkBroker();
+  customBrokers.value.push(b);
+  originalBrokerDraft.value = null;
+  isNewBroker.value = true;
+  brokerDraft.value = cloneBroker(b);
+  editingBrokerId.value = b._id;
+}
+
+function openBrokerEdit(broker: CustomBroker) {
+  if (editingBrokerId.value !== null && editingBrokerId.value !== broker._id) cancelBrokerEdit();
+  originalBrokerDraft.value = cloneBroker(broker);
+  isNewBroker.value = false;
+  brokerDraft.value = cloneBroker(broker);
+  editingBrokerId.value = broker._id;
+}
+
+function cancelBrokerEdit() {
+  if (isNewBroker.value && editingBrokerId.value !== null) {
+    customBrokers.value = customBrokers.value.filter(b => b._id !== editingBrokerId.value);
+  } else if (originalBrokerDraft.value) {
+    const idx = customBrokers.value.findIndex(b => b._id === originalBrokerDraft.value!._id);
+    if (idx !== -1) customBrokers.value.splice(idx, 1, cloneBroker(originalBrokerDraft.value));
+  }
+  editingBrokerId.value = null;
+  isNewBroker.value = false;
+  originalBrokerDraft.value = null;
+}
+
+function commitBrokerDraft() {
+  const d = brokerDraft.value;
+  const idx = customBrokers.value.findIndex(b => b._id === d._id);
+  if (idx !== -1) customBrokers.value.splice(idx, 1, cloneBroker(d));
+  editingBrokerId.value = null;
+  isNewBroker.value = false;
+  originalBrokerDraft.value = null;
+}
+
+function handleModalDone(data: CustomBroker) {
+  brokerDraft.value = data;
+  commitBrokerDraft();
+}
+
+function removeBrokerLocal(id: number) {
+  customBrokers.value = customBrokers.value.filter(b => b._id !== id);
+  if (editingBrokerId.value === id) {
+    editingBrokerId.value = null;
+    isNewBroker.value = false;
+    originalBrokerDraft.value = null;
+  }
+}
+
+function addFromTemplate(tpl: BrokerTemplate) {
+  showTemplateMenu.value = false;
+  expandedTemplateId.value = null;
+  if (editingBrokerId.value !== null) cancelBrokerEdit();
+  tpl.brokers.forEach(b => customBrokers.value.push(mkBroker(b)));
+}
+
+// Add just one broker from a template - used by the per-broker chooser when
+// an operator wants e.g. only the primary Waev broker, not both A and B.
+function addOneFromTemplate(broker: Omit<CustomBroker, '_id'>) {
+  showTemplateMenu.value = false;
+  expandedTemplateId.value = null;
+  if (editingBrokerId.value !== null) cancelBrokerEdit();
+  customBrokers.value.push(mkBroker(broker));
+}
+
+function toggleTemplateExpansion(id: string) {
+  expandedTemplateId.value = expandedTemplateId.value === id ? null : id;
+}
+
+// Fetch bundled presets from the repeater. Designed to fail soft so an older
+// repeater (no /api/broker_presets endpoint) still renders a working form;
+// operators can fall back to the manual "Add" button.
+async function fetchBrokerPresets() {
+  templatesLoading.value = true;
+  templatesError.value = '';
+  try {
+    const res = await ApiService.get('/broker_presets');
+    if (res.success && Array.isArray(res.data)) {
+      BROKER_TEMPLATES.value = res.data as BrokerTemplate[];
+    } else {
+      BROKER_TEMPLATES.value = [];
+      templatesError.value = res.error || 'Failed to load broker presets';
+    }
+  } catch (err: unknown) {
+    BROKER_TEMPLATES.value = [];
+    const e = err as { response?: { status?: number } };
+    // 404 on older repeaters: keep the dropdown quiet rather than alarming.
+    // Surface real network/server errors so operators have something to act on.
+    if (e?.response?.status === 404) {
+      templatesError.value = '';
+    } else {
+      templatesError.value = 'Could not reach repeater for broker presets';
+    }
+  } finally {
+    templatesLoading.value = false;
+  }
+}
+
+const draftIsValid = computed(() => {
+  const d = brokerDraft.value;
+  return d.name.trim() !== '' && d.host.trim() !== '' &&
+    d.port >= 1 && d.port <= 65535 &&
+    (!d.use_jwt_auth || (d.audience?.trim() ?? '') !== '');
+});
+
+
+// ── Navigation guard ──────────────────────────────────────────────────────
+async function saveForNavigation(): Promise<boolean> {
+  if (editingBrokerId.value !== null && draftIsValid.value) commitBrokerDraft();
+  isSaving.value = true;
+  errorMsg.value = '';
+  const result = await callSaveApi();
+  isSaving.value = false;
+  if (result.success) {
+    isGlobalEditing.value = false;
+    isEditingObserver.value = false;
+    globalSnapshot.value = null;
+    showRestartModal.value = true;
+    return true;
+  }
+  errorMsg.value = result.error ?? 'Save failed';
+  return false;
+}
+
+const { showUnsavedModal, requestLeave, handleDiscard, handleSave, handleCancel } = useUnsavedChanges(
+  isGlobalEditing,
+  isSaving,
+  cancelGlobalEditing,
+  saveForNavigation,
+);
+
+defineExpose({ requestLeave, isEditing: isGlobalEditing });
+
+let _statusTimer: ReturnType<typeof setInterval> | null = null;
+
+onMounted(() => {
+  fetchStatus();
+  fetchBrokerPresets();
+  _statusTimer = setInterval(fetchStatus, 5000);
+});
+
+onUnmounted(() => {
+  if (_statusTimer) clearInterval(_statusTimer);
+});
+</script>
+
+<template>
+  <!-- ── Restart Required Modal ──────────────────────────────────────────── -->
+  <RestartModal
+    v-model="showRestartModal"
+    message="Broker settings have been saved. A service restart is required for the changes to take effect."
+  />
+
+  <!-- ── Broker Edit Modal ──────────────────────────────────────────────── -->
+  <BrokerEditModal
+    :show="editingBrokerId !== null"
+    :broker="editingBrokerId !== null ? brokerDraft : null"
+    :is-new="isNewBroker"
+    @done="handleModalDone"
+    @cancel="cancelBrokerEdit"
+  />
+
+  <!-- ── Unsaved Changes Modal ──────────────────────────────────────────── -->
+  <UnsavedChangesModal :show="showUnsavedModal" :is-saving="isSaving" label="Broker settings" @discard="handleDiscard" @save="handleSave" @cancel="handleCancel" />
+
+  <!-- ── Main Content ───────────────────────────────────────────────────── -->
+  <div class="space-y-12">
+    <!-- Page heading -->
+    <div class="cfg-page-heading flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+      <div>
+        <h3 class="text-base sm:text-lg font-semibold text-content-primary mb-1 sm:mb-2">
+          Observer Configuration
+        </h3>
+        <p class="text-content-secondary dark:text-content-muted text-xs sm:text-sm">
+          Configure LetsMesh observer settings, MQTT brokers, and connection status
+        </p>
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <template v-if="!isGlobalEditing">
+          <button
+            @click="startGlobalEditing"
+            class="btn-primary"
+          >
+            Edit Settings
+          </button>
+        </template>
+        <template v-else>
+          <button
+            @click="cancelGlobalEditing"
+            :disabled="isSaving"
+            class="px-3 sm:cfg-btn-secondary"
+          >
+            Cancel
+          </button>
+          <button
+            @click="saveGlobalSettings"
+            :disabled="isSaving"
+            class="btn-primary"
+          >
+            {{ isSaving ? 'Saving…' : 'Save Settings' }}
+          </button>
+        </template>
+      </div>
+    </div>
+
+    <!-- Global error message -->
+    <div
+      v-if="errorMsg"
+      class="bg-accent-red/opacity-light dark:bg-accent-red/opacity-medium border border-accent-red dark:border-accent-red/opacity-heavy rounded-lg p-3 text-accent-red text-sm"
+    >
+      {{ errorMsg }}
+    </div>
+
+    <!-- ── Observer Status ────────────────────────────────────────────── -->
+    <div class="cfg-section">
+      <div class="mb-4">
+        <h3 class="text-lg font-semibold text-content-primary mb-1">Observer Status</h3>
+        <p class="text-sm text-content-secondary dark:text-content-muted">Live LetsMesh broker connection state</p>
+      </div>
+
+      <div v-if="!status" class="text-sm text-content-secondary dark:text-content-muted">
+        Status unavailable — service may not be running.
+      </div>
+      <div v-else class="space-y-3">
+        <div class="flex items-center gap-2">
+          <span class="text-sm text-content-secondary dark:text-content-muted w-36">Handler</span>
+          <span :class="['inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium', status.handler_active ? 'bg-accent-green/opacity-light dark:bg-accent-green/opacity-medium text-accent-green' : 'bg-background-mute dark:bg-background-mute/opacity-heavy text-content-muted']">
+            <span class="w-1.5 h-1.5 rounded-full" :class="status.handler_active ? 'bg-accent-green/opacity-light' : 'bg-background-mute'"></span>
+            {{ status.handler_active ? 'Active' : 'Inactive' }}
+          </span>
+        </div>
+        <div v-if="status.brokers.length" class="space-y-2">
+          <div v-for="broker in status.brokers" :key="broker.host" class="flex items-center gap-2">
+            <span class="text-sm text-content-secondary dark:text-content-muted w-36 truncate" :title="broker.name">{{ broker.name }}</span>
+            <span :class="['inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium', broker.status.connected ? 'bg-accent-green/opacity-light dark:bg-accent-green/opacity-medium text-accent-green' : broker.status.reconnecting ? 'bg-accent-amber/opacity-light dark:bg-accent-amber/opacity-medium text-accent-amber' : 'bg-accent-red/opacity-light dark:bg-accent-red/opacity-medium text-accent-red']">
+              <span class="w-1.5 h-1.5 rounded-full" :class="broker.status.connected ? 'bg-accent-green/opacity-light' : broker.status.reconnecting ? 'bg-accent-amber/opacity-light' : 'bg-accent-red/opacity-light'"></span>
+              {{ broker.status.connected ? 'Connected' : broker.status.reconnecting ? 'Reconnecting…' : 'Disconnected' }}
+            </span>
+            <!-- Live opt-in, i.e. what the running service loaded. Differs from
+                 the broker list below until the service restarts. -->
+            <span
+              v-if="broker.neighbors"
+              title="This connection is publishing the neighbours table"
+              class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/opacity-light text-primary"
+            >
+              nbrs
+            </span>
+          </div>
+        </div>
+        <div v-else class="text-sm text-content-muted/opacity-heavy italic">No broker connections configured.</div>
+
+        <!-- Neighbours schedule. Absent on repeaters that predate the feature,
+             so the row is omitted rather than shown as unknown. -->
+        <div v-if="status.neighbors" class="flex items-start gap-2 pt-1">
+          <span class="text-sm text-content-secondary dark:text-content-muted w-36 flex-shrink-0">Neighbours</span>
+          <div class="min-w-0">
+            <span :class="['inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium', status.neighbors.phase === 'disabled' ? 'bg-background-mute dark:bg-background-mute/opacity-heavy text-content-muted' : status.neighbors.phase === 'active' ? 'bg-accent-amber/opacity-light dark:bg-accent-amber/opacity-medium text-accent-amber' : 'bg-accent-green/opacity-light dark:bg-accent-green/opacity-medium text-accent-green']">
+              <span class="w-1.5 h-1.5 rounded-full" :class="status.neighbors.phase === 'disabled' ? 'bg-background-mute' : status.neighbors.phase === 'active' ? 'bg-accent-amber/opacity-light' : 'bg-accent-green/opacity-light'"></span>
+              {{ neighborsPhaseLabel }}
+            </span>
+            <p v-if="status.neighbors.last_result" class="text-xs text-content-secondary dark:text-content-muted mt-1">
+              Last cycle: {{ status.neighbors.last_result }}<span v-if="neighborsLastPublish"> · {{ neighborsLastPublish }}</span>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Observer Setup ────────────────────────────────────────────── -->
+    <div class="cfg-card p-6">
+      <div class="mb-4">
+        <h3 class="text-lg font-semibold text-content-primary mb-1">Observer Setup</h3>
+        <p class="text-sm text-content-secondary dark:text-content-muted">IATA code, status interval, and owner details</p>
+      </div>
+
+      <div>
+        <!-- View mode -->
+        <div v-if="!isGlobalEditing" class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
+          <div class="flex flex-col py-1 border-b border-stroke-subtle dark:border-stroke/opacity-light">
+            <span class="text-content-secondary dark:text-content-muted text-xs sm:text-sm">IATA Code</span>
+            <span class="text-content-primary font-mono text-sm mt-0.5">{{ mqttConfig.iata_code || '—' }}</span>
+          </div>
+          <div class="flex flex-col py-1 border-b border-stroke-subtle dark:border-stroke/opacity-light">
+            <span class="text-content-secondary dark:text-content-muted text-xs sm:text-sm">Status Interval</span>
+            <span class="text-content-primary text-sm mt-0.5">{{ mqttConfig.status_interval ?? 300 }}s</span>
+          </div>
+          <div class="flex flex-col py-1">
+            <span class="text-content-secondary dark:text-content-muted text-xs sm:text-sm">Owner</span>
+            <span class="text-content-primary text-sm mt-0.5">{{ mqttConfig.owner || '—' }}</span>
+          </div>
+          <div class="flex flex-col py-1">
+            <span class="text-content-secondary dark:text-content-muted text-xs sm:text-sm">Email</span>
+            <span class="text-content-primary text-sm mt-0.5">{{ mqttConfig.email || '—' }}</span>
+          </div>
+        </div>
+
+        <!-- Edit mode -->
+        <div v-if="isGlobalEditing" class="space-y-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs sm:text-sm text-content-secondary dark:text-content-muted mb-1">
+                IATA Code <span class="text-content-muted/opacity-heavy text-xs">(e.g. SFO, LHR)</span>
+              </label>
+              <input v-model="iataCodeInput" type="text" maxlength="10" placeholder="TEST"
+                class="cfg-input font-mono" />
+            </div>
+            <div>
+              <label class="block text-xs sm:text-sm text-content-secondary dark:text-content-muted mb-1">
+                Status Interval <span class="text-content-muted/opacity-heavy text-xs">(seconds, min 60)</span>
+              </label>
+              <input v-model.number="statusIntervalInput" type="number" min="60" max="3600"
+                class="cfg-input font-mono" />
+            </div>
+            <div>
+              <label class="block text-xs sm:text-sm text-content-secondary dark:text-content-muted mb-1">Owner Companion Pubkey</label>
+              <input v-model="ownerInput" type="text" placeholder="Optional"
+                class="cfg-input" />
+            </div>
+            <div>
+              <label class="block text-xs sm:text-sm text-content-secondary dark:text-content-muted mb-1">Email</label>
+              <input v-model="emailInput" type="email" placeholder="Optional"
+                class="cfg-input" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Broker Settings ────────────────────────────────────────────── -->
+    <div class="cfg-card p-6">
+      <div class="flex items-start justify-between mb-4">
+        <div>
+          <h3 class="text-lg font-semibold text-content-primary mb-1">Broker Settings</h3>
+          <p class="text-sm text-content-secondary dark:text-content-muted">MQTT brokers for observer publishing</p>
+        </div>
+        <div v-if="isGlobalEditing" class="flex items-center gap-2 flex-shrink-0 ml-4">
+          <!-- From Template dropdown -->
+          <div class="relative">
+            <button
+              @click="showTemplateMenu = !showTemplateMenu"
+              class="inline-flex items-center gap-1.5 px-3 sm:cfg-btn-secondary"
+            >
+              From Template
+              <svg class="w-3 h-3 transition-transform" :class="showTemplateMenu ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            <Transition name="dropdown">
+              <div
+                v-if="showTemplateMenu"
+                class="absolute right-0 top-full mt-1 z-20 w-72 rounded-lg shadow-lg border border-stroke-subtle dark:border-stroke/opacity-medium bg-white dark:bg-[var(--color-surface)] overflow-hidden"
+              >
+                <div class="px-3 py-2 border-b border-stroke-subtle dark:border-stroke/opacity-light">
+                  <p class="text-xs font-medium text-content-secondary dark:text-content-muted uppercase tracking-wide">Known Networks</p>
+                </div>
+                <!-- Loading / empty / error states.  We keep all three in the
+                     same dropdown surface so the affordance never disappears
+                     unexpectedly when a request is in flight. -->
+                <div v-if="templatesLoading" class="px-3 py-3 text-xs text-content-secondary dark:text-content-muted italic">
+                  Loading presets…
+                </div>
+                <div v-else-if="templatesError" class="px-3 py-3 text-xs text-accent-red">
+                  {{ templatesError }}
+                </div>
+                <div v-else-if="!BROKER_TEMPLATES.length" class="px-3 py-3 text-xs text-content-secondary dark:text-content-muted italic">
+                  No bundled presets. Use "Add" to configure manually.
+                </div>
+                <div v-else class="py-1">
+                  <div v-for="tpl in BROKER_TEMPLATES" :key="tpl.id" class="border-b border-stroke-subtle dark:border-stroke/opacity-light last:border-b-0">
+                    <!-- Template row.  Click anywhere on the row (outside the
+                         chevron / website link) adds every broker in the
+                         template, preserving the pre-existing default. -->
+                    <div
+                      class="flex items-center gap-2 px-3 py-2.5 hover:bg-background-mute dark:hover:bg-background/30 cursor-pointer group"
+                      @click="addFromTemplate(tpl)"
+                    >
+                      <div class="min-w-0 flex-1">
+                        <p class="text-sm font-medium text-content-primary group-hover:text-primary transition-colors">{{ tpl.name }}</p>
+                        <p class="text-xs text-content-secondary dark:text-content-muted">{{ tpl.brokers.length }} broker{{ tpl.brokers.length !== 1 ? 's' : '' }}</p>
+                      </div>
+                      <!-- Chevron expands the per-broker chooser. Only
+                           rendered for multi-broker templates because the
+                           single-broker case has nothing to disambiguate. -->
+                      <button
+                        v-if="tpl.brokers.length > 1"
+                        @click.stop="toggleTemplateExpansion(tpl.id)"
+                        :title="expandedTemplateId === tpl.id ? 'Hide individual brokers' : 'Pick individual brokers'"
+                        class="flex-shrink-0 p-1 rounded hover:bg-primary/opacity-light text-content-secondary dark:text-content-muted hover:text-primary transition-colors"
+                      >
+                        <svg class="w-3.5 h-3.5 transition-transform" :class="expandedTemplateId === tpl.id ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      <a v-if="tpl.website" :href="tpl.website" target="_blank" rel="noopener noreferrer" title="Visit website"
+                        class="flex-shrink-0 p-1 rounded hover:bg-primary/opacity-light text-content-secondary dark:text-content-muted hover:text-primary transition-colors"
+                        @click.stop>
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    </div>
+                    <!-- Per-broker chooser.  Each entry's "+" button adds just
+                         that broker, so an operator can opt out of one half of
+                         a dual-broker preset without ejecting from the
+                         template flow. -->
+                    <div
+                      v-if="expandedTemplateId === tpl.id && tpl.brokers.length > 1"
+                      class="bg-background-mute/opacity-heavy dark:bg-background/20 border-t border-stroke-subtle dark:border-stroke/opacity-light"
+                    >
+                      <div
+                        v-for="(broker, idx) in tpl.brokers"
+                        :key="`${tpl.id}-${idx}`"
+                        class="flex items-center gap-2 pl-6 pr-3 py-2 hover:bg-background-mute dark:hover:bg-background/30 cursor-pointer"
+                        @click="addOneFromTemplate(broker)"
+                      >
+                        <div class="min-w-0 flex-1">
+                          <p class="text-xs font-medium text-content-primary truncate">{{ broker.name }}</p>
+                          <p class="text-[11px] font-mono text-content-secondary dark:text-content-muted truncate">{{ broker.host }}:{{ broker.port }}</p>
+                        </div>
+                        <span class="flex-shrink-0 inline-flex items-center justify-center w-5 h-5 rounded bg-primary/opacity-light text-primary text-xs font-bold" title="Add only this broker">+</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Transition>
+            <div v-if="showTemplateMenu" class="fixed inset-0 z-10" @click="showTemplateMenu = false" />
+          </div>
+          <button
+            @click="addBroker"
+            class="btn-primary inline-flex items-center gap-1.5"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            Add
+          </button>
+        </div>
+      </div>
+
+      <!-- Empty state -->
+      <div
+        v-if="!customBrokers.length"
+        class="flex flex-col items-center justify-center py-8 rounded-lg border-2 border-dashed border-stroke-subtle dark:border-stroke/opacity-medium text-content-secondary dark:text-content-muted"
+      >
+        <svg class="w-7 h-7 mb-2 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 12h14M5 12l4-4m-4 4l4 4" />
+        </svg>
+        <p class="text-sm">No brokers configured</p>
+        <p v-if="isGlobalEditing" class="text-xs mt-0.5 opacity-70">Use Add or From Template above</p>
+      </div>
+
+      <!-- Broker list -->
+      <div v-else class="space-y-2">
+        <div
+          v-for="broker in customBrokers"
+          :key="broker._id"
+          class="cfg-card overflow-hidden"
+        >
+          <!-- Summary row — always visible, Edit button changes to Done when expanded -->
+          <div class="flex items-center gap-3 px-4 py-2.5">
+            <div class="min-w-0 flex-1 flex items-center gap-2 flex-wrap">
+              <span :class="['inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium', broker.enabled ? 'bg-accent-green/opacity-light dark:bg-accent-green/opacity-medium text-accent-green' : 'bg-accent-red/opacity-light dark:bg-accent-red/opacity-medium text-accent-red']">
+                <span class="w-1.5 h-1.5 rounded-full" :class="broker.enabled ? 'bg-accent-green/opacity-light' : 'bg-accent-red/opacity-light'"></span>
+                {{ broker.enabled ? 'Enabled' : 'Disabled' }}
+              </span>
+              <span class="text-sm font-medium text-content-primary">{{ broker.name || '(unnamed)' }}</span>
+              <span class="text-xs font-mono text-content-secondary dark:text-content-muted">{{ broker.host || '—' }}:{{ broker.port }}</span>
+              <span
+                v-if="broker.neighbors"
+                title="Publishes the neighbours table to this broker"
+                class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/opacity-light text-primary"
+              >
+                Neighbours
+              </span>
+            </div>
+            <div v-if="isGlobalEditing" class="flex items-center gap-1.5 flex-shrink-0">
+              <button
+                @click="openBrokerEdit(broker)"
+                class="px-2.5 py-1 text-xs bg-primary/opacity-medium hover:bg-primary/opacity-medium text-content-primary rounded border border-primary/opacity-heavy transition-colors"
+              >
+                Edit
+              </button>
+              <button
+                @click="removeBrokerLocal(broker._id)"
+                title="Remove"
+                class="p-1.5 rounded hover:bg-accent-red/opacity-light dark:hover:bg-accent-red/opacity-medium text-content-secondary dark:text-content-muted hover:text-accent-red dark:hover:text-accent-red transition-colors"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Neighbour Publishing ───────────────────────────────────────── -->
+    <div class="cfg-card p-6">
+      <div class="flex items-start justify-between gap-4 mb-4">
+        <div>
+          <h3 class="text-lg font-semibold text-content-primary mb-1">Neighbour Publishing</h3>
+          <p class="text-sm text-content-secondary dark:text-content-muted">
+            Periodically discovers zero-hop neighbours and their region scopes, then publishes the table
+            to the <span class="font-mono text-xs">neighbors</span> topic. Enable it per broker in the broker editor above.
+          </p>
+        </div>
+        <!-- Manual trigger. Acts on the running config, not the form, so it is
+             disabled while an edit is open. -->
+        <button
+          @click="triggerNeighborsCycle"
+          :disabled="!!triggerDisabledReason || isTriggering"
+          :title="triggerDisabledReason || 'Run a discovery and publish cycle now'"
+          :class="[
+            'flex-shrink-0 inline-flex items-center gap-1.5 whitespace-nowrap',
+            !!triggerDisabledReason || isTriggering ? 'px-3 py-1.5 text-sm rounded-lg border border-stroke-subtle dark:border-stroke/opacity-medium text-content-muted/opacity-heavy cursor-not-allowed' : 'btn-primary',
+          ]"
+        >
+          <svg class="w-3.5 h-3.5" :class="isTriggering ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {{ isTriggering ? 'Starting…' : 'Publish Now' }}
+        </button>
+      </div>
+
+      <!-- Trigger feedback -->
+      <div
+        v-if="triggerMsg"
+        class="mb-4 rounded-lg border border-accent-green/opacity-heavy bg-accent-green/opacity-light dark:bg-accent-green/opacity-medium p-3 text-sm text-accent-green"
+      >
+        {{ triggerMsg }}
+      </div>
+      <div
+        v-if="triggerError"
+        class="mb-4 rounded-lg border border-accent-red dark:border-accent-red/opacity-heavy bg-accent-red/opacity-light dark:bg-accent-red/opacity-medium p-3 text-sm text-accent-red"
+      >
+        {{ triggerError }}
+      </div>
+
+      <!-- View mode -->
+      <div v-if="!isGlobalEditing" class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
+        <div class="flex flex-col py-1 border-b border-stroke-subtle dark:border-stroke/opacity-light">
+          <span class="text-content-secondary dark:text-content-muted text-xs sm:text-sm">Feature</span>
+          <span class="text-content-primary text-sm mt-0.5">{{ neighborsEnabledInput ? 'Enabled' : 'Disabled' }}</span>
+        </div>
+        <div class="flex flex-col py-1 border-b border-stroke-subtle dark:border-stroke/opacity-light">
+          <span class="text-content-secondary dark:text-content-muted text-xs sm:text-sm">Interval</span>
+          <span class="text-content-primary text-sm mt-0.5">{{ neighborsIntervalInput }}h</span>
+        </div>
+        <div class="flex flex-col py-1 sm:col-span-2">
+          <span class="text-content-secondary dark:text-content-muted text-xs sm:text-sm">Publishing to</span>
+          <span v-if="neighborsBrokerNames.length" class="text-content-primary text-sm mt-0.5">
+            {{ neighborsBrokerNames.join(', ') }}
+          </span>
+          <span v-else class="text-content-muted/opacity-heavy text-sm italic mt-0.5">
+            No enabled broker has opted in — nothing is published.
+          </span>
+        </div>
+      </div>
+
+      <!-- Edit mode -->
+      <div v-else class="space-y-4">
+        <div class="flex items-start gap-3">
+          <button
+            type="button"
+            @click="neighborsEnabledInput = !neighborsEnabledInput"
+            :class="['relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none mt-0.5', neighborsEnabledInput ? 'bg-primary' : 'bg-background-mute dark:bg-white/opacity-subtle']"
+          >
+            <span :class="['pointer-events-none absolute top-0.5 left-0.5 inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ease-in-out', neighborsEnabledInput ? 'translate-x-4' : 'translate-x-0']" />
+          </button>
+          <div>
+            <span class="text-sm font-medium text-content-primary">Enable Neighbour Publishing</span>
+            <p class="text-xs text-content-secondary dark:text-content-muted mt-0.5">
+              Master switch. Each cycle transmits a discovery broadcast plus one scope query per
+              neighbour, so it costs airtime — turn it off to stop the cycle for every broker at once.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs sm:text-sm text-content-secondary dark:text-content-muted mb-1">
+              Interval
+              <span class="text-content-muted/opacity-heavy text-xs">
+                (hours, {{ NEIGHBORS_MIN_INTERVAL_HOURS }}–{{ NEIGHBORS_MAX_INTERVAL_HOURS }})
+              </span>
+            </label>
+            <input
+              v-model.number="neighborsIntervalInput"
+              type="number"
+              :min="NEIGHBORS_MIN_INTERVAL_HOURS"
+              :max="NEIGHBORS_MAX_INTERVAL_HOURS"
+              step="1"
+              class="cfg-input font-mono"
+              :class="neighborsIntervalError ? 'border-accent-red' : ''"
+            />
+            <p v-if="neighborsIntervalError" class="mt-1 text-xs text-accent-red">{{ neighborsIntervalError }}</p>
+          </div>
+        </div>
+
+        <p v-if="neighborsEnabledInput && !neighborsBrokerNames.length" class="text-xs text-accent-amber">
+          No enabled broker has opted in yet. Turn on “Publish Neighbours” in a broker’s editor for
+          anything to be published.
+        </p>
+      </div>
+    </div>
+
+  </div>
+</template>
+
+<style scoped>
+.dropdown-enter-active,
+.dropdown-leave-active {
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+.dropdown-enter-from,
+.dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+</style>

@@ -1,0 +1,42 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+docs
+.DS_Store
+.claude
+.vexp
+dist
+dist-ssr
+coverage
+*.local
+
+# Environment files (keep .env.example)
+.env
+.env.local
+.env.*.local
+
+/cypress/videos/
+/cypress/screenshots/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+*.tsbuildinfo
+
+# Local session notes (not for repo)
+UI_CHANGES.local.md
+PR_DESCRIPTION.md

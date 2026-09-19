@@ -1,0 +1,196 @@
+<template>
+  <Teleport to="body">
+  <div
+    v-if="isOpen"
+    class="modal-backdrop"
+    @click.self="closeModal"
+  >
+    <div
+      class="modal-card max-w-md shadow-xl"
+    >
+      <h3 class="text-xl font-semibold text-content-primary mb-2">
+        Change Password
+      </h3>
+      <p class="text-content-secondary dark:text-content-muted text-sm mb-6">
+        {{ canSkip ? "You're using the default password. Please change it to secure your account." : 'Enter your current password and choose a new one.' }}
+      </p>
+
+      <form @submit.prevent="handleSubmit" class="space-y-4">
+        <!-- Current Password -->
+        <div>
+          <label
+            class="block text-sm font-medium text-content-secondary dark:text-content-primary/opacity-heavy mb-2"
+            >Current Password</label
+          >
+          <input
+            v-model="currentPassword"
+            type="password"
+            required
+            class="modal-input"
+            placeholder="Enter current password"
+          />
+        </div>
+
+        <!-- New Password -->
+        <div>
+          <label
+            class="block text-sm font-medium text-content-secondary dark:text-content-primary/opacity-heavy mb-2"
+            >New Password</label
+          >
+          <input
+            v-model="newPassword"
+            type="password"
+            required
+            minlength="8"
+            class="modal-input"
+            placeholder="Enter new password (min 8 characters)"
+          />
+        </div>
+
+        <!-- Confirm Password -->
+        <div>
+          <label
+            class="block text-sm font-medium text-content-secondary dark:text-content-primary/opacity-heavy mb-2"
+            >Confirm New Password</label
+          >
+          <input
+            v-model="confirmPassword"
+            type="password"
+            required
+            minlength="8"
+            class="modal-input"
+            placeholder="Confirm new password"
+          />
+        </div>
+
+        <!-- Error Message -->
+        <div v-if="error" class="bg-accent-red/opacity-light border border-accent-red/opacity-medium rounded-lg p-3">
+          <p class="text-accent-red text-sm">{{ error }}</p>
+        </div>
+
+        <!-- Success Message -->
+        <div
+          v-if="success"
+          class="bg-accent-green/opacity-light border border-accent-green/opacity-medium rounded-lg p-3"
+        >
+          <p class="text-accent-green text-sm">{{ success }}</p>
+        </div>
+
+        <!-- Buttons -->
+        <div class="flex justify-end gap-3 mt-6">
+          <button
+            type="button"
+            @click="skipChange"
+            :disabled="loading"
+            class="px-4 py-2 bg-background-mute dark:bg-white/opacity-subtle hover:bg-stroke-subtle dark:hover:bg-white/opacity-light text-content-primary rounded-lg border border-stroke-subtle dark:border-stroke/opacity-light transition-colors disabled:opacity-50"
+          >
+            {{ canSkip ? 'Skip for Now' : 'Cancel' }}
+          </button>
+          <button
+            type="submit"
+            :disabled="loading"
+            class="btn-primary flex items-center gap-2"
+          >
+            <Spinner v-if="loading" size="sm" color="current" />
+            {{ loading ? 'Changing...' : 'Change Password' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+  </Teleport>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue';
+import { authClient } from '@/utils/api';
+import Spinner from '@/components/ui/Spinner.vue';
+
+defineOptions({ name: 'ChangePasswordModal' });
+
+interface Props {
+  isOpen: boolean;
+  canSkip?: boolean;
+}
+
+interface ChangePasswordResponse {
+  success: boolean;
+  message?: string;
+  error?: string;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  canSkip: true,
+});
+
+const emit = defineEmits<{
+  close: [];
+  success: [];
+}>();
+
+const currentPassword = ref('');
+const newPassword = ref('');
+const confirmPassword = ref('');
+const loading = ref(false);
+const error = ref('');
+const success = ref('');
+
+const closeModal = () => {
+  if (!loading.value) {
+    emit('close');
+  }
+};
+
+const skipChange = () => {
+  emit('close');
+};
+
+const handleSubmit = async () => {
+  error.value = '';
+  success.value = '';
+
+  // Validation
+  if (newPassword.value.length < 8) {
+    error.value = 'New password must be at least 8 characters long';
+    return;
+  }
+
+  if (newPassword.value !== confirmPassword.value) {
+    error.value = 'Passwords do not match';
+    return;
+  }
+
+  if (newPassword.value === currentPassword.value) {
+    error.value = 'New password must be different from current password';
+    return;
+  }
+
+  loading.value = true;
+
+  try {
+    const response = await authClient.post<ChangePasswordResponse>('/auth/change_password', {
+      current_password: currentPassword.value,
+      new_password: newPassword.value,
+    });
+
+    const data = response.data;
+
+    if (data && data.success) {
+      success.value = data.message || 'Password changed successfully!';
+
+      // Wait a moment to show success message, then emit success and close
+      setTimeout(() => {
+        emit('success');
+        emit('close');
+      }, 1500);
+    } else {
+      error.value = data?.error || 'Failed to change password';
+    }
+  } catch (err: any) {
+    console.error('Password change error:', err);
+    error.value = err.response?.data?.error || 'Failed to change password. Please try again.';
+  } finally {
+    loading.value = false;
+  }
+};
+</script>

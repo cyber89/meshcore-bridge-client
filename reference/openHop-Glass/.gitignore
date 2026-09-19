@@ -1,0 +1,46 @@
+# macOS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Local environment files (keep examples tracked)
+**/.env
+**/.env.*
+!**/.env*.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyre/
+.hypothesis/
+.tox/
+.nox/
+.coverage
+coverage.xml
+htmlcov/
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+.venv/
+venv/
+
+# Node / frontend
+node_modules/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Local runtime artifacts
+pki/
+*.log
+*.sqlite3
+*.db

@@ -14,6 +14,8 @@ Este directorio contiene los repositorios oficiales de MeshCore utilizados exclu
 | **`/reference/openhop_core/`** | `https://github.com/openhop-dev/openhop_core` | Reimplementación completa de MeshCore en Python nativo para Linux/Raspberry Pi con soporte LoRa SPI | Referencia de routing en Python, drivers SPI SX1262/SX127x y compatibilidad binaria MeshCore. |
 | **`/reference/openhop_repeater/`** | `https://github.com/openhop-dev/openhop_repeater` | Daemon de repetidor MeshCore en Python para Linux/SBCs con dashboard web | Referencia de arquitectura de repetidores autónomos, gestión de paquetes y panel web. |
 | **`/reference/openHop_docs/`** | `https://github.com/openhop-dev/openHop_docs` | Documentación técnica del ecosistema openHop | Guías de integración de hardware, repetidores y especificaciones. |
+| **`/reference/openHop_RepeaterUI/`** | `https://github.com/openhop-dev/openHop_RepeaterUI` | Dashboard Web oficial de openHop Repeater (Vue/Vite) | Referencia de interfaces web, componentes visuales, gráficas y control de repetidores MeshCore. |
+| **`/reference/openHop-Glass/`** | `https://github.com/openhop-dev/openHop-Glass` | Stack de gestión integral para repetidores (API, DB, MQTT y UI Glass) | Referencia de arquitectura full-stack, persistencia y monitoreo de repetidores. |
 
 ---
 

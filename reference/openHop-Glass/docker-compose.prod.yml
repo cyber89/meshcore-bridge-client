@@ -1,0 +1,27 @@
+services:
+  pki-init:
+    env_file:
+      - ./backend/.env.production
+
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}
+
+  backend:
+    env_file:
+      - ./backend/.env.production
+    environment:
+      APP_ENV: production
+      DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}@postgres:5432/pymc_glass
+
+  frontend:
+    image: pymc_glass_frontend_prod:latest
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    ports: !override
+      - "5173:80"
+    volumes: !override []
+    environment: !override {}
+    working_dir: /usr/share/nginx/html
+    command: ["nginx", "-g", "daemon off;"]
