@@ -454,6 +454,42 @@ export class RepeaterModule {
       });
     }
 
+    const btnDiscoverNeighbors = document.getElementById("btnDiscoverNeighbors");
+    if (btnDiscoverNeighbors) {
+      btnDiscoverNeighbors.addEventListener("click", async () => {
+        const target = this.selectedRepeaterTarget;
+        if (!target) return;
+        await this.fetchRepeaterNeighbors(target);
+      });
+    }
+
+    const btnFetchRepOwner = document.getElementById("btnFetchRepOwner");
+    if (btnFetchRepOwner) {
+      btnFetchRepOwner.addEventListener("click", async () => {
+        const target = this.selectedRepeaterTarget;
+        if (!target) return;
+        await this.fetchRepeaterOwner(target);
+      });
+    }
+
+    const btnFetchRepRegions = document.getElementById("btnFetchRepRegions");
+    if (btnFetchRepRegions) {
+      btnFetchRepRegions.addEventListener("click", async () => {
+        const target = this.selectedRepeaterTarget;
+        if (!target) return;
+        await this.fetchRepeaterRegions(target);
+      });
+    }
+
+    const btnFetchRepAcl = document.getElementById("btnFetchRepAcl");
+    if (btnFetchRepAcl) {
+      btnFetchRepAcl.addEventListener("click", async () => {
+        const target = this.selectedRepeaterTarget;
+        if (!target) return;
+        await this.fetchRepeaterAcl(target);
+      });
+    }
+
     document.querySelectorAll(".rep-quick-cmd").forEach((btn) => {
       btn.addEventListener("click", () => {
         const cmd = btn.getAttribute("data-cmd");
@@ -1255,4 +1291,151 @@ export class RepeaterModule {
       this.appendTerminalLine(`✗ Error de red: ${err.message}`, "term-error");
     }
   }
+
+  async fetchRepeaterNeighbors(target) {
+    const pwd = this.getRepeaterPassword(target) || "";
+    const btn = document.getElementById("btnDiscoverNeighbors");
+    const tbody = document.getElementById("neighborsTableBody");
+    if (btn) { btn.disabled = true; btn.textContent = "Sondeando..."; }
+    if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-center">Sondeando vecinos por RF (req_neighbours)...</td></tr>`;
+    this.appendTerminalLine(`> [TX] Consultando vecinos zero-hop a ${target.slice(0, 8)}...`, "term-cmd");
+
+    try {
+      const res = await fetch("/api/repeater/remote/neighbours", {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_node: target, password: pwd }),
+      });
+      const data = await res.json();
+      if (data.status === "ok") {
+        const neighbours = data.data?.neighbours || data.neighbours || [];
+        this.renderNeighborsTable(neighbours);
+        const countBadge = document.getElementById("neighborsCountBadge");
+        if (countBadge) countBadge.textContent = `${neighbours.length} vecinos`;
+        this.appendTerminalLine(`✓ [RX OK] ${neighbours.length} vecinos descubiertos.`, "term-success");
+        if (this.ctx.showToast) this.ctx.showToast(`${neighbours.length} vecinos detectados en repetidor`, "success");
+      } else {
+        if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">${escapeHtml(data.message || "Error al consultar")}</td></tr>`;
+        this.appendTerminalLine(`✗ [ERROR] ${data.message || data.error}`, "term-error");
+      }
+    } catch (err) {
+      if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">${escapeHtml(err.message)}</td></tr>`;
+      this.appendTerminalLine(`✗ [ERROR] ${err.message}`, "term-error");
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<span data-lucide="wifi" data-size="14"></span> Sondear Vecinos (req_neighbours)'; }
+      if (window.lucide && window.lucide.createIcons) window.lucide.createIcons();
+    }
+  }
+
+  renderNeighborsTable(neighbours) {
+    const tbody = document.getElementById("neighborsTableBody");
+    if (!tbody) return;
+    if (!Array.isArray(neighbours) || neighbours.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" class="text-center" style="color: var(--color-text-secondary);">Sin nodos vecinos directos en alcance RF</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = "";
+    neighbours.forEach((nb) => {
+      const tr = document.createElement("tr");
+      const pk = String(nb.public_key || nb.pubkey || nb.node || "").toLowerCase();
+      const name = nb.name || nb.alias || (pk ? `Nodo ${pk.slice(0, 8)}` : "--");
+      const snr = nb.snr != null ? `${nb.snr} dB` : "--";
+      const hops = nb.hops != null ? nb.hops : 0;
+      const lastSeen = nb.last_seen || nb.time || "Reciente";
+
+      tr.innerHTML = `
+        <td class="font-mono"><strong>${escapeHtml(pk ? pk.slice(0, 12) + "..." : "--")}</strong></td>
+        <td>${escapeHtml(name)}</td>
+        <td><span class="badge-pill badge-outline">${escapeHtml(snr)}</span></td>
+        <td><span class="badge-pill badge-secondary">${hops} saltos</span></td>
+        <td>${escapeHtml(String(lastSeen))}</td>
+        <td>
+          <button type="button" class="btn-secondary btn-xs btn-neighbor-ping" data-target="${escapeHtml(pk)}" title="Ping 0 saltos">
+            🎯 Ping
+          </button>
+        </td>
+      `;
+
+      const pingBtn = tr.querySelector(".btn-neighbor-ping");
+      if (pingBtn && pk) {
+        pingBtn.addEventListener("click", () => {
+          this.pingZero(pk, name);
+        });
+      }
+      tbody.appendChild(tr);
+    });
+  }
+
+  async fetchRepeaterOwner(target) {
+    const pwd = this.getRepeaterPassword(target) || "";
+    this.appendTerminalLine(`> [TX] Consultando información de propietario (req_owner) a ${target.slice(0, 8)}...`, "term-cmd");
+    try {
+      const res = await fetch("/api/repeater/remote/owner", {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_node: target, password: pwd }),
+      });
+      const data = await res.json();
+      if (data.status === "ok") {
+        const ownerName = data.data?.owner_name || data.owner_name || "";
+        const ownerInfo = data.data?.owner_info || data.owner_info || "";
+        const nameEl = document.getElementById("repOwnerName");
+        const infoEl = document.getElementById("repOwnerInfo");
+        if (nameEl && ownerName) nameEl.value = ownerName;
+        if (infoEl && ownerInfo) infoEl.value = ownerInfo;
+        this.appendTerminalLine(`✓ [RX OK] Propietario: ${ownerName} | Info: ${ownerInfo}`, "term-success");
+        if (this.ctx.showToast) this.ctx.showToast(`Propietario: ${ownerName || "OK"}`, "success");
+      } else {
+        this.appendTerminalLine(`✗ [ERROR] ${data.message || data.error}`, "term-error");
+      }
+    } catch (err) {
+      this.appendTerminalLine(`✗ [ERROR] ${err.message}`, "term-error");
+    }
+  }
+
+  async fetchRepeaterRegions(target) {
+    const pwd = this.getRepeaterPassword(target) || "";
+    this.appendTerminalLine(`> [TX] Consultando regiones (req_regions) a ${target.slice(0, 8)}...`, "term-cmd");
+    try {
+      const res = await fetch("/api/repeater/remote/regions", {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_node: target, password: pwd }),
+      });
+      const data = await res.json();
+      if (data.status === "ok") {
+        const regions = JSON.stringify(data.data?.regions || data.regions || []);
+        this.appendTerminalLine(`✓ [RX OK] Regiones: ${regions}`, "term-success");
+        if (this.ctx.showToast) this.ctx.showToast(`Regiones: ${regions}`, "info");
+      } else {
+        this.appendTerminalLine(`✗ [ERROR] ${data.message || data.error}`, "term-error");
+      }
+    } catch (err) {
+      this.appendTerminalLine(`✗ [ERROR] ${err.message}`, "term-error");
+    }
+  }
+
+  async fetchRepeaterAcl(target) {
+    const pwd = this.getRepeaterPassword(target) || "";
+    this.appendTerminalLine(`> [TX] Consultando tabla ACL (req_acl) a ${target.slice(0, 8)}...`, "term-cmd");
+    try {
+      const res = await fetch("/api/repeater/remote/acl", {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_node: target, password: pwd }),
+      });
+      const data = await res.json();
+      if (data.status === "ok") {
+        const aclData = JSON.stringify(data.data?.acl_data || data.acl_data || {});
+        this.appendTerminalLine(`✓ [RX OK] Tabla ACL: ${aclData}`, "term-success");
+        if (this.ctx.showToast) this.ctx.showToast(`Tabla ACL obtenida`, "success");
+      } else {
+        this.appendTerminalLine(`✗ [ERROR] ${data.message || data.error}`, "term-error");
+      }
+    } catch (err) {
+      this.appendTerminalLine(`✗ [ERROR] ${err.message}`, "term-error");
+    }
+  }
 }
+

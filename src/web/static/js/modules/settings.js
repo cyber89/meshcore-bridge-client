@@ -35,6 +35,9 @@ export class SettingsModule {
     this._subscribeBus();
     this.fetchChannels();
     this.fetchLocalNodeConfig();
+    this.fetchCustomVars();
+    this.fetchFloodScope();
+    this.fetchAutoAddConfig();
     this._startLiveTick();
     window.showQrModal = (title, uri, rawJson) => this.showQrModal(title, uri, rawJson);
   }
@@ -387,6 +390,13 @@ export class SettingsModule {
         if (target === "local-radio" || target === "local-telemetry" || target === "local-owner-pos") {
           this.fetchLocalNodeConfig();
         }
+        if (target === "local-radio") {
+          this.fetchCustomVars();
+        }
+        if (target === "local-security") {
+          this.fetchFloodScope();
+          this.fetchAutoAddConfig();
+        }
       });
     });
 
@@ -530,6 +540,33 @@ export class SettingsModule {
         if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.api_key_del'), "info");
       });
     }
+
+    // Custom Vars
+    const btnRefreshCustomVars = document.getElementById("btnRefreshCustomVars");
+    if (btnRefreshCustomVars) {
+      btnRefreshCustomVars.addEventListener("click", () => this.fetchCustomVars());
+    }
+    const btnSaveCustomVar = document.getElementById("btnSaveCustomVar");
+    if (btnSaveCustomVar) {
+      btnSaveCustomVar.addEventListener("click", () => this.saveCustomVar());
+    }
+
+    // Flood Scope
+    const btnSaveFloodScope = document.getElementById("btnSaveFloodScope");
+    if (btnSaveFloodScope) {
+      btnSaveFloodScope.addEventListener("click", () => this.saveFloodScope());
+    }
+    const btnResetFloodScope = document.getElementById("btnResetFloodScope");
+    if (btnResetFloodScope) {
+      btnResetFloodScope.addEventListener("click", () => this.resetFloodScope());
+    }
+
+    // AutoAdd config
+    const btnSaveAutoAdd = document.getElementById("btnSaveAutoAddConfig");
+    if (btnSaveAutoAdd) {
+      btnSaveAutoAdd.addEventListener("click", () => this.saveAutoAddConfig());
+    }
+
 
     // Terminal interactiva local
     if (this.dom.localTerminalForm) {
@@ -1414,6 +1451,28 @@ export class SettingsModule {
       }
     }
 
+    if (cfg.custom_vars && typeof cfg.custom_vars === "object") {
+      this.renderCustomVarsTable(cfg.custom_vars);
+    }
+    if (cfg.flood_scope && typeof cfg.flood_scope === "object") {
+      const scopeName = cfg.flood_scope.scope_name || "";
+      const inScope = document.getElementById("inputFloodScope");
+      const lbl = document.getElementById("currentFloodScopeLabel");
+      if (inScope && !inScope.value) inScope.value = scopeName;
+      if (lbl) lbl.textContent = scopeName ? scopeName : "Global (*)";
+    }
+    if (cfg.autoadd_config && typeof cfg.autoadd_config === "object") {
+      const flags = Number(cfg.autoadd_config.config ?? 0);
+      const maxHops = Number(cfg.autoadd_config.max_hops ?? 3);
+      const chkChat = document.getElementById("chkAutoAddChat");
+      const chkOverwrite = document.getElementById("chkAutoAddOverwrite");
+      const numHops = document.getElementById("numAutoAddMaxHops");
+      if (chkOverwrite) chkOverwrite.checked = (flags & 1) !== 0;
+      if (chkChat) chkChat.checked = (flags & 2) !== 0 || flags === 0;
+      if (numHops && maxHops) numHops.value = String(maxHops);
+    }
+
+
     // Tarjetas de Telemetría en Vivo (Preservación estricta de valores conocidos)
     const elBat = document.getElementById("localBatValue");
     if (elBat && cfg.battery_pct != null) {
@@ -1652,4 +1711,209 @@ export class SettingsModule {
     termOut.appendChild(line);
     termOut.scrollTop = termOut.scrollHeight;
   }
+
+  async fetchCustomVars() {
+    try {
+      const res = await fetch("/api/config/custom_vars", {
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
+      });
+      const data = await res.json();
+      if (data.status === "ok") {
+        const varsObj = data.custom_vars || data.data || {};
+        this.renderCustomVarsTable(varsObj);
+      }
+    } catch (e) {
+      console.warn("Error consultando custom vars:", e);
+    }
+  }
+
+  renderCustomVarsTable(varsObj) {
+    const tbody = document.getElementById("localCustomVarsTableBody");
+    if (!tbody) return;
+    const entries = typeof varsObj === "object" && varsObj !== null ? Object.entries(varsObj) : [];
+    if (entries.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="3" class="text-center" style="color: var(--color-text-secondary);">Sin variables registradas</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = "";
+    entries.forEach(([k, v]) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="font-mono"><strong>${escapeHtml(String(k))}</strong></td>
+        <td><code>${escapeHtml(String(v))}</code></td>
+        <td style="text-align: right;">
+          <button type="button" class="btn-danger btn-xs btn-del-custom-var" data-key="${escapeHtml(String(k))}" title="Eliminar variable">
+            🗑️ Borrar
+          </button>
+        </td>
+      `;
+
+      const delBtn = tr.querySelector(".btn-del-custom-var");
+      if (delBtn) {
+        delBtn.addEventListener("click", () => this.deleteCustomVar(k));
+      }
+      tbody.appendChild(tr);
+    });
+  }
+
+  async saveCustomVar(key = "", val = "") {
+    const k = key || document.getElementById("inputCustomVarKey")?.value.trim() || "";
+    const v = val || document.getElementById("inputCustomVarVal")?.value.trim() || "";
+    if (!k) {
+      this._notify("El nombre de la variable no puede estar vacío", "warning");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/config/custom_vars", {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: k, value: v }),
+      });
+      const data = await res.json();
+      if (data.status === "ok") {
+        this.renderCustomVarsTable(data.custom_vars || data.data || {});
+        const inKey = document.getElementById("inputCustomVarKey");
+        const inVal = document.getElementById("inputCustomVarVal");
+        if (inKey) inKey.value = "";
+        if (inVal) inVal.value = "";
+        if (this.ctx.showToast) this.ctx.showToast(`Variable '${k}' guardada`, "success");
+      } else {
+        this._notify(`Error guardando variable: ${data.message || "desconocido"}`, "error");
+      }
+    } catch (err) {
+      this._notify(`Error de red: ${err.message}`, "error");
+    }
+  }
+
+  async deleteCustomVar(key) {
+    if (!key || !confirm(`¿Deseas eliminar la variable personalizada '${key}'?`)) return;
+    try {
+      const res = await fetch(`/api/config/custom_vars?key=${encodeURIComponent(key)}`, {
+        method: "DELETE",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+        body: JSON.stringify({ key }),
+      });
+      const data = await res.json();
+      if (data.status === "ok") {
+        this.renderCustomVarsTable(data.custom_vars || data.data || {});
+        if (this.ctx.showToast) this.ctx.showToast(`Variable '${key}' eliminada`, "info");
+      } else {
+        this._notify(`Error eliminando variable: ${data.message || "desconocido"}`, "error");
+      }
+    } catch (err) {
+      this._notify(`Error de red: ${err.message}`, "error");
+    }
+  }
+
+  async fetchFloodScope() {
+    try {
+      const res = await fetch("/api/config/flood_scope", {
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
+      });
+      const data = await res.json();
+      if (data.status === "ok") {
+        const fs = data.flood_scope || data.data || {};
+        const scopeName = fs.scope_name || "";
+        const inScope = document.getElementById("inputFloodScope");
+        const lbl = document.getElementById("currentFloodScopeLabel");
+        if (inScope && !inScope.value) inScope.value = scopeName;
+        if (lbl) lbl.textContent = scopeName ? scopeName : "Global (*)";
+      }
+    } catch (e) {
+      console.warn("Error consultando flood scope:", e);
+    }
+  }
+
+  async saveFloodScope() {
+    const inScope = document.getElementById("inputFloodScope");
+    const scopeVal = inScope ? inScope.value.trim() : "";
+    try {
+      const res = await fetch("/api/config/flood_scope", {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope: scopeVal }),
+      });
+      const data = await res.json();
+      if (data.status === "ok") {
+        const lbl = document.getElementById("currentFloodScopeLabel");
+        if (lbl) lbl.textContent = scopeVal ? scopeVal : "Global (*)";
+        if (this.ctx.showToast) this.ctx.showToast(`Ámbito de inundación aplicado: ${scopeVal || "Global"}`, "success");
+      } else {
+        this._notify(`Error guardando scope: ${data.message || "desconocido"}`, "error");
+      }
+    } catch (err) {
+      this._notify(`Error de red: ${err.message}`, "error");
+    }
+  }
+
+  async resetFloodScope() {
+    try {
+      const res = await fetch("/api/config/flood_scope", {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope: "*" }),
+      });
+      const data = await res.json();
+      if (data.status === "ok") {
+        const inScope = document.getElementById("inputFloodScope");
+        const lbl = document.getElementById("currentFloodScopeLabel");
+        if (inScope) inScope.value = "";
+        if (lbl) lbl.textContent = "Global (*)";
+        if (this.ctx.showToast) this.ctx.showToast("Ámbito de inundación restablecido a Global (*)", "info");
+      }
+    } catch (err) {
+      this._notify(`Error de red: ${err.message}`, "error");
+    }
+  }
+
+  async fetchAutoAddConfig() {
+    try {
+      const res = await fetch("/api/config/autoadd", {
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
+      });
+      const data = await res.json();
+      if (data.status === "ok") {
+        const cfg = data.autoadd_config || data.data || {};
+        const flags = Number(cfg.config ?? 0);
+        const maxHops = Number(cfg.max_hops ?? 3);
+        const chkChat = document.getElementById("chkAutoAddChat");
+        const chkOverwrite = document.getElementById("chkAutoAddOverwrite");
+        const numHops = document.getElementById("numAutoAddMaxHops");
+        if (chkOverwrite) chkOverwrite.checked = (flags & 1) !== 0;
+        if (chkChat) chkChat.checked = (flags & 2) !== 0 || flags === 0;
+        if (numHops && maxHops) numHops.value = String(maxHops);
+      }
+    } catch (e) {
+      console.warn("Error consultando autoadd config:", e);
+    }
+  }
+
+  async saveAutoAddConfig() {
+    const chkChat = document.getElementById("chkAutoAddChat");
+    const chkOverwrite = document.getElementById("chkAutoAddOverwrite");
+    const numHops = document.getElementById("numAutoAddMaxHops");
+    let flags = 0;
+    if (chkOverwrite?.checked) flags |= 1;
+    if (chkChat?.checked) flags |= 2;
+    const maxHops = numHops ? parseInt(numHops.value, 10) : 3;
+
+    try {
+      const res = await fetch("/api/config/autoadd", {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+        body: JSON.stringify({ flags, max_hops: maxHops }),
+      });
+      const data = await res.json();
+      if (data.status === "ok") {
+        if (this.ctx.showToast) this.ctx.showToast("Política de Auto-Adición guardada exitosamente", "success");
+      } else {
+        this._notify(`Error guardando política: ${data.message || "desconocido"}`, "error");
+      }
+    } catch (err) {
+      this._notify(`Error de red: ${err.message}`, "error");
+    }
+  }
 }
+

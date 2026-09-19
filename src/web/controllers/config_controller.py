@@ -190,3 +190,94 @@ class ConfigController(BaseController):
         res = await self.ctx.bridge.handle_admin(cmd)
         self.ctx.log_system_event("WARN", "Reinicio de hardware de nodo local solicitado", source="admin")
         return 200, {"status": "ok", "data": res}
+
+    async def get_custom_vars(self) -> tuple[int, dict[str, Any]]:
+        """Obtiene el diccionario de variables personalizadas."""
+        admin = getattr(self.ctx.bridge, "admin_handler", None)
+        if admin and hasattr(admin, "get_custom_vars"):
+            vars_dict = await admin.get_custom_vars()
+        else:
+            vars_dict = {}
+        return 200, {"status": "ok", "custom_vars": vars_dict, "data": vars_dict}
+
+    async def set_custom_vars(self, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        """Crea o actualiza variables personalizadas en el nodo local."""
+        admin = getattr(self.ctx.bridge, "admin_handler", None)
+        if not admin:
+            return problem_details(503, "Service Unavailable", "Admin handler no disponible", "admin_unavailable")
+
+        # Acepta {"vars": {"k": "v"}}, {"key": "k", "value": "v"}, o pares directos
+        pairs: dict[str, str] = {}
+        if "vars" in body and isinstance(body["vars"], dict):
+            pairs = {str(k): str(v) for k, v in body["vars"].items()}
+        elif "key" in body:
+            pairs = {str(body["key"]): str(body.get("value", body.get("val", "")))}
+        else:
+            pairs = {str(k): str(v) for k, v in body.items() if k not in ("action", "request_id")}
+
+        for k, v in pairs.items():
+            await admin.set_custom_var(k, v)
+
+        fresh_vars = await admin.get_custom_vars()
+        self.ctx.log_system_event("INFO", f"Variables custom actualizadas: {list(pairs.keys())}", source="admin")
+        return 200, {"status": "ok", "custom_vars": fresh_vars, "data": fresh_vars}
+
+    async def delete_custom_var(self, key: str) -> tuple[int, dict[str, Any]]:
+        """Elimina una variable personalizada."""
+        admin = getattr(self.ctx.bridge, "admin_handler", None)
+        if not admin:
+            return problem_details(503, "Service Unavailable", "Admin handler no disponible", "admin_unavailable")
+        res = await admin.delete_custom_var(key)
+        self.ctx.log_system_event("INFO", f"Variable custom '{key}' eliminada", source="admin")
+        return 200, {"status": "ok", "custom_vars": res.get("custom_vars", {}), "data": res.get("custom_vars", {})}
+
+    async def get_path_hash_mode(self) -> tuple[int, dict[str, Any]]:
+        """Obtiene el modo actual de compresión path hash."""
+        admin = getattr(self.ctx.bridge, "admin_handler", None)
+        mode = await admin.get_path_hash_mode() if admin and hasattr(admin, "get_path_hash_mode") else 0
+        return 200, {"status": "ok", "path_hash_mode": mode, "data": {"path_hash_mode": mode}}
+
+    async def set_path_hash_mode(self, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        """Configura el modo de compresión path hash (0, 1, 2)."""
+        admin = getattr(self.ctx.bridge, "admin_handler", None)
+        if not admin:
+            return problem_details(503, "Service Unavailable", "Admin handler no disponible", "admin_unavailable")
+        raw_mode = body.get("mode", body.get("path_hash_mode", 0))
+        mode = int(raw_mode) if str(raw_mode).isdigit() else 0
+        res = await admin.set_path_hash_mode(mode)
+        self.ctx.log_system_event("INFO", f"Path Hash Mode configurado a {mode}", source="admin")
+        return 200, {"status": "ok", "path_hash_mode": mode, "data": res}
+
+    async def get_autoadd_config(self) -> tuple[int, dict[str, Any]]:
+        """Obtiene la configuración de auto-adición de contactos."""
+        admin = getattr(self.ctx.bridge, "admin_handler", None)
+        cfg = await admin.get_autoadd_config() if admin and hasattr(admin, "get_autoadd_config") else {}
+        return 200, {"status": "ok", "autoadd_config": cfg, "data": cfg}
+
+    async def set_autoadd_config(self, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        """Aplica la directiva de auto-adición de contactos."""
+        admin = getattr(self.ctx.bridge, "admin_handler", None)
+        if not admin:
+            return problem_details(503, "Service Unavailable", "Admin handler no disponible", "admin_unavailable")
+        flags = int(body.get("flags", body.get("config", body.get("autoadd", 0))))
+        max_hops = body.get("max_hops")
+        res = await admin.set_autoadd_config(flags, int(max_hops) if max_hops is not None else None)
+        self.ctx.log_system_event("INFO", f"AutoAdd config actualizado (flags={flags})", source="admin")
+        return 200, {"status": "ok", "data": res}
+
+    async def get_flood_scope(self) -> tuple[int, dict[str, Any]]:
+        """Obtiene el ámbito de inundación de transporte."""
+        admin = getattr(self.ctx.bridge, "admin_handler", None)
+        fs = await admin.get_flood_scope() if admin and hasattr(admin, "get_flood_scope") else {}
+        return 200, {"status": "ok", "flood_scope": fs, "data": fs}
+
+    async def set_flood_scope(self, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        """Ajusta o reinicia el ámbito de inundación de transporte."""
+        admin = getattr(self.ctx.bridge, "admin_handler", None)
+        if not admin:
+            return problem_details(503, "Service Unavailable", "Admin handler no disponible", "admin_unavailable")
+        scope = body.get("scope", body.get("scope_name"))
+        res = await admin.set_flood_scope(str(scope) if scope else None)
+        self.ctx.log_system_event("INFO", f"Flood Scope actualizado a '{scope or 'Global'}'", source="admin")
+        return 200, {"status": "ok", "data": res}
+

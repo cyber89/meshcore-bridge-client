@@ -2,6 +2,40 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Implementación de Capacidades Upstream MeshCore, Integración Web API Completa y Simulación de Escenario Complejo con Auditoría de Logs
+- **Fecha**: 2026-09-18
+- **Estado**: ✅ COMPLETADO (1. Feature A: Diagnóstico binario/anónimo de repetidores remotos con endpoints REST POST /api/repeater/remote/{neighbours,owner,regions,clock,acl} y controles interactivos en repeaterAdminModal; 2. Feature B: Gestor integral de variables personalizadas CMD_GET_CUSTOM_VARS / CMD_SET_CUSTOM_VAR con API REST GET, POST, DELETE /api/config/custom_vars y tabla interactiva en WebUI; 3. Feature C: Selector de compresión Path Hash CMD_SET_PATH_HASH_MODE (modos 0, 1, 2) con API REST GET, POST /api/config/path_hash_mode y dropdown en WebUI; 4. Feature D: Máscara de auto-adición de contactos CMD_SET_AUTOADD_CONFIG / CMD_GET_AUTOADD_CONFIG con soporte multi-byte moderno max_hops y API REST GET, POST /api/config/autoadd; 5. Feature E: Ámbitos de inundación Flood Scope y clave de transporte CMD_SET_FLOOD_SCOPE_KEY / CMD_SET_DEFAULT_FLOOD_SCOPE con API REST GET, POST /api/config/flood_scope y controles WebUI; 6. Enrutamiento REST: Corregido despacho de /api/messages en api_router.py; 7. Simulación de Escenario Complejo: Creado y ejecutado scripts/simulate_complex_mesh_scenario.py validando 6 nodos (Base Station, 2 Repetidores, Cliente, Sensor, BBS) a través de 9 fases completas; 8. Auditoría Estricta de Logs: 0 advertencias, 0 errores inesperados y 0 excepciones huérfanas en memoria; 9. Calidad y Sincronización: ruff 0 errores, mypy --strict 0 errores, audit_codebase_integrity 100% PASS, empaquetado sincronizado en /deploy/).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Firmware Investigator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect), Agente 5 (Security Auditor).
+- **Acciones Realizadas**:
+  1. **Motor Administrativo Local (`src/admin/local_config_executor.py`)**:
+     - Implementados `get_custom_vars()`, `set_custom_var()`, `delete_custom_var()` interactuando con `mc.commands` y persistencia en memoria.
+     - Implementados `get_path_hash_mode()` y `set_path_hash_mode()` acotados a los modos canónicos 0, 1, 2.
+     - Implementados `get_autoadd_config()` y `set_autoadd_config()` con preservación y propagación del byte moderno `max_hops`.
+     - Implementados `get_flood_scope()` y `set_flood_scope()` con reinicio seguro a global.
+  2. **Despachador Administrativo (`src/admin_handler.py`)**:
+     - Expuestos métodos delegadores en `AdminCommandHandler` y mapeadas las acciones en `handle()`.
+  3. **Controladores REST (`src/web/controllers/repeater_controller.py`, `src/web/controllers/config_controller.py`)**:
+     - `RepeaterController`: Creados métodos `get_neighbours()`, `get_owner()`, `get_regions()`, `get_clock()`, `get_acl()`.
+     - `ConfigController`: Creados métodos `get_custom_vars()`, `set_custom_vars()`, `delete_custom_var()`, `get_path_hash_mode()`, `set_path_hash_mode()`, `get_autoadd_config()`, `set_autoadd_config()`, `get_flood_scope()`, `set_flood_scope()`.
+  4. **Enrutador API (`src/web/api_router.py`)**:
+     - Enlazadas rutas `/api/repeater/remote/{neighbours,owner,regions,clock,acl}` en `_dispatch_repeater`.
+     - Enlazadas rutas `/api/config/{custom_vars,path_hash_mode,autoadd,flood_scope}` en `_dispatch_config`.
+     - Añadido `"/api/messages"` al conjunto de rutas despachadas a `_dispatch_misc`.
+  5. **Interfaz de Usuario Web SPA (`src/web/static/index.html`, `repeater.js`, `settings.js`)**:
+     - Añadida tabla dinámica y formulario de variables personalizadas (`#localCustomVarsTable`, `#inputCustomVarKey`, `#inputCustomVarVal`).
+     - Añadido selector de ámbito de inundación Flood Scope (`#inputFloodScope`, `#btnSaveFloodScope`, `#btnResetFloodScope`).
+     - Añadido panel de opciones Auto-Add de contactos (`#chkAutoAddChat`, `#chkAutoAddOverwrite`, `#numAutoAddMaxHops`).
+     - Añadidos botones y badges de diagnóstico en el modal de repetidor (`#btnFetchRepOwner`, `#btnFetchRepRegions`, `#btnFetchRepAcl`, `#btnDiscoverNeighbors`, `#neighborsCountBadge`).
+     - Cableados todos los eventos y renderizadores reactivos en `repeater.js` y `settings.js`.
+  6. **Simulador de Escenario Complejo y Auditoría de Logs (`scripts/simulate_complex_mesh_scenario.py`)**:
+     - Creado arnés de simulación integral con 6 nodos, tráfico LoRa, telemetría y mensajes BBS.
+     - Verificadas las 9 fases de prueba (topología, telemetría, consultas binarias, custom vars, path hash, autoadd, flood scope, reglas de seguridad SSoT y auditoría de logs).
+     - Resultado: Cero advertencias y cero errores huérfanos en la auditoría de logs.
+  7. **Sincronización y Empaquetado (`/deploy/`)**:
+     - Ejecutado `python scripts/sync_deploy.py` manteniendo el bundle de despliegue sincronizado.
+
+---
+
 ### Hito: Verificación Integral de Protocolo, Análisis de Brechas (Gap Analysis) y Soporte de Consultas Binarias de Malla
 - **Fecha**: 2026-09-18
 - **Estado**: ✅ COMPLETADO (1. Verificación Exhaustiva frente a Upstream MeshCore: Auditoría comparativa de la base de código de producción contra reference/meshcore (firmware C/C++), reference/meshcore_py (SDK oficial) y reference/meshcore_cli (CLI); 2. Armonización Documental (PROTOCOL_SPEC.md): Clarificación de la arquitectura de transporte primario Companion (< / >) y wire fallback byte-stuffing, actualización de la tabla canónica de CommandType incorporando todos los opcodes oficiales 1 a 65; 3. Tipos y Enums Canónicos (src/protocol_types.py): Incorporación del enum AnonReqType (REGIONS=1, OWNER=2, BASIC=3) en paridad exacta con el SDK oficial; 4. Ejecución de Consultas Binarias Remotas (src/admin/repeater_executor.py): Soporte nativo para req_neighbours (descubrimiento de adyacencias de radio zero-hop), req_owner (información del operador), req_regions (delimitación geográfica), req_clock (sincronización RTC remota) y req_acl (tabla de control de acceso); 5. Calidad y Sincronización: Verificación estricta con ruff 0 errores, mypy strict 0 errores en 53 módulos, audit_codebase_integrity 100% PASS, regeneración y sincronización en /deploy/).

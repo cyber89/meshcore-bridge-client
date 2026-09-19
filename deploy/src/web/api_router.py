@@ -321,7 +321,16 @@ class WebAPIRouter:
             if clean_path.startswith("/api/packets"):
                 return await self._dispatch_packets(method, path, clean_path, req_body)
 
-            if clean_path.startswith("/api/map") or clean_path in ("/api/logs", "/api/telemetry", "/api/diagnostics", "/api/diagnostics/report.md", "/api/diagnostics/report", "/api/logs/download", "/api/logs/raw"):
+            if clean_path.startswith("/api/map") or clean_path in (
+                "/api/messages",
+                "/api/telemetry",
+                "/api/logs",
+                "/api/diagnostics",
+                "/api/diagnostics/report.md",
+                "/api/diagnostics/report",
+                "/api/logs/download",
+                "/api/logs/raw",
+            ):
                 return await self._dispatch_misc(method, path, clean_path, req_body)
 
             return problem_details(404, "Not Found", f"Ruta no encontrada: {method} {clean_path}", "route_not_found")
@@ -499,6 +508,19 @@ class WebAPIRouter:
         if clean_path == "/api/repeater/remote/action" and method == "POST":
             return await self.repeater_ctrl.execute_remote_action(req_body)
         if clean_path in (
+            "/api/repeater/remote/neighbours", "/api/repeater/remote/neighbors",
+            "/api/repeater/neighbours", "/api/repeater/neighbors",
+        ) and method == "POST":
+            return await self.repeater_ctrl.get_neighbours(req_body)
+        if clean_path in ("/api/repeater/remote/owner", "/api/repeater/owner") and method == "POST":
+            return await self.repeater_ctrl.get_owner(req_body)
+        if clean_path in ("/api/repeater/remote/regions", "/api/repeater/regions") and method == "POST":
+            return await self.repeater_ctrl.get_regions(req_body)
+        if clean_path in ("/api/repeater/remote/clock", "/api/repeater/clock") and method == "POST":
+            return await self.repeater_ctrl.get_clock(req_body)
+        if clean_path in ("/api/repeater/remote/acl", "/api/repeater/acl") and method == "POST":
+            return await self.repeater_ctrl.get_acl(req_body)
+        if clean_path in (
             "/api/repeater/ping_zero", "/api/node/ping_zero", "/api/node/ping",
             "/api/nodes/ping_zero", "/api/nodes/ping", "/api/ping_zero",
         ) and method == "POST":
@@ -519,6 +541,41 @@ class WebAPIRouter:
                 return await self.config_ctrl.get_device_config(refresh=force_refresh)
             if method == "POST":
                 return await self.config_ctrl.set_local_config(req_body)
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+        if clean_path in ("/api/config/custom_vars", "/api/node/custom_vars"):
+            if method == "GET":
+                return await self.config_ctrl.get_custom_vars()
+            if method == "POST":
+                return await self.config_ctrl.set_custom_vars(req_body)
+            if method == "DELETE":
+                k_del = str(req_body.get("key", ""))
+                if not k_del and "?" in raw_path:
+                    for part in raw_path.split("?", 1)[1].split("&"):
+                        if "=" in part and part.split("=", 1)[0].lower() == "key":
+                            k_del = part.split("=", 1)[1]
+                return await self.config_ctrl.delete_custom_var(k_del)
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+        if clean_path in ("/api/config/path_hash_mode", "/api/node/path_hash_mode"):
+            if method == "GET":
+                return await self.config_ctrl.get_path_hash_mode()
+            if method == "POST":
+                return await self.config_ctrl.set_path_hash_mode(req_body)
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+        if clean_path in ("/api/config/autoadd", "/api/node/autoadd"):
+            if method == "GET":
+                return await self.config_ctrl.get_autoadd_config()
+            if method == "POST":
+                return await self.config_ctrl.set_autoadd_config(req_body)
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+        if clean_path in ("/api/config/flood_scope", "/api/node/flood_scope"):
+            if method == "GET":
+                return await self.config_ctrl.get_flood_scope()
+            if method == "POST":
+                return await self.config_ctrl.set_flood_scope(req_body)
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
         if clean_path in ("/api/config/radio", "/api/node/config/radio"):

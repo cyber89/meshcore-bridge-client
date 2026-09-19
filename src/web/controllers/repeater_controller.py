@@ -179,3 +179,65 @@ class RepeaterController(BaseController):
 
         self.ctx.log_system_event("INFO", f"🗺️ Traceroute completado hacia {target} ({res.get('hop_count', 0)} saltos)", source="admin")
         return 200, {"status": "ok", "data": res}
+
+    async def get_neighbours(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        """Consulta binaria de la tabla de vecinos zero-hop de un repetidor remoto."""
+        target = str(req_body.get("target_node", req_body.get("repeater", ""))).strip()
+        if not target:
+            return problem_details(400, "Bad Request", "Se requiere 'target_node'", "missing_target_node")
+        cmd = {
+            "action": "req_neighbours",
+            "target_node": target,
+            "count": req_body.get("count", 255),
+            "offset": req_body.get("offset", 0),
+        }
+        res = await self.ctx.bridge.handle_admin(cmd)
+        if isinstance(res, dict) and res.get("status") == "error":
+            return problem_details(int(res.get("code", 400)), "Error Vecinos", str(res.get("message", "Error consultando vecinos")), "neighbours_error", {"data": res})
+        self.ctx.log_system_event("INFO", f"Vecinos consultados para repetidor {target}", source="repeater_admin")
+        return 200, {"status": "ok", "data": res}
+
+    async def get_owner(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        """Consulta anónima de la información de propietario de un repetidor remoto."""
+        target = str(req_body.get("target_node", req_body.get("repeater", ""))).strip()
+        if not target:
+            return problem_details(400, "Bad Request", "Se requiere 'target_node'", "missing_target_node")
+        cmd = {"action": "req_owner", "target_node": target}
+        res = await self.ctx.bridge.handle_admin(cmd)
+        if isinstance(res, dict) and res.get("status") == "error":
+            return problem_details(int(res.get("code", 400)), "Error Propietario", str(res.get("message", "Error consultando propietario")), "owner_error", {"data": res})
+        return 200, {"status": "ok", "data": res}
+
+    async def get_regions(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        """Consulta de regiones configuradas en un repetidor remoto."""
+        target = str(req_body.get("target_node", req_body.get("repeater", ""))).strip()
+        if not target:
+            return problem_details(400, "Bad Request", "Se requiere 'target_node'", "missing_target_node")
+        cmd = {"action": "req_regions", "target_node": target}
+        res = await self.ctx.bridge.handle_admin(cmd)
+        if isinstance(res, dict) and res.get("status") == "error":
+            return problem_details(int(res.get("code", 400)), "Error Regiones", str(res.get("message", "Error consultando regiones")), "regions_error", {"data": res})
+        return 200, {"status": "ok", "data": res}
+
+    async def get_clock(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        """Consulta de reloj RTC y estado básico de un repetidor remoto."""
+        target = str(req_body.get("target_node", req_body.get("repeater", ""))).strip()
+        if not target:
+            return problem_details(400, "Bad Request", "Se requiere 'target_node'", "missing_target_node")
+        cmd = {"action": "req_clock", "target_node": target}
+        res = await self.ctx.bridge.handle_admin(cmd)
+        if isinstance(res, dict) and res.get("status") == "error":
+            return problem_details(int(res.get("code", 400)), "Error Reloj", str(res.get("message", "Error consultando reloj")), "clock_error", {"data": res})
+        return 200, {"status": "ok", "data": res}
+
+    async def get_acl(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        """Consulta de tabla de control de acceso (ACL) de un repetidor remoto."""
+        target = str(req_body.get("target_node", req_body.get("repeater", ""))).strip()
+        if not target:
+            return problem_details(400, "Bad Request", "Se requiere 'target_node'", "missing_target_node")
+        cmd = {"action": "req_acl", "target_node": target}
+        res = await self.ctx.bridge.handle_admin(cmd)
+        if isinstance(res, dict) and res.get("status") == "error":
+            return problem_details(int(res.get("code", 400)), "Error ACL", str(res.get("message", "Error consultando ACL")), "acl_error", {"data": res})
+        return 200, {"status": "ok", "data": res}
+

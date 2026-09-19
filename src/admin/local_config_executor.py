@@ -761,3 +761,139 @@ class LocalConfigExecutor:
                     except Exception as ec:
                         logging.warning(f"Aviso configurando custom_var '{k}': {ec}")
             applied["custom_vars"] = self._local_config["custom_vars"]
+
+    async def get_custom_vars(self) -> dict[str, Any]:
+        """Obtiene las variables personalizadas almacenadas en el nodo local o en la flash."""
+        mc = self._ctx.mc_provider()
+        if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_custom_vars"):
+            try:
+                cv_res = await mc.commands.get_custom_vars()
+                cv_data = _extract_payload_dict(cv_res)
+                if cv_data and isinstance(cv_data, dict):
+                    self._local_config["custom_vars"] = cv_data
+            except Exception as e:
+                logging.warning(f"Aviso consultando get_custom_vars: {e}")
+        cv = self._local_config.get("custom_vars", {})
+        return cv if isinstance(cv, dict) else {}
+
+    async def set_custom_var(self, key: str, val: str) -> dict[str, Any]:
+        """Asigna o actualiza una variable personalizada en el transceptor."""
+        if "custom_vars" not in self._local_config or not isinstance(self._local_config["custom_vars"], dict):
+            self._local_config["custom_vars"] = {}
+        self._local_config["custom_vars"][str(key)] = str(val)
+        mc = self._ctx.mc_provider()
+        if mc and hasattr(mc, "commands") and hasattr(mc.commands, "set_custom_var"):
+            try:
+                res = mc.commands.set_custom_var(str(key), str(val))
+                if asyncio.iscoroutine(res):
+                    await asyncio.wait_for(res, timeout=3.0)
+            except Exception as e:
+                logging.warning(f"Aviso configurando custom_var {key}={val}: {e}")
+        return {"status": "ok", "custom_vars": self._local_config["custom_vars"]}
+
+    async def delete_custom_var(self, key: str) -> dict[str, Any]:
+        """Elimina una variable personalizada asignando cadena vacía al firmware."""
+        if "custom_vars" in self._local_config and isinstance(self._local_config["custom_vars"], dict):
+            self._local_config["custom_vars"].pop(str(key), None)
+        mc = self._ctx.mc_provider()
+        if mc and hasattr(mc, "commands") and hasattr(mc.commands, "set_custom_var"):
+            try:
+                res = mc.commands.set_custom_var(str(key), "")
+                if asyncio.iscoroutine(res):
+                    await asyncio.wait_for(res, timeout=3.0)
+            except Exception as e:
+                logging.warning(f"Aviso eliminando custom_var {key}: {e}")
+        return {"status": "ok", "custom_vars": self._local_config.get("custom_vars", {})}
+
+    async def get_path_hash_mode(self) -> int:
+        """Obtiene el modo de compresión path hash configurado."""
+        return int(self._local_config.get("path_hash_mode", 0))
+
+    async def set_path_hash_mode(self, mode: int) -> dict[str, Any]:
+        """Configura el modo de path hash (0, 1, 2)."""
+        mode = max(0, min(2, int(mode)))
+        self._local_config["path_hash_mode"] = mode
+        mc = self._ctx.mc_provider()
+        if mc and hasattr(mc, "commands") and hasattr(mc.commands, "set_path_hash_mode"):
+            try:
+                res = mc.commands.set_path_hash_mode(mode)
+                if asyncio.iscoroutine(res):
+                    await asyncio.wait_for(res, timeout=3.0)
+            except Exception as e:
+                logging.warning(f"Aviso configurando path_hash_mode: {e}")
+        return {"status": "ok", "path_hash_mode": mode}
+
+    async def get_autoadd_config(self) -> dict[str, Any]:
+        """Obtiene la configuración de auto-adición de contactos."""
+        mc = self._ctx.mc_provider()
+        if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_autoadd_config"):
+            try:
+                res = await mc.commands.get_autoadd_config()
+                res_dict = _extract_payload_dict(res)
+                if res_dict and isinstance(res_dict, dict):
+                    if "max_hops" not in res_dict and isinstance(self._local_config.get("autoadd_config"), dict):
+                        res_dict["max_hops"] = self._local_config["autoadd_config"].get("max_hops", 0)
+                    self._local_config["autoadd_config"] = res_dict
+            except Exception as e:
+                logging.warning(f"Aviso consultando get_autoadd_config: {e}")
+        cfg = self._local_config.get("autoadd_config", {})
+        if not isinstance(cfg, dict):
+            cfg = {"config": int(self._local_config.get("manual_add_contacts", 0)), "max_hops": 0}
+        return cfg
+
+    async def set_autoadd_config(self, flags: int, max_hops: int | None = None) -> dict[str, Any]:
+        """Aplica la máscara de auto-adición de contactos."""
+        mc = self._ctx.mc_provider()
+        if mc and hasattr(mc, "commands") and hasattr(mc.commands, "set_autoadd_config"):
+            try:
+                import inspect
+                sig = inspect.signature(mc.commands.set_autoadd_config)
+                if "max_hops" in sig.parameters and max_hops is not None:
+                    res = mc.commands.set_autoadd_config(int(flags), max_hops=int(max_hops))
+                else:
+                    res = mc.commands.set_autoadd_config(int(flags))
+                if asyncio.iscoroutine(res):
+                    await asyncio.wait_for(res, timeout=3.0)
+            except Exception as e:
+                logging.warning(f"Aviso configurando autoadd: {e}")
+        self._local_config["autoadd_config"] = {"config": int(flags), "max_hops": max_hops if max_hops is not None else 0}
+        return {"status": "ok", "autoadd_config": self._local_config["autoadd_config"]}
+
+    async def get_flood_scope(self) -> dict[str, Any]:
+        """Obtiene el ámbito de inundación configurado."""
+        mc = self._ctx.mc_provider()
+        if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_default_flood_scope"):
+            try:
+                res = await mc.commands.get_default_flood_scope()
+                res_dict = _extract_payload_dict(res)
+                if res_dict and isinstance(res_dict, dict):
+                    self._local_config["flood_scope"] = res_dict
+            except Exception as e:
+                logging.warning(f"Aviso consultando get_default_flood_scope: {e}")
+        fs = self._local_config.get("flood_scope", {})
+        return fs if isinstance(fs, dict) else {}
+
+    async def set_flood_scope(self, scope: str | None) -> dict[str, Any]:
+        """Asigna o reinicia el ámbito de inundación por defecto."""
+        mc = self._ctx.mc_provider()
+        if not scope or scope in ("*", "0", "global", "none"):
+            if mc and hasattr(mc, "commands") and hasattr(mc.commands, "reset_default_flood_scope"):
+                try:
+                    res = mc.commands.reset_default_flood_scope()
+                    if asyncio.iscoroutine(res):
+                        await asyncio.wait_for(res, timeout=3.0)
+                except Exception as e:
+                    logging.warning(f"Aviso reiniciando default flood scope: {e}")
+            self._local_config["flood_scope"] = {"scope_name": "", "scope_key": ""}
+            return {"status": "ok", "flood_scope": self._local_config["flood_scope"]}
+
+        if mc and hasattr(mc, "commands") and hasattr(mc.commands, "set_default_flood_scope"):
+            try:
+                res = mc.commands.set_default_flood_scope(scope)
+                if asyncio.iscoroutine(res):
+                    await asyncio.wait_for(res, timeout=3.0)
+            except Exception as e:
+                logging.warning(f"Aviso asignando default flood scope: {e}")
+        self._local_config["flood_scope"] = {"scope_name": str(scope)}
+        return {"status": "ok", "flood_scope": self._local_config["flood_scope"]}
+

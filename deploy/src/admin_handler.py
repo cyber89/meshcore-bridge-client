@@ -147,6 +147,43 @@ class AdminCommandHandler:
         await self._ctx.execute_tx(payload)
         return {"status": "ok", "message": f"Anuncio emitido por TX (flood={flood})", "flood": flood}
 
+    async def get_custom_vars(self) -> dict[str, Any]:
+        """Obtiene las variables personalizadas del nodo local."""
+        return await self._local_config_executor.get_custom_vars()
+
+    async def set_custom_var(self, key: str, val: str) -> dict[str, Any]:
+        """Configura una variable personalizada en el transceptor."""
+        return await self._local_config_executor.set_custom_var(key, val)
+
+    async def delete_custom_var(self, key: str) -> dict[str, Any]:
+        """Elimina una variable personalizada del transceptor."""
+        return await self._local_config_executor.delete_custom_var(key)
+
+    async def get_path_hash_mode(self) -> int:
+        """Obtiene el modo de path hash del nodo local."""
+        return await self._local_config_executor.get_path_hash_mode()
+
+    async def set_path_hash_mode(self, mode: int) -> dict[str, Any]:
+        """Configura el modo de path hash."""
+        return await self._local_config_executor.set_path_hash_mode(mode)
+
+    async def get_autoadd_config(self) -> dict[str, Any]:
+        """Obtiene la configuración de auto-adición de contactos."""
+        return await self._local_config_executor.get_autoadd_config()
+
+    async def set_autoadd_config(self, flags: int, max_hops: int | None = None) -> dict[str, Any]:
+        """Configura la máscara de auto-adición de contactos."""
+        return await self._local_config_executor.set_autoadd_config(flags, max_hops)
+
+    async def get_flood_scope(self) -> dict[str, Any]:
+        """Obtiene el ámbito de inundación configurado."""
+        return await self._local_config_executor.get_flood_scope()
+
+    async def set_flood_scope(self, scope: str | None) -> dict[str, Any]:
+        """Configura o reinicia el ámbito de inundación."""
+        return await self._local_config_executor.set_flood_scope(scope)
+
+
     def notify_ping_response(self, sender: str, data: dict[str, Any]) -> bool:
         """Notifica a cualquier corrutina esperando respuesta de ping o trace para este nodo."""
         if not sender or not self._ping_waiters:
@@ -308,6 +345,51 @@ class AdminCommandHandler:
             res["nodes"] = self._ctx.node_registry.list_nodes()
             self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
             return res
+
+        if action == "get_custom_vars":
+            res["custom_vars"] = await self.get_custom_vars()
+            return res
+
+        if action in ("set_custom_vars", "set_custom_var"):
+            vars_data = admin_data.get("vars", admin_data.get("custom_vars", {}))
+            if not vars_data and "key" in admin_data:
+                vars_data = {admin_data["key"]: admin_data.get("value", admin_data.get("val", ""))}
+            for k, v in vars_data.items():
+                await self.set_custom_var(str(k), str(v))
+            res["custom_vars"] = await self.get_custom_vars()
+            return res
+
+        if action == "delete_custom_var":
+            k_del = str(admin_data.get("key", ""))
+            if k_del:
+                await self.delete_custom_var(k_del)
+            res["custom_vars"] = await self.get_custom_vars()
+            return res
+
+        if action == "get_path_hash_mode":
+            res["path_hash_mode"] = await self.get_path_hash_mode()
+            return res
+
+        if action == "set_path_hash_mode":
+            ph_mode = int(admin_data.get("mode", admin_data.get("path_hash_mode", 0)))
+            return await self.set_path_hash_mode(ph_mode)
+
+        if action == "get_autoadd_config":
+            res["autoadd_config"] = await self.get_autoadd_config()
+            return res
+
+        if action == "set_autoadd_config":
+            flags = int(admin_data.get("flags", admin_data.get("config", 0)))
+            max_h = admin_data.get("max_hops")
+            return await self.set_autoadd_config(flags, int(max_h) if max_h is not None else None)
+
+        if action == "get_flood_scope":
+            res["flood_scope"] = await self.get_flood_scope()
+            return res
+
+        if action == "set_flood_scope":
+            f_scope = admin_data.get("scope", admin_data.get("scope_name"))
+            return await self.set_flood_scope(str(f_scope) if f_scope else None)
 
         # 3. Comandos CLI y de Control Directo Local (Formato String Legible)
         return await self._handle_cli_command(action, res, mc)

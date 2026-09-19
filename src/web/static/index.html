@@ -963,7 +963,48 @@
                   </div>
                 </form>
               </div>
+
+              <!-- Panel de Variables Personalizadas (Custom Vars - CMD 40/41) -->
+              <div class="card-panel" style="margin-top: 20px;">
+                <div class="panel-header-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                  <div>
+                    <h3 style="font-size: 1rem; font-weight: 600; margin: 0;"><span class="section-icon" data-lucide="cpu" data-size="16"></span> Variables Personalizadas del Dispositivo (Custom Vars - CMD 40/41)</h3>
+                    <p style="font-size: 0.82rem; color: var(--color-text-secondary); margin: 3px 0 0 0;">Parámetros clave-valor configurados directamente en la memoria flash del transceptor.</p>
+                  </div>
+                  <button type="button" class="btn-secondary btn-xs" id="btnRefreshCustomVars"><span data-lucide="refresh-cw" data-size="12"></span> Actualizar</button>
+                </div>
+                
+                <div class="table-responsive" style="max-height: 180px; overflow-y: auto;">
+                  <table class="data-table" id="localCustomVarsTable">
+                    <thead>
+                      <tr>
+                        <th style="width: 35%;">Clave (Key)</th>
+                        <th style="width: 45%;">Valor (Value)</th>
+                        <th style="width: 20%; text-align: right;">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody id="localCustomVarsTableBody">
+                      <tr><td colspan="3" class="text-center" style="color: var(--color-text-secondary);">Sin variables registradas</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <form id="formAddCustomVar" class="grid-form-3col" style="margin-top: 14px; align-items: flex-end;" onsubmit="return false;">
+                  <div class="form-group">
+                    <label for="inputCustomVarKey">Nombre / Clave:</label>
+                    <input type="text" id="inputCustomVarKey" placeholder="Ej: gps_interval" required />
+                  </div>
+                  <div class="form-group">
+                    <label for="inputCustomVarVal">Valor:</label>
+                    <input type="text" id="inputCustomVarVal" placeholder="Ej: 60" required />
+                  </div>
+                  <div class="form-group">
+                    <button type="button" class="btn-primary btn-block" id="btnSaveCustomVar"><span data-lucide="plus" data-size="14"></span> Guardar Variable</button>
+                  </div>
+                </form>
+              </div>
             </div>
+
 
             <!-- Subpanel 3: Identidad, Propietario & Posición GPS -->
             <div id="local-owner-pos" class="local-settings-subpanel">
@@ -1265,6 +1306,56 @@
                           <button type="button" class="btn-secondary btn-sm" id="btnClearBridgeApiKey">Limpiar</button>
                         </div>
                         <span id="apiKeyStatusHint" class="text-success text-xs hidden" style="margin-top: 8px; display: inline-block;">✓ API Key guardada con éxito en este navegador</span>
+                      </div>
+                    </form>
+                  </div>
+
+                  <!-- Tarjeta de Ámbito de Inundación (Flood Scope) -->
+                  <div class="settings-card" style="margin-top: 16px;">
+                    <div class="card-title-row">
+                      <h3><span class="section-icon" data-lucide="radio" data-size="16"></span> Ámbito de Inundación LoRa (Flood Scope)</h3>
+                      <span class="badge-pill badge-secondary">Aislamiento de Malla</span>
+                    </div>
+                    <p class="card-desc">
+                      Permite aislar el tráfico broadcast de la malla dentro de un canal o grupo cerrado (*Transport Scope Key* de 16B - CMD 54/63/64). Deja vacío o introduce <code>*</code> para volver al alcance global por defecto.
+                    </p>
+                    <form class="settings-form" id="floodScopeForm" onsubmit="return false;">
+                      <div class="form-group">
+                        <label for="inputFloodScope">Nombre de Scope (#grupo) o Clave Hexadecimal de Transporte:</label>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                          <input type="text" id="inputFloodScope" class="form-control font-mono" placeholder="Ej: #emergencia o clave 16B hex..." />
+                          <button type="button" class="btn-primary btn-sm" id="btnSaveFloodScope">Aplicar Scope</button>
+                          <button type="button" class="btn-secondary btn-sm" id="btnResetFloodScope">Global (Reset)</button>
+                        </div>
+                        <span id="floodScopeStatusHint" class="text-xs" style="margin-top: 6px; display: inline-block; color: var(--color-text-secondary);">Ámbito actual: <strong id="currentFloodScopeLabel">Global (*)</strong></span>
+                      </div>
+                    </form>
+                  </div>
+
+                  <!-- Tarjeta de Política de Auto-Adición de Contactos -->
+                  <div class="settings-card" style="margin-top: 16px;">
+                    <div class="card-title-row">
+                      <h3><span class="section-icon" data-lucide="user-plus" data-size="16"></span> Política de Auto-Adición de Contactos (AutoAdd Contact Config)</h3>
+                      <span class="badge-pill badge-secondary">Memoria Flash</span>
+                    </div>
+                    <p class="card-desc">
+                      Configura la máscara de bits y directivas del transceptor cuando escucha paquetes de nodos desconocidos en el medio RF (CMD 58/59).
+                    </p>
+                    <form class="settings-form" id="autoAddConfigForm" onsubmit="return false;">
+                      <div class="form-group" style="display: flex; flex-direction: column; gap: 10px;">
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                          <input type="checkbox" id="chkAutoAddChat" checked />
+                          <span>Auto-agregar contactos que envían mensajes directos (<code>AUTO_ADD_CHAT</code>)</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                          <input type="checkbox" id="chkAutoAddOverwrite" />
+                          <span>Sobrescribir el contacto más antiguo cuando la flash esté llena (<code>AUTO_ADD_OVERWRITE_OLDEST</code>)</span>
+                        </label>
+                        <div style="display: flex; align-items: center; gap: 12px; margin-top: 6px;">
+                          <label for="numAutoAddMaxHops" style="margin: 0; min-width: 170px;">Máximo de saltos para auto-adición:</label>
+                          <input type="number" id="numAutoAddMaxHops" min="0" max="7" value="3" style="width: 80px;" class="form-control" />
+                          <button type="button" class="btn-primary btn-sm" id="btnSaveAutoAddConfig">Guardar Política</button>
+                        </div>
                       </div>
                     </form>
                   </div>
@@ -1771,7 +1862,13 @@
           <div id="rep-owner-pos" class="repeater-subpanel">
             <div class="card-panel">
               <form id="repOwnerPosForm" class="grid-form-2col">
-                <div class="form-section-title span-full"><span class="section-icon" data-lucide="user" data-size="16"></span> Información del Propietario (Owner Info)</div>
+                <div class="form-section-title span-full" style="display: flex; justify-content: space-between; align-items: center;">
+                  <span><span class="section-icon" data-lucide="user" data-size="16"></span> Información del Propietario (Owner Info)</span>
+                  <div style="display: flex; gap: 6px;">
+                    <button type="button" class="btn-secondary btn-xs" id="btnFetchRepOwner" title="Consultar propietario remoto por RF (req_owner)"><span data-lucide="user-check" data-size="12"></span> Consultar Propietario (req_owner)</button>
+                    <button type="button" class="btn-secondary btn-xs" id="btnFetchRepRegions" title="Consultar regiones configuradas (req_regions)"><span data-lucide="globe" data-size="12"></span> Regiones (req_regions)</button>
+                  </div>
+                </div>
                 <div class="form-group">
                   <label for="repOwnerName">Nombre o Indicativo del Propietario:</label>
                   <input type="text" id="repOwnerName" placeholder="Ej: Operador EA1ABC / Repetidor Cumbre" />
@@ -1831,7 +1928,10 @@
                   <input type="password" id="secNewGuestPwd" placeholder="Dejar vacío para no modificar" autocomplete="new-password" />
                 </div>
 
-                <div class="form-section-title span-full"><span class="section-icon" data-lucide="shield" data-size="16"></span> Control de Acceso de Malla (Access Control - ACL)</div>
+                <div class="form-section-title span-full" style="display: flex; justify-content: space-between; align-items: center;">
+                  <span><span class="section-icon" data-lucide="shield" data-size="16"></span> Control de Acceso de Malla (Access Control - ACL)</span>
+                  <button type="button" class="btn-secondary btn-xs" id="btnFetchRepAcl" title="Consultar tabla de control de acceso remota por RF (req_acl)"><span data-lucide="shield-check" data-size="12"></span> Consultar ACL (req_acl)</button>
+                </div>
                 <div class="form-group">
                   <label for="secAclMode">Modo de Control de Acceso:</label>
                   <select id="secAclMode" class="select-input">
@@ -1854,9 +1954,13 @@
           <!-- Subpanel 5: Vecinos & Tabla de Enrutamiento -->
           <div id="rep-neighbors" class="repeater-subpanel">
             <div class="card-panel">
-              <div class="panel-header-row">
-                <h4>Tabla de Enrutamiento y Vecinos Detectados</h4>
-                <button class="btn-secondary btn-sm" id="btnDiscoverNeighbors"><span data-lucide="wifi" data-size="14"></span> Sondear Malla (discover.neighbors)</button>
+              <div class="panel-header-row" style="display: flex; justify-content: space-between; align-items: center;">
+                <h4><span data-lucide="network" data-size="16"></span> Vecinos Zero-Hop Detectados por Radio (req_neighbours)</h4>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <span id="neighborsCountBadge" class="badge-pill badge-primary">0 vecinos</span>
+                  <button type="button" class="btn-secondary btn-sm" id="btnDiscoverNeighbors"><span data-lucide="wifi" data-size="14"></span> Sondear Vecinos (req_neighbours)</button>
+                </div>
+              </div>
               </div>
               <div class="table-responsive modal-table-scroll">
                 <table class="data-table" id="neighborsTable">
