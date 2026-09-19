@@ -549,7 +549,7 @@ class MeshCoreBridge:
         # Persistir libreta de contactos y métricas de nodos de forma no bloqueante
         try:
             if hasattr(self, "node_registry") and hasattr(self.node_registry, "save_to_file"):
-                await asyncio.wait_for(asyncio.to_thread(self.node_registry.save_to_file), timeout=1.0)
+                await asyncio.wait_for(asyncio.to_thread(self.node_registry.save_to_file, None, True), timeout=1.0)
         except (asyncio.TimeoutError, Exception) as e:
             logging.debug(f"Error o timeout guardando NodeRegistry al detener: {e}")
 

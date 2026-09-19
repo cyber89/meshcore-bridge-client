@@ -28,6 +28,7 @@ class ChannelsController(BaseController):
         )
         self.channels: dict[int, dict[str, Any]] = {}
         self._deleted_channels: set[int] = set()
+        self._dirty: bool = False
         self._load_channels()
 
     def _load_channels(self) -> None:
@@ -51,20 +52,26 @@ class ChannelsController(BaseController):
                 "is_public": True,
             }
 
-    def _save_channels(self) -> None:
-        """Persiste la tabla de canales a disco de forma atómica."""
+    def _save_channels(self, force: bool = False) -> None:
+        """Persiste la tabla de canales a disco de forma atómica si hubo cambios."""
+        if not force and not self._dirty:
+            logging.debug("Tabla de canales sin cambios pendientes (omitiendo escritura en disco)")
+            return
+
         os.makedirs(os.path.dirname(self.channels_file) or ".", exist_ok=True)
         try:
             tmp_path = f"{self.channels_file}.tmp"
             with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(list(self.channels.values()), f, indent=2, ensure_ascii=False)
             os.replace(tmp_path, self.channels_file)
+            self._dirty = False
+            logging.debug(f"Canales persistidos exitosamente en {self.channels_file}")
         except Exception as e:
             logging.error(f"Error persistiendo canales en {self.channels_file}: {e}")
 
-    async def _save_channels_async(self) -> None:
+    async def _save_channels_async(self, force: bool = False) -> None:
         """Persiste la tabla de canales a disco de forma atómica y no bloqueante en thread pool."""
-        await asyncio.to_thread(self._save_channels)
+        await asyncio.to_thread(self._save_channels, force)
 
     async def handle_channels_route(
         self,
@@ -103,6 +110,7 @@ class ChannelsController(BaseController):
                         if idx in self._deleted_channels:
                             if idx in self.channels:
                                 del self.channels[idx]
+                                self._dirty = True
                             continue
 
                         ch_name = str(ch.get("name") or "").strip()
@@ -112,9 +120,12 @@ class ChannelsController(BaseController):
                         if idx > 0 and is_empty_slot:
                             if idx in self.channels:
                                 del self.channels[idx]
+                                self._dirty = True
                             continue
 
-                        self.channels[idx] = ch
+                        if self.channels.get(idx) != ch:
+                            self.channels[idx] = ch
+                            self._dirty = True
                     await self._save_channels_async()
             except Exception as e:
                 logging.debug(f"Fallo sincronizando canales del nodo serial: {e}")
@@ -237,6 +248,7 @@ class ChannelsController(BaseController):
             psk = str(self.channels[idx].get("psk", ""))
         self.channels[idx] = {"index": idx, "name": name, "psk": psk, "is_public": (idx == 0)}
         self._deleted_channels.discard(idx)
+        self._dirty = True
         await self._save_channels_async()
 
         ser = getattr(self.ctx.bridge, "serial_adapter", None)
@@ -268,6 +280,7 @@ class ChannelsController(BaseController):
 
         self._deleted_channels.add(idx)
         del self.channels[idx]
+        self._dirty = True
         await self._save_channels_async()
 
         # Enviar orden de vaciado de slot al transceptor serial si está activo

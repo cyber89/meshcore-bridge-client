@@ -6,6 +6,7 @@ en memoria con soporte de búsqueda O(1), estadísticas de tráfico y análisis 
 
 from __future__ import annotations
 
+import asyncio
 import heapq
 import json
 import logging
@@ -320,6 +321,8 @@ class NodeRegistry:
             "MQTT_DISCONNECT": 0,
         }
         self.last_sync_timestamp: float = 0.0
+        self._dirty: bool = False
+        self._save_debounce_task: asyncio.Task[Any] | None = None
 
     def set_local_pubkey(self, pubkey: str) -> None:
         """Establece la clave pública del nodo local y consolida entradas existentes para evitar duplicados."""
@@ -328,6 +331,7 @@ class NodeRegistry:
             return
 
         with self._lock:
+            self._dirty = True
             # Consolidar y purgar cualquier entrada local previa bajo la clave canónica oficial
             local_entries = [
                 (k, node) for k, node in list(self._nodes_by_key.items())
@@ -655,6 +659,7 @@ class NodeRegistry:
             if clean_alias:
                 self._nodes_by_name[clean_alias.lower()] = canonical_key
 
+            self._dirty = True
             return contact
 
     def _classify_advert_role(self, clean_name: str, role: str) -> tuple[str, bool]:
@@ -1119,6 +1124,7 @@ class NodeRegistry:
                 self._nodes_by_key[k] = new_contact
                 reset_count += 1
             self.error_categories.clear()
+            self._dirty = True
             return {"nodes_reset": reset_count}
 
     def get_all_lqi_metrics(self) -> list[dict[str, Any]]:
@@ -1158,11 +1164,18 @@ class NodeRegistry:
                     self._nodes_by_name.pop(contact.alias.lower(), None)
 
         if to_remove:
+            with self._lock:
+                self._dirty = True
             logging.info(f"Limpieza de NodeRegistry: eliminados {len(to_remove)} nodos obsoletos.")
         return len(to_remove)
 
-    def save_to_file(self, filepath: str | Path | None = None) -> bool:
-        """Guarda la libreta de contactos y estado de nodos en un archivo JSON sin duplicados."""
+    def save_to_file(self, filepath: str | Path | None = None, force: bool = False) -> bool:
+        """Guarda la libreta de contactos y estado de nodos en un archivo JSON sin duplicados si hubo cambios."""
+        with self._lock:
+            if not force and not self._dirty:
+                logging.debug("NodeRegistry sin cambios pendientes de persistencia (omitiendo escritura en disco)")
+                return True
+
         target_str = str(filepath or os.getenv("NODE_REGISTRY_STORAGE_PATH") or os.path.join("data", "node_registry.json"))
         target_path = Path(target_str)
         try:
@@ -1179,16 +1192,41 @@ class NodeRegistry:
             with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
             tmp_path.replace(target_path)
+            with self._lock:
+                self._dirty = False
             logging.debug(f"NodeRegistry guardado exitosamente en {target_path} ({len(nodes_list)} nodos)")
             return True
         except Exception as e:
             logging.warning(f"Error guardando NodeRegistry en {target_path}: {e}")
             return False
 
-    async def save_to_file_async(self, filepath: str | Path | None = None) -> bool:
+    async def save_to_file_async(self, filepath: str | Path | None = None, force: bool = False) -> bool:
         """Guarda la libreta de contactos y estado de nodos de forma asíncrona sin bloquear el event loop."""
-        import asyncio
-        return await asyncio.to_thread(self.save_to_file, filepath)
+        return await asyncio.to_thread(self.save_to_file, filepath, force)
+
+    def schedule_debounced_save(self, delay_sec: float = 5.0, loop: asyncio.AbstractEventLoop | None = None) -> None:
+        """Programa un guardado a disco diferido (debounced) para consolidar ráfagas de cambios."""
+        with self._lock:
+            self._dirty = True
+
+        try:
+            active_loop = loop or asyncio.get_running_loop()
+        except RuntimeError:
+            return
+
+        if self._save_debounce_task and not self._save_debounce_task.done():
+            return
+
+        async def _delayed_worker() -> None:
+            try:
+                await asyncio.sleep(delay_sec)
+                await self.save_to_file_async()
+            except asyncio.CancelledError:
+                await self.save_to_file_async(force=True)
+            except Exception as e:
+                logging.warning(f"Error en guardado diferido de NodeRegistry: {e}")
+
+        self._save_debounce_task = active_loop.create_task(_delayed_worker())
 
     def _deserialize_node_contact(self, nd: dict[str, Any]) -> NodeContactInfo | None:
         """Reconstruye un objeto NodeContactInfo a partir de un diccionario serializado."""
