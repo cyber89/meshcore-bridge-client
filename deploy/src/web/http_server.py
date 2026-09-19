@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import gzip
 import hashlib
 import hmac
 import json
@@ -76,6 +77,8 @@ class MeshCoreWebServer:
         self.running = False
         self.start_time: float = time.time()
         self._metrics_task: asyncio.Task[None] | None = None
+        # Caché en RAM para archivos estáticos: path -> (mtime, raw_bytes, gzip_bytes, etag, content_type)
+        self._static_cache: dict[str, tuple[float, bytes, bytes | None, str, str]] = {}
 
     async def start(self) -> None:
         """Inicia el servidor HTTP/WS."""
@@ -995,11 +998,80 @@ class MeshCoreWebServer:
                 return
 
         if target_file.is_file():
-            content_type, _ = mimetypes.guess_type(str(target_file))
-            if not content_type:
-                content_type = "text/html" if target_file.suffix == ".html" else "application/octet-stream"
+            try:
+                st = target_file.stat()
+                mtime = st.st_mtime
+                file_key = str(target_file)
+            except OSError:
+                await self._write_http_response(ctx.writer, "404 Not Found", b"404 Not Found", cors_origin=ctx.cors_origin)
+                return
 
-            file_bytes = target_file.read_bytes()
+            cached = self._static_cache.get(file_key)
+            if cached and cached[0] == mtime:
+                _, raw_bytes, gzip_bytes, etag, content_type = cached
+            else:
+                try:
+                    raw_bytes = target_file.read_bytes()
+                except OSError:
+                    await self._write_http_response(
+                        ctx.writer, "500 Internal Server Error", b"Error reading static file", cors_origin=ctx.cors_origin
+                    )
+                    return
+
+                content_type, _ = mimetypes.guess_type(str(target_file))
+                if not content_type:
+                    content_type = "text/html" if target_file.suffix == ".html" else "application/octet-stream"
+
+                etag = f'"{hashlib.md5(raw_bytes).hexdigest()[:16]}"'
+
+                # Comprimir dinámicamente si el archivo es textual y supera los 256 bytes
+                is_textual = (
+                    target_file.suffix in (".html", ".css", ".js", ".json", ".svg", ".txt", ".map", ".md")
+                    or content_type.startswith(("text/", "application/javascript", "application/json", "image/svg+xml"))
+                )
+                if is_textual and len(raw_bytes) > 256:
+                    gzip_bytes = gzip.compress(raw_bytes, compresslevel=6)
+                else:
+                    gzip_bytes = None
+
+                self._static_cache[file_key] = (mtime, raw_bytes, gzip_bytes, etag, content_type)
+
+            # Soporte de validación de caché ETag (304 Not Modified)
+            client_etag = ctx.headers.get("if-none-match", "").strip()
+            if client_etag and (
+                client_etag == etag or client_etag == f"W/{etag}" or f'"{etag.strip(chr(34))}"' in client_etag
+            ):
+                duration_ms = (time.perf_counter() - ctx.t_start) * 1000.0 if ctx.t_start > 0 else 0.0
+                SecurityTrafficInspector.log_http_access(
+                    HttpAccessEvent(
+                        client_ip=ctx.client_ip,
+                        method=ctx.method,
+                        path=ctx.path,
+                        status_code=304,
+                        duration_ms=duration_ms,
+                        user_agent=ctx.headers.get("user-agent", ""),
+                    )
+                )
+                cache_header = (
+                    "Cache-Control: no-cache, no-store, must-revalidate"
+                    if target_file.suffix == ".html"
+                    else "Cache-Control: public, max-age=300"
+                )
+                resp = HttpResponse(
+                    status_line="304 Not Modified",
+                    body=b"",
+                    content_type=f"{content_type}; charset=utf-8" if "charset" not in content_type else content_type,
+                    extra_headers=[cache_header, f"ETag: {etag}", "Vary: Accept-Encoding"],
+                    cors_origin=ctx.cors_origin,
+                )
+                await self._write_http_response(ctx.writer, resp)
+                return
+
+            # Selección de compresión según Accept-Encoding del cliente
+            accept_encoding = ctx.headers.get("accept-encoding", "")
+            use_gzip = ("gzip" in accept_encoding) and (gzip_bytes is not None) and (len(gzip_bytes) < len(raw_bytes))
+            serve_body = gzip_bytes if use_gzip else raw_bytes
+
             duration_ms = (time.perf_counter() - ctx.t_start) * 1000.0 if ctx.t_start > 0 else 0.0
             SecurityTrafficInspector.log_http_access(
                 HttpAccessEvent(
@@ -1011,12 +1083,20 @@ class MeshCoreWebServer:
                     user_agent=ctx.headers.get("user-agent", ""),
                 )
             )
-            cache_header = "Cache-Control: no-cache, no-store, must-revalidate" if target_file.suffix == ".html" else "Cache-Control: public, max-age=60"
+            cache_header = (
+                "Cache-Control: no-cache, no-store, must-revalidate"
+                if target_file.suffix == ".html"
+                else "Cache-Control: public, max-age=300"
+            )
+            extra_headers = [cache_header, f"ETag: {etag}", "Vary: Accept-Encoding"]
+            if use_gzip:
+                extra_headers.append("Content-Encoding: gzip")
+
             resp = HttpResponse(
                 status_line="200 OK",
-                body=file_bytes,
-                content_type=f"{content_type}; charset=utf-8",
-                extra_headers=[cache_header],
+                body=serve_body,
+                content_type=f"{content_type}; charset=utf-8" if "charset" not in content_type else content_type,
+                extra_headers=extra_headers,
                 cors_origin=ctx.cors_origin,
             )
             await self._write_http_response(ctx.writer, resp)

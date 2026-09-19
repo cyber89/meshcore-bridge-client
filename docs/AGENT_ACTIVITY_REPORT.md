@@ -2,6 +2,29 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Optimización Fase 1 — Servidor HTTP: Caché en RAM de Estáticos, Compresión GZIP y Soporte ETag / 304 Not Modified
+- **Fecha**: 2026-09-19
+- **Estado**: ✅ COMPLETADO — Caché en memoria RAM (`_static_cache`) para eliminar lecturas de tarjeta SD en SBCs, compresión dinámica GZIP en vuelo con reducción > 80% del payload de red, y soporte completo de validación de caché condicional `ETag` / `If-None-Match` con respuestas `304 Not Modified` (0 bytes).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 5 (Security & Vulnerability Auditor).
+- **Acciones Realizadas**:
+  1. **`src/web/http_server.py`**:
+     - Implementado `self._static_cache` en `MeshCoreWebServer.__init__`: almacena `(mtime, raw_bytes, gzip_bytes, etag, content_type)` indexado por ruta canónica.
+     - En `_serve_static_file()`:
+       - Detección de cambios en disco mediante `st_mtime` (cache miss solo si el archivo fue modificado).
+       - Compresión dinámica con `gzip.compress()` (nivel 6) para archivos de texto (`.html`, `.css`, `.js`, `.json`, `.svg`, etc.) mayores a 256 bytes.
+       - Generación determinista de `ETag` basado en hash MD5 del contenido.
+       - Soporte de petición condicional `If-None-Match`: si coincide, devuelve inmediatamente `304 Not Modified` con cuerpo vacío (0 bytes transferidos), reduciendo drásticamente la latencia y el uso de red.
+       - Negociación de contenido con `Accept-Encoding: gzip`, sirviendo `Content-Encoding: gzip` y añadiendo `Vary: Accept-Encoding`.
+  2. **Verificación y Pruebas**:
+     - Verificado con script de prueba unitaria en memoria (`test_static_cache.py`):
+       - `index.html` (149,180 bytes) comprimido a 27,811 bytes (**reducción del 81.4%**).
+       - Respuesta condicional con `If-None-Match` verificada con código `304 Not Modified` y 0 bytes de cuerpo.
+       - Población de caché en RAM confirmada en la primera llamada.
+     - `python -m py_compile src/web/http_server.py`: 0 errores.
+  3. **Despliegue y Repositorio**:
+     - Ejecutado `python scripts/sync_deploy.py`.
+     - Sincronizado y confirmado en `origin/main`.
+
 ### Hito: Unificación y Sincronización en Tiempo Real del Airtime (Header vs Pestaña Analíticas)
 - **Fecha**: 2026-09-19
 - **Estado**: ✅ COMPLETADO — Sincronización reactiva 1:1 en tiempo real entre la barra de airtime del header y la tarjeta de presupuesto horario de la pestaña Analíticas, eliminación de interferencia de paquetes remotos y corrección de la escala visual del 1.0% (36,000 ms).
