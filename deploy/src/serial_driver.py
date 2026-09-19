@@ -284,86 +284,97 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                         await self.mc.connect()
             else:
                 logging.info(f"Iniciando conexión MeshCore SDK en puerto {self.port} ({self.baud_rate} baud)...")
-                # Secuencia manual con espera de boot del ESP32-S3:
-                # Abrir /dev/ttyACM0 dispara reset del firmware vía DTR/RTS.  El firmware
-                # tarda ~2-4s en arrancar — debemos esperar ANTES de enviar CMD_APP_START.
-                # mc.connect() del SDK no incluye esa espera, así que usamos la secuencia
-                # manual con try/finally para garantizar que el dispatcher siempre se cierre.
-                _TRANSPORT_TIMEOUT = 12.0   # espera máxima para que el port USB-CDC responda
-                _APPSTART_TIMEOUT  = 10.0   # espera máxima para recibir SELF_INFO
-                _BOOT_WAIT_SEC     = 3.5    # espera post-apertura para boot del ESP32-S3
-                _mc_raw: Any = None         # referencia local — se transfiere a self.mc en éxito
+                # Solución definitiva: inyectamos el sleep de boot DENTRO del SerialConnection.connect()
+                # mediante una subclase que añade la espera tras la apertura del puerto USB-CDC.
+                # Así mc.connect() gestiona correctamente dispatcher, suscriptores y timeouts internos
+                # sin conflictos con asyncio.wait_for externos.
+                _BOOT_WAIT_SEC = 3.5    # espera post-apertura para boot del ESP32-S3 (reset vía DTR/RTS)
+                _MC_TOTAL_TIMEOUT = 30.0  # timeout total = boot(3.5s) + SDK default_timeout(15s) + margen
+
+                class _BootWaitSerialConnection:
+                    """Wrapper de SerialConnection que añade espera de boot tras apertura del puerto."""
+                    def __init__(self, inner: Any, boot_wait: float) -> None:
+                        self._inner = inner
+                        self._boot_wait = boot_wait
+                        # Exponer todos los atributos del inner para que MeshCore funcione normalmente
+                        self.transport = inner.transport
+                        self.reader = inner.reader
+                        self._connected_event = inner._connected_event
+                        self._disconnect_callback: Any = None
+                        self._background_tasks = inner._background_tasks
+
+                    async def connect(self) -> Any:
+                        result = await self._inner.connect()
+                        if result is not None:
+                            logging.debug(
+                                f"Puerto {self._inner.port} abierto. "
+                                f"Esperando {self._boot_wait}s de boot del ESP32-S3..."
+                            )
+                            await asyncio.sleep(self._boot_wait)
+                        return result
+
+                    async def disconnect(self) -> None:
+                        await self._inner.disconnect()
+
+                    async def send(self, data: Any) -> None:
+                        # Mantener transport sincronizado (puede cambiar tras connect)
+                        self._inner.transport = self._inner.transport
+                        await self._inner.send(data)
+
+                    def set_reader(self, reader: Any) -> None:
+                        self._inner.set_reader(reader)
+                        self.reader = reader
+
+                    def set_disconnect_callback(self, callback: Any) -> None:
+                        self._disconnect_callback = callback
+                        self._inner.set_disconnect_callback(callback)
+
+                _mc_raw: Any = None
                 try:
                     from meshcore.serial_cx import SerialConnection
-                    cx = SerialConnection(self.port, self.baud_rate, cx_dly=0.0)
-                    _mc_raw = MeshCore(cx, auto_reconnect=True)
-                    await _mc_raw.dispatcher.start()
+                    cx_inner = SerialConnection(self.port, self.baud_rate, cx_dly=0.0)
+                    cx_wrapped = _BootWaitSerialConnection(cx_inner, _BOOT_WAIT_SEC)
+                    _mc_raw = MeshCore(cx_wrapped, auto_reconnect=True)
 
-                    # 1) Abrir transporte serial (espera evento USB-CDC)
-                    res_cx = await asyncio.wait_for(
-                        _mc_raw.connection_manager.connect(), timeout=_TRANSPORT_TIMEOUT
-                    )
-                    if res_cx is None:
-                        logging.error(
-                            f"Puerto {self.port} abierto pero connection_manager retornó None. "
-                            "Comprueba permisos (grupo 'dialout') y que el dispositivo esté enumerado."
-                        )
+                    # mc.connect() = dispatcher.start() + connection_manager.connect() + send_appstart()
+                    # El wrapper añade el sleep de boot DENTRO de connection_manager.connect()
+                    # antes de que mc.connect() llame a send_appstart() — sincronización perfecta.
+                    res_app = await asyncio.wait_for(_mc_raw.connect(), timeout=_MC_TOTAL_TIMEOUT)
+
+                    if res_app is not None and getattr(res_app, "type", None) != EventType.ERROR:
+                        self.mc = _mc_raw
+                        _mc_raw = None  # transferido — NOT cleaned up in finally
+                        if hasattr(res_app, "payload") and isinstance(res_app.payload, dict):
+                            self.self_info = res_app.payload
+                            if hasattr(self.mc, "_self_info"):
+                                self.mc._self_info = res_app.payload
+                        elif hasattr(self.mc, "self_info") and isinstance(
+                            getattr(self.mc, "self_info", None), dict
+                        ):
+                            self.self_info = self.mc.self_info
                     else:
-                        # 2) Esperar boot del firmware tras reset USB-CDC (DTR toggle en Pi)
-                        logging.debug(f"Puerto {self.port} abierto. Esperando {_BOOT_WAIT_SEC}s de boot del firmware...")
-                        await asyncio.sleep(_BOOT_WAIT_SEC)
-
-                        # 3) Enviar CMD_APP_START y esperar respuesta SELF_INFO
-                        res_app = await asyncio.wait_for(
-                            _mc_raw.commands.send_appstart(), timeout=_APPSTART_TIMEOUT
+                        reason = getattr(res_app, "payload", {}).get("reason", "sin respuesta") if res_app else "None"
+                        logging.error(
+                            f"Transceptor MeshCore en {self.port} no respondió al appstart "
+                            f"tras {_BOOT_WAIT_SEC}s de espera de boot (motivo: {reason}). "
+                            "Verifica: (1) firmware en Companion mode, "
+                            "(2) baud rate 115200, (3) cable USB funcional."
                         )
-                        if res_app is not None and getattr(res_app, "type", None) != EventType.ERROR:
-                            self.mc = _mc_raw
-                            _mc_raw = None  # transferido — NOT cleaned up in finally
-                            if hasattr(res_app, "payload") and isinstance(res_app.payload, dict):
-                                self.self_info = res_app.payload
-                                if hasattr(self.mc, "_self_info"):
-                                    self.mc._self_info = res_app.payload
-                            elif hasattr(self.mc, "self_info") and isinstance(
-                                getattr(self.mc, "self_info", None), dict
-                            ):
-                                self.self_info = self.mc.self_info
-                        else:
-                            # 4) Segundo intento — el firmware a veces no responde al primer appstart
-                            logging.debug("Primer send_appstart sin respuesta. Reintentando tras 1.0s...")
-                            await asyncio.sleep(1.0)
-                            res_app2 = await asyncio.wait_for(
-                                _mc_raw.commands.send_appstart(), timeout=_APPSTART_TIMEOUT
-                            )
-                            if res_app2 is not None and getattr(res_app2, "type", None) != EventType.ERROR:
-                                self.mc = _mc_raw
-                                _mc_raw = None
-                                if hasattr(res_app2, "payload") and isinstance(res_app2.payload, dict):
-                                    self.self_info = res_app2.payload
-                                    if hasattr(self.mc, "_self_info"):
-                                        self.mc._self_info = res_app2.payload
-                            else:
-                                logging.error(
-                                    f"Transceptor MeshCore en {self.port} no respondió al appstart "
-                                    f"tras {_BOOT_WAIT_SEC}s de espera. "
-                                    "Verifica: (1) firmware en Companion mode, "
-                                    "(2) baud rate correcto (115200), "
-                                    "(3) cable USB funcional."
-                                )
                 except asyncio.TimeoutError:
                     logging.error(
-                        f"Timeout esperando respuesta del transceptor MeshCore en {self.port}. "
-                        "Posible causa: firmware bloqueado, puerto incorrecto o cable USB defectuoso."
+                        f"Timeout global ({_MC_TOTAL_TIMEOUT}s) esperando conexión con el "
+                        f"transceptor MeshCore en {self.port}. "
+                        "Posible causa: firmware bloqueado, cable USB defectuoso o puerto incorrecto."
                     )
                 except ConnectionError as ce:
                     logging.error(f"Error de conexión al transceptor MeshCore en {self.port}: {ce}")
                 except Exception as ex_init:
-                    logging.debug(f"Apertura MeshCore SDK (ruta principal) falló: {ex_init}")
+                    logging.error(f"Error inesperado conectando con MeshCore SDK en {self.port}: {ex_init}", exc_info=True)
                 finally:
-                    # Garantizar limpieza del dispatcher si la conexión falló (previene tareas huérfanas)
+                    # Garantizar limpieza del dispatcher si la conexión no se completó
                     if _mc_raw is not None:
                         try:
-                            await asyncio.wait_for(_mc_raw.dispatcher.stop(), timeout=1.0)
+                            await asyncio.wait_for(_mc_raw.disconnect(), timeout=1.5)
                         except Exception:
                             pass
 
@@ -832,15 +843,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             dest_target = self._resolve_target(target_clean)
 
             # Asegurar contacto en la radio antes de transmitir
-            if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "add_contact"):
-                try:
-                    if isinstance(dest_target, dict) and len(str(dest_target.get("public_key", ""))) >= 32:
-                        await self.mc.commands.add_contact(dest_target)
-                    elif isinstance(dest_target, str) and len(dest_target) >= 32:
-                        target_name = target_clean if target_clean != dest_target else f"Node_{dest_target[:6]}"
-                        await self.mc.commands.add_contact({"public_key": dest_target, "name": target_name})
-                except Exception as e_ac:
-                    logging.debug(f"Asegurando contacto en radio para TX: {e_ac}")
+            await self._ensure_contact_for_tx(dest_target, target_clean)
 
             if hasattr(self.mc.commands, "send_msg"):
                 res = await self.mc.commands.send_msg(dest_target, text)
@@ -885,6 +888,83 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             return {"status": "OK", "action": "set_tx_power", "power": power}
 
         return {"status": "UNKNOWN_ACTION", "action": action}
+
+    async def _ensure_contact_for_tx(self, dest_target: Any, target_clean: str) -> None:
+        """Asegura que el destinatario esté registrado en la memoria de la radio física antes de TX.
+
+        El firmware de MeshCore exige que el destinatario de un mensaje directo (CMD_SEND_TXT_MSG)
+        exista en su tabla interna de contactos (lookupContactByPubKey). De lo contrario,
+        el firmware rechaza la transmisión con ERR_CODE_NOT_FOUND (código 2).
+        """
+        if not self.is_connected or not self.mc or not hasattr(self.mc, "commands"):
+            return
+
+        try:
+            pubkey = ""
+            name = target_clean
+            out_path = ""
+            out_path_len: int | None = None
+            out_path_hash_mode: int | None = None
+            node_type = 1  # ADV_TYPE_CHAT
+            lat = 0.0
+            lon = 0.0
+
+            if isinstance(dest_target, dict):
+                pubkey = str(dest_target.get("public_key", "")).strip()
+                name = str(dest_target.get("adv_name", dest_target.get("name", target_clean))).strip()
+                out_path = str(dest_target.get("out_path", ""))
+                out_path_len = dest_target.get("out_path_len")
+                out_path_hash_mode = dest_target.get("out_path_hash_mode")
+                node_type = dest_target.get("type", 1)
+                lat = float(dest_target.get("adv_lat", dest_target.get("latitude", 0.0)) or 0.0)
+                lon = float(dest_target.get("adv_lon", dest_target.get("longitude", 0.0)) or 0.0)
+            elif hasattr(dest_target, "public_key"):
+                pubkey = str(getattr(dest_target, "public_key", "")).strip()
+                name = getattr(dest_target, "name", "") or getattr(dest_target, "alias", target_clean)
+                out_path = getattr(dest_target, "out_path", "") or ""
+                out_path_len = getattr(dest_target, "out_path_len", None)
+                out_path_hash_mode = getattr(dest_target, "out_path_hash_mode", None)
+                lat = float(getattr(dest_target, "latitude", 0.0) or 0.0)
+                lon = float(getattr(dest_target, "longitude", 0.0) or 0.0)
+            elif isinstance(dest_target, str):
+                pubkey = dest_target.strip()
+
+            if not pubkey or len(pubkey) < 12:
+                return
+
+            # Enriquecer con NodeRegistry si está disponible
+            if hasattr(self, "node_registry") and self.node_registry:
+                reg_node = self.node_registry.get_contact(pubkey) or self.node_registry.get_by_key_or_prefix(pubkey)
+                if reg_node:
+                    pubkey = getattr(reg_node, "public_key", pubkey) or pubkey
+                    reg_name = getattr(reg_node, "name", "") or getattr(reg_node, "alias", "")
+                    if reg_name:
+                        name = reg_name
+                    if out_path_len is None:
+                        out_path = getattr(reg_node, "out_path", "") or ""
+                        out_path_len = getattr(reg_node, "out_path_len", None)
+                        out_path_hash_mode = getattr(reg_node, "out_path_hash_mode", None)
+                    lat = float(getattr(reg_node, "latitude", lat) or lat or 0.0)
+                    lon = float(getattr(reg_node, "longitude", lon) or lon or 0.0)
+
+            full_pk = pubkey.ljust(64, "0")[:64]
+            clean_name = (name or f"Node_{full_pk[:6]}")[:32]
+            contact_data = {
+                "public_key": full_pk,
+                "adv_name": clean_name,
+                "type": int(node_type) if node_type is not None else 1,
+                "flags": 0,
+                "out_path": str(out_path or ""),
+                "out_path_len": int(out_path_len) if out_path_len is not None else -1,
+                "out_path_hash_mode": int(out_path_hash_mode) if out_path_hash_mode is not None else 0,
+                "last_advert": int(time.time()),
+                "adv_lat": lat,
+                "adv_lon": lon,
+            }
+
+            await self.add_contact(contact_data)
+        except Exception as e_ac:
+            logging.debug(f"Asegurando contacto en radio para TX: {e_ac}")
 
     def _resolve_target(self, name_or_key: str, min_hex_len: int = 12) -> Any:
         """Resuelve un identificador de destino a clave pública.
@@ -1079,22 +1159,28 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
         try:
             pubkey = str(contact_data.get("public_key", "")).strip()
-            name = str(contact_data.get("name", contact_data.get("alias", ""))).strip()
+            name = str(contact_data.get("adv_name", contact_data.get("name", contact_data.get("alias", "")))).strip()
+            if not name and pubkey:
+                name = f"Node_{pubkey[:6]}"
+
             if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "add_contact"):
-                # Normalizar estructura esperada por el SDK
+                full_pk = pubkey.ljust(64, "0")[:64]
+                # Normalizar estructura completa requerida por el SDK y firmware
                 clean_contact = {
-                    "public_key": pubkey if len(pubkey) == 64 else pubkey.ljust(64, "0"),
-                    "adv_name": name,
-                    "type": 0,
-                    "flags": 0,
-                    "out_path": "",
-                    "out_path_len": -1,
-                    "out_path_hash_mode": 0,
-                    "last_advert": int(time.time()),
-                    "adv_lat": 0.0,
-                    "adv_lon": 0.0,
+                    "public_key": full_pk,
+                    "adv_name": name[:32],
+                    "type": int(contact_data.get("type", 1)),
+                    "flags": int(contact_data.get("flags", 0)),
+                    "out_path": str(contact_data.get("out_path", "")),
+                    "out_path_len": int(contact_data.get("out_path_len", -1)) if contact_data.get("out_path_len") is not None else -1,
+                    "out_path_hash_mode": int(contact_data.get("out_path_hash_mode", 0)) if contact_data.get("out_path_hash_mode") is not None else 0,
+                    "last_advert": int(contact_data.get("last_advert", time.time())),
+                    "adv_lat": float(contact_data.get("adv_lat", contact_data.get("latitude", 0.0)) or 0.0),
+                    "adv_lon": float(contact_data.get("adv_lon", contact_data.get("longitude", 0.0)) or 0.0),
                 }
                 res = await self.mc.commands.add_contact(clean_contact)
+                if hasattr(self.mc, "_contacts") and isinstance(self.mc._contacts, dict):
+                    self.mc._contacts[full_pk] = clean_contact
                 return {"status": "OK", "response": str(res)}
         except Exception as e:
             logging.warning(f"Fallo registrando contacto en transceptor serial: {e}")

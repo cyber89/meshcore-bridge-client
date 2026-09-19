@@ -2,6 +2,23 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Remediación de ERR_CODE_NOT_FOUND (Código 2) en Mensajes Directos (DM) y Comandos Remotos
+- **Fecha**: 2026-09-19
+- **Estado**: ✅ COMPLETADO — Contactos normalizados registrados en memoria de radio física antes de TX; ruff: 0 errores; mypy --strict: 0 errores; deploy sincronizado.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect).
+- **Causa Raíz Diagnosticada**:
+  - Al transmitir un mensaje directo (`CMD_SEND_TXT_MSG`), el firmware C++ de MeshCore (`MyMesh.cpp`) ejecuta `lookupContactByPubKey(pub_key_prefix, 6)`. Si el nodo no existe en la tabla interna de la radio (Flash/RAM), el firmware rechaza inmediatamente con `ERR_CODE_NOT_FOUND` (2).
+  - El auto-registro previo en `serial_driver.py` y `repeater_executor.py` pasaba diccionarios incompletos (`{"public_key": ..., "name": ...}`) a `mc.commands.add_contact()`. En el SDK (`contact.py:112`), `update_contact` requiere campos como `out_path`, `out_path_len`, `out_path_hash_mode`, `adv_name`, `type`, `flags`, etc. La llamada lanzaba un `KeyError: 'out_path'` interno que era capturado en silencio por un `try/except`, impidiendo que el contacto se guardase en la memoria de la radio física.
+- **Acciones Realizadas**:
+  1. **`src/serial_driver.py`**:
+     - Implementado `_ensure_contact_for_tx(dest_target, target_clean)`: construye una estructura de contacto completa y normalizada (flood `out_path_len: -1`, `type: 1`, timestamps, geolocalización, enriquecida con `NodeRegistry` si existe).
+     - Invocado `_ensure_contact_for_tx` antes de cada llamada a `mc.commands.send_msg` para DMs.
+     - Refactorizado `add_contact()` para normalizar completamente los campos y sincronizar la clave pública con `self.mc._contacts` para búsquedas inmediatas en memoria.
+     - Corregido `send_admin_cmd()` para retornar `UNKNOWN_ACTION` limpiamente.
+  2. **`src/admin/repeater_executor.py`**:
+     - Refactorizado `_ensure_radio_contact(mc, dest_target, target_name)` para normalizar la estructura completa (`out_path`, `out_path_len`, `type: 2` REPEATER) evitando excepciones `KeyError`.
+- **Contratos de Interfaz Modificados**: Sin cambios de API REST ni MQTT; mejora interna transparente y retrocompatible.
+
 ### Hito: Corrección de Bug Conexión Radio — Web UI muestra radio desconectado (3 bugs simultáneos)
 - **Fecha**: 2026-09-19
 - **Estado**: ✅ COMPLETADO — Commit `d39d7c9` pusheado a `origin/main`. ruff: 0 errores. mypy --strict: 0 errores. deploy sincronizado.

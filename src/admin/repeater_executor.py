@@ -538,14 +538,63 @@ class RepeaterAdminExecutor:
         """Asegura que el nodo destino esté presente en la tabla del firmware."""
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "add_contact"):
             try:
-                if isinstance(dest_target, dict) and len(str(dest_target.get("public_key", ""))) >= 32:
-                    await mc.commands.add_contact(dest_target)
+                pubkey = ""
+                name = target_name
+                out_path = ""
+                out_path_len = -1
+                out_path_hash_mode = 0
+                node_type = 2  # ADV_TYPE_REPEATER
+                lat = 0.0
+                lon = 0.0
+
+                if isinstance(dest_target, dict):
+                    pubkey = str(dest_target.get("public_key", "")).strip()
+                    name = str(dest_target.get("adv_name", dest_target.get("name", target_name))).strip()
+                    out_path = str(dest_target.get("out_path", ""))
+                    out_path_len = dest_target.get("out_path_len", -1)
+                    out_path_hash_mode = dest_target.get("out_path_hash_mode", 0)
+                    node_type = dest_target.get("type", 2)
+                    lat = float(dest_target.get("adv_lat", dest_target.get("latitude", 0.0)) or 0.0)
+                    lon = float(dest_target.get("adv_lon", dest_target.get("longitude", 0.0)) or 0.0)
                 elif hasattr(dest_target, "to_radio_dict"):
-                    await mc.commands.add_contact(dest_target.to_radio_dict())
-                elif hasattr(dest_target, "public_key") and len(str(dest_target.public_key)) >= 32:
-                    await mc.commands.add_contact({"public_key": dest_target.public_key, "name": target_name})
-                elif isinstance(dest_target, str) and len(dest_target) >= 32:
-                    await mc.commands.add_contact({"public_key": dest_target, "name": target_name})
+                    d = dest_target.to_radio_dict()
+                    pubkey = str(d.get("public_key", "")).strip()
+                    name = str(d.get("adv_name", d.get("name", target_name))).strip()
+                    out_path = str(d.get("out_path", ""))
+                    out_path_len = d.get("out_path_len", -1)
+                    out_path_hash_mode = d.get("out_path_hash_mode", 0)
+                    node_type = d.get("type", 2)
+                    lat = float(d.get("adv_lat", 0.0) or 0.0)
+                    lon = float(d.get("adv_lon", 0.0) or 0.0)
+                elif hasattr(dest_target, "public_key"):
+                    pubkey = str(getattr(dest_target, "public_key", "")).strip()
+                    name = getattr(dest_target, "name", "") or getattr(dest_target, "alias", target_name)
+                    out_path = getattr(dest_target, "out_path", "") or ""
+                    out_path_len = getattr(dest_target, "out_path_len", -1)
+                    out_path_hash_mode = getattr(dest_target, "out_path_hash_mode", 0)
+                    lat = float(getattr(dest_target, "latitude", 0.0) or 0.0)
+                    lon = float(getattr(dest_target, "longitude", 0.0) or 0.0)
+                elif isinstance(dest_target, str):
+                    pubkey = dest_target.strip()
+
+                if pubkey and len(pubkey) >= 12:
+                    full_pk = pubkey.ljust(64, "0")[:64]
+                    clean_name = (name or target_name or f"Node_{full_pk[:6]}")[:32]
+                    clean_contact = {
+                        "public_key": full_pk,
+                        "adv_name": clean_name,
+                        "type": int(node_type) if node_type is not None else 2,
+                        "flags": 0,
+                        "out_path": str(out_path or ""),
+                        "out_path_len": int(out_path_len) if out_path_len is not None else -1,
+                        "out_path_hash_mode": int(out_path_hash_mode) if out_path_hash_mode is not None else 0,
+                        "last_advert": int(time.time()),
+                        "adv_lat": float(lat or 0.0),
+                        "adv_lon": float(lon or 0.0),
+                    }
+                    await mc.commands.add_contact(clean_contact)
+                    if hasattr(mc, "_contacts") and isinstance(mc._contacts, dict):
+                        mc._contacts[full_pk] = clean_contact
             except Exception as e:
                 logging.debug(f"Asegurando contacto en radio: {e}")
 
