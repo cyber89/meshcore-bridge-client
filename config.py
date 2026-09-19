@@ -92,6 +92,7 @@ NODE_REGISTRY_STORAGE_PATH = os.getenv("NODE_REGISTRY_STORAGE_PATH", os.path.joi
 MAX_TX_QUEUE_SIZE = _safe_int("MAX_TX_QUEUE_SIZE", 500)
 MAX_RX_CONCURRENCY = _safe_int("MAX_RX_CONCURRENCY", 20)
 WS_IDLE_TIMEOUT_SEC = _safe_float("WS_IDLE_TIMEOUT_SEC", 30.0)
+WS_METRICS_INTERVAL_SEC = _safe_float("WS_METRICS_INTERVAL_SEC", 5.0)
 
 # ================= Parámetros de Radio y Airtime LoRa =================
 LORA_DEFAULT_SF = _safe_int("LORA_DEFAULT_SF", 11)                     # Spreading Factor por defecto (SF7..SF12)

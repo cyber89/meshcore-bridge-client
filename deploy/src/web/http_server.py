@@ -134,9 +134,10 @@ class MeshCoreWebServer:
 
     async def _metrics_broadcaster_loop(self) -> None:
         """Emite periódicamente las métricas en vivo a todos los clientes WebSocket."""
+        broadcast_interval = float(os.getenv("WS_METRICS_INTERVAL_SEC", "5.0"))
         while self.running:
             try:
-                await asyncio.sleep(2.0)
+                await asyncio.sleep(broadcast_interval)
                 if self.active_websockets:
                     total_rx = getattr(self.bridge, "rx_count", 0)
                     total_tx = getattr(self.bridge, "tx_count", 0)
