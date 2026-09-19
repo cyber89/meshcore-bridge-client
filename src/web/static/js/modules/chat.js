@@ -1186,7 +1186,6 @@ export class ChatModule {
           `;
         }
       }
-    }
 
     // 2. Detección de coordenadas GPS en el texto
     const gpsMatch = cleanDisplayText.match(/(-?\d{1,3}\.\d{3,7}),\s*(-?\d{1,3}\.\d{3,7})/);

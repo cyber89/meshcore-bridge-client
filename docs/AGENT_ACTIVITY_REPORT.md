@@ -4406,3 +4406,20 @@ Fase 5 - COMPAT-001 to COMPAT-012 terminados
      - `ruff check src/rate_limiter.py src/admin/local_config_executor.py`: 100% PASS (0 errores).
      - `python scripts/sync_deploy.py`: Despliegue totalmente sincronizado.
 - **Módulos Modificados**: `src/rate_limiter.py`, `src/admin/local_config_executor.py`, `src/web/static/js/modules/repeater.js`, `deploy/**`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
+---
+
+### Hotfix: Corrección de SyntaxError por Llave Extra en `createMessageBubble` (`chat.js`)
+- **Fecha**: 2026-09-19
+- **Estado**: ✅ COMPLETADO (Eliminada llave de cierre redundante '}' en la línea 1189 de chat.js que cerraba prematuramente el método createMessageBubble y causaba 'Uncaught SyntaxError: Unexpected identifier gpsMatch' al nivel del cuerpo de la clase; balance de llaves restaurado a 419/419; validación sintáctica con SourceTextModule 100% OK; sincronizado en /deploy/ y push a GitHub).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web Architect).
+- **Problema**:
+  - `Uncaught SyntaxError: Unexpected identifier 'gpsMatch' chat.js:1192`.
+- **Causa Raíz**:
+  - En `createMessageBubble`, el bloque `if (parsedUri) { if (parsedUri.type === 'contact') ... else if (parsedUri.type === 'channel') ... }` contenía tres llaves de cierre consecutivas (`}`, `}`, `}`) en lugar de dos. La tercera llave cerraba la función `createMessageBubble(msg)` prematuramente, dejando la declaración `const gpsMatch = ...` directamente dentro del cuerpo de la clase `ChatModule`, provocando el error sintáctico en el navegador.
+- **Acción Realizada**:
+  - Eliminada la llave espuria en `src/web/static/js/modules/chat.js`.
+  - Verificación de balance de llaves y análisis AST/módulo ES con Node.js (`vm.SourceTextModule`): 100% PASS.
+  - Sincronización en `/deploy/` mediante `python scripts/sync_deploy.py`.
+- **Módulos Modificados**: `src/web/static/js/modules/chat.js`, `deploy/**`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
