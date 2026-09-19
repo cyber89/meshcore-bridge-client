@@ -2,6 +2,34 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Diagnóstico y Corrección de Flood NO_MORE_MSGS e Incorporación de Referencias openHop
+- **Fecha**: 2026-09-19
+- **Estado**: ✅ COMPLETADO — Clonación de proyectos oficiales `openhop_core`, `openhop_repeater` y `openHop_docs` en `/reference/`, diagnóstico de ráfagas periódicas cada ~50ms de `[RX-TELEMETRÍA] messages_available: False` y filtrado estricto como evento de control de flujo interno.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect).
+- **Causa Raíz del Log Repetitivo (`messages_available: False`)**:
+  1. Durante la ejecución de comandos a repetidores (`_wait_for_repeater_response`), el bridge ejecutaba un bucle activo de sondeo con `await mc.commands.get_msg(timeout=0.8)` cada 50ms (`await asyncio.sleep(0.05)`).
+  2. Cuando el transceptor de radio no tiene mensajes en cola pendientes de lectura, el firmware MeshCore devuelve el opcode `0x0A` (`PacketType.NO_MORE_MSGS`).
+  3. La librería `meshcore_py` despacha este evento como `Event(EventType.NO_MORE_MSGS, {"messages_available": False})`.
+  4. En `src/rx_router.py`, `NO_MORE_MSGS` no estaba clasificado en `is_internal_or_diag` ni era consumido por ningún handler específico, por lo que caía en el fallback genérico `payload_dict["event_type"] = "telemetry"`.
+  5. `format_telemetry_summary()` no reconocía `"messages_available"` como metadato ignorado, formateándolo como `"messages_available: False"`. Al no estar vacío, el router lo registraba en nivel `INFO` cada 52ms y lo publicaba a MQTT.
+- **Acciones Realizadas**:
+  1. **`src/rx_router.py`**:
+     - Añadido `"NO_MORE"` y `"no_more_messages"` a `is_internal_or_diag` para que no compute como paquete RX ni contamine el búfer ni los contadores.
+     - Añadido descarte temprano de `NO_MORE_MSGS` / `messages_available` a nivel `DEBUG` antes del fallback a telemetría.
+  2. **`src/admin_handler.py`**:
+     - Incrementado el intervalo de sondeo en `_wait_for_repeater_response` de `0.05s` (50ms) a `0.20s` (200ms) para evitar saturar el bus UART serial innecesariamente mientras se espera la respuesta remota por radio.
+  3. **`src/sensor_decoder.py`**:
+     - Añadido `"messages_available"` a `ignored_keys`.
+  4. **Repositorios de Referencia (`/reference/`)**:
+     - Clonados repositorios en `/reference/`:
+       - `https://github.com/openhop-dev/openhop_core` (`/reference/openhop_core/`)
+       - `https://github.com/openhop-dev/openhop_repeater` (`/reference/openhop_repeater/`)
+       - `https://github.com/openhop-dev/openHop_docs` (`/reference/openHop_docs/`)
+     - Actualizado catálogo en `reference/README.md`.
+- **Verificación y Calidad**:
+  - `python -m py_compile`: 0 errores en todos los módulos.
+  - `python scripts/sync_deploy.py`: completado con éxito.
+
 ### Hito: Optimización Fase 4 — Auditoría y Salvaguardas de Airtime y Tráfico LoRa (Malla)
 - **Fecha**: 2026-09-19
 - **Estado**: ✅ COMPLETADO — Control de enfriamiento (cooldowns) para comandos administrativos (`traceroute`, `ping 0`, `req_neighbours`), canalización de transmisiones web (`/api/tx`) a través de la cola de prioridad `TxRateLimiter` con espaciado LoRa, contabilidad integral de airtime en transmisiones directas y protección contra saturación crítica del Duty Cycle (100% legal).

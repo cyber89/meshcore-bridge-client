@@ -1,0 +1,126 @@
+name: Publish Docker Image
+
+on:
+  push:
+    branches:
+      - dev
+    tags:
+      - "[0-9]*.[0-9]*.[0-9]*"
+      - "v[0-9]*.[0-9]*.[0-9]*"
+  workflow_dispatch:
+    inputs:
+      image_repository:
+        description: "Docker image repository to publish to"
+        required: false
+        default: ""
+
+jobs:
+  docker:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.repository == 'openhop-dev/openhop_repeater' ||
+      github.repository_owner == 'yellowcooln'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compute package version
+        id: package_version
+        run: |
+          if [ "${{ github.repository }}" != "openhop-dev/openhop_repeater" ]; then
+            git fetch --force https://github.com/openhop-dev/openhop_repeater.git \
+              "refs/tags/*:refs/tags/*"
+          fi
+          python -m pip install --disable-pip-version-check setuptools_scm
+          version="$(python -m setuptools_scm)"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate release channel
+        id: release_channel
+        env:
+          PACKAGE_VERSION: ${{ steps.package_version.outputs.version }}
+        run: bash scripts/docker-release-channel.sh
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Determine image repository
+        id: image_repo
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.image_repository }}" ]; then
+            image_repository="${{ inputs.image_repository }}"
+          elif [ "${{ github.repository_owner }}" = "yellowcooln" ]; then
+            image_repository="yellowcooln/openhop-repeater"
+          else
+            image_repository="openhop/openhop-repeater"
+          fi
+
+          echo "Using image repository: ${image_repository}"
+          echo "image_repository=${image_repository}" >> "$GITHUB_OUTPUT"
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image_repo.outputs.image_repository }}
+          tags: |
+            type=raw,value=main,enable=${{ steps.release_channel.outputs.channel == 'main' }}
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
+            type=raw,value=v${{ steps.package_version.outputs.version }}
+            type=sha,format=short
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            PACKAGE_VERSION=${{ steps.package_version.outputs.version }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Notify Home Assistant add-on repository
+        if: >-
+          github.repository == 'openhop-dev/openhop_repeater' &&
+          (steps.release_channel.outputs.channel == 'main' || steps.release_channel.outputs.channel == 'dev')
+        env:
+          DISPATCH_TOKEN: ${{ secrets.HA_ADDON_REPO_DISPATCH_TOKEN }}
+          CHANNEL: ${{ steps.release_channel.outputs.channel }}
+          REVISION: ${{ github.sha }}
+        run: |
+          if [ -z "${DISPATCH_TOKEN}" ]; then
+            echo "HA_ADDON_REPO_DISPATCH_TOKEN is not set" >&2
+            exit 1
+          fi
+
+          curl -fsSL \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${DISPATCH_TOKEN}" \
+            https://api.github.com/repos/openhop-dev/openHop-HA-Add-on/dispatches \
+            -d "{\"event_type\":\"sync-upstream-channel\",\"client_payload\":{\"channel\":\"${CHANNEL}\",\"revision\":\"${REVISION}\"}}"

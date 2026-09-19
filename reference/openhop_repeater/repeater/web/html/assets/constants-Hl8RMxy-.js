@@ -1,0 +1,1 @@
+var e=`/api/needs_setup`,t=5e3,n=1e3;export{e as n,n as r,t};

@@ -1,0 +1,12 @@
+services:
+  openhop-repeater:
+    image: openhop-repeater:local
+    build:
+      context: .
+      dockerfile: dockerfile
+      args:
+        PUID: ${PUID:-15888}
+        PGID: ${PGID:-15888}
+        DIALOUT_GID: ${DIALOUT_GID:-20}
+        GPIO_GID: ${GPIO_GID:-986}
+        SPI_GID: ${SPI_GID:-989}

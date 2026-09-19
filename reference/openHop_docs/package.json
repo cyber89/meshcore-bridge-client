@@ -1,0 +1,20 @@
+{
+  "name": "openhop-docs",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "sync:openapi": "node ./scripts/sync-openapi.mjs",
+    "predev": "npm run sync:openapi",
+    "dev": "astro dev",
+    "start": "astro dev",
+    "prebuild": "npm run sync:openapi",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.38.4",
+    "astro": "^6.1.9",
+    "sharp": "^0.34.5"
+  }
+}

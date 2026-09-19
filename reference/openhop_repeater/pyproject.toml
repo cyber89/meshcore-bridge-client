@@ -1,0 +1,91 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel", "setuptools_scm>=8.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openhop_repeater"
+dynamic = ["version"]
+authors = [
+    {name = "Rightup", email = "rightup@openhop.dev"},
+]
+description = "openHop Repeater Daemon"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Communications",
+    "Topic :: System :: Networking",
+]
+keywords = ["mesh", "networking", "lora", "repeater", "daemon", "iot"]
+
+
+dependencies = [
+    "openhop_core[hardware]==1.1.3 ; sys_platform == 'linux'",
+    "openhop_core==1.1.3 ; sys_platform != 'linux'",
+    "pyyaml>=6.0.0",
+    "cherrypy>=18.0.0",
+    "paho-mqtt>=1.6.0",
+    "cherrypy-cors==1.7.0",
+    "psutil>=5.9.0",
+    "pyserial>=3.5",
+    "pyjwt>=2.8.0",
+    "ws4py>=0.6.0",
+]
+
+
+
+[project.optional-dependencies]
+# SX1262/SPI support (Linux only; required for Raspberry Pi HATs)
+hardware = [
+    "openhop_core[hardware]==1.1.3",
+]
+# RRD metrics (Performance Metrics chart); system librrd required (e.g. apt install rrdtool)
+rrd = [
+    "rrdtool",
+]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "ruff>=0.15.14",
+    "mypy>=1.7.0",
+]
+
+[project.scripts]
+openhop-repeater = "repeater.main:main"
+openhop-plugin-manager = "repeater.plugins.__main__:main"
+pymc-cli = "repeater.local_cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["repeater*"]
+
+[tool.setuptools.package-data]
+repeater = [
+    "web/html/*.html",
+    "web/html/*.ico",
+    "web/html/assets/**/*",
+    "web/*.yaml",
+    "web/*.html",
+    "presets/*.yaml",
+    "plugins/*.service",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+extend-ignore = ["E701"]
+
+[tool.setuptools_scm]
+version_scheme = "guess-next-dev"
+local_scheme = "no-local-version"
+version_file = "repeater/_version.py"

@@ -1,0 +1,8782 @@
+import json
+import logging
+import os
+import re
+import secrets
+import time
+from concurrent.futures import TimeoutError as FutureTimeoutError
+from datetime import datetime, timezone
+from pathlib import Path
+from threading import RLock
+from typing import Callable, Optional
+
+import cherrypy
+import yaml
+from openhop_core.protocol import CryptoUtils
+
+from repeater import __version__
+from repeater.companion.identity_resolve import (
+    derive_companion_public_key_hex,
+    find_companion_index,
+    heal_companion_empty_names,
+)
+from repeater.companion.utils import (
+    CompanionContactCapacityError,
+    merge_companion_settings_update,
+    parse_companion_bridge_kwargs,
+    trim_companion_contacts_to_fit,
+    validate_companion_config_capacity,
+)
+from repeater.config import resolve_storage_dir
+from repeater.handler_helpers.acl import role_name as acl_role_name
+from repeater.modem_config import (
+    LEGACY_MODEM_RADIO_TYPES,
+    normalize_modem_config,
+    redact_modem_tokens_in_place,
+)
+from repeater.policy_engine import PolicyEngine
+from repeater.service_utils import get_buildroot_image_info
+from repeater.utils_packet import create_scoped_advert_packet
+
+from .auth.middleware import require_auth
+from .auth_endpoints import AuthAPIEndpoints
+from .cad_calibration_engine import CADCalibrationEngine
+from .companion_endpoints import CompanionAPIEndpoints
+from .plugin_endpoints import PluginAPIEndpoints
+from .update_endpoints import UpdateAPIEndpoints
+
+logger = logging.getLogger("HTTPServer")
+REDACTED_CONFIG_VALUE = "*** REDACTED ***"
+
+POLICY_GROUP_KINDS = {
+    "channel_hash": "channel_hashes",
+    "channel_hashes": "channel_hashes",
+    "channels": "channel_hashes",
+    "pubkey": "pubkeys",
+    "pubkeys": "pubkeys",
+}
+
+
+# ============================================================================
+# API ENDPOINT DOCUMENTATION
+# ============================================================================
+
+# Authentication (see auth_endpoints.py for implementation)
+# POST   /auth/login - Authenticate and get JWT token
+# POST   /auth/refresh - Refresh JWT token
+# GET    /auth/verify - Verify current authentication
+# POST   /auth/change_password - Change admin password
+# GET    /api/auth/tokens - List all API tokens (RESTful)
+# POST   /api/auth/tokens - Create new API token (RESTful)
+# DELETE /api/auth/tokens/{token_id} - Revoke API token (RESTful)
+
+# System
+# GET    /api/stats - Get system statistics
+# GET    /api/gps - Get local GPS diagnostics and parsed NMEA attributes
+# GET    /api/gps_stream - GPS diagnostics SSE stream
+# GET    /api/logs - Get system logs
+# GET    /api/logs_stream - Stream live system logs over SSE
+# GET    /api/hardware_stats - Get hardware statistics
+# GET    /api/hardware_processes - Get process information
+# GET    /api/validate_config - Validate config.yaml syntax and required settings
+# POST   /api/restart_service - Restart the repeater service
+# GET    /api/openapi - Get OpenAPI specification
+
+# Repeater Control
+# POST   /api/send_advert - Send repeater advertisement
+# POST   /api/set_mode {"mode": "forward|monitor|no_tx"} - Set repeater mode
+# POST   /api/set_duty_cycle {"enabled": true|false} - Enable/disable duty cycle
+# POST   /api/update_duty_cycle_config {"enabled": true, "on_time": 300, "off_time": 60} - Update duty cycle config
+# POST   /api/update_radio_config - Update radio configuration
+# POST   /api/update_advert_rate_limit_config - Update advert rate limiting settings
+# GET    /api/mqtt_status - Get MQTT Observer connection status
+# POST   /api/update_mqtt_config - Update MQTT Observer configuration
+# GET    /api/broker_presets - List bundled MC2MQTT broker presets (waev, letsmesh, …)
+
+# Packets
+# GET    /api/packet_stats?hours=24 - Get packet statistics
+# GET    /api/packet_type_stats?hours=24 - Get packet type statistics
+# GET    /api/route_stats?hours=24 - Get route statistics
+# GET    /api/neighbor_links?active_within_seconds=900 - Get in-memory observed upstream neighbour links
+# GET    /api/neighbor_link_history?peer_hash=AB&path_hash_size=1&hours=24&limit=1000 - Get observed upstream history from packets table
+# GET    /api/recent_packets?limit=100 - Get recent packets
+# GET    /api/filtered_packets?type=4&route=1&start_timestamp=X&end_timestamp=Y&limit=1000 - Get filtered packets
+# GET    /api/packet_by_hash?packet_hash=abc123 - Get specific packet by hash
+
+# Charts & RRD
+# GET    /api/rrd_data?start_time=X&end_time=Y&resolution=average - Get RRD data
+# GET    /api/packet_type_graph_data?hours=24&resolution=average&types=all - Get packet type graph data
+# GET    /api/metrics_graph_data?hours=24&resolution=average&metrics=all - Get metrics graph data
+
+# Noise Floor
+# GET    /api/noise_floor_history?hours=24 - Get noise floor history
+# GET    /api/noise_floor_stats?hours=24 - Get noise floor statistics
+# GET    /api/noise_floor_chart_data?hours=24 - Get noise floor chart data
+
+# CAD Calibration
+# POST   /api/cad_calibration_start {"samples": 8, "delay": 100} - Start CAD calibration
+# POST   /api/cad_calibration_stop - Stop CAD calibration
+# POST   /api/save_cad_settings {"peak": 127, "min_val": 64} - Save CAD settings
+# GET    /api/cad_calibration_stream - CAD calibration SSE stream
+
+# Adverts & Contacts
+# GET    /api/adverts_by_contact_type?contact_type=X&limit=100&hours=24 - Get adverts by contact type
+# GET    /api/advert?advert_id=123 - Get specific advert
+# GET    /api/advert_rate_limit_stats - Get advert rate limiting and adaptive tier stats
+
+# Transport Keys
+# GET    /api/transport_keys - List all transport keys
+# POST   /api/transport_keys - Create new transport key
+# GET    /api/transport_key?key_id=X - Get specific transport key
+# PUT    /api/transport_key?key_id=X - Update transport key
+# DELETE /api/transport_key?key_id=X - Delete transport key
+
+# Network Policy
+# GET    /api/unscoped_flood_policy - Get unscoped flood policy
+# POST   /api/unscoped_flood_policy - Update unscoped flood policy
+# POST   /api/ping_neighbor - Ping a neighbor node
+# POST   /api/discover_neighbors_start - Start a live repeater discovery session
+# GET    /api/discover_neighbors_stream?session_id=X - Stream repeater discovery results over SSE
+# POST   /api/add_discovered_neighbor - Persist a discovered node into the neighbors/adverts table
+
+# Identity Management
+# GET    /api/identities - List all identities
+# GET    /api/identity?name=<name> - Get specific identity
+# POST   /api/create_identity {"name": "...", "identity_key": "...", "type": "room_server", "settings": {...}} - Create identity
+# PUT    /api/update_identity {"name": "...", "new_name": "...", "identity_key": "...", "settings": {...}} - Update identity
+# DELETE /api/delete_identity?name=<name> - Delete identity
+# POST   /api/send_room_server_advert {"name": "...", "node_name": "...", "latitude": 0.0, "longitude": 0.0} - Send room server advert
+
+# ACL (Access Control List)
+# GET    /api/acl_info - Get ACL configuration and stats for all identities
+# GET    /api/acl_clients?identity_hash=0x42&identity_name=repeater - List authenticated clients
+# POST   /api/acl_remove_client {"public_key": "...", "identity_hash": "0x42"} - Remove client from ACL
+# GET    /api/acl_stats - Overall ACL statistics
+
+# Room Server
+# GET    /api/room_messages?room_name=General&limit=50&offset=0&since_timestamp=X - Get messages from room
+# GET    /api/room_messages?room_hash=0x42&limit=50 - Get messages by room hash
+# POST   /api/room_post_message {"room_name": "General", "message": "Hello", "author_pubkey": "abc123"} - Post message
+# GET    /api/room_stats?room_name=General - Get room statistics
+# GET    /api/room_stats - Get all rooms statistics
+# GET    /api/room_clients?room_name=General - Get clients synced to room
+# DELETE /api/room_message?room_name=General&message_id=123 - Delete specific message
+# DELETE /api/room_messages_clear?room_name=General - Clear all messages in room
+
+# OTA Updates
+# GET    /api/update/status          - Current + latest version, channel, state
+# POST   /api/update/check           - Force fresh GitHub version check
+# POST   /api/update/install         - Start background upgrade; stream via /progress
+# GET    /api/update/progress        - SSE stream of live install log lines
+# GET    /api/update/channels        - List available release channels (branches)
+# POST   /api/update/set_channel     - Switch release channel {"channel": "dev"}
+
+# Plugins (managed via local plugin-manager IPC)
+# GET    /api/plugins/               - List installed plugins
+# GET    /api/plugins/{id}           - Plugin status
+# POST   /api/plugins/install        - Install local wheel (multipart or wheel_path)
+# POST   /api/plugins/enable         - Enable plugin {"id"}
+# POST   /api/plugins/disable        - Disable plugin {"id"}
+# POST   /api/plugins/start|stop|restart - Lifecycle {"id"}
+# GET    /api/plugins/logs?id=       - Tail plugin logs
+# DELETE /api/plugins/{id}           - Uninstall (keeps data by default)
+
+# Setup Wizard
+# GET    /api/needs_setup - Check if repeater needs initial setup
+# GET    /api/site_info - Get site identification name (public, no auth required)
+# GET    /api/hardware_options - Get available hardware configurations
+# GET    /api/radio_presets - Get radio preset configurations
+# GET    /api/serial_ports - Discover available serial/USB modem device paths
+# POST   /api/setup_wizard - Complete initial setup wizard
+
+# Backup & Restore
+# GET    /api/config_export - Export config as JSON (redacts secrets, ?include_secrets=true for full backup)
+# POST   /api/config_import - Import config JSON and apply (supports full backup restore with secrets)
+# GET    /api/identity_export - Export repeater identity key as hex string
+# POST   /api/generate_vanity_key - Generate Ed25519 key with hex prefix {"prefix": "F8", "apply": false}
+#
+# Database Management
+# GET    /api/db_stats  - Get table row counts, date ranges, database size
+# POST   /api/db_purge  - Purge (empty) one or more tables
+# POST   /api/db_vacuum - Reclaim disk space (VACUUM)
+
+# Common Parameters
+# hours - Time range in hours (default: 24)
+# resolution - Data resolution: 'average', 'max', 'min' (default: 'average')
+# limit - Maximum results (default varies by endpoint)
+# offset - Result offset for pagination (default: 0)
+# type - Packet type 0-15
+# route - Route type 1-3
+# ============================================================================
+
+
+class APIEndpoints:
+    # Serialize both provisioning routes across mounts in this process, from
+    # authorization through persistence. Do not reuse ConfigManager's locks:
+    # imports must retain its normal persistence/live-update callbacks.
+    _provisioning_lock = RLock()
+
+    # How long /api/query_neighbor_scopes holds a request open. The scope helper's
+    # response window is normally its 5 s floor; a slow radio config (SF12) or a
+    # duty-cycle deferral can push a single query past this, in which case the
+    # query is left running so its answer still reaches the stored table and the
+    # client is told to re-read it. Chosen to stay inside a default reverse-proxy
+    # read timeout rather than to cover the helper's 120 s ceiling.
+    SCOPE_QUERY_HTTP_TIMEOUT = 45.0
+
+    def __init__(
+        self,
+        stats_getter: Optional[Callable] = None,
+        send_advert_func: Optional[Callable] = None,
+        config: Optional[dict] = None,
+        event_loop=None,
+        daemon_instance=None,
+        config_path=None,
+    ):
+        self.stats_getter = stats_getter
+        self.send_advert_func = send_advert_func
+        self.config = config or {}
+        self.event_loop = event_loop
+        self.daemon_instance = daemon_instance
+        self._config_path = config_path or "/etc/openhop_repeater/config.yaml"
+
+        self.cad_calibration = CADCalibrationEngine(daemon_instance, event_loop)
+
+        # Initialize ConfigManager for centralized config management
+        from repeater.config_manager import ConfigManager
+
+        self.config_manager = ConfigManager(
+            config_path=self._config_path, config=self.config, daemon_instance=daemon_instance
+        )
+
+        # Create nested auth object for /api/auth/* routes
+        self.auth = AuthAPIEndpoints()
+
+        # Create nested companion object for /api/companion/* routes
+        self.companion = CompanionAPIEndpoints(
+            daemon_instance, event_loop, self.config, self.config_manager
+        )
+
+        # Create nested update object for /api/update/* routes
+        self.update = UpdateAPIEndpoints()
+
+        # Create nested plugins object for /api/plugins/* routes
+        self.plugins = PluginAPIEndpoints(self.config, self._config_path)
+
+    def _is_cors_enabled(self):
+        return self.config.get("web", {}).get("cors_enabled", False)
+
+    def _set_cors_headers(self):
+        if self._is_cors_enabled():
+            cherrypy.response.headers["Access-Control-Allow-Origin"] = "*"
+            cherrypy.response.headers["Access-Control-Allow-Methods"] = (
+                "GET, POST, PUT, DELETE, OPTIONS"
+            )
+            cherrypy.response.headers["Access-Control-Allow-Headers"] = (
+                "Content-Type, Authorization"
+            )
+
+    @cherrypy.expose
+    def default(self, *args, **kwargs):
+        """Handle default requests"""
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        raise cherrypy.HTTPError(404)
+
+    def _get_storage(self):
+        if not self.daemon_instance:
+            raise Exception("Daemon not available")
+
+        if (
+            not hasattr(self.daemon_instance, "repeater_handler")
+            or not self.daemon_instance.repeater_handler
+        ):
+            raise Exception("Repeater handler not initialized")
+
+        if (
+            not hasattr(self.daemon_instance.repeater_handler, "storage")
+            or not self.daemon_instance.repeater_handler.storage
+        ):
+            raise Exception("Storage not initialized in repeater handler")
+
+        return self.daemon_instance.repeater_handler.storage
+
+    def _success(self, data, **kwargs):
+        result = {"success": True, "data": data}
+        result.update(kwargs)
+        return result
+
+    def _error(self, error):
+        return {"success": False, "error": str(error)}
+
+    def _get_params(self, defaults):
+        params = cherrypy.request.params
+        result = {}
+        for key, default in defaults.items():
+            value = params.get(key, default)
+            if isinstance(default, int):
+                result[key] = int(value) if value is not None else None
+            elif isinstance(default, float):
+                result[key] = float(value) if value is not None else None
+            else:
+                result[key] = value
+        return result
+
+    def _require_post(self):
+        if cherrypy.request.method != "POST":
+            cherrypy.response.status = 405  # Method Not Allowed
+            cherrypy.response.headers["Allow"] = "POST"
+            raise cherrypy.HTTPError(405, "Method not allowed. This endpoint requires POST.")
+
+    def _resolve_optional_request_user(self):
+        """Resolve JWT/API credentials when tools.require_auth is disabled.
+
+        Some endpoints (notably config_import) are intentionally public during
+        first-run setup. After setup they still need to accept authenticated
+        UI/API calls, so parse Authorization / X-API-Key here and set
+        cherrypy.request.user when valid.
+        """
+        existing = getattr(cherrypy.request, "user", None)
+        if existing:
+            return existing
+
+        jwt_handler = cherrypy.config.get("jwt_handler")
+        token_manager = cherrypy.config.get("token_manager")
+        request_headers = getattr(cherrypy.request, "headers", None) or {}
+
+        auth_header = request_headers.get("Authorization", "")
+        if jwt_handler and auth_header.startswith("Bearer "):
+            payload = jwt_handler.verify_jwt(auth_header[7:])
+            if payload:
+                user = {
+                    "username": payload.get("sub"),
+                    "client_id": payload.get("client_id"),
+                    "auth_type": "jwt",
+                }
+                cherrypy.request.user = user
+                return user
+
+        request_params = getattr(cherrypy.request, "params", None) or {}
+        query_token = request_params.get("token")
+        if jwt_handler and query_token:
+            payload = jwt_handler.verify_jwt(query_token)
+            if payload:
+                user = {
+                    "username": payload.get("sub"),
+                    "client_id": payload.get("client_id"),
+                    "auth_type": "jwt_query",
+                }
+                cherrypy.request.user = user
+                if hasattr(request_params, "pop"):
+                    request_params.pop("token", None)
+                return user
+
+        api_key = request_headers.get("X-API-Key", "")
+        if token_manager and api_key:
+            token_info = token_manager.verify_token(api_key)
+            if token_info:
+                user = {
+                    "username": "api_token",
+                    "token_name": token_info.get("name"),
+                    "token_id": token_info.get("id"),
+                    "auth_type": "api_token",
+                }
+                cherrypy.request.user = user
+                return user
+
+        return None
+
+    def _fmt_hash(self, pubkey: bytes) -> str:
+        """Format a node hash as a hex string respecting the configured path_hash_mode.
+
+        path_hash_mode 0 (default) → 1-byte  "0x19"
+        path_hash_mode 1           → 2-byte  "0x1927"
+        path_hash_mode 2           → 3-byte  "0x192722"
+        """
+        mode = self.config.get("mesh", {}).get("path_hash_mode", 0)
+        byte_count = {0: 1, 1: 2, 2: 3}.get(mode, 1)
+        hex_chars = byte_count * 2
+        value = int.from_bytes(bytes(pubkey[:byte_count]), "big")
+        return f"0x{value:0{hex_chars}X}"
+
+    def _get_time_range(self, hours):
+        end_time = int(time.time())
+        return end_time - (hours * 3600), end_time
+
+    def _encode_sse_event(
+        self, payload, event_name: Optional[str] = None, event_id: Optional[int] = None
+    ) -> str:
+        lines = []
+        if event_name:
+            lines.append(f"event: {event_name}")
+        if event_id is not None:
+            lines.append(f"id: {event_id}")
+        lines.append(f"data: {json.dumps(payload, default=str)}")
+        return "\n".join(lines) + "\n\n"
+
+    @staticmethod
+    def _normalize_discovery_node_name(value) -> Optional[str]:
+        """Normalize placeholder discovery names to None.
+
+        Some peers explicitly advertise "Unknown"-style placeholder names.
+        Treat those as missing so callers can fall back to hash/prefix labels.
+        """
+        text = str(value or "").strip()
+        if not text:
+            return None
+
+        normalized = text.lower()
+        if normalized in {"unknown", "unknown node"}:
+            return None
+
+        return text
+
+    def _enrich_discovery_result(self, result: dict) -> dict:
+        enriched = dict(result)
+        enriched["node_name"] = self._normalize_discovery_node_name(enriched.get("node_name"))
+        pub_key = str(enriched.get("pub_key") or "").lower()
+        if not pub_key:
+            return enriched
+
+        enriched["is_self"] = self._is_local_discovery_pubkey(pub_key)
+
+        try:
+            enriched["node_hash"] = self._fmt_hash(bytes.fromhex(pub_key))
+        except ValueError:
+            enriched["node_hash"] = None
+
+        try:
+            storage = self._get_storage()
+        except Exception:
+            storage = None
+
+        if not storage:
+            enriched["known_neighbor"] = False
+            return enriched
+
+        neighbor_info = {}
+        try:
+            if hasattr(storage, "get_neighbors"):
+                neighbor_info = storage.get_neighbors().get(pub_key, {}) or {}
+        except Exception as exc:
+            logger.debug("Discovery enrichment could not load neighbors: %s", exc)
+
+        if not neighbor_info:
+            try:
+                node_name = storage.get_node_name_by_pubkey(pub_key)
+            except Exception:
+                node_name = None
+            node_name = self._normalize_discovery_node_name(node_name)
+            enriched["known_neighbor"] = bool(node_name)
+            if node_name:
+                enriched["node_name"] = node_name
+            return enriched
+
+        enriched["known_neighbor"] = True
+        enriched["node_name"] = self._normalize_discovery_node_name(neighbor_info.get("node_name"))
+        enriched["contact_type"] = neighbor_info.get("contact_type")
+        enriched["zero_hop"] = neighbor_info.get("zero_hop")
+        enriched["last_seen"] = neighbor_info.get("last_seen")
+        enriched["advert_count"] = neighbor_info.get("advert_count")
+        return enriched
+
+    def _get_local_pubkey_hex(self) -> Optional[str]:
+        """Return local node public key in hex when available."""
+        daemon = getattr(self, "daemon_instance", None)
+        identity = getattr(daemon, "local_identity", None)
+
+        try:
+            if identity and hasattr(identity, "get_public_key"):
+                pubkey = identity.get_public_key()
+                if isinstance(pubkey, (bytes, bytearray)):
+                    return bytes(pubkey).hex().lower()
+                if isinstance(pubkey, str):
+                    normalized = pubkey.strip().lower()
+                    if normalized.startswith("0x"):
+                        normalized = normalized[2:]
+                    if normalized:
+                        return normalized
+        except Exception as exc:
+            logger.debug("Unable to read local identity pubkey: %s", exc)
+
+        repeater_cfg = self.config.get("repeater", {}) if isinstance(self.config, dict) else {}
+        key = repeater_cfg.get("identity_key")
+        if isinstance(key, (bytes, bytearray)):
+            return bytes(key).hex().lower()
+        if isinstance(key, str):
+            normalized = key.strip().lower()
+            if normalized.startswith("0x"):
+                normalized = normalized[2:]
+            if normalized and all(ch in "0123456789abcdef" for ch in normalized):
+                return normalized
+
+        return None
+
+    def _is_local_discovery_pubkey(self, pub_key: str) -> bool:
+        """Return True if discovery pub_key matches the local node key (including prefix form)."""
+        candidate = str(pub_key or "").strip().lower()
+        if not candidate:
+            return False
+        if candidate.startswith("0x"):
+            candidate = candidate[2:]
+
+        local_pubkey = self._get_local_pubkey_hex()
+        if not local_pubkey:
+            return False
+
+        return local_pubkey.startswith(candidate) or candidate.startswith(local_pubkey)
+
+    def _process_counter_data(self, data_points, timestamps_ms):
+        rates = []
+        prev_value = None
+        for value in data_points:
+            if value is None:
+                rates.append(0)
+            elif prev_value is None:
+                rates.append(0)
+            else:
+                rates.append(max(0, value - prev_value))
+            prev_value = value
+        return [[timestamps_ms[i], rates[i]] for i in range(min(len(rates), len(timestamps_ms)))]
+
+    def _process_gauge_data(self, data_points, timestamps_ms):
+        values = [v if v is not None else 0 for v in data_points]
+        return [[timestamps_ms[i], values[i]] for i in range(min(len(values), len(timestamps_ms)))]
+
+    @staticmethod
+    def _pearson_correlation(left: list[float], right: list[float]) -> Optional[float]:
+        if len(left) != len(right) or len(left) < 5:
+            return None
+
+        mean_left = sum(left) / len(left)
+        mean_right = sum(right) / len(right)
+
+        numerator = 0.0
+        left_variance = 0.0
+        right_variance = 0.0
+        for i in range(len(left)):
+            dx = left[i] - mean_left
+            dy = right[i] - mean_right
+            numerator += dx * dy
+            left_variance += dx * dx
+            right_variance += dy * dy
+
+        denominator = (left_variance * right_variance) ** 0.5
+        if denominator <= 0:
+            return None
+        return numerator / denominator
+
+    @staticmethod
+    def _auto_bucket_seconds(range_seconds: int) -> int:
+        if range_seconds <= 0:
+            return 60
+        target = max(60, int(range_seconds / 120))
+        rounded = ((target + 59) // 60) * 60
+        return max(60, min(rounded, 3600))
+
+    def _build_rrd_bucket_metrics(self, rrd_data: Optional[dict], bucket_seconds: int) -> dict:
+        if not rrd_data:
+            return {}
+
+        timestamps = rrd_data.get("timestamps") or []
+        metrics = rrd_data.get("metrics") or {}
+        if not isinstance(timestamps, list) or not isinstance(metrics, dict):
+            return {}
+
+        def _counter_delta(values: list) -> list[float]:
+            output = []
+            previous = None
+            for item in values:
+                if item is None:
+                    output.append(0.0)
+                elif previous is None:
+                    output.append(0.0)
+                    previous = item
+                else:
+                    output.append(float(max(0, item - previous)))
+                    previous = item
+            return output
+
+        def _counter_values(values: list) -> list[float]:
+            return [float(item or 0.0) for item in values]
+
+        counter_mode = rrd_data.get("counter_mode")
+        counter_processor = _counter_values if counter_mode == "bucket_count" else _counter_delta
+
+        rx_values = counter_processor(metrics.get("rx_count", []))
+        tx_values = counter_processor(metrics.get("tx_count", []))
+        drop_values = counter_processor(metrics.get("drop_count", []))
+        rssi_values = metrics.get("avg_rssi", []) or []
+        snr_values = metrics.get("avg_snr", []) or []
+
+        bucket_map: dict = {}
+
+        max_len = len(timestamps)
+        for i in range(max_len):
+            ts = int(timestamps[i])
+            bucket_ts = int(ts / bucket_seconds) * bucket_seconds
+            bucket = bucket_map.setdefault(
+                bucket_ts,
+                {
+                    "rx_count": 0.0,
+                    "tx_count": 0.0,
+                    "drop_count": 0.0,
+                    "avg_rssi_sum": 0.0,
+                    "avg_rssi_samples": 0,
+                    "avg_snr_sum": 0.0,
+                    "avg_snr_samples": 0,
+                },
+            )
+
+            if i < len(rx_values):
+                bucket["rx_count"] += float(rx_values[i] or 0.0)
+            if i < len(tx_values):
+                bucket["tx_count"] += float(tx_values[i] or 0.0)
+            if i < len(drop_values):
+                bucket["drop_count"] += float(drop_values[i] or 0.0)
+
+            if i < len(rssi_values) and rssi_values[i] is not None:
+                bucket["avg_rssi_sum"] += float(rssi_values[i])
+                bucket["avg_rssi_samples"] += 1
+
+            if i < len(snr_values) and snr_values[i] is not None:
+                bucket["avg_snr_sum"] += float(snr_values[i])
+                bucket["avg_snr_samples"] += 1
+
+        finalized: dict = {}
+        for bucket_ts, raw in bucket_map.items():
+            rx_count = float(raw["rx_count"])
+            tx_count = float(raw["tx_count"])
+            drop_count = float(raw["drop_count"])
+            tx_drop_total = tx_count + drop_count
+
+            avg_rssi = None
+            if raw["avg_rssi_samples"] > 0:
+                avg_rssi = raw["avg_rssi_sum"] / raw["avg_rssi_samples"]
+
+            avg_snr = None
+            if raw["avg_snr_samples"] > 0:
+                avg_snr = raw["avg_snr_sum"] / raw["avg_snr_samples"]
+
+            packet_loss_rate_pct = None
+            if tx_drop_total > 0:
+                packet_loss_rate_pct = (drop_count * 100.0) / tx_drop_total
+
+            finalized[bucket_ts] = {
+                "rx_count": int(round(rx_count)),
+                "tx_count": int(round(tx_count)),
+                "drop_count": int(round(drop_count)),
+                "traffic_volume": int(round(rx_count + tx_count)),
+                "packet_loss_rate_pct": packet_loss_rate_pct,
+                "avg_rssi": avg_rssi,
+                "avg_snr": avg_snr,
+            }
+
+        return finalized
+
+    def _setup_status_from_config(self, config: dict) -> tuple[bool, dict]:
+        """Return whether first-run setup should still be available."""
+        node_name = config.get("repeater", {}).get("node_name", "")
+        has_default_name = node_name in ["mesh-repeater-01", ""]
+
+        admin_password = config.get("repeater", {}).get("security", {}).get("admin_password", "")
+        has_default_password = admin_password is None or (
+            isinstance(admin_password, str)
+            and (not admin_password.strip() or admin_password == "admin123")  # nosec B105
+        )
+
+        radio_type_raw = config.get("radio_type")
+        radio_type = "" if radio_type_raw is None else str(radio_type_raw).lower().strip()
+        radio_not_configured = radio_type in ("", "none", "null", "disabled", "off", "no_radio")
+
+        reasons = {
+            "default_name": has_default_name,
+            "default_password": has_default_password,
+            "radio_not_configured": radio_not_configured,
+        }
+        # Name and radio settings are diagnostics, not authorization signals:
+        # radio-less installations and default names are valid after provisioning.
+        # Legacy configs have no marker, so a custom password also closes setup.
+        # An explicit false marker must never override existing credentials.
+        setup_completed = config.get("setup_completed") is True
+        return has_default_password and not setup_completed, reasons
+
+    def _default_policy_document(self) -> dict:
+        return {
+            "policy_engine": {
+                "enabled": False,
+                "default_action": "allow",
+                "rules": [],
+                "objects": {},
+            },
+            "groups": {
+                "channel_hashes": [],
+                "pubkeys": [],
+            },
+        }
+
+    @staticmethod
+    def _slugify_policy_id(value: str, fallback: str) -> str:
+        text = str(value or "").strip().lower()
+        text = re.sub(r"[^a-z0-9]+", "_", text).strip("_")
+        return text or fallback
+
+    def _normalize_policy_group_kind(self, raw_kind) -> Optional[str]:
+        if raw_kind is None:
+            return None
+        key = str(raw_kind).strip().lower()
+        return POLICY_GROUP_KINDS.get(key)
+
+    def _normalize_pubkey_value(self, value) -> str:
+        if value is None:
+            raise ValueError("pubkey value is required")
+        if isinstance(value, bytes):
+            raw = value.hex()
+        else:
+            raw = str(value).strip().lower()
+        if raw.startswith("0x"):
+            raw = raw[2:]
+        raw = raw.replace(" ", "")
+        if not raw:
+            raise ValueError("pubkey value is required")
+        if not re.fullmatch(r"[0-9a-f]+", raw):
+            raise ValueError("pubkey must be hex")
+        if len(raw) % 2 != 0:
+            raise ValueError("pubkey hex length must be even")
+        return f"0x{raw}"
+
+    def _normalize_channel_hash_value(self, value) -> str:
+        if value is None:
+            raise ValueError("channel hash value is required")
+
+        if isinstance(value, int):
+            parsed = value
+        else:
+            raw = str(value).strip()
+            if not raw:
+                raise ValueError("channel hash value is required")
+            normalized_hex = raw[2:] if raw.lower().startswith("0x") else raw
+            if len(normalized_hex) in (32, 64) and re.fullmatch(r"[0-9a-fA-F]+", normalized_hex):
+                return f"0x{normalized_hex.upper()}"
+            if raw.lower().startswith("0x"):
+                parsed = int(raw, 16)
+            elif re.fullmatch(r"[0-9]+", raw):
+                parsed = int(raw, 10)
+            else:
+                parsed = int(raw, 16)
+
+        if parsed < 0:
+            raise ValueError("channel hash must be non-negative")
+        if parsed > 0xFF:
+            raise ValueError("channel hash must be one byte (0x00-0xFF)")
+        return f"0x{parsed:02X}"
+
+    def _normalize_policy_entry_value(self, kind: str, value) -> str:
+        if kind == "pubkeys":
+            return self._normalize_pubkey_value(value)
+        if kind == "channel_hashes":
+            return self._normalize_channel_hash_value(value)
+        raise ValueError(f"Unsupported group kind: {kind}")
+
+    def _normalize_policy_groups(self, groups_cfg: dict) -> dict:
+        normalized = {"channel_hashes": [], "pubkeys": []}
+
+        if not isinstance(groups_cfg, dict):
+            return normalized
+
+        for kind in ("channel_hashes", "pubkeys"):
+            source_groups = groups_cfg.get(kind)
+            if not isinstance(source_groups, list):
+                continue
+
+            seen_group_ids = set()
+            for idx, group in enumerate(source_groups):
+                if not isinstance(group, dict):
+                    continue
+                group_id = self._slugify_policy_id(
+                    group.get("id") or group.get("name") or group.get("friendly_name"),
+                    f"{kind}_{idx + 1}",
+                )
+                if group_id in seen_group_ids:
+                    continue
+                seen_group_ids.add(group_id)
+
+                friendly_name = str(group.get("friendly_name") or group.get("name") or group_id)
+                description = str(group.get("description") or "")
+                entries = []
+                seen_entry_ids = set()
+
+                for ent_idx, entry in enumerate(group.get("entries") or []):
+                    if not isinstance(entry, dict):
+                        continue
+                    try:
+                        entry_value = self._normalize_policy_entry_value(kind, entry.get("value"))
+                    except Exception as exc:
+                        logger.warning(
+                            "Skipping invalid policy entry at index %d: %s", ent_idx, exc
+                        )
+
+                        continue
+
+                    entry_id = self._slugify_policy_id(
+                        entry.get("id")
+                        or entry.get("name")
+                        or entry.get("friendly_name")
+                        or entry_value,
+                        f"entry_{ent_idx + 1}",
+                    )
+                    if entry_id in seen_entry_ids:
+                        continue
+                    seen_entry_ids.add(entry_id)
+
+                    entry_friendly_name = str(
+                        entry.get("friendly_name") or entry.get("name") or entry_id
+                    )
+                    entries.append(
+                        {
+                            "id": entry_id,
+                            "friendly_name": entry_friendly_name,
+                            "value": entry_value,
+                        }
+                    )
+
+                normalized[kind].append(
+                    {
+                        "id": group_id,
+                        "friendly_name": friendly_name,
+                        "description": description,
+                        "entries": entries,
+                    }
+                )
+
+        return normalized
+
+    def _policy_objects_from_groups(self, groups_cfg: dict) -> dict:
+        channel_hash_groups = {}
+        pubkey_groups = {}
+
+        for group in groups_cfg.get("channel_hashes", []):
+            channel_hash_groups[group["id"]] = [
+                entry["value"] for entry in group.get("entries", [])
+            ]
+
+        for group in groups_cfg.get("pubkeys", []):
+            pubkey_groups[group["id"]] = [entry["value"] for entry in group.get("entries", [])]
+
+        return {
+            "channel_hash_groups": channel_hash_groups,
+            "pubkey_groups": pubkey_groups,
+        }
+
+    def _write_policy_document(self, doc: dict) -> None:
+        policy_path = self._get_policy_file_path()
+        os.makedirs(os.path.dirname(policy_path), exist_ok=True)
+        with open(policy_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(
+                doc,
+                f,
+                default_flow_style=False,
+                sort_keys=False,
+                allow_unicode=True,
+                width=1000000,
+            )
+
+    def _sync_policy_engine_objects_from_groups(self, doc: dict) -> dict:
+        policy_engine_cfg = self._normalize_policy_engine(doc.get("policy_engine", {}))
+        groups_cfg = self._normalize_policy_groups(doc.get("groups", {}))
+
+        objects = policy_engine_cfg.get("objects", {})
+        if not isinstance(objects, dict):
+            objects = {}
+        objects.update(self._policy_objects_from_groups(groups_cfg))
+
+        policy_engine_cfg["objects"] = objects
+        doc["policy_engine"] = policy_engine_cfg
+        doc["groups"] = groups_cfg
+        return doc
+
+    def _get_policy_file_path(self) -> str:
+        policy_cfg = self.config.get("policy", {}) if isinstance(self.config, dict) else {}
+        policy_file = policy_cfg.get("policy_file", "policy.yaml")
+
+        config_dir = os.path.dirname(os.path.abspath(self._config_path))
+        if os.path.isabs(str(policy_file)):
+            return str(policy_file)
+        return os.path.abspath(os.path.join(config_dir, str(policy_file)))
+
+    def _load_policy_document(self) -> tuple[dict, bool]:
+        path = self._get_policy_file_path()
+        if not os.path.exists(path):
+            return self._default_policy_document(), False
+
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+            if not isinstance(data, dict):
+                return self._default_policy_document(), False
+            if "policy_engine" not in data:
+                return {"policy_engine": data}, True
+            if not isinstance(data.get("policy_engine"), dict):
+                return self._default_policy_document(), False
+            return data, True
+        except Exception as e:
+            logger.error(f"Failed to load policy file {path}: {e}")
+            return self._default_policy_document(), False
+
+    @staticmethod
+    def _normalize_policy_engine(engine_cfg: dict) -> dict:
+        normalized = {
+            "enabled": bool(engine_cfg.get("enabled", False)),
+            "default_action": str(engine_cfg.get("default_action", "allow")),
+            "rules": engine_cfg.get("rules") if isinstance(engine_cfg.get("rules"), list) else [],
+            "objects": (
+                engine_cfg.get("objects") if isinstance(engine_cfg.get("objects"), dict) else {}
+            ),
+        }
+        return normalized
+
+    def _apply_policy_runtime(self, policy_engine_cfg: dict) -> None:
+        self.config["policy_engine"] = policy_engine_cfg
+        self.config["policy_file_path"] = self._get_policy_file_path()
+
+        if not self.daemon_instance:
+            return
+        repeater_handler = getattr(self.daemon_instance, "repeater_handler", None)
+        if not repeater_handler:
+            return
+        try:
+            repeater_handler.policy_engine = PolicyEngine.from_runtime_config(self.config)
+        except Exception as e:
+            logger.warning(f"Failed to apply runtime policy engine update: {e}")
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def policy(self, **kwargs):
+        """GET/POST policy.yaml next to config.yaml.
+
+        GET: returns policy document and file metadata.
+        POST: writes policy document and applies runtime policy engine refresh.
+        """
+        self._set_cors_headers()
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        policy_path = self._get_policy_file_path()
+
+        if cherrypy.request.method == "GET":
+            doc, exists = self._load_policy_document()
+            doc = self._sync_policy_engine_objects_from_groups(doc)
+            normalized = self._normalize_policy_engine(doc.get("policy_engine", {}))
+            return self._success(
+                {
+                    "policy_file": policy_path,
+                    "exists": exists,
+                    "policy_engine": normalized,
+                    "groups": doc.get("groups", self._default_policy_document().get("groups", {})),
+                }
+            )
+
+        if cherrypy.request.method != "POST":
+            return self._error("Method not supported")
+
+        try:
+            self._require_post()
+            body = cherrypy.request.json or {}
+
+            if not isinstance(body, dict):
+                return self._error("Invalid payload: expected JSON object")
+
+            if isinstance(body.get("policy_engine"), dict):
+                policy_engine_cfg = body.get("policy_engine")
+            else:
+                # Allow posting the policy_engine object directly.
+                policy_engine_cfg = body
+
+            existing_doc, _ = self._load_policy_document()
+            groups_from_body = body.get("groups")
+            if groups_from_body is None:
+                normalized_groups = self._normalize_policy_groups(existing_doc.get("groups", {}))
+            else:
+                normalized_groups = self._normalize_policy_groups(groups_from_body)
+
+            normalized = self._normalize_policy_engine(policy_engine_cfg)
+            if "objects" not in policy_engine_cfg and isinstance(
+                existing_doc.get("policy_engine", {}).get("objects"), dict
+            ):
+                normalized["objects"] = dict(
+                    existing_doc.get("policy_engine", {}).get("objects", {})
+                )
+
+            doc_to_write = {
+                "policy_engine": normalized,
+                "groups": normalized_groups,
+            }
+            doc_to_write = self._sync_policy_engine_objects_from_groups(doc_to_write)
+            self._write_policy_document(doc_to_write)
+
+            # Validate via PolicyEngine construction and apply live.
+            PolicyEngine(doc_to_write.get("policy_engine", {}))
+            self._apply_policy_runtime(doc_to_write.get("policy_engine", {}))
+
+            logger.info("Policy updated and saved to %s", policy_path)
+            return self._success(
+                {
+                    "policy_file": policy_path,
+                    "policy_engine": doc_to_write.get("policy_engine", {}),
+                    "groups": doc_to_write.get("groups", {}),
+                },
+                message="Policy updated and applied",
+                restart_required=False,
+            )
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error(f"Error updating policy: {e}", exc_info=True)
+            return self._error(str(e))
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def policy_validate(self):
+        """Validate policy payload without saving it."""
+        self._set_cors_headers()
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            self._require_post()
+            body = cherrypy.request.json or {}
+            if not isinstance(body, dict):
+                return self._error("Invalid payload: expected JSON object")
+
+            if isinstance(body.get("policy_engine"), dict):
+                policy_engine_cfg = body.get("policy_engine")
+            else:
+                policy_engine_cfg = body
+
+            normalized = self._normalize_policy_engine(policy_engine_cfg)
+            engine = PolicyEngine(normalized)
+
+            return self._success(
+                {
+                    "valid": True,
+                    "normalized": normalized,
+                    "effective": {
+                        "enabled": engine.enabled,
+                        "default_action": engine.default_action,
+                        "rule_count": len(engine.rules),
+                    },
+                }
+            )
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error(f"Policy validation failed: {e}")
+            return self._success({"valid": False, "error": str(e)})
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in(force=False)
+    def policy_groups(self, **kwargs):
+        """Manage policy groups for channel hashes and pubkeys."""
+        self._set_cors_headers()
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        if cherrypy.request.method == "GET":
+            kind = self._normalize_policy_group_kind(cherrypy.request.params.get("kind"))
+            if cherrypy.request.params.get("kind") and not kind:
+                return self._error("Invalid kind. Use 'channel_hashes' or 'pubkeys'")
+
+            doc, exists = self._load_policy_document()
+            doc = self._sync_policy_engine_objects_from_groups(doc)
+            groups = doc.get("groups", self._default_policy_document().get("groups", {}))
+
+            data = {
+                "policy_file": self._get_policy_file_path(),
+                "exists": exists,
+                "kind": kind,
+                "groups": groups[kind] if kind else groups,
+            }
+            return self._success(data)
+
+        if cherrypy.request.method not in ("POST", "DELETE"):
+            return self._error("Method not supported")
+
+        try:
+            body = cherrypy.request.json or {}
+            if not isinstance(body, dict):
+                body = {}
+
+            request_params = getattr(cherrypy.request, "params", {}) or {}
+            kind = self._normalize_policy_group_kind(body.get("kind") or request_params.get("kind"))
+            if not kind:
+                return self._error("Invalid kind. Use 'channel_hashes' or 'pubkeys'")
+
+            group_id = self._slugify_policy_id(
+                body.get("group_id")
+                or request_params.get("group_id")
+                or body.get("id")
+                or body.get("name")
+                or body.get("friendly_name"),
+                "group",
+            )
+
+            doc, _ = self._load_policy_document()
+            doc = self._sync_policy_engine_objects_from_groups(doc)
+            groups = doc.get("groups", self._default_policy_document().get("groups", {}))
+            group_list = groups.get(kind, [])
+
+            existing_group = next((g for g in group_list if g.get("id") == group_id), None)
+
+            if cherrypy.request.method == "POST":
+                if existing_group:
+                    return self._error(f"Group already exists: {group_id}")
+
+                friendly_name = str(body.get("friendly_name") or body.get("name") or group_id)
+                description = str(body.get("description") or "")
+                new_group = {
+                    "id": group_id,
+                    "friendly_name": friendly_name,
+                    "description": description,
+                    "entries": [],
+                }
+                group_list.append(new_group)
+
+                groups[kind] = group_list
+                doc["groups"] = self._normalize_policy_groups(groups)
+                doc = self._sync_policy_engine_objects_from_groups(doc)
+                self._write_policy_document(doc)
+                self._apply_policy_runtime(doc.get("policy_engine", {}))
+
+                return self._success(
+                    {
+                        "kind": kind,
+                        "group": new_group,
+                        "groups": doc.get("groups", {}),
+                    },
+                    message="Policy group created",
+                    restart_required=False,
+                )
+
+            if not existing_group:
+                return self._error(f"Group not found: {group_id}")
+
+            group_list = [g for g in group_list if g.get("id") != group_id]
+            groups[kind] = group_list
+            doc["groups"] = self._normalize_policy_groups(groups)
+            doc = self._sync_policy_engine_objects_from_groups(doc)
+            self._write_policy_document(doc)
+            self._apply_policy_runtime(doc.get("policy_engine", {}))
+
+            return self._success(
+                {
+                    "kind": kind,
+                    "group_id": group_id,
+                    "groups": doc.get("groups", {}),
+                },
+                message="Policy group deleted",
+                restart_required=False,
+            )
+        except Exception as e:
+            logger.error(f"Error managing policy groups: {e}", exc_info=True)
+            return self._error(str(e))
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in(force=False)
+    def policy_group_entries(self, **kwargs):
+        """Manage entries inside policy groups."""
+        self._set_cors_headers()
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        if cherrypy.request.method == "GET":
+            kind = self._normalize_policy_group_kind(cherrypy.request.params.get("kind"))
+            if not kind:
+                return self._error("Invalid kind. Use 'channel_hashes' or 'pubkeys'")
+
+            group_id = self._slugify_policy_id(cherrypy.request.params.get("group_id"), "group")
+            doc, _ = self._load_policy_document()
+            doc = self._sync_policy_engine_objects_from_groups(doc)
+            groups = doc.get("groups", self._default_policy_document().get("groups", {}))
+            group = next((g for g in groups.get(kind, []) if g.get("id") == group_id), None)
+            if not group:
+                return self._error(f"Group not found: {group_id}")
+
+            return self._success(
+                {
+                    "kind": kind,
+                    "group": group,
+                    "entries": group.get("entries", []),
+                }
+            )
+
+        if cherrypy.request.method not in ("POST", "DELETE"):
+            return self._error("Method not supported")
+
+        try:
+            body = cherrypy.request.json or {}
+            if not isinstance(body, dict):
+                body = {}
+
+            request_params = getattr(cherrypy.request, "params", {}) or {}
+            kind = self._normalize_policy_group_kind(body.get("kind") or request_params.get("kind"))
+            if not kind:
+                return self._error("Invalid kind. Use 'channel_hashes' or 'pubkeys'")
+
+            group_id = self._slugify_policy_id(
+                body.get("group_id") or request_params.get("group_id") or body.get("group"),
+                "group",
+            )
+
+            doc, _ = self._load_policy_document()
+            doc = self._sync_policy_engine_objects_from_groups(doc)
+            groups = doc.get("groups", self._default_policy_document().get("groups", {}))
+            group = next((g for g in groups.get(kind, []) if g.get("id") == group_id), None)
+            if not group:
+                return self._error(f"Group not found: {group_id}")
+
+            entries = list(group.get("entries", []))
+
+            if cherrypy.request.method == "POST":
+                entry_value = self._normalize_policy_entry_value(kind, body.get("value"))
+                if any(entry.get("value") == entry_value for entry in entries):
+                    return self._error(f"Entry already exists in group: {entry_value}")
+
+                entry_id = self._slugify_policy_id(
+                    body.get("entry_id")
+                    or body.get("id")
+                    or body.get("name")
+                    or body.get("friendly_name")
+                    or entry_value,
+                    "entry",
+                )
+                if any(entry.get("id") == entry_id for entry in entries):
+                    return self._error(f"Entry id already exists in group: {entry_id}")
+
+                new_entry = {
+                    "id": entry_id,
+                    "friendly_name": str(body.get("friendly_name") or body.get("name") or entry_id),
+                    "value": entry_value,
+                }
+                entries.append(new_entry)
+                group["entries"] = entries
+
+                doc["groups"] = self._normalize_policy_groups(groups)
+                doc = self._sync_policy_engine_objects_from_groups(doc)
+                self._write_policy_document(doc)
+                self._apply_policy_runtime(doc.get("policy_engine", {}))
+
+                return self._success(
+                    {
+                        "kind": kind,
+                        "group_id": group_id,
+                        "entry": new_entry,
+                        "group": group,
+                    },
+                    message="Policy group entry added",
+                    restart_required=False,
+                )
+
+            entry_id = body.get("entry_id") or request_params.get("entry_id") or body.get("id")
+            value = body.get("value") or request_params.get("value")
+            if not entry_id and value is None:
+                return self._error("Provide entry_id or value")
+
+            if value is not None:
+                value = self._normalize_policy_entry_value(kind, value)
+
+            filtered_entries = []
+            removed = None
+            for entry in entries:
+                if entry_id and entry.get("id") == entry_id:
+                    removed = entry
+                    continue
+                if value is not None and entry.get("value") == value:
+                    removed = entry
+                    continue
+                filtered_entries.append(entry)
+
+            if removed is None:
+                return self._error("Entry not found")
+
+            group["entries"] = filtered_entries
+            doc["groups"] = self._normalize_policy_groups(groups)
+            doc = self._sync_policy_engine_objects_from_groups(doc)
+            self._write_policy_document(doc)
+            self._apply_policy_runtime(doc.get("policy_engine", {}))
+
+            return self._success(
+                {
+                    "kind": kind,
+                    "group_id": group_id,
+                    "removed": removed,
+                    "group": group,
+                },
+                message="Policy group entry removed",
+                restart_required=False,
+            )
+        except Exception as e:
+            logger.error(f"Error managing policy group entries: {e}", exc_info=True)
+            return self._error(str(e))
+
+    # ============================================================================
+    # SETUP WIZARD ENDPOINTS
+    # ============================================================================
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def needs_setup(self):
+        """Check if the repeater needs initial setup configuration"""
+        try:
+            # Prefer the on-disk config so this reflects current persisted state.
+            config = self.config
+            config_path = getattr(self, "_config_path", None)
+            try:
+                if config_path:
+                    with open(config_path, "r") as f:
+                        config = yaml.safe_load(f) or {}
+            except Exception as exc:
+                # Fall back to in-memory config if file cannot be read.
+                logger.debug(f"needs_setup could not read persisted config {config_path}: {exc}")
+
+            needs_setup, reasons = self._setup_status_from_config(config)
+
+            return {
+                "needs_setup": needs_setup,
+                "reasons": reasons,
+            }
+        except Exception as e:
+            logger.error(f"Error checking setup status: {e}")
+            return {"needs_setup": False, "error": str(e)}
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def site_info(self):
+        """Return the site identification name (public endpoint, no auth required)."""
+        try:
+            site_name = self.config.get("web", {}).get("site_name", "") or ""
+            return {"success": True, "site_name": str(site_name)}
+        except Exception as e:
+            logger.error(f"Error serving site_info: {e}")
+            return {"success": True, "site_name": ""}
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def hardware_options(self):
+        """Get available hardware configurations from radio-settings.json"""
+        try:
+            import json
+
+            # Check config-based location first, then development location
+            config_dir = resolve_storage_dir(self.config, config_path=self._config_path)
+            installed_path = config_dir / "radio-settings.json"
+            dev_path = os.path.join(os.path.dirname(__file__), "..", "..", "radio-settings.json")
+
+            hardware_file = str(installed_path) if installed_path.exists() else dev_path
+            hardware_list = []
+
+            if os.path.exists(hardware_file):
+                with open(hardware_file, "r") as f:
+                    hardware_data = json.load(f)
+                hardware_configs = hardware_data.get("hardware", {})
+                for hw_key, hw_config in hardware_configs.items():
+                    if isinstance(hw_config, dict):
+                        hardware_list.append(
+                            {
+                                "key": hw_key,
+                                "name": hw_config.get("name", hw_key),
+                                "description": hw_config.get("description", ""),
+                                "config": hw_config,
+                            }
+                        )
+
+            return {"hardware": hardware_list}
+        except Exception as e:
+            logger.error(f"Error loading hardware options: {e}")
+            return {"error": str(e)}
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def radio_presets(self):
+        """Get radio preset configurations from local file"""
+        try:
+            import json
+
+            # Check config-based location first, then development location
+            config_dir = resolve_storage_dir(self.config, config_path=self._config_path)
+            installed_path = config_dir / "radio-presets.json"
+            dev_path = os.path.join(os.path.dirname(__file__), "..", "..", "radio-presets.json")
+
+            presets_file = str(installed_path) if installed_path.exists() else dev_path
+
+            if not os.path.exists(presets_file):
+                logger.error(f"Presets file not found. Tried: {installed_path}, {dev_path}")
+                return {"error": "Radio presets file not found"}
+
+            with open(presets_file, "r") as f:
+                presets_data = json.load(f)
+
+            # Extract entries from local file
+            entries = (
+                presets_data.get("config", {})
+                .get("suggested_radio_settings", {})
+                .get("entries", [])
+            )
+            return {"presets": entries, "source": "local"}
+
+        except Exception as e:
+            logger.error(f"Error loading radio presets: {e}")
+            return {"error": str(e)}
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def serial_ports(self):
+        """Discover available serial/USB modem device paths."""
+        try:
+            devices = []
+
+            # Preferred: pyserial provides stable metadata (VID/PID, product, serial number).
+            try:
+                from serial.tools import list_ports
+
+                for port in list_ports.comports():
+                    label_parts = [port.device]
+                    if getattr(port, "description", None):
+                        label_parts.append(str(port.description))
+                    if getattr(port, "hwid", None) and str(port.hwid) != "n/a":
+                        label_parts.append(str(port.hwid))
+                    devices.append(
+                        {
+                            "device": str(port.device),
+                            "description": " - ".join(label_parts),
+                        }
+                    )
+            except Exception:
+                # Fallback for environments where pyserial is unavailable.
+                import glob
+
+                for pattern in (
+                    "/dev/ttyACM*",
+                    "/dev/ttyUSB*",
+                    "/dev/ttyS*",
+                    "/dev/serial/by-id/*",
+                ):
+                    for dev in glob.glob(pattern):
+                        devices.append({"device": str(dev), "description": str(dev)})
+
+            # Docker deployments may mount the host device namespace separately.
+            import glob
+
+            if os.path.isdir("/host/dev"):
+                for pattern in (
+                    "/host/dev/ttyACM*",
+                    "/host/dev/ttyUSB*",
+                    "/host/dev/serial/by-id/*",
+                ):
+                    try:
+                        for dev in glob.glob(pattern):
+                            devices.append({"device": str(dev), "description": str(dev)})
+                    except (OSError, PermissionError):
+                        continue
+
+            # De-duplicate by resolved target. Prefer stable host by-id aliases.
+            dedup = {}
+            for item in devices:
+                dev = item.get("device")
+                if not dev or (os.path.islink(dev) and not os.path.exists(dev)):
+                    continue
+                try:
+                    target = os.path.realpath(dev)
+                except (OSError, PermissionError):
+                    continue
+                preferred = str(dev).startswith("/host/dev/serial/by-id/")
+                existing = dedup.get(target)
+                if existing is None or preferred:
+                    # Docker reads `devices:` entries as host:container[:perms] and
+                    # cannot escape a colon inside the path, so a /dev/serial/by-id/
+                    # name carrying an ESP32-S3 MAC serial is unusable in a
+                    # container. Flag it so the UI can offer a symlink instead.
+                    item["docker_safe"] = ":" not in dev
+                    dedup[target] = item
+
+            sorted_devices = sorted(dedup.values(), key=lambda x: x["device"])
+            return self._success(sorted_devices)
+        except Exception as e:
+            logger.error(f"Error discovering serial ports: {e}")
+            return self._error(str(e))
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def setup_wizard(self):
+        """Complete initial setup wizard configuration"""
+        with self._provisioning_lock:
+            return self._setup_wizard_locked()
+
+    def _setup_wizard_locked(self):
+        try:
+            self._require_post()
+            data = cherrypy.request.json
+
+            # Setup wizard is first-run only. After setup, use /auth/change_password
+            # and /api/update_radio_config for subsequent changes.
+            try:
+                with open(self._config_path, "r") as f:
+                    current_config = yaml.safe_load(f) or {}
+            except Exception:
+                current_config = self.config or {}
+
+            needs_setup, _ = self._setup_status_from_config(current_config)
+            if not needs_setup:
+                cherrypy.response.status = 403
+                return {
+                    "success": False,
+                    "error": "Setup is already complete. Use authenticated endpoints for configuration changes.",
+                }
+
+            # Validate required fields
+            node_name = data.get("node_name", "").strip()
+            if not node_name:
+                return {"success": False, "error": "Node name is required"}
+            # Validate UTF-8 byte length (31 bytes max + 1 null terminator = 32 bytes total)
+            if len(node_name.encode("utf-8")) > 31:
+                return {"success": False, "error": "Node name too long (max 31 bytes in UTF-8)"}
+
+            hardware_key = data.get("hardware_key", "").strip()
+            hardware_key = LEGACY_MODEM_RADIO_TYPES.get(hardware_key, hardware_key)
+            if not hardware_key:
+                return {"success": False, "error": "Hardware selection is required"}
+
+            radio_preset = data.get("radio_preset", {})
+            if not radio_preset:
+                return {"success": False, "error": "Radio preset selection is required"}
+
+            admin_password = data.get("admin_password", "").strip()
+            if not admin_password or len(admin_password) < 8:
+                return {"success": False, "error": "Admin password must be at least 8 characters"}
+
+            import json
+
+            config_dir = resolve_storage_dir(self.config, config_path=self._config_path)
+            installed_path = config_dir / "radio-settings.json"
+            dev_path = os.path.join(os.path.dirname(__file__), "..", "..", "radio-settings.json")
+            hardware_file = str(installed_path) if installed_path.exists() else dev_path
+
+            if hardware_key != "kiss":
+                if not os.path.exists(hardware_file):
+                    logger.error(f"Hardware file not found. Tried: {installed_path}, {dev_path}")
+                    return {"success": False, "error": "Hardware configuration file not found"}
+                with open(hardware_file, "r") as f:
+                    hardware_data = json.load(f)
+                hardware_configs = hardware_data.get("hardware", {})
+                hw_config = hardware_configs.get(hardware_key, {})
+                if not hw_config:
+                    return {
+                        "success": False,
+                        "error": f"Hardware configuration not found: {hardware_key}",
+                    }
+            else:
+                hw_config = {}
+
+            # Read current config first so we can update it
+            with open(self._config_path, "r") as f:
+                config_yaml = yaml.safe_load(f)
+
+            # Update repeater settings
+            if "repeater" not in config_yaml:
+                config_yaml["repeater"] = {}
+            config_yaml["repeater"]["node_name"] = node_name
+
+            if "security" not in config_yaml["repeater"]:
+                config_yaml["repeater"]["security"] = {}
+            config_yaml["repeater"]["security"]["admin_password"] = admin_password
+
+            # Update radio settings - convert MHz/kHz to Hz (used for both SX1262 and KISS modem)
+            if "radio" not in config_yaml:
+                config_yaml["radio"] = {}
+            freq_mhz = float(radio_preset.get("frequency", 0))
+            bw_khz = float(radio_preset.get("bandwidth", 0))
+            config_yaml["radio"]["frequency"] = int(freq_mhz * 1000000)
+            config_yaml["radio"]["spreading_factor"] = int(radio_preset.get("spreading_factor", 7))
+            config_yaml["radio"]["bandwidth"] = int(bw_khz * 1000)
+            config_yaml["radio"]["coding_rate"] = int(radio_preset.get("coding_rate", 5))
+
+            tx_power_raw = radio_preset.get("tx_power")
+            tx_power_preset = None
+            if tx_power_raw not in (None, ""):
+                try:
+                    tx_power_preset = int(tx_power_raw)
+                except (TypeError, ValueError):
+                    return {"success": False, "error": "TX power must be an integer"}
+                if tx_power_preset < -9 or tx_power_preset > 22:
+                    return {
+                        "success": False,
+                        "error": "TX power must be between -9 and +22 dBm",
+                    }
+
+            if hardware_key == "kiss":
+                # KISS modem: set radio_type and kiss section (port/baud from request or defaults)
+                config_yaml["radio_type"] = "kiss"
+                kiss_port = (data.get("kiss_port") or "").strip() or "/dev/ttyUSB0"
+                kiss_baud = int(data.get("kiss_baud_rate", data.get("kiss_baud", 115200)))
+                config_yaml["kiss"] = {"port": kiss_port, "baud_rate": kiss_baud}
+                config_yaml["radio"]["tx_power"] = (
+                    tx_power_preset if tx_power_preset is not None else 14
+                )
+                if "preamble_length" not in config_yaml["radio"]:
+                    config_yaml["radio"]["preamble_length"] = 32
+            elif hardware_key == "modem_usb":
+                # modem_usb modem: external SX1262 board over USB-CDC.
+                # Accept modem_usb_port / modem_usb_baudrate from the request body
+                # (mirrors the KISS pattern) so a future SPA can expose inputs;
+                # fall back to /dev/ttyACM0 at 921600 baud, which matches the
+                # firmware default and the typical USB-CDC modem device on Linux.
+                config_yaml["radio_type"] = "modem_usb"
+                usb_port = (
+                    data.get("modem_usb_port") or data.get("pymc_usb_port") or ""
+                ).strip() or "/dev/ttyACM0"
+                usb_baud = int(
+                    data.get(
+                        "modem_usb_baudrate",
+                        data.get("pymc_usb_baudrate", data.get("pymc_usb_baud", 921600)),
+                    )
+                )
+                modem_usb_section = config_yaml.setdefault("modem_usb", {})
+                modem_usb_section["port"] = usb_port
+                modem_usb_section["baudrate"] = usb_baud
+                modem_usb_section.setdefault("lbt_enabled", True)
+                modem_usb_section.setdefault("lbt_max_attempts", 5)
+                if tx_power_preset is not None:
+                    config_yaml["radio"]["tx_power"] = tx_power_preset
+                elif "tx_power" in hw_config:
+                    config_yaml["radio"]["tx_power"] = hw_config.get("tx_power", 22)
+                if "preamble_length" in hw_config:
+                    config_yaml["radio"]["preamble_length"] = hw_config.get("preamble_length", 32)
+            elif hardware_key == "modem_tcp":
+                # modem_tcp modem: external SX1262 board exposed as TCP over Wi-Fi/Ethernet.
+                # 'host' has no sensible default — must be the modem's LAN address or
+                # mDNS name. Accept it from the request body if the SPA provides it,
+                # otherwise write a clearly-placeholder hostname so the file is valid
+                # YAML and the user gets a startup error pointing them at the right
+                # section to edit (see config.py: ValueError 'Missing host …').
+                config_yaml["radio_type"] = "modem_tcp"
+                tcp_host = (
+                    data.get("modem_tcp_host") or data.get("pymc_tcp_host") or ""
+                ).strip() or "REPLACE_WITH_MODEM_HOST"
+                tcp_port = int(data.get("modem_tcp_port", data.get("pymc_tcp_port", 5055)))
+                modem_tcp_section = config_yaml.setdefault("modem_tcp", {})
+                modem_tcp_section["host"] = tcp_host
+                modem_tcp_section["port"] = tcp_port
+                tcp_token = data.get("modem_tcp_token")
+                if tcp_token is None:
+                    tcp_token = data.get("pymc_tcp_token")
+                if tcp_token is not None:
+                    modem_tcp_section["token"] = str(tcp_token)
+                else:
+                    modem_tcp_section.setdefault("token", "")
+                modem_tcp_section.setdefault("connect_timeout", 5.0)
+                modem_tcp_section.setdefault("lbt_enabled", True)
+                modem_tcp_section.setdefault("lbt_max_attempts", 5)
+                if tx_power_preset is not None:
+                    config_yaml["radio"]["tx_power"] = tx_power_preset
+                elif "tx_power" in hw_config:
+                    config_yaml["radio"]["tx_power"] = hw_config.get("tx_power", 22)
+                if "preamble_length" in hw_config:
+                    config_yaml["radio"]["preamble_length"] = hw_config.get("preamble_length", 32)
+            else:
+                # SX1262 / sx1262_ch341: radio_type and optional CH341 from hw_config
+                if "radio_type" in hw_config:
+                    config_yaml["radio_type"] = hw_config.get("radio_type")
+                else:
+                    config_yaml["radio_type"] = "sx1262"
+
+                ch341_cfg = (
+                    hw_config.get("ch341") if isinstance(hw_config.get("ch341"), dict) else None
+                )
+                vid = (ch341_cfg or {}).get("vid", hw_config.get("vid"))
+                pid = (ch341_cfg or {}).get("pid", hw_config.get("pid"))
+                if vid is not None or pid is not None:
+                    if "ch341" not in config_yaml:
+                        config_yaml["ch341"] = {}
+                    if vid is not None:
+                        config_yaml["ch341"]["vid"] = vid
+                    if pid is not None:
+                        config_yaml["ch341"]["pid"] = pid
+
+                if tx_power_preset is not None:
+                    config_yaml["radio"]["tx_power"] = tx_power_preset
+                elif "tx_power" in hw_config:
+                    config_yaml["radio"]["tx_power"] = hw_config.get("tx_power", 22)
+                if "preamble_length" in hw_config:
+                    config_yaml["radio"]["preamble_length"] = hw_config.get("preamble_length", 32)
+
+                if "sx1262" not in config_yaml:
+                    config_yaml["sx1262"] = {}
+                if "bus_id" in hw_config:
+                    config_yaml["sx1262"]["bus_id"] = hw_config.get("bus_id", 0)
+                if "cs_id" in hw_config:
+                    config_yaml["sx1262"]["cs_id"] = hw_config.get("cs_id", 0)
+                if "reset_pin" in hw_config:
+                    config_yaml["sx1262"]["reset_pin"] = hw_config.get("reset_pin", 22)
+                if "busy_pin" in hw_config:
+                    config_yaml["sx1262"]["busy_pin"] = hw_config.get("busy_pin", 17)
+                if "irq_pin" in hw_config:
+                    config_yaml["sx1262"]["irq_pin"] = hw_config.get("irq_pin", 16)
+                if "txen_pin" in hw_config:
+                    config_yaml["sx1262"]["txen_pin"] = hw_config.get("txen_pin", -1)
+                if "rxen_pin" in hw_config:
+                    config_yaml["sx1262"]["rxen_pin"] = hw_config.get("rxen_pin", -1)
+                if "en_pin" in hw_config:
+                    config_yaml["sx1262"]["en_pin"] = hw_config.get("en_pin", -1)
+                if "en_pins" in hw_config:
+                    config_yaml["sx1262"]["en_pins"] = hw_config.get("en_pins", [])
+                if "cs_pin" in hw_config:
+                    config_yaml["sx1262"]["cs_pin"] = hw_config.get("cs_pin", -1)
+                if "txled_pin" in hw_config:
+                    config_yaml["sx1262"]["txled_pin"] = hw_config.get("txled_pin", -1)
+                if "rxled_pin" in hw_config:
+                    config_yaml["sx1262"]["rxled_pin"] = hw_config.get("rxled_pin", -1)
+                if "use_dio3_tcxo" in hw_config:
+                    config_yaml["sx1262"]["use_dio3_tcxo"] = hw_config.get("use_dio3_tcxo", False)
+                if "dio3_tcxo_voltage" in hw_config:
+                    config_yaml["sx1262"]["dio3_tcxo_voltage"] = hw_config.get(
+                        "dio3_tcxo_voltage", 1.8
+                    )
+                if "use_dio2_rf" in hw_config:
+                    config_yaml["sx1262"]["use_dio2_rf"] = hw_config.get("use_dio2_rf", False)
+                if "is_waveshare" in hw_config:
+                    config_yaml["sx1262"]["is_waveshare"] = hw_config.get("is_waveshare", False)
+                if "gpio_chip" in hw_config:
+                    config_yaml["sx1262"]["gpio_chip"] = hw_config.get("gpio_chip", 0)
+                if "use_gpiod_backend" in hw_config:
+                    config_yaml["sx1262"]["use_gpiod_backend"] = hw_config.get(
+                        "use_gpiod_backend", False
+                    )
+            # Explicit setup writes canonical names only.
+            config_yaml = normalize_modem_config(config_yaml)
+            config_yaml["setup_completed"] = True
+            with open(self._config_path, "w", encoding="utf-8") as f:
+                yaml.safe_dump(
+                    config_yaml,
+                    f,
+                    default_flow_style=False,
+                    sort_keys=False,
+                    allow_unicode=True,
+                    width=1000000,
+                )
+            self.config["setup_completed"] = True
+
+            logger.info(
+                f"Setup wizard completed: node_name={node_name}, hardware={hardware_key}, freq={freq_mhz}MHz"
+            )
+
+            # Trigger service restart after setup
+            import threading
+
+            def delayed_restart():
+                import time
+
+                time.sleep(2)  # Give time for response to be sent
+                try:
+                    from repeater.service_utils import restart_service
+
+                    restart_service()
+                except Exception as e:
+                    logger.error(f"Failed to restart service: {e}")
+
+            # Start restart in background thread
+            restart_thread = threading.Thread(target=delayed_restart, daemon=True)
+            restart_thread.start()
+
+            result_config = {
+                "node_name": node_name,
+                "hardware": hardware_key,
+                "radio_type": config_yaml.get("radio_type"),
+                "frequency": freq_mhz,
+                "spreading_factor": radio_preset.get("spreading_factor"),
+                "bandwidth": radio_preset.get("bandwidth"),
+                "coding_rate": radio_preset.get("coding_rate"),
+            }
+            if hardware_key == "kiss":
+                result_config["kiss_port"] = config_yaml.get("kiss", {}).get("port")
+                result_config["kiss_baud_rate"] = config_yaml.get("kiss", {}).get("baud_rate")
+            elif hardware_key == "modem_usb":
+                modem_usb_cfg = config_yaml.get("modem_usb", {})
+                result_config["modem_usb_port"] = modem_usb_cfg.get("port")
+                result_config["modem_usb_baudrate"] = modem_usb_cfg.get("baudrate")
+            elif hardware_key == "modem_tcp":
+                modem_tcp_cfg = config_yaml.get("modem_tcp", {})
+                result_config["modem_tcp_host"] = modem_tcp_cfg.get("host")
+                result_config["modem_tcp_port"] = modem_tcp_cfg.get("port")
+                # token deliberately omitted from response (sensitive)
+            return {
+                "success": True,
+                "message": "Setup completed successfully. Service is restarting...",
+                "config": result_config,
+            }
+
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error(f"Error completing setup wizard: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+
+    # ============================================================================
+    # SYSTEM ENDPOINTS
+    # ============================================================================
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def stats(self):
+        try:
+            stats = self.stats_getter() if self.stats_getter else {}
+            runtime_config = normalize_modem_config(self.config, warn=False)
+            redact_modem_tokens_in_place(runtime_config)
+            # Include active radio configuration in stats so UI can hydrate
+            # directly from this endpoint without additional config fetches.
+            stats["radio_type"] = runtime_config.get("radio_type")
+            stats["sx1262"] = runtime_config.get("sx1262", {})
+            stats["ch341"] = runtime_config.get("ch341", {})
+            stats["kiss"] = runtime_config.get("kiss", {})
+            stats["modem_usb"] = runtime_config.get("modem_usb", {})
+            stats["modem_tcp"] = runtime_config.get("modem_tcp", {})
+            stats["radios"] = runtime_config.get("radios") or []
+            stats["fabric"] = self.config.get("fabric") or {}
+            meta = {}
+            daemon = getattr(self, "daemon_instance", None)
+            if daemon is not None:
+                meta = getattr(daemon, "radio_stack_meta", None) or {}
+            stats["radio_stack"] = meta
+            stats["site_name"] = self.config.get("web", {}).get("site_name", "")
+            stats["version"] = __version__
+            try:
+                import openhop_core
+
+                stats["core_version"] = openhop_core.__version__
+            except ImportError:
+                stats["core_version"] = "unknown"
+            image_info = get_buildroot_image_info()
+            if image_info:
+                if image_info.get("image_name"):
+                    stats["image_name"] = image_info["image_name"]
+                if image_info.get("image_version"):
+                    stats["image_version"] = image_info["image_version"]
+            return stats
+        except Exception as e:
+            logger.error(f"Error serving stats: {e}")
+            return {"error": str(e)}
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def gps(self):
+        """Get full local GPS diagnostics and parsed NMEA attributes."""
+        try:
+            gps_service = getattr(self.daemon_instance, "gps_service", None)
+            if gps_service:
+                return self._success(gps_service.get_snapshot())
+
+            return self._success(
+                {
+                    "enabled": False,
+                    "running": False,
+                    "source": self.config.get("gps", {}),
+                    "status": {
+                        "state": "disabled",
+                        "fix_valid": False,
+                        "stale": True,
+                        "age_seconds": None,
+                        "last_update": None,
+                        "last_error": "GPS service is not initialized",
+                    },
+                    "fix": {
+                        "valid": False,
+                        "status": None,
+                        "quality": None,
+                        "quality_label": "no fix",
+                        "gsa_fix_type": None,
+                        "gsa_fix_type_label": None,
+                    },
+                    "position": {
+                        "latitude": None,
+                        "longitude": None,
+                        "altitude_m": None,
+                        "geoid_separation_m": None,
+                    },
+                    "motion": {
+                        "speed_knots": None,
+                        "speed_kmh": None,
+                        "course_degrees": None,
+                        "magnetic_variation_degrees": None,
+                    },
+                    "accuracy": {"hdop": None, "pdop": None, "vdop": None},
+                    "time": {"utc_time": None, "date": None, "datetime_utc": None},
+                    "location_update": {
+                        "enabled": False,
+                        "state": "disabled",
+                        "last_attempt": None,
+                        "last_success": None,
+                        "last_error": None,
+                        "last_latitude": None,
+                        "last_longitude": None,
+                        "interval_seconds": None,
+                    },
+                    "satellites": {
+                        "used_count": None,
+                        "used_prns": [],
+                        "in_view_count": None,
+                        "in_view": [],
+                        "snr": {"min": None, "max": None, "avg": None},
+                    },
+                    "nmea": {
+                        "last_sentence": None,
+                        "last_sentence_type": None,
+                        "last_talker": None,
+                        "seen_sentence_types": [],
+                        "sentence_counters": {},
+                        "valid_checksum_count": 0,
+                        "invalid_checksum_count": 0,
+                        "missing_checksum_count": 0,
+                        "recent_sentences": [],
+                    },
+                    "raw_attributes": {},
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error serving GPS diagnostics: {e}", exc_info=True)
+            return self._error(e)
+
+    @cherrypy.expose
+    def gps_stream(self):
+        """Server-Sent Events stream for GPS diagnostics snapshots."""
+        cherrypy.response.headers["Content-Type"] = "text/event-stream"
+        cherrypy.response.headers["Cache-Control"] = "no-cache"
+        cherrypy.response.headers["Connection"] = "keep-alive"
+
+        def generate():
+            last_snapshot_json: Optional[str] = None
+            last_keepalive = time.time()
+
+            try:
+                yield (
+                    f"data: {json.dumps({'type': 'connected', 'message': 'Connected to GPS stream'})}"
+                    "\n\n"
+                )
+
+                while True:
+                    response = self.gps()
+                    if response.get("success"):
+                        snapshot = response.get("data")
+                        snapshot_json = json.dumps(snapshot, sort_keys=True, default=str)
+
+                        if snapshot_json != last_snapshot_json:
+                            yield (
+                                f"data: {json.dumps({'type': 'snapshot', 'data': snapshot})}\n\n"
+                            )
+                            last_snapshot_json = snapshot_json
+                            last_keepalive = time.time()
+                        elif (time.time() - last_keepalive) >= 15:
+                            yield f"data: {json.dumps({'type': 'keepalive'})}\n\n"
+                            last_keepalive = time.time()
+                    else:
+                        yield (
+                            f"data: {json.dumps({'type': 'error', 'error': response.get('error', 'GPS stream error')})}"
+                            "\n\n"
+                        )
+
+                    time.sleep(1.0)
+            except GeneratorExit:
+                logger.debug("GPS SSE stream closed by client")
+            except Exception as exc:
+                logger.error(f"GPS SSE stream error: {exc}", exc_info=True)
+
+        return generate()
+
+    gps_stream._cp_config = {"response.stream": True}
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def send_advert(self):
+        # Enable CORS for this endpoint
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        future = None
+        try:
+            self._require_post()
+            if not self.send_advert_func:
+                return self._error("Send advert function not configured")
+            if self.event_loop is None:
+                return self._error("Event loop not available")
+
+            data = cherrypy.request.json or {}
+            mode = str(data.get("mode", "flood")).strip().lower()
+            if mode not in ("flood", "direct"):
+                return self._error("Invalid mode. Must be 'flood' or 'direct'")
+
+            import asyncio
+
+            async def _call_send_advert():
+                try:
+                    return await self.send_advert_func(advert_kind=mode)
+                except TypeError:
+                    # Backward compatibility for older callbacks that don't
+                    # accept advert_kind yet.
+                    return await self.send_advert_func()
+
+            future = asyncio.run_coroutine_threadsafe(_call_send_advert(), self.event_loop)
+            result = future.result(timeout=10)
+            return (
+                self._success(f"{mode.title()} advert sent successfully")
+                if result
+                else self._error("Failed to send advert")
+            )
+        except FutureTimeoutError:
+            logger.error(
+                "Error sending advert: timeout waiting for advert transmission to complete",
+                exc_info=True,
+            )
+            if future is not None:
+                future.cancel()
+            return self._error("Timed out waiting for advert transmission after 10 seconds")
+        except cherrypy.HTTPError:
+            # Re-raise HTTP errors (like 405 Method Not Allowed) without logging
+            raise
+        except Exception as e:
+            logger.error("Error sending advert: %s", e, exc_info=True)
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def set_mode(self):
+        # Enable CORS for this endpoint only if configured
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            self._require_post()
+            data = cherrypy.request.json
+            new_mode = data.get("mode", "forward")
+            if new_mode not in ["forward", "monitor", "no_tx"]:
+                return self._error("Invalid mode. Must be 'forward', 'monitor', or 'no_tx'")
+            if "repeater" not in self.config:
+                self.config["repeater"] = {}
+            self.config["repeater"]["mode"] = new_mode
+
+            # The engine reads the mode live from the shared config dict;
+            # update_and_save writes it to disk so the choice survives a
+            # restart.
+            result = self.config_manager.update_and_save(
+                updates={}, live_update=True, live_update_sections=["repeater"]
+            )
+            if not result.get("saved", False):
+                return self._error(result.get("error", "Failed to save configuration to file"))
+
+            logger.info(f"Mode changed to: {new_mode}")
+            return {"success": True, "mode": new_mode, "persisted": True}
+        except cherrypy.HTTPError:
+            # Re-raise HTTP errors (like 405 Method Not Allowed) without logging
+            raise
+        except Exception as e:
+            logger.error(f"Error setting mode: {e}", exc_info=True)
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def set_duty_cycle(self):
+        # Enable CORS for this endpoint only if configured
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            self._require_post()
+            data = cherrypy.request.json
+            enabled = data.get("enabled", True)
+            if "duty_cycle" not in self.config:
+                self.config["duty_cycle"] = {}
+            self.config["duty_cycle"]["enforcement_enabled"] = enabled
+            logger.info(f"Duty cycle enforcement {'enabled' if enabled else 'disabled'}")
+            return {"success": True, "enabled": enabled}
+        except cherrypy.HTTPError:
+            # Re-raise HTTP errors (like 405 Method Not Allowed) without logging
+            raise
+        except Exception as e:
+            logger.error(f"Error setting duty cycle: {e}", exc_info=True)
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def update_duty_cycle_config(self):
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            self._require_post()
+            data = cherrypy.request.json or {}
+
+            applied = []
+
+            # Ensure config section exists
+            if "duty_cycle" not in self.config:
+                self.config["duty_cycle"] = {}
+
+            # Update max airtime percentage
+            if "max_airtime_percent" in data:
+                percent = float(data["max_airtime_percent"])
+                if percent < 0.1 or percent > 100.0:
+                    return self._error("Max airtime percent must be 0.1-100.0")
+                # Convert percent to milliseconds per minute
+                max_airtime_ms = int((percent / 100) * 60000)
+                self.config["duty_cycle"]["max_airtime_per_minute"] = max_airtime_ms
+                applied.append(f"max_airtime={percent}%")
+
+            # Update enforcement enabled/disabled
+            if "enforcement_enabled" in data:
+                enabled = bool(data["enforcement_enabled"])
+                self.config["duty_cycle"]["enforcement_enabled"] = enabled
+                applied.append(f"enforcement={'enabled' if enabled else 'disabled'}")
+
+            if not applied:
+                return self._error("No valid settings provided")
+
+            # Save to config file and live update daemon
+            result = self.config_manager.update_and_save(
+                updates={}, live_update=True, live_update_sections=["duty_cycle"]
+            )
+
+            if not result.get("saved", False):
+                return self._error(result.get("error", "Failed to save configuration to file"))
+
+            logger.info(f"Duty cycle config updated: {', '.join(applied)}")
+
+            return self._success(
+                {
+                    "applied": applied,
+                    "persisted": True,
+                    "live_update": result.get("live_updated", False),
+                    "restart_required": False,
+                    "message": "Duty cycle settings applied immediately.",
+                }
+            )
+
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error(f"Error updating duty cycle config: {e}")
+            return self._error(str(e))
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def update_advert_rate_limit_config(self):
+        """Update advert rate limiting configuration using ConfigManager.
+
+        POST /api/update_advert_rate_limit_config
+        Body: {
+            "rate_limit_enabled": true,
+            "bucket_capacity": 2,
+            "refill_tokens": 1,
+            "refill_interval_seconds": 36000,
+            "min_interval_seconds": 3600,
+            "penalty_enabled": true,
+            "violation_threshold": 2,
+            "violation_decay_seconds": 43200,
+            "base_penalty_seconds": 21600,
+            "penalty_multiplier": 2.0,
+            "max_penalty_seconds": 86400,
+            "adaptive_enabled": true,
+            "ewma_alpha": 0.1,
+            "hysteresis_seconds": 300,
+            "quiet_max": 0.05,
+            "normal_max": 0.20,
+            "busy_max": 0.50
+        }
+        """
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            self._require_post()
+            data = cherrypy.request.json or {}
+
+            applied = []
+
+            # Ensure config sections exist
+            if "repeater" not in self.config:
+                self.config["repeater"] = {}
+            if "advert_rate_limit" not in self.config["repeater"]:
+                self.config["repeater"]["advert_rate_limit"] = {}
+            if "advert_penalty_box" not in self.config["repeater"]:
+                self.config["repeater"]["advert_penalty_box"] = {}
+            if "advert_adaptive" not in self.config["repeater"]:
+                self.config["repeater"]["advert_adaptive"] = {"thresholds": {}}
+
+            rate_cfg = self.config["repeater"]["advert_rate_limit"]
+            penalty_cfg = self.config["repeater"]["advert_penalty_box"]
+            adaptive_cfg = self.config["repeater"]["advert_adaptive"]
+
+            # Rate limit settings
+            if "rate_limit_enabled" in data:
+                rate_cfg["enabled"] = bool(data["rate_limit_enabled"])
+                applied.append(f"rate_limit={'enabled' if rate_cfg['enabled'] else 'disabled'}")
+
+            if "bucket_capacity" in data:
+                cap = max(1, int(data["bucket_capacity"]))
+                rate_cfg["bucket_capacity"] = cap
+                applied.append(f"bucket_capacity={cap}")
+
+            if "refill_tokens" in data:
+                tokens = max(1, int(data["refill_tokens"]))
+                rate_cfg["refill_tokens"] = tokens
+                applied.append(f"refill_tokens={tokens}")
+
+            if "refill_interval_seconds" in data:
+                interval = max(60, int(data["refill_interval_seconds"]))
+                rate_cfg["refill_interval_seconds"] = interval
+                applied.append(f"refill_interval={interval}s")
+
+            if "min_interval_seconds" in data:
+                min_int = max(0, int(data["min_interval_seconds"]))
+                rate_cfg["min_interval_seconds"] = min_int
+                applied.append(f"min_interval={min_int}s")
+
+            # Penalty box settings
+            if "penalty_enabled" in data:
+                penalty_cfg["enabled"] = bool(data["penalty_enabled"])
+                applied.append(f"penalty={'enabled' if penalty_cfg['enabled'] else 'disabled'}")
+
+            if "violation_threshold" in data:
+                thresh = max(1, int(data["violation_threshold"]))
+                penalty_cfg["violation_threshold"] = thresh
+                applied.append(f"violation_threshold={thresh}")
+
+            if "violation_decay_seconds" in data:
+                decay = max(60, int(data["violation_decay_seconds"]))
+                penalty_cfg["violation_decay_seconds"] = decay
+                applied.append(f"violation_decay={decay}s")
+
+            if "base_penalty_seconds" in data:
+                base = max(60, int(data["base_penalty_seconds"]))
+                penalty_cfg["base_penalty_seconds"] = base
+                applied.append(f"base_penalty={base}s")
+
+            if "penalty_multiplier" in data:
+                mult = max(1.0, float(data["penalty_multiplier"]))
+                penalty_cfg["penalty_multiplier"] = mult
+                applied.append(f"penalty_multiplier={mult}")
+
+            if "max_penalty_seconds" in data:
+                max_pen = max(60, int(data["max_penalty_seconds"]))
+                penalty_cfg["max_penalty_seconds"] = max_pen
+                applied.append(f"max_penalty={max_pen}s")
+
+            # Adaptive settings
+            if "adaptive_enabled" in data:
+                adaptive_cfg["enabled"] = bool(data["adaptive_enabled"])
+                applied.append(f"adaptive={'enabled' if adaptive_cfg['enabled'] else 'disabled'}")
+
+            if "ewma_alpha" in data:
+                alpha = max(0.01, min(1.0, float(data["ewma_alpha"])))
+                adaptive_cfg["ewma_alpha"] = alpha
+                applied.append(f"ewma_alpha={alpha}")
+
+            if "hysteresis_seconds" in data:
+                hyst = max(0, int(data["hysteresis_seconds"]))
+                adaptive_cfg["hysteresis_seconds"] = hyst
+                applied.append(f"hysteresis={hyst}s")
+
+            # Adaptive thresholds
+            if "thresholds" not in adaptive_cfg:
+                adaptive_cfg["thresholds"] = {}
+
+            if "quiet_max" in data:
+                adaptive_cfg["thresholds"]["quiet_max"] = float(data["quiet_max"])
+                applied.append(f"quiet_max={data['quiet_max']}")
+
+            if "normal_max" in data:
+                adaptive_cfg["thresholds"]["normal_max"] = float(data["normal_max"])
+                applied.append(f"normal_max={data['normal_max']}")
+
+            if "busy_max" in data:
+                adaptive_cfg["thresholds"]["busy_max"] = float(data["busy_max"])
+                applied.append(f"busy_max={data['busy_max']}")
+
+            if not applied:
+                return self._error("No valid settings provided")
+
+            # Save to config file and live update daemon
+            result = self.config_manager.update_and_save(
+                updates={}, live_update=True, live_update_sections=["repeater"]
+            )
+
+            logger.info(f"Advert rate limit config updated: {', '.join(applied)}")
+
+            return self._success(
+                {
+                    "applied": applied,
+                    "persisted": result.get("saved", False),
+                    "live_update": result.get("live_updated", False),
+                    "restart_required": False,
+                    "message": "Advert rate limit settings applied immediately.",
+                }
+            )
+
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error(f"Error updating advert rate limit config: {e}")
+            return self._error(str(e))
+
+    @staticmethod
+    def _read_ui_version(html_dir: str) -> Optional[str]:
+        """Best-effort version for a static UI tree (VERSION / version.json / package.json)."""
+        if not html_dir or not os.path.isdir(html_dir):
+            return None
+        version_file = os.path.join(html_dir, "VERSION")
+        if os.path.isfile(version_file):
+            try:
+                value = open(version_file, "r", encoding="utf-8").read().strip()
+                return value or None
+            except OSError:
+                pass
+        for name in ("version.json", "package.json"):
+            candidate = os.path.join(html_dir, name)
+            if not os.path.isfile(candidate):
+                continue
+            try:
+                import json as _json
+
+                data = _json.loads(open(candidate, "r", encoding="utf-8").read())
+            except (OSError, ValueError):
+                continue
+            if isinstance(data, dict):
+                ver = data.get("version")
+                if isinstance(ver, str) and ver.strip():
+                    return ver.strip()
+            elif isinstance(data, str) and data.strip():
+                return data.strip()
+        return None
+
+    def _plugin_ui_frontends(self) -> list:
+        """Installed application-UI plugins usable as primary web frontends."""
+        out = []
+        try:
+            from repeater.config import resolve_storage_dir
+            from repeater.plugins.manifest import ui_subtree
+            from repeater.plugins.storage import PluginStorage, resolve_plugins_root
+        except Exception as exc:
+            logger.debug("plugin UI frontends unavailable: %s", exc)
+            return out
+
+        try:
+            storage_dir = resolve_storage_dir(self.config, config_path=self._config_path)
+            plugins_root = resolve_plugins_root(self.config, storage_dir=storage_dir)
+            storage = PluginStorage(plugins_root)
+        except Exception as exc:
+            logger.debug("plugin storage resolve failed: %s", exc)
+            return out
+
+        for plugin_id in storage.list_plugin_ids():
+            try:
+                state = storage.read_state(plugin_id) or {}
+                manifest = storage.load_current_manifest(plugin_id)
+                if manifest is None or manifest.ui is None:
+                    continue
+                paths = storage.paths_for(plugin_id)
+                if paths.current_link.exists() or paths.current_link.is_symlink():
+                    # Keep a stable filesystem path under "current" so saved
+                    # web.web_path does not pin to a specific release version.
+                    release_root = paths.current_link
+                else:
+                    version = state.get("version") or (manifest.version if manifest else None)
+                    if not version:
+                        continue
+                    release_root = paths.release_dir(str(version))
+                if not release_root.is_dir():
+                    continue
+                entry = str(manifest.ui.entry or "").replace("\\", "/")
+                ui_subtree(entry)
+                entry_parts = tuple(p for p in entry.split("/") if p)
+                if not entry_parts:
+                    continue
+                if len(entry_parts) > 1:
+                    doc_root = release_root.joinpath(*entry_parts[:-1])
+                    entry_name = entry_parts[-1]
+                else:
+                    doc_root = release_root
+                    entry_name = entry_parts[0]
+                if not doc_root.is_dir():
+                    continue
+                index_path = doc_root / entry_name
+                available = bool(state.get("enabled", False)) and index_path.is_file()
+                version = str(state.get("version") or manifest.version or "") or None
+                out.append(
+                    {
+                        "id": f"plugin:{plugin_id}",
+                        "plugin_id": plugin_id,
+                        "kind": "plugin",
+                        "name": manifest.name or plugin_id,
+                        "description": (manifest.description or "Application UI plugin").strip()
+                        or "Application UI plugin",
+                        "path": str(doc_root),
+                        "version": version,
+                        "enabled": bool(state.get("enabled", False)),
+                        "available": available,
+                        "source": state.get("source") or "local",
+                    }
+                )
+            except Exception as exc:
+                logger.debug("skip plugin frontend %s: %s", plugin_id, exc)
+                continue
+        return out
+
+    def _plugin_id_from_web_path(self, web_path: str) -> Optional[str]:
+        value = str(web_path or "").strip()
+        if not value:
+            return None
+        if value.startswith("plugin:"):
+            plugin_id = value.split(":", 1)[1].strip()
+            return plugin_id or None
+        if value.startswith("/plugins/"):
+            suffix = value[len("/plugins/") :].strip("/")
+            plugin_id = suffix.split("/", 1)[0] if suffix else ""
+            return plugin_id or None
+
+        try:
+            from repeater.config import resolve_storage_dir
+            from repeater.plugins.storage import resolve_plugins_root
+
+            storage_dir = resolve_storage_dir(self.config, config_path=self._config_path)
+            plugins_root = resolve_plugins_root(self.config, storage_dir=storage_dir).resolve()
+            rel = Path(value).expanduser().resolve(strict=False).relative_to(plugins_root)
+            parts = rel.parts
+            if len(parts) >= 2 and parts[1] in {"current", "releases"}:
+                return parts[0] or None
+        except Exception:
+            return None
+        return None
+
+    def _normalize_web_path_for_persistence(self, web_path):
+        if web_path is None:
+            return None
+        value = str(web_path).strip()
+        if not value:
+            return None
+
+        plugin_id = self._plugin_id_from_web_path(value)
+        if plugin_id:
+            return f"plugin:{plugin_id}"
+
+        abs_value = os.path.abspath(value)
+        for item in self._plugin_ui_frontends():
+            if item.get("kind") != "plugin":
+                continue
+            item_path = item.get("path")
+            if not item_path:
+                continue
+            if os.path.abspath(str(item_path)) == abs_value:
+                item_plugin_id = str(item.get("plugin_id") or "").strip()
+                if item_plugin_id:
+                    return f"plugin:{item_plugin_id}"
+        return value
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def check_pymc_console(self):
+        """Check if openHop Console directory exists (and report version when known)."""
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            pymc_console_path = "/opt/pymc_console/web/html"
+            exists = os.path.isdir(pymc_console_path)
+            version = self._read_ui_version(pymc_console_path) if exists else None
+
+            return self._success(
+                {
+                    "exists": exists,
+                    "path": pymc_console_path,
+                    "version": version,
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error checking PyMC Console directory: {e}")
+            return self._error(str(e))
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def web_frontends(self):
+        """List selectable primary web frontends (built-in, Console, UI plugins)."""
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+        if cherrypy.request.method not in ("GET", "HEAD"):
+            raise cherrypy.HTTPError(405, "Method Not Allowed")
+
+        try:
+            web_cfg = (self.config or {}).get("web") or {}
+            current_path = web_cfg.get("web_path")
+            if isinstance(current_path, str):
+                current_path = current_path.strip() or None
+            else:
+                current_path = None
+
+            try:
+                from repeater import __version__ as repeater_version
+            except Exception:
+                repeater_version = None
+
+            default_html = os.path.join(os.path.dirname(__file__), "html")
+            frontends = [
+                {
+                    "id": "builtin",
+                    "kind": "builtin",
+                    "name": "Default Frontend",
+                    "description": "Built-in Repeater web interface",
+                    "path": None,
+                    "version": repeater_version,
+                    "available": True,
+                    "enabled": True,
+                }
+            ]
+
+            console_path = "/opt/pymc_console/web/html"
+            console_exists = os.path.isdir(console_path)
+            frontends.append(
+                {
+                    "id": "console",
+                    "kind": "console",
+                    "name": "openHop Console",
+                    "description": "Alternative web interface for Repeater",
+                    "path": console_path,
+                    "version": self._read_ui_version(console_path) if console_exists else None,
+                    "available": console_exists,
+                    "enabled": console_exists,
+                }
+            )
+
+            frontends.extend(self._plugin_ui_frontends())
+
+            selected_id = "builtin"
+            if current_path:
+                # Prefer exact path match; fall back to path prefix for console.
+                matched = None
+                plugin_id = self._plugin_id_from_web_path(current_path)
+                if plugin_id:
+                    candidate_id = f"plugin:{plugin_id}"
+                    if any(item.get("id") == candidate_id for item in frontends):
+                        matched = candidate_id
+                for item in frontends:
+                    if matched is not None:
+                        break
+                    path = item.get("path")
+                    if not path:
+                        continue
+                    if os.path.abspath(str(path)) == os.path.abspath(str(current_path)):
+                        matched = item["id"]
+                        break
+                if matched is None and (
+                    current_path == console_path
+                    or str(current_path).startswith("/opt/pymc_console/")
+                ):
+                    matched = "console"
+                if matched is None:
+                    # Unknown custom path — surface as selected custom entry
+                    frontends.append(
+                        {
+                            "id": "custom",
+                            "kind": "custom",
+                            "name": "Custom path",
+                            "description": "Configured web_path not matching a known frontend",
+                            "path": current_path,
+                            "version": self._read_ui_version(current_path),
+                            "available": os.path.isdir(current_path),
+                            "enabled": True,
+                        }
+                    )
+                    matched = "custom"
+                selected_id = matched
+
+            for item in frontends:
+                item["selected"] = item["id"] == selected_id
+
+            return self._success(
+                {
+                    "frontends": frontends,
+                    "selected_id": selected_id,
+                    "web_path": current_path,
+                    "default_html_dir": default_html,
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error listing web frontends: {e}")
+            return self._error(str(e))
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def update_web_config(self):
+        """Update web configuration (CORS, frontend path) using ConfigManager."""
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            self._require_post()
+            updates = cherrypy.request.json or {}
+
+            if not updates:
+                return self._error("No configuration updates provided")
+
+            if isinstance(updates.get("web"), dict) and "web_path" in updates["web"]:
+                updates = dict(updates)
+                updates["web"] = dict(updates["web"])
+                updates["web"]["web_path"] = self._normalize_web_path_for_persistence(
+                    updates["web"].get("web_path")
+                )
+
+            # Use ConfigManager to update and save configuration
+            # Persist web changes first, then apply to running HTTP server.
+            result = self.config_manager.update_and_save(updates=updates, live_update=False)
+
+            if result.get("success"):
+                live_applied = False
+                frontend_switched = False
+                app = (
+                    getattr(getattr(self.daemon_instance, "http_server", None), "app", None)
+                    if self.daemon_instance
+                    else None
+                )
+                if app and hasattr(app, "apply_web_config"):
+                    try:
+                        frontend_switched = bool(app.apply_web_config())
+                        live_applied = True
+                    except Exception as exc:
+                        logger.warning("Failed to apply web config live: %s", exc)
+                logger.info(f"Web configuration updated: {list(updates.keys())}")
+                return self._success(
+                    {
+                        "persisted": result.get("saved", False),
+                        "live_applied": live_applied,
+                        "frontend_switched": frontend_switched,
+                        "restart_required": not live_applied,
+                        "message": (
+                            "Web configuration applied immediately."
+                            if live_applied
+                            else "Web configuration saved. Restart required for changes to take effect."
+                        ),
+                    }
+                )
+            else:
+                return self._error(result.get("error", "Failed to update web configuration"))
+
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error(f"Error updating web config: {e}")
+            return self._error(str(e))
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def mqtt_status(self):
+        """Get MQTT connection status and configuration."""
+        self._set_cors_headers()
+        try:
+            # mqtt_cfg = self.config.get("mqtt_brokers", {})
+
+            # Walk the chain to the mqtt_handler
+            handler = None
+            try:
+                storage = self._get_storage()
+                handler = getattr(storage, "mqtt_handler", None)
+            except Exception as exc:
+                logger.debug(f"mqtt_status could not access mqtt_handler: {exc}")
+
+            connected_brokers = []
+            if handler:
+                for conn in getattr(handler, "connections", []):
+                    connected_brokers.append(
+                        {
+                            "enabled": conn.enabled,
+                            "name": conn.broker.get("name", ""),
+                            "host": conn.broker.get("host", ""),
+                            "status": {
+                                "connected": conn.is_connected(),
+                                "reconnecting": conn.has_pending_reconnect(),
+                            },
+                            "format": conn.format,
+                            "neighbors": getattr(conn, "neighbors_enabled", False),
+                        }
+                    )
+
+            # Schedule summary for the neighbors topic, the openhop equivalent of
+            # the firmware's trailing "nbr: <next>/<last>" in `get mqtt.status`.
+            neighbors_status = None
+            publisher = getattr(self.daemon_instance, "neighbors_publisher", None)
+            if publisher:
+                try:
+                    neighbors_status = publisher.status()
+                except Exception as exc:
+                    logger.debug(f"mqtt_status could not read neighbors publisher: {exc}")
+
+            return self._success(
+                {
+                    "handler_active": handler is not None,
+                    "brokers": connected_brokers,
+                    "neighbors": neighbors_status,
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error getting MQTT status: {e}")
+            return self._error(str(e))
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def broker_presets(self):
+        """List bundled MC2MQTT broker presets.
+
+        GET /api/broker_presets
+
+        Returns the sorted list of ``repeater/presets/*.yaml`` packaged
+        with this build, in a UI-ready shape so the admin frontend's
+        "From Template" dropdown does not need to bundle its own copy
+        of the broker catalogue.
+
+        Response:
+            {
+              "success": true,
+              "data": [
+                {
+                  "id": "waev",                # preset filename stem
+                  "name": "Waev",              # YAML display_name, or titlecased id
+                  "website": "https://waev.app",  # optional, omitted if absent
+                  "brokers": [ ... raw broker dicts from the YAML ... ]
+                },
+                ...
+              ]
+            }
+
+        Unauthenticated by design - the response contains only public
+        broker hostnames and TLS hints, mirroring the access policy on
+        ``mqtt_status``.
+        """
+        self._set_cors_headers()
+        try:
+            # Imported lazily so a broken/missing yaml in the presets
+            # package never blocks process startup; the loader logs and
+            # skips bad files.
+            from repeater.presets import get_preset, list_presets
+
+            data = []
+            for preset_id in list_presets():
+                preset = get_preset(preset_id) or {}
+                entry = {
+                    "id": preset_id,
+                    "name": preset.get("display_name") or preset_id.title(),
+                    "brokers": list(preset.get("brokers", [])),
+                }
+                website = preset.get("website")
+                if website:
+                    entry["website"] = website
+                data.append(entry)
+            return self._success(data)
+        except Exception as e:
+            logger.error(f"Error listing broker presets: {e}")
+            return self._error(str(e))
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def publish_neighbors(self):
+        """Run one neighbours discovery + publish cycle now.
+
+        POST /api/publish_neighbors
+
+        The HTTP equivalent of the ``discover.scopes`` mesh CLI command. A cycle
+        runs for minutes -- a discovery window plus one serialized scope query per
+        neighbour -- so this schedules it on the event loop and returns
+        immediately rather than holding the request open. Poll ``mqtt_status``
+        for the outcome.
+        """
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        future = None
+        try:
+            self._require_post()
+            publisher = getattr(self.daemon_instance, "neighbors_publisher", None)
+            if not publisher:
+                return self._error("Neighbors publisher not available")
+            if not publisher.enabled():
+                return self._error(
+                    "Neighbours publishing is disabled - enable it and opt a broker in first"
+                )
+            if self.event_loop is None:
+                return self._error("Event loop not available")
+
+            import asyncio
+
+            # trigger_cycle owns the already-running check and tracks the task so
+            # shutdown can cancel it. Doing either here would race: this runs on a
+            # cherrypy thread while the cycle lives on the event loop.
+            async def _start():
+                return publisher.trigger_cycle()
+
+            future = asyncio.run_coroutine_threadsafe(_start(), self.event_loop)
+            if future.result(timeout=10):
+                return self._success("Neighbours discovery cycle started")
+            return self._error("A neighbours cycle is already running")
+        except FutureTimeoutError:
+            logger.error("Timed out starting the neighbours cycle", exc_info=True)
+            if future is not None:
+                future.cancel()
+            return self._error("Timed out starting the neighbours cycle")
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error(f"Error starting neighbours cycle: {e}", exc_info=True)
+            return self._error(str(e))
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def neighbor_scopes(self):
+        """Last known region scopes per neighbour.
+
+        GET /api/neighbor_scopes
+
+        Served as its own endpoint rather than folded into the advert queries: the
+        advert list is paginated per contact type and read on every neighbours-page
+        load, and this table is small enough (one row per queried neighbour) that
+        the client can hold the whole thing and join on pubkey.
+
+        ``scopes`` is the last answer a neighbour gave; an empty string is a real
+        answer meaning it serves unscoped traffic only. ``status``/``queried_at``
+        describe the most recent query, which may have failed after a good answer,
+        so ``responded_at`` is how fresh the scopes themselves are.
+
+        ``served`` carries this node's own scopes in the same comma-separated form,
+        so a client can tell which of a neighbour's scopes it already shares without
+        re-deriving the rule (the wildcard plus every allow-flood region). It is the
+        very string this node sends when a neighbour asks *it* the same question.
+        """
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            storage = self._get_storage()
+            scopes = storage.get_neighbor_scopes() or {}
+            # Keyword cannot be named `self` here -- it would collide with the
+            # method's own first argument.
+            return self._success(
+                scopes, count=len(scopes), served={"scopes": self._served_scopes()}
+            )
+        except Exception as e:
+            logger.error(f"Error reading neighbour scopes: {e}")
+            return self._error(str(e))
+
+    def _served_scopes(self) -> str:
+        """This node's advertised region scopes, or "" when they cannot be read.
+
+        Deliberately the same formatter the anon-regions responder uses, rather
+        than a second reading of the transport-key table: whatever a neighbour
+        would be told is what a client comparing against it has to see.
+        """
+        login_helper = getattr(self.daemon_instance, "login_helper", None)
+        formatter = getattr(login_helper, "_format_region_names", None) if login_helper else None
+        if not callable(formatter):
+            return ""
+        try:
+            return formatter() or ""
+        except Exception as e:
+            logger.debug(f"Could not read served region scopes: {e}")
+            return ""
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def query_neighbor_scopes(self):
+        """Ask one neighbour for its region scopes now.
+
+        POST /api/query_neighbor_scopes  {"pubkey": "<64 hex chars>"}
+
+        Unlike ``publish_neighbors`` this holds the request open for the answer:
+        one query is a single route-direct request whose response window is
+        normally the 5 s floor (only a slow radio config approaches the 120 s
+        ceiling), so a spinner is a better fit than a poll. Nothing is published
+        as a result -- the answer is stored and returned, and the periodic cycle
+        remains the only thing that writes to the MQTT topic.
+
+        The request is route-direct with an empty path, so it only reaches a
+        zero-hop neighbour, and the responder rate-limits anonymous replies (4 per
+        3 minutes, shared across its identities) -- both show up here as a
+        ``timeout``.
+        """
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            self._require_post()
+            data = cherrypy.request.json or {}
+            pubkey = str(data.get("pubkey") or "").strip()
+            if not pubkey:
+                return self._error("Missing pubkey parameter")
+
+            publisher = getattr(self.daemon_instance, "neighbors_publisher", None)
+            if not publisher:
+                return self._error("Neighbors publisher not available")
+            if self.event_loop is None:
+                return self._error("Event loop not available")
+
+            import asyncio
+
+            future = asyncio.run_coroutine_threadsafe(publisher.query_one(pubkey), self.event_loop)
+            result = future.result(timeout=self.SCOPE_QUERY_HTTP_TIMEOUT)
+            return self._success(result)
+        except FutureTimeoutError:
+            # Deliberately not cancelled: the query has already spent the airtime,
+            # and it persists its own outcome, so letting it finish means the answer
+            # still shows up on a re-read instead of being thrown away here.
+            logger.warning(
+                "Neighbour scope query still in flight after %.0fs",
+                self.SCOPE_QUERY_HTTP_TIMEOUT,
+            )
+            return self._error("Still waiting for the neighbour to reply - check back in a moment")
+        except cherrypy.HTTPError:
+            raise
+        except ValueError as e:
+            return self._error(str(e))
+        except RuntimeError as e:
+            # query_one raises this when a cycle or another query already holds the
+            # scope helper -- one request in flight at a time, by design. Still
+            # logged, because an unrelated RuntimeError from the event loop lands
+            # here too and would otherwise leave no trace.
+            logger.warning(f"Neighbour scope query refused: {e}")
+            return self._error(str(e))
+        except Exception as e:
+            logger.error(f"Error querying neighbour scopes: {e}", exc_info=True)
+            return self._error(str(e))
+
+    @staticmethod
+    def _validate_neighbors_settings(raw):
+        """Validate the ``mqtt_brokers.neighbors`` block.
+
+        Returns ``(settings, error)``; ``error`` is None on success. The interval
+        is rejected rather than clamped when out of range, matching the firmware's
+        ``set mqtt.neighbors.interval`` behavior.
+        """
+        from repeater.neighbors_publisher import (
+            DEFAULT_INTERVAL_HOURS,
+            MAX_INTERVAL_HOURS,
+            MIN_INTERVAL_HOURS,
+        )
+
+        if not isinstance(raw, dict):
+            return None, "neighbors must be an object"
+
+        # Reject unknown keys rather than accepting them silently: a typo would
+        # otherwise return success while changing nothing the runtime reads.
+        known_keys = {
+            "enabled",
+            "interval_hours",
+            "discovery_timeout_seconds",
+            "scope_response_timeout_seconds",
+            "max_sweep_seconds",
+            "duty_cycle_abort_seconds",
+            "max_neighbors",
+            "max_neighbor_age_seconds",
+        }
+        unknown = sorted(set(raw) - known_keys)
+        if unknown:
+            return None, f"Unknown neighbors settings: {', '.join(unknown)}"
+
+        settings = {}
+
+        if "enabled" in raw:
+            if not isinstance(raw["enabled"], bool):
+                return None, "neighbors.enabled must be true or false"
+            settings["enabled"] = raw["enabled"]
+
+        if "interval_hours" in raw:
+            interval = raw["interval_hours"]
+            if isinstance(interval, bool) or not isinstance(interval, (int, float)):
+                return None, "neighbors.interval_hours must be a number"
+            if float(interval) != int(interval):
+                return None, "neighbors.interval_hours must be a whole number of hours"
+            interval = int(interval)
+            if interval < MIN_INTERVAL_HOURS or interval > MAX_INTERVAL_HOURS:
+                return (
+                    None,
+                    f"neighbors.interval_hours must be between {MIN_INTERVAL_HOURS} "
+                    f"and {MAX_INTERVAL_HOURS} (default {DEFAULT_INTERVAL_HOURS})",
+                )
+            settings["interval_hours"] = interval
+
+        if "discovery_timeout_seconds" in raw:
+            try:
+                timeout = float(raw["discovery_timeout_seconds"])
+            except (TypeError, ValueError):
+                return None, "neighbors.discovery_timeout_seconds must be a number"
+            if timeout < 5 or timeout > 300:
+                return None, "neighbors.discovery_timeout_seconds must be between 5 and 300"
+            settings["discovery_timeout_seconds"] = timeout
+
+        if "scope_response_timeout_seconds" in raw:
+            try:
+                scope_timeout = float(raw["scope_response_timeout_seconds"])
+            except (TypeError, ValueError):
+                return None, "neighbors.scope_response_timeout_seconds must be a number"
+            if scope_timeout < 0 or scope_timeout > 300:
+                return None, "neighbors.scope_response_timeout_seconds must be between 0 and 300"
+            settings["scope_response_timeout_seconds"] = scope_timeout
+
+        if "max_neighbors" in raw:
+            try:
+                max_neighbors = int(raw["max_neighbors"])
+            except (TypeError, ValueError):
+                return None, "neighbors.max_neighbors must be a number"
+            if max_neighbors < 1 or max_neighbors > 255:
+                return None, "neighbors.max_neighbors must be between 1 and 255"
+            settings["max_neighbors"] = max_neighbors
+
+        if "max_neighbor_age_seconds" in raw:
+            try:
+                max_age = float(raw["max_neighbor_age_seconds"])
+            except (TypeError, ValueError):
+                return None, "neighbors.max_neighbor_age_seconds must be a number"
+            if max_age < 60:
+                return None, "neighbors.max_neighbor_age_seconds must be at least 60"
+            settings["max_neighbor_age_seconds"] = max_age
+
+        if "max_sweep_seconds" in raw:
+            try:
+                max_sweep = float(raw["max_sweep_seconds"])
+            except (TypeError, ValueError):
+                return None, "neighbors.max_sweep_seconds must be a number"
+            if max_sweep < 30 or max_sweep > 7200:
+                return None, "neighbors.max_sweep_seconds must be between 30 and 7200"
+            settings["max_sweep_seconds"] = max_sweep
+
+        if "duty_cycle_abort_seconds" in raw:
+            try:
+                abort_after = float(raw["duty_cycle_abort_seconds"])
+            except (TypeError, ValueError):
+                return None, "neighbors.duty_cycle_abort_seconds must be a number"
+            if abort_after < 0 or abort_after > 600:
+                return None, "neighbors.duty_cycle_abort_seconds must be between 0 and 600"
+            settings["duty_cycle_abort_seconds"] = abort_after
+
+        return settings, None
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def update_mqtt_config(self):
+        """Update MQTT Observer configuration.
+
+        POST /api/update_mqtt_config
+        Body: {
+            "iata_code": "SFO",
+            "status_interval": 300,
+            "owner": "Callsign",
+            "email": "user@example.com",
+            "brokers": [
+            {
+
+            }]
+        }
+        """
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            self._require_post()
+            data = cherrypy.request.json or {}
+
+            if not data:
+                return self._error("No configuration updates provided")
+
+            mqtt_updates = {}
+
+            if "iata_code" in data:
+                mqtt_updates["iata_code"] = str(data["iata_code"]).strip()
+            if "status_interval" in data:
+                mqtt_updates["status_interval"] = max(60, int(data["status_interval"]))
+            if "owner" in data:
+                mqtt_updates["owner"] = str(data["owner"]).strip()
+            if "email" in data:
+                mqtt_updates["email"] = str(data["email"]).strip()
+            if "neighbors" in data:
+                from repeater.handler_helpers.neighbor_scopes import neighbors_config_block
+
+                neighbors_settings, error = self._validate_neighbors_settings(data["neighbors"])
+                if error:
+                    return self._error(error)
+                # update_and_save replaces a section's key outright, so merge onto
+                # the stored block instead of letting a partial POST drop the
+                # settings it did not mention. neighbors_config_block returns {} for
+                # a hand-edited scalar (`neighbors: true` is an easy mistake, since
+                # the per-broker key of the same name is a boolean), which would
+                # otherwise fail the merge with a TypeError; the save then rewrites
+                # it as a proper block.
+                mqtt_updates["neighbors"] = {
+                    **neighbors_config_block(self.config),
+                    **neighbors_settings,
+                }
+            # if "disallowed_packet_types" in data:
+            #     mqtt_updates["disallowed_packet_types"] = list(data["disallowed_packet_types"])
+            if "brokers" in data:
+                brokers = data["brokers"]
+                if not isinstance(brokers, list):
+                    return self._error("brokers must be a list")
+
+                # The rebuild below is a strict field whitelist, so any key a
+                # client omits is reset to its default. For neighbors that would
+                # silently switch the feature off whenever a UI that predates it
+                # saves an unrelated MQTT setting, so fall back to the stored
+                # value per broker name instead of to False.
+                stored_neighbors_by_name = {
+                    str(existing.get("name")): bool(existing.get("neighbors", False))
+                    for existing in (self.config.get("mqtt_brokers", {}) or {}).get("brokers", [])
+                    if isinstance(existing, dict) and existing.get("name")
+                }
+
+                validated = []
+                for i, b in enumerate(brokers):
+                    if not isinstance(b, dict):
+                        return self._error(f"Broker at index {i} must be an object")
+
+                    # Bundled preset reference: {preset: <name>}. Pass through
+                    # unchanged - the MQTT handler expands it on next start.
+                    if "preset" in b and "name" not in b:
+                        validated.append({"preset": str(b["preset"]).strip()})
+                        continue
+
+                    for field in ("name", "host", "port", "format"):
+                        if not b.get(field, ""):
+                            return self._error(
+                                f"Broker at index {i} missing required field: {field}"
+                            )
+
+                    try:
+                        port = int(b.get("port", 443))
+                    except (ValueError, TypeError):
+                        return self._error(f"Broker at index {i} has invalid port")
+
+                    new_broker = {
+                        "name": str(b["name"]).strip(),
+                        "enabled": b.get("enabled", False),
+                        "transport": str(b.get("transport", "websockets")).strip(),
+                        "host": str(b["host"]).strip(),
+                        "port": port,
+                        "format": str(b["format"]).strip(),
+                        # Custom base topic for legacy `mqtt` format. Persist
+                        # None when blank so the handler can apply defaults.
+                        "base_topic": (
+                            (str(b["base_topic"]).strip() or None)
+                            if "base_topic" in b and b.get("base_topic") is not None
+                            else None
+                        ),
+                        "disallowed_packet_types": list(b.get("disallowed_packet_types", [])),
+                        "retain_status": bool(b.get("retain_status", False)),
+                        # Opt-in per broker; brokers that do not expect the
+                        # neighbors topic can reject it and drop the connection.
+                        "neighbors": bool(
+                            b["neighbors"]
+                            if "neighbors" in b
+                            else stored_neighbors_by_name.get(str(b["name"]).strip(), False)
+                        ),
+                        "tls": {
+                            "enabled": bool(
+                                b.get("tls", {}).get("enabled", True if port == 443 else False)
+                            ),
+                            "insecure": bool(b.get("tls", {}).get("insecure", False)),
+                        },
+                    }
+
+                    if b.get("use_jwt_auth", False):
+                        new_broker["use_jwt_auth"] = True
+                        new_broker["audience"] = str(b["audience"]).strip()
+                    else:
+                        new_broker["use_jwt_auth"] = False
+                        new_broker["username"] = b.get("username", None)
+                        new_broker["password"] = b.get("password", None)
+
+                    validated.append(new_broker)
+
+                mqtt_updates["brokers"] = validated
+
+            if not mqtt_updates:
+                return self._error("No valid settings provided")
+
+            result = self.config_manager.update_and_save(
+                updates={"mqtt_brokers": mqtt_updates, "mqtt": None, "letsmesh": None},
+                live_update=False,  # Restart required for MQTT handler changes
+            )
+
+            if result.get("success"):
+                logger.info(f"MQTT config updated: {list(mqtt_updates.keys())}")
+                return self._success(
+                    {
+                        "persisted": result.get("saved", False),
+                        "restart_required": True,
+                        "message": "Observer settings saved. Restart the service for changes to take effect.",
+                    }
+                )
+            else:
+                return self._error(result.get("error", "Failed to update LetsMesh configuration"))
+
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error(f"Error updating LetsMesh config: {e}")
+            return self._error(str(e))
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def restart_service(self):
+        """Restart the openhop-repeater service via systemctl."""
+        # Enable CORS for this endpoint only if configured
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            self._require_post()
+            from repeater.service_utils import restart_service as do_restart
+
+            logger.warning("Service restart requested via API")
+            success, message = do_restart()
+
+            if success:
+                return {"success": True, "message": message}
+            else:
+                return self._error(message)
+
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error(f"Error in restart_service endpoint: {e}", exc_info=True)
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def validate_config(self):
+        """Validate config.yaml syntax and required settings without restarting."""
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        if cherrypy.request.method != "GET":
+            cherrypy.response.status = 405
+            cherrypy.response.headers["Allow"] = "GET"
+            raise cherrypy.HTTPError(405, "Method not allowed. This endpoint requires GET.")
+
+        try:
+            errors = []
+            warnings = []
+
+            def add_error(path: str, message: str):
+                errors.append({"path": path, "message": message})
+
+            def add_warning(path: str, message: str):
+                warnings.append({"path": path, "message": message})
+
+            def as_int(value, path: str):
+                if isinstance(value, bool):
+                    add_error(path, "must be an integer")
+                    return None
+                try:
+                    return int(value)
+                except (TypeError, ValueError):
+                    add_error(path, "must be an integer")
+                    return None
+
+            def as_float(value, path: str):
+                if isinstance(value, bool):
+                    add_error(path, "must be a number")
+                    return None
+                try:
+                    return float(value)
+                except (TypeError, ValueError):
+                    add_error(path, "must be a number")
+                    return None
+
+            try:
+                with open(self._config_path, "r", encoding="utf-8") as f:
+                    config_yaml = yaml.safe_load(f)
+            except FileNotFoundError:
+                add_error("config", f"Configuration file not found: {self._config_path}")
+                config_yaml = None
+            except yaml.YAMLError as e:
+                mark = getattr(e, "problem_mark", None)
+                if mark is not None:
+                    add_error(
+                        "config",
+                        f"YAML syntax error at line {mark.line + 1}, column {mark.column + 1}: {e}",
+                    )
+                else:
+                    add_error("config", f"YAML syntax error: {e}")
+                config_yaml = None
+            except Exception as e:
+                add_error("config", f"Failed to read configuration: {e}")
+                config_yaml = None
+
+            if config_yaml is not None and not isinstance(config_yaml, dict):
+                add_error("config", "Top-level YAML value must be a mapping/object")
+                config_yaml = None
+
+            if isinstance(config_yaml, dict):
+                config_yaml = normalize_modem_config(config_yaml)
+                repeater = config_yaml.get("repeater")
+                if not isinstance(repeater, dict):
+                    add_error("repeater", "Missing required section 'repeater'")
+                    repeater = {}
+
+                node_name = (repeater.get("node_name") if isinstance(repeater, dict) else "") or ""
+                node_name = str(node_name).strip()
+                if not node_name:
+                    add_error("repeater.node_name", "Node name is required")
+                elif len(node_name.encode("utf-8")) > 31:
+                    add_error("repeater.node_name", "Node name too long (max 31 bytes in UTF-8)")
+
+                security = repeater.get("security") if isinstance(repeater, dict) else None
+                if not isinstance(security, dict):
+                    add_error("repeater.security", "Missing required section 'repeater.security'")
+                    security = {}
+
+                admin_password = (
+                    security.get("admin_password") if isinstance(security, dict) else ""
+                ) or ""
+                if not str(admin_password).strip():
+                    add_error("repeater.security.admin_password", "Admin password is required")
+
+                radio_type_raw = config_yaml.get("radio_type")
+                radio_type = "" if radio_type_raw is None else str(radio_type_raw).strip().lower()
+                if radio_type == "kiss-modem":
+                    radio_type = "kiss"
+
+                known_radio_types = {
+                    "sx1262",
+                    "sx1262_ch341",
+                    "kiss",
+                    "modem_tcp",
+                    "modem_usb",
+                    "none",
+                    "null",
+                    "disabled",
+                    "off",
+                    "no_radio",
+                    "",
+                }
+                if radio_type not in known_radio_types:
+                    add_error(
+                        "radio_type",
+                        "Unsupported radio_type. Supported: sx1262, sx1262_ch341, kiss, modem_tcp, modem_usb, none/null",
+                    )
+
+                radio_disabled = radio_type in ("", "none", "null", "disabled", "off", "no_radio")
+                radio = config_yaml.get("radio")
+
+                if not radio_disabled:
+                    if not isinstance(radio, dict):
+                        add_error("radio", "Missing required section 'radio'")
+                        radio = {}
+
+                    frequency = as_float((radio or {}).get("frequency"), "radio.frequency")
+                    if frequency is None:
+                        add_error("radio.frequency", "Frequency is required")
+                    elif frequency < 100_000_000 or frequency > 1_000_000_000:
+                        add_error("radio.frequency", "Frequency must be 100-1000 MHz")
+
+                    bandwidth = as_int((radio or {}).get("bandwidth"), "radio.bandwidth")
+                    valid_bw = [
+                        7800,
+                        10400,
+                        15600,
+                        20800,
+                        31250,
+                        41700,
+                        62500,
+                        125000,
+                        250000,
+                        500000,
+                    ]
+                    if bandwidth is None:
+                        add_error("radio.bandwidth", "Bandwidth is required")
+                    elif bandwidth not in valid_bw:
+                        add_error(
+                            "radio.bandwidth",
+                            f"Bandwidth must be one of {[b / 1000 for b in valid_bw]} kHz",
+                        )
+
+                    spreading_factor = as_int(
+                        (radio or {}).get("spreading_factor"), "radio.spreading_factor"
+                    )
+                    if spreading_factor is None:
+                        add_error("radio.spreading_factor", "Spreading factor is required")
+                    elif spreading_factor < 5 or spreading_factor > 12:
+                        add_error("radio.spreading_factor", "Spreading factor must be 5-12")
+
+                    coding_rate = as_int((radio or {}).get("coding_rate"), "radio.coding_rate")
+                    if coding_rate is None:
+                        add_error("radio.coding_rate", "Coding rate is required")
+                    elif coding_rate < 5 or coding_rate > 8:
+                        add_error("radio.coding_rate", "Coding rate must be 5-8 (for 4/5 to 4/8)")
+
+                    tx_power = as_int((radio or {}).get("tx_power"), "radio.tx_power")
+                    if tx_power is None:
+                        add_error("radio.tx_power", "TX power is required")
+                    elif tx_power < -9 or tx_power > 30:
+                        add_error("radio.tx_power", "TX power must be between -9 and +30 dBm")
+
+                    preamble_length = as_int(
+                        (radio or {}).get("preamble_length"), "radio.preamble_length"
+                    )
+                    if preamble_length is None:
+                        add_error("radio.preamble_length", "Preamble length is required")
+                    elif preamble_length <= 0:
+                        add_error(
+                            "radio.preamble_length", "Preamble length must be greater than zero"
+                        )
+
+                if radio_type in ("sx1262", "sx1262_ch341"):
+                    sx1262_cfg = config_yaml.get("sx1262")
+                    if not isinstance(sx1262_cfg, dict):
+                        add_error("sx1262", "Missing required section 'sx1262'")
+                        sx1262_cfg = {}
+
+                    required_sx1262_keys = [
+                        "bus_id",
+                        "cs_id",
+                        "cs_pin",
+                        "reset_pin",
+                        "busy_pin",
+                        "irq_pin",
+                        "txen_pin",
+                        "rxen_pin",
+                    ]
+                    for key in required_sx1262_keys:
+                        value = sx1262_cfg.get(key) if isinstance(sx1262_cfg, dict) else None
+                        parsed = as_int(value, f"sx1262.{key}")
+                        if parsed is None:
+                            add_error(
+                                f"sx1262.{key}", f"Missing or invalid required setting '{key}'"
+                            )
+
+                    en_pins = sx1262_cfg.get("en_pins") if isinstance(sx1262_cfg, dict) else None
+                    if en_pins is not None:
+                        if not isinstance(en_pins, list):
+                            add_error("sx1262.en_pins", "en_pins must be a list of integers")
+                        else:
+                            for idx, pin in enumerate(en_pins):
+                                if as_int(pin, f"sx1262.en_pins[{idx}]") is None:
+                                    add_error(
+                                        f"sx1262.en_pins[{idx}]",
+                                        "Each en_pins entry must be an integer",
+                                    )
+
+                if radio_type == "sx1262_ch341":
+                    ch341_cfg = config_yaml.get("ch341")
+                    if not isinstance(ch341_cfg, dict):
+                        add_error(
+                            "ch341", "Missing required section 'ch341' for radio_type sx1262_ch341"
+                        )
+                        ch341_cfg = {}
+                    for key in ("vid", "pid"):
+                        value = ch341_cfg.get(key) if isinstance(ch341_cfg, dict) else None
+                        parsed = as_int(value, f"ch341.{key}")
+                        if parsed is None:
+                            add_error(
+                                f"ch341.{key}", f"Missing or invalid required setting '{key}'"
+                            )
+
+                if radio_type == "kiss":
+                    kiss_cfg = config_yaml.get("kiss")
+                    if not isinstance(kiss_cfg, dict):
+                        add_error("kiss", "Missing required section 'kiss' for radio_type kiss")
+                        kiss_cfg = {}
+                    port = (kiss_cfg.get("port") if isinstance(kiss_cfg, dict) else "") or ""
+                    if not str(port).strip():
+                        add_error("kiss.port", "KISS port is required")
+                    baud = as_int((kiss_cfg or {}).get("baud_rate"), "kiss.baud_rate")
+                    if baud is None:
+                        add_error("kiss.baud_rate", "KISS baud_rate is required")
+                    elif baud <= 0:
+                        add_error("kiss.baud_rate", "KISS baud_rate must be greater than zero")
+
+                if radio_type == "modem_usb":
+                    usb_cfg = config_yaml.get("modem_usb")
+                    if not isinstance(usb_cfg, dict):
+                        add_error(
+                            "modem_usb",
+                            "Missing required section 'modem_usb' for radio_type modem_usb",
+                        )
+                        usb_cfg = {}
+                    port = (usb_cfg.get("port") if isinstance(usb_cfg, dict) else "") or ""
+                    if not str(port).strip():
+                        add_error("modem_usb.port", "modem_usb.port is required")
+                    baud = as_int((usb_cfg or {}).get("baudrate"), "modem_usb.baudrate")
+                    if baud is not None and baud <= 0:
+                        add_error(
+                            "modem_usb.baudrate", "modem_usb.baudrate must be greater than zero"
+                        )
+
+                if radio_type == "modem_tcp":
+                    tcp_cfg = config_yaml.get("modem_tcp")
+                    if not isinstance(tcp_cfg, dict):
+                        add_error(
+                            "modem_tcp",
+                            "Missing required section 'modem_tcp' for radio_type modem_tcp",
+                        )
+                        tcp_cfg = {}
+                    host = (tcp_cfg.get("host") if isinstance(tcp_cfg, dict) else "") or ""
+                    host_str = str(host).strip()
+                    if not host_str:
+                        add_error("modem_tcp.host", "modem_tcp.host is required")
+                    elif host_str == "REPLACE_WITH_MODEM_HOST":
+                        add_error(
+                            "modem_tcp.host",
+                            "Replace placeholder host with your modem hostname or IP",
+                        )
+                    port = as_int((tcp_cfg or {}).get("port"), "modem_tcp.port")
+                    if port is None:
+                        add_error("modem_tcp.port", "modem_tcp.port is required")
+                    elif port < 1 or port > 65535:
+                        add_error("modem_tcp.port", "modem_tcp.port must be 1-65535")
+
+                if radio_disabled:
+                    add_warning("radio_type", "Radio is disabled (radio_type none/null/off)")
+
+            valid = len(errors) == 0
+            return self._success(
+                {
+                    "valid": valid,
+                    "blocked_restart": not valid,
+                    "errors": errors,
+                    "warnings": warnings,
+                    "summary": {
+                        "error_count": len(errors),
+                        "warning_count": len(warnings),
+                    },
+                    "config_path": self._config_path,
+                    "message": "Configuration is valid"
+                    if valid
+                    else "Configuration has validation errors",
+                }
+            )
+
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error(f"Error validating configuration: {e}", exc_info=True)
+            return self._error(str(e))
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def logs(self):
+        from .http_server import _log_buffer
+
+        try:
+            if hasattr(_log_buffer, "snapshot"):
+                logs = _log_buffer.snapshot()
+            else:
+                logs = list(getattr(_log_buffer, "logs", []))
+            return {
+                "logs": (
+                    logs
+                    if logs
+                    else [
+                        {
+                            "id": 0,
+                            "message": "No logs available",
+                            "timestamp": datetime.now().isoformat(),
+                            "level": "INFO",
+                            "logger": "HTTPServer",
+                        }
+                    ]
+                )
+            }
+        except Exception as e:
+            logger.error(f"Error fetching logs: {e}")
+            return {"error": str(e), "logs": []}
+
+    @cherrypy.expose
+    def logs_stream(self, since_id: Optional[str] = None):
+        from .http_server import _log_buffer
+
+        cherrypy.response.headers["Content-Type"] = "text/event-stream"
+        cherrypy.response.headers["Cache-Control"] = "no-cache"
+        cherrypy.response.headers["Connection"] = "keep-alive"
+        cherrypy.response.headers["X-Accel-Buffering"] = "no"
+
+        if since_id is None:
+            since_id = cherrypy.request.headers.get("Last-Event-ID")
+
+        try:
+            cursor = int(since_id) if since_id is not None else None
+        except (TypeError, ValueError):
+            cursor = None
+
+        def encode_event(payload, event_name: Optional[str] = None, event_id: Optional[int] = None):
+            lines = []
+            if event_name:
+                lines.append(f"event: {event_name}")
+            if event_id is not None:
+                lines.append(f"id: {event_id}")
+            lines.append(f"data: {json.dumps(payload, default=str)}")
+            return "\n".join(lines) + "\n\n"
+
+        def generate():
+            subscriber = _log_buffer.subscribe()
+            last_sent_id = cursor
+            current_snapshot = _log_buffer.snapshot()
+
+            try:
+                yield encode_event(
+                    {
+                        "type": "connected",
+                        "message": "Connected to logs stream",
+                        "latest_id": current_snapshot[-1]["id"] if current_snapshot else 0,
+                    },
+                    event_name="connected",
+                )
+
+                backlog = _log_buffer.snapshot(since_id=cursor)
+                for entry in backlog:
+                    last_sent_id = entry.get("id", last_sent_id)
+                    yield encode_event(
+                        {"type": "log", "entry": entry}, event_name="log", event_id=entry.get("id")
+                    )
+
+                while True:
+                    try:
+                        entry = subscriber.get(timeout=15.0)
+                    except Exception:
+                        yield encode_event(
+                            {"type": "keepalive"}, event_name="keepalive", event_id=last_sent_id
+                        )
+                        continue
+
+                    entry_id = entry.get("id")
+                    if (
+                        last_sent_id is not None
+                        and entry_id is not None
+                        and entry_id <= last_sent_id
+                    ):
+                        continue
+
+                    last_sent_id = entry_id
+                    yield encode_event(
+                        {"type": "log", "entry": entry}, event_name="log", event_id=entry_id
+                    )
+            except GeneratorExit:
+                logger.debug("Logs SSE stream closed by client")
+            except Exception as exc:
+                logger.error(f"Error serving logs stream: {exc}", exc_info=True)
+                yield encode_event(
+                    {"type": "error", "error": str(exc)}, event_name="error", event_id=last_sent_id
+                )
+            finally:
+                _log_buffer.unsubscribe(subscriber)
+
+        return generate()
+
+    logs_stream._cp_config = {"response.stream": True}
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def hardware_stats(self):
+        """Get comprehensive hardware statistics"""
+        try:
+            # Get hardware stats from storage collector
+            storage = self._get_storage()
+            if storage:
+                stats = storage.get_hardware_stats()
+                if stats:
+                    return self._success(stats)
+                else:
+                    return self._error("Hardware stats not available (psutil may not be installed)")
+            else:
+                return self._error("Storage collector not available")
+        except Exception as e:
+            logger.error(f"Error getting hardware stats: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def memory_debug(self, **kwargs):
+        """Memory diagnostics endpoint.
+
+        GET  — returns current status + data if tracing is active.
+        POST {"action": "start"} — starts tracemalloc and captures baseline.
+        POST {"action": "stop"}  — stops tracemalloc and clears data.
+        """
+        import tracemalloc
+
+        self._set_cors_headers()
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        # ---------- POST: start / stop ----------
+        if cherrypy.request.method == "POST":
+            data = cherrypy.request.json or {}
+            action = data.get("action")
+
+            if action == "start":
+                if not tracemalloc.is_tracing():
+                    # Use 1 frame instead of 10 — much less overhead & faster snapshots
+                    tracemalloc.start(1)
+                self._tracemalloc_baseline = tracemalloc.take_snapshot().filter_traces(
+                    (
+                        tracemalloc.Filter(False, tracemalloc.__file__),
+                        tracemalloc.Filter(False, "<frozen importlib._bootstrap>"),
+                    )
+                )
+                logger.info("Memory tracing started")
+                return self._success(
+                    {
+                        "tracing": True,
+                        "message": "Tracing started — check again after some time to see growth",
+                    }
+                )
+
+            if action == "stop":
+                if tracemalloc.is_tracing():
+                    tracemalloc.stop()
+                self._tracemalloc_baseline = None
+                logger.info("Memory tracing stopped")
+                return self._success({"tracing": False})
+
+            return self._error("Invalid action — use 'start' or 'stop'")
+
+        # ---------- GET: status + data ----------
+        tracing = tracemalloc.is_tracing()
+        result: dict = {"tracing": tracing}
+
+        # Always include RSS regardless of tracing state
+        try:
+            import resource
+
+            rusage = resource.getrusage(resource.RUSAGE_SELF)
+            result["rss_mb"] = round(rusage.ru_maxrss / 1024, 1)
+        except Exception as exc:
+            logger.debug(f"Could not read process RSS usage: {exc}")
+
+        if not tracing:
+            return self._success(result)
+
+        # Filter out tracemalloc's own allocations to keep snapshot small & fast
+        current = tracemalloc.take_snapshot().filter_traces(
+            (
+                tracemalloc.Filter(False, tracemalloc.__file__),
+                tracemalloc.Filter(False, "<frozen importlib._bootstrap>"),
+            )
+        )
+        baseline = getattr(self, "_tracemalloc_baseline", None)
+
+        # Top 20 allocations right now
+        top_current = current.statistics("lineno")[:20]
+        current_stats = []
+        for stat in top_current:
+            current_stats.append(
+                {
+                    "file": str(stat.traceback),
+                    "size_kb": round(stat.size / 1024, 1),
+                    "count": stat.count,
+                }
+            )
+        result["current_top_20"] = current_stats
+
+        # Growth since baseline
+        if baseline:
+            diff = current.compare_to(baseline, "lineno")
+            growth = [d for d in diff if d.size_diff > 0]
+            growth.sort(key=lambda d: d.size_diff, reverse=True)
+            growth_stats = []
+            for stat in growth[:20]:
+                growth_stats.append(
+                    {
+                        "file": str(stat.traceback),
+                        "size_diff_kb": round(stat.size_diff / 1024, 1),
+                        "count_diff": stat.count_diff,
+                        "current_size_kb": round(stat.size / 1024, 1),
+                    }
+                )
+            result["growth_since_baseline"] = growth_stats
+
+        traced_current, traced_peak = tracemalloc.get_traced_memory()
+        result["traced_current_mb"] = round(traced_current / (1024 * 1024), 2)
+        result["traced_peak_mb"] = round(traced_peak / (1024 * 1024), 2)
+
+        return self._success(result)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def hardware_processes(self):
+        """Get summary of top processes"""
+        try:
+            # Get process stats from storage collector
+            storage = self._get_storage()
+            if storage:
+                processes = storage.get_hardware_processes()
+                if processes:
+                    return self._success(processes)
+                else:
+                    return self._error(
+                        "Process information not available (psutil may not be installed)"
+                    )
+            else:
+                return self._error("Storage collector not available")
+        except Exception as e:
+            logger.error(f"Error getting process stats: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def packet_stats(self, hours=24):
+        try:
+            hours = int(hours)
+            stats = self._get_storage().get_packet_stats(hours=hours)
+            return self._success(stats)
+        except Exception as e:
+            logger.error(f"Error getting packet stats: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def packet_type_stats(self, hours=24):
+        try:
+            hours = int(hours)
+            stats = self._get_storage().get_packet_type_stats(hours=hours)
+            return self._success(stats)
+        except Exception as e:
+            logger.error(f"Error getting packet type stats: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def route_stats(self, hours=24):
+        try:
+            hours = int(hours)
+            stats = self._get_storage().get_route_stats(hours=hours)
+            return self._success(stats)
+        except Exception as e:
+            logger.error(f"Error getting route stats: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def neighbor_links(self, active_within_seconds=90, limit=500):
+        try:
+            handler = getattr(self.daemon_instance, "repeater_handler", None)
+            tracker = (
+                getattr(handler, "neighbour_link_tracker", None) if handler is not None else None
+            )
+            if tracker is None or not hasattr(tracker, "snapshot"):
+                return self._error("Repeater handler not initialized")
+
+            active_window = float(active_within_seconds)
+            row_limit = int(limit)
+            if row_limit < 1:
+                raise ValueError("limit must be >= 1")
+
+            links = tracker.snapshot(active_within_seconds=active_window)
+            links = links[:row_limit]
+            return self._success(
+                {
+                    "links": links,
+                    "active_within_seconds": active_window,
+                    "limit": row_limit,
+                    "count": len(links),
+                }
+            )
+        except ValueError as e:
+            return self._error(f"Invalid parameter format: {e}")
+        except Exception as e:
+            logger.error(f"Error getting neighbor links: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def neighbor_link_history(
+        self, peer_hash=None, path_hash_size=None, hours=24, limit=1000, bucket_seconds=None
+    ):
+        try:
+            if not peer_hash:
+                return self._error("peer_hash parameter required")
+            if path_hash_size is None:
+                return self._error("path_hash_size parameter required")
+
+            size = int(path_hash_size)
+            window_hours = int(hours)
+            row_limit = int(limit)
+            bucket_s = max(60, int(bucket_seconds)) if bucket_seconds is not None else None
+
+            rows = self._get_storage().get_neighbor_link_history(
+                peer_hash=str(peer_hash),
+                path_hash_size=size,
+                hours=window_hours,
+                limit=row_limit,
+                bucket_seconds=bucket_s,
+            )
+            data = {
+                "peer_hash": str(peer_hash).upper(),
+                "path_hash_size": size,
+                "hours": window_hours,
+                "limit": row_limit,
+                "count": len(rows),
+            }
+            if bucket_s is not None:
+                data["bucket_seconds"] = bucket_s
+                data["buckets"] = rows
+            else:
+                data["rows"] = rows
+            return self._success(data)
+        except ValueError as e:
+            return self._error(f"Invalid parameter format: {e}")
+        except Exception as e:
+            logger.error(f"Error getting neighbor link history: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def recent_packets(self, limit=100):
+        try:
+            limit = int(limit)
+            packets = self._get_storage().get_recent_packets(limit=limit)
+            return self._success(packets, count=len(packets))
+        except Exception as e:
+            logger.error(f"Error getting recent packets: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.gzip(compress_level=6)
+    @cherrypy.tools.json_out()
+    def bulk_packets(self, limit=1000, offset=0, start_timestamp=None, end_timestamp=None):
+        """
+        Optimized bulk packet retrieval with gzip compression and DB-level pagination.
+        """
+        try:
+            # Enforce reasonable limits
+            limit = min(int(limit), 10000)
+            offset = max(int(offset), 0)
+
+            # Get packets from storage with TRUE DB-level pagination
+            # Uses SQL "LIMIT ? OFFSET ?" - no Python slicing needed!
+            storage = self._get_storage()
+            packets = storage.get_filtered_packets(
+                packet_type=None,
+                route=None,
+                start_timestamp=float(start_timestamp) if start_timestamp else None,
+                end_timestamp=float(end_timestamp) if end_timestamp else None,
+                limit=limit,
+                offset=offset,
+            )
+
+            response = {
+                "success": True,
+                "data": packets,
+                "count": len(packets),
+                "offset": offset,
+                "limit": limit,
+                "compressed": True,
+            }
+
+            return response
+
+        except Exception as e:
+            logger.error(f"Error getting bulk packets: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def filtered_packets(
+        self, start_timestamp=None, end_timestamp=None, limit=1000, type=None, route=None
+    ):
+        # Handle OPTIONS request for CORS preflight
+        if cherrypy.request.method == "OPTIONS":
+            self._set_cors_headers()
+            return ""
+
+        try:
+            # Convert 'type' parameter to 'packet_type' for storage method
+            packet_type = int(type) if type is not None else None
+            route_int = int(route) if route is not None else None
+            start_ts = float(start_timestamp) if start_timestamp is not None else None
+            end_ts = float(end_timestamp) if end_timestamp is not None else None
+            limit_int = int(limit) if limit is not None else 1000
+
+            packets = self._get_storage().get_filtered_packets(
+                packet_type=packet_type,
+                route=route_int,
+                start_timestamp=start_ts,
+                end_timestamp=end_ts,
+                limit=limit_int,
+            )
+            return self._success(
+                packets,
+                count=len(packets),
+                filters={
+                    "type": packet_type,
+                    "route": route_int,
+                    "start_timestamp": start_ts,
+                    "end_timestamp": end_ts,
+                    "limit": limit_int,
+                },
+            )
+        except ValueError as e:
+            return self._error(f"Invalid parameter format: {e}")
+        except Exception as e:
+            logger.error(f"Error getting filtered packets: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def airtime_data(self, start_timestamp=None, end_timestamp=None, limit=50000):
+        """Lightweight endpoint returning only columns needed for airtime charting."""
+        try:
+            start_ts = float(start_timestamp) if start_timestamp is not None else None
+            end_ts = float(end_timestamp) if end_timestamp is not None else None
+            limit_int = min(int(limit), 50000)
+            packets = self._get_storage().get_airtime_data(
+                start_timestamp=start_ts,
+                end_timestamp=end_ts,
+                limit=limit_int,
+            )
+            return self._success(packets, count=len(packets))
+        except Exception as e:
+            logger.error(f"Error getting airtime data: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def airtime_chart_data(
+        self,
+        start_timestamp=None,
+        end_timestamp=None,
+        bucket_seconds=60,
+        sf=9,
+        bw_hz=62500,
+        cr=5,
+        preamble=17,
+    ):
+        """Server-side aggregated airtime utilization for chart rendering.
+
+        Returns pre-bucketed rx_ms/tx_ms per time bucket instead of raw packet rows,
+        reducing response size from potentially hundreds of KB to a few KB.
+        """
+        try:
+            now = __import__("time").time()
+            start_ts = float(start_timestamp) if start_timestamp is not None else now - 86400
+            end_ts = float(end_timestamp) if end_timestamp is not None else now
+            bucket_s = max(10, min(int(bucket_seconds), 3600))
+            result = self._get_storage().get_airtime_buckets(
+                start_timestamp=start_ts,
+                end_timestamp=end_ts,
+                bucket_seconds=bucket_s,
+                sf=int(sf),
+                bw_hz=int(bw_hz),
+                cr=int(cr),
+                preamble=int(preamble),
+            )
+            return self._success(result)
+        except Exception as e:
+            logger.error(f"Error getting airtime chart data: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def packet_by_hash(self, packet_hash=None):
+        try:
+            if not packet_hash:
+                return self._error("packet_hash parameter required")
+            packet = self._get_storage().get_packet_by_hash(packet_hash)
+            return self._success(packet) if packet else self._error("Packet not found")
+        except Exception as e:
+            logger.error(f"Error getting packet by hash: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def packet_by_id(self, packet_id=None):
+        try:
+            if packet_id is None:
+                return self._error("packet_id parameter required")
+            packet = self._get_storage().get_packet_by_id(int(packet_id))
+            return self._success(packet) if packet else self._error("Packet not found")
+        except Exception as e:
+            logger.error(f"Error getting packet by id: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def rrd_data(self):
+        try:
+            params = self._get_params(
+                {"start_time": None, "end_time": None, "resolution": "average"}
+            )
+            data = self._get_storage().get_metrics_data(**params)
+            return self._success(data)
+        except ValueError as e:
+            return self._error(f"Invalid parameter format: {e}")
+        except Exception as e:
+            logger.error(f"Error getting RRD data: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def packet_type_graph_data(self, hours=24, resolution="average", types="all"):
+
+        try:
+            hours = int(hours)
+            start_time, end_time = self._get_time_range(hours)
+
+            storage = self._get_storage()
+
+            stats = storage.sqlite_handler.get_packet_type_stats(hours)
+            if "error" in stats:
+                return self._error(stats["error"])
+
+            packet_type_totals = stats.get("packet_type_totals", {})
+
+            # Create simple bar chart data format for packet types
+            series = []
+            for type_name, count in packet_type_totals.items():
+                if count > 0:  # Only include types with actual data
+                    series.append(
+                        {
+                            "name": type_name,
+                            "type": type_name.lower()
+                            .replace(" ", "_")
+                            .replace("(", "")
+                            .replace(")", ""),
+                            "data": [
+                                [end_time * 1000, count]
+                            ],  # Single data point with total count
+                        }
+                    )
+
+            # Sort series by count (descending)
+            series.sort(key=lambda x: x["data"][0][1], reverse=True)
+
+            graph_data = {
+                "start_time": start_time,
+                "end_time": end_time,
+                "step": 3600,  # 1 hour step for simple bar chart
+                "timestamps": [start_time, end_time],
+                "series": series,
+                "data_source": "sqlite",
+                "chart_type": "bar",  # Indicate this is bar chart data
+            }
+
+            return self._success(graph_data)
+
+        except ValueError as e:
+            return self._error(f"Invalid parameter format: {e}")
+        except Exception as e:
+            logger.error(f"Error getting packet type graph data: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def metrics_graph_data(self, hours=24, resolution="average", metrics="all"):
+
+        try:
+            hours = int(hours)
+            start_time, end_time = self._get_time_range(hours)
+
+            metrics_data = self._get_storage().get_metrics_data(
+                start_time=start_time, end_time=end_time, resolution=resolution
+            )
+
+            if (
+                not metrics_data
+                or "metrics" not in metrics_data
+                or "timestamps" not in metrics_data
+            ):
+                return self._error("No metrics data available")
+
+            metric_names = {
+                "rx_count": "Received Packets",
+                "tx_count": "Transmitted Packets",
+                "drop_count": "Dropped Packets",
+                "policy_events": "Policy Events",
+                "avg_rssi": "Average RSSI (dBm)",
+                "avg_snr": "Average SNR (dB)",
+                "avg_length": "Average Packet Length",
+                "avg_score": "Average Score",
+                "neighbor_count": "Neighbor Count",
+            }
+
+            counter_metrics = ["rx_count", "tx_count", "drop_count"]
+
+            if metrics != "all":
+                requested_metrics = [m.strip() for m in metrics.split(",")]
+            else:
+                requested_metrics = list(metrics_data["metrics"].keys())
+                requested_metrics.append("policy_events")
+
+            timestamps_ms = [ts * 1000 for ts in metrics_data["timestamps"]]
+            series = []
+
+            for metric_key in requested_metrics:
+                if metric_key == "policy_events":
+                    bucket_seconds = max(1, int(metrics_data.get("step", 60)))
+                    policy_rows = self._get_storage().get_policy_event_counts(
+                        start_timestamp=metrics_data["start_time"],
+                        end_timestamp=metrics_data["end_time"],
+                        bucket_seconds=bucket_seconds,
+                    )
+                    policy_by_bucket = {
+                        int(row.get("timestamp", 0)): int(row.get("count", 0))
+                        for row in policy_rows
+                    }
+                    chart_data = []
+                    for ts in metrics_data["timestamps"]:
+                        bucket_ts = int(ts / bucket_seconds) * bucket_seconds
+                        chart_data.append([ts * 1000, policy_by_bucket.get(bucket_ts, 0)])
+
+                    series.append(
+                        {
+                            "name": metric_names["policy_events"],
+                            "type": "policy_events",
+                            "data": chart_data,
+                        }
+                    )
+                    continue
+
+                if metric_key in metrics_data["metrics"]:
+                    if metric_key in counter_metrics:
+                        if metrics_data.get("counter_mode") == "bucket_count":
+                            chart_data = self._process_gauge_data(
+                                metrics_data["metrics"][metric_key], timestamps_ms
+                            )
+                        else:
+                            chart_data = self._process_counter_data(
+                                metrics_data["metrics"][metric_key], timestamps_ms
+                            )
+                    else:
+                        chart_data = self._process_gauge_data(
+                            metrics_data["metrics"][metric_key], timestamps_ms
+                        )
+
+                    series.append(
+                        {
+                            "name": metric_names.get(metric_key, metric_key),
+                            "type": metric_key,
+                            "data": chart_data,
+                        }
+                    )
+
+            graph_data = {
+                "start_time": metrics_data["start_time"],
+                "end_time": metrics_data["end_time"],
+                "step": metrics_data["step"],
+                "timestamps": metrics_data["timestamps"],
+                "series": series,
+                "data_source": metrics_data.get("data_source", "rrd"),
+            }
+
+            return self._success(graph_data)
+
+        except ValueError as e:
+            return self._error(f"Invalid parameter format: {e}")
+        except Exception as e:
+            logger.error(f"Error getting metrics graph data: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def lbt_diagnostics(
+        self,
+        hours=24,
+        start_timestamp=None,
+        end_timestamp=None,
+        bucket_seconds=None,
+        severe_attempt_threshold=4,
+    ):
+        """Return aggregated LBT diagnostics aligned to RF-health buckets."""
+        try:
+            max_hours = 168
+            hours_int = max(1, min(int(hours), max_hours))
+
+            now = time.time()
+            if start_timestamp is not None or end_timestamp is not None:
+                if start_timestamp is None and end_timestamp is not None:
+                    end_ts = float(end_timestamp)
+                    start_ts = end_ts - (hours_int * 3600)
+                elif end_timestamp is None and start_timestamp is not None:
+                    start_ts = float(start_timestamp)
+                    end_ts = now
+                else:
+                    start_ts = float(start_timestamp)
+                    end_ts = float(end_timestamp)
+            else:
+                start_ts, end_ts = self._get_time_range(hours_int)
+                start_ts = float(start_ts)
+                end_ts = float(end_ts)
+
+            if end_ts < start_ts:
+                start_ts, end_ts = end_ts, start_ts
+
+            range_seconds = int(end_ts - start_ts)
+            if range_seconds <= 0:
+                return self._error("Invalid time range")
+
+            if range_seconds > max_hours * 3600:
+                return self._error(f"Time range too large. Max range is {max_hours} hours")
+
+            if bucket_seconds is None:
+                bucket_s = self._auto_bucket_seconds(range_seconds)
+            else:
+                bucket_s = max(60, min(int(bucket_seconds), 3600))
+
+            severe_threshold = max(2, min(int(severe_attempt_threshold), 16))
+
+            storage = self._get_storage()
+            lbt = storage.get_lbt_diagnostics(
+                start_timestamp=start_ts,
+                end_timestamp=end_ts,
+                bucket_seconds=bucket_s,
+                severe_attempt_threshold=severe_threshold,
+            )
+
+            rrd_data = storage.get_rrd_data(
+                start_time=int(start_ts),
+                end_time=int(end_ts),
+                resolution="average",
+            )
+            rf_by_bucket = self._build_rrd_bucket_metrics(rrd_data, bucket_s)
+
+            merged_buckets = []
+            for bucket in lbt.get("buckets", []):
+                bucket_ts = int(bucket.get("timestamp", 0))
+                rf = rf_by_bucket.get(bucket_ts, {})
+                merged_buckets.append(
+                    {
+                        **bucket,
+                        "rf": {
+                            "avg_rssi": rf.get("avg_rssi"),
+                            "avg_snr": rf.get("avg_snr"),
+                            "packet_loss_rate_pct": rf.get("packet_loss_rate_pct"),
+                            "traffic_volume": rf.get("traffic_volume", 0),
+                            "rx_count": rf.get("rx_count", 0),
+                            "tx_count": rf.get("tx_count", 0),
+                            "drop_count": rf.get("drop_count", 0),
+                        },
+                    }
+                )
+
+            merged_packet_type_buckets = []
+            for bucket in lbt.get("packet_type_buckets", []):
+                bucket_ts = int(bucket.get("timestamp", 0))
+                rf = rf_by_bucket.get(bucket_ts, {})
+                merged_packet_type_buckets.append(
+                    {
+                        **bucket,
+                        "rf": {
+                            "avg_rssi": rf.get("avg_rssi"),
+                            "avg_snr": rf.get("avg_snr"),
+                            "packet_loss_rate_pct": rf.get("packet_loss_rate_pct"),
+                            "traffic_volume": rf.get("traffic_volume", 0),
+                            "rx_count": rf.get("rx_count", 0),
+                            "tx_count": rf.get("tx_count", 0),
+                            "drop_count": rf.get("drop_count", 0),
+                        },
+                    }
+                )
+
+            def _build_correlation(metric_getter):
+                left = []
+                right = []
+                for item in merged_buckets:
+                    retry_rate = item.get("retry_rate_pct")
+                    metric_value = metric_getter(item)
+                    if retry_rate is None or metric_value is None:
+                        continue
+                    left.append(float(retry_rate))
+                    right.append(float(metric_value))
+
+                coeff = self._pearson_correlation(left, right)
+                if coeff is None:
+                    return {
+                        "coefficient": None,
+                        "sample_count": len(left),
+                        "note": "Insufficient or non-varying samples",
+                    }
+                return {
+                    "coefficient": coeff,
+                    "sample_count": len(left),
+                    "note": None,
+                }
+
+            correlations = {
+                "retry_rate_vs_avg_snr": _build_correlation(
+                    lambda item: item.get("rf", {}).get("avg_snr")
+                ),
+                "retry_rate_vs_avg_rssi": _build_correlation(
+                    lambda item: item.get("rf", {}).get("avg_rssi")
+                ),
+                "retry_rate_vs_packet_loss_rate": _build_correlation(
+                    lambda item: item.get("rf", {}).get("packet_loss_rate_pct")
+                ),
+                "retry_rate_vs_traffic_volume": _build_correlation(
+                    lambda item: item.get("rf", {}).get("traffic_volume")
+                ),
+            }
+
+            diagnostics = {
+                "start_time": int(start_ts),
+                "end_time": int(end_ts),
+                "bucket_seconds": int(bucket_s),
+                "severe_attempt_threshold": severe_threshold,
+                "summary": lbt.get("summary", {}),
+                "buckets": merged_buckets,
+                "packet_types": lbt.get("packet_types", []),
+                "packet_type_buckets": merged_packet_type_buckets,
+                "correlations": correlations,
+                "limitations": [
+                    "LBT attempts are derived from stored per-packet retry counts (lbt_attempts + 1).",
+                    "Per-attempt RSSI/SNR and channel frequency are not recorded for each LBT attempt.",
+                    "Airtime utilisation is not available in the current RRD metric set for direct alignment.",
+                ],
+            }
+
+            return self._success(diagnostics)
+
+        except ValueError as e:
+            return self._error(f"Invalid parameter format: {e}")
+        except Exception as e:
+            logger.error(f"Error getting LBT diagnostics: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def cad_calibration_start(self):
+
+        try:
+            self._require_post()
+            data = cherrypy.request.json or {}
+            samples = data.get("samples", 8)
+            delay = data.get("delay", 100)
+            known_signal_present = data.get("known_signal_present", False)
+            radio = getattr(self.daemon_instance, "radio", None) if self.daemon_instance else None
+            default_cad_symbol_num = (
+                self.config.get("radio", {}).get("cad", {}).get("symbol_num", 2)
+            )
+            radio_symbol_num = getattr(radio, "_custom_cad_symbol_num", None) if radio else None
+            if radio_symbol_num in {1, 2, 4, 8, 16}:
+                default_cad_symbol_num = radio_symbol_num
+            try:
+                default_cad_symbol_num = int(default_cad_symbol_num)
+            except (TypeError, ValueError):
+                default_cad_symbol_num = 2
+            if default_cad_symbol_num not in {1, 2, 4, 8, 16}:
+                default_cad_symbol_num = 2
+
+            cad_symbol_num = data.get("cad_symbol_num", default_cad_symbol_num)
+            cad_timeout_ms = data.get("cad_timeout_ms", 500)
+            self.cad_calibration.session_config = {
+                "known_signal_present": known_signal_present,
+                "cad_symbol_num": cad_symbol_num,
+                "cad_timeout_ms": cad_timeout_ms,
+            }
+            if self.cad_calibration.start_calibration(samples, delay):
+                return self._success("Calibration started")
+            else:
+                return self._error("Calibration already running")
+        except cherrypy.HTTPError:
+            # Re-raise HTTP errors (like 405 Method Not Allowed) without logging
+            raise
+        except Exception as e:
+            logger.error(f"Error starting CAD calibration: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def cad_calibration_stop(self):
+
+        try:
+            self._require_post()
+            self.cad_calibration.stop_calibration()
+            return self._success("Calibration stopped")
+        except cherrypy.HTTPError:
+            # Re-raise HTTP errors (like 405 Method Not Allowed) without logging
+            raise
+        except Exception as e:
+            logger.error(f"Error stopping CAD calibration: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def cad_manual_check(self):
+
+        try:
+            import asyncio
+
+            self._require_post()
+            data = cherrypy.request.json or {}
+
+            radio = getattr(self.daemon_instance, "radio", None) if self.daemon_instance else None
+            if not radio or not hasattr(radio, "perform_cad"):
+                return self._error("Radio CAD support is not available")
+            if self.event_loop is None:
+                return self._error("Event loop not available")
+            default_cad_symbol_num = getattr(
+                radio, "_custom_cad_symbol_num", None
+            ) or self.config.get("radio", {}).get("cad", {}).get("symbol_num", 2)
+            try:
+                default_cad_symbol_num = int(default_cad_symbol_num)
+            except (TypeError, ValueError):
+                default_cad_symbol_num = 2
+            if default_cad_symbol_num not in {1, 2, 4, 8, 16}:
+                default_cad_symbol_num = 2
+
+            samples = self.cad_calibration._normalize_int(
+                data.get("samples", 1), default=1, minimum=1, maximum=32
+            )
+            det_peak = self.cad_calibration._normalize_int(
+                data.get("det_peak", getattr(radio, "_custom_cad_peak", 22) or 22),
+                default=22,
+                minimum=0,
+                maximum=255,
+            )
+            det_min = self.cad_calibration._normalize_int(
+                data.get("det_min", getattr(radio, "_custom_cad_min", 10) or 10),
+                default=10,
+                minimum=0,
+                maximum=255,
+            )
+            cad_symbol_num = self.cad_calibration._normalize_int(
+                data.get("cad_symbol_num", default_cad_symbol_num),
+                default=default_cad_symbol_num,
+                minimum=1,
+                maximum=16,
+            )
+            if cad_symbol_num not in {1, 2, 4, 8, 16}:
+                cad_symbol_num = default_cad_symbol_num
+            cad_timeout_ms = self.cad_calibration._normalize_int(
+                data.get("cad_timeout_ms", 500), default=500, minimum=50, maximum=5000
+            )
+            cad_timeout_seconds = cad_timeout_ms / 1000.0
+            apply_live = self.cad_calibration._normalize_bool(
+                data.get("apply_live", False), default=False
+            )
+
+            if apply_live and hasattr(radio, "set_custom_cad_thresholds"):
+                try:
+                    radio.set_custom_cad_thresholds(peak=det_peak, min_val=det_min)
+                except Exception as exc:
+                    logger.warning("Failed to live-apply CAD thresholds: %s", exc)
+
+            async def run_manual_checks():
+                detections = 0
+                non_detections = 0
+                timeouts = 0
+                errors = 0
+                cad_done_count = 0
+
+                for _ in range(samples):
+                    try:
+                        result = await radio.perform_cad(
+                            det_peak=det_peak,
+                            det_min=det_min,
+                            timeout=cad_timeout_seconds,
+                            calibration=True,
+                            cad_symbol_num=cad_symbol_num,
+                        )
+                    except Exception as exc:
+                        logger.debug("Manual CAD check exception: %s", exc, exc_info=True)
+                        errors += 1
+                        continue
+
+                    if not isinstance(result, dict):
+                        result = {"detected": bool(result), "cad_done": True}
+
+                    if result.get("error"):
+                        errors += 1
+                    elif result.get("timeout"):
+                        timeouts += 1
+                    else:
+                        if bool(result.get("cad_done", False)):
+                            cad_done_count += 1
+                        if bool(result.get("detected", False)):
+                            detections += 1
+                        else:
+                            non_detections += 1
+
+                attempts = detections + non_detections + timeouts + errors
+                return {
+                    "det_peak": det_peak,
+                    "det_min": det_min,
+                    "cad_symbol_num": cad_symbol_num,
+                    "cad_timeout_ms": cad_timeout_ms,
+                    "apply_live": apply_live,
+                    "samples": samples,
+                    "attempts": attempts,
+                    "detections": detections,
+                    "non_detections": non_detections,
+                    "timeouts": timeouts,
+                    "errors": errors,
+                    "cad_done_count": cad_done_count,
+                    "detection_rate": (detections / attempts) * 100 if attempts > 0 else 0.0,
+                    "detected": detections > 0,
+                }
+
+            future = asyncio.run_coroutine_threadsafe(run_manual_checks(), self.event_loop)
+            timeout_seconds = max(2.0, (cad_timeout_seconds * samples) + 2.0)
+            payload = future.result(timeout=timeout_seconds)
+            return self._success(payload)
+        except FutureTimeoutError:
+            logger.error("Manual CAD check timed out")
+            return self._error("Manual CAD check timed out")
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error(f"Error running manual CAD check: {e}", exc_info=True)
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def save_cad_settings(self):
+
+        try:
+            self._require_post()
+            data = cherrypy.request.json or {}
+            peak = data.get("peak")
+            min_val = data.get("min_val")
+            cad_symbol_num = data.get("cad_symbol_num")
+            detection_rate = data.get("detection_rate", 0)
+
+            if peak is None or min_val is None:
+                return self._error("Missing peak or min_val parameters")
+
+            try:
+                peak = int(peak)
+                min_val = int(min_val)
+            except (TypeError, ValueError):
+                return self._error("peak and min_val must be integers")
+
+            if cad_symbol_num is None:
+                cad_symbol_num = self.config.get("radio", {}).get("cad", {}).get("symbol_num", 2)
+            try:
+                cad_symbol_num = int(cad_symbol_num)
+            except (TypeError, ValueError):
+                return self._error("cad_symbol_num must be an integer")
+
+            if not (0 <= peak <= 255) or not (0 <= min_val <= 255):
+                return self._error("CAD thresholds must be between 0 and 255")
+            if cad_symbol_num not in {1, 2, 4, 8, 16}:
+                return self._error("cad_symbol_num must be one of: 1, 2, 4, 8, 16")
+
+            if (
+                self.daemon_instance
+                and hasattr(self.daemon_instance, "radio")
+                and self.daemon_instance.radio
+            ):
+                if hasattr(self.daemon_instance.radio, "set_custom_cad_thresholds"):
+                    self.daemon_instance.radio.set_custom_cad_thresholds(peak=peak, min_val=min_val)
+                if hasattr(self.daemon_instance.radio, "set_custom_cad_symbol_num"):
+                    self.daemon_instance.radio.set_custom_cad_symbol_num(cad_symbol_num)
+                logger.info(
+                    "Applied CAD settings to radio: peak=%s, min=%s, symbols=%s",
+                    peak,
+                    min_val,
+                    cad_symbol_num,
+                )
+
+            if "radio" not in self.config:
+                self.config["radio"] = {}
+            if "cad" not in self.config["radio"]:
+                self.config["radio"]["cad"] = {}
+
+            self.config["radio"]["cad"]["peak_threshold"] = peak
+            self.config["radio"]["cad"]["min_threshold"] = min_val
+            self.config["radio"]["cad"]["symbol_num"] = cad_symbol_num
+
+            saved = self.config_manager.save_to_file()
+            if not saved:
+                return self._error("Failed to save configuration to file")
+
+            logger.info(
+                "Saved CAD settings to config: peak=%s, min=%s, symbols=%s, rate=%.1f%%",
+                peak,
+                min_val,
+                cad_symbol_num,
+                detection_rate,
+            )
+            return {
+                "success": True,
+                "message": (
+                    f"CAD settings saved: peak={peak}, min={min_val}, symbols={cad_symbol_num}"
+                ),
+                "settings": {
+                    "peak": peak,
+                    "min_val": min_val,
+                    "cad_symbol_num": cad_symbol_num,
+                    "detection_rate": detection_rate,
+                },
+            }
+        except cherrypy.HTTPError:
+            # Re-raise HTTP errors (like 405 Method Not Allowed) without logging
+            raise
+        except Exception as e:
+            logger.error(f"Error saving CAD settings: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def update_radio_config(self):
+        """Update radio and repeater configuration with live updates.
+
+        POST /api/update_radio_config
+        Body: {
+            "tx_power": 22,              # TX power in dBm (2-30)
+            "frequency": 869618000,      # Frequency in Hz (100-1000 MHz)
+            "bandwidth": 62500,          # Bandwidth in Hz (valid: 7.8, 10.4, 15.6, 20.8, 31.25, 41.7, 62.5, 125, 250, 500 kHz)
+            "spreading_factor": 8,       # Spreading factor (5-12)
+            "coding_rate": 8,            # Coding rate (5-8 for 4/5 to 4/8)
+            "tx_delay_factor": 1.0,      # Flood TX delay airtime multiplier (0.0-5.0)
+            "direct_tx_delay_factor": 0.5,  # Direct TX delay airtime multiplier (0.0-5.0)
+            "rx_delay_base": 0.0,        # RX delay base (>= 0)
+            "node_name": "MyNode",       # Node name
+            "owner_info": "Owner text",   # Owner info text
+            "latitude": 0.0,             # Latitude (-90 to 90)
+            "longitude": 0.0,            # Longitude (-180 to 180)
+            "max_flood_hops": 64,         # Max flood hops (0-64)
+            "flood_advert_interval_hours": 10,  # Flood advert interval (0 or 3-168)
+            "advert_interval_minutes": 120      # Local advert interval (0 or 1-10080)
+        }
+
+        Note: Radio hardware changes (frequency, bandwidth, SF, CR) require restart to apply.
+
+        Returns: {"success": true, "data": {"applied": [...], "live_update": true}}
+        """
+        # Enable CORS for this endpoint only if configured
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            self._require_post()
+            data = cherrypy.request.json or {}
+
+            applied = []
+
+            # Ensure config sections exist
+            if "radio" not in self.config:
+                self.config["radio"] = {}
+            if "delays" not in self.config:
+                self.config["delays"] = {}
+            if "repeater" not in self.config:
+                self.config["repeater"] = {}
+            if "mesh" not in self.config:
+                self.config["mesh"] = {}
+
+            # Optional multi-radio target. When radios[] exists and radio_id is
+            # provided, LoRa air settings are written into that entry's radio{}
+            # instead of (or in addition to) the legacy top-level radio{}.
+            target_radio_id = data.get("radio_id")
+            radios_list = self.config.get("radios")
+            target_radio_cfg = self.config["radio"]
+            target_entry = None
+            if isinstance(radios_list, list) and target_radio_id:
+                for entry in radios_list:
+                    if not isinstance(entry, dict):
+                        continue
+                    rid = entry.get("id") or entry.get("radio_id")
+                    if str(rid) == str(target_radio_id):
+                        target_entry = entry
+                        if not isinstance(entry.get("radio"), dict):
+                            entry["radio"] = {}
+                        target_radio_cfg = entry["radio"]
+                        break
+                if target_entry is None:
+                    return self._error(f"Unknown radio_id={target_radio_id!r}")
+
+            def _set_radio_param(key, value):
+                target_radio_cfg[key] = value
+                # Keep legacy top-level radio in sync when editing default/first
+                # radio or when no radios[] list is active.
+                if target_entry is None:
+                    self.config["radio"][key] = value
+                else:
+                    default_id = None
+                    fabric = (
+                        self.config.get("fabric")
+                        if isinstance(self.config.get("fabric"), dict)
+                        else {}
+                    )
+                    default_id = fabric.get("default_radio") or fabric.get("default_radio_id")
+                    if default_id is None and radios_list:
+                        first = radios_list[0] if isinstance(radios_list[0], dict) else {}
+                        default_id = first.get("id") or first.get("radio_id")
+                    if default_id is not None and str(default_id) == str(target_radio_id):
+                        if "radio" not in self.config or not isinstance(self.config["radio"], dict):
+                            self.config["radio"] = {}
+                        self.config["radio"][key] = value
+
+            # Update TX power (up to 30 dBm for high-power radios)
+            if "tx_power" in data:
+                power = int(data["tx_power"])
+                if power < 2 or power > 30:
+                    return self._error("TX power must be 2-30 dBm")
+                _set_radio_param("tx_power", power)
+                applied.append(f"power={power}dBm")
+
+            # Update frequency (in Hz)
+            if "frequency" in data:
+                freq = float(data["frequency"])
+                if freq < 100_000_000 or freq > 1_000_000_000:
+                    return self._error("Frequency must be 100-1000 MHz")
+                _set_radio_param("frequency", freq)
+                applied.append(f"freq={freq / 1_000_000:.3f}MHz")
+
+            # Update bandwidth (in Hz)
+            if "bandwidth" in data:
+                bw = int(float(data["bandwidth"]))
+                valid_bw = [7800, 10400, 15600, 20800, 31250, 41700, 62500, 125000, 250000, 500000]
+                if bw not in valid_bw:
+                    return self._error(
+                        f"Bandwidth must be one of {[b / 1000 for b in valid_bw]} kHz"
+                    )
+                _set_radio_param("bandwidth", bw)
+                applied.append(f"bw={bw / 1000}kHz")
+
+            # Update spreading factor
+            if "spreading_factor" in data:
+                sf = int(data["spreading_factor"])
+                if sf < 5 or sf > 12:
+                    return self._error("Spreading factor must be 5-12")
+                _set_radio_param("spreading_factor", sf)
+                applied.append(f"sf={sf}")
+
+            # Update coding rate
+            if "coding_rate" in data:
+                cr = int(data["coding_rate"])
+                if cr < 5 or cr > 8:
+                    return self._error("Coding rate must be 5-8 (for 4/5 to 4/8)")
+                _set_radio_param("coding_rate", cr)
+                applied.append(f"cr=4/{cr}")
+
+            # Update TX delay factor
+            if "tx_delay_factor" in data:
+                tdf = float(data["tx_delay_factor"])
+                if tdf < 0.0 or tdf > 5.0:
+                    return self._error("TX delay factor must be 0.0-5.0")
+                self.config["delays"]["tx_delay_factor"] = tdf
+                applied.append(f"txdelay={tdf}")
+
+            # Update direct TX delay factor
+            if "direct_tx_delay_factor" in data:
+                dtdf = float(data["direct_tx_delay_factor"])
+                if dtdf < 0.0 or dtdf > 5.0:
+                    return self._error("Direct TX delay factor must be 0.0-5.0")
+                self.config["delays"]["direct_tx_delay_factor"] = dtdf
+                applied.append(f"direct.txdelay={dtdf}")
+
+            # Update RX delay base
+            if "rx_delay_base" in data:
+                rxd = float(data["rx_delay_base"])
+                if rxd < 0.0:
+                    return self._error("RX delay cannot be negative")
+                self.config["delays"]["rx_delay_base"] = rxd
+                applied.append(f"rxdelay={rxd}")
+
+            # Update node name
+            if "node_name" in data:
+                name = str(data["node_name"]).strip()
+                if not name:
+                    return self._error("Node name cannot be empty")
+                # Validate UTF-8 byte length (31 bytes max + 1 null terminator = 32 bytes total)
+                if len(name.encode("utf-8")) > 31:
+                    return self._error("Node name too long (max 31 bytes in UTF-8)")
+                self.config["repeater"]["node_name"] = name
+                applied.append(f"name={name}")
+
+            if "owner_info" in data:
+                owner_info = str(data["owner_info"]).replace("|", "\n")
+                self.config["repeater"]["owner_info"] = owner_info
+                applied.append("owner.info")
+
+            # Update latitude
+            if "latitude" in data:
+                lat = float(data["latitude"])
+                if lat < -90 or lat > 90:
+                    return self._error("Latitude must be -90 to 90")
+                self.config["repeater"]["latitude"] = lat
+                applied.append(f"lat={lat}")
+
+            # Update longitude
+            if "longitude" in data:
+                lon = float(data["longitude"])
+                if lon < -180 or lon > 180:
+                    return self._error("Longitude must be -180 to 180")
+                self.config["repeater"]["longitude"] = lon
+                applied.append(f"lon={lon}")
+
+            # Update max flood hops
+            if "max_flood_hops" in data:
+                hops = int(data["max_flood_hops"])
+                if hops < 0 or hops > 64:
+                    return self._error("Max flood hops must be 0-64")
+                self.config["repeater"]["max_flood_hops"] = hops
+                applied.append(f"flood.max={hops}")
+
+            # Update flood advert interval (hours)
+            if "flood_advert_interval_hours" in data:
+                hours = int(data["flood_advert_interval_hours"])
+                if hours != 0 and (hours < 3 or hours > 168):
+                    return self._error("Flood advert interval must be 0 (off) or 3-168 hours")
+                self.config["repeater"]["send_advert_interval_hours"] = hours
+                applied.append(f"flood.advert.interval={hours}h")
+
+            # Update local advert interval (minutes)
+            if "advert_interval_minutes" in data:
+                mins = int(data["advert_interval_minutes"])
+                if mins != 0 and (mins < 1 or mins > 10080):
+                    return self._error("Advert interval must be 0 (off) or 1-10080 minutes")
+                self.config["repeater"]["advert_interval_minutes"] = mins
+                applied.append(f"advert.interval={mins}m")
+
+            # Update direct advert interval (hours)
+            if "direct_advert_interval_hours" in data:
+                hours = int(data["direct_advert_interval_hours"])
+                if hours != 0 and (hours < 1 or hours > 168):
+                    return self._error("Direct advert interval must be 0 (off) or 1-168 hours")
+                self.config["repeater"]["direct_advert_interval_hours"] = hours
+                applied.append(f"direct.advert.interval={hours}h")
+
+            # Update path hash mode (mesh: 0=1-byte, 1=2-byte, 2=3-byte)
+            if "path_hash_mode" in data:
+                phm = int(data["path_hash_mode"])
+                if phm not in (0, 1, 2):
+                    return self._error(
+                        "Path hash mode must be 0 (1-byte), 1 (2-byte), or 2 (3-byte)"
+                    )
+                self.config["mesh"]["path_hash_mode"] = phm
+                applied.append(f"path_hash_mode={phm}")
+
+            # KISS modem settings (only when radio_type is kiss)
+            if "kiss_port" in data or "kiss_baud_rate" in data:
+                if self.config.get("radio_type") != "kiss":
+                    return self._error("KISS settings only apply when radio_type is kiss")
+                if "kiss" not in self.config:
+                    self.config["kiss"] = {}
+                if "kiss_port" in data:
+                    self.config["kiss"]["port"] = str(data["kiss_port"]).strip()
+                    applied.append("kiss.port")
+                if "kiss_baud_rate" in data:
+                    self.config["kiss"]["baud_rate"] = int(data["kiss_baud_rate"])
+                    applied.append("kiss.baud_rate")
+
+            # Update flood loop detection mode
+            if "loop_detect" in data:
+                mode = str(data["loop_detect"]).strip().lower()
+                if mode not in ("off", "minimal", "moderate", "strict"):
+                    return self._error("loop_detect must be one of: off, minimal, moderate, strict")
+                if "mesh" not in self.config:
+                    self.config["mesh"] = {}
+                self.config["mesh"]["loop_detect"] = mode
+                applied.append(f"loop_detect={mode}")
+
+            if not applied:
+                return self._error("No valid settings provided")
+
+            live_sections = ["repeater", "delays", "radio"]
+            if target_entry is not None:
+                live_sections.append("radios")
+            if "mesh" in self.config and any(k in data for k in ("path_hash_mode", "loop_detect")):
+                live_sections.append("mesh")
+            if "kiss" in self.config:
+                live_sections.append("kiss")
+            # Save to config file and live update daemon in one operation
+            result = self.config_manager.update_and_save(
+                updates={},  # Updates already applied to self.config above
+                live_update=True,
+                live_update_sections=live_sections,
+            )
+
+            if not result.get("saved", False):
+                return self._error(result.get("error", "Failed to save configuration to file"))
+
+            logger.info(f"Radio config updated: {', '.join(applied)}")
+
+            return self._success(
+                {
+                    "applied": applied,
+                    "persisted": True,
+                    "live_update": result.get("live_updated", False),
+                    "restart_required": not result.get("live_updated", False),
+                    "message": (
+                        "Settings applied immediately."
+                        if result.get("live_updated")
+                        else "Settings saved. Restart service to apply changes."
+                    ),
+                }
+            )
+
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error(f"Error updating radio config: {e}")
+            return self._error(str(e))
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def noise_floor_history(self, hours: int = 24, limit: int = None, offset: int = 0):
+
+        try:
+            storage = self._get_storage()
+            hours = int(hours)
+            offset = max(0, int(offset))
+            # Keep enough points for high-frequency sampling across the selected window.
+            # This avoids falling back to legacy small defaults when query params are absent.
+            if limit is None:
+                normalized_limit = max(2000, min(1_000_000, hours * 300))
+            else:
+                normalized_limit = max(1, min(1_000_000, int(limit)))
+
+            history = storage.get_noise_floor_history(
+                hours=hours,
+                limit=normalized_limit,
+                offset=offset,
+            )
+
+            return self._success(
+                {
+                    "history": history,
+                    "hours": hours,
+                    "count": len(history),
+                    "limit": normalized_limit,
+                    "offset": offset,
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error fetching noise floor history: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def noise_floor_stats(self, hours: int = 24):
+
+        try:
+            storage = self._get_storage()
+            hours = int(hours)
+            stats = storage.get_noise_floor_stats(hours=hours)
+
+            return self._success({"stats": stats, "hours": hours})
+        except Exception as e:
+            logger.error(f"Error fetching noise floor stats: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def noise_floor_chart_data(self, hours: int = 24):
+
+        try:
+            storage = self._get_storage()
+            hours = int(hours)
+            chart_data = storage.get_noise_floor_rrd(hours=hours)
+
+            return self._success({"chart_data": chart_data, "hours": hours})
+        except Exception as e:
+            logger.error(f"Error fetching noise floor chart data: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def crc_error_count(self, hours: int = 24):
+        """Return total CRC errors within the given time window."""
+        try:
+            storage = self._get_storage()
+            hours = int(hours)
+            count = storage.get_crc_error_count(hours=hours)
+            return self._success({"crc_error_count": count, "hours": hours})
+        except Exception as e:
+            logger.error(f"Error fetching CRC error count: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def crc_error_history(self, hours: int = 24, limit: int = None):
+        """Return CRC error records within the given time window."""
+        try:
+            storage = self._get_storage()
+            hours = int(hours)
+            limit = int(limit) if limit else None
+            history = storage.get_crc_error_history(hours=hours, limit=limit)
+            return self._success({"history": history, "hours": hours, "count": len(history)})
+        except Exception as e:
+            logger.error(f"Error fetching CRC error history: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    def cad_calibration_stream(self):
+        cherrypy.response.headers["Content-Type"] = "text/event-stream"
+        cherrypy.response.headers["Cache-Control"] = "no-cache"
+        cherrypy.response.headers["Connection"] = "keep-alive"
+
+        if not hasattr(self.cad_calibration, "message_queue"):
+            self.cad_calibration.message_queue = []
+
+        def generate():
+            try:
+                yield f"data: {json.dumps({'type': 'connected', 'message': 'Connected to CAD calibration stream'})}\n\n"
+
+                if self.cad_calibration.running:
+                    radio = getattr(self.cad_calibration.daemon_instance, "radio", None)
+                    if radio:
+                        runtime = self.cad_calibration._get_radio_runtime_config(radio)
+                        sf = runtime.get("spreading_factor", 8)
+                        peak_range, min_range = self.cad_calibration.get_test_ranges(
+                            sf,
+                            runtime.get("current_cad_peak"),
+                            runtime.get("current_cad_min"),
+                        )
+                    else:
+                        sf = 8
+                        runtime = {
+                            "bandwidth": None,
+                            "frequency": None,
+                            "current_cad_peak": None,
+                            "current_cad_min": None,
+                        }
+                        peak_range, min_range = self.cad_calibration.get_test_ranges(sf, 22, 10)
+                    total_tests = len(peak_range) * len(min_range)
+                    session_cfg = getattr(self.cad_calibration, "session_config", {}) or {}
+
+                    status_message = {
+                        "type": "status",
+                        "message": f"Calibration in progress: SF{sf}, {total_tests} tests",
+                        "test_ranges": {
+                            "peak_min": min(peak_range),
+                            "peak_max": max(peak_range),
+                            "min_min": min(min_range),
+                            "min_max": max(min_range),
+                            "spreading_factor": sf,
+                            "bandwidth": runtime.get("bandwidth"),
+                            "frequency": runtime.get("frequency"),
+                            "current_peak": runtime.get("current_cad_peak"),
+                            "current_min": runtime.get("current_cad_min"),
+                            "cad_symbol_num": session_cfg.get("cad_symbol_num", 2),
+                            "known_signal_present": bool(
+                                session_cfg.get("known_signal_present", False)
+                            ),
+                            "total_tests": total_tests,
+                        },
+                    }
+                    yield f"data: {json.dumps(status_message)}\n\n"
+
+                last_message_index = len(self.cad_calibration.message_queue)
+
+                while True:
+                    current_queue_length = len(self.cad_calibration.message_queue)
+                    if current_queue_length > last_message_index:
+                        for i in range(last_message_index, current_queue_length):
+                            message = self.cad_calibration.message_queue[i]
+                            yield f"data: {json.dumps(message)}\n\n"
+                        last_message_index = current_queue_length
+                    else:
+                        yield f"data: {json.dumps({'type': 'keepalive'})}\n\n"
+
+                    time.sleep(0.5)
+
+            except Exception as e:
+                logger.error(f"SSE stream error: {e}")
+
+        return generate()
+
+    cad_calibration_stream._cp_config = {"response.stream": True}
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def adverts_by_contact_type(self, contact_type=None, limit=None, offset=None, hours=None):
+
+        try:
+            if not contact_type:
+                return self._error("contact_type parameter is required")
+
+            limit_int = int(limit) if limit is not None else None
+            offset_int = int(offset) if offset is not None else None
+            hours_int = int(hours) if hours is not None else None
+
+            storage = self._get_storage()
+            adverts = storage.sqlite_handler.get_adverts_by_contact_type(
+                contact_type=contact_type, limit=limit_int, offset=offset_int, hours=hours_int
+            )
+
+            return self._success(
+                adverts,
+                count=len(adverts),
+                contact_type=contact_type,
+                filters={
+                    "contact_type": contact_type,
+                    "limit": limit_int,
+                    "offset": offset_int,
+                    "hours": hours_int,
+                },
+            )
+
+        except ValueError as e:
+            return self._error(f"Invalid parameter format: {e}")
+        except Exception as e:
+            logger.error(f"Error getting adverts by contact type: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def adverts_count_by_contact_type(self, contact_type=None, hours=None):
+        """Get the total count of adverts for a specific contact type."""
+        try:
+            if not contact_type:
+                return self._error("contact_type parameter is required")
+
+            hours_int = int(hours) if hours is not None else None
+
+            storage = self._get_storage()
+            count = storage.sqlite_handler.get_adverts_count_by_contact_type(
+                contact_type=contact_type, hours=hours_int
+            )
+
+            return self._success(
+                {"count": count},
+                contact_type=contact_type,
+                hours=hours_int,
+            )
+
+        except ValueError as e:
+            return self._error(f"Invalid parameter format: {e}")
+        except Exception as e:
+            logger.error(f"Error getting adverts count by contact type: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def advert_rate_limit_stats(self):
+        """Get advert rate limiting statistics and adaptive tier info."""
+        try:
+            if not self.daemon_instance or not hasattr(self.daemon_instance, "advert_helper"):
+                return self._error("Advert helper not available")
+
+            advert_helper = self.daemon_instance.advert_helper
+            if not advert_helper:
+                return self._error("Advert helper not initialized")
+
+            if not hasattr(advert_helper, "get_rate_limit_stats"):
+                return self._error("Rate limit stats not supported by this advert helper version")
+
+            stats = advert_helper.get_rate_limit_stats()
+            return self._success(stats)
+
+        except Exception as e:
+            logger.error(f"Error getting advert rate limit stats: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def transport_keys(self):
+
+        if cherrypy.request.method == "GET":
+            try:
+                storage = self._get_storage()
+                keys = storage.get_transport_keys()
+                return self._success(keys, count=len(keys))
+            except Exception as e:
+                logger.error(f"Error getting transport keys: {e}")
+                return self._error(e)
+
+        elif cherrypy.request.method == "POST":
+            try:
+                data = cherrypy.request.json or {}
+                name = data.get("name")
+                flood_policy = data.get("flood_policy")
+                transport_key = data.get("transport_key")  # Optional now
+                parent_id = data.get("parent_id")
+                last_used = data.get("last_used")
+
+                if not name or not flood_policy:
+                    return self._error("Missing required fields: name, flood_policy")
+
+                if flood_policy not in ["allow", "deny"]:
+                    return self._error("flood_policy must be 'allow' or 'deny'")
+
+                # Convert ISO timestamp string to float if provided
+                if last_used:
+                    try:
+                        from datetime import datetime
+
+                        dt = datetime.fromisoformat(last_used.replace("Z", "+00:00"))
+                        last_used = dt.timestamp()
+                    except (ValueError, AttributeError):
+                        # If conversion fails, use current time
+                        last_used = time.time()
+                else:
+                    last_used = time.time()
+
+                storage = self._get_storage()
+                key_id = storage.create_transport_key(
+                    name, flood_policy, transport_key, parent_id, last_used
+                )
+
+                if key_id:
+                    return self._success(
+                        {"id": key_id}, message="Transport key created successfully"
+                    )
+                else:
+                    return self._error("Failed to create transport key")
+            except Exception as e:
+                logger.error(f"Error creating transport key: {e}")
+                return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def transport_key(self, key_id):
+
+        if cherrypy.request.method == "GET":
+            try:
+                key_id = int(key_id)
+                storage = self._get_storage()
+                key = storage.get_transport_key_by_id(key_id)
+                if key:
+                    return self._success(key)
+                else:
+                    return self._error("Transport key not found")
+            except ValueError:
+                return self._error("Invalid key_id format")
+            except Exception as e:
+                logger.error(f"Error getting transport key: {e}")
+                return self._error(e)
+
+        elif cherrypy.request.method == "PUT":
+            try:
+                key_id = int(key_id)
+                data = cherrypy.request.json or {}
+
+                name = data.get("name")
+                flood_policy = data.get("flood_policy")
+                transport_key = data.get("transport_key")
+                parent_id = data.get("parent_id")
+                last_used = data.get("last_used")
+
+                if flood_policy and flood_policy not in ["allow", "deny"]:
+                    return self._error("flood_policy must be 'allow' or 'deny'")
+
+                # Convert ISO timestamp string to float if provided
+                if last_used:
+                    try:
+                        dt = datetime.fromisoformat(last_used.replace("Z", "+00:00"))
+                        last_used = dt.timestamp()
+                    except (ValueError, AttributeError):
+                        # If conversion fails, leave as None to not update
+                        last_used = None
+
+                storage = self._get_storage()
+                success = storage.update_transport_key(
+                    key_id, name, flood_policy, transport_key, parent_id, last_used
+                )
+
+                if success:
+                    return self._success(
+                        {"id": key_id}, message="Transport key updated successfully"
+                    )
+                else:
+                    return self._error("Failed to update transport key or key not found")
+            except ValueError:
+                return self._error("Invalid key_id format")
+            except Exception as e:
+                logger.error(f"Error updating transport key: {e}")
+                return self._error(e)
+
+        elif cherrypy.request.method == "DELETE":
+            try:
+                key_id = int(key_id)
+                storage = self._get_storage()
+                success = storage.delete_transport_key(key_id)
+
+                if success:
+                    return self._success(
+                        {"id": key_id}, message="Transport key deleted successfully"
+                    )
+                else:
+                    return self._error("Failed to delete transport key or key not found")
+            except ValueError:
+                return self._error("Invalid key_id format")
+            except Exception as e:
+                logger.error(f"Error deleting transport key: {e}")
+                return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def unscoped_flood_policy(self):
+        """
+        Update unscoped flood policy configuration
+
+        POST /unscoped_flood_policy
+        Body: {"unscoped_flood_allow": true/false}
+        """
+        if cherrypy.request.method == "POST":
+            try:
+                data = cherrypy.request.json or {}
+                unscoped_flood_allow = data.get("unscoped_flood_allow")
+
+                if unscoped_flood_allow is None:
+                    return self._error("Missing required field: unscoped_flood_allow")
+
+                if not isinstance(unscoped_flood_allow, bool):
+                    return self._error("unscoped_flood_allow must be a boolean value")
+
+                # Update the running configuration first (like CAD settings)
+                if "mesh" not in self.config:
+                    self.config["mesh"] = {}
+                self.config["mesh"]["unscoped_flood_allow"] = unscoped_flood_allow
+
+                # Get the actual config path from daemon instance (same as CAD settings)
+                config_path = getattr(self, "_config_path", "/etc/openhop_repeater/config.yaml")
+                if self.daemon_instance and hasattr(self.daemon_instance, "config_path"):
+                    config_path = self.daemon_instance.config_path
+
+                logger.info(f"Using config path for unscoped flood policy: {config_path}")
+
+                # Update the configuration file using ConfigManager
+                try:
+                    saved = self.config_manager.save_to_file()
+                    if saved:
+                        logger.info(
+                            f"Updated running config and saved unscoped flood policy to file: {'allow' if unscoped_flood_allow else 'deny'}"
+                        )
+                    else:
+                        logger.error("Failed to save unscoped flood policy to file")
+                        return self._error("Failed to save configuration to file")
+                except Exception as e:
+                    logger.error(f"Failed to save unscoped flood policy to file: {e}")
+                    return self._error(f"Failed to save configuration to file: {e}")
+
+                return self._success(
+                    {"unscoped_flood_allow": unscoped_flood_allow},
+                    message=f"Unscoped flood policy updated to {'allow' if unscoped_flood_allow else 'deny'} (live and saved)",
+                )
+
+            except Exception as e:
+                logger.error(f"Error updating unscoped flood policy: {e}")
+                return self._error(e)
+        else:
+            return self._error("Method not supported")
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def default_region(self):
+        """
+        Get or update mesh default region configuration.
+
+        GET  /default_region
+        POST /default_region
+        Body: {"default_region": "region-name" | null}
+        """
+        if cherrypy.request.method == "GET":
+            try:
+                mesh_cfg = self.config.get("mesh", {}) if isinstance(self.config, dict) else {}
+                default_region = mesh_cfg.get("default_region")
+                value = str(default_region).strip() if default_region not in (None, "") else None
+                return self._success({"default_region": value})
+            except Exception as e:
+                logger.error(f"Error getting default region: {e}")
+                return self._error(e)
+
+        if cherrypy.request.method == "POST":
+            try:
+                data = cherrypy.request.json or {}
+                if "default_region" not in data:
+                    return self._error("Missing required field: default_region")
+
+                raw_value = data.get("default_region")
+                default_region = None
+                if raw_value is not None:
+                    text = str(raw_value).strip()
+                    if text and text != "<null>":
+                        default_region = text
+
+                if "mesh" not in self.config:
+                    self.config["mesh"] = {}
+
+                # Keep region table compatible with firmware "region default": if non-null
+                # and missing, auto-create region and ensure flood allow.
+                if default_region:
+                    storage = self._get_storage()
+                    records = storage.get_transport_keys() or []
+
+                    existing = None
+                    needle = default_region.lower()
+                    for rec in records:
+                        name = str(rec.get("name") or "").strip()
+                        display = name[1:] if name.startswith("#") else name
+                        if display.lower() == needle:
+                            existing = rec
+                            break
+
+                    if existing:
+                        key_id = existing.get("id")
+                        if key_id is not None:
+                            storage.update_transport_key(int(key_id), flood_policy="allow")
+                    else:
+                        storage.create_transport_key(
+                            default_region, "allow", None, None, time.time()
+                        )
+
+                self.config["mesh"]["default_region"] = default_region
+
+                saved = self.config_manager.save_to_file()
+                if not saved:
+                    return self._error("Failed to save configuration to file")
+
+                if hasattr(self.config_manager, "live_update_daemon"):
+                    self.config_manager.live_update_daemon(["mesh"])
+
+                return self._success(
+                    {"default_region": default_region},
+                    message=(
+                        "Default region cleared"
+                        if default_region is None
+                        else f"Default region set to {default_region}"
+                    ),
+                )
+            except Exception as e:
+                logger.error(f"Error updating default region: {e}")
+                return self._error(e)
+
+        return self._error("Method not supported")
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def advert(self, advert_id):
+        # Enable CORS for this endpoint only if configured
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+        elif cherrypy.request.method == "DELETE":
+            try:
+                advert_id = int(advert_id)
+                storage = self._get_storage()
+                success = storage.delete_advert(advert_id)
+
+                if success:
+                    return self._success({"id": advert_id}, message="Neighbor deleted successfully")
+                else:
+                    return self._error("Failed to delete neighbor or neighbor not found")
+            except ValueError:
+                return self._error("Invalid advert_id format")
+            except Exception as e:
+                logger.error(f"Error deleting neighbor: {e}")
+                return self._error(e)
+        else:
+            return self._error("Method not supported")
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def ping_neighbor(self):
+
+        # Enable CORS for this endpoint only if configured
+        self._set_cors_headers()
+
+        # Handle OPTIONS request for CORS preflight
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            self._require_post()
+            data = cherrypy.request.json or {}
+            target_id = data.get("target_id")
+            timeout = int(data.get("timeout", 10))
+
+            if not target_id:
+                return self._error("Missing target_id parameter")
+
+            # Derive byte width from path_hash_mode (issue #133):
+            # 0 = 1-byte (legacy), 1 = 2-byte, 2 = 3-byte
+            path_hash_mode = self.config.get("mesh", {}).get("path_hash_mode", 0)
+            byte_count = {0: 1, 1: 2, 2: 3}.get(path_hash_mode, 1)
+
+            trace_flags = {1: 0x00, 2: 0x01}.get(byte_count, 0x00)
+            hex_chars = byte_count * 2
+            max_hash = (1 << (byte_count * 8)) - 1
+
+            # Parse target hash (accepts hex string like "0xA5", "0xA5F0", or bare hex)
+            try:
+                target_hash = int(target_id, 16) if isinstance(target_id, str) else int(target_id)
+                if target_hash < 0 or target_hash > max_hash:
+                    return self._error(
+                        f"target_id must be a valid {byte_count}-byte hash "
+                        f"(0x00-0x{max_hash:0{hex_chars}X})"
+                    )
+            except ValueError:
+                return self._error(f"Invalid target_id format: {target_id}")
+
+            # Check if router and trace_helper are available
+            if not hasattr(self.daemon_instance, "router"):
+                return self._error("Packet router not available")
+
+            router = self.daemon_instance.router
+            if not hasattr(self.daemon_instance, "trace_helper"):
+                return self._error("Trace helper not available")
+
+            trace_helper = self.daemon_instance.trace_helper
+
+            # Generate unique tag for this ping
+            trace_tag = secrets.randbits(32)
+
+            # Create trace packet
+            from openhop_core.protocol import PacketBuilder
+
+            path_bytes = list(target_hash.to_bytes(byte_count, "big"))
+            packet = PacketBuilder.create_trace(
+                tag=trace_tag, auth_code=0x12345678, flags=trace_flags, path=path_bytes
+            )
+
+            # Wait for response with timeout
+            import asyncio
+
+            async def send_and_wait():
+                """Async helper to send ping and wait for response"""
+                # Register ping with TraceHelper (must be done in async context)
+                event = trace_helper.register_ping(trace_tag, target_hash)
+
+                # Send packet via router
+                await router.inject_packet(packet)
+                logger.info(
+                    f"Ping sent to 0x{target_hash:0{hex_chars}x} with tag {trace_tag} (path_hash_mode={path_hash_mode})"
+                )
+
+                try:
+                    await asyncio.wait_for(event.wait(), timeout=timeout)
+                    return True
+                except asyncio.TimeoutError:
+                    return False
+
+            # Run the async send and wait in the daemon's event loop
+            try:
+                if self.event_loop is None:
+                    return self._error("Event loop not available")
+
+                future = asyncio.run_coroutine_threadsafe(send_and_wait(), self.event_loop)
+                response_received = future.result(timeout=timeout + 1)
+            except Exception as e:
+                logger.error(f"Error waiting for ping response: {e}")
+                trace_helper.pending_pings.pop(trace_tag, None)
+                return self._error(f"Error waiting for response: {str(e)}")
+
+            if response_received:
+                # Get result
+                ping_info = trace_helper.pending_pings.pop(trace_tag, None)
+                if not ping_info:
+                    return self._error("Ping info not found after response")
+
+                result = ping_info.get("result")
+                if result:
+                    # Calculate round-trip time
+                    rtt_ms = (result["received_at"] - ping_info["sent_at"]) * 1000
+
+                    # Prefer structured hops from TraceHelper; else legacy flat list.
+                    if result.get("trace_hops"):
+                        grouped_path = [
+                            int.from_bytes(bytes(h), "big") for h in result["trace_hops"]
+                        ]
+                    else:
+                        raw_path = result["path"]
+                        if byte_count > 1:
+                            grouped_path = [
+                                int.from_bytes(bytes(raw_path[i : i + byte_count]), "big")
+                                for i in range(0, len(raw_path), byte_count)
+                            ]
+                        else:
+                            grouped_path = raw_path
+
+                    return self._success(
+                        {
+                            "target_id": f"0x{target_hash:0{hex_chars}x}",
+                            "rtt_ms": round(rtt_ms, 2),
+                            "snr_db": result["snr"],
+                            "rssi": result["rssi"],
+                            "path": [f"0x{h:0{hex_chars}x}" for h in grouped_path],
+                            "tag": trace_tag,
+                            "path_hash_mode": path_hash_mode,
+                        },
+                        message="Ping successful",
+                    )
+                else:
+                    return self._error("Received response but no data")
+            else:
+                # Timeout
+                trace_helper.pending_pings.pop(trace_tag, None)
+                return self._error(f"Ping timeout after {timeout}s")
+
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error(f"Error pinging neighbor: {e}", exc_info=True)
+            return self._error(str(e))
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def discover_neighbors_start(self):
+
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            self._require_post()
+            data = cherrypy.request.json or {}
+            timeout = float(data.get("timeout", 5))
+            filter_mask = int(data.get("filter_mask", 1 << 2))
+            since = int(data.get("since", 0))
+            prefix_only = bool(data.get("prefix_only", False))
+
+            if timeout < 1 or timeout > 60:
+                return self._error("timeout must be between 1 and 60 seconds")
+            if filter_mask < 0 or filter_mask > 0xFF:
+                return self._error("filter_mask must be between 0x00 and 0xFF")
+            if since < 0:
+                return self._error("since must be non-negative")
+
+            if self.event_loop is None:
+                return self._error("Event loop not available")
+
+            discovery_helper = getattr(self.daemon_instance, "discovery_helper", None)
+            if not discovery_helper:
+                return self._error("Discovery helper not available")
+
+            discovery_helper.cleanup_sessions()
+            session = discovery_helper.create_session(
+                timeout=timeout,
+                filter_mask=filter_mask,
+                since=since,
+                prefix_only=prefix_only,
+                result_enricher=self._enrich_discovery_result,
+            )
+
+            self.event_loop.call_soon_threadsafe(
+                discovery_helper.start_session_task, session["session_id"]
+            )
+
+            return self._success(
+                session,
+                message="Discovery session started",
+            )
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error("Error starting discovery session: %s", e, exc_info=True)
+            return self._error(str(e))
+
+    @cherrypy.expose
+    def discover_neighbors_stream(self, session_id=None, last_event_id: Optional[str] = None):
+        self._set_cors_headers()
+        cherrypy.response.headers["Content-Type"] = "text/event-stream"
+        cherrypy.response.headers["Cache-Control"] = "no-cache"
+        cherrypy.response.headers["Connection"] = "keep-alive"
+        cherrypy.response.headers["X-Accel-Buffering"] = "no"
+
+        discovery_helper = getattr(self.daemon_instance, "discovery_helper", None)
+
+        try:
+            cursor = int(last_event_id) if last_event_id is not None else 0
+        except (TypeError, ValueError):
+            cursor = 0
+
+        def generate():
+            if not session_id:
+                yield self._encode_sse_event(
+                    {"type": "error", "error": "Missing session_id"},
+                    event_name="error",
+                )
+                return
+
+            if not discovery_helper:
+                yield self._encode_sse_event(
+                    {"type": "error", "error": "Discovery helper not available"},
+                    event_name="error",
+                )
+                return
+
+            snapshot = discovery_helper.get_session_snapshot(session_id)
+            if not snapshot:
+                yield self._encode_sse_event(
+                    {"type": "error", "error": f"Unknown discovery session: {session_id}"},
+                    event_name="error",
+                )
+                return
+
+            yield self._encode_sse_event(
+                {
+                    "type": "connected",
+                    "session": snapshot,
+                },
+                event_name="connected",
+            )
+
+            current_cursor = cursor
+            try:
+                while True:
+                    event_state = discovery_helper.get_events_since(session_id, current_cursor)
+                    if event_state is None:
+                        yield self._encode_sse_event(
+                            {
+                                "type": "error",
+                                "error": f"Unknown discovery session: {session_id}",
+                            },
+                            event_name="error",
+                        )
+                        return
+
+                    events = event_state.get("events", [])
+                    if events:
+                        for event in events:
+                            current_cursor = max(current_cursor, int(event.get("id", 0)))
+                            yield self._encode_sse_event(
+                                event.get("data", {}),
+                                event_name=event.get("event"),
+                                event_id=event.get("id"),
+                            )
+                        if event_state.get("completed"):
+                            return
+                    else:
+                        if event_state.get("completed"):
+                            return
+                        yield self._encode_sse_event(
+                            {"type": "keepalive", "session_id": session_id},
+                            event_name="keepalive",
+                            event_id=current_cursor if current_cursor > 0 else None,
+                        )
+
+                    time.sleep(0.5)
+            except GeneratorExit:
+                logger.debug("Discovery SSE stream closed by client for session %s", session_id)
+            except Exception as exc:
+                logger.error("Discovery SSE stream error: %s", exc, exc_info=True)
+                yield self._encode_sse_event(
+                    {"type": "error", "error": str(exc), "session_id": session_id},
+                    event_name="error",
+                    event_id=current_cursor if current_cursor > 0 else None,
+                )
+
+        return generate()
+
+    discover_neighbors_stream._cp_config = {"response.stream": True}
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    @require_auth
+    def add_discovered_neighbor(self):
+
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            self._require_post()
+            data = cherrypy.request.json or {}
+            pub_key = str(data.get("pub_key") or "").strip().lower()
+            node_name = self._normalize_discovery_node_name(data.get("node_name"))
+            node_type = int(data.get("node_type", 0))
+            rssi = data.get("rssi")
+            snr = data.get("response_snr", data.get("snr"))
+
+            if not pub_key:
+                return self._error("pub_key is required")
+            if not re.fullmatch(r"[0-9a-f]{16}|[0-9a-f]{64}", pub_key):
+                return self._error("pub_key must be 8-byte or 32-byte hex")
+
+            if self._is_local_discovery_pubkey(pub_key):
+                enriched = self._enrich_discovery_result(
+                    {
+                        "pub_key": pub_key,
+                        "node_name": node_name,
+                        "node_type": node_type,
+                        "rssi": rssi,
+                        "response_snr": snr,
+                    }
+                )
+                enriched["is_self"] = True
+                return self._success(enriched, message="Skipped local node: not added to neighbors")
+
+            contact_type = {
+                1: "Chat Node",
+                2: "Repeater",
+                3: "Room Server",
+            }.get(node_type, "Unknown")
+
+            advert_record = {
+                "timestamp": time.time(),
+                "pubkey": pub_key,
+                "node_name": node_name,
+                "is_repeater": node_type == 2,
+                "route_type": 2,
+                "contact_type": contact_type,
+                "latitude": None,
+                "longitude": None,
+                "rssi": int(rssi) if rssi is not None else None,
+                "snr": float(snr) if snr is not None else None,
+                "is_new_neighbor": True,
+                "zero_hop": True,
+            }
+
+            storage = self._get_storage()
+            storage.record_advert(advert_record)
+
+            enriched = self._enrich_discovery_result(
+                {
+                    "pub_key": pub_key,
+                    "node_name": node_name,
+                    "node_type": node_type,
+                    "node_type_name": contact_type,
+                    "rssi": advert_record["rssi"],
+                    "response_snr": advert_record["snr"],
+                }
+            )
+            return self._success(enriched, message="Neighbor added to adverts database")
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error("Error adding discovered neighbor: %s", e, exc_info=True)
+            return self._error(str(e))
+
+    # ========== Identity Management Endpoints ==========
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def identities(self):
+        """
+        GET /api/identities - List all registered identities
+
+        Returns both the in-memory registered identities and the configured ones from YAML
+        """
+        # Enable CORS for this endpoint only if configured
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            if not self.daemon_instance or not hasattr(self.daemon_instance, "identity_manager"):
+                return self._error("Identity manager not available")
+
+            # Get runtime registered identities
+            identity_manager = self.daemon_instance.identity_manager
+            registered_identities = identity_manager.list_identities()
+
+            # Get configured identities from config
+            identities_config = self.config.get("identities", {})
+            room_servers = identities_config.get("room_servers") or []
+
+            companions_cfg = identities_config.get("companions") or []
+            if heal_companion_empty_names(companions_cfg):
+                self.config.setdefault("identities", {})["companions"] = companions_cfg
+                if self.config_manager:
+                    if self.config_manager.save_to_file():
+                        logger.info(
+                            "Healed companion registration name(s): empty name -> companion_<pubkeyPrefix>"
+                        )
+                    else:
+                        logger.warning("Failed to save config after healing companion name(s)")
+
+            # Enhance with config data (room servers)
+            configured = []
+            for room_config in room_servers:
+                name = room_config.get("name")
+                identity_key = room_config.get("identity_key", "")
+                settings = room_config.get("settings", {})
+
+                # Find matching registered identity for additional data
+                matching = next(
+                    (r for r in registered_identities if r["name"] == f"room_server:{name}"), None
+                )
+
+                pk_display = None
+                if matching:
+                    pk_display = matching.get("public_key")
+                else:
+                    pk_display = derive_companion_public_key_hex(room_config.get("identity_key"))
+
+                configured.append(
+                    {
+                        "name": name,
+                        "type": "room_server",
+                        "identity_key": (
+                            identity_key[:16] + "..." if len(identity_key) > 16 else identity_key
+                        ),
+                        "identity_key_length": len(identity_key),
+                        "settings": settings,
+                        "hash": matching["hash"] if matching else None,
+                        "address": matching["address"] if matching else None,
+                        "public_key": pk_display,
+                        "registered": matching is not None,
+                    }
+                )
+
+            # Configured companions (same pattern as room servers)
+            companions = identities_config.get("companions") or []
+            configured_companions = []
+            for comp_config in companions:
+                name = comp_config.get("name")
+                raw_ik = comp_config.get("identity_key", "")
+                if isinstance(raw_ik, bytes):
+                    ik_hex = raw_ik.hex()
+                else:
+                    ik_hex = str(raw_ik)
+                settings = comp_config.get("settings", {})
+
+                matching = next(
+                    (r for r in registered_identities if r["name"] == f"companion:{name}"),
+                    None,
+                )
+
+                pk_display = None
+                if matching:
+                    pk_display = matching.get("public_key")
+                else:
+                    pk_display = derive_companion_public_key_hex(comp_config.get("identity_key"))
+
+                configured_companions.append(
+                    {
+                        "name": name,
+                        "type": "companion",
+                        "identity_key": (ik_hex[:16] + "..." if len(ik_hex) > 16 else ik_hex),
+                        "identity_key_length": len(ik_hex),
+                        "settings": settings,
+                        "hash": matching["hash"] if matching else None,
+                        "public_key": pk_display,
+                        "registered": matching is not None,
+                    }
+                )
+
+            return self._success(
+                {
+                    "registered": registered_identities,
+                    "configured": configured,
+                    "configured_companions": configured_companions,
+                    "total_registered": len(registered_identities),
+                    "total_configured": len(configured),
+                    "total_configured_companions": len(configured_companions),
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Error listing identities: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def identity(self, name=None):
+        """
+        GET /api/identity?name=<name> - Get a specific identity by name
+        """
+        # Enable CORS for this endpoint only if configured
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            if not name:
+                return self._error("Missing name parameter")
+
+            identities_config = self.config.get("identities", {})
+            room_servers = identities_config.get("room_servers") or []
+            companions = identities_config.get("companions") or []
+
+            # Find the identity in config (room servers first, then companions)
+            identity_config = next((r for r in room_servers if r.get("name") == name), None)
+            if identity_config is None:
+                identity_config = next((c for c in companions if c.get("name") == name), None)
+
+            if not identity_config:
+                return self._error(f"Identity '{name}' not found")
+
+            # Get runtime info if available (identity_manager uses name for both types)
+            if self.daemon_instance and hasattr(self.daemon_instance, "identity_manager"):
+                identity_manager = self.daemon_instance.identity_manager
+                runtime_info = identity_manager.get_identity_by_name(name)
+
+                if runtime_info:
+                    identity_obj, config, identity_type = runtime_info
+                    identity_config["runtime"] = {
+                        "hash": self._fmt_hash(identity_obj.get_public_key()),
+                        "address": identity_obj.get_address_bytes().hex(),
+                        "type": identity_type,
+                        "registered": True,
+                    }
+                else:
+                    identity_config["runtime"] = {"registered": False}
+
+            return self._success(identity_config)
+
+        except Exception as e:
+            logger.error(f"Error getting identity: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def create_identity(self):
+        """
+        POST /api/create_identity - Create a new identity
+
+        Body: {
+            "name": "MyRoomServer",
+            "identity_key": "hex_key_string",  # Optional - will be auto-generated if not provided
+            "type": "room_server",
+            "settings": {
+                "node_name": "My Room",
+                "latitude": 0.0,
+                "longitude": 0.0,
+                "disable_fwd": true,
+                "admin_password": "secret123",  # Optional - admin access password
+                "guest_password": "guest456"    # Optional - guest/read-only access password
+            }
+        }
+        """
+        # Enable CORS for this endpoint only if configured
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            self._require_post()
+            data = cherrypy.request.json or {}
+
+            raw_name = data.get("name")
+            name = str(raw_name).strip() if raw_name is not None else ""
+            identity_key = data.get("identity_key")
+            identity_type = data.get("type", "room_server")
+            settings = data.get("settings", {})
+
+            if not isinstance(settings, dict):
+                return self._error("settings must be an object")
+
+            def _validate_room_server_advert_intervals(room_settings):
+                for field in ("flood_advert_interval_hours", "direct_advert_interval_hours"):
+                    if field not in room_settings:
+                        continue
+                    hours = int(room_settings[field])
+                    if hours != 0 and (hours < 1 or hours > 168):
+                        return f"{field} must be 0 (off) or 1-168 hours"
+                    room_settings[field] = hours
+                return None
+
+            if not name:
+                return self._error("Missing required field: name")
+
+            # Validate identity type
+            if identity_type not in ["room_server", "companion"]:
+                return self._error(
+                    f"Invalid identity type: {identity_type}. Only 'room_server' and 'companion' are supported."
+                )
+
+            # Room server: validate passwords are different if both provided
+            if identity_type == "room_server":
+                admin_pw = settings.get("admin_password")
+                guest_pw = settings.get("guest_password")
+                if admin_pw and guest_pw and admin_pw == guest_pw:
+                    return self._error("admin_password and guest_password must be different")
+                interval_error = _validate_room_server_advert_intervals(settings)
+                if interval_error:
+                    return self._error(interval_error)
+
+            # Auto-generate identity key if not provided
+            key_was_generated = False
+            if not identity_key:
+                try:
+                    # Use MeshCore-compatible keygen and store 32-byte private scalar hex.
+                    from repeater.keygen import generate_meshcore_keypair
+
+                    _, private_key = generate_meshcore_keypair()
+                    identity_key = private_key[:32].hex()
+                    key_was_generated = True
+                    logger.info(f"Auto-generated identity key for '{name}': {identity_key[:16]}...")
+                except Exception as gen_error:
+                    logger.error(f"Failed to auto-generate identity key: {gen_error}")
+                    return self._error(f"Failed to auto-generate identity key: {gen_error}")
+
+            identities_config = self.config.get("identities", {})
+            if "identities" not in self.config:
+                self.config["identities"] = {}
+
+            if identity_type == "companion":
+                # Companion: validate key length (32 or 64 bytes hex), normalize settings
+                if identity_key:
+                    try:
+                        key_bytes = bytes.fromhex(identity_key)
+                        if len(key_bytes) not in (32, 64):
+                            return self._error(
+                                "Companion identity_key must be 32 or 64 bytes (64 or 128 hex chars)"
+                            )
+                    except ValueError:
+                        return self._error("Companion identity_key must be a valid hex string")
+
+                companions = identities_config.get("companions") or []
+                if any(str(c.get("name") or "").strip() == name for c in companions):
+                    return self._error(f"Companion with name '{name}' already exists")
+
+                try:
+                    bridge_settings = parse_companion_bridge_kwargs(settings)
+                except ValueError as e:
+                    return self._error(str(e))
+
+                comp_settings = {
+                    "node_name": settings.get("node_name") or name,
+                    "tcp_port": settings.get("tcp_port", 5000),
+                    "bind_address": settings.get("bind_address", "0.0.0.0"),  # nosec B104
+                }
+                if "tcp_timeout" in settings:
+                    comp_settings["tcp_timeout"] = settings["tcp_timeout"]
+                if "trim_contacts_on_overflow" in settings:
+                    comp_settings["trim_contacts_on_overflow"] = bool(
+                        settings["trim_contacts_on_overflow"]
+                    )
+                comp_settings.update(bridge_settings)
+                new_identity = {
+                    "name": name,
+                    "identity_key": identity_key,
+                    "type": identity_type,
+                    "settings": comp_settings,
+                }
+                sqlite_handler = None
+                repeater_handler = (
+                    getattr(self.daemon_instance, "repeater_handler", None)
+                    if self.daemon_instance
+                    else None
+                )
+                if repeater_handler and getattr(repeater_handler, "storage", None):
+                    sqlite_handler = repeater_handler.storage.sqlite_handler
+                if sqlite_handler and identity_key:
+                    try:
+                        validate_companion_config_capacity(
+                            new_identity,
+                            sqlite_handler,
+                            companion_name=name,
+                            settings=comp_settings,
+                        )
+                    except CompanionContactCapacityError as e:
+                        return self._error(str(e))
+                    except (ValueError, TypeError) as e:
+                        return self._error(str(e))
+                companions.append(new_identity)
+                self.config["identities"]["companions"] = companions
+            else:
+                # Room server
+                room_servers = identities_config.get("room_servers") or []
+                if any(str(r.get("name") or "").strip() == name for r in room_servers):
+                    return self._error(f"Identity with name '{name}' already exists")
+
+                new_identity = {
+                    "name": name,
+                    "identity_key": identity_key,
+                    "type": identity_type,
+                    "settings": settings,
+                }
+                room_servers.append(new_identity)
+                self.config["identities"]["room_servers"] = room_servers
+
+            # Save to file
+            saved = self.config_manager.save_to_file()
+            if not saved:
+                return self._error("Failed to save configuration to file")
+
+            logger.info(
+                f"Created new identity: {name} (type: {identity_type}){' with auto-generated key' if key_was_generated else ''}"
+            )
+
+            # Hot reload - register identity immediately
+            registration_success = False
+            companion_activation_error = None
+            if identity_type == "room_server" and self.daemon_instance:
+                try:
+                    from openhop_core import LocalIdentity
+
+                    # Create LocalIdentity from the key (convert hex string to bytes)
+                    if isinstance(identity_key, bytes):
+                        identity_key_bytes = identity_key
+                    elif isinstance(identity_key, str):
+                        try:
+                            identity_key_bytes = bytes.fromhex(identity_key)
+                        except ValueError as e:
+                            logger.error(f"Identity key for {name} is not valid hex string: {e}")
+                            identity_key_bytes = (
+                                identity_key.encode("latin-1")
+                                if len(identity_key) == 32
+                                else identity_key.encode("utf-8")
+                            )
+                    else:
+                        logger.error(f"Unknown identity_key type: {type(identity_key)}")
+                        identity_key_bytes = bytes(identity_key)
+
+                    room_identity = LocalIdentity(seed=identity_key_bytes)
+
+                    # Use the consolidated registration method
+                    if hasattr(self.daemon_instance, "_register_identity_everywhere"):
+                        registration_success = self.daemon_instance._register_identity_everywhere(
+                            name=name,
+                            identity=room_identity,
+                            config=new_identity,
+                            identity_type=identity_type,
+                        )
+                        if registration_success:
+                            logger.info(
+                                f"Hot reload: Registered identity '{name}' with all systems"
+                            )
+                        else:
+                            logger.warning(f"Hot reload: Failed to register identity '{name}'")
+
+                except Exception as reg_error:
+                    logger.error(
+                        f"Failed to hot reload identity {name}: {reg_error}", exc_info=True
+                    )
+
+            elif identity_type == "companion" and self.daemon_instance and self.event_loop:
+                try:
+                    import asyncio
+
+                    future = asyncio.run_coroutine_threadsafe(
+                        self.daemon_instance.add_companion_from_config(new_identity),
+                        self.event_loop,
+                    )
+                    future.result(timeout=15)
+                    registration_success = True
+                    logger.info(f"Hot reload: Companion '{name}' activated immediately")
+                except CompanionContactCapacityError as cap_error:
+                    # A restart won't fix a capacity overflow; report the real cause.
+                    companion_activation_error = str(cap_error)
+                    logger.warning(f"Hot reload companion '{name}' not activated: {cap_error}")
+                except Exception as comp_error:
+                    logger.warning(
+                        f"Hot reload companion '{name}' failed: {comp_error}. Restart required to activate.",
+                        exc_info=True,
+                    )
+
+            if identity_type == "companion":
+                if registration_success:
+                    message = f"Companion '{name}' created successfully and activated immediately!"
+                elif companion_activation_error:
+                    message = (
+                        f"Companion '{name}' created, but not activated: "
+                        f"{companion_activation_error}"
+                    )
+                else:
+                    message = (
+                        f"Companion '{name}' created successfully. Restart required to activate."
+                    )
+            else:
+                message = (
+                    f"Identity '{name}' created successfully and activated immediately!"
+                    if registration_success
+                    else f"Identity '{name}' created successfully. Restart required to activate."
+                )
+            if key_was_generated:
+                message += " Identity key was auto-generated."
+
+            return self._success(new_identity, message=message)
+
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error(f"Error creating identity: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def update_identity(self):
+        """
+        PUT /api/update_identity - Update an existing identity
+
+        Body: {
+            "name": "MyRoomServer",  # Required - used to find identity
+            "new_name": "RenamedRoom",  # Optional - rename identity
+            "identity_key": "new_hex_key",  # Optional - update key
+            "settings": {  # Optional - update settings
+                "node_name": "Updated Room Name",
+                "latitude": 1.0,
+                "longitude": 2.0,
+                "admin_password": "newsecret",  # Optional - admin password
+                "guest_password": "newguest"    # Optional - guest password
+            }
+        }
+        """
+        # Enable CORS for this endpoint only if configured
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            if cherrypy.request.method != "PUT":
+                cherrypy.response.status = 405
+                cherrypy.response.headers["Allow"] = "PUT"
+                raise cherrypy.HTTPError(405, "Method not allowed. This endpoint requires PUT.")
+
+            data = cherrypy.request.json or {}
+
+            name = data.get("name")
+            name_s = str(name).strip() if name is not None else ""
+            lookup_identity_key = data.get("lookup_identity_key")
+            public_key_prefix = data.get("public_key_prefix")
+
+            identity_type = data.get("type", "room_server")
+            if identity_type not in ["room_server", "companion"]:
+                return self._error(
+                    f"Invalid identity type: {identity_type}. Only 'room_server' and 'companion' are supported."
+                )
+
+            identities_config = self.config.get("identities", {})
+
+            if identity_type == "companion":
+                companions = identities_config.get("companions") or []
+                if name_s:
+                    identity_index, err = find_companion_index(companions, name=name_s)
+                else:
+                    identity_index, err = find_companion_index(
+                        companions,
+                        identity_key=lookup_identity_key,
+                        public_key_prefix=public_key_prefix,
+                    )
+                if err:
+                    return self._error(err)
+                identity = companions[identity_index]
+                resolved_name = str(identity.get("name") or "").strip()
+
+                if "new_name" in data:
+                    new_name = data["new_name"]
+                    new_name = str(new_name).strip() if new_name is not None else ""
+                    if not new_name:
+                        return self._error("new_name cannot be empty")
+                    if any(
+                        str(c.get("name") or "").strip() == new_name
+                        for i, c in enumerate(companions)
+                        if i != identity_index
+                    ):
+                        return self._error(f"Companion with name '{new_name}' already exists")
+                    identity["name"] = new_name
+
+                if "identity_key" in data and data["identity_key"]:
+                    new_key = data["identity_key"]
+                    if "..." not in new_key:
+                        try:
+                            key_bytes = bytes.fromhex(new_key)
+                            if len(key_bytes) in (32, 64):
+                                identity["identity_key"] = new_key
+                                logger.info(f"Updated identity_key for companion '{resolved_name}'")
+                        except ValueError:
+                            pass
+
+                trimmed_count = 0
+                if "settings" in data:
+                    try:
+                        merged_settings = merge_companion_settings_update(
+                            identity.get("settings") or {},
+                            data["settings"],
+                        )
+                    except ValueError as e:
+                        return self._error(str(e))
+
+                    sqlite_handler = None
+                    repeater_handler = (
+                        getattr(self.daemon_instance, "repeater_handler", None)
+                        if self.daemon_instance
+                        else None
+                    )
+                    if repeater_handler and getattr(repeater_handler, "storage", None):
+                        sqlite_handler = repeater_handler.storage.sqlite_handler
+                    if sqlite_handler and identity.get("identity_key"):
+                        try:
+                            validate_companion_config_capacity(
+                                identity,
+                                sqlite_handler,
+                                companion_name=resolved_name,
+                                settings=merged_settings,
+                            )
+                        except CompanionContactCapacityError as e:
+                            if not data.get("force_trim"):
+                                return self._error(str(e))
+                            # Power-user opt-in: trim persisted contacts down to the
+                            # new limit (favourite-aware) instead of rejecting.
+                            try:
+                                trimmed_count = trim_companion_contacts_to_fit(
+                                    sqlite_handler, e.companion_hash, e.max_contacts
+                                )
+                            except ValueError as trim_err:
+                                return self._error(str(trim_err))
+                            except RuntimeError:
+                                return self._error("Failed to persist trimmed contacts")
+                            logger.info(
+                                "Force-trimmed %d contact(s) for companion '%s' "
+                                "to fit max_contacts=%d",
+                                trimmed_count,
+                                resolved_name,
+                                e.max_contacts,
+                            )
+                        except (ValueError, TypeError) as e:
+                            return self._error(str(e))
+
+                    identity["settings"] = merged_settings
+
+                companions[identity_index] = identity
+                self.config["identities"]["companions"] = companions
+                saved = self.config_manager.save_to_file()
+                if not saved:
+                    return self._error("Failed to save configuration to file")
+                logger.info(f"Updated companion: {resolved_name}")
+                message = (
+                    f"Companion '{resolved_name}' updated successfully. "
+                    "Restart required to apply changes."
+                )
+                if trimmed_count:
+                    message = (
+                        f"Companion '{resolved_name}' updated successfully; "
+                        f"trimmed {trimmed_count} contact(s) to fit the new limit. "
+                        "Restart required to apply changes."
+                    )
+                return self._success(identity, message=message)
+
+            # Room server path
+            if not name_s:
+                return self._error("Missing required field: name")
+
+            room_servers = identities_config.get("room_servers") or []
+            identity_index = next(
+                (
+                    i
+                    for i, r in enumerate(room_servers)
+                    if str(r.get("name") or "").strip() == name_s
+                ),
+                None,
+            )
+
+            if identity_index is None:
+                return self._error(f"Identity '{name_s}' not found")
+
+            # Update fields
+            identity = room_servers[identity_index]
+
+            if "new_name" in data:
+                new_name = data["new_name"]
+                new_name = str(new_name).strip() if new_name is not None else ""
+                if not new_name:
+                    return self._error("new_name cannot be empty")
+                # Check if new name conflicts
+                if any(
+                    str(r.get("name") or "").strip() == new_name
+                    for i, r in enumerate(room_servers)
+                    if i != identity_index
+                ):
+                    return self._error(f"Identity with name '{new_name}' already exists")
+                identity["name"] = new_name
+
+            # Only update identity_key if a valid full key is provided
+            # Silently reject truncated keys (containing "...") or invalid hex strings
+            if "identity_key" in data and data["identity_key"]:
+                new_key = data["identity_key"]
+                # Check if it's a truncated key (contains "...") or not a valid 64-char hex string
+                if "..." not in new_key and len(new_key) == 64:
+                    try:
+                        # Validate it's proper hex
+                        bytes.fromhex(new_key)
+                        identity["identity_key"] = new_key
+                        logger.info(f"Updated identity_key for '{name_s}'")
+                    except ValueError:
+                        # Invalid hex, silently ignore
+                        pass
+
+            if "settings" in data:
+                # Merge settings
+                if "settings" not in identity:
+                    identity["settings"] = {}
+                identity["settings"].update(data["settings"])
+
+                for field in ("flood_advert_interval_hours", "direct_advert_interval_hours"):
+                    if field in identity["settings"]:
+                        hours = int(identity["settings"][field])
+                        if hours != 0 and (hours < 1 or hours > 168):
+                            return self._error(f"{field} must be 0 (off) or 1-168 hours")
+                        identity["settings"][field] = hours
+
+                # Validate passwords are different if both are now set
+                admin_pw = identity["settings"].get("admin_password")
+                guest_pw = identity["settings"].get("guest_password")
+                if admin_pw and guest_pw and admin_pw == guest_pw:
+                    return self._error("admin_password and guest_password must be different")
+
+            # Save to config
+            room_servers[identity_index] = identity
+            self.config["identities"]["room_servers"] = room_servers
+
+            saved = self.config_manager.save_to_file()
+            if not saved:
+                return self._error("Failed to save configuration to file")
+
+            logger.info(f"Updated identity: {name_s}")
+
+            # Hot reload - re-register identity if key changed or name changed
+            registration_success = False
+            # Only reload if identity_key was actually provided and not empty, or if name changed
+            needs_reload = data.get("identity_key") or "new_name" in data
+
+            if needs_reload and self.daemon_instance:
+                try:
+                    from openhop_core import LocalIdentity
+
+                    final_name = identity["name"]  # Could be new_name
+                    identity_key = identity["identity_key"]
+
+                    # Create LocalIdentity from the key (convert hex string to bytes)
+                    if isinstance(identity_key, bytes):
+                        identity_key_bytes = identity_key
+                    elif isinstance(identity_key, str):
+                        try:
+                            identity_key_bytes = bytes.fromhex(identity_key)
+                        except ValueError as e:
+                            logger.error(
+                                f"Identity key for {final_name} is not valid hex string: {e}"
+                            )
+                            identity_key_bytes = (
+                                identity_key.encode("latin-1")
+                                if len(identity_key) == 32
+                                else identity_key.encode("utf-8")
+                            )
+                    else:
+                        logger.error(f"Unknown identity_key type: {type(identity_key)}")
+                        identity_key_bytes = bytes(identity_key)
+
+                    room_identity = LocalIdentity(seed=identity_key_bytes)
+
+                    # Use the consolidated registration method
+                    if hasattr(self.daemon_instance, "_register_identity_everywhere"):
+                        registration_success = self.daemon_instance._register_identity_everywhere(
+                            name=final_name,
+                            identity=room_identity,
+                            config=identity,
+                            identity_type="room_server",
+                        )
+                        if registration_success:
+                            logger.info(
+                                f"Hot reload: Re-registered identity '{final_name}' with all systems"
+                            )
+                        else:
+                            logger.warning(
+                                f"Hot reload: Failed to re-register identity '{final_name}'"
+                            )
+
+                except Exception as reg_error:
+                    logger.error(
+                        f"Failed to hot reload identity {name_s}: {reg_error}", exc_info=True
+                    )
+
+            if needs_reload:
+                message = (
+                    f"Identity '{name_s}' updated successfully and changes applied immediately!"
+                    if registration_success
+                    else f"Identity '{name_s}' updated successfully. Restart required to apply changes."
+                )
+            else:
+                message = (
+                    f"Identity '{name_s}' updated successfully (settings only, no reload needed)."
+                )
+
+            return self._success(identity, message=message)
+
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error(f"Error updating identity: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def delete_identity(
+        self, name=None, type=None, lookup_identity_key=None, public_key_prefix=None
+    ):
+        """
+        DELETE /api/delete_identity?name=<name>&type=<room_server|companion> - Delete an identity
+        Companions may also be deleted with lookup_identity_key or public_key_prefix when name is empty.
+        """
+        # Enable CORS for this endpoint only if configured
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            if cherrypy.request.method != "DELETE":
+                cherrypy.response.status = 405
+                cherrypy.response.headers["Allow"] = "DELETE"
+                raise cherrypy.HTTPError(405, "Method not allowed. This endpoint requires DELETE.")
+
+            name_s = str(name).strip() if name is not None else ""
+
+            identity_type = (type or "room_server").lower()
+            if identity_type not in ["room_server", "companion"]:
+                return self._error(f"Invalid type: {type}. Use 'room_server' or 'companion'.")
+
+            identities_config = self.config.get("identities", {})
+
+            if identity_type == "companion":
+                if not name_s and not lookup_identity_key and not public_key_prefix:
+                    return self._error(
+                        "Missing name parameter or lookup_identity_key or public_key_prefix"
+                    )
+                companions = identities_config.get("companions") or []
+                if name_s:
+                    idx, err = find_companion_index(companions, name=name_s)
+                else:
+                    idx, err = find_companion_index(
+                        companions,
+                        identity_key=lookup_identity_key,
+                        public_key_prefix=public_key_prefix,
+                    )
+                if err:
+                    return self._error(err)
+                resolved_name = str(companions[idx].get("name") or "").strip()
+                companions.pop(idx)
+                self.config["identities"]["companions"] = companions
+                saved = self.config_manager.save_to_file()
+                if not saved:
+                    return self._error("Failed to save configuration to file")
+                logger.info(f"Deleted companion: {resolved_name}")
+                unregister_success = False
+                if self.daemon_instance and hasattr(self.daemon_instance, "identity_manager"):
+                    identity_manager = self.daemon_instance.identity_manager
+                    if resolved_name and resolved_name in identity_manager.named_identities:
+                        del identity_manager.named_identities[resolved_name]
+                        logger.info(f"Removed companion {resolved_name} from named_identities")
+                        unregister_success = True
+                message = (
+                    f"Companion '{resolved_name}' deleted successfully and deactivated immediately!"
+                    if unregister_success
+                    else (
+                        f"Companion '{resolved_name}' deleted successfully. "
+                        "Restart required to fully remove."
+                    )
+                )
+                return self._success({"name": resolved_name}, message=message)
+
+            # Room server path
+            if not name_s:
+                return self._error("Missing name parameter")
+
+            room_servers = identities_config.get("room_servers") or []
+
+            # Find and remove the identity
+            initial_count = len(room_servers)
+            room_servers = [r for r in room_servers if str(r.get("name") or "").strip() != name_s]
+
+            if len(room_servers) == initial_count:
+                return self._error(f"Identity '{name_s}' not found")
+
+            # Update config
+            self.config["identities"]["room_servers"] = room_servers
+
+            saved = self.config_manager.save_to_file()
+            if not saved:
+                return self._error("Failed to save configuration to file")
+
+            logger.info(f"Deleted identity: {name_s}")
+
+            unregister_success = False
+            if self.daemon_instance:
+                try:
+                    if hasattr(self.daemon_instance, "identity_manager"):
+                        identity_manager = self.daemon_instance.identity_manager
+
+                        # Remove from named_identities dict
+                        if name_s in identity_manager.named_identities:
+                            del identity_manager.named_identities[name_s]
+                            logger.info(f"Removed identity {name_s} from named_identities")
+                            unregister_success = True
+
+                        # Note: We don't remove from identities dict (keyed by hash)
+                        # because we'd need to look up the hash first, and there could
+                        # be multiple identities with the same hash
+                        # Full cleanup happens on restart
+
+                except Exception as unreg_error:
+                    logger.error(
+                        f"Failed to unregister identity {name_s}: {unreg_error}", exc_info=True
+                    )
+
+            message = (
+                f"Identity '{name_s}' deleted successfully and deactivated immediately!"
+                if unregister_success
+                else f"Identity '{name_s}' deleted successfully. Restart required to fully remove."
+            )
+
+            return self._success({"name": name_s}, message=message)
+
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error(f"Error deleting identity: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def send_room_server_advert(self):
+        """
+        POST /api/send_room_server_advert - Send advert for a room server
+
+        Body: {
+            "name": "MyRoomServer"
+        }
+        """
+        # Enable CORS for this endpoint only if configured
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            self._require_post()
+
+            if not self.daemon_instance:
+                return self._error("Daemon not available")
+
+            data = cherrypy.request.json or {}
+            name = data.get("name")
+
+            if not name:
+                return self._error("Missing required field: name")
+
+            # Get the identity from identity manager
+            if not hasattr(self.daemon_instance, "identity_manager"):
+                return self._error("Identity manager not available")
+
+            identity_manager = self.daemon_instance.identity_manager
+            identity_info = identity_manager.get_identity_by_name(name)
+
+            if not identity_info:
+                return self._error(f"Room server '{name}' not found or not registered")
+
+            identity, config, identity_type = identity_info
+
+            if identity_type != "room_server":
+                return self._error(f"Identity '{name}' is not a room server")
+
+            # Get settings from config
+            settings = config.get("settings", {})
+            node_name = settings.get("node_name", name)
+            latitude = settings.get("latitude", 0.0)
+            longitude = settings.get("longitude", 0.0)
+            disable_fwd = settings.get("disable_fwd", False)
+
+            # Send the advert asynchronously
+            if self.event_loop is None:
+                return self._error("Event loop not available")
+
+            import asyncio
+
+            future = asyncio.run_coroutine_threadsafe(
+                self._send_room_server_advert_async(
+                    identity=identity,
+                    node_name=node_name,
+                    latitude=latitude,
+                    longitude=longitude,
+                    disable_fwd=disable_fwd,
+                ),
+                self.event_loop,
+            )
+
+            result = future.result(timeout=10)
+
+            if result:
+                return self._success(
+                    {
+                        "name": name,
+                        "node_name": node_name,
+                        "latitude": latitude,
+                        "longitude": longitude,
+                    },
+                    message=f"Advert sent for room server '{node_name}'",
+                )
+            else:
+                return self._error(f"Failed to send advert for room server '{name}'")
+
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error(f"Error sending room server advert: {e}", exc_info=True)
+            return self._error(e)
+
+    async def _send_room_server_advert_async(
+        self, identity, node_name, latitude, longitude, disable_fwd
+    ):
+        """Send advert for a room server identity"""
+        try:
+            if self.daemon_instance and hasattr(self.daemon_instance, "_send_room_server_advert"):
+                identity_manager = getattr(self.daemon_instance, "identity_manager", None)
+                room_name = node_name
+                room_cfg = {
+                    "settings": {
+                        "node_name": node_name,
+                        "latitude": latitude,
+                        "longitude": longitude,
+                    }
+                }
+                if identity_manager is not None:
+                    for n, room_identity, cfg in identity_manager.get_identities_by_type(
+                        "room_server"
+                    ):
+                        if room_identity is identity:
+                            room_name = n
+                            room_cfg = cfg
+                            break
+                return await self.daemon_instance._send_room_server_advert(
+                    room_name=room_name,
+                    identity=identity,
+                    identity_config=room_cfg,
+                    advert_kind="manual",
+                )
+
+            from openhop_core.protocol.constants import (
+                ADVERT_FLAG_HAS_NAME,
+                ADVERT_FLAG_IS_ROOM_SERVER,
+            )
+
+            if not self.daemon_instance or not self.daemon_instance.dispatcher:
+                logger.error("Cannot send advert: dispatcher not initialized")
+                return False
+
+            # Build flags - just use HAS_NAME for room servers
+            flags = ADVERT_FLAG_IS_ROOM_SERVER | ADVERT_FLAG_HAS_NAME
+
+            mesh_config = self.config.get("mesh", {}) if isinstance(self.config, dict) else {}
+            default_region = mesh_config.get("default_region")
+            packet, scoped_region_name = create_scoped_advert_packet(
+                local_identity=identity,
+                node_name=node_name,
+                latitude=latitude,
+                longitude=longitude,
+                flags=flags,
+                default_region=default_region,
+                scope_label="room server advert",
+            )
+
+            injector = getattr(getattr(self.daemon_instance, "router", None), "inject_packet", None)
+            if callable(injector):
+                sent = await injector(packet, wait_for_ack=False)
+            else:
+                sent = await self.daemon_instance.dispatcher.send_packet(packet, wait_for_ack=False)
+
+            if not sent:
+                logger.error("Failed to send room server advert: packet transmission was rejected")
+                return False
+
+            # Mark as seen only when bypassing the engine and sending directly.
+            if not callable(injector) and self.daemon_instance.repeater_handler:
+                self.daemon_instance.repeater_handler.mark_seen(packet)
+                logger.debug(f"Marked room server advert '{node_name}' as seen in duplicate cache")
+
+            logger.info(
+                f"Sent flood advert for room server '{node_name}' at ({latitude:.6f}, {longitude:.6f})"
+            )
+            if scoped_region_name:
+                logger.info("Room server advert scoped to default region '%s'", scoped_region_name)
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to send room server advert: {e}", exc_info=True)
+            return False
+
+    # ========== ACL (Access Control List) Endpoints ==========
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def acl_info(self):
+        """
+        GET /api/acl_info - Get ACL configuration and statistics
+
+        Returns ACL settings for all registered identities including:
+        - Identity name, type, and hash
+        - Max clients allowed
+        - Number of authenticated clients
+        - Password configuration status
+        - Read-only access setting
+        """
+        # Enable CORS for this endpoint only if configured
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            if not self.daemon_instance or not hasattr(self.daemon_instance, "login_helper"):
+                return self._error("Login helper not available")
+
+            login_helper = self.daemon_instance.login_helper
+            identity_manager = self.daemon_instance.identity_manager
+
+            acl_dict = login_helper.get_acl_dict()
+
+            acl_info_list = []
+
+            # Add repeater identity
+            if self.daemon_instance.local_identity:
+                repeater_hash = self.daemon_instance.local_identity.get_public_key()[0]
+                repeater_acl = acl_dict.get(repeater_hash)
+
+                if repeater_acl:
+                    acl_info_list.append(
+                        {
+                            "name": "repeater",
+                            "type": "repeater",
+                            "hash": self._fmt_hash(
+                                self.daemon_instance.local_identity.get_public_key()
+                            ),
+                            "max_clients": repeater_acl.max_clients,
+                            "authenticated_clients": repeater_acl.get_num_clients(),
+                            "has_admin_password": bool(repeater_acl.admin_password),
+                            "has_guest_password": bool(repeater_acl.guest_password),
+                            "allow_read_only": repeater_acl.allow_read_only,
+                        }
+                    )
+
+            # Add room server identities
+            for name, identity, config in identity_manager.get_identities_by_type("room_server"):
+                hash_byte = identity.get_public_key()[0]
+                acl = acl_dict.get(hash_byte)
+
+                if acl:
+                    acl_info_list.append(
+                        {
+                            "name": name,
+                            "type": "room_server",
+                            "hash": self._fmt_hash(identity.get_public_key()),
+                            "max_clients": acl.max_clients,
+                            "authenticated_clients": acl.get_num_clients(),
+                            "has_admin_password": bool(acl.admin_password),
+                            "has_guest_password": bool(acl.guest_password),
+                            "allow_read_only": acl.allow_read_only,
+                        }
+                    )
+
+            # Add companion identities (no login/ACL fields; use registered + active for status)
+            companion_bridges = getattr(self.daemon_instance, "companion_bridges", {})
+            # Build hash -> active TCP connection and client IP (frame server has at most one client)
+            active_by_hash = {}
+            client_ip_by_hash = {}
+            for fs in getattr(self.daemon_instance, "companion_frame_servers", []):
+                try:
+                    ch = getattr(fs, "companion_hash", None)
+                    h = (
+                        int(ch, 16)
+                        if isinstance(ch, str) and ch.startswith("0x")
+                        else (int(ch) if ch is not None else None)
+                    )
+                    if h is not None:
+                        writer = getattr(fs, "_client_writer", None)
+                        active_by_hash[h] = writer is not None
+                        if writer is not None:
+                            peername = (
+                                writer.get_extra_info("peername")
+                                if hasattr(writer, "get_extra_info")
+                                else None
+                            )
+                            client_ip_by_hash[h] = str(peername[0]) if peername else None
+                except (ValueError, TypeError):
+                    pass
+            for name, identity, config in identity_manager.get_identities_by_type("companion"):
+                hash_byte = identity.get_public_key()[0]
+                active = active_by_hash.get(hash_byte, False)
+                entry = {
+                    "name": name,
+                    "type": "companion",
+                    "hash": f"0x{hash_byte:02X}",
+                    "registered": hash_byte in companion_bridges,
+                    "active": active,
+                }
+                if active:
+                    entry["client_ip"] = client_ip_by_hash.get(hash_byte)
+                else:
+                    entry["client_ip"] = None
+                acl_info_list.append(entry)
+
+            return self._success(
+                {
+                    "acls": acl_info_list,
+                    "total_identities": len(acl_info_list),
+                    "total_authenticated_clients": sum(
+                        a.get("authenticated_clients", 0) for a in acl_info_list
+                    ),
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Error getting ACL info: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def acl_clients(self, identity_hash=None, identity_name=None):
+        """
+        GET /api/acl_clients - Get authenticated clients
+
+        Query parameters:
+        - identity_hash: Filter by identity hash (e.g., "0x42")
+        - identity_name: Filter by identity name (e.g., "repeater" or room server name)
+
+        Returns list of authenticated clients with:
+        - Public key (truncated)
+        - Full address
+        - Permissions (admin/guest)
+        - Last activity timestamp
+        - Last login timestamp
+        - Identity they're authenticated to
+        """
+        # Enable CORS for this endpoint only if configured
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            if not self.daemon_instance or not hasattr(self.daemon_instance, "login_helper"):
+                return self._error("Login helper not available")
+
+            login_helper = self.daemon_instance.login_helper
+            identity_manager = self.daemon_instance.identity_manager
+            acl_dict = login_helper.get_acl_dict()
+
+            # Build a mapping of hash to identity info
+            identity_map = {}
+
+            # Add repeater
+            if self.daemon_instance.local_identity:
+                repeater_hash = self.daemon_instance.local_identity.get_public_key()[0]
+                identity_map[repeater_hash] = {
+                    "name": "repeater",
+                    "type": "repeater",
+                    "hash": self._fmt_hash(self.daemon_instance.local_identity.get_public_key()),
+                }
+
+            # Add room servers
+            for name, identity, config in identity_manager.get_identities_by_type("room_server"):
+                hash_byte = identity.get_public_key()[0]
+                identity_map[hash_byte] = {
+                    "name": name,
+                    "type": "room_server",
+                    "hash": self._fmt_hash(identity.get_public_key()),
+                }
+
+            # Add companions
+            for name, identity, config in identity_manager.get_identities_by_type("companion"):
+                hash_byte = identity.get_public_key()[0]
+                identity_map[hash_byte] = {
+                    "name": name,
+                    "type": "companion",
+                    "hash": f"0x{hash_byte:02X}",
+                }
+
+            # Filter by identity if requested
+            target_hash = None
+            if identity_hash:
+                # Convert "0x42" to int
+                try:
+                    target_hash = (
+                        int(identity_hash, 16)
+                        if identity_hash.startswith("0x")
+                        else int(identity_hash)
+                    )
+                except ValueError:
+                    return self._error(f"Invalid identity_hash format: {identity_hash}")
+            elif identity_name:
+                # Find hash by name
+                for hash_byte, info in identity_map.items():
+                    if info["name"] == identity_name:
+                        target_hash = hash_byte
+                        break
+                if target_hash is None:
+                    return self._error(f"Identity '{identity_name}' not found")
+
+            # Collect clients
+            clients_list = []
+
+            logger.info(f"ACL dict has {len(acl_dict)} identities")
+
+            for hash_byte, acl in acl_dict.items():
+                # Skip if filtering by specific identity
+                if target_hash is not None and hash_byte != target_hash:
+                    continue
+
+                identity_info = identity_map.get(
+                    hash_byte, {"name": "unknown", "type": "unknown", "hash": f"0x{hash_byte:02X}"}
+                )
+
+                all_clients = acl.get_all_clients()
+                logger.info(
+                    f"Identity {identity_info['name']} (0x{hash_byte:02X}) has {len(all_clients)} clients"
+                )
+
+                for client in all_clients:
+                    try:
+                        pub_key = client.id.get_public_key()
+
+                        # Compute address from public key (first byte of SHA256)
+                        address_bytes = CryptoUtils.sha256(pub_key)[:1]
+
+                        clients_list.append(
+                            {
+                                "public_key": pub_key[:8].hex() + "..." + pub_key[-4:].hex(),
+                                "public_key_full": pub_key.hex(),
+                                "address": address_bytes.hex(),
+                                # Accurate role name: with the guest password
+                                # split (repeater=guest, room server=read_write)
+                                # an "admin or guest" label would hide the
+                                # difference between the non-admin roles.
+                                # Read the byte rather than calling a method:
+                                # ACL clients are duck-typed in several places.
+                                "permissions": acl_role_name(getattr(client, "permissions", 0)),
+                                "last_activity": client.last_activity,
+                                "last_login_success": client.last_login_success,
+                                "last_timestamp": client.last_timestamp,
+                                "identity_name": identity_info["name"],
+                                "identity_type": identity_info["type"],
+                                "identity_hash": identity_info["hash"],
+                            }
+                        )
+                    except Exception as client_error:
+                        logger.error(f"Error processing client: {client_error}", exc_info=True)
+                        continue
+
+            logger.info(f"Returning {len(clients_list)} total clients")
+
+            return self._success(
+                {
+                    "clients": clients_list,
+                    "count": len(clients_list),
+                    "filter": (
+                        {"identity_hash": identity_hash, "identity_name": identity_name}
+                        if (identity_hash or identity_name)
+                        else None
+                    ),
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Error getting ACL clients: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def acl_remove_client(self):
+        """
+        POST /api/acl_remove_client - Remove an authenticated client from ACL
+
+        Body: {
+            "public_key": "full_hex_string",
+            "identity_hash": "0x42"  # Optional - if not provided, removes from all ACLs
+        }
+        """
+        # Enable CORS for this endpoint only if configured
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            self._require_post()
+
+            if not self.daemon_instance or not hasattr(self.daemon_instance, "login_helper"):
+                return self._error("Login helper not available")
+
+            data = cherrypy.request.json or {}
+            public_key_hex = data.get("public_key")
+            identity_hash_str = data.get("identity_hash")
+
+            if not public_key_hex:
+                return self._error("Missing required field: public_key")
+
+            # Convert hex to bytes
+            try:
+                public_key = bytes.fromhex(public_key_hex)
+            except ValueError:
+                return self._error("Invalid public_key format (must be hex string)")
+
+            login_helper = self.daemon_instance.login_helper
+            acl_dict = login_helper.get_acl_dict()
+
+            # Determine which ACLs to remove from
+            target_hashes = []
+            if identity_hash_str:
+                try:
+                    target_hash = (
+                        int(identity_hash_str, 16)
+                        if identity_hash_str.startswith("0x")
+                        else int(identity_hash_str)
+                    )
+                    target_hashes = [target_hash]
+                except ValueError:
+                    return self._error(f"Invalid identity_hash format: {identity_hash_str}")
+            else:
+                # Remove from all ACLs
+                target_hashes = list(acl_dict.keys())
+
+            removed_count = 0
+            removed_from = []
+
+            for hash_byte in target_hashes:
+                acl = acl_dict.get(hash_byte)
+                if acl and acl.remove_client(public_key):
+                    removed_count += 1
+                    removed_from.append(f"0x{hash_byte:02X}")
+
+            if removed_count > 0:
+                logger.info(f"Removed client {public_key[:6].hex()}... from {removed_count} ACL(s)")
+                return self._success(
+                    {"removed_count": removed_count, "removed_from": removed_from},
+                    message=f"Client removed from {removed_count} ACL(s)",
+                )
+            else:
+                return self._error("Client not found in any ACL")
+
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error(f"Error removing client from ACL: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def acl_stats(self):
+        """
+        GET /api/acl_stats - Get overall ACL statistics
+
+        Returns:
+        - Total identities with ACLs
+        - Total authenticated clients across all identities
+        - Breakdown by identity type
+        - Admin vs guest counts
+        """
+        # Enable CORS for this endpoint only if configured
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            if not self.daemon_instance or not hasattr(self.daemon_instance, "login_helper"):
+                return self._error("Login helper not available")
+
+            login_helper = self.daemon_instance.login_helper
+            identity_manager = self.daemon_instance.identity_manager
+            acl_dict = login_helper.get_acl_dict()
+
+            total_clients = 0
+            admin_count = 0
+            guest_count = 0
+
+            identity_stats = {
+                "repeater": {"count": 0, "clients": 0},
+                "room_server": {"count": 0, "clients": 0},
+                "companion": {"count": 0, "clients": 0},
+            }
+
+            # Count repeater
+            if self.daemon_instance.local_identity:
+                repeater_hash = self.daemon_instance.local_identity.get_public_key()[0]
+                repeater_acl = acl_dict.get(repeater_hash)
+                if repeater_acl:
+                    identity_stats["repeater"]["count"] = 1
+                    clients = repeater_acl.get_all_clients()
+                    identity_stats["repeater"]["clients"] = len(clients)
+                    total_clients += len(clients)
+
+                    for client in clients:
+                        if client.is_admin():
+                            admin_count += 1
+                        else:
+                            guest_count += 1
+
+            # Count room servers
+            room_servers = identity_manager.get_identities_by_type("room_server")
+            identity_stats["room_server"]["count"] = len(room_servers)
+
+            for name, identity, config in room_servers:
+                hash_byte = identity.get_public_key()[0]
+                acl = acl_dict.get(hash_byte)
+                if acl:
+                    clients = acl.get_all_clients()
+                    identity_stats["room_server"]["clients"] += len(clients)
+                    total_clients += len(clients)
+
+                    for client in clients:
+                        if client.is_admin():
+                            admin_count += 1
+                        else:
+                            guest_count += 1
+
+            # Count companions (no admin/guest; they use frame server, not OTA login)
+            companions = identity_manager.get_identities_by_type("companion")
+            identity_stats["companion"]["count"] = len(companions)
+
+            for name, identity, config in companions:
+                hash_byte = identity.get_public_key()[0]
+                acl = acl_dict.get(hash_byte)
+                if acl:
+                    clients = acl.get_all_clients()
+                    identity_stats["companion"]["clients"] += len(clients)
+                    total_clients += len(clients)
+
+            return self._success(
+                {
+                    "total_identities": len(acl_dict),
+                    "total_clients": total_clients,
+                    "admin_clients": admin_count,
+                    "guest_clients": guest_count,
+                    "by_identity_type": identity_stats,
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Error getting ACL stats: {e}")
+            return self._error(e)
+
+    # ======================
+    # Room Server Endpoints
+    # ======================
+
+    def _get_room_server_by_name_or_hash(self, room_name=None, room_hash=None):
+        """Helper to get room server instance and metadata by name or hash."""
+        if not self.daemon_instance or not hasattr(self.daemon_instance, "text_helper"):
+            raise Exception("Text helper not available")
+
+        text_helper = self.daemon_instance.text_helper
+        if not text_helper or not hasattr(text_helper, "room_servers"):
+            raise Exception("Room servers not initialized")
+
+        identity_manager = text_helper.identity_manager
+
+        # Find by name first
+        if room_name:
+            identities = identity_manager.get_identities_by_type("room_server")
+            for name, identity, config in identities:
+                if name == room_name:
+                    hash_byte = identity.get_public_key()[0]
+                    room_server = text_helper.room_servers.get(hash_byte)
+                    if room_server:
+                        return {
+                            "room_server": room_server,
+                            "name": name,
+                            "hash": hash_byte,
+                            "identity": identity,
+                            "config": config,
+                        }
+            raise Exception(f"Room '{room_name}' not found")
+
+        # Find by hash
+        if room_hash:
+            if isinstance(room_hash, str):
+                if room_hash.startswith("0x"):
+                    hash_byte = int(room_hash, 16)
+                else:
+                    hash_byte = int(room_hash)
+            else:
+                hash_byte = room_hash
+
+            room_server = text_helper.room_servers.get(hash_byte)
+            if room_server:
+                # Find name
+                identities = identity_manager.get_identities_by_type("room_server")
+                for name, identity, config in identities:
+                    if identity.get_public_key()[0] == hash_byte:
+                        return {
+                            "room_server": room_server,
+                            "name": name,
+                            "hash": hash_byte,
+                            "identity": identity,
+                            "config": config,
+                        }
+                # Found server but no name match
+                return {
+                    "room_server": room_server,
+                    "name": f"Room_0x{hash_byte:02X}",
+                    "hash": hash_byte,
+                    "identity": None,
+                    "config": {},
+                }
+            raise Exception(f"Room with hash {room_hash} not found")
+
+        raise Exception("Must provide room_name or room_hash")
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def room_messages(
+        self, room_name=None, room_hash=None, limit=50, offset=0, since_timestamp=None
+    ):
+        """
+        Get messages from a room server.
+
+        Parameters:
+            room_name: Name of the room
+            room_hash: Hash of room identity (alternative to name)
+            limit: Max messages to return (default 50)
+            offset: Skip first N messages (default 0)
+            since_timestamp: Only return messages after this timestamp
+
+        Returns:
+            {
+                "success": true,
+                "data": {
+                    "room_name": "General",
+                    "room_hash": "0x42",
+                    "messages": [
+                        {
+                            "id": 1,
+                            "author_pubkey": "abc123...",
+                            "author_prefix": "abc1",
+                            "post_timestamp": 1234567890.0,
+                            "sender_timestamp": 1234567890,
+                            "message_text": "Hello world",
+                            "txt_type": 0,
+                            "created_at": 1234567890.0
+                        }
+                    ],
+                    "count": 1,
+                    "total": 100,
+                    "limit": 50,
+                    "offset": 0
+                }
+            }
+        """
+        # Enable CORS for this endpoint only if configured
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            room_info = self._get_room_server_by_name_or_hash(room_name, room_hash)
+            room_server = room_info["room_server"]
+
+            # Get messages from database
+            db = room_server.db
+            room_hash_str = f"0x{room_info['hash']:02X}"
+
+            # Get total count
+            total_count = db.get_room_message_count(room_hash_str)
+
+            # Get messages
+            if since_timestamp:
+                messages = db.get_messages_since(
+                    room_hash=room_hash_str,
+                    since_timestamp=float(since_timestamp),
+                    limit=int(limit),
+                )
+            else:
+                messages = db.get_room_messages(
+                    room_hash=room_hash_str, limit=int(limit), offset=int(offset)
+                )
+
+            # Format messages with author prefix and lookup sender names
+            storage = self._get_storage()
+            formatted_messages = []
+            for msg in messages:
+                author_pubkey = msg["author_pubkey"]
+                formatted_msg = {
+                    "id": msg["id"],
+                    "author_pubkey": author_pubkey,
+                    "author_prefix": author_pubkey[:8] if author_pubkey else "",
+                    "post_timestamp": msg["post_timestamp"],
+                    "sender_timestamp": msg["sender_timestamp"],
+                    "message_text": msg["message_text"],
+                    "txt_type": msg["txt_type"],
+                    "created_at": msg.get("created_at", msg["post_timestamp"]),
+                }
+
+                # Lookup sender name from adverts table
+                if author_pubkey:
+                    author_name = storage.get_node_name_by_pubkey(author_pubkey)
+                    if author_name:
+                        formatted_msg["author_name"] = author_name
+
+                formatted_messages.append(formatted_msg)
+
+            return self._success(
+                {
+                    "room_name": room_info["name"],
+                    "room_hash": room_hash_str,
+                    "messages": formatted_messages,
+                    "count": len(formatted_messages),
+                    "total": total_count,
+                    "limit": int(limit),
+                    "offset": int(offset),
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Error getting room messages: {e}", exc_info=True)
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def room_post_message(self):
+        """
+        Post a message to a room server.
+
+        POST Body:
+            {
+                "room_name": "General",  // or "room_hash": "0x42"
+                "message": "Hello world",
+                "author_pubkey": "abc123...",  // hex string, or "server" for system messages
+                "txt_type": 0  // optional, default 0
+            }
+
+        Special Values for author_pubkey:
+            - "server" or "system": Uses SERVER_AUTHOR_PUBKEY (all zeros), message goes to ALL clients
+            - Any other hex string: Normal behavior, message NOT sent to that client
+
+        Returns:
+            {"success": true, "data": {"message_id": 123}}
+        """
+        # Enable CORS for this endpoint only if configured
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            self._require_post()
+
+            data = cherrypy.request.json
+            room_name = data.get("room_name")
+            room_hash = data.get("room_hash")
+            message = data.get("message")
+            author_pubkey = data.get("author_pubkey")
+            txt_type = data.get("txt_type", 0)
+
+            if not message:
+                return self._error("message is required")
+            if not author_pubkey:
+                return self._error("author_pubkey is required")
+
+            # Convert author_pubkey to bytes
+            try:
+                # Special case: "server" or "system" = use room server's public key
+                # This allows clients to identify which room server sent the message
+                if isinstance(author_pubkey, str) and author_pubkey.lower() in ("server", "system"):
+                    # Get room server first to access its identity
+                    room_info = self._get_room_server_by_name_or_hash(room_name, room_hash)
+                    room_server = room_info["room_server"]
+                    # Use the room server's actual public key
+                    author_bytes = room_server.local_identity.get_public_key()
+                    author_pubkey = author_bytes.hex()
+                    is_server_message = True
+                elif isinstance(author_pubkey, str):
+                    author_bytes = bytes.fromhex(author_pubkey)
+                    is_server_message = False
+                else:
+                    author_bytes = bytes(author_pubkey)
+                    is_server_message = False
+            except Exception as e:
+                return self._error(f"Invalid author_pubkey: {e}")
+
+            # Get room server (if not already retrieved above)
+            if not isinstance(author_pubkey, str) or author_pubkey.lower() not in (
+                "server",
+                "system",
+            ):
+                room_info = self._get_room_server_by_name_or_hash(room_name, room_hash)
+                room_server = room_info["room_server"]
+
+            # Add post to room (will be distributed asynchronously)
+            import asyncio
+
+            if self.event_loop:
+                sender_timestamp = int(time.time())
+                # SECURITY: Server messages (using room server's key) go to ALL clients
+                # API is allowed to send these (TODO: Add authentication/authorization)
+                future = asyncio.run_coroutine_threadsafe(
+                    room_server.add_post(
+                        client_pubkey=author_bytes,
+                        message_text=message,
+                        sender_timestamp=sender_timestamp,
+                        txt_type=txt_type,
+                        allow_server_author=is_server_message,  # Allow server key from API
+                    ),
+                    self.event_loop,
+                )
+                success = future.result(timeout=5)
+
+                if success:
+                    # Get the message ID (last inserted)
+                    db = room_server.db
+                    room_hash_str = f"0x{room_info['hash']:02X}"
+                    messages = db.get_room_messages(room_hash_str, limit=1, offset=0)
+                    message_id = messages[0]["id"] if messages else None
+
+                    return self._success(
+                        {
+                            "message_id": message_id,
+                            "room_name": room_info["name"],
+                            "room_hash": room_hash_str,
+                            "queued_for_distribution": True,
+                            "is_server_message": is_server_message,
+                            "author_filter_note": (
+                                "Server messages go to ALL clients"
+                                if is_server_message
+                                else "Message will NOT be sent to author"
+                            ),
+                        }
+                    )
+                else:
+                    return self._error("Failed to add message (rate limit or validation error)")
+            else:
+                return self._error("Event loop not available")
+
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error(f"Error posting room message: {e}", exc_info=True)
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def room_stats(self, room_name=None, room_hash=None):
+        """
+        Get statistics for one or all room servers.
+
+        Parameters:
+            room_name: Name of specific room (optional)
+            room_hash: Hash of specific room (optional)
+
+        If no parameters, returns stats for all rooms.
+
+        Returns:
+            {
+                "success": true,
+                "data": {
+                    "room_name": "General",
+                    "room_hash": "0x42",
+                    "total_messages": 100,
+                    "total_clients": 5,
+                    "active_clients": 3,
+                    "max_posts": 32,
+                    "sync_running": true,
+                    "clients": [
+                        {
+                            "pubkey": "abc123...",
+                            "pubkey_prefix": "abc1",
+                            "sync_since": 1234567890.0,
+                            "unsynced_count": 2,
+                            "pending_ack": false,
+                            "push_failures": 0,
+                            "last_activity": 1234567890.0
+                        }
+                    ]
+                }
+            }
+        """
+        # Enable CORS for this endpoint only if configured
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            if not self.daemon_instance or not hasattr(self.daemon_instance, "text_helper"):
+                return self._error("Text helper not available")
+
+            text_helper = self.daemon_instance.text_helper
+
+            # Get all rooms if no specific room requested
+            if not room_name and not room_hash:
+                all_rooms = []
+                for hash_byte, room_server in text_helper.room_servers.items():
+                    # Find room name
+                    room_name_found = f"Room_0x{hash_byte:02X}"
+                    identities = text_helper.identity_manager.get_identities_by_type("room_server")
+                    for name, identity, config in identities:
+                        if identity.get_public_key()[0] == hash_byte:
+                            room_name_found = name
+                            break
+
+                    db = room_server.db
+                    room_hash_str = f"0x{hash_byte:02X}"
+
+                    # Get basic stats
+                    total_messages = db.get_room_message_count(room_hash_str)
+                    all_clients_sync = db.get_all_room_clients(room_hash_str)
+                    active_clients = sum(
+                        1 for c in all_clients_sync if c.get("last_activity", 0) > 0
+                    )
+
+                    all_rooms.append(
+                        {
+                            "room_name": room_name_found,
+                            "room_hash": room_hash_str,
+                            "total_messages": total_messages,
+                            "total_clients": len(all_clients_sync),
+                            "active_clients": active_clients,
+                            "max_posts": room_server.max_posts,
+                            "sync_running": room_server._running,
+                        }
+                    )
+
+                return self._success({"rooms": all_rooms, "total_rooms": len(all_rooms)})
+
+            # Get specific room stats
+            room_info = self._get_room_server_by_name_or_hash(room_name, room_hash)
+            room_server = room_info["room_server"]
+            db = room_server.db
+            room_hash_str = f"0x{room_info['hash']:02X}"
+
+            # Get message count
+            total_messages = db.get_room_message_count(room_hash_str)
+
+            # Get client sync states
+            all_clients_sync = db.get_all_room_clients(room_hash_str)
+
+            # Get ACL for this room
+            acl = None
+            if room_info["hash"] in text_helper.acl_dict:
+                acl = text_helper.acl_dict[room_info["hash"]]
+
+            # Format client info
+            clients_info = []
+            active_count = 0
+            for client_sync in all_clients_sync:
+                pubkey_hex = client_sync["client_pubkey"]
+                pubkey_bytes = bytes.fromhex(pubkey_hex)
+
+                # Check if still in ACL
+                in_acl = False
+                if acl:
+                    acl_clients = acl.get_all_clients()
+                    in_acl = any(c.id.get_public_key() == pubkey_bytes for c in acl_clients)
+
+                unsynced_count = db.get_unsynced_count(
+                    room_hash=room_hash_str,
+                    client_pubkey=pubkey_hex,
+                    sync_since=client_sync.get("sync_since", 0),
+                )
+
+                is_active = client_sync.get("last_activity", 0) > 0
+                if is_active:
+                    active_count += 1
+
+                clients_info.append(
+                    {
+                        "pubkey": pubkey_hex,
+                        "pubkey_prefix": pubkey_hex[:8],
+                        "sync_since": client_sync.get("sync_since", 0),
+                        "unsynced_count": unsynced_count,
+                        "pending_ack": client_sync.get("pending_ack_crc", 0) != 0,
+                        "pending_ack_crc": client_sync.get("pending_ack_crc", 0),
+                        "push_failures": client_sync.get("push_failures", 0),
+                        "last_activity": client_sync.get("last_activity", 0),
+                        "in_acl": in_acl,
+                        "is_active": is_active,
+                    }
+                )
+
+            return self._success(
+                {
+                    "room_name": room_info["name"],
+                    "room_hash": room_hash_str,
+                    "total_messages": total_messages,
+                    "total_clients": len(all_clients_sync),
+                    "active_clients": active_count,
+                    "max_posts": room_server.max_posts,
+                    "sync_running": room_server._running,
+                    "next_push_time": room_server.next_push_time,
+                    "last_cleanup_time": room_server.last_cleanup_time,
+                    "clients": clients_info,
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Error getting room stats: {e}", exc_info=True)
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def room_clients(self, room_name=None, room_hash=None):
+        """
+        Get list of clients synced to a room.
+
+        Parameters:
+            room_name: Name of the room
+            room_hash: Hash of room identity
+
+        Returns:
+            {
+                "success": true,
+                "data": {
+                    "room_name": "General",
+                    "room_hash": "0x42",
+                    "clients": [...]
+                }
+            }
+        """
+        # Enable CORS for this endpoint only if configured
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            # Reuse room_stats logic but return only clients
+            stats = self.room_stats(room_name=room_name, room_hash=room_hash)
+            if stats.get("success") and "clients" in stats.get("data", {}):
+                data = stats["data"]
+                return self._success(
+                    {
+                        "room_name": data["room_name"],
+                        "room_hash": data["room_hash"],
+                        "clients": data["clients"],
+                        "total": len(data["clients"]),
+                        "active": data["active_clients"],
+                    }
+                )
+            else:
+                return stats
+        except Exception as e:
+            logger.error(f"Error getting room clients: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def room_message(self, room_name=None, room_hash=None, message_id=None):
+        """
+        Delete a specific message from a room.
+
+        Parameters:
+            room_name: Name of the room
+            room_hash: Hash of room identity
+            message_id: ID of message to delete
+
+        Returns:
+            {"success": true}
+        """
+        # Enable CORS for this endpoint only if configured
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            if cherrypy.request.method != "DELETE":
+                cherrypy.response.status = 405
+                return self._error("Method not allowed. Use DELETE.")
+
+            if not message_id:
+                return self._error("message_id is required")
+
+            room_info = self._get_room_server_by_name_or_hash(room_name, room_hash)
+            room_server = room_info["room_server"]
+            db = room_server.db
+            room_hash_str = f"0x{room_info['hash']:02X}"
+
+            # Delete message
+            deleted = db.delete_room_message(room_hash_str, int(message_id))
+
+            if deleted:
+                return self._success(
+                    {"deleted": True, "message_id": int(message_id), "room_name": room_info["name"]}
+                )
+            else:
+                return self._error("Message not found or already deleted")
+
+        except Exception as e:
+            logger.error(f"Error deleting room message: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def room_messages_clear(self, room_name=None, room_hash=None):
+        """
+        Clear all messages from a room.
+
+        Parameters:
+            room_name: Name of the room
+            room_hash: Hash of room identity
+
+        Returns:
+            {"success": true, "data": {"deleted_count": 123}}
+        """
+        # Enable CORS for this endpoint only if configured
+        self._set_cors_headers()
+
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+
+        try:
+            if cherrypy.request.method != "DELETE":
+                cherrypy.response.status = 405
+                return self._error("Method not allowed. Use DELETE.")
+
+            room_info = self._get_room_server_by_name_or_hash(room_name, room_hash)
+            room_server = room_info["room_server"]
+            db = room_server.db
+            room_hash_str = f"0x{room_info['hash']:02X}"
+
+            # Get count before deleting
+            count_before = db.get_room_message_count(room_hash_str)
+
+            # Clear all messages
+            deleted = db.clear_room_messages(room_hash_str)
+
+            return self._success(
+                {
+                    "deleted_count": deleted or count_before,
+                    "room_name": room_info["name"],
+                    "room_hash": room_hash_str,
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Error clearing room messages: {e}")
+            return self._error(e)
+
+    # ======================
+    # CLI Command Endpoint
+    # ======================
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    @require_auth
+    def cli(self):
+        """Execute a CLI command on the running repeater.
+        POST /api/cli {"command": "get name"}
+        Returns {"success": true, "reply": "..."}
+        """
+        self._set_cors_headers()
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+        try:
+            self._require_post()
+            data = cherrypy.request.json
+            command = data.get("command", "").strip()
+            if not command:
+                return self._error("Missing 'command' field")
+
+            if not self.daemon_instance or not hasattr(self.daemon_instance, "text_helper"):
+                return self._error("Repeater not initialized")
+            text_helper = self.daemon_instance.text_helper
+            if not text_helper or not hasattr(text_helper, "cli") or not text_helper.cli:
+                return self._error("CLI handler not available")
+
+            reply = text_helper.cli.handle_command(
+                sender_pubkey=b"api-cli",
+                command=command,
+                is_admin=True,
+            )
+            return self._success({"reply": reply})
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error(f"CLI endpoint error: {e}", exc_info=True)
+            return self._error(str(e))
+
+    # ======================
+    # Backup & Restore
+    # ======================
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def config_export(self, include_secrets=None):
+        """Export the full configuration as JSON.
+
+        GET /api/config_export
+        GET /api/config_export?include_secrets=true   (full backup with secrets)
+
+        By default, sensitive fields (passwords, JWT secrets, identity keys)
+        are redacted.  Pass ?include_secrets=true for a full backup that
+        includes all secrets — required for restoring to a new device.
+
+        Returns: {"success": true, "data": {"meta": {...}, "config": {...}}}
+        """
+        self._set_cors_headers()
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+        try:
+            import copy
+
+            full_backup = str(include_secrets).lower() in ("true", "1", "yes")
+            exported = normalize_modem_config(copy.deepcopy(self.config))
+
+            if full_backup:
+                # Convert binary identity key to hex for JSON serialisation
+                rep = exported.get("repeater", {})
+                if "identity_key" in rep and isinstance(rep["identity_key"], bytes):
+                    rep["identity_key"] = rep["identity_key"].hex()
+
+                # Convert identity keys in companion / room_server configs
+                for section in ("room_servers", "companions"):
+                    entries = exported.get("identities", {}).get(section, []) or []
+                    for entry in entries:
+                        if isinstance(entry.get("identity_key"), bytes):
+                            entry["identity_key"] = entry["identity_key"].hex()
+            else:
+                # Redact sensitive fields
+                sec = exported.get("repeater", {}).get("security", {})
+                for field in ("admin_password", "guest_password", "jwt_secret"):
+                    if field in sec:
+                        sec[field] = "*** REDACTED ***"
+
+                # Redact repeater identity key
+                rep = exported.get("repeater", {})
+                if "identity_key" in rep:
+                    del rep["identity_key"]
+
+                redact_modem_tokens_in_place(exported, replacement=REDACTED_CONFIG_VALUE)
+
+                # Redact identity keys in companion / room_server configs
+                for section in ("room_servers", "companions"):
+                    entries = exported.get("identities", {}).get(section, []) or []
+                    for entry in entries:
+                        if "identity_key" in entry:
+                            entry["identity_key"] = "*** REDACTED ***"
+
+            # Ensure all bytes values are converted to hex for JSON serialisation
+            def _sanitize(obj):
+                if isinstance(obj, bytes):
+                    return obj.hex()
+                if isinstance(obj, dict):
+                    return {k: _sanitize(v) for k, v in obj.items()}
+                if isinstance(obj, list):
+                    return [_sanitize(v) for v in obj]
+                return obj
+
+            exported = _sanitize(exported)
+
+            meta = {
+                "exported_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "version": __version__,
+                "config_path": self._config_path,
+                "includes_secrets": full_backup,
+            }
+
+            return {"success": True, "data": {"meta": meta, "config": exported}}
+
+        except Exception as e:
+            logger.error(f"Config export error: {e}", exc_info=True)
+            return self._error(str(e))
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def config_import(self):
+        """Import a configuration JSON and apply it.
+
+        POST /api/config_import
+        Body: {"config": { ... }, "restart_after": false}
+
+        The imported config is merged section-by-section into the current config.
+        Sections present in the import will overwrite current values.
+        Redacted sentinel values ("*** REDACTED ***") are skipped so that
+        existing passwords / keys are preserved.
+
+        If the import contains a non-redacted identity_key (from a full backup),
+        it will be restored.  Redacted or missing identity keys are left unchanged.
+
+        Returns: {"success": true, "message": "...", "restart_required": true,
+                  "sections_updated": [...]}
+        """
+        with self._provisioning_lock:
+            return self._config_import_locked()
+
+    def _config_import_locked(self):
+        self._set_cors_headers()
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+        try:
+            self._require_post()
+
+            # /api/config_import intentionally has tools.require_auth.off so the
+            # first-run setup wizard can restore a config without a JWT. After
+            # setup completes we must still accept the UI's Bearer/API token by
+            # resolving credentials here (the global auth tool never ran).
+            request_user = self._resolve_optional_request_user()
+            if not request_user:
+                try:
+                    current_config = self.config
+                    if self._config_path:
+                        with open(self._config_path, "r", encoding="utf-8") as f:
+                            current_config = yaml.safe_load(f) or {}
+                except Exception as exc:
+                    logger.debug(
+                        f"config_import could not read persisted config {self._config_path}: {exc}"
+                    )
+                    current_config = self.config
+
+                needs_setup, _ = self._setup_status_from_config(current_config or {})
+                if not needs_setup:
+                    cherrypy.response.status = 403
+                    return {
+                        "success": False,
+                        "error": (
+                            "Unauthorized restore. First-run setup is already complete; "
+                            "authenticate to import configuration."
+                        ),
+                    }
+
+            data = cherrypy.request.json
+            imported_config = data.get("config")
+
+            if not imported_config or not isinstance(imported_config, dict):
+                return self._error("Missing or invalid 'config' object in request body")
+
+            imported_config = normalize_modem_config(imported_config)
+
+            # Redacted exports and browser-originated partial modem updates are
+            # intentionally safe to re-import. Preserve the currently configured
+            # token when the incoming section carries the sentinel or omits the
+            # field; a real incoming token still replaces it.
+            current_config = normalize_modem_config(self.config, warn=False)
+            imported_tcp = imported_config.get("modem_tcp")
+            current_tcp = current_config.get("modem_tcp")
+            if isinstance(imported_tcp, dict) and (
+                "token" not in imported_tcp or imported_tcp.get("token") == REDACTED_CONFIG_VALUE
+            ):
+                if isinstance(current_tcp, dict) and "token" in current_tcp:
+                    imported_tcp["token"] = current_tcp["token"]
+                else:
+                    imported_tcp.pop("token", None)
+
+            current_radios = current_config.get("radios")
+            if not isinstance(current_radios, list):
+                current_radios = []
+            current_radios_by_id = {
+                entry.get("id"): entry
+                for entry in current_radios
+                if isinstance(entry, dict) and entry.get("id") is not None
+            }
+            imported_radios = imported_config.get("radios")
+            if isinstance(imported_radios, list):
+                for index, entry in enumerate(imported_radios):
+                    if not isinstance(entry, dict):
+                        continue
+                    imported_radio_tcp = entry.get("modem_tcp")
+                    if not isinstance(imported_radio_tcp, dict) or (
+                        "token" in imported_radio_tcp
+                        and imported_radio_tcp.get("token") != REDACTED_CONFIG_VALUE
+                    ):
+                        continue
+                    current_entry = current_radios_by_id.get(entry.get("id"))
+                    if current_entry is None and index < len(current_radios):
+                        candidate = current_radios[index]
+                        current_entry = candidate if isinstance(candidate, dict) else None
+                    current_radio_tcp = (
+                        current_entry.get("modem_tcp") if isinstance(current_entry, dict) else None
+                    )
+                    if isinstance(current_radio_tcp, dict) and "token" in current_radio_tcp:
+                        imported_radio_tcp["token"] = current_radio_tcp["token"]
+                    else:
+                        imported_radio_tcp.pop("token", None)
+
+            # Sections we allow to be imported
+            ALLOWED_SECTIONS = {
+                "repeater",
+                "mesh",
+                "radio",
+                "radios",
+                "fabric",
+                "sx1262",
+                "ch341",
+                "kiss",
+                "modem_usb",
+                "modem_tcp",
+                "sensors",
+                "gps",
+                "mqtt_brokers",
+                "mqtt",
+                "identities",
+                "delays",
+                "web",
+                "letsmesh",
+                "glass",
+                "logging",
+                "radio_type",
+            }
+
+            updated_sections = []
+            restart_required = False
+
+            for section, value in imported_config.items():
+                if section not in ALLOWED_SECTIONS:
+                    logger.info(f"Config import: skipping unknown section '{section}'")
+                    continue
+
+                if section == "repeater" and isinstance(value, dict):
+                    # Preserve security secrets that are redacted
+                    sec = value.get("security", {})
+                    if isinstance(sec, dict):
+                        cur_sec = self.config.get("repeater", {}).get("security", {})
+                        for field in ("admin_password", "guest_password", "jwt_secret"):
+                            if sec.get(field) == "*** REDACTED ***":
+                                sec[field] = cur_sec.get(field, "")
+                    # Restore identity_key only if a real (non-redacted) hex value is provided
+                    ik = value.get("identity_key")
+                    if ik and isinstance(ik, str) and ik != "*** REDACTED ***":
+                        try:
+                            value["identity_key"] = bytes.fromhex(ik)
+                        except ValueError:
+                            logger.warning("Config import: invalid identity_key hex, skipping")
+                            value.pop("identity_key", None)
+                    else:
+                        value.pop("identity_key", None)
+                    value.pop("identity_file", None)
+
+                if section == "identities" and isinstance(value, dict):
+                    # Preserve identity keys that are redacted
+                    for id_section in ("room_servers", "companions"):
+                        entries = value.get(id_section, []) or []
+                        cur_entries = self.config.get("identities", {}).get(id_section, []) or []
+                        cur_by_name = {e.get("name"): e for e in cur_entries}
+                        for entry in entries:
+                            if entry.get("identity_key") == "*** REDACTED ***":
+                                existing = cur_by_name.get(entry.get("name"), {})
+                                entry["identity_key"] = existing.get("identity_key", "")
+
+                if section == "mqtt" and isinstance(value, dict):
+                    # Backward compatibility: treat legacy "mqtt" section as
+                    # current "mqtt_brokers" during restore.
+                    section = "mqtt_brokers"
+
+                if section in {
+                    "radio",
+                    "radios",
+                    "fabric",
+                    "sx1262",
+                    "ch341",
+                    "kiss",
+                    "modem_usb",
+                    "modem_tcp",
+                    "sensors",
+                    "gps",
+                    "radio_type",
+                    "mqtt_brokers",
+                    "letsmesh",
+                }:
+                    restart_required = True
+
+                if section == "radio_type":
+                    # radio_type is a top-level scalar, not a dict
+                    self.config[section] = value
+                elif section == "radios":
+                    # Multi-radio list must replace wholesale (never dict-merge).
+                    # Allow null/[] to clear multi-radio mode and fall back to
+                    # legacy top-level radio_type/radio/sx1262/....
+                    if value is None:
+                        self.config.pop("radios", None)
+                    elif isinstance(value, list):
+                        self.config["radios"] = value
+                    else:
+                        return self._error("radios must be a list or null")
+                else:
+                    if section not in self.config:
+                        self.config[section] = {}
+                    if isinstance(value, dict) and isinstance(self.config[section], dict):
+                        self.config[section].update(value)
+                    else:
+                        self.config[section] = value
+
+                updated_sections.append(section)
+
+            if not updated_sections:
+                return self._error("No valid configuration sections found in import")
+
+            # Keep authenticated restores closed even when restoring defaults.
+            # Partial first-run restores must still allow the existing wizard;
+            # finish provisioning once credentials have actually been supplied.
+            # setup_completed is deliberately not an importable section.
+            if request_user or not self._setup_status_from_config(self.config)[0]:
+                self.config["setup_completed"] = True
+
+            # Persist and live-reload
+            self.config_manager.update_and_save(
+                updates={},  # Already applied above
+                live_update=True,
+                live_update_sections=updated_sections,
+            )
+
+            # Save to file (update_and_save with empty updates may not save)
+            saved = self.config_manager.save_to_file()
+
+            return {
+                "success": True,
+                "message": f"Imported {len(updated_sections)} config section(s)",
+                "sections_updated": updated_sections,
+                "saved": saved,
+                "restart_required": restart_required,
+            }
+
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error(f"Config import error: {e}", exc_info=True)
+            return self._error(str(e))
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def identity_export(self):
+        """Export the repeater's identity key as a hex string.
+
+        GET /api/identity_export
+
+        WARNING: This transmits the private key over the network.
+        Only use on trusted networks.
+
+        Returns: {"success": true, "data": {"identity_key_hex": "abcdef...",
+                  "key_length_bytes": 32, "public_key_hex": "...",
+                  "node_address": "0x42"}}
+        """
+        self._set_cors_headers()
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+        try:
+            identity_key = self.config.get("repeater", {}).get("identity_key")
+            if not identity_key:
+                return self._error("No identity key configured")
+
+            # Convert to hex
+            if isinstance(identity_key, bytes):
+                key_hex = identity_key.hex()
+            elif isinstance(identity_key, str):
+                key_hex = identity_key
+            else:
+                return self._error(
+                    f"Identity key has unexpected type: {type(identity_key).__name__}"
+                )
+
+            result = {
+                "identity_key_hex": key_hex,
+                "key_length_bytes": len(bytes.fromhex(key_hex)),
+            }
+
+            # Try to derive public key info
+            try:
+                if self.daemon_instance and hasattr(self.daemon_instance, "local_identity"):
+                    li = self.daemon_instance.local_identity
+                    pub = li.get_public_key()
+                    result["public_key_hex"] = bytes(pub).hex()
+                    result["node_address"] = f"0x{pub[0]:02x}"
+            except Exception as exc:
+                logger.debug(f"Could not derive local identity public key info: {exc}")
+
+            return {"success": True, "data": result}
+
+        except Exception as e:
+            logger.error(f"Identity export error: {e}", exc_info=True)
+            return self._error(str(e))
+
+    # ======================
+    # Vanity Key Generation
+    # ======================
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def generate_vanity_key(self):
+        """Generate a MeshCore Ed25519 key whose public key starts with a hex prefix.
+
+        POST /api/generate_vanity_key
+        Body: {"prefix": "F8A1", "apply": false}
+
+        prefix: 1-4 hex characters (required)
+        apply:  if true, save the generated key as the repeater identity key
+
+        Returns: {"success": true, "data": {"public_hex": "...", "private_hex": "...",
+                  "attempts": 1234}}
+        """
+        self._set_cors_headers()
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+        try:
+            self._require_post()
+            data = cherrypy.request.json
+
+            prefix = (data.get("prefix") or "").strip().upper()
+            if not prefix or len(prefix) > 8:
+                return self._error("Prefix must be 1-8 hex characters")
+            try:
+                int(prefix, 16)
+            except ValueError:
+                return self._error("Prefix must be valid hexadecimal characters")
+
+            apply_key = bool(data.get("apply", False))
+
+            from repeater.keygen import generate_vanity_key as _gen
+
+            # Max iterations scales with prefix length: ~16^n * 20 safety margin
+            max_iter = min(20_000_000, max(500_000, (16 ** len(prefix)) * 20))
+            result = _gen(prefix, max_iterations=max_iter)
+
+            if result is None:
+                return self._error(
+                    f"Could not find a key with prefix '{prefix}' within {max_iter:,} attempts. "
+                    "Try a shorter prefix."
+                )
+
+            if apply_key:
+                # Save as the repeater identity key
+                self.config.setdefault("repeater", {})["identity_key"] = bytes.fromhex(
+                    result["private_hex"]
+                )
+                self.config_manager.save_to_file()
+                result["applied"] = True
+                logger.info(
+                    f"Applied new vanity identity key (prefix={prefix}, "
+                    f"pub={result['public_hex'][:16]}...)"
+                )
+
+            return {"success": True, "data": result}
+
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error(f"Vanity key generation error: {e}", exc_info=True)
+            return self._error(str(e))
+
+    # ======================
+    # Database Management
+    # ======================
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def db_stats(self):
+        """Get database table statistics.
+
+        GET /api/db_stats
+
+        Returns row counts, date ranges, and total database size.
+        """
+        self._set_cors_headers()
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+        try:
+            storage = self._get_storage()
+            stats = storage.sqlite_handler.get_table_stats()
+
+            rrd_path = storage.sqlite_handler.storage_dir / "metrics.rrd"
+            rrd_exists = rrd_path.exists()
+            stats["rrd_enabled"] = bool(getattr(storage, "rrd_enabled", True))
+            stats["rrd_available"] = bool(getattr(storage, "rrd_handler", None)) and rrd_exists
+            stats["metrics_data_source"] = "rrd" if stats["rrd_available"] else "sqlite"
+            stats["rrd_size_bytes"] = rrd_path.stat().st_size if rrd_exists else 0
+
+            return {"success": True, "data": stats}
+        except Exception as e:
+            logger.error(f"DB stats error: {e}", exc_info=True)
+            return self._error(str(e))
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def db_purge(self):
+        """Purge (empty) one or more database tables.
+
+        POST /api/db_purge
+        Body: {"tables": ["packets", "adverts"]}
+              or {"tables": "all"} to purge all data tables
+
+        Returns per-table row counts deleted.
+        """
+        self._set_cors_headers()
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+        try:
+            self._require_post()
+            data = cherrypy.request.json
+            tables_param = data.get("tables")
+
+            if not tables_param:
+                return self._error("Missing 'tables' parameter")
+
+            ALL_PURGEABLE = [
+                "packets",
+                "adverts",
+                "noise_floor",
+                "crc_errors",
+                "room_messages",
+                "room_client_sync",
+                "companion_contacts",
+                "companion_channels",
+                "companion_messages",
+                "companion_prefs",
+            ]
+
+            if tables_param == "all":
+                tables = ALL_PURGEABLE
+            elif isinstance(tables_param, list):
+                tables = tables_param
+            else:
+                return self._error("'tables' must be a list of table names or 'all'")
+
+            storage = self._get_storage()
+            results = {}
+            for table in tables:
+                try:
+                    deleted = storage.sqlite_handler.purge_table(table)
+                    results[table] = {"deleted": deleted}
+                except ValueError as ve:
+                    results[table] = {"error": str(ve)}
+
+            return {
+                "success": True,
+                "data": results,
+                "message": f"Purged {len([r for r in results.values() if 'deleted' in r])} table(s)",
+            }
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error(f"DB purge error: {e}", exc_info=True)
+            return self._error(str(e))
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def db_vacuum(self):
+        """Reclaim disk space after purging tables.
+
+        POST /api/db_vacuum
+
+        Runs SQLite VACUUM to compact the database file.
+        """
+        self._set_cors_headers()
+        if cherrypy.request.method == "OPTIONS":
+            return ""
+        try:
+            self._require_post()
+            storage = self._get_storage()
+            size_before = storage.sqlite_handler.sqlite_path.stat().st_size
+            storage.sqlite_handler.vacuum()
+            size_after = storage.sqlite_handler.sqlite_path.stat().st_size
+            return {
+                "success": True,
+                "data": {
+                    "size_before": size_before,
+                    "size_after": size_after,
+                    "freed_bytes": size_before - size_after,
+                },
+            }
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error(f"DB vacuum error: {e}", exc_info=True)
+            return self._error(str(e))
+
+    # ======================
+    # OpenAPI Documentation
+    # ======================
+
+    @cherrypy.expose
+    def openapi(self):
+        """Serve OpenAPI specification in YAML format."""
+        import os
+
+        spec_path = os.path.join(os.path.dirname(__file__), "openapi.yaml")
+        try:
+            with open(spec_path, "r") as f:
+                spec_content = f.read()
+            cherrypy.response.headers["Content-Type"] = "application/x-yaml"
+            return spec_content.encode("utf-8")
+        except FileNotFoundError:
+            cherrypy.response.status = 404
+            return b"OpenAPI spec not found"
+        except Exception as e:
+            cherrypy.response.status = 500
+            return f"Error loading OpenAPI spec: {e}".encode("utf-8")
+
+    @cherrypy.expose
+    def docs(self):
+        """Serve Swagger UI for interactive API documentation."""
+        html = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>openHop Repeater API Documentation</title>
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5.10.0/swagger-ui.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@5.10.0/swagger-ui-bundle.js"></script>
+    <script src="https://unpkg.com/swagger-ui-dist@5.10.0/swagger-ui-standalone-preset.js"></script>
+    <script>
+        window.onload = function() {
+            window.ui = SwaggerUIBundle({
+                url: '/api/openapi',
+                dom_id: '#swagger-ui',
+                deepLinking: true,
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                    SwaggerUIStandalonePreset
+                ],
+                plugins: [
+                    SwaggerUIBundle.plugins.DownloadUrl
+                ],
+                layout: "StandaloneLayout"
+            });
+        };
+    </script>
+</body>
+</html>"""
+        cherrypy.response.headers["Content-Type"] = "text/html"
+        return html.encode("utf-8")

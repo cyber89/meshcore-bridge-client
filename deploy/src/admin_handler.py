@@ -284,11 +284,11 @@ class AdminCommandHandler:
                     await mc.commands.get_msg(timeout=0.8)
                     if fut.done():
                         return fut.result()
-                    await asyncio.sleep(0.05)
+                    await asyncio.sleep(0.20)
                 except Exception:
-                    await asyncio.sleep(0.15)
+                    await asyncio.sleep(0.20)
             else:
-                await asyncio.sleep(0.15)
+                await asyncio.sleep(0.20)
         if fut.done():
             return fut.result()
         return None

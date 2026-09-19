@@ -1,0 +1,76 @@
+# .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+.pybuild/
+repeater/_version.py
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+DEBIAN/
+debian/files
+debian/.debhelper/
+debian/openhop-repeater/
+debian/openhop-repeater.debhelper.log
+debian/openhop-repeater.substvars
+
+# Virtual environments
+.venv/
+.venv_new/
+env/
+ENV/
+
+.ruff_cache
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Config
+.env
+config.yaml
+config.yaml.backup
+policy.yaml
+identity.json
+
+# Data
+data/
+
+# Logs
+*.log
+.DS_Store
+syncpi.sh
+
+# Docker
+/data
+Installing
+syncproxmox.sh
+
+#dev
+pyproject_dev.toml

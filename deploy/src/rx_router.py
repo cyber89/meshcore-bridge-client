@@ -246,11 +246,13 @@ class RxEventRouter:
                 meta.is_local_sender
                 or any(k in meta.ev_upper for k in (
                     "SELF", "BATTERY", "DEVICE_INFO", "STATUS", "STATS", "TUNING",
-                    "CUSTOM_VARS", "MSG_SENT", "ACK", "LOGIN", "CONTROL", "LOG", "DEBUG"
+                    "CUSTOM_VARS", "MSG_SENT", "ACK", "LOGIN", "CONTROL", "LOG", "DEBUG",
+                    "NO_MORE"
                 ))
                 or payload_dict.get("event_type") in (
-                    "system_log", "log_data", "rx_log_data", "metrics_update", "status", "ping", "pong"
+                    "system_log", "log_data", "rx_log_data", "metrics_update", "status", "ping", "pong", "no_more_messages"
                 )
+                or "messages_available" in payload_dict
             )
 
             # Registro en el búfer circular de tramas LoRa para el Sniffer y contador RX (exclusivo para RF legítimo)
@@ -287,6 +289,11 @@ class RxEventRouter:
                     self._ctx.background_tasks.add(task)
                     task.add_done_callback(self._ctx.background_tasks.discard)
                     return
+
+            # Descartar eventos internos de control de flujo de la radio (NO_MORE_MSGS)
+            if "NO_MORE" in meta.ev_upper or payload_dict.get("event_type") == "no_more_messages" or "messages_available" in payload_dict:
+                logging.debug("[INTERNAL-RADIO] Fin de cola de mensajes en transceptor (NO_MORE_MSGS)")
+                return
 
             if "event_type" not in payload_dict:
                 payload_dict["event_type"] = (

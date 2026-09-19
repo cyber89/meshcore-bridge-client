@@ -1,0 +1,45 @@
+repos:
+  # Generic file hygiene checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+
+  # Python formatting (Black) - apply to all Python files
+  - repo: https://github.com/psf/black
+    rev: 26.5.1
+    hooks:
+      - id: black
+        language_version: python3
+        exclude: '^(tests/|examples/|src/openhop_core/hardware/lora/)'
+
+  # Python import sorting (isort) - apply to all Python files
+  - repo: https://github.com/pycqa/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+        args: ["--profile", "black", "--line-length", "100"]
+        exclude: '^(tests/|src/openhop_core/hardware/lora/)'
+
+  # Python linting (flake8) - strict settings for code quality
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.1.1
+    hooks:
+      - id: flake8
+        # Settings live in .flake8 so a bare `flake8` run matches this hook.
+        # Exclude third-party code but check our core code
+        exclude: '^(src/openhop_core/hardware/lora/|examples/|scripts/test_modem_crypto\.py$)'
+
+  # Test suite gate
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: ./scripts/precommit-pytest.sh
+        language: system
+        pass_filenames: false
+        always_run: true
+        types: [python]

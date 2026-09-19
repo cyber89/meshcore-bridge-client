@@ -1,0 +1,5947 @@
+openapi: 3.0.0
+info:
+  title: openHop Repeater API
+  description: |
+    REST API for openHop Repeater - LoRa mesh network repeater with room server functionality.
+
+    ## Features
+    - System statistics and monitoring
+    - Packet history and analysis
+    - Identity management
+    - Access Control Lists (ACL)
+    - Room server messaging
+    - CAD calibration
+    - Noise floor monitoring
+  version: 1.0.0
+  contact:
+    name: openHop Repeater
+    url: https://github.com/openhop-dev/openhop_repeater
+
+servers:
+  - url: /api
+    description: Current server (relative URLs with /api prefix)
+  - url: /
+    description: Current server root (for /auth endpoints)
+  - url: http://localhost:8000/api
+    description: Local development server
+  - url: http://{host}:8000/api
+    description: Custom host
+    variables:
+      host:
+        default: localhost
+        description: Repeater IP address or hostname
+
+tags:
+  - name: Authentication
+    description: User authentication and API token management
+  - name: System
+    description: System statistics and control
+  - name: GPS
+    description: Local GPS receiver diagnostics
+  - name: Packets
+    description: Packet history and statistics
+  - name: Charts
+    description: Graph data and RRD metrics
+  - name: Noise Floor
+    description: Noise floor monitoring
+  - name: CAD Calibration
+    description: Channel Activity Detection calibration
+  - name: Adverts
+    description: Advertisement and contact management
+  - name: Transport Keys
+    description: Transport encryption key management
+  - name: Network Policy
+    description: Network flood policy and neighbor management
+  - name: Identities
+    description: Identity management
+  - name: ACL
+    description: Access Control Lists
+  - name: Room Server
+    description: Room server messaging
+  - name: Plugins
+    description: External plugin install and lifecycle management
+
+paths:
+  # ============================================================================
+  # Authentication Endpoints
+  # ============================================================================
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: User login
+      description: Authenticate with username/password and receive JWT token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password, client_id]
+              properties:
+                username:
+                  type: string
+                  example: admin
+                password:
+                  type: string
+                  format: password
+                  example: admin123
+                client_id:
+                  type: string
+                  description: Unique client identifier
+                  example: web-client-abc123
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  token:
+                    type: string
+                    description: JWT token
+                  expires_in:
+                    type: integer
+                    description: Token expiry in seconds
+                  username:
+                    type: string
+        '401':
+          description: Invalid credentials
+
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Refresh JWT token
+      description: Extend session by refreshing JWT token
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [client_id]
+              properties:
+                client_id:
+                  type: string
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  token:
+                    type: string
+                  expires_in:
+                    type: integer
+                  username:
+                    type: string
+
+  /auth/verify:
+    get:
+      tags: [Authentication]
+      summary: Verify authentication
+      description: Check if current authentication is valid
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Authentication valid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  authenticated:
+                    type: boolean
+                  user:
+                    type: object
+
+  /auth/change_password:
+    post:
+      tags: [Authentication]
+      summary: Change admin password
+      description: Change the admin password (requires authentication)
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password]
+              properties:
+                current_password:
+                  type: string
+                  format: password
+                new_password:
+                  type: string
+                  format: password
+                  minLength: 8
+      responses:
+        '200':
+          description: Password changed successfully
+        '401':
+          description: Current password incorrect
+        '400':
+          description: Invalid password format
+
+  /auth/tokens:
+    get:
+      tags: [Authentication]
+      summary: List API tokens
+      description: Get list of all API tokens (RESTful endpoint)
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: List of tokens
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  tokens:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        name:
+                          type: string
+                        created_at:
+                          type: string
+                          format: date-time
+                        last_used:
+                          type: string
+                          format: date-time
+    post:
+      tags: [Authentication]
+      summary: Create API token
+      description: Generate a new API token (RESTful endpoint)
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  description: Friendly name for the token
+                  example: "My API Token"
+      responses:
+        '200':
+          description: Token created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  token:
+                    type: string
+                    description: The plaintext token (only shown once)
+                  token_id:
+                    type: integer
+                  name:
+                    type: string
+                  warning:
+                    type: string
+
+  /auth/tokens/{token_id}:
+    delete:
+      tags: [Authentication]
+      summary: Revoke API token
+      description: Delete/revoke an API token by ID (RESTful endpoint)
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: token_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Token revoked
+        '404':
+          description: Token not found
+
+  # ============================================================================
+  # System Endpoints
+  # ============================================================================
+  /stats:
+    get:
+      tags: [System]
+      summary: Get system statistics
+      description: Returns repeater uptime, packet counts, and version information
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uptime_secs:
+                    type: integer
+                    example: 3600
+                  packets_received:
+                    type: integer
+                    example: 150
+                  packets_sent:
+                    type: integer
+                    example: 120
+                  version:
+                    type: string
+                    example: "1.0.0"
+                  core_version:
+                    type: string
+                    example: "0.5.0"
+
+  /gps:
+    get:
+      tags: [GPS]
+      summary: Get local GPS diagnostics
+      description: Returns parsed NMEA fix, position, motion, accuracy, satellites, and raw sentence health.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: GPS diagnostics snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      running:
+                        type: boolean
+                      status:
+                        type: object
+                      fix:
+                        type: object
+                      position:
+                        type: object
+                        description: Effective receiver position for API clients
+                      gps_position:
+                        type: object
+                        description: Raw position reported by the GPS receiver, even before a valid fix
+                      manual_position:
+                        type: object
+                        nullable: true
+                        description: Configured repeater latitude/longitude, when set to a non-zero coordinate
+                      position_meta:
+                        type: object
+                        properties:
+                          source:
+                            type: string
+                            enum: [gps, manual_config]
+                          source_label:
+                            type: string
+                          policy:
+                            type: string
+                            enum: [manual_until_gps_fix, gps_only]
+                          manual_config_available:
+                            type: boolean
+                          gps_fix_valid:
+                            type: boolean
+                      motion:
+                        type: object
+                      accuracy:
+                        type: object
+                      time:
+                        type: object
+                      time_sync:
+                        type: object
+                        description: GPS-to-system-clock sync status
+                        properties:
+                          enabled:
+                            type: boolean
+                          state:
+                            type: string
+                            enum: [disabled, waiting_for_fix, waiting_for_time, ready, in_sync, synced, error, ignored]
+                          last_attempt:
+                            type: string
+                            nullable: true
+                          last_success:
+                            type: string
+                            nullable: true
+                          last_error:
+                            type: string
+                            nullable: true
+                          last_gps_time:
+                            type: string
+                            nullable: true
+                          last_offset_seconds:
+                            type: number
+                            nullable: true
+                      location_update:
+                        type: object
+                        description: GPS-fix-to-repeater-location update status
+                        properties:
+                          enabled:
+                            type: boolean
+                          state:
+                            type: string
+                            enum: [disabled, unconfigured, waiting_for_fix, waiting_for_position, ready, updated, skipped, error]
+                          last_attempt:
+                            type: string
+                            nullable: true
+                          last_success:
+                            type: string
+                            nullable: true
+                          last_error:
+                            type: string
+                            nullable: true
+                          last_latitude:
+                            type: number
+                            nullable: true
+                          last_longitude:
+                            type: number
+                            nullable: true
+                      satellites:
+                        type: object
+                      nmea:
+                        type: object
+                      raw_attributes:
+                        type: object
+                        additionalProperties: true
+
+  /gps_stream:
+    get:
+      tags: [GPS]
+      summary: GPS diagnostics SSE stream
+      description: Server-Sent Events stream of live GPS diagnostics snapshots.
+      responses:
+        '200':
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /send_advert:
+    post:
+      tags: [System]
+      summary: Send repeater advertisement
+      description: Manually trigger sending a repeater advertisement packet
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: [flood, direct]
+                  default: flood
+                  description: Advert send mode label for UI/workflow selection.
+      responses:
+        '200':
+          description: Advertisement sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '405':
+          description: Method not allowed
+
+  /logs:
+    get:
+      tags: [System]
+      summary: Get system logs
+      description: Retrieve recent system logs
+      responses:
+        '200':
+          description: Log entries
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [logs]
+                properties:
+                  logs:
+                    type: array
+                    items:
+                      type: object
+                      required: [message, timestamp, level]
+                      properties:
+                        message:
+                          type: string
+                        timestamp:
+                          type: string
+                          format: date-time
+                        level:
+                          type: string
+                  error:
+                    type: string
+
+  /logs_stream:
+    get:
+      tags: [System]
+      summary: Stream system logs
+      description: Server-Sent Events stream of live system log entries.
+      parameters:
+        - name: since_id
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: Resume the stream after this log entry id.
+      responses:
+        '200':
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /hardware_stats:
+    get:
+      tags: [System]
+      summary: Get hardware statistics
+      description: CPU, memory, disk usage statistics
+      responses:
+        '200':
+          description: Hardware stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cpu_percent:
+                    type: number
+                  memory_percent:
+                    type: number
+                  disk_usage:
+                    type: object
+
+  /hardware_processes:
+    get:
+      tags: [System]
+      summary: Get process information
+      description: List running processes and their resource usage
+      responses:
+        '200':
+          description: Process list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /restart_service:
+    post:
+      tags: [System]
+      summary: Restart repeater service
+      description: Restart the repeater daemon service
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Service restart initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /validate_config:
+    get:
+      tags: [System]
+      summary: Validate config.yaml before restart
+      description: Checks config syntax and required settings for the selected radio type.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Validation completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      valid:
+                        type: boolean
+                      blocked_restart:
+                        type: boolean
+                      errors:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            path:
+                              type: string
+                            message:
+                              type: string
+                      warnings:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            path:
+                              type: string
+                            message:
+                              type: string
+                      summary:
+                        type: object
+                        properties:
+                          error_count:
+                            type: integer
+                          warning_count:
+                            type: integer
+                      config_path:
+                        type: string
+                      message:
+                        type: string
+
+  /openapi:
+    get:
+      tags: [System]
+      summary: Get OpenAPI specification
+      description: Returns the OpenAPI/Swagger specification for this API
+      responses:
+        '200':
+          description: OpenAPI spec
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /set_mode:
+    post:
+      tags: [System]
+      summary: Set repeater mode
+      description: |
+        Set TX mode. forward = repeat on; monitor = no repeat but companions/tenants can send;
+        no_tx = all transmission disabled (receive-only).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mode]
+              properties:
+                mode:
+                  type: string
+                  enum: [forward, monitor, no_tx]
+                  description: |
+                    - forward: Repeat received packets; allow all local TX (default)
+                    - monitor: Do not repeat; allow local TX (companions, adverts, etc.)
+                    - no_tx: Do not repeat; no local TX (receive-only)
+                  example: forward
+            examples:
+              forward:
+                value:
+                  mode: forward
+              monitor:
+                value:
+                  mode: monitor
+              no_tx:
+                value:
+                  mode: no_tx
+      responses:
+        '200':
+          description: Mode changed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              examples:
+                success:
+                  value:
+                    success: true
+                    data: "Mode set to forward"
+        '400':
+          description: Invalid mode
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /packet_stats:
+    get:
+      tags: [Packets]
+      summary: Get packet statistics
+      description: Returns packet counts, types, and routing statistics
+      parameters:
+        - name: hours
+          in: query
+          schema:
+            type: integer
+            default: 24
+            minimum: 1
+            maximum: 168
+          description: Time range in hours (1-168 = 1 hour to 1 week)
+          example: 24
+      responses:
+        '200':
+          description: Packet statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      total_packets:
+                        type: integer
+                      received:
+                        type: integer
+                      transmitted:
+                        type: integer
+                      dropped:
+                        type: integer
+                      by_type:
+                        type: object
+                      by_route:
+                        type: object
+
+  /set_duty_cycle:
+    post:
+      tags: [System]
+      summary: Set duty cycle
+      description: Enable or disable duty cycle limiting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled:
+                  type: boolean
+                  description: Enable duty cycle limiting
+                  example: true
+            examples:
+              enable:
+                value:
+                  enabled: true
+              disable:
+                value:
+                  enabled: false
+      responses:
+        '200':
+          description: Duty cycle setting updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /update_duty_cycle_config:
+    post:
+      tags: [System]
+      summary: Update duty cycle configuration
+      description: Update detailed duty cycle timing configuration
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                on_time:
+                  type: integer
+                  description: ON time in seconds
+                off_time:
+                  type: integer
+                  description: OFF time in seconds
+            example:
+              enabled: true
+              on_time: 300
+              off_time: 60
+      responses:
+        '200':
+          description: Duty cycle config updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /update_radio_config:
+    post:
+      tags: [System]
+      summary: Update radio configuration
+      description: |
+        Update LoRa radio parameters. In multi-radio mode, pass radio_id to
+        target a radios[] entry; air settings are written to that entry and
+        mirrored to top-level radio when it is the default radio.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                radio_id:
+                  type: string
+                  description: Optional multi-radio id from config.radios[].id
+                frequency:
+                  type: number
+                bandwidth:
+                  type: number
+                spreading_factor:
+                  type: integer
+                coding_rate:
+                  type: integer
+                tx_power:
+                  type: number
+                preamble_length:
+                  type: integer
+                flood_advert_interval_hours:
+                  type: integer
+                  description: Repeater flood advert interval in hours (0 = off, 3-168)
+                advert_interval_minutes:
+                  type: integer
+                  description: Legacy local advert interval in minutes (0 = off, 1-10080)
+                direct_advert_interval_hours:
+                  type: integer
+                  description: Additional repeater advert interval in hours (0 = off, 1-168)
+      responses:
+        '200':
+          description: Radio config updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # ============================================================================
+  # Packet Endpoints
+  # ============================================================================
+  /recent_packets:
+    get:
+      tags: [Packets]
+      summary: Get recent packets
+      description: Retrieve recent packet history
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+          description: Maximum number of packets to return
+      responses:
+        '200':
+          description: Recent packets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      type: object
+
+  /packet_by_hash:
+    get:
+      tags: [Packets]
+      summary: Get packet by hash
+      parameters:
+        - name: packet_hash
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Packet hash to lookup
+      responses:
+        '200':
+          description: Packet details
+
+  /packet_by_id:
+    get:
+      tags: [Packets]
+      summary: Get packet by ID
+      parameters:
+        - name: packet_id
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: Packet database ID to lookup
+      responses:
+        '200':
+          description: Packet details
+
+  /packet_type_stats:
+    get:
+      tags: [Packets]
+      summary: Get packet type statistics
+      description: Statistics broken down by packet type
+      parameters:
+        - name: hours
+          in: query
+          schema:
+            type: integer
+            default: 24
+          description: Time range in hours
+      responses:
+        '200':
+          description: Packet type stats
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /route_stats:
+    get:
+      tags: [Packets]
+      summary: Get route statistics
+      description: Statistics broken down by route type
+      parameters:
+        - name: hours
+          in: query
+          schema:
+            type: integer
+            default: 24
+          description: Time range in hours
+      responses:
+        '200':
+          description: Route stats
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /filtered_packets:
+    get:
+      tags: [Packets]
+      summary: Get filtered packets
+      description: Retrieve packets filtered by type, route, and timestamp
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 15
+          description: Packet type filter
+        - name: route
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 3
+          description: Route type filter
+        - name: start_timestamp
+          in: query
+          schema:
+            type: integer
+          description: Start timestamp (Unix)
+        - name: end_timestamp
+          in: query
+          schema:
+            type: integer
+          description: End timestamp (Unix)
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 1000
+          description: Maximum results
+      responses:
+        '200':
+          description: Filtered packets
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /neighbor_links:
+    get:
+      tags: [Packets]
+      summary: Get observed neighbour link snapshots
+      description: Returns observation-only neighbour link metrics by upstream peer hash.
+      parameters:
+        - name: active_within_seconds
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 90
+            minimum: 1
+          description: Mark links as active when last-seen age is within this threshold.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 500
+            minimum: 1
+            maximum: 5000
+          description: Maximum number of link snapshots to return.
+      responses:
+        '200':
+          description: Neighbour link snapshots
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NeighborLinksResponse'
+
+  /neighbor_link_history:
+    get:
+      tags: [Packets]
+      summary: Get neighbour link packet history
+      description: Returns historical packet observations for a single upstream peer hash.
+      parameters:
+        - name: peer_hash
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Upstream peer hash to query.
+        - name: path_hash_size
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 3
+          description: Path hash size in bytes for the peer hash.
+        - name: hours
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 24
+            minimum: 1
+            maximum: 168
+          description: Time window in hours.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1000
+            minimum: 1
+            maximum: 5000
+          description: Maximum rows (or buckets) to return.
+        - name: bucket_seconds
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 60
+          description: Bucket width in seconds; the answer carries `buckets` instead of `rows`.
+      responses:
+        '200':
+          description: Neighbour link history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NeighborLinkHistoryResponse'
+
+  # ============================================================================
+  # Charts & RRD Endpoints
+  # ============================================================================
+  /rrd_data:
+    get:
+      tags: [Charts]
+      summary: Get RRD time-series data
+      description: |
+        Retrieve Round-Robin Database metrics for graphing.
+
+        **Note:** This endpoint extracts parameters from the request internally.
+        Parameters are handled automatically by the backend.
+      responses:
+        '200':
+          description: RRD time-series data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      start_time:
+                        type: integer
+                      end_time:
+                        type: integer
+                      step:
+                        type: integer
+                      timestamps:
+                        type: array
+                        items:
+                          type: integer
+                      metrics:
+                        type: object
+
+  /packet_type_graph_data:
+    get:
+      tags: [Charts]
+      summary: Get packet type distribution graph data
+      description: Returns bar chart data showing packet counts by type
+      parameters:
+        - name: hours
+          in: query
+          schema:
+            type: integer
+            default: 24
+          description: Time range in hours
+        - name: resolution
+          in: query
+          schema:
+            type: string
+            enum: [average, max, min]
+            default: average
+        - name: types
+          in: query
+          schema:
+            type: string
+            default: all
+          description: Comma-separated packet types or 'all'
+      responses:
+        '200':
+          description: Packet type graph data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      start_time:
+                        type: integer
+                      end_time:
+                        type: integer
+                      step:
+                        type: integer
+                      chart_type:
+                        type: string
+                        example: bar
+                      series:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                            type:
+                              type: string
+                            data:
+                              type: array
+                              items:
+                                type: number
+
+  /metrics_graph_data:
+    get:
+      tags: [Charts]
+      summary: Get system metrics graph data
+      description: |
+        Returns time-series data for system metrics like packet counts, RSSI, SNR, etc.
+
+        Available metrics:
+        - rx_count: Received packets
+        - tx_count: Transmitted packets
+        - drop_count: Dropped packets
+        - avg_rssi: Average RSSI (dBm)
+        - avg_snr: Average SNR (dB)
+        - avg_length: Average packet length
+        - avg_score: Average score
+        - neighbor_count: Neighbor count
+      parameters:
+        - name: hours
+          in: query
+          schema:
+            type: integer
+            default: 24
+          description: Time range in hours
+        - name: resolution
+          in: query
+          schema:
+            type: string
+            enum: [average, max, min]
+            default: average
+        - name: metrics
+          in: query
+          schema:
+            type: string
+            default: all
+          description: Comma-separated metric names or 'all'
+          example: "rx_count,tx_count,avg_rssi"
+      responses:
+        '200':
+          description: Metrics graph data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      start_time:
+                        type: integer
+                      end_time:
+                        type: integer
+                      step:
+                        type: integer
+                      timestamps:
+                        type: array
+                        items:
+                          type: integer
+                      series:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                            type:
+                              type: string
+                            data:
+                              type: array
+                              items:
+                                type: number
+
+  /lbt_diagnostics:
+    get:
+      tags: [Charts]
+      summary: Get LBT diagnostics aligned with RF metrics
+      description: |
+        Returns aggregated Listen Before Talk (LBT) diagnostics for transmission-path
+        packets, aligned to RF health buckets for correlation analysis.
+
+        Notes:
+        - LBT total attempts are derived as `lbt_attempts + 1` from stored packet metadata.
+        - Buckets are bounded and aggregated server-side for efficient dashboard refresh.
+      parameters:
+        - name: hours
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 168
+            default: 24
+          description: Fallback range in hours when explicit timestamps are not provided.
+        - name: start_timestamp
+          in: query
+          schema:
+            type: number
+            format: float
+          description: Inclusive start timestamp (Unix epoch seconds).
+        - name: end_timestamp
+          in: query
+          schema:
+            type: number
+            format: float
+          description: Inclusive end timestamp (Unix epoch seconds).
+        - name: bucket_seconds
+          in: query
+          schema:
+            type: integer
+            minimum: 60
+            maximum: 3600
+          description: Bucket width in seconds. If omitted, server auto-selects based on range.
+        - name: severe_attempt_threshold
+          in: query
+          schema:
+            type: integer
+            minimum: 2
+            maximum: 16
+            default: 4
+          description: Attempt threshold used to classify severe contention events.
+      responses:
+        '200':
+          description: LBT diagnostics response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/LbtDiagnosticsResponse'
+
+  /noise_floor_history:
+    get:
+      tags: [Noise Floor]
+      summary: Get noise floor history
+      description: Retrieve historical noise floor measurements
+      parameters:
+        - name: hours
+          in: query
+          schema:
+            type: integer
+            default: 24
+            minimum: 1
+            maximum: 168
+          description: Time range in hours
+      responses:
+        '200':
+          description: Noise floor history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      type: object
+
+  /noise_floor_stats:
+    get:
+      tags: [Noise Floor]
+      summary: Get noise floor statistics
+      description: Statistical analysis of noise floor measurements
+      parameters:
+        - name: hours
+          in: query
+          schema:
+            type: integer
+            default: 24
+          description: Time range in hours
+      responses:
+        '200':
+          description: Noise floor statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      min:
+                        type: number
+                      max:
+                        type: number
+                      avg:
+                        type: number
+                      current:
+                        type: number
+
+  /noise_floor_chart_data:
+    get:
+      tags: [Noise Floor]
+      summary: Get noise floor chart data
+      description: Formatted noise floor data for charting
+      parameters:
+        - name: hours
+          in: query
+          schema:
+            type: integer
+            default: 24
+          description: Time range in hours
+      responses:
+        '200':
+          description: Chart-ready noise floor data
+          content:
+            application/json:
+              schema:
+                type: object
+
+  # ============================================================================
+  # CAD Calibration Endpoints
+  # ============================================================================
+  /cad_calibration_start:
+    post:
+      tags: [CAD Calibration]
+      summary: Start CAD calibration
+      description: Begin Channel Activity Detection calibration process
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                samples:
+                  type: integer
+                  default: 8
+                  minimum: 1
+                  maximum: 64
+                  description: Number of samples to collect
+                  example: 8
+                delay:
+                  type: integer
+                  default: 100
+                  minimum: 10
+                  maximum: 1000
+                  description: Delay between samples in milliseconds
+                  example: 100
+            examples:
+              default:
+                value:
+                  samples: 8
+                  delay: 100
+              detailed:
+                value:
+                  samples: 16
+                  delay: 50
+      responses:
+        '200':
+          description: Calibration started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /cad_calibration_stop:
+    post:
+      tags: [CAD Calibration]
+      summary: Stop CAD calibration
+      responses:
+        '200':
+          description: Calibration stopped
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /cad_manual_check:
+    post:
+      tags: [CAD Calibration]
+      summary: Run manual CAD check
+      description: Execute one or more immediate CAD checks and return aggregated detection metrics.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                samples:
+                  type: integer
+                  minimum: 1
+                  maximum: 32
+                  default: 1
+                  description: Number of CAD checks to perform.
+                det_peak:
+                  type: integer
+                  minimum: 0
+                  maximum: 255
+                  description: Temporary CAD peak threshold.
+                det_min:
+                  type: integer
+                  minimum: 0
+                  maximum: 255
+                  description: Temporary CAD minimum threshold.
+                cad_symbol_num:
+                  type: integer
+                  enum: [1, 2, 4, 8, 16]
+                  default: 2
+                  description: CAD symbol count used by the radio.
+                cad_timeout_ms:
+                  type: integer
+                  minimum: 50
+                  maximum: 5000
+                  default: 500
+                  description: Timeout per CAD check in milliseconds.
+                apply_live:
+                  type: boolean
+                  default: false
+                  description: Apply det_peak and det_min to live radio thresholds before checks.
+      responses:
+        '200':
+          description: Manual CAD check result.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      det_peak:
+                        type: integer
+                      det_min:
+                        type: integer
+                      cad_symbol_num:
+                        type: integer
+                      cad_timeout_ms:
+                        type: integer
+                      apply_live:
+                        type: boolean
+                      samples:
+                        type: integer
+                      attempts:
+                        type: integer
+                      detections:
+                        type: integer
+                      non_detections:
+                        type: integer
+                      timeouts:
+                        type: integer
+                      errors:
+                        type: integer
+                      cad_done_count:
+                        type: integer
+                      detection_rate:
+                        type: number
+                      detected:
+                        type: boolean
+
+  /save_cad_settings:
+    post:
+      tags: [CAD Calibration]
+      summary: Save CAD settings
+      description: Save calibrated CAD peak and min values to configuration
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [peak, min_val]
+              properties:
+                peak:
+                  type: integer
+                  minimum: 0
+                  maximum: 255
+                  description: CAD peak value
+                  example: 127
+                min_val:
+                  type: integer
+                  minimum: 0
+                  maximum: 255
+                  description: CAD minimum value
+                  example: 64
+                cad_symbol_num:
+                  type: integer
+                  enum: [1, 2, 4, 8, 16]
+                  default: 2
+                  description: CAD symbol count to persist for runtime CAD detections.
+      responses:
+        '200':
+          description: Settings saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /cad_calibration_stream:
+    get:
+      tags: [CAD Calibration]
+      summary: CAD calibration SSE stream
+      description: Server-Sent Events stream of calibration progress
+      responses:
+        '200':
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  # ============================================================================
+  # Adverts & Contacts
+  # ============================================================================
+  /adverts_by_contact_type:
+    get:
+      tags: [Adverts]
+      summary: Get adverts by contact type
+      description: Retrieve advertisements filtered by contact type
+      parameters:
+        - name: contact_type
+          in: query
+          schema:
+            type: integer
+          description: Contact type to filter by
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+          description: Maximum number of results
+        - name: hours
+          in: query
+          schema:
+            type: integer
+            default: 24
+          description: Time range in hours
+      responses:
+        '200':
+          description: Filtered adverts
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /advert:
+    delete:
+      tags: [Adverts]
+      summary: Delete specific advert
+      description: Delete a specific advertisement by ID
+      parameters:
+        - name: advert_id
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: Advert ID to delete
+      responses:
+        '200':
+          description: Advert deleted
+          content:
+            application/json:
+              schema:
+                type: object
+
+  # ============================================================================
+  # Transport Keys
+  # ============================================================================
+  /transport_keys:
+    get:
+      tags: [Transport Keys]
+      summary: List transport keys
+      description: Get list of all transport encryption keys
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: List of transport keys
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      type: object
+    post:
+      tags: [Transport Keys]
+      summary: Create transport key
+      description: Generate a new transport encryption key
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: Key name/identifier
+      responses:
+        '200':
+          description: Key created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /transport_key:
+    get:
+      tags: [Transport Keys]
+      summary: Get transport key
+      description: Retrieve specific transport key details
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: key_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Key ID to retrieve
+      responses:
+        '200':
+          description: Key details
+          content:
+            application/json:
+              schema:
+                type: object
+    put:
+      tags: [Transport Keys]
+      summary: Update transport key
+      description: Update an existing transport encryption key
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: key_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Key ID to update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: Updated key name
+                flood_policy:
+                  type: string
+                  enum: [allow, deny]
+                  description: Updated flood policy
+                transport_key:
+                  type: string
+                  description: Updated transport key hex
+                parent_id:
+                  type: integer
+                  nullable: true
+                  description: Updated parent transport key ID
+                last_used:
+                  type: string
+                  format: date-time
+                  description: Updated last-used timestamp in ISO-8601 format
+      responses:
+        '200':
+          description: Key updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      tags: [Transport Keys]
+      summary: Delete transport key
+      description: Remove a transport encryption key
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: key_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Key ID to delete
+      responses:
+        '200':
+          description: Key deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # ============================================================================
+  # Network Policy
+  # ============================================================================
+  /unscoped_flood_policy:
+    post:
+      tags: [Network Policy]
+      summary: Update unscoped flood policy
+      description: Modify network flood policy settings
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Policy updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /default_region:
+    get:
+      tags: [Network Policy]
+      summary: Get default region
+      description: Get current mesh default region used for locally-originated flood adverts.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Current default region
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      default_region:
+                        type: string
+                        nullable: true
+                  message:
+                    type: string
+                  error:
+                    type: string
+    post:
+      tags: [Network Policy]
+      summary: Update default region
+      description: Set or clear mesh default region. Pass null to clear.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [default_region]
+              properties:
+                default_region:
+                  type: string
+                  nullable: true
+                  description: Region name to set, or null to clear.
+      responses:
+        '200':
+          description: Default region updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /ping_neighbor:
+    post:
+      tags: [Network Policy]
+      summary: Ping neighbor node
+      description: Send ping to a specific neighbor node
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_id]
+              properties:
+                target_id:
+                  type: string
+                  description: Target node identifier
+                timeout:
+                  type: integer
+                  description: Ping timeout in seconds
+                  default: 10
+      responses:
+        '200':
+          description: Ping sent
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    required: [target_id, rtt_ms, snr_db, rssi, path, tag]
+                    properties:
+                      target_id:
+                        type: string
+                      rtt_ms:
+                        type: number
+                      snr_db:
+                        type: number
+                      rssi:
+                        type: number
+                      path:
+                        type: array
+                        items:
+                          type: string
+                      tag:
+                        type: integer
+                      path_hash_mode:
+                        type: integer
+                  message:
+                    type: string
+                  error:
+                    type: string
+
+  /discover_neighbors_start:
+    post:
+      tags: [Network Policy]
+      summary: Start neighbor discovery session
+      description: Start a short-lived discovery broadcast session and return a session ID for SSE streaming.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                timeout:
+                  type: number
+                  minimum: 1
+                  maximum: 60
+                  default: 5
+                filter_mask:
+                  type: integer
+                  minimum: 0
+                  maximum: 255
+                  default: 4
+                since:
+                  type: integer
+                  minimum: 0
+                  default: 0
+                prefix_only:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: Discovery session started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      session_id:
+                        type: string
+                      tag:
+                        type: integer
+                      status:
+                        type: string
+                      timeout:
+                        type: number
+                      filter_mask:
+                        type: integer
+                      since:
+                        type: integer
+                      prefix_only:
+                        type: boolean
+                      created_at:
+                        type: number
+                      started_at:
+                        type: number
+                        nullable: true
+                      completed_at:
+                        type: number
+                        nullable: true
+                      count:
+                        type: integer
+                      error:
+                        type: string
+                        nullable: true
+                  message:
+                    type: string
+                  error:
+                    type: string
+
+  /discover_neighbors_stream:
+    get:
+      tags: [Network Policy]
+      summary: Stream discovery events
+      description: Stream live neighbor discovery session events via Server-Sent Events (SSE).
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: session_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: last_event_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: token
+          in: query
+          required: false
+          schema:
+            type: string
+          description: JWT token for EventSource clients that cannot send Authorization headers.
+      responses:
+        '200':
+          description: SSE event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /add_discovered_neighbor:
+    post:
+      tags: [Network Policy]
+      summary: Add discovered node as neighbor
+      description: Persist a discovered node into the adverts/neighbors store for future management.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pub_key]
+              properties:
+                pub_key:
+                  type: string
+                  description: Hex pubkey (8-byte or 32-byte form).
+                node_name:
+                  type: string
+                  nullable: true
+                node_type:
+                  type: integer
+                rssi:
+                  type: integer
+                  nullable: true
+                response_snr:
+                  type: number
+                  nullable: true
+                snr:
+                  type: number
+                  nullable: true
+      responses:
+        '200':
+          description: Node added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                  message:
+                    type: string
+                  error:
+                    type: string
+
+  /policy:
+    get:
+      tags: [Network Policy]
+      summary: Get policy document
+      description: Returns normalized policy engine configuration and grouped channel hash/pubkey entries.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Policy document
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      policy_file:
+                        type: string
+                      exists:
+                        type: boolean
+                      policy_engine:
+                        type: object
+                      groups:
+                        type: object
+    post:
+      tags: [Network Policy]
+      summary: Update policy document
+      description: Update policy_engine configuration while preserving or replacing named groups.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Accepts either root-level policy_engine fields or a nested policy_engine object.
+      responses:
+        '200':
+          description: Policy updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /policy_validate:
+    post:
+      tags: [Network Policy]
+      summary: Validate policy payload
+      description: Validate a policy payload without saving it to disk.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      valid:
+                        type: boolean
+                      normalized:
+                        type: object
+                      effective:
+                        type: object
+
+  /policy_groups:
+    get:
+      tags: [Network Policy]
+      summary: List policy groups
+      description: List named channel hash and pubkey groups.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: kind
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [channel_hashes, pubkeys]
+          description: Optional group kind filter.
+      responses:
+        '200':
+          description: Policy groups
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+    post:
+      tags: [Network Policy]
+      summary: Create policy group
+      description: Create a named group for channel hashes or pubkeys.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind]
+              properties:
+                kind:
+                  type: string
+                  enum: [channel_hashes, pubkeys]
+                group_id:
+                  type: string
+                friendly_name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Group created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      tags: [Network Policy]
+      summary: Delete policy group
+      description: Delete a named group and all of its entries.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, group_id]
+              properties:
+                kind:
+                  type: string
+                  enum: [channel_hashes, pubkeys]
+                group_id:
+                  type: string
+      responses:
+        '200':
+          description: Group deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /policy_group_entries:
+    get:
+      tags: [Network Policy]
+      summary: List group entries
+      description: Return entries for a specific named channel hash/pubkey group.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: kind
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [channel_hashes, pubkeys]
+        - name: group_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Group entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+    post:
+      tags: [Network Policy]
+      summary: Add group entry
+      description: Add a friendly-named entry to a policy group.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, group_id, value]
+              properties:
+                kind:
+                  type: string
+                  enum: [channel_hashes, pubkeys]
+                group_id:
+                  type: string
+                value:
+                  type: string
+                entry_id:
+                  type: string
+                friendly_name:
+                  type: string
+      responses:
+        '200':
+          description: Entry added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      tags: [Network Policy]
+      summary: Remove group entry
+      description: Remove an entry by entry_id or value from a policy group.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, group_id]
+              properties:
+                kind:
+                  type: string
+                  enum: [channel_hashes, pubkeys]
+                group_id:
+                  type: string
+                entry_id:
+                  type: string
+                value:
+                  type: string
+      responses:
+        '200':
+          description: Entry removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # ============================================================================
+  # Identity Management
+  # ============================================================================
+  /create_identity:
+    post:
+      tags: [Identities]
+      summary: Create new identity
+      description: |
+        Create a new companion or room server identity.
+        `name` must be non-empty after trimming leading/trailing whitespace (whitespace-only values are rejected).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, type]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 64
+                  pattern: '^[a-zA-Z0-9_\-\s]+$'
+                  description: |
+                    Identity registration name (alphanumeric, spaces, hyphens, underscores).
+                    Trimmed; must not be empty or whitespace-only.
+                  example: "General Chat"
+                identity_key:
+                  type: string
+                  pattern: '^(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{128})$'
+                  description: 32- or 64-byte hex key (64 or 128 chars). Omit for auto-generation
+                  example: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                type:
+                  type: string
+                  enum: [companion, room_server]
+                  description: |
+                    - companion: Companion identity with a TCP endpoint
+                    - room_server: Room server for group chat
+                  example: room_server
+                settings:
+                  type: object
+                  description: Type-specific settings
+                  properties:
+                    admin_password:
+                      type: string
+                      minLength: 4
+                      description: Admin authentication password (room_server only)
+                      example: "admin123"
+                    guest_password:
+                      type: string
+                      minLength: 4
+                      description: Guest authentication password (room_server only)
+                      example: "guest123"
+                    max_posts:
+                      type: integer
+                      minimum: 1
+                      maximum: 32
+                      default: 32
+                      description: Maximum messages to keep (hard limit 32)
+                      example: 32
+                    node_name:
+                      type: string
+                      description: Advertised node name (companion only; defaults to identity name)
+                      example: "My Companion"
+                    flood_advert_interval_hours:
+                      type: integer
+                      minimum: 0
+                      maximum: 168
+                      description: Room-server flood advert interval in hours (0 = off)
+                      example: 6
+                    direct_advert_interval_hours:
+                      type: integer
+                      minimum: 0
+                      maximum: 168
+                      description: Room-server additional advert interval in hours (0 = off)
+                      example: 2
+                    tcp_port:
+                      type: integer
+                      minimum: 1
+                      maximum: 65535
+                      default: 5000
+                      description: TCP listener port (companion only)
+                      example: 5000
+                    bind_address:
+                      type: string
+                      default: "0.0.0.0"
+                      description: TCP listener bind address (companion only)
+                      example: "0.0.0.0"
+            examples:
+              room_server:
+                value:
+                  name: "General Chat"
+                  type: room_server
+                  settings:
+                    admin_password: "admin123"
+                    guest_password: "guest123"
+                    max_posts: 32
+              companion:
+                value:
+                  name: "My Companion"
+                  type: companion
+                  identity_key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                  settings:
+                    node_name: "My Companion"
+                    tcp_port: 5000
+                    bind_address: "0.0.0.0"
+      responses:
+        '200':
+          description: Identity created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      type:
+                        type: string
+                      hash:
+                        type: string
+                      public_key:
+                        type: string
+              examples:
+                success:
+                  value:
+                    success: true
+                    data:
+                      name: "General Chat"
+                      type: room_server
+                      hash: "0x42"
+                      public_key: "abc123..."
+        '400':
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /identities:
+    get:
+      tags: [Identities]
+      summary: List all identities
+      description: |
+        Returns configured room servers and companions plus runtime registration info.
+        Companion entries with missing or blank registration names are assigned a stable
+        `companion_<pubkeyPrefix>` name derived from the identity key and persisted when possible.
+      responses:
+        '200':
+          description: List of identities
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      identities:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Identity'
+
+  /identity:
+    get:
+      tags: [Identities]
+      summary: Get specific identity
+      description: Retrieve details of a specific identity by name
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Identity name to retrieve
+      responses:
+        '200':
+          description: Identity details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Identity'
+
+  /update_identity:
+    put:
+      tags: [Identities]
+      summary: Update identity
+      description: |
+        Modify an existing identity's configuration.
+        For `room_server`, `name` is required to locate the identity.
+        For `companion`, provide `name` OR `lookup_identity_key` OR `public_key_prefix`
+        (at least 8 hex characters for prefix lookups) when the registration name is unknown.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum: [room_server, companion]
+                  default: room_server
+                name:
+                  type: string
+                  description: Current identity registration name (required for room_server; optional for companion if lookup fields are set)
+                lookup_identity_key:
+                  type: string
+                  description: |
+                    Companion only: hex private identity key (full or unique prefix, min 8 hex chars)
+                    to locate the companion when `name` is omitted.
+                public_key_prefix:
+                  type: string
+                  description: |
+                    Companion only: ed25519 public key hex prefix (min 8 hex chars) to locate the companion when `name` is omitted.
+                new_name:
+                  type: string
+                  description: New identity name (optional; must be non-empty if provided)
+                identity_key:
+                  type: string
+                  description: New identity key (optional)
+                settings:
+                  type: object
+                  description: Updated settings (room server settings may include flood_advert_interval_hours and direct_advert_interval_hours)
+      responses:
+        '200':
+          description: Identity updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /delete_identity:
+    delete:
+      tags: [Identities]
+      summary: Delete identity
+      description: |
+        Remove an identity from the system.
+        For `room_server`, `name` is required.
+        For `companion`, provide `name` OR `lookup_identity_key` OR `public_key_prefix`
+        (at least 8 hex characters for prefix lookups).
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: name
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Identity registration name to delete (required for room_server)
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [room_server, companion]
+          description: Identity kind (default room_server)
+        - name: lookup_identity_key
+          in: query
+          required: false
+          schema:
+            type: string
+          description: |
+            Companion only: hex identity key (full or unique prefix, min 8 hex chars) when `name` is omitted.
+        - name: public_key_prefix
+          in: query
+          required: false
+          schema:
+            type: string
+          description: |
+            Companion only: public key hex prefix (min 8 hex chars) when `name` is omitted.
+      responses:
+        '200':
+          description: Identity deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /send_room_server_advert:
+    post:
+      tags: [Identities]
+      summary: Send room server advertisement
+      description: Broadcast a room server advertisement packet
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  description: Room server identity name
+                node_name:
+                  type: string
+                  description: Node name for the advertisement
+                latitude:
+                  type: number
+                  format: float
+                  description: GPS latitude
+                  example: 0.0
+                longitude:
+                  type: number
+                  format: float
+                  description: GPS longitude
+                  example: 0.0
+                disable_fwd:
+                  type: boolean
+                  description: Disable forwarding flag
+                  default: false
+      responses:
+        '200':
+          description: Advertisement sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # ============================================================================
+  # ACL (Access Control List)
+  # ============================================================================
+  /acl_info:
+    get:
+      tags: [ACL]
+      summary: Get ACL information for all identities
+      description: |
+        Get ACL configuration and statistics for all registered identities.
+
+        Returns information including:
+        - Identity name, type, and hash
+        - Max clients allowed
+        - Number of authenticated clients
+        - Password configuration status
+        - Read-only access setting
+      responses:
+        '200':
+          description: ACL information for all identities
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      acls:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                              example: "repeater"
+                            type:
+                              type: string
+                              enum: [repeater, room_server]
+                              example: "repeater"
+                            hash:
+                              type: string
+                              pattern: '^0x[0-9a-fA-F]{2}$'
+                              example: "0x42"
+                            max_clients:
+                              type: integer
+                              example: 100
+                            authenticated_clients:
+                              type: integer
+                              example: 5
+                            has_admin_password:
+                              type: boolean
+                              example: true
+                            has_guest_password:
+                              type: boolean
+                              example: true
+                            allow_read_only:
+                              type: boolean
+                              example: true
+                      total_identities:
+                        type: integer
+                        example: 3
+                      total_authenticated_clients:
+                        type: integer
+                        example: 15
+
+  /acl_clients:
+    get:
+      tags: [ACL]
+      summary: List ACL clients
+      description: Get list of authenticated clients in access control list for an identity
+      parameters:
+        - name: identity_hash
+          in: query
+          schema:
+            type: string
+            pattern: '^0x[0-9a-fA-F]{2}$'
+          description: Identity hash
+          example: "0x42"
+        - name: identity_name
+          in: query
+          schema:
+            type: string
+          description: Identity name
+          example: "General"
+      responses:
+        '200':
+          description: ACL clients list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      clients:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ACLClient'
+                      count:
+                        type: integer
+                        description: Number of clients returned
+                      filter:
+                        type: string
+                        nullable: true
+                        description: Filter applied (if any)
+              examples:
+                success:
+                  value:
+                    success: true
+                    data:
+                      clients:
+                        - public_key: "03ccf3bb0bed9a51...21416fff"
+                          public_key_full: "03ccf3bb0bed9a5109868a1e33ed020519aab6dbb30e42df3b11a21d21416fff"
+                          address: "e1"
+                          permissions: "admin"
+                          last_activity: 1766065148
+                          last_login_success: 1766065146
+                          last_timestamp: 1766065146
+                          identity_name: "rrrrr"
+                          identity_type: "room_server"
+                          identity_hash: "0xC5"
+                      count: 1
+                      filter: null
+
+  /acl_remove_client:
+    post:
+      tags: [ACL]
+      summary: Remove client from ACL
+      description: Remove a client from the access control list
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identity_hash, client_pubkey]
+              properties:
+                identity_hash:
+                  type: string
+                  pattern: '^0x[0-9a-fA-F]{2}$'
+                  description: Identity hash
+                  example: "0x42"
+                identity_name:
+                  type: string
+                  description: Identity name (alternative to hash)
+                  example: "General"
+                client_pubkey:
+                  type: string
+                  pattern: '^[0-9a-fA-F]{64}$'
+                  description: Client public key to remove
+                  example: "abc123def456..."
+      responses:
+        '200':
+          description: Client removed from ACL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /acl_stats:
+    get:
+      tags: [ACL]
+      summary: Get ACL statistics
+      description: Get statistics about access control lists
+      responses:
+        '200':
+          description: ACL statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      total_entries:
+                        type: integer
+                      by_identity:
+                        type: object
+
+  /room_messages:
+    get:
+      tags: [Room Server]
+      summary: Get room messages
+      description: |
+        Retrieve messages from a room with pagination.
+
+        **Max Messages Per Room**: 32 (hard limit)
+        - Older messages auto-deleted every 10 minutes
+        - Cannot be increased beyond 32
+      parameters:
+        - name: room_name
+          in: query
+          schema:
+            type: string
+          description: Name of the room (use this OR room_hash)
+          example: General
+        - name: room_hash
+          in: query
+          schema:
+            type: string
+            pattern: '^0x[0-9a-fA-F]{2}$'
+          description: Hash of room identity (use this OR room_name)
+          example: "0x42"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+          description: Max messages to return
+          example: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+          description: Skip first N messages (for pagination)
+          example: 0
+        - name: since_timestamp
+          in: query
+          schema:
+            type: number
+            format: float
+          description: Only return messages after this Unix timestamp
+          example: 1734567890.5
+      responses:
+        '200':
+          description: Messages retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      room_name:
+                        type: string
+                      room_hash:
+                        type: string
+                      messages:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/RoomMessage'
+                      count:
+                        type: integer
+                        description: Number of messages in this response
+                      total:
+                        type: integer
+                        description: Total messages in room (max 32)
+                      limit:
+                        type: integer
+                      offset:
+                        type: integer
+              examples:
+                success:
+                  value:
+                    success: true
+                    data:
+                      room_name: "General"
+                      room_hash: "0x42"
+                      messages:
+                        - id: 123
+                          author_pubkey: "abc123def456..."
+                          author_prefix: "abc123de"
+                          post_timestamp: 1734567890.5
+                          sender_timestamp: 1734567890
+                          message_text: "Hello world"
+                          txt_type: 0
+                          created_at: 1734567890.5
+                      count: 1
+                      total: 15
+                      limit: 50
+                      offset: 0
+        '404':
+          description: Room not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /room_post_message:
+    post:
+      tags: [Room Server]
+      summary: Post message to room
+      description: |
+        Add a new message to a room server. Message will be distributed to all synced clients.
+
+        **Special author values:**
+        - `"server"` or `"system"` - System message, goes to ALL clients (API only)
+        - Any hex string - Normal message, NOT sent to that client
+
+        **Security:**
+        - Radio messages cannot use server key (blocked)
+        - API messages can use server key (for announcements)
+
+        **Rate Limits:**
+        - 10 messages/minute per author_pubkey
+        - 160 bytes max message length
+        - Global 1.1s gap between transmissions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message, author_pubkey]
+              properties:
+                room_name:
+                  type: string
+                  description: Name of the room (use this OR room_hash)
+                  example: General
+                room_hash:
+                  type: string
+                  pattern: '^0x[0-9a-fA-F]{2}$'
+                  description: Hash of room identity (use this OR room_name)
+                  example: "0x42"
+                message:
+                  type: string
+                  minLength: 1
+                  maxLength: 160
+                  description: Message text (auto-truncated at 160 bytes)
+                  example: "Hello from API"
+                author_pubkey:
+                  type: string
+                  description: |
+                    Author's public key as hex string (64 chars), or special values:
+                    - "server" = system message (all clients receive)
+                    - "system" = alias for "server"
+                    - hex string = normal message (author won't receive)
+                  example: "abc123def456..."
+                txt_type:
+                  type: integer
+                  default: 0
+                  enum: [0, 2]
+                  description: |
+                    Message type:
+                    - 0: Plain text
+                    - 2: Signed plain text
+                  example: 0
+            examples:
+              normal_message:
+                summary: Normal message
+                value:
+                  room_name: "General"
+                  message: "Hello everyone!"
+                  author_pubkey: "abc123def456..."
+                  txt_type: 0
+              server_message:
+                summary: Server announcement
+                value:
+                  room_name: "General"
+                  message: "[SERVER] Maintenance in 10 minutes"
+                  author_pubkey: "server"
+              by_hash:
+                summary: Post by room hash
+                value:
+                  room_hash: "0x42"
+                  message: "Using hash instead of name"
+                  author_pubkey: "abc123..."
+      responses:
+        '200':
+          description: Message posted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      message_id:
+                        type: integer
+                        description: Database ID of created message
+                      room_name:
+                        type: string
+                      room_hash:
+                        type: string
+                      queued_for_distribution:
+                        type: boolean
+                        description: Always true - distribution is async
+                      is_server_message:
+                        type: boolean
+                        description: True if author_pubkey was "server"
+                      author_filter_note:
+                        type: string
+                        description: Explains message distribution behavior
+              examples:
+                normal:
+                  value:
+                    success: true
+                    data:
+                      message_id: 124
+                      room_name: "General"
+                      room_hash: "0x42"
+                      queued_for_distribution: true
+                      is_server_message: false
+                      author_filter_note: "Message will NOT be sent to author"
+                server:
+                  value:
+                    success: true
+                    data:
+                      message_id: 125
+                      room_name: "General"
+                      room_hash: "0x42"
+                      queued_for_distribution: true
+                      is_server_message: true
+                      author_filter_note: "Server messages go to ALL clients"
+        '400':
+          description: Invalid parameters or rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                rate_limit:
+                  value:
+                    success: false
+                    error: "Failed to add message (rate limit or validation error)"
+                missing_field:
+                  value:
+                    success: false
+                    error: "message is required"
+
+  /room_stats:
+    get:
+      tags: [Room Server]
+      summary: Get room statistics
+      description: |
+        Get detailed statistics for one or all room servers.
+
+        **Room Limits:**
+        - 32 messages maximum per room (hard limit)
+        - Messages auto-expire every 10 minutes
+        - Author filtering: messages not sent back to author
+      parameters:
+        - name: room_name
+          in: query
+          schema:
+            type: string
+          description: Get stats for specific room (omit for all rooms)
+          example: General
+        - name: room_hash
+          in: query
+          schema:
+            type: string
+            pattern: '^0x[0-9a-fA-F]{2}$'
+          description: Get stats by room hash (use this OR room_name)
+          example: "0x42"
+      responses:
+        '200':
+          description: Room statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      room_name:
+                        type: string
+                      room_hash:
+                        type: string
+                      total_messages:
+                        type: integer
+                        minimum: 0
+                        maximum: 32
+                        description: Current message count (max 32)
+                        example: 15
+                      total_clients:
+                        type: integer
+                        minimum: 0
+                        description: Total clients that have synced
+                        example: 8
+                      active_clients:
+                        type: integer
+                        minimum: 0
+                        description: Clients active within timeout window
+                        example: 3
+                      max_posts:
+                        type: integer
+                        minimum: 1
+                        maximum: 32
+                        description: Message limit setting (always 32)
+                        example: 32
+                      sync_running:
+                        type: boolean
+                        description: Distribution task is active
+                        example: true
+                      clients:
+                        type: array
+                        description: List of all clients with sync status
+                        items:
+                          $ref: '#/components/schemas/RoomClient'
+              examples:
+                single_room:
+                  value:
+                    success: true
+                    data:
+                      room_name: "General"
+                      room_hash: "0x42"
+                      total_messages: 15
+                      total_clients: 8
+                      active_clients: 3
+                      max_posts: 32
+                      sync_running: true
+                      clients:
+                        - pubkey: "abc123..."
+                          pubkey_prefix: "abc123de"
+                          sync_since: 1734567890.5
+                          unsynced_count: 5
+                          is_active: true
+                all_rooms:
+                  value:
+                    success: true
+                    data:
+                      rooms:
+                        - room_name: "General"
+                          total_messages: 15
+                          active_clients: 3
+                        - room_name: "Tech"
+                          total_messages: 8
+                          active_clients: 1
+        '404':
+          description: Room not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /room_clients:
+    get:
+      tags: [Room Server]
+      summary: Get room clients
+      description: |
+        List all clients synced to a room with their status.
+
+        **Client Filtering:**
+        - Clients only receive messages where author_pubkey ≠ client_pubkey
+        - unsynced_count shows pending messages for each client
+        - is_active indicates client synced within timeout window
+      parameters:
+        - name: room_name
+          in: query
+          schema:
+            type: string
+          description: Room name
+          example: General
+        - name: room_hash
+          in: query
+          schema:
+            type: string
+            pattern: '^0x[0-9a-fA-F]{2}$'
+          description: Room hash (use this OR room_name)
+          example: "0x42"
+      responses:
+        '200':
+          description: Client list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      room_name:
+                        type: string
+                      room_hash:
+                        type: string
+                      clients:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/RoomClient'
+              examples:
+                success:
+                  value:
+                    success: true
+                    data:
+                      room_name: "General"
+                      room_hash: "0x42"
+                      clients:
+                        - pubkey: "abc123def456..."
+                          pubkey_prefix: "abc123de"
+                          sync_since: 1734567890.5
+                          unsynced_count: 5
+                          pending_ack: false
+                          push_failures: 0
+                          last_activity: 1734567890.5
+                          in_acl: true
+                          is_active: true
+        '404':
+          description: Room not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /room_message:
+    delete:
+      tags: [Room Server]
+      summary: Delete specific message
+      parameters:
+        - name: room_name
+          in: query
+          schema:
+            type: string
+        - name: room_hash
+          in: query
+          schema:
+            type: string
+        - name: message_id
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Message deleted
+
+  /room_messages_clear:
+    delete:
+      tags: [Room Server]
+      summary: Clear all room messages
+      description: ⚠️ Destructive operation - cannot be undone!
+      parameters:
+        - name: room_name
+          in: query
+          schema:
+            type: string
+        - name: room_hash
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Messages cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      deleted_count:
+                        type: integer
+
+  /needs_setup:
+    get:
+      tags: [System]
+      summary: Check setup wizard status
+      responses:
+        '200':
+          description: Setup status
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /site_info:
+    get:
+      tags: [System]
+      summary: Get site and host info
+      responses:
+        '200':
+          description: Site info
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /hardware_options:
+    get:
+      tags: [System]
+      summary: Get supported hardware options
+      responses:
+        '200':
+          description: Hardware options
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /radio_presets:
+    get:
+      tags: [System]
+      summary: Get radio presets
+      responses:
+        '200':
+          description: Preset list
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /serial_ports:
+    get:
+      tags: [System]
+      summary: List available serial ports
+      responses:
+        '200':
+          description: Serial ports
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /setup_wizard:
+    post:
+      tags: [System]
+      summary: Submit setup wizard payload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Setup applied
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /web_frontends:
+    get:
+      tags: [System]
+      summary: List selectable primary web frontends
+      description: >
+        Returns built-in Repeater UI, openHop Console (if installed), and enabled
+        application UI plugins that can be selected via web.web_path.
+      responses:
+        '200':
+          description: Frontend catalogue for the Web Frontend switcher
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /check_pymc_console:
+
+    get:
+      tags: [System]
+      summary: Check openHop Console availability
+      responses:
+        '200':
+          description: Console status
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /mqtt_status:
+    get:
+      tags: [System]
+      summary: Get MQTT runtime status
+      responses:
+        '200':
+          description: MQTT status
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /broker_presets:
+    get:
+      tags: [System]
+      summary: List MQTT broker presets
+      responses:
+        '200':
+          description: Broker presets
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /publish_neighbors:
+    post:
+      tags: [System]
+      summary: Publish the neighbours table now
+      description: >
+        Runs one neighbours cycle immediately: a zero-hop discovery broadcast, a
+        serialized scope query per neighbour, then a publish to every opted-in
+        broker. Returns as soon as the cycle is scheduled; the cycle itself takes
+        minutes. Poll /mqtt_status for the outcome.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Cycle started, or an error when one is already running
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '405':
+          description: Method not allowed
+
+  /neighbor_scopes:
+    get:
+      tags: [Network Policy]
+      summary: Last known region scopes per neighbour
+      description: >
+        Region scopes learned from the anon-regions query the neighbours publisher
+        issues, keyed by lowercase pubkey hex. One row per neighbour that has been
+        queried; neighbours never queried are simply absent. `scopes` is the last
+        answer given and an empty string is a real answer meaning the neighbour
+        serves unscoped traffic only. `status`/`queried_at` describe the most
+        recent query, which may have failed after a good answer, so `responded_at`
+        is what says how fresh `scopes` is. `served` carries this node's own scopes
+        in the same comma-separated form — the very string it sends when a neighbour
+        asks it the same question — so a client can tell which of a neighbour's
+        scopes it already shares.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: >
+            Stored scope records, or an error when storage is unavailable (as it
+            briefly is during daemon startup) — `data` is absent in that case.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success]
+                properties:
+                  success:
+                    type: boolean
+                  error:
+                    type: string
+                  count:
+                    type: integer
+                  served:
+                    type: object
+                    required: [scopes]
+                    properties:
+                      scopes:
+                        type: string
+                        description: >
+                          This node's own advertised scopes, comma-separated, `*`
+                          first when it floods unscoped. Empty when they cannot be
+                          read.
+                  data:
+                    type: object
+                    additionalProperties:
+                      $ref: '#/components/schemas/NeighborScopeRecord'
+
+  /query_neighbor_scopes:
+    post:
+      tags: [Network Policy]
+      summary: Query one neighbour's region scopes now
+      description: >
+        Sends a single route-direct anon-regions request and waits for the reply,
+        then stores and returns the outcome. Nothing is published to MQTT; the
+        periodic cycle owns the neighbors topic. The request only reaches a
+        zero-hop neighbour, and the responder rate-limits anonymous replies (4 per
+        3 minutes), so both a multi-hop target and a repeated query show up as
+        `timeout`. Errors when a neighbours cycle already holds the scope helper.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pubkey]
+              properties:
+                pubkey:
+                  type: string
+                  description: Full 64-character public key hex of the neighbour
+      responses:
+        '200':
+          description: Query outcome, or an error when it could not be run
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success]
+                properties:
+                  success:
+                    type: boolean
+                  error:
+                    type: string
+                  data:
+                    type: object
+                    required: [pubkey, status, scopes, transmitted]
+                    properties:
+                      pubkey:
+                        type: string
+                      status:
+                        type: string
+                        enum: [responded, timeout, send_failed]
+                      scopes:
+                        type: string
+                        description: Comma-separated scope names; empty when unscoped
+                      transmitted:
+                        type: boolean
+                        description: Whether the request actually reached the air
+                      queried_at:
+                        type: number
+                        nullable: true
+                      responded_at:
+                        type: number
+                        nullable: true
+        '405':
+          description: Method not allowed
+
+  /update_web_config:
+    post:
+      tags: [System]
+      summary: Update web configuration
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Web config updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /update_mqtt_config:
+    post:
+      tags: [System]
+      summary: Update MQTT configuration
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: MQTT config updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /update_advert_rate_limit_config:
+    post:
+      tags: [Adverts]
+      summary: Update advert rate limit configuration
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Advert rate limit config updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /bulk_packets:
+    get:
+      tags: [Packets]
+      summary: Fetch packets in bulk
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 1000
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: start_timestamp
+          in: query
+          schema:
+            type: number
+        - name: end_timestamp
+          in: query
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Bulk packet result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /airtime_data:
+    get:
+      tags: [Packets]
+      summary: Get lightweight airtime packet rows
+      parameters:
+        - name: start_timestamp
+          in: query
+          schema:
+            type: number
+        - name: end_timestamp
+          in: query
+          schema:
+            type: number
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50000
+      responses:
+        '200':
+          description: Airtime data rows
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /airtime_chart_data:
+    get:
+      tags: [Charts]
+      summary: Get server-aggregated airtime chart buckets
+      parameters:
+        - name: start_timestamp
+          in: query
+          schema:
+            type: number
+        - name: end_timestamp
+          in: query
+          schema:
+            type: number
+        - name: bucket_seconds
+          in: query
+          schema:
+            type: integer
+            default: 60
+        - name: sf
+          in: query
+          schema:
+            type: integer
+            default: 9
+        - name: bw_hz
+          in: query
+          schema:
+            type: integer
+            default: 62500
+        - name: cr
+          in: query
+          schema:
+            type: integer
+            default: 5
+        - name: preamble
+          in: query
+          schema:
+            type: integer
+            default: 17
+      responses:
+        '200':
+          description: Airtime buckets
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /adverts_count_by_contact_type:
+    get:
+      tags: [Adverts]
+      summary: Get advert count for contact type
+      parameters:
+        - name: contact_type
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: hours
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Advert count
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /advert_rate_limit_stats:
+    get:
+      tags: [Adverts]
+      summary: Get advert rate-limit runtime stats
+      responses:
+        '200':
+          description: Rate-limit stats
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /crc_error_count:
+    get:
+      tags: [System]
+      summary: Get CRC error count
+      parameters:
+        - name: hours
+          in: query
+          schema:
+            type: integer
+            default: 24
+      responses:
+        '200':
+          description: CRC error count
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /crc_error_history:
+    get:
+      tags: [System]
+      summary: Get CRC error history
+      parameters:
+        - name: hours
+          in: query
+          schema:
+            type: integer
+            default: 24
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: CRC error records
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /memory_debug:
+    get:
+      tags: [System]
+      summary: Get memory diagnostics
+      responses:
+        '200':
+          description: Memory diagnostics
+          content:
+            application/json:
+              schema:
+                type: object
+    post:
+      tags: [System]
+      summary: Start/stop memory diagnostics tracing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action:
+                  type: string
+                  enum: [start, stop]
+      responses:
+        '200':
+          description: Tracing state changed
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /config_export:
+    get:
+      tags: [System]
+      summary: Export configuration
+      parameters:
+        - name: include_secrets
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Exported config payload
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    required: [meta, config]
+                    properties:
+                      meta:
+                        type: object
+                        required: [exported_at, version, config_path, includes_secrets]
+                        properties:
+                          exported_at:
+                            type: string
+                            format: date-time
+                          version:
+                            type: string
+                          config_path:
+                            type: string
+                          includes_secrets:
+                            type: boolean
+                      config:
+                        type: object
+                  error:
+                    type: string
+
+  /config_import:
+    post:
+      tags: [System]
+      summary: Import configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Import result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /identity_export:
+    get:
+      tags: [Identities]
+      summary: Export repeater identity key
+      responses:
+        '200':
+          description: Identity export
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    required: [identity_key_hex, key_length_bytes]
+                    properties:
+                      identity_key_hex:
+                        type: string
+                      key_length_bytes:
+                        type: integer
+                      public_key_hex:
+                        type: string
+                      node_address:
+                        type: string
+                  error:
+                    type: string
+
+  /generate_vanity_key:
+    post:
+      tags: [Identities]
+      summary: Generate vanity identity key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [prefix]
+              properties:
+                prefix:
+                  type: string
+                  minLength: 1
+                  maxLength: 8
+                apply:
+                  type: boolean
+      responses:
+        '200':
+          description: Vanity key generation result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    required: [public_hex, private_hex, attempts]
+                    properties:
+                      public_hex:
+                        type: string
+                      private_hex:
+                        type: string
+                      attempts:
+                        type: integer
+                      applied:
+                        type: boolean
+                  error:
+                    type: string
+
+  /db_stats:
+    get:
+      tags: [System]
+      summary: Get database statistics
+      responses:
+        '200':
+          description: Database stats
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    required: [database_size_bytes, rrd_size_bytes, tables]
+                    properties:
+                      database_size_bytes:
+                        type: integer
+                      rrd_size_bytes:
+                        type: integer
+                      tables:
+                        type: array
+                        items:
+                          type: object
+                          required: [name, row_count, has_timestamp]
+                          properties:
+                            name:
+                              type: string
+                            row_count:
+                              type: integer
+                            oldest_timestamp:
+                              type: number
+                            newest_timestamp:
+                              type: number
+                            has_timestamp:
+                              type: boolean
+                  error:
+                    type: string
+
+  /db_purge:
+    post:
+      tags: [System]
+      summary: Purge database tables
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Table purge result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data, message]
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        deleted:
+                          type: integer
+                        error:
+                          type: string
+                  message:
+                    type: string
+                  error:
+                    type: string
+
+  /db_vacuum:
+    post:
+      tags: [System]
+      summary: Vacuum SQLite database
+      responses:
+        '200':
+          description: Vacuum result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    required: [size_before, size_after, freed_bytes]
+                    properties:
+                      size_before:
+                        type: integer
+                      size_after:
+                        type: integer
+                      freed_bytes:
+                        type: integer
+                  error:
+                    type: string
+
+  /docs:
+    get:
+      tags: [System]
+      summary: Serve Swagger UI docs page
+      responses:
+        '200':
+          description: HTML docs page
+
+  /api/auth/tokens:
+    get:
+      tags: [Authentication]
+      summary: List API tokens (alias path)
+      responses:
+        '200':
+          description: Token list
+          content:
+            application/json:
+              schema:
+                type: object
+    post:
+      tags: [Authentication]
+      summary: Create API token (alias path)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Token created
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/auth/tokens/{token_id}:
+    delete:
+      tags: [Authentication]
+      summary: Revoke API token (alias path)
+      parameters:
+        - name: token_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Token revoked
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /companion:
+    get:
+      tags: [System]
+      summary: List companion bridge instances
+      responses:
+        '200':
+          description: Companion instances
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /companion/self_info:
+    get:
+      tags: [System]
+      summary: Get local companion identity info
+      responses:
+        '200':
+          description: Companion identity
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /companion/contacts:
+    get:
+      tags: [System]
+      summary: List companion contacts
+      responses:
+        '200':
+          description: Contacts
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /companion/contact:
+    get:
+      tags: [System]
+      summary: Get one companion contact
+      parameters:
+        - name: pub_key
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Contact detail
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /companion/import_repeater_contacts:
+    post:
+      tags: [System]
+      summary: Import repeater adverts into companion contacts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Import result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /companion/channels:
+    get:
+      tags: [System]
+      summary: List companion channels
+      responses:
+        '200':
+          description: Channels
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /companion/stats:
+    get:
+      tags: [System]
+      summary: Get companion stats
+      responses:
+        '200':
+          description: Companion stats
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /companion/send_text:
+    post:
+      tags: [System]
+      summary: Send direct text message via companion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Send result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /companion/send_channel_message:
+    post:
+      tags: [System]
+      summary: Send channel message via companion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Send result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /companion/login:
+    post:
+      tags: [System]
+      summary: Initiate companion login flow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Login result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /companion/request_status:
+    post:
+      tags: [System]
+      summary: Request companion status frame
+      responses:
+        '200':
+          description: Request accepted
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /companion/request_telemetry:
+    post:
+      tags: [System]
+      summary: Request companion telemetry frame
+      responses:
+        '200':
+          description: Request accepted
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /companion/send_command:
+    post:
+      tags: [System]
+      summary: Send command to companion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Command result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /companion/reset_path:
+    post:
+      tags: [System]
+      summary: Reset companion route/path state
+      responses:
+        '200':
+          description: Path reset
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /companion/set_advert_name:
+    post:
+      tags: [System]
+      summary: Set companion advert name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Name updated
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /companion/set_advert_location:
+    post:
+      tags: [System]
+      summary: Set companion advert location
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Location updated
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /companion/events:
+    get:
+      tags: [System]
+      summary: Stream companion events (SSE)
+      responses:
+        '200':
+          description: Event stream
+
+  /update/status:
+    get:
+      tags: [System]
+      summary: Get update service status
+      responses:
+        '200':
+          description: Update status
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /update/check:
+    get:
+      tags: [System]
+      summary: Trigger or fetch update check
+      responses:
+        '200':
+          description: Check result
+          content:
+            application/json:
+              schema:
+                type: object
+    post:
+      tags: [System]
+      summary: Trigger update check
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Check started/result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /update/install:
+    post:
+      tags: [System]
+      summary: Install available update
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Install started
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /update/progress:
+    get:
+      tags: [System]
+      summary: Stream update progress (SSE)
+      responses:
+        '200':
+          description: Progress event stream
+
+  /update/channels:
+    get:
+      tags: [System]
+      summary: List update channels
+      responses:
+        '200':
+          description: Available channels
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /update/set_channel:
+    post:
+      tags: [System]
+      summary: Set update channel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Channel changed
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /update/changelog:
+    get:
+      tags: [System]
+      summary: Get update changelog
+      responses:
+        '200':
+          description: Changelog content
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /cli:
+    post:
+      tags: [System]
+      summary: Execute repeater CLI command
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [command]
+              properties:
+                command:
+                  type: string
+      responses:
+        '200':
+          description: CLI command result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  # ============================================================================
+  # Plugins
+  # ============================================================================
+  /plugins:
+    get:
+      tags: [Plugins]
+      summary: List installed plugins
+      description: |
+        List plugins installed by the local plugin manager.
+        Returns 503 when the plugin manager process is not running.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      responses:
+        '504':
+          $ref: '#/components/responses/PluginOutcomeUnknown'
+        '200':
+          description: Plugin list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  plugins:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PluginStatus'
+        '503':
+          description: Plugin manager unavailable
+
+  /plugins/catalogue:
+    get:
+      tags:
+        - Plugins
+      summary: List curated plugin catalogue
+      description: >
+        Fetch the curated openHop plugin catalogue and annotate entries with
+        install state and the currently approved catalogue version.
+        Failures contacting the R2 catalogue do not affect installed plugins.
+      parameters:
+        - name: refresh
+          in: query
+          required: false
+          schema:
+            type: boolean
+          description: Force refresh of the catalogue cache
+      responses:
+        '504':
+          $ref: '#/components/responses/PluginOutcomeUnknown'
+        '200':
+          description: Catalogue entries
+        '502':
+          description: Catalogue unavailable
+        '503':
+          description: Plugin manager unavailable
+  /plugins/catalogue_install:
+    post:
+      tags:
+        - Plugins
+      summary: Install a plugin from the catalogue
+      description: >
+        Download the exact GitHub Release wheel approved by the R2 catalogue
+        version and SHA-256, verify its manifest, install it, and enable the plugin.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  type: string
+                version:
+                  type: string
+                  description: Optional assertion of the currently approved version
+      responses:
+        '504':
+          $ref: '#/components/responses/PluginOutcomeUnknown'
+        '200':
+          description: Installed plugin status
+        '400':
+          description: Invalid request or manifest id mismatch
+        '503':
+          description: Plugin manager unavailable
+  /plugins/updates:
+    get:
+      tags:
+        - Plugins
+      summary: Check plugin update availability
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: refresh
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        '504':
+          $ref: '#/components/responses/PluginOutcomeUnknown'
+        '200':
+          description: Update check result
+        '404':
+          description: Plugin not found
+  /plugins/update:
+    post:
+      tags:
+        - Plugins
+      summary: Update an installed plugin to the approved catalogue version
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  type: string
+                version:
+                  type: string
+      responses:
+        '504':
+          $ref: '#/components/responses/PluginOutcomeUnknown'
+        '200':
+          description: Updated plugin status
+        '400':
+          description: Update unavailable or invalid
+  /plugins/progress:
+    get:
+      tags: [Plugins]
+      summary: Stream an install or update's progress
+      description: |
+        Server-sent events for a plugin's last catalogue install or update, as
+        /update/progress streams the repeater's own updater. JSON events:
+        `connected`, `line`, `status` (idle, running, complete, error),
+        `keepalive`, and one `done` that ends the stream. Idle streams end after
+        a minute. Uploaded wheels are not reported.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: since
+          in: query
+          required: false
+          description: Resume from this line index
+          schema:
+            type: integer
+            default: 0
+        - name: fresh
+          in: query
+          required: false
+          description: Ignore a log already finished when the stream opens; wait for the next operation.
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '504':
+          $ref: '#/components/responses/PluginOutcomeUnknown'
+        '200':
+          description: Event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '503':
+          description: Plugin manager unavailable
+  /plugins/settings:
+    get:
+      tags: [Plugins]
+      summary: Get plugin config.json
+      description: Read the opaque plugin-owned data/config.json object.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '504':
+          $ref: '#/components/responses/PluginOutcomeUnknown'
+        '200':
+          description: Config object
+        '404':
+          description: Plugin not found
+        '503':
+          description: Plugin manager unavailable
+    post:
+      tags: [Plugins]
+      summary: Set plugin config.json
+      description: |
+        Replace plugin-owned data/config.json with a JSON object.
+        Optional restart applies to enabled service plugins.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, config]
+              properties:
+                id:
+                  type: string
+                config:
+                  type: object
+                  additionalProperties: true
+                restart:
+                  type: boolean
+                  default: false
+      responses:
+        '504':
+          $ref: '#/components/responses/PluginOutcomeUnknown'
+        '200':
+          description: Saved
+        '400':
+          description: Invalid config
+        '503':
+          description: Plugin manager unavailable
+
+  /plugins/runtime:
+    get:
+      tags: [Plugins]
+      summary: Get plugin runtime.json
+      description: Read the plugin-owned data/runtime.json object.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '504':
+          $ref: '#/components/responses/PluginOutcomeUnknown'
+        '200':
+          description: Runtime object
+        '404':
+          description: Plugin not found
+        '503':
+          description: Plugin manager unavailable
+
+
+  /plugins/install:
+    post:
+      tags: [Plugins]
+      summary: Install a local plugin wheel
+      description: |
+        Install a Python wheel containing openhop-plugin.json into an isolated
+        virtualenv. Accepts multipart field `wheel` or JSON `wheel_path`.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                wheel:
+                  type: string
+                  format: binary
+          application/json:
+            schema:
+              type: object
+              properties:
+                wheel_path:
+                  type: string
+                  description: Absolute path to a .whl on the Repeater host
+      responses:
+        '504':
+          $ref: '#/components/responses/PluginOutcomeUnknown'
+        '200':
+          description: Installed
+        '400':
+          description: Invalid wheel or manifest
+        '503':
+          description: Plugin manager unavailable
+
+  /plugins/enable:
+    post:
+      tags: [Plugins]
+      summary: Enable a plugin
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  type: string
+                  example: openhop.nomad
+      responses:
+        '504':
+          $ref: '#/components/responses/PluginOutcomeUnknown'
+        '200':
+          description: Enabled
+        '404':
+          description: Not found
+        '503':
+          description: Plugin manager unavailable
+
+  /plugins/disable:
+    post:
+      tags: [Plugins]
+      summary: Disable a plugin
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  type: string
+      responses:
+        '504':
+          $ref: '#/components/responses/PluginOutcomeUnknown'
+        '200':
+          description: Disabled
+        '404':
+          description: Not found
+        '503':
+          description: Plugin manager unavailable
+
+  /plugins/start:
+    post:
+      tags: [Plugins]
+      summary: Start a plugin process
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  type: string
+      responses:
+        '504':
+          $ref: '#/components/responses/PluginOutcomeUnknown'
+        '200':
+          description: Started
+        '409':
+          description: Plugin disabled
+        '503':
+          description: Plugin manager unavailable
+
+  /plugins/stop:
+    post:
+      tags: [Plugins]
+      summary: Stop a plugin process
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  type: string
+      responses:
+        '504':
+          $ref: '#/components/responses/PluginOutcomeUnknown'
+        '200':
+          description: Stopped
+        '503':
+          description: Plugin manager unavailable
+
+  /plugins/restart:
+    post:
+      tags: [Plugins]
+      summary: Restart a plugin process
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  type: string
+      responses:
+        '504':
+          $ref: '#/components/responses/PluginOutcomeUnknown'
+        '200':
+          description: Restarted
+        '503':
+          description: Plugin manager unavailable
+
+  /plugins/logs:
+    get:
+      tags: [Plugins]
+      summary: Tail plugin logs
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: tail
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 200
+      responses:
+        '504':
+          $ref: '#/components/responses/PluginOutcomeUnknown'
+        '200':
+          description: Log lines
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  id:
+                    type: string
+                  lines:
+                    type: array
+                    items:
+                      type: string
+        '503':
+          description: Plugin manager unavailable
+
+  /plugins/uninstall:
+    post:
+      tags: [Plugins]
+      summary: Uninstall a plugin
+      description: Stops the plugin and removes release code. Keeps data/ unless delete_data is true.
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  type: string
+                delete_data:
+                  type: boolean
+                  default: false
+      responses:
+        '504':
+          $ref: '#/components/responses/PluginOutcomeUnknown'
+        '200':
+          description: Uninstalled
+        '503':
+          description: Plugin manager unavailable
+
+  /plugins/{id}:
+    get:
+      tags: [Plugins]
+      summary: Get plugin status
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '504':
+          $ref: '#/components/responses/PluginOutcomeUnknown'
+        '200':
+          description: Status
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - type: object
+                    properties:
+                      success:
+                        type: boolean
+                  - $ref: '#/components/schemas/PluginStatus'
+        '404':
+          description: Not found
+        '503':
+          description: Plugin manager unavailable
+    delete:
+      tags: [Plugins]
+      summary: Uninstall plugin by id
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: delete_data
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '504':
+          $ref: '#/components/responses/PluginOutcomeUnknown'
+        '200':
+          description: Uninstalled
+        '503':
+          description: Plugin manager unavailable
+
+
+components:
+  responses:
+    PluginOutcomeUnknown:
+      description: |
+        The manager response was lost or its completion deadline expired.
+        This is not cancellation: the operation may still complete. Check plugin
+        status before retrying. A busy manager instead returns 503; conflicting
+        lifecycle operations on the same plugin return 409.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, error, outcome]
+            properties:
+              success:
+                type: boolean
+                enum: [false]
+              error:
+                type: string
+              outcome:
+                type: string
+                enum: [unknown]
+  schemas:
+
+    PluginStatus:
+      type: object
+      properties:
+        id:
+          type: string
+          example: openhop.nomad
+        name:
+          type: string
+        version:
+          type: string
+        enabled:
+          type: boolean
+        state:
+          type: string
+          enum: [DISABLED, STOPPED, STARTING, RUNNING, STOPPING, FAILED]
+        pid:
+          type: integer
+          nullable: true
+        has_runtime:
+          type: boolean
+        has_ui:
+          type: boolean
+        ui_entry:
+          type: string
+          nullable: true
+        data_dir:
+          type: string
+        description:
+          type: string
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          description: Response data (varies by endpoint)
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          description: Error message
+
+    NeighborScopeRecord:
+      type: object
+      required: [scopes, status, queried_at]
+      properties:
+        scopes:
+          type: string
+          description: >
+            Comma-separated region scope names from the neighbour's last answer.
+            Empty means it answered that it serves unscoped traffic only.
+        responded_at:
+          type: number
+          nullable: true
+          description: Epoch seconds of the answer `scopes` came from
+        status:
+          type: string
+          enum: [responded, timeout, send_failed]
+          description: Outcome of the most recent query
+        queried_at:
+          type: number
+          description: Epoch seconds of the most recent query
+
+    NeighborLinkSnapshot:
+      type: object
+      properties:
+        peer_hash:
+          type: string
+        path_hash_size:
+          type: integer
+          minimum: 1
+          maximum: 3
+        sample_count:
+          type: integer
+        duplicate_sample_count:
+          type: integer
+        first_seen:
+          type: integer
+        last_seen:
+          type: integer
+        age_seconds:
+          type: number
+        active:
+          type: boolean
+        last_rssi:
+          type: number
+        last_snr:
+          type: number
+        last_score:
+          type: number
+        ewma_rssi:
+          type: number
+        ewma_snr:
+          type: number
+        ewma_score:
+          type: number
+        best_score:
+          type: number
+        worst_score:
+          type: number
+
+    NeighborLinksData:
+      type: object
+      properties:
+        links:
+          type: array
+          items:
+            $ref: '#/components/schemas/NeighborLinkSnapshot'
+        active_within_seconds:
+          type: integer
+        count:
+          type: integer
+
+    NeighborLinksResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/NeighborLinksData'
+
+    NeighborLinkHistoryRow:
+      type: object
+      properties:
+        timestamp:
+          type: integer
+        rssi:
+          type: number
+          nullable: true
+        snr:
+          type: number
+          nullable: true
+        score:
+          type: number
+          nullable: true
+        is_duplicate:
+          type: boolean
+        packet_hash:
+          type: string
+        packet_type:
+          type: integer
+        route_type:
+          type: integer
+        path_hop_count:
+          type: integer
+          nullable: true
+
+    NeighborLinkHistoryData:
+      type: object
+      properties:
+        peer_hash:
+          type: string
+        path_hash_size:
+          type: integer
+        hours:
+          type: integer
+        limit:
+          type: integer
+        rows:
+          type: array
+          description: Observations, oldest first; absent when `bucket_seconds` was requested.
+          items:
+            $ref: '#/components/schemas/NeighborLinkHistoryRow'
+        bucket_seconds: {type: integer, description: Bucket width in seconds; only when requested}
+        buckets:
+          type: array
+          description: One summary per non-empty bucket, oldest first; only when `bucket_seconds` was requested.
+          items:
+            $ref: '#/components/schemas/NeighborLinkHistoryBucket'
+        count:
+          type: integer
+
+    NeighborLinkHistoryBucket:
+      type: object
+      properties:
+        timestamp: {type: integer, description: Bucket start (Unix timestamp)}
+        last_ts: {type: number, description: The bucket's last observation}
+        n: {type: integer, description: Observations in the bucket}
+        dup: {type: integer, description: Observations flagged as duplicates}
+        score: {type: number, nullable: true, description: Mean score}
+        rssi: {type: number, nullable: true, description: Mean RSSI}
+        snr: {type: number, nullable: true, description: Mean SNR}
+
+    NeighborLinkHistoryResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/NeighborLinkHistoryData'
+
+    LbtDiagnosticsResponse:
+      type: object
+      required: [start_time, end_time, bucket_seconds, severe_attempt_threshold, summary, buckets, packet_types, packet_type_buckets, correlations, limitations]
+      properties:
+        start_time:
+          type: integer
+          description: Selected range start timestamp (Unix epoch seconds)
+        end_time:
+          type: integer
+          description: Selected range end timestamp (Unix epoch seconds)
+        bucket_seconds:
+          type: integer
+          minimum: 60
+          maximum: 3600
+          description: Aggregation interval in seconds
+        severe_attempt_threshold:
+          type: integer
+          minimum: 2
+          maximum: 16
+          description: Attempt count threshold used for severe contention classification
+        summary:
+          $ref: '#/components/schemas/LbtSummary'
+        buckets:
+          type: array
+          items:
+            $ref: '#/components/schemas/LbtBucket'
+        packet_types:
+          type: array
+          description: Packet types present in the selected range, sorted by transmission volume.
+          items:
+            $ref: '#/components/schemas/LbtPacketTypeSummary'
+        packet_type_buckets:
+          type: array
+          description: Sparse per-packet-type bucket diagnostics (only combinations with transmissions).
+          items:
+            $ref: '#/components/schemas/LbtPacketTypeBucket'
+        correlations:
+          $ref: '#/components/schemas/LbtCorrelationSet'
+        limitations:
+          type: array
+          items:
+            type: string
+
+    LbtPacketTypeSummary:
+      type: object
+      required: [packet_type, packet_type_label, transmissions, retry_packets]
+      properties:
+        packet_type:
+          type: integer
+          description: Raw packet type code from packet records.
+        packet_type_label:
+          type: string
+          description: Human-readable packet type label.
+        transmissions:
+          type: integer
+          minimum: 0
+        retry_packets:
+          type: integer
+          minimum: 0
+        retry_rate_pct:
+          type: number
+          format: float
+          nullable: true
+
+    LbtPacketTypeBucket:
+      type: object
+      required: [timestamp, packet_type, packet_type_label, transmissions, total_attempts, first_attempt_success, retry_packets, attempts_1, attempts_2, attempts_3, attempts_4_plus, attempts_3_plus, max_attempts, failed_transmissions, severe_contention_count, rf]
+      properties:
+        timestamp:
+          type: integer
+          description: Bucket timestamp (Unix epoch seconds)
+        packet_type:
+          type: integer
+          description: Raw packet type code from packet records.
+        packet_type_label:
+          type: string
+          description: Human-readable packet type label.
+        transmissions:
+          type: integer
+          minimum: 0
+        total_attempts:
+          type: integer
+          minimum: 0
+        first_attempt_success:
+          type: integer
+          minimum: 0
+        retry_packets:
+          type: integer
+          minimum: 0
+        retry_rate_pct:
+          type: number
+          format: float
+          nullable: true
+        first_attempt_success_rate_pct:
+          type: number
+          format: float
+          nullable: true
+        avg_attempts:
+          type: number
+          format: float
+          nullable: true
+        attempts_1:
+          type: integer
+          minimum: 0
+        attempts_2:
+          type: integer
+          minimum: 0
+        attempts_3:
+          type: integer
+          minimum: 0
+        attempts_4_plus:
+          type: integer
+          minimum: 0
+        attempts_3_plus:
+          type: integer
+          minimum: 0
+        attempts_3_plus_pct:
+          type: number
+          format: float
+          nullable: true
+        max_attempts:
+          type: integer
+          minimum: 0
+        failed_transmissions:
+          type: integer
+          minimum: 0
+        severe_contention_count:
+          type: integer
+          minimum: 0
+        rf:
+          $ref: '#/components/schemas/LbtRfBucket'
+
+    LbtSummary:
+      type: object
+      required: [total_transmissions, total_attempts, first_attempt_success, retry_packets, max_attempts, attempts_1, attempts_2, attempts_3, attempts_4_plus, attempts_3_plus, failed_transmissions, busy_channel_events, severe_contention_count, severe_attempt_threshold, has_lbt_data]
+      properties:
+        total_transmissions:
+          type: integer
+          minimum: 0
+        total_attempts:
+          type: integer
+          minimum: 0
+        first_attempt_success:
+          type: integer
+          minimum: 0
+        retry_packets:
+          type: integer
+          minimum: 0
+        retry_rate_pct:
+          type: number
+          format: float
+          nullable: true
+        first_attempt_success_rate_pct:
+          type: number
+          format: float
+          nullable: true
+        avg_attempts:
+          type: number
+          format: float
+          nullable: true
+        median_attempts:
+          type: number
+          format: float
+          nullable: true
+        p95_attempts:
+          type: number
+          format: float
+          nullable: true
+        max_attempts:
+          type: integer
+          minimum: 0
+        attempts_1:
+          type: integer
+          minimum: 0
+        attempts_2:
+          type: integer
+          minimum: 0
+        attempts_3:
+          type: integer
+          minimum: 0
+        attempts_4_plus:
+          type: integer
+          minimum: 0
+        attempts_3_plus:
+          type: integer
+          minimum: 0
+        attempts_3_plus_pct:
+          type: number
+          format: float
+          nullable: true
+        attempts_4_plus_pct:
+          type: number
+          format: float
+          nullable: true
+        failed_transmissions:
+          type: integer
+          minimum: 0
+        busy_channel_events:
+          type: integer
+          minimum: 0
+        severe_contention_count:
+          type: integer
+          minimum: 0
+        severe_contention_pct:
+          type: number
+          format: float
+          nullable: true
+        severe_attempt_threshold:
+          type: integer
+          minimum: 2
+          maximum: 16
+        has_lbt_data:
+          type: boolean
+        worst_bucket:
+          $ref: '#/components/schemas/LbtWorstBucket'
+          nullable: true
+
+    LbtWorstBucket:
+      type: object
+      required: [timestamp, retry_rate_pct, attempts_3_plus_pct, max_attempts, transmissions]
+      properties:
+        timestamp:
+          type: integer
+        retry_rate_pct:
+          type: number
+          format: float
+        attempts_3_plus_pct:
+          type: number
+          format: float
+        max_attempts:
+          type: integer
+          minimum: 0
+        transmissions:
+          type: integer
+          minimum: 0
+
+    LbtBucket:
+      type: object
+      required: [timestamp, transmissions, total_attempts, first_attempt_success, retry_packets, max_attempts, attempts_1, attempts_2, attempts_3, attempts_4_plus, attempts_3_plus, failed_transmissions, busy_channel_events, severe_contention_count, rf]
+      properties:
+        timestamp:
+          type: integer
+          description: Bucket timestamp (Unix epoch seconds)
+        transmissions:
+          type: integer
+          minimum: 0
+        total_attempts:
+          type: integer
+          minimum: 0
+        first_attempt_success:
+          type: integer
+          minimum: 0
+        retry_packets:
+          type: integer
+          minimum: 0
+        retry_rate_pct:
+          type: number
+          format: float
+          nullable: true
+        first_attempt_success_rate_pct:
+          type: number
+          format: float
+          nullable: true
+        avg_attempts:
+          type: number
+          format: float
+          nullable: true
+        median_attempts:
+          type: number
+          format: float
+          nullable: true
+        p95_attempts:
+          type: number
+          format: float
+          nullable: true
+        max_attempts:
+          type: integer
+          minimum: 0
+        attempts_1:
+          type: integer
+          minimum: 0
+        attempts_2:
+          type: integer
+          minimum: 0
+        attempts_3:
+          type: integer
+          minimum: 0
+        attempts_4_plus:
+          type: integer
+          minimum: 0
+        attempts_3_plus:
+          type: integer
+          minimum: 0
+        attempts_3_plus_pct:
+          type: number
+          format: float
+          nullable: true
+        attempts_4_plus_pct:
+          type: number
+          format: float
+          nullable: true
+        failed_transmissions:
+          type: integer
+          minimum: 0
+        busy_channel_events:
+          type: integer
+          minimum: 0
+        severe_contention_count:
+          type: integer
+          minimum: 0
+        severe_contention_pct:
+          type: number
+          format: float
+          nullable: true
+        rf:
+          $ref: '#/components/schemas/LbtRfBucket'
+
+    LbtRfBucket:
+      type: object
+      required: [traffic_volume, rx_count, tx_count, drop_count]
+      properties:
+        avg_rssi:
+          type: number
+          format: float
+          nullable: true
+        avg_snr:
+          type: number
+          format: float
+          nullable: true
+        packet_loss_rate_pct:
+          type: number
+          format: float
+          nullable: true
+        traffic_volume:
+          type: integer
+          minimum: 0
+        rx_count:
+          type: integer
+          minimum: 0
+        tx_count:
+          type: integer
+          minimum: 0
+        drop_count:
+          type: integer
+          minimum: 0
+
+    LbtCorrelationSet:
+      type: object
+      required: [retry_rate_vs_avg_snr, retry_rate_vs_avg_rssi, retry_rate_vs_packet_loss_rate, retry_rate_vs_traffic_volume]
+      properties:
+        retry_rate_vs_avg_snr:
+          $ref: '#/components/schemas/LbtCorrelationValue'
+        retry_rate_vs_avg_rssi:
+          $ref: '#/components/schemas/LbtCorrelationValue'
+        retry_rate_vs_packet_loss_rate:
+          $ref: '#/components/schemas/LbtCorrelationValue'
+        retry_rate_vs_traffic_volume:
+          $ref: '#/components/schemas/LbtCorrelationValue'
+
+    LbtCorrelationValue:
+      type: object
+      required: [coefficient, sample_count]
+      properties:
+        coefficient:
+          type: number
+          format: float
+          nullable: true
+          description: Pearson coefficient in range [-1, 1] when enough samples exist
+        sample_count:
+          type: integer
+          minimum: 0
+        note:
+          type: string
+          nullable: true
+
+    RoomMessage:
+      type: object
+      required: [id, author_pubkey, post_timestamp, message_text, txt_type]
+      properties:
+        id:
+          type: integer
+          description: Database message ID
+          example: 123
+        author_pubkey:
+          type: string
+          pattern: '^[0-9a-fA-F]{64}$|^00{64}$'
+          description: |
+            Author's public key (64 hex chars):
+            - 32 zeros (64 '0's) = server/system message
+            - Other hex = regular user message
+          example: "abc123def456..."
+        author_prefix:
+          type: string
+          pattern: '^[0-9a-fA-F]{8}$'
+          description: First 8 chars of author_pubkey (for display)
+          example: "abc123de"
+        post_timestamp:
+          type: number
+          format: float
+          description: Server timestamp when message was stored (Unix epoch)
+          example: 1734567890.5
+        sender_timestamp:
+          type: integer
+          description: Client-provided timestamp (may be inaccurate)
+          example: 1734567890
+        message_text:
+          type: string
+          maxLength: 160
+          description: Message content (auto-truncated at 160 bytes)
+          example: "Hello world"
+        txt_type:
+          type: integer
+          enum: [0, 2]
+          description: |
+            Message type:
+            - 0: Plain text
+            - 2: Signed plain text
+          example: 0
+        created_at:
+          type: number
+          format: float
+          description: Database insertion timestamp (Unix epoch)
+          example: 1734567890.5
+
+    RoomClient:
+      type: object
+      required: [pubkey, sync_since, unsynced_count, is_active]
+      properties:
+        pubkey:
+          type: string
+          pattern: '^[0-9a-fA-F]{64}$'
+          description: Client's public key (64 hex chars)
+          example: "abc123def456..."
+        pubkey_prefix:
+          type: string
+          pattern: '^[0-9a-fA-F]{8}$'
+          description: First 8 chars of pubkey (for display)
+          example: "abc123de"
+        sync_since:
+          type: number
+          format: float
+          description: Last sync timestamp (Unix epoch)
+          example: 1734567890.5
+        unsynced_count:
+          type: integer
+          minimum: 0
+          maximum: 32
+          description: Number of new messages for this client (max 32, messages NOT sent to author)
+          example: 5
+        pending_ack:
+          type: boolean
+          description: Waiting for ACK from client
+          example: false
+        push_failures:
+          type: integer
+          minimum: 0
+          description: Number of failed delivery attempts
+          example: 0
+        last_activity:
+          type: number
+          format: float
+          description: Last activity timestamp (Unix epoch)
+          example: 1734567890.5
+        in_acl:
+          type: boolean
+          description: Client passes ACL check
+          example: true
+        is_active:
+          type: boolean
+          description: Client is currently active (synced within timeout period)
+          example: true
+
+    Identity:
+      type: object
+      required: [name, type, hash, public_key]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: '^[a-zA-Z0-9_\-\s]+$'
+          description: Identity name (alphanumeric, spaces, hyphens, underscores)
+          example: "General Chat"
+        type:
+          type: string
+          enum: [repeater, room_server]
+          description: |
+            - repeater: Repeater identity (only one allowed per system)
+            - room_server: Room server for group chat
+          example: room_server
+        hash:
+          type: string
+          pattern: '^0x[0-9a-fA-F]{2}$'
+          description: 1-byte identity hash (used in radio packets)
+          example: "0x42"
+        public_key:
+          type: string
+          pattern: '^[0-9a-fA-F]{64}$'
+          description: Ed25519 public key (64 hex chars)
+          example: "abc123def456..."
+        settings:
+          type: object
+          description: Type-specific settings
+          properties:
+            admin_password:
+              type: string
+              minLength: 4
+              description: Admin password (room_server only)
+              example: "admin123"
+            guest_password:
+              type: string
+              minLength: 4
+              description: Guest password (room_server only)
+              example: "guest123"
+            max_posts:
+              type: integer
+              minimum: 1
+              maximum: 32
+              default: 32
+              description: Maximum messages to keep (room_server only, hard limit 32)
+              example: 32
+
+    ACLClient:
+      type: object
+      required: [public_key, public_key_full, address, permissions]
+      properties:
+        public_key:
+          type: string
+          description: Truncated public key for display (first 24 and last 8 chars)
+          example: "03ccf3bb0bed9a51...21416fff"
+        public_key_full:
+          type: string
+          pattern: '^[0-9a-fA-F]{64}$'
+          description: Full client public key (64 hex chars)
+          example: "03ccf3bb0bed9a5109868a1e33ed020519aab6dbb30e42df3b11a21d21416fff"
+        address:
+          type: string
+          description: Client address identifier
+          example: "e1"
+        permissions:
+          type: string
+          enum: [admin, read_write, read_only, guest]
+          description: |
+            Client ACL role (low two bits of the permissions byte, matching
+            MeshCore ClientACL.h):
+            - admin: Full access, including settings and CLI
+            - read_write: May send and receive messages (room server guests)
+            - read_only: Read-only access
+            - guest: Base telemetry only (repeater guests, read-only logins)
+          example: "admin"
+        last_activity:
+          type: integer
+          description: Unix timestamp of last activity
+          example: 1766065148
+        last_login_success:
+          type: integer
+          description: Unix timestamp of last successful login
+          example: 1766065146
+        last_timestamp:
+          type: integer
+          description: Unix timestamp from last client message
+          example: 1766065146
+        identity_name:
+          type: string
+          description: Name of the identity this client is authenticated to
+          example: "rrrrr"
+        identity_type:
+          type: string
+          enum: [repeater, room_server]
+          description: Type of identity
+          example: "room_server"
+        identity_hash:
+          type: string
+          pattern: '^0x[0-9a-fA-F]{2}$'
+          description: Hash of the identity
+          example: "0xC5"
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token authentication via Authorization header
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key authentication for machine-to-machine access
+
+# Future security - currently open
+# security:
+#   - ApiKeyAuth: []

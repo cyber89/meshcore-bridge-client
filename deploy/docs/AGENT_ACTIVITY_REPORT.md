@@ -2,6 +2,31 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Optimización Fase 4 — Auditoría y Salvaguardas de Airtime y Tráfico LoRa (Malla)
+- **Fecha**: 2026-09-19
+- **Estado**: ✅ COMPLETADO — Control de enfriamiento (cooldowns) para comandos administrativos (`traceroute`, `ping 0`, `req_neighbours`), canalización de transmisiones web (`/api/tx`) a través de la cola de prioridad `TxRateLimiter` con espaciado LoRa, contabilidad integral de airtime en transmisiones directas y protección contra saturación crítica del Duty Cycle (100% legal).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect).
+- **Acciones Realizadas**:
+  1. **`src/repeater_manager.py`**:
+     - Añadidos intervalos configurables: `min_ping_interval_s = 15.0`, `min_traceroute_interval_s = 60.0` y `min_neighbours_interval_s = 30.0`.
+     - Implementados métodos de verificación y registro por nodo: `check_ping_cooldown()`, `record_ping_sent()`, `check_traceroute_cooldown()`, `record_traceroute_sent()`, `check_neighbours_cooldown()`, `record_neighbours_sent()`.
+  2. **`src/admin/traceroute_executor.py`**:
+     - En `execute()`: verificado `check_traceroute_cooldown()` antes de la emisión RF. Si se reintenta antes de los 60s, devuelve HTTP 429 con `cooldown_remaining` sin ocupar la radio.
+     - Registro de timestamp con `record_traceroute_sent()` tras la emisión.
+  3. **`src/admin/repeater_executor.py`**:
+     - En `_execute_ping_zero()`: verificado `check_ping_cooldown()`. Si está en enfriamiento (< 15s), retorna 429 de inmediato.
+     - En `_try_execute_binary_or_anon()` (`req_neighbours`): verificado `check_neighbours_cooldown()` (< 30s) retornando 429 si procede.
+  4. **`src/web/controllers/tx_controller.py`**:
+     - En `send_tx()`: enrutamiento de transmisiones web a través de `self.ctx.bridge.rate_limiter.submit()` con `priority=TxPriority.NORMAL`, aplicando espaciado regulatorio LoRa (`tx_interval_sec + 10% airtime + jitter`) y registrando el airtime en `AirtimeTracker`.
+  5. **`src/rate_limiter.py`**:
+     - En `_worker_loop()`: protección de duty cycle crítico. Si `hourly_duty_cycle_pct` alcanza el 100% del límite legal (1.0% = 36,000 ms/h), los paquetes de prioridad baja (`TxPriority.LOW`: telemetría, anuncios) se suspenden y descartan con aviso de advertencia, reservando el transceptor exclusivamente para mensajes de alta prioridad (ACKs y comandos admin).
+  6. **`src/bridge_core.py`**:
+     - En `_execute_tx()`: transmisiones directas que no provienen de `TxItem` se registran en `AirtimeTracker`, garantizando que el 100% de los paquetes emitidos se reflejen en los contadores y gráficas.
+- **Verificación y Calidad**:
+  - `python -m py_compile`: 0 errores en todos los módulos modificados.
+  - Scratch script de pruebas (`test_phase4_safeguards.py`): 100% de pruebas de cooldown y aislamiento superadas.
+  - `python scripts/sync_deploy.py`: completado con éxito.
+
 ### Hito: Optimización Fase 3 — Persistencia en Disco y Protección de Micro-SD (Debounce atómico + Dirty Checking)
 - **Fecha**: 2026-09-19
 - **Estado**: ✅ COMPLETADO — Eliminación de escrituras redundantes a tarjeta Micro-SD y flash mediante dirty-checking (`_dirty`) en `NodeRegistry` y `ChannelsController`, y consolidación de ráfagas mediante guardado diferido atómico (`schedule_debounced_save`).

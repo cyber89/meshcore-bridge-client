@@ -1,0 +1,62 @@
+# Pre-commit hooks for mc_repeater
+# Install: pip install pre-commit
+# Setup: pre-commit install
+# Run manually: pre-commit run --all-files
+
+default_language_version:
+  python: python3
+
+repos:
+  # Python-focused safety checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-ast
+        files: ^.*\.py$
+      - id: debug-statements
+        files: ^.*\.py$
+      - id: check-docstring-first
+        files: ^.*\.py$
+      - id: check-builtin-literals
+        files: ^.*\.py$
+
+  # Modern Python linting + import sorting + formatting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.14
+    hooks:
+      - id: ruff-check
+        args: ["--fix"]
+        files: ^.*\.py$
+      - id: ruff-format
+        args: ["--check"]
+        files: ^.*\.py$
+
+  # Security-focused static analysis
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.9
+    hooks:
+      - id: bandit
+        args: ["-q", "-l", "-i"]
+        files: ^.*\.py$
+        exclude: ^tests/
+
+  # Test suite gate
+  - repo: local
+    hooks:
+      - id: openapi-contract-check
+        name: OpenAPI contract check
+        entry: python scripts/check_openapi_contract.py --strict-methods
+        language: python
+        additional_dependencies: [PyYAML]
+        pass_filenames: false
+        always_run: true
+        files: ^(repeater/web/.*\.py|repeater/web/openapi\.yaml)$
+
+      - id: pytest
+        name: pytest
+        entry: ./scripts/precommit-pytest.sh
+        language: system
+        pass_filenames: false
+        always_run: true
+        types: [python]

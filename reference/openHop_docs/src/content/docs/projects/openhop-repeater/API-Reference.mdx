@@ -1,0 +1,73 @@
+---
+title: API Reference
+description: Interactive OpenAPI reference for the authenticated openHop Repeater REST API, including plugin management.
+sidebar:
+  order: 11
+---
+
+import OpenApiViewer from '../../../../components/OpenApiViewer.astro';
+
+This reference is synchronized from
+[`repeater/web/openapi.yaml`](https://github.com/openhop-dev/openhop_repeater/blob/dev/repeater/web/openapi.yaml).
+Download the [raw specification](/openapi/repeater.yaml) for client generation.
+Check your installed Repeater version before relying on a newer endpoint.
+
+Most endpoints require a JWT or API token. Interactive requests can change
+configuration, identities, policy, radio state, install executable plugins, or
+transmit on the mesh. Confirm the selected server and use read-only endpoints
+first. The public documentation site does not proxy requests to your Repeater.
+A relative `/api` server on this site is not your device; `localhost` refers to
+the machine running your browser. HTTPS pages may also block requests to an
+HTTP-only device as mixed content.
+
+Review [Security and Authentication](/projects/openhop-repeater/security-and-authentication/)
+before exposing or automating the API. API tokens are administrator-equivalent,
+not read-only telemetry credentials.
+
+## Plugin management
+
+The `Plugins` group covers catalogue discovery, wheel installation, available
+updates, settings, runtime arguments, lifecycle controls, logs, and uninstall.
+The Repeater API forwards these operations to the separate plugin manager. A
+missing manager returns HTTP 503 without making the rest of Repeater unavailable.
+
+Read [Plugins](/projects/openhop-repeater/plugins/) for the dashboard workflow,
+[Advanced Plugin Administration](/projects/openhop-repeater/plugin-administration/)
+for API examples and recovery, and [Plugin Development](/projects/openhop-repeater/plugin-development/)
+for the package contract.
+
+Important integration details:
+
+- `POST /api/plugins/settings` replaces the plugin-owned configuration object;
+  it is not a partial merge. An optional restart applies to enabled service plugins.
+- `GET /api/plugins/progress?id=PLUGIN_ID` streams catalogue install/update
+  progress as server-sent events. It does not report uploaded-wheel installs.
+  `since` resumes from a line index; `fresh=true` waits for the next operation
+  rather than replaying one already finished.
+- Progress events include `connected`, `line`, `status`, `keepalive`, and `done`.
+  The mutation request and the progress stream are separate requests.
+- A transport timeout with HTTP 504 and `outcome: unknown` is not cancellation
+  or proof of rollback. Read the plugin's status before retrying a mutation.
+- Plugin settings and logs may contain sensitive data. Do not publish responses
+  or pass administrator tokens to untrusted integrations.
+
+## Neighbours and history
+
+Neighbour operations include `publish_neighbors` for scheduling a full MQTT
+publication cycle, `neighbor_scopes` for persisted scopes, and
+`query_neighbor_scopes` for querying one zero-hop neighbour. Publishing and querying
+are actions, not passive reads.
+
+`GET /api/neighbor_link_history` accepts `peer_hash`, `path_hash_size`, `hours`,
+and `limit`. Add `bucket_seconds` for aggregated history: the response contains
+`buckets` instead of raw `rows`. The minimum bucket width is 60 seconds and the
+limit applies to buckets in this mode.
+
+The runtime `noise_floor_history` endpoint also accepts `hours`, `limit`, and a
+non-negative `offset`. Its response echoes the normalized `limit` and `offset`,
+which lets a client page through dense samples. The upstream OpenAPI form does
+not yet expose all of these pagination fields.
+
+## Interactive API Docs
+
+<OpenApiViewer />

@@ -11,6 +11,9 @@ Este directorio contiene los repositorios oficiales de MeshCore utilizados exclu
 | **`/reference/meshcore/`** | `https://github.com/meshcore-dev/MeshCore` | Firmware oficial en C/C++ (ESP32, nRF52840, RP2040) | Extracción de layouts de structs, enums, opcodes, constantes de framing UART y algoritmos CRC. |
 | **`/reference/meshcore_py/`** | `https://github.com/meshcore-dev/meshcore_py` | SDK oficial de Python para MeshCore | Consulta de clases de eventos, deserializadores de paquetes y comandos seriales. |
 | **`/reference/meshcore_cli/`** | `https://github.com/meshcore-dev/meshcore-cli` | CLI oficial en Python | Referencia de interacción interactiva, comandos de repetidor y utilidades de configuración. |
+| **`/reference/openhop_core/`** | `https://github.com/openhop-dev/openhop_core` | Reimplementación completa de MeshCore en Python nativo para Linux/Raspberry Pi con soporte LoRa SPI | Referencia de routing en Python, drivers SPI SX1262/SX127x y compatibilidad binaria MeshCore. |
+| **`/reference/openhop_repeater/`** | `https://github.com/openhop-dev/openhop_repeater` | Daemon de repetidor MeshCore en Python para Linux/SBCs con dashboard web | Referencia de arquitectura de repetidores autónomos, gestión de paquetes y panel web. |
+| **`/reference/openHop_docs/`** | `https://github.com/openhop-dev/openHop_docs` | Documentación técnica del ecosistema openHop | Guías de integración de hardware, repetidores y especificaciones. |
 
 ---
 
