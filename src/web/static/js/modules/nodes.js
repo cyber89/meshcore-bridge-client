@@ -385,9 +385,6 @@ export class NodesModule {
             <button type="button" class="btn-primary btn-sm btn-contact-dm" title="${I18n.t('contacts.title_chat')}">
               <span data-lucide="message-square" data-size="13"></span>${I18n.t('nodes.chat_btn')}
             </button>
-            <button type="button" class="btn-secondary btn-sm btn-contact-ping" title="${I18n.t('nodes.ping_title') || 'Ping directo de 0 saltos'}">
-              <span data-lucide="crosshair" data-size="13"></span> ${I18n.t('nodes.ping_btn') || 'Ping'}
-            </button>
             <button type="button" class="btn-secondary btn-sm btn-contact-trace" title="${I18n.t('contacts.title_trace')}">
               <span data-lucide="git-commit" data-size="13"></span>${I18n.t('nodes.trace_btn')}
             </button>
@@ -447,10 +444,6 @@ export class NodesModule {
 
         cCard.querySelector(".btn-contact-dm")?.addEventListener("click", () => {
           if (this.ctx.openDmConversation) this.ctx.openDmConversation(node.public_key, cleanName);
-        });
-
-        cCard.querySelector(".btn-contact-ping")?.addEventListener("click", () => {
-          this.pingNode(node.public_key, cleanName);
         });
 
         cCard.querySelector(".btn-contact-trace")?.addEventListener("click", () => {
@@ -565,7 +558,7 @@ export class NodesModule {
                 <span data-lucide="message-square" data-size="13"></span>${I18n.t('nodes.chat_btn')} DM
               </button>
             ` : ""}
-            ${!isLocal ? `
+            ${!isLocal && isRepeater ? `
               <button type="button" class="btn-secondary btn-sm btn-ping-node" title="${I18n.t('nodes.ping_title') || 'Ping directo de 0 saltos'}">
                 <span data-lucide="crosshair" data-size="13"></span> ${I18n.t('nodes.ping_btn') || 'Ping'}
               </button>
@@ -602,10 +595,12 @@ export class NodesModule {
             if (navBtn) navBtn.click();
           });
         }
-        if (!isLocal) {
+        if (!isLocal && isRepeater) {
           nCard.querySelector(".btn-ping-node")?.addEventListener("click", () => {
             this.pingNode(node.public_key, cleanName);
           });
+        }
+        if (!isLocal) {
           nCard.querySelector(".btn-trace-node")?.addEventListener("click", () => {
             if (this.ctx.openTracerouteModal) this.ctx.openTracerouteModal(node.public_key, cleanName);
           });
@@ -945,6 +940,16 @@ export class NodesModule {
   async pingNode(pubkey, name) {
     if (!pubkey) return;
     const cleanName = name || pubkey.slice(0, 8);
+
+    const node = this.knownNodes?.get(pubkey.toLowerCase());
+    const roleUpper = String(node?.role || "").toUpperCase();
+    if (roleUpper === "CLIENT") {
+      if (this.ctx.showToast) {
+        this.ctx.showToast("Ping (Hop 0) solo está disponible para repetidores de infraestructura", "warning");
+      }
+      return;
+    }
+
     if (this.ctx.showToast) {
       const sendingMsg = (window.I18n ? window.I18n.t('toast.ping_sending') : null)?.replace('{name}', cleanName) || `🎯 Enviando Ping (Hop 0) a ${cleanName}...`;
       this.ctx.showToast(sendingMsg, "info");

@@ -2,6 +2,20 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Restricción del Botón Ping (Hop 0) Exclusivamente a Repetidores Compatibles
+- **Fecha**: 2026-09-19
+- **Estado**: ✅ COMPLETADO — Eliminado el botón Ping de las tarjetas de contactos (clientes) y restringido en el directorio unificado de nodos para que solo se muestre en repetidores (`REPEATER` / `ROUTER`); agregada guarda preventiva en `pingNode()`.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Firmware Investigator), Agente 4 (Web UI/UX Architect).
+- **Causa Raíz Diagnosticada**:
+  - En la pila oficial de MeshCore, `ping 0` es un comando administrativo de CLI ejecutado exclusivamente por nodos repetidores (`REPEATER` / `ROUTER`). Los nodos clientes (`CLIENT`), sensores y la estación local no ejecutan el servidor de comandos de repetidor ni responden a `ping 0`.
+  - La interfaz web mostraba el botón `Ping` en todas las tarjetas de contactos y en todos los nodos no locales del directorio, lo que inducía a transmisiones fallidas de radio por RF y generaba advertencias de timeout innecesarias.
+- **Acciones Realizadas**:
+  1. **`src/web/static/js/modules/nodes.js`**:
+     - En `renderContacts`: Eliminado el botón `btn-contact-ping` y su event listener de las tarjetas de contactos (los contactos son clientes de mensajería).
+     - En `renderNodesDirectory`: Restringida la renderización del botón `btn-ping-node` y su listener a `${!isLocal && isRepeater}`.
+     - En `pingNode`: Añadida guarda preventiva que rechaza peticiones de ping dirigidas a nodos con rol `CLIENT`, notificando al usuario con toast informativo.
+- **Impacto en la Malla LoRa**: Se evita el desperdicio de airtime en transmisiones `ping 0` hacia nodos clientes o sensores que no tienen capacidad de respuesta.
+
 ### Hito: Soporte Completo de Anchos de Banda (BW) Oficiales de MeshCore (62.5 kHz, 31.25 kHz, etc.)
 - **Fecha**: 2026-09-19
 - **Estado**: ✅ COMPLETADO — Agregados todos los anchos de banda permitidos por el firmware MeshCore (7.8, 10.4, 15.6, 20.8, 31.25, 41.7, 62.5, 125, 250, 500 kHz) tanto para el nodo local como para repetidores remotos; corregido redondeo de enteros en la Web UI.
