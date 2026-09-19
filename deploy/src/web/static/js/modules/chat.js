@@ -1224,6 +1224,10 @@ export class ChatModule {
       detectedLat = parseFloat(gpsMatch[1]);
       detectedLon = parseFloat(gpsMatch[2]);
       if (!isNaN(detectedLat) && !isNaN(detectedLon)) {
+        // Limpiar las coordenadas del texto para evitar que se muestren dos veces en la misma burbuja
+        const textWithoutGps = cleanDisplayText.replace(gpsMatch[0], "").replace(/^[📍\s:]+/, "").replace(/[📍\s:]+$/, "").trim();
+        cleanDisplayText = textWithoutGps;
+
         locationCardHtml = `
           <div class="chat-location-card">
             <div class="loc-card-header">
