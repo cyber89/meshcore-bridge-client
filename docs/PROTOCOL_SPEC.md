@@ -73,8 +73,16 @@ graph TD
 
 ---
 
-## 3. Delimitación de Tramas Seriales y Byte Stuffing
+## 3. Delimitación de Tramas Seriales y Capas de Transporte
 
+MeshCore Bridge opera bajo una **arquitectura de doble capa de transporte**:
+
+1. **Transporte Primario Oficial (Protocolo Companion MeshCore)**:
+   Tanto en la conexión física USB-CDC (Serial) con el transceptor como en la interfaz de red TCP (puerto 5000), el puente interactúa primariamente con el firmware de MeshCore a través del protocolo Companion con enmarcado `<` (comandos TX) y `>` (eventos/respuestas RX) con longitud en formato Little-Endian (detallado en la Sección 3.1).
+2. **Transporte Wire Fallback (Byte-Stuffing 9-Byte)**:
+   Se conserva la estructura `MeshcoreFrame` (`0xAA`/`0x55` con CRC-16 CCITT) como interfaz de bajo nivel para compatibilidad con simuladores de trama en memoria y hardware serial en bruto que no utilice el protocolo companion.
+
+### Especificación de Trama Byte-Stuffing (Transporte Fallback / Wire Raw)
 Para asegurar que los flujos seriales continuos no interpreten datos arbitrarios como inicio/fin de trama, se aplica **Byte Stuffing (Escaping)** determinista:
 
 ```text
@@ -100,7 +108,7 @@ Para asegurar que los flujos seriales continuos no interpreten datos arbitrarios
 
 ---
 
-## 3.1 Protocolo Companion Oficial (WiFi / TCP Socket en Puerto 5000)
+## 3.1 Protocolo Companion Oficial (Serial USB y WiFi / TCP Socket en Puerto 5000)
 
 Para la interacción directa con la **App Móvil oficial de MeshCore (Android/iOS)**, el SDK Python (`meshcore_py`) y el CLI (`meshcore_cli`), el firmware y el bridge exponen un servidor de sockets TCP en el puerto `5000` con el siguiente formato de trama binaria:
 
@@ -273,15 +281,32 @@ MeshCore soporta hasta **8 canales concurrentes** (Canales 0 al 7):
 | `30` / `0x1E` | `GET_CONTACT_BY_KEY`| Consulta contacto específico por clave pública |
 | `31` / `0x1F` | `GET_CHANNEL` | Consulta configuración de un canal específico |
 | `32` / `0x20` | `SET_CHANNEL` | Guarda o actualiza un canal (nombre, PSK) |
+| `33` / `0x21` | `SIGN_START` | Inicia sesión de firma criptográfica de datos en el transceptor |
+| `34` / `0x22` | `SIGN_DATA` | Envía fragmento de datos para firmar en sesión activa |
+| `35` / `0x23` | `SIGN_FINISH` | Finaliza sesión y retorna la firma digital Ed25519 (64B) |
 | `36` / `0x24` | `SEND_TRACE_PATH` | Inicia trazado de ruta de radio (Traceroute) |
 | `37` / `0x25` | `SET_DEVICE_PIN` | Configura PIN del dispositivo para emparejamiento BLE / acceso |
-| `38` / `0x26` | `SET_OTHER_PARAMS` | Configura parámetros secundarios |
+| `38` / `0x26` | `SET_OTHER_PARAMS` | Configura parámetros secundarios (telemetría base/loc/env, multi-acks) |
 | `39` / `0x27` | `SEND_TELEMETRY_REQ`| Solicita reporte de telemetría a nodo remoto |
-| `40` / `0x28` | `GET_CUSTOM_VARS` | Consulta variables personalizadas |
-| `41` / `0x29` | `SET_CUSTOM_VAR` | Configura una variable personalizada |
+| `40` / `0x28` | `GET_CUSTOM_VARS` | Consulta variables personalizadas guardadas en el transceptor |
+| `41` / `0x29` | `SET_CUSTOM_VAR` | Configura una variable personalizada (`clave:valor`) |
+| `42` / `0x2A` | `GET_ADVERT_PATH` | Consulta la ruta histórica registrada para un anuncio de nodo |
+| `43` / `0x2B` | `GET_TUNING_PARAMS` | Consulta parámetros de sintonización y retardo (`rx_delay`, `airtime_factor`) |
+| `50` / `0x32` | `SEND_BINARY_REQ` | Transmite solicitud binaria estructurada (Status, MMA, ACL, Neighbours) |
+| `51` / `0x33` | `FACTORY_RESET` | Restablece el dispositivo a valores de fábrica y formatea filesystem |
+| `52` / `0x34` | `SEND_PATH_DISCOVERY_REQ` | Inicia descubrimiento activo de ruta de retorno mediante inundación |
+| `54` / `0x36` | `SET_FLOOD_SCOPE_KEY` | Configura clave de transporte o fuerza modo no restringido |
+| `55` / `0x37` | `SEND_CONTROL_DATA` | Envía paquete de control (ej. descubrimiento de vecinos RF) |
+| `56` / `0x38` | `GET_STATS` | Consulta estadísticas de hardware (0=Core, 1=Radio, 2=Paquetes) |
+| `57` / `0x39` | `SEND_ANON_REQ` | Transmite solicitud anónima (Regions, Owner, Basic clock) |
 | `58` / `0x3A` | `SET_AUTOADD_CONFIG`| Configura la directiva de auto-adición / aprobación manual de nodos |
+| `59` / `0x3B` | `GET_AUTOADD_CONFIG`| Consulta la directiva de auto-adición de contactos configurada |
+| `60` / `0x3C` | `GET_ALLOWED_REPEAT_FREQ` | Consulta el rango de frecuencias autorizadas para modo repetidor |
 | `61` / `0x3D` | `SET_PATH_HASH_MODE`| Modo de compresión hash para rutas multi-salto (0=full, 1=1B, 2=2B) |
-| `64` / `0x40` | `GET_DEFAULT_FLOOD_SCOPE` | Consulta límite de saltos de inundación |
+| `62` / `0x3E` | `SEND_CHANNEL_DATA` | Envía datagrama binario sobre un canal grupal |
+| `63` / `0x3F` | `SET_DEFAULT_FLOOD_SCOPE` | Configura nombre y clave del ámbito de inundación por defecto |
+| `64` / `0x40` | `GET_DEFAULT_FLOOD_SCOPE` | Consulta nombre y clave del ámbito de inundación por defecto |
+| `65` / `0x41` | `SEND_RAW_PACKET` | Inyecta paquete de radio crudo en la cola de transmisión |
 
 ### Notificaciones Asíncronas Push y Respuestas (`PacketType` - Radio $\to$ Host):
 | Código (Dec / Hex) | Mnemónico | Descripción |

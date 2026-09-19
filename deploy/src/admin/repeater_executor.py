@@ -306,6 +306,14 @@ class RepeaterAdminExecutor:
             if req.action in ("login", "auth"):
                 return await self._execute_auth_command(rf_ctx)
 
+            if req.action in (
+                "req_neighbours", "req_neighbors", "neighbours", "neighbors",
+                "req_owner", "req_regions", "req_clock", "req_acl",
+            ):
+                bin_res = await self._try_execute_binary_or_anon(rf_ctx)
+                if bin_res is not None:
+                    return bin_res
+
             if req.action in ("get_stats_core", "get_stats_radio", "get_stats_packets"):
                 # Expose via binary/anon req logic if supported by SDK, otherwise fallback to unit command
                 return await self._execute_unit_command(rf_ctx)
@@ -313,6 +321,92 @@ class RepeaterAdminExecutor:
             return await self._execute_unit_command(rf_ctx)
         finally:
             self._unregister_waiters(waiter_keys, fut, include_ping=False)
+
+    async def _try_execute_binary_or_anon(self, rf_ctx: RfExecutionContext) -> dict[str, Any] | None:
+        """Intenta ejecutar solicitudes binarias o anónimas oficiales si el SDK las soporta."""
+        mc = rf_ctx.req.mc
+        if not mc or not hasattr(mc, "commands"):
+            return None
+
+        action = rf_ctx.req.action.lower()
+        target = rf_ctx.dest_target
+        cmds = mc.commands
+
+        try:
+            if action in ("req_neighbours", "req_neighbors", "neighbours", "neighbors") and hasattr(cmds, "req_neighbours_sync"):
+                count = int(rf_ctx.req.admin_data.get("count", 255))
+                offset = int(rf_ctx.req.admin_data.get("offset", 0))
+                data = await cmds.req_neighbours_sync(target, count=count, offset=offset, min_timeout=4.0)
+                if data is not None and isinstance(data, dict):
+                    rf_ctx.res.update({
+                        "status": "ok",
+                        "action": action,
+                        "target_node": str(rf_ctx.req.target_node),
+                        "neighbours_count": data.get("neighbours_count", 0),
+                        "results_count": data.get("results_count", 0),
+                        "neighbours": data.get("neighbours", []),
+                        "message": f"{data.get('results_count', 0)} vecinos directos descubiertos por radio",
+                    })
+                    self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{rf_ctx.req.target_node}/neighbours", json.dumps(rf_ctx.res), 1)
+                    return rf_ctx.res
+
+            elif action in ("req_owner", "owner") and hasattr(cmds, "req_owner_sync"):
+                data = await cmds.req_owner_sync(target, min_timeout=4.0)
+                if data is not None and isinstance(data, dict):
+                    rf_ctx.res.update({
+                        "status": "ok",
+                        "action": action,
+                        "target_node": str(rf_ctx.req.target_node),
+                        "owner_name": data.get("name", ""),
+                        "owner_info": data.get("owner", ""),
+                        "message": f"Propietario: {data.get('owner', '')} ({data.get('name', '')})",
+                    })
+                    self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{rf_ctx.req.target_node}/owner", json.dumps(rf_ctx.res), 1)
+                    return rf_ctx.res
+
+            elif action in ("req_regions", "regions") and hasattr(cmds, "req_regions_sync"):
+                data = await cmds.req_regions_sync(target, min_timeout=4.0)
+                if data is not None:
+                    rf_ctx.res.update({
+                        "status": "ok",
+                        "action": action,
+                        "target_node": str(rf_ctx.req.target_node),
+                        "regions": data,
+                        "message": f"Regiones configuradas: {data}",
+                    })
+                    self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{rf_ctx.req.target_node}/regions", json.dumps(rf_ctx.res), 1)
+                    return rf_ctx.res
+
+            elif action in ("req_clock", "clock", "req_basic") and hasattr(cmds, "req_basic_sync"):
+                data = await cmds.req_basic_sync(target, min_timeout=4.0)
+                if data is not None:
+                    rf_ctx.res.update({
+                        "status": "ok",
+                        "action": action,
+                        "target_node": str(rf_ctx.req.target_node),
+                        "data": data,
+                        "message": "Respuesta de reloj y estado básico obtenida",
+                    })
+                    self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{rf_ctx.req.target_node}/clock", json.dumps(rf_ctx.res), 1)
+                    return rf_ctx.res
+
+            elif action in ("req_acl", "acl") and hasattr(cmds, "req_acl_sync"):
+                data = await cmds.req_acl_sync(target, min_timeout=4.0)
+                if data is not None:
+                    rf_ctx.res.update({
+                        "status": "ok",
+                        "action": action,
+                        "target_node": str(rf_ctx.req.target_node),
+                        "acl_data": data,
+                        "message": "Tabla de control de acceso obtenida del repetidor",
+                    })
+                    self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{rf_ctx.req.target_node}/acl", json.dumps(rf_ctx.res), 1)
+                    return rf_ctx.res
+
+        except Exception as e:
+            logging.debug(f"Fallo en ejecución de solicitud binaria/anónima ({action}): {e}")
+
+        return None
 
     async def _execute_auth_command(self, rf_ctx: RfExecutionContext) -> dict[str, Any]:
         """Ejecuta inicio de sesión remoto en el repetidor."""
