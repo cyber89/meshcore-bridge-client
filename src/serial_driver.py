@@ -565,6 +565,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                     EventType.TRACE_DATA: self._handle_trace_data,
                     EventType.RAW_DATA: self._handle_raw_data,
                     EventType.CONTROL_DATA: self._handle_control_data,
+                    EventType.MESSAGES_WAITING: self._handle_messages_waiting,
                 }
                 if hasattr(EventType, "LOG_DATA"):
                     self._sdk_dispatch_cache[EventType.LOG_DATA] = self._handle_log_data
@@ -650,6 +651,34 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                     await asyncio.sleep(0.15)
                 except Exception as e:
                     logging.warning(f"Aviso en sincronización inicial de radio ({cmd_name}): {e}")
+        await self.drain_pending_messages()
+
+    async def drain_pending_messages(self) -> None:
+        """Extrae de forma exhaustiva todos los mensajes pendientes en la cola de la radio física (CMD_SYNC_NEXT_MESSAGE)."""
+        if not self.mc or not hasattr(self.mc, "commands") or not hasattr(self.mc.commands, "get_msg"):
+            return
+        if getattr(self, "_is_draining_messages", False):
+            return
+        self._is_draining_messages = True
+        try:
+            for _ in range(50):
+                res = await self.mc.commands.get_msg(timeout=1.5)
+                if not res:
+                    break
+                res_type = getattr(res, "type", None)
+                if res_type in (getattr(EventType, "NO_MORE_MSGS", None), getattr(EventType, "ERROR", None)):
+                    break
+                await asyncio.sleep(0.08)
+        except Exception as ex:
+            logging.debug(f"Aviso drenando mensajes de la radio: {ex}")
+        finally:
+            self._is_draining_messages = False
+
+    async def _handle_messages_waiting(self, data: Any) -> None:
+        """Maneja notificación de mensajes en cola de la radio y los extrae."""
+        if self.rx_callback:
+            self.rx_callback(data)
+        await self.drain_pending_messages()
 
     async def _handle_direct_message(self, data: Any) -> None:
         """Maneja mensajes directos recibidos."""

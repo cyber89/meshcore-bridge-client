@@ -69,4 +69,17 @@ class SystemHandler(BaseRxHandler):
                 router_ctx.background_tasks.add(task)
                 task.add_done_callback(router_ctx.background_tasks.discard)
 
+        # Si hay mensajes en espera en la radio, drenar proactivamente la cola de mensajes
+        if meta.ev_upper == "MESSAGES_WAITING" or str(payload.get("event_type", "")).upper() == "MESSAGES_WAITING":
+            adapter = getattr(router_ctx, "serial_adapter", None)
+            if adapter and hasattr(adapter, "drain_pending_messages"):
+                try:
+                    import asyncio
+                    loop = router_ctx.loop or asyncio.get_running_loop()
+                    drain_task = loop.create_task(adapter.drain_pending_messages())
+                    router_ctx.background_tasks.add(drain_task)
+                    drain_task.add_done_callback(router_ctx.background_tasks.discard)
+                except Exception as ex_drain:
+                    logging.debug(f"Aviso disparando drenado de mensajes desde SystemHandler: {ex_drain}")
+
         return True

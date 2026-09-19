@@ -2,6 +2,31 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Remediación de Recepción y Drenado Automático de Mensajes en Cola RF (ACK recibido sin entrega en WebUI)
+- **Fecha**: 2026-09-19
+- **Estado**: ✅ COMPLETADO — Implementado drenado exhaustivo proactivo de la cola de radio física (`drain_pending_messages` vía `CMD_SYNC_NEXT_MESSAGE`), mapeo de `EventType.MESSAGES_WAITING` en `serial_driver.py` y `SystemHandler`, inclusión de `type` e `is_direct` en `rx_router.py`, y soporte completo para `event_type === "direct"` en `chat.js`.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect).
+- **Causa Raíz Diagnosticada**:
+  1. En el firmware oficial de MeshCore Companion (`MyMesh.cpp`), cuando la radio recibe un mensaje por RF y transmite el ACK físico al emisor, **el texto del mensaje queda retenido en la cola interna (`offline_queue`) de la radio**. El firmware emite `PUSH_CODE_MSG_WAITING (0x83)` por el puerto serie USB, pero NO entrega el mensaje hasta que el host envíe explícitamente `CMD_SYNC_NEXT_MESSAGE` (`0x0A` / `mc.commands.get_msg()`).
+  2. En `src/serial_driver.py`, `EventType.MESSAGES_WAITING` no estaba mapeado en `_sdk_dispatch_cache` y caía en el handler genérico sin llamar a `get_msg()`.
+  3. En `src/routers/system_handler.py`, `MESSAGES_WAITING` se publicaba por WebSocket pero no activaba la extracción del mensaje de la radio.
+  4. En `src/web/static/js/modules/chat.js` (línea 1507), `isDm` solo evaluaba `payload.type === "direct"` y no `payload.event_type === "direct"`. Por tanto, cualquier DM entrante se enrutaba por error al feed `ch_0` en vez de a `dm_${canonicalSender}`, impidiendo que apareciera en la conversación directa o creara el contacto en la barra lateral.
+- **Acciones Realizadas**:
+  1. **`src/serial_driver.py`**:
+     - Agregado método `drain_pending_messages()` con protección contra reentrancia que ejecuta `mc.commands.get_msg()` hasta vaciar la cola (`NO_MORE_MSGS`).
+     - Mapeado `EventType.MESSAGES_WAITING` a `self._handle_messages_waiting` en `_get_sdk_dispatch_map()`.
+     - Invocado `drain_pending_messages()` tras la sincronización inicial de hardware (`_initial_hardware_sync`).
+  2. **`src/routers/system_handler.py`**:
+     - Al recibir `MESSAGES_WAITING`, se dispara `adapter.drain_pending_messages()` en background para garantizar que ningún mensaje quede atrapado en la radio.
+  3. **`src/rx_router.py`**:
+     - Agregados `"type": event_type_str` e `"is_direct": (event_type_str == "direct")` a `evt_payload` en `_handle_mesh_msg_common()`.
+  4. **`src/web/static/js/modules/chat.js`**:
+     - Actualizada la condición `isDm` para incluir `payload.event_type === "direct"`.
+- **Verificación y Calidad**:
+  - `node --check src/web/static/js/modules/chat.js`: 0 errores.
+  - `python -m py_compile src/serial_driver.py src/rx_router.py src/routers/system_handler.py`: 0 errores.
+  - Sincronización `/deploy/` completada con éxito.
+
 ### Hito: Remediación de Duplicados en Tarjeta de Contacto Compartido de Estación Local
 - **Fecha**: 2026-09-19
 - **Estado**: ✅ COMPLETADO — Eliminación de duplicados de texto ("My Contact") e icono (estrella ⭐) en tarjetas de contacto en el chat; reemplazo de botón deshabilitado por un pill informativo de estación local.

@@ -1504,7 +1504,12 @@ export class ChatModule {
     const canonicalSender = this.resolveCanonicalPubkey(senderKey);
     const { senderName, cleanText } = extractSenderAndText(rawText, payload.sender_name || payload.name);
 
-    const isDm = payload.is_direct || payload.type === "direct" || payload.type === "DIRECT_MSG";
+    const isDm = Boolean(
+      payload.is_direct ||
+      payload.type === "direct" ||
+      payload.type === "DIRECT_MSG" ||
+      payload.event_type === "direct"
+    );
     const feedKey = isDm ? `dm_${canonicalSender}` : `ch_${payload.channel_idx ?? payload.channel ?? 0}`;
 
     let safeIsoTimestamp = new Date().toISOString();

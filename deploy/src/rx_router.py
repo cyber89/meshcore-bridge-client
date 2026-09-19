@@ -695,7 +695,9 @@ class RxEventRouter:
                 })
 
         evt_payload = {
+            "type": event_type_str,
             "event_type": event_type_str,
+            "is_direct": (event_type_str == "direct"),
             "sender": msg.sender,
             "sender_name": msg.sender_name,
             "text": msg.text,
