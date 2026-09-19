@@ -711,7 +711,11 @@ class MeshCoreWebServer:
         q_depth = self.bridge.rate_limiter.get_queue_depth() if hasattr(self.bridge, "rate_limiter") else 0
 
         serial_adapter = getattr(self.bridge, "serial_adapter", None)
-        is_radio_ok = getattr(serial_adapter, "is_connected", False) if serial_adapter else False
+        # Bug 2 fix: usar is_hardware_alive() igual que el broadcaster periódico, para estado inicial consistente
+        if serial_adapter and hasattr(serial_adapter, "is_hardware_alive"):
+            is_radio_ok = bool(serial_adapter.is_hardware_alive())
+        else:
+            is_radio_ok = bool(getattr(serial_adapter, "is_connected", False)) if serial_adapter else False
         radio_port = getattr(serial_adapter, "port", "") if serial_adapter else ""
 
         b_start = getattr(self.bridge, "start_time", None)
@@ -734,6 +738,7 @@ class MeshCoreWebServer:
             "tx_count": total_tx,
             "error_rate": error_rate,
             "queue_depth": q_depth,
+            "serial_connected": is_radio_ok,  # Bug 3 fix: campo consistente con broadcaster periódico
             "radio_connected": is_radio_ok,
             "radio_port": radio_port,
             "uptime": uptime_sec,
