@@ -284,58 +284,86 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                         await self.mc.connect()
             else:
                 logging.info(f"Iniciando conexión MeshCore SDK en puerto {self.port} ({self.baud_rate} baud)...")
-                # Conexión resiliente: cx_dly=3.0s da tiempo al ESP32-S3 para enumerar USB-CDC en SBCs lentos.
-                # Se usa mc.connect() directamente (método oficial del SDK) para garantizar que dispatcher,
-                # connection_manager y send_appstart se orquesten correctamente y se limpien ante cualquier fallo.
-                _SDK_CONNECT_TIMEOUT = 20.0  # segundos — incluye cx_dly(3.0) + appstart(hasta 10s)
-                _mc_candidate: Any = None
+                # Secuencia manual con espera de boot del ESP32-S3:
+                # Abrir /dev/ttyACM0 dispara reset del firmware vía DTR/RTS.  El firmware
+                # tarda ~2-4s en arrancar — debemos esperar ANTES de enviar CMD_APP_START.
+                # mc.connect() del SDK no incluye esa espera, así que usamos la secuencia
+                # manual con try/finally para garantizar que el dispatcher siempre se cierre.
+                _TRANSPORT_TIMEOUT = 12.0   # espera máxima para que el port USB-CDC responda
+                _APPSTART_TIMEOUT  = 10.0   # espera máxima para recibir SELF_INFO
+                _BOOT_WAIT_SEC     = 3.5    # espera post-apertura para boot del ESP32-S3
+                _mc_raw: Any = None         # referencia local — se transfiere a self.mc en éxito
                 try:
                     from meshcore.serial_cx import SerialConnection
-                    cx = SerialConnection(self.port, self.baud_rate, cx_dly=3.0)
-                    _mc_candidate = MeshCore(cx, auto_reconnect=True)
-                    res_app = await asyncio.wait_for(_mc_candidate.connect(), timeout=_SDK_CONNECT_TIMEOUT)
-                    if res_app is not None:
-                        self.mc = _mc_candidate
-                        _mc_candidate = None  # transferido — no limpiar en finally
-                        # Extraer self_info del payload de respuesta SELF_INFO si está disponible
-                        if hasattr(res_app, "payload") and isinstance(res_app.payload, dict):
-                            self.self_info = res_app.payload
-                            if hasattr(self.mc, "_self_info"):
-                                self.mc._self_info = res_app.payload
-                        elif hasattr(self.mc, "self_info") and isinstance(getattr(self.mc, "self_info", None), dict):
-                            self.self_info = self.mc.self_info
-                    else:
+                    cx = SerialConnection(self.port, self.baud_rate, cx_dly=0.0)
+                    _mc_raw = MeshCore(cx, auto_reconnect=True)
+                    await _mc_raw.dispatcher.start()
+
+                    # 1) Abrir transporte serial (espera evento USB-CDC)
+                    res_cx = await asyncio.wait_for(
+                        _mc_raw.connection_manager.connect(), timeout=_TRANSPORT_TIMEOUT
+                    )
+                    if res_cx is None:
                         logging.error(
-                            f"Transceptor MeshCore en {self.port} no respondió al appstart inicial. "
-                            "Comprueba que el firmware sea compatible (Companion mode)."
+                            f"Puerto {self.port} abierto pero connection_manager retornó None. "
+                            "Comprueba permisos (grupo 'dialout') y que el dispositivo esté enumerado."
                         )
+                    else:
+                        # 2) Esperar boot del firmware tras reset USB-CDC (DTR toggle en Pi)
+                        logging.debug(f"Puerto {self.port} abierto. Esperando {_BOOT_WAIT_SEC}s de boot del firmware...")
+                        await asyncio.sleep(_BOOT_WAIT_SEC)
+
+                        # 3) Enviar CMD_APP_START y esperar respuesta SELF_INFO
+                        res_app = await asyncio.wait_for(
+                            _mc_raw.commands.send_appstart(), timeout=_APPSTART_TIMEOUT
+                        )
+                        if res_app is not None and getattr(res_app, "type", None) != EventType.ERROR:
+                            self.mc = _mc_raw
+                            _mc_raw = None  # transferido — NOT cleaned up in finally
+                            if hasattr(res_app, "payload") and isinstance(res_app.payload, dict):
+                                self.self_info = res_app.payload
+                                if hasattr(self.mc, "_self_info"):
+                                    self.mc._self_info = res_app.payload
+                            elif hasattr(self.mc, "self_info") and isinstance(
+                                getattr(self.mc, "self_info", None), dict
+                            ):
+                                self.self_info = self.mc.self_info
+                        else:
+                            # 4) Segundo intento — el firmware a veces no responde al primer appstart
+                            logging.debug("Primer send_appstart sin respuesta. Reintentando tras 1.0s...")
+                            await asyncio.sleep(1.0)
+                            res_app2 = await asyncio.wait_for(
+                                _mc_raw.commands.send_appstart(), timeout=_APPSTART_TIMEOUT
+                            )
+                            if res_app2 is not None and getattr(res_app2, "type", None) != EventType.ERROR:
+                                self.mc = _mc_raw
+                                _mc_raw = None
+                                if hasattr(res_app2, "payload") and isinstance(res_app2.payload, dict):
+                                    self.self_info = res_app2.payload
+                                    if hasattr(self.mc, "_self_info"):
+                                        self.mc._self_info = res_app2.payload
+                            else:
+                                logging.error(
+                                    f"Transceptor MeshCore en {self.port} no respondió al appstart "
+                                    f"tras {_BOOT_WAIT_SEC}s de espera. "
+                                    "Verifica: (1) firmware en Companion mode, "
+                                    "(2) baud rate correcto (115200), "
+                                    "(3) cable USB funcional."
+                                )
                 except asyncio.TimeoutError:
                     logging.error(
-                        f"Timeout ({_SDK_CONNECT_TIMEOUT}s) esperando respuesta del transceptor MeshCore en {self.port}. "
-                        "Posible causa: USB-CDC enumera tarde, firmware bloqueado o puerto incorrecto."
+                        f"Timeout esperando respuesta del transceptor MeshCore en {self.port}. "
+                        "Posible causa: firmware bloqueado, puerto incorrecto o cable USB defectuoso."
                     )
                 except ConnectionError as ce:
                     logging.error(f"Error de conexión al transceptor MeshCore en {self.port}: {ce}")
                 except Exception as ex_init:
-                    logging.debug(f"Apertura MeshCore SDK falló: {ex_init}, probando fallback create_serial...")
-                    if hasattr(MeshCore, "create_serial") and self.mc is None:
-                        try:
-                            fallback = await asyncio.wait_for(
-                                MeshCore.create_serial(self.port, self.baud_rate, auto_reconnect=True, cx_dly=3.0),
-                                timeout=_SDK_CONNECT_TIMEOUT,
-                            )
-                            if fallback is not None:
-                                self.mc = fallback
-                                if hasattr(self.mc, "self_info") and isinstance(getattr(self.mc, "self_info", None), dict):
-                                    self.self_info = self.mc.self_info
-                        except Exception as ex_fb:
-                            logging.debug(f"Fallback create_serial también falló: {ex_fb}")
-                            self.mc = None
+                    logging.debug(f"Apertura MeshCore SDK (ruta principal) falló: {ex_init}")
                 finally:
-                    # Limpiar mc candidato si la conexión falló antes de asignarlo a self.mc
-                    if _mc_candidate is not None:
+                    # Garantizar limpieza del dispatcher si la conexión falló (previene tareas huérfanas)
+                    if _mc_raw is not None:
                         try:
-                            await asyncio.wait_for(_mc_candidate.disconnect(), timeout=1.0)
+                            await asyncio.wait_for(_mc_raw.dispatcher.stop(), timeout=1.0)
                         except Exception:
                             pass
 
