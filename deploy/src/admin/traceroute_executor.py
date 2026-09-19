@@ -39,6 +39,19 @@ class TracerouteExecutor:
         mc: Any,
     ) -> dict[str, Any]:
         """Punto de entrada principal para trazar la ruta de saltos hacia un nodo."""
+        target_str = str(target_node or "").strip()
+        force = bool(admin_data.get("force", False))
+        if not force and hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "check_traceroute_cooldown"):
+            can_send, rem_cd = self._ctx.repeater_manager.check_traceroute_cooldown(target_str)
+            if not can_send:
+                res.update({
+                    "status": "error",
+                    "code": 429,
+                    "message": f"Protección de Airtime LoRa activa: Espera {rem_cd}s para otro traceroute",
+                    "cooldown_remaining": rem_cd,
+                })
+                return res
+
         t_start = time.perf_counter()
         raw_path = admin_data.get("path")
         if raw_path is None and isinstance(admin_data.get("params"), dict):
@@ -48,6 +61,8 @@ class TracerouteExecutor:
         trace_path_arg, trace_flags = self._format_trace_hops(path_list)
 
         await self._dispatch_trace_rf(mc, trace_path_arg, trace_flags)
+        if hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "record_traceroute_sent"):
+            self._ctx.repeater_manager.record_traceroute_sent(target_str)
         rtt_ms = round((time.perf_counter() - t_start) * 1000, 1)
 
         hops_breakdown = self._build_hops_breakdown(path_list, str(target_node), rtt_ms)

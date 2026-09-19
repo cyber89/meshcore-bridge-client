@@ -24,7 +24,7 @@ from src.mqtt_client import AsyncBridgeMQTTClient, MQTTConfig
 from src.mqtt_dispatcher import MqttInboundContext, MqttInboundDispatcher
 from src.packet_buffer import PacketBuffer
 from src.preflight import PreflightChecker
-from src.rate_limiter import CustomTxQueue, LoRaRadioConfig, TxItem, TxRateLimiter
+from src.rate_limiter import CustomTxQueue, LoRaRadioConfig, TxItem, TxRateLimiter, estimate_lora_airtime_ms
 from src.repeater_manager import RepeaterManager
 from src.rx_router import RxEventRouter, RxRouterContext
 from src.serial_driver import (
@@ -822,6 +822,18 @@ class MeshCoreBridge:
         self._record_tx_packet(str(target), ch_idx, text, is_admin_cmd, ack_payload)
 
         if status_val == "sent":
+            if not isinstance(item, TxItem) and hasattr(self, "rate_limiter") and self.rate_limiter:
+                try:
+                    plen = len(text.encode("utf-8")) if text else 32
+                    est_ms = estimate_lora_airtime_ms(plen, self.rate_limiter.radio_config)
+                    self.rate_limiter.airtime_tracker.record_tx(
+                        airtime_ms=est_ms,
+                        channel_idx=ch_idx,
+                        target=str(target) if target else None,
+                    )
+                except Exception as ex:
+                    logging.debug(f"Error registrando airtime de TX directa en rate_limiter: {ex}")
+
             if expected_ack_hex and req_id:
                 self.register_pending_ack(expected_ack_hex, req_id, str(target))
             dest_label = "Broadcast / Canal 0" if is_broadcast else f"Nodo [{target[:8] if len(str(target)) >= 8 else target}]"

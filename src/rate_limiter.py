@@ -514,6 +514,23 @@ class TxRateLimiter:
                     if item is None:
                         continue
 
+                    # Protección de Airtime LoRa: Si estamos en estado crítico (100% de duty cycle),
+                    # descartar paquetes de baja prioridad (telemetría/anuncios) para no violar el límite legal.
+                    if isinstance(item, TxItem) and item.priority >= int(TxPriority.LOW):
+                        stats = self.airtime_tracker.get_stats()
+                        if stats.get("is_critical"):
+                            self.total_dropped += 1
+                            self.queue.total_dropped += 1
+                            logging.warning(
+                                f"TxRateLimiter: Descartando paquete de baja prioridad (prio={item.priority}) "
+                                f"debido a saturación de Duty Cycle ({stats.get('hourly_duty_cycle_pct')}% >= {self.airtime_tracker.duty_cycle_limit_pct}%)."
+                            )
+                            if item.future and not item.future.done():
+                                item.future.set_exception(
+                                    RuntimeError(f"Duty cycle LoRa al 100% ({stats.get('hourly_duty_cycle_pct')}%), paquete de baja prioridad suspendido")
+                                )
+                            continue
+
                     if self.transmit_callback:
                         try:
                             res = await self.transmit_callback(item)

@@ -23,12 +23,21 @@ class RepeaterManager:
         transmit_callback: Callable[[str, str, int], Any] | None = None,
         min_cmd_interval_s: float = 5.0,
         min_telemetry_interval_s: float = 30.0,
+        min_ping_interval_s: float = 15.0,
+        min_traceroute_interval_s: float = 60.0,
+        min_neighbours_interval_s: float = 30.0,
     ) -> None:
         self.transmit_callback = transmit_callback
         self.min_cmd_interval_s = min_cmd_interval_s
         self.min_telemetry_interval_s = min_telemetry_interval_s
+        self.min_ping_interval_s = min_ping_interval_s
+        self.min_traceroute_interval_s = min_traceroute_interval_s
+        self.min_neighbours_interval_s = min_neighbours_interval_s
         self._last_cmd_ts: dict[str, float] = {}
         self._last_full_telemetry_ts: dict[str, float] = {}
+        self._last_ping_ts: dict[str, float] = {}
+        self._last_traceroute_ts: dict[str, float] = {}
+        self._last_neighbours_ts: dict[str, float] = {}
 
     def check_airtime_cooldown(self, repeater_pk: str, is_full_query: bool = False) -> tuple[bool, float]:
         """
@@ -54,6 +63,48 @@ class RepeaterManager:
         self._last_cmd_ts[clean_pk] = now
         if is_full_query:
             self._last_full_telemetry_ts[clean_pk] = now
+
+    def check_ping_cooldown(self, target_pk: str) -> tuple[bool, float]:
+        """Verifica si ha transcurrido el cooldown mínimo antes de enviar otro ping 0 a target_pk."""
+        now = time.monotonic()
+        clean_pk = target_pk.strip().lower()
+        last_ts = self._last_ping_ts.get(clean_pk, 0.0)
+        elapsed = now - last_ts
+        if elapsed < self.min_ping_interval_s:
+            return False, round(self.min_ping_interval_s - elapsed, 1)
+        return True, 0.0
+
+    def record_ping_sent(self, target_pk: str) -> None:
+        """Registra la emisión de un ping 0 hacia target_pk."""
+        self._last_ping_ts[target_pk.strip().lower()] = time.monotonic()
+
+    def check_traceroute_cooldown(self, target_pk: str) -> tuple[bool, float]:
+        """Verifica si ha transcurrido el cooldown mínimo antes de iniciar otro traceroute a target_pk."""
+        now = time.monotonic()
+        clean_pk = target_pk.strip().lower()
+        last_ts = self._last_traceroute_ts.get(clean_pk, 0.0)
+        elapsed = now - last_ts
+        if elapsed < self.min_traceroute_interval_s:
+            return False, round(self.min_traceroute_interval_s - elapsed, 1)
+        return True, 0.0
+
+    def record_traceroute_sent(self, target_pk: str) -> None:
+        """Registra la emisión de un traceroute hacia target_pk."""
+        self._last_traceroute_ts[target_pk.strip().lower()] = time.monotonic()
+
+    def check_neighbours_cooldown(self, target_pk: str) -> tuple[bool, float]:
+        """Verifica si ha transcurrido el cooldown antes de consultar vecinos de target_pk."""
+        now = time.monotonic()
+        clean_pk = target_pk.strip().lower()
+        last_ts = self._last_neighbours_ts.get(clean_pk, 0.0)
+        elapsed = now - last_ts
+        if elapsed < self.min_neighbours_interval_s:
+            return False, round(self.min_neighbours_interval_s - elapsed, 1)
+        return True, 0.0
+
+    def record_neighbours_sent(self, target_pk: str) -> None:
+        """Registra la consulta de vecinos hacia target_pk."""
+        self._last_neighbours_ts[target_pk.strip().lower()] = time.monotonic()
 
     def build_repeater_command_payload(self, action: str, params: dict[str, Any]) -> str:
         """Construye la cadena de comando en texto para enviar al firmware del repetidor."""

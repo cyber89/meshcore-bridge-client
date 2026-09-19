@@ -198,6 +198,17 @@ class RepeaterAdminExecutor:
         self, req: RemoteRepeaterRequest, target_info: dict[str, Any] | None, res: dict[str, Any]
     ) -> dict[str, Any]:
         """Ejecuta un ping directo de 0 saltos y calcula RTT y métricas de señal."""
+        force = bool(req.admin_data.get("force", False))
+        if not force and hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "check_ping_cooldown"):
+            can_send, rem_cd = self._ctx.repeater_manager.check_ping_cooldown(str(req.target_node))
+            if not can_send:
+                return {
+                    "status": "error",
+                    "code": 429,
+                    "message": f"Protección de Airtime LoRa activa: Espera {rem_cd}s para otro ping 0",
+                    "cooldown_remaining": rem_cd,
+                }
+
         dest_target = self._resolve_target(str(req.target_node), 12)
         norm_target = self._ctx.node_registry.get_canonical_key(str(req.target_node)) or str(req.target_node).strip().lower()
         target_name = str((target_info.get("name") or target_info.get("alias")) if target_info else f"Nodo {norm_target[:8]}")
@@ -214,6 +225,8 @@ class RepeaterAdminExecutor:
             t_start = time.perf_counter()
             cmd_text = "ping 0"
             await self._send_rf_command(req.mc, dest_target, cmd_text, str(req.target_node), req.req_id)
+            if hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "record_ping_sent"):
+                self._ctx.repeater_manager.record_ping_sent(str(req.target_node))
 
             resp_data = await self._wait_for_repeater_response(req.mc, fut, timeout=5.0) or {}
         finally:
@@ -333,10 +346,25 @@ class RepeaterAdminExecutor:
         cmds = mc.commands
 
         try:
-            if action in ("req_neighbours", "req_neighbors", "neighbours", "neighbors") and hasattr(cmds, "req_neighbours_sync"):
-                count = int(rf_ctx.req.admin_data.get("count", 255))
-                offset = int(rf_ctx.req.admin_data.get("offset", 0))
-                data = await cmds.req_neighbours_sync(target, count=count, offset=offset, min_timeout=4.0)
+            if action in ("req_neighbours", "req_neighbors", "neighbours", "neighbors"):
+                force = bool(rf_ctx.req.admin_data.get("force", False))
+                if not force and hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "check_neighbours_cooldown"):
+                    can_send, rem_cd = self._ctx.repeater_manager.check_neighbours_cooldown(str(rf_ctx.req.target_node))
+                    if not can_send:
+                        rf_ctx.res.update({
+                            "status": "error",
+                            "code": 429,
+                            "message": f"Protección de Airtime LoRa activa: Espera {rem_cd}s para consultar vecinos",
+                            "cooldown_remaining": rem_cd,
+                        })
+                        return rf_ctx.res
+
+                if hasattr(cmds, "req_neighbours_sync"):
+                    if hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "record_neighbours_sent"):
+                        self._ctx.repeater_manager.record_neighbours_sent(str(rf_ctx.req.target_node))
+                    count = int(rf_ctx.req.admin_data.get("count", 255))
+                    offset = int(rf_ctx.req.admin_data.get("offset", 0))
+                    data = await cmds.req_neighbours_sync(target, count=count, offset=offset, min_timeout=4.0)
                 if data is not None and isinstance(data, dict):
                     rf_ctx.res.update({
                         "status": "ok",

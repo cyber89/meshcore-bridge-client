@@ -5,10 +5,12 @@ Handles /api/tx and /api/messages/recent.
 
 from __future__ import annotations
 
+import asyncio
 import time
 from typing import Any
 
 from src.contact_manager import PacketRecord
+from src.rate_limiter import TxPriority
 from src.web.controllers.base import BaseController, problem_details
 
 
@@ -45,7 +47,26 @@ class TxController(BaseController):
             "request_id": req_id,
         }
 
-        res = await self.ctx.bridge._execute_tx(tx_item)
+        if hasattr(self.ctx.bridge, "rate_limiter") and self.ctx.bridge.rate_limiter:
+            try:
+                future = await self.ctx.bridge.rate_limiter.submit(
+                    payload=text,
+                    priority=TxPriority.NORMAL,
+                    target=str(target) if target else None,
+                    channel_idx=ch_idx,
+                    request_id=str(req_id),
+                )
+                res = await asyncio.wait_for(future, timeout=30.0)
+            except asyncio.TimeoutError:
+                err_msg = "Timeout esperando turno de transmisión en cola de Airtime LoRa (30s)"
+                self.ctx.log_system_event("ERROR", f"Fallo en TX hacia {target}: {err_msg}", source="mesh_tx")
+                return problem_details(408, "Request Timeout", err_msg, "tx_timeout")
+            except Exception as ex:
+                err_msg = str(ex) or "Fallo en cola de transmisión LoRa"
+                self.ctx.log_system_event("ERROR", f"Fallo en TX hacia {target}: {err_msg}", source="mesh_tx")
+                return problem_details(429 if "Full" in err_msg else 400, "Bad Request", err_msg, "tx_submission_failed")
+        else:
+            res = await self.ctx.bridge._execute_tx(tx_item)
         if isinstance(res, dict) and res.get("status") == "error":
             err_msg = res.get("error") or "Error en transmisión por radio LoRa"
             self.ctx.log_system_event("ERROR", f"Fallo en TX hacia {target}: {err_msg}", source="mesh_tx")
