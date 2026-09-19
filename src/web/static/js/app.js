@@ -47,6 +47,7 @@ class MeshCoreApp {
       centerMapOnCoords: (lat, lon, zoom) => this.mapModule.centerMapOnCoords(lat, lon, zoom),
       centerOnLocalNode: (zoom, showToast) => this.mapModule.centerOnLocalNode(zoom, showToast),
       updateRadioBadge: (ok, port) => this.updateRadioBadge(ok, port),
+      updateAirtimeBadge: (payload) => this.updateAirtimeBadge(payload),
       get activeChannelIdx() { return self.chatModule ? self.chatModule.activeChannelIdx : 0; },
       get activeDmTarget() { return self.chatModule ? self.chatModule.activeDmTarget : null; },
       get settingsModule() { return self.settingsModule; },
@@ -118,6 +119,7 @@ class MeshCoreApp {
       headerQueueDepth: document.getElementById("headerQueueDepth"),
       headerAirtimeChip: document.getElementById("headerAirtimeChip"),
       headerDutyCycle: document.getElementById("headerDutyCycle"),
+      headerAirtimeFill: document.getElementById("headerAirtimeFill"),
     };
   }
 
@@ -426,6 +428,7 @@ class MeshCoreApp {
   updateAirtimeBadge(payload) {
     const chip = this.dom.headerAirtimeChip;
     const txt = this.dom.headerDutyCycle;
+    const fill = this.dom.headerAirtimeFill || document.getElementById("headerAirtimeFill");
     if (!txt) return;
 
     const pct = Number(payload.duty_cycle_pct != null ? payload.duty_cycle_pct : (payload.hourly_duty_cycle_pct || 0.0));
@@ -440,11 +443,20 @@ class MeshCoreApp {
     if (isCritical) newStatus = "critical";
     else if (isWarning) newStatus = "warning";
 
+    // Cálculo proporcional de la barra de progreso (0% a 100% del presupuesto horario permitido)
+    const fillPct = limitPct > 0 ? Math.max(0, Math.min(100, Math.round((pct / limitPct) * 100))) : 0;
+
+    if (fill) {
+      fill.style.width = `${fillPct}%`;
+      fill.className = `header-airtime-fill ${newStatus === "critical" ? "danger" : newStatus}`;
+    }
+
     if (chip) {
       chip.classList.toggle("warning", isWarning);
       chip.classList.toggle("danger", isCritical);
+      chip.classList.toggle("normal", !isWarning && !isCritical);
       chip.title = isCritical
-        ? `ALERTA CRÍTICA: Duty Cycle LoRa al ${pct.toFixed(1)}% (Límite horario ${limitPct}% superado)`
+        ? `ALERTA CRÍTICA: Duty Cycle LoRa al ${pct.toFixed(1)}% (Límite horario ${limitPct}% superado. Transmisiones bloqueadas)`
         : (isWarning
           ? `ADVERTENCIA: Duty Cycle LoRa al ${pct.toFixed(1)}% (Supera el ${warnPct}% del cupo horario)`
           : `Presupuesto de Airtime LoRa y Duty Cycle (1h): ${pct.toFixed(1)}% / ${limitPct}%`);
@@ -452,7 +464,7 @@ class MeshCoreApp {
 
     if (this._lastAirtimeStatus && this._lastAirtimeStatus !== newStatus) {
       if (newStatus === "critical") {
-        this.showToast(`⚠️ Alerta Crítica: Duty Cycle LoRa al ${pct.toFixed(1)}%`, "error");
+        this.showToast(`⚠️ Alerta Crítica: Duty Cycle LoRa al ${pct.toFixed(1)}% (Límite alcanzado)`, "error");
       } else if (newStatus === "warning") {
         this.showToast(`⚠️ Advertencia: Consumo de Airtime al ${pct.toFixed(1)}%`, "warning");
       } else if (newStatus === "normal" && this._lastAirtimeStatus !== "normal") {

@@ -56,7 +56,13 @@
           <span class="metric-chip" title="Nodos Activos en Malla"><span class="chip-icon" data-lucide="users" data-size="14"></span> <strong id="headerNodeCount">0</strong></span>
           <span class="metric-chip" title="Paquetes Recibidos"><span class="chip-icon" data-lucide="download" data-size="14"></span> <strong id="headerRxCount">0</strong></span>
           <span class="metric-chip" title="Paquetes Emitidos"><span class="chip-icon" data-lucide="upload" data-size="14"></span> <strong id="headerTxCount">0</strong></span>
-          <span class="metric-chip airtime-metric-chip" id="headerAirtimeChip" title="Presupuesto de Airtime LoRa y Duty Cycle (1h)"><span class="chip-icon" data-lucide="clock" data-size="14"></span> Airtime: <strong id="headerDutyCycle">0.0%</strong></span>
+          <span class="metric-chip airtime-metric-chip" id="headerAirtimeChip" title="Presupuesto de Airtime LoRa y Duty Cycle (1h)">
+            <span class="chip-icon" data-lucide="clock" data-size="14"></span>
+            <span>Airtime: <strong id="headerDutyCycle">0.0%</strong></span>
+            <span class="header-airtime-track" id="headerAirtimeTrack" aria-hidden="true">
+              <span class="header-airtime-fill" id="headerAirtimeFill" style="width: 0%;"></span>
+            </span>
+          </span>
           <span class="metric-chip" title="Tasa de Error"><span class="chip-icon" data-lucide="alert-triangle" data-size="14"></span> <strong id="headerErrorRate">0.0%</strong></span>
           <span class="metric-chip" title="Cola TX / Buffer"><span class="chip-icon" data-lucide="activity" data-size="14"></span> <strong id="headerQueueDepth">0</strong></span>
         </div>

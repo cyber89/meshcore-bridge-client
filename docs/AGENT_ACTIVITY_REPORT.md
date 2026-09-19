@@ -4450,4 +4450,34 @@ Fase 5 - COMPAT-001 to COMPAT-012 terminados
      - `python scripts/sync_deploy.py`: Paquetes y sumas SHA256 actualizadas.
 - **Módulos Modificados**: `src/web/static/js/modules/chat.js`, `src/web/static/js/i18n.js`, `deploy/**`, `docs/AGENT_ACTIVITY_REPORT.md`.
 
+---
+
+### Hito: Barra Dinámica de Consumo de Airtime en el Encabezado con Estados Cromáticos Reactivos
+- **Fecha**: 2026-09-19
+- **Estado**: ✅ COMPLETADO (Conversión del indicador de Airtime en el encabezado a una mini barra de progreso dinámica y fluida; cálculo proporcional del 0% al 100% respecto al presupuesto horario legal; transiciones cromáticas automáticas entre verde para consumo bajo/normal, amarillo para umbral preventivo warn_threshold_pct, y rojo con pulso de advertencia al alcanzar el límite horario duty_cycle_limit_pct; retorno suave al estado verde cuando la ventana deslizante horaria se poda y restablece el cupo; sincronización en app.js y map.js; empaquetado en /deploy/ y push a GitHub).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web Architect).
+- **Problema / Requerimiento**:
+  - El usuario solicitó: "el air time que se muestra en el header quiero que lo conbiertas a una barra que se vallenando y cambia de color verde cuando es poco , amarillo casi se cumple y rojo cuando ya no se puede mandar mas, tener en cuenta los parametros establecidos ya. tambien cuando pase el tiempo y se restablezca el airtime la barra regrese a su estado normal."
+- **Acciones Realizadas**:
+  1. **Estructura HTML (`src/web/static/index.html`)**:
+     - `#headerAirtimeChip` enriquecido con `<span class="header-airtime-track" id="headerAirtimeTrack"><span class="header-airtime-fill" id="headerAirtimeFill"></span></span>`, conservando el icono vectorial del reloj y el porcentaje numérico en `<strong id="headerDutyCycle">`.
+  2. **Diseño Visual y Animación (`src/web/static/css/app.css`)**:
+     - Creada la pista `.header-airtime-track` de 50px de ancho con esquinas redondeadas, fondo translúcido y borde sutil tanto en tema oscuro como claro.
+     - Estilizado el relleno `.header-airtime-fill` con transición fluida `transition: width 0.45s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.4s ease, box-shadow 0.4s ease`.
+     - Definidos los 3 estados cromáticos:
+       - `.normal`: Verde esmeralda (`#10b981`) con glow sutil para consumo bajo/seguro.
+       - `.warning`: Ámbar cálido (`#f59e0b`) cuando supera el umbral preventivo (80% del límite).
+       - `.danger`: Rojo intenso (`#ef4444`) con animación palpitante `@keyframes airtimeFillPulse` cuando se alcanza el límite (100% del cupo horario).
+  3. **Lógica Reactiva y Cálculo Proporcional (`src/web/static/js/app.js`, `map.js`)**:
+     - En `app.js`: `updateAirtimeBadge()` calcula el porcentaje de llenado de la barra `fillPct = Math.min(100, Math.round((pct / limitPct) * 100))%` basándose en los parámetros de la radio y el regulador (`duty_cycle_limit_pct` y `warn_threshold_pct`).
+     - Al avanzar el tiempo y podarse transmisiones de más de 3600 segundos en el backend, la barra disminuye de forma continua y vuelve a su color verde normal.
+     - En `map.js`: El sondeo periódico cada 60s invoca `this.ctx.updateAirtimeBadge(stats)` para mantener la barra actualizada incluso sin tráfico entrante.
+  4. **Verificación y Despliegue**:
+     - `node --check src/web/static/js/app.js`: 100% PASS.
+     - `node --check src/web/static/js/modules/map.js`: 100% PASS.
+     - Validador HTML: 100% PASS (estructura de etiquetas válida).
+     - Sincronizado en `/deploy/` con `python scripts/sync_deploy.py`.
+- **Módulos Modificados**: `src/web/static/index.html`, `src/web/static/css/app.css`, `src/web/static/js/app.js`, `src/web/static/js/modules/map.js`, `deploy/**`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
+
 

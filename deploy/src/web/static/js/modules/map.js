@@ -409,8 +409,10 @@ export class MapModule {
       const data = await res.json();
       if (data.status === "ok" && data.data) {
         const stats = data.data;
-        const pct = stats.hourly_duty_cycle_pct || 0.0;
-        if (this.dom.headerDutyCycle) {
+        if (this.ctx.updateAirtimeBadge) {
+          this.ctx.updateAirtimeBadge(stats);
+        } else if (this.dom.headerDutyCycle) {
+          const pct = stats.hourly_duty_cycle_pct || 0.0;
           this.dom.headerDutyCycle.textContent = `${pct.toFixed(1)}%`;
         }
       }
