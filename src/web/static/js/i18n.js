@@ -84,6 +84,8 @@
       'chat.last_seen_hours':      'Últ. vez hace {n} h',
       'chat.last_seen_days':       'Últ. vez hace {n} d',
       'chat.no_telemetry':         'Sin telemetría reciente',
+      'chat.close_chat':           'Cerrar chat',
+      'chat.chat_closed':          'Conversación cerrada (mensajes conservados)',
 
       // Nodes section
       'nodes.title':               'Directorio de Nodos en la Malla',
@@ -546,6 +548,8 @@
       'chat.last_seen_hours':      'Last seen {n} h ago',
       'chat.last_seen_days':       'Last seen {n} d ago',
       'chat.no_telemetry':         'No recent telemetry',
+      'chat.close_chat':           'Close chat',
+      'chat.chat_closed':          'Conversation closed (messages preserved)',
 
       // Nodes section
       'nodes.title':               'Mesh Node Directory',

@@ -2,6 +2,44 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Capacidad de Cerrar/Archivar Chats Directos (DM) sin Pérdida de Historial en Mensajería Web
+- **Fecha**: 2026-09-19
+- **Estado**: ✅ COMPLETADO — Cierre de DMs activo con persistencia localStorage, preservación total en IndexedDB, botón rápido en lista lateral y cabecera, reapertura automática ante mensajes entrantes o clic en Contactos.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX & Frontend Architect).
+- **Requerimiento del Usuario**: Permitir cerrar los chats individuales (DM) en la pestaña de mensajería para despejar la barra lateral, sin eliminar el historial de mensajes ni requerir borrar contactos.
+- **Acciones Realizadas**:
+  1. **`src/web/static/index.html`**:
+     - Añadido botón `<button id="btnCloseChat">` en `.chat-header-actions` para cerrar la conversación activa directamente desde la cabecera.
+  2. **`src/web/static/js/i18n.js`**:
+     - Registradas claves de traducción `chat.close_chat` y `chat.chat_closed` en español e inglés.
+  3. **`src/web/static/css/app.css`**:
+     - Añadidos estilos para `.btn-close-dm`: botón minimalista hoverable en desktop, hit-area táctil optimizada en mobile (<900px), y color semántico de peligro suave.
+  4. **`src/web/static/js/modules/chat.js`**:
+     - Inicializado `this.closedDmThreads = new Set(...)` persistido en `localStorage` (`meshcore_closed_dm_threads`).
+     - Filtrado de hilos cerrados durante `loadInitialHistory()` para no mostrarlos al recargar la página.
+     - Implementado `closeDmConversation(pubkey)`: marca el contacto como cerrado, lo remueve de la barra lateral, conmuta suavemente al Canal #0 (Público) si estaba activo y muestra toast informativo.
+     - Implementado `_saveClosedDmThreads()` para sincronización en `localStorage`.
+     - Actualizado `addDmContact(pubkey, name)` para renderizar el botón `.btn-close-dm` con evento `click` aislado (`e.stopPropagation()`).
+     - Actualizado `openDmConversation(pubkey, name)` y `handleIncomingChatMessage(payload)`: si el usuario abre el chat desde Contactos o recibe un nuevo mensaje DM, el hilo se desarchiva automáticamente y reaparece en la lista con su historial intacto.
+- **Contratos de Interfaz Modificados**: Sin cambios de backend, REST API ni esquemas de base de datos; la persistencia del estado de visualización se gestiona del lado del cliente respetando la arquitectura liviana de la SPA.
+
+### Hito: Remediación de ERR_CODE_NOT_FOUND (Código 2) en Mensajes Directos (DM) y Comandos Remotos
+- **Fecha**: 2026-09-19
+- **Estado**: ✅ COMPLETADO — Contactos normalizados registrados en memoria de radio física antes de TX; ruff: 0 errores; mypy --strict: 0 errores; deploy sincronizado.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect).
+- **Causa Raíz Diagnosticada**:
+  - Al transmitir un mensaje directo (`CMD_SEND_TXT_MSG`), el firmware C++ de MeshCore (`MyMesh.cpp`) ejecuta `lookupContactByPubKey(pub_key_prefix, 6)`. Si el nodo no existe en la tabla interna de la radio (Flash/RAM), el firmware rechaza inmediatamente con `ERR_CODE_NOT_FOUND` (2).
+  - El auto-registro previo en `serial_driver.py` y `repeater_executor.py` pasaba diccionarios incompletos (`{"public_key": ..., "name": ...}`) a `mc.commands.add_contact()`. En el SDK (`contact.py:112`), `update_contact` requiere campos como `out_path`, `out_path_len`, `out_path_hash_mode`, `adv_name`, `type`, `flags`, etc. La llamada lanzaba un `KeyError: 'out_path'` interno que era capturado en silencio por un `try/except`, impidiendo que el contacto se guardase en la memoria de la radio física.
+- **Acciones Realizadas**:
+  1. **`src/serial_driver.py`**:
+     - Implementado `_ensure_contact_for_tx(dest_target, target_clean)`: construye una estructura de contacto completa y normalizada (flood `out_path_len: -1`, `type: 1`, timestamps, geolocalización, enriquecida con `NodeRegistry` si existe).
+     - Invocado `_ensure_contact_for_tx` antes de cada llamada a `mc.commands.send_msg` para DMs.
+     - Refactorizado `add_contact()` para normalizar completamente los campos y sincronizar la clave pública con `self.mc._contacts` para búsquedas inmediatas en memoria.
+     - Corregido `send_admin_cmd()` para retornar `UNKNOWN_ACTION` limpiamente.
+  2. **`src/admin/repeater_executor.py`**:
+     - Refactorizado `_ensure_radio_contact(mc, dest_target, target_name)` para normalizar la estructura completa (`out_path`, `out_path_len`, `type: 2` REPEATER) evitando excepciones `KeyError`.
+- **Contratos de Interfaz Modificados**: Sin cambios de API REST ni MQTT; mejora interna transparente y retrocompatible.
+
 ### Hito: Corrección de Bug Conexión Radio — Web UI muestra radio desconectado (3 bugs simultáneos)
 - **Fecha**: 2026-09-19
 - **Estado**: ✅ COMPLETADO — Commit `d39d7c9` pusheado a `origin/main`. ruff: 0 errores. mypy --strict: 0 errores. deploy sincronizado.

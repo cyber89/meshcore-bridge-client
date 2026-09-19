@@ -1096,6 +1096,41 @@ body {
   line-height: 1;
 }
 
+.btn-close-dm {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 3px 4px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+
+.channel-item:hover .btn-close-dm,
+.channel-item:focus-within .btn-close-dm {
+  opacity: 1;
+}
+
+.btn-close-dm:hover {
+  color: var(--accent-danger, #ef4444);
+  background: rgba(239, 68, 68, 0.15);
+  transform: scale(1.1);
+}
+
+@media (max-width: 900px) {
+  .btn-close-dm {
+    opacity: 0.7;
+    padding: 6px 8px;
+  }
+}
+
 .empty-hint {
   font-size: 12px;
   color: var(--text-muted);

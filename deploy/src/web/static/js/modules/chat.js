@@ -33,6 +33,14 @@ export class ChatModule {
     this._audioCtx = null;
     this.dom = {};
 
+    // Hilos de mensajes directos cerrados/archivados por el usuario
+    try {
+      const rawClosed = localStorage.getItem("meshcore_closed_dm_threads");
+      this.closedDmThreads = new Set(rawClosed ? JSON.parse(rawClosed) : []);
+    } catch (_) {
+      this.closedDmThreads = new Set();
+    }
+
     // Estado del selector de emojis y compartir
     this.activeEmojiTab = "smileys";
     this.selectedShareContact = null;
@@ -92,6 +100,7 @@ export class ChatModule {
       btnShareLocation: document.getElementById("btnShareLocation"),
       btnToggleChannelsMobile: document.getElementById("btnToggleChannelsMobile"),
       dmListUi: document.getElementById("dmListUi"),
+      btnCloseChat: document.getElementById("btnCloseChat"),
       clearChatBtn: document.getElementById("clearChatBtn"),
       dmCountBadge: document.getElementById("dmCountBadge"),
       sidebarChannelList: document.getElementById("sidebarChannelList"),
@@ -147,6 +156,14 @@ export class ChatModule {
       this.dom.chatInputForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         await this.sendMessage();
+      });
+    }
+
+    if (this.dom.btnCloseChat) {
+      this.dom.btnCloseChat.addEventListener("click", () => {
+        if (this.activeDmTarget) {
+          this.closeDmConversation(this.activeDmTarget);
+        }
       });
     }
 
@@ -302,6 +319,7 @@ export class ChatModule {
           const roleUpper = String(node?.role || "").toUpperCase();
           if (roleUpper === "REPEATER" || roleUpper === "ROUTER") continue;
           this.conversationsWithMessages.add(canonicalPk);
+          if (this.closedDmThreads.has(canonicalPk)) continue;
           this.addDmContact(canonicalPk, thread.name || canonicalPk.slice(0, 8));
         }
       }
@@ -719,6 +737,10 @@ export class ChatModule {
     this.activeDmTarget = null;
     this.activeDmName = null;
 
+    if (this.dom.btnCloseChat) {
+      this.dom.btnCloseChat.classList.add("hidden");
+    }
+
     this._updateActiveChatHeader();
 
     document.querySelectorAll(".channel-item").forEach((el) => el.classList.remove("active"));
@@ -756,10 +778,20 @@ export class ChatModule {
       return;
     }
 
+    // Si el hilo estaba cerrado/archivado, reabrirlo
+    if (this.closedDmThreads.has(canonicalPk)) {
+      this.closedDmThreads.delete(canonicalPk);
+      this._saveClosedDmThreads();
+    }
+
     this.activeDmTarget = canonicalPk;
     this.activeDmName = name || canonicalPk.slice(0, 8);
     if (this.activeDmName.includes("Estación Local") || this.activeDmName.includes("Local Station")) {
       this.activeDmName = targetNode?.name || canonicalPk.slice(0, 8);
+    }
+
+    if (this.dom.btnCloseChat) {
+      this.dom.btnCloseChat.classList.remove("hidden");
     }
 
     this._updateActiveChatHeader();
@@ -857,6 +889,38 @@ export class ChatModule {
     }
   }
 
+  _saveClosedDmThreads() {
+    try {
+      localStorage.setItem("meshcore_closed_dm_threads", JSON.stringify(Array.from(this.closedDmThreads)));
+    } catch (_) {}
+  }
+
+  closeDmConversation(pubkey) {
+    if (!pubkey) return;
+    const canonicalPk = this.resolveCanonicalPubkey(pubkey);
+    this.closedDmThreads.add(canonicalPk);
+    this._saveClosedDmThreads();
+
+    // Eliminar el elemento del DOM en dmListUi
+    if (this.dom.dmListUi) {
+      const item = this.dom.dmListUi.querySelector(`.channel-item[data-pubkey="${canonicalPk}"]`);
+      if (item) item.remove();
+      const totalDms = this.dom.dmListUi.querySelectorAll(".channel-item").length;
+      if (this.dom.dmCountBadge) {
+        this.dom.dmCountBadge.textContent = String(totalDms);
+      }
+    }
+
+    // Si el chat cerrado era el que estaba activo en pantalla, conmutar suavemente al Canal 0 (Público)
+    if (this.activeDmTarget === canonicalPk) {
+      this.switchChannel(0);
+    }
+
+    if (this.ctx.showToast) {
+      this.ctx.showToast(window.I18n ? window.I18n.t('chat.chat_closed') : "Conversación cerrada (mensajes conservados)", "info");
+    }
+  }
+
   addDmContact(pubkey, name) {
     if (!pubkey || !this.dom.dmListUi) return;
     const canonicalPk = this.resolveCanonicalPubkey(pubkey);
@@ -885,8 +949,18 @@ export class ChatModule {
       <span class="channel-icon">💬</span>
       <span class="channel-name ch-name">${escapeHtml(cleanDisplayName)}</span>
       <span class="channel-idx font-mono">DM</span>
+      <button type="button" class="btn-close-dm" title="${window.I18n ? window.I18n.t('chat.close_chat') : 'Cerrar chat'}" aria-label="${window.I18n ? window.I18n.t('chat.close_chat') : 'Cerrar chat'}">✕</button>
     `;
     li.addEventListener("click", () => this.openDmConversation(canonicalPk, cleanDisplayName));
+
+    const btnClose = li.querySelector(".btn-close-dm");
+    if (btnClose) {
+      btnClose.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.closeDmConversation(canonicalPk);
+      });
+    }
+
     this.dom.dmListUi.appendChild(li);
 
     const totalDms = this.dom.dmListUi.querySelectorAll(".channel-item").length;
@@ -1296,6 +1370,10 @@ export class ChatModule {
 
     if (isDm) {
       this.conversationsWithMessages.add(canonicalSender);
+      if (this.closedDmThreads.has(canonicalSender)) {
+        this.closedDmThreads.delete(canonicalSender);
+        this._saveClosedDmThreads();
+      }
       this.addDmContact(canonicalSender, senderName);
     }
 
