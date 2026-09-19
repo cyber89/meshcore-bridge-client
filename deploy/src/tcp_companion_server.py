@@ -41,6 +41,7 @@ class MeshCoreCompanionServer:
         self.port = port
         self.server: asyncio.Server | None = None
         self.active_clients: set[asyncio.StreamWriter] = set()
+        self._client_tasks: set[asyncio.Task[Any]] = set()
         self.running = False
         self._rx_bytes_total = 0
         self._tx_bytes_total = 0
@@ -64,21 +65,42 @@ class MeshCoreCompanionServer:
             raise
 
     async def stop(self) -> None:
-        """Detiene el servidor y cierra todas las conexiones de clientes activas."""
+        """Detiene el servidor y cierra todas las conexiones de clientes activas de forma acotada."""
         self.running = False
         if self.server:
             self.server.close()
             try:
-                await self.server.wait_closed()
-            except Exception:
+                await asyncio.wait_for(self.server.wait_closed(), timeout=1.0)
+            except (asyncio.TimeoutError, Exception):
                 pass
             self.server = None
 
+        # 1. Notificar cierre a writers activos
         for writer in list(self.active_clients):
             try:
                 writer.close()
-                await writer.wait_closed()
             except Exception:
+                pass
+
+        # 2. Cancelar proactivamente tareas de clientes activos
+        for task in list(self._client_tasks):
+            if not task.done():
+                task.cancel()
+        if self._client_tasks:
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*self._client_tasks, return_exceptions=True),
+                    timeout=1.0,
+                )
+            except (asyncio.TimeoutError, Exception):
+                pass
+            self._client_tasks.clear()
+
+        # 3. Drenar wait_closed con timeout breve de protección
+        for writer in list(self.active_clients):
+            try:
+                await asyncio.wait_for(writer.wait_closed(), timeout=0.3)
+            except (asyncio.TimeoutError, Exception):
                 pass
         self.active_clients.clear()
         logging.info("Servidor TCP Companion MeshCore detenido.")
@@ -157,6 +179,9 @@ class MeshCoreCompanionServer:
         writer: asyncio.StreamWriter,
     ) -> None:
         """Maneja el ciclo de vida y el de-framing continuo de un cliente TCP conectado."""
+        current_task = asyncio.current_task()
+        if current_task is not None:
+            self._client_tasks.add(current_task)
         import os
         max_clients = int(os.getenv("MAX_COMPANION_CLIENTS", "8"))
         if len(self.active_clients) >= max_clients:
@@ -301,6 +326,8 @@ class MeshCoreCompanionServer:
         except Exception as e:
             logging.debug(f"Excepción en cliente TCP Companion ({peer_str}): {e}")
         finally:
+            if current_task is not None:
+                self._client_tasks.discard(current_task)
             self.active_clients.discard(writer)
             SecurityTrafficInspector.log_tcp_connection(
                 client_ip=peer_ip,
@@ -310,8 +337,8 @@ class MeshCoreCompanionServer:
             )
             try:
                 writer.close()
-                await writer.wait_closed()
-            except Exception:
+                await asyncio.wait_for(writer.wait_closed(), timeout=0.3)
+            except (asyncio.TimeoutError, Exception):
                 pass
 
     async def _dispatch_companion_command(

@@ -130,13 +130,22 @@ class AsyncBridgeMQTTClient:
                     "reason": "graceful_shutdown",
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 })
-                self.client.publish(self.topic_state, offline_payload, qos=1, retain=True)
+                self.client.publish(self.topic_state, offline_payload, qos=0, retain=True)
             except Exception:
                 pass
 
         try:
             self.client.disconnect()
-            self.client.loop_stop()
+        except Exception:
+            pass
+
+        try:
+            thread = getattr(self.client, "_thread", None)
+            if thread and thread.is_alive():
+                self.client._thread_terminate = True
+                thread.join(timeout=1.0)
+            else:
+                self.client.loop_stop()
         except Exception:
             pass
         self.is_connected = False

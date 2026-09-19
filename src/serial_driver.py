@@ -354,19 +354,26 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         if self._initial_sync_task and not self._initial_sync_task.done():
             self._initial_sync_task.cancel()
             try:
-                await self._initial_sync_task
-            except (asyncio.CancelledError, Exception):
+                await asyncio.wait_for(self._initial_sync_task, timeout=1.0)
+            except (asyncio.CancelledError, asyncio.TimeoutError, Exception):
                 pass
             self._initial_sync_task = None
 
         if self.mc:
             try:
                 if hasattr(self.mc, "disconnect"):
-                    await self.mc.disconnect()
+                    await asyncio.wait_for(self.mc.disconnect(), timeout=1.5)
                 elif hasattr(self.mc, "stop"):
                     self.mc.stop()
                 elif hasattr(self.mc, "close"):
                     self.mc.close()
+            except asyncio.TimeoutError:
+                logging.warning("Timeout (1.5s) al desconectar MeshCore SDK; forzando detención.")
+                try:
+                    if hasattr(self.mc, "stop"):
+                        self.mc.stop()
+                except Exception:
+                    pass
             except Exception as e:
                 logging.warning(f"Error cerrando MeshCore SDK: {e}")
             finally:

@@ -72,6 +72,7 @@ class MeshCoreWebServer:
         self.tile_service = self.router.map_tile_service
         self.server: asyncio.Server | None = None
         self.active_websockets: set[asyncio.StreamWriter] = set()
+        self._client_tasks: set[asyncio.Task[Any]] = set()
         self.running = False
         self.start_time: float = time.time()
         self._metrics_task: asyncio.Task[None] | None = None
@@ -84,21 +85,50 @@ class MeshCoreWebServer:
         logging.info(f"Servidor Web MeshCore activo en http://{self.host}:{self.port}")
 
     async def stop(self) -> None:
-        """Detiene el servidor y desconecta clientes."""
+        """Detiene el servidor y desconecta clientes de forma determinista y acotada."""
         self.running = False
         if self._metrics_task:
             self._metrics_task.cancel()
+            try:
+                await asyncio.wait_for(self._metrics_task, timeout=0.5)
+            except (asyncio.CancelledError, asyncio.TimeoutError, Exception):
+                pass
             self._metrics_task = None
 
         if self.server:
             self.server.close()
-            await self.server.wait_closed()
+            try:
+                await asyncio.wait_for(self.server.wait_closed(), timeout=1.0)
+            except (asyncio.TimeoutError, Exception):
+                pass
+            self.server = None
 
+        # 1. Notificar cierre a writers de WebSockets activos
         for writer in list(self.active_websockets):
             try:
                 writer.close()
-                await writer.wait_closed()
             except Exception:
+                pass
+
+        # 2. Cancelar proactivamente todas las tareas de atención a clientes
+        for task in list(self._client_tasks):
+            if not task.done():
+                task.cancel()
+        if self._client_tasks:
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*self._client_tasks, return_exceptions=True),
+                    timeout=1.0,
+                )
+            except (asyncio.TimeoutError, Exception):
+                pass
+            self._client_tasks.clear()
+
+        # 3. Esperar cierre de writers con timeout breve de protección
+        for writer in list(self.active_websockets):
+            try:
+                await asyncio.wait_for(writer.wait_closed(), timeout=0.3)
+            except (asyncio.TimeoutError, Exception):
                 pass
         self.active_websockets.clear()
 
@@ -208,6 +238,9 @@ class MeshCoreWebServer:
 
     async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         """Procesa una conexión entrante HTTP o WebSocket."""
+        current_task = asyncio.current_task()
+        if current_task is not None:
+            self._client_tasks.add(current_task)
         try:
             head = await self._parse_request_head(reader, writer)
             if head is None:
@@ -236,12 +269,21 @@ class MeshCoreWebServer:
                 body_dict=body_dict,
             )
             await self._dispatch_client_request(ctx)
+        except asyncio.CancelledError:
+            try:
+                writer.close()
+            except Exception:
+                pass
+            raise
         except Exception as e:
             logging.warning("Excepción en cliente HTTP/WS: %s", e)
             try:
                 writer.close()
             except Exception:
                 pass
+        finally:
+            if current_task is not None:
+                self._client_tasks.discard(current_task)
 
     async def _parse_request_head(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
@@ -783,6 +825,8 @@ class MeshCoreWebServer:
 
                 return opcode, payload
             except asyncio.TimeoutError:
+                if not self.running:
+                    return None
                 # Si el socket estuvo ocioso, enviamos un Ping de vivacidad RFC 6455
                 if writer is not None:
                     try:

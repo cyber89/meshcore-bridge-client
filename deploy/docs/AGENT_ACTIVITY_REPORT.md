@@ -2,6 +2,36 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Blindaje de Apagado Determinista (Graceful Shutdown) y Remediación de Timeout de Systemd (SIGKILL / Status 9)
+- **Fecha**: 2026-09-18
+- **Estado**: ✅ COMPLETADO (1. Causa Raíz Diagnosticada: Interrupción forzada por systemd tras expirar TimeoutStopSec=10 debido a llamadas de cierre no acotadas en WebSockets, Companion TCP, serial SDK y MQTT; 2. Servidores de Red (http_server.py, tcp_companion_server.py): Tracking proactivo de tareas de clientes y cancelación con timeouts estrictos en wait_closed(); 3. Adaptador Serie y Virtual (serial_driver.py, virtual_mesh_adapter.py): Timeouts acotados en disconnect(); 4. Cliente MQTT (mqtt_client.py): Estado offline publicado con QoS 0 y thread.join(timeout=1.0) sin bloqueos sincrónicos; 5. Orquestador Central (bridge_core.py): Timeouts granulares por subsistema (1.5s), salvaguarda global de 5s en señal y drenaje seguro en finally; 6. Configuración Systemd: TimeoutStopSec ampliado a 20s en meshcore-bridge.service y sincronizado en /deploy/; 7. Verificación: ruff 0 errores, mypy strict 0 errores, audit_async_concurrency 100% PASS, audit_codebase_integrity 100% PASS y tiempo medido de apagado < 0.04s).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect), Agente 5 (Security Auditor).
+- **Acciones Realizadas**:
+  1. **Servidor Web y WebSockets (`src/web/http_server.py`)**:
+     - Registradas y desregistradas tareas de cliente en `self._client_tasks`.
+     - Cancelación proactiva de tareas de cliente y timeout de 1.0s en `server.wait_closed()` y 0.3s en `writer.wait_closed()`.
+     - Salida temprana en `_read_websocket_frame` si `self.running` pasa a `False`.
+  2. **Servidor TCP Companion (`src/tcp_companion_server.py`)**:
+     - Registradas y desregistradas tareas de cliente en `self._client_tasks`.
+     - Cancelación proactiva y timeouts acotados en `stop()` y en el bloque `finally` de `_handle_client`.
+  3. **Adaptadores Serial y Virtual (`src/serial_driver.py`, `src/virtual_mesh_adapter.py`)**:
+     - Acotada la desconexión del SDK oficial (`mc.disconnect()`) con timeout de 1.5s y fallback forzado a `mc.stop()`.
+     - Acotada la cancelación de la tarea de sincronización inicial y simulación con timeout de 1.0s.
+  4. **Cliente MQTT (`src/mqtt_client.py`)**:
+     - Publicación del estado offline con `qos=0` para evitar bloqueos por ACK en el cierre.
+     - Detención no bloqueante del hilo de red mediante `thread.join(timeout=1.0)` evitando cuelgues indefinidos.
+  5. **Orquestador Principal (`src/bridge_core.py`)**:
+     - Cada subsistema en `stop()` ahora se detiene de forma independiente protegido con `asyncio.wait_for(coro, timeout=1.5)`.
+     - Guardado de `NodeRegistry` en hilo con timeout de 1.0s.
+     - Parada de MQTT en hilo asíncrono con timeout de 1.5s.
+     - Bandera `_shutdown_triggered` para evitar colisiones ante ráfagas de señales en `run_forever()`.
+     - Timeout global de 5.0s en la corrutina de parada por señal y cierre acotado en el bloque `finally:`.
+  6. **Unidad Systemd y Empaquetado (`meshcore-bridge.service`, `/deploy/`)**:
+     - Configurado `TimeoutStopSec=20` tanto en el raíz como en el paquete distribuible.
+     - Sincronizado el despliegue con `python scripts/sync_deploy.py`.
+
+---
+
 ### Hito: Implementación de Capacidades Upstream MeshCore, Integración Web API Completa y Simulación de Escenario Complejo con Auditoría de Logs
 - **Fecha**: 2026-09-18
 - **Estado**: ✅ COMPLETADO (1. Feature A: Diagnóstico binario/anónimo de repetidores remotos con endpoints REST POST /api/repeater/remote/{neighbours,owner,regions,clock,acl} y controles interactivos en repeaterAdminModal; 2. Feature B: Gestor integral de variables personalizadas CMD_GET_CUSTOM_VARS / CMD_SET_CUSTOM_VAR con API REST GET, POST, DELETE /api/config/custom_vars y tabla interactiva en WebUI; 3. Feature C: Selector de compresión Path Hash CMD_SET_PATH_HASH_MODE (modos 0, 1, 2) con API REST GET, POST /api/config/path_hash_mode y dropdown en WebUI; 4. Feature D: Máscara de auto-adición de contactos CMD_SET_AUTOADD_CONFIG / CMD_GET_AUTOADD_CONFIG con soporte multi-byte moderno max_hops y API REST GET, POST /api/config/autoadd; 5. Feature E: Ámbitos de inundación Flood Scope y clave de transporte CMD_SET_FLOOD_SCOPE_KEY / CMD_SET_DEFAULT_FLOOD_SCOPE con API REST GET, POST /api/config/flood_scope y controles WebUI; 6. Enrutamiento REST: Corregido despacho de /api/messages en api_router.py; 7. Simulación de Escenario Complejo: Creado y ejecutado scripts/simulate_complex_mesh_scenario.py validando 6 nodos (Base Station, 2 Repetidores, Cliente, Sensor, BBS) a través de 9 fases completas; 8. Auditoría Estricta de Logs: 0 advertencias, 0 errores inesperados y 0 excepciones huérfanas en memoria; 9. Calidad y Sincronización: ruff 0 errores, mypy --strict 0 errores, audit_codebase_integrity 100% PASS, empaquetado sincronizado en /deploy/).

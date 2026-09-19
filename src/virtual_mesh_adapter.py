@@ -482,8 +482,8 @@ class VirtualMeshAdapter(BaseSerialAdapter):
         if self._sim_task and not self._sim_task.done():
             self._sim_task.cancel()
             try:
-                await self._sim_task
-            except asyncio.CancelledError:
+                await asyncio.wait_for(self._sim_task, timeout=1.0)
+            except (asyncio.CancelledError, asyncio.TimeoutError, Exception):
                 pass
         self.is_connected = False
         logging.info("Adaptador Virtual LoRa MeshCore desconectado.")

@@ -495,13 +495,12 @@ class MeshCoreBridge:
         if cleanup_task is not None and not cleanup_task.done():
             cleanup_task.cancel()
             try:
-                await cleanup_task
-            except (asyncio.CancelledError, Exception):
+                await asyncio.wait_for(cleanup_task, timeout=0.5)
+            except (asyncio.CancelledError, asyncio.TimeoutError, Exception):
                 pass
             self._cleanup_task = None
 
-        # Detención resiliente: cada subsistema se cierra independientemente
-        # para evitar que un fallo deje zombies activos (BUG-02 fix)
+        # Detención resiliente: cada subsistema se cierra con timeout individual estricto (1.5s máx)
         for subsystem_name, coro in [
             ("tcp_server", self.tcp_server.stop() if self.tcp_server else None),
             ("web_server", self.web_server.stop() if self.web_server else None),
@@ -513,28 +512,30 @@ class MeshCoreBridge:
             if coro is None:
                 continue
             try:
-                await coro
+                await asyncio.wait_for(coro, timeout=1.5)
+            except asyncio.TimeoutError:
+                logging.warning(f"Timeout (1.5s) al detener subsistema '{subsystem_name}'.")
             except Exception as e:
                 logging.error(f"Error deteniendo {subsystem_name}: {e}", exc_info=True)
 
-        # Persistir libreta de contactos y métricas de nodos
+        # Persistir libreta de contactos y métricas de nodos de forma no bloqueante
         try:
             if hasattr(self, "node_registry") and hasattr(self.node_registry, "save_to_file"):
-                self.node_registry.save_to_file()
-        except Exception as e:
-            logging.debug(f"Error guardando NodeRegistry al detener: {e}")
+                await asyncio.wait_for(asyncio.to_thread(self.node_registry.save_to_file), timeout=1.0)
+        except (asyncio.TimeoutError, Exception) as e:
+            logging.debug(f"Error o timeout guardando NodeRegistry al detener: {e}")
 
-        # Emitir estado offline explícito antes de cerrar
+        # Emitir estado offline explícito antes de cerrar (QoS 0 para entrega inmediata)
         try:
             offline_payload = json.dumps({"status": "offline", "timestamp": int(time.time())})
-            self.mqtt.publish_safe(config.TOPIC_STATE, offline_payload, qos=1, retain=True)
+            self.mqtt.publish_safe(config.TOPIC_STATE, offline_payload, qos=0, retain=True)
         except Exception as e:
             logging.error(f"Error publicando estado offline MQTT: {e}")
 
         try:
-            self.mqtt.stop()
-        except Exception as e:
-            logging.error(f"Error deteniendo cliente MQTT: {e}")
+            await asyncio.wait_for(asyncio.to_thread(self.mqtt.stop), timeout=1.5)
+        except (asyncio.TimeoutError, Exception) as e:
+            logging.warning(f"Error o timeout deteniendo cliente MQTT: {e}")
 
         if hasattr(self, "log_handler") and self.log_handler in logging.getLogger().handlers:
             logging.getLogger().removeHandler(self.log_handler)
@@ -876,7 +877,7 @@ class MeshCoreBridge:
                 logging.debug(f"Error publicando duty_cycle_alert en MQTT: {e}")
 
     def run_forever(self) -> None:
-        """Punto de entrada síncrono que corre el bucle asyncio con manejo de señales."""
+        """Punto de entrada síncrono que corre el bucle asyncio con manejo de señales y apagado acotado."""
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
@@ -884,10 +885,19 @@ class MeshCoreBridge:
             loop.set_debug(True)
             logging.getLogger("asyncio").setLevel(logging.DEBUG)
 
+        _shutdown_triggered = False
+
         def _stop_task() -> None:
+            nonlocal _shutdown_triggered
+            if _shutdown_triggered:
+                return
+            _shutdown_triggered = True
+
             async def _async_shutdown() -> None:
                 try:
-                    await self.stop()
+                    await asyncio.wait_for(self.stop(), timeout=5.0)
+                except asyncio.TimeoutError:
+                    logging.warning("Timeout global (5.0s) en self.stop() durante apagado por señal.")
                 finally:
                     loop.stop()
 
@@ -906,12 +916,25 @@ class MeshCoreBridge:
         except (KeyboardInterrupt, SystemExit):
             logging.info("Interrupción por usuario recibida.")
         finally:
-            loop.run_until_complete(self.stop())
+            try:
+                loop.run_until_complete(asyncio.wait_for(self.stop(), timeout=3.0))
+            except (asyncio.TimeoutError, Exception):
+                pass
 
             pending = [t for t in asyncio.all_tasks(loop) if not t.done()]
             if pending:
                 for task in pending:
                     task.cancel()
-                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                try:
+                    loop.run_until_complete(
+                        asyncio.wait_for(asyncio.gather(*pending, return_exceptions=True), timeout=2.0)
+                    )
+                except (asyncio.TimeoutError, Exception):
+                    pass
+
+            try:
+                loop.run_until_complete(loop.shutdown_asyncgens())
+            except Exception:
+                pass
 
             loop.close()

@@ -179,6 +179,7 @@ Una vez en ejecución, la estación web estará disponible en:
     tar_path_deploy = DEPLOY_DIR / tar_name
     tar_path_root = ROOT_DIR / tar_name
 
+    tar_path_deploy.unlink(missing_ok=True)
     with tarfile.open(tar_path_deploy, "w:gz") as tar:
         for item in DEPLOY_DIR.iterdir():
             if item.name not in (tar_name, f"meshcore-bridge-v{VERSION}.zip", "SHA256SUMS"):
@@ -191,6 +192,7 @@ Una vez en ejecución, la estación web estará disponible en:
     zip_path_deploy = DEPLOY_DIR / zip_name
     zip_path_root = ROOT_DIR / zip_name
 
+    zip_path_deploy.unlink(missing_ok=True)
     with zipfile.ZipFile(zip_path_deploy, "w", zipfile.ZIP_DEFLATED) as zip_file:
         for root, _, files in shutil.os.walk(DEPLOY_DIR):
             for file in files:

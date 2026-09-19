@@ -1,6 +1,6 @@
 {
   "local_pubkey": "",
-  "saved_at": 1789600686.8321023,
+  "saved_at": 1789777777.8419569,
   "nodes": [
     {
       "public_key": "feedface0001",
@@ -8,8 +8,8 @@
       "alias": "Base_Station",
       "role": "CLIENT",
       "hops": 1,
-      "last_rssi": -70,
-      "last_snr": 11.5,
+      "last_rssi": null,
+      "last_snr": null,
       "battery_pct": 90,
       "last_seen": 1789600686.8186142,
       "rx_packets": 15,
@@ -53,8 +53,8 @@
       "discovery_time": 0.0,
       "verified_identity": false,
       "is_favorite": false,
-      "lqi_score": 72.7,
-      "lqi_status": "GOOD",
+      "lqi_score": 0.0,
+      "lqi_status": "DISCONNECTED",
       "best_route": "DIRECT",
       "flags": null,
       "last_advert": null,
@@ -70,8 +70,8 @@
       "lon": null,
       "min_tx_power": 2,
       "default_tx_power": 20,
-      "presence_status": "online",
-      "status_label": "Activo",
+      "presence_status": "offline",
+      "status_label": "Desconectado",
       "last_seen_iso": "2026-09-16T19:18:06.818614",
       "last_seen_formatted": "2026-09-16 19:18:06"
     },

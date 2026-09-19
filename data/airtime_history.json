@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "saved_at": 1789777777.8394766,
+  "duty_cycle_limit_pct": 1.0,
+  "warn_threshold_pct": 80.0,
+  "total_airtime_ms": 0.0,
+  "total_packets": 0,
+  "records": []
+}
