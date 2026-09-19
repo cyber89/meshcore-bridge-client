@@ -108,12 +108,17 @@ export class SettingsModule {
       contactModalFavBadge: document.getElementById("contactModalFavBadge"),
       qrShareModal: document.getElementById("qrShareModal"),
       btnCloseQrShareModal: document.getElementById("btnCloseQrShareModal"),
+      btnCloseQrModal: document.getElementById("btnCloseQrShareModal") || document.getElementById("btnCloseQrModal"),
       btnCloseQrModalAction: document.getElementById("btnCloseQrModalAction"),
-      qrShareCanvas: document.getElementById("qrShareCanvas"),
-      qrShareUri: document.getElementById("qrShareUri"),
+      qrCanvas: document.getElementById("qrCanvas") || document.getElementById("qrShareCanvas"),
+      qrShareCanvas: document.getElementById("qrCanvas") || document.getElementById("qrShareCanvas"),
+      qrUriDisplay: document.getElementById("qrUriDisplay") || document.getElementById("qrShareUri"),
+      qrShareUri: document.getElementById("qrUriDisplay") || document.getElementById("qrShareUri"),
       qrShareJson: document.getElementById("qrShareJson"),
+      qrModalTitle: document.getElementById("qrModalTitle"),
       btnCopyQrUri: document.getElementById("btnCopyQrUri"),
       btnDownloadQrJson: document.getElementById("btnDownloadQrJson"),
+      importFileInput: document.getElementById("importFileInput"),
       localRadioForm: document.getElementById("localRadioForm"),
       localOwnerPosForm: document.getElementById("localOwnerPosForm"),
       localTerminalForm: document.getElementById("localTerminalForm"),
@@ -318,19 +323,21 @@ export class SettingsModule {
     }
 
     // 4. Modal QR
-    if (this.dom.btnCloseQrModal) {
-      this.dom.btnCloseQrModal.addEventListener("click", () => {
-        if (this.dom.qrShareModal) this.dom.qrShareModal.classList.add("hidden");
-      });
-    }
-    if (this.dom.btnCloseQrModalAction) {
-      this.dom.btnCloseQrModalAction.addEventListener("click", () => {
-        if (this.dom.qrShareModal) this.dom.qrShareModal.classList.add("hidden");
+    const closeQr = () => {
+      if (this.dom.qrShareModal) this.dom.qrShareModal.classList.add("hidden");
+    };
+    if (this.dom.btnCloseQrShareModal) this.dom.btnCloseQrShareModal.addEventListener("click", closeQr);
+    if (this.dom.btnCloseQrModal) this.dom.btnCloseQrModal.addEventListener("click", closeQr);
+    if (this.dom.btnCloseQrModalAction) this.dom.btnCloseQrModalAction.addEventListener("click", closeQr);
+    if (this.dom.qrShareModal) {
+      this.dom.qrShareModal.addEventListener("click", (e) => {
+        if (e.target === this.dom.qrShareModal) closeQr();
       });
     }
     if (this.dom.btnCopyQrUri) {
       this.dom.btnCopyQrUri.addEventListener("click", () => {
-        const uri = this.dom.qrUriDisplay ? (this.dom.qrUriDisplay.value || this.dom.qrUriDisplay.textContent || "") : "";
+        const uriEl = this.dom.qrUriDisplay || this.dom.qrShareUri;
+        const uri = uriEl ? (uriEl.value || uriEl.textContent || "") : "";
         if (uri) {
           navigator.clipboard.writeText(uri);
           if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.uri_copied'), "success");
@@ -367,6 +374,20 @@ export class SettingsModule {
     if (this.dom.btnHeaderImportContact) this.dom.btnHeaderImportContact.addEventListener("click", openImportModal);
     if (this.dom.btnCloseImportModal) this.dom.btnCloseImportModal.addEventListener("click", closeImportModal);
     if (this.dom.btnCancelImport) this.dom.btnCancelImport.addEventListener("click", closeImportModal);
+
+    if (this.dom.importFileInput) {
+      this.dom.importFileInput.addEventListener("change", (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          if (this.dom.importPayloadInput && ev.target?.result) {
+            this.dom.importPayloadInput.value = String(ev.target.result).trim();
+          }
+        };
+        reader.readAsText(file);
+      });
+    }
 
     if (this.dom.importForm) {
       this.dom.importForm.addEventListener("submit", async (e) => {
@@ -1703,6 +1724,9 @@ export class SettingsModule {
     }
 
     this.dom.qrShareModal.classList.remove("hidden");
+    if (window.initLucideIcons) {
+      window.initLucideIcons(this.dom.qrShareModal);
+    }
   }
 
   appendLocalTerminalLine(text, cssClass = "term-info") {

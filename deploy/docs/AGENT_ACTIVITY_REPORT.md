@@ -2,6 +2,38 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Formato Canónico de Mensajes de Contacto (<pubkey:type:name>), Restauración de Modal QR e Importación Web Flexible
+- **Fecha**: 2026-09-19
+- **Estado**: ✅ COMPLETADO — Formato canónico `<pubkey:type:name>` implementado en chat (envío y recepción), renderizado de tarjeta de contacto enriquecida con botón de guardado en libreta; modal QR completamente restaurado y estilizado; e importación web extendida para soportar etiquetas canónicas de mensaje, enlaces URI, JSON y subida de archivos (.json / .txt).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Firmware Investigator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect).
+- **Causa Raíz Diagnosticada**:
+  1. El formato de compartición de contactos en chat de MeshCore oficial es `<pubkey:type:name>` (ej: `<8d5accef...:1:Cu1.mobilUnit>`). El bridge enviaba un enlace URI `meshcore://contact/add?...` no estándar que otras aplicaciones oficiales de MeshCore no parseaban como tarjeta de contacto nativa.
+  2. En `index.html`, el elemento `#qrShareModal` no existía en el DOM. A pesar de que los botones en la interfaz (`nodes.js` y `settings.js`) llamaban a `showQrModal()`, la función fallaba silenciosamente al no encontrar el contenedor modal.
+  3. El modal de importación de contactos sólo permitía pegar texto y requería formato JSON o URI, no admitiendo la sintaxis de mensaje `<pubkey:type:name>` ni la carga directa de archivos.
+- **Acciones Realizadas**:
+  1. **`src/web/static/js/core/utils.js`**:
+     - Implementada función `formatMeshCoreContactMessage(name, publicKey, role = "CLIENT")` que retorna `<pubkey:type:name>`.
+     - Actualizado `parseMeshCoreUri(rawUri)` para detectar y parsear la sintaxis `<pubkey:type:name>` devolviendo un objeto de contacto normalizado.
+  2. **`src/web/static/js/modules/chat.js`**:
+     - En `confirmShareContact()`: envío de contacto utilizando el formato canónico `<pubkey:type:name>`.
+     - En `createMessageBubble(msg)`: regex para detectar `<([0-9a-fA-F]{64}):([0-9]+):([^>]+)>`, limpiar el texto del globo y renderizar una tarjeta interactiva con botón "Guardar en Contactos".
+  3. **`src/web/controllers/contacts_controller.py`**:
+     - En `_export_contact()`: añadido campo `"message_tag": f"<{pubkey}:{type_num}:{name}>"`.
+     - En `_import_contact()`: soporte para parsear una o múltiples etiquetas `<pubkey:type:name>`, mapeando el tipo numérico a rol MeshCore (`1` -> `CLIENT`, etc.) y persistiendo en `NodeRegistry`.
+  4. **`src/web/static/index.html`**:
+     - Añadido `#qrShareModal` completo con `#qrCanvas` (`<canvas width="180" height="180">`), visualizador de URI, visor de JSON, botón de copiado, botón de descarga y botón de cierre.
+     - Añadido control de subida de archivo `#importFileInput` en el modal de importación con etiqueta accesible "Cargar Archivo".
+  5. **`src/web/static/js/modules/settings.js`**:
+     - Enlazados elementos del modal QR y del input de archivo.
+     - Añadidos listeners para copiar URI, descargar JSON, cerrar modal con backdrop y procesar archivo con `FileReader`.
+     - En `showQrModal()`: renderizado dinámico con `QRCodeGenerator.renderToCanvas()` e inicialización de iconos Lucide.
+- **Verificación y Calidad**:
+  - `node --check` en `utils.js`, `chat.js`, `settings.js`: 0 errores.
+  - `ruff check src/web/controllers/contacts_controller.py`: 0 errores.
+  - `mypy --strict src/web/controllers/contacts_controller.py`: 0 errores.
+  - `sync_deploy.py`: sincronización y empaquetado completados.
+
+
 ### Hito: Correlación de ACK de Entrega (Segunda Palomita ✓✓) en Mensajes Directos (DM)
 - **Fecha**: 2026-09-19
 - **Estado**: ✅ COMPLETADO — Correlación bidireccional entre `expected_ack` (4 bytes hex de MeshCore) y `msg_id` en backend y frontend. Renderizado de doble palomita `✓✓` (`ack-delivered`), tiempo RTT en ms y persistencia en IndexedDB.

@@ -2152,6 +2152,41 @@
       </div>
     </div>
 
+    <!-- Modal: Compartir por Código QR -->
+    <div id="qrShareModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="qrModalTitle">
+      <div class="modal-card qr-modal-card">
+        <div class="modal-header">
+          <h3 id="qrModalTitle"><span class="modal-title-icon" data-lucide="qr-code" data-size="18"></span> Compartir por Código QR</h3>
+          <button class="btn-icon modal-close" id="btnCloseQrShareModal" aria-label="Cerrar modal">✕</button>
+        </div>
+        <div class="modal-body qr-modal-body">
+          <div class="qr-modal-layout">
+            <div class="qr-preview-col">
+              <div class="qr-canvas-container">
+                <canvas id="qrCanvas" width="180" height="180"></canvas>
+              </div>
+              <span class="qr-scan-hint">Escanea con la app MeshCore o cámara móvil</span>
+            </div>
+            <div class="qr-details-col">
+              <div class="form-group">
+                <label for="qrUriDisplay">Enlace Canónico (URI):</label>
+                <textarea id="qrUriDisplay" readonly class="code-textarea" rows="2"></textarea>
+              </div>
+              <div class="form-group">
+                <label for="qrShareJson">Datos Estructurados (JSON):</label>
+                <textarea id="qrShareJson" readonly class="code-textarea" rows="3"></textarea>
+              </div>
+              <div class="qr-actions-row">
+                <button type="button" class="btn-secondary btn-sm" id="btnCopyQrUri"><span data-lucide="copy" data-size="13"></span> Copiar URI</button>
+                <button type="button" class="btn-secondary btn-sm" id="btnDownloadQrJson"><span data-lucide="download" data-size="13"></span> Descargar JSON</button>
+                <button type="button" class="btn-primary btn-sm" id="btnCloseQrModalAction">Cerrar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal: Importar Canal o Contacto -->
     <div id="importModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="importModalTitle">
       <div class="modal-card">
@@ -2161,9 +2196,15 @@
         </div>
         <form id="importForm" class="modal-body">
           <div class="form-group">
-            <label for="importPayloadInput">Pega aquí el enlace URI (meshcore://...) o JSON:</label>
-            <textarea id="importPayloadInput" placeholder='{"type":"channel","index":1,"name":"Táctico","psk":"..."} o meshcore://...' rows="5" required class="code-textarea"></textarea>
-            <span class="field-hint">Soporta enlaces exportados desde MeshCore App, CLI o Web Station.</span>
+            <label for="importPayloadInput">Pega aquí el enlace URI (meshcore://...), formato de mensaje (&lt;pubkey:type:name&gt;) o JSON:</label>
+            <textarea id="importPayloadInput" placeholder='{"type":"channel","index":1,"name":"Táctico","psk":"..."} o &lt;8d5accef...:1:Nombre&gt; o meshcore://...' rows="5" required class="code-textarea"></textarea>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
+              <span class="field-hint">Soporta enlaces exportados desde MeshCore App, CLI o Web Station.</span>
+              <label for="importFileInput" class="btn-secondary btn-xs" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px; margin: 0;">
+                <span data-lucide="upload" data-size="12"></span> Cargar Archivo
+              </label>
+              <input type="file" id="importFileInput" accept=".json,.txt" class="hidden" />
+            </div>
           </div>
 
           <div class="modal-footer">

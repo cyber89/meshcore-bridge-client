@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import time
 import urllib.parse
 from typing import Any
@@ -159,6 +160,7 @@ class ContactsController(BaseController):
 
         encoded_name = urllib.parse.quote(name)
         canonical_uri = f"meshcore://contact/add?name={encoded_name}&public_key={pubkey}&type={type_num}"
+        message_tag = f"<{pubkey}:{type_num}:{name}>"
 
         contact_data = {
             "type": "contact",
@@ -167,6 +169,7 @@ class ContactsController(BaseController):
             "role": role,
             "contact_type": type_num,
             "uri": canonical_uri,
+            "message_tag": message_tag,
             "raw_hex": res,
         }
 
@@ -174,12 +177,13 @@ class ContactsController(BaseController):
             "status": "ok",
             "uri": canonical_uri,
             "qr_uri": canonical_uri,
+            "message_tag": message_tag,
             "data": contact_data,
             "result": res,
         }
 
     async def _import_contact(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-        """Importa contactos desde URI canónica (meshcore://contact/add?...), JSON estructurado o volcado hexadecimal."""
+        """Importa contactos desde URI canónica (meshcore://contact/add?...), formato de mensaje (<pubkey:type:name>), JSON estructurado o volcado hexadecimal."""
         raw_payload = str(req_body.get("data") or req_body.get("payload") or req_body.get("uri") or "").strip()
         contacts_to_add: list[dict[str, Any]] = []
 
@@ -191,8 +195,25 @@ class ContactsController(BaseController):
 
         # 2. Parseo de string si viene en raw_payload
         if raw_payload and not contacts_to_add:
-            # Caso 2a: URI meshcore://contact o meshcore://node
-            if raw_payload.startswith("meshcore://"):
+            type_map_rev = {"1": "CLIENT", "2": "REPEATER", "3": "ROOM", "4": "SENSOR"}
+
+            # Caso 2a: Formato de mensaje MeshCore <pubkey:type:name>
+            m_single = re.match(r"^<([0-9a-fA-F]{64}):([0-9]+):([^>]+)>$", raw_payload)
+            if m_single:
+                pk = m_single.group(1).lower()
+                raw_type = m_single.group(2)
+                nm = m_single.group(3).strip()
+                rl = type_map_rev.get(raw_type, "CLIENT")
+                contacts_to_add.append({"public_key": pk, "name": nm, "alias": nm, "role": rl})
+            else:
+                matches = re.findall(r"<([0-9a-fA-F]{64}):([0-9]+):([^>]+)>", raw_payload)
+                if matches:
+                    for m_pk, m_type, m_name in matches:
+                        rl = type_map_rev.get(m_type, "CLIENT")
+                        contacts_to_add.append({"public_key": m_pk.lower(), "name": m_name.strip(), "alias": m_name.strip(), "role": rl})
+
+            # Caso 2b: URI meshcore://contact o meshcore://node
+            if not contacts_to_add and raw_payload.startswith("meshcore://"):
                 try:
                     parsed_uri = urllib.parse.urlparse(raw_payload)
                     # Si es canal, alertar
@@ -205,7 +226,6 @@ class ContactsController(BaseController):
                     raw_type = (qs.get("type") or [""])[0].strip()
                     rl = (qs.get("role") or [""])[0].strip().upper()
                     if not rl and raw_type:
-                        type_map_rev = {"1": "CLIENT", "2": "REPEATER", "3": "ROOM", "4": "SENSOR"}
                         rl = type_map_rev.get(raw_type, "CLIENT")
                     if not rl:
                         rl = "CLIENT"

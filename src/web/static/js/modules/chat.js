@@ -11,7 +11,9 @@ import {
   MAX_FEED_MESSAGES,
   buildMeshCoreContactUri,
   buildMeshCoreChannelUri,
+  formatMeshCoreContactMessage,
   parseMeshCoreUri,
+  getRoleFromNumericType,
   MESHCORE_PUBLIC_CHANNEL_SECRET,
   MAX_LORA_TEXT_BYTES,
   getUtf8ByteLength,
@@ -479,9 +481,9 @@ export class ChatModule {
   async confirmShareContact() {
     if (!this.selectedShareContact) return;
     const c = this.selectedShareContact;
-    const uri = buildMeshCoreContactUri(c.name || c.alias || "Contacto", c.public_key, c.role || "CLIENT");
+    const contactMsg = formatMeshCoreContactMessage(c.name || c.alias || "Contacto", c.public_key, c.role || "CLIENT");
     this.closeShareContactModal();
-    await this.sendMessageWithText(uri);
+    await this.sendMessageWithText(contactMsg);
   }
 
   openShareChannelModal() {
@@ -1109,19 +1111,39 @@ export class ChatModule {
 
     const text = msg.text || "";
 
-    // 1. Detección de URIs oficiales de MeshCore (Compartir Contacto o Canal)
+    // 1. Detección de formato oficial de contacto MeshCore: <pubkey:type:name> o URIs oficiales (meshcore://...)
     let richCardHtml = "";
     let cleanDisplayText = text;
-    const meshcoreUriMatch = text.match(/meshcore:\/\/[^\s]+/i);
     let parsedUri = null;
 
-    if (meshcoreUriMatch) {
-      const rawUri = meshcoreUriMatch[0];
-      parsedUri = parseMeshCoreUri(rawUri);
-      if (parsedUri) {
-        cleanDisplayText = text.replace(rawUri, "").trim();
+    const contactTagMatch = text.match(/<([0-9a-fA-F]{64}):([0-9]+):([^>]+)>/);
+    if (contactTagMatch) {
+      const rawTag = contactTagMatch[0];
+      const cPk = contactTagMatch[1].toLowerCase();
+      const cType = parseInt(contactTagMatch[2], 10);
+      const cName = contactTagMatch[3].trim();
+      const cRole = getRoleFromNumericType(cType);
+      cleanDisplayText = text.replace(rawTag, "").trim();
+      parsedUri = {
+        type: "contact",
+        name: cName,
+        public_key: cPk,
+        role: cRole,
+        contact_type: cType,
+      };
+    } else {
+      const meshcoreUriMatch = text.match(/meshcore:\/\/[^\s]+/i);
+      if (meshcoreUriMatch) {
+        const rawUri = meshcoreUriMatch[0];
+        parsedUri = parseMeshCoreUri(rawUri);
+        if (parsedUri) {
+          cleanDisplayText = text.replace(rawUri, "").trim();
+        }
+      }
+    }
 
-        if (parsedUri.type === "contact") {
+    if (parsedUri) {
+      if (parsedUri.type === "contact") {
           const cName = parsedUri.name || "Contacto MeshCore";
           const cRole = parsedUri.role || "CLIENT";
           const cPk = parsedUri.public_key || "";

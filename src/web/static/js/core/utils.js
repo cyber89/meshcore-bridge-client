@@ -284,13 +284,48 @@ export function buildMeshCoreChannelUri(name, secret = "", index = null) {
 }
 
 /**
- * Parsea un enlace URI de MeshCore (tanto en formato canónico como legado/binario).
+ * Genera el formato canónico oficial de contacto compartido en un mensaje de chat MeshCore:
+ * Formato: <public_key:type:name>
+ * Ejemplo: <8d5accef196f5986567b3c7e915fc8e5fc3fe689cadca190d02523aef24b46bc:1:Cu1.mobilUnit>
+ * @param {string} name
+ * @param {string} publicKey
+ * @param {string} role
+ * @returns {string}
+ */
+export function formatMeshCoreContactMessage(name, publicKey, role = "CLIENT") {
+  const cleanName = String(name || "Contact").replace(/[<>]/g, "").trim();
+  const cleanPk = String(publicKey || "").trim().toLowerCase();
+  const typeNum = getNumericContactType(role);
+  return `<${cleanPk}:${typeNum}:${cleanName}>`;
+}
+
+/**
+ * Parsea un enlace URI de MeshCore o un formato de mensaje <pubkey:type:name>.
  * @param {string} rawUri
  * @returns {object|null}
  */
 export function parseMeshCoreUri(rawUri) {
   if (!rawUri || typeof rawUri !== "string") return null;
   const str = rawUri.trim();
+
+  // Caso 0: Formato de mensaje MeshCore <pubkey:type:name>
+  const tagMatch = str.match(/^<([0-9a-fA-F]{64}):([0-9]+):([^>]+)>$/);
+  if (tagMatch) {
+    const pk = tagMatch[1].toLowerCase();
+    const typeNum = parseInt(tagMatch[2], 10);
+    const name = tagMatch[3].trim();
+    const role = getRoleFromNumericType(typeNum);
+    return {
+      type: "contact",
+      kind: "contact",
+      name,
+      public_key: pk,
+      pubkey: pk,
+      role,
+      contact_type: typeNum,
+    };
+  }
+
   if (!str.startsWith("meshcore://")) return null;
 
   // Caso A: Canal (Canónico meshcore://channel/add o legado meshcore://channel?...)
@@ -305,6 +340,7 @@ export function parseMeshCoreUri(rawUri) {
     const index = idxStr !== null ? parseInt(idxStr, 10) : null;
     return {
       type: "channel",
+      kind: "channel",
       name,
       secret,
       psk: secret,
@@ -324,6 +360,7 @@ export function parseMeshCoreUri(rawUri) {
     const role = typeParam ? getRoleFromNumericType(typeParam) : (params.get("role") || "CLIENT");
     return {
       type: "contact",
+      kind: "contact",
       name,
       public_key: publicKey,
       pubkey: publicKey,
@@ -337,6 +374,7 @@ export function parseMeshCoreUri(rawUri) {
   if (/^[0-9a-fA-F]{64,}$/.test(hexPart)) {
     return {
       type: "binary_card",
+      kind: "binary_card",
       hex: hexPart,
     };
   }
