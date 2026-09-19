@@ -45,6 +45,9 @@ export class SettingsModule {
   _startLiveTick() {
     if (this._tickInterval) clearInterval(this._tickInterval);
     this._tickInterval = setInterval(() => {
+      if (document.hidden) return;
+      const activeTab = document.querySelector(".tab-pane.active")?.id;
+      if (activeTab !== "tab-settings") return;
       if (!this.cachedConfig) return;
       if (this.cachedConfig.device_epoch_time && this._deviceClockHostBase) {
         const elClock = document.getElementById("localClockValue");

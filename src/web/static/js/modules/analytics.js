@@ -100,6 +100,7 @@ export class AnalyticsModule {
         this.fetchAnalytics();
         if (this._liveAnalyticsInterval) clearInterval(this._liveAnalyticsInterval);
         this._liveAnalyticsInterval = setInterval(() => {
+          if (document.hidden) return;
           const activeTab = document.querySelector(".tab-pane.active")?.id;
           if (activeTab === "tab-analytics") {
             this.fetchAnalytics();
@@ -107,7 +108,7 @@ export class AnalyticsModule {
             clearInterval(this._liveAnalyticsInterval);
             this._liveAnalyticsInterval = null;
           }
-        }, 10000);
+        }, 15000);
       } else if (this._liveAnalyticsInterval) {
         clearInterval(this._liveAnalyticsInterval);
         this._liveAnalyticsInterval = null;
@@ -116,9 +117,11 @@ export class AnalyticsModule {
 
     // Actualización reactiva periódica ante paquetes RF con debounce de 5s
     const triggerDebouncedRefresh = () => {
+      if (document.hidden) return;
       if (!this.refreshTimer) {
         this.refreshTimer = setTimeout(() => {
           this.refreshTimer = null;
+          if (document.hidden) return;
           const activeTab = document.querySelector(".tab-pane.active")?.id;
           if (activeTab === "tab-analytics") {
             this.fetchAnalytics();

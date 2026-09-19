@@ -2,6 +2,28 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Optimización Fase 2 — Frontend Web: Page Visibility API y Ahorro de Batería/CPU
+- **Fecha**: 2026-09-19
+- **Estado**: ✅ COMPLETADO — Soporte integral de Page Visibility API (`document.hidden` y evento `visibilitychange`), pausa de refrescos DOM innecesarios y eliminación de sondeo HTTP redundante de airtime en clientes web.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX & Frontend Architect).
+- **Acciones Realizadas**:
+  1. **`src/web/static/js/core/eventbus.js`**:
+     - Registrado el evento canónico `EVENTS.VISIBILITY_CHANGED`.
+  2. **`src/web/static/js/app.js`**:
+     - Implementado `_initVisibilityHandler()` que escucha `visibilitychange`, emite `VISIBILITY_CHANGED` y re-emite `TAB_CHANGED` para refrescar de inmediato el contenido al volver a la pestaña activa.
+  3. **`src/web/static/js/modules/nodes.js`**:
+     - Pausado el ticker de presencia (`initPresenceTicker`) cuando `document.hidden` es verdadero, evitando iterar y re-renderizar todas las tarjetas de nodos si el usuario no está viendo la página.
+  4. **`src/web/static/js/modules/settings.js`**:
+     - Optimizado `_startLiveTick()`: solo actualiza el reloj y el uptime cuando `!document.hidden` y la pestaña activa es `tab-settings`, eliminando ejecuciones cada 1 segundo en segundo plano.
+  5. **`src/web/static/js/modules/map.js`**:
+     - Optimizado el intervalo del heatmap RF (`rfHeatmapInterval`): solo consulta si la pestaña está activa y visible.
+     - Eliminado el polling HTTP redundante de airtime (`setInterval(fetchAirtimeStats, 60000)`), ya que el airtime se entrega en tiempo real por WebSocket.
+  6. **`src/web/static/js/modules/analytics.js`**:
+     - Pausado el intervalo de actualización y el debounce de paquetes cuando `document.hidden` es verdadero.
+- **Verificación y Calidad**:
+  - `node --check` en `eventbus.js`, `app.js`, `nodes.js`, `settings.js`, `map.js`, `analytics.js`: 0 errores.
+  - `python scripts/sync_deploy.py`: completado con éxito.
+
 ### Hito: Optimización Fase 1 — Servidor HTTP: Caché en RAM de Estáticos, Compresión GZIP y Soporte ETag / 304 Not Modified
 - **Fecha**: 2026-09-19
 - **Estado**: ✅ COMPLETADO — Caché en memoria RAM (`_static_cache`) para eliminar lecturas de tarjeta SD en SBCs, compresión dinámica GZIP en vuelo con reducción > 80% del payload de red, y soporte completo de validación de caché condicional `ETag` / `If-None-Match` con respuestas `304 Not Modified` (0 bytes).

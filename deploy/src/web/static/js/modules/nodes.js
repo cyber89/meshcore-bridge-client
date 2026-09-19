@@ -666,7 +666,9 @@ export class NodesModule {
   }
 
   initPresenceTicker() {
-    setInterval(() => {
+    if (this._presenceInterval) clearInterval(this._presenceInterval);
+    this._presenceInterval = setInterval(() => {
+      if (document.hidden) return; // Ahorro de CPU: no actualizar DOM si la pestaña está en segundo plano u oculta
       // Actualización visual periódica de estados en línea/inactivo/desconectado
       document.querySelectorAll(".node-card, .contact-card").forEach((card) => {
         const pk = card.getAttribute("data-pk");

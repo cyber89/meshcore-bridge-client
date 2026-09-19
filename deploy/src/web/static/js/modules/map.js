@@ -284,8 +284,12 @@ export class MapModule {
 
     if (!this.rfHeatmapInterval) {
       this.rfHeatmapInterval = setInterval(() => {
-        if (this.rfHeatmapActive) this.refreshRfHeatmap(false);
-      }, 10000);
+        if (document.hidden) return;
+        const activeTab = document.querySelector(".tab-pane.active")?.id;
+        if (activeTab === "tab-map" && this.rfHeatmapActive) {
+          this.refreshRfHeatmap(false);
+        }
+      }, 15000);
     }
   }
 
@@ -397,8 +401,7 @@ export class MapModule {
   }
 
   initAirtimeMonitoring() {
-    this.fetchAirtimeStats();
-    setInterval(() => this.fetchAirtimeStats(), 60000);
+    // Airtime se sincroniza de forma reactiva y centralizada mediante WebSocket en app.js y analytics.js
   }
 
   async fetchAirtimeStats() {

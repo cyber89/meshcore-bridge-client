@@ -85,6 +85,7 @@ class MeshCoreApp {
     this._initNavigation();
     this._initSidebar();
     this._initCommandPalette();
+    this._initVisibilityHandler();
     this._subscribeBus();
 
     // Inicializar subsistemas modulares
@@ -202,6 +203,17 @@ class MeshCoreApp {
         this.activeTabId = tabId;
         this.eventBus.emit(EVENTS.TAB_CHANGED, tabId);
       });
+    });
+  }
+
+  _initVisibilityHandler() {
+    document.addEventListener("visibilitychange", () => {
+      const isVisible = !document.hidden;
+      this.eventBus.emit(EVENTS.VISIBILITY_CHANGED, isVisible);
+      if (isVisible && this.activeTabId) {
+        // Al volver a la pestaña, refrescar el módulo activo inmediatamente
+        this.eventBus.emit(EVENTS.TAB_CHANGED, this.activeTabId);
+      }
     });
   }
 
