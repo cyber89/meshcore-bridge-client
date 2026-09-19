@@ -114,7 +114,7 @@ export class AnalyticsModule {
       }
     });
 
-    // Actualización reactiva periódica si llegan métricas o paquetes
+    // Actualización reactiva periódica ante paquetes RF con debounce de 5s
     const triggerDebouncedRefresh = () => {
       if (!this.refreshTimer) {
         this.refreshTimer = setTimeout(() => {
@@ -123,14 +123,13 @@ export class AnalyticsModule {
           if (activeTab === "tab-analytics") {
             this.fetchAnalytics();
           }
-        }, 3000);
+        }, 5000);
       }
     };
 
     this.ctx.eventBus.on(EVENTS.RF_PACKET, triggerDebouncedRefresh);
     if (EVENTS.METRICS_UPDATE) {
       this.ctx.eventBus.on(EVENTS.METRICS_UPDATE, (payload) => {
-        triggerDebouncedRefresh();
         if (payload) {
           const airtimeData = payload.airtime || (payload.duty_cycle_pct != null || payload.hourly_duty_cycle_pct != null ? payload : null);
           if (airtimeData) {

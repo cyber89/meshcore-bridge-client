@@ -231,6 +231,8 @@ class SecurityTrafficInspector:
             "/api/status",
             "/api/health",
             "/api/airtime/stats",
+            "/api/analytics",
+            "/api/metrics/analytics",
             "/api/diagnostics",
             "/api/packets",
             "/api/system/logs",
