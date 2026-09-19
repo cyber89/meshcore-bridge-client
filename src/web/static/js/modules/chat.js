@@ -1167,14 +1167,34 @@ export class ChatModule {
     }
 
     if (parsedUri) {
-      if (parsedUri.type === "contact") {
+        if (parsedUri.type === "contact") {
           const cName = parsedUri.name || "Contacto MeshCore";
           const cRole = parsedUri.role || "CLIENT";
           const cPk = parsedUri.public_key || "";
           const localPk = (this.ctx.localNodePubkey || document.getElementById("localNodePubkey")?.value || "").toLowerCase().trim();
           const isLocal = Boolean(cPk && localPk && (cPk === localPk || cPk.startsWith(localPk.slice(0, 8))));
           const isKnown = isLocal || this.ctx.knownNodes?.has(cPk.toLowerCase());
-          const btnLabel = isLocal ? (window.I18n ? window.I18n.t('chat.my_contact') : "Mi Contacto") : (isKnown ? (window.I18n ? window.I18n.t('chat.saved_contact') : '✓ Contacto Guardado') : (window.I18n ? window.I18n.t('chat.save_contact') : 'Guardar en Contactos'));
+
+          let footerActionHtml = "";
+          if (isLocal) {
+            const stationLabel = window.I18n ? window.I18n.t('chat.my_station_sub') : 'Mi Estación Local';
+            footerActionHtml = `
+              <div class="card-local-pill">
+                <span data-lucide="radio" data-size="13"></span>
+                <span>${escapeHtml(stationLabel)}</span>
+              </div>
+            `;
+          } else {
+            const btnLabel = isKnown
+              ? (window.I18n ? window.I18n.t('chat.saved_contact') : '✓ Contacto Guardado')
+              : (window.I18n ? window.I18n.t('chat.save_contact') : 'Guardar en Contactos');
+            footerActionHtml = `
+              <button type="button" class="card-action-btn btn-save-shared-contact ${isKnown ? 'btn-saved' : ''}" data-pk="${escapeHtml(cPk)}" data-name="${escapeHtml(cName)}" data-role="${escapeHtml(cRole)}" ${isKnown ? 'disabled' : ''}>
+                <span data-lucide="${isKnown ? 'check' : 'user-plus'}" data-size="13"></span>
+                <span>${btnLabel}</span>
+              </button>
+            `;
+          }
 
           richCardHtml = `
             <div class="chat-contact-card" data-pk="${escapeHtml(cPk)}">
@@ -1182,13 +1202,10 @@ export class ChatModule {
                 <div class="card-avatar">${isLocal ? "⭐" : "👤"}</div>
                 <div class="card-info">
                   <span class="card-name">${escapeHtml(cName)}</span>
-                  <span class="card-sub"><span class="badge-pill ${isLocal ? 'badge-primary' : ''}">${isLocal ? (window.I18n ? window.I18n.t('chat.my_contact_badge') : "Mi Contacto") : escapeHtml(cRole)}</span> <span class="card-key-mono">${escapeHtml(cPk.slice(0, 10))}…</span></span>
+                  <span class="card-sub"><span class="badge-pill ${isLocal ? 'badge-primary' : ''}">${escapeHtml(cRole)}</span> <span class="card-key-mono">${escapeHtml(cPk.slice(0, 10))}…</span></span>
                 </div>
               </div>
-              <button type="button" class="card-action-btn btn-save-shared-contact ${isKnown ? 'btn-saved' : ''}" data-pk="${escapeHtml(cPk)}" data-name="${escapeHtml(cName)}" data-role="${escapeHtml(cRole)}" ${isKnown ? 'disabled' : ''}>
-                <span data-lucide="${isLocal ? 'star' : (isKnown ? 'check' : 'user-plus')}" data-size="13"></span>
-                <span>${btnLabel}</span>
-              </button>
+              ${footerActionHtml}
             </div>
           `;
         } else if (parsedUri.type === "channel") {

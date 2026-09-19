@@ -2,6 +2,26 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Remediación de Duplicados en Tarjeta de Contacto Compartido de Estación Local
+- **Fecha**: 2026-09-19
+- **Estado**: ✅ COMPLETADO — Eliminación de duplicados de texto ("My Contact") e icono (estrella ⭐) en tarjetas de contacto en el chat; reemplazo de botón deshabilitado por un pill informativo de estación local.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect).
+- **Causa Raíz Diagnosticada**:
+  - Al renderizar una tarjeta de contacto compartido (`chat-contact-card`) correspondiente a la propia estación local (`isLocal === true`), tanto el badge en el subtítulo (`chat.my_contact_badge`) como el texto del botón de acción (`chat.my_contact`) devolvían la misma cadena de texto `"My Contact"` (o `"Mi Contacto"`).
+  - Asimismo, se mostraba un avatar circular con la estrella `⭐` y a su vez un icono SVG Lucide `star` en el botón inferior deshabilitado (`disabled=""`).
+  - Dado que el usuario local no puede ni necesita guardarse a sí mismo en la libreta de contactos, un botón de acción deshabilitado que reiteraba "⭐ My Contact" era 100% redundante y confuso.
+- **Acciones Realizadas**:
+  1. **`src/web/static/js/modules/chat.js`**:
+     - En `parsedUri.type === "contact"`:
+       - Subtítulo `card-sub`: Muestra el rol técnico canónico LoRa MeshCore (`[CLIENT]`, `[REPEATER]`, etc.) con badge estilizado y la clave pública truncada (`cPk.slice(0, 10)`), en paridad con el resto de contactos.
+       - Pie de tarjeta: Si `isLocal === true`, en lugar de un `<button disabled>` redundante, se renderiza un pill informativo `<div class="card-local-pill">` con icono de radio `📻` y el texto de la estación local (`chat.my_station_sub`: "Mi Estación Local" / "My Local Station").
+       - Si no es local, conserva el botón de guardar / guardado con icono `check` o `user-plus`.
+  2. **`src/web/static/css/app.css`**:
+     - Añadidos estilos para `.card-local-pill` tanto en dark theme como en light theme.
+- **Verificación y Calidad**:
+  - `node --check src/web/static/js/modules/chat.js`: 0 errores.
+  - `python scripts/sync_deploy.py`: completado con éxito.
+
 ### Hito: Diagnóstico y Corrección de Flood NO_MORE_MSGS e Incorporación de Referencias openHop
 - **Fecha**: 2026-09-19
 - **Estado**: ✅ COMPLETADO — Clonación de proyectos oficiales `openhop_core`, `openhop_repeater` y `openHop_docs` en `/reference/`, diagnóstico de ráfagas periódicas cada ~50ms de `[RX-TELEMETRÍA] messages_available: False` y filtrado estricto como evento de control de flujo interno.

@@ -1677,6 +1677,28 @@ body.light-theme .outgoing .card-sub {
   cursor: default;
 }
 
+.card-local-pill {
+  width: 100%;
+  padding: 6px 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: 6px;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  color: var(--accent-primary, #60a5fa);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  user-select: none;
+}
+
+body.light-theme .card-local-pill {
+  background: rgba(37, 99, 235, 0.08);
+  border-color: rgba(37, 99, 235, 0.25);
+  color: #2563eb;
+}
+
 /* Tarjeta de Ubicación GPS en Burbuja */
 .chat-location-card {
   display: flex;
