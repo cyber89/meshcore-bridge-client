@@ -2,7 +2,32 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Corrección de Bug Conexión Radio — Web UI muestra radio desconectado (3 bugs simultáneos)
+- **Fecha**: 2026-09-19
+- **Estado**: ✅ COMPLETADO — Commit `d39d7c9` pusheado a `origin/main`. ruff: 0 errores. mypy --strict: 0 errores. deploy sincronizado.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect).
+- **Causa Raíz**: Tres bugs acumulativos causaban que la Web UI mostrara el radio como desconectado:
+  1. **Bug 1 (Principal) — `serial_driver.py` / `_connect_with_stabilization()`**: La ruta serial fragmentaba el SDK llamando directamente a `mc.dispatcher.start()`, `mc.connection_manager.connect()` y `mc.commands.send_appstart()` por separado, en lugar de usar `mc.connect()` (método oficial). Si `connection_manager.connect()` fallaba, el dispatcher quedaba iniciado como tarea huérfana. El fallback `create_serial` usaba `cx_dly=0.1` (insuficiente para ESP32-S3 en SBCs).
+  2. **Bug 2 (Menor) — `http_server.py` / `_send_initial_websocket_state()`**: Leía `is_connected` en lugar de `is_hardware_alive()`, causando inconsistencia con el broadcaster periódico.
+  3. **Bug 3 (Menor) — `http_server.py` / payload inicial WebSocket**: El campo `serial_connected` estaba ausente del payload inicial pero presente en el broadcaster periódico, causando inconsistencia en `settings.js` (`cfg.serial_connected ?? cfg.radio_connected`).
+- **Acciones Realizadas**:
+  1. **`src/serial_driver.py`** — Refactorizado `_connect_with_stabilization()` (ruta serial):
+     - Reemplazado acceso fragmentado al SDK por `asyncio.wait_for(mc.connect(), timeout=20.0)`.
+     - Aumentado `cx_dly` de 2.0s a 3.0s para dar tiempo al ESP32-S3 de enumerar USB-CDC en SBCs lentos (Pi, Orange Pi).
+     - Garantizado que el dispatcher se detiene ante cualquier fallo mediante bloque `finally` que limpia `_mc_candidate`.
+     - Añadido logging específico para `TimeoutError`, `ConnectionError` y excepciones genéricas para facilitar diagnóstico remoto.
+     - Fallback `create_serial` también actualizado a `cx_dly=3.0` y timeout de 20s.
+     - Extracción de `self_info` desde `res_app.payload` o `mc.self_info` en ambas rutas.
+  2. **`src/web/http_server.py`** — `_send_initial_websocket_state()`:
+     - Línea 714: Reemplazado `getattr(serial_adapter, "is_connected", False)` por llamada condicional a `is_hardware_alive()` (consistente con `_metrics_broadcaster_loop`).
+     - Línea 737: Añadido campo `"serial_connected": is_radio_ok` al dict `initial_metrics` (sincronía con broadcaster periódico).
+- **Contratos de Interfaz Modificados**:
+  - **WebSocket payload inicial** (`ws_connected` + `metrics_update`): Ahora incluye `serial_connected` (bool) — campo nuevo, no breaking.
+  - **`_connect_with_stabilization()` interno**: No expone API pública; comportamiento observable idéntico (sets `self.mc`, `self.is_connected`, `self.self_info`).
+- **Sin cambios en**: MQTT topics, REST API endpoints, TCP Companion protocol, frontend JS.
+
 ### Hito: Blindaje de Apagado Determinista (Graceful Shutdown) y Remediación de Timeout de Systemd (SIGKILL / Status 9)
+
 - **Fecha**: 2026-09-18
 - **Estado**: ✅ COMPLETADO (1. Causa Raíz Diagnosticada: Interrupción forzada por systemd tras expirar TimeoutStopSec=10 debido a llamadas de cierre no acotadas en WebSockets, Companion TCP, serial SDK y MQTT; 2. Servidores de Red (http_server.py, tcp_companion_server.py): Tracking proactivo de tareas de clientes y cancelación con timeouts estrictos en wait_closed(); 3. Adaptador Serie y Virtual (serial_driver.py, virtual_mesh_adapter.py): Timeouts acotados en disconnect(); 4. Cliente MQTT (mqtt_client.py): Estado offline publicado con QoS 0 y thread.join(timeout=1.0) sin bloqueos sincrónicos; 5. Orquestador Central (bridge_core.py): Timeouts granulares por subsistema (1.5s), salvaguarda global de 5s en señal y drenaje seguro en finally; 6. Configuración Systemd: TimeoutStopSec ampliado a 20s en meshcore-bridge.service y sincronizado en /deploy/; 7. Verificación: ruff 0 errores, mypy strict 0 errores, audit_async_concurrency 100% PASS, audit_codebase_integrity 100% PASS y tiempo medido de apagado < 0.04s).
 - **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect), Agente 5 (Security Auditor).
