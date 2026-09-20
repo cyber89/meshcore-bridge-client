@@ -57,11 +57,11 @@ export class SettingsModule {
           elClock.textContent = liveDate.toLocaleTimeString();
         }
       }
-      if (this.cachedConfig.uptime && this._uptimeHostBase) {
+      if (this._deviceUptime != null && this._deviceUptimeHostBase) {
         const elUptime = document.getElementById("localUptimeValue");
         if (elUptime) {
-          const elapsedSec = Math.floor((Date.now() - this._uptimeHostBase) / 1000);
-          const totalSec = this.cachedConfig.uptime + elapsedSec;
+          const elapsedSec = Math.floor((Date.now() - this._deviceUptimeHostBase) / 1000);
+          const totalSec = this._deviceUptime + elapsedSec;
           const days = Math.floor(totalSec / 86400);
           const hours = Math.floor((totalSec % 86400) / 3600);
           const mins = Math.floor((totalSec % 3600) / 60);
@@ -941,15 +941,23 @@ export class SettingsModule {
       if (!payload || typeof payload !== "object") return;
       if (!this.cachedConfig) this.cachedConfig = {};
 
+      // Detectar desconexión / reconexión para resetear y re-obtener uptime del dispositivo
+      const isConnected = payload.serial_connected ?? payload.radio_connected;
+      if (isConnected === false) {
+        this._deviceWasDisconnected = true;
+        this._deviceUptime = null;
+        this._deviceClockHostBase = null;
+      } else if (isConnected === true && this._deviceWasDisconnected) {
+        this._deviceWasDisconnected = false;
+        this._reconnected = true;
+        // Reconexión detectada: re-obtener uptime y configuración fresca del hardware
+        this.fetchLocalNodeConfig(true);
+      }
+
       if (payload.rx_count != null) this.cachedConfig.rx_count = payload.rx_count;
       if (payload.tx_count != null) this.cachedConfig.tx_count = payload.tx_count;
       if (payload.error_rate != null) this.cachedConfig.error_rate = payload.error_rate;
       if (payload.queue_depth != null) this.cachedConfig.queue_depth = payload.queue_depth;
-      if (payload.uptime_str != null) this.cachedConfig.uptime_str = payload.uptime_str;
-      if (payload.uptime != null) {
-        this.cachedConfig.uptime = payload.uptime;
-        this._uptimeHostBase = Date.now();
-      }
       if (payload.airtime_ms != null) this.cachedConfig.airtime_ms = payload.airtime_ms;
       if (payload.duty_cycle_pct != null) this.cachedConfig.duty_cycle_pct = payload.duty_cycle_pct;
       if (payload.packet_errors != null) this.cachedConfig.packet_errors = payload.packet_errors;
@@ -970,10 +978,6 @@ export class SettingsModule {
       const sumQueue = document.getElementById("localSummaryQueue");
       if (sumQueue && payload.queue_depth != null) {
         sumQueue.textContent = `${payload.queue_depth} paquetes`;
-      }
-      const elUptime = document.getElementById("localUptimeValue");
-      if (elUptime && (payload.uptime_str || payload.uptime != null)) {
-        elUptime.textContent = payload.uptime_str || `${payload.uptime} s`;
       }
       const elAirtime = document.getElementById("localAirtimeValue");
       if (elAirtime && payload.airtime_ms != null) {
@@ -1250,10 +1254,17 @@ export class SettingsModule {
     }
 
     if (incoming.device_epoch_time) {
-      this._deviceClockHostBase = Date.now();
+      if (!this._deviceClockHostBase || this._reconnected) {
+        this._deviceClockHostBase = Date.now();
+      }
     }
-    if (incoming.uptime != null) {
-      this._uptimeHostBase = Date.now();
+    const devUptimeVal = incoming.device_uptime ?? incoming.uptime_secs ?? incoming.uptime;
+    if (devUptimeVal != null) {
+      if (this._deviceUptime == null || this._reconnected) {
+        this._deviceUptime = Number(devUptimeVal);
+        this._deviceUptimeHostBase = Date.now();
+        this._reconnected = false;
+      }
     }
     const cfg = this.cachedConfig;
 
@@ -1535,10 +1546,16 @@ export class SettingsModule {
     const elClock = document.getElementById("localClockValue");
     const elClockStatus = document.getElementById("localClockStatus");
     if (cfg.device_epoch_time) {
-      const devDate = new Date(cfg.device_epoch_time * 1000);
+      const elapsedMs = this._deviceClockHostBase ? (Date.now() - this._deviceClockHostBase) : 0;
+      const devDate = new Date((cfg.device_epoch_time * 1000) + elapsedMs);
       if (elClock) elClock.textContent = devDate.toLocaleTimeString();
       if (elClockStatus) {
-        const drift = Math.abs(Math.floor(Date.now() / 1000) - cfg.device_epoch_time);
+        const drift = cfg.device_time_drift != null
+          ? Math.abs(cfg.device_time_drift)
+          : (this._deviceClockHostBase
+              ? Math.abs(Math.floor(this._deviceClockHostBase / 1000) - cfg.device_epoch_time)
+              : 0);
+
         if (drift <= 2) {
           elClockStatus.textContent = "Sincronizado (±0s)";
           elClockStatus.style.color = "var(--accent-success, #22c55e)";
@@ -1559,8 +1576,20 @@ export class SettingsModule {
     }
 
     const elUptime = document.getElementById("localUptimeValue");
-    if (elUptime && (cfg.uptime_str != null || cfg.uptime != null)) {
-      elUptime.textContent = cfg.uptime_str || `${cfg.uptime} s`;
+    if (elUptime) {
+      if (this._deviceUptime != null && this._deviceUptimeHostBase) {
+        const elapsedSec = Math.floor((Date.now() - this._deviceUptimeHostBase) / 1000);
+        const totalSec = this._deviceUptime + elapsedSec;
+        const days = Math.floor(totalSec / 86400);
+        const hours = Math.floor((totalSec % 86400) / 3600);
+        const mins = Math.floor((totalSec % 3600) / 60);
+        const secs = totalSec % 60;
+        elUptime.textContent = days > 0
+          ? `${days}d ${hours}h ${mins}m ${secs}s`
+          : (hours > 0 ? `${hours}h ${mins}m ${secs}s` : `${mins}m ${secs}s`);
+      } else if (cfg.uptime_str != null || cfg.uptime != null) {
+        elUptime.textContent = cfg.uptime_str || `${cfg.uptime} s`;
+      }
     }
 
     const elAirtime = document.getElementById("localAirtimeValue");

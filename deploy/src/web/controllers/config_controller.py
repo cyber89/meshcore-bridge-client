@@ -31,12 +31,37 @@ class ConfigController(BaseController):
         if not isinstance(local_cfg, dict):
             local_cfg = {}
 
-        uptime_sec = int(time.time() - getattr(self.ctx.bridge, "start_time", self.ctx.start_time))
-        days = uptime_sec // 86400
-        hours = (uptime_sec % 86400) // 3600
-        mins = (uptime_sec % 3600) // 60
-        secs = uptime_sec % 60
-        uptime_str = f"{days}d {hours}h {mins}m {secs}s" if days > 0 else (f"{hours}h {mins}m {secs}s" if hours > 0 else f"{mins}m {secs}s")
+        bridge_uptime_sec = int(time.time() - getattr(self.ctx.bridge, "start_time", self.ctx.start_time))
+        b_days = bridge_uptime_sec // 86400
+        b_hours = (bridge_uptime_sec % 86400) // 3600
+        b_mins = (bridge_uptime_sec % 3600) // 60
+        b_secs = bridge_uptime_sec % 60
+        bridge_uptime_str = f"{b_days}d {b_hours}h {b_mins}m {b_secs}s" if b_days > 0 else (f"{b_hours}h {b_mins}m {b_secs}s" if b_hours > 0 else f"{b_mins}m {b_secs}s")
+
+        # Proyectar el uptime del transceptor físico obtenido de get_stats_core
+        dev_uptime = local_cfg.get("device_uptime") or local_cfg.get("uptime_secs")
+        dev_sampled = local_cfg.get("device_uptime_sampled_at")
+        if dev_uptime is not None and dev_sampled is not None:
+            dev_uptime_sec = int(dev_uptime + (time.time() - dev_sampled))
+            d_days = dev_uptime_sec // 86400
+            d_hours = (dev_uptime_sec % 86400) // 3600
+            d_mins = (dev_uptime_sec % 3600) // 60
+            d_secs = dev_uptime_sec % 60
+            dev_uptime_str = f"{d_days}d {d_hours}h {d_mins}m {d_secs}s" if d_days > 0 else (f"{d_hours}h {d_mins}m {d_secs}s" if d_hours > 0 else f"{d_mins}m {d_secs}s")
+            uptime_sec = dev_uptime_sec
+            uptime_str = dev_uptime_str
+        else:
+            dev_uptime_sec = None
+            uptime_sec = bridge_uptime_sec
+            uptime_str = bridge_uptime_str
+
+        # Proyectar el reloj del transceptor físico obtenido de get_time
+        dev_epoch = local_cfg.get("device_epoch_time")
+        dev_time_sampled = local_cfg.get("device_time_sampled_at")
+        if dev_epoch is not None and dev_time_sampled is not None:
+            projected_dev_epoch = int(dev_epoch + (time.time() - dev_time_sampled))
+            local_cfg["device_epoch_time"] = projected_dev_epoch
+            local_cfg["device_time_drift"] = local_cfg.get("device_time_drift", int(dev_epoch - dev_time_sampled))
 
         limiter = getattr(self.ctx.bridge, "rate_limiter", None)
         airtime_stats = limiter.airtime_tracker.get_stats() if (limiter and hasattr(limiter, "airtime_tracker")) else {}
@@ -52,6 +77,8 @@ class ConfigController(BaseController):
         local_cfg.update({
             "uptime": uptime_sec,
             "uptime_str": uptime_str,
+            "device_uptime": dev_uptime_sec,
+            "bridge_uptime": bridge_uptime_sec,
             "airtime_ms": airtime_stats.get("hourly_used_ms", 0),
             "duty_cycle_pct": airtime_stats.get("hourly_duty_cycle_pct", 0.0),
             "hourly_limit_pct": airtime_stats.get("hourly_limit_pct", 1.0),

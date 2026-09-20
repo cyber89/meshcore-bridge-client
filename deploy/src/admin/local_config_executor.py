@@ -318,7 +318,11 @@ class LocalConfigExecutor:
                 t_res = await mc.commands.get_time()
                 t_data = _extract_payload_dict(t_res)
                 if t_data and isinstance(t_data, dict) and "time" in t_data:
-                    self._local_config["device_epoch_time"] = t_data["time"]
+                    now_ts = time.time()
+                    dev_time = int(t_data["time"])
+                    self._local_config["device_epoch_time"] = dev_time
+                    self._local_config["device_time_sampled_at"] = now_ts
+                    self._local_config["device_time_drift"] = int(dev_time - now_ts)
             except Exception as e:
                 logging.warning(f"Error consultando get_time de radio: {e}")
 
@@ -334,6 +338,9 @@ class LocalConfigExecutor:
                     if u_val is not None and int(u_val) > 0:
                         self._local_config["uptime"] = int(u_val)
                         self._local_config["uptime_secs"] = int(u_val)
+                        self._local_config["device_uptime"] = int(u_val)
+                        self._local_config["device_uptime_secs"] = int(u_val)
+                        self._local_config["device_uptime_sampled_at"] = time.time()
                     if "battery_mv" in c_data:
                         self._local_config["battery_mv"] = c_data["battery_mv"]
                     if "errors" in c_data:
@@ -423,6 +430,8 @@ class LocalConfigExecutor:
 
         self._local_config["clock"] = time.strftime("%I:%M:%S %p", time.localtime(ts))
         self._local_config["device_epoch_time"] = ts
+        self._local_config["device_time_sampled_at"] = time.time()
+        self._local_config["device_time_drift"] = 0
         return {
             "status": "ok" if success else "partial",
             "clock": now_str,
