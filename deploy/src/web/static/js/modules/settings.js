@@ -65,10 +65,9 @@ export class SettingsModule {
           const days = Math.floor(totalSec / 86400);
           const hours = Math.floor((totalSec % 86400) / 3600);
           const mins = Math.floor((totalSec % 3600) / 60);
-          const secs = totalSec % 60;
           elUptime.textContent = days > 0
-            ? `${days}d ${hours}h ${mins}m ${secs}s`
-            : (hours > 0 ? `${hours}h ${mins}m ${secs}s` : `${mins}m ${secs}s`);
+            ? `${days}d ${hours}h ${mins}m`
+            : (hours > 0 ? `${hours}h ${mins}m` : `${mins}m`);
         }
       }
     }, 1000);
@@ -1583,12 +1582,21 @@ export class SettingsModule {
         const days = Math.floor(totalSec / 86400);
         const hours = Math.floor((totalSec % 86400) / 3600);
         const mins = Math.floor((totalSec % 3600) / 60);
-        const secs = totalSec % 60;
         elUptime.textContent = days > 0
-          ? `${days}d ${hours}h ${mins}m ${secs}s`
-          : (hours > 0 ? `${hours}h ${mins}m ${secs}s` : `${mins}m ${secs}s`);
+          ? `${days}d ${hours}h ${mins}m`
+          : (hours > 0 ? `${hours}h ${mins}m` : `${mins}m`);
       } else if (cfg.uptime_str != null || cfg.uptime != null) {
-        elUptime.textContent = cfg.uptime_str || `${cfg.uptime} s`;
+        if (cfg.uptime_str) {
+          elUptime.textContent = cfg.uptime_str;
+        } else {
+          const totalSec = Number(cfg.uptime) || 0;
+          const days = Math.floor(totalSec / 86400);
+          const hours = Math.floor((totalSec % 86400) / 3600);
+          const mins = Math.floor((totalSec % 3600) / 60);
+          elUptime.textContent = days > 0
+            ? `${days}d ${hours}h ${mins}m`
+            : (hours > 0 ? `${hours}h ${mins}m` : `${mins}m`);
+        }
       }
     }
 

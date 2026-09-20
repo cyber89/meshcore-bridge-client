@@ -35,8 +35,7 @@ class ConfigController(BaseController):
         b_days = bridge_uptime_sec // 86400
         b_hours = (bridge_uptime_sec % 86400) // 3600
         b_mins = (bridge_uptime_sec % 3600) // 60
-        b_secs = bridge_uptime_sec % 60
-        bridge_uptime_str = f"{b_days}d {b_hours}h {b_mins}m {b_secs}s" if b_days > 0 else (f"{b_hours}h {b_mins}m {b_secs}s" if b_hours > 0 else f"{b_mins}m {b_secs}s")
+        bridge_uptime_str = f"{b_days}d {b_hours}h {b_mins}m" if b_days > 0 else (f"{b_hours}h {b_mins}m" if b_hours > 0 else f"{b_mins}m")
 
         # Proyectar el uptime del transceptor físico obtenido de get_stats_core
         dev_uptime = local_cfg.get("device_uptime") or local_cfg.get("uptime_secs")
@@ -46,8 +45,7 @@ class ConfigController(BaseController):
             d_days = dev_uptime_sec // 86400
             d_hours = (dev_uptime_sec % 86400) // 3600
             d_mins = (dev_uptime_sec % 3600) // 60
-            d_secs = dev_uptime_sec % 60
-            dev_uptime_str = f"{d_days}d {d_hours}h {d_mins}m {d_secs}s" if d_days > 0 else (f"{d_hours}h {d_mins}m {d_secs}s" if d_hours > 0 else f"{d_mins}m {d_secs}s")
+            dev_uptime_str = f"{d_days}d {d_hours}h {d_mins}m" if d_days > 0 else (f"{d_hours}h {d_mins}m" if d_hours > 0 else f"{d_mins}m")
             uptime_sec = dev_uptime_sec
             uptime_str = dev_uptime_str
         else:

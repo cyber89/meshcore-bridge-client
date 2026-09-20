@@ -162,8 +162,7 @@ class MeshCoreWebServer:
                     days = uptime_sec // 86400
                     hours = (uptime_sec % 86400) // 3600
                     mins = (uptime_sec % 3600) // 60
-                    secs = uptime_sec % 60
-                    uptime_str = f"{days}d {hours}h {mins}m {secs}s" if days > 0 else (f"{hours}h {mins}m {secs}s" if hours > 0 else f"{mins}m {secs}s")
+                    uptime_str = f"{days}d {hours}h {mins}m" if days > 0 else (f"{hours}h {mins}m" if hours > 0 else f"{mins}m")
 
                     limiter = getattr(self.bridge, "rate_limiter", None)
                     airtime_stats = limiter.airtime_tracker.get_stats() if (limiter and hasattr(limiter, "airtime_tracker")) else {}
@@ -728,8 +727,7 @@ class MeshCoreWebServer:
         days = uptime_sec // 86400
         hours = (uptime_sec % 86400) // 3600
         mins = (uptime_sec % 3600) // 60
-        secs = uptime_sec % 60
-        uptime_str = f"{days}d {hours}h {mins}m {secs}s" if days > 0 else (f"{hours}h {mins}m {secs}s" if hours > 0 else f"{mins}m {secs}s")
+        uptime_str = f"{days}d {hours}h {mins}m" if days > 0 else (f"{hours}h {mins}m" if hours > 0 else f"{mins}m")
 
         limiter = getattr(self.bridge, "rate_limiter", None)
         airtime_stats = limiter.airtime_tracker.get_stats() if (limiter and hasattr(limiter, "airtime_tracker")) else {}

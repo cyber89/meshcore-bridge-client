@@ -258,8 +258,7 @@ class CliCommandExecutor:
         days = uptime_s // 86400
         hours = (uptime_s % 86400) // 3600
         mins = (uptime_s % 3600) // 60
-        secs = uptime_s % 60
-        uptime_str = f"{days}d {hours}h {mins}m {secs}s" if days > 0 else (f"{hours}h {mins}m {secs}s" if hours > 0 else f"{mins}m {secs}s")
+        uptime_str = f"{days}d {hours}h {mins}m" if days > 0 else (f"{hours}h {mins}m" if hours > 0 else f"{mins}m")
         boot_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time() - uptime_s))
 
         res["result"] = (
@@ -441,15 +440,12 @@ class CliCommandExecutor:
         days = uptime_s // 86400
         hours = (uptime_s % 86400) // 3600
         mins = (uptime_s % 3600) // 60
-        secs = uptime_s % 60
         if days > 0:
-            uptime_str = f"{days}d {hours}h {mins}m {secs}s"
+            uptime_str = f"{days}d {hours}h {mins}m"
         elif hours > 0:
-            uptime_str = f"{hours}h {mins}m {secs}s"
-        elif mins > 0:
-            uptime_str = f"{mins}m {secs}s"
+            uptime_str = f"{hours}h {mins}m"
         else:
-            uptime_str = f"{secs}s"
+            uptime_str = f"{mins}m"
 
         # 6. Calcular Duty Cycle estimado si airtime > 0 y duty_pct == 0
         if duty_pct == 0.0 and airtime_ms > 0 and uptime_s > 0:
