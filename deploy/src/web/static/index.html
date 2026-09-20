@@ -870,13 +870,49 @@
                       </div>
                     </div>
                   </div>
-                  <div class="form-group">
-                    <label for="localTelemetryInterval">Intervalo de Telemetría (seg):</label>
-                    <input type="number" id="localTelemetryInterval" min="10" max="3600" value="60" />
+                  <!-- Sección: Balizas & Transmisiones Periódicas -->
+                  <div class="form-section-title span-full" style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+                    <span class="section-icon" data-lucide="radio" data-size="16"></span> Balizas &amp; Transmisiones Periódicas
                   </div>
-                  <div class="form-group">
+
+                  <div class="form-group toggle-field-group">
+                    <div class="toggle-field-row">
+                      <div class="toggle-field-info">
+                        <span class="toggle-field-title">Anuncios de Presencia (Advert)</span>
+                        <span class="toggle-field-desc">Emite balizas periódicas para que la malla descubra tu nodo</span>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="toggle-state-badge" id="localAdvertEnableBadge">OFF</span>
+                        <label class="toggle-switch toggle-blue" for="localAdvertEnable" title="Activar/desactivar anuncios periódicos Advert">
+                          <input type="checkbox" id="localAdvertEnable" role="switch" aria-label="Anuncios periódicos Advert" />
+                          <span class="toggle-slider"></span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-group" id="localAdvertIntervalGroup">
                     <label for="localAdvertInterval">Intervalo de Anuncios Advert (seg):</label>
-                    <input type="number" id="localAdvertInterval" min="30" max="86400" value="300" />
+                    <input type="number" id="localAdvertInterval" min="30" max="86400" value="300" placeholder="Ej: 300 (5 min)" />
+                  </div>
+
+                  <div class="form-group toggle-field-group">
+                    <div class="toggle-field-row">
+                      <div class="toggle-field-info">
+                        <span class="toggle-field-title">Telemetría Periódica</span>
+                        <span class="toggle-field-desc">Transmite periódicamente estado de batería y métricas del nodo</span>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="toggle-state-badge" id="localTelemetryEnableBadge">OFF</span>
+                        <label class="toggle-switch toggle-blue" for="localTelemetryEnable" title="Activar/desactivar telemetría periódica">
+                          <input type="checkbox" id="localTelemetryEnable" role="switch" aria-label="Telemetría periódica" />
+                          <span class="toggle-slider"></span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-group" id="localTelemetryIntervalGroup">
+                    <label for="localTelemetryInterval">Intervalo de Telemetría (seg):</label>
+                    <input type="number" id="localTelemetryInterval" min="10" max="3600" value="60" placeholder="Ej: 60 (1 min)" />
                   </div>
 
                   <!-- Sección de Parámetros Avanzados del Firmware MeshCore -->

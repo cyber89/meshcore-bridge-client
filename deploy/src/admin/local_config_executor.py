@@ -660,7 +660,17 @@ class LocalConfigExecutor:
             try:
                 adv_i = int(params.get("beacon_interval", params.get("advert_interval", 300)))
                 self._local_config["beacon_interval"] = adv_i
+                self._local_config["advert_interval"] = adv_i
                 applied["beacon_interval"] = adv_i
+                applied["advert_interval"] = adv_i
+            except (ValueError, TypeError):
+                pass
+
+        if "telemetry_interval" in params:
+            try:
+                tel_i = int(params["telemetry_interval"])
+                self._local_config["telemetry_interval"] = tel_i
+                applied["telemetry_interval"] = tel_i
             except (ValueError, TypeError):
                 pass
 

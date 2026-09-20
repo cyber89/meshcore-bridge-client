@@ -498,6 +498,26 @@ export class SettingsModule {
         });
       }
     };
+    const setupToggleWithInput = (chkId, badgeId, inputId) => {
+      const chk = document.getElementById(chkId);
+      const badge = document.getElementById(badgeId);
+      const input = document.getElementById(inputId);
+      if (chk) {
+        chk.addEventListener("change", (e) => {
+          const checked = e.target.checked;
+          if (badge) {
+            badge.textContent = checked ? "ON" : "OFF";
+            badge.classList.toggle("badge-active", checked);
+          }
+          if (input) {
+            input.disabled = !checked;
+            input.style.opacity = checked ? "1" : "0.5";
+          }
+        });
+      }
+    };
+    setupToggleWithInput("localAdvertEnable", "localAdvertEnableBadge", "localAdvertInterval");
+    setupToggleWithInput("localTelemetryEnable", "localTelemetryEnableBadge", "localTelemetryInterval");
     setupToggle("localAdvLocPolicy", "localAdvLocBadge");
     setupToggle("localMultiAcks", "localMultiAcksBadge");
     setupToggle("localManualAddContacts", "localManualAddBadge");
@@ -1359,14 +1379,48 @@ export class SettingsModule {
       }
     }
 
-    // Intervalos
-    const telemIntVal = cfg.telemetry_interval;
-    const telemIntInput = document.getElementById("localTelemetryInterval");
-    if (telemIntInput && telemIntVal != null) telemIntInput.value = telemIntVal;
-
+    // Balizas & Transmisiones Periódicas
     const advIntVal = cfg.advert_interval ?? cfg.beacon_interval;
+    const advChk = document.getElementById("localAdvertEnable");
+    const advBadge = document.getElementById("localAdvertEnableBadge");
     const advIntInput = document.getElementById("localAdvertInterval");
-    if (advIntInput && advIntVal != null) advIntInput.value = advIntVal;
+    if (advChk && advIntVal !== undefined && advIntVal !== null) {
+      const isAdvOn = Number(advIntVal) > 0;
+      advChk.checked = isAdvOn;
+      if (advBadge) {
+        advBadge.textContent = isAdvOn ? "ON" : "OFF";
+        advBadge.classList.toggle("badge-active", isAdvOn);
+      }
+      if (advIntInput) {
+        advIntInput.disabled = !isAdvOn;
+        advIntInput.style.opacity = isAdvOn ? "1" : "0.5";
+        if (isAdvOn) advIntInput.value = advIntVal;
+        else if (!advIntInput.value) advIntInput.value = "300";
+      }
+    } else if (advIntInput && advIntVal != null) {
+      advIntInput.value = advIntVal;
+    }
+
+    const telemIntVal = cfg.telemetry_interval;
+    const telemChk = document.getElementById("localTelemetryEnable");
+    const telemBadge = document.getElementById("localTelemetryEnableBadge");
+    const telemIntInput = document.getElementById("localTelemetryInterval");
+    if (telemChk && (telemIntVal !== undefined && telemIntVal !== null)) {
+      const isTelemOn = Number(telemIntVal) > 0 && cfg.telemetry_mode_base !== 0;
+      telemChk.checked = isTelemOn;
+      if (telemBadge) {
+        telemBadge.textContent = isTelemOn ? "ON" : "OFF";
+        telemBadge.classList.toggle("badge-active", isTelemOn);
+      }
+      if (telemIntInput) {
+        telemIntInput.disabled = !isTelemOn;
+        telemIntInput.style.opacity = isTelemOn ? "1" : "0.5";
+        if (Number(telemIntVal) > 0) telemIntInput.value = telemIntVal;
+        else if (!telemIntInput.value) telemIntInput.value = "60";
+      }
+    } else if (telemIntInput && telemIntVal != null) {
+      telemIntInput.value = telemIntVal;
+    }
 
     // Resumen de Configuración Actual (Pills superiores)
     const sumFreq = document.getElementById("localSummaryFreq");
@@ -1639,8 +1693,15 @@ export class SettingsModule {
     const cr = document.getElementById("localCr")?.value || "4/5";
     const hop_limit = parseInt(document.getElementById("localHopLimit")?.value || "3", 10);
     const repeat = Boolean(document.getElementById("localRepeatMode")?.checked);
-    const telemetry_interval = parseInt(document.getElementById("localTelemetryInterval")?.value || "60", 10);
-    const advert_interval = parseInt(document.getElementById("localAdvertInterval")?.value || "300", 10);
+    const advertEnabled = Boolean(document.getElementById("localAdvertEnable")?.checked);
+    const advert_interval = advertEnabled
+      ? parseInt(document.getElementById("localAdvertInterval")?.value || "300", 10)
+      : 0;
+
+    const telemEnabled = Boolean(document.getElementById("localTelemetryEnable")?.checked);
+    const telemetry_interval = telemEnabled
+      ? parseInt(document.getElementById("localTelemetryInterval")?.value || "60", 10)
+      : 0;
 
     const pinVal = document.getElementById("localDevicePin")?.value.trim();
     const pin = pinVal ? parseInt(pinVal, 10) : 0;
@@ -1649,7 +1710,10 @@ export class SettingsModule {
     const rx_delay = rxDelayVal ? parseInt(rxDelayVal, 10) : 0;
     const airtimeFactorVal = document.getElementById("localAirtimeFactor")?.value.trim();
     const airtime_factor = airtimeFactorVal ? parseInt(airtimeFactorVal, 10) : 0;
-    const telemetry_mode_base = parseInt(document.getElementById("localTelemBase")?.value || "1", 10);
+    let telemetry_mode_base = parseInt(document.getElementById("localTelemBase")?.value || "1", 10);
+    if (!telemEnabled) {
+      telemetry_mode_base = 0;
+    }
     const telemetry_mode_loc = parseInt(document.getElementById("localTelemLoc")?.value || "1", 10);
     const telemetry_mode_env = parseInt(document.getElementById("localTelemEnv")?.value || "1", 10);
     const adv_loc_policy = Boolean(document.getElementById("localAdvLocPolicy")?.checked);
@@ -1666,6 +1730,7 @@ export class SettingsModule {
       hop_limit,
       telemetry_interval,
       advert_interval,
+      beacon_interval: advert_interval,
       pin,
       path_hash_mode,
       rx_delay,
