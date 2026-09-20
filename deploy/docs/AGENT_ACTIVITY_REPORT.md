@@ -2,6 +2,36 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Remediación de Actualización de Nodos en Vivo, Métricas RF en Contactos Desconectados, Telemetría de Repetidor y Depuración de Datos del Nodo Local
+- **Fecha**: 2026-09-20
+- **Estado**: ✅ COMPLETADO — Reparada la propagación WebSocket de telemetría de repetidores y contactos, conservadas las métricas RF (RSSI/SNR/Hops/LQI) en nodos offline en lugar de enmascararlas con `"--"`, habilitada la extracción y visualización de temperatura MCU del repetidor, y depurado el nodo local de datos redundantes (eliminadas batería y métricas RF ficticias).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect).
+- **Causa Raíz Diagnosticada**:
+  1. **Datos de Nodos No Actualizaban / Batería de Repetidor Congelada en 36%**: En `src/rx_router.py._handle_mesh_msg_common()`, la telemetría de repetidores actualizaba el registro en memoria, pero **no emitía el evento WebSocket `contact_updated`**. Asimismo, en `src/web/static/js/modules/repeater.js`, el método `_subscribeBus()` se llamaba en `init()` pero no estaba definido, por lo que el modal nunca reaccionaba a los paquetes de telemetría entrantes en tiempo real. Al llegar el voltaje del ADC de ~3.43V (~36%), se quedaba congelado de forma permanente.
+  2. **Temperatura del Repetidor Faltante**: `src/repeater_manager.py` no extraía `temperature_c` en `_extract_json_system()` ni en `_parse_system_metrics()`. Tampoco existía el contenedor visual en el modal de administración (`repeaterAdminModal`).
+  3. **Contacto sin RSSI**: Tanto en `src/contact_manager.py.to_dict()` como en `src/web/static/js/modules/nodes.js`, cuando un nodo pasaba a estado desconectado (`isDisconnected`), se forzaba `last_rssi = None` o `rssiEl.textContent = "--"`, ocultando la última señal RF conocida.
+  4. **Datos Redundantes e Inútiles del Nodo Local**: El nodo local mostraba en la grilla chips de batería ficticios (`🔋 100%`), estadísticas de RF ficticias (`📡 Local`, `📶 Local`, `🔀 0`, `Ruta: Directo`, `LQI: 100%`) y en ajustes de telemetría local duplicaba tarjetas de batería vacías (`--%`) junto a la alimentación USB.
+- **Acciones Realizadas**:
+  1. **`src/repeater_manager.py`**:
+     - Añadida extracción de `temperature_c` en `_extract_json_system()` y `_parse_system_metrics()`.
+  2. **`src/rx_router.py`**:
+     - Agregada emisión WebSocket `contact_updated` con `temperature_c` en `_handle_mesh_msg_common()`.
+     - Incluidos `last_rssi`, `last_snr` y `temperature_c` en `_handle_mesh_telemetry_msg()`.
+  3. **`src/contact_manager.py`**:
+     - Preservados `last_rssi` y `last_snr` en `to_dict()` en lugar de sobrescribirlos a `None` cuando el nodo está offline.
+  4. **`src/web/static/index.html`**:
+     - Depurado el subpanel de telemetría local: eliminada la tarjeta de batería ficticia, dejando una única tarjeta limpia "Alimentación Host (USB 5V)".
+     - Añadida tarjeta `repTempValue` (Temperatura MCU) en el panel informativo del modal de repetidor.
+  5. **`src/web/static/js/modules/repeater.js`**:
+     - Implementado `_subscribeBus()` suscrito a `EVENTS.RX_PACKET` en `this.ctx.eventBus` para refrescar el modal del repetidor seleccionado en vivo.
+     - Poblamiento de `repTempValue` con la temperatura en °C.
+  6. **`src/web/static/js/modules/nodes.js`**:
+     - Preservados `last_rssi`, `last_snr`, `lqi_score` y `hops` reales de la última señal recibida tanto en renderizado inicial como en `updateNodeInDom()`.
+     - Limpiado el nodo local (`isLocal`): removidos chips de batería ficticios, eliminada la tira RF y mostrado "🖥️ Estación Base Host USB | ⚡ 5V USB".
+- **Verificación y Calidad**:
+  - `python -m py_compile src/repeater_manager.py src/rx_router.py src/contact_manager.py`: 0 errores.
+  - Sincronización `/deploy/` ejecutada.
+
 ### Hito: Remediación de Recepción y Drenado Automático de Mensajes en Cola RF (ACK recibido sin entrega en WebUI)
 - **Fecha**: 2026-09-19
 - **Estado**: ✅ COMPLETADO — Implementado drenado exhaustivo proactivo de la cola de radio física (`drain_pending_messages` vía `CMD_SYNC_NEXT_MESSAGE`), mapeo de `EventType.MESSAGES_WAITING` en `serial_driver.py` y `SystemHandler`, inclusión de `type` e `is_direct` en `rx_router.py`, y soporte completo para `event_type === "direct"` en `chat.js`.

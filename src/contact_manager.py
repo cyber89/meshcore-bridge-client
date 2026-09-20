@@ -163,9 +163,8 @@ class NodeContactInfo:
             else:
                 presence_status = "offline"
                 status_label = "Desconectado"
-                # Un nodo desconectado (>24h) no debe mantener métricas de RF activas
-                d["last_rssi"] = None
-                d["last_snr"] = None
+                d["last_rssi"] = self.last_rssi
+                d["last_snr"] = self.last_snr
                 d["lqi_score"] = 0.0
                 d["lqi_status"] = "DISCONNECTED"
         else:
@@ -173,8 +172,8 @@ class NodeContactInfo:
             status_label = "Desconectado"
             last_seen_iso = None
             last_seen_formatted = "Sin señal registrada"
-            d["last_rssi"] = None
-            d["last_snr"] = None
+            d["last_rssi"] = self.last_rssi
+            d["last_snr"] = self.last_snr
             d["lqi_score"] = 0.0
             d["lqi_status"] = "DISCONNECTED"
 

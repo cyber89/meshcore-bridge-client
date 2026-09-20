@@ -437,10 +437,15 @@ class RepeaterManager:
             extracted["airtime_ms"] = int(float(data_json["tx_air_secs"]) * 1000)
         if "sent" in data_json:
             extracted["packets_sent"] = int(data_json["sent"])
-        if "recv" in data_json:
-            extracted["packets_recv"] = int(data_json["recv"])
         if "recv_errors" in data_json:
             extracted["packet_errors"] = int(data_json["recv_errors"])
+
+        temp_val = data_json.get("temperature_c", data_json.get("temperature", data_json.get("temp", data_json.get("temp_c"))))
+        if temp_val is not None:
+            try:
+                extracted["temperature_c"] = round(float(temp_val), 1)
+            except (ValueError, TypeError):
+                pass
 
     @staticmethod
     def _extract_json_radio_and_coords(data_json: dict[str, Any], extracted: dict[str, Any]) -> None:
@@ -664,6 +669,13 @@ class RepeaterManager:
         if snr_m:
             try:
                 extracted["last_snr"] = round(float(snr_m.group(1)), 1)
+            except Exception:
+                pass
+
+        temp_m = re.search(r'(?:temp(?:erature)?(?:_c)?)\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?c)?', text, re.IGNORECASE)
+        if temp_m:
+            try:
+                extracted["temperature_c"] = round(float(temp_m.group(1)), 1)
             except Exception:
                 pass
 

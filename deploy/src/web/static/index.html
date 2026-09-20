@@ -686,19 +686,11 @@
             <div id="local-telemetry" class="local-settings-subpanel active">
               <div class="info-grid info-grid-extended">
                 <div class="metric-card">
-                  <div class="card-icon"><span data-lucide="battery" data-size="20"></span></div>
-                  <div class="card-data">
-                    <span class="card-label">Batería & Voltaje</span>
-                    <strong class="card-value" id="localBatValue">-- %</strong>
-                    <span class="card-sub" id="localVoltValue">-- V</span>
-                  </div>
-                </div>
-                <div class="metric-card">
                   <div class="card-icon"><span data-lucide="zap" data-size="20"></span></div>
                   <div class="card-data">
-                    <span class="card-label">Alimentación / USB</span>
-                    <strong class="card-value" id="localSolarValue">Conectado</strong>
-                    <span class="card-sub" id="localSolarStatus">USB 5V Directo</span>
+                    <span class="card-label">Alimentación Host (USB)</span>
+                    <strong class="card-value" id="localSolarValue">Conectado (5V)</strong>
+                    <span class="card-sub" id="localSolarStatus">Energía Constante USB</span>
                   </div>
                 </div>
                 <div class="metric-card">
@@ -1721,6 +1713,14 @@
                   <span class="card-label">Panel Solar / Entrada</span>
                   <strong class="card-value" id="repSolarValue">-- V</strong>
                   <span class="card-sub" id="repSolarStatus">Carga Activa</span>
+                </div>
+              </div>
+              <div class="metric-card">
+                <div class="card-icon"><span data-lucide="thermometer" data-size="20"></span></div>
+                <div class="card-data">
+                  <span class="card-label">Temperatura MCU</span>
+                  <strong class="card-value" id="repTempValue">-- °C</strong>
+                  <span class="card-sub" id="repTempSub">Sensor Interno</span>
                 </div>
               </div>
               <div class="metric-card">

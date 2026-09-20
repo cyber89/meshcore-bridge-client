@@ -25,6 +25,30 @@ export class RepeaterModule {
     this._subscribeBus();
   }
 
+  _subscribeBus() {
+    if (!this.ctx || !this.ctx.eventBus) return;
+
+    this.ctx.eventBus.on(EVENTS.RX_PACKET, (payload) => {
+      if (!payload || typeof payload !== "object" || !this.selectedRepeaterTarget) return;
+
+      const c = payload.contact || payload.data || payload;
+      const pk = c.public_key || c.sender || c.from || payload.sender || payload.from;
+      if (!pk) return;
+
+      const canonicalPk = this.resolveCanonicalPubkey(pk);
+      const selectedCanonical = this.resolveCanonicalPubkey(this.selectedRepeaterTarget);
+
+      if (canonicalPk && selectedCanonical && (canonicalPk === selectedCanonical || canonicalPk.startsWith(selectedCanonical.slice(0, 8)) || selectedCanonical.startsWith(canonicalPk.slice(0, 8)))) {
+        const known = (this.ctx.knownNodes && this.ctx.knownNodes.get(canonicalPk)) || {};
+        const merged = { ...known, ...c, ...payload, public_key: canonicalPk };
+        if (this.ctx.knownNodes) {
+          this.ctx.knownNodes.set(canonicalPk, merged);
+        }
+        this.populateRepeaterModalData(merged);
+      }
+    });
+  }
+
   _bindElements() {
     this.dom = {
       repeaterAdminModal: document.getElementById("repeaterAdminModal"),
@@ -969,6 +993,10 @@ export class RepeaterModule {
     if (voltEl) voltEl.textContent = voltVal !== "--" ? `${voltVal} V` : "-- V";
     const solarEl = document.getElementById("repSolarValue");
     if (solarEl) solarEl.textContent = solarVal !== "--" ? `${solarVal} V` : "-- V";
+
+    const tempVal = node.temperature_c != null ? `${node.temperature_c} °C` : (node.temp != null ? `${node.temp} °C` : (node.temperature != null ? `${node.temperature} °C` : "-- °C"));
+    const tempEl = document.getElementById("repTempValue");
+    if (tempEl) tempEl.textContent = tempVal;
 
     const clockEl = document.getElementById("repClockValue");
     if (clockEl) clockEl.textContent = node.clock || new Date().toLocaleTimeString();

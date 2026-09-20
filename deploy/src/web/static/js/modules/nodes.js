@@ -339,10 +339,10 @@ export class NodesModule {
         cCard.setAttribute("data-has-gps", hasGps ? "1" : "0");
 
         const batText = node.battery_pct != null ? `${node.battery_pct}%` : (node.voltage_v != null ? `${node.voltage_v}V` : null);
-        const snrVal = isDisconnected ? "--" : (node.last_snr != null ? `${node.last_snr} dB` : "--");
-        const rssiVal = isDisconnected ? "--" : (node.last_rssi != null ? `${node.last_rssi} dBm` : "--");
-        const lqiVal = isDisconnected ? "--" : (node.lqi_score ? `${Math.round(node.lqi_score)}%` : "--");
-        const hopsVal = isDisconnected ? "--" : (node.hops != null ? (node.hops === 0 ? I18n.t('nodes.route_direct') : `${node.hops} ${I18n.t('nodes.hops')}`) : "--");
+        const snrVal = node.last_snr != null ? `${node.last_snr} dB` : "--";
+        const rssiVal = node.last_rssi != null ? `${node.last_rssi} dBm` : "--";
+        const lqiVal = node.lqi_score ? `${Math.round(node.lqi_score)}%` : (node.last_rssi != null ? "50%" : "--");
+        const hopsVal = node.hops != null ? (node.hops === 0 ? I18n.t('nodes.route_direct') : `${node.hops} ${I18n.t('nodes.hops')}`) : "--";
 
         cCard.innerHTML = `
           <div class="contact-card-header">
@@ -495,14 +495,16 @@ export class NodesModule {
         nCard.setAttribute("data-has-gps", hasGps ? "1" : "0");
 
         const avatarIcon = isLocal ? "🏠" : (isRepeater ? "📡" : (isSensor ? "🌡️" : (isRoom ? "💬" : "👤")));
-        const batText = node.battery_pct != null ? `${node.battery_pct}%` : (node.voltage_v != null ? `${node.voltage_v}V` : null);
-        const snrVal = isLocal ? "Local" : (isDisconnected ? "--" : (node.last_snr != null ? `${node.last_snr} dB` : "--"));
-        const rssiVal = isLocal ? "Local" : (isDisconnected ? "--" : (node.last_rssi != null ? `${node.last_rssi} dBm` : "--"));
-        const lqiVal = isLocal ? "100%" : (isDisconnected ? "--" : (node.lqi_score ? `${Math.round(node.lqi_score)}%` : "--"));
-        const hopsVal = isLocal ? "0" : (isDisconnected ? "--" : (node.hops != null ? (node.hops === 0 ? I18n.t('nodes.route_direct') : `${node.hops} ${I18n.t('nodes.hops')}`) : "--"));
+        const batText = isLocal ? null : (node.battery_pct != null ? `${node.battery_pct}%` : (node.voltage_v != null ? `${node.voltage_v}V` : null));
+        const snrVal = isLocal ? null : (node.last_snr != null ? `${node.last_snr} dB` : "--");
+        const rssiVal = isLocal ? null : (node.last_rssi != null ? `${node.last_rssi} dBm` : "--");
+        const lqiVal = isLocal ? null : (node.lqi_score ? `${Math.round(node.lqi_score)}%` : (node.last_rssi != null ? "50%" : "--"));
+        const hopsVal = isLocal ? null : (node.hops != null ? (node.hops === 0 ? I18n.t('nodes.route_direct') : `${node.hops} ${I18n.t('nodes.hops')}`) : "--");
 
         let telemLine2 = `${I18n.t('nodes.route_label')} <strong>${escapeHtml(node.best_route || (node.hops === 0 ? I18n.t('nodes.route_direct') : I18n.t('nodes.route_mesh')))}</strong>`;
-        if (node.temperature_c != null) {
+        if (isLocal) {
+          telemLine2 = `🖥️ <strong>Estación Base Host USB</strong>`;
+        } else if (node.temperature_c != null) {
           telemLine2 = `🌡️ <strong>${escapeHtml(String(node.temperature_c))}°C</strong> ${node.humidity_pct != null ? `💧 ${escapeHtml(String(node.humidity_pct))}%` : ""}`;
         } else if (node.owner_name) {
           telemLine2 = `${I18n.t('nodes.owner_label')} <strong>${escapeHtml(node.owner_name)}</strong>`;
@@ -537,15 +539,17 @@ export class NodesModule {
             </div>
             <div class="node-meta-sub">
               <span>${telemLine2}</span>
-              <span>${I18n.t('nodes.lqi_label')} <strong>${escapeHtml(lqiVal)}</strong></span>
+              ${isLocal ? `<span>⚡ <strong>5V USB</strong></span>` : `<span>${I18n.t('nodes.lqi_label')} <strong>${escapeHtml(lqiVal)}</strong></span>`}
             </div>
           </div>
 
+          ${isLocal ? "" : `
           <div class="node-rf-strip">
             <div class="stat-pill" title="${I18n.t('nodes.tooltip_rssi')}">📡 <strong>${escapeHtml(rssiVal)}</strong></div>
             <div class="stat-pill" title="${I18n.t('nodes.tooltip_snr')}">📶 <strong>${escapeHtml(snrVal)}</strong></div>
             <div class="stat-pill" title="${I18n.t('nodes.tooltip_hops')}">🔀 <strong>${escapeHtml(hopsVal)}</strong></div>
           </div>
+          `}
 
           <div class="node-actions-bar">
             ${isRepeater ? `
@@ -879,28 +883,28 @@ export class NodesModule {
         card.setAttribute("data-online", presenceClass === "status-online" ? "1" : "0");
       }
 
-      // Señal: SNR y RSSI
+      // Señal: SNR y RSSI (preservar última señal conocida incluso si está offline)
       const snrEl = card.querySelector(".metric-snr, .stat-pill:nth-child(2) strong");
       if (snrEl) {
-        snrEl.textContent = isDisconnected ? "--" : (isLocal ? "Local" : (node.last_snr != null ? `${node.last_snr} dB` : "--"));
+        snrEl.textContent = isLocal ? "Local" : (node.last_snr != null ? `${node.last_snr} dB` : "--");
       }
       const rssiEl = card.querySelector(".metric-rssi, .stat-pill:nth-child(1) strong");
       if (rssiEl) {
-        rssiEl.textContent = isDisconnected ? "--" : (isLocal ? "Local" : (node.last_rssi != null ? `${node.last_rssi} dBm` : "--"));
+        rssiEl.textContent = isLocal ? "Local" : (node.last_rssi != null ? `${node.last_rssi} dBm` : "--");
       }
       const lqiBadge = card.querySelector(".lqi-score, .node-meta-sub strong:last-child");
       if (lqiBadge) {
-        lqiBadge.textContent = isDisconnected ? "--" : (isLocal ? "100%" : (node.lqi_score ? `${Math.round(node.lqi_score)}%` : "--"));
+        lqiBadge.textContent = isLocal ? "100%" : (node.lqi_score ? `${Math.round(node.lqi_score)}%` : "--");
       }
 
       // Saltos / Hops
       const hopsEl = card.querySelector(".stat-pill:nth-child(3) strong");
       if (hopsEl) {
-        hopsEl.textContent = isLocal ? "0" : (isDisconnected ? "--" : (node.hops != null ? (node.hops === 0 ? (window.I18n ? window.I18n.t('nodes.route_direct') : "Directo") : `${node.hops} ${window.I18n ? window.I18n.t('nodes.hops') : 'Hops'}`) : "--"));
+        hopsEl.textContent = isLocal ? "0" : (node.hops != null ? (node.hops === 0 ? (window.I18n ? window.I18n.t('nodes.route_direct') : "Directo") : `${node.hops} ${window.I18n ? window.I18n.t('nodes.hops') : 'Hops'}`) : "--");
       }
 
-      // Chip de Batería
-      const batText = node.battery_pct != null ? `${node.battery_pct}%` : (node.voltage_v != null ? `${node.voltage_v}V` : null);
+      // Chip de Batería (los nodos locales se alimentan por USB 5V, no llevan batería LoRa)
+      const batText = (!isLocal && node.battery_pct != null) ? `${node.battery_pct}%` : (!isLocal && node.voltage_v != null ? `${node.voltage_v}V` : null);
       if (batText) {
         let batEl = card.querySelector(".contact-battery-chip");
         if (batEl) {
@@ -916,12 +920,17 @@ export class NodesModule {
             titleRow.insertBefore(chip, titleRow.firstChild);
           }
         }
+      } else if (isLocal) {
+        const batEl = card.querySelector(".contact-battery-chip");
+        if (batEl) batEl.remove();
       }
 
       // Telemetría / Ruta
       const telemEl = card.querySelector(".node-telemetry-panel .node-meta-sub span:first-child");
       if (telemEl) {
-        if (node.temperature_c != null) {
+        if (isLocal) {
+          telemEl.innerHTML = `🖥️ <strong>Estación Base Host USB</strong>`;
+        } else if (node.temperature_c != null) {
           telemEl.innerHTML = `🌡️ <strong>${escapeHtml(String(node.temperature_c))}°C</strong> ${node.humidity_pct != null ? `💧 ${escapeHtml(String(node.humidity_pct))}%` : ""}`;
         } else if (node.owner_name) {
           telemEl.innerHTML = `${window.I18n ? window.I18n.t('nodes.owner_label') : "Dueño:"} <strong>${escapeHtml(node.owner_name)}</strong>`;

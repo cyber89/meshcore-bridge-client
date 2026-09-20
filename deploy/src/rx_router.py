@@ -568,7 +568,7 @@ class RxEventRouter:
         )
 
         if extracted_telem and should_treat_as_repeater:
-            self._ctx.node_registry.add_or_update(
+            updated_rep = self._ctx.node_registry.add_or_update(
                 msg.sender,
                 NodeContactUpdate(
                     last_seen=time.time(),
@@ -579,6 +579,7 @@ class RxEventRouter:
                     battery_pct=extracted_telem.get("battery_pct"),
                     voltage_v=extracted_telem.get("voltage_v"),
                     solar_v=extracted_telem.get("solar_v"),
+                    temperature_c=extracted_telem.get("temperature_c"),
                     latitude=extracted_telem.get("latitude"),
                     longitude=extracted_telem.get("longitude"),
                     altitude_m=extracted_telem.get("altitude_m"),
@@ -607,6 +608,12 @@ class RxEventRouter:
                     hops=extracted_telem.get("hops"),
                 ),
             )
+            if updated_rep:
+                self._spawn_broadcast_task({
+                    "type": "contact_updated",
+                    "event_type": "contact_updated",
+                    "contact": updated_rep.to_dict(),
+                })
 
         sender_contact = self._ctx.node_registry.get_contact(msg.sender)
         is_repeater_sender = (
@@ -815,16 +822,20 @@ class RxEventRouter:
                 else:
                     telem_role = "CLIENT"
 
-            is_local_telem = self._ctx.node_registry.is_local_key(sender)
+            raw_rssi = payload_dict.get("last_rssi", payload_dict.get("rssi"))
+            raw_snr = payload_dict.get("last_snr", payload_dict.get("snr"))
             updated_telem_contact = self._ctx.node_registry.add_or_update(
                 sender,
                 NodeContactUpdate(
                     last_seen=time.time() if not is_local_telem else None,
                     name=sender_name_cand,
                     role=telem_role,
+                    last_rssi=int(raw_rssi) if isinstance(raw_rssi, (int, float)) else None,
+                    last_snr=float(raw_snr) if isinstance(raw_snr, (int, float)) else None,
                     battery_pct=calc_bat_pct,
                     voltage_v=payload_dict.get("voltage_v", telem_volt),
                     solar_v=payload_dict.get("solar_v"),
+                    temperature_c=payload_dict.get("temperature_c", payload_dict.get("temp", payload_dict.get("temperature"))),
                     latitude=payload_dict.get("latitude"),
                     longitude=payload_dict.get("longitude"),
                     altitude_m=payload_dict.get("altitude_m"),
