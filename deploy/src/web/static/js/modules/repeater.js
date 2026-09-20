@@ -404,7 +404,9 @@ export class RepeaterModule {
         const password = this.getRepeaterPassword(target);
         this.appendTerminalLine(`> [TX] Solicitando telemetría completa, batería y parámetros a ${target.slice(0, 8)}...`, "term-cmd");
         btnRefreshTelem.disabled = true;
-        btnRefreshTelem.textContent = "🔄 Consultando...";
+        const lbl = btnRefreshTelem.querySelector(".btn-compact-label") || btnRefreshTelem;
+        const origText = lbl.textContent;
+        lbl.textContent = "Consultando...";
         try {
           this.refreshRepeaterFullTelemetry(target, password);
           if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.rep_telem_req'), "info");
@@ -412,7 +414,7 @@ export class RepeaterModule {
         finally {
           setTimeout(() => {
             btnRefreshTelem.disabled = false;
-            btnRefreshTelem.textContent = "🔄 Consultar Parámetros";
+            lbl.textContent = origText || "Stats Core";
           }, 3500);
         }
       });

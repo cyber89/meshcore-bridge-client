@@ -783,6 +783,10 @@ class RxEventRouter:
                 payload_dict["sender_name"] = contact.alias or contact.name
 
         if sender and is_valid_node_key(sender):
+            is_local_telem = bool(
+                payload_dict.get("is_local")
+                or self._ctx.node_registry.is_local_key(sender)
+            )
             sender_name_cand = str(
                 payload_dict.get("sender_name")
                 or payload_dict.get("adv_name")

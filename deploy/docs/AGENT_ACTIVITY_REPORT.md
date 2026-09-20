@@ -2,6 +2,30 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Verificación Integral de Telemetría Multi-Nodo, Ajustes de Nodos y Modernización UI/UX de Interfaces de Administración
+- **Fecha**: 2026-09-20
+- **Estado**: ✅ COMPLETADO — Corregido fallo potencial de `NameError` en `_handle_mesh_telemetry_msg` (`is_local_telem`), verificados ajustes locales y remotos, depurados selectores DOM huérfanos en frontend, y modernización visual táctica de alto nivel para modales de administración, subpestañas y tarjetas de métricas.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect).
+- **Causa Raíz y Acciones Realizadas**:
+  1. **`src/rx_router.py`**:
+     - Definida formalmente la variable `is_local_telem` dentro de `_handle_mesh_telemetry_msg` para evitar fallos de ejecución al procesar telemetría de nodos remotos y locales.
+  2. **`src/web/static/js/modules/settings.js`**:
+     - Limpieza de selectores DOM de batería para el nodo local (alimentado por USB 5V).
+     - Unificado `btnOpenAddContact` con `btnHeaderAddContact`.
+  3. **`src/web/static/js/modules/chat.js`**:
+     - Eliminadas referencias a selectores DOM no utilizados (`btnShareLocation` -> `attachOptionLocation`, `btnToggleChannelsMobile` -> `btnBackToChannelsMobile`).
+  4. **`src/web/static/js/modules/repeater.js`**:
+     - Preservada la estructura de iconos y etiquetas en botones de acción rápida de hardware para evitar sobreescritura del árbol DOM.
+  5. **`src/web/static/css/app.css`**:
+     - Rediseño táctico del modal de administración de repetidores (`repeaterAdminModal`), gate de autenticación (`auth-gate-card`) con micro-animaciones en escudo, subpestañas tipo píldora segmentada con brillo activo.
+     - Modernización de tarjetas métricas (`metric-card`) con iconos diferenciados por color, efecto de elevación 3D en hover y bordes con brillo sutil.
+     - Rediseño de la barra compacta de acciones de hardware (`hardware-actions-toolbar` y `btn-compact-action`) con degradados modernos y estados activos de alta visibilidad.
+- **Verificación y Calidad**:
+  - Verificación de sintaxis de todos los archivos JavaScript con `node --check`: 0 errores.
+  - Verificación de compilación de código Python con `python -m py_compile`: 0 errores.
+  - Validación de paridad DOM y endpoints REST con `check_dom_and_contracts.py`: 100% de paridad.
+  - Sincronización de `/deploy/` completada con éxito.
+
 ### Hito: Remediación de Actualización de Nodos en Vivo, Métricas RF en Contactos Desconectados, Telemetría de Repetidor y Depuración de Datos del Nodo Local
 - **Fecha**: 2026-09-20
 - **Estado**: ✅ COMPLETADO — Reparada la propagación WebSocket de telemetría de repetidores y contactos, conservadas las métricas RF (RSSI/SNR/Hops/LQI) en nodos offline en lugar de enmascararlas con `"--"`, habilitada la extracción y visualización de temperatura MCU del repetidor, y depurado el nodo local de datos redundantes (eliminadas batería y métricas RF ficticias).

@@ -98,7 +98,7 @@ export class SettingsModule {
       chModalPsk: document.getElementById("chModalPsk"),
       btnGenRandomPsk: document.getElementById("btnGenRandomPsk"),
       btnSaveChannel: document.getElementById("btnSaveChannel"),
-      btnOpenAddContact: document.getElementById("btnOpenAddContact"),
+      btnOpenAddContact: document.getElementById("btnOpenAddContact") || document.getElementById("btnHeaderAddContact"),
       btnHeaderAddContact: document.getElementById("btnHeaderAddContact"),
       createContactModal: document.getElementById("createContactModal"),
       btnCloseCreateContactModal: document.getElementById("btnCloseCreateContactModal"),
@@ -1568,17 +1568,7 @@ export class SettingsModule {
     }
 
 
-    // Tarjetas de Telemetría en Vivo (Preservación estricta de valores conocidos)
-    const elBat = document.getElementById("localBatValue");
-    if (elBat && cfg.battery_pct != null) {
-      elBat.textContent = `${cfg.battery_pct} %`;
-    }
-
-    const elVolt = document.getElementById("localVoltValue");
-    if (elVolt && (cfg.voltage != null || cfg.battery_mv != null)) {
-      elVolt.textContent = cfg.voltage != null ? `${cfg.voltage} V` : `${(cfg.battery_mv / 1000).toFixed(2)} V`;
-    }
-
+    // Tarjeta de Alimentación Host USB (Estación Base 5V)
     const elSolar = document.getElementById("localSolarValue");
     const elSolarStatus = document.getElementById("localSolarStatus");
     if (elSolar && (cfg.power_source != null || cfg.battery_pct != null)) {
