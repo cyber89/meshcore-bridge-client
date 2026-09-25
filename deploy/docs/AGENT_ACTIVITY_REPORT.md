@@ -2,6 +2,23 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Unificación de Sincronización y Locks en Deduplicador RAM (src/deduplicator.py) - Problema E4
+- **Fecha**: 2026-09-24
+- **Estado**: ✅ COMPLETADO — Eliminado el patrón de doble bloqueo híbrido (`_async_lock` + `_thread_lock`) que impedía la exclusión mutua real entre el bucle de eventos y llamadas concurrentes. Unificada la sincronización bajo un único lock atómico `_lock` con lógica consolidada en `_check_and_insert()`.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect).
+- **Módulos Afectados**:
+  1. **`src/deduplicator.py`**:
+     - Consolidado el bloqueo en un único `self._lock = threading.Lock()`.
+     - Implementado `_check_and_insert(key: str) -> bool` reutilizado tanto por `async is_duplicate()` como por `is_duplicate_sync()`, garantizando atomicidad real y eliminando duplicación de código.
+     - Protegido `__len__()` bajo el lock unificado.
+  2. **`src/protocol_types.py`**:
+     - Restaurado el alias `parse_telemetry_from_sdk = parse_status_response` para plena compatibilidad de scripts y herramientas de verificación.
+- **Verificación y Calidad**:
+  - `python -m py_compile src/deduplicator.py src/protocol_types.py`: 0 errores.
+  - `python .agents/skills/async-concurrency-engineering/scripts/audit_async_concurrency.py`: 100% de conformidad en concurrencia asíncrona.
+  - `python scripts/verify_all_components.py`: 100% pruebas de componentes aprobadas (seguridad, concurrencia, calidad, SDK y rutas).
+  - Sincronización `/deploy/` ejecutada con éxito.
+
 ### Hito: Modularización de CSS Monolítico en src/web/static/css/ (tokens, components, chat, nodes, admin) - Recomendación R9
 - **Fecha**: 2026-09-24
 - **Estado**: ✅ COMPLETADO — Monolito `app.css` de 7,702 líneas descompuesto limpiamente en módulos temáticos desacoplados (`tokens.css`, `components.css`, `chat.css`, `nodes.css`, `admin.css`), conservando `app.css` como agregador maestro vía `@import` y actualizando `index.html` con enlaces directos para carga en paralelo sin bloquear renderizado.

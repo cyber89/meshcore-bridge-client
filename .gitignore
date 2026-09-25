@@ -36,8 +36,12 @@ env/
 .idea/
 .DS_Store
 Thumbs.db
+# Runtime state data and databases
 data/*.db
 data/*.db-shm
 data/*.db-wal
+data/*.json
+!data/*.json.example
+!data/.gitkeep
 out.txt
 test_sec_audit.db
