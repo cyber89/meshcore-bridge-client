@@ -13,7 +13,8 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -47,6 +48,51 @@ class WaiterRegistry:
 
     cmd_waiters: dict[str, list[asyncio.Future[dict[str, Any]]]]
     ping_waiters: dict[str, list[asyncio.Future[dict[str, Any]]]]
+
+    def register(self, keys: list[str], fut: asyncio.Future[dict[str, Any]], include_ping: bool = False) -> None:
+        """Registra un futuro bajo una lista de claves de nodo."""
+        for k in keys:
+            if not k:
+                continue
+            if k not in self.cmd_waiters:
+                self.cmd_waiters[k] = []
+            self.cmd_waiters[k].append(fut)
+            if include_ping:
+                if k not in self.ping_waiters:
+                    self.ping_waiters[k] = []
+                self.ping_waiters[k].append(fut)
+
+    def unregister(self, keys: list[str], fut: asyncio.Future[dict[str, Any]], include_ping: bool = False) -> None:
+        """Desregistra un futuro eliminando listas vacías."""
+        for k in keys:
+            if not k:
+                continue
+            if k in self.cmd_waiters:
+                self.cmd_waiters[k] = [f for f in self.cmd_waiters[k] if f is not fut]
+                if not self.cmd_waiters[k]:
+                    del self.cmd_waiters[k]
+            if include_ping and k in self.ping_waiters:
+                self.ping_waiters[k] = [f for f in self.ping_waiters[k] if f is not fut]
+                if not self.ping_waiters[k]:
+                    del self.ping_waiters[k]
+
+    @asynccontextmanager
+    async def expect_response(
+        self,
+        keys: list[str],
+        include_ping: bool = False,
+    ) -> AsyncIterator[asyncio.Future[dict[str, Any]]]:
+        """Context manager asíncrono para registro y desregistro determinista de promesas RF."""
+        loop = asyncio.get_running_loop()
+        fut: asyncio.Future[dict[str, Any]] = loop.create_future()
+        self.register(keys, fut, include_ping=include_ping)
+        try:
+            yield fut
+        finally:
+            self.unregister(keys, fut, include_ping=include_ping)
+            if not fut.done():
+                fut.cancel()
+
 
 
 @dataclass(slots=True)
@@ -203,13 +249,11 @@ class RepeaterAdminExecutor:
         norm_target = self._ctx.node_registry.get_canonical_key(str(req.target_node)) or str(req.target_node).strip().lower()
         target_name = str((target_info.get("name") or target_info.get("alias")) if target_info else f"Nodo {norm_target[:8]}")
 
-        fut: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
         waiter_keys = [norm_target, norm_target[:8], norm_target[:4], str(req.target_node).strip().lower()]
         if target_info and target_info.get("name"):
             waiter_keys.append(str(target_info["name"]).lower())
 
-        self._register_waiters(waiter_keys, fut, include_ping=True)
-        try:
+        async with self._waiters.expect_response(waiter_keys, include_ping=True) as fut:
             await self._ensure_radio_contact(req.mc, dest_target, target_name)
 
             t_start = time.perf_counter()
@@ -219,8 +263,6 @@ class RepeaterAdminExecutor:
                 self._ctx.repeater_manager.record_ping_sent(str(req.target_node))
 
             resp_data = await self._wait_for_repeater_response(req.mc, fut, timeout=5.0) or {}
-        finally:
-            self._unregister_waiters(waiter_keys, fut, include_ping=True)
 
         elapsed_rtt = round((time.perf_counter() - t_start) * 1000, 1)
         if resp_data:
@@ -288,13 +330,11 @@ class RepeaterAdminExecutor:
         dest_login_target = self._resolve_target(str(req.target_node), 64)
         norm_target = self._ctx.node_registry.get_canonical_key(str(req.target_node)) or str(req.target_node).strip().lower()
 
-        fut: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
         waiter_keys = [norm_target, norm_target[:8], norm_target[:4], str(req.target_node).strip().lower()]
         if target_info and target_info.get("name"):
             waiter_keys.append(str(target_info["name"]).lower())
 
-        self._register_waiters(waiter_keys, fut, include_ping=False)
-        try:
+        async with self._waiters.expect_response(waiter_keys, include_ping=False) as fut:
             await self._ensure_radio_contact(req.mc, dest_target, "Repeater")
 
             rf_ctx = RfExecutionContext(
@@ -322,8 +362,6 @@ class RepeaterAdminExecutor:
                 return await self._execute_unit_command(rf_ctx)
 
             return await self._execute_unit_command(rf_ctx)
-        finally:
-            self._unregister_waiters(waiter_keys, fut, include_ping=False)
 
     async def _try_execute_binary_or_anon(self, rf_ctx: RfExecutionContext) -> dict[str, Any] | None:
         """Intenta ejecutar solicitudes binarias o anónimas oficiales si el SDK las soporta."""
@@ -425,7 +463,6 @@ class RepeaterAdminExecutor:
         """Ejecuta inicio de sesión remoto en el repetidor."""
         req = rf_ctx.req
         if not req.password:
-            self._unregister_waiters(rf_ctx.waiter_keys, rf_ctx.fut, include_ping=False)
             return {"status": "error", "message": "La contraseña de administración no puede estar vacía"}
 
         cmd_text = f"login {req.password}"
@@ -444,25 +481,23 @@ class RepeaterAdminExecutor:
             except Exception as e:
                 logging.debug(f"send_login_sync falló ({e}), usando fallback...")
 
-        try:
-            if not login_success and error_msg is None:
-                await self._send_login_fallback(rf_ctx, cmd_text)
-                resp_data = await self._wait_for_repeater_response(req.mc, rf_ctx.fut, timeout=6.0) or {}
-                raw_resp = resp_data.get("text") or resp_data.get("message") or ""
-                resp_text = raw_resp[2:].strip() if raw_resp.startswith("> ") else raw_resp.strip()
-                lower = resp_text.lower()
+        if not login_success and error_msg is None:
+            await self._send_login_fallback(rf_ctx, cmd_text)
+            resp_data = await self._wait_for_repeater_response(req.mc, rf_ctx.fut, timeout=6.0) or {}
+            raw_resp = resp_data.get("text") or resp_data.get("message") or ""
+            resp_text = raw_resp[2:].strip() if raw_resp.startswith("> ") else raw_resp.strip()
+            lower = resp_text.lower()
 
-                if resp_data.get("auth_status") == "failed" or any(p in lower for p in ("invalid", "denied", "wrong", "failed")):
-                    login_success = False
-                    error_msg = resp_text or "Contraseña incorrecta en el repetidor"
-                elif resp_data.get("auth_status") == "success" or any(p in lower for p in ("ok", "success", "logged in", "auth ok")):
-                    login_success = True
-                elif resp_text:
-                    login_success = True
-                else:
-                    error_msg = f"Sin respuesta del repetidor {str(req.target_node)[:8]}"
-        finally:
-            self._unregister_waiters(rf_ctx.waiter_keys, rf_ctx.fut, include_ping=False)
+            if resp_data.get("auth_status") == "failed" or any(p in lower for p in ("invalid", "denied", "wrong", "failed")):
+                login_success = False
+                error_msg = resp_text or "Contraseña incorrecta en el repetidor"
+            elif resp_data.get("auth_status") == "success" or any(p in lower for p in ("ok", "success", "logged in", "auth ok")):
+                login_success = True
+            elif resp_text:
+                login_success = True
+            else:
+                error_msg = f"Sin respuesta del repetidor {str(req.target_node)[:8]}"
+
         status_str = "ok" if login_success else "error"
         rf_ctx.res.update({
             "status": status_str,
@@ -484,18 +519,14 @@ class RepeaterAdminExecutor:
 
         can_send, rem_cd = self._ctx.repeater_manager.check_airtime_cooldown(str(req.target_node), is_full_query=False)
         if not can_send:
-            self._unregister_waiters(rf_ctx.waiter_keys, rf_ctx.fut, include_ping=False)
             return self._ctx.repeater_manager.build_cooldown_error_response(rem_cd)
 
         cmd_text = self._ctx.repeater_manager.build_repeater_command_payload(req.action, req.admin_data)
         self._ctx.repeater_manager.record_command_sent(str(req.target_node), is_full_query=False)
         t_start = time.perf_counter()
 
-        try:
-            await self._send_rf_command(req.mc, rf_ctx.dest_target, cmd_text, str(req.target_node), req.req_id)
-            resp_data = await self._wait_for_repeater_response(req.mc, rf_ctx.fut, timeout=6.0) or {}
-        finally:
-            self._unregister_waiters(rf_ctx.waiter_keys, rf_ctx.fut, include_ping=False)
+        await self._send_rf_command(req.mc, rf_ctx.dest_target, cmd_text, str(req.target_node), req.req_id)
+        resp_data = await self._wait_for_repeater_response(req.mc, rf_ctx.fut, timeout=6.0) or {}
 
         elapsed = round((time.perf_counter() - t_start) * 1000, 1)
         raw_resp = resp_data.get("text") or resp_data.get("message") or ""
@@ -520,27 +551,12 @@ class RepeaterAdminExecutor:
     # --------------------------------------------------------------------------
 
     def _register_waiters(self, keys: list[str], fut: asyncio.Future[dict[str, Any]], include_ping: bool) -> None:
-        """Registra un future en los diccionarios de espera."""
-        for k in keys:
-            if k not in self._waiters.cmd_waiters:
-                self._waiters.cmd_waiters[k] = []
-            self._waiters.cmd_waiters[k].append(fut)
-            if include_ping:
-                if k not in self._waiters.ping_waiters:
-                    self._waiters.ping_waiters[k] = []
-                self._waiters.ping_waiters[k].append(fut)
+        """Registra un future delegando en WaiterRegistry."""
+        self._waiters.register(keys, fut, include_ping=include_ping)
 
     def _unregister_waiters(self, keys: list[str], fut: asyncio.Future[dict[str, Any]], include_ping: bool) -> None:
-        """Remueve un future de los diccionarios de espera."""
-        for k in keys:
-            if k in self._waiters.cmd_waiters:
-                self._waiters.cmd_waiters[k] = [f for f in self._waiters.cmd_waiters[k] if f is not fut]
-                if not self._waiters.cmd_waiters[k]:
-                    del self._waiters.cmd_waiters[k]
-            if include_ping and k in self._waiters.ping_waiters:
-                self._waiters.ping_waiters[k] = [f for f in self._waiters.ping_waiters[k] if f is not fut]
-                if not self._waiters.ping_waiters[k]:
-                    del self._waiters.ping_waiters[k]
+        """Desregistra un future delegando en WaiterRegistry."""
+        self._waiters.unregister(keys, fut, include_ping=include_ping)
 
     async def _ensure_radio_contact(self, mc: Any, dest_target: Any, target_name: str) -> None:
         """Asegura que el nodo destino esté presente en la tabla del firmware."""
