@@ -52,11 +52,20 @@ def check_html() -> list[str]:
 
 def check_css() -> list[str]:
     issues = []
-    css_file = WEB_STATIC_DIR / "css" / "app.css"
-    if not css_file.exists():
+    css_dir = WEB_STATIC_DIR / "css"
+    app_css = css_dir / "app.css"
+    if not app_css.exists():
         return ["No se encontró app.css"]
 
-    content = css_file.read_text(encoding="utf-8")
+    # Soporte para CSS modular (app.css agregador y hojas modulares)
+    all_css_text = []
+    for css_file in sorted(css_dir.glob("*.css")):
+        try:
+            all_css_text.append(css_file.read_text(encoding="utf-8"))
+        except OSError:
+            pass
+
+    content = "\n".join(all_css_text)
 
     # 1. Variables CSS en :root
     if ":root" not in content or "--bg-" not in content:

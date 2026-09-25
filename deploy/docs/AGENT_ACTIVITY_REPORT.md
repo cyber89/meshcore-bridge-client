@@ -2,6 +2,24 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Modularización de CSS Monolítico en src/web/static/css/ (tokens, components, chat, nodes, admin) - Recomendación R9
+- **Fecha**: 2026-09-24
+- **Estado**: ✅ COMPLETADO — Monolito `app.css` de 7,702 líneas descompuesto limpiamente en módulos temáticos desacoplados (`tokens.css`, `components.css`, `chat.css`, `nodes.css`, `admin.css`), conservando `app.css` como agregador maestro vía `@import` y actualizando `index.html` con enlaces directos para carga en paralelo sin bloquear renderizado.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX Architect).
+- **Módulos Afectados**:
+  1. **`src/web/static/css/tokens.css`**: Design tokens `:root`, variables de paleta LoRa, modo claro (`body.light-theme`) y tokens de scrollbars.
+  2. **`src/web/static/css/components.css`**: Reseteo, scrollbars, header, sidebar táctica, botones base, switches/toggles, modales genéricos, toasts, accesibilidad WCAG y breakpoints responsivos.
+  3. **`src/web/static/css/chat.css`**: Layout de chat (canales y conversación), burbujas de mensajes, compositor, badges de recibo de entrega y banner de descubrimiento.
+  4. **`src/web/static/css/nodes.css`**: Directorio de nodos y contactos, tarjetas adaptativas de alta precisión, chips RF, barra de presupuesto de airtime y sondeo Ping Zero.
+  5. **`src/web/static/css/admin.css`**: Consola de administración de repetidores remotos, auth gate, terminal Linux CLI, sniffer RF, inspector de paquetes, métricas analíticas y superposición táctica en mapa.
+  6. **`src/web/static/css/app.css`**: Convertido en agregador maestro que importa las 5 hojas de estilo con `@import url(...)`.
+  7. **`src/web/static/index.html`**: Agregadas etiquetas `<link rel="stylesheet">` directas para paralelizar la descarga en el navegador.
+  8. **`.agents/skills/html-css-modern-js/scripts/lint_frontend_standards.py`**: Actualizada la verificación CSS para analizar arquitecturas modulares agregadas.
+- **Verificación y Calidad**:
+  - `python .agents/skills/html-css-modern-js/scripts/lint_frontend_standards.py`: 100% de cumplimiento (HTML5, CSS3, JS).
+  - `node --check`: 0 errores en todos los módulos JS.
+  - `python scripts/sync_deploy.py`: despliegue sincronizado con éxito.
+
 ### Hito: Verificación Integral de Telemetría Multi-Nodo, Ajustes de Nodos y Modernización UI/UX de Interfaces de Administración
 - **Fecha**: 2026-09-20
 - **Estado**: ✅ COMPLETADO — Corregido fallo potencial de `NameError` en `_handle_mesh_telemetry_msg` (`is_local_telem`), verificados ajustes locales y remotos, depurados selectores DOM huérfanos en frontend, y modernización visual táctica de alto nivel para modales de administración, subpestañas y tarjetas de métricas.
