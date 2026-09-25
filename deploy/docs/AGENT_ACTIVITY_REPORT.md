@@ -2,6 +2,41 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Modularización Arquitectónica de serial_driver.py en Submódulos Cohesivos (src/serial/) con Fachada Retrocompatible - Recomendación R8
+- **Fecha**: 2026-09-24
+- **Estado**: ✅ COMPLETADO — El monolito `src/serial_driver.py` (>1,670 líneas) que concentraba la detección física de puertos serie, el framing raw byte-stuffing, el watchdog con backoff exponencial y el adaptador SDK de MeshCore ha sido modularizado limpiamente en un paquete cohesivo `src/serial/` manteniendo `src/serial_driver.py` como fachada delegadora para 100% de compatibilidad regresiva.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect), Agente 2 (Bridge Architect).
+- **Módulos Creados / Afectados**:
+  1. **`src/serial/serial_base.py`**: Detección física de puertos COM/tty (`detect_serial_port`) y clase base abstracta `BaseSerialAdapter(abc.ABC)` que define el contrato canónico de radio serie.
+  2. **`src/serial/sdk_adapter.py`**: Implementación `MeshcoreSDKAdapter(BaseSerialAdapter)` que interactúa con el SDK oficial `meshcore_py`, gestionando estabilización con ESP32-S3, AppStart, eventos de radio, broadcast de contactos y envío TX normalizado.
+  3. **`src/serial/raw_framing.py`**: Implementación `RawSerialFramingAdapter(BaseSerialAdapter)` con framing por delimitadores SOF/EOF, byte stuffing y validación CRC-16 para comunicación directa sin SDK.
+  4. **`src/serial/watchdog.py`**: Monitor de salud de hardware `SerialWatchdog` con reconexión asíncrona, backoff exponencial determinista y sondeo no bloqueante de liveness.
+  5. **`src/serial/__init__.py`**: Paquete que expone los símbolos canónicos de la arquitectura de drivers serie.
+  6. **`src/serial_driver.py`**: Fachada transparente que re-exporta todas las clases y funciones del paquete `src/serial/`, garantizando paridad total tanto para importaciones legacy (`from src.serial_driver import ...`) como para importaciones modulares (`from src.serial import ...`).
+- **Verificación y Calidad**:
+  - `python -m py_compile src/serial/*.py src/serial_driver.py`: 0 errores.
+  - `python .agents/skills/python-patterns-typing/scripts/verify_python_standards.py`: 100% cumplimiento estricto (58/58 módulos analizados).
+  - `python scripts/verify_all_components.py`: 100% de pruebas de arquitectura y componentes aprobadas.
+  - Sincronización `/deploy/` ejecutada con éxito.
+
+### Hito: Normalización Estructural de NodeContactInfo en Submodelos Cohesivos (src/contact_manager.py) - Recomendación R7
+- **Fecha**: 2026-09-24
+- **Estado**: ✅ COMPLETADO — Data God Class `NodeContactInfo` (>60 campos mutables agrupados en un solo bloque plano) descompuesta de forma limpia y tipada en tres dimensiones del dominio: `NodeIdentity` (identidad, nombre, rol, hardware), `NodeRfMetrics` (saltos, RSSI/SNR, LQI, rutas, parámetros LoRa) y `NodeTelemetry` (batería, sensores, GPS, contadores).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect), Agente 2 (Bridge Architect).
+- **Módulos Afectados**:
+  1. **`src/contact_manager.py`**:
+     - Creadas subestructuras `@dataclass(frozen=True, slots=True)`: `NodeIdentity`, `NodeRfMetrics` y `NodeTelemetry`.
+     - `NodeContactInfo` recompuesta mediante composición de estas tres subestructuras, implementando properties delegadas para 100% de compatibilidad regresiva con accesos a atributos planos (`contact.public_key`, `contact.last_rssi`, `contact.battery_pct`, etc.).
+     - Incorporados métodos utilitarios `as_flat_dict()`, `replace_fields(**changes)` y serialización `to_dict()`.
+     - Actualizado el fusionado de nodos locales (`_clean_local_entries`) y el reseteo de contadores en `reset_analytics` para operar sobre `replace_fields`.
+  2. **`src/__init__.py`**:
+     - Exportadas `NodeIdentity`, `NodeRfMetrics` y `NodeTelemetry` en `__all__`.
+- **Verificación y Calidad**:
+  - `python -m py_compile src/contact_manager.py src/__init__.py`: 0 errores.
+  - `python .agents/skills/python-patterns-typing/scripts/verify_python_standards.py`: 100% de cumplimiento en tipado estático PEP (53/53 módulos).
+  - `python scripts/verify_all_components.py`: 100% de pruebas de arquitectura y componentes aprobadas.
+  - Sincronización `/deploy/` ejecutada con éxito.
+
 ### Hito: Registro y Formalización de Decisiones de Arquitectura (ADRs 0005 a 0008) - Recomendaciones DOC1-DOC4
 - **Fecha**: 2026-09-24
 - **Estado**: ✅ COMPLETADO — Redactados y formalizados bajo estándar MADR los 4 Architecture Decision Records pendientes (`docs/adr/0005` a `0008`), cubriendo persistencia atómica en JSON, proxy TCP companion embebido, desacoplamiento y filtrado de telemetría del nodo local y sincronización horaria RTC automática.
