@@ -378,6 +378,10 @@ def parse_status_response(data: bytes, pubkey_prefix: str | None = None, offset:
     return res
 
 
+# Alias para compatibilidad de SDK y scripts de validación
+parse_telemetry_from_sdk = parse_status_response
+
+
 
 
 

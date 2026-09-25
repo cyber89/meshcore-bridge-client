@@ -7,11 +7,16 @@ from __future__ import annotations
 
 import collections
 import hashlib
+import threading
 import time
 
 
 class PacketDeduplicator:
-    """Filtro de deduplicación de alta velocidad en memoria RAM con ventana deslizante."""
+    """Filtro de deduplicación de alta velocidad en memoria RAM con ventana deslizante.
+    
+    Unifica la sincronización bajo un único lock reentrante/atómico para eliminar
+    el riesgo de bloqueo híbrido y asegurar coherencia entre corrutinas y llamadas síncronas.
+    """
 
     def __init__(
         self,
@@ -20,54 +25,42 @@ class PacketDeduplicator:
         ttl_seconds: float | None = None,
         max_history: int | None = None,
     ) -> None:
-        import asyncio
-        import threading
         self.window_seconds = ttl_seconds if ttl_seconds is not None else window_seconds
         self.max_entries = max_history if max_history is not None else max_entries
         self._cache: collections.OrderedDict[str, float] = collections.OrderedDict()
-        self._async_lock = asyncio.Lock()
-        self._thread_lock = threading.Lock()
+        self._lock = threading.Lock()
 
     def __len__(self) -> int:
-        return len(self._cache)
+        with self._lock:
+            return len(self._cache)
+
+    def _check_and_insert(self, key: str) -> bool:
+        """Evalúa e inserta una clave en la ventana deslizante bajo protección de lock."""
+        now = time.time()
+        self._prune(now)
+
+        if key in self._cache:
+            last_seen = self._cache[key]
+            if (now - last_seen) < self.window_seconds:
+                return True
+
+        self._cache[key] = now
+        self._cache.move_to_end(key)
+
+        if len(self._cache) > self.max_entries:
+            self._cache.popitem(last=False)
+
+        return False
 
     async def is_duplicate(self, key: str) -> bool:
-        """Verifica si la clave ha sido vista recientemente dentro de la ventana de tiempo."""
-        async with self._async_lock:
-            now = time.time()
-            self._prune(now)
-
-            if key in self._cache:
-                last_seen = self._cache[key]
-                if (now - last_seen) < self.window_seconds:
-                    return True
-
-            self._cache[key] = now
-            self._cache.move_to_end(key)
-
-            if len(self._cache) > self.max_entries:
-                self._cache.popitem(last=False)
-
-            return False
+        """Verifica de forma asíncrona si la clave ha sido vista recientemente dentro de la ventana."""
+        with self._lock:
+            return self._check_and_insert(key)
 
     def is_duplicate_sync(self, key: str) -> bool:
-        """Versión síncrona para comprobaciones directas."""
-        with self._thread_lock:
-            now = time.time()
-            self._prune(now)
-
-            if key in self._cache:
-                last_seen = self._cache[key]
-                if (now - last_seen) < self.window_seconds:
-                    return True
-
-            self._cache[key] = now
-            self._cache.move_to_end(key)
-
-            if len(self._cache) > self.max_entries:
-                self._cache.popitem(last=False)
-
-            return False
+        """Versión síncrona con la misma garantía atómica y lock unificado."""
+        with self._lock:
+            return self._check_and_insert(key)
 
     def _prune(self, now: float) -> None:
         """Elimina entradas expiradas desde el inicio del OrderedDict."""
