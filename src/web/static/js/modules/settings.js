@@ -98,7 +98,6 @@ export class SettingsModule {
       chModalPsk: document.getElementById("chModalPsk"),
       btnGenRandomPsk: document.getElementById("btnGenRandomPsk"),
       btnSaveChannel: document.getElementById("btnSaveChannel"),
-      btnOpenAddContact: document.getElementById("btnOpenAddContact") || document.getElementById("btnHeaderAddContact"),
       btnHeaderAddContact: document.getElementById("btnHeaderAddContact"),
       createContactModal: document.getElementById("createContactModal"),
       btnCloseCreateContactModal: document.getElementById("btnCloseCreateContactModal"),
@@ -110,12 +109,9 @@ export class SettingsModule {
       contactModalFavBadge: document.getElementById("contactModalFavBadge"),
       qrShareModal: document.getElementById("qrShareModal"),
       btnCloseQrShareModal: document.getElementById("btnCloseQrShareModal"),
-      btnCloseQrModal: document.getElementById("btnCloseQrShareModal") || document.getElementById("btnCloseQrModal"),
       btnCloseQrModalAction: document.getElementById("btnCloseQrModalAction"),
-      qrCanvas: document.getElementById("qrCanvas") || document.getElementById("qrShareCanvas"),
-      qrShareCanvas: document.getElementById("qrCanvas") || document.getElementById("qrShareCanvas"),
-      qrUriDisplay: document.getElementById("qrUriDisplay") || document.getElementById("qrShareUri"),
-      qrShareUri: document.getElementById("qrUriDisplay") || document.getElementById("qrShareUri"),
+      qrCanvas: document.getElementById("qrCanvas"),
+      qrUriDisplay: document.getElementById("qrUriDisplay"),
       qrShareJson: document.getElementById("qrShareJson"),
       qrModalTitle: document.getElementById("qrModalTitle"),
       btnCopyQrUri: document.getElementById("btnCopyQrUri"),
@@ -329,7 +325,6 @@ export class SettingsModule {
       if (this.dom.qrShareModal) this.dom.qrShareModal.classList.add("hidden");
     };
     if (this.dom.btnCloseQrShareModal) this.dom.btnCloseQrShareModal.addEventListener("click", closeQr);
-    if (this.dom.btnCloseQrModal) this.dom.btnCloseQrModal.addEventListener("click", closeQr);
     if (this.dom.btnCloseQrModalAction) this.dom.btnCloseQrModalAction.addEventListener("click", closeQr);
     if (this.dom.qrShareModal) {
       this.dom.qrShareModal.addEventListener("click", (e) => {
@@ -338,7 +333,7 @@ export class SettingsModule {
     }
     if (this.dom.btnCopyQrUri) {
       this.dom.btnCopyQrUri.addEventListener("click", () => {
-        const uriEl = this.dom.qrUriDisplay || this.dom.qrShareUri;
+        const uriEl = this.dom.qrUriDisplay;
         const uri = uriEl ? (uriEl.value || uriEl.textContent || "") : "";
         if (uri) {
           navigator.clipboard.writeText(uri);
