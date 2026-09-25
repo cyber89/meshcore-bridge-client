@@ -92,6 +92,38 @@ def _safe_int(val: Any, default: int, min_val: int = 0, max_val: int = 100000) -
         return default
 
 
+def _parse_bounded_int(
+    val: Any,
+    field_name: str,
+    default: int,
+    min_val: int = 0,
+    max_val: int = 100000,
+) -> tuple[int, tuple[int, dict[str, Any]] | None]:
+    """Valida y convierte un parámetro numérico entero acotado conforme a RFC 7807.
+
+    Retorna (parsed_value, None) en éxito, o (0, problem_details) ante error de validación (HTTP 400).
+    """
+    if val is None or val == "":
+        return default, None
+    try:
+        res = int(val)
+    except (ValueError, TypeError):
+        return 0, problem_details(
+            400,
+            "Bad Request",
+            f"El parámetro '{field_name}' debe ser un número entero válido (recibido: {val!r})",
+            "invalid_integer_param",
+        )
+    if res < min_val or res > max_val:
+        return 0, problem_details(
+            400,
+            "Bad Request",
+            f"El parámetro '{field_name}' debe estar comprendido entre {min_val} y {max_val} (recibido: {res})",
+            "param_out_of_bounds",
+        )
+    return res, None
+
+
 class WebAPIRouter:
     """Enrutador modular de API REST para el cliente web de MeshCore Bridge."""
 
@@ -448,8 +480,8 @@ class WebAPIRouter:
             if method == "DELETE":
                 return await self.packets_ctrl.clear_packets()
             if method == "GET":
-                limit = _safe_int(req_body.get("limit", 100), default=100, min_val=1, max_val=500)
-                offset = _safe_int(req_body.get("offset", 0), default=0, min_val=0, max_val=100000)
+                raw_limit = req_body.get("limit")
+                raw_offset = req_body.get("offset")
                 direction = ""
                 p_type = ""
                 if "?" in raw_path:
@@ -457,13 +489,20 @@ class WebAPIRouter:
                         if "=" in part:
                             k, v = part.split("=", 1)
                             if k.lower() == "limit":
-                                limit = _safe_int(v, default=limit, min_val=1, max_val=500)
+                                raw_limit = v
                             elif k.lower() == "offset":
-                                offset = _safe_int(v, default=offset, min_val=0, max_val=100000)
+                                raw_offset = v
                             elif k.lower() == "direction":
                                 direction = v
                             elif k.lower() == "type":
                                 p_type = v
+
+                limit, err = _parse_bounded_int(raw_limit, "limit", default=100, min_val=1, max_val=500)
+                if err:
+                    return err
+                offset, err = _parse_bounded_int(raw_offset, "offset", default=0, min_val=0, max_val=100000)
+                if err:
+                    return err
                 return await self.packets_ctrl.get_packets(limit, offset, direction, p_type)
 
         return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
@@ -471,16 +510,23 @@ class WebAPIRouter:
     async def _dispatch_nodes(self, method: str, raw_path: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Despacha rutas de directorio de nodos y analítica al NodesController."""
         if clean_path == "/api/nodes" and method == "GET":
-            limit = _safe_int(req_body.get("limit", 100), default=100, min_val=1, max_val=500)
-            offset = _safe_int(req_body.get("offset", 0), default=0, min_val=0, max_val=100000)
+            raw_limit = req_body.get("limit")
+            raw_offset = req_body.get("offset")
             if "?" in raw_path:
                 for part in raw_path.split("?", 1)[1].split("&"):
                     if "=" in part:
                         k, v = part.split("=", 1)
                         if k.lower() == "limit":
-                            limit = _safe_int(v, default=limit, min_val=1, max_val=500)
+                            raw_limit = v
                         elif k.lower() == "offset":
-                            offset = _safe_int(v, default=offset, min_val=0, max_val=100000)
+                            raw_offset = v
+
+            limit, err = _parse_bounded_int(raw_limit, "limit", default=100, min_val=1, max_val=500)
+            if err:
+                return err
+            offset, err = _parse_bounded_int(raw_offset, "offset", default=0, min_val=0, max_val=100000)
+            if err:
+                return err
             return await self.nodes_ctrl.list_nodes(limit, offset)
 
         if clean_path == "/api/lqi" and method == "GET":

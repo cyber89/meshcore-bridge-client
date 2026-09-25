@@ -226,19 +226,42 @@ class ConfigController(BaseController):
         return 200, {"status": "ok", "custom_vars": vars_dict, "data": vars_dict}
 
     async def set_custom_vars(self, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-        """Crea o actualiza variables personalizadas en el nodo local."""
+        """Crea o actualiza variables personalizadas en el nodo local conforme a un esquema estricto.
+
+        Formatos válidos:
+        1. Formato clave-valor: {"key": "<nombre>", "value": "<valor>"}
+        2. Formato por lote: {"vars": {"<nombre>": "<valor>", ...}}
+        """
+        if not isinstance(body, dict):
+            return problem_details(400, "Bad Request", "El cuerpo de la solicitud debe ser un objeto JSON", "invalid_json_body")
+
         admin = getattr(self.ctx.bridge, "admin_handler", None)
         if not admin:
             return problem_details(503, "Service Unavailable", "Admin handler no disponible", "admin_unavailable")
 
-        # Acepta {"vars": {"k": "v"}}, {"key": "k", "value": "v"}, o pares directos
         pairs: dict[str, str] = {}
-        if "vars" in body and isinstance(body["vars"], dict):
-            pairs = {str(k): str(v) for k, v in body["vars"].items()}
-        elif "key" in body:
-            pairs = {str(body["key"]): str(body.get("value", body.get("val", "")))}
+        if "key" in body:
+            k = str(body["key"]).strip()
+            if not k:
+                return problem_details(422, "Unprocessable Entity", "El campo 'key' no puede estar vacío", "empty_key")
+            val = body.get("value", body.get("val", ""))
+            pairs[k] = str(val) if val is not None else ""
+        elif "vars" in body:
+            raw_vars = body["vars"]
+            if not isinstance(raw_vars, dict) or not raw_vars:
+                return problem_details(422, "Unprocessable Entity", "El campo 'vars' debe ser un objeto JSON no vacío con pares clave-valor", "invalid_vars_object")
+            for k, v in raw_vars.items():
+                k_str = str(k).strip()
+                if not k_str:
+                    return problem_details(422, "Unprocessable Entity", "Las claves en 'vars' no pueden estar vacías", "empty_key_in_vars")
+                pairs[k_str] = str(v) if v is not None else ""
         else:
-            pairs = {str(k): str(v) for k, v in body.items() if k not in ("action", "request_id")}
+            return problem_details(
+                400,
+                "Bad Request",
+                "Esquema JSON no válido. Debe proporcionar {'key': 'nombre', 'value': 'valor'} o {'vars': {'nombre': 'valor'}}",
+                "invalid_schema",
+            )
 
         for k, v in pairs.items():
             await admin.set_custom_var(k, v)
@@ -249,11 +272,15 @@ class ConfigController(BaseController):
 
     async def delete_custom_var(self, key: str) -> tuple[int, dict[str, Any]]:
         """Elimina una variable personalizada."""
+        clean_key = str(key).strip() if key else ""
+        if not clean_key:
+            return problem_details(400, "Bad Request", "Se requiere el parámetro 'key' no vacío para eliminar", "missing_key")
+
         admin = getattr(self.ctx.bridge, "admin_handler", None)
         if not admin:
             return problem_details(503, "Service Unavailable", "Admin handler no disponible", "admin_unavailable")
-        res = await admin.delete_custom_var(key)
-        self.ctx.log_system_event("INFO", f"Variable custom '{key}' eliminada", source="admin")
+        res = await admin.delete_custom_var(clean_key)
+        self.ctx.log_system_event("INFO", f"Variable custom '{clean_key}' eliminada", source="admin")
         return 200, {"status": "ok", "custom_vars": res.get("custom_vars", {}), "data": res.get("custom_vars", {})}
 
     async def get_path_hash_mode(self) -> tuple[int, dict[str, Any]]:
