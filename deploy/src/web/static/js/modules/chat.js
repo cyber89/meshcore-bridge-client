@@ -18,6 +18,8 @@ import {
   MAX_LORA_TEXT_BYTES,
   getUtf8ByteLength,
   estimateLoraAirtimeMs,
+  formatRelativeTime,
+  getDateGroupLabel,
 } from "../core/utils.js";
 import { EVENTS } from "../core/eventbus.js";
 
@@ -642,49 +644,9 @@ export class ChatModule {
     }
   }
 
-  _formatMessageTimestamp(timestamp) {
-    if (!timestamp) return "";
-    const msgDate = new Date(timestamp);
-    if (isNaN(msgDate.getTime())) return "";
 
-    const now = new Date();
-    const isToday = msgDate.toDateString() === now.toDateString();
 
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const isYesterday = msgDate.toDateString() === yesterday.toDateString();
 
-    const timeStr = msgDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
-    if (isToday) {
-      return timeStr;
-    } else if (isYesterday) {
-      const ayerStr = (window.I18n ? window.I18n.t('chat.yesterday') : null) || "Ayer";
-      return `${ayerStr} ${timeStr}`;
-    } else {
-      const dateStr = msgDate.toLocaleDateString([], { day: "2-digit", month: "2-digit", year: "numeric" });
-      return `${dateStr} ${timeStr}`;
-    }
-  }
-
-  _getDateGroupLabel(timestamp) {
-    if (!timestamp) return "";
-    const msgDate = new Date(timestamp);
-    if (isNaN(msgDate.getTime())) return "";
-
-    const now = new Date();
-    if (msgDate.toDateString() === now.toDateString()) {
-      return (window.I18n ? window.I18n.t('chat.date_today') : null) || "HOY";
-    }
-
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    if (msgDate.toDateString() === yesterday.toDateString()) {
-      return (window.I18n ? window.I18n.t('chat.date_yesterday') : null) || "AYER";
-    }
-
-    return msgDate.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" }).toUpperCase();
-  }
 
   _updateActiveChatHeader() {
     if (this.activeDmTarget) {
@@ -1090,7 +1052,7 @@ export class ChatModule {
           lastDateStr = msgDateStr;
           const sep = document.createElement("div");
           sep.className = "chat-date-separator";
-          sep.innerHTML = `<span>${escapeHtml(this._getDateGroupLabel(m.timestamp))}</span>`;
+          sep.innerHTML = `<span>${escapeHtml(getDateGroupLabel(m.timestamp))}</span>`;
           frag.appendChild(sep);
         }
       }
@@ -1115,7 +1077,7 @@ export class ChatModule {
       }
     }
 
-    const timeStr = this._formatMessageTimestamp(msg.timestamp);
+    const timeStr = formatRelativeTime(msg.timestamp);
     let sender = msg.is_outgoing ? (window.I18n ? window.I18n.t('common.you') : "Tú") : (msg.sender_name || msg.sender || (window.I18n ? window.I18n.t('common.anonymous') : "Anónimo"));
     if (!msg.is_outgoing && sender) {
       const senderPk = msg.sender ? this.resolveCanonicalPubkey(msg.sender) : null;
@@ -1492,7 +1454,7 @@ export class ChatModule {
       if (needSep) {
         const sep = document.createElement("div");
         sep.className = "chat-date-separator";
-        sep.innerHTML = `<span>${escapeHtml(this._getDateGroupLabel(msg.timestamp))}</span>`;
+        sep.innerHTML = `<span>${escapeHtml(getDateGroupLabel(msg.timestamp))}</span>`;
         this.dom.chatMessageFeed.appendChild(sep);
       }
     }

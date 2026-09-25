@@ -8,6 +8,10 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import asyncio
+import json
+from datetime import datetime, timezone
+
 from src.routers.base import BaseRxHandler, RxMeta
 
 
@@ -41,9 +45,6 @@ class SystemHandler(BaseRxHandler):
         if "event_type" not in payload:
             payload["event_type"] = event_type
 
-        import json
-        from datetime import datetime, timezone
-
         import config
 
         now_iso = datetime.now(timezone.utc).isoformat()
@@ -59,7 +60,6 @@ class SystemHandler(BaseRxHandler):
             logging.info(f"[RX-SISTEMA] Evento de red: {event_type.upper()} | Carga: {payload}")
 
         if router_ctx.web_server:
-            import asyncio
             try:
                 loop = router_ctx.loop or asyncio.get_running_loop()
             except RuntimeError:

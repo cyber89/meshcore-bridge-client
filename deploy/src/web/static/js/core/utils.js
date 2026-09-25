@@ -441,3 +441,118 @@ export function estimateLoraAirtimeMs(payloadBytes, sf = 11, bwKhz = 250, cr = 5
   return Math.max(1, Math.round(tPreambleMs + tPayloadMs));
 }
 
+/**
+ * Formatea una marca de tiempo para mensajes de chat (Hora, Ayer + Hora, o Fecha + Hora).
+ * @param {string|number|Date} timestamp Marca de tiempo ISO, epoch ms o Date
+ * @returns {string} Texto formateado
+ */
+export function formatRelativeTime(timestamp) {
+  if (!timestamp) return "";
+  const msgDate = new Date(timestamp);
+  if (isNaN(msgDate.getTime())) return "";
+
+  const now = new Date();
+  const isToday = msgDate.toDateString() === now.toDateString();
+
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday = msgDate.toDateString() === yesterday.toDateString();
+
+  const timeStr = msgDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+  if (isToday) {
+    return timeStr;
+  } else if (isYesterday) {
+    const ayerStr = (typeof window !== "undefined" && window.I18n ? window.I18n.t('chat.yesterday') : null) || "Ayer";
+    return `${ayerStr} ${timeStr}`;
+  } else {
+    const dateStr = msgDate.toLocaleDateString([], { day: "2-digit", month: "2-digit", year: "numeric" });
+    return `${dateStr} ${timeStr}`;
+  }
+}
+
+/**
+ * Genera la etiqueta del separador de fechas de chat (HOY, AYER o fecha completa).
+ * @param {string|number|Date} timestamp Marca de tiempo ISO o ms
+ * @returns {string} Etiqueta en mayúsculas
+ */
+export function getDateGroupLabel(timestamp) {
+  if (!timestamp) return "";
+  const msgDate = new Date(timestamp);
+  if (isNaN(msgDate.getTime())) return "";
+
+  const now = new Date();
+  if (msgDate.toDateString() === now.toDateString()) {
+    return (typeof window !== "undefined" && window.I18n ? window.I18n.t('chat.date_today') : null) || "HOY";
+  }
+
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (msgDate.toDateString() === yesterday.toDateString()) {
+    return (typeof window !== "undefined" && window.I18n ? window.I18n.t('chat.date_yesterday') : null) || "AYER";
+  }
+
+  return msgDate.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" }).toUpperCase();
+}
+
+/**
+ * Formatea el tiempo transcurrido desde la última señal de un nodo (activo, inactivo, desconectado).
+ * @param {number} lastSeen Epoch en segundos o milisegundos
+ * @param {boolean} isLocal Indica si corresponde a la estación base local
+ * @returns {string} Cadena descriptiva legible
+ */
+export function formatLastSeen(lastSeen, isLocal = false) {
+  if (isLocal) return (typeof window !== "undefined" && window.I18n ? window.I18n.t('time.online_local') : null) || "En línea (Local)";
+  if (!lastSeen || lastSeen <= 0) return (typeof window !== "undefined" && window.I18n ? window.I18n.t('time.offline_no_signal') : null) || "Desconectado (Sin señal)";
+  let effTs = Number(lastSeen);
+  if (effTs > 1e11) effTs = Math.floor(effTs / 1000);
+  let diff = Math.floor(Date.now() / 1000) - effTs;
+  if (diff < 0) diff = 0;
+
+  if (diff < 60) {
+    return (typeof window !== "undefined" && window.I18n ? window.I18n.t('time.active_now') : null) || "Activo (ahora mismo)";
+  }
+  if (diff < 1800) {
+    const mins = Math.max(1, Math.floor(diff / 60));
+    const str = typeof window !== "undefined" && window.I18n ? window.I18n.t('time.active_mins') : null;
+    return str ? str.replace('{n}', mins) : `Activo (hace ${mins}m)`;
+  }
+  if (diff < 7200) {
+    const mins = Math.floor(diff / 60);
+    if (mins < 60) {
+      const str = typeof window !== "undefined" && window.I18n ? window.I18n.t('time.idle_mins') : null;
+      return str ? str.replace('{n}', mins) : `Inactivo (hace ${mins}m)`;
+    }
+    const hours = Math.floor(diff / 3600);
+    const str = typeof window !== "undefined" && window.I18n ? window.I18n.t('time.idle_hours') : null;
+    return str ? str.replace('{n}', hours) : `Inactivo (hace ${hours}h)`;
+  }
+  if (diff < 86400) {
+    const hours = Math.floor(diff / 3600);
+    const str = typeof window !== "undefined" && window.I18n ? window.I18n.t('time.offline_hours') : null;
+    return str ? str.replace('{n}', hours) : `Desconectado (hace ${hours}h)`;
+  }
+  const days = Math.max(1, Math.floor(diff / 86400));
+  const str = typeof window !== "undefined" && window.I18n ? window.I18n.t('time.offline_days') : null;
+  return str ? str.replace('{n}', days) : `Desconectado (hace ${days}d)`;
+}
+
+/**
+ * Calcula la clase CSS de estado de presencia de un nodo (status-online, status-idle, status-offline).
+ * @param {number} lastSeen Epoch en segundos o milisegundos
+ * @param {boolean} isLocal Indica si es el nodo local
+ * @returns {string} Clase CSS de estado
+ */
+export function getPresenceState(lastSeen, isLocal = false) {
+  if (isLocal) return "status-online";
+  if (!lastSeen || lastSeen <= 0) return "status-offline";
+  let effTs = Number(lastSeen);
+  if (effTs > 1e11) effTs = Math.floor(effTs / 1000);
+  let diff = Math.floor(Date.now() / 1000) - effTs;
+  if (diff < 0) diff = 0;
+
+  if (diff < 1800) return "status-online";
+  if (diff < 7200) return "status-idle";
+  return "status-offline";
+}
+

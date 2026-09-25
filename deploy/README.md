@@ -52,6 +52,5 @@ Una vez en ejecución, la estación web estará disponible en:
 
 ---
 
-## 📡 Integración con n8n y Home Assistant
+## 📡 Integración con n8n
 - **Workflow n8n listo para importar**: `n8n_workflow_meshcore.json`
-- **MQTT Auto-Discovery Home Assistant**: Activado por defecto en `homeassistant/sensor/#`

@@ -3,7 +3,7 @@
  * filtrado reactivo, presencia en tiempo real y telemetría analítica.
  */
 
-import { escapeHtml, debounce, buildMeshCoreContactUri } from "../core/utils.js";
+import { escapeHtml, debounce, buildMeshCoreContactUri, formatLastSeen, getPresenceState } from "../core/utils.js";
 import { EVENTS } from "../core/eventbus.js";
 
 export class NodesModule {
@@ -185,54 +185,9 @@ export class NodesModule {
     }
   }
 
-  formatLastSeen(lastSeen, isLocal = false) {
-    if (isLocal) return (window.I18n ? window.I18n.t('time.online_local') : null) || "En línea (Local)";
-    if (!lastSeen || lastSeen <= 0) return (window.I18n ? window.I18n.t('time.offline_no_signal') : null) || "Desconectado (Sin señal)";
-    let effTs = Number(lastSeen);
-    if (effTs > 1e11) effTs = Math.floor(effTs / 1000);
-    let diff = Math.floor(Date.now() / 1000) - effTs;
-    if (diff < 0) diff = 0;
 
-    if (diff < 60) {
-      return (window.I18n ? window.I18n.t('time.active_now') : null) || "Activo (ahora mismo)";
-    }
-    if (diff < 1800) {
-      const mins = Math.max(1, Math.floor(diff / 60));
-      const str = window.I18n ? window.I18n.t('time.active_mins') : null;
-      return str ? str.replace('{n}', mins) : `Activo (hace ${mins}m)`;
-    }
-    if (diff < 7200) {
-      const mins = Math.floor(diff / 60);
-      if (mins < 60) {
-        const str = window.I18n ? window.I18n.t('time.idle_mins') : null;
-        return str ? str.replace('{n}', mins) : `Inactivo (hace ${mins}m)`;
-      }
-      const hours = Math.floor(diff / 3600);
-      const str = window.I18n ? window.I18n.t('time.idle_hours') : null;
-      return str ? str.replace('{n}', hours) : `Inactivo (hace ${hours}h)`;
-    }
-    if (diff < 86400) {
-      const hours = Math.floor(diff / 3600);
-      const str = window.I18n ? window.I18n.t('time.offline_hours') : null;
-      return str ? str.replace('{n}', hours) : `Desconectado (hace ${hours}h)`;
-    }
-    const days = Math.max(1, Math.floor(diff / 86400));
-    const str = window.I18n ? window.I18n.t('time.offline_days') : null;
-    return str ? str.replace('{n}', days) : `Desconectado (hace ${days}d)`;
-  }
 
-  getPresenceState(lastSeen, isLocal = false) {
-    if (isLocal) return "status-online";
-    if (!lastSeen || lastSeen <= 0) return "status-offline";
-    let effTs = Number(lastSeen);
-    if (effTs > 1e11) effTs = Math.floor(effTs / 1000);
-    let diff = Math.floor(Date.now() / 1000) - effTs;
-    if (diff < 0) diff = 0;
 
-    if (diff < 1800) return "status-online";
-    if (diff < 7200) return "status-idle";
-    return "status-offline";
-  }
 
   renderNodesDirectory(nodes) {
     const contactsGrid = this.dom.contactsGridUi;
@@ -316,11 +271,11 @@ export class NodesModule {
       else if (isClient) cntClients++;
 
       const cleanName = node.name || node.alias || node.public_key.slice(0, 8);
-      const presenceClass = this.getPresenceState(node.last_seen, isLocal);
+      const presenceClass = getPresenceState(node.last_seen, isLocal);
       const isOnline = presenceClass === "status-online";
       const isDisconnected = !isLocal && (presenceClass === "status-offline" || node.presence_status === "offline");
       const hasGps = node.latitude != null && node.longitude != null;
-      const lastSeenText = this.formatLastSeen(node.last_seen, isLocal);
+      const lastSeenText = formatLastSeen(node.last_seen, isLocal);
       const fullDateTime = node.last_seen_formatted || (node.last_seen && node.last_seen > 0 ? new Date(node.last_seen * 1000).toLocaleString() : (window.I18n ? window.I18n.t('time.no_signal') : "Sin señal registrada"));
       const signalTooltip = isLocal ? "Estación Base Local (En línea permanente)" : (window.I18n ? window.I18n.t('time.last_signal_tooltip').replace('{time}', fullDateTime) : `Última señal recibida: ${fullDateTime}`);
 
@@ -680,7 +635,7 @@ export class NodesModule {
         const node = this.knownNodes.get(pk.toLowerCase());
         if (!node) return;
         const isLoc = Boolean(node.is_local);
-        const st = this.getPresenceState(node.last_seen, isLoc);
+        const st = getPresenceState(node.last_seen, isLoc);
         const isDisc = !isLoc && (st === "status-offline" || node.presence_status === "offline");
         const fullDateTime = node.last_seen_formatted || (node.last_seen && node.last_seen > 0 ? new Date(node.last_seen * 1000).toLocaleString() : (window.I18n ? window.I18n.t('time.no_signal') : "Sin señal registrada"));
         const signalTooltip = isLoc ? "Estación Base Local (En línea permanente)" : (window.I18n ? window.I18n.t('time.last_signal_tooltip').replace('{time}', fullDateTime) : `Última señal recibida: ${fullDateTime}`);
@@ -692,7 +647,7 @@ export class NodesModule {
           dot.title = signalTooltip;
         }
         if (act) {
-          act.textContent = this.formatLastSeen(node.last_seen, isLoc);
+          act.textContent = formatLastSeen(node.last_seen, isLoc);
           act.title = signalTooltip;
         }
 
@@ -863,11 +818,11 @@ export class NodesModule {
     }
 
     const isLocal = Boolean(node.is_local);
-    const presenceClass = this.getPresenceState(node.last_seen, isLocal);
+    const presenceClass = getPresenceState(node.last_seen, isLocal);
     const isDisconnected = !isLocal && (presenceClass === "status-offline" || node.presence_status === "offline");
     const fullDateTime = node.last_seen_formatted || (node.last_seen && node.last_seen > 0 ? new Date(node.last_seen * 1000).toLocaleString() : (window.I18n ? window.I18n.t('time.no_signal') : "Sin señal registrada"));
     const signalTooltip = isLocal ? "Estación Base Local (En línea permanente)" : (window.I18n ? window.I18n.t('time.last_signal_tooltip').replace('{time}', fullDateTime) : `Última señal recibida: ${fullDateTime}`);
-    const lastSeenText = this.formatLastSeen(node.last_seen, isLocal);
+    const lastSeenText = formatLastSeen(node.last_seen, isLocal);
 
     cards.forEach((card) => {
       const dot = card.querySelector(".avatar-status-dot");

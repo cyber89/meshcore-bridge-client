@@ -81,6 +81,8 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
   - `python -m py_compile src/serial_driver.py src/rx_router.py src/routers/system_handler.py`: 0 errores.
   - Sincronización `/deploy/` completada con éxito.
 
+> **Nota de Reversión (commit `8b9111c`):** La función `drain_pending_messages()` fue revertida posteriormente por una condición de carrera con el auto-fetch del SDK de MeshCore. La funcionalidad de drenado automático se desactivó para evitar duplicación de paquetes.
+
 ### Hito: Remediación de Duplicados en Tarjeta de Contacto Compartido de Estación Local
 - **Fecha**: 2026-09-19
 - **Estado**: ✅ COMPLETADO — Eliminación de duplicados de texto ("My Contact") e icono (estrella ⭐) en tarjetas de contacto en el chat; reemplazo de botón deshabilitado por un pill informativo de estación local.

@@ -56,6 +56,15 @@ class RepeaterManager:
 
         return True, 0.0
 
+    def build_cooldown_error_response(self, remaining_cd: float) -> dict[str, Any]:
+        """Construye la respuesta de error 429 estandar para proteccion de airtime LoRa."""
+        return {
+            "status": "error",
+            "code": 429,
+            "message": f"Protección de Airtime LoRa activa. Espere {remaining_cd}s.",
+            "cooldown_remaining": remaining_cd,
+        }
+
     def record_command_sent(self, repeater_pk: str, is_full_query: bool = False) -> None:
         """Registra el timestamp de transmisión hacia un repetidor para gobernar el airtime."""
         now = time.monotonic()

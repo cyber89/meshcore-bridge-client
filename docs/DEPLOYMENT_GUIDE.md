@@ -37,7 +37,7 @@ sudo bash install.sh --update
 3. Asigna permisos al usuario para el puerto serial (`dialout` / `tty`).
 4. **Detecta automáticamente el puerto de tu placa LoRa** conectada por USB.
 5. Despliega los archivos en `/opt/meshcore-bridge` y crea el archivo de configuración `.env`.
-6. Crea el entorno virtual e instala las librerías (`paho-mqtt`, `meshcore`, `python-dotenv`).
+6. Crea el entorno virtual e instala las librerías (`paho-mqtt`, `meshcore`, `python-dotenv`, `pyserial`, `pyserial-asyncio`, `pycayennelpp`).
 7. Registra, habilita y arranca el servicio **`meshcore-bridge.service`** en systemd.
 
 ---

@@ -134,12 +134,7 @@ class RepeaterAdminExecutor:
         """Aplica múltiples parámetros de configuración remota en el repetidor."""
         can_send, rem_cd = self._ctx.repeater_manager.check_airtime_cooldown(str(req.target_node), is_full_query=True)
         if not can_send:
-            return {
-                "status": "error",
-                "message": f"Protección de Airtime LoRa activa: Espera {rem_cd}s para reconfiguración",
-                "code": 429,
-                "cooldown_remaining": rem_cd,
-            }
+            return self._ctx.repeater_manager.build_cooldown_error_response(rem_cd)
 
         self._ctx.repeater_manager.record_command_sent(str(req.target_node), is_full_query=True)
         params = req.admin_data.get("params", {})
@@ -202,12 +197,7 @@ class RepeaterAdminExecutor:
         if not force and hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "check_ping_cooldown"):
             can_send, rem_cd = self._ctx.repeater_manager.check_ping_cooldown(str(req.target_node))
             if not can_send:
-                return {
-                    "status": "error",
-                    "code": 429,
-                    "message": f"Protección de Airtime LoRa activa: Espera {rem_cd}s para otro ping 0",
-                    "cooldown_remaining": rem_cd,
-                }
+                return self._ctx.repeater_manager.build_cooldown_error_response(rem_cd)
 
         dest_target = self._resolve_target(str(req.target_node), 12)
         norm_target = self._ctx.node_registry.get_canonical_key(str(req.target_node)) or str(req.target_node).strip().lower()
@@ -351,12 +341,7 @@ class RepeaterAdminExecutor:
                 if not force and hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "check_neighbours_cooldown"):
                     can_send, rem_cd = self._ctx.repeater_manager.check_neighbours_cooldown(str(rf_ctx.req.target_node))
                     if not can_send:
-                        rf_ctx.res.update({
-                            "status": "error",
-                            "code": 429,
-                            "message": f"Protección de Airtime LoRa activa: Espera {rem_cd}s para consultar vecinos",
-                            "cooldown_remaining": rem_cd,
-                        })
+                        rf_ctx.res.update(self._ctx.repeater_manager.build_cooldown_error_response(rem_cd))
                         return rf_ctx.res
 
                 if hasattr(cmds, "req_neighbours_sync"):
@@ -500,12 +485,7 @@ class RepeaterAdminExecutor:
         can_send, rem_cd = self._ctx.repeater_manager.check_airtime_cooldown(str(req.target_node), is_full_query=False)
         if not can_send:
             self._unregister_waiters(rf_ctx.waiter_keys, rf_ctx.fut, include_ping=False)
-            return {
-                "status": "error",
-                "message": f"Protección de Airtime LoRa activa: Espera {rem_cd}s",
-                "code": 429,
-                "cooldown_remaining": rem_cd,
-            }
+            return self._ctx.repeater_manager.build_cooldown_error_response(rem_cd)
 
         cmd_text = self._ctx.repeater_manager.build_repeater_command_payload(req.action, req.admin_data)
         self._ctx.repeater_manager.record_command_sent(str(req.target_node), is_full_query=False)

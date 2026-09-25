@@ -14,20 +14,10 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 import config
+from src.shared_utils import extract_payload_dict
 
 if TYPE_CHECKING:
     from src.admin_handler import AdminContext
-
-
-def _extract_payload_dict(data: Any) -> dict[str, Any]:
-    """Extrae un diccionario de datos tanto de objetos Event como de dicts nativos."""
-    if data is None:
-        return {}
-    if isinstance(data, dict):
-        return data
-    if hasattr(data, "payload") and isinstance(data.payload, dict):
-        return data.payload
-    return {}
 
 
 class CliCommandExecutor:
@@ -392,7 +382,7 @@ class CliCommandExecutor:
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_stats_core"):
             try:
                 c_res = await mc.commands.get_stats_core()
-                c_payload = _extract_payload_dict(c_res)
+                c_payload = extract_payload_dict(c_res)
                 if c_payload:
                     u_val = c_payload.get("uptime_secs") or c_payload.get("uptime")
                     if u_val is not None and int(u_val) > 0:
@@ -410,7 +400,7 @@ class CliCommandExecutor:
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_stats_radio"):
             try:
                 r_res = await mc.commands.get_stats_radio()
-                r_payload = _extract_payload_dict(r_res)
+                r_payload = extract_payload_dict(r_res)
                 if r_payload and "tx_air_secs" in r_payload:
                     airtime_ms = int(float(r_payload["tx_air_secs"]) * 1000)
             except Exception as e:
@@ -715,7 +705,7 @@ class CliCommandExecutor:
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_custom_vars"):
             try:
                 cv_res = await mc.commands.get_custom_vars()
-                payload = _extract_payload_dict(cv_res)
+                payload = extract_payload_dict(cv_res)
                 if payload:
                     custom_vars = payload
             except Exception:

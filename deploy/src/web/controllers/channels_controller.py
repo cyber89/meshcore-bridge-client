@@ -80,7 +80,7 @@ class ChannelsController(BaseController):
         req_body: dict[str, Any],
     ) -> tuple[int, dict[str, Any]]:
         """Enruta solicitudes hacia /api/channels y /api/channels/sync."""
-        if path == "/api/channels/sync" and method in ("POST", "GET"):
+        if path == "/api/channels/sync" and method == "POST":
             return await self._sync_channels()
 
         if path == "/api/channels/export" and method in ("GET", "POST"):

@@ -36,7 +36,7 @@ class ContactsController(BaseController):
         req_body: dict[str, Any],
     ) -> tuple[int, dict[str, Any]]:
         """Maneja todas las rutas asociadas a /api/contacts."""
-        if path == "/api/contacts/sync" and method in ("POST", "GET"):
+        if path == "/api/contacts/sync" and method == "POST":
             return await self._sync_contacts()
 
         if path == "/api/contacts/share" and method == "POST":

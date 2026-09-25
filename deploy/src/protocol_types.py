@@ -245,10 +245,7 @@ def get_packet_type_name(ptype: int) -> str:
         return f"UNKNOWN_0x{ptype:02X}"
 
 
-# Legacy aliases
-get_opcode_name = get_packet_type_name
-get_payload_type_name = get_packet_type_name
-get_push_code_name = get_packet_type_name
+
 
 
 @dataclass(frozen=True)
@@ -261,6 +258,7 @@ class FrameHeader:
     hop_limit: int
     payload_len: int
 
+    # TODO: migrate callers then remove
     @property
     def opcode(self) -> PacketType:
         """Legacy property for backward compatibility."""
@@ -324,65 +322,6 @@ class MeshCoreSDKProtocol(Protocol):
     def subscribe(self, event_type: Any, callback: Any) -> None: ...
 
 
-@dataclass(frozen=True)
-class TelemetryPayload:
-    """LEGACY: Payload estructurado de métricas y telemetría de nodo.
-    NOTA: Este formato NO existe en el firmware real. El firmware envía
-    STATUS_RESPONSE (0x87) con el formato de parse_status_response().
-    Mantenido solo para compatibilidad con código existente."""
-    battery_mv: int
-    solar_mv: int
-    temperature_c: float
-    humidity_pct: float
-    pressure_hpa: float
-    snr_db: int
-    rssi_dbm: int
-    battery_pct: int
-
-    def pack(self) -> bytes:
-        warnings.warn(
-            "TelemetryPayload.pack() is deprecated. Use parse_status_response() instead.",
-            PendingDeprecationWarning,
-            stacklevel=2,
-        )
-        temp_cdeg = int(round(self.temperature_c * 100))
-        hum_pct = int(round(self.humidity_pct * 100))
-        press_pa = int(round(self.pressure_hpa * 100))
-        return struct.pack(
-            "<HHhhIbhB",
-            self.battery_mv,
-            self.solar_mv,
-            temp_cdeg,
-            hum_pct,
-            press_pa,
-            self.snr_db,
-            self.rssi_dbm,
-            self.battery_pct,
-        )
-
-    @classmethod
-    def unpack(cls, data: bytes) -> TelemetryPayload:
-        warnings.warn(
-            "TelemetryPayload.unpack() is deprecated. Use parse_status_response() instead.",
-            PendingDeprecationWarning,
-            stacklevel=2,
-        )
-        if len(data) < 16:
-            raise ValueError(f"Payload de telemetría demasiado corto: {len(data)}B < 16B")
-        bat_mv, sol_mv, t_cdeg, h_pct, p_pa, snr, rssi, bat_pct = struct.unpack("<HHhhIbhB", data[:16])
-        return cls(
-            battery_mv=bat_mv,
-            solar_mv=sol_mv,
-            temperature_c=round(t_cdeg / 100.0, 2),
-            humidity_pct=round(h_pct / 100.0, 2),
-            pressure_hpa=round(p_pa / 100.0, 2),
-            snr_db=snr,
-            rssi_dbm=rssi,
-            battery_pct=bat_pct,
-        )
-
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
 
 
 def parse_status_response(data: bytes, pubkey_prefix: str | None = None, offset: int = 0) -> dict[str, Any]:
@@ -439,8 +378,7 @@ def parse_status_response(data: bytes, pubkey_prefix: str | None = None, offset:
     return res
 
 
-# Legacy alias
-parse_telemetry_from_sdk = parse_status_response
+
 
 
 @dataclass(frozen=True)
@@ -569,7 +507,7 @@ class AckPayload:
 
 
 ParsedPayload = (
-    TelemetryPayload | TextMessagePayload | NodeAdvertisement | AckPayload | bytes
+    TextMessagePayload | NodeAdvertisement | AckPayload | bytes
 )
 
 
@@ -622,9 +560,7 @@ class MeshcoreFrame:
         payload_data = data_to_crc[HEADER_SIZE_BYTES: HEADER_SIZE_BYTES + header.payload_len]
 
         payload: ParsedPayload
-        if header.packet_type == PacketType.TELEMETRY_RESPONSE:
-            payload = TelemetryPayload.unpack(payload_data)
-        elif header.packet_type == PacketType.CHANNEL_MSG_RECV:
+        if header.packet_type == PacketType.CHANNEL_MSG_RECV:
             payload = TextMessagePayload.unpack(payload_data)
         elif header.packet_type == PacketType.CONTACT:
             payload = NodeAdvertisement.unpack(payload_data)
@@ -644,7 +580,7 @@ class MeshcoreFrame:
     def to_mqtt_event(self) -> dict[str, Any]:
         """Convierte la trama a formato JSON estructurado para n8n."""
         payload_data: Any
-        if isinstance(self.payload, (TelemetryPayload, TextMessagePayload, NodeAdvertisement, AckPayload)):
+        if isinstance(self.payload, (TextMessagePayload, NodeAdvertisement, AckPayload)):
             payload_data = self.payload.to_dict()
         else:
             payload_data = {"raw_hex": self.raw_payload.hex().upper()}
@@ -669,10 +605,9 @@ class MeshcoreFrame:
             "crc_valid": self.is_valid,
         }
 
+# TODO: migrate callers then remove
 _DEPRECATED_ALIASES: dict[str, str] = {
     "OpCode": "PacketType",
-    "FirmwareCommandType": "CommandType",
-    "FirmwarePushCode": "PacketType",
 }
 
 def __getattr__(name: str) -> Any:

@@ -205,3 +205,14 @@ def to_bool(val: Any, default: bool = False) -> bool:
         return default
     return bool(val)
 
+
+def extract_payload_dict(data: Any) -> dict[str, Any]:
+    """Extrae un diccionario de datos tanto de objetos Event (SDK oficial) como de dicts nativos."""
+    if data is None:
+        return {}
+    if isinstance(data, dict):
+        return data
+    if hasattr(data, "payload") and isinstance(data.payload, dict):
+        return data.payload
+    return {}
+

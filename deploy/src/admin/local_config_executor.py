@@ -17,21 +17,10 @@ from typing import TYPE_CHECKING, Any, cast
 
 import config
 from src.contact_manager import NodeContactUpdate, is_valid_node_key
-from src.shared_utils import clamp_tx_power, get_hardware_power_limits
+from src.shared_utils import clamp_tx_power, get_hardware_power_limits, extract_payload_dict
 
 if TYPE_CHECKING:
     from src.admin_handler import AdminContext
-
-
-def _extract_payload_dict(data: Any) -> dict[str, Any]:
-    """Extrae un diccionario de datos tanto de objetos Event como de dicts nativos."""
-    if data is None:
-        return {}
-    if isinstance(data, dict):
-        return data
-    if hasattr(data, "payload") and isinstance(data.payload, dict):
-        return data.payload
-    return {}
 
 
 class LocalConfigExecutor:
@@ -242,7 +231,7 @@ class LocalConfigExecutor:
         if hasattr(mc.commands, "send_appstart"):
             try:
                 res_app = await mc.commands.send_appstart()
-                app_data = _extract_payload_dict(res_app)
+                app_data = extract_payload_dict(res_app)
                 if app_data and isinstance(app_data, dict):
                     self._apply_self_info_to_cfg(self._local_config, app_data)
                     pk = app_data.get("public_key") or app_data.get("pubkey")
@@ -266,7 +255,7 @@ class LocalConfigExecutor:
         if hasattr(mc.commands, "send_device_query"):
             try:
                 dev_res = await mc.commands.send_device_query()
-                dev_data = _extract_payload_dict(dev_res)
+                dev_data = extract_payload_dict(dev_res)
                 if dev_data and isinstance(dev_data, dict):
                     if "model" in dev_data:
                         self._local_config["model"] = dev_data["model"]
@@ -288,7 +277,7 @@ class LocalConfigExecutor:
         if hasattr(mc.commands, "get_bat"):
             try:
                 bat_res = await mc.commands.get_bat()
-                bat_data = _extract_payload_dict(bat_res)
+                bat_data = extract_payload_dict(bat_res)
                 if bat_data and isinstance(bat_data, dict):
                     mv = bat_data.get("battery_mv", bat_data.get("mv", 5000))
                     pct = bat_data.get("battery_pct", bat_data.get("pct", 100))
@@ -303,7 +292,7 @@ class LocalConfigExecutor:
         if hasattr(mc.commands, "get_tuning"):
             try:
                 tun_res = await mc.commands.get_tuning()
-                tun_data = _extract_payload_dict(tun_res)
+                tun_data = extract_payload_dict(tun_res)
                 if tun_data and isinstance(tun_data, dict):
                     if "rx_delay" in tun_data:
                         self._local_config["rx_delay"] = tun_data["rx_delay"]
@@ -315,7 +304,7 @@ class LocalConfigExecutor:
         if hasattr(mc.commands, "get_time"):
             try:
                 t_res = await mc.commands.get_time()
-                t_data = _extract_payload_dict(t_res)
+                t_data = extract_payload_dict(t_res)
                 if t_data and isinstance(t_data, dict) and "time" in t_data:
                     now_ts = time.time()
                     dev_time = int(t_data["time"])
@@ -330,7 +319,7 @@ class LocalConfigExecutor:
         if hasattr(mc.commands, "get_stats_core"):
             try:
                 c_res = await mc.commands.get_stats_core()
-                c_data = _extract_payload_dict(c_res)
+                c_data = extract_payload_dict(c_res)
                 if c_data and isinstance(c_data, dict):
                     self._local_config['stats_core'] = c_data
                     u_val = c_data.get("uptime_secs") or c_data.get("uptime")
@@ -350,7 +339,7 @@ class LocalConfigExecutor:
         if hasattr(mc.commands, "get_stats_radio"):
             try:
                 r_res = await mc.commands.get_stats_radio()
-                r_data = _extract_payload_dict(r_res)
+                r_data = extract_payload_dict(r_res)
                 if r_data and isinstance(r_data, dict):
                     self._local_config['stats_radio'] = r_data
                     if "noise_floor" in r_data:
@@ -367,7 +356,7 @@ class LocalConfigExecutor:
         if hasattr(mc.commands, "get_stats_packets"):
             try:
                 p_res = await mc.commands.get_stats_packets()
-                p_data = _extract_payload_dict(p_res)
+                p_data = extract_payload_dict(p_res)
                 if p_data and isinstance(p_data, dict):
                     self._local_config['stats_packets'] = p_data
                     if "sent" in p_data:
@@ -382,7 +371,7 @@ class LocalConfigExecutor:
         if hasattr(mc.commands, "get_self_telemetry"):
             try:
                 st_res = await mc.commands.get_self_telemetry()
-                st_data = _extract_payload_dict(st_res)
+                st_data = extract_payload_dict(st_res)
                 if st_data and isinstance(st_data, dict):
                     self._local_config["self_telemetry"] = st_data
                     if "temperature" in st_data or "temperature_c" in st_data:
@@ -397,7 +386,7 @@ class LocalConfigExecutor:
         if hasattr(mc.commands, "get_custom_vars"):
             try:
                 cv_res = await mc.commands.get_custom_vars()
-                cv_data = _extract_payload_dict(cv_res)
+                cv_data = extract_payload_dict(cv_res)
                 if cv_data and isinstance(cv_data, dict):
                     self._local_config["custom_vars"] = cv_data
             except Exception as e:
@@ -406,7 +395,7 @@ class LocalConfigExecutor:
         if hasattr(mc.commands, "get_allowed_repeat_freq"):
             try:
                 arf_res = await mc.commands.get_allowed_repeat_freq()
-                arf_data = _extract_payload_dict(arf_res)
+                arf_data = extract_payload_dict(arf_res)
                 if arf_data and isinstance(arf_data, dict):
                     self._local_config["allowed_repeat_freq"] = arf_data.get("allowed_freqs", arf_data)
             except Exception as e:
@@ -793,7 +782,7 @@ class LocalConfigExecutor:
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_custom_vars"):
             try:
                 cv_res = await mc.commands.get_custom_vars()
-                cv_data = _extract_payload_dict(cv_res)
+                cv_data = extract_payload_dict(cv_res)
                 if cv_data and isinstance(cv_data, dict):
                     self._local_config["custom_vars"] = cv_data
             except Exception as e:
@@ -854,7 +843,7 @@ class LocalConfigExecutor:
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_autoadd_config"):
             try:
                 res = await mc.commands.get_autoadd_config()
-                res_dict = _extract_payload_dict(res)
+                res_dict = extract_payload_dict(res)
                 if res_dict and isinstance(res_dict, dict):
                     if "max_hops" not in res_dict and isinstance(self._local_config.get("autoadd_config"), dict):
                         res_dict["max_hops"] = self._local_config["autoadd_config"].get("max_hops", 0)
@@ -890,7 +879,7 @@ class LocalConfigExecutor:
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_default_flood_scope"):
             try:
                 res = await mc.commands.get_default_flood_scope()
-                res_dict = _extract_payload_dict(res)
+                res_dict = extract_payload_dict(res)
                 if res_dict and isinstance(res_dict, dict):
                     self._local_config["flood_scope"] = res_dict
             except Exception as e:

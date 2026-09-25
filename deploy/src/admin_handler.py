@@ -28,17 +28,7 @@ from src.contact_manager import (
 from src.mqtt_client import AsyncBridgeMQTTClient
 from src.repeater_manager import RepeaterManager
 from src.target_resolver import TargetResolver
-
-
-def _extract_payload_dict(data: Any) -> dict[str, Any]:
-    """Extrae un diccionario de datos tanto de objetos Event (SDK oficial) como de dicts nativos."""
-    if data is None:
-        return {}
-    if isinstance(data, dict):
-        return data
-    if hasattr(data, "payload") and isinstance(data.payload, dict):
-        return data.payload
-    return {}
+from src.shared_utils import extract_payload_dict
 
 
 @dataclass(slots=True)

@@ -283,5 +283,9 @@ python scripts/simulate_heltec_v4_mesh.py --live
 | `MAX_RECONNECT_ATTEMPTS` | `0` | Reintentos de reconexión serial (0 = infinito). |
 | `DATA_DIR` | `data` | Directorio raíz para almacenamiento JSON y persistencia. |
 | `LOG_LEVEL` | `INFO` | Nivel de registro (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
+| `DUTY_CYCLE_LIMIT_PCT` | `1.0` | Límite del ciclo de trabajo (Duty Cycle) en porcentaje. |
+| `DUTY_CYCLE_WARN_THRESHOLD_PCT` | `80.0` | Umbral de advertencia del ciclo de trabajo. |
+| `AIRTIME_HISTORY_FILE` | `airtime.json` | Archivo para el historial de airtime. |
+| `WS_METRICS_INTERVAL_SEC` | `10.0` | Intervalo de métricas por WebSocket en segundos. |
 
 

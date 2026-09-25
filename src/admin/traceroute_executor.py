@@ -44,12 +44,7 @@ class TracerouteExecutor:
         if not force and hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "check_traceroute_cooldown"):
             can_send, rem_cd = self._ctx.repeater_manager.check_traceroute_cooldown(target_str)
             if not can_send:
-                res.update({
-                    "status": "error",
-                    "code": 429,
-                    "message": f"Protección de Airtime LoRa activa: Espera {rem_cd}s para otro traceroute",
-                    "cooldown_remaining": rem_cd,
-                })
+                res.update(self._ctx.repeater_manager.build_cooldown_error_response(rem_cd))
                 return res
 
         t_start = time.perf_counter()

@@ -126,19 +126,6 @@ if [[ "${1:-}" == "--update" ]]; then
 
     # Si .env existe, conservarlo e incorporar nuevas variables si faltan
     if [[ -f "$INSTALL_DIR/.env" ]]; then
-        if ! grep -q "SQLITE_DB_PATH" "$INSTALL_DIR/.env"; then
-            echo "" >> "$INSTALL_DIR/.env"
-            echo "# Base de datos SQLite persistente Store & Forward" >> "$INSTALL_DIR/.env"
-            echo "SQLITE_DB_PATH=${INSTALL_DIR}/meshcore_buffer.db" >> "$INSTALL_DIR/.env"
-            echo -e "${GREEN}[OK] Variable SQLITE_DB_PATH añadida a tu .env existente.${NC}"
-        fi
-        if ! grep -q "HA_DISCOVERY_ENABLED" "$INSTALL_DIR/.env"; then
-            echo "" >> "$INSTALL_DIR/.env"
-            echo "# Integración Home Assistant MQTT Auto-Discovery" >> "$INSTALL_DIR/.env"
-            echo "HA_DISCOVERY_ENABLED=true" >> "$INSTALL_DIR/.env"
-            echo "HA_TOPIC_PREFIX=homeassistant" >> "$INSTALL_DIR/.env"
-            echo -e "${GREEN}[OK] Variables de Home Assistant añadidas a tu .env existente.${NC}"
-        fi
         if ! grep -q "TCP_SERVER_ENABLED" "$INSTALL_DIR/.env"; then
             echo "" >> "$INSTALL_DIR/.env"
             echo "# Servidor TCP/IP Companion para Apps MeshCore (puerto 5000)" >> "$INSTALL_DIR/.env"
@@ -160,6 +147,7 @@ if [[ "${1:-}" == "--update" ]]; then
     fi
 
     mkdir -p "$INSTALL_DIR/logs"
+    mkdir -p "$INSTALL_DIR/data"
     mkdir -p "$INSTALL_DIR/scripts"
     cp -rf "$CURRENT_DIR/scripts/"* "$INSTALL_DIR/scripts/" 2>/dev/null || true
     chmod +x "$INSTALL_DIR/scripts/"*.py 2>/dev/null || true
@@ -305,62 +293,13 @@ fi
 mkdir -p "$INSTALL_DIR/docs"
 cp -rf "$CURRENT_DIR/docs/"* "$INSTALL_DIR/docs/" 2>/dev/null || true
 mkdir -p "$INSTALL_DIR/logs"
+mkdir -p "$INSTALL_DIR/data"
 
 # Configurar .env si no existe
 if [[ ! -f "$INSTALL_DIR/.env" ]]; then
-    cat << EOF > "$INSTALL_DIR/.env"
-# ================================================================
-# Configuración del Puente MeshCore <-> MQTT Bridge v3.0
-# ================================================================
-
-# Puerto Serial detectado automáticamente (o valor explícito ej: /dev/ttyACM0 o COM3 o tcp://192.168.1.50:8080)
-SERIAL_PORT=${DETECTED_PORT}
-BAUD_RATE=115200
-SERIAL_TIMEOUT=30.0
-
-# Broker Mosquitto MQTT Local
-MQTT_BROKER=127.0.0.1
-MQTT_PORT=1883
-MQTT_USER=
-MQTT_PASSWORD=
-MQTT_KEEPALIVE=60
-
-# Prefijo de Tópicos MQTT
-TOPIC_PREFIX=meshcore
-
-# Base de datos SQLite persistente Store & Forward
-SQLITE_DB_PATH=${INSTALL_DIR}/meshcore_buffer.db
-
-# Parámetros de Resiliencia y Radio LoRa
-TX_INTERVAL_SEC=1.0
-OFFLINE_BUFFER_MAX_SIZE=1000
-OFFLINE_BUFFER_TTL_HOURS=48.0
-DEDUPLICATION_WINDOW_SEC=60.0
-LORA_DEFAULT_SF=11
-LORA_DEFAULT_BW_KHZ=250.0
-LORA_DEFAULT_CR=5
-LORA_PREAMBLE_LEN=8
-WATCHDOG_INTERVAL_SEC=60.0
-HEALTH_METRICS_INTERVAL_SEC=60.0
-
-# Servidor Web SPA y API REST
-WEB_ENABLED=true
-WEB_HOST=0.0.0.0
-WEB_PORT=8080
-
-# Integración Home Assistant MQTT Auto-Discovery
-HA_DISCOVERY_ENABLED=true
-HA_TOPIC_PREFIX=homeassistant
-
-# Logging Persistente y Rotación de Archivos
-LOG_LEVEL=INFO
-LOG_DIR=${INSTALL_DIR}/logs
-LOG_FILE_PATH=${INSTALL_DIR}/logs/meshcore-bridge.log
-LOG_ERROR_FILE_PATH=${INSTALL_DIR}/logs/meshcore-bridge.error.log
-LOG_MAX_BYTES=5242880
-LOG_BACKUP_COUNT=3
-EOF
-    echo -e "${GREEN}[OK] Archivo .env generado con SERIAL_PORT=${DETECTED_PORT}.${NC}"
+    cp -f "$INSTALL_DIR/.env.example" "$INSTALL_DIR/.env"
+    sed -i "s/^SERIAL_PORT=AUTO/SERIAL_PORT=${DETECTED_PORT}/" "$INSTALL_DIR/.env"
+    echo -e "${GREEN}[OK] Archivo .env generado desde plantilla con SERIAL_PORT=${DETECTED_PORT}.${NC}"
 else
     echo -e "${YELLOW}[!] Archivo .env existente conservado.${NC}"
 fi

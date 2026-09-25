@@ -20,7 +20,6 @@ from src.protocol_types import (
     MeshcoreFrame,
     NodeAdvertisement,
     PacketType,
-    TelemetryPayload,
     TextMessagePayload,
 )
 from src.rate_limiter import TxPriority, TxRateLimiter
@@ -44,7 +43,6 @@ __all__ = [
     "PacketType",
     "HardwareModel",
     "FrameHeader",
-    "TelemetryPayload",
     "TextMessagePayload",
     "NodeAdvertisement",
     "AckPayload",
