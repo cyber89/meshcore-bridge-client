@@ -189,6 +189,307 @@ export class NodesModule {
 
 
 
+  /**
+   * Generador unificado de tarjetas para contactos y nodos de la red.
+   * Elimina duplicación de marcado y eventos entre las vistas de libreta y malla.
+   * @param {Object} node Objeto de información de nodo.
+   * @param {"contact"|"node"} mode Modo de renderizado: "contact" (libreta) o "node" (malla).
+   * @returns {HTMLElement} Elemento DOM de la tarjeta configurado con listeners.
+   */
+  createNodeCard(node, mode = "node") {
+    const isContact = mode === "contact";
+    const isLocal = Boolean(node.is_local);
+    const isRepeater = node.role === "REPEATER" || node.role === "ROUTER";
+    const isSensor = node.role === "SENSOR";
+    const isRoom = node.role === "ROOM";
+    const cleanName = node.name || node.alias || node.public_key.slice(0, 8);
+    const presenceClass = getPresenceState(node.last_seen, isLocal);
+    const isOnline = presenceClass === "status-online";
+    const isDisconnected = !isLocal && (presenceClass === "status-offline" || node.presence_status === "offline");
+    const hasGps = node.latitude != null && node.longitude != null;
+    const lastSeenText = formatLastSeen(node.last_seen, isLocal);
+    const fullDateTime = node.last_seen_formatted || (node.last_seen && node.last_seen > 0 ? new Date(node.last_seen * 1000).toLocaleString() : (window.I18n ? window.I18n.t('time.no_signal') : "Sin señal registrada"));
+    const signalTooltip = isLocal ? "Estación Base Local (En línea permanente)" : (window.I18n ? window.I18n.t('time.last_signal_tooltip').replace('{time}', fullDateTime) : `Última señal recibida: ${fullDateTime}`);
+
+    const roleUpper = isLocal ? "LOCAL" : (isRepeater ? "REPEATER" : (isSensor ? "SENSOR" : (isRoom ? "ROOM" : "CLIENT")));
+    const roleClass = isLocal ? "role-local" : (isRepeater ? "role-repeater" : (isSensor ? "role-sensor" : (isRoom ? "role-room" : "role-client")));
+
+    const batText = isLocal ? null : (node.battery_pct != null ? `${node.battery_pct}%` : (node.voltage_v != null ? `${node.voltage_v}V` : null));
+    const snrVal = isLocal ? null : (node.last_snr != null ? `${node.last_snr} dB` : "--");
+    const rssiVal = isLocal ? null : (node.last_rssi != null ? `${node.last_rssi} dBm` : "--");
+    const lqiVal = isLocal ? null : (node.lqi_score ? `${Math.round(node.lqi_score)}%` : (node.last_rssi != null ? "50%" : "--"));
+    const hopsVal = isLocal ? null : (node.hops != null ? (node.hops === 0 ? I18n.t('nodes.route_direct') : `${node.hops} ${I18n.t('nodes.hops')}`) : "--");
+
+    const card = document.createElement("div");
+    card.setAttribute("data-pk", node.public_key);
+    card.setAttribute("data-online", isOnline ? "1" : "0");
+    card.setAttribute("data-has-gps", hasGps ? "1" : "0");
+
+    if (isContact) {
+      card.className = `contact-card ${isDisconnected ? "contact-card-offline" : ""}`;
+      card.setAttribute("data-favorite", node.is_favorite ? "1" : "0");
+
+      card.innerHTML = `
+        <div class="contact-card-header">
+          <div class="node-card-avatar-wrapper">
+            <div class="contact-avatar font-mono">${escapeHtml(cleanName.slice(0, 2).toUpperCase())}</div>
+            <span class="avatar-status-dot ${presenceClass}" title="${escapeHtml(signalTooltip)}"></span>
+          </div>
+          <div class="contact-info">
+            <div class="contact-title-row">
+              <span class="contact-name font-mono" title="${escapeHtml(cleanName)}">${escapeHtml(cleanName)}</span>
+              ${batText ? `<span class="contact-battery-chip" title="${I18n.t('nodes.battery_title').replace('{val}', batText)}">🔋 ${escapeHtml(batText)}</span>` : ""}
+              <button type="button" class="btn-toggle-fav ${node.is_favorite ? "is-fav" : ""}" title="${node.is_favorite ? I18n.t('nodes.remove_fav') : I18n.t('nodes.add_fav')}" aria-label="Favorito">
+                <span data-lucide="star" data-size="14"></span>
+              </button>
+            </div>
+            <div class="node-card-sub-row">
+              <span class="node-card-activity font-mono" title="${escapeHtml(signalTooltip)}">${escapeHtml(lastSeenText)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="node-telemetry-panel">
+          <div class="node-meta-row">
+            <span>${I18n.t('nodes.key_label')} <code>${escapeHtml(node.public_key.slice(0, 8))}…</code></span>
+            <span>${hasGps ? `📍 ${node.latitude.toFixed(3)}, ${node.longitude.toFixed(3)}` : `<span class="color-dim font-mono">${I18n.t('common.no_gps')}</span>`}</span>
+          </div>
+          <div class="node-meta-sub">
+            <span>${I18n.t('nodes.route_label')} <strong>${escapeHtml(node.best_route || (node.hops === 0 ? I18n.t('nodes.route_direct') : I18n.t('nodes.route_mesh')))}</strong></span>
+            <span>${I18n.t('nodes.lqi_label')} <strong>${escapeHtml(lqiVal)}</strong></span>
+          </div>
+        </div>
+
+        <div class="contact-card-chips">
+          <div class="stat-pill" title="${I18n.t('nodes.tooltip_rssi')}">📡 <strong>${escapeHtml(rssiVal)}</strong></div>
+          <div class="stat-pill" title="${I18n.t('nodes.tooltip_snr')}">📶 <strong>${escapeHtml(snrVal)}</strong></div>
+          <div class="stat-pill" title="${I18n.t('nodes.tooltip_hops')}">🔀 <strong>${escapeHtml(hopsVal)}</strong></div>
+        </div>
+
+        <div class="contact-card-actions">
+          <button type="button" class="btn-primary btn-sm btn-contact-dm" title="${I18n.t('contacts.title_chat')}">
+            <span data-lucide="message-square" data-size="13"></span>${I18n.t('nodes.chat_btn')}
+          </button>
+          <button type="button" class="btn-secondary btn-sm btn-contact-trace" title="${I18n.t('contacts.title_trace')}">
+            <span data-lucide="git-commit" data-size="13"></span>${I18n.t('nodes.trace_btn')}
+          </button>
+          <button type="button" class="btn-outline btn-sm btn-contact-qr" title="${I18n.t('contacts.title_qr')}">
+            <span data-lucide="qr-code" data-size="13"></span>
+          </button>
+          <button type="button" class="btn-outline btn-sm btn-contact-del" title="${I18n.t('contacts.title_del')}">
+            <span data-lucide="trash-2" data-size="13"></span>
+          </button>
+        </div>
+      `;
+
+      // Eventos para tarjeta de contacto
+      const favBtn = card.querySelector(".btn-toggle-fav");
+      if (favBtn) {
+        favBtn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const newFav = !node.is_favorite;
+          node.is_favorite = newFav;
+          card.setAttribute("data-favorite", newFav ? "1" : "0");
+          favBtn.classList.toggle("is-fav", newFav);
+          favBtn.title = newFav ? I18n.t('nodes.remove_fav') : I18n.t('nodes.add_fav');
+
+          const known = this.knownNodes.get(node.public_key.toLowerCase());
+          if (known) known.is_favorite = newFav;
+
+          let favCount = 0;
+          document.querySelectorAll("#contactsGridUi .contact-card").forEach((c) => {
+            if (c.getAttribute("data-favorite") === "1") favCount++;
+          });
+          const cCFav = document.getElementById("countFavContacts");
+          if (cCFav) cCFav.textContent = String(favCount);
+
+          const q = this.dom.contactsSearchInput ? this.dom.contactsSearchInput.value : "";
+          this.filterContactsGrid(q);
+
+          if (this.ctx.showToast) {
+            this.ctx.showToast(newFav ? I18n.t('toast.fav_added').replace('{name}', cleanName) : I18n.t('toast.fav_removed').replace('{name}', cleanName), "info");
+          }
+
+          try {
+            await fetch("/api/contacts", {
+              method: "POST",
+              headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                public_key: node.public_key,
+                name: cleanName,
+                alias: node.alias || "",
+                role: node.role || "CLIENT",
+                is_favorite: newFav,
+              }),
+            });
+          } catch (err) {
+            console.warn("Error guardando estado de favorito:", err);
+          }
+        });
+      }
+
+      card.querySelector(".btn-contact-dm")?.addEventListener("click", () => {
+        if (this.ctx.openDmConversation) this.ctx.openDmConversation(node.public_key, cleanName);
+      });
+
+      card.querySelector(".btn-contact-trace")?.addEventListener("click", () => {
+        if (this.ctx.openTracerouteModal) this.ctx.openTracerouteModal(node.public_key, cleanName);
+      });
+
+      card.querySelector(".btn-contact-qr")?.addEventListener("click", () => {
+        const uri = buildMeshCoreContactUri(cleanName, node.public_key, node.role || "CLIENT");
+        const json = JSON.stringify({ type: "contact", public_key: node.public_key, name: cleanName, role: node.role || "CLIENT", uri }, null, 2);
+        if (window.showQrModal) window.showQrModal(`Contacto: ${cleanName}`, uri, json);
+      });
+
+      card.querySelector(".btn-contact-del")?.addEventListener("click", async () => {
+        if (!confirm(I18n.t('nodes.del_confirm').replace('{name}', cleanName))) return;
+        try {
+          const res = await fetch(`/api/contacts/${encodeURIComponent(node.public_key)}`, {
+            method: "DELETE",
+            headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+            body: JSON.stringify({ public_key: node.public_key }),
+          });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            const msg = errData.detail || errData.error || `HTTP ${res.status}`;
+            if (this.ctx.showToast) this.ctx.showToast(`Error: ${msg}`, "error");
+            return;
+          }
+          card.remove();
+          this.knownNodes.delete(node.public_key.toLowerCase());
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.contact_deleted'), "info");
+        } catch (e) {
+          console.warn("Fallo eliminando contacto:", e);
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.network_error') || "Error de red", "error");
+        }
+      });
+
+    } else {
+      // Modo Node (Malla Unificada)
+      card.className = `node-card ${roleClass}-card ${isDisconnected ? "node-card-offline" : ""}`;
+      card.setAttribute("data-role", roleUpper);
+
+      const avatarIcon = isLocal ? "🏠" : (isRepeater ? "📡" : (isSensor ? "🌡️" : (isRoom ? "💬" : "👤")));
+
+      let telemLine2 = `${I18n.t('nodes.route_label')} <strong>${escapeHtml(node.best_route || (node.hops === 0 ? I18n.t('nodes.route_direct') : I18n.t('nodes.route_mesh')))}</strong>`;
+      if (isLocal) {
+        telemLine2 = `🖥️ <strong>Estación Base Host USB</strong>`;
+      } else if (node.temperature_c != null) {
+        telemLine2 = `🌡️ <strong>${escapeHtml(String(node.temperature_c))}°C</strong> ${node.humidity_pct != null ? `💧 ${escapeHtml(String(node.humidity_pct))}%` : ""}`;
+      } else if (node.owner_name) {
+        telemLine2 = `${I18n.t('nodes.owner_label')} <strong>${escapeHtml(node.owner_name)}</strong>`;
+      }
+
+      card.innerHTML = `
+        <div class="node-card-header">
+          <div class="node-card-avatar-wrapper">
+            <div class="node-card-avatar avatar-${roleClass === "role-local" ? "local" : (roleClass === "role-repeater" ? "repeater" : (roleClass === "role-sensor" ? "sensor" : "client"))}">
+              ${avatarIcon}
+            </div>
+            <span class="avatar-status-dot ${presenceClass}" title="${escapeHtml(signalTooltip)}"></span>
+          </div>
+          <div class="node-card-info">
+            <div class="node-card-top-row">
+              <span class="node-card-name font-mono" title="${escapeHtml(cleanName)}">${escapeHtml(cleanName)}</span>
+              <div class="node-card-badges-group">
+                ${batText ? `<span class="contact-battery-chip" title="${I18n.t('nodes.battery_title').replace('{val}', batText)}">🔋 ${escapeHtml(batText)}</span>` : ""}
+                <span class="node-role-badge ${roleClass}">${escapeHtml(roleUpper)}</span>
+              </div>
+            </div>
+            <div class="node-card-sub-row">
+              <span class="node-card-activity font-mono" title="${escapeHtml(signalTooltip)}">${escapeHtml(lastSeenText)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="node-telemetry-panel">
+          <div class="node-meta-row">
+            <span>${I18n.t('nodes.key_label')} <code>${escapeHtml(node.public_key.slice(0, 8))}…</code></span>
+            <span>${hasGps ? `📍 ${node.latitude.toFixed(3)}, ${node.longitude.toFixed(3)}` : `<span class="color-dim font-mono">${I18n.t('common.no_gps')}</span>`}</span>
+          </div>
+          <div class="node-meta-sub">
+            <span>${telemLine2}</span>
+            ${isLocal ? `<span>⚡ <strong>5V USB</strong></span>` : `<span>${I18n.t('nodes.lqi_label')} <strong>${escapeHtml(lqiVal)}</strong></span>`}
+          </div>
+        </div>
+
+        ${isLocal ? "" : `
+        <div class="node-rf-strip">
+          <div class="stat-pill" title="${I18n.t('nodes.tooltip_rssi')}">📡 <strong>${escapeHtml(rssiVal)}</strong></div>
+          <div class="stat-pill" title="${I18n.t('nodes.tooltip_snr')}">📶 <strong>${escapeHtml(snrVal)}</strong></div>
+          <div class="stat-pill" title="${I18n.t('nodes.tooltip_hops')}">🔀 <strong>${escapeHtml(hopsVal)}</strong></div>
+        </div>
+        `}
+
+        <div class="node-actions-bar">
+          ${isRepeater ? `
+            <button type="button" class="btn-primary btn-sm btn-manage-repeater" title="${I18n.t('nodes.title_manage')}">
+              <span data-lucide="sliders" data-size="13"></span>${I18n.t('nodes.manage_btn')}
+            </button>
+          ` : ""}
+          ${!isLocal && !isRepeater ? `
+            <button type="button" class="btn-primary btn-sm btn-dm-node" title="${I18n.t('nodes.title_dm')}">
+              <span data-lucide="message-square" data-size="13"></span>${I18n.t('nodes.chat_btn')} DM
+            </button>
+          ` : ""}
+          ${!isLocal && isRepeater ? `
+            <button type="button" class="btn-secondary btn-sm btn-ping-node" title="${I18n.t('nodes.ping_title') || 'Ping directo de 0 saltos'}">
+              <span data-lucide="crosshair" data-size="13"></span> ${I18n.t('nodes.ping_btn') || 'Ping'}
+            </button>
+          ` : ""}
+          ${isLocal ? `
+            <button type="button" class="btn-secondary btn-sm btn-configure-local" title="${I18n.t('nodes.title_settings')}">
+              <span data-lucide="settings" data-size="13"></span>${I18n.t('nodes.settings_btn')}
+            </button>
+          ` : ""}
+          ${!isLocal ? `
+            <button type="button" class="btn-secondary btn-sm btn-trace-node" title="${I18n.t('nodes.title_trace')}">
+              <span data-lucide="git-commit" data-size="13"></span>${I18n.t('nodes.trace_btn')}
+            </button>
+          ` : ""}
+          <button type="button" class="btn-outline btn-sm btn-node-qr" title="${I18n.t('nodes.title_qr')}">
+            <span data-lucide="qr-code" data-size="13"></span>
+          </button>
+        </div>
+      `;
+
+      if (isRepeater) {
+        card.querySelector(".btn-manage-repeater")?.addEventListener("click", () => {
+          if (this.ctx.openRepeaterAdminModal) this.ctx.openRepeaterAdminModal(node.public_key, cleanName);
+        });
+      }
+      if (!isLocal && !isRepeater) {
+        card.querySelector(".btn-dm-node")?.addEventListener("click", () => {
+          if (this.ctx.openDmConversation) this.ctx.openDmConversation(node.public_key, cleanName);
+        });
+      }
+      if (isLocal) {
+        card.querySelector(".btn-configure-local")?.addEventListener("click", () => {
+          const navBtn = document.querySelector('.nav-btn[data-tab="tab-settings"]');
+          if (navBtn) navBtn.click();
+        });
+      }
+      if (!isLocal && isRepeater) {
+        card.querySelector(".btn-ping-node")?.addEventListener("click", (e) => {
+          this.pingNode(node.public_key, cleanName, e.currentTarget);
+        });
+      }
+      if (!isLocal) {
+        card.querySelector(".btn-trace-node")?.addEventListener("click", () => {
+          if (this.ctx.openTracerouteModal) this.ctx.openTracerouteModal(node.public_key, cleanName);
+        });
+      }
+      card.querySelector(".btn-node-qr")?.addEventListener("click", () => {
+        const uri = buildMeshCoreContactUri(cleanName, node.public_key, node.role || "CLIENT");
+        const json = JSON.stringify({ type: "node", public_key: node.public_key, name: cleanName, role: node.role || "CLIENT", uri }, null, 2);
+        if (window.showQrModal) window.showQrModal(`Nodo: ${cleanName}`, uri, json);
+      });
+    }
+
+    return card;
+  }
+
   renderNodesDirectory(nodes) {
     const contactsGrid = this.dom.contactsGridUi;
     const unifiedNodesGrid = this.dom.nodesUnifiedGridUi;
@@ -270,306 +571,20 @@ export class NodesModule {
       else if (isRoom) cntRooms++;
       else if (isClient) cntClients++;
 
-      const cleanName = node.name || node.alias || node.public_key.slice(0, 8);
-      const presenceClass = getPresenceState(node.last_seen, isLocal);
-      const isOnline = presenceClass === "status-online";
-      const isDisconnected = !isLocal && (presenceClass === "status-offline" || node.presence_status === "offline");
-      const hasGps = node.latitude != null && node.longitude != null;
-      const lastSeenText = formatLastSeen(node.last_seen, isLocal);
-      const fullDateTime = node.last_seen_formatted || (node.last_seen && node.last_seen > 0 ? new Date(node.last_seen * 1000).toLocaleString() : (window.I18n ? window.I18n.t('time.no_signal') : "Sin señal registrada"));
-      const signalTooltip = isLocal ? "Estación Base Local (En línea permanente)" : (window.I18n ? window.I18n.t('time.last_signal_tooltip').replace('{time}', fullDateTime) : `Última señal recibida: ${fullDateTime}`);
-
       // 1. Tarjetas para Contactos (Exclusivamente Clientes de Usuario)
       if (contactsGrid && !isLocal && !isRepeater && (node.role === "CLIENT" || isClient)) {
         cntContacts++;
         if (node.is_favorite) cntFavContacts++;
-        if (isOnline) cntOnlineContacts++;
-        if (hasGps) cntGpsContacts++;
+        if (getPresenceState(node.last_seen, isLocal) === "status-online") cntOnlineContacts++;
+        if (node.latitude != null && node.longitude != null) cntGpsContacts++;
 
-        const cCard = document.createElement("div");
-        cCard.className = `contact-card ${isDisconnected ? "contact-card-offline" : ""}`;
-        cCard.setAttribute("data-pk", node.public_key);
-        cCard.setAttribute("data-favorite", node.is_favorite ? "1" : "0");
-        cCard.setAttribute("data-online", isOnline ? "1" : "0");
-        cCard.setAttribute("data-has-gps", hasGps ? "1" : "0");
-
-        const batText = node.battery_pct != null ? `${node.battery_pct}%` : (node.voltage_v != null ? `${node.voltage_v}V` : null);
-        const snrVal = node.last_snr != null ? `${node.last_snr} dB` : "--";
-        const rssiVal = node.last_rssi != null ? `${node.last_rssi} dBm` : "--";
-        const lqiVal = node.lqi_score ? `${Math.round(node.lqi_score)}%` : (node.last_rssi != null ? "50%" : "--");
-        const hopsVal = node.hops != null ? (node.hops === 0 ? I18n.t('nodes.route_direct') : `${node.hops} ${I18n.t('nodes.hops')}`) : "--";
-
-        cCard.innerHTML = `
-          <div class="contact-card-header">
-            <div class="node-card-avatar-wrapper">
-              <div class="contact-avatar font-mono">${escapeHtml(cleanName.slice(0, 2).toUpperCase())}</div>
-              <span class="avatar-status-dot ${presenceClass}" title="${escapeHtml(signalTooltip)}"></span>
-            </div>
-            <div class="contact-info">
-              <div class="contact-title-row">
-                <span class="contact-name font-mono" title="${escapeHtml(cleanName)}">${escapeHtml(cleanName)}</span>
-                ${batText ? `<span class="contact-battery-chip" title="${I18n.t('nodes.battery_title').replace('{val}', batText)}">🔋 ${escapeHtml(batText)}</span>` : ""}
-                <button type="button" class="btn-toggle-fav ${node.is_favorite ? "is-fav" : ""}" title="${node.is_favorite ? I18n.t('nodes.remove_fav') : I18n.t('nodes.add_fav')}" aria-label="Favorito">
-                  <span data-lucide="star" data-size="14"></span>
-                </button>
-              </div>
-              <div class="node-card-sub-row">
-                <span class="node-card-activity font-mono" title="${escapeHtml(signalTooltip)}">${escapeHtml(lastSeenText)}</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="node-telemetry-panel">
-            <div class="node-meta-row">
-              <span>${I18n.t('nodes.key_label')} <code>${escapeHtml(node.public_key.slice(0, 8))}…</code></span>
-              <span>${hasGps ? `📍 ${node.latitude.toFixed(3)}, ${node.longitude.toFixed(3)}` : `<span class="color-dim font-mono">${I18n.t('common.no_gps')}</span>`}</span>
-            </div>
-            <div class="node-meta-sub">
-              <span>${I18n.t('nodes.route_label')} <strong>${escapeHtml(node.best_route || (node.hops === 0 ? I18n.t('nodes.route_direct') : I18n.t('nodes.route_mesh')))}</strong></span>
-              <span>${I18n.t('nodes.lqi_label')} <strong>${escapeHtml(lqiVal)}</strong></span>
-            </div>
-          </div>
-
-          <div class="contact-card-chips">
-            <div class="stat-pill" title="${I18n.t('nodes.tooltip_rssi')}">📡 <strong>${escapeHtml(rssiVal)}</strong></div>
-            <div class="stat-pill" title="${I18n.t('nodes.tooltip_snr')}">📶 <strong>${escapeHtml(snrVal)}</strong></div>
-            <div class="stat-pill" title="${I18n.t('nodes.tooltip_hops')}">🔀 <strong>${escapeHtml(hopsVal)}</strong></div>
-          </div>
-
-          <div class="contact-card-actions">
-            <button type="button" class="btn-primary btn-sm btn-contact-dm" title="${I18n.t('contacts.title_chat')}">
-              <span data-lucide="message-square" data-size="13"></span>${I18n.t('nodes.chat_btn')}
-            </button>
-            <button type="button" class="btn-secondary btn-sm btn-contact-trace" title="${I18n.t('contacts.title_trace')}">
-              <span data-lucide="git-commit" data-size="13"></span>${I18n.t('nodes.trace_btn')}
-            </button>
-            <button type="button" class="btn-outline btn-sm btn-contact-qr" title="${I18n.t('contacts.title_qr')}">
-              <span data-lucide="qr-code" data-size="13"></span>
-            </button>
-            <button type="button" class="btn-outline btn-sm btn-contact-del" title="${I18n.t('contacts.title_del')}">
-              <span data-lucide="trash-2" data-size="13"></span>
-            </button>
-          </div>
-        `;
-
-        const favBtn = cCard.querySelector(".btn-toggle-fav");
-        if (favBtn) {
-          favBtn.addEventListener("click", async (e) => {
-            e.stopPropagation();
-            const newFav = !node.is_favorite;
-            node.is_favorite = newFav;
-            cCard.setAttribute("data-favorite", newFav ? "1" : "0");
-            favBtn.classList.toggle("is-fav", newFav);
-            favBtn.title = newFav ? I18n.t('nodes.remove_fav') : I18n.t('nodes.add_fav');
-
-            const known = this.knownNodes.get(node.public_key.toLowerCase());
-            if (known) known.is_favorite = newFav;
-
-            let favCount = 0;
-            document.querySelectorAll("#contactsGridUi .contact-card").forEach((card) => {
-              if (card.getAttribute("data-favorite") === "1") favCount++;
-            });
-            const cCFav = document.getElementById("countFavContacts");
-            if (cCFav) cCFav.textContent = String(favCount);
-
-            const q = this.dom.contactsSearchInput ? this.dom.contactsSearchInput.value : "";
-            this.filterContactsGrid(q);
-
-            if (this.ctx.showToast) {
-              this.ctx.showToast(newFav ? I18n.t('toast.fav_added').replace('{name}', cleanName) : I18n.t('toast.fav_removed').replace('{name}', cleanName), "info");
-            }
-
-            try {
-              await fetch("/api/contacts", {
-                method: "POST",
-                headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  public_key: node.public_key,
-                  name: cleanName,
-                  alias: node.alias || "",
-                  role: node.role || "CLIENT",
-                  is_favorite: newFav,
-                }),
-              });
-            } catch (err) {
-              console.warn("Error guardando estado de favorito:", err);
-            }
-          });
-        }
-
-        cCard.querySelector(".btn-contact-dm")?.addEventListener("click", () => {
-          if (this.ctx.openDmConversation) this.ctx.openDmConversation(node.public_key, cleanName);
-        });
-
-        cCard.querySelector(".btn-contact-trace")?.addEventListener("click", () => {
-          if (this.ctx.openTracerouteModal) this.ctx.openTracerouteModal(node.public_key, cleanName);
-        });
-
-        cCard.querySelector(".btn-contact-qr")?.addEventListener("click", () => {
-          const uri = buildMeshCoreContactUri(cleanName, node.public_key, node.role || "CLIENT");
-          const json = JSON.stringify({ type: "contact", public_key: node.public_key, name: cleanName, role: node.role || "CLIENT", uri }, null, 2);
-          if (window.showQrModal) window.showQrModal(`Contacto: ${cleanName}`, uri, json);
-        });
-
-        cCard.querySelector(".btn-contact-del")?.addEventListener("click", async () => {
-          if (!confirm(I18n.t('nodes.del_confirm').replace('{name}', cleanName))) return;
-          try {
-            const res = await fetch(`/api/contacts/${encodeURIComponent(node.public_key)}`, {
-              method: "DELETE",
-              headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
-              body: JSON.stringify({ public_key: node.public_key }),
-            });
-            if (!res.ok) {
-              const errData = await res.json().catch(() => ({}));
-              const msg = errData.detail || errData.error || `HTTP ${res.status}`;
-              if (this.ctx.showToast) this.ctx.showToast(`Error: ${msg}`, "error");
-              return;
-            }
-            cCard.remove();
-            this.knownNodes.delete(node.public_key.toLowerCase());
-            if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.contact_deleted'), "info");
-          } catch (e) {
-            console.warn("Fallo eliminando contacto:", e);
-            if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.network_error') || "Error de red", "error");
-          }
-        });
-
+        const cCard = this.createNodeCard(node, "contact");
         contactsFrag.appendChild(cCard);
       }
 
       // 2. Tarjetas para Nodos Unificados (Todos los nodos descubiertos en la malla)
       if (unifiedNodesGrid) {
-        const nCard = document.createElement("div");
-        const roleUpper = isLocal ? "LOCAL" : (isRepeater ? "REPEATER" : (node.role || "CLIENT").toUpperCase());
-        const roleClass = isLocal ? "role-local" : (isRepeater ? "role-repeater" : (isSensor ? "role-sensor" : (isRoom ? "role-room" : "role-client")));
-
-        nCard.className = `node-card ${roleClass}-card ${isDisconnected ? "node-card-offline" : ""}`;
-        nCard.setAttribute("data-pk", node.public_key);
-        nCard.setAttribute("data-role", roleUpper);
-        nCard.setAttribute("data-online", isOnline ? "1" : "0");
-        nCard.setAttribute("data-has-gps", hasGps ? "1" : "0");
-
-        const avatarIcon = isLocal ? "🏠" : (isRepeater ? "📡" : (isSensor ? "🌡️" : (isRoom ? "💬" : "👤")));
-        const batText = isLocal ? null : (node.battery_pct != null ? `${node.battery_pct}%` : (node.voltage_v != null ? `${node.voltage_v}V` : null));
-        const snrVal = isLocal ? null : (node.last_snr != null ? `${node.last_snr} dB` : "--");
-        const rssiVal = isLocal ? null : (node.last_rssi != null ? `${node.last_rssi} dBm` : "--");
-        const lqiVal = isLocal ? null : (node.lqi_score ? `${Math.round(node.lqi_score)}%` : (node.last_rssi != null ? "50%" : "--"));
-        const hopsVal = isLocal ? null : (node.hops != null ? (node.hops === 0 ? I18n.t('nodes.route_direct') : `${node.hops} ${I18n.t('nodes.hops')}`) : "--");
-
-        let telemLine2 = `${I18n.t('nodes.route_label')} <strong>${escapeHtml(node.best_route || (node.hops === 0 ? I18n.t('nodes.route_direct') : I18n.t('nodes.route_mesh')))}</strong>`;
-        if (isLocal) {
-          telemLine2 = `🖥️ <strong>Estación Base Host USB</strong>`;
-        } else if (node.temperature_c != null) {
-          telemLine2 = `🌡️ <strong>${escapeHtml(String(node.temperature_c))}°C</strong> ${node.humidity_pct != null ? `💧 ${escapeHtml(String(node.humidity_pct))}%` : ""}`;
-        } else if (node.owner_name) {
-          telemLine2 = `${I18n.t('nodes.owner_label')} <strong>${escapeHtml(node.owner_name)}</strong>`;
-        }
-
-        nCard.innerHTML = `
-          <div class="node-card-header">
-            <div class="node-card-avatar-wrapper">
-              <div class="node-card-avatar avatar-${roleClass === "role-local" ? "local" : (roleClass === "role-repeater" ? "repeater" : (roleClass === "role-sensor" ? "sensor" : "client"))}">
-                ${avatarIcon}
-              </div>
-              <span class="avatar-status-dot ${presenceClass}" title="${escapeHtml(signalTooltip)}"></span>
-            </div>
-            <div class="node-card-info">
-              <div class="node-card-top-row">
-                <span class="node-card-name font-mono" title="${escapeHtml(cleanName)}">${escapeHtml(cleanName)}</span>
-                <div class="node-card-badges-group">
-                  ${batText ? `<span class="contact-battery-chip" title="${I18n.t('nodes.battery_title').replace('{val}', batText)}">🔋 ${escapeHtml(batText)}</span>` : ""}
-                  <span class="node-role-badge ${roleClass}">${escapeHtml(roleUpper)}</span>
-                </div>
-              </div>
-              <div class="node-card-sub-row">
-                <span class="node-card-activity font-mono" title="${escapeHtml(signalTooltip)}">${escapeHtml(lastSeenText)}</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="node-telemetry-panel">
-            <div class="node-meta-row">
-              <span>${I18n.t('nodes.key_label')} <code>${escapeHtml(node.public_key.slice(0, 8))}…</code></span>
-              <span>${hasGps ? `📍 ${node.latitude.toFixed(3)}, ${node.longitude.toFixed(3)}` : `<span class="color-dim font-mono">${I18n.t('common.no_gps')}</span>`}</span>
-            </div>
-            <div class="node-meta-sub">
-              <span>${telemLine2}</span>
-              ${isLocal ? `<span>⚡ <strong>5V USB</strong></span>` : `<span>${I18n.t('nodes.lqi_label')} <strong>${escapeHtml(lqiVal)}</strong></span>`}
-            </div>
-          </div>
-
-          ${isLocal ? "" : `
-          <div class="node-rf-strip">
-            <div class="stat-pill" title="${I18n.t('nodes.tooltip_rssi')}">📡 <strong>${escapeHtml(rssiVal)}</strong></div>
-            <div class="stat-pill" title="${I18n.t('nodes.tooltip_snr')}">📶 <strong>${escapeHtml(snrVal)}</strong></div>
-            <div class="stat-pill" title="${I18n.t('nodes.tooltip_hops')}">🔀 <strong>${escapeHtml(hopsVal)}</strong></div>
-          </div>
-          `}
-
-          <div class="node-actions-bar">
-            ${isRepeater ? `
-              <button type="button" class="btn-primary btn-sm btn-manage-repeater" title="${I18n.t('nodes.title_manage')}">
-                <span data-lucide="sliders" data-size="13"></span>${I18n.t('nodes.manage_btn')}
-              </button>
-            ` : ""}
-            ${!isLocal && !isRepeater ? `
-              <button type="button" class="btn-primary btn-sm btn-dm-node" title="${I18n.t('nodes.title_dm')}">
-                <span data-lucide="message-square" data-size="13"></span>${I18n.t('nodes.chat_btn')} DM
-              </button>
-            ` : ""}
-            ${!isLocal && isRepeater ? `
-              <button type="button" class="btn-secondary btn-sm btn-ping-node" title="${I18n.t('nodes.ping_title') || 'Ping directo de 0 saltos'}">
-                <span data-lucide="crosshair" data-size="13"></span> ${I18n.t('nodes.ping_btn') || 'Ping'}
-              </button>
-            ` : ""}
-            ${isLocal ? `
-              <button type="button" class="btn-secondary btn-sm btn-configure-local" title="${I18n.t('nodes.title_settings')}">
-                <span data-lucide="settings" data-size="13"></span>${I18n.t('nodes.settings_btn')}
-              </button>
-            ` : ""}
-            ${!isLocal ? `
-              <button type="button" class="btn-secondary btn-sm btn-trace-node" title="${I18n.t('nodes.title_trace')}">
-                <span data-lucide="git-commit" data-size="13"></span>${I18n.t('nodes.trace_btn')}
-              </button>
-            ` : ""}
-            <button type="button" class="btn-outline btn-sm btn-node-qr" title="${I18n.t('nodes.title_qr')}">
-              <span data-lucide="qr-code" data-size="13"></span>
-            </button>
-          </div>
-        `;
-
-        if (isRepeater) {
-          nCard.querySelector(".btn-manage-repeater")?.addEventListener("click", () => {
-            if (this.ctx.openRepeaterAdminModal) this.ctx.openRepeaterAdminModal(node.public_key, cleanName);
-          });
-        }
-        if (!isLocal && !isRepeater) {
-          nCard.querySelector(".btn-dm-node")?.addEventListener("click", () => {
-            if (this.ctx.openDmConversation) this.ctx.openDmConversation(node.public_key, cleanName);
-          });
-        }
-        if (isLocal) {
-          nCard.querySelector(".btn-configure-local")?.addEventListener("click", () => {
-            const navBtn = document.querySelector('.nav-btn[data-tab="tab-settings"]');
-            if (navBtn) navBtn.click();
-          });
-        }
-        if (!isLocal && isRepeater) {
-          nCard.querySelector(".btn-ping-node")?.addEventListener("click", (e) => {
-            this.pingNode(node.public_key, cleanName, e.currentTarget);
-          });
-        }
-        if (!isLocal) {
-          nCard.querySelector(".btn-trace-node")?.addEventListener("click", () => {
-            if (this.ctx.openTracerouteModal) this.ctx.openTracerouteModal(node.public_key, cleanName);
-          });
-        }
-        nCard.querySelector(".btn-node-qr")?.addEventListener("click", () => {
-          const uri = buildMeshCoreContactUri(cleanName, node.public_key, node.role || "CLIENT");
-          const json = JSON.stringify({ type: "node", public_key: node.public_key, name: cleanName, role: node.role || "CLIENT", uri }, null, 2);
-          if (window.showQrModal) window.showQrModal(`Nodo: ${cleanName}`, uri, json);
-        });
-
+        const nCard = this.createNodeCard(node, "node");
         nodesFrag.appendChild(nCard);
       }
     }
