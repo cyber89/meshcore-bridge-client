@@ -5,13 +5,12 @@ Base Serial Adapter and Hardware Detection for MeshCore Bridge.
 from __future__ import annotations
 
 import abc
-import asyncio
 import logging
 import os
-import re
 import time
 from collections.abc import Callable
 from typing import Any
+
 
 def detect_serial_port() -> str:
     """Detecta automáticamente el puerto serial de un nodo LoRa conectado."""

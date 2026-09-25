@@ -13,6 +13,7 @@ from typing import Any
 
 from src.serial.serial_base import BaseSerialAdapter
 
+
 class SerialWatchdog:
     """Supervisa la vivacidad del puerto serial y activa reconexión segura ante bloqueos o caídas de hardware."""
 

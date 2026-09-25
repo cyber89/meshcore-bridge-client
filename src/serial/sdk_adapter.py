@@ -5,7 +5,6 @@ MeshCore Official SDK Adapter (meshcore_py) for MeshCore Bridge.
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import logging
 import os
 import re
@@ -14,8 +13,7 @@ from collections.abc import Callable
 from typing import Any, cast
 
 from src.protocol_types import MeshCoreSDKProtocol
-from src.serial.serial_base import BaseSerialAdapter
-from src.shared_utils import classify_device_role
+from src.serial.serial_base import BaseSerialAdapter, detect_serial_port
 from src.target_resolver import TargetResolver
 
 try:
@@ -797,7 +795,6 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         Delega a TargetResolver (Single Source of Truth) para evitar
         duplicación de lógica con admin_handler.py.
         """
-        from src.target_resolver import TargetResolver
         resolver = TargetResolver(
             mc_provider=self.mc,
             node_registry=self.node_registry,

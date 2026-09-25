@@ -1016,8 +1016,10 @@ class MeshCoreWebServer:
                     )
                     return
 
-                content_type, _ = mimetypes.guess_type(str(target_file))
-                if not content_type:
+                guessed_type, _ = mimetypes.guess_type(str(target_file))
+                if guessed_type:
+                    content_type = guessed_type
+                else:
                     content_type = "text/html" if target_file.suffix == ".html" else "application/octet-stream"
 
                 etag = f'"{hashlib.md5(raw_bytes).hexdigest()[:16]}"'
@@ -1068,7 +1070,7 @@ class MeshCoreWebServer:
             # Selección de compresión según Accept-Encoding del cliente
             accept_encoding = ctx.headers.get("accept-encoding", "")
             use_gzip = ("gzip" in accept_encoding) and (gzip_bytes is not None) and (len(gzip_bytes) < len(raw_bytes))
-            serve_body = gzip_bytes if use_gzip else raw_bytes
+            serve_body: bytes = gzip_bytes if (use_gzip and gzip_bytes is not None) else raw_bytes
 
             duration_ms = (time.perf_counter() - ctx.t_start) * 1000.0 if ctx.t_start > 0 else 0.0
             SecurityTrafficInspector.log_http_access(

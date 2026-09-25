@@ -69,7 +69,7 @@ class ConfigController(BaseController):
         err_tx = getattr(self.ctx.bridge, "tx_error_count", 0)
         err_gen = getattr(self.ctx.bridge, "err_count", 0)
         serial_adapter = getattr(self.ctx.bridge, "serial_adapter", None)
-        is_ser_ok = getattr(serial_adapter, "is_connected", False) if serial_adapter else False
+        is_ser_ok = bool(serial_adapter.is_hardware_alive()) if serial_adapter and hasattr(serial_adapter, "is_hardware_alive") else bool(getattr(serial_adapter, "is_connected", False))
         serial_port = getattr(serial_adapter, "port", "none") if serial_adapter else "none"
 
         local_cfg.update({

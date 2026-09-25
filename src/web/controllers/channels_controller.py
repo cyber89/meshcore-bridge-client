@@ -143,11 +143,14 @@ class ChannelsController(BaseController):
         masked_list = []
         for ch in channels_list:
             c_dict = dict(ch)
+            ch_idx = int(c_dict.get("index", 0))
             raw_psk = str(c_dict.get("psk") or "").strip()
-            has_psk = bool(raw_psk)
+            is_ch0 = (ch_idx == 0)
+            has_psk = bool(raw_psk) and not is_ch0
             c_dict["has_psk"] = has_psk
-            c_dict["is_encrypted"] = has_psk and (int(c_dict.get("index", 0)) != 0)
-            if has_psk:
+            c_dict["is_encrypted"] = False if is_ch0 else has_psk
+            c_dict["is_public"] = is_ch0
+            if has_psk and not is_ch0:
                 c_dict["psk"] = "••••••••"
             else:
                 c_dict["psk"] = ""
@@ -157,11 +160,14 @@ class ChannelsController(BaseController):
     def _mask_channel(self, ch: dict[str, Any]) -> dict[str, Any]:
         """Enmascara la PSK de un único canal."""
         c_dict = dict(ch)
+        ch_idx = int(c_dict.get("index", 0))
         raw_psk = str(c_dict.get("psk") or "").strip()
-        has_psk = bool(raw_psk)
+        is_ch0 = (ch_idx == 0)
+        has_psk = bool(raw_psk) and not is_ch0
         c_dict["has_psk"] = has_psk
-        c_dict["is_encrypted"] = has_psk and (int(c_dict.get("index", 0)) != 0)
-        if has_psk:
+        c_dict["is_encrypted"] = False if is_ch0 else has_psk
+        c_dict["is_public"] = is_ch0
+        if has_psk and not is_ch0:
             c_dict["psk"] = "••••••••"
         else:
             c_dict["psk"] = ""

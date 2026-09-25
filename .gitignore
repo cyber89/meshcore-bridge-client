@@ -45,3 +45,9 @@ data/*.json
 !data/.gitkeep
 out.txt
 test_sec_audit.db
+
+# Deployment and distribution artifacts
+deploy/
+*.tar.gz
+*.zip
+SHA256SUMS

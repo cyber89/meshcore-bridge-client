@@ -1,8 +1,0 @@
-# Dependencias de producción para MeshCore Bridge v3.0
-# Instalar con: pip install -r requirements.txt
-paho-mqtt>=2.1.0
-meshcore>=2.3.8
-pyserial>=3.5
-pyserial-asyncio>=0.6
-python-dotenv>=1.0.1
-pycayennelpp>=2.0.0

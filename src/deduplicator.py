@@ -13,7 +13,7 @@ import time
 
 class PacketDeduplicator:
     """Filtro de deduplicación de alta velocidad en memoria RAM con ventana deslizante.
-    
+
     Unifica la sincronización bajo un único lock reentrante/atómico para eliminar
     el riesgo de bloqueo híbrido y asegurar coherencia entre corrutinas y llamadas síncronas.
     """

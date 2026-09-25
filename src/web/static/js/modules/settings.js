@@ -105,6 +105,8 @@ export class SettingsModule {
       createContactForm: document.getElementById("createContactForm"),
       contactModalPubKey: document.getElementById("contactModalPubKey"),
       contactModalName: document.getElementById("contactModalName"),
+      contactModalLat: document.getElementById("contactModalLat"),
+      contactModalLon: document.getElementById("contactModalLon"),
       contactModalFavorite: document.getElementById("contactModalFavorite"),
       contactModalFavBadge: document.getElementById("contactModalFavBadge"),
       qrShareModal: document.getElementById("qrShareModal"),
@@ -262,6 +264,8 @@ export class SettingsModule {
       this.dom.createContactModal.classList.remove("hidden");
       if (this.dom.contactModalPubKey) this.dom.contactModalPubKey.value = "";
       if (this.dom.contactModalName) this.dom.contactModalName.value = "";
+      if (this.dom.contactModalLat) this.dom.contactModalLat.value = "";
+      if (this.dom.contactModalLon) this.dom.contactModalLon.value = "";
       if (this.dom.contactModalFavorite) {
         this.dom.contactModalFavorite.checked = false;
       }
@@ -299,11 +303,17 @@ export class SettingsModule {
         const isFavorite = Boolean(this.dom.contactModalFavorite?.checked);
         if (!pubkey) return;
 
+        const payload = { public_key: pubkey, name: name, alias: name, role: role, is_favorite: isFavorite };
+        const latVal = this.dom.contactModalLat ? parseFloat(this.dom.contactModalLat.value) : NaN;
+        const lonVal = this.dom.contactModalLon ? parseFloat(this.dom.contactModalLon.value) : NaN;
+        if (!isNaN(latVal)) payload.latitude = latVal;
+        if (!isNaN(lonVal)) payload.longitude = lonVal;
+
         try {
           const res = await fetch("/api/contacts", {
             method: "POST",
             headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
-            body: JSON.stringify({ public_key: pubkey, name: name, alias: name, role: role, is_favorite: isFavorite }),
+            body: JSON.stringify(payload),
           });
           const data = await res.json();
           if (data.status === "ok") {
@@ -1046,7 +1056,7 @@ export class SettingsModule {
       li.setAttribute("role", "option");
       li.setAttribute("aria-selected", isActive ? "true" : "false");
 
-      const isEnc = Boolean(ch.has_psk || (ch.psk && ch.psk.trim().length > 0));
+      const isEnc = ch.index !== 0 && Boolean(ch.is_encrypted ?? (ch.has_psk || (ch.psk && ch.psk.trim().length > 0)));
       const lockIcon = isEnc ? "lock" : "unlock";
       const lockTitle = isEnc
         ? "Canal Cifrado (AES-128)"

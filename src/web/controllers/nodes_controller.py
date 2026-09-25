@@ -108,8 +108,8 @@ class NodesController(BaseController):
         nodes = self.ctx.bridge.node_registry.list_nodes()
 
         for node in nodes:
-            lat = node.get("latitude") or node.get("lat")
-            lon = node.get("longitude") or node.get("lon")
+            lat = node.get("latitude") if node.get("latitude") is not None else (node.get("lat") if node.get("lat") is not None else node.get("adv_lat"))
+            lon = node.get("longitude") if node.get("longitude") is not None else (node.get("lon") if node.get("lon") is not None else node.get("adv_lon"))
             if lat is not None and lon is not None:
                 try:
                     f_lat = float(lat)

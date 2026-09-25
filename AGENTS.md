@@ -12,7 +12,6 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
 - **`CONTEXT.md`**: Lenguaje Ubicuo y Modelo de Dominio canónico del proyecto (Glosario, roles de nodos, principios de Deep Modules).
 - **`/docs/`**: Especificaciones formales del protocolo (`PROTOCOL_SPEC.md`), arquitectura (`ARCHITECTURE.md`), Decisiones de Arquitectura (`/docs/adr/`) y Reporte de Actividad Multi-Agente (`AGENT_ACTIVITY_REPORT.md`).
 - **`/src/`**: Código fuente de producción del bridge en Python (`asyncio`, `pyserial-asyncio`, `paho-mqtt`).
-- **`/deploy/`**: Paquete autónomo de instalación y despliegue limpio en producción (`python scripts/sync_deploy.py`).
 - **`/tests/`**: Suites de pruebas automatizadas con `pytest` (**Solo ejecutadas bajo demanda explícita del usuario**).
 - **`.agents/skills/`**: Herramientas y skills personalizadas para inspección, validación de tramas y verificación estática.
 
@@ -148,7 +147,7 @@ sequenceDiagram
     
     Principal->>Ledger: Consulta reporte de cambios y contratos modificados
     Principal->>Principal: Actualiza código cruzado para asegurar compatibilidad total
-    Principal-->>Usuario: Entrega solución lista y sincronizada en /deploy/ (sin pruebas automáticas)
+    Principal-->>Usuario: Entrega solución lista y verificada (sin pruebas automáticas)
 ```
 
 ---
@@ -226,6 +225,5 @@ Ejecutar obligatoriamente cuando la feature a implementar involucre:
 - **Linter & Formatter**: `ruff` (conformidad PEP 8 y buenas prácticas)
 - **Type Checker**: `mypy --strict`
 - **Pruebas Automatizadas**: **Suspendidas hasta petición explícita del usuario**.
-- **Sincronización de Despliegue (`/deploy/`)**: Tras cada modificación en producción, scripts o documentación, sincronizar obligatoriamente la carpeta `/deploy/` ejecutando `python scripts/sync_deploy.py`.
 - **Sincronización con GitHub (`origin/main`)**: Tras cada modificación o entrega, realizar obligatoriamente `git add`, `git commit` y `git push origin main` para mantener el repositorio remoto actualizado.
 

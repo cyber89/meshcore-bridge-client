@@ -4,7 +4,6 @@ Raw Serial Framing Adapter (SOF/EOF/ESC and CRC) for MeshCore Bridge.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Any
 
@@ -16,6 +15,7 @@ from src.protocol_types import (
     MeshcoreFrame,
 )
 from src.serial.serial_base import BaseSerialAdapter
+
 
 class RawSerialFramingAdapter(BaseSerialAdapter):
     """

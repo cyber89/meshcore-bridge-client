@@ -154,7 +154,6 @@ meshcore-bridge/
 │                   ├── settings.js   # Paridad 100% de parámetros del nodo local MeshCore
 │                   └── sniffer.js    # Monitor de paquetes RF en tiempo real
 ├── scripts/                          # Herramientas de despliegue, auditoría y simuladores
-│   ├── sync_deploy.py                # Generador del paquete de distribución autónomo (/deploy/)
 │   ├── validate_all_node_parameters.py # Validador exhaustivo de parámetros por tipo de nodo (137/137)
 │   ├── verify_all_components.py      # Verificación integral de todos los componentes del bridge
 │   ├── audit_codebase_integrity.py   # Auditoría de importaciones y referencias de producción
@@ -181,7 +180,6 @@ meshcore-bridge/
 │   ├── FINAL_PROJECT_REPORT.md       # Reporte final del proyecto
 │   ├── PROTOCOL_SPEC.md              # Especificación de tramas binarias y contratos JSON
 │   └── AGENT_ACTIVITY_REPORT.md      # Registro de actividad y cambios multi-agente
-├── deploy/                           # Paquete autónomo de instalación en producción
 └── tests/                            # Suites de pruebas automatizadas (bajo demanda)
 ```
 

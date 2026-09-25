@@ -2,6 +2,36 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Eliminación Definitiva de Deploy, Visualización de Contactos GPS en Mapa, Desbloqueo de Canal 0 y Validación de Métricas/Ajustes
+- **Fecha**: 2026-09-25
+- **Estado**: ✅ COMPLETADO — Eliminación absoluta de la carpeta `/deploy/` y referencias a sincronizaciones intermedias (preservando los instaladores raíz `install.sh` y `install.ps1`). Corrección integral de la cadena de coordenadas GPS para contactos en el mapa Leaflet, rectificación del estado no cifrado del Canal 0 en la UI web y auditoría exhaustiva de paridad de métricas y ajustes.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect), Agente 1 (Firmware Investigator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect).
+- **Módulos Afectados**:
+  1. **Limpieza de Despliegue y Distribución**:
+     - Eliminada la carpeta `deploy/`, el script de sincronización `scripts/sync_deploy.py`, y los empaquetados `.tar.gz`, `.zip` y `SHA256SUMS`.
+     - Preservados y validados los scripts raíz `install.sh` e `install.ps1`.
+     - Actualizados `AGENTS.md`, `README.md` y `.gitignore` para eliminar referencias a `/deploy/`.
+  2. **Visualización y Normalización de Posición GPS en Mapa y Contactos**:
+     - `src/contact_manager.py`: Normalizada la cadena de precedencia y propiedades de fallback (`latitude`, `lat`, `adv_lat`, `longitude`, `lon`, `adv_lon`), exportando ambas claves en `to_dict()` y serializaciones.
+     - `src/web/controllers/contacts_controller.py`: Parseo y persistencia de latitud/longitud en importación manual, URIs (`meshcore://`) y sincronizaciones desde firmware.
+     - `src/sensor_decoder.py`: Soporte para objetos anidados (`gps`, `position`, `location`, `geo`) y atributos `adv_lat`/`adv_lon`.
+     - `src/rx_router.py`: Normalizadas las coordenadas extraídas de eventos de presencia y telemetría LoRa.
+     - `src/routers/advert_handler.py`: Mapeo directo de coordenadas de advertencia hacia `NodeContactUpdate`.
+     - `src/web/controllers/nodes_controller.py`: Mapeo robusto en el endpoint de heatmap táctico `/api/rf/heatmap`.
+     - `src/web/static/js/modules/map.js`: Helper unificado de coordenadas, soporte en `getLocalNodeCoordinates`, `updateMapNodesOverlayList` y `updateSingleNodeMarker`. Carga diferida automática (`fetchNodes()`) al conmutar a la pestaña de mapa si no hay nodos cacheados.
+     - `src/web/static/js/modules/nodes.js`: Evaluación de `hasGps` y formateo de coordenadas tolerante a campos `lat`/`adv_lat`.
+     - `src/web/static/index.html` y `settings.js`: Añadidos campos opcionales de latitud y longitud en `#createContactModal` con sincronización REST.
+  3. **Corrección de Candado en Canal Público 0**:
+     - `src/web/controllers/channels_controller.py`: `_get_masked_channels_list` y `_mask_channel` fuerzan `has_psk: False` e `is_encrypted: False` con `is_public: True` para el índice 0, previniendo sustitución de PSK enmascarada.
+     - `src/web/static/js/modules/settings.js`: Corrección condicional `ch.index !== 0` para evitar que el canal público 0 muestre candado cerrado o clase `ch-locked`.
+  4. **Comprobación de Métricas y Ajustes**:
+     - `src/web/controllers/config_controller.py`: Sincronizado el estado del transceptor con `is_hardware_alive()` para consistencia 100% con `http_server.py`.
+     - `scripts/validate_all_node_parameters.py`: Verificación de los 137 parámetros de la pila MeshCore en la interfaz web.
+     - `scripts/verify_all_components.py`, `scripts/audit_codebase_integrity.py` y `scripts/test_search_filters.py`: Verificación superada con éxito (100%).
+- **Calidad y Tipado**:
+  - `mypy --strict`: Aprobado (0 errores).
+  - `ruff check src/`: Aprobado (0 errores).
+
 ### Hito: Modularización Arquitectónica de serial_driver.py en Submódulos Cohesivos (src/serial/) con Fachada Retrocompatible - Recomendación R8
 - **Fecha**: 2026-09-24
 - **Estado**: ✅ COMPLETADO — El monolito `src/serial_driver.py` (>1,670 líneas) que concentraba la detección física de puertos serie, el framing raw byte-stuffing, el watchdog con backoff exponencial y el adaptador SDK de MeshCore ha sido modularizado limpiamente en un paquete cohesivo `src/serial/` manteniendo `src/serial_driver.py` como fachada delegadora para 100% de compatibilidad regresiva.

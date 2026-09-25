@@ -504,8 +504,8 @@ class RxEventRouter:
         bat_pct = self._extract_battery_percentage(payload_dict)
         effective_role = self._resolve_effective_role(payload_dict, meta.sender_name, meta.is_local_sender)
 
-        lat_val = _get_coord(payload_dict, ("lat", "latitude", "gps_lat"))
-        lon_val = _get_coord(payload_dict, ("lon", "longitude", "gps_lon"))
+        lat_val = _get_coord(payload_dict, ("lat", "latitude", "gps_lat", "adv_lat"))
+        lon_val = _get_coord(payload_dict, ("lon", "longitude", "gps_lon", "adv_lon"))
 
         is_new, contact_info = self._ctx.node_registry.discover_node(
             NodeDiscoveryEvent(
@@ -527,6 +527,8 @@ class RxEventRouter:
                         battery_pct=bat_pct,
                         latitude=lat_val,
                         longitude=lon_val,
+                        adv_lat=lat_val,
+                        adv_lon=lon_val,
                         is_local=meta.is_local_sender,
                     ),
                 )
@@ -840,8 +842,10 @@ class RxEventRouter:
                     voltage_v=payload_dict.get("voltage_v", telem_volt),
                     solar_v=payload_dict.get("solar_v"),
                     temperature_c=payload_dict.get("temperature_c", payload_dict.get("temp", payload_dict.get("temperature"))),
-                    latitude=payload_dict.get("latitude"),
-                    longitude=payload_dict.get("longitude"),
+                    latitude=payload_dict.get("latitude") if payload_dict.get("latitude") is not None else (payload_dict.get("lat") if payload_dict.get("lat") is not None else payload_dict.get("adv_lat")),
+                    longitude=payload_dict.get("longitude") if payload_dict.get("longitude") is not None else (payload_dict.get("lon") if payload_dict.get("lon") is not None else payload_dict.get("adv_lon")),
+                    adv_lat=payload_dict.get("adv_lat") if payload_dict.get("adv_lat") is not None else (payload_dict.get("latitude") if payload_dict.get("latitude") is not None else payload_dict.get("lat")),
+                    adv_lon=payload_dict.get("adv_lon") if payload_dict.get("adv_lon") is not None else (payload_dict.get("longitude") if payload_dict.get("longitude") is not None else payload_dict.get("lon")),
                     altitude_m=payload_dict.get("altitude_m"),
                     fixed_position=payload_dict.get("fixed_position"),
                     uptime=payload_dict.get("uptime"),

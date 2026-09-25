@@ -476,30 +476,40 @@ def _extract_radio_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
 
 
 def _extract_location_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
-    """Extrae coordenadas GPS (latitud, longitud, altitud)."""
-    for lat_k in ("latitude", "lat", "gps_lat"):
-        if lat_k in data and data[lat_k] is not None:
-            try:
-                res["latitude"] = float(data[lat_k])
-                break
-            except (ValueError, TypeError):
-                pass
+    """Extrae coordenadas GPS (latitud, longitud, altitud), soportando estructuras anidadas y adverts."""
+    source_dicts: list[dict[str, Any]] = [data]
+    for nested_k in ("gps", "position", "location", "geo"):
+        nested = data.get(nested_k)
+        if isinstance(nested, dict):
+            source_dicts.append(nested)
 
-    for lon_k in ("longitude", "lon", "gps_lon"):
-        if lon_k in data and data[lon_k] is not None:
-            try:
-                res["longitude"] = float(data[lon_k])
-                break
-            except (ValueError, TypeError):
-                pass
+    for src in source_dicts:
+        if "latitude" not in res:
+            for lat_k in ("latitude", "lat", "gps_lat", "adv_lat"):
+                if lat_k in src and src[lat_k] is not None:
+                    try:
+                        res["latitude"] = float(src[lat_k])
+                        break
+                    except (ValueError, TypeError):
+                        pass
 
-    for alt_k in ("altitude_m", "altitude", "alt"):
-        if alt_k in data and data[alt_k] is not None:
-            try:
-                res["altitude_m"] = float(data[alt_k])
-                break
-            except (ValueError, TypeError):
-                pass
+        if "longitude" not in res:
+            for lon_k in ("longitude", "lon", "gps_lon", "adv_lon"):
+                if lon_k in src and src[lon_k] is not None:
+                    try:
+                        res["longitude"] = float(src[lon_k])
+                        break
+                    except (ValueError, TypeError):
+                        pass
+
+        if "altitude_m" not in res:
+            for alt_k in ("altitude_m", "altitude", "alt", "gps_alt"):
+                if alt_k in src and src[alt_k] is not None:
+                    try:
+                        res["altitude_m"] = float(src[alt_k])
+                        break
+                    except (ValueError, TypeError):
+                        pass
 
 
 def extract_telemetry_fields(data: dict[str, Any]) -> dict[str, Any]:

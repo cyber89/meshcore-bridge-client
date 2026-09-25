@@ -13,7 +13,7 @@ import logging
 import os
 import threading
 import time
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -126,7 +126,7 @@ class NodeTelemetry:
 @dataclass(frozen=True, slots=True)
 class NodeContactInfo:
     """Información consolidada de un nodo o contacto en la malla.
-    
+
     Compone de forma limpia y desacoplada las tres dimensiones del dominio:
     - identity: NodeIdentity (identidad, nombre, rol, hardware)
     - rf: NodeRfMetrics (calidad de enlace LQI, RSSI/SNR, saltos, rutas)
@@ -202,8 +202,15 @@ class NodeContactInfo:
         out_path_hash_mode: str | None = None,
         adv_lat: float | None = None,
         adv_lon: float | None = None,
+        lat: float | None = None,
+        lon: float | None = None,
         **kwargs: Any,
     ) -> None:
+        eff_lat = latitude if latitude is not None else (lat if lat is not None else adv_lat)
+        eff_lon = longitude if longitude is not None else (lon if lon is not None else adv_lon)
+        eff_adv_lat = adv_lat if adv_lat is not None else eff_lat
+        eff_adv_lon = adv_lon if adv_lon is not None else eff_lon
+
         if identity is None:
             identity = NodeIdentity(
                 public_key=public_key,
@@ -252,12 +259,12 @@ class NodeContactInfo:
                 temperature_c=temperature_c,
                 humidity_pct=humidity_pct,
                 pressure_hpa=pressure_hpa,
-                latitude=latitude,
-                longitude=longitude,
+                latitude=eff_lat,
+                longitude=eff_lon,
                 altitude_m=altitude_m,
                 fixed_position=fixed_position,
-                adv_lat=adv_lat,
-                adv_lon=adv_lon,
+                adv_lat=eff_adv_lat,
+                adv_lon=eff_adv_lon,
                 uptime=uptime,
                 clock=clock,
                 airtime_ms=airtime_ms,
@@ -442,11 +449,19 @@ class NodeContactInfo:
 
     @property
     def latitude(self) -> float | None:
-        return self.telemetry.latitude
+        return self.telemetry.latitude if self.telemetry.latitude is not None else self.telemetry.adv_lat
 
     @property
     def longitude(self) -> float | None:
-        return self.telemetry.longitude
+        return self.telemetry.longitude if self.telemetry.longitude is not None else self.telemetry.adv_lon
+
+    @property
+    def lat(self) -> float | None:
+        return self.latitude
+
+    @property
+    def lon(self) -> float | None:
+        return self.longitude
 
     @property
     def altitude_m(self) -> float | None:
@@ -458,11 +473,11 @@ class NodeContactInfo:
 
     @property
     def adv_lat(self) -> float | None:
-        return self.telemetry.adv_lat
+        return self.telemetry.adv_lat if self.telemetry.adv_lat is not None else self.telemetry.latitude
 
     @property
     def adv_lon(self) -> float | None:
-        return self.telemetry.adv_lon
+        return self.telemetry.adv_lon if self.telemetry.adv_lon is not None else self.telemetry.longitude
 
     @property
     def uptime(self) -> str | None:
@@ -540,16 +555,20 @@ class NodeContactInfo:
         d["total_packets"] = self.rx_packets + self.tx_packets
         d["error_rate_pct"] = round((self.error_count / (d["total_packets"] or 1)) * 100, 1)
         d["is_local"] = self.is_local
-        d["lat"] = self.latitude
-        d["lon"] = self.longitude
+        eff_lat = self.latitude
+        eff_lon = self.longitude
+        d["latitude"] = eff_lat
+        d["longitude"] = eff_lon
+        d["lat"] = eff_lat
+        d["lon"] = eff_lon
         d["best_route"] = self.best_route
         d["flags"] = self.flags
         d["last_advert"] = self.last_advert
         d["out_path"] = self.out_path
         d["out_path_len"] = self.out_path_len
         d["out_path_hash_mode"] = self.out_path_hash_mode
-        d["adv_lat"] = self.adv_lat
-        d["adv_lon"] = self.adv_lon
+        d["adv_lat"] = self.adv_lat if self.adv_lat is not None else eff_lat
+        d["adv_lon"] = self.adv_lon if self.adv_lon is not None else eff_lon
         d["repeat_enabled"] = self.repeat_enabled if self.repeat_enabled is not None else (self.role in ("REPEATER", "ROUTER"))
         d["hop_limit"] = self.hop_limit if self.hop_limit is not None else 3
         min_p, max_p, def_p = get_hardware_power_limits(self.hardware_board, self.max_tx_power)
@@ -995,8 +1014,8 @@ class NodeRegistry:
             pressure_hpa=m(update.pressure_hpa, existing, "pressure_hpa"),
             voltage_v=m(update.voltage_v, existing, "voltage_v"),
             solar_v=m(update.solar_v, existing, "solar_v"),
-            latitude=m(update.latitude, existing, "latitude"),
-            longitude=m(update.longitude, existing, "longitude"),
+            latitude=m(update.latitude if update.latitude is not None else update.adv_lat, existing, "latitude"),
+            longitude=m(update.longitude if update.longitude is not None else update.adv_lon, existing, "longitude"),
             altitude_m=m(update.altitude_m, existing, "altitude_m"),
             uptime=m(update.uptime, existing, "uptime"),
             clock=m(update.clock, existing, "clock"),
@@ -1026,8 +1045,8 @@ class NodeRegistry:
             out_path=m(update.out_path, existing, "out_path"),
             out_path_len=m(update.out_path_len, existing, "out_path_len"),
             out_path_hash_mode=m(update.out_path_hash_mode, existing, "out_path_hash_mode"),
-            adv_lat=m(update.adv_lat, existing, "adv_lat"),
-            adv_lon=m(update.adv_lon, existing, "adv_lon"),
+            adv_lat=m(update.adv_lat if update.adv_lat is not None else update.latitude, existing, "adv_lat"),
+            adv_lon=m(update.adv_lon if update.adv_lon is not None else update.longitude, existing, "adv_lon"),
             auto_discovered=m(update.auto_discovered, existing, "auto_discovered", False),
             discovery_time=m(update.discovery_time, existing, "discovery_time", 0.0),
             verified_identity=m(update.verified_identity, existing, "verified_identity", False),
@@ -1492,7 +1511,7 @@ class NodeRegistry:
 
     def get_analytics_summary(self) -> dict[str, Any]:
         """Calcula el resumen analítico avanzado (Top Nodos, Top Clientes, Top Errores)."""
-        nodes_list = [c.to_dict() for c in self._nodes_by_key.values()]
+        nodes_list = self.list_nodes()
 
         # 1. Top Nodos por Tráfico y Señal
         top_traffic = heapq.nlargest(10, nodes_list, key=lambda n: int(str(n.get("total_packets", 0))))
@@ -1677,8 +1696,10 @@ class NodeRegistry:
             pressure_hpa=nd.get("pressure_hpa"),
             voltage_v=nd.get("voltage_v"),
             solar_v=nd.get("solar_v"),
-            latitude=nd.get("latitude"),
-            longitude=nd.get("longitude"),
+            latitude=nd.get("latitude") if nd.get("latitude") is not None else (nd.get("lat") if nd.get("lat") is not None else nd.get("adv_lat")),
+            longitude=nd.get("longitude") if nd.get("longitude") is not None else (nd.get("lon") if nd.get("lon") is not None else nd.get("adv_lon")),
+            adv_lat=nd.get("adv_lat") if nd.get("adv_lat") is not None else (nd.get("latitude") if nd.get("latitude") is not None else nd.get("lat")),
+            adv_lon=nd.get("adv_lon") if nd.get("adv_lon") is not None else (nd.get("longitude") if nd.get("longitude") is not None else nd.get("lon")),
             altitude_m=nd.get("altitude_m"),
             uptime=nd.get("uptime"),
             clock=nd.get("clock"),

@@ -32,7 +32,6 @@ from src.web.controllers import (
 )
 from src.web.map_tile_service import MapTileService
 
-
 # Mapeo canónico de alias y retrocompatibilidad de rutas REST
 ROUTE_ALIASES: dict[str, str] = {
     # Ping directo / repetidor

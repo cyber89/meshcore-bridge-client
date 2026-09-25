@@ -87,8 +87,13 @@ export class MapModule {
   _subscribeBus() {
     if (!this.ctx.eventBus) return;
 
-    this.ctx.eventBus.on(EVENTS.TAB_CHANGED, (tabId) => {
+    this.ctx.eventBus.on(EVENTS.TAB_CHANGED, async (tabId) => {
       if (tabId === "tab-map" && this.map) {
+        if ((!this.ctx.knownNodes || this.ctx.knownNodes.size <= 1) && this.ctx.fetchNodes) {
+          try {
+            await this.ctx.fetchNodes();
+          } catch (_) {}
+        }
         setTimeout(() => {
           try {
             this.map.invalidateSize();
@@ -577,8 +582,10 @@ export class MapModule {
     if (this.ctx.knownNodes) {
       for (const n of this.ctx.knownNodes.values()) {
         if (n.is_local || String(n.role).toUpperCase() === "LOCAL") {
-          const lat = parseFloat(n.latitude ?? n.lat);
-          const lon = parseFloat(n.longitude ?? n.lon);
+          const rawLat = n.latitude ?? n.lat ?? n.adv_lat ?? n.gps?.latitude;
+          const rawLon = n.longitude ?? n.lon ?? n.adv_lon ?? n.gps?.longitude;
+          const lat = parseFloat(rawLat);
+          const lon = parseFloat(rawLon);
           if (!isNaN(lat) && !isNaN(lon) && (lat !== 0 || lon !== 0)) {
             return { lat, lon, name: n.name || I18n.t('map.local_station'), node: n };
           }
@@ -649,8 +656,10 @@ export class MapModule {
     if (!this.dom.mapNodesList) return;
 
     const positionedNodes = nodes.filter((n) => {
-      const lat = parseFloat(n.latitude ?? n.lat);
-      const lon = parseFloat(n.longitude ?? n.lon);
+      const rawLat = n.latitude ?? n.lat ?? n.adv_lat ?? n.gps?.latitude;
+      const rawLon = n.longitude ?? n.lon ?? n.adv_lon ?? n.gps?.longitude;
+      const lat = parseFloat(rawLat);
+      const lon = parseFloat(rawLon);
       return !isNaN(lat) && !isNaN(lon) && (lat !== 0 || lon !== 0);
     });
 
@@ -666,8 +675,10 @@ export class MapModule {
     }
 
     positionedNodes.forEach((node) => {
-      const lat = parseFloat(node.latitude ?? node.lat);
-      const lon = parseFloat(node.longitude ?? node.lon);
+      const rawLat = node.latitude ?? node.lat ?? node.adv_lat ?? node.gps?.latitude;
+      const rawLon = node.longitude ?? node.lon ?? node.adv_lon ?? node.gps?.longitude;
+      const lat = parseFloat(rawLat);
+      const lon = parseFloat(rawLon);
       const isLocal = Boolean(node.is_local || String(node.role).toUpperCase() === "LOCAL");
       const isRepeater = String(node.role || "").toUpperCase() === "REPEATER";
       const isSensor = String(node.role || "").toUpperCase() === "SENSOR";
@@ -702,8 +713,10 @@ export class MapModule {
 
   updateSingleNodeMarker(node) {
     if (!this.map || !node) return;
-    const lat = parseFloat(node.latitude ?? node.lat);
-    const lon = parseFloat(node.longitude ?? node.lon);
+    const rawLat = node.latitude ?? node.lat ?? node.adv_lat ?? node.gps?.latitude;
+    const rawLon = node.longitude ?? node.lon ?? node.adv_lon ?? node.gps?.longitude;
+    const lat = parseFloat(rawLat);
+    const lon = parseFloat(rawLon);
     if (isNaN(lat) || isNaN(lon) || (lat === 0 && lon === 0)) return;
 
     const pk = (node.public_key || (node.is_local ? "local" : "")).toLowerCase();

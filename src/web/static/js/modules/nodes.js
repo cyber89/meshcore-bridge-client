@@ -206,7 +206,11 @@ export class NodesModule {
     const presenceClass = getPresenceState(node.last_seen, isLocal);
     const isOnline = presenceClass === "status-online";
     const isDisconnected = !isLocal && (presenceClass === "status-offline" || node.presence_status === "offline");
-    const hasGps = node.latitude != null && node.longitude != null;
+    const rawLat = node.latitude ?? node.lat ?? node.adv_lat ?? node.gps?.latitude;
+    const rawLon = node.longitude ?? node.lon ?? node.adv_lon ?? node.gps?.longitude;
+    const fLat = rawLat != null ? parseFloat(rawLat) : NaN;
+    const fLon = rawLon != null ? parseFloat(rawLon) : NaN;
+    const hasGps = !isNaN(fLat) && !isNaN(fLon) && (fLat !== 0 || fLon !== 0);
     const lastSeenText = formatLastSeen(node.last_seen, isLocal);
     const fullDateTime = node.last_seen_formatted || (node.last_seen && node.last_seen > 0 ? new Date(node.last_seen * 1000).toLocaleString() : (window.I18n ? window.I18n.t('time.no_signal') : "Sin señal registrada"));
     const signalTooltip = isLocal ? "Estación Base Local (En línea permanente)" : (window.I18n ? window.I18n.t('time.last_signal_tooltip').replace('{time}', fullDateTime) : `Última señal recibida: ${fullDateTime}`);
@@ -252,7 +256,7 @@ export class NodesModule {
         <div class="node-telemetry-panel">
           <div class="node-meta-row">
             <span>${I18n.t('nodes.key_label')} <code>${escapeHtml(node.public_key.slice(0, 8))}…</code></span>
-            <span>${hasGps ? `📍 ${node.latitude.toFixed(3)}, ${node.longitude.toFixed(3)}` : `<span class="color-dim font-mono">${I18n.t('common.no_gps')}</span>`}</span>
+            <span>${hasGps ? `📍 ${fLat.toFixed(3)}, ${fLon.toFixed(3)}` : `<span class="color-dim font-mono">${I18n.t('common.no_gps')}</span>`}</span>
           </div>
           <div class="node-meta-sub">
             <span>${I18n.t('nodes.route_label')} <strong>${escapeHtml(node.best_route || (node.hops === 0 ? I18n.t('nodes.route_direct') : I18n.t('nodes.route_mesh')))}</strong></span>
@@ -406,7 +410,7 @@ export class NodesModule {
         <div class="node-telemetry-panel">
           <div class="node-meta-row">
             <span>${I18n.t('nodes.key_label')} <code>${escapeHtml(node.public_key.slice(0, 8))}…</code></span>
-            <span>${hasGps ? `📍 ${node.latitude.toFixed(3)}, ${node.longitude.toFixed(3)}` : `<span class="color-dim font-mono">${I18n.t('common.no_gps')}</span>`}</span>
+            <span>${hasGps ? `📍 ${fLat.toFixed(3)}, ${fLon.toFixed(3)}` : `<span class="color-dim font-mono">${I18n.t('common.no_gps')}</span>`}</span>
           </div>
           <div class="node-meta-sub">
             <span>${telemLine2}</span>
@@ -575,8 +579,11 @@ export class NodesModule {
       if (contactsGrid && !isLocal && !isRepeater && (node.role === "CLIENT" || isClient)) {
         cntContacts++;
         if (node.is_favorite) cntFavContacts++;
-        if (getPresenceState(node.last_seen, isLocal) === "status-online") cntOnlineContacts++;
-        if (node.latitude != null && node.longitude != null) cntGpsContacts++;
+        const cRawLat = node.latitude ?? node.lat ?? node.adv_lat ?? node.gps?.latitude;
+        const cRawLon = node.longitude ?? node.lon ?? node.adv_lon ?? node.gps?.longitude;
+        const cfLat = cRawLat != null ? parseFloat(cRawLat) : NaN;
+        const cfLon = cRawLon != null ? parseFloat(cRawLon) : NaN;
+        if (!isNaN(cfLat) && !isNaN(cfLon) && (cfLat !== 0 || cfLon !== 0)) cntGpsContacts++;
 
         const cCard = this.createNodeCard(node, "contact");
         contactsFrag.appendChild(cCard);

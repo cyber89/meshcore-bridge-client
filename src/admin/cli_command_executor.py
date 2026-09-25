@@ -397,13 +397,14 @@ class CliCommandExecutor:
         res["result"] = f"🕒 [RTC CLOCK] Hora del Nodo: {now_str} (Timestamp: {now_ts})"
         return res
 
-    async def _cli_sync_clock(self, res: dict[str, Any], mc: Any) -> dict[str, Any]:
+    async def _cli_sync_clock(self, res: dict[str, Any], cfg_or_mc: Any = None, mc: Any = None) -> dict[str, Any]:
         """Handler para comandos: sync_clock, clock sync, set_time, st, synctime."""
+        actual_mc = mc if mc is not None else cfg_or_mc
         now_ts = int(time.time())
         now_str = time.strftime("%Y-%m-%d %H:%M:%S")
-        if mc and hasattr(mc, "commands") and hasattr(mc.commands, "set_time"):
+        if actual_mc and hasattr(actual_mc, "commands") and hasattr(actual_mc.commands, "set_time"):
             try:
-                res_cmd = mc.commands.set_time(now_ts)
+                res_cmd = actual_mc.commands.set_time(now_ts)
                 if asyncio.iscoroutine(res_cmd):
                     await asyncio.wait_for(res_cmd, timeout=3.0)
             except Exception as e:

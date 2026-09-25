@@ -89,8 +89,8 @@ class ContactsController(BaseController):
                                 role=c.get("role", "CLIENT"),
                                 last_seen=valid_last_seen,
                                 last_advert=float(last_adv) if isinstance(last_adv, (int, float)) and last_adv > 0 else None,
-                                latitude=c.get("latitude"),
-                                longitude=c.get("longitude"),
+                                latitude=c.get("latitude") if c.get("latitude") is not None else (c.get("lat") if c.get("lat") is not None else c.get("adv_lat")),
+                                longitude=c.get("longitude") if c.get("longitude") is not None else (c.get("lon") if c.get("lon") is not None else c.get("adv_lon")),
                             ),
                         )
                         imported_count += 1
@@ -229,8 +229,21 @@ class ContactsController(BaseController):
                         rl = type_map_rev.get(raw_type, "CLIENT")
                     if not rl:
                         rl = "CLIENT"
+                    lat_s = (qs.get("latitude") or qs.get("lat") or qs.get("adv_lat") or [""])[0].strip()
+                    lon_s = (qs.get("longitude") or qs.get("lon") or qs.get("adv_lon") or [""])[0].strip()
+                    c_entry: dict[str, Any] = {"public_key": pk, "name": nm, "alias": nm, "role": rl}
+                    if lat_s:
+                        try:
+                            c_entry["latitude"] = float(lat_s)
+                        except (ValueError, TypeError):
+                            pass
+                    if lon_s:
+                        try:
+                            c_entry["longitude"] = float(lon_s)
+                        except (ValueError, TypeError):
+                            pass
                     if pk:
-                        contacts_to_add.append({"public_key": pk, "name": nm, "alias": nm, "role": rl})
+                        contacts_to_add.append(c_entry)
                 except Exception as e:
                     logging.warning(f"Error parseando URI meshcore: {e}")
 
@@ -314,6 +327,21 @@ class ContactsController(BaseController):
             is_fav = c_dict.get("is_favorite")
             is_favorite_val = bool(is_fav) if is_fav is not None else None
 
+            raw_lat = c_dict.get("latitude") if c_dict.get("latitude") is not None else (c_dict.get("lat") if c_dict.get("lat") is not None else c_dict.get("adv_lat"))
+            raw_lon = c_dict.get("longitude") if c_dict.get("longitude") is not None else (c_dict.get("lon") if c_dict.get("lon") is not None else c_dict.get("adv_lon"))
+            lat_val: float | None = None
+            lon_val: float | None = None
+            if raw_lat is not None:
+                try:
+                    lat_val = float(raw_lat)
+                except (ValueError, TypeError):
+                    pass
+            if raw_lon is not None:
+                try:
+                    lon_val = float(raw_lon)
+                except (ValueError, TypeError):
+                    pass
+
             contact = self.ctx.bridge.node_registry.add_or_update(
                 pubkey,
                 NodeContactUpdate(
@@ -321,6 +349,10 @@ class ContactsController(BaseController):
                     alias=alias,
                     role=role,
                     is_favorite=is_favorite_val,
+                    latitude=lat_val,
+                    longitude=lon_val,
+                    adv_lat=lat_val,
+                    adv_lon=lon_val,
                 ),
             )
             imported_records.append(contact.to_dict())
@@ -362,6 +394,21 @@ class ContactsController(BaseController):
         is_fav = req_body.get("is_favorite")
         is_favorite_val = bool(is_fav) if is_fav is not None else None
 
+        raw_lat = req_body.get("latitude") if req_body.get("latitude") is not None else (req_body.get("lat") if req_body.get("lat") is not None else req_body.get("adv_lat"))
+        raw_lon = req_body.get("longitude") if req_body.get("longitude") is not None else (req_body.get("lon") if req_body.get("lon") is not None else req_body.get("adv_lon"))
+        lat_val = None
+        lon_val = None
+        if raw_lat is not None:
+            try:
+                lat_val = float(raw_lat)
+            except (ValueError, TypeError):
+                pass
+        if raw_lon is not None:
+            try:
+                lon_val = float(raw_lon)
+            except (ValueError, TypeError):
+                pass
+
         contact = self.ctx.bridge.node_registry.add_or_update(
             pubkey,
             NodeContactUpdate(
@@ -369,6 +416,10 @@ class ContactsController(BaseController):
                 alias=alias,
                 role=role,
                 is_favorite=is_favorite_val,
+                latitude=lat_val,
+                longitude=lon_val,
+                adv_lat=lat_val,
+                adv_lon=lon_val,
             ),
         )
         await self._save_registry_async()

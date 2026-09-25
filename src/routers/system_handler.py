@@ -5,12 +5,11 @@ Handles ACK, PATH_UPDATE, MESSAGES_WAITING, and all other unhandled events.
 
 from __future__ import annotations
 
-import logging
-from typing import Any
-
 import asyncio
 import json
+import logging
 from datetime import datetime, timezone
+from typing import Any
 
 from src.routers.base import BaseRxHandler, RxMeta
 

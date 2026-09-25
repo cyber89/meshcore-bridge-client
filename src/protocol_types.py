@@ -9,7 +9,6 @@ Aligned with official MeshCore SDK (meshcore_py/src/meshcore/packets.py).
 from __future__ import annotations
 
 import struct
-import warnings
 from dataclasses import asdict, dataclass
 from enum import IntEnum
 from typing import Any, Protocol

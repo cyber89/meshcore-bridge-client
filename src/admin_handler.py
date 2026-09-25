@@ -28,7 +28,6 @@ from src.contact_manager import (
 from src.mqtt_client import AsyncBridgeMQTTClient
 from src.repeater_manager import RepeaterManager
 from src.target_resolver import TargetResolver
-from src.shared_utils import extract_payload_dict
 
 
 @dataclass(slots=True)

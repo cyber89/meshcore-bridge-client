@@ -133,6 +133,8 @@ class AdvertHandler(BaseRxHandler):
                     role=c_role,
                     latitude=c_lat,
                     longitude=c_lon,
+                    adv_lat=c_lat,
+                    adv_lon=c_lon,
                     battery_pct=c_bat,
                     last_rssi=meta.effective_rssi,
                     last_snr=meta.effective_snr,
