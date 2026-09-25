@@ -4,7 +4,13 @@ Puente determinista y asíncrono entre hardware LoRa MeshCore, MQTT/n8n y Servid
 """
 
 from src.bridge_core import MeshCoreBridge
-from src.contact_manager import NodeContactInfo, NodeRegistry
+from src.contact_manager import (
+    NodeContactInfo,
+    NodeIdentity,
+    NodeRegistry,
+    NodeRfMetrics,
+    NodeTelemetry,
+)
 from src.deduplicator import PacketDeduplicator
 from src.mqtt_client import AsyncBridgeMQTTClient
 from src.protocol_types import (
@@ -54,6 +60,9 @@ __all__ = [
     "SerialWatchdog",
     "NodeRegistry",
     "NodeContactInfo",
+    "NodeIdentity",
+    "NodeRfMetrics",
+    "NodeTelemetry",
     "RepeaterManager",
     "CayenneLPPDecoder",
     "LppDataType",

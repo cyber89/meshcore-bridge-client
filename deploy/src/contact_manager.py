@@ -49,45 +49,33 @@ def _safe_float(val: Any) -> float | None:
 
 
 @dataclass(frozen=True, slots=True)
-class NodeContactInfo:
-    """Información consolidada de un nodo o contacto en la malla."""
+class NodeIdentity:
+    """Atributos de identidad canónica e inmutable del nodo en la red MeshCore."""
     public_key: str
-    name: str
-    alias: str
+    name: str = ""
+    alias: str = ""
     role: str = "CLIENT"
-    hops: int | None = None
-    last_rssi: int | None = None
-    last_snr: float | None = None
-    battery_pct: int | None = None
-    last_seen: float = 0.0
-    rx_packets: int = 0
-    tx_packets: int = 0
-    error_count: int = 0
-    connected_clients_count: int = 0
-    neighbors: tuple[str, ...] = field(default_factory=tuple)
-    temperature_c: float | None = None
-    humidity_pct: float | None = None
-    pressure_hpa: float | None = None
-    voltage_v: float | None = None
-    solar_v: float | None = None
-    latitude: float | None = None
-    longitude: float | None = None
-    altitude_m: float | None = None
-    uptime: str | None = None
-    clock: str | None = None
-    airtime_ms: int | None = None
-    noise_floor_dbm: int | None = None
-    packets_sent: int | None = None
-    packets_recv: int | None = None
-    duplicate_packets: int | None = None
-    packet_errors: int | None = None
-    queue_len: int | None = None
     owner_name: str | None = None
     owner_info: str | None = None
     firmware_version: str | None = None
     hardware_board: str | None = None
-    advert_interval: int | None = None
-    repeat_enabled: bool | None = None
+    is_local: bool = False
+    auto_discovered: bool = False
+    discovery_time: float = 0.0
+    verified_identity: bool = False
+    is_favorite: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class NodeRfMetrics:
+    """Métricas volátiles de señal de radiofrecuencia (RF), saltos y rutas."""
+    hops: int | None = None
+    last_rssi: int | None = None
+    last_snr: float | None = None
+    noise_floor_dbm: int | None = None
+    lqi_score: float = 0.0
+    lqi_status: str = "UNKNOWN"
+    best_route: str = "DIRECT"
     tx_power: int | None = None
     max_tx_power: int | None = None
     hop_limit: int | None = None
@@ -95,25 +83,459 @@ class NodeContactInfo:
     spreading_factor: int | None = None
     bandwidth: float | None = None
     coding_rate: str | None = None
-    fixed_position: bool | None = None
-    is_local: bool = False
-    auto_discovered: bool = False
-    discovery_time: float = 0.0
-    verified_identity: bool = False
-    is_favorite: bool = False
-    lqi_score: float = 0.0
-    lqi_status: str = "UNKNOWN"
-    best_route: str = "DIRECT"
+    repeat_enabled: bool | None = None
+    advert_interval: int | None = None
     flags: int | None = None
     last_advert: float | None = None
     out_path: str | None = None
     out_path_len: int | None = None
     out_path_hash_mode: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class NodeTelemetry:
+    """Métricas operacionales, telemetría de sensores, posicionamiento y contadores."""
+    battery_pct: int | None = None
+    voltage_v: float | None = None
+    solar_v: float | None = None
+    temperature_c: float | None = None
+    humidity_pct: float | None = None
+    pressure_hpa: float | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    altitude_m: float | None = None
+    fixed_position: bool | None = None
     adv_lat: float | None = None
     adv_lon: float | None = None
+    uptime: str | None = None
+    clock: str | None = None
+    airtime_ms: int | None = None
+    rx_packets: int = 0
+    tx_packets: int = 0
+    error_count: int = 0
+    connected_clients_count: int = 0
+    packets_sent: int | None = None
+    packets_recv: int | None = None
+    duplicate_packets: int | None = None
+    packet_errors: int | None = None
+    queue_len: int | None = None
+    neighbors: tuple[str, ...] = field(default_factory=tuple)
+    last_seen: float = 0.0
+
+
+@dataclass(frozen=True, slots=True)
+class NodeContactInfo:
+    """Información consolidada de un nodo o contacto en la malla.
+    
+    Compone de forma limpia y desacoplada las tres dimensiones del dominio:
+    - identity: NodeIdentity (identidad, nombre, rol, hardware)
+    - rf: NodeRfMetrics (calidad de enlace LQI, RSSI/SNR, saltos, rutas)
+    - telemetry: NodeTelemetry (batería, sensores, GPS, contadores)
+    """
+    identity: NodeIdentity
+    rf: NodeRfMetrics = field(default_factory=NodeRfMetrics)
+    telemetry: NodeTelemetry = field(default_factory=NodeTelemetry)
+
+    def __init__(
+        self,
+        identity: NodeIdentity | None = None,
+        rf: NodeRfMetrics | None = None,
+        telemetry: NodeTelemetry | None = None,
+        # Argumentos planos de compatibilidad total con llamadas heredadas
+        public_key: str = "",
+        name: str = "",
+        alias: str = "",
+        role: str = "CLIENT",
+        hops: int | None = None,
+        last_rssi: int | None = None,
+        last_snr: float | None = None,
+        battery_pct: int | None = None,
+        last_seen: float = 0.0,
+        rx_packets: int = 0,
+        tx_packets: int = 0,
+        error_count: int = 0,
+        connected_clients_count: int = 0,
+        neighbors: tuple[str, ...] | list[str] = (),
+        temperature_c: float | None = None,
+        humidity_pct: float | None = None,
+        pressure_hpa: float | None = None,
+        voltage_v: float | None = None,
+        solar_v: float | None = None,
+        latitude: float | None = None,
+        longitude: float | None = None,
+        altitude_m: float | None = None,
+        uptime: str | None = None,
+        clock: str | None = None,
+        airtime_ms: int | None = None,
+        noise_floor_dbm: int | None = None,
+        packets_sent: int | None = None,
+        packets_recv: int | None = None,
+        duplicate_packets: int | None = None,
+        packet_errors: int | None = None,
+        queue_len: int | None = None,
+        owner_name: str | None = None,
+        owner_info: str | None = None,
+        firmware_version: str | None = None,
+        hardware_board: str | None = None,
+        advert_interval: int | None = None,
+        repeat_enabled: bool | None = None,
+        tx_power: int | None = None,
+        max_tx_power: int | None = None,
+        hop_limit: int | None = None,
+        frequency: float | None = None,
+        spreading_factor: int | None = None,
+        bandwidth: float | None = None,
+        coding_rate: str | None = None,
+        fixed_position: bool | None = None,
+        is_local: bool = False,
+        auto_discovered: bool = False,
+        discovery_time: float = 0.0,
+        verified_identity: bool = False,
+        is_favorite: bool = False,
+        lqi_score: float = 0.0,
+        lqi_status: str = "UNKNOWN",
+        best_route: str = "DIRECT",
+        flags: int | None = None,
+        last_advert: float | None = None,
+        out_path: str | None = None,
+        out_path_len: int | None = None,
+        out_path_hash_mode: str | None = None,
+        adv_lat: float | None = None,
+        adv_lon: float | None = None,
+        **kwargs: Any,
+    ) -> None:
+        if identity is None:
+            identity = NodeIdentity(
+                public_key=public_key,
+                name=name,
+                alias=alias,
+                role=role,
+                owner_name=owner_name,
+                owner_info=owner_info,
+                firmware_version=firmware_version,
+                hardware_board=hardware_board,
+                is_local=is_local,
+                auto_discovered=auto_discovered,
+                discovery_time=discovery_time,
+                verified_identity=verified_identity,
+                is_favorite=is_favorite,
+            )
+        if rf is None:
+            rf = NodeRfMetrics(
+                hops=hops,
+                last_rssi=last_rssi,
+                last_snr=last_snr,
+                noise_floor_dbm=noise_floor_dbm,
+                lqi_score=lqi_score,
+                lqi_status=lqi_status,
+                best_route=best_route,
+                tx_power=tx_power,
+                max_tx_power=max_tx_power,
+                hop_limit=hop_limit,
+                frequency=frequency,
+                spreading_factor=spreading_factor,
+                bandwidth=bandwidth,
+                coding_rate=coding_rate,
+                repeat_enabled=repeat_enabled,
+                advert_interval=advert_interval,
+                flags=flags,
+                last_advert=last_advert,
+                out_path=out_path,
+                out_path_len=out_path_len,
+                out_path_hash_mode=out_path_hash_mode,
+            )
+        if telemetry is None:
+            telemetry = NodeTelemetry(
+                battery_pct=battery_pct,
+                voltage_v=voltage_v,
+                solar_v=solar_v,
+                temperature_c=temperature_c,
+                humidity_pct=humidity_pct,
+                pressure_hpa=pressure_hpa,
+                latitude=latitude,
+                longitude=longitude,
+                altitude_m=altitude_m,
+                fixed_position=fixed_position,
+                adv_lat=adv_lat,
+                adv_lon=adv_lon,
+                uptime=uptime,
+                clock=clock,
+                airtime_ms=airtime_ms,
+                rx_packets=rx_packets,
+                tx_packets=tx_packets,
+                error_count=error_count,
+                connected_clients_count=connected_clients_count,
+                packets_sent=packets_sent,
+                packets_recv=packets_recv,
+                duplicate_packets=duplicate_packets,
+                packet_errors=packet_errors,
+                queue_len=queue_len,
+                neighbors=tuple(neighbors) if isinstance(neighbors, (list, tuple)) else (),
+                last_seen=last_seen,
+            )
+        object.__setattr__(self, "identity", identity)
+        object.__setattr__(self, "rf", rf)
+        object.__setattr__(self, "telemetry", telemetry)
+
+    # Identidad Delegada
+    @property
+    def public_key(self) -> str:
+        return self.identity.public_key
+
+    @property
+    def name(self) -> str:
+        return self.identity.name
+
+    @property
+    def alias(self) -> str:
+        return self.identity.alias
+
+    @property
+    def role(self) -> str:
+        return self.identity.role
+
+    @property
+    def owner_name(self) -> str | None:
+        return self.identity.owner_name
+
+    @property
+    def owner_info(self) -> str | None:
+        return self.identity.owner_info
+
+    @property
+    def firmware_version(self) -> str | None:
+        return self.identity.firmware_version
+
+    @property
+    def hardware_board(self) -> str | None:
+        return self.identity.hardware_board
+
+    @property
+    def is_local(self) -> bool:
+        return self.identity.is_local
+
+    @property
+    def auto_discovered(self) -> bool:
+        return self.identity.auto_discovered
+
+    @property
+    def discovery_time(self) -> float:
+        return self.identity.discovery_time
+
+    @property
+    def verified_identity(self) -> bool:
+        return self.identity.verified_identity
+
+    @property
+    def is_favorite(self) -> bool:
+        return self.identity.is_favorite
+
+    # Métricas RF Delegadas
+    @property
+    def hops(self) -> int | None:
+        return self.rf.hops
+
+    @property
+    def last_rssi(self) -> int | None:
+        return self.rf.last_rssi
+
+    @property
+    def last_snr(self) -> float | None:
+        return self.rf.last_snr
+
+    @property
+    def noise_floor_dbm(self) -> int | None:
+        return self.rf.noise_floor_dbm
+
+    @property
+    def lqi_score(self) -> float:
+        return self.rf.lqi_score
+
+    @property
+    def lqi_status(self) -> str:
+        return self.rf.lqi_status
+
+    @property
+    def best_route(self) -> str:
+        return self.rf.best_route
+
+    @property
+    def tx_power(self) -> int | None:
+        return self.rf.tx_power
+
+    @property
+    def max_tx_power(self) -> int | None:
+        return self.rf.max_tx_power
+
+    @property
+    def hop_limit(self) -> int | None:
+        return self.rf.hop_limit
+
+    @property
+    def frequency(self) -> float | None:
+        return self.rf.frequency
+
+    @property
+    def spreading_factor(self) -> int | None:
+        return self.rf.spreading_factor
+
+    @property
+    def bandwidth(self) -> float | None:
+        return self.rf.bandwidth
+
+    @property
+    def coding_rate(self) -> str | None:
+        return self.rf.coding_rate
+
+    @property
+    def repeat_enabled(self) -> bool | None:
+        return self.rf.repeat_enabled
+
+    @property
+    def advert_interval(self) -> int | None:
+        return self.rf.advert_interval
+
+    @property
+    def flags(self) -> int | None:
+        return self.rf.flags
+
+    @property
+    def last_advert(self) -> float | None:
+        return self.rf.last_advert
+
+    @property
+    def out_path(self) -> str | None:
+        return self.rf.out_path
+
+    @property
+    def out_path_len(self) -> int | None:
+        return self.rf.out_path_len
+
+    @property
+    def out_path_hash_mode(self) -> str | None:
+        return self.rf.out_path_hash_mode
+
+    # Telemetría y Sensores Delegados
+    @property
+    def battery_pct(self) -> int | None:
+        return self.telemetry.battery_pct
+
+    @property
+    def voltage_v(self) -> float | None:
+        return self.telemetry.voltage_v
+
+    @property
+    def solar_v(self) -> float | None:
+        return self.telemetry.solar_v
+
+    @property
+    def temperature_c(self) -> float | None:
+        return self.telemetry.temperature_c
+
+    @property
+    def humidity_pct(self) -> float | None:
+        return self.telemetry.humidity_pct
+
+    @property
+    def pressure_hpa(self) -> float | None:
+        return self.telemetry.pressure_hpa
+
+    @property
+    def latitude(self) -> float | None:
+        return self.telemetry.latitude
+
+    @property
+    def longitude(self) -> float | None:
+        return self.telemetry.longitude
+
+    @property
+    def altitude_m(self) -> float | None:
+        return self.telemetry.altitude_m
+
+    @property
+    def fixed_position(self) -> bool | None:
+        return self.telemetry.fixed_position
+
+    @property
+    def adv_lat(self) -> float | None:
+        return self.telemetry.adv_lat
+
+    @property
+    def adv_lon(self) -> float | None:
+        return self.telemetry.adv_lon
+
+    @property
+    def uptime(self) -> str | None:
+        return self.telemetry.uptime
+
+    @property
+    def clock(self) -> str | None:
+        return self.telemetry.clock
+
+    @property
+    def airtime_ms(self) -> int | None:
+        return self.telemetry.airtime_ms
+
+    @property
+    def rx_packets(self) -> int:
+        return self.telemetry.rx_packets
+
+    @property
+    def tx_packets(self) -> int:
+        return self.telemetry.tx_packets
+
+    @property
+    def error_count(self) -> int:
+        return self.telemetry.error_count
+
+    @property
+    def connected_clients_count(self) -> int:
+        return self.telemetry.connected_clients_count
+
+    @property
+    def packets_sent(self) -> int | None:
+        return self.telemetry.packets_sent
+
+    @property
+    def packets_recv(self) -> int | None:
+        return self.telemetry.packets_recv
+
+    @property
+    def duplicate_packets(self) -> int | None:
+        return self.telemetry.duplicate_packets
+
+    @property
+    def packet_errors(self) -> int | None:
+        return self.telemetry.packet_errors
+
+    @property
+    def queue_len(self) -> int | None:
+        return self.telemetry.queue_len
+
+    @property
+    def neighbors(self) -> tuple[str, ...]:
+        return self.telemetry.neighbors
+
+    @property
+    def last_seen(self) -> float:
+        return self.telemetry.last_seen
+
+    def as_flat_dict(self) -> dict[str, Any]:
+        """Retorna un diccionario plano unificando identity, rf y telemetry."""
+        d: dict[str, Any] = {}
+        d.update(asdict(self.identity))
+        d.update(asdict(self.rf))
+        d.update(asdict(self.telemetry))
+        return d
+
+    def replace_fields(self, **changes: Any) -> NodeContactInfo:
+        """Retorna una nueva instancia con los campos indicados modificados."""
+        current = self.as_flat_dict()
+        current.update(changes)
+        return NodeContactInfo(**current)
 
     def to_dict(self) -> dict[str, Any]:
-        d = asdict(self)
+        d = self.as_flat_dict()
         d["key_prefix"] = self.public_key[:8] if len(self.public_key) >= 8 else self.public_key
         d["total_packets"] = self.rx_packets + self.tx_packets
         d["error_rate_pct"] = round((self.error_count / (d["total_packets"] or 1)) * 100, 1)
@@ -353,9 +775,9 @@ class NodeRegistry:
                         self._nodes_by_name.pop(node.alias.lower(), None)
 
                 # Fusionar todos los atributos de las entradas locales (GPS, telemetría, batería)
-                merged_fields = asdict(primary_node)
+                merged_fields = primary_node.as_flat_dict()
                 for _, node in local_entries:
-                    node_fields = asdict(node)
+                    node_fields = node.as_flat_dict()
                     for f_name, f_val in node_fields.items():
                         if f_val is not None and merged_fields.get(f_name) is None:
                             merged_fields[f_name] = f_val
@@ -1110,8 +1532,7 @@ class NodeRegistry:
         with self._lock:
             reset_count = 0
             for k, contact in list(self._nodes_by_key.items()):
-                new_contact = replace(
-                    contact,
+                new_contact = contact.replace_fields(
                     rx_packets=0,
                     tx_packets=0,
                     error_count=0,

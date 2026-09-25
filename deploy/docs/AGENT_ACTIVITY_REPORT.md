@@ -2,6 +2,19 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Registro y Formalización de Decisiones de Arquitectura (ADRs 0005 a 0008) - Recomendaciones DOC1-DOC4
+- **Fecha**: 2026-09-24
+- **Estado**: ✅ COMPLETADO — Redactados y formalizados bajo estándar MADR los 4 Architecture Decision Records pendientes (`docs/adr/0005` a `0008`), cubriendo persistencia atómica en JSON, proxy TCP companion embebido, desacoplamiento y filtrado de telemetría del nodo local y sincronización horaria RTC automática.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect).
+- **Módulos Afectados**:
+  1. **`docs/adr/0005-json-atomic-persistence-over-sqlite.md`**: Formalización de persistencia atómica POSIX write-and-rename para SBCs de bajo coste (<60MB RAM) sin bloqueos ni corrupción ante caídas de tensión.
+  2. **`docs/adr/0006-tcp-companion-server-proxy.md`**: Multiplexación nativa de puerto USB en :5000 para interoperar con App oficial móvil y CLI sin daemons externos.
+  3. **`docs/adr/0007-decoupling-local-beacon-telemetry.md`**: Filtrado de balizas locales, guardas loopback contra tormentas de eco y distinción entre alimentación continua 5V USB y baterías LiPo de campo.
+  4. **`docs/adr/0008-automatic-rtc-clock-synchronization.md`**: Sincronización UTC automática de hardware sin batería RTC desde el host Linux para garantizar coherencia en deduplicación y logs.
+- **Verificación y Calidad**:
+  - `python .agents/skills/domain-adr-keeper/scripts/audit_domain_adr.py`: 100% integridad verificada en los 8 ADRs secuenciales.
+  - Sincronización `/deploy/` ejecutada con éxito.
+
 ### Hito: Higiene de Datos en Caliente en Git y Plantillas de Estado (data/) - Recomendación I4
 - **Fecha**: 2026-09-24
 - **Estado**: ✅ COMPLETADO — Archivos de estado JSON en caliente (`data/airtime_history.json`, `data/channels.json`, `data/node_registry.json`) retirados del índice de Git para evitar falsos positivos y ensuciamiento recurrente del árbol de trabajo durante ejecuciones. Creadas plantillas canónicas `*.example` y configurado `.gitignore` protegiendo `data/.gitkeep`.

@@ -2,6 +2,24 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Normalización Estructural de NodeContactInfo en Submodelos Cohesivos (src/contact_manager.py) - Recomendación R7
+- **Fecha**: 2026-09-24
+- **Estado**: ✅ COMPLETADO — Data God Class `NodeContactInfo` (>60 campos mutables agrupados en un solo bloque plano) descompuesta de forma limpia y tipada en tres dimensiones del dominio: `NodeIdentity` (identidad, nombre, rol, hardware), `NodeRfMetrics` (saltos, RSSI/SNR, LQI, rutas, parámetros LoRa) y `NodeTelemetry` (batería, sensores, GPS, contadores).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect), Agente 2 (Bridge Architect).
+- **Módulos Afectados**:
+  1. **`src/contact_manager.py`**:
+     - Creadas subestructuras `@dataclass(frozen=True, slots=True)`: `NodeIdentity`, `NodeRfMetrics` y `NodeTelemetry`.
+     - `NodeContactInfo` recompuesta mediante composición de estas tres subestructuras, implementando properties delegadas para 100% de compatibilidad regresiva con accesos a atributos planos (`contact.public_key`, `contact.last_rssi`, `contact.battery_pct`, etc.).
+     - Incorporados métodos utilitarios `as_flat_dict()`, `replace_fields(**changes)` y serialización `to_dict()`.
+     - Actualizado el fusionado de nodos locales (`_clean_local_entries`) y el reseteo de contadores en `reset_analytics` para operar sobre `replace_fields`.
+  2. **`src/__init__.py`**:
+     - Exportadas `NodeIdentity`, `NodeRfMetrics` y `NodeTelemetry` en `__all__`.
+- **Verificación y Calidad**:
+  - `python -m py_compile src/contact_manager.py src/__init__.py`: 0 errores.
+  - `python .agents/skills/python-patterns-typing/scripts/verify_python_standards.py`: 100% de cumplimiento en tipado estático PEP (53/53 módulos).
+  - `python scripts/verify_all_components.py`: 100% de pruebas de arquitectura y componentes aprobadas.
+  - Sincronización `/deploy/` ejecutada con éxito.
+
 ### Hito: Registro y Formalización de Decisiones de Arquitectura (ADRs 0005 a 0008) - Recomendaciones DOC1-DOC4
 - **Fecha**: 2026-09-24
 - **Estado**: ✅ COMPLETADO — Redactados y formalizados bajo estándar MADR los 4 Architecture Decision Records pendientes (`docs/adr/0005` a `0008`), cubriendo persistencia atómica en JSON, proxy TCP companion embebido, desacoplamiento y filtrado de telemetría del nodo local y sincronización horaria RTC automática.
