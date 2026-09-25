@@ -23,9 +23,33 @@ class TxController(BaseController):
         if not text:
             return problem_details(400, "Bad Request", "El campo 'text' no puede estar vacío", "missing_text_field")
 
-        target = req_body.get("to", req_body.get("target", "broadcast"))
+        if "to" not in req_body and "target" not in req_body:
+            return problem_details(
+                400,
+                "Bad Request",
+                "Debe especificar explícitamente el destino en el campo 'to' o 'target' (ej. 'broadcast' o clave pública)",
+                "missing_target_destination",
+            )
+
+        target = req_body.get("to") if "to" in req_body else req_body.get("target")
+        if target is None:
+            return problem_details(
+                422,
+                "Unprocessable Entity",
+                "El campo de destino ('to'/'target') no puede ser nulo",
+                "null_target_destination",
+            )
+
         target_str = str(target).strip()
-        is_broadcast = target_str.lower() in ("broadcast", "public", "0xffff", "*", "") or target_str.lower().startswith("channel")
+        if not target_str:
+            return problem_details(
+                422,
+                "Unprocessable Entity",
+                "El campo de destino ('to'/'target') no puede ser una cadena vacía. Especifique 'broadcast' para difusión general o una clave pública válida.",
+                "empty_target_destination",
+            )
+
+        is_broadcast = target_str.lower() in ("broadcast", "public", "0xffff", "*") or target_str.lower().startswith("channel")
         if not is_broadcast:
             if self.ctx.bridge.node_registry.is_local_key(target_str):
                 return problem_details(400, "Bad Request", "No se permite enviar mensajes de chat a la estación base local", "tx_to_local_forbidden")
