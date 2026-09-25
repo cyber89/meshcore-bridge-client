@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Any
 
@@ -215,4 +216,44 @@ def extract_payload_dict(data: Any) -> dict[str, Any]:
     if hasattr(data, "payload") and isinstance(data.payload, dict):
         return data.payload
     return {}
+
+
+async def safe_device_query(
+    mc: Any,
+    command_name: str,
+    *args: Any,
+    timeout: float = 3.0,
+    fallback: Any = None,
+    **kwargs: Any,
+) -> Any:
+    """Ejecuta una consulta o comando sobre mc.commands de manera segura y no bloqueante.
+
+    Verifica la existencia del método en el SDK, maneja tanto respuestas síncronas como
+    corutinas asíncronas con timeout determinista, y captura excepciones de comunicación
+    evitando que fallos en un parámetro interrumpan la secuencia de inicialización.
+
+    Args:
+        mc: Instancia del cliente MeshCore (con atributo .commands).
+        command_name: Nombre del método a invocar en mc.commands.
+        *args: Argumentos posicionales para el comando.
+        timeout: Tiempo máximo de espera en segundos antes de TimeoutError.
+        fallback: Valor retornado en caso de fallo, ausencia del comando o timeout.
+        **kwargs: Argumentos por nombre para el comando.
+
+    Returns:
+        El resultado retornado por el comando o el valor de fallback.
+    """
+    if not mc or not hasattr(mc, "commands") or not hasattr(mc.commands, command_name):
+        return fallback
+
+    cmd = getattr(mc.commands, command_name)
+    try:
+        res = cmd(*args, **kwargs)
+        if asyncio.iscoroutine(res):
+            res = await asyncio.wait_for(res, timeout=timeout)
+        return res
+    except Exception as e:
+        logging.warning("Aviso ejecutando comando de radio '%s': %s", command_name, e)
+        return fallback
+
 
