@@ -33,6 +33,56 @@ from src.web.controllers import (
 from src.web.map_tile_service import MapTileService
 
 
+# Mapeo canónico de alias y retrocompatibilidad de rutas REST
+ROUTE_ALIASES: dict[str, str] = {
+    # Ping directo / repetidor
+    "/api/node/ping": "/api/node/ping_zero",
+    "/api/nodes/ping": "/api/node/ping_zero",
+    "/api/nodes/ping_zero": "/api/node/ping_zero",
+    "/api/ping_zero": "/api/node/ping_zero",
+    # Traceroute
+    "/api/trace": "/api/traceroute",
+    "/api/node/traceroute": "/api/repeater/traceroute",
+    "/api/node/trace": "/api/repeater/traceroute",
+    "/api/nodes/traceroute": "/api/repeater/traceroute",
+    "/api/nodes/trace": "/api/repeater/traceroute",
+    # Analytics / Métricas
+    "/api/link_quality": "/api/lqi",
+    "/api/metrics/analytics": "/api/analytics",
+    "/api/metrics/reset": "/api/analytics/reset",
+    # Repetidor / Administración remota
+    "/api/repeater/neighbours": "/api/repeater/remote/neighbours",
+    "/api/repeater/neighbors": "/api/repeater/remote/neighbours",
+    "/api/repeater/remote/neighbors": "/api/repeater/remote/neighbours",
+    "/api/repeater/owner": "/api/repeater/remote/owner",
+    "/api/repeater/regions": "/api/repeater/remote/regions",
+    "/api/repeater/clock": "/api/repeater/remote/clock",
+    "/api/repeater/acl": "/api/repeater/remote/acl",
+    "/api/repeater/logout": "/api/repeater/remote/logout",
+    "/api/admin/command": "/api/admin",
+    # Configuración de hardware / nodo local
+    "/api/node/settings": "/api/config",
+    "/api/node/config": "/api/config",
+    "/api/node/custom_vars": "/api/config/custom_vars",
+    "/api/node/path_hash_mode": "/api/config/path_hash_mode",
+    "/api/node/autoadd": "/api/config/autoadd",
+    "/api/node/flood_scope": "/api/config/flood_scope",
+    "/api/node/config/radio": "/api/config/radio",
+    "/api/node/config/identity": "/api/config/identity",
+    "/api/config/advert": "/api/node/advert",
+    "/api/config/reboot": "/api/node/reboot",
+    "/api/node/sync-clock": "/api/config/sync-clock",
+    "/api/config/sync_clock": "/api/config/sync-clock",
+    "/api/node/clear-stats": "/api/config/clear-stats",
+    "/api/config/clear_stats": "/api/config/clear-stats",
+    "/api/node/refresh": "/api/config/refresh",
+    "/api/node/reconnect": "/api/config/reconnect",
+    "/api/config/reconnect-serial": "/api/config/reconnect",
+    # Mapas
+    "/api/map/refresh": "/api/map/reload",
+}
+
+
 def _safe_int(val: Any, default: int, min_val: int = 0, max_val: int = 100000) -> int:
     """Convierte de forma segura cualquier entrada a entero acotado."""
     try:
@@ -261,6 +311,8 @@ class WebAPIRouter:
     ) -> tuple[int, dict[str, Any]]:
         """Maneja una solicitud REST despachando limpiamente a controladores modulares especializados."""
         clean_path = path.split("?")[0].rstrip("/")
+        # Saneamiento y consolidación de alias a rutas canónicas (Recomendación A2)
+        clean_path = ROUTE_ALIASES.get(clean_path, clean_path)
         req_body = dict(body) if body else {}
         if "?" in path:
             try:
@@ -286,12 +338,11 @@ class WebAPIRouter:
 
             if (
                 clean_path in (
-                    "/api/nodes", "/api/lqi", "/api/link_quality",
-                    "/api/analytics", "/api/metrics/analytics",
-                    "/api/analytics/reset", "/api/metrics/reset",
+                    "/api/nodes", "/api/lqi",
+                    "/api/analytics", "/api/analytics/reset",
                     "/api/rf/heatmap", "/api/airtime/stats", "/api/rf/noise",
                 )
-                or clean_path.startswith(("/api/analytics/", "/api/metrics/"))
+                or clean_path.startswith("/api/analytics/")
             ):
                 return await self._dispatch_nodes(method, path, clean_path, req_body)
 
@@ -306,12 +357,12 @@ class WebAPIRouter:
 
             if (
                 clean_path in (
-                    "/api/node/ping_zero", "/api/node/ping",
-                    "/api/nodes/ping_zero", "/api/nodes/ping",
-                    "/api/node/traceroute", "/api/node/trace",
-                    "/api/nodes/traceroute", "/api/nodes/trace",
+                    "/api/node/ping_zero",
+                    "/api/repeater/ping_zero",
+                    "/api/traceroute",
+                    "/api/repeater/traceroute",
                 )
-                or clean_path.startswith(("/api/admin", "/api/repeater", "/api/traceroute", "/api/trace"))
+                or clean_path.startswith(("/api/admin", "/api/repeater", "/api/traceroute"))
             ):
                 return await self._dispatch_repeater(method, clean_path, req_body)
 
@@ -325,9 +376,6 @@ class WebAPIRouter:
                 "/api/messages",
                 "/api/telemetry",
                 "/api/logs",
-                "/api/diagnostics",
-                "/api/diagnostics/report.md",
-                "/api/diagnostics/report",
                 "/api/logs/download",
                 "/api/logs/raw",
             ):
@@ -435,11 +483,11 @@ class WebAPIRouter:
                             offset = _safe_int(v, default=offset, min_val=0, max_val=100000)
             return await self.nodes_ctrl.list_nodes(limit, offset)
 
-        if clean_path in ("/api/lqi", "/api/link_quality") and method == "GET":
+        if clean_path == "/api/lqi" and method == "GET":
             return await self.nodes_ctrl.get_lqi()
-        if clean_path in ("/api/analytics/reset", "/api/metrics/reset") and method in ("POST", "DELETE"):
+        if clean_path == "/api/analytics/reset" and method in ("POST", "DELETE"):
             return await self.nodes_ctrl.reset_metrics()
-        if clean_path in ("/api/analytics", "/api/metrics/analytics") and method == "GET":
+        if clean_path == "/api/analytics" and method == "GET":
             return await self.nodes_ctrl.get_analytics()
         if clean_path == "/api/rf/heatmap" and method == "GET":
             return await self.nodes_ctrl.get_rf_heatmap()
@@ -495,40 +543,31 @@ class WebAPIRouter:
 
     async def _dispatch_repeater(self, method: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Despacha rutas de gestión de repetidores y comandos remotos."""
-        if clean_path in ("/api/admin", "/api/admin/command") and method == "POST":
+        if clean_path == "/api/admin" and method == "POST":
             return await self.repeater_ctrl.execute_admin_command(req_body)
         if clean_path == "/api/admin/repeater" and method == "POST":
             return await self.repeater_ctrl.execute_repeater_command(req_body)
         if clean_path == "/api/repeater/remote/login" and method == "POST":
             return await self.repeater_ctrl.login(req_body)
-        if clean_path in ("/api/repeater/remote/logout", "/api/repeater/logout") and method == "POST":
+        if clean_path == "/api/repeater/remote/logout" and method == "POST":
             return await self.repeater_ctrl.logout(req_body)
         if clean_path == "/api/repeater/remote/config" and method == "POST":
             return await self.repeater_ctrl.set_remote_config(req_body)
         if clean_path == "/api/repeater/remote/action" and method == "POST":
             return await self.repeater_ctrl.execute_remote_action(req_body)
-        if clean_path in (
-            "/api/repeater/remote/neighbours", "/api/repeater/remote/neighbors",
-            "/api/repeater/neighbours", "/api/repeater/neighbors",
-        ) and method == "POST":
+        if clean_path == "/api/repeater/remote/neighbours" and method == "POST":
             return await self.repeater_ctrl.get_neighbours(req_body)
-        if clean_path in ("/api/repeater/remote/owner", "/api/repeater/owner") and method == "POST":
+        if clean_path == "/api/repeater/remote/owner" and method == "POST":
             return await self.repeater_ctrl.get_owner(req_body)
-        if clean_path in ("/api/repeater/remote/regions", "/api/repeater/regions") and method == "POST":
+        if clean_path == "/api/repeater/remote/regions" and method == "POST":
             return await self.repeater_ctrl.get_regions(req_body)
-        if clean_path in ("/api/repeater/remote/clock", "/api/repeater/clock") and method == "POST":
+        if clean_path == "/api/repeater/remote/clock" and method == "POST":
             return await self.repeater_ctrl.get_clock(req_body)
-        if clean_path in ("/api/repeater/remote/acl", "/api/repeater/acl") and method == "POST":
+        if clean_path == "/api/repeater/remote/acl" and method == "POST":
             return await self.repeater_ctrl.get_acl(req_body)
-        if clean_path in (
-            "/api/repeater/ping_zero", "/api/node/ping_zero", "/api/node/ping",
-            "/api/nodes/ping_zero", "/api/nodes/ping", "/api/ping_zero",
-        ) and method == "POST":
+        if clean_path in ("/api/repeater/ping_zero", "/api/node/ping_zero") and method == "POST":
             return await self.repeater_ctrl.ping_zero(req_body)
-        if clean_path in (
-            "/api/traceroute", "/api/trace", "/api/repeater/traceroute",
-            "/api/node/traceroute", "/api/node/trace", "/api/nodes/traceroute", "/api/nodes/trace",
-        ) and method == "POST":
+        if clean_path in ("/api/traceroute", "/api/repeater/traceroute") and method == "POST":
             return await self.repeater_ctrl.traceroute(req_body)
 
         return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
@@ -536,14 +575,14 @@ class WebAPIRouter:
     async def _dispatch_config(self, method: str, raw_path: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Despacha rutas de configuración de nodo local y módem LoRa."""
         force_refresh = "refresh=true" in raw_path.lower()
-        if clean_path in ("/api/config", "/api/node/config", "/api/node/settings"):
+        if clean_path == "/api/config":
             if method == "GET":
                 return await self.config_ctrl.get_device_config(refresh=force_refresh)
             if method == "POST":
                 return await self.config_ctrl.set_local_config(req_body)
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
-        if clean_path in ("/api/config/custom_vars", "/api/node/custom_vars"):
+        if clean_path == "/api/config/custom_vars":
             if method == "GET":
                 return await self.config_ctrl.get_custom_vars()
             if method == "POST":
@@ -557,70 +596,70 @@ class WebAPIRouter:
                 return await self.config_ctrl.delete_custom_var(k_del)
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
-        if clean_path in ("/api/config/path_hash_mode", "/api/node/path_hash_mode"):
+        if clean_path == "/api/config/path_hash_mode":
             if method == "GET":
                 return await self.config_ctrl.get_path_hash_mode()
             if method == "POST":
                 return await self.config_ctrl.set_path_hash_mode(req_body)
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
-        if clean_path in ("/api/config/autoadd", "/api/node/autoadd"):
+        if clean_path == "/api/config/autoadd":
             if method == "GET":
                 return await self.config_ctrl.get_autoadd_config()
             if method == "POST":
                 return await self.config_ctrl.set_autoadd_config(req_body)
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
-        if clean_path in ("/api/config/flood_scope", "/api/node/flood_scope"):
+        if clean_path == "/api/config/flood_scope":
             if method == "GET":
                 return await self.config_ctrl.get_flood_scope()
             if method == "POST":
                 return await self.config_ctrl.set_flood_scope(req_body)
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
-        if clean_path in ("/api/config/radio", "/api/node/config/radio"):
+        if clean_path == "/api/config/radio":
             if method == "POST":
                 return await self.config_ctrl.set_local_config(req_body)
             if method == "GET":
                 return await self.config_ctrl.get_device_config(refresh=force_refresh)
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
-        if clean_path in ("/api/config/identity", "/api/node/config/identity"):
+        if clean_path == "/api/config/identity":
             if method == "POST":
                 return await self.config_ctrl.set_local_config(req_body)
             if method == "GET":
                 return await self.config_ctrl.get_device_config()
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
-        if clean_path in ("/api/node/advert", "/api/config/advert"):
+        if clean_path == "/api/node/advert":
             if method == "POST":
                 flood = to_bool(req_body.get("flood", False))
                 return await self.config_ctrl.broadcast_advert(flood)
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
-        if clean_path in ("/api/node/reboot", "/api/config/reboot"):
+        if clean_path == "/api/node/reboot":
             if method == "POST":
                 return await self.config_ctrl.reboot_local()
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
-        if clean_path in ("/api/config/sync-clock", "/api/node/sync-clock", "/api/config/sync_clock"):
+        if clean_path == "/api/config/sync-clock":
             if method == "POST":
                 raw_epoch = req_body.get("epoch", req_body.get("timestamp"))
                 epoch_ts = int(raw_epoch) if raw_epoch is not None else None
                 return await self.config_ctrl.sync_clock(epoch_ts=epoch_ts)
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
-        if clean_path in ("/api/config/clear-stats", "/api/node/clear-stats", "/api/config/clear_stats"):
+        if clean_path == "/api/config/clear-stats":
             if method == "POST":
                 return await self.config_ctrl.clear_stats()
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
-        if clean_path in ("/api/config/refresh", "/api/node/refresh"):
+        if clean_path == "/api/config/refresh":
             if method in ("POST", "GET"):
                 return await self.config_ctrl.refresh_hardware_config()
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
-        if clean_path in ("/api/config/reconnect", "/api/node/reconnect", "/api/config/reconnect-serial"):
+        if clean_path == "/api/config/reconnect":
             if method == "POST":
                 return await self.config_ctrl.reconnect_serial()
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
@@ -632,7 +671,7 @@ class WebAPIRouter:
         if clean_path == "/api/map/status" and method == "GET":
             return 200, {"status": "ok", "data": self.map_tile_service.get_status()}
 
-        if clean_path in ("/api/map/reload", "/api/map/refresh") and method in ("GET", "POST"):
+        if clean_path == "/api/map/reload" and method in ("GET", "POST"):
             try:
                 self.map_tile_service.reload_mbtiles()
             except Exception as e:
