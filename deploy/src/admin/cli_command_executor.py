@@ -40,6 +40,57 @@ class CliCommandExecutor:
         self._broadcast_advert = broadcast_advert
         self._handle_set_local_config = handle_set_local_config
         self._init_time = init_time
+        self._dispatch_map = self._build_dispatch_map()
+
+    def _build_dispatch_map(self) -> dict[str, Callable[[dict[str, Any], dict[str, Any], Any], Any]]:
+        """Construye el mapa canónico de despacho de comandos CLI para ejecución O(1)."""
+        mapping: dict[str, Callable[[dict[str, Any], dict[str, Any], Any], Any]] = {}
+
+        def register(aliases: tuple[str, ...], handler: Callable[[dict[str, Any], dict[str, Any], Any], Any]) -> None:
+            for alias in aliases:
+                mapping[alias] = handler
+
+        # 1. Estado General y Hardware
+        register(("info", "node_info", "get_info", "device_info"), self._cli_info)
+        register(("status", "node_status", "state"), self._cli_status)
+        register(("bat", "get_bat", "battery", "bateria", "pwr", "power", "energia"), self._cli_battery)
+        register(("ver", "v", "q", "query", "version", "build"), self._cli_version)
+        register(("uptime", "tiempo_activo"), self._cli_uptime)
+        register(("mem", "heap", "memory", "ram", "memoria"), self._cli_mem)
+        register(("board", "hardware", "hw"), self._cli_board)
+
+        # 2. Radio LoRa y Parámetros RF
+        register(("radio", "stats_radio", "get_stats_radio", "tuning", "get_tuning", "rf"), self._cli_radio)
+        register(("stats", "stats_core", "get_stats_core", "stats_packets", "stats_all"), self._cli_stats_core)
+        register(("packets", "stats_packets", "get_stats_packets"), self._cli_packets)
+        register(("channels", "channel", "channel info", "channel_info", "chan", "canales", "get_channels"), self._cli_channels)
+
+        # 3. Topología de Red, Vecinos y Rutas
+        register(("nodes", "list_nodes", "get_nodes", "nodos", "mesh_nodes"), self._cli_nodes)
+        register(("neighbors", "get_neighbors", "discover.neighbors", "discover_neighbors", "vecinos"), self._cli_neighbors_wrapper)
+        register(("routes", "routing", "routing_table", "rutas", "tabla_rutas"), self._cli_routes_wrapper)
+        register(("snr", "rssi", "signal", "rf_signal", "link"), self._cli_signal_wrapper)
+        register(("lqi", "get_lqi", "link_quality", "lqi_topology"), self._cli_lqi_wrapper)
+
+        # 4. Configuración, Sensores y Registros
+        register(("config get", "show config", "config", "get config", "dump config", "show_config", "config_get"), self._cli_config)
+        register(("pos", "get_pos", "get pos", "position", "gps", "get_gps", "coordenadas"), self._cli_position)
+        register(("sensors", "sensor", "sensor list", "sensor get", "telemetry", "telemetria"), self._cli_sensors)
+        register(("log", "logs", "syslog", "system_logs", "buffer_log"), self._cli_logs_wrapper)
+
+        # 5. Control, Sincronización y Acciones
+        register(("time", "get_time", "clock", "hora"), self._cli_time)
+        register(("sync_clock", "clock sync", "set_time", "st", "synctime"), self._cli_sync_clock)
+        register(("owner", "get_owner", "get owner", "get_identity", "identity"), self._cli_owner)
+        register(("acl", "get_acl", "get acl", "acl list", "acl_list"), self._cli_acl)
+        register(("ping", "ping 0", "ping_zero", "pingzero"), self._cli_ping)
+        register(("advert", "send_advert", "broadcast_advert"), self._cli_advert_hop0)
+        register(("advert flood", "advert_flood", "flood"), self._cli_advert_flood)
+        register(("reboot", "reboot_local", "restart"), self._cli_reboot)
+        register(("clear stats", "clear_stats", "clear"), self._cli_clear_stats)
+        register(("help", "?", "ayuda"), self._cli_help)
+
+        return mapping
 
     async def execute(
         self,
@@ -47,137 +98,22 @@ class CliCommandExecutor:
         res: dict[str, Any],
         mc: Any,
     ) -> dict[str, Any]:
-        """Ejecuta comandos CLI y de control directo local.
-
-        Extraído de AdminCommandHandler para reducir la complejidad ciclomática
-        y mantener la cohesión de módulos.
-        """
+        """Ejecuta comandos CLI y de control directo local mediante Dispatch Table O(1)."""
         act_clean = action.lower().strip()
         cfg = self._get_local_config()
-        local_pk = str(cfg.get("public_key", "")).lower().strip()
-        local_name = str(cfg.get("name", "")).lower().strip()
 
         try:
-            # 1. Estado General y Hardware
-            if act_clean in ("info", "node_info", "get_info", "device_info"):
-                res = await self._cli_info(res, cfg, mc)
-
-            elif act_clean in ("status", "node_status", "state"):
-                res = await self._cli_status(res, cfg, mc)
-
-            elif act_clean in ("bat", "get_bat", "battery", "bateria", "pwr", "power", "energia"):
-                res = await self._cli_battery(res, cfg, mc)
-
-            elif act_clean in ("ver", "v", "q", "query", "version", "build"):
-                res = await self._cli_version(res, cfg, mc)
-
-            elif act_clean in ("uptime", "tiempo_activo"):
-                res = await self._cli_uptime(res, cfg, mc)
-
-            elif act_clean in ("mem", "heap", "memory", "ram", "memoria"):
-                res = await self._cli_mem(res, cfg, mc)
-
-            # 2. Radio LoRa y Parámetros RF
-            elif act_clean in ("radio", "stats_radio", "get_stats_radio", "tuning", "get_tuning", "rf"):
-                res["result"] = self._cli_radio_info(cfg)
-
-            elif act_clean in ("stats", "stats_core", "get_stats_core", "stats_packets", "stats_all"):
-                res = await self._cli_stats_core(res, cfg, mc)
-
-            elif act_clean in ("packets", "stats_packets", "get_stats_packets"):
-                res["result"] = self._cli_packets_info(cfg)
-
-            elif act_clean in ("channels", "channel", "channel info", "channel_info", "chan", "canales", "get_channels"):
-                res["result"] = self._cli_channel_info(cfg)
-
-            # 3. Topología de Red, Vecinos y Rutas
-            elif act_clean in ("nodes", "list_nodes", "get_nodes", "nodos", "mesh_nodes"):
-                res["result"] = self._cli_nodes_list(cfg, local_pk, local_name)
-
-            elif act_clean in ("neighbors", "get_neighbors", "discover.neighbors", "discover_neighbors", "vecinos"):
-                res["result"] = self._cli_neighbors(cfg, local_pk, local_name)
-
-            elif act_clean in ("routes", "routing", "routing_table", "rutas", "tabla_rutas"):
-                res["result"] = self._cli_routes(cfg, local_pk)
-
-            elif act_clean in ("snr", "rssi", "signal", "rf_signal", "link"):
-                res["result"] = self._cli_signal(cfg)
-
-            elif act_clean in ("lqi", "get_lqi", "link_quality", "lqi_topology"):
-                res = self._cli_lqi(res, cfg, local_pk)
-
-            # 4. Configuración, Sensores y Registros
-            elif act_clean in ("config get", "show config", "config", "get config", "dump config", "show_config", "config_get"):
-                res["result"] = self._cli_show_config(cfg)
-
-            elif act_clean in ("pos", "get_pos", "get pos", "position", "gps", "get_gps", "coordenadas"):
-                res["result"] = self._cli_position_info(cfg)
-
-            elif act_clean in ("sensors", "sensor", "sensor list", "sensor get", "telemetry", "telemetria"):
-                res = await self._cli_sensors(res, cfg, mc)
-
-            elif act_clean in ("log", "logs", "syslog", "system_logs", "buffer_log"):
-                res["result"] = self._cli_logs(res)
-
-            # 5. Control, Sincronización y Acciones
-            elif act_clean in ("time", "get_time", "clock", "hora"):
-                res = await self._cli_time(res, cfg, mc)
-
-            elif act_clean in ("sync_clock", "clock sync", "set_time", "st", "synctime"):
-                res = await self._cli_sync_clock(res, mc)
-
-            elif act_clean in ("owner", "get_owner", "get owner", "get_identity", "identity"):
-                res["result"] = self._cli_owner_info(cfg)
-
-            elif act_clean in ("acl", "get_acl", "get acl", "acl list", "acl_list"):
-                res["result"] = "🔐 [CONTROL DE ACCESO ACL] Autenticación por PIN activa | Permisos: ADMIN / OPERATOR"
-
-            elif act_clean in ("board", "hardware", "hw"):
-                board_name = cfg.get("hardware_board") or cfg.get("board") or cfg.get("model") or "ESP32-S3 / nRF52840"
-                res["result"] = (
-                    f"🖥️ [HARDWARE BOARD] Microcontrolador / Placa: {board_name} | "
-                    f"Transceptor: Semtech SX1262 LoRa | Bus: Serial UART 115200"
-                )
-
-            elif act_clean in ("ping", "ping 0", "ping_zero", "pingzero"):
-                res["result"] = "🎯 [PING] Enlace del transceptor local verificado y operativo (RTT: < 1 ms | Canal Serial Directo)."
-
-            elif act_clean in ("advert", "send_advert", "broadcast_advert"):
-                await self._cli_send_advert(mc, flood=False)
-                res["result"] = "📢 [ADVERT] Anuncio de presencia emitido por radio hacia nodos vecinos (Hop 0)."
-
-            elif act_clean in ("advert flood", "advert_flood", "flood"):
-                await self._cli_send_advert(mc, flood=True)
-                res["result"] = "🌊 [ADVERT FLOOD] Anuncio de presencia propagado a través de toda la malla repetidora."
-
-            elif act_clean in ("reboot", "reboot_local", "restart"):
-                if mc and hasattr(mc, "commands") and hasattr(mc.commands, "reboot"):
-                    await mc.commands.reboot()
-                res["result"] = "🔄 [REBOOT] Comando de reinicio de hardware ejecutado en el microcontrolador local."
-
-            elif act_clean in ("clear stats", "clear_stats", "clear"):
-                self._local_config["tx_count"] = 0
-                self._local_config["rx_count"] = 0
-                self._local_config["packet_errors"] = 0
-                self._local_config["airtime_ms"] = 0
-                self._local_config["duplicate_packets"] = 0
-                if hasattr(self._ctx, "counters") and self._ctx.counters:
-                    try:
-                        self._ctx.counters.tx_count = 0
-                        self._ctx.counters.rx_count = 0
-                    except Exception:
-                        pass
-                res["result"] = "🧹 [STATS] Contadores de paquetes locales y tiempos de aire restablecidos a cero."
-
-            elif act_clean in ("help", "?", "ayuda"):
-                res["result"] = self._cli_help_text()
-
+            handler = self._dispatch_map.get(act_clean)
+            if handler:
+                out = handler(res, cfg, mc)
+                if asyncio.iscoroutine(out):
+                    res = await out
+                else:
+                    res = out
             elif act_clean.startswith("set ") or act_clean.startswith("set_"):
                 res = await self._cli_set_param(act_clean, res)
-
             else:
                 res["result"] = f"✓ Comando '{action}' procesado correctamente por el firmware MeshCore."
-
         except Exception as e:
             res["status"] = "error"
             res["error"] = str(e)
@@ -186,6 +122,113 @@ class CliCommandExecutor:
         res["config"] = self._get_local_config()
         self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
         return res
+
+    # ---- CLI Helper Adapters for Dispatch Table ---- #
+
+    def _cli_radio(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
+        res["result"] = self._cli_radio_info(cfg)
+        return res
+
+    def _cli_packets(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
+        res["result"] = self._cli_packets_info(cfg)
+        return res
+
+    def _cli_channels(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
+        res["result"] = self._cli_channel_info(cfg)
+        return res
+
+    def _cli_nodes(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
+        local_pk = str(cfg.get("public_key", "")).lower().strip()
+        local_name = str(cfg.get("name", "")).lower().strip()
+        res["result"] = self._cli_nodes_list(cfg, local_pk, local_name)
+        return res
+
+    def _cli_neighbors_wrapper(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
+        local_pk = str(cfg.get("public_key", "")).lower().strip()
+        local_name = str(cfg.get("name", "")).lower().strip()
+        res["result"] = self._cli_neighbors(cfg, local_pk, local_name)
+        return res
+
+    def _cli_routes_wrapper(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
+        local_pk = str(cfg.get("public_key", "")).lower().strip()
+        res["result"] = self._cli_routes(cfg, local_pk)
+        return res
+
+    def _cli_signal_wrapper(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
+        res["result"] = self._cli_signal(cfg)
+        return res
+
+    def _cli_lqi_wrapper(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
+        local_pk = str(cfg.get("public_key", "")).lower().strip()
+        return self._cli_lqi(res, cfg, local_pk)
+
+    def _cli_config(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
+        res["result"] = self._cli_show_config(cfg)
+        return res
+
+    def _cli_position(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
+        res["result"] = self._cli_position_info(cfg)
+        return res
+
+    def _cli_logs_wrapper(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
+        res["result"] = self._cli_logs(res)
+        return res
+
+    def _cli_owner(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
+        res["result"] = self._cli_owner_info(cfg)
+        return res
+
+    def _cli_acl(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
+        res["result"] = "🔐 [CONTROL DE ACCESO ACL] Autenticación por PIN activa | Permisos: ADMIN / OPERATOR"
+        return res
+
+    def _cli_board(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
+        board_name = cfg.get("hardware_board") or cfg.get("board") or cfg.get("model") or "ESP32-S3 / nRF52840"
+        res["result"] = (
+            f"🖥️ [HARDWARE BOARD] Microcontrolador / Placa: {board_name} | "
+            f"Transceptor: Semtech SX1262 LoRa | Bus: Serial UART 115200"
+        )
+        return res
+
+    def _cli_ping(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
+        res["result"] = "🎯 [PING] Enlace del transceptor local verificado y operativo (RTT: < 1 ms | Canal Serial Directo)."
+        return res
+
+    async def _cli_advert_hop0(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
+        await self._cli_send_advert(mc, flood=False)
+        res["result"] = "📢 [ADVERT] Anuncio de presencia emitido por radio hacia nodos vecinos (Hop 0)."
+        return res
+
+    async def _cli_advert_flood(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
+        await self._cli_send_advert(mc, flood=True)
+        res["result"] = "🌊 [ADVERT FLOOD] Anuncio de presencia propagado a través de toda la malla repetidora."
+        return res
+
+    async def _cli_reboot(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
+        if mc and hasattr(mc, "commands") and hasattr(mc.commands, "reboot"):
+            await mc.commands.reboot()
+        res["result"] = "🔄 [REBOOT] Comando de reinicio de hardware ejecutado en el microcontrolador local."
+        return res
+
+    def _cli_clear_stats(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
+        self._local_config["tx_count"] = 0
+        self._local_config["rx_count"] = 0
+        self._local_config["packet_errors"] = 0
+        self._local_config["airtime_ms"] = 0
+        self._local_config["duplicate_packets"] = 0
+        if hasattr(self._ctx, "counters") and self._ctx.counters:
+            try:
+                self._ctx.counters.tx_count = 0
+                self._ctx.counters.rx_count = 0
+            except Exception:
+                pass
+        res["result"] = "🧹 [STATS] Contadores de paquetes locales y tiempos de aire restablecidos a cero."
+        return res
+
+    def _cli_help(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
+        res["result"] = self._cli_help_text()
+        return res
+
 
     # ---- CLI Sub-handlers ---- #
 
