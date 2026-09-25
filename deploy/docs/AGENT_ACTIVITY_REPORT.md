@@ -2,6 +2,20 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Higiene de Datos en Caliente en Git y Plantillas de Estado (data/) - Recomendación I4
+- **Fecha**: 2026-09-24
+- **Estado**: ✅ COMPLETADO — Archivos de estado JSON en caliente (`data/airtime_history.json`, `data/channels.json`, `data/node_registry.json`) retirados del índice de Git para evitar falsos positivos y ensuciamiento recurrente del árbol de trabajo durante ejecuciones. Creadas plantillas canónicas `*.example` y configurado `.gitignore` protegiendo `data/.gitkeep`.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect).
+- **Módulos Afectados**:
+  1. **`.gitignore`**: Agregadas reglas para ignorar `data/*.json`, exceptuando plantillas `!data/*.json.example` y el marcador `!data/.gitkeep`.
+  2. **`data/airtime_history.json.example`**: Plantilla limpia para historial de consumo de duty cycle y airtime.
+  3. **`data/channels.json.example`**: Plantilla de canales predeterminados (canal 0 público y canales privados cifrados).
+  4. **`data/node_registry.json.example`**: Plantilla de registro de nodos inicial vacío.
+  5. **Índice Git**: `git rm --cached` ejecutado sobre los tres archivos JSON en caliente sin borrar el estado local del desarrollador.
+- **Verificación y Calidad**:
+  - `git status`: Los archivos JSON en caliente ya no provocan ensuciamiento en el árbol de trabajo.
+  - Sincronización `/deploy/` ejecutada con éxito.
+
 ### Hito: Unificación de Sincronización y Locks en Deduplicador RAM (src/deduplicator.py) - Problema E4
 - **Fecha**: 2026-09-24
 - **Estado**: ✅ COMPLETADO — Eliminado el patrón de doble bloqueo híbrido (`_async_lock` + `_thread_lock`) que impedía la exclusión mutua real entre el bucle de eventos y llamadas concurrentes. Unificada la sincronización bajo un único lock atómico `_lock` con lógica consolidada en `_check_and_insert()`.
