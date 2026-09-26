@@ -12,7 +12,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from src.shared_utils import clamp_tx_power, normalize_battery
+from src.shared_utils import clamp_tx_power, clean_battery_input, normalize_battery
 
 
 class RepeaterManager:
@@ -401,23 +401,31 @@ class RepeaterManager:
 
     @staticmethod
     def _extract_json_power(data_json: dict[str, Any], extracted: dict[str, Any]) -> None:
-        if "battery_mv" in data_json or "batt_mv" in data_json or "battery" in data_json:
-            raw_bat = data_json.get("battery_mv", data_json.get("batt_mv", data_json.get("battery")))
-            if isinstance(raw_bat, (int, float)):
+        if "battery_mv" in data_json or "batt_mv" in data_json or "battery" in data_json or "level" in data_json:
+            raw_bat = data_json.get("battery_mv", data_json.get("batt_mv", data_json.get("battery", data_json.get("level"))))
+            if raw_bat is not None:
                 pct_norm, volt_norm = normalize_battery(raw_bat)
-                extracted["battery_pct"] = int(pct_norm)
+                if pct_norm > 0 or raw_bat in (0, "0", "0%"):
+                    extracted["battery_pct"] = int(pct_norm)
                 if volt_norm > 0:
                     extracted["voltage_v"] = volt_norm
 
         if "voltage_v" in data_json or "voltage" in data_json:
             raw_v = data_json.get("voltage_v", data_json.get("voltage"))
-            if isinstance(raw_v, (int, float)):
-                extracted["voltage_v"] = round(float(raw_v), 2)
+            if raw_v is not None:
+                clean_v = clean_battery_input(raw_v)
+                if clean_v is not None:
+                    extracted["voltage_v"] = round(clean_v, 2)
+                    if "battery_pct" not in extracted:
+                        pct_norm, _ = normalize_battery(clean_v)
+                        extracted["battery_pct"] = int(pct_norm)
 
         if "solar_mv" in data_json or "solar_v" in data_json or "solar" in data_json:
             raw_sol = data_json.get("solar_mv", data_json.get("solar_v", data_json.get("solar")))
-            if isinstance(raw_sol, (int, float)):
-                extracted["solar_v"] = round(raw_sol / 1000.0, 2) if raw_sol > 100 else round(float(raw_sol), 2)
+            if raw_sol is not None:
+                clean_s = clean_battery_input(raw_sol)
+                if clean_s is not None:
+                    extracted["solar_v"] = round(clean_s / 1000.0, 2) if clean_s > 100 else round(clean_s, 2)
 
     @staticmethod
     def _extract_json_system(data_json: dict[str, Any], extracted: dict[str, Any]) -> None:

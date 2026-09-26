@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from typing import Any
 
 from src.protocol_types import FirmwareAdvertType
@@ -29,43 +30,94 @@ def classify_device_role(advert_type: int, is_local: bool = False) -> str:
         return "CLIENT"
 
 
-def normalize_battery(raw_value: int | float) -> tuple[float, float]:
+def clean_battery_input(val: Any) -> float | None:
+    """Extrae y normaliza un valor numérico de batería o voltaje desde diversos tipos y formatos.
+
+    Soporta:
+    - Enteros y flotantes directos (85, 4150, 4.15)
+    - Strings con unidades o símbolos ("85%", "4150mV", "4.15V", "98.5")
+    - Retorna el valor como float limpio o None si no se puede parsear.
+    """
+    if val is None or isinstance(val, bool):
+        return None
+    if isinstance(val, (int, float)):
+        return float(val)
+    if isinstance(val, str):
+        cleaned = val.strip().lower()
+        if not cleaned:
+            return None
+        m = re.search(r"[-+]?\d*\.?\d+", cleaned)
+        if m:
+            try:
+                return float(m.group(0))
+            except (ValueError, TypeError):
+                return None
+    return None
+
+
+def normalize_battery(raw_value: int | float | str | Any) -> tuple[float, float]:
     """Conversión canónica de valor crudo de batería a porcentaje y voltaje.
 
     El firmware MeshCore reporta batería en diferentes formatos según hardware:
-    - 0-100: Porcentaje directo
-    - 101-255: Valor ADC que requiere conversión
-    - 300-420: Voltaje en centésimas (3.00V - 4.20V)
-    - 2500-5500: Voltaje en milivoltios (2500mV - 5500mV)
+    - 2.5 - 5.5: Voltaje en Voltios (2.50V - 5.50V)
+    - 0 - 100: Porcentaje directo
+    - 101 - 255: Valor ADC que requiere conversión
+    - 300 - 420: Voltaje en centésimas (3.00V - 4.20V)
+    - 2500 - 5500: Voltaje en milivoltios (2500mV - 5500mV) o explícito mV
 
     Args:
-        raw_value: Valor crudo reportado por el firmware.
+        raw_value: Valor crudo reportado por el firmware (int, float o str).
 
     Returns:
         Tupla (porcentaje, voltaje_estimado).
     """
-    if raw_value <= 0:
+    num_val = clean_battery_input(raw_value)
+    if num_val is None or num_val <= 0:
         return 0.0, 0.0
 
-    if 1 <= raw_value <= 100:
-        percent = float(raw_value)
+    raw_str = str(raw_value).strip().lower() if isinstance(raw_value, str) else ""
+    is_explicit_pct = "%" in raw_str
+    is_explicit_mv = "mv" in raw_str
+    is_explicit_volt = ("v" in raw_str and not is_explicit_mv) or (raw_str.endswith("v") and not is_explicit_mv)
+
+    # Caso 1: Voltaje explícito o flotante decimal en rango típico de celda (2.5V - 5.5V)
+    if not is_explicit_pct and not is_explicit_mv and (
+        is_explicit_volt or (2.5 <= num_val <= 5.5 and (isinstance(raw_value, float) or "." in str(raw_value)))
+    ):
+        voltage = round(num_val, 2)
+        if voltage >= 4.8:
+            percent = 100.0
+        elif voltage <= 3.0:
+            percent = 0.0
+        else:
+            percent = max(0.0, min(100.0, ((voltage - 3.0) / 1.2) * 100.0))
+        return round(percent, 1), voltage
+
+    # Caso 2: Porcentaje directo (0 - 100)
+    if 1 <= num_val <= 100 and not is_explicit_mv:
+        percent = float(num_val)
         voltage = 3.0 + (percent / 100.0) * 1.2
-        return percent, round(voltage, 2)
+        return round(percent, 1), round(voltage, 2)
 
-    if 101 <= raw_value <= 255:
-        percent = round((raw_value / 255.0) * 100.0, 1)
-        voltage = 3.0 + (raw_value / 255.0) * 1.2
-        return percent, round(voltage, 2)
+    # Caso 3: Valor ADC (101 - 255)
+    if 101 <= num_val <= 255 and not is_explicit_mv:
+        percent = round((num_val / 255.0) * 100.0, 1)
+        voltage = 3.0 + (num_val / 255.0) * 1.2
+        return round(percent, 1), round(voltage, 2)
 
-    if 300 <= raw_value <= 420:
-        voltage = raw_value / 100.0
+    # Caso 4: Centivoltios (300 - 420)
+    if 300 <= num_val <= 420 and not is_explicit_mv:
+        voltage = num_val / 100.0
         percent = max(0.0, min(100.0, ((voltage - 3.0) / 1.2) * 100.0))
         return round(percent, 1), round(voltage, 2)
 
-    if 2500 <= raw_value <= 5500:
-        voltage = round(raw_value / 1000.0, 2)
+    # Caso 5: Milivoltios (2500 - 5500) o explícito mV
+    if 2500 <= num_val <= 5500 or is_explicit_mv:
+        voltage = round(num_val / 1000.0, 2)
         if voltage >= 4.8:
             percent = 100.0
+        elif voltage <= 3.0:
+            percent = 0.0
         else:
             percent = max(0.0, min(100.0, ((voltage - 3.0) / 1.2) * 100.0))
         return round(percent, 1), voltage

@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from enum import IntEnum
 from typing import Any
 
+from src.shared_utils import clean_battery_input, normalize_battery
+
 
 class LppDataType(IntEnum):
     """Tipos de datos estándar IPSO / CayenneLPP."""
@@ -309,10 +311,17 @@ def _map_lpp_item_to_res(t: str, val: Any, ch: Any, res: dict[str, Any]) -> None
             res["pressure_hpa"] = round(float(val), 1)
             res[f"ch_{ch}_pressure_hpa"] = res["pressure_hpa"]
         elif "volt" in t:
-            res["voltage_v"] = round(float(val), 2)
-            res[f"ch_{ch}_voltage_v"] = res["voltage_v"]
+            clean_v = clean_battery_input(val)
+            if clean_v is not None:
+                res["voltage_v"] = round(clean_v, 2)
+                res[f"ch_{ch}_voltage_v"] = res["voltage_v"]
         elif "percent" in t or "bat" in t:
-            res["battery_pct"] = int(val)
+            clean_b = clean_battery_input(val)
+            if clean_b is not None:
+                pct, volt = normalize_battery(clean_b)
+                res["battery_pct"] = int(pct)
+                if volt > 0 and "voltage_v" not in res:
+                    res["voltage_v"] = volt
         elif "illumin" in t or "lux" in t:
             res["illuminance_lux"] = int(val)
         elif "gps" in t or "loc" in t:
@@ -366,48 +375,43 @@ def _extract_environment_telemetry(data: dict[str, Any], res: dict[str, Any]) ->
 
 def _extract_power_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
     """Extrae y normaliza métricas de batería, voltaje y panel solar."""
-    raw_bat = data.get("battery_pct", data.get("battery", data.get("bat", data.get("batt"))))
+    raw_bat = data.get("battery_pct", data.get("battery", data.get("bat", data.get("batt", data.get("level")))))
     raw_bat_mv = data.get("battery_mv", data.get("batt_mv", data.get("vbat_mv")))
     raw_volt = data.get("voltage_v", data.get("voltage", data.get("volt", data.get("vbat"))))
 
     if raw_bat_mv is not None:
-        try:
-            mv_val = float(raw_bat_mv)
-            res["battery_mv"] = int(mv_val)
-            res["voltage_v"] = round(mv_val / 1000.0, 2)
+        clean_mv = clean_battery_input(raw_bat_mv)
+        if clean_mv is not None:
+            pct_norm, volt_norm = normalize_battery(clean_mv if clean_mv > 100 else clean_mv * 1000.0)
+            res["battery_mv"] = int(clean_mv) if clean_mv > 100 else int(clean_mv * 1000.0)
+            res["voltage_v"] = volt_norm
             if "battery_pct" not in res and raw_bat is None:
-                res["battery_pct"] = max(0, min(100, int((mv_val - 3300) / (4200 - 3300) * 100)))
-        except (ValueError, TypeError):
-            pass
+                res["battery_pct"] = int(pct_norm)
 
     if raw_volt is not None and "voltage_v" not in res:
-        try:
-            v_val = float(raw_volt)
-            res["voltage_v"] = round(v_val, 2) if v_val < 100.0 else round(v_val / 1000.0, 2)
-            if "battery_pct" not in res and raw_bat is None and v_val < 10.0:
-                res["battery_pct"] = max(0, min(100, int((v_val - 3.3) / (4.2 - 3.3) * 100)))
-        except (ValueError, TypeError):
-            pass
+        clean_v = clean_battery_input(raw_volt)
+        if clean_v is not None:
+            pct_norm, volt_norm = normalize_battery(clean_v)
+            res["voltage_v"] = volt_norm
+            if "battery_pct" not in res and raw_bat is None:
+                res["battery_pct"] = int(pct_norm)
 
     if raw_bat is not None:
-        try:
-            b_val = float(raw_bat)
-            if b_val > 100.0:  # Es en mV
-                res["battery_mv"] = int(b_val)
-                res["voltage_v"] = round(b_val / 1000.0, 2)
-                res["battery_pct"] = max(0, min(100, int((b_val - 3300) / (4200 - 3300) * 100)))
-            else:
-                res["battery_pct"] = int(b_val)
-        except (ValueError, TypeError):
-            pass
+        clean_b = clean_battery_input(raw_bat)
+        if clean_b is not None:
+            pct_norm, volt_norm = normalize_battery(clean_b)
+            res["battery_pct"] = int(pct_norm)
+            if volt_norm > 0:
+                if "voltage_v" not in res:
+                    res["voltage_v"] = volt_norm
+                if "battery_mv" not in res:
+                    res["battery_mv"] = int(volt_norm * 1000.0)
 
     raw_solar = data.get("solar_v", data.get("solar_mv", data.get("solar")))
     if raw_solar is not None:
-        try:
-            s_val = float(raw_solar)
-            res["solar_v"] = round(s_val / 1000.0, 2) if s_val > 100.0 else round(s_val, 2)
-        except (ValueError, TypeError):
-            pass
+        clean_s = clean_battery_input(raw_solar)
+        if clean_s is not None:
+            res["solar_v"] = round(clean_s / 1000.0, 2) if clean_s > 100.0 else round(clean_s, 2)
 
 
 def _extract_system_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:

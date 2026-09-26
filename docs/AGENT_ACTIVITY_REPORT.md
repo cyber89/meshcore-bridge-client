@@ -2,6 +2,26 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Normalización y Reparación de Telemetría de Batería, LPP y Claves SDK MeshCore
+- **Fecha**: 2026-09-26
+- **Estado**: ✅ COMPLETADO — Reparada la cadena completa de extracción, sanitización y normalización de batería/voltaje en todos los tipos de nodos. Solucionado el descarte silencioso en `try/except: pass` de CayenneLPP (`_map_lpp_item_to_res`), el soporte para cadenas con unidades (`"95%"`, `"4.15V"`, `"4150mV"`, `"98.5"`), la clave canónica del firmware `"level"` (`PUSH_CODE_BATTERY`), la diferenciación de voltajes directos en voltios (2.5V-5.5V) en `normalize_battery`, y el descongelamiento de telemetría en `NodeRegistry`.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect), Agente 1 (Firmware Investigator), Agente 2 (Bridge Architect).
+- **Módulos Afectados**:
+  1. **`src/shared_utils.py`**:
+     - Creada función canónica `clean_battery_input(val: Any) -> float | None` (SSoT) para extraer y limpiar valores numéricos de strings con sufijos o espacios.
+     - Ampliada `normalize_battery()` para procesar enteros, flotantes y cadenas con unidades, reconociendo el rango `2.5V <= v <= 5.5V` como voltaje directo de celda Li-Ion en lugar de interpretarlo erróneamente como porcentaje de 2% a 5%.
+  2. **`src/sensor_decoder.py`**:
+     - En `_map_lpp_item_to_res`: sustituido `int(val)` frágil por `clean_battery_input()` y `normalize_battery()`, eliminando el descarte silencioso de strings o flotantes.
+     - En `_extract_power_telemetry`: incorporada la clave canónica `"level"` del SDK y limpieza robusta de unidades de mV/V.
+  3. **`src/rx_router.py`**:
+     - `_extract_battery_percentage`: búsqueda de claves `"level"`, `"battery_pct"`, `"battery"`, `"batt"`, `"bat"`, con normalización universal.
+     - `_handle_mesh_telemetry_msg`: cálculo de `calc_bat_pct` tolerante a cadenas y clave `"level"`. Al recibir el valor real, `NodeContactUpdate` actualiza `NodeRegistry`, emite WebSockets y descongeló la batería en la WebUI.
+  4. **`src/repeater_manager.py`**:
+     - `_extract_json_power`: soporte para respuestas JSON de repetidores con clave `"level"` y valores de voltaje o batería en strings numéricos.
+- **Calidad y Tipado**:
+  - `ruff check`: Aprobado (0 errores).
+  - Verificación unitaria de todos los casos de telemetría (100% aprobado).
+
 ### Hito: Eliminación Definitiva de Deploy, Visualización de Contactos GPS en Mapa, Desbloqueo de Canal 0 y Validación de Métricas/Ajustes
 - **Fecha**: 2026-09-25
 - **Estado**: ✅ COMPLETADO — Eliminación absoluta de la carpeta `/deploy/` y referencias a sincronizaciones intermedias (preservando los instaladores raíz `install.sh` y `install.ps1`). Corrección integral de la cadena de coordenadas GPS para contactos en el mapa Leaflet, rectificación del estado no cifrado del Canal 0 en la UI web y auditoría exhaustiva de paridad de métricas y ajustes.
