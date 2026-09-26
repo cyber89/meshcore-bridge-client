@@ -2,6 +2,18 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Integración y Configuración del Motor de Búsqueda Indexada `tgrep` (Microsoft)
+- **Fecha**: 2026-09-26
+- **Estado**: ✅ COMPLETADO — Descargado e instalado el binario oficial de Windows `microsoft/tgrep` (v1.0.11, x86_64) en el PATH global de Antigravity (`C:\Users\Ruby\.gemini\antigravity\bin\tgrep.exe`) y respaldo local en `.agents\bin\tgrep.exe`. Generado el índice inicial de trigramas (`.tgrep`) indexando 3.861 archivos (código fuente y `/reference/meshcore/`) en 8.0s con 106 MB de RAM. Validadas búsquedas con latencia submilisegundo (~5.2 ms). Añadida la skill operativa `.agents/skills/tgrep-code-search/SKILL.md` y protegidos los índices en `.gitignore`.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect), Agente 1 (Firmware Investigator).
+- **Módulos Afectados**:
+  1. **`.agents/skills/tgrep-code-search/SKILL.md`**: Definición completa de comandos, flags de compatibilidad ripgrep, ejemplos y patrones de uso para agentes.
+  2. **`AGENTS.md`**: Asignada la skill `tgrep-code-search` al Agente 0 y Agente 1 para búsqueda rápida en monorepos y código C/C++ de referencia.
+  3. **`.gitignore`**: Agregadas las rutas `.tgrep/` y `.agents/bin/`.
+- **Verificación**:
+  - Binario verificado: `tgrep --version` (v1.0.11).
+  - Búsqueda probada: `tgrep "FirmwareAdvertType" --stats` completada en 5.2 ms a través de 3.861 archivos (65 coincidencias).
+
 ### Hito: Normalización y Reparación de Telemetría de Batería, LPP y Claves SDK MeshCore
 - **Fecha**: 2026-09-26
 - **Estado**: ✅ COMPLETADO — Reparada la cadena completa de extracción, sanitización y normalización de batería/voltaje en todos los tipos de nodos. Solucionado el descarte silencioso en `try/except: pass` de CayenneLPP (`_map_lpp_item_to_res`), el soporte para cadenas con unidades (`"95%"`, `"4.15V"`, `"4150mV"`, `"98.5"`), la clave canónica del firmware `"level"` (`PUSH_CODE_BATTERY`), la diferenciación de voltajes directos en voltios (2.5V-5.5V) en `normalize_battery`, y el descongelamiento de telemetría en `NodeRegistry`.

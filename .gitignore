@@ -51,3 +51,7 @@ deploy/
 *.tar.gz
 *.zip
 SHA256SUMS
+
+# Local tooling & search indices
+.tgrep/
+.agents/bin/

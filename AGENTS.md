@@ -44,6 +44,7 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
 - **Herramientas**:
   - Skill: `domain-adr-keeper` (Gobernanza de CONTEXT.md y ADRs)
   - Skill: `clean-code-solid` (Deep Modules y auditoría de complejidad)
+  - Skill: `tgrep-code-search` (Búsqueda indexada por trigramas submilisegundo en monorepo/referencia)
 - **Responsabilidades y Reglas Estrictas**:
   1. **Desglose y Asignación**: Al iniciar una tarea, desglosa los requerimientos y delega subtareas a los agentes correspondientes (Investigador, Arquitecto de Bridge, Arquitecto Web, Auditor de Seguridad).
   2. **Auditoría del Reporte**: Consulta obligatoriamente `docs/AGENT_ACTIVITY_REPORT.md` tras cada fase para verificar qué módulos fueron modificados y qué contratos cambiaron.
@@ -59,6 +60,7 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
   - Escritura: `/docs/PROTOCOL_SPEC.md`, `/src/protocol_types.py`
 - **Herramientas**:
   - Skill: `meshcore_source_inspector` (AST / Struct / Enum Extractor)
+  - Skill: `tgrep-code-search` (Búsqueda indexada por trigramas en código firmware C/C++)
 - **Reglas y Restricciones Estrictas**:
   1. **NUNCA** escribir código de red (MQTT, Sockets), persistencia de archivos ni controladores de hardware serie en `/src/meshcore_bridge.py`.
   2. Cada struct de C/C++ extraído debe documentar: Endianness, empaquetado (`packed`), padding y CRC.
