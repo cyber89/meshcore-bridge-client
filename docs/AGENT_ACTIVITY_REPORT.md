@@ -2,6 +2,36 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Normalización y Persistencia Exhaustiva de Telemetría Ambiental, RF y de Sistema en Todos los Nodos
+- **Fecha**: 2026-09-26
+- **Estado**: ✅ COMPLETADO — Estandarizada la extracción, sanitización y persistencia de métricas ambientales (temperatura, humedad, presión, iluminancia), RF (RSSI, SNR, ruido base, airtime, paquetes TX/RX, errores) y de sistema (uptime, colas, coordenadas GPS) para cualquier rol de nodo (`CLIENT`, `REPEATER`, `ROOM`, `SENSOR`, `LOCAL`).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect), Agente 1 (Firmware Investigator), Agente 2 (Bridge Architect).
+- **Causa Raíz Diagnosticada**:
+  1. **Omisión Crítica de Humedad y Presión en `NodeRegistry`**: En `src/rx_router.py._handle_mesh_telemetry_msg`, aunque `NodeContactUpdate` soportaba `humidity_pct` y `pressure_hpa`, el router no los transfería al instanciar el objeto de actualización. Toda telemetría de estaciones meteorológicas o nodos BME280/BMP280 perdía humedad y presión atmosférica al almacenarse en `NodeRegistry`.
+  2. **Bloqueo por Unidades de Medida y Formatos de Texto**: Valores con sufijos (`"24.5°C"`, `"60%"`, `"1013.2 hPa"`, `"-118 dBm"`, `"250ms"`, `"7200s"`, `"5 err"`, `"2 pkts"`) provocaban excepciones `ValueError` silenciosas en `try/except: pass` o fallos en cascada en `_parse_json_telemetry` de repetidores.
+  3. **Inconsistencia de Tipos en LPP**: En `_decode_lpp_value` de `sensor_decoder.py`, la iluminancia (LPP 101) y barómetro (LPP 115) se interpretaban con signo `signed=True`, corrompiendo valores altos de lux (>32767).
+  4. **Aliases en Telemetría JSON**: Repetidores y sensores emitiendo `"vbat"`, `"volt"`, `"batt"` o `"battery_pct"` eran ignorados en `_extract_json_power`.
+- **Módulos Afectados**:
+  1. **`src/shared_utils.py`**:
+     - Creada función canónica `clean_numeric_value(val: Any) -> float | None` como Single Source of Truth para limpiar y extraer números válidos de enteros, flotantes y cadenas con unidades o símbolos.
+     - `clean_battery_input` aliada directamente a `clean_numeric_value` para máxima interoperabilidad.
+  2. **`src/sensor_decoder.py`**:
+     - Normalizadas todas las funciones de extracción (`_map_lpp_item_to_res`, `_parse_lpp_gps_val`, `_extract_environment_telemetry`, `_extract_power_telemetry`, `_extract_system_telemetry`, `_extract_radio_telemetry`, `_extract_location_telemetry`) usando `clean_numeric_value`.
+     - Corregido el desempaquetado de enteros sin signo en `_decode_lpp_value` para iluminancia y barómetro.
+  3. **`src/rx_router.py`**:
+     - Corregida la omisión crítica: inyectados `humidity_pct` y `pressure_hpa` en `NodeContactUpdate`.
+     - Sanitización universal de parámetros de enlace y radio (`clean_rssi`, `clean_snr`, `clean_noise`, `clean_solar`, `clean_airtime`, `clean_sent`, `clean_recv`, `clean_errors`, `clean_queue`, `clean_freq`, `clean_pwr`, `clean_sf`, `clean_bw`, `clean_adv_int`, `clean_hop_lim`, `clean_hops`).
+  4. **`src/repeater_manager.py`**:
+     - Conversión universal en `_extract_json_system`, `_extract_json_power`, `_extract_json_radio_and_coords`, `_parse_system_metrics` y `_parse_owner_and_location` con `clean_numeric_value`.
+     - Añadida extracción de `humidity_pct` y `pressure_hpa` tanto en modo JSON como en respuestas de texto CLI.
+     - Soportados alias `"vbat"`, `"volt"`, `"batt"`, `"battery_pct"` y coordenadas sin punto decimal obligatorio.
+  5. **`src/contact_manager.py`**:
+     - Modernizadas `_safe_int` y `_safe_float` para utilizar `clean_numeric_value`.
+     - Fortalecida `_extract_telemetry_fields` para procesar batería canónica y sensores ambientales sin pérdida de precisión.
+- **Verificación y Calidad**:
+  - `ruff check`: 100% aprobado (0 errores).
+  - Verificación determinista en memoria de todos los tipos de telemetría y sensores: 100% aprobado.
+
 ### Hito: Integración y Configuración del Motor de Búsqueda Indexada `tgrep` (Microsoft)
 - **Fecha**: 2026-09-26
 - **Estado**: ✅ COMPLETADO — Descargado e instalado el binario oficial de Windows `microsoft/tgrep` (v1.0.11, x86_64) en el PATH global de Antigravity (`C:\Users\Ruby\.gemini\antigravity\bin\tgrep.exe`) y respaldo local en `.agents\bin\tgrep.exe`. Generado el índice inicial de trigramas (`.tgrep`) indexando 3.861 archivos (código fuente y `/reference/meshcore/`) en 8.0s con 106 MB de RAM. Validadas búsquedas con latencia submilisegundo (~5.2 ms). Añadida la skill operativa `.agents/skills/tgrep-code-search/SKILL.md` y protegidos los índices en `.gitignore`.

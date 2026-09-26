@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from typing import Any
 
-from src.shared_utils import clean_battery_input, normalize_battery
+from src.shared_utils import clean_battery_input, clean_numeric_value, normalize_battery
 
 
 class LppDataType(IntEnum):
@@ -302,14 +302,20 @@ def _map_lpp_item_to_res(t: str, val: Any, ch: Any, res: dict[str, Any]) -> None
     """Mapea un elemento individual de LPP al diccionario de resultados."""
     try:
         if "temp" in t:
-            res["temperature_c"] = round(float(val), 1)
-            res[f"ch_{ch}_temperature_c"] = res["temperature_c"]
+            clean_t = clean_numeric_value(val)
+            if clean_t is not None:
+                res["temperature_c"] = round(clean_t, 1)
+                res[f"ch_{ch}_temperature_c"] = res["temperature_c"]
         elif "humid" in t:
-            res["humidity_pct"] = round(float(val), 1)
-            res[f"ch_{ch}_humidity_pct"] = res["humidity_pct"]
+            clean_h = clean_numeric_value(val)
+            if clean_h is not None:
+                res["humidity_pct"] = round(clean_h, 1)
+                res[f"ch_{ch}_humidity_pct"] = res["humidity_pct"]
         elif "barom" in t or "press" in t:
-            res["pressure_hpa"] = round(float(val), 1)
-            res[f"ch_{ch}_pressure_hpa"] = res["pressure_hpa"]
+            clean_p = clean_numeric_value(val)
+            if clean_p is not None:
+                res["pressure_hpa"] = round(clean_p, 1)
+                res[f"ch_{ch}_pressure_hpa"] = res["pressure_hpa"]
         elif "volt" in t:
             clean_v = clean_battery_input(val)
             if clean_v is not None:
@@ -323,7 +329,10 @@ def _map_lpp_item_to_res(t: str, val: Any, ch: Any, res: dict[str, Any]) -> None
                 if volt > 0 and "voltage_v" not in res:
                     res["voltage_v"] = volt
         elif "illumin" in t or "lux" in t:
-            res["illuminance_lux"] = int(val)
+            clean_l = clean_numeric_value(val)
+            if clean_l is not None:
+                res["illuminance_lux"] = int(round(clean_l))
+                res[f"ch_{ch}_illuminance_lux"] = res["illuminance_lux"]
         elif "gps" in t or "loc" in t:
             _parse_lpp_gps_val(val, res)
     except (ValueError, TypeError):
@@ -333,44 +342,53 @@ def _map_lpp_item_to_res(t: str, val: Any, ch: Any, res: dict[str, Any]) -> None
 def _parse_lpp_gps_val(val: Any, res: dict[str, Any]) -> None:
     """Extrae coordenadas GPS desde estructuras de lista, tupla o diccionario."""
     if isinstance(val, (list, tuple)) and len(val) >= 2:
-        res["latitude"] = float(val[0])
-        res["longitude"] = float(val[1])
+        c_lat = clean_numeric_value(val[0])
+        c_lon = clean_numeric_value(val[1])
+        if c_lat is not None:
+            res["latitude"] = round(c_lat, 5)
+        if c_lon is not None:
+            res["longitude"] = round(c_lon, 5)
         if len(val) >= 3:
-            res["altitude_m"] = float(val[2])
+            c_alt = clean_numeric_value(val[2])
+            if c_alt is not None:
+                res["altitude_m"] = round(c_alt, 1)
     elif isinstance(val, dict):
         v_lat = val.get("lat", val.get("latitude"))
         if v_lat is not None:
-            res["latitude"] = float(v_lat)
+            c_lat = clean_numeric_value(v_lat)
+            if c_lat is not None:
+                res["latitude"] = round(c_lat, 5)
         v_lon = val.get("lon", val.get("longitude"))
         if v_lon is not None:
-            res["longitude"] = float(v_lon)
+            c_lon = clean_numeric_value(v_lon)
+            if c_lon is not None:
+                res["longitude"] = round(c_lon, 5)
         v_alt = val.get("alt", val.get("altitude"))
         if v_alt is not None:
-            res["altitude_m"] = float(v_alt)
+            c_alt = clean_numeric_value(v_alt)
+            if c_alt is not None:
+                res["altitude_m"] = round(c_alt, 1)
 
 
 def _extract_environment_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
     """Extrae lecturas de temperatura, humedad y presión atmosférica."""
     temp = data.get("temperature_c", data.get("temp_c", data.get("temp", data.get("temperature"))))
     if temp is not None:
-        try:
-            res["temperature_c"] = round(float(temp), 1)
-        except (ValueError, TypeError):
-            pass
+        clean_t = clean_numeric_value(temp)
+        if clean_t is not None:
+            res["temperature_c"] = round(clean_t, 1)
 
     hum = data.get("humidity_pct", data.get("humidity", data.get("hum", data.get("relative_humidity"))))
     if hum is not None:
-        try:
-            res["humidity_pct"] = round(float(hum), 1)
-        except (ValueError, TypeError):
-            pass
+        clean_h = clean_numeric_value(hum)
+        if clean_h is not None:
+            res["humidity_pct"] = round(clean_h, 1)
 
     press = data.get("pressure_hpa", data.get("pressure", data.get("press", data.get("barometer", data.get("barometric_pressure")))))
     if press is not None:
-        try:
-            res["pressure_hpa"] = round(float(press), 1)
-        except (ValueError, TypeError):
-            pass
+        clean_p = clean_numeric_value(press)
+        if clean_p is not None:
+            res["pressure_hpa"] = round(clean_p, 1)
 
 
 def _extract_power_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
@@ -418,8 +436,11 @@ def _extract_system_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None
     """Extrae uptime formateado, colas y contadores de errores."""
     raw_uptime = data.get("uptime_secs", data.get("uptime", data.get("uptime_sec", data.get("uptime_s"))))
     if raw_uptime is not None:
-        if isinstance(raw_uptime, (int, float)):
-            secs = int(raw_uptime)
+        clean_up = clean_numeric_value(raw_uptime)
+        if clean_up is not None and (
+            isinstance(raw_uptime, (int, float)) or str(raw_uptime).strip().isdigit() or str(raw_uptime).strip().endswith("s")
+        ):
+            secs = int(clean_up)
             res["uptime_secs"] = secs
             days, rem = divmod(secs, 86400)
             hours, rem = divmod(rem, 3600)
@@ -435,48 +456,48 @@ def _extract_system_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None
 
     errors = data.get("errors", data.get("packet_errors", data.get("recv_errors")))
     if errors is not None:
-        try:
-            res["packet_errors"] = int(errors)
-        except (ValueError, TypeError):
-            pass
+        clean_err = clean_numeric_value(errors)
+        if clean_err is not None:
+            res["packet_errors"] = int(clean_err)
 
     queue = data.get("queue_len", data.get("queue"))
     if queue is not None:
-        try:
-            res["queue_len"] = int(queue)
-        except (ValueError, TypeError):
-            pass
+        clean_q = clean_numeric_value(queue)
+        if clean_q is not None:
+            res["queue_len"] = int(clean_q)
 
 
 def _extract_radio_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
     """Extrae métricas RF: piso de ruido, airtime y contadores de paquetes."""
     noise = data.get("noise_floor", data.get("noise_floor_dbm", data.get("noise")))
     if noise is not None:
-        try:
-            res["noise_floor_dbm"] = int(noise)
-        except (ValueError, TypeError):
-            pass
+        clean_n = clean_numeric_value(noise)
+        if clean_n is not None:
+            res["noise_floor_dbm"] = int(round(clean_n))
 
     airtime = data.get("airtime_ms", data.get("tx_air_secs", data.get("airtime")))
     if airtime is not None:
-        try:
-            res["airtime_ms"] = int(float(airtime) * 1000) if float(airtime) < 10000 else int(airtime)
-        except (ValueError, TypeError):
-            pass
+        clean_at = clean_numeric_value(airtime)
+        if clean_at is not None:
+            raw_s = str(airtime).strip().lower()
+            if raw_s.endswith("s") and not raw_s.endswith("ms"):
+                res["airtime_ms"] = int(clean_at * 1000)
+            elif clean_at < 10000 and "tx_air_secs" in data:
+                res["airtime_ms"] = int(clean_at * 1000)
+            else:
+                res["airtime_ms"] = int(clean_at)
 
     sent = data.get("packets_sent", data.get("sent"))
     if sent is not None:
-        try:
-            res["packets_sent"] = int(sent)
-        except (ValueError, TypeError):
-            pass
+        clean_s = clean_numeric_value(sent)
+        if clean_s is not None:
+            res["packets_sent"] = int(clean_s)
 
     recv = data.get("packets_recv", data.get("recv"))
     if recv is not None:
-        try:
-            res["packets_recv"] = int(recv)
-        except (ValueError, TypeError):
-            pass
+        clean_r = clean_numeric_value(recv)
+        if clean_r is not None:
+            res["packets_recv"] = int(clean_r)
 
 
 def _extract_location_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
@@ -491,29 +512,26 @@ def _extract_location_telemetry(data: dict[str, Any], res: dict[str, Any]) -> No
         if "latitude" not in res:
             for lat_k in ("latitude", "lat", "gps_lat", "adv_lat"):
                 if lat_k in src and src[lat_k] is not None:
-                    try:
-                        res["latitude"] = float(src[lat_k])
+                    clean_lat = clean_numeric_value(src[lat_k])
+                    if clean_lat is not None:
+                        res["latitude"] = clean_lat
                         break
-                    except (ValueError, TypeError):
-                        pass
 
         if "longitude" not in res:
             for lon_k in ("longitude", "lon", "gps_lon", "adv_lon"):
                 if lon_k in src and src[lon_k] is not None:
-                    try:
-                        res["longitude"] = float(src[lon_k])
+                    clean_lon = clean_numeric_value(src[lon_k])
+                    if clean_lon is not None:
+                        res["longitude"] = clean_lon
                         break
-                    except (ValueError, TypeError):
-                        pass
 
         if "altitude_m" not in res:
             for alt_k in ("altitude_m", "altitude", "alt", "gps_alt"):
                 if alt_k in src and src[alt_k] is not None:
-                    try:
-                        res["altitude_m"] = float(src[alt_k])
+                    clean_alt = clean_numeric_value(src[alt_k])
+                    if clean_alt is not None:
+                        res["altitude_m"] = clean_alt
                         break
-                    except (ValueError, TypeError):
-                        pass
 
 
 def extract_telemetry_fields(data: dict[str, Any]) -> dict[str, Any]:
@@ -642,7 +660,7 @@ def _decode_lpp_value(type_val: int, raw: bytes) -> Any:
     if type_val in (0, 1, 102, 120):  # 1 byte
         return raw[0]
     elif type_val in (2, 3, 101, 103, 115, 116):  # 2 bytes
-        val = int.from_bytes(raw[:2], byteorder="big", signed=True)
+        val = int.from_bytes(raw[:2], byteorder="big", signed=False if type_val in (101, 115) else True)
         if type_val == 103:  # Temperature
             return round(val * 0.1, 1)
         elif type_val == 115:  # Barometer

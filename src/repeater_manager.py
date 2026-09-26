@@ -12,7 +12,12 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from src.shared_utils import clamp_tx_power, clean_battery_input, normalize_battery
+from src.shared_utils import (
+    clamp_tx_power,
+    clean_battery_input,
+    clean_numeric_value,
+    normalize_battery,
+)
 
 
 class RepeaterManager:
@@ -401,38 +406,43 @@ class RepeaterManager:
 
     @staticmethod
     def _extract_json_power(data_json: dict[str, Any], extracted: dict[str, Any]) -> None:
-        if "battery_mv" in data_json or "batt_mv" in data_json or "battery" in data_json or "level" in data_json:
-            raw_bat = data_json.get("battery_mv", data_json.get("batt_mv", data_json.get("battery", data_json.get("level"))))
-            if raw_bat is not None:
-                pct_norm, volt_norm = normalize_battery(raw_bat)
-                if pct_norm > 0 or raw_bat in (0, "0", "0%"):
-                    extracted["battery_pct"] = int(pct_norm)
-                if volt_norm > 0:
+        raw_bat = data_json.get(
+            "battery_pct",
+            data_json.get("battery", data_json.get("batt", data_json.get("battery_mv", data_json.get("batt_mv", data_json.get("level"))))),
+        )
+        if raw_bat is not None:
+            clean_b = clean_battery_input(raw_bat)
+            if clean_b is not None:
+                pct_norm, volt_norm = normalize_battery(clean_b)
+                if pct_norm > 0 or clean_b in (0, 0.0):
+                    extracted["battery_pct"] = int(round(pct_norm))
+                if volt_norm > 0 and "voltage_v" not in extracted:
                     extracted["voltage_v"] = volt_norm
 
-        if "voltage_v" in data_json or "voltage" in data_json:
-            raw_v = data_json.get("voltage_v", data_json.get("voltage"))
-            if raw_v is not None:
-                clean_v = clean_battery_input(raw_v)
-                if clean_v is not None:
-                    extracted["voltage_v"] = round(clean_v, 2)
-                    if "battery_pct" not in extracted:
-                        pct_norm, _ = normalize_battery(clean_v)
-                        extracted["battery_pct"] = int(pct_norm)
+        raw_v = data_json.get("voltage_v", data_json.get("voltage", data_json.get("vbat", data_json.get("volt"))))
+        if raw_v is not None:
+            clean_v = clean_battery_input(raw_v)
+            if clean_v is not None:
+                pct_norm, volt_norm = normalize_battery(clean_v)
+                extracted["voltage_v"] = volt_norm
+                if "battery_pct" not in extracted:
+                    extracted["battery_pct"] = int(round(pct_norm))
 
-        if "solar_mv" in data_json or "solar_v" in data_json or "solar" in data_json:
-            raw_sol = data_json.get("solar_mv", data_json.get("solar_v", data_json.get("solar")))
-            if raw_sol is not None:
-                clean_s = clean_battery_input(raw_sol)
-                if clean_s is not None:
-                    extracted["solar_v"] = round(clean_s / 1000.0, 2) if clean_s > 100 else round(clean_s, 2)
+        raw_sol = data_json.get("solar_v", data_json.get("solar_mv", data_json.get("solar")))
+        if raw_sol is not None:
+            clean_s = clean_battery_input(raw_sol)
+            if clean_s is not None:
+                extracted["solar_v"] = round(clean_s / 1000.0, 2) if clean_s > 100.0 else round(clean_s, 2)
 
     @staticmethod
     def _extract_json_system(data_json: dict[str, Any], extracted: dict[str, Any]) -> None:
         if "uptime_secs" in data_json or "uptime" in data_json:
             raw_up = data_json.get("uptime_secs", data_json.get("uptime"))
-            if isinstance(raw_up, (int, float)):
-                secs = int(raw_up)
+            clean_up = clean_numeric_value(raw_up)
+            if clean_up is not None and (
+                isinstance(raw_up, (int, float)) or str(raw_up).strip().isdigit() or str(raw_up).strip().endswith("s")
+            ):
+                secs = int(clean_up)
                 days, rem = divmod(secs, 86400)
                 hours, rem = divmod(rem, 3600)
                 mins, s = divmod(rem, 60)
@@ -441,28 +451,64 @@ class RepeaterManager:
                 extracted["uptime"] = str(raw_up)
 
         if "errors" in data_json:
-            extracted["packet_errors"] = int(data_json["errors"])
-        if "queue_len" in data_json:
-            extracted["queue_len"] = int(data_json["queue_len"])
-        if "noise_floor" in data_json:
-            extracted["noise_floor_dbm"] = int(data_json["noise_floor"])
-        if "last_rssi" in data_json:
-            extracted["last_rssi"] = int(data_json["last_rssi"])
-        if "last_snr" in data_json:
-            extracted["last_snr"] = round(float(data_json["last_snr"]), 1)
-        if "tx_air_secs" in data_json:
-            extracted["airtime_ms"] = int(float(data_json["tx_air_secs"]) * 1000)
-        if "sent" in data_json:
-            extracted["packets_sent"] = int(data_json["sent"])
+            clean_err = clean_numeric_value(data_json["errors"])
+            if clean_err is not None:
+                extracted["packet_errors"] = int(clean_err)
         if "recv_errors" in data_json:
-            extracted["packet_errors"] = int(data_json["recv_errors"])
+            clean_rerr = clean_numeric_value(data_json["recv_errors"])
+            if clean_rerr is not None:
+                extracted["packet_errors"] = int(clean_rerr)
+        if "queue_len" in data_json or "queue" in data_json:
+            clean_q = clean_numeric_value(data_json.get("queue_len", data_json.get("queue")))
+            if clean_q is not None:
+                extracted["queue_len"] = int(clean_q)
+        if "noise_floor" in data_json or "noise_floor_dbm" in data_json:
+            clean_nf = clean_numeric_value(data_json.get("noise_floor", data_json.get("noise_floor_dbm")))
+            if clean_nf is not None:
+                extracted["noise_floor_dbm"] = int(round(clean_nf))
+        if "last_rssi" in data_json or "rssi" in data_json:
+            clean_rssi = clean_numeric_value(data_json.get("last_rssi", data_json.get("rssi")))
+            if clean_rssi is not None:
+                extracted["last_rssi"] = int(round(clean_rssi))
+        if "last_snr" in data_json or "snr" in data_json:
+            clean_snr = clean_numeric_value(data_json.get("last_snr", data_json.get("snr")))
+            if clean_snr is not None:
+                extracted["last_snr"] = round(clean_snr, 1)
+        if "tx_air_secs" in data_json or "airtime_ms" in data_json:
+            raw_at = data_json.get("airtime_ms", data_json.get("tx_air_secs"))
+            clean_at = clean_numeric_value(raw_at)
+            if clean_at is not None:
+                raw_s = str(raw_at).strip().lower()
+                if "tx_air_secs" in data_json or (raw_s.endswith("s") and not raw_s.endswith("ms")):
+                    extracted["airtime_ms"] = int(clean_at * 1000)
+                else:
+                    extracted["airtime_ms"] = int(clean_at)
+        if "sent" in data_json or "packets_sent" in data_json:
+            clean_s = clean_numeric_value(data_json.get("sent", data_json.get("packets_sent")))
+            if clean_s is not None:
+                extracted["packets_sent"] = int(clean_s)
+        if "recv" in data_json or "packets_recv" in data_json:
+            clean_r = clean_numeric_value(data_json.get("recv", data_json.get("packets_recv")))
+            if clean_r is not None:
+                extracted["packets_recv"] = int(clean_r)
 
         temp_val = data_json.get("temperature_c", data_json.get("temperature", data_json.get("temp", data_json.get("temp_c"))))
         if temp_val is not None:
-            try:
-                extracted["temperature_c"] = round(float(temp_val), 1)
-            except (ValueError, TypeError):
-                pass
+            clean_t = clean_numeric_value(temp_val)
+            if clean_t is not None:
+                extracted["temperature_c"] = round(clean_t, 1)
+
+        hum_val = data_json.get("humidity_pct", data_json.get("humidity", data_json.get("hum")))
+        if hum_val is not None:
+            clean_h = clean_numeric_value(hum_val)
+            if clean_h is not None:
+                extracted["humidity_pct"] = round(clean_h, 1)
+
+        press_val = data_json.get("pressure_hpa", data_json.get("pressure", data_json.get("press", data_json.get("barometer"))))
+        if press_val is not None:
+            clean_p = clean_numeric_value(press_val)
+            if clean_p is not None:
+                extracted["pressure_hpa"] = round(clean_p, 1)
 
     @staticmethod
     def _extract_json_radio_and_coords(data_json: dict[str, Any], extracted: dict[str, Any]) -> None:
@@ -471,29 +517,29 @@ class RepeaterManager:
             extracted["repeat_enabled"] = bool(raw_rep) if not isinstance(raw_rep, str) else raw_rep.lower() in ("1", "true", "on", "enabled", "activado")
 
         if "hop_limit" in data_json or "hops" in data_json or "max_hops" in data_json:
-            raw_hl = data_json.get("hop_limit", data_json.get("max_hops", data_json.get("hops")))
-            if isinstance(raw_hl, (int, float)):
-                extracted["hop_limit"] = int(raw_hl)
+            clean_hl = clean_numeric_value(data_json.get("hop_limit", data_json.get("max_hops", data_json.get("hops"))))
+            if clean_hl is not None:
+                extracted["hop_limit"] = int(clean_hl)
 
         if "tx_power" in data_json or "power" in data_json:
-            raw_pwr = data_json.get("tx_power", data_json.get("power"))
-            if raw_pwr is not None:
-                extracted["tx_power"] = int(raw_pwr)
+            clean_pwr = clean_numeric_value(data_json.get("tx_power", data_json.get("power")))
+            if clean_pwr is not None:
+                extracted["tx_power"] = int(clean_pwr)
 
         if "freq" in data_json or "frequency" in data_json:
-            raw_fr = data_json.get("freq", data_json.get("frequency"))
-            if raw_fr is not None:
-                extracted["frequency"] = round(float(raw_fr), 3)
+            clean_fr = clean_numeric_value(data_json.get("freq", data_json.get("frequency")))
+            if clean_fr is not None:
+                extracted["frequency"] = round(clean_fr, 3)
 
         if "sf" in data_json or "spreading_factor" in data_json:
-            raw_sf = data_json.get("sf", data_json.get("spreading_factor"))
-            if raw_sf is not None:
-                extracted["spreading_factor"] = int(raw_sf)
+            clean_sf = clean_numeric_value(data_json.get("sf", data_json.get("spreading_factor")))
+            if clean_sf is not None:
+                extracted["spreading_factor"] = int(clean_sf)
 
         if "bw" in data_json or "bandwidth" in data_json:
-            raw_bw = data_json.get("bw", data_json.get("bandwidth"))
-            if raw_bw is not None:
-                extracted["bandwidth"] = float(raw_bw)
+            clean_bw = clean_numeric_value(data_json.get("bw", data_json.get("bandwidth")))
+            if clean_bw is not None:
+                extracted["bandwidth"] = clean_bw
 
         if "cr" in data_json or "coding_rate" in data_json:
             raw_cr = data_json.get("cr", data_json.get("coding_rate"))
@@ -506,19 +552,19 @@ class RepeaterManager:
                 extracted["owner_name"] = str(raw_ow)
 
         if "lat" in data_json or "latitude" in data_json:
-            raw_la = data_json.get("lat", data_json.get("latitude"))
-            if raw_la is not None:
-                extracted["latitude"] = round(float(raw_la), 5)
+            clean_la = clean_numeric_value(data_json.get("lat", data_json.get("latitude")))
+            if clean_la is not None:
+                extracted["latitude"] = round(clean_la, 5)
 
         if "lon" in data_json or "longitude" in data_json:
-            raw_lo = data_json.get("lon", data_json.get("longitude"))
-            if raw_lo is not None:
-                extracted["longitude"] = round(float(raw_lo), 5)
+            clean_lo = clean_numeric_value(data_json.get("lon", data_json.get("longitude")))
+            if clean_lo is not None:
+                extracted["longitude"] = round(clean_lo, 5)
 
         if "alt" in data_json or "altitude" in data_json:
-            raw_al = data_json.get("alt", data_json.get("altitude"))
-            if raw_al is not None:
-                extracted["altitude_m"] = round(float(raw_al), 1)
+            clean_al = clean_numeric_value(data_json.get("alt", data_json.get("altitude")))
+            if clean_al is not None:
+                extracted["altitude_m"] = round(clean_al, 1)
 
     def _parse_json_telemetry(self, text: str, extracted: dict[str, Any]) -> bool:
         """Parsea telemetría si viene serializada en JSON oficial MeshCore."""
@@ -661,89 +707,93 @@ class RepeaterManager:
 
         airtime_m = re.search(r'(?:total\s+)?airtime\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(ms|s)?', text, re.IGNORECASE)
         if airtime_m:
-            try:
-                raw_at = float(airtime_m.group(1))
+            clean_at = clean_numeric_value(airtime_m.group(1))
+            if clean_at is not None:
                 unit = (airtime_m.group(2) or "ms").lower()
-                extracted["airtime_ms"] = int(raw_at * 1000) if unit == "s" else int(raw_at)
-            except Exception:
-                pass
+                extracted["airtime_ms"] = int(clean_at * 1000) if unit == "s" else int(clean_at)
 
         noise_m = re.search(r'(?:noise(?:\s*floor)?|noisefloor|floor)\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*(?:dbm)?', text, re.IGNORECASE)
         if noise_m:
-            try:
-                extracted["noise_floor_dbm"] = int(float(noise_m.group(1)))
-            except Exception:
-                pass
+            clean_n = clean_numeric_value(noise_m.group(1))
+            if clean_n is not None:
+                extracted["noise_floor_dbm"] = int(round(clean_n))
 
         rssi_m = re.search(r'(?:last\s+)?rssi\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*(?:dbm)?', text, re.IGNORECASE)
         if rssi_m:
-            try:
-                extracted["last_rssi"] = int(float(rssi_m.group(1)))
-            except Exception:
-                pass
+            clean_rssi = clean_numeric_value(rssi_m.group(1))
+            if clean_rssi is not None:
+                extracted["last_rssi"] = int(round(clean_rssi))
 
         snr_m = re.search(r'(?:last\s+)?snr\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*(?:db)?', text, re.IGNORECASE)
         if snr_m:
-            try:
-                extracted["last_snr"] = round(float(snr_m.group(1)), 1)
-            except Exception:
-                pass
+            clean_snr = clean_numeric_value(snr_m.group(1))
+            if clean_snr is not None:
+                extracted["last_snr"] = round(clean_snr, 1)
 
         temp_m = re.search(r'(?:temp(?:erature)?(?:_c)?)\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*(?:°?c)?', text, re.IGNORECASE)
         if temp_m:
-            try:
-                extracted["temperature_c"] = round(float(temp_m.group(1)), 1)
-            except Exception:
-                pass
+            clean_t = clean_numeric_value(temp_m.group(1))
+            if clean_t is not None:
+                extracted["temperature_c"] = round(clean_t, 1)
+
+        hum_m = re.search(r'(?:hum(?:idity)?(?:_pct)?)\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*(?:%)?', text, re.IGNORECASE)
+        if hum_m:
+            clean_h = clean_numeric_value(hum_m.group(1))
+            if clean_h is not None:
+                extracted["humidity_pct"] = round(clean_h, 1)
+
+        press_m = re.search(r'(?:press(?:ure)?(?:_hpa)?|baro(?:meter)?)\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*(?:hpa)?', text, re.IGNORECASE)
+        if press_m:
+            clean_p = clean_numeric_value(press_m.group(1))
+            if clean_p is not None:
+                extracted["pressure_hpa"] = round(clean_p, 1)
 
         pkt_block = re.search(r'packets:\s*rx=(\d+),\s*tx=(\d+)(?:,\s*routed=(\d+))?(?:,\s*(?:drop|err|errors?)=(\d+))?', text, re.IGNORECASE)
         if pkt_block:
-            try:
-                extracted["packets_recv"] = int(pkt_block.group(1))
-                extracted["packets_sent"] = int(pkt_block.group(2))
-                if pkt_block.group(4):
-                    extracted["packet_errors"] = int(pkt_block.group(4))
-            except Exception:
-                pass
+            clean_rx = clean_numeric_value(pkt_block.group(1))
+            clean_tx = clean_numeric_value(pkt_block.group(2))
+            if clean_rx is not None:
+                extracted["packets_recv"] = int(clean_rx)
+            if clean_tx is not None:
+                extracted["packets_sent"] = int(clean_tx)
+            if pkt_block.group(4):
+                clean_err = clean_numeric_value(pkt_block.group(4))
+                if clean_err is not None:
+                    extracted["packet_errors"] = int(clean_err)
 
         if "packets_sent" not in extracted:
             sent_m = re.search(r'(?:packets?\s+sent|tx\s+packets?|sent\s+packets?|nb_sent)\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
             if sent_m:
-                try:
-                    extracted["packets_sent"] = int(sent_m.group(1))
-                except Exception:
-                    pass
+                clean_s = clean_numeric_value(sent_m.group(1))
+                if clean_s is not None:
+                    extracted["packets_sent"] = int(clean_s)
 
         if "packets_recv" not in extracted:
             recv_m = re.search(r'(?:packets?\s+rec(?:ei)?ved|rx\s+packets?|rec(?:ei)?ved\s+packets?|nb_recv)\s*[:=]?\s*(\d+)', text, re.IGNORECASE)
             if recv_m:
-                try:
-                    extracted["packets_recv"] = int(recv_m.group(1))
-                except Exception:
-                    pass
+                clean_r = clean_numeric_value(recv_m.group(1))
+                if clean_r is not None:
+                    extracted["packets_recv"] = int(clean_r)
 
     def _parse_owner_and_location(self, text: str, extracted: dict[str, Any]) -> None:
         """Extrae coordenadas GPS, propietario e información de versión del firmware."""
-        lat_m = re.search(r'lat(?:itude)?\s*[:=]?\s*(-?\d+\.\d+)', text, re.IGNORECASE)
+        lat_m = re.search(r'lat(?:itude)?\s*[:=]?\s*(-?\d+(?:\.\d+)?)', text, re.IGNORECASE)
         if lat_m:
-            try:
-                extracted["latitude"] = round(float(lat_m.group(1)), 5)
-            except Exception:
-                pass
+            clean_lat = clean_numeric_value(lat_m.group(1))
+            if clean_lat is not None:
+                extracted["latitude"] = round(clean_lat, 5)
 
-        lon_m = re.search(r'lon(?:gitude)?\s*[:=]?\s*(-?\d+\.\d+)', text, re.IGNORECASE)
+        lon_m = re.search(r'lon(?:gitude)?\s*[:=]?\s*(-?\d+(?:\.\d+)?)', text, re.IGNORECASE)
         if lon_m:
-            try:
-                extracted["longitude"] = round(float(lon_m.group(1)), 5)
-            except Exception:
-                pass
+            clean_lon = clean_numeric_value(lon_m.group(1))
+            if clean_lon is not None:
+                extracted["longitude"] = round(clean_lon, 5)
 
         alt_m = re.search(r'alt(?:itude)?\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*m?', text, re.IGNORECASE)
         if alt_m:
-            try:
-                extracted["altitude_m"] = round(float(alt_m.group(1)), 1)
-            except Exception:
-                pass
+            clean_alt = clean_numeric_value(alt_m.group(1))
+            if clean_alt is not None:
+                extracted["altitude_m"] = round(clean_alt, 1)
 
         fixed_m = re.search(r'fixed(?:\s*pos(?:ition)?)?\s*[:=]?\s*(on|off|1|0|true|false)', text, re.IGNORECASE)
         if fixed_m:

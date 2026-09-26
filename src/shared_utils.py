@@ -30,12 +30,12 @@ def classify_device_role(advert_type: int, is_local: bool = False) -> str:
         return "CLIENT"
 
 
-def clean_battery_input(val: Any) -> float | None:
-    """Extrae y normaliza un valor numérico de batería o voltaje desde diversos tipos y formatos.
+def clean_numeric_value(val: Any) -> float | None:
+    """Extrae un valor numérico flotante limpio desde enteros, flotantes o strings con unidades o símbolos.
 
     Soporta:
-    - Enteros y flotantes directos (85, 4150, 4.15)
-    - Strings con unidades o símbolos ("85%", "4150mV", "4.15V", "98.5")
+    - Enteros y flotantes directos (22.5, 60, -118)
+    - Strings con unidades o símbolos ("24.5°C", "60%", "1013.2 hPa", "-118 dBm", "350 lux", "250ms")
     - Retorna el valor como float limpio o None si no se puede parsear.
     """
     if val is None or isinstance(val, bool):
@@ -43,7 +43,7 @@ def clean_battery_input(val: Any) -> float | None:
     if isinstance(val, (int, float)):
         return float(val)
     if isinstance(val, str):
-        cleaned = val.strip().lower()
+        cleaned = val.strip()
         if not cleaned:
             return None
         m = re.search(r"[-+]?\d*\.?\d+", cleaned)
@@ -53,6 +53,11 @@ def clean_battery_input(val: Any) -> float | None:
             except (ValueError, TypeError):
                 return None
     return None
+
+
+def clean_battery_input(val: Any) -> float | None:
+    """Extrae y normaliza un valor numérico de batería o voltaje desde diversos tipos y formatos."""
+    return clean_numeric_value(val)
 
 
 def normalize_battery(raw_value: int | float | str | Any) -> tuple[float, float]:

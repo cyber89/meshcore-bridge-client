@@ -19,33 +19,26 @@ from pathlib import Path
 from typing import Any
 
 from src.lqi_engine import LinkQualityEngine, LQIStatus
-from src.shared_utils import get_hardware_power_limits, is_repeater_name
+from src.shared_utils import (
+    clean_battery_input,
+    clean_numeric_value,
+    get_hardware_power_limits,
+    is_repeater_name,
+    normalize_battery,
+)
 
 
 def _safe_int(val: Any) -> int | None:
     """Convierte de forma segura valores de batería o contadores a entero."""
-    if val is None:
-        return None
-    try:
-        if isinstance(val, (int, float)):
-            return int(val)
-        cleaned = str(val).strip().rstrip("%").rstrip("mV").rstrip("V")
-        return int(float(cleaned))
-    except (ValueError, TypeError):
-        return None
+    clean = clean_numeric_value(val)
+    if clean is not None:
+        return int(round(clean))
+    return None
 
 
 def _safe_float(val: Any) -> float | None:
     """Convierte de forma segura valores a flotante."""
-    if val is None:
-        return None
-    try:
-        if isinstance(val, (int, float)):
-            return float(val)
-        cleaned = str(val).strip().rstrip("dB").rstrip("dBm").rstrip("MHz").rstrip("V").rstrip("°C").rstrip("%")
-        return float(cleaned)
-    except (ValueError, TypeError):
-        return None
+    return clean_numeric_value(val)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1225,12 +1218,37 @@ class NodeRegistry:
     @staticmethod
     def _extract_telemetry_fields(telem: dict[str, Any]) -> dict[str, Any]:
         """Extrae de forma segura métricas ambientales y coordenadas GPS de telemetría."""
-        temp = _safe_float(telem.get("temperature_c", telem.get("temperature")))
-        hum = _safe_float(telem.get("humidity_pct", telem.get("humidity")))
-        press = _safe_float(telem.get("pressure_hpa", telem.get("pressure")))
+        temp = _safe_float(telem.get("temperature_c", telem.get("temperature", telem.get("temp"))))
+        if temp is not None:
+            temp = round(temp, 1)
+
+        hum = _safe_float(telem.get("humidity_pct", telem.get("humidity", telem.get("hum"))))
+        if hum is not None:
+            hum = round(hum, 1)
+
+        press = _safe_float(telem.get("pressure_hpa", telem.get("pressure", telem.get("press"))))
+        if press is not None:
+            press = round(press, 1)
+
         volt = _safe_float(telem.get("voltage_v", telem.get("voltage")))
         solar = _safe_float(telem.get("solar_v", telem.get("solar_voltage", telem.get("solar"))))
-        batt = _safe_int(telem.get("battery_pct", telem.get("battery", telem.get("batt"))))
+        if solar is not None and solar > 100.0:
+            solar = round(solar / 1000.0, 2)
+        elif solar is not None:
+            solar = round(solar, 2)
+
+        batt_raw = telem.get("battery_pct", telem.get("battery", telem.get("batt")))
+        batt: int | None = None
+        if batt_raw is not None:
+            clean_b = clean_battery_input(batt_raw)
+            if clean_b is not None:
+                norm_pct, norm_v = normalize_battery(clean_b)
+                batt = int(round(norm_pct))
+                if volt is None:
+                    volt = norm_v
+        elif volt is not None:
+            norm_pct, _ = normalize_battery(volt)
+            batt = int(round(norm_pct))
 
         gps = telem.get("gps", {})
         lat_raw = telem.get("lat", telem.get("latitude", telem.get("gps_lat", telem.get("adv_lat"))))
@@ -1243,6 +1261,10 @@ class NodeRegistry:
         if alt_raw is None and isinstance(gps, dict):
             alt_raw = gps.get("altitude", gps.get("alt", gps.get("altitude_m")))
 
+        lat_val = _safe_float(lat_raw)
+        lon_val = _safe_float(lon_raw)
+        alt_val = _safe_float(alt_raw)
+
         return {
             "temperature_c": temp,
             "humidity_pct": hum,
@@ -1250,9 +1272,9 @@ class NodeRegistry:
             "voltage_v": volt,
             "solar_v": solar,
             "battery_pct": batt,
-            "latitude": _safe_float(lat_raw),
-            "longitude": _safe_float(lon_raw),
-            "altitude_m": _safe_float(alt_raw),
+            "latitude": round(lat_val, 5) if lat_val is not None else None,
+            "longitude": round(lon_val, 5) if lon_val is not None else None,
+            "altitude_m": round(alt_val, 1) if alt_val is not None else None,
             "uptime": str(telem["uptime"]) if "uptime" in telem else None,
             "clock": str(telem["clock"]) if "clock" in telem else None,
         }
