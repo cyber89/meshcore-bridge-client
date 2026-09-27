@@ -696,10 +696,12 @@ class RepeaterManager:
 
     def _parse_system_metrics(self, text: str, extracted: dict[str, Any]) -> None:
         """Extrae uptime, ruido base, airtime, paquetes transmitidos y métricas de enlace."""
-        clock_m = re.search(r'(?:clock|rtc|time)\s*[:=]?\s*([0-9\-:\s\/]+(?:[ap]m|utc)?)', text, re.IGNORECASE)
-        if not clock_m:
+        clock_m = re.search(r'(?:clock|rtc|time)(?:\s*set)?\s*[:=]?\s*([0-9\-:\s\/]+(?:[ap]m|utc)?)', text, re.IGNORECASE)
+        if not clock_m or not clock_m.group(1).strip():
             clock_m = re.search(r'(?:^|>)\s*(\d{1,2}:\d{2}(?::\d{2})?(?:\s*-\s*\d{1,2}\/\d{1,2}\/\d{2,4})?(?:\s*(?:UTC|[ap]m))?)', text, re.IGNORECASE)
-        if clock_m:
+        if not clock_m or not clock_m.group(1).strip():
+            clock_m = re.search(r'(?:^|>)\s*([0-9\-:\s\/]+UTC)', text, re.IGNORECASE)
+        if clock_m and clock_m.group(1).strip():
             extracted["clock"] = clock_m.group(1).strip()
 
         duty_m = re.search(r'(?:duty(?:cycle)?)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*%', text, re.IGNORECASE)

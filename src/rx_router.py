@@ -74,11 +74,16 @@ def extract_sender_from_text(text: str) -> tuple[str | None, str]:
     """
     if not text or not isinstance(text, str):
         return None, text
-    m = _SENDER_PREFIX_RE.match(text.strip())
+    stripped = text.strip()
+    if re.match(r"^\d{1,2}:\d{2}(?::\d{2})?", stripped):
+        return None, text
+    m = _SENDER_PREFIX_RE.match(stripped)
     if m:
         candidate_name = (m.group(1) or m.group(2) or m.group(3) or "").strip()
         actual_text = (m.group(4) or "").strip()
         if actual_text.startswith("//"):
+            return None, text
+        if candidate_name.isdigit():
             return None, text
         if candidate_name.lower() not in (
             "http", "https", "ftp", "ws", "wss", "json", "data", "cmd",

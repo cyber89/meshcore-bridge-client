@@ -2,6 +2,23 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Reparación Quirúrgica del Reloj RTC y Destruncamiento de Respuestas Horarias en Router RX
+- **Fecha**: 2026-09-27
+- **Estado**: ✅ COMPLETADO — Localizada y corregida la causa raíz que impedía visualizar el Reloj RTC en la interfaz de administración del repetidor (`repClockValue`).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect), Agente 1 (Firmware Investigator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect).
+- **Causa Raíz Identificada**:
+  1. **Truncamiento de Horas en `rx_router.py` (`extract_sender_from_text`)**: Cuando el repetidor responde al comando `clock` con el formato canónico del firmware MeshCore (`CommonCLI.cpp:216`: `%02d:%02d - %d/%d/%d UTC`, ej. `20:06 - 27/9/2026 UTC`), la función `extract_sender_from_text` evaluaba `_SENDER_PREFIX_RE` y consideraba erróneamente los dos primeros dígitos de la hora (`"20"`) como el nombre de usuario de un remitente de chat (`candidate_name = "20"`). Esto provocaba que `clean_text` quedara mutilado en `"06 - 27/9/2026 UTC"`.
+  2. **Fallo en Cascada de Expresiones Regulares**: Al perder los primeros dígitos de la hora y los dos puntos (`20:`), el parser de métricas en `repeater_manager.py` y `repeater.js` (`\d{1,2}:\d{2}`) no encontraba el patrón horario y descartaba el reloj, dejando `node.clock = ""` y forzando el fallback `--:--:--` en el DOM.
+  3. **Omisión de Persistencia de Reloj y Telemetría en `_update_local_registry_from_params`**: Comandos unitarios y respuestas por lotes no actualizaban el campo `clock` en `NodeRegistry`, impidiendo que las consultas individuales refrescaran la propiedad en memoria/WebSockets.
+- **Correcciones Quirúrgicas Aplicadas**:
+  1. **`src/rx_router.py`**: Añadida guarda estricta en `extract_sender_from_text` para ignorar formatos de hora `^\d{1,2}:\d{2}` y remitentes puramente numéricos (`candidate_name.isdigit()`), preservando íntegra la respuesta horaria del firmware.
+  2. **`src/repeater_manager.py`**: Mejorada la regex de extracción de RTC para soportar respuestas directas con `UTC`, prefijos de sincronización (`OK - clock set: ...`) y formatos truncados.
+  3. **`src/admin/repeater_executor.py`**: Asignación directa de `clock` en `accumulated_telemetry` ante consultas por lotes (`cmd == "clock"`), decodificación binaria de epoch timestamp de 4 bytes en `req_basic_sync` (`req_clock`), e inclusión de `clock`, `battery_pct`, `voltage_v`, `duty_cycle_pct` y `uptime` en `_update_local_registry_from_params`.
+  4. **`src/web/static/js/modules/repeater.js`**: Actualizado el parser de telemetría cliente en JS con soporte para formatos horarios con prefijo `set` y sufijo `UTC`.
+- **Verificación**:
+  - `ruff check`: 0 errores.
+  - `mypy --strict`: Aprobado (0 errores en todos los módulos modificados).
+
 ### Hito: Resolución Integral de Telemetría Remota de Repetidores (Reconciliación de Curva de Batería, Consulta Binaria RepeaterStats y Protocolo RF MeshCore)
 - **Fecha**: 2026-09-27
 - **Estado**: ✅ COMPLETADO — Reparada la telemetría congelada en el nodo repetidor remoto. Corregida la visualización de batería (3.63V reconciliado exactamente a 53% en lugar del 36% residual), y restaurada la obtención de métricas de sistema (Reloj RTC, Uptime, Airtime, Duty Cycle, Ruido Base, Paquetes TX/RX, Errores y Duplicados) en la administración remota.

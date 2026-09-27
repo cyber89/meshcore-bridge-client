@@ -221,6 +221,14 @@ class RepeaterAdminExecutor:
         hop_raw = params.get("hop_limit", params.get("hops"))
         rep_raw = params.get("repeat", params.get("repeat_enabled"))
         adv_raw = params.get("beacon_interval", params.get("advert_interval"))
+        clk_raw = params.get("clock")
+        bat_raw = params.get("battery_pct")
+        volt_raw = params.get("voltage_v")
+        duty_raw = params.get("duty_cycle_pct")
+        up_raw = params.get("uptime")
+        at_raw = params.get("airtime_ms")
+        nf_raw = params.get("noise_floor_dbm")
+
         self._ctx.node_registry.add_or_update(
             canon,
             NodeContactUpdate(
@@ -236,6 +244,13 @@ class RepeaterAdminExecutor:
                 hop_limit=int(hop_raw) if hop_raw is not None else None,
                 repeat_enabled=bool(rep_raw) if rep_raw is not None else None,
                 advert_interval=int(adv_raw) if adv_raw is not None else None,
+                clock=str(clk_raw) if clk_raw else None,
+                battery_pct=int(bat_raw) if bat_raw is not None else None,
+                voltage_v=float(volt_raw) if volt_raw is not None else None,
+                duty_cycle_pct=float(duty_raw) if duty_raw is not None else None,
+                uptime=str(up_raw) if up_raw else None,
+                airtime_ms=int(at_raw) if at_raw is not None else None,
+                noise_floor_dbm=int(nf_raw) if nf_raw is not None else None,
             ),
         )
 
@@ -430,6 +445,9 @@ class RepeaterAdminExecutor:
                     parsed = self._ctx.repeater_manager.parse_repeater_telemetry_or_response(resp_text)
                     if parsed:
                         accumulated_telemetry.update(parsed)
+                    if cmd == "clock" and resp_text:
+                        clk_val = (parsed.get("clock") if parsed else None) or resp_text
+                        accumulated_telemetry["clock"] = clk_val
                 if resp_data.get("telemetry"):
                     accumulated_telemetry.update(resp_data["telemetry"])
                 if resp_data.get("rssi") is not None:
@@ -609,13 +627,28 @@ class RepeaterAdminExecutor:
             elif action in ("req_clock", "clock", "req_basic") and hasattr(cmds, "req_basic_sync"):
                 data = await cmds.req_basic_sync(target, min_timeout=4.0)
                 if data is not None:
+                    clock_str = ""
+                    raw_tag = data.get("tag") or (data.get("data")[:8] if isinstance(data.get("data"), str) else "")
+                    if raw_tag and len(raw_tag) == 8:
+                        try:
+                            ts_int = int.from_bytes(bytes.fromhex(raw_tag), byteorder="little")
+                            if 1577836800 <= ts_int <= 2147483647:
+                                from datetime import datetime, timezone
+                                dt = datetime.fromtimestamp(ts_int, timezone.utc)
+                                clock_str = dt.strftime("%H:%M - %d/%m/%Y UTC")
+                        except Exception:
+                            pass
                     rf_ctx.res.update({
                         "status": "ok",
                         "action": action,
                         "target_node": str(rf_ctx.req.target_node),
                         "data": data,
-                        "message": "Respuesta de reloj y estado básico obtenida",
+                        "clock": clock_str,
+                        "telemetry": {"clock": clock_str} if clock_str else {},
+                        "message": f"Respuesta de reloj obtenida: {clock_str}" if clock_str else "Respuesta de reloj y estado básico obtenida",
                     })
+                    if clock_str:
+                        self._update_local_registry_from_params(str(rf_ctx.req.target_node), {"clock": clock_str})
                     self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{rf_ctx.req.target_node}/clock", json.dumps(rf_ctx.res), 1)
                     return rf_ctx.res
 
@@ -713,8 +746,17 @@ class RepeaterAdminExecutor:
         rf_ctx.res["cmd_dispatched"] = cmd_text
         rf_ctx.res["response"] = resp_text or f"Comando '{cmd_text}' transmitido por RF a {str(req.target_node)[:8]}"
         rf_ctx.res["message"] = rf_ctx.res["response"]
-        if resp_data.get("telemetry"):
-            rf_ctx.res["telemetry"] = resp_data["telemetry"]
+
+        parsed_telem = self._ctx.repeater_manager.parse_repeater_telemetry_or_response(resp_text) if resp_text else {}
+        telem = {**parsed_telem, **(resp_data.get("telemetry") or {})}
+        if req.action.lower() in ("clock", "get clock", "req_clock", "time", "sync_clock", "clock sync") and resp_text:
+            clk_val = (parsed_telem.get("clock") if parsed_telem else None) or resp_text
+            telem["clock"] = clk_val
+
+        if telem:
+            rf_ctx.res["telemetry"] = telem
+            self._update_local_registry_from_params(str(req.target_node), telem)
+
         if resp_data.get("rssi") is not None:
             rf_ctx.res["rssi"] = resp_data["rssi"]
         if resp_data.get("snr") is not None:

@@ -892,11 +892,14 @@ export class RepeaterModule {
     if (upM) extracted.uptime = upM[1].trim();
 
     // Clock
-    let clkM = clean.match(/(?:clock|rtc|time)\s*[:=]?\s*([0-9\-:\s\/]+(?:[ap]m|utc)?)/i);
-    if (!clkM) {
+    let clkM = clean.match(/(?:clock|rtc|time)(?:\s*set)?\s*[:=]?\s*([0-9\-:\s\/]+(?:[ap]m|utc)?)/i);
+    if (!clkM || !clkM[1].trim()) {
       clkM = clean.match(/(?:^|>)\s*(\d{1,2}:\d{2}(?::\d{2})?(?:\s*-\s*\d{1,2}\/\d{1,2}\/\d{2,4})?(?:\s*(?:UTC|[ap]m))?)/i);
     }
-    if (clkM) extracted.clock = clkM[1].trim();
+    if (!clkM || !clkM[1].trim()) {
+      clkM = clean.match(/(?:^|>)\s*([0-9\-:\s\/]+UTC)/i);
+    }
+    if (clkM && clkM[1].trim()) extracted.clock = clkM[1].trim();
 
     // Duty Cycle
     let dutyM = clean.match(/(?:duty(?:cycle)?)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*%/i);
