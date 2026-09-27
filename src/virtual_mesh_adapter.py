@@ -130,6 +130,35 @@ class VirtualMeshCoreCommands:
             "recv_errors": 0,
         }
 
+    async def req_status_sync(self, contact: Any, timeout: float = 0, min_timeout: float = 0) -> dict[str, Any]:
+        uptime_val = max(1, int(time.time() - getattr(self._adapter, "_start_time", time.time())))
+        return {
+            "bat": 3630,
+            "tx_queue_len": 0,
+            "noise_floor": -118,
+            "last_rssi": -35,
+            "nb_recv": 24,
+            "nb_sent": 15,
+            "airtime": 12,
+            "uptime": uptime_val,
+            "sent_flood": 10,
+            "sent_direct": 5,
+            "recv_flood": 18,
+            "recv_direct": 6,
+            "full_evts": 0,
+            "last_snr": 12.0,
+            "direct_dups": 0,
+            "flood_dups": 0,
+            "rx_airtime": 25,
+            "recv_errors": 0,
+        }
+
+    async def req_telemetry_sync(self, contact: Any, timeout: float = 0, min_timeout: float = 0) -> list[dict[str, Any]]:
+        return [
+            {"channel": 0, "type": "voltage", "val": 3.63},
+            {"channel": 0, "type": "temperature", "val": 25.2},
+        ]
+
     async def set_custom_var(self, key: str, val: str) -> dict[str, Any]:
         self._adapter.mc.self_info[key] = val
         return {"status": "ok"}

@@ -892,8 +892,18 @@ export class RepeaterModule {
     if (upM) extracted.uptime = upM[1].trim();
 
     // Clock
-    const clkM = clean.match(/(?:clock|rtc|time)\s*[:=]?\s*([0-9\-:\s]+(?:[ap]m)?)/i);
+    let clkM = clean.match(/(?:clock|rtc|time)\s*[:=]?\s*([0-9\-:\s\/]+(?:[ap]m|utc)?)/i);
+    if (!clkM) {
+      clkM = clean.match(/(?:^|>)\s*(\d{1,2}:\d{2}(?::\d{2})?(?:\s*-\s*\d{1,2}\/\d{1,2}\/\d{2,4})?(?:\s*(?:UTC|[ap]m))?)/i);
+    }
     if (clkM) extracted.clock = clkM[1].trim();
+
+    // Duty Cycle
+    let dutyM = clean.match(/(?:duty(?:cycle)?)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*%/i);
+    if (!dutyM) {
+      dutyM = clean.match(/(?:^|>)\s*(\d+(?:\.\d+)?)\s*%/);
+    }
+    if (dutyM) extracted.duty_cycle_pct = parseFloat(dutyM[1]);
 
     // Noise Floor
     const noiseM = clean.match(/(?:noise(?:\s*floor)?|noisefloor|floor)\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*(?:dbm)?/i);
@@ -988,7 +998,13 @@ export class RepeaterModule {
     let calcBat = node.battery_pct != null ? Number(node.battery_pct) : (node.battery != null ? Number(node.battery) : (node.batt != null ? Number(node.batt) : null));
     let calcVolt = node.voltage_v != null ? Number(node.voltage_v) : (node.voltage != null ? Number(node.voltage) : (node.battery_mv ? Number(node.battery_mv) / 1000 : null));
 
-    if (calcBat != null && calcBat > 100) {
+    if (calcVolt != null && calcVolt > 100) {
+      calcVolt = Number((calcVolt / 1000).toFixed(2));
+    }
+
+    if (calcVolt != null && calcVolt >= 2.5 && calcVolt <= 4.5) {
+      calcBat = this.calculateBatteryPct(calcVolt);
+    } else if (calcBat != null && calcBat > 100) {
       if (calcVolt == null) calcVolt = Number((calcBat / 1000).toFixed(2));
       calcBat = this.calculateBatteryPct(calcBat);
     } else if (calcBat == null && calcVolt != null && calcVolt >= 2.5) {
@@ -1021,7 +1037,15 @@ export class RepeaterModule {
     const airtimeEl = document.getElementById("repAirtimeValue");
     if (airtimeEl) airtimeEl.textContent = airtimeVal != null ? `${airtimeVal} ms` : "-- ms";
     const airtimeDutyEl = document.getElementById("repAirtimeDuty");
-    if (airtimeDutyEl) airtimeDutyEl.textContent = airtimeVal != null ? `Duty: ${(airtimeVal / 36000).toFixed(2)}%` : "Duty Cycle: --%";
+    if (airtimeDutyEl) {
+      if (node.duty_cycle_pct != null) {
+        airtimeDutyEl.textContent = `Duty: ${Number(node.duty_cycle_pct).toFixed(1)}%`;
+      } else if (airtimeVal != null) {
+        airtimeDutyEl.textContent = `Duty: ${(airtimeVal / 36000).toFixed(2)}%`;
+      } else {
+        airtimeDutyEl.textContent = "Duty Cycle: --%";
+      }
+    }
 
     const noiseVal = node.noise_floor_dbm != null ? node.noise_floor_dbm : (node.noise_floor != null ? node.noise_floor : (node.noise != null ? node.noise : null));
     const noiseEl = document.getElementById("repNoiseValue");

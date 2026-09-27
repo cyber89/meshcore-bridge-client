@@ -1276,3 +1276,17 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "set_path_hash_mode"):
             return await self.mc.commands.set_path_hash_mode(mode)
         return None
+
+    async def req_status_sync(self, contact: Any, timeout: float = 0, min_timeout: float = 0) -> Any:
+        if not self.is_connected or not self.mc:
+            return None
+        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "req_status_sync"):
+            return await self.mc.commands.req_status_sync(contact, timeout=timeout, min_timeout=min_timeout)
+        return None
+
+    async def req_telemetry_sync(self, contact: Any, timeout: float = 0, min_timeout: float = 0) -> Any:
+        if not self.is_connected or not self.mc:
+            return None
+        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "req_telemetry_sync"):
+            return await self.mc.commands.req_telemetry_sync(contact, timeout=timeout, min_timeout=min_timeout)
+        return None

@@ -2,6 +2,32 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Resolución Integral de Telemetría Remota de Repetidores (Reconciliación de Curva de Batería, Consulta Binaria RepeaterStats y Protocolo RF MeshCore)
+- **Fecha**: 2026-09-27
+- **Estado**: ✅ COMPLETADO — Reparada la telemetría congelada en el nodo repetidor remoto. Corregida la visualización de batería (3.63V reconciliado exactamente a 53% en lugar del 36% residual), y restaurada la obtención de métricas de sistema (Reloj RTC, Uptime, Airtime, Duty Cycle, Ruido Base, Paquetes TX/RX, Errores y Duplicados) en la administración remota.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect), Agente 1 (Firmware Investigator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect).
+- **Causas Raíces Diagnosticadas y Subsanadas**:
+  1. **Congelamiento de Batería en UI y Backend (`repeater.js` / `sensor_decoder.py` / `contact_manager.py`)**:
+     - En `repeater.js.populateRepeaterModalData()`, la condición `calcBat == null` impedía recalcular el porcentaje a partir del voltaje cuando `node.battery_pct` ya venía poblado con el valor residual de 36% (generado con anterioridad por la fórmula deprecated `(V - 3.3)/0.9`). Se corrigió para que si existe lectura física de celda ($2.5\text{V} \le V \le 4.5\text{V}$), el porcentaje se calcule y reconcilie siempre de forma determinista con la curva Li-Ion oficial (produciendo 53% para 3.63V).
+     - En `sensor_decoder.py`, la decodificación CayenneLPP de voltaje (`"volt" in t`) establecía `voltage_v` sin calcular `battery_pct`. En `_extract_power_telemetry`, si `voltage_v` ya existía y `raw_bat` era nulo, `battery_pct` se omitía, haciendo que `contact_manager` reutilizara el valor obsoleto en disco. Se agregó reconciliación automática de `battery_pct` ante presencia de voltaje de celda tanto en `_map_lpp_item_to_res`, `_extract_power_telemetry`, `_deserialize_node_contact` y `record_packet`.
+  2. **Bloqueo del Firmware ante `stats-core` y `bat` sobre Radio RF (`CommonCLI.cpp`)**:
+     - En la referencia oficial de firmware (`reference/meshcore/src/helpers/CommonCLI.cpp`), los comandos de texto CLI `stats-core`, `stats-packets` y `stats-radio` están restringidos a conexión directa serie USB (`if (sender_timestamp == 0)`). Cuando viajan por RF (`sender_timestamp > 0`), el firmware responde `Unknown command`, motivo por el cual Uptime, Airtime, Paquetes y Ruido Base retornaban `--`.
+     - El comando `bat` tampoco existe en el CLI del firmware. En su lugar, el protocolo oficial de MeshCore proporciona la solicitud binaria nativa `REQ_TYPE_GET_STATUS (0x01)` (`RepeaterStats`), que transporta en un paquete compacto de 52-56 bytes: `bat` (mV), `uptime`, `airtime`, `noise_floor`, `last_rssi`, `last_snr`, `nb_recv`, `nb_sent`, `err_events`, `n_direct_dups` y `n_flood_dups`. Se integró `req_status_sync` y `req_telemetry_sync` en `repeater_executor.py`, `sdk_adapter.py` y `virtual_mesh_adapter.py`.
+  3. **Incompatibilidad de Expresión Regular con Respuesta de Reloj RTC**:
+     - El comando CLI `clock` es respondido por el firmware con el formato exacto `sprintf(reply, "%02d:%02d - %d/%d/%d UTC", ...)`. Las expresiones regulares en `repeater_manager.py` y `repeater.js` exigían etiquetas como `clock:`, `rtc:` o `time:`, fallando en capturar la hora legítima devuelta por el repetidor. Se incorporaron patrones para capturar tanto etiquetas como el formato horario directo de MeshCore.
+- **Módulos Afectados**:
+  1. `src/sensor_decoder.py`: Reconciliación determinista de `battery_pct` al decodificar voltajes de celda.
+  2. `src/contact_manager.py`: Campo `duty_cycle_pct` en `NodeTelemetry`, `NodeContactInfo` y `NodeContactUpdate`; reconciliación de batería al cargar de disco y al recibir paquetes.
+  3. `src/repeater_manager.py`: Regex directa de RTC y extracción de duty cycle percentage (`> %d.%d%`).
+  4. `src/admin/repeater_executor.py`: Consulta binaria de estado `req_status_sync` (`RepeaterStats`) y telemetría `req_telemetry_sync` (LPP), y saneamiento de consultas CLI RF (`ver`, `clock`, `get radio`, `get dutycycle`, `get pwrmgt.bootmv`).
+  5. `src/serial/sdk_adapter.py`: Métodos delegados `req_status_sync` y `req_telemetry_sync`.
+  6. `src/virtual_mesh_adapter.py`: Métodos mock `req_status_sync` y `req_telemetry_sync` para simulación.
+  7. `src/web/static/js/modules/repeater.js`: Reconciliación de celda Li-Ion en modal (3.63V $\to$ 53%), display de duty cycle y parsing directo de RTC.
+- **Verificación y Calidad**:
+  - `python -m ruff check src/`: 100% aprobado (0 errores).
+  - `python -m mypy --strict ...`: 100% aprobado en todos los módulos modificados (0 errores).
+  - Cumplimiento riguroso de reglas LoRa half-duplex y guardas contra bucles.
+
 ### Hito: Unificación de Consulta de Telemetría Remota, Eliminación de Colisión Cooldown (HTTP 429) y Normalización de Batería en Repetidores
 - **Fecha**: 2026-09-27
 - **Estado**: ✅ COMPLETADO — Reparada la telemetría congelada en el modal administrativo de repetidores remotos. Eliminada la colisión de 10 peticiones POST en ráfaga (que provocaba HTTP 429 por límite de airtime LoRa y descartaba consultas clave como batería, stats-core y reloj). Implementada consulta consolidada `refresh_telemetry` en el backend, normalizada la curva de batería a la escala Li-Ion estándar (3.0V - 4.2V), eliminados los fallbacks ficticios de reloj local/uptime en frontend, y unificada la reactividad en el EventBus.

@@ -700,9 +700,19 @@ class RepeaterManager:
 
     def _parse_system_metrics(self, text: str, extracted: dict[str, Any]) -> None:
         """Extrae uptime, ruido base, airtime, paquetes transmitidos y métricas de enlace."""
-        clock_m = re.search(r'(?:clock|rtc|time)\s*[:=]?\s*([0-9\-:\s]+(?:[ap]m)?)', text, re.IGNORECASE)
+        clock_m = re.search(r'(?:clock|rtc|time)\s*[:=]?\s*([0-9\-:\s\/]+(?:[ap]m|utc)?)', text, re.IGNORECASE)
+        if not clock_m:
+            clock_m = re.search(r'(?:^|>)\s*(\d{1,2}:\d{2}(?::\d{2})?(?:\s*-\s*\d{1,2}\/\d{1,2}\/\d{2,4})?(?:\s*(?:UTC|[ap]m))?)', text, re.IGNORECASE)
         if clock_m:
             extracted["clock"] = clock_m.group(1).strip()
+
+        duty_m = re.search(r'(?:duty(?:cycle)?)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*%', text, re.IGNORECASE)
+        if not duty_m:
+            duty_m = re.search(r'(?:^|>)\s*(\d+(?:\.\d+)?)\s*%', text)
+        if duty_m:
+            clean_dc = clean_numeric_value(duty_m.group(1))
+            if clean_dc is not None:
+                extracted["duty_cycle_pct"] = float(clean_dc)
 
         uptime_m = re.search(r'\b(?:uptime\s*[:=]?\s*|up\s*[:=]\s*)(\d+[0-9a-zA-Z\s:]*?)(?:,|$|\n)', text, re.IGNORECASE)
         if uptime_m:

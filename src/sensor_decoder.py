@@ -319,8 +319,12 @@ def _map_lpp_item_to_res(t: str, val: Any, ch: Any, res: dict[str, Any]) -> None
         elif "volt" in t:
             clean_v = clean_battery_input(val)
             if clean_v is not None:
-                res["voltage_v"] = round(clean_v, 2)
-                res[f"ch_{ch}_voltage_v"] = res["voltage_v"]
+                norm_v = round(clean_v, 2)
+                res["voltage_v"] = norm_v
+                res[f"ch_{ch}_voltage_v"] = norm_v
+                if "battery_pct" not in res and 2.5 <= norm_v <= 5.5:
+                    pct_from_v, _ = normalize_battery(norm_v)
+                    res["battery_pct"] = int(round(pct_from_v))
         elif "percent" in t or "bat" in t:
             clean_b = clean_battery_input(val)
             if clean_b is not None:
@@ -404,26 +408,35 @@ def _extract_power_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
             res["battery_mv"] = int(clean_mv) if clean_mv > 100 else int(clean_mv * 1000.0)
             res["voltage_v"] = volt_norm
             if "battery_pct" not in res and raw_bat is None:
-                res["battery_pct"] = int(pct_norm)
+                res["battery_pct"] = int(round(pct_norm))
 
-    if raw_volt is not None and "voltage_v" not in res:
+    if raw_volt is not None:
         clean_v = clean_battery_input(raw_volt)
         if clean_v is not None:
             pct_norm, volt_norm = normalize_battery(clean_v)
             res["voltage_v"] = volt_norm
             if "battery_pct" not in res and raw_bat is None:
-                res["battery_pct"] = int(pct_norm)
+                res["battery_pct"] = int(round(pct_norm))
 
     if raw_bat is not None:
         clean_b = clean_battery_input(raw_bat)
         if clean_b is not None:
             pct_norm, volt_norm = normalize_battery(clean_b)
-            res["battery_pct"] = int(pct_norm)
+            res["battery_pct"] = int(round(pct_norm))
             if volt_norm > 0:
                 if "voltage_v" not in res:
                     res["voltage_v"] = volt_norm
                 if "battery_mv" not in res:
                     res["battery_mv"] = int(volt_norm * 1000.0)
+
+    # Reconciliación determinista: si se dispone de voltaje de celda real (2.5V - 4.5V)
+    # y battery_pct falta o discrepa de la curva de celda, calcularlo desde el voltaje
+    eff_v = res.get("voltage_v")
+    if eff_v is not None and 2.5 <= eff_v <= 4.5:
+        calc_pct, _ = normalize_battery(eff_v)
+        current_bat = res.get("battery_pct")
+        if current_bat is None or abs(current_bat - int(round(calc_pct))) > 10:
+            res["battery_pct"] = int(round(calc_pct))
 
     raw_solar = data.get("solar_v", data.get("solar_mv", data.get("solar")))
     if raw_solar is not None:

@@ -113,6 +113,7 @@ class NodeTelemetry:
     packet_errors: int | None = None
     queue_len: int | None = None
     neighbors: tuple[str, ...] = field(default_factory=tuple)
+    duty_cycle_pct: float | None = None
     last_seen: float = 0.0
 
 
@@ -160,6 +161,7 @@ class NodeContactInfo:
         uptime: str | None = None,
         clock: str | None = None,
         airtime_ms: int | None = None,
+        duty_cycle_pct: float | None = None,
         noise_floor_dbm: int | None = None,
         packets_sent: int | None = None,
         packets_recv: int | None = None,
@@ -261,6 +263,7 @@ class NodeContactInfo:
                 uptime=uptime,
                 clock=clock,
                 airtime_ms=airtime_ms,
+                duty_cycle_pct=duty_cycle_pct,
                 rx_packets=rx_packets,
                 tx_packets=tx_packets,
                 error_count=error_count,
@@ -423,6 +426,10 @@ class NodeContactInfo:
     @property
     def voltage_v(self) -> float | None:
         return self.telemetry.voltage_v
+
+    @property
+    def duty_cycle_pct(self) -> float | None:
+        return self.telemetry.duty_cycle_pct
 
     @property
     def solar_v(self) -> float | None:
@@ -654,6 +661,7 @@ class NodeContactUpdate:
     uptime: str | None = None
     clock: str | None = None
     airtime_ms: int | None = None
+    duty_cycle_pct: float | None = None
     noise_floor_dbm: int | None = None
     packets_sent: int | None = None
     packets_recv: int | None = None
@@ -1013,6 +1021,7 @@ class NodeRegistry:
             uptime=m(update.uptime, existing, "uptime"),
             clock=m(update.clock, existing, "clock"),
             airtime_ms=m(update.airtime_ms, existing, "airtime_ms"),
+            duty_cycle_pct=m(update.duty_cycle_pct, existing, "duty_cycle_pct"),
             noise_floor_dbm=m(update.noise_floor_dbm, existing, "noise_floor_dbm"),
             packets_sent=m(update.packets_sent, existing, "packets_sent"),
             packets_recv=m(update.packets_recv, existing, "packets_recv"),
@@ -1246,9 +1255,17 @@ class NodeRegistry:
                 batt = int(round(norm_pct))
                 if volt is None:
                     volt = norm_v
-        elif volt is not None:
+        if volt is not None:
             norm_pct, _ = normalize_battery(volt)
-            batt = int(round(norm_pct))
+            if batt is None or (2.5 <= volt <= 4.5 and abs(batt - int(round(norm_pct))) > 10):
+                batt = int(round(norm_pct))
+
+        duty_raw = telem.get("duty_cycle_pct", telem.get("duty_cycle", telem.get("dutycycle")))
+        duty: float | None = None
+        if duty_raw is not None:
+            clean_d = clean_numeric_value(duty_raw)
+            if clean_d is not None:
+                duty = round(clean_d, 2)
 
         gps = telem.get("gps", {})
         lat_raw = telem.get("lat", telem.get("latitude", telem.get("gps_lat", telem.get("adv_lat"))))
@@ -1272,6 +1289,7 @@ class NodeRegistry:
             "voltage_v": volt,
             "solar_v": solar,
             "battery_pct": batt,
+            "duty_cycle_pct": duty,
             "latitude": round(lat_val, 5) if lat_val is not None else None,
             "longitude": round(lon_val, 5) if lon_val is not None else None,
             "altitude_m": round(alt_val, 1) if alt_val is not None else None,
@@ -1306,6 +1324,14 @@ class NodeRegistry:
 
         rx_observed_ts = time.time() if event.is_rx else None
         m = self._merge_field
+
+        eff_volt = extracted["voltage_v"] if extracted["voltage_v"] is not None else (existing.voltage_v if existing else None)
+        calc_bat = extracted["battery_pct"]
+        if eff_volt is not None and 2.5 <= eff_volt <= 4.5:
+            norm_pct, _ = normalize_battery(eff_volt)
+            if calc_bat is None or (existing and existing.battery_pct is not None and abs(existing.battery_pct - int(round(norm_pct))) > 10):
+                calc_bat = int(round(norm_pct))
+
         self.add_or_update(
             target_key,
             NodeContactUpdate(
@@ -1315,7 +1341,7 @@ class NodeRegistry:
                 hops=m(event.hop_count, existing, "hops"),
                 last_rssi=int(event.rssi) if event.rssi is not None else (existing.last_rssi if existing else None),
                 last_snr=float(event.snr) if event.snr is not None else (existing.last_snr if existing else None),
-                battery_pct=m(extracted["battery_pct"], existing, "battery_pct"),
+                battery_pct=m(calc_bat, existing, "battery_pct"),
                 rx_packets=curr_rx,
                 tx_packets=curr_tx,
                 error_count=curr_err,
@@ -1324,6 +1350,7 @@ class NodeRegistry:
                 pressure_hpa=m(extracted["pressure_hpa"], existing, "pressure_hpa"),
                 voltage_v=m(extracted["voltage_v"], existing, "voltage_v"),
                 solar_v=m(extracted["solar_v"], existing, "solar_v"),
+                duty_cycle_pct=m(extracted.get("duty_cycle_pct"), existing, "duty_cycle_pct"),
                 latitude=m(extracted["latitude"], existing, "latitude"),
                 longitude=m(extracted["longitude"], existing, "longitude"),
                 altitude_m=m(extracted["altitude_m"], existing, "altitude_m"),
@@ -1698,6 +1725,13 @@ class NodeRegistry:
         raw_neighbors = nd.get("neighbors", ())
         neighbors_tuple = tuple(raw_neighbors) if isinstance(raw_neighbors, (list, tuple)) else ()
 
+        raw_bat = nd.get("battery_pct")
+        v_v = nd.get("voltage_v")
+        if v_v is not None and 2.5 <= v_v <= 4.5:
+            pct_norm, _ = normalize_battery(v_v)
+            if raw_bat is None or abs(raw_bat - int(round(pct_norm))) > 10:
+                raw_bat = int(round(pct_norm))
+
         return NodeContactInfo(
             public_key=str(pk).strip().lower(),
             name=str(nd.get("name", "")),
@@ -1706,7 +1740,7 @@ class NodeRegistry:
             hops=nd.get("hops"),
             last_rssi=nd.get("last_rssi"),
             last_snr=nd.get("last_snr"),
-            battery_pct=nd.get("battery_pct"),
+            battery_pct=raw_bat,
             last_seen=float(nd.get("last_seen", 0.0)),
             rx_packets=int(nd.get("rx_packets", 0)),
             tx_packets=int(nd.get("tx_packets", 0)),
@@ -1716,7 +1750,7 @@ class NodeRegistry:
             temperature_c=nd.get("temperature_c"),
             humidity_pct=nd.get("humidity_pct"),
             pressure_hpa=nd.get("pressure_hpa"),
-            voltage_v=nd.get("voltage_v"),
+            voltage_v=v_v,
             solar_v=nd.get("solar_v"),
             latitude=nd.get("latitude") if nd.get("latitude") is not None else (nd.get("lat") if nd.get("lat") is not None else nd.get("adv_lat")),
             longitude=nd.get("longitude") if nd.get("longitude") is not None else (nd.get("lon") if nd.get("lon") is not None else nd.get("adv_lon")),
@@ -1726,6 +1760,7 @@ class NodeRegistry:
             uptime=nd.get("uptime"),
             clock=nd.get("clock"),
             airtime_ms=nd.get("airtime_ms"),
+            duty_cycle_pct=nd.get("duty_cycle_pct"),
             noise_floor_dbm=nd.get("noise_floor_dbm"),
             packets_sent=nd.get("packets_sent"),
             packets_recv=nd.get("packets_recv"),

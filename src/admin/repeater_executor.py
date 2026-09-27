@@ -24,6 +24,7 @@ from src.contact_manager import (
     PacketRecord,
     is_valid_node_key,
 )
+from src.shared_utils import normalize_battery
 
 if TYPE_CHECKING:
     from src.admin_handler import AdminContext
@@ -360,8 +361,60 @@ class RepeaterAdminExecutor:
                 await self._send_rf_command(req.mc, dest_target, login_cmd, str(req.target_node), req.req_id)
             await asyncio.sleep(0.4)
 
-        queries = ["ver", "bat", "stats-core", "clock", "get radio"]
         accumulated_telemetry: dict[str, Any] = {}
+
+        # 1. Consulta binaria directa de estado (RepeaterStats del firmware MeshCore)
+        if req.mc and hasattr(req.mc, "commands") and hasattr(req.mc.commands, "req_status_sync"):
+            try:
+                status_res = await req.mc.commands.req_status_sync(dest_login_target, timeout=4.0)
+                if status_res and isinstance(status_res, dict):
+                    raw_bat = status_res.get("bat")
+                    if raw_bat is not None:
+                        pct_norm, volt_norm = normalize_battery(raw_bat)
+                        accumulated_telemetry["battery_pct"] = int(round(pct_norm))
+                        accumulated_telemetry["voltage_v"] = volt_norm
+                        accumulated_telemetry["battery_mv"] = int(raw_bat)
+                    if status_res.get("noise_floor") is not None:
+                        accumulated_telemetry["noise_floor_dbm"] = int(status_res["noise_floor"])
+                    if status_res.get("last_rssi") is not None:
+                        accumulated_telemetry["last_rssi"] = int(status_res["last_rssi"])
+                    if status_res.get("last_snr") is not None:
+                        accumulated_telemetry["last_snr"] = float(status_res["last_snr"])
+                    if status_res.get("nb_recv") is not None:
+                        accumulated_telemetry["packets_recv"] = int(status_res["nb_recv"])
+                    if status_res.get("nb_sent") is not None:
+                        accumulated_telemetry["packets_sent"] = int(status_res["nb_sent"])
+                    if status_res.get("uptime") is not None:
+                        up_s = int(status_res["uptime"])
+                        days, rem = divmod(up_s, 86400)
+                        hours, rem = divmod(rem, 3600)
+                        mins, secs = divmod(rem, 60)
+                        accumulated_telemetry["uptime"] = f"{days}d {hours}h {mins}m" if days > 0 else (f"{hours}h {mins}m {secs}s" if hours > 0 else f"{mins}m {secs}s")
+                        accumulated_telemetry["uptime_secs"] = up_s
+                    if status_res.get("airtime") is not None:
+                        accumulated_telemetry["airtime_ms"] = int(status_res["airtime"] * 1000)
+                    if status_res.get("tx_queue_len") is not None:
+                        accumulated_telemetry["queue_len"] = int(status_res["tx_queue_len"])
+                    if status_res.get("recv_errors") is not None:
+                        accumulated_telemetry["packet_errors"] = int(status_res["recv_errors"])
+                    dups = int(status_res.get("direct_dups") or 0) + int(status_res.get("flood_dups") or 0)
+                    accumulated_telemetry["duplicate_packets"] = dups
+            except Exception as e:
+                logging.debug(f"Fallo en req_status_sync: {e}")
+
+        # 2. Consulta binaria directa de telemetría / sensores LPP
+        if req.mc and hasattr(req.mc, "commands") and hasattr(req.mc.commands, "req_telemetry_sync"):
+            try:
+                lpp_res = await req.mc.commands.req_telemetry_sync(dest_login_target, timeout=3.5)
+                if lpp_res:
+                    from src.sensor_decoder import extract_telemetry_fields
+                    decoded_lpp = extract_telemetry_fields({"lpp": lpp_res})
+                    if decoded_lpp:
+                        accumulated_telemetry.update(decoded_lpp)
+            except Exception as e:
+                logging.debug(f"Fallo en req_telemetry_sync: {e}")
+
+        queries = ["ver", "clock", "get radio", "get dutycycle", "get pwrmgt.bootmv"]
         dispatched: list[str] = []
         responses: dict[str, str] = {}
 
@@ -398,6 +451,7 @@ class RepeaterAdminExecutor:
                 uptime=accumulated_telemetry.get("uptime"),
                 clock=accumulated_telemetry.get("clock"),
                 airtime_ms=accumulated_telemetry.get("airtime_ms"),
+                duty_cycle_pct=accumulated_telemetry.get("duty_cycle_pct"),
                 noise_floor_dbm=accumulated_telemetry.get("noise_floor_dbm"),
                 packets_sent=accumulated_telemetry.get("packets_sent"),
                 packets_recv=accumulated_telemetry.get("packets_recv"),
