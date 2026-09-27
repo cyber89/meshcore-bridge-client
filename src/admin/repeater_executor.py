@@ -196,7 +196,31 @@ class RepeaterAdminExecutor:
             dispatched.append(f"login {'*' * len(req.password)}")
             await asyncio.sleep(0.35)
 
+        # Consolidación atómica de parámetros de radio si se recibieron configuraciones de RF
+        radio_keys = {"freq", "frequency", "bw", "bandwidth", "sf", "spreading_factor", "cr", "coding_rate"}
+        if any(k in params for k in radio_keys):
+            target_node_info = self._collect_target_info(str(req.target_node)) or {}
+            freq = params.get("freq", params.get("frequency", target_node_info.get("frequency", 915.0)))
+            bw = params.get("bw", params.get("bandwidth", target_node_info.get("bandwidth", 250.0)))
+            sf = params.get("sf", params.get("spreading_factor", target_node_info.get("spreading_factor", 11)))
+            cr_raw = params.get("cr", params.get("coding_rate", target_node_info.get("coding_rate", 5)))
+            cr_num = 5
+            if str(cr_raw).strip() in ("5", "6", "7", "8"):
+                cr_num = int(str(cr_raw).strip())
+            elif "/" in str(cr_raw):
+                parts = str(cr_raw).split("/")
+                if len(parts) > 1 and parts[1].strip() in ("5", "6", "7", "8"):
+                    cr_num = int(parts[1].strip())
+            radio_cmd = f"set radio {freq} {bw} {sf} {cr_num}"
+            await self._ctx.execute_tx({"to": str(req.target_node), "text": f"cmd {radio_cmd}", "request_id": req.req_id})
+            dispatched.append(radio_cmd)
+            await asyncio.sleep(0.35)
+
         for p_key, p_val in params.items():
+            if p_key in radio_keys or p_val is None:
+                continue
+            if isinstance(p_val, str) and not p_val.strip():
+                continue
             cmd_str = self._ctx.repeater_manager.build_repeater_command_payload(f"set_{p_key}", {p_key: p_val})
             if cmd_str:
                 await self._ctx.execute_tx({"to": str(req.target_node), "text": f"cmd {cmd_str}", "request_id": req.req_id})
@@ -218,6 +242,9 @@ class RepeaterAdminExecutor:
         tx_pwr = params.get("tx_power", params.get("power"))
 
         freq_raw = params.get("freq", params.get("frequency"))
+        sf_raw = params.get("sf", params.get("spreading_factor"))
+        bw_raw = params.get("bw", params.get("bandwidth"))
+        cr_raw = params.get("cr", params.get("coding_rate"))
         hop_raw = params.get("hop_limit", params.get("hops"))
         rep_raw = params.get("repeat", params.get("repeat_enabled"))
         adv_raw = params.get("beacon_interval", params.get("advert_interval"))
@@ -228,31 +255,46 @@ class RepeaterAdminExecutor:
         up_raw = params.get("uptime")
         at_raw = params.get("airtime_ms")
         nf_raw = params.get("noise_floor_dbm")
+        fixed_val = params.get("fixed_position", params.get("fixed", params.get("pos_fixed")))
 
-        self._ctx.node_registry.add_or_update(
-            canon,
-            NodeContactUpdate(
-                name=str(owner_n) if owner_n else None,
-                alias=str(owner_n) if owner_n else None,
-                owner_name=str(owner_n) if owner_n else None,
-                owner_info=str(params.get("owner_info")) if params.get("owner_info") else None,
-                latitude=float(lat_val) if lat_val is not None else None,
-                longitude=float(lon_val) if lon_val is not None else None,
-                altitude_m=float(alt_val) if alt_val is not None else None,
-                frequency=float(freq_raw) if freq_raw is not None else None,
-                tx_power=int(tx_pwr) if tx_pwr is not None else None,
-                hop_limit=int(hop_raw) if hop_raw is not None else None,
-                repeat_enabled=bool(rep_raw) if rep_raw is not None else None,
-                advert_interval=int(adv_raw) if adv_raw is not None else None,
-                clock=str(clk_raw) if clk_raw else None,
-                battery_pct=int(bat_raw) if bat_raw is not None else None,
-                voltage_v=float(volt_raw) if volt_raw is not None else None,
-                duty_cycle_pct=float(duty_raw) if duty_raw is not None else None,
-                uptime=str(up_raw) if up_raw else None,
-                airtime_ms=int(at_raw) if at_raw is not None else None,
-                noise_floor_dbm=int(nf_raw) if nf_raw is not None else None,
-            ),
+        update = NodeContactUpdate(
+            name=str(owner_n) if owner_n else None,
+            alias=str(owner_n) if owner_n else None,
+            owner_name=str(owner_n) if owner_n else None,
+            owner_info=str(params.get("owner_info")) if params.get("owner_info") else None,
+            latitude=float(lat_val) if lat_val is not None else None,
+            longitude=float(lon_val) if lon_val is not None else None,
+            altitude_m=float(alt_val) if alt_val is not None else None,
+            fixed_position=bool(fixed_val) if fixed_val is not None else None,
+            frequency=float(freq_raw) if freq_raw is not None else None,
+            spreading_factor=int(sf_raw) if sf_raw is not None else None,
+            bandwidth=float(bw_raw) if bw_raw is not None else None,
+            coding_rate=str(cr_raw) if cr_raw is not None else None,
+            tx_power=int(tx_pwr) if tx_pwr is not None else None,
+            hop_limit=int(hop_raw) if hop_raw is not None else None,
+            repeat_enabled=bool(rep_raw) if rep_raw is not None else None,
+            advert_interval=int(adv_raw) if adv_raw is not None else None,
+            clock=str(clk_raw) if clk_raw else None,
+            battery_pct=int(bat_raw) if bat_raw is not None else None,
+            voltage_v=float(volt_raw) if volt_raw is not None else None,
+            duty_cycle_pct=float(duty_raw) if duty_raw is not None else None,
+            uptime=str(up_raw) if up_raw else None,
+            airtime_ms=int(at_raw) if at_raw is not None else None,
+            noise_floor_dbm=int(nf_raw) if nf_raw is not None else None,
         )
+        updated_contact = self._ctx.node_registry.add_or_update(canon, update)
+        if updated_contact and self._ctx.web_server and hasattr(self._ctx.web_server, "broadcast_event"):
+            try:
+                broadcast_data = {
+                    "type": "contact_updated",
+                    "event_type": "contact_updated",
+                    "contact": updated_contact.to_dict(),
+                }
+                coro = self._ctx.web_server.broadcast_event(broadcast_data)
+                if asyncio.iscoroutine(coro):
+                    asyncio.create_task(coro)
+            except Exception:
+                pass
 
     async def _execute_ping_zero(
         self, req: RemoteRepeaterRequest, target_info: dict[str, Any] | None, res: dict[str, Any]

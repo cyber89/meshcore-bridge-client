@@ -241,6 +241,20 @@ class RepeaterManager:
 
     def _build_radio_cmd(self, act: str, params: dict[str, Any]) -> str | None:
         """Construye comandos de parámetros de radio y modem LoRa."""
+        if act in ("set_radio", "radio"):
+            freq = params.get("frequency", params.get("freq", 915.0))
+            bw = params.get("bandwidth", params.get("bw", 250.0))
+            sf = params.get("spreading_factor", params.get("sf", 11))
+            cr_raw = params.get("coding_rate", params.get("cr", 5))
+            cr_num = 5
+            if str(cr_raw).strip() in ("5", "6", "7", "8"):
+                cr_num = int(str(cr_raw).strip())
+            elif "/" in str(cr_raw):
+                parts = str(cr_raw).split("/")
+                if len(parts) > 1 and parts[1].strip() in ("5", "6", "7", "8"):
+                    cr_num = int(parts[1].strip())
+            return f"set radio {freq} {bw} {sf} {cr_num}"
+
         if act in ("set_frequency", "set_freq", "frequency", "freq"):
             freq = params.get("frequency", params.get("freq", 915.0))
             return f"set freq {freq}"
@@ -277,24 +291,40 @@ class RepeaterManager:
 
     def _build_owner_and_location_cmd(self, act: str, params: dict[str, Any]) -> str | None:
         """Construye comandos de nombre de nodo, propietario y ubicación geográfica."""
-        if act in ("set_name", "name", "rename"):
-            name = params.get("name", params.get("new_name", "Repeater"))
+        if act in ("set_lat", "set_pos_lat", "lat"):
+            lat = params.get("lat", params.get("latitude"))
+            if lat is not None:
+                return f"set lat {float(lat):.6f}"
+            return None
+
+        if act in ("set_lon", "set_pos_lon", "lon"):
+            lon = params.get("lon", params.get("longitude"))
+            if lon is not None:
+                return f"set lon {float(lon):.6f}"
+            return None
+
+        if act in ("set_name", "name", "rename", "set_owner_name", "set_owner"):
+            name = params.get("name", params.get("owner_name", params.get("new_name", "Repeater")))
             return f"set name {name}"
 
-        if act in ("set_owner", "set_owner_name", "owner_info"):
-            name = params.get("owner_name", params.get("name", params.get("owner", "Repeater")))
-            info = params.get("owner_info", params.get("info", ""))
-            if info:
-                return f"set owner.name \"{name}\" \"{info}\""
-            return f"set owner.name \"{name}\""
-
-        if act == "set_owner_info":
+        if act in ("set_owner_info", "owner_info"):
             info = params.get("owner_info", params.get("info", ""))
             return f"set owner.info \"{info}\""
 
         if act in ("set_advert_interval", "set_beacon", "advert_intervals", "beacon"):
             interval = params.get("advert_interval", params.get("beacon_interval", params.get("interval", params.get("beacon", 300))))
-            return f"set advert.interval {interval}"
+            try:
+                inv = int(interval)
+                if inv >= 60:
+                    mins = max(2, min(240, int(round(inv / 60))))
+                else:
+                    mins = max(2, min(240, inv))
+            except (ValueError, TypeError):
+                mins = 5
+            return f"set advert.interval {mins}"
+
+        if act in ("set_fixed", "set_pos_fixed", "fixed", "pos_fixed"):
+            return None
 
         if act in ("set_position", "set_pos", "position", "set_coords", "coords"):
             lat = params.get("lat", params.get("latitude", 0.0))
@@ -304,22 +334,9 @@ class RepeaterManager:
             fixed_val = "1" if fixed is True or str(fixed).lower() in ("true", "1", "on") else "0"
             return f"set pos {lat} {lon} {alt} {fixed_val}"
 
-        if act == "set_pos_lat":
-            lat = params.get("lat", params.get("latitude", 0.0))
-            return f"set pos.lat {lat}"
-
-        if act == "set_pos_lon":
-            lon = params.get("lon", params.get("longitude", 0.0))
-            return f"set pos.lon {lon}"
-
         if act == "set_pos_alt":
             alt = params.get("alt", params.get("altitude", 0.0))
             return f"set pos.alt {alt}"
-
-        if act == "set_pos_fixed":
-            fixed = params.get("fixed", True)
-            val = "on" if fixed is True or str(fixed).lower() in ("true", "1", "on") else "off"
-            return f"set pos.fixed {val}"
 
         return None
 
@@ -342,16 +359,20 @@ class RepeaterManager:
             return "acl list"
 
         if act in ("set_admin_password", "set_password", "change_password", "password"):
-            new_pwd = params.get("new_password", params.get("password", ""))
-            return f"set admin.password {new_pwd}"
+            new_pwd = params.get("new_password", params.get("password", params.get("admin_password", "")))
+            return f"password {new_pwd}"
 
         if act in ("set_guest_password", "guest_password"):
             new_pwd = params.get("guest_password", params.get("password", ""))
             return f"set guest.password {new_pwd}"
 
+        if act in ("set_identity_key", "set_prv_key", "prv_key", "prv.key"):
+            key = params.get("identity_key", params.get("prv_key", params.get("key", "")))
+            return f"set prv.key {key}"
+
         if act in ("set_clock", "set_time", "sync_time", "clock_sync"):
             ts = params.get("timestamp", params.get("time", int(time.time())))
-            return f"set clock {ts}"
+            return f"time {ts}"
 
         return None
 

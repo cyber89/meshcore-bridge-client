@@ -2,6 +2,38 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Corrección de Posición Fija y Auditoría Integral de la Pila de Administración Remota de Repetidores
+- **Fecha**: 2026-09-27
+- **Estado**: ✅ COMPLETADO — Reparado el bug de reversión inmediata del interruptor de Posición Fija (`repPosFixed`) a "GPS DINÁMICO" tras el toast de guardado. Auditadas, consolidadas y verificadas todas las funciones de administración remota (Radio RF, Propietario/Ubicación, Seguridad & ACL, Vecinos Zero-Hop, Terminal interactiva y Acciones Rápidas) en frontend, backend, APIs REST y comandos RF del firmware MeshCore (`CommonCLI.cpp`).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect), Agente 1 (Firmware Investigator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect), Agente 5 (Security Auditor).
+- **Causa Raíz Diagnosticada y Subsanada (Bug Posición Fija)**:
+  1. **Fallo de Coalescencia Nula en Frontend (`repeater.js`)**: En `populateRepeaterModalData`, la expresión `node.fixed_position !== undefined ? Boolean(node.fixed_position) : true` evaluaba `null !== undefined` como `true`, pero `Boolean(null)` como `false`. Al serializar Python `None` como JSON `null`, cualquier refresco WebSocket o renderizado del modal forzaba `posFixed.checked = false` ("GPS DINÁMICO"). Corregido con validación estricta de `null` y `undefined` y fallback al estado de coordenadas válidas.
+  2. **Clave de Caché Inexacta en `knownNodes` (`repeater.js`)**: Al guardar coordenadas en `repOwnerPosForm`, se utilizaba `this.ctx.knownNodes.get(target)` con el prefijo hex de 8 caracteres (`31d03b1f`), pero `knownNodes` está indexado con la clave canónica de 64 caracteres. La actualización local nunca se aplicaba a la instancia en memoria. Corregido resolviendo `canonicalPk = this.resolveCanonicalPubkey(target) || target`.
+  3. **Omisión de Persistencia y Difusión en Backend (`repeater_executor.py`)**: `_update_local_registry_from_params` no incluía `fixed_position` en `NodeContactUpdate`, dejando el campo como `None` en `NodeRegistry` y omitiendo la emisión de eventos WebSocket `contact_updated`. Subsanado extrayendo `fixed_position` y transmitiendo `broadcast_event` a todos los clientes web en tiempo real.
+- **Auditoría y Corrección de Funciones de Administración Remota**:
+  1. **Subpanel Radio RF (`repRadioForm`)**:
+     - *Firmware SSoT (`CommonCLI.cpp:588`)*: MeshCore firmware no admite comandos separados `set sf`, `set bw` o `set cr` sobre RF; requiere el comando atómico `set radio <freq> <bw> <sf> <cr>`.
+     - *Optimización de Airtime*: `repeater_executor.py._execute_batch_config` ahora consolida atómicamente los parámetros de radio en una única trama RF `set radio`, normalizando coding rate ("4/5" $\to$ 5) y ahorrando 3 transmisiones innecesarias por radio.
+     - *Intervalo de Beacon*: `CommonCLI.cpp:497` requiere minutos (2..240). `repeater_manager.py` ahora convierte automáticamente segundos $\ge 60$ a minutos antes de enviar `set advert.interval <mins>`, evitando errores del firmware.
+  2. **Subpanel Seguridad & ACL (`repSecurityForm`)**:
+     - Conectado listener de submit en `repeater.js` para `repSecurityForm` (previamente huérfano en DOM).
+     - *Firmware SSoT (`CommonCLI.cpp:256, 506`)*: Ajustado comando de contraseña de administrador a `password <new>` (no `set admin.password`) y contraseña de invitado a `set guest.password <new>`.
+     - Actualizada la memoria de contraseñas de sesión en `repeaterPasswords` para evitar pérdida de autenticación del usuario al cambiar la clave.
+  3. **Subpanel Vecinos & Acciones Rápidas**:
+     - Vinculado `btnModalActionNeighbors` en la barra de herramientas para transicionar al subpanel de vecinos y disparar `fetchRepeaterNeighbors(target)`.
+     - Confirmada la correcta ejecución de `ping_zero`, `sync_clock` (`time <epoch>`), `advert`, `clear stats` y `reboot`.
+- **Módulos Modificados**:
+  - `src/web/static/js/modules/repeater.js`
+  - `src/admin/repeater_executor.py`
+  - `src/repeater_manager.py`
+  - `src/contact_manager.py`
+- **Verificación y Pruebas**:
+  - `ruff check`: 0 errores.
+  - `mypy --strict`: Aprobado (0 errores).
+  - `node --check`: Sintaxis JS 100% válida.
+  - Pruebas deterministas de construcción de payloads y actualización de `fixed_position` (True/False) aprobadas.
+  - Autenticación viva con repetidor remoto `R1-Lee` verificada contra `http://192.168.0.242:8080/`.
+
 ### Hito: Reparación Quirúrgica del Reloj RTC y Destruncamiento de Respuestas Horarias en Router RX
 - **Fecha**: 2026-09-27
 - **Estado**: ✅ COMPLETADO — Localizada y corregida la causa raíz que impedía visualizar el Reloj RTC en la interfaz de administración del repetidor (`repClockValue`).

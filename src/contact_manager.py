@@ -561,6 +561,7 @@ class NodeContactInfo:
         d["longitude"] = eff_lon
         d["lat"] = eff_lat
         d["lon"] = eff_lon
+        d["fixed_position"] = self.fixed_position if self.fixed_position is not None else (True if (eff_lat is not None and eff_lat != 0.0) else None)
         d["best_route"] = self.best_route
         d["flags"] = self.flags
         d["last_advert"] = self.last_advert

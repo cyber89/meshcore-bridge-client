@@ -273,7 +273,8 @@ export class RepeaterModule {
             if (sRep) sRep.textContent = repeat ? "Activado" : "Desactivado";
 
             if (this.ctx.knownNodes) {
-              const existing = this.ctx.knownNodes.get(target);
+              const canonicalPk = this.resolveCanonicalPubkey(target) || target;
+              const existing = this.ctx.knownNodes.get(canonicalPk) || this.ctx.knownNodes.get(target);
               if (existing) {
                 existing.frequency = freq;
                 existing.tx_power = tx_power;
@@ -283,7 +284,7 @@ export class RepeaterModule {
                 existing.hop_limit = hop_limit;
                 existing.repeat_enabled = repeat;
                 existing.advert_interval = beacon_interval;
-                if (this.ctx.updateNodeInDom) this.ctx.updateNodeInDom(existing);
+                if (this.ctx.updateNodeInDom) this.ctx.updateNodeInDom(canonicalPk, existing);
               }
             }
           } else {
@@ -331,7 +332,7 @@ export class RepeaterModule {
         const alt = rawAlt !== undefined && rawAlt !== "" && !isNaN(parseFloat(rawAlt)) ? parseFloat(rawAlt) : null;
         const fixed = document.getElementById("repPosFixed")?.checked === true;
 
-        const params = { owner_name, owner_info, lat, lon, alt, fixed };
+        const params = { owner_name, owner_info, lat, lon, alt, fixed, fixed_position: fixed };
         this.appendTerminalLine(`> [TX OWNER/POS] Configurando propietario '${owner_name}' y posición (${lat ?? '--'}, ${lon ?? '--'}) en ${target.slice(0, 8)}...`, "term-cmd");
 
         try {
@@ -346,7 +347,8 @@ export class RepeaterModule {
             if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.rep_pos_ok'), "success");
 
             if (this.ctx.knownNodes) {
-              const existing = this.ctx.knownNodes.get(target);
+              const canonicalPk = this.resolveCanonicalPubkey(target) || target;
+              const existing = this.ctx.knownNodes.get(canonicalPk) || this.ctx.knownNodes.get(target);
               if (existing) {
                 if (owner_name) { existing.name = owner_name; existing.alias = owner_name; existing.owner_name = owner_name; }
                 if (owner_info) existing.owner_info = owner_info;
@@ -354,6 +356,7 @@ export class RepeaterModule {
                 if (lon !== null) existing.longitude = lon;
                 if (alt !== null) existing.altitude_m = alt;
                 existing.fixed_position = fixed;
+                existing.fixed = fixed;
               }
               if (this.ctx.renderNodesDirectory) this.ctx.renderNodesDirectory(Array.from(this.ctx.knownNodes.values()));
             }
@@ -364,6 +367,70 @@ export class RepeaterModule {
             } else {
               if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message}`, "error");
             }
+          }
+        } catch (err) {
+          this.appendTerminalLine(`✗ [ERROR] ${err.message}`, "term-error");
+        }
+      });
+    }
+
+    // Formulario de Seguridad & ACL
+    const securityForm = document.getElementById("repSecurityForm");
+    if (securityForm) {
+      securityForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const target = this.selectedRepeaterTarget;
+        if (!target) {
+          alert("Selecciona primero un repetidor.");
+          return;
+        }
+        const currentPassword = this.getRepeaterPassword(target);
+        const adminPwdInput = document.getElementById("secNewAdminPwd");
+        const guestPwdInput = document.getElementById("secNewGuestPwd");
+        const aclModeInput = document.getElementById("secAclMode");
+        const identityKeyInput = document.getElementById("secIdentityKey");
+
+        const newAdminPwd = adminPwdInput ? adminPwdInput.value.trim() : "";
+        const newGuestPwd = guestPwdInput ? guestPwdInput.value.trim() : "";
+        const aclMode = aclModeInput ? aclModeInput.value : "public";
+        const identityKey = identityKeyInput ? identityKeyInput.value.trim() : "";
+
+        if (!newAdminPwd && !newGuestPwd && !identityKey && !aclMode) {
+          if (this.ctx.showToast) this.ctx.showToast("No hay cambios de seguridad para aplicar.", "info");
+          return;
+        }
+
+        const params = {};
+        if (newAdminPwd) params.new_password = newAdminPwd;
+        if (newGuestPwd) params.guest_password = newGuestPwd;
+        if (identityKey) params.identity_key = identityKey;
+        if (aclMode) params.acl_mode = aclMode;
+
+        this.appendTerminalLine(`> [TX SEC] Aplicando parámetros de seguridad en ${target.slice(0, 8)}...`, "term-cmd");
+
+        try {
+          const res = await fetch("/api/repeater/remote/config", {
+            method: "POST",
+            headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+            body: JSON.stringify({ target_node: target, password: currentPassword, params: params }),
+          });
+          const data = await res.json();
+          if (data.status === "ok") {
+            this.appendTerminalLine(`✓ [RX OK] Parámetros de seguridad aplicados en ${target.slice(0, 8)}.`, "term-success");
+            if (newAdminPwd) {
+              const canonicalPk = this.resolveCanonicalPubkey(target) || target;
+              this.setStoredRepeaterPassword(canonicalPk, newAdminPwd);
+              this.setStoredRepeaterPassword(target, newAdminPwd);
+              if (this.dom.repeaterGatePassword) this.dom.repeaterGatePassword.value = newAdminPwd;
+              this.appendTerminalLine(`ℹ [CREDENTIALS] Clave de administración actualizada en caché local.`, "term-info");
+            }
+            if (adminPwdInput) adminPwdInput.value = "";
+            if (guestPwdInput) guestPwdInput.value = "";
+            if (identityKeyInput) identityKeyInput.value = "";
+            if (this.ctx.showToast) this.ctx.showToast("Parámetros de seguridad aplicados", "success");
+          } else {
+            this.appendTerminalLine(`✗ [RX ERROR] ${data.message || data.error}`, "term-error");
+            if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || data.error}`, "error");
           }
         } catch (err) {
           this.appendTerminalLine(`✗ [ERROR] ${err.message}`, "term-error");
@@ -429,6 +496,17 @@ export class RepeaterModule {
         if (!target) return;
         const password = this.getRepeaterPassword(target);
         this.executeRepeaterCommand(target, "advert", {}, password);
+      });
+    }
+
+    const btnActionNeighbors = document.getElementById("btnModalActionNeighbors");
+    if (btnActionNeighbors) {
+      btnActionNeighbors.addEventListener("click", () => {
+        const target = this.selectedRepeaterTarget;
+        if (!target) return;
+        const neighborsTabBtn = document.querySelector('.subtab-btn[data-subtab="rep-neighbors"]');
+        if (neighborsTabBtn) neighborsTabBtn.click();
+        this.fetchRepeaterNeighbors(target);
       });
     }
 
@@ -1216,7 +1294,11 @@ export class RepeaterModule {
     const posFixed = document.getElementById("repPosFixed");
     const posFixedBadge = document.getElementById("repPosFixedBadge");
     if (posFixed) {
-      const isFixed = node.fixed_position !== undefined ? Boolean(node.fixed_position) : true;
+      const isFixed = (node.fixed_position !== undefined && node.fixed_position !== null)
+        ? Boolean(node.fixed_position)
+        : (node.fixed !== undefined && node.fixed !== null
+            ? Boolean(node.fixed)
+            : (node.latitude !== undefined && node.latitude !== null && node.latitude !== 0));
       posFixed.checked = isFixed;
       if (posFixedBadge) {
         posFixedBadge.textContent = isFixed ? "FIJA" : "GPS DINÁMICO";
