@@ -18,7 +18,6 @@ import struct
 import time
 from typing import Any
 
-from src.protocol_types import MeshcoreFrame, PacketType
 from src.sensor_decoder import LppDataType
 from src.serial_driver import BaseSerialAdapter
 
@@ -584,59 +583,6 @@ class VirtualMeshAdapter(BaseSerialAdapter):
             "timestamp": int(time.time()),
         }
 
-    async def send_admin_cmd(self, action: str, params: dict[str, Any]) -> dict[str, Any]:
-        """Responde a comandos de administración de repetidores y diagnóstico de radio."""
-        self.heartbeat()
-        action_clean = action.lower().strip()
-
-        if "stats" in action_clean or "radio" in action_clean or "core" in action_clean or "packet" in action_clean:
-            return {
-                "status": "ok",
-                "action": action,
-                "frequency_mhz": float(params.get("freq", 915.0)),
-                "tx_power_dbm": int(params.get("power", 20)),
-                "spreading_factor": int(params.get("sf", 11)),
-                "bandwidth_khz": float(params.get("bw", 250.0)),
-                "channel_utilization_pct": 3.8,
-                "noise_floor_dbm": -118,
-                "uptime_hours": 142.5,
-                "packets_routed": 18420,
-            }
-
-        if "neighbor" in action_clean or "node" in action_clean:
-            return {
-                "status": "ok",
-                "action": action,
-                "neighbors": [
-                    {"pubkey": n["key"], "alias": n["alias"], "snr": n["snr"], "rssi": n["rssi"], "hops": n["hops"]}
-                    for n in list(self.nodes.values())[:4]
-                ],
-            }
-
-        if "set" in action_clean or "config" in action_clean:
-            return {
-                "status": "ok",
-                "action": action,
-                "applied_params": params,
-                "message": f"Parámetros actualizados con éxito en repetidor: {action}",
-            }
-
-        if "reboot" in action_clean:
-            return {"status": "ok", "action": "reboot", "message": "Repetidor reiniciándose en 3 segundos..."}
-
-        return {"status": "ok", "action": action, "message": f"Comando '{action}' ejecutado con éxito en repetidor"}
-
-    async def send_frame(self, frame: MeshcoreFrame) -> bool:
-        """Procesa una trama saliente enviada desde el bridge y dispara auto-eco si corresponde."""
-        if not self.is_connected:
-            return False
-
-        self.heartbeat()
-        task = asyncio.create_task(self._process_outbound_frame(frame))
-        self._background_tasks.add(task)
-        task.add_done_callback(self._background_tasks.discard)
-        return True
-
     async def send_raw_companion_frame(self, data: bytes) -> bool:
         """Procesa comandos crudos Companion recibidos desde app móvil o CLI y genera respuestas acordes."""
         if not data:
@@ -751,38 +697,6 @@ class VirtualMeshAdapter(BaseSerialAdapter):
         if self.companion_rx_callback:
             self.companion_rx_callback(bytes(ok_pkt))
         return True
-
-    async def _process_outbound_frame(self, frame: MeshcoreFrame) -> None:
-        """Analiza la trama TX y simula la respuesta en el aire de los nodos remotos."""
-        await asyncio.sleep(0.2)
-
-        # 1. Acuse de recibo inmediato
-        ack_event = {
-            "type": "ACK",
-            "payload": {
-                "sequence_number": frame.header.seq_num,
-                "status": "SENT_OK",
-                "timestamp": int(time.time()),
-            },
-        }
-        self._dispatch_event(ack_event)
-
-        # 2. Análisis de mensaje de texto
-        payload_bytes = frame.raw_payload
-        text = ""
-        try:
-            text = payload_bytes.decode("utf-8", errors="ignore").strip()
-        except Exception:
-            pass
-
-        target_node = None
-        if frame.header.packet_type in (PacketType.CHANNEL_MSG_RECV, PacketType.CONTACT_MSG_RECV) or "alpha" in text.lower() or "a1b2c3" in text.lower():
-            target_node = self.node_alpha
-        elif "bravo" in text.lower() or "d7e8f9" in text.lower():
-            target_node = self.node_bravo
-
-        if target_node and text:
-            await self._simulate_echo_reply(target_node, text, channel_idx=0, is_direct=True)
 
     async def _simulate_echo_reply(
         self,

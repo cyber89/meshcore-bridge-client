@@ -71,21 +71,15 @@ class TestPacketBuffer(unittest.TestCase):
         self.assertEqual(len(all_paged), 2)
         self.assertEqual(all_paged[0]["packet_id"], 2)
 
-    def test_get_packet_by_id_and_clear(self) -> None:
-        """Verifica la búsqueda por ID y el vaciado del búfer."""
+    def test_record_and_clear(self) -> None:
+        """Verifica la inserción y el vaciado del búfer."""
         pkt = self.buffer.record("rx", channel_idx=0, packet_type="ACK", text="ACK_OK")
         self.assertIsNotNone(pkt)
-
-        found = self.buffer.get_packet_by_id(pkt.packet_id)
-        self.assertIsNotNone(found)
-        self.assertEqual(found.text, "ACK_OK")
-
-        not_found = self.buffer.get_packet_by_id(99999)
-        self.assertIsNone(not_found)
+        assert pkt is not None
+        self.assertEqual(pkt.text, "ACK_OK")
 
         self.buffer.clear()
         self.assertEqual(len(self.buffer._buffer), 0)
-        self.assertIsNone(self.buffer.get_packet_by_id(pkt.packet_id))
 
     def test_json_export_structure(self) -> None:
         """Verifica que el generador JSON cumpla con el esquema estructurado de exportación."""

@@ -170,13 +170,6 @@ class PacketBuffer:
 
         return [p.to_dict() for p in items], total
 
-    def get_packet_by_id(self, packet_id: int) -> CapturedPacket | None:
-        """Busca una trama específica por su ID consecutivo."""
-        for p in self._buffer:
-            if p.packet_id == packet_id:
-                return p
-        return None
-
     def clear(self) -> None:
         """Vacía el búfer de paquetes en memoria."""
         self._buffer.clear()

@@ -6,7 +6,6 @@ Filtro de deduplicación de alta velocidad en memoria RAM con ventana deslizante
 from __future__ import annotations
 
 import collections
-import hashlib
 import threading
 import time
 
@@ -57,11 +56,6 @@ class PacketDeduplicator:
         with self._lock:
             return self._check_and_insert(key)
 
-    def is_duplicate_sync(self, key: str) -> bool:
-        """Versión síncrona con la misma garantía atómica y lock unificado."""
-        with self._lock:
-            return self._check_and_insert(key)
-
     def _prune(self, now: float) -> None:
         """Elimina entradas expiradas desde el inicio del OrderedDict."""
         threshold = now - self.window_seconds
@@ -71,12 +65,3 @@ class PacketDeduplicator:
                 del self._cache[first_key]
             else:
                 break
-
-    @staticmethod
-    def compute_hash(topic: str, payload: str) -> str:
-        """Genera un hash SHA-256 corto del tópico y payload."""
-        hasher = hashlib.sha256()
-        hasher.update(topic.encode("utf-8"))
-        hasher.update(b"::")
-        hasher.update(payload.encode("utf-8"))
-        return hasher.hexdigest()[:16]

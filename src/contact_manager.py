@@ -761,7 +761,6 @@ class NodeRegistry:
             "ROUTE_UNREACHABLE": 0,
             "MQTT_DISCONNECT": 0,
         }
-        self.last_sync_timestamp: float = 0.0
         self._dirty: bool = False
         self._save_debounce_task: asyncio.Task[Any] | None = None
 
@@ -1201,7 +1200,7 @@ class NodeRegistry:
         )
         return is_auto_discovered, contact
 
-    def list_discovered(self, pending_only: bool = False) -> list[dict[str, Any]]:
+    def list_discovered(self) -> list[dict[str, Any]]:
         """Lista los nodos clientes descubiertos automáticamente que no estén en la libreta."""
         results = []
         for c in self._nodes_by_key.values():
@@ -1359,30 +1358,6 @@ class NodeRegistry:
             ),
         )
 
-    def record_error(self, category: str) -> None:
-        """Incrementa el contador de errores por categoría."""
-        cat = category.upper().strip()
-        if cat in self.error_categories:
-            self.error_categories[cat] += 1
-        else:
-            self.error_categories[cat] = 1
-
-    def record_neighbors(self, public_key: str, neighbors: list[str]) -> None:
-        """Registra la lista de vecinos/clientes conectados a un repetidor."""
-        norm_key = public_key.strip().lower()
-        clean_neighbors = [n.strip().lower() for n in neighbors if n.strip()]
-        existing = self._nodes_by_key.get(norm_key)
-        if existing:
-            self.add_or_update(
-                norm_key,
-                NodeContactUpdate(
-                    name=existing.name,
-                    alias=existing.alias,
-                    neighbors=clean_neighbors,
-                    connected_clients_count=len(clean_neighbors),
-                ),
-            )
-
     def get_by_key_or_prefix(self, query: str) -> NodeContactInfo | None:
         """Busca un nodo por clave completa, prefijo hex o nombre exacto."""
         if not query:
@@ -1441,17 +1416,6 @@ class NodeRegistry:
         if contact:
             return contact.alias or contact.name
         return query
-
-    def resolve_display_name(self, key_or_prefix: str) -> str:
-        """Resuelve el nombre de display de un nodo dado su key completa o prefijo de 8 chars.
-        Single Source of Truth para resolución de nombres en todo el bridge.
-        Retorna alias si existe, nombre si no, o el prefijo como fallback.
-        """
-        prefix = key_or_prefix[:8] if len(key_or_prefix) >= 8 else key_or_prefix
-        node = self.get_by_key_or_prefix(key_or_prefix)
-        if node:
-            return node.alias or node.name or prefix
-        return prefix
 
     def remove_node(self, public_key: str) -> bool:
         """Elimina un nodo del registro y limpia sus índices asociados (nombre/alias)."""
@@ -1692,30 +1656,6 @@ class NodeRegistry:
         """Guarda la libreta de contactos y estado de nodos de forma asíncrona sin bloquear el event loop."""
         return await asyncio.to_thread(self.save_to_file, filepath, force)
 
-    def schedule_debounced_save(self, delay_sec: float = 5.0, loop: asyncio.AbstractEventLoop | None = None) -> None:
-        """Programa un guardado a disco diferido (debounced) para consolidar ráfagas de cambios."""
-        with self._lock:
-            self._dirty = True
-
-        try:
-            active_loop = loop or asyncio.get_running_loop()
-        except RuntimeError:
-            return
-
-        if self._save_debounce_task and not self._save_debounce_task.done():
-            return
-
-        async def _delayed_worker() -> None:
-            try:
-                await asyncio.sleep(delay_sec)
-                await self.save_to_file_async()
-            except asyncio.CancelledError:
-                await self.save_to_file_async(force=True)
-            except Exception as e:
-                logging.warning(f"Error en guardado diferido de NodeRegistry: {e}")
-
-        self._save_debounce_task = active_loop.create_task(_delayed_worker())
-
     def _deserialize_node_contact(self, nd: dict[str, Any]) -> NodeContactInfo | None:
         """Reconstruye un objeto NodeContactInfo a partir de un diccionario serializado."""
         pk = nd.get("public_key")
@@ -1823,8 +1763,3 @@ class NodeRegistry:
         except Exception as e:
             logging.warning(f"Error cargando NodeRegistry desde {target_path}: {e}")
             return 0
-
-    async def load_from_file_async(self, filepath: str | Path | None = None) -> int:
-        """Carga la libreta de contactos y estado de nodos de forma asíncrona sin bloquear el event loop."""
-        import asyncio
-        return await asyncio.to_thread(self.load_from_file, filepath)

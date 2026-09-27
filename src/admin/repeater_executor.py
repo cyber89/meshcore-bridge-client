@@ -728,14 +728,6 @@ class RepeaterAdminExecutor:
     # Helpers Privados de Radio y Registro
     # --------------------------------------------------------------------------
 
-    def _register_waiters(self, keys: list[str], fut: asyncio.Future[dict[str, Any]], include_ping: bool) -> None:
-        """Registra un future delegando en WaiterRegistry."""
-        self._waiters.register(keys, fut, include_ping=include_ping)
-
-    def _unregister_waiters(self, keys: list[str], fut: asyncio.Future[dict[str, Any]], include_ping: bool) -> None:
-        """Desregistra un future delegando en WaiterRegistry."""
-        self._waiters.unregister(keys, fut, include_ping=include_ping)
-
     async def _ensure_radio_contact(self, mc: Any, dest_target: Any, target_name: str) -> None:
         """Asegura que el nodo destino esté presente en la tabla del firmware."""
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "add_contact"):

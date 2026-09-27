@@ -8,9 +8,7 @@ suavizado mediante Media Móvil Exponencial (EMA) y decaimiento por inactividad 
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
 from enum import Enum
-from typing import Any
 
 
 class LQIStatus(str, Enum):
@@ -20,19 +18,6 @@ class LQIStatus(str, Enum):
     FAIR = "FAIR"                # 40% - 59% (Amarillo)
     POOR = "POOR"                # 1% - 39% (Naranja)
     UNREACHABLE = "UNREACHABLE"  # 0% (Rojo / Inaccesible)
-
-
-@dataclass(frozen=True, slots=True)
-class LinkMetrics:
-    """Métricas inmutables de calidad de enlace para un nodo o salto."""
-    public_key: str
-    lqi_score: float              # 0.0 a 100.0%
-    lqi_status: str               # EXCELLENT, GOOD, FAIR, POOR, UNREACHABLE
-    last_snr: float | None
-    last_rssi: int | None
-    hop_count: int
-    optimal_route: str            # "DIRECT" o "VIA_<REPEATER_PK>"
-    last_updated: float           # Timestamp UNIX en segundos
 
 
 class LinkQualityEngine:
@@ -148,103 +133,3 @@ class LinkQualityEngine:
         if lqi > 0.0:
             return LQIStatus.POOR.value
         return LQIStatus.UNREACHABLE.value
-
-    @classmethod
-    def select_best_route(
-        cls,
-        target_pk: str,
-        node_registry: Any,
-        repeater_manager: Any = None,
-        now_ts: float | None = None,
-    ) -> dict[str, Any]:
-        """
-        Evalúa y selecciona la mejor ruta hacia el nodo destino.
-        Compara la ruta directa vs enrutamiento a través de repetidores conocidos.
-        """
-        cur_time = time.time() if now_ts is None else now_ts
-        target_contact = node_registry.get_contact(target_pk)
-
-        if not target_contact:
-            return {
-                "target_pk": target_pk,
-                "best_route": "DIRECT",
-                "route_type": "UNKNOWN",
-                "lqi_score": 0.0,
-                "lqi_status": LQIStatus.UNREACHABLE.value,
-                "via_repeater_pk": None,
-                "reason": "Nodo no registrado",
-            }
-
-        # Calcular LQI directo con decaimiento
-        direct_lqi_raw = target_contact.lqi_score or 0.0
-        direct_lqi = cls.apply_time_decay(direct_lqi_raw, target_contact.last_seen or cur_time, cur_time)
-        direct_status = cls.classify_lqi_status(direct_lqi)
-
-        # Si el enlace directo es excelente o bueno (>= 50%), usar DIRECT
-        if direct_lqi >= 50.0:
-            return {
-                "target_pk": target_pk,
-                "best_route": "DIRECT",
-                "route_type": "DIRECT",
-                "lqi_score": direct_lqi,
-                "lqi_status": direct_status,
-                "via_repeater_pk": None,
-                "reason": "Enlace directo óptimo",
-            }
-
-        # Buscar repetidores activos con enlace superior
-        best_repeater_pk: str | None = None
-        best_repeater_lqi = 0.0
-
-        if hasattr(node_registry, "_nodes_by_key") and hasattr(node_registry, "_lock"):
-            with node_registry._lock:
-                rep_items = [
-                    (c.public_key, c.lqi_score or 0.0, c.last_seen or cur_time)
-                    for c in node_registry._nodes_by_key.values()
-                    if not c.is_local and c.public_key != target_pk and str(c.role).upper() in ("REPEATER", "ROUTER")
-                ]
-            for pk, rep_lqi_raw, rep_last_seen in rep_items:
-                rep_lqi = cls.apply_time_decay(rep_lqi_raw, rep_last_seen, cur_time)
-                effective_via_lqi = max(0.0, rep_lqi - cls.PENALTY_PER_HOP)
-                if effective_via_lqi > best_repeater_lqi:
-                    best_repeater_lqi = effective_via_lqi
-                    best_repeater_pk = pk
-        else:
-            for node in node_registry.list_nodes():
-                pk = node.get("public_key")
-                role = node.get("role", "")
-                if not pk or pk == target_pk:
-                    continue
-
-                if role in ("REPEATER", "ROUTER"):
-                    rep_lqi_raw = node.get("lqi_score", 0.0)
-                    rep_last_seen = node.get("last_seen") or cur_time
-                    rep_lqi = cls.apply_time_decay(rep_lqi_raw, rep_last_seen, cur_time)
-
-                    # Penalizar un salto adicional para la ruta indirecta
-                    effective_via_lqi = max(0.0, rep_lqi - cls.PENALTY_PER_HOP)
-                    if effective_via_lqi > best_repeater_lqi:
-                        best_repeater_lqi = effective_via_lqi
-                        best_repeater_pk = pk
-
-        # Si encontramos un repetidor significativamente mejor que el enlace directo
-        if best_repeater_pk and best_repeater_lqi > (direct_lqi + 10.0) and best_repeater_lqi >= 40.0:
-            return {
-                "target_pk": target_pk,
-                "best_route": f"VIA_{best_repeater_pk[:8]}",
-                "route_type": "REPEATER",
-                "lqi_score": best_repeater_lqi,
-                "lqi_status": cls.classify_lqi_status(best_repeater_lqi),
-                "via_repeater_pk": best_repeater_pk,
-                "reason": f"Ruta vía repetidor {best_repeater_pk[:8]} supera enlace directo",
-            }
-
-        return {
-            "target_pk": target_pk,
-            "best_route": "DIRECT",
-            "route_type": "DIRECT",
-            "lqi_score": direct_lqi,
-            "lqi_status": direct_status,
-            "via_repeater_pk": None,
-            "reason": "Enlace directo por defecto",
-        }

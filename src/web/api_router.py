@@ -10,7 +10,6 @@ import asyncio
 import collections
 import logging
 import time
-from pathlib import Path
 from typing import Any
 
 from src.contact_manager import PacketRecord, is_valid_node_key
@@ -159,10 +158,6 @@ class WebAPIRouter:
         # Referencia compartida de canales para retrocompatibilidad
         self.channels: dict[int, dict[str, Any]] = self.channels_ctrl.channels
         self._background_tasks: set[asyncio.Task[Any]] = set()
-
-    def _get_storage_path(self) -> Path:
-        """Obtiene la ruta persistente del archivo JSON de canales."""
-        return Path(self.channels_ctrl.channels_file)
 
     def _load_channels(self) -> None:
         """Carga la configuración persistida de canales delegando al controlador."""

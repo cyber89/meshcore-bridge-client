@@ -17,11 +17,9 @@ from src.serial.serial_base import BaseSerialAdapter, detect_serial_port
 from src.target_resolver import TargetResolver
 
 try:
-    import meshcore
     from meshcore import EventType, MeshCore
     from meshcore.events import Event
 except ImportError:
-    meshcore = None
     MeshCore = None
     EventType = None
     Event = None
@@ -696,21 +694,6 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             "event": res,
             "expected_ack": expected_ack_hex,
         }
-
-    async def send_admin_cmd(self, action: str, params: dict[str, Any]) -> dict[str, Any]:
-        if not self.is_connected or not self.mc:
-            raise ConnectionError("MeshCore SDK no conectado")
-
-        action_lower = action.lower()
-        if action_lower == "reboot" and hasattr(self.mc.commands, "reboot"):
-            await self.mc.commands.reboot()
-            return {"status": "OK", "action": "reboot"}
-        elif action_lower == "set_tx_power" and hasattr(self.mc.commands, "set_tx_power"):
-            power = int(params.get("power", 20))
-            await self.mc.commands.set_tx_power(power)
-            return {"status": "OK", "action": "set_tx_power", "power": power}
-
-        return {"status": "UNKNOWN_ACTION", "action": action}
 
     async def _ensure_contact_for_tx(self, dest_target: Any, target_clean: str) -> None:
         """Asegura que el destinatario esté registrado en la memoria de la radio física antes de TX.

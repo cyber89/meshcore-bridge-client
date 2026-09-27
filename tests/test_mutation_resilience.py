@@ -4,6 +4,7 @@ Verifica que el sistema detecte y rechace mutaciones de tramas, inversión de bi
 mutaciones de opcodes, corrupción de checksums y alteración de secuencias de escape.
 """
 
+import asyncio
 import unittest
 
 from src.deduplicator import PacketDeduplicator
@@ -64,18 +65,14 @@ class TestMutationResilience(unittest.TestCase):
                 pass
 
     def test_deduplicator_mutation_collision_resistance(self) -> None:
-        """Verifica que mutaciones leves de payload generen hashes distintos y no colisionen."""
+        """Verifica que mutaciones leves de payload generen claves distintas y no colisionen."""
         dedup = PacketDeduplicator(window_seconds=10.0, max_entries=100)
-        topic = "meshcore/rx/all"
-        base_payload = '{"seq": 100, "text": "Base Message"}'
-        mutated_payload = '{"seq": 101, "text": "Base Message"}'
+        base_key = "meshcore/rx/all::100"
+        mutated_key = "meshcore/rx/all::101"
 
-        hash_base = dedup.compute_hash(topic, base_payload)
-        hash_mutated = dedup.compute_hash(topic, mutated_payload)
-
-        self.assertNotEqual(hash_base, hash_mutated, "Payloads mutados deben tener hashes distintos")
-        self.assertFalse(dedup.is_duplicate_sync(hash_base))
-        self.assertFalse(dedup.is_duplicate_sync(hash_mutated))
+        self.assertNotEqual(base_key, mutated_key, "Claves mutadas deben ser distintas")
+        self.assertFalse(asyncio.run(dedup.is_duplicate(base_key)))
+        self.assertFalse(asyncio.run(dedup.is_duplicate(mutated_key)))
 
     def test_sensor_payload_truncation_mutation(self) -> None:
         """Verifica que mutaciones de truncamiento en payloads de sensores no causen crashes."""

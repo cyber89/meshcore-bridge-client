@@ -87,6 +87,3 @@ class RawSerialFramingAdapter(BaseSerialAdapter):
         channel_idx: int = 0,
     ) -> dict[str, Any]:
         return {"status": "SENT_RAW", "text": text}
-
-    async def send_admin_cmd(self, action: str, params: dict[str, Any]) -> dict[str, Any]:
-        return {"status": "SENT_ADMIN_RAW", "action": action}

@@ -236,17 +236,6 @@ def compute_crc16_ccitt(data: bytes, init: int = 0xFFFF, poly: int = 0x1021) -> 
     return crc
 
 
-def get_packet_type_name(ptype: int) -> str:
-    """Retorna el nombre legible de un tipo de paquete."""
-    try:
-        return PacketType(ptype).name
-    except ValueError:
-        return f"UNKNOWN_0x{ptype:02X}"
-
-
-
-
-
 @dataclass(frozen=True)
 class FrameHeader:
     """Cabecera de 9 Bytes de trama binaria MeshCore."""

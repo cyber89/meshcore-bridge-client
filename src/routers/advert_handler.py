@@ -109,7 +109,7 @@ class AdvertHandler(BaseRxHandler):
             c_lon = _get_coord(c_item, ("adv_lon", "lon", "longitude", "gps_lon"))
             c_bat = _safe_int(c_item.get("battery_pct", c_item.get("battery", c_item.get("batt"))))
 
-            is_c_new, c_contact_info = router_ctx.node_registry.discover_node(
+            is_c_new, _ = router_ctx.node_registry.discover_node(
                 NodeDiscoveryEvent(
                     public_key=c_pk,
                     name=c_name,

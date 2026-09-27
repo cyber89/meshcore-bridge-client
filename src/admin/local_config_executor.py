@@ -382,17 +382,6 @@ class LocalConfigExecutor:
             "message": f"Reloj RTC sincronizado exitosamente con la hora del host: {now_str}" if success else "Hora del host registrada localmente",
         }
 
-        self._local_config["clock"] = time.strftime("%I:%M:%S %p", time.localtime(ts))
-        self._local_config["device_epoch_time"] = ts
-        self._local_config["device_time_sampled_at"] = time.time()
-        self._local_config["device_time_drift"] = 0
-        return {
-            "status": "ok" if success else "partial",
-            "clock": now_str,
-            "epoch": ts,
-            "message": f"Reloj RTC sincronizado exitosamente con la hora del host: {now_str}" if success else "Hora del host registrada localmente",
-        }
-
     async def clear_device_stats(self) -> dict[str, Any]:
         """Restablece los contadores de estadísticas y airtime en el nodo local."""
         self._local_config["tx_count"] = 0

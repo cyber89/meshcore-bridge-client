@@ -43,8 +43,6 @@ class MeshCoreCompanionServer:
         self.active_clients: set[asyncio.StreamWriter] = set()
         self._client_tasks: set[asyncio.Task[Any]] = set()
         self.running = False
-        self._rx_bytes_total = 0
-        self._tx_bytes_total = 0
 
     async def start(self) -> None:
         """Inicia el servidor TCP y escucha conexiones entrantes."""
@@ -134,9 +132,9 @@ class MeshCoreCompanionServer:
                     continue
                 writer.write(pkt)
                 await asyncio.wait_for(writer.drain(), timeout=2.0)
-                self._tx_bytes_total += len(pkt)
             except asyncio.TimeoutError:
                 dead_writers.append(writer)
+                continue
             except Exception as e:
                 logging.debug(f"Error escribiendo a cliente TCP Companion: {e}")
                 dead_writers.append(writer)
@@ -164,7 +162,6 @@ class MeshCoreCompanionServer:
                 raise Exception("Write buffer exceeded")
             writer.write(pkt)
             await asyncio.wait_for(writer.drain(), timeout=2.0)
-            self._tx_bytes_total += len(pkt)
         except Exception as e:
             logging.debug(f"Error enviando trama a cliente TCP: {e}")
             self.active_clients.discard(writer)
@@ -260,7 +257,6 @@ class MeshCoreCompanionServer:
                     # Conexión cerrada por el cliente
                     break
 
-                self._rx_bytes_total += len(chunk)
                 buffer.extend(chunk)
 
                 # Máquina de estados de de-framing para tramas entrantes

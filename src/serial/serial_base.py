@@ -79,10 +79,6 @@ class BaseSerialAdapter(abc.ABC):
     ) -> dict[str, Any]:
         pass
 
-    @abc.abstractmethod
-    async def send_admin_cmd(self, action: str, params: dict[str, Any]) -> dict[str, Any]:
-        pass
-
     async def get_channels(self) -> list[dict[str, Any]]:
         """Devuelve la lista de canales configurados en el nodo (o lista vacía)."""
         return []

@@ -4,7 +4,6 @@ and stateless in-memory operation of MeshCoreBridge.
 """
 
 import asyncio
-import time
 import unittest
 from unittest.mock import MagicMock
 
@@ -12,39 +11,31 @@ from src.bridge_core import MeshCoreBridge
 from src.deduplicator import PacketDeduplicator
 
 
-class TestPacketDeduplicator(unittest.TestCase):
-    def setUp(self) -> None:
+class TestPacketDeduplicator(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self) -> None:
         self.dedup = PacketDeduplicator(ttl_seconds=1.0, max_history=10)
 
-    def test_deduplication_basic_sync(self) -> None:
+    async def test_deduplication_basic(self) -> None:
         """Verifica que el deduplicador en RAM identifique y descarte duplicados."""
-        self.assertFalse(self.dedup.is_duplicate_sync("pkt_001"))
-        self.assertTrue(self.dedup.is_duplicate_sync("pkt_001"))
-        self.assertFalse(self.dedup.is_duplicate_sync("pkt_002"))
+        self.assertFalse(await self.dedup.is_duplicate("pkt_001"))
+        self.assertTrue(await self.dedup.is_duplicate("pkt_001"))
+        self.assertFalse(await self.dedup.is_duplicate("pkt_002"))
 
-    def test_deduplication_ttl_expiration(self) -> None:
+    async def test_deduplication_ttl_expiration(self) -> None:
         """Verifica que tras expirar la ventana TTL el paquete sea aceptado de nuevo."""
-        self.assertFalse(self.dedup.is_duplicate_sync("pkt_expiring"))
-        self.assertTrue(self.dedup.is_duplicate_sync("pkt_expiring"))
+        self.assertFalse(await self.dedup.is_duplicate("pkt_expiring"))
+        self.assertTrue(await self.dedup.is_duplicate("pkt_expiring"))
 
-        time.sleep(1.1)
+        await asyncio.sleep(1.1)
 
-        self.assertFalse(self.dedup.is_duplicate_sync("pkt_expiring"))
+        self.assertFalse(await self.dedup.is_duplicate("pkt_expiring"))
 
-    def test_deduplication_capacity_eviction(self) -> None:
+    async def test_deduplication_capacity_eviction(self) -> None:
         """Verifica que se desaloje el elemento más antiguo al superar max_entries."""
         for i in range(15):
-            self.assertFalse(self.dedup.is_duplicate_sync(f"pkt_batch_{i}"))
+            self.assertFalse(await self.dedup.is_duplicate(f"pkt_batch_{i}"))
 
         self.assertLessEqual(len(self.dedup), 10)
-
-    def test_compute_hash(self) -> None:
-        """Verifica que el hash de tópico y payload sea determinista."""
-        h1 = PacketDeduplicator.compute_hash("meshcore/rx", "test_message")
-        h2 = PacketDeduplicator.compute_hash("meshcore/rx", "test_message")
-        h3 = PacketDeduplicator.compute_hash("meshcore/rx", "other_message")
-        self.assertEqual(h1, h2)
-        self.assertNotEqual(h1, h3)
 
 
 class TestPacketDeduplicatorAsync(unittest.IsolatedAsyncioTestCase):

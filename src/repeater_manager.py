@@ -355,10 +355,6 @@ class RepeaterManager:
 
         return None
 
-    def extract_all_repeater_params_from_text(self, raw_text: str) -> dict[str, Any]:
-        """Alias para extracción completa de parámetros de repetidor a partir de texto CLI/telemetría."""
-        return self.parse_repeater_telemetry_or_response(raw_text)
-
     def parse_repeater_telemetry_or_response(self, raw_text: str) -> dict[str, Any]:
         """
         Analiza cadenas de texto provenientes de respuestas de repetidores MeshCore

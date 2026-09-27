@@ -402,10 +402,6 @@ class AdminCommandHandler:
         """Ejecuta comandos de administración remota sobre un repetidor empaquetando en RemoteRepeaterRequest."""
         return await self._repeater_executor.execute(req)
 
-    async def execute_repeater_request(self, req: RemoteRepeaterRequest) -> dict[str, Any]:
-        """Ejecuta una solicitud estructurada de comando a repetidor."""
-        return await self._repeater_executor.execute(req)
-
     async def _handle_set_local_config(
         self,
         admin_data: dict[str, Any],

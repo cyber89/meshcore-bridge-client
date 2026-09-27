@@ -25,7 +25,6 @@ from src.mqtt_dispatcher import MqttInboundContext, MqttInboundDispatcher
 from src.packet_buffer import PacketBuffer
 from src.preflight import PreflightChecker
 from src.rate_limiter import (
-    CustomTxQueue,
     LoRaRadioConfig,
     TxItem,
     TxRateLimiter,
@@ -74,7 +73,7 @@ class MeshCoreBridge:
     def __init__(
         self,
         loop: asyncio.AbstractEventLoop | None = None,
-        db_path: str | None = None,
+        **_kwargs: Any,
     ) -> None:
         self.running = True
         self._is_stopped = False
@@ -239,7 +238,6 @@ class MeshCoreBridge:
         self.tx_count = 0
         self.tx_error_count = 0
         self.err_count = 0
-        self.serial_reconnect_count = 0
         self.last_rx_snr: float | None = None
         self.last_rx_rssi: int | None = None
         self._health_task: asyncio.Task[None] | None = None
@@ -263,9 +261,6 @@ class MeshCoreBridge:
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
         return task
-
-    def _discard_background_task(self, task: asyncio.Task[Any]) -> None:
-        self._background_tasks.discard(task)
 
     async def _cleanup_loop(self) -> None:
         while self.running:
@@ -391,10 +386,6 @@ class MeshCoreBridge:
         self.serial_adapter.last_heartbeat_time = val
 
     @property
-    def tx_queue(self) -> CustomTxQueue:
-        return self.rate_limiter.queue
-
-    @property
     def mc(self) -> MeshCoreProtocol | Any | None:
         if isinstance(self.serial_adapter, MeshcoreSDKAdapter):
             return cast(MeshCoreProtocol | None, self.serial_adapter.mc)
@@ -439,9 +430,6 @@ class MeshCoreBridge:
                 },
             },
         }
-
-    async def _flush_offline_buffer(self) -> int:
-        return 0
 
     def resolve_sender_name(self, prefix_or_key: str) -> str:
         # Primero consultar el registro dinámico local
@@ -653,7 +641,6 @@ class MeshCoreBridge:
     async def _reconnect_serial(self) -> None:
         """Rutina de reconexión segura invocada por el Watchdog con pausa de estabilización USB."""
         logging.info("Ejecutando reconexión de puerto serial con estabilización USB...")
-        self.serial_reconnect_count += 1
         await self.serial_adapter.disconnect()
         # Pausa esencial de 1.5s para permitir que el kernel y el USB CDC liberen el endpoint
         await asyncio.sleep(1.5)
@@ -662,22 +649,6 @@ class MeshCoreBridge:
             logging.info("Reconexión de transceptor serial completada con éxito.")
         else:
             logging.warning("Intento de reconexión serial no completado. El Watchdog continuará intentando en background.")
-
-    async def _force_serial_reconnect(self) -> None:
-        """Fuerza la desconexión y reconexión inmediata del puerto serial."""
-        self.serial_reconnect_count += 1
-        if isinstance(self.serial_adapter, MeshcoreSDKAdapter):
-            if self.serial_adapter.mc and hasattr(self.serial_adapter.mc, "disconnect"):
-                try:
-                    await self.serial_adapter.mc.disconnect()
-                except Exception:
-                    pass
-            self.serial_adapter.mc = None
-        await self.serial_adapter.disconnect()
-        try:
-            await self.serial_adapter.connect()
-        except Exception as e:
-            logging.warning(f"Error reconnecting in _force_serial_reconnect: {e}")
 
     @staticmethod
     def _parse_tx_input(item: Any) -> tuple[Any, str, int, str]:
@@ -865,23 +836,9 @@ class MeshCoreBridge:
         """Procesa y enruta eventos de la red Mesh hacia MQTT y n8n."""
         self.rx_router.handle_event(event)
 
-    def on_radio_event(self, event: Any) -> None:
-        """Alias para on_mesh_event."""
-        self.on_mesh_event(event)
-
     # ================================================================
     # Despachador de Mensajes MQTT Entrantes (n8n -> Bridge)
     # ================================================================
-    def on_mqtt_message(self, client: Any, userdata: Any, msg: Any) -> None:
-        """Punto de entrada para mensajes MQTT entrantes."""
-        self.mqtt._on_message(client, userdata, msg)
-
-    def on_mqtt_connect(self, client: Any, userdata: Any, flags: Any, rc: Any, *args: Any, **kwargs: Any) -> None:
-        self.mqtt._on_connect(client, userdata, flags, rc, *args, **kwargs)
-
-    def on_mqtt_disconnect(self, client: Any, userdata: Any, rc: Any, *args: Any, **kwargs: Any) -> None:
-        self.mqtt._on_disconnect(client, userdata, rc, *args, **kwargs)
-
     def _on_incoming_mqtt_message(self, topic: str, payload_str: str) -> None:
         """Enruta mensajes recibidos desde MQTT (TX o Admin) a la cola de eventos."""
         self.mqtt_dispatcher.handle_incoming(topic, payload_str)
