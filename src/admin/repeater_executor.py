@@ -162,6 +162,9 @@ class RepeaterAdminExecutor:
         if req.action in ("ping_zero", "ping_0", "ping", "zero_hop_ping"):
             return await self._execute_ping_zero(req, target_info, res)
 
+        if req.action in ("refresh_telemetry", "full_telemetry", "refresh_repeater_telemetry", "get_telemetry_batch"):
+            return await self._execute_batch_telemetry_query(req, target_info, res)
+
         if is_client_only:
             return {"status": "error", "message": "Los comandos de administración remota son exclusivos para repetidores"}
 
@@ -322,10 +325,131 @@ class RepeaterAdminExecutor:
         self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{target_node}/ping_zero", json.dumps(res), 1)
         return res
 
+    async def _execute_batch_telemetry_query(
+        self, req: RemoteRepeaterRequest, target_info: dict[str, Any] | None, res: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Ejecuta una consulta consolidada y ordenada de telemetría remota respetando Airtime LoRa."""
+        force = bool(req.admin_data.get("force", False))
+        if not force and hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "check_airtime_cooldown"):
+            can_send, rem_cd = self._ctx.repeater_manager.check_airtime_cooldown(str(req.target_node), is_full_query=True)
+            if not can_send:
+                return self._ctx.repeater_manager.build_cooldown_error_response(rem_cd)
+
+        if hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "record_command_sent"):
+            self._ctx.repeater_manager.record_command_sent(str(req.target_node), is_full_query=True)
+
+        dest_target = self._resolve_target(str(req.target_node), 12)
+        dest_login_target = self._resolve_target(str(req.target_node), 64)
+        norm_target = self._ctx.node_registry.get_canonical_key(str(req.target_node)) or str(req.target_node).strip().lower()
+
+        waiter_keys = [norm_target, norm_target[:8], norm_target[:4], str(req.target_node).strip().lower()]
+        if target_info and target_info.get("name"):
+            waiter_keys.append(str(target_info["name"]).lower())
+
+        target_name = str((target_info.get("name") or target_info.get("alias")) if target_info else f"Repeater {norm_target[:8]}")
+        await self._ensure_radio_contact(req.mc, dest_target, target_name)
+
+        if req.password:
+            login_cmd = f"login {req.password}"
+            if req.mc and hasattr(req.mc, "commands") and hasattr(req.mc.commands, "send_login"):
+                try:
+                    await req.mc.commands.send_login(dest_login_target, req.password)
+                except Exception:
+                    await self._send_rf_command(req.mc, dest_target, login_cmd, str(req.target_node), req.req_id)
+            else:
+                await self._send_rf_command(req.mc, dest_target, login_cmd, str(req.target_node), req.req_id)
+            await asyncio.sleep(0.4)
+
+        queries = ["ver", "bat", "stats-core", "clock", "get radio"]
+        accumulated_telemetry: dict[str, Any] = {}
+        dispatched: list[str] = []
+        responses: dict[str, str] = {}
+
+        for cmd in queries:
+            async with self._waiters.expect_response(waiter_keys, include_ping=False) as cmd_fut:
+                await self._send_rf_command(req.mc, dest_target, cmd, str(req.target_node), req.req_id)
+                dispatched.append(cmd)
+                resp_data = await self._wait_for_repeater_response(req.mc, cmd_fut, timeout=4.0) or {}
+                raw_resp = resp_data.get("text") or resp_data.get("message") or ""
+                resp_text = raw_resp[2:].strip() if raw_resp.startswith("> ") else raw_resp.strip()
+                if resp_text:
+                    responses[cmd] = resp_text
+                    parsed = self._ctx.repeater_manager.parse_repeater_telemetry_or_response(resp_text)
+                    if parsed:
+                        accumulated_telemetry.update(parsed)
+                if resp_data.get("telemetry"):
+                    accumulated_telemetry.update(resp_data["telemetry"])
+                if resp_data.get("rssi") is not None:
+                    accumulated_telemetry["last_rssi"] = resp_data["rssi"]
+                if resp_data.get("snr") is not None:
+                    accumulated_telemetry["last_snr"] = resp_data["snr"]
+            await asyncio.sleep(0.35)
+
+        if accumulated_telemetry:
+            update = NodeContactUpdate(
+                last_seen=time.time(),
+                role="REPEATER",
+                last_rssi=accumulated_telemetry.get("last_rssi"),
+                last_snr=accumulated_telemetry.get("last_snr"),
+                battery_pct=accumulated_telemetry.get("battery_pct"),
+                voltage_v=accumulated_telemetry.get("voltage_v"),
+                solar_v=accumulated_telemetry.get("solar_v"),
+                temperature_c=accumulated_telemetry.get("temperature_c"),
+                uptime=accumulated_telemetry.get("uptime"),
+                clock=accumulated_telemetry.get("clock"),
+                airtime_ms=accumulated_telemetry.get("airtime_ms"),
+                noise_floor_dbm=accumulated_telemetry.get("noise_floor_dbm"),
+                packets_sent=accumulated_telemetry.get("packets_sent"),
+                packets_recv=accumulated_telemetry.get("packets_recv"),
+                duplicate_packets=accumulated_telemetry.get("duplicate_packets"),
+                packet_errors=accumulated_telemetry.get("packet_errors"),
+                queue_len=accumulated_telemetry.get("queue_len"),
+                firmware_version=accumulated_telemetry.get("firmware_version"),
+                hardware_board=accumulated_telemetry.get("hardware_board"),
+                frequency=accumulated_telemetry.get("frequency"),
+                tx_power=accumulated_telemetry.get("tx_power"),
+                spreading_factor=accumulated_telemetry.get("spreading_factor"),
+                bandwidth=accumulated_telemetry.get("bandwidth"),
+                coding_rate=accumulated_telemetry.get("coding_rate"),
+                repeat_enabled=accumulated_telemetry.get("repeat_enabled"),
+                advert_interval=accumulated_telemetry.get("advert_interval"),
+                hop_limit=accumulated_telemetry.get("hop_limit"),
+                hops=accumulated_telemetry.get("hops"),
+            )
+            updated_contact = self._ctx.node_registry.add_or_update(norm_target, update)
+            if updated_contact:
+                broadcast_data = {
+                    "type": "contact_updated",
+                    "event_type": "contact_updated",
+                    "contact": updated_contact.to_dict(),
+                }
+                if self._ctx.web_server and hasattr(self._ctx.web_server, "broadcast_event"):
+                    try:
+                        coro = self._ctx.web_server.broadcast_event(broadcast_data)
+                        if asyncio.iscoroutine(coro):
+                            asyncio.create_task(coro)
+                    except Exception:
+                        pass
+
+        res.update({
+            "status": "ok",
+            "action": req.action,
+            "target_node": norm_target,
+            "dispatched": dispatched,
+            "responses": responses,
+            "telemetry": accumulated_telemetry,
+            "message": f"Telemetría consolidada de {norm_target[:8]} ({len(responses)}/{len(queries)} respuestas)",
+        })
+        self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{norm_target}/telemetry", json.dumps(res), 1)
+        return res
+
     async def _dispatch_rf_command(
         self, req: RemoteRepeaterRequest, target_info: dict[str, Any] | None, res: dict[str, Any]
     ) -> dict[str, Any]:
         """Enruta comandos administrativos individuales o autenticación."""
+        if req.action in ("refresh_telemetry", "full_telemetry", "refresh_repeater_telemetry", "get_telemetry_batch"):
+            return await self._execute_batch_telemetry_query(req, target_info, res)
+
         dest_target = self._resolve_target(str(req.target_node), 12)
         dest_login_target = self._resolve_target(str(req.target_node), 64)
         norm_target = self._ctx.node_registry.get_canonical_key(str(req.target_node)) or str(req.target_node).strip().lower()

@@ -605,13 +605,15 @@ class RepeaterManager:
                     if pct_in_paren:
                         extracted["battery_pct"] = int(pct_in_paren)
                     else:
-                        extracted["battery_pct"] = max(0, min(100, int((val_num - 3300) / (4200 - 3300) * 100)))
+                        pct, _ = normalize_battery(extracted["voltage_v"])
+                        extracted["battery_pct"] = int(round(pct))
                 elif 0.0 < val_num <= 5.5:  # Volts (ej. 3.7V, 4.2V, 4.7V)
                     extracted["voltage_v"] = round(val_num, 2)
                     if pct_in_paren:
                         extracted["battery_pct"] = int(pct_in_paren)
                     else:
-                        extracted["battery_pct"] = max(0, min(100, int((val_num - 3.3) / (4.2 - 3.3) * 100)))
+                        pct, _ = normalize_battery(extracted["voltage_v"])
+                        extracted["battery_pct"] = int(round(pct))
             except Exception:
                 pass
 
@@ -622,7 +624,8 @@ class RepeaterManager:
                     v_num = float(volt_m.group(1))
                     extracted["voltage_v"] = round(v_num / 1000.0, 2) if v_num > 100.0 else round(v_num, 2)
                     if "battery_pct" not in extracted:
-                        extracted["battery_pct"] = max(0, min(100, int((extracted["voltage_v"] - 3.3) / (4.2 - 3.3) * 100)))
+                        pct, _ = normalize_battery(extracted["voltage_v"])
+                        extracted["battery_pct"] = int(round(pct))
                 except Exception:
                     pass
 

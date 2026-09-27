@@ -25,30 +25,6 @@ export class RepeaterModule {
     this._subscribeBus();
   }
 
-  _subscribeBus() {
-    if (!this.ctx || !this.ctx.eventBus) return;
-
-    this.ctx.eventBus.on(EVENTS.RX_PACKET, (payload) => {
-      if (!payload || typeof payload !== "object" || !this.selectedRepeaterTarget) return;
-
-      const c = payload.contact || payload.data || payload;
-      const pk = c.public_key || c.sender || c.from || payload.sender || payload.from;
-      if (!pk) return;
-
-      const canonicalPk = this.resolveCanonicalPubkey(pk);
-      const selectedCanonical = this.resolveCanonicalPubkey(this.selectedRepeaterTarget);
-
-      if (canonicalPk && selectedCanonical && (canonicalPk === selectedCanonical || canonicalPk.startsWith(selectedCanonical.slice(0, 8)) || selectedCanonical.startsWith(canonicalPk.slice(0, 8)))) {
-        const known = (this.ctx.knownNodes && this.ctx.knownNodes.get(canonicalPk)) || {};
-        const merged = { ...known, ...c, ...payload, public_key: canonicalPk };
-        if (this.ctx.knownNodes) {
-          this.ctx.knownNodes.set(canonicalPk, merged);
-        }
-        this.populateRepeaterModalData(merged);
-      }
-    });
-  }
-
   _bindElements() {
     this.dom = {
       repeaterAdminModal: document.getElementById("repeaterAdminModal"),
@@ -408,14 +384,12 @@ export class RepeaterModule {
         const origText = lbl.textContent;
         lbl.textContent = "Consultando...";
         try {
-          this.refreshRepeaterFullTelemetry(target, password);
+          await this.refreshRepeaterFullTelemetry(target, password);
           if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.rep_telem_req'), "info");
-        } catch (_) {}
-        finally {
-          setTimeout(() => {
-            btnRefreshTelem.disabled = false;
-            lbl.textContent = origText || "Stats Core";
-          }, 3500);
+        } catch (_) {
+        } finally {
+          btnRefreshTelem.disabled = false;
+          lbl.textContent = origText || "Stats Core";
         }
       });
     }
@@ -612,10 +586,10 @@ export class RepeaterModule {
       if (this.selectedRepeaterTarget) {
         const canonicalTarget = this.resolveCanonicalPubkey(this.selectedRepeaterTarget) || this.selectedRepeaterTarget;
 
-        if (evType === "contact_updated" && payload.contact) {
+        if ((evType === "contact_updated" || evType === "contact_discovered") && payload.contact) {
           const c = payload.contact;
           const cPk = this.resolveCanonicalPubkey(c.public_key || c.pubkey || c.sender || "");
-          if (cPk && cPk === canonicalTarget) {
+          if (cPk && (cPk === canonicalTarget || cPk.startsWith(canonicalTarget.slice(0, 8)) || canonicalTarget.startsWith(cPk.slice(0, 8)))) {
             if (this.ctx.knownNodes) {
               const existing = this.ctx.knownNodes.get(canonicalTarget) || {};
               const updated = { ...existing, ...c, public_key: canonicalTarget };
@@ -627,10 +601,24 @@ export class RepeaterModule {
           const sender = payload.sender || payload.pubkey || payload.from;
           if (sender) {
             const sPk = this.resolveCanonicalPubkey(sender);
-            if (sPk && sPk === canonicalTarget) {
+            if (sPk && (sPk === canonicalTarget || sPk.startsWith(canonicalTarget.slice(0, 8)) || canonicalTarget.startsWith(sPk.slice(0, 8)))) {
               if (this.ctx.knownNodes) {
                 const existing = this.ctx.knownNodes.get(canonicalTarget) || {};
                 const updated = { ...existing, ...payload, public_key: canonicalTarget };
+                this.ctx.knownNodes.set(canonicalTarget, updated);
+                this.populateRepeaterModalData(updated);
+              }
+            }
+          }
+        } else {
+          const c = payload.contact || payload.data || payload;
+          const pk = c.public_key || c.sender || c.from || payload.sender || payload.from;
+          if (pk) {
+            const cPk = this.resolveCanonicalPubkey(pk);
+            if (cPk && (cPk === canonicalTarget || cPk.startsWith(canonicalTarget.slice(0, 8)) || canonicalTarget.startsWith(cPk.slice(0, 8)))) {
+              if (this.ctx.knownNodes) {
+                const existing = this.ctx.knownNodes.get(canonicalTarget) || {};
+                const updated = { ...existing, ...c, ...payload, public_key: canonicalTarget };
                 this.ctx.knownNodes.set(canonicalTarget, updated);
                 this.populateRepeaterModalData(updated);
               }
@@ -799,24 +787,47 @@ export class RepeaterModule {
     }
   }
 
-  refreshRepeaterFullTelemetry(canonicalPk, password) {
+  async refreshRepeaterFullTelemetry(canonicalPk, password) {
     if (!canonicalPk || !password) return;
-    const fetchAction = (act) => fetch("/api/repeater/remote/action", {
-      method: "POST",
-      headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
-      body: JSON.stringify({ target_node: canonicalPk, password: password, action: act }),
-    }).catch(() => {});
+    try {
+      const res = await fetch("/api/repeater/remote/action", {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_node: canonicalPk, password: password, action: "refresh_telemetry" }),
+      });
+      const data = await res.json();
+      if (data.status === "ok") {
+        const payload = data.data || data;
+        const telem = payload.telemetry || {};
+        if (Object.keys(telem).length > 0 && this.ctx.knownNodes) {
+          const existing = this.ctx.knownNodes.get(canonicalPk) || {};
+          const updated = { ...existing, ...telem, public_key: canonicalPk };
+          this.ctx.knownNodes.set(canonicalPk, updated);
+          if (this.selectedRepeaterTarget && (this.selectedRepeaterTarget === canonicalPk || this.resolveCanonicalPubkey(this.selectedRepeaterTarget) === canonicalPk)) {
+            this.populateRepeaterModalData(updated);
+          }
+          if (this.ctx.updateNodeInDom) this.ctx.updateNodeInDom(canonicalPk, updated);
+        }
+        if (payload.responses) {
+          for (const [cmd, resp] of Object.entries(payload.responses)) {
+            this.appendTerminalLine(`← [${cmd}] ${resp}`, "term-resp");
+          }
+        }
+      } else if (data.status === "error" && data.cooldown_remaining) {
+        this.appendTerminalLine(`⏳ Cooldown activo: espere ${data.cooldown_remaining}s para nueva telemetría`, "term-resp");
+      }
+    } catch (err) {
+      console.warn("Error en refreshRepeaterFullTelemetry:", err);
+    }
+  }
 
-    fetchAction("ver");
-    setTimeout(() => fetchAction("stats-core"), 350);
-    setTimeout(() => fetchAction("bat"), 700);
-    setTimeout(() => fetchAction("get radio"), 1050);
-    setTimeout(() => fetchAction("get tx"), 1400);
-    setTimeout(() => fetchAction("get lat"), 1750);
-    setTimeout(() => fetchAction("get lon"), 2100);
-    setTimeout(() => fetchAction("get owner.info"), 2450);
-    setTimeout(() => fetchAction("clock"), 2800);
-    setTimeout(() => fetchAction("neighbors"), 3150);
+  calculateBatteryPct(val) {
+    if (val == null || isNaN(val)) return null;
+    const v = Number(val);
+    const volt = v > 100 ? v / 1000 : v;
+    if (volt >= 4.8) return 100;
+    if (volt <= 3.0) return 0;
+    return Math.max(0, Math.min(100, Math.round(((volt - 3.0) / 1.2) * 100)));
   }
 
   parseRepeaterTelemetryFromText(text) {
@@ -838,10 +849,10 @@ export class RepeaterModule {
           extracted.battery_pct = Math.round(rawVal);
         } else if (rawVal > 100) {
           extracted.voltage_v = Number((rawVal / 1000).toFixed(2));
-          extracted.battery_pct = pctParen !== null ? pctParen : Math.max(0, Math.min(100, Math.round((rawVal - 3300) / (4200 - 3300) * 100)));
+          extracted.battery_pct = pctParen !== null ? pctParen : this.calculateBatteryPct(rawVal);
         } else {
           extracted.voltage_v = Number(rawVal.toFixed(2));
-          extracted.battery_pct = pctParen !== null ? pctParen : Math.max(0, Math.min(100, Math.round((rawVal - 3.3) / (4.2 - 3.3) * 100)));
+          extracted.battery_pct = pctParen !== null ? pctParen : this.calculateBatteryPct(rawVal);
         }
       }
     }
@@ -854,7 +865,7 @@ export class RepeaterModule {
         if (!isNaN(vNum)) {
           extracted.voltage_v = vNum > 100 ? Number((vNum / 1000).toFixed(2)) : Number(vNum.toFixed(2));
           if (extracted.battery_pct == null) {
-            extracted.battery_pct = Math.max(0, Math.min(100, Math.round((extracted.voltage_v - 3.3) / (4.2 - 3.3) * 100)));
+            extracted.battery_pct = this.calculateBatteryPct(extracted.voltage_v);
           }
         }
       }
@@ -979,10 +990,9 @@ export class RepeaterModule {
 
     if (calcBat != null && calcBat > 100) {
       if (calcVolt == null) calcVolt = Number((calcBat / 1000).toFixed(2));
-      calcBat = Math.max(0, Math.min(100, Math.round((calcBat - 3300) / (4200 - 3300) * 100)));
+      calcBat = this.calculateBatteryPct(calcBat);
     } else if (calcBat == null && calcVolt != null && calcVolt >= 2.5) {
-      const vNorm = calcVolt > 100 ? calcVolt / 1000 : calcVolt;
-      calcBat = Math.max(0, Math.min(100, Math.round((vNorm - 3.3) / (4.2 - 3.3) * 100)));
+      calcBat = this.calculateBatteryPct(calcVolt);
     }
 
     const batVal = calcBat != null && !isNaN(calcBat) ? calcBat : "--";
@@ -1001,11 +1011,11 @@ export class RepeaterModule {
     if (tempEl) tempEl.textContent = tempVal;
 
     const clockEl = document.getElementById("repClockValue");
-    if (clockEl) clockEl.textContent = node.clock || new Date().toLocaleTimeString();
+    if (clockEl) clockEl.textContent = node.clock || "--:--:--";
     const uptimeEl = document.getElementById("repUptimeValue");
-    if (uptimeEl) uptimeEl.textContent = node.uptime || "En línea";
+    if (uptimeEl) uptimeEl.textContent = node.uptime || "--";
     const seenEl = document.getElementById("repLastSeenValue");
-    if (seenEl) seenEl.textContent = "Activo en malla LoRa";
+    if (seenEl) seenEl.textContent = node.last_seen ? "Activo en malla LoRa" : "Sin contacto directo";
 
     const airtimeVal = node.airtime_ms != null ? node.airtime_ms : (node.airtime != null ? node.airtime : null);
     const airtimeEl = document.getElementById("repAirtimeValue");
@@ -1394,10 +1404,25 @@ export class RepeaterModule {
       });
       const data = await res.json();
       if (data.status === "ok") {
-        if (data.data?.text || data.text || data.message) {
-          const cleanTxt = (data.data?.text || data.text || data.message || "").replace(/^>\s*/, "").trim();
+        const payload = data.data || data;
+        const respTxt = payload.text || payload.response || payload.message || "";
+        if (respTxt) {
+          const cleanTxt = String(respTxt).replace(/^>\s*/, "").trim();
           if (cleanTxt) {
             this.appendTerminalLine(`← [RESP] ${cleanTxt}`, "term-resp");
+          }
+          const parsed = { ...(payload.telemetry || {}), ...this.parseRepeaterTelemetryFromText(cleanTxt) };
+          if (parsed && Object.keys(parsed).length > 0) {
+            const canonicalPk = this.resolveCanonicalPubkey(target) || target;
+            if (this.ctx.knownNodes) {
+              const existing = this.ctx.knownNodes.get(canonicalPk) || {};
+              const updated = { ...existing, ...parsed, public_key: canonicalPk };
+              this.ctx.knownNodes.set(canonicalPk, updated);
+              if (this.selectedRepeaterTarget && (this.selectedRepeaterTarget === target || canonicalPk === this.resolveCanonicalPubkey(this.selectedRepeaterTarget))) {
+                this.populateRepeaterModalData(updated);
+              }
+              if (this.ctx.updateNodeInDom) this.ctx.updateNodeInDom(canonicalPk, updated);
+            }
           }
         }
       } else {

@@ -568,9 +568,21 @@ class RxEventRouter:
         extracted_telem = self._ctx.repeater_manager.parse_repeater_telemetry_or_response(msg.text)
         existing_contact = self._ctx.node_registry.get_contact(msg.sender)
         is_explicit_rep_name = is_repeater_name(msg.sender_name)
+        is_cmd_resp_indicator = (
+            msg.txt_type == 1
+            or is_command_or_system_message(msg.text, msg.txt_type)
+            or bool(
+                extracted_telem
+                and any(
+                    k in extracted_telem
+                    for k in ("airtime_ms", "noise_floor_dbm", "packets_sent", "packets_recv", "uptime", "queue_len", "repeat_enabled")
+                )
+            )
+        )
         should_treat_as_repeater = bool(
             (existing_contact and existing_contact.role in ("REPEATER", "ROUTER"))
             or is_explicit_rep_name
+            or is_cmd_resp_indicator
         )
 
         if extracted_telem and should_treat_as_repeater:

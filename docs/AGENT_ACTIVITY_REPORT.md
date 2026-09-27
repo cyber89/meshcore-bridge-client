@@ -2,6 +2,36 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Unificación de Consulta de Telemetría Remota, Eliminación de Colisión Cooldown (HTTP 429) y Normalización de Batería en Repetidores
+- **Fecha**: 2026-09-27
+- **Estado**: ✅ COMPLETADO — Reparada la telemetría congelada en el modal administrativo de repetidores remotos. Eliminada la colisión de 10 peticiones POST en ráfaga (que provocaba HTTP 429 por límite de airtime LoRa y descartaba consultas clave como batería, stats-core y reloj). Implementada consulta consolidada `refresh_telemetry` en el backend, normalizada la curva de batería a la escala Li-Ion estándar (3.0V - 4.2V), eliminados los fallbacks ficticios de reloj local/uptime en frontend, y unificada la reactividad en el EventBus.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX & Frontend Architect).
+- **Causas Raíces Resueltas**:
+  1. **Colisión de Cooldown en Frontend (`repeater.js`)**: Al abrir el modal o pulsar "Consultar", se disparaban 10 peticiones POST separadas en 350ms (`ver`, `stats-core`, `bat`, `clock`, etc.). Con `min_cmd_interval_s = 5.0s`, solo la primera era transmitida por radio; las otras 9 eran rechazadas con HTTP 429 y silenciadas con `.catch(() => {})`, dejando el modal con telemetría desactualizada.
+  2. **Divergencia en Fórmula de Batería ($36\%$ vs $52.5\%$)**: `repeater_manager.py` y `repeater.js` aplicaban la fórmula legacy `(V - 3.3) / (4.2 - 3.3) * 100`. Para $3.63\text{ V}$, producía $36.6\% \approx 36\%$, en conflicto con la escala Li-Ion estándar de `normalize_battery()` ($3.0\text{V} - 4.2\text{V}$), que calcula $52.5\%$.
+  3. **Fallbacks Engañosos en UI**: `node.clock || new Date().toLocaleTimeString()` mostraba la hora del PC del usuario (`2:05:31 PM`) simulando que el repetidor estaba sincronizado, y `node.uptime || "En línea"` ocultaba la ausencia del dato real de uptime.
+  4. **Método `_subscribeBus()` Duplicado**: En `repeater.js`, la definición en línea 28 era sobreescrita por la de línea 586, perdiendo eventos de paquetes directos.
+  5. **Omisión de Respuestas en NodeRegistry**: En `rx_router.py`, si el nodo no tenía rol `REPEATER`, las respuestas de comando no actualizaban sus campos en `NodeRegistry`.
+- **Módulos Afectados**:
+  1. **`src/admin/repeater_executor.py`**:
+     - Creado `_execute_batch_telemetry_query` para ejecutar una consulta unificada de telemetría respetando el cooldown `is_full_query=True`.
+     - Secuencia controlada de consultas RF (`ver`, `bat`, `stats-core`, `clock`, `get radio`) con pausas de radio half-duplex y promesas individuales.
+     - Actualización atómica en `NodeRegistry` y emisión de evento WebSocket `contact_updated`.
+  2. **`src/repeater_manager.py`**:
+     - Sustituida la fórmula `(V - 3.3) / (4.2 - 3.3)` por llamadas a `normalize_battery()` en `_parse_battery_and_voltage`.
+  3. **`src/rx_router.py`**:
+     - Actualizado `should_treat_as_repeater` para considerar respuestas de comandos (`is_cmd_resp_indicator`), asegurando que las respuestas de telemetría siempre actualicen `NodeRegistry`.
+  4. **`src/web/static/js/modules/repeater.js`**:
+     - Eliminada duplicidad de `_subscribeBus()`; integrado soporte para todos los tipos de eventos sin pérdida de paquetes.
+     - `refreshRepeaterFullTelemetry`: sustituidas 10 peticiones concurrentes por una única llamada a `action: "refresh_telemetry"`.
+     - Implementado `calculateBatteryPct` (escala 3.0V - 4.2V) y alineado en `parseRepeaterTelemetryFromText` y `populateRepeaterModalData`.
+     - Sustituidos fallbacks engañosos por valores neutros veraces (`"--:--:--"` para reloj, `"--"` para uptime).
+     - Actualización reactiva de memoria y modal en `executeRepeaterCommand`.
+- **Verificación y Calidad**:
+  - `python -m ruff check src/`: 100% aprobado (0 errores).
+  - `python -m py_compile`: Todos los módulos Python compilan sin errores.
+  - `node -c`: Sintaxis JavaScript 100% válida.
+
 ### Hito: Normalización y Persistencia Exhaustiva de Telemetría Ambiental, RF y de Sistema en Todos los Nodos
 - **Fecha**: 2026-09-26
 - **Estado**: ✅ COMPLETADO — Estandarizada la extracción, sanitización y persistencia de métricas ambientales (temperatura, humedad, presión, iluminancia), RF (RSSI, SNR, ruido base, airtime, paquetes TX/RX, errores) y de sistema (uptime, colas, coordenadas GPS) para cualquier rol de nodo (`CLIENT`, `REPEATER`, `ROOM`, `SENSOR`, `LOCAL`).
