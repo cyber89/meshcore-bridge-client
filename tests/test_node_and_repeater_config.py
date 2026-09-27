@@ -9,6 +9,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 from src.admin_handler import AdminCommandHandler, AdminContext
+from src.rate_limiter import LoRaRadioConfig, TxRateLimiter
 from src.repeater_manager import RepeaterManager
 from src.web.api_router import WebAPIRouter
 
@@ -145,6 +146,28 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
         code, resp = await self.router.handle_request("POST", "/api/node/reboot")
         self.assertEqual(code, 200)
         self.mock_mc.commands.reboot.assert_awaited()
+
+    async def test_post_config_radio_updates_frozen_radio_config(self) -> None:
+        """Verifica que POST /api/config/radio actualice TxRateLimiter con radio_config inmutable sin FrozenInstanceError."""
+        rl = TxRateLimiter(tx_interval_sec=0.1, radio_config=LoRaRadioConfig(sf=7, bw_khz=125.0, cr=5))
+        self.ctx.rate_limiter = rl
+        self.mock_bridge.rate_limiter = rl
+
+        radio_payload = {
+            "spreading_factor": 12,
+            "bandwidth": 250.0,
+            "coding_rate": 8,
+            "frequency": 915.0,
+        }
+        code, resp = await self.router.handle_request("POST", "/api/config/radio", radio_payload)
+
+        self.assertEqual(code, 200)
+        self.assertEqual(resp["status"], "ok")
+        self.assertEqual(resp["data"]["applied"]["spreading_factor"], 12)
+        # Verificar que el objeto inmutable fue reemplazado de manera segura con nuevos parámetros
+        self.assertEqual(rl.radio_config.sf, 12)
+        self.assertEqual(rl.radio_config.bw_khz, 250.0)
+        self.assertEqual(rl.radio_config.cr, 8)
 
     async def test_remote_repeater_login_and_config(self) -> None:
         """Prueba login y configuración remota autenticada de un repetidor vecino."""

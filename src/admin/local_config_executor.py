@@ -9,6 +9,7 @@ Descompone la lectura y escritura de configuración local:
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 import logging
 import time
@@ -493,7 +494,16 @@ class LocalConfigExecutor:
             applied["owner_info"] = owner
 
     async def _apply_radio_settings(self, params: dict[str, Any], applied: dict[str, Any], mc: Any) -> None:
-        """Aplica potencia TX, frecuencia y parámetros de modulación en el hardware y la memoria local."""
+        """
+        Aplica potencia TX, frecuencia y parámetros de modulación en el hardware y la memoria local.
+
+        Nota de Arquitectura e Inmutabilidad:
+            Los parámetros de modulación de `TxRateLimiter` (`rl.radio_config`) están modelados
+            como una instancia inmutable `LoRaRadioConfig` (@dataclass(frozen=True, slots=True))
+            para garantizar consistencia determinista y thread-safety en el cálculo de airtime.
+            Su actualización se realiza mediante reemplazo funcional (`dataclasses.replace`),
+            previniendo excepciones de tipo `dataclasses.FrozenInstanceError`.
+        """
         if "tx_power" in params or "power" in params:
             hw_board = self._local_config.get("hardware_board")
             raw_p = int(params.get("tx_power", params.get("power", 20)))
@@ -581,9 +591,17 @@ class LocalConfigExecutor:
 
             rl = getattr(self._ctx, "rate_limiter", None)
             if rl and hasattr(rl, "radio_config") and rl.radio_config:
-                rl.radio_config.sf = new_sf
-                rl.radio_config.bw_khz = new_bw
-                rl.radio_config.cr = new_cr
+                if dataclasses.is_dataclass(rl.radio_config):
+                    rl.radio_config = dataclasses.replace(
+                        cast(Any, rl.radio_config),
+                        sf=new_sf,
+                        bw_khz=new_bw,
+                        cr=new_cr,
+                    )
+                else:
+                    rl.radio_config.sf = new_sf
+                    rl.radio_config.bw_khz = new_bw
+                    rl.radio_config.cr = new_cr
                 logging.info("TxRateLimiter: Parámetros LoRa actualizados a SF%d, BW%.1f kHz, CR%d", new_sf, new_bw, new_cr)
 
     def _apply_timing_settings(self, params: dict[str, Any], applied: dict[str, Any], mc: Any) -> None:
