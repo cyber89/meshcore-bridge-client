@@ -2,6 +2,31 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Actualización de Workflow n8n v3.0, Compatibilidad SSoT MeshCore y Guía de Mantenimiento
+- **Fecha**: 2026-09-28
+- **Estado**: ✅ COMPLETADO — Workflow de n8n actualizado a v3.0 con estricta adherencia a la SSoT de MeshCore, tests de compatibilidad verificados y guía técnica exhaustiva creada.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect), Agente 1 (Firmware Investigator), Agente 2 (Bridge Architect).
+- **Cambios Realizados**:
+  1. **`n8n_workflow_meshcore.json` (Actualización a v3.0)**:
+     - Nombre del workflow actualizado a *"MeshCore Universal Bridge v3.0 - Complete IoT, LoRa Bot & Periodic Weather Status"*.
+     - **Regla SSoT 1.1 (Prohibición estricta de chat a repetidores)**: Integrada guarda en todos los nodos de JavaScript (`Desempaquetar y Deduplicar`, `Handler Ch 0`, `Handler DM y Admin`) para garantizar que bajo ninguna circunstancia se envíen mensajes de chat, respuestas automáticas ni DMs hacia nodos con rol `REPEATER` o `ROUTER`.
+     - **Regla SSoT 1.2 (Filtro anti-bucle local)**: En el nodo de deduplicación se descartan inmediatamente paquetes marcados como `is_outgoing: true`, `is_local: true`, `role: 'LOCAL'` o `sender === 'local'`.
+     - **Comandos Administrativos de Repetidor**: Enriquecido el nodo de DM/Admin con soporte para `/admin ping <node>` (`action: 'ping_zero'`) y `/admin trace <node>` (`action: 'traceroute'`) dirigidos al tópico canónico `meshcore/admin/repeater/{node}/cmd`.
+     - **Compatibilidad Dual de Salida TX**: Los payloads hacia `meshcore/tx` incluyen tanto `target` como `to`, y tanto `channel_index` como `channel_idx`.
+     - **Documentación Inline**: Cada nodo de código JavaScript incluye comentarios exhaustivos explicando parámetros, tipos, lógica de negocio y directrices para futuras modificaciones.
+  2. **`docs/N8N_WORKFLOW_GUIDE.md` (Nueva Guía Técnica y de Mantenimiento)**:
+     - Creado documento completo con diagrama Mermaid de arquitectura, matriz de tópicos MQTT, esquemas de payloads JSON, explicación detallada de los 14 nodos y tutorial paso a paso para añadir comandos, configurar administradores y personalizar el reporte de clima.
+  3. **`tests/test_n8n_parser_matrix.py` (Suite de Validación Actualizada)**:
+     - Actualizado el simulador `N8nSimulator` con las reglas de negocio de v3.0.
+     - Añadidos tests unitarios: `test_n8n_repeater_chat_ban`, `test_n8n_local_loop_prevention` y `test_n8n_admin_repeater_ping_and_trace`.
+     - Verificación al 100% (8 tests pasados, 0 fallos).
+- **Módulos Modificados / Creados**:
+  - `n8n_workflow_meshcore.json`
+  - `docs/N8N_WORKFLOW_GUIDE.md` (Nuevo)
+  - `tests/test_n8n_parser_matrix.py`
+  - `docs/AGENT_ACTIVITY_REPORT.md`
+- **Métricas de Calidad**: 8/8 pruebas unitarias superadas, validación de JSON estricta, `ruff check` limpio.
+
 ### Hito: Auditoría Capa 4 — Manejo de Errores y Excepciones (Ejecución)
 - **Fecha**: 2026-09-28
 - **Estado**: ✅ COMPLETADO — Resolución de vulnerabilidades de hardware, red y reconexión resiliente.

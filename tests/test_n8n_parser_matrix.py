@@ -40,10 +40,41 @@ class N8nSimulator:
         if not isinstance(payload, dict):
             return None
 
-        event_type = payload.get("event_type", "public")
-        sender_id = str(payload.get("sender_id", "unknown"))
-        channel_idx = int(payload.get("channel_index", 0))
-        text = str(payload.get("text", payload.get("raw_text", ""))).strip()
+        sender_id = str(
+            payload.get("sender_id")
+            or payload.get("sender")
+            or payload.get("public_key")
+            or "unknown"
+        ).strip()
+        role = str(payload.get("role", "")).upper()
+        if not role:
+            if payload.get("is_repeater") is True:
+                role = "REPEATER"
+            else:
+                role = "CLIENT"
+
+        # Regla SSoT 1.2: Filtrar paquetes locales y salientes
+        if (
+            payload.get("is_outgoing") is True
+            or payload.get("is_local") is True
+            or role == "LOCAL"
+            or sender_id.lower() == "local"
+        ):
+            return None
+
+        event_type = payload.get("event_type", payload.get("type", "public"))
+        if event_type in ("repeater_response", "repeater_telemetry"):
+            event_type = "repeater_response"
+        elif event_type in ("telemetry",) or any(k in payload for k in ("temperature_c", "battery_pct", "voltage_v")):
+            if not payload.get("text"):
+                event_type = "telemetry"
+
+        channel_idx = int(payload.get("channel_index", payload.get("channel_idx", 0)))
+        text = str(payload.get("text", payload.get("raw_text", payload.get("message", "")))).strip()
+
+        # Bot prefix filter
+        if text.startswith(("[Eco ", "[Status ", "[ACK", "📡 ", "⛔ ", "📖 ", "⏰ ", "📅 ", "🏓 ")):
+            return None
 
         msg_key = f"{event_type}_{sender_id}_{channel_idx}_{text}"
 
@@ -56,25 +87,35 @@ class N8nSimulator:
 
         result = dict(payload)
         result["event_type"] = event_type
+        result["sender"] = sender_id
         result["sender_id"] = sender_id
+        result["role"] = role
         result["channel_index"] = channel_idx
+        result["channel_idx"] = channel_idx
         result["text"] = text
         result["is_duplicate"] = is_duplicate
         return result
 
     def process_dm_and_admin(self, msg: dict) -> list:
         raw_text = str(msg.get("text", "")).strip()
+        if not raw_text:
+            return []
         lower = raw_text.toLowerCase() if hasattr(raw_text, "toLowerCase") else raw_text.lower()
-        sender_id = str(msg.get("sender_id", "unknown"))
+        sender_id = str(msg.get("sender_id", msg.get("sender", "unknown"))).strip()
         sender_name = msg.get("sender_name", sender_id)
+        role = str(msg.get("role", "")).upper()
+        is_repeater = role in ("REPEATER", "ROUTER")
         is_admin = (sender_id in self.admin_whitelist) or (sender_name in self.admin_whitelist)
 
         results = []
 
         if lower == "/status":
-            reply_text = "[Status Heltec v4]\nBridge: Online\nNodo: Activo"
+            if is_repeater:
+                return []
+            reply_text = "[Status MeshCore v3.0]\nBridge: Online\nNodo: Activo"
             results.append({
                 "topic": "meshcore/tx",
+                "target": sender_id,
                 "to": sender_id,
                 "channel_index": 0,
                 "text": reply_text
@@ -83,25 +124,55 @@ class N8nSimulator:
 
         if lower.startswith("/admin"):
             if not is_admin:
-                results.append({
-                    "topic": "meshcore/tx",
-                    "to": sender_id,
-                    "channel_index": 0,
-                    "text": "⛔ Acceso denegado: Nodo no autorizado para comandos administrativos."
-                })
+                if not is_repeater:
+                    results.append({
+                        "topic": "meshcore/tx",
+                        "target": sender_id,
+                        "to": sender_id,
+                        "channel_index": 0,
+                        "text": "⛔ Acceso denegado: Nodo no autorizado para comandos administrativos."
+                    })
                 return results
 
             parts = [p for p in raw_text.split(" ") if len(p) > 0]
             sub_cmd = parts[1].lower() if len(parts) > 1 else ""
 
+            if sub_cmd == "ping" and len(parts) > 2:
+                target_node = parts[2]
+                results.append({
+                    "topic": f"meshcore/admin/repeater/{target_node}/cmd",
+                    "action": "ping_zero",
+                    "target_node": target_node
+                })
+                if not is_repeater:
+                    results.append({"topic": "meshcore/tx", "target": sender_id, "to": sender_id, "text": f"🎯 Disparando Ping (Hop 0) a repetidor {target_node}..."})
+                return results
+
+            if sub_cmd == "trace" and len(parts) > 2:
+                target_node = parts[2]
+                results.append({
+                    "topic": f"meshcore/admin/repeater/{target_node}/cmd",
+                    "action": "traceroute",
+                    "target_node": target_node
+                })
+                if not is_repeater:
+                    results.append({"topic": "meshcore/tx", "target": sender_id, "to": sender_id, "text": f"🗺️ Ejecutando Traceroute hacia {target_node}..."})
+                return results
+
             if sub_cmd in ["get_config", "config"]:
-                results.append({"topic": "meshcore/tx", "to": sender_id, "text": "⚙️ Consultando configuración..."})
+                if not is_repeater:
+                    results.append({"topic": "meshcore/tx", "target": sender_id, "to": sender_id, "text": "⚙️ Consultando configuración..."})
                 results.append({"topic": "meshcore/admin/cmd", "action": "get_config"})
+                return results
             return results
 
-        # Eco DM
+        # Eco DM: REGLA SSoT - Prohibido enviar chat a repetidores
+        if is_repeater:
+            return []
+
         results.append({
             "topic": "meshcore/tx",
+            "target": sender_id,
             "to": sender_id,
             "channel_index": 0,
             "text": f'[Eco DM] Recibido: "{raw_text}"'
@@ -251,6 +322,56 @@ class TestN8nParserMatrix(unittest.TestCase):
         self.assertEqual(res["metadata"]["location"], "Lehigh Acres, FL")
         self.assertEqual(res["metadata"]["temperature_c"], 28.5)
         self.assertEqual(res["metadata"]["temperature_f"], 83.3)
+
+    def test_n8n_repeater_chat_ban(self):
+        """SSoT Regla 1.1: Verifica que nunca se envíe chat o DM a nodos repetidores."""
+        # 1. Repetidor enviando texto casual en DM
+        repeater_dm = {"sender_id": "rep_mountain", "role": "REPEATER", "text": "Hola mundo"}
+        out1 = self.sim.process_dm_and_admin(repeater_dm)
+        self.assertEqual(out1, [], "No se debe responder con eco de chat a un repetidor")
+
+        # 2. Router enviando /status
+        router_status = {"sender_id": "rep_hill", "role": "ROUTER", "text": "/status"}
+        out2 = self.sim.process_dm_and_admin(router_status)
+        self.assertEqual(out2, [], "No se debe enviar texto de status a un repetidor/router")
+
+    def test_n8n_local_loop_prevention(self):
+        """SSoT Regla 1.2: Verifica que mensajes locales o salientes sean descartados."""
+        # 1. is_outgoing = True
+        item1 = {"json": {"is_outgoing": True, "sender_id": "local_node", "text": "Mensaje enviado"}}
+        self.assertIsNone(self.sim.parse_and_deduplicate(item1))
+
+        # 2. is_local = True
+        item2 = {"json": {"is_local": True, "sender_id": "local_node", "text": "Mensaje local"}}
+        self.assertIsNone(self.sim.parse_and_deduplicate(item2))
+
+        # 3. role = 'LOCAL'
+        item3 = {"json": {"role": "LOCAL", "sender_id": "local_host", "text": "Mensaje host"}}
+        self.assertIsNone(self.sim.parse_and_deduplicate(item3))
+
+        # 4. sender_id = 'local'
+        item4 = {"json": {"sender_id": "local", "text": "Loop local"}}
+        self.assertIsNone(self.sim.parse_and_deduplicate(item4))
+
+    def test_n8n_admin_repeater_ping_and_trace(self):
+        """Verifica comandos /admin ping y /admin trace hacia repetidores."""
+        # Ping hop 0
+        cmd_ping = {"sender_id": "admin_master", "text": "/admin ping 4a12bc88"}
+        out_ping = self.sim.process_dm_and_admin(cmd_ping)
+        self.assertEqual(len(out_ping), 2)
+        self.assertEqual(out_ping[0]["topic"], "meshcore/admin/repeater/4a12bc88/cmd")
+        self.assertEqual(out_ping[0]["action"], "ping_zero")
+        self.assertEqual(out_ping[0]["target_node"], "4a12bc88")
+        self.assertIn("🎯 Disparando Ping", out_ping[1]["text"])
+
+        # Traceroute
+        cmd_trace = {"sender_id": "admin_master", "text": "/admin trace 4a12bc88"}
+        out_trace = self.sim.process_dm_and_admin(cmd_trace)
+        self.assertEqual(len(out_trace), 2)
+        self.assertEqual(out_trace[0]["topic"], "meshcore/admin/repeater/4a12bc88/cmd")
+        self.assertEqual(out_trace[0]["action"], "traceroute")
+        self.assertEqual(out_trace[0]["target_node"], "4a12bc88")
+        self.assertIn("🗺️ Ejecutando Traceroute", out_trace[1]["text"])
 
 
 if __name__ == "__main__":
