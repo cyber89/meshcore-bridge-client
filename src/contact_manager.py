@@ -686,6 +686,7 @@ class NodeContactUpdate:
     last_advert: float | None = None
     out_path: str | None = None
     out_path_len: int | None = None
+    out_path_hash_mode: str | None = None
     adv_lat: float | None = None
     adv_lon: float | None = None
 
@@ -1057,7 +1058,7 @@ class NodeRegistry:
             last_advert=m(update.last_advert, existing, "last_advert"),
             out_path=m(update.out_path, existing, "out_path"),
             out_path_len=m(update.out_path_len, existing, "out_path_len"),
-            out_path_hash_mode=m(update.out_path_hash_mode, existing, "out_path_hash_mode"),
+            out_path_hash_mode=m(getattr(update, "out_path_hash_mode", None), existing, "out_path_hash_mode"),
             adv_lat=m(update.adv_lat if update.adv_lat is not None else update.latitude, existing, "adv_lat"),
             adv_lon=m(update.adv_lon if update.adv_lon is not None else update.longitude, existing, "adv_lon"),
             auto_discovered=m(update.auto_discovered, existing, "auto_discovered", False),

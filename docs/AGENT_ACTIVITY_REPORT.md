@@ -2,6 +2,25 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Diagnóstico y Corrección de Recepción de Mensajes en WebUI
+- **Fecha**: 2026-09-28
+- **Estado**: ✅ COMPLETADO — Identificadas y resueltas dos causas raíz que bloqueaban la llegada de mensajes a la interfaz web.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect), Agente 2 (Bridge Architect).
+- **Diagnóstico y Resultados de Pruebas**:
+  1. Se simuló la llegada de mensajes de radio LoRa (`EventType.CHANNEL_MSG_RECV` y `EventType.CONTACT_MSG_RECV`) a través del pipeline `sdk_adapter` $\to$ `bridge_core.on_mesh_event` $\to$ `rx_router.handle_event`.
+  2. **Causa Raíz 1 (`contact_manager.py`)**: `NodeContactUpdate` (con `slots=True`) carecía del campo `out_path_hash_mode`. Al procesar cualquier mensaje o advert, `_extract_normalized_meta` invocaba `node_registry.discover_node` $\to$ `add_or_update` $\to$ `_build_updated_contact`, provocando `AttributeError: 'NodeContactUpdate' object has no attribute 'out_path_hash_mode'`. Esto abortaba silenciosamente la ejecución de `handle_event` y descartaba el 100% de los mensajes entrantes antes de que pudieran alcanzar los despachadores de canal o DM y el WebSocket.
+  3. **Causa Raíz 2 (`sdk_adapter.py`)**: `is_hardware_alive()` evaluaba incorrectamente un temporizador de silencio (`(time.time() - last_heartbeat_time) > 30.0s`). Durante períodos normales de silencio de radio (sin tráfico RF entrante), declaraba falsamente la radio caída (`is_connected = False`), impidiendo que el watchdog ejecutara pings suaves y forzando desconexiones y reconexiones seriales en bucle cada 30 segundos.
+- **Cambios Realizados**:
+  1. **`src/contact_manager.py`**:
+     - Agregado el campo `out_path_hash_mode: str | None = None` a `NodeContactUpdate`.
+     - Implementado acceso defensivo mediante `getattr(update, 'out_path_hash_mode', None)` en `_build_updated_contact`.
+  2. **`src/serial/sdk_adapter.py`**:
+     - Eliminado el timeout de inactividad prematuro dentro de `is_hardware_alive()`, preservando la verificación física estricta del transporte serial/socket. La supervisión de inactividad RF queda gobernada correctamente por el `SerialWatchdog` mediante `ping_or_check_alive()`.
+- **Módulos Modificados**:
+  - `src/contact_manager.py`
+  - `src/serial/sdk_adapter.py`
+- **Métricas de Calidad**: Verificado flujo completo end-to-end (Canal 0 y DM) con generación exitosa de tramas WebSocket (`public` y `direct`) y aceptación validada por `isCommonChatMessage` del frontend; `ruff check` limpio.
+
 ### Hito: Actualización de Workflow n8n v3.0, Compatibilidad SSoT MeshCore y Guía de Mantenimiento
 - **Fecha**: 2026-09-28
 - **Estado**: ✅ COMPLETADO — Workflow de n8n actualizado a v3.0 con estricta adherencia a la SSoT de MeshCore, tests de compatibilidad verificados y guía técnica exhaustiva creada.

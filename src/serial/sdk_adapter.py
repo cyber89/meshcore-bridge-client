@@ -295,16 +295,6 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         except Exception as e:
             logging.debug(f"Excepción verificando transporte serial: {e}")
 
-        # 2. Comprobación de temporizador de latido (heartbeat timeout)
-        max_silent_sec = max(30.0, self.timeout_sec)
-        if (time.time() - self.last_heartbeat_time) > max_silent_sec:
-            logging.warning(
-                f"Radio serial inactiva por {time.time() - self.last_heartbeat_time:.1f}s "
-                f"(umbral={max_silent_sec:.1f}s). Marcando como no disponible."
-            )
-            self.is_connected = False
-            return False
-
         return bool(self.is_connected)
 
     async def ping_or_check_alive(self) -> bool:
