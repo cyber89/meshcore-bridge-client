@@ -165,10 +165,16 @@ class MeshCoreCompanionServer:
         except Exception as e:
             logging.debug(f"Error enviando trama a cliente TCP: {e}")
             self.active_clients.discard(writer)
-            try:
-                writer.close()
-            except Exception:
-                pass
+            await self._safe_close_writer(writer)
+
+    @staticmethod
+    async def _safe_close_writer(writer: asyncio.StreamWriter) -> None:
+        """Cierra el writer TCP y espera la liberación ordenada de descriptores de archivo."""
+        try:
+            writer.close()
+            await asyncio.wait_for(writer.wait_closed(), timeout=0.5)
+        except Exception:
+            pass
 
     async def _handle_client(
         self,
@@ -182,7 +188,7 @@ class MeshCoreCompanionServer:
         import os
         max_clients = int(os.getenv("MAX_COMPANION_CLIENTS", "8"))
         if len(self.active_clients) >= max_clients:
-            writer.close()
+            await self._safe_close_writer(writer)
             return
 
         peer = writer.get_extra_info("peername")
@@ -201,7 +207,7 @@ class MeshCoreCompanionServer:
                     detail=f"Intento de conexión rechazado desde IP no permitida '{peer_ip}'",
                 )
             )
-            writer.close()
+            await self._safe_close_writer(writer)
             return
 
         token = os.getenv("COMPANION_TOKEN", "")
@@ -221,8 +227,11 @@ class MeshCoreCompanionServer:
                         )
                     )
                     writer.write(b"AUTH_FAILED\n")
-                    await writer.drain()
-                    writer.close()
+                    try:
+                        await asyncio.wait_for(writer.drain(), timeout=1.0)
+                    except Exception:
+                        pass
+                    await self._safe_close_writer(writer)
                     return
             except asyncio.TimeoutError:
                 SecurityTrafficInspector.log_suspicious_traffic(
@@ -235,8 +244,11 @@ class MeshCoreCompanionServer:
                     )
                 )
                 writer.write(b"AUTH_FAILED\n")
-                await writer.drain()
-                writer.close()
+                try:
+                    await asyncio.wait_for(writer.drain(), timeout=1.0)
+                except Exception:
+                    pass
+                await self._safe_close_writer(writer)
                 return
 
         SecurityTrafficInspector.log_tcp_connection(
@@ -331,11 +343,7 @@ class MeshCoreCompanionServer:
                 event="Cliente TCP Companion desconectado",
                 active_count=len(self.active_clients),
             )
-            try:
-                writer.close()
-                await asyncio.wait_for(writer.wait_closed(), timeout=0.3)
-            except (asyncio.TimeoutError, Exception):
-                pass
+            await self._safe_close_writer(writer)
 
     async def _dispatch_companion_command(
         self,

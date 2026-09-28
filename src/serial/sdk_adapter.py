@@ -42,6 +42,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         self._initial_sync_task: asyncio.Task[None] | None = None
         self._self_info: dict[str, Any] | None = None
         self._sdk_dispatch_cache: dict[Any, Callable[[Any], Any]] | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
 
     @property
     def self_info(self) -> Any:
@@ -58,6 +59,11 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         if MeshCore is None:
             logging.warning("SDK meshcore_py no disponible en el entorno.")
             return False
+
+        try:
+            self._loop = asyncio.get_running_loop()
+        except RuntimeError:
+            pass
 
         await self._connect_with_stabilization()
         return self.is_connected
@@ -254,13 +260,8 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         if port_str.startswith("tcp://") or port_str.upper().startswith("VIRTUAL"):
             return bool(self.is_connected)
 
-        # Si hubo actividad reciente (heartbeat o recepción de trama), la radio está viva
-        if (time.time() - self.last_heartbeat_time) <= max(30.0, self.timeout_sec):
-            return True
-
-        # Comprobación de transporte serial abierto y estado de conexión en el SDK oficial
+        # 1. Comprobación física de transporte serial abierto y estado de conexión en el SDK oficial
         try:
-            # 1. Comprobación a nivel de objeto MeshCore principal
             if hasattr(self.mc, "is_connected"):
                 is_mc_conn = self.mc.is_connected
                 if callable(is_mc_conn):
@@ -269,7 +270,6 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                     self.is_connected = False
                     return False
 
-            # 2. Comprobación en connection_manager / cx
             cm = getattr(self.mc, "connection_manager", getattr(self.mc, "cx", None))
             if cm is not None:
                 if hasattr(cm, "is_connected") and cm.is_connected is False:
@@ -292,8 +292,18 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                     if hasattr(conn, "serial") and hasattr(conn.serial, "is_open") and conn.serial.is_open is False:
                         self.is_connected = False
                         return False
-        except Exception:
-            pass
+        except Exception as e:
+            logging.debug(f"Excepción verificando transporte serial: {e}")
+
+        # 2. Comprobación de temporizador de latido (heartbeat timeout)
+        max_silent_sec = max(30.0, self.timeout_sec)
+        if (time.time() - self.last_heartbeat_time) > max_silent_sec:
+            logging.warning(
+                f"Radio serial inactiva por {time.time() - self.last_heartbeat_time:.1f}s "
+                f"(umbral={max_silent_sec:.1f}s). Marcando como no disponible."
+            )
+            self.is_connected = False
+            return False
 
         return bool(self.is_connected)
 
@@ -333,10 +343,23 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                     def _make_handler(et: Any) -> Any:
                         def _handler(event: Any) -> None:
                             try:
-                                loop = asyncio.get_running_loop()
-                                loop.create_task(self._on_sdk_event(et, event))
-                            except RuntimeError:
-                                pass
+                                loop = self._loop
+                                if loop is None or loop.is_closed():
+                                    try:
+                                        loop = asyncio.get_running_loop()
+                                    except RuntimeError:
+                                        pass
+                                if loop and loop.is_running():
+                                    try:
+                                        running = asyncio.get_running_loop()
+                                        if running is loop:
+                                            loop.create_task(self._on_sdk_event(et, event))
+                                            return
+                                    except RuntimeError:
+                                        pass
+                                    asyncio.run_coroutine_threadsafe(self._on_sdk_event(et, event), loop)
+                            except Exception as ex:
+                                logging.debug(f"Error despachando evento SDK {et}: {ex}")
                         return _handler
                     self.mc.subscribe(ev_type, _make_handler(ev_type))
                 except Exception as e:
@@ -425,9 +448,11 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                 return
             if event_type == getattr(EventType, "CONNECTED", None):
                 logging.info("SDK connected")
+                self.is_connected = True
                 return
             if event_type == getattr(EventType, "DISCONNECTED", None):
                 logging.warning("SDK disconnected")
+                self.is_connected = False
                 return
 
         # Otros eventos - enviar al handler genérico
@@ -849,8 +874,8 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                                     "psk": psk_hex,
                                     "is_public": ch_idx == 0,
                                 })
-                    except Exception:
-                        pass
+                    except Exception as ex:
+                        logging.debug(f"Canal {ch_idx} no configurado o no responde: {ex}")
         except Exception as e:
             logging.debug(f"Error extrayendo canales del nodo USB: {e}")
 
@@ -1152,8 +1177,8 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                         name = getattr(c, "adv_name", getattr(c, "name", getattr(c, "alias", None)))
                         if name:
                             return str(name)
-            except Exception:
-                pass
+            except Exception as ex:
+                logging.debug(f"Error resolviendo nombre de contacto para prefijo {prefix_str}: {ex}")
         return prefix_str
 
 

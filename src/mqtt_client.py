@@ -119,8 +119,12 @@ class AsyncBridgeMQTTClient:
         # connect_async + loop_start garantizan reintentos automáticos en segundo plano
         # aunque el broker esté caído al arrancar (loop_forever con retry_first_connection=True).
         logging.debug(f"Conectando al Broker MQTT en {self.broker}:{self.port}...")
-        self.client.connect_async(self.broker, self.port, self.keepalive)
-        self.client.loop_start()
+        try:
+            self.client.connect_async(self.broker, self.port, self.keepalive)
+            self.client.loop_start()
+        except Exception as e:
+            self.is_connected = False
+            logging.error(f"Error iniciando conexión asíncrona MQTT a {self.broker}:{self.port}: {e}")
 
     def stop(self) -> None:
         """Detiene el cliente MQTT y emite estado offline ordenado."""
@@ -132,13 +136,13 @@ class AsyncBridgeMQTTClient:
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 })
                 self.client.publish(self.topic_state, offline_payload, qos=0, retain=True)
-            except Exception:
-                pass
+            except Exception as e:
+                logging.debug(f"Error publicando LWT offline durante stop: {e}")
 
         try:
             self.client.disconnect()
-        except Exception:
-            pass
+        except Exception as e:
+            logging.debug(f"Error desconectando cliente MQTT: {e}")
 
         try:
             thread = getattr(self.client, "_thread", None)
@@ -146,8 +150,8 @@ class AsyncBridgeMQTTClient:
                 self.client._thread_terminate = True
                 thread.join(timeout=1.0)
             self.client.loop_stop()
-        except Exception:
-            pass
+        except Exception as e:
+            logging.debug(f"Error deteniendo bucle MQTT: {e}")
         self.is_connected = False
         logging.debug("Cliente MQTT detenido correctamente.")
 

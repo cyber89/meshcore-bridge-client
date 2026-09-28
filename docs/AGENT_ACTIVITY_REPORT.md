@@ -2,6 +2,28 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Auditoría Capa 4 — Manejo de Errores y Excepciones (Ejecución)
+- **Fecha**: 2026-09-28
+- **Estado**: ✅ COMPLETADO — Resolución de vulnerabilidades de hardware, red y reconexión resiliente.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect), Agente 2 (Bridge Architect).
+- **Cambios Realizados**:
+  1. **`src/serial/sdk_adapter.py` (Detección Inmediata de Desconexión Física USB)**:
+     - Reordenada la lógica en `is_hardware_alive()`: las comprobaciones físicas de transporte y del SDK (`transport.is_closing()`, `cm.is_connected`, `conn.is_open`) ahora se evalúan en primer lugar. Esto elimina la ventana ciega de 30-90s donde el bridge continuaba reportando estado vivo tras una desconexión física USB.
+     - En `_on_sdk_event`, ante `EventType.DISCONNECTED` se asigna explícitamente `self.is_connected = False`, sincronizando el estado con el watchdog y evitando estados zombies.
+     - En `_register_event_handlers`, la suscripción a eventos ahora despacha de forma thread-safe mediante `self._loop` y `asyncio.run_coroutine_threadsafe`, evitando la pérdida silenciosa de tramas LoRa por excepciones de event loop (`RuntimeError`).
+     - Eliminados bloques `except Exception: pass` silenciosos en la extracción de canales y resolución de contactos, sustituyéndolos por registros de depuración estructurados (`logging.debug`).
+  2. **`src/mqtt_client.py` (Resiliencia en Arranque y Apagado Ordenado)**:
+     - En `start()`, `client.connect_async()` y `loop_start()` se protegieron con bloque `try/except` que captura fallos de DNS (`socket.gaierror`) y errores de red, evitando el crasheo del proceso en arranque cuando el broker está caído o mal configurado.
+     - En `stop()`, se sustituyeron los bloques `except Exception: pass` por registros de depuración estructurados, previniendo fugas ocultas de hilos de fondo.
+  3. **`src/tcp_companion_server.py` (Prevención de Fuga de Descriptores de Archivo)**:
+     - Implementado helper asíncrono `@staticmethod _safe_close_writer(writer)` que invoca `writer.close()` seguido de `await asyncio.wait_for(writer.wait_closed(), timeout=0.5)`.
+     - Aplicado en todas las ramas de terminación de clientes TCP (desbordamiento de buffer, IP no autorizada, token inválido, timeout de autenticación y bloque `finally`), garantizando la liberación inmediata de descriptores de socket en SBCs Linux/Raspberry Pi.
+- **Módulos Modificados**:
+  - `src/serial/sdk_adapter.py`
+  - `src/mqtt_client.py`
+  - `src/tcp_companion_server.py`
+- **Métricas de Calidad**: 0 errores de linteo o imports (`ruff check` limpio).
+
 ### Hito: Auditoría Capa 3 — Duplicación y Complejidad (Ejecución)
 - **Fecha**: 2026-09-28
 - **Estado**: ✅ COMPLETADO — Unificación de clusters de duplicación, reducción drástica de complejidad ciclomática (-154 líneas netas).
