@@ -2,6 +2,27 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Identificación y Normalización de Telemetría de la Estación Base Local
+- **Fecha**: 2026-09-28
+- **Estado**: ✅ COMPLETADO — Resolución de procedencia local de telemetría y diagnóstico de hardware (`stats_core`, `stats_radio`, `tuning`, `time`).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect), Agente 1 (Firmware Investigator), Agente 2 (Bridge Architect).
+- **Diagnóstico y Análisis**:
+  1. Al arrancar el bridge o reconectar el puerto USB, `sdk_adapter._initial_hardware_sync()` ejecuta consultas de diagnóstico directo hacia el microcontrolador local (`get_tuning()`, `get_time()`, `get_bat()`, `get_stats_core()`, `get_stats_radio()`).
+  2. Dado que son respuestas locales por UART y no tramas de radiofrecuencia (RF) de nodos remotos, no incluyen cabecera con clave pública de remitente.
+  3. En `src/rx_router.py`, `_extract_normalized_meta` sólo asignaba identidad local a `("SELF", "BATTERY", "DEVICE_INFO", "LOCAL")`, omitiendo los tipos de telemetría y diagnóstico `STATS`, `TUNING`, `TIME`, `CUSTOM_VARS` y `STATUS`. Por ende, caían en `sender_label = "Desconocido"`, publicándose como remitente no identificado.
+- **Cambios Realizados**:
+  1. **`src/rx_router.py`**:
+     - Ampliada la condición en `_extract_normalized_meta` para asociar la clave pública local (`get_local_pubkey()` o `"LOCAL"`), `sender_name = "Estación Base Local"`, y marcar `is_local_sender = True` ante eventos de diagnóstico (`STATS`, `TUNING`, `CUSTOM_VARS`, `TIME`, `STATUS`).
+     - En `handle_event`, asignado `event_type` específico (`tuning`, `time`, `stats_core`, `stats_radio`) según el evento del firmware.
+     - En `_handle_mesh_telemetry_msg`, unificada la detección de la estación local y emitido log claro a nivel `INFO`: `[ESTACIÓN LOCAL] Telemetría/Diagnóstico ({ev_name}): {telem_summary}`.
+  2. **`src/routers/telemetry_handler.py`**:
+     - Preservados los tipos de evento `stats_core` y `stats_radio` en el diccionario de payload de telemetría.
+- **Módulos Modificados**:
+  - `src/rx_router.py`
+  - `src/routers/telemetry_handler.py`
+  - `docs/AGENT_ACTIVITY_REPORT.md`
+- **Métricas de Calidad**: `ruff check` limpio (0 issues), verificación con datos de diagnóstico simulados superada.
+
 ### Hito: Diagnóstico y Corrección de Recepción de Mensajes en WebUI
 - **Fecha**: 2026-09-28
 - **Estado**: ✅ COMPLETADO — Identificadas y resueltas dos causas raíz que bloqueaban la llegada de mensajes a la interfaz web.

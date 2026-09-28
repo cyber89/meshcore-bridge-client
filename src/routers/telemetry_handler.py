@@ -67,7 +67,12 @@ class TelemetryHandler(BaseRxHandler):
             return True
 
         if "event_type" not in payload:
-            payload["event_type"] = "telemetry"
+            if "STATS_CORE" in meta.ev_upper:
+                payload["event_type"] = "stats_core"
+            elif "STATS_RADIO" in meta.ev_upper:
+                payload["event_type"] = "stats_radio"
+            else:
+                payload["event_type"] = "telemetry"
 
         ctx._handle_mesh_telemetry_msg(payload)
         return True

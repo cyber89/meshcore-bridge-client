@@ -309,7 +309,11 @@ class RxEventRouter:
                     "self_info" if "SELF" in meta.ev_upper
                     else ("device_info" if "DEVICE" in meta.ev_upper
                     else ("battery" if "BATTERY" in meta.ev_upper
-                    else "telemetry"))
+                    else ("stats_core" if "STATS_CORE" in meta.ev_upper
+                    else ("stats_radio" if "STATS_RADIO" in meta.ev_upper
+                    else ("tuning" if "TUNING" in meta.ev_upper
+                    else ("time" if "TIME" in meta.ev_upper
+                    else "telemetry"))))))
                 )
             self._handle_mesh_telemetry_msg(payload_dict)
 
@@ -398,7 +402,9 @@ class RxEventRouter:
 
         ev_upper_cand = ev_type_str.upper()
         if not sender:
-            if any(k in ev_upper_cand for k in ("SELF", "BATTERY", "DEVICE_INFO", "LOCAL")):
+            if any(k in ev_upper_cand for k in (
+                "SELF", "BATTERY", "DEVICE_INFO", "LOCAL", "STATS", "TUNING", "CUSTOM_VARS", "TIME", "STATUS"
+            )):
                 local_pk = (
                     self._ctx.node_registry.get_local_pubkey()
                     if hasattr(self._ctx.node_registry, "get_local_pubkey")
@@ -907,7 +913,10 @@ class RxEventRouter:
         elif payload_dict.get("pubkey_prefix"):
             sender_label = f"Nodo [{str(payload_dict['pubkey_prefix'])[:8]}]"
         else:
-            sender_label = "Estación Base Local" if ev_name in ("self_info", "battery", "device_info") else "Desconocido"
+            is_ev_local = any(k in ev_name.lower() for k in (
+                "self", "battery", "device", "stats", "tuning", "time", "custom_vars", "status"
+            ))
+            sender_label = "Estación Base Local" if is_ev_local else "Desconocido"
 
         rssi_val = payload_dict.get("rssi", payload_dict.get("RSSI", payload_dict.get("last_rssi")))
         snr_val = payload_dict.get("snr", payload_dict.get("SNR", payload_dict.get("last_snr")))
@@ -928,11 +937,14 @@ class RxEventRouter:
         is_local_station = (
             sender_label.startswith("Estación Base Local")
             or (sender and self._ctx.node_registry and sender == self._ctx.node_registry.local_pubkey)
+            or (sender and str(sender).upper() == "LOCAL")
+            or payload_dict.get("is_local") is True
+            or any(k in ev_name.lower() for k in ("self", "battery", "device", "stats", "tuning", "time", "custom_vars"))
         )
         has_readings = telem_summary != "Sin lecturas adicionales"
 
         if is_local_station:
-            logging.debug(
+            logging.info(
                 f"[ESTACIÓN LOCAL] Telemetría/Diagnóstico ({ev_name}): {telem_summary}"
             )
             return
