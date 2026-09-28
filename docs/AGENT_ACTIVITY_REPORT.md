@@ -2,6 +2,20 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Auditoría Capa 2 — Código Muerto (Ejecución)
+- **Fecha**: 2026-09-28
+- **Estado**: ✅ COMPLETADO — Eliminación quirúrgica de código muerto genuino verificado con cero referencias.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect).
+- **Cambios Realizados**:
+  1. **`src/web/api_router.py`**: Eliminados 4 wrappers muertos: `_route_status()`, `_route_analytics()`, `_route_contacts()`, `_route_tx()` (0 referencias en todo el codebase). Preservados `_route_channels()` (usado en `test_sanitization_fixes.py`) y `_route_logs()` (usado internamente por `_dispatch_misc`). Reducción: -12 líneas.
+  2. **`src/protocol_types.py`**: Eliminada clase `NodeInfo` (dataclass `frozen=True` con 16 campos, 0 instanciaciones en todo el proyecto). El modelo de dominio usa `NodeContactInfo` de `contact_manager.py`. Reducción: -22 líneas.
+  3. **`src/rate_limiter.py`**: Eliminados contadores write-only `total_dropped` y `total_transmitted` en `CustomTxQueue` y `TxRateLimiter` (3 inicializaciones + 5 incrementos = 8 líneas). Estos contadores se acumulaban indefinidamente pero ningún endpoint, log ni diagnóstico los consultaba jamás.
+- **Módulos Modificados**:
+  - `src/web/api_router.py`
+  - `src/protocol_types.py`
+  - `src/rate_limiter.py`
+- **Impacto en Contratos de Interfaz**: Ninguno. Todos los símbolos eliminados tenían cero consumidores verificados por análisis AST y grep de trigramas.
+
 ### Hito: Auditoría Capa 1 — Dependencias y Estructura (Ejecución)
 - **Fecha**: 2026-09-28
 - **Estado**: ✅ COMPLETADO — Limpieza de dependencias huérfanas y anomalías estructurales.

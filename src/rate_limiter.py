@@ -90,7 +90,6 @@ class CustomTxQueue(asyncio.PriorityQueue[Any]):
     def __init__(self, maxsize: int = 0) -> None:
         super().__init__(maxsize=maxsize)
         self._seq = 0
-        self.total_dropped: int = 0
 
     def _evict_low_priority_if_needed(self) -> bool:
         """Si la cola está llena o supera MAX_QUEUE_SIZE, desaloja el elemento más antiguo de baja prioridad."""
@@ -102,7 +101,6 @@ class CustomTxQueue(asyncio.PriorityQueue[Any]):
                 oldest = min(low_items, key=lambda x: getattr(x, "counter", 0))
                 queue_list.remove(oldest)
                 heapq.heapify(queue_list)
-                self.total_dropped += 1
                 logging.warning("CustomTxQueue: Evicted oldest LOW priority item to make room.")
                 return True
         return False
@@ -418,9 +416,6 @@ class TxRateLimiter:
         self._seq_counter = 0
         self._worker_task: asyncio.Task[None] | None = None
         self._running = False
-        self.total_transmitted = 0
-        self.total_dropped = 0
-        self.queue.total_dropped = 0
 
     def start(self) -> None:
         """Inicia la tarea worker de procesamiento en segundo plano."""
@@ -495,8 +490,6 @@ class TxRateLimiter:
         try:
             self.queue.put_nowait(item)
         except asyncio.QueueFull:
-            self.total_dropped += 1
-            self.queue.total_dropped += 1
             logging.warning("TxRateLimiter queue is full, dropping item.")
             future.set_exception(asyncio.QueueFull("Queue Full"))
         return future
@@ -519,8 +512,6 @@ class TxRateLimiter:
                     if isinstance(item, TxItem) and item.priority >= int(TxPriority.LOW):
                         stats = self.airtime_tracker.get_stats()
                         if stats.get("is_critical"):
-                            self.total_dropped += 1
-                            self.queue.total_dropped += 1
                             logging.warning(
                                 f"TxRateLimiter: Descartando paquete de baja prioridad (prio={item.priority}) "
                                 f"debido a saturación de Duty Cycle ({stats.get('hourly_duty_cycle_pct')}% >= {self.airtime_tracker.duty_cycle_limit_pct}%)."
@@ -534,7 +525,6 @@ class TxRateLimiter:
                     if self.transmit_callback:
                         try:
                             res = await self.transmit_callback(item)
-                            self.total_transmitted += 1
                             if isinstance(item, TxItem):
                                 self.airtime_tracker.record_tx(
                                     airtime_ms=item.estimated_airtime_ms,

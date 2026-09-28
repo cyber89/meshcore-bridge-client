@@ -503,28 +503,6 @@ class NodeAdvertisement:
         d["hw_model_name"] = self.hw_model.name
         return d
 
-@dataclass(frozen=True)
-class NodeInfo:
-    """Configuración y capacidades del nodo (SELF_INFO / DEVICE_INFO)."""
-    public_key: str
-    name: str
-    hw_model: HardwareModel
-    fw_version: str
-    latitude: float
-    longitude: float
-    altitude_m: int
-    multi_acks: bool | None = None
-    adv_loc_policy: str | None = None
-    telemetry_mode_base: str | None = None
-    telemetry_mode_loc: str | None = None
-    telemetry_mode_env: str | None = None
-    path_hash_mode: str | None = None
-    autoadd_config: dict[str, Any] | None = None
-    stats_core: dict[str, Any] | None = None
-    stats_radio: dict[str, Any] | None = None
-    stats_packets: dict[str, Any] | None = None
-
-
 
 @dataclass(frozen=True)
 class AckPayload:

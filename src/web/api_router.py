@@ -734,20 +734,8 @@ class WebAPIRouter:
         return problem_details(404, "Not Found", "Recurso no encontrado", "not_found")
 
     # Retrocompatibilidad para llamadas internas o tests directos
-    async def _route_status(self) -> tuple[int, dict[str, Any]]:
-        return await self.config_ctrl.get_device_config()
-
-    async def _route_analytics(self) -> tuple[int, dict[str, Any]]:
-        return await self.nodes_ctrl.get_analytics()
-
-    async def _route_contacts(self, path: str, method: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-        return await self.contacts_ctrl.handle_contacts_route(path, method, req_body)
-
     async def _route_channels(self, path: str, method: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         return await self.channels_ctrl.handle_channels_route(path, method, req_body)
-
-    async def _route_tx(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-        return await self.tx_ctrl.send_tx(req_body)
 
     async def _route_logs(self, raw_path: str, clean_path: str) -> tuple[int, dict[str, Any]]:
         return await self.logs_ctrl.route_logs(raw_path, clean_path)
