@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -141,11 +142,10 @@ class AsyncBridgeMQTTClient:
 
         try:
             thread = getattr(self.client, "_thread", None)
-            if thread and thread.is_alive():
+            if isinstance(thread, threading.Thread) and thread.is_alive():
                 self.client._thread_terminate = True
                 thread.join(timeout=1.0)
-            else:
-                self.client.loop_stop()
+            self.client.loop_stop()
         except Exception:
             pass
         self.is_connected = False

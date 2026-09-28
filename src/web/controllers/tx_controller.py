@@ -71,24 +71,39 @@ class TxController(BaseController):
             "request_id": req_id,
         }
 
-        if hasattr(self.ctx.bridge, "rate_limiter") and self.ctx.bridge.rate_limiter:
+        rate_limiter = getattr(self.ctx.bridge, "rate_limiter", None)
+        if rate_limiter and hasattr(rate_limiter, "submit") and callable(rate_limiter.submit):
             try:
-                future = await self.ctx.bridge.rate_limiter.submit(
+                submit_res = rate_limiter.submit(
                     payload=text,
                     priority=TxPriority.NORMAL,
                     target=str(target) if target else None,
                     channel_idx=ch_idx,
                     request_id=str(req_id),
                 )
-                res = await asyncio.wait_for(future, timeout=30.0)
+                if asyncio.iscoroutine(submit_res):
+                    future = await submit_res
+                else:
+                    future = submit_res
+
+                if asyncio.isfuture(future) or asyncio.iscoroutine(future):
+                    res = await asyncio.wait_for(future, timeout=30.0)
+                else:
+                    res = await self.ctx.bridge._execute_tx(tx_item)
             except asyncio.TimeoutError:
                 err_msg = "Timeout esperando turno de transmisión en cola de Airtime LoRa (30s)"
                 self.ctx.log_system_event("ERROR", f"Fallo en TX hacia {target}: {err_msg}", source="mesh_tx")
                 return problem_details(408, "Request Timeout", err_msg, "tx_timeout")
             except Exception as ex:
                 err_msg = str(ex) or "Fallo en cola de transmisión LoRa"
-                self.ctx.log_system_event("ERROR", f"Fallo en TX hacia {target}: {err_msg}", source="mesh_tx")
-                return problem_details(429 if "Full" in err_msg else 400, "Bad Request", err_msg, "tx_submission_failed")
+                if "Full" in err_msg or "RateLimit" in err_msg:
+                    self.ctx.log_system_event("ERROR", f"Fallo en TX hacia {target}: {err_msg}", source="mesh_tx")
+                    return problem_details(429, "Too Many Requests", err_msg, "tx_submission_failed")
+                if hasattr(self.ctx.bridge, "_execute_tx") and callable(self.ctx.bridge._execute_tx):
+                    res = await self.ctx.bridge._execute_tx(tx_item)
+                else:
+                    self.ctx.log_system_event("ERROR", f"Fallo en TX hacia {target}: {err_msg}", source="mesh_tx")
+                    return problem_details(400, "Bad Request", err_msg, "tx_submission_failed")
         else:
             res = await self.ctx.bridge._execute_tx(tx_item)
         if isinstance(res, dict) and res.get("status") == "error":

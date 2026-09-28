@@ -24,6 +24,8 @@ except ImportError:
     EventType = None
     Event = None
 
+__all__ = ["MeshcoreSDKAdapter", "MeshCore", "EventType", "Event"]
+
 class MeshcoreSDKAdapter(BaseSerialAdapter):
     """Adaptador principal basado en el SDK oficial meshcore_py."""
 

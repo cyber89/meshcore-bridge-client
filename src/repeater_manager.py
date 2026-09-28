@@ -358,7 +358,11 @@ class RepeaterManager:
         if act in ("acl_list", "get_acl_list", "acl.list"):
             return "acl list"
 
-        if act in ("set_admin_password", "set_password", "change_password", "password"):
+        if act in ("set_admin_password", "admin_password", "admin.password"):
+            new_pwd = params.get("new_password", params.get("password", params.get("admin_password", "")))
+            return f"set admin.password {new_pwd}"
+
+        if act in ("set_password", "change_password", "password"):
             new_pwd = params.get("new_password", params.get("password", params.get("admin_password", "")))
             return f"password {new_pwd}"
 

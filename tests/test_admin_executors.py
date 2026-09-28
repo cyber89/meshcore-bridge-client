@@ -69,6 +69,7 @@ def admin_context(tmp_path: Any) -> tuple[AdminContext, MockMC, NodeRegistry, li
     mock_repeater_mgr.build_repeater_command_payload.side_effect = lambda action, p: f"{action}={list(p.values())[0]}" if p else action
     mock_repeater_mgr.get_repeater.return_value = None
     mock_repeater_mgr.check_airtime_cooldown.return_value = (True, 0.0)
+    mock_repeater_mgr.check_traceroute_cooldown.return_value = (True, 0.0)
     mock_repeater_mgr.record_command_sent.return_value = None
 
     mock_mqtt = MagicMock()

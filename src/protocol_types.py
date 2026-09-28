@@ -374,6 +374,54 @@ parse_telemetry_from_sdk = parse_status_response
 
 
 @dataclass(frozen=True)
+class TelemetryPayload:
+    """Payload de telemetría y sensores ambientales (PacketType.TELEMETRY_RESPONSE)."""
+    battery_mv: int
+    solar_mv: int
+    temperature_c: float
+    humidity_pct: float
+    pressure_hpa: float
+    snr_db: int
+    rssi_dbm: int
+    battery_pct: int
+
+    def pack(self) -> bytes:
+        temp_cdeg = int(round(self.temperature_c * 100))
+        hum_pct = int(round(self.humidity_pct * 100))
+        press_pa = int(round(self.pressure_hpa * 100))
+        return struct.pack(
+            "<HHhhIbhB",
+            self.battery_mv,
+            self.solar_mv,
+            temp_cdeg,
+            hum_pct,
+            press_pa,
+            self.snr_db,
+            self.rssi_dbm,
+            self.battery_pct,
+        )
+
+    @classmethod
+    def unpack(cls, data: bytes) -> TelemetryPayload:
+        if len(data) < 16:
+            raise ValueError(f"Payload de telemetría demasiado corto: {len(data)}B < 16B")
+        bat_mv, sol_mv, t_cdeg, h_pct, p_pa, snr, rssi, bat_pct = struct.unpack("<HHhhIbhB", data[:16])
+        return cls(
+            battery_mv=bat_mv,
+            solar_mv=sol_mv,
+            temperature_c=round(t_cdeg / 100.0, 2),
+            humidity_pct=round(h_pct / 100.0, 2),
+            pressure_hpa=round(p_pa / 100.0, 2),
+            snr_db=snr,
+            rssi_dbm=rssi,
+            battery_pct=bat_pct,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
 class TextMessagePayload:
     """Payload de mensaje de texto en canal o directo (OpCode 0x02)."""
     channel_idx: int
@@ -499,7 +547,7 @@ class AckPayload:
 
 
 ParsedPayload = (
-    TextMessagePayload | NodeAdvertisement | AckPayload | bytes
+    TextMessagePayload | NodeAdvertisement | AckPayload | TelemetryPayload | bytes
 )
 
 
@@ -558,6 +606,8 @@ class MeshcoreFrame:
             payload = NodeAdvertisement.unpack(payload_data)
         elif header.packet_type == PacketType.ACK:
             payload = AckPayload.unpack(payload_data)
+        elif header.packet_type == PacketType.TELEMETRY_RESPONSE:
+            payload = TelemetryPayload.unpack(payload_data)
         else:
             payload = payload_data
 
@@ -572,7 +622,7 @@ class MeshcoreFrame:
     def to_mqtt_event(self) -> dict[str, Any]:
         """Convierte la trama a formato JSON estructurado para n8n."""
         payload_data: Any
-        if isinstance(self.payload, (TextMessagePayload, NodeAdvertisement, AckPayload)):
+        if isinstance(self.payload, (TextMessagePayload, NodeAdvertisement, AckPayload, TelemetryPayload)):
             payload_data = self.payload.to_dict()
         else:
             payload_data = {"raw_hex": self.raw_payload.hex().upper()}
@@ -600,6 +650,8 @@ class MeshcoreFrame:
 # TODO: migrate callers then remove
 _DEPRECATED_ALIASES: dict[str, str] = {
     "OpCode": "PacketType",
+    "FirmwareCommandType": "CommandType",
+    "FirmwarePushCode": "PacketType",
 }
 
 def __getattr__(name: str) -> Any:

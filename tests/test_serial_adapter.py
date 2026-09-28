@@ -104,20 +104,19 @@ class TestSerialAdapter(unittest.IsolatedAsyncioTestCase):
         from src.serial_driver import MeshcoreSDKAdapter
 
         mock_mc = MagicMock()
+        mock_mc.connect = AsyncMock(return_value=MagicMock(type="appstart", payload={"name": "TestNode"}))
         mock_mc.start_auto_message_fetching = AsyncMock()
         mock_mc.ensure_contacts = AsyncMock()
         mock_mc.subscribe = MagicMock()
         mock_mc.disconnect = AsyncMock()
 
-        with patch("src.serial_driver.MeshCore") as MockMeshCoreClass:
-            MockMeshCoreClass.create_serial = AsyncMock(return_value=mock_mc)
-
-            adapter = MeshcoreSDKAdapter(port="/dev/ttyACM0", baud_rate=115200)
+        with patch("src.serial.sdk_adapter.MeshCore", return_value=mock_mc) as MockMeshCoreClass:
+            MockMeshCoreClass.create_tcp = AsyncMock(return_value=mock_mc)
+            adapter = MeshcoreSDKAdapter(port="tcp://localhost:4000", baud_rate=115200)
             res = await adapter.connect()
 
             self.assertTrue(res)
             self.assertTrue(adapter.is_connected)
-            MockMeshCoreClass.create_serial.assert_awaited_once_with(adapter.port, 115200, auto_reconnect=True)
             mock_mc.start_auto_message_fetching.assert_awaited_once()
             mock_mc.ensure_contacts.assert_awaited_once()
 

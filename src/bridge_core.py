@@ -843,6 +843,20 @@ class MeshCoreBridge:
         """Enruta mensajes recibidos desde MQTT (TX o Admin) a la cola de eventos."""
         self.mqtt_dispatcher.handle_incoming(topic, payload_str)
 
+    def on_mqtt_message(self, client: Any, userdata: Any, msg: Any) -> None:
+        """Compatibilidad con suites de pruebas y callbacks directos de paho-mqtt."""
+        try:
+            topic = str(getattr(msg, "topic", ""))
+            raw = getattr(msg, "payload", b"")
+            payload_str = (
+                raw.decode("utf-8", errors="replace").strip()
+                if isinstance(raw, (bytes, bytearray))
+                else str(raw).strip()
+            )
+            self._on_incoming_mqtt_message(topic, payload_str)
+        except Exception as e:
+            logging.error(f"Error procesando mensaje MQTT directo: {e}")
+
     async def _execute_tx_transmission(self, item: TxItem) -> dict[str, Any]:
         """Callback real de emisión hacia el adaptador serial."""
         return await self._execute_tx(item)

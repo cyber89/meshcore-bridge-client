@@ -41,11 +41,17 @@ class TracerouteExecutor:
         """Punto de entrada principal para trazar la ruta de saltos hacia un nodo."""
         target_str = str(target_node or "").strip()
         force = bool(admin_data.get("force", False))
-        if not force and hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "check_traceroute_cooldown"):
-            can_send, rem_cd = self._ctx.repeater_manager.check_traceroute_cooldown(target_str)
-            if not can_send:
-                res.update(self._ctx.repeater_manager.build_cooldown_error_response(rem_cd))
-                return res
+        rep_mgr = getattr(self._ctx, "repeater_manager", None)
+        if not force and rep_mgr is not None and hasattr(rep_mgr, "check_traceroute_cooldown"):
+            chk_result = rep_mgr.check_traceroute_cooldown(target_str)
+            if isinstance(chk_result, tuple) and len(chk_result) >= 2:
+                can_send, rem_cd = chk_result[0], chk_result[1]
+                if not can_send:
+                    if hasattr(rep_mgr, "build_cooldown_error_response"):
+                        res.update(rep_mgr.build_cooldown_error_response(rem_cd))
+                    else:
+                        res.update({"status": "error", "error": f"Cooldown activo ({rem_cd}s)"})
+                    return res
 
         t_start = time.perf_counter()
         raw_path = admin_data.get("path")

@@ -10,6 +10,7 @@ from src.serial import (
     SerialWatchdog,
     detect_serial_port,
 )
+from src.serial.sdk_adapter import MeshCore
 
 __all__ = [
     "BaseSerialAdapter",
@@ -17,4 +18,5 @@ __all__ = [
     "RawSerialFramingAdapter",
     "SerialWatchdog",
     "detect_serial_port",
+    "MeshCore",
 ]

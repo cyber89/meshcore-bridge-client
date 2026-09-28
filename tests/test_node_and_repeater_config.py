@@ -38,7 +38,13 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
         self.mock_registry.get_count.return_value = 0
         self.mock_registry.is_local_key.return_value = False
 
-        self.repeater_mgr = RepeaterManager(min_cmd_interval_s=0.0, min_telemetry_interval_s=0.0)
+        self.repeater_mgr = RepeaterManager(
+            min_cmd_interval_s=0.0,
+            min_telemetry_interval_s=0.0,
+            min_ping_interval_s=0.0,
+            min_traceroute_interval_s=0.0,
+            min_neighbours_interval_s=0.0,
+        )
         self.mock_mqtt = MagicMock()
         self.mock_mqtt.publish_safe = MagicMock()
 
