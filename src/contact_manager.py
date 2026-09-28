@@ -924,16 +924,22 @@ class NodeRegistry:
         is_local_flag: bool,
     ) -> tuple[float, str]:
         """Calcula y suaviza el puntaje LQI y su estado correspondiente."""
-        if update.lqi_score is not None:
-            calc_lqi = float(update.lqi_score)
-            calc_status = update.lqi_status or LinkQualityEngine.classify_lqi_status(calc_lqi)
+        lqi_score = getattr(update, "lqi_score", None)
+        lqi_status = getattr(update, "lqi_status", None)
+        last_snr = getattr(update, "last_snr", None)
+        last_rssi = getattr(update, "last_rssi", None)
+        hops = getattr(update, "hops", None)
+
+        if lqi_score is not None:
+            calc_lqi = float(lqi_score)
+            calc_status = lqi_status or LinkQualityEngine.classify_lqi_status(calc_lqi)
             return calc_lqi, calc_status
         if is_local_flag:
             return 100.0, LQIStatus.EXCELLENT.value
 
-        eff_snr = update.last_snr if update.last_snr is not None else (existing.last_snr if existing else None)
-        eff_rssi = update.last_rssi if update.last_rssi is not None else (existing.last_rssi if existing else None)
-        eff_hops = update.hops if update.hops is not None else (existing.hops if existing else 0)
+        eff_snr = last_snr if last_snr is not None else (existing.last_snr if existing else None)
+        eff_rssi = last_rssi if last_rssi is not None else (existing.last_rssi if existing else None)
+        eff_hops = hops if hops is not None else (existing.hops if existing else 0)
 
         if eff_snr is not None or eff_rssi is not None:
             instant_lqi = LinkQualityEngine.compute_instant_lqi(eff_snr, eff_rssi, eff_hops or 0)
@@ -960,10 +966,11 @@ class NodeRegistry:
             return "LOCAL"
         if is_named_repeater:
             return "REPEATER"
-        if existing and existing.role in ("REPEATER", "ROUTER") and update.role == "SENSOR":
+        up_role = getattr(update, "role", None)
+        if existing and existing.role in ("REPEATER", "ROUTER") and up_role == "SENSOR":
             return existing.role
-        if update.role is not None:
-            return update.role
+        if up_role is not None:
+            return up_role
         if existing and existing.role:
             return existing.role
         return "CLIENT"
@@ -990,19 +997,30 @@ class NodeRegistry:
         clean_name, clean_alias, final_role, is_local_flag = identity_meta
         eff_hops, eff_rssi, eff_snr, calc_lqi, calc_status, calc_route = rf_meta
         now = time.time()
-        if update.last_seen is not None:
-            new_ls = float(update.last_seen)
+        up_ls = getattr(update, "last_seen", None)
+        up_rssi = getattr(update, "last_rssi", None)
+        up_snr = getattr(update, "last_snr", None)
+        if up_ls is not None:
+            new_ls = float(up_ls)
             eff_last_seen = max(float(existing.last_seen), new_ls) if (existing and existing.last_seen > 0) else new_ls
         elif is_local_flag:
             eff_last_seen = now
-        elif update.last_rssi is not None or update.last_snr is not None:
+        elif up_rssi is not None or up_snr is not None:
             eff_last_seen = now
         elif existing and existing.last_seen > 0:
             eff_last_seen = float(existing.last_seen)
         else:
             eff_last_seen = 0.0
 
+        def u(attr: str, default: Any = None) -> Any:
+            return getattr(update, attr, default)
+
         m = self._merge_field
+        up_neighbors = u("neighbors")
+        up_lat = u("latitude")
+        up_lon = u("longitude")
+        up_adv_lat = u("adv_lat")
+        up_adv_lon = u("adv_lon")
         return NodeContactInfo(
             public_key=canonical_key,
             name=clean_name,
@@ -1015,56 +1033,56 @@ class NodeRegistry:
             lqi_score=calc_lqi,
             lqi_status=calc_status,
             best_route=calc_route,
-            battery_pct=m(update.battery_pct, existing, "battery_pct"),
+            battery_pct=m(u("battery_pct"), existing, "battery_pct"),
             last_seen=eff_last_seen,
-            rx_packets=m(update.rx_packets, existing, "rx_packets", 0),
-            tx_packets=m(update.tx_packets, existing, "tx_packets", 0),
-            error_count=m(update.error_count, existing, "error_count", 0),
-            connected_clients_count=m(update.connected_clients_count, existing, "connected_clients_count", 0),
-            neighbors=tuple(update.neighbors) if update.neighbors is not None else (existing.neighbors if existing else ()),
-            temperature_c=m(update.temperature_c, existing, "temperature_c"),
-            humidity_pct=m(update.humidity_pct, existing, "humidity_pct"),
-            pressure_hpa=m(update.pressure_hpa, existing, "pressure_hpa"),
-            voltage_v=m(update.voltage_v, existing, "voltage_v"),
-            solar_v=m(update.solar_v, existing, "solar_v"),
-            latitude=m(update.latitude if update.latitude is not None else update.adv_lat, existing, "latitude"),
-            longitude=m(update.longitude if update.longitude is not None else update.adv_lon, existing, "longitude"),
-            altitude_m=m(update.altitude_m, existing, "altitude_m"),
-            uptime=m(update.uptime, existing, "uptime"),
-            clock=m(update.clock, existing, "clock"),
-            airtime_ms=m(update.airtime_ms, existing, "airtime_ms"),
-            duty_cycle_pct=m(update.duty_cycle_pct, existing, "duty_cycle_pct"),
-            noise_floor_dbm=m(update.noise_floor_dbm, existing, "noise_floor_dbm"),
-            packets_sent=m(update.packets_sent, existing, "packets_sent"),
-            packets_recv=m(update.packets_recv, existing, "packets_recv"),
-            duplicate_packets=m(update.duplicate_packets, existing, "duplicate_packets"),
-            packet_errors=m(update.packet_errors, existing, "packet_errors"),
-            queue_len=m(update.queue_len, existing, "queue_len"),
-            owner_name=m(update.owner_name, existing, "owner_name"),
-            owner_info=m(update.owner_info, existing, "owner_info"),
-            firmware_version=m(update.firmware_version, existing, "firmware_version"),
-            hardware_board=m(update.hardware_board, existing, "hardware_board"),
-            advert_interval=m(update.advert_interval, existing, "advert_interval"),
-            repeat_enabled=m(update.repeat_enabled, existing, "repeat_enabled"),
-            tx_power=m(update.tx_power, existing, "tx_power"),
-            max_tx_power=m(update.max_tx_power, existing, "max_tx_power"),
-            hop_limit=m(update.hop_limit, existing, "hop_limit"),
-            frequency=m(update.frequency, existing, "frequency"),
-            spreading_factor=m(update.spreading_factor, existing, "spreading_factor"),
-            bandwidth=m(update.bandwidth, existing, "bandwidth"),
-            coding_rate=m(update.coding_rate, existing, "coding_rate"),
-            fixed_position=m(update.fixed_position, existing, "fixed_position"),
-            flags=m(update.flags, existing, "flags"),
-            last_advert=m(update.last_advert, existing, "last_advert"),
-            out_path=m(update.out_path, existing, "out_path"),
-            out_path_len=m(update.out_path_len, existing, "out_path_len"),
-            out_path_hash_mode=m(getattr(update, "out_path_hash_mode", None), existing, "out_path_hash_mode"),
-            adv_lat=m(update.adv_lat if update.adv_lat is not None else update.latitude, existing, "adv_lat"),
-            adv_lon=m(update.adv_lon if update.adv_lon is not None else update.longitude, existing, "adv_lon"),
-            auto_discovered=m(update.auto_discovered, existing, "auto_discovered", False),
-            discovery_time=m(update.discovery_time, existing, "discovery_time", 0.0),
-            verified_identity=m(update.verified_identity, existing, "verified_identity", False),
-            is_favorite=m(update.is_favorite, existing, "is_favorite", False),
+            rx_packets=m(u("rx_packets"), existing, "rx_packets", 0),
+            tx_packets=m(u("tx_packets"), existing, "tx_packets", 0),
+            error_count=m(u("error_count"), existing, "error_count", 0),
+            connected_clients_count=m(u("connected_clients_count"), existing, "connected_clients_count", 0),
+            neighbors=tuple(up_neighbors) if up_neighbors is not None else (existing.neighbors if existing else ()),
+            temperature_c=m(u("temperature_c"), existing, "temperature_c"),
+            humidity_pct=m(u("humidity_pct"), existing, "humidity_pct"),
+            pressure_hpa=m(u("pressure_hpa"), existing, "pressure_hpa"),
+            voltage_v=m(u("voltage_v"), existing, "voltage_v"),
+            solar_v=m(u("solar_v"), existing, "solar_v"),
+            latitude=m(up_lat if up_lat is not None else up_adv_lat, existing, "latitude"),
+            longitude=m(up_lon if up_lon is not None else up_adv_lon, existing, "longitude"),
+            altitude_m=m(u("altitude_m"), existing, "altitude_m"),
+            uptime=m(u("uptime"), existing, "uptime"),
+            clock=m(u("clock"), existing, "clock"),
+            airtime_ms=m(u("airtime_ms"), existing, "airtime_ms"),
+            duty_cycle_pct=m(u("duty_cycle_pct"), existing, "duty_cycle_pct"),
+            noise_floor_dbm=m(u("noise_floor_dbm"), existing, "noise_floor_dbm"),
+            packets_sent=m(u("packets_sent"), existing, "packets_sent"),
+            packets_recv=m(u("packets_recv"), existing, "packets_recv"),
+            duplicate_packets=m(u("duplicate_packets"), existing, "duplicate_packets"),
+            packet_errors=m(u("packet_errors"), existing, "packet_errors"),
+            queue_len=m(u("queue_len"), existing, "queue_len"),
+            owner_name=m(u("owner_name"), existing, "owner_name"),
+            owner_info=m(u("owner_info"), existing, "owner_info"),
+            firmware_version=m(u("firmware_version"), existing, "firmware_version"),
+            hardware_board=m(u("hardware_board"), existing, "hardware_board"),
+            advert_interval=m(u("advert_interval"), existing, "advert_interval"),
+            repeat_enabled=m(u("repeat_enabled"), existing, "repeat_enabled"),
+            tx_power=m(u("tx_power"), existing, "tx_power"),
+            max_tx_power=m(u("max_tx_power"), existing, "max_tx_power"),
+            hop_limit=m(u("hop_limit"), existing, "hop_limit"),
+            frequency=m(u("frequency"), existing, "frequency"),
+            spreading_factor=m(u("spreading_factor"), existing, "spreading_factor"),
+            bandwidth=m(u("bandwidth"), existing, "bandwidth"),
+            coding_rate=m(u("coding_rate"), existing, "coding_rate"),
+            fixed_position=m(u("fixed_position"), existing, "fixed_position"),
+            flags=m(u("flags"), existing, "flags"),
+            last_advert=m(u("last_advert"), existing, "last_advert"),
+            out_path=m(u("out_path"), existing, "out_path"),
+            out_path_len=m(u("out_path_len"), existing, "out_path_len"),
+            out_path_hash_mode=m(u("out_path_hash_mode"), existing, "out_path_hash_mode"),
+            adv_lat=m(up_adv_lat if up_adv_lat is not None else up_lat, existing, "adv_lat"),
+            adv_lon=m(up_adv_lon if up_adv_lon is not None else up_lon, existing, "adv_lon"),
+            auto_discovered=m(u("auto_discovered"), existing, "auto_discovered", False),
+            discovery_time=m(u("discovery_time"), existing, "discovery_time", 0.0),
+            verified_identity=m(u("verified_identity"), existing, "verified_identity", False),
+            is_favorite=m(u("is_favorite"), existing, "is_favorite", False),
         )
 
     def add_or_update(self, public_key: str, update: NodeContactUpdate) -> NodeContactInfo:
@@ -1076,23 +1094,29 @@ class NodeRegistry:
                 name="Invalid",
                 alias="Invalid",
             )
-        clean_name_candidate = (update.name or "").strip()
+        clean_name_candidate = (getattr(update, "name", None) or "").strip()
 
-        is_local_flag = bool(update.is_local if update.is_local is not None else self.is_local_key(norm_key))
-        if update.role and str(update.role).upper() == "LOCAL":
+        is_local_attr = getattr(update, "is_local", None)
+        is_local_flag = bool(is_local_attr if is_local_attr is not None else self.is_local_key(norm_key))
+        up_role = getattr(update, "role", None)
+        if up_role and str(up_role).upper() == "LOCAL":
             is_local_flag = True
 
         with self._lock:
             canonical_key, existing = self._resolve_canonical_key_and_clean_locals(norm_key, clean_name_candidate, is_local_flag)
             clean_name = clean_name_candidate or (existing.name if existing else f"Node_{canonical_key[:6]}")
-            clean_alias = (update.alias or "").strip() or (existing.alias if existing else clean_name)
+            clean_alias = (getattr(update, "alias", None) or "").strip() or (existing.alias if existing else clean_name)
             final_role = self._resolve_node_role(clean_name, clean_alias, update, existing, is_local_flag)
 
             calc_lqi, calc_status = self._compute_node_lqi(update, existing, is_local_flag)
-            eff_hops = 0 if is_local_flag else (update.hops if update.hops is not None else (existing.hops if existing else 0))
-            eff_rssi = None if is_local_flag else (update.last_rssi if update.last_rssi is not None else (existing.last_rssi if existing else None))
-            eff_snr = None if is_local_flag else (update.last_snr if update.last_snr is not None else (existing.last_snr if existing else None))
-            calc_route = update.best_route if update.best_route is not None else (existing.best_route if existing else "DIRECT")
+            up_hops = getattr(update, "hops", None)
+            up_rssi = getattr(update, "last_rssi", None)
+            up_snr = getattr(update, "last_snr", None)
+            up_route = getattr(update, "best_route", None)
+            eff_hops = 0 if is_local_flag else (up_hops if up_hops is not None else (existing.hops if existing else 0))
+            eff_rssi = None if is_local_flag else (up_rssi if up_rssi is not None else (existing.last_rssi if existing else None))
+            eff_snr = None if is_local_flag else (up_snr if up_snr is not None else (existing.last_snr if existing else None))
+            calc_route = up_route if up_route is not None else (existing.best_route if existing else "DIRECT")
 
             contact = self._build_updated_contact(
                 canonical_key,

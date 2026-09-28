@@ -13,13 +13,13 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 - **Cambios Realizados**:
   1. **`src/contact_manager.py`**:
      - Agregado el campo `out_path_hash_mode: str | None = None` a `NodeContactUpdate`.
-     - Implementado acceso defensivo mediante `getattr(update, 'out_path_hash_mode', None)` en `_build_updated_contact`.
+     - Blindados todos los accesos a atributos en `_build_updated_contact`, `_compute_node_lqi`, `_resolve_node_role` y `add_or_update` mediante el accessor defensivo `getattr(update, attr, default)`. Esto garantiza tolerancia total a fallos incluso si se reciben objetos de actualización parciales o versiones en caché sin atributos declarados.
   2. **`src/serial/sdk_adapter.py`**:
      - Eliminado el timeout de inactividad prematuro dentro de `is_hardware_alive()`, preservando la verificación física estricta del transporte serial/socket. La supervisión de inactividad RF queda gobernada correctamente por el `SerialWatchdog` mediante `ping_or_check_alive()`.
 - **Módulos Modificados**:
   - `src/contact_manager.py`
   - `src/serial/sdk_adapter.py`
-- **Métricas de Calidad**: Verificado flujo completo end-to-end (Canal 0 y DM) con generación exitosa de tramas WebSocket (`public` y `direct`) y aceptación validada por `isCommonChatMessage` del frontend; `ruff check` limpio.
+- **Métricas de Calidad**: Verificado flujo completo end-to-end (Canal 0 y DM) con generación exitosa de tramas WebSocket (`public` y `direct`) y aceptación validada por `isCommonChatMessage` del frontend; blindaje verificado contra objetos incompletos; `ruff check` limpio.
 
 ### Hito: Actualización de Workflow n8n v3.0, Compatibilidad SSoT MeshCore y Guía de Mantenimiento
 - **Fecha**: 2026-09-28
