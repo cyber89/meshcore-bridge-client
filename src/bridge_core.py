@@ -547,13 +547,6 @@ class MeshCoreBridge:
         except (asyncio.TimeoutError, Exception) as e:
             logging.debug(f"Error o timeout guardando NodeRegistry al detener: {e}")
 
-        # Emitir estado offline explícito antes de cerrar (QoS 0 para entrega inmediata)
-        try:
-            offline_payload = json.dumps({"status": "offline", "timestamp": int(time.time())})
-            self.mqtt.publish_safe(config.TOPIC_STATE, offline_payload, qos=0, retain=True)
-        except Exception as e:
-            logging.error(f"Error publicando estado offline MQTT: {e}")
-
         try:
             await asyncio.wait_for(asyncio.to_thread(self.mqtt.stop), timeout=1.5)
         except (asyncio.TimeoutError, Exception) as e:
@@ -735,32 +728,14 @@ class MeshCoreBridge:
         expected_ack_hex: str | None = None
 
         try:
-            if self.serial_adapter and self.serial_adapter.is_connected:
-                target_arg = str(target) if not is_broadcast else None
-                send_res = await self.serial_adapter.send_message(text=text, target=target_arg, channel_idx=ch_idx)
-                if isinstance(send_res, dict):
-                    expected_ack_hex = send_res.get("expected_ack")
-                    res_obj = send_res.get("event")
-                    if res_obj is not None:
-                        ev_type = str(getattr(res_obj, "type", ""))
-                        if ev_type.upper() in ("ERROR", "ERR") or "ERR_" in str(res_obj):
-                            status_val = "error"
-                            async with self._tx_metrics_lock:
-                                self.tx_error_count += 1
-                            error_detail = str(getattr(res_obj, "payload", "Radio returned error event"))
-            elif self.mc and hasattr(self.mc, "commands"):
-                res_obj = None
-                target_lower = str(target).lower()
-                if target and target_lower not in ("broadcast", "public", "0xffff") and not target_lower.startswith("channel"):
-                    dest = self.resolve_recipient_target(str(target))
-                    if hasattr(self.mc.commands, "send_msg"):
-                        res_obj = await self.mc.commands.send_msg(dest, text)
-                else:
-                    if hasattr(self.mc.commands, "send_chan_msg"):
-                        res_obj = await self.mc.commands.send_chan_msg(ch_idx, text)
-                    elif hasattr(self.mc.commands, "send_msg"):
-                        res_obj = await self.mc.commands.send_msg(text)
+            if not self.serial_adapter or not self.serial_adapter.is_connected:
+                raise ConnectionError("Puerto serial / MeshCore no conectado")
 
+            target_arg = str(target) if not is_broadcast else None
+            send_res = await self.serial_adapter.send_message(text=text, target=target_arg, channel_idx=ch_idx)
+            if isinstance(send_res, dict):
+                expected_ack_hex = send_res.get("expected_ack")
+                res_obj = send_res.get("event")
                 if res_obj is not None:
                     ev_type = str(getattr(res_obj, "type", ""))
                     if ev_type.upper() in ("ERROR", "ERR") or "ERR_" in str(res_obj):
@@ -768,14 +743,6 @@ class MeshCoreBridge:
                         async with self._tx_metrics_lock:
                             self.tx_error_count += 1
                         error_detail = str(getattr(res_obj, "payload", "Radio returned error event"))
-                    elif hasattr(res_obj, "payload") and isinstance(res_obj.payload, dict):
-                        exp_raw = res_obj.payload.get("expected_ack")
-                        if isinstance(exp_raw, (bytes, bytearray)):
-                            expected_ack_hex = exp_raw.hex().lower()
-                        elif isinstance(exp_raw, str):
-                            expected_ack_hex = exp_raw.lower()
-            else:
-                raise ConnectionError("Puerto serial / MeshCore no conectado")
 
         except Exception as e:
             async with self._tx_metrics_lock:

@@ -382,7 +382,7 @@ def _extract_power_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
         if current_bat is None or abs(current_bat - int(round(calc_pct))) > 10:
             res["battery_pct"] = int(round(calc_pct))
 
-    raw_solar = data.get("solar_v", data.get("solar_mv", data.get("solar")))
+    raw_solar = data.get("solar_v", data.get("solar_voltage", data.get("solar_mv", data.get("solar"))))
     if raw_solar is not None:
         clean_s = clean_battery_input(raw_solar)
         if clean_s is not None:
@@ -411,6 +411,11 @@ def _extract_system_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None
         else:
             res["uptime"] = str(raw_uptime)
 
+    if "clock" in data and data["clock"] is not None:
+        res["clock"] = str(data["clock"])
+    if "fixed_position" in data and data["fixed_position"] is not None:
+        res["fixed_position"] = bool(data["fixed_position"])
+
     errors = data.get("errors", data.get("packet_errors", data.get("recv_errors")))
     if errors is not None:
         clean_err = clean_numeric_value(errors)
@@ -425,7 +430,7 @@ def _extract_system_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None
 
 
 def _extract_radio_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
-    """Extrae métricas RF: piso de ruido, airtime y contadores de paquetes."""
+    """Extrae métricas RF: piso de ruido, airtime, contadores de paquetes y parámetros RF."""
     noise = data.get("noise_floor", data.get("noise_floor_dbm", data.get("noise")))
     if noise is not None:
         clean_n = clean_numeric_value(noise)
@@ -444,6 +449,12 @@ def _extract_radio_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
             else:
                 res["airtime_ms"] = int(clean_at)
 
+    duty = data.get("duty_cycle_pct", data.get("duty_cycle", data.get("dutycycle")))
+    if duty is not None:
+        clean_d = clean_numeric_value(duty)
+        if clean_d is not None:
+            res["duty_cycle_pct"] = round(clean_d, 2)
+
     sent = data.get("packets_sent", data.get("sent"))
     if sent is not None:
         clean_s = clean_numeric_value(sent)
@@ -455,6 +466,48 @@ def _extract_radio_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
         clean_r = clean_numeric_value(recv)
         if clean_r is not None:
             res["packets_recv"] = int(clean_r)
+
+    freq = data.get("frequency", data.get("freq"))
+    if freq is not None:
+        clean_f = clean_numeric_value(freq)
+        if clean_f is not None:
+            res["frequency"] = round(clean_f, 3)
+
+    pwr = data.get("tx_power", data.get("power"))
+    if pwr is not None:
+        clean_p = clean_numeric_value(pwr)
+        if clean_p is not None:
+            res["tx_power"] = int(round(clean_p))
+
+    sf = data.get("spreading_factor", data.get("sf"))
+    if sf is not None:
+        clean_sf = clean_numeric_value(sf)
+        if clean_sf is not None:
+            res["spreading_factor"] = int(round(clean_sf))
+
+    bw = data.get("bandwidth", data.get("bw"))
+    if bw is not None:
+        clean_bw = clean_numeric_value(bw)
+        if clean_bw is not None:
+            res["bandwidth"] = round(clean_bw, 1)
+
+    adv_int = data.get("advert_interval")
+    if adv_int is not None:
+        clean_ai = clean_numeric_value(adv_int)
+        if clean_ai is not None:
+            res["advert_interval"] = int(round(clean_ai))
+
+    hop_lim = data.get("hop_limit", data.get("max_hops"))
+    if hop_lim is not None:
+        clean_hl = clean_numeric_value(hop_lim)
+        if clean_hl is not None:
+            res["hop_limit"] = int(round(clean_hl))
+
+    hops = data.get("hops", data.get("hop_count"))
+    if hops is not None:
+        clean_h = clean_numeric_value(hops)
+        if clean_h is not None:
+            res["hops"] = int(round(clean_h))
 
 
 def _extract_location_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
@@ -489,6 +542,11 @@ def _extract_location_telemetry(data: dict[str, Any], res: dict[str, Any]) -> No
                     if clean_alt is not None:
                         res["altitude_m"] = clean_alt
                         break
+
+    if "latitude" in res and "adv_lat" not in res:
+        res["adv_lat"] = res["latitude"]
+    if "longitude" in res and "adv_lon" not in res:
+        res["adv_lon"] = res["longitude"]
 
 
 def extract_telemetry_fields(data: dict[str, Any]) -> dict[str, Any]:

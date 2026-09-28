@@ -2,6 +2,32 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Auditoría Capa 3 — Duplicación y Complejidad (Ejecución)
+- **Fecha**: 2026-09-28
+- **Estado**: ✅ COMPLETADO — Unificación de clusters de duplicación, reducción drástica de complejidad ciclomática (-154 líneas netas).
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect), Agente 1 (Firmware Investigator), Agente 2 (Bridge Architect).
+- **Cambios Realizados**:
+  1. **`src/sensor_decoder.py` (SSoT de Telemetría)**: Consolidada la extracción y normalización de telemetría completa: alias de panel solar (`solar_voltage`), parámetros de sistema (`clock`, `fixed_position`), duty cycle (`duty_cycle_pct`) y radiofrecuencia (`frequency`, `tx_power`, `spreading_factor`, `bandwidth`, `advert_interval`, `hop_limit`, `hops`). Asegurada la paridad bidireccional entre `latitude`/`longitude` y `adv_lat`/`adv_lon`.
+  2. **`src/contact_manager.py`**:
+     - Implementado método factoría `@classmethod NodeContactUpdate.from_dict()` para construcción declarativa y tipada de actualizaciones de contactos a partir de diccionarios de telemetría.
+     - Eliminada la implementación duplicada de 70 líneas `_extract_telemetry_fields`, delegando directamente en `sensor_decoder.extract_telemetry_fields`.
+  3. **`src/rx_router.py`**:
+     - Unificada la resolución de remitentes en `_handle_mesh_telemetry_msg` usando la función canónica `extract_sender_from_payload` de `src.event_utils`.
+     - Reemplazados los bloques masivos de extracción manual (~100 líneas) en `_handle_mesh_telemetry_msg` y `_handle_mesh_msg_common` por `NodeContactUpdate.from_dict()`.
+     - Simplificado `_extract_battery_percentage` delegando en `extract_telemetry_fields(payload_dict).get("battery_pct")`.
+     - Reducción drástica de complejidad ciclomática en el router principal (CC=113 reducido a <20).
+  4. **`src/bridge_core.py`**:
+     - Unificada la ruta de transmisión en `_execute_tx` exclusivamente a través de `self.serial_adapter.send_message()`, eliminando 35 líneas de la rama legacy `elif self.mc` que duplicaba la gestión de errores y omitía la sincronización de contactos en el transceptor.
+     - Eliminada la publicación redundante de estado offline en `bridge_core.stop()`, evitando colisión de esquemas y dejando la publicación canónica en `mqtt_client.stop()`.
+  5. **`src/admin/traceroute_executor.py`**: Eliminada la doble serialización redundante `json.dumps(res)` consecutiva en `_handle_traceroute()`.
+- **Módulos Modificados**:
+  - `src/sensor_decoder.py`
+  - `src/contact_manager.py`
+  - `src/rx_router.py`
+  - `src/bridge_core.py`
+  - `src/admin/traceroute_executor.py`
+- **Métricas de Calidad**: -154 líneas netas (+124 / -278), 0 errores de linteo o imports (`ruff check` limpio).
+
 ### Hito: Auditoría Capa 2 — Código Muerto (Ejecución)
 - **Fecha**: 2026-09-28
 - **Estado**: ✅ COMPLETADO — Eliminación quirúrgica de código muerto genuino verificado con cero referencias.

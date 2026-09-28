@@ -20,7 +20,6 @@ from typing import Any
 
 from src.lqi_engine import LinkQualityEngine, LQIStatus
 from src.shared_utils import (
-    clean_battery_input,
     clean_numeric_value,
     get_hardware_power_limits,
     is_repeater_name,
@@ -687,9 +686,21 @@ class NodeContactUpdate:
     last_advert: float | None = None
     out_path: str | None = None
     out_path_len: int | None = None
-    out_path_hash_mode: str | None = None
     adv_lat: float | None = None
     adv_lon: float | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any], **overrides: Any) -> NodeContactUpdate:
+        """Construye un NodeContactUpdate filtrando campos válidos de data y aplicando overrides."""
+        slots = set(getattr(cls, "__slots__", ()))
+        kwargs: dict[str, Any] = {}
+        for k, v in data.items():
+            if k in slots and v is not None:
+                kwargs[k] = v
+        for k, v in overrides.items():
+            if k in slots and (v is not None or k in overrides):
+                kwargs[k] = v
+        return cls(**kwargs)
 
 
 @dataclass(slots=True)
@@ -1227,75 +1238,8 @@ class NodeRegistry:
     @staticmethod
     def _extract_telemetry_fields(telem: dict[str, Any]) -> dict[str, Any]:
         """Extrae de forma segura métricas ambientales y coordenadas GPS de telemetría."""
-        temp = _safe_float(telem.get("temperature_c", telem.get("temperature", telem.get("temp"))))
-        if temp is not None:
-            temp = round(temp, 1)
-
-        hum = _safe_float(telem.get("humidity_pct", telem.get("humidity", telem.get("hum"))))
-        if hum is not None:
-            hum = round(hum, 1)
-
-        press = _safe_float(telem.get("pressure_hpa", telem.get("pressure", telem.get("press"))))
-        if press is not None:
-            press = round(press, 1)
-
-        volt = _safe_float(telem.get("voltage_v", telem.get("voltage")))
-        solar = _safe_float(telem.get("solar_v", telem.get("solar_voltage", telem.get("solar"))))
-        if solar is not None and solar > 100.0:
-            solar = round(solar / 1000.0, 2)
-        elif solar is not None:
-            solar = round(solar, 2)
-
-        batt_raw = telem.get("battery_pct", telem.get("battery", telem.get("batt")))
-        batt: int | None = None
-        if batt_raw is not None:
-            clean_b = clean_battery_input(batt_raw)
-            if clean_b is not None:
-                norm_pct, norm_v = normalize_battery(clean_b)
-                batt = int(round(norm_pct))
-                if volt is None:
-                    volt = norm_v
-        if volt is not None:
-            norm_pct, _ = normalize_battery(volt)
-            if batt is None or (2.5 <= volt <= 4.5 and abs(batt - int(round(norm_pct))) > 10):
-                batt = int(round(norm_pct))
-
-        duty_raw = telem.get("duty_cycle_pct", telem.get("duty_cycle", telem.get("dutycycle")))
-        duty: float | None = None
-        if duty_raw is not None:
-            clean_d = clean_numeric_value(duty_raw)
-            if clean_d is not None:
-                duty = round(clean_d, 2)
-
-        gps = telem.get("gps", {})
-        lat_raw = telem.get("lat", telem.get("latitude", telem.get("gps_lat", telem.get("adv_lat"))))
-        if lat_raw is None and isinstance(gps, dict):
-            lat_raw = gps.get("latitude", gps.get("lat"))
-        lon_raw = telem.get("lon", telem.get("longitude", telem.get("gps_lon", telem.get("adv_lon"))))
-        if lon_raw is None and isinstance(gps, dict):
-            lon_raw = gps.get("longitude", gps.get("lon"))
-        alt_raw = telem.get("alt", telem.get("altitude", telem.get("altitude_m")))
-        if alt_raw is None and isinstance(gps, dict):
-            alt_raw = gps.get("altitude", gps.get("alt", gps.get("altitude_m")))
-
-        lat_val = _safe_float(lat_raw)
-        lon_val = _safe_float(lon_raw)
-        alt_val = _safe_float(alt_raw)
-
-        return {
-            "temperature_c": temp,
-            "humidity_pct": hum,
-            "pressure_hpa": press,
-            "voltage_v": volt,
-            "solar_v": solar,
-            "battery_pct": batt,
-            "duty_cycle_pct": duty,
-            "latitude": round(lat_val, 5) if lat_val is not None else None,
-            "longitude": round(lon_val, 5) if lon_val is not None else None,
-            "altitude_m": round(alt_val, 1) if alt_val is not None else None,
-            "uptime": str(telem["uptime"]) if "uptime" in telem else None,
-            "clock": str(telem["clock"]) if "clock" in telem else None,
-        }
+        from src.sensor_decoder import extract_telemetry_fields
+        return extract_telemetry_fields(telem)
 
     def record_packet(self, event: PacketRecord) -> None:
         """Registra un evento de paquete para actualizar contadores de tráfico y salud."""
@@ -1325,8 +1269,8 @@ class NodeRegistry:
         rx_observed_ts = time.time() if event.is_rx else None
         m = self._merge_field
 
-        eff_volt = extracted["voltage_v"] if extracted["voltage_v"] is not None else (existing.voltage_v if existing else None)
-        calc_bat = extracted["battery_pct"]
+        eff_volt = extracted.get("voltage_v") if extracted.get("voltage_v") is not None else (existing.voltage_v if existing else None)
+        calc_bat = extracted.get("battery_pct")
         if eff_volt is not None and 2.5 <= eff_volt <= 4.5:
             norm_pct, _ = normalize_battery(eff_volt)
             if calc_bat is None or (existing and existing.battery_pct is not None and abs(existing.battery_pct - int(round(norm_pct))) > 10):
@@ -1345,17 +1289,17 @@ class NodeRegistry:
                 rx_packets=curr_rx,
                 tx_packets=curr_tx,
                 error_count=curr_err,
-                temperature_c=m(extracted["temperature_c"], existing, "temperature_c"),
-                humidity_pct=m(extracted["humidity_pct"], existing, "humidity_pct"),
-                pressure_hpa=m(extracted["pressure_hpa"], existing, "pressure_hpa"),
-                voltage_v=m(extracted["voltage_v"], existing, "voltage_v"),
-                solar_v=m(extracted["solar_v"], existing, "solar_v"),
+                temperature_c=m(extracted.get("temperature_c"), existing, "temperature_c"),
+                humidity_pct=m(extracted.get("humidity_pct"), existing, "humidity_pct"),
+                pressure_hpa=m(extracted.get("pressure_hpa"), existing, "pressure_hpa"),
+                voltage_v=m(extracted.get("voltage_v"), existing, "voltage_v"),
+                solar_v=m(extracted.get("solar_v"), existing, "solar_v"),
                 duty_cycle_pct=m(extracted.get("duty_cycle_pct"), existing, "duty_cycle_pct"),
-                latitude=m(extracted["latitude"], existing, "latitude"),
-                longitude=m(extracted["longitude"], existing, "longitude"),
-                altitude_m=m(extracted["altitude_m"], existing, "altitude_m"),
-                uptime=m(extracted["uptime"], existing, "uptime"),
-                clock=m(extracted["clock"], existing, "clock"),
+                latitude=m(extracted.get("latitude"), existing, "latitude"),
+                longitude=m(extracted.get("longitude"), existing, "longitude"),
+                altitude_m=m(extracted.get("altitude_m"), existing, "altitude_m"),
+                uptime=m(extracted.get("uptime"), existing, "uptime"),
+                clock=m(extracted.get("clock"), existing, "clock"),
             ),
         )
 

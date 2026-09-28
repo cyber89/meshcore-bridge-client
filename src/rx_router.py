@@ -24,6 +24,7 @@ from src.contact_manager import (
     is_valid_node_key,
 )
 from src.deduplicator import PacketDeduplicator
+from src.event_utils import extract_sender_from_payload
 from src.lqi_engine import LinkQualityEngine
 from src.mqtt_client import AsyncBridgeMQTTClient
 from src.protocol_types import MeshcoreFrame, PacketType, TextMessagePayload
@@ -34,10 +35,8 @@ from src.sensor_decoder import (
     format_telemetry_summary,
 )
 from src.shared_utils import (
-    clean_battery_input,
     clean_numeric_value,
     is_repeater_name,
-    normalize_battery,
 )
 
 _SENDER_PREFIX_RE = re.compile(
@@ -352,7 +351,6 @@ class RxEventRouter:
         if payload_dict.get("is_outgoing") is True:
             return None
 
-        from src.event_utils import extract_sender_from_payload
         sender_raw, sender_name = extract_sender_from_payload(payload_dict)
         sender = ""
 
@@ -468,22 +466,8 @@ class RxEventRouter:
     @staticmethod
     def _extract_battery_percentage(payload_dict: dict[str, Any]) -> int | None:
         """Calcula el porcentaje de batería de telemetría a partir de lecturas raw, level o voltaje."""
-        raw_bat = payload_dict.get(
-            "battery_pct",
-            payload_dict.get("battery", payload_dict.get("batt", payload_dict.get("bat", payload_dict.get("level")))),
-        )
-        if raw_bat is not None:
-            pct_norm, _ = normalize_battery(raw_bat)
-            if pct_norm > 0 or raw_bat in (0, "0", "0%"):
-                return int(pct_norm)
-
-        volt_val = payload_dict.get("voltage_v", payload_dict.get("voltage", payload_dict.get("vbat")))
-        if volt_val is not None:
-            clean_v = clean_battery_input(volt_val)
-            if clean_v is not None and clean_v > 0:
-                pct_norm, _ = normalize_battery(clean_v)
-                return int(pct_norm)
-        return None
+        telem = extract_telemetry_fields(payload_dict)
+        return telem.get("battery_pct")
 
     @staticmethod
     def _resolve_effective_role(payload_dict: dict[str, Any], sender_name: str, is_local_sender: bool) -> str:
@@ -591,46 +575,15 @@ class RxEventRouter:
         )
 
         if extracted_telem and should_treat_as_repeater:
-            updated_rep = self._ctx.node_registry.add_or_update(
-                msg.sender,
-                NodeContactUpdate(
-                    last_seen=time.time(),
-                    name=msg.sender_name,
-                    role="REPEATER",
-                    last_rssi=int(msg.rssi) if isinstance(msg.rssi, (int, float)) else extracted_telem.get("last_rssi"),
-                    last_snr=float(msg.snr) if isinstance(msg.snr, (int, float)) else extracted_telem.get("last_snr"),
-                    battery_pct=extracted_telem.get("battery_pct"),
-                    voltage_v=extracted_telem.get("voltage_v"),
-                    solar_v=extracted_telem.get("solar_v"),
-                    temperature_c=extracted_telem.get("temperature_c"),
-                    latitude=extracted_telem.get("latitude"),
-                    longitude=extracted_telem.get("longitude"),
-                    altitude_m=extracted_telem.get("altitude_m"),
-                    fixed_position=extracted_telem.get("fixed_position"),
-                    uptime=extracted_telem.get("uptime"),
-                    clock=extracted_telem.get("clock"),
-                    airtime_ms=extracted_telem.get("airtime_ms"),
-                    noise_floor_dbm=extracted_telem.get("noise_floor_dbm"),
-                    packets_sent=extracted_telem.get("packets_sent"),
-                    packets_recv=extracted_telem.get("packets_recv"),
-                    duplicate_packets=extracted_telem.get("duplicate_packets"),
-                    packet_errors=extracted_telem.get("packet_errors"),
-                    queue_len=extracted_telem.get("queue_len"),
-                    owner_name=extracted_telem.get("owner_name"),
-                    owner_info=extracted_telem.get("owner_info"),
-                    firmware_version=extracted_telem.get("firmware_version"),
-                    hardware_board=extracted_telem.get("hardware_board"),
-                    frequency=extracted_telem.get("frequency"),
-                    tx_power=extracted_telem.get("tx_power"),
-                    spreading_factor=extracted_telem.get("spreading_factor"),
-                    bandwidth=extracted_telem.get("bandwidth"),
-                    coding_rate=extracted_telem.get("coding_rate"),
-                    repeat_enabled=extracted_telem.get("repeat_enabled"),
-                    advert_interval=extracted_telem.get("advert_interval"),
-                    hop_limit=extracted_telem.get("hop_limit"),
-                    hops=extracted_telem.get("hops"),
-                ),
+            rep_update = NodeContactUpdate.from_dict(
+                extracted_telem,
+                last_seen=time.time(),
+                name=msg.sender_name,
+                role="REPEATER",
+                last_rssi=int(msg.rssi) if isinstance(msg.rssi, (int, float)) else extracted_telem.get("last_rssi"),
+                last_snr=float(msg.snr) if isinstance(msg.snr, (int, float)) else extracted_telem.get("last_snr"),
             )
+            updated_rep = self._ctx.node_registry.add_or_update(msg.sender, rep_update)
             if updated_rep:
                 self._spawn_broadcast_task({
                     "type": "contact_updated",
@@ -797,13 +750,17 @@ class RxEventRouter:
                 payload_dict.update(extracted_rep)
 
         # Resolver emisor si aún no está resuelto
-        sender = str(payload_dict.get("sender", payload_dict.get("public_key", "")))
+        sender, sender_name_cand = extract_sender_from_payload(payload_dict)
         if not sender and payload_dict.get("pubkey_prefix"):
             contact = self._ctx.node_registry.get_by_key_or_prefix(str(payload_dict["pubkey_prefix"]))
             if contact and contact.public_key:
                 sender = contact.public_key
-                payload_dict["sender"] = sender
-                payload_dict["sender_name"] = contact.alias or contact.name
+                if not sender_name_cand:
+                    sender_name_cand = contact.alias or contact.name
+        if sender:
+            payload_dict["sender"] = sender
+        if sender_name_cand:
+            payload_dict["sender_name"] = sender_name_cand
 
         if sender and is_valid_node_key(sender):
             is_local_telem = bool(
@@ -823,23 +780,6 @@ class RxEventRouter:
                 or is_repeater_name(sender_name_cand)
             )
 
-            raw_telem_bat = payload_dict.get(
-                "battery_pct",
-                payload_dict.get("battery", payload_dict.get("batt", payload_dict.get("bat", payload_dict.get("level")))),
-            )
-            calc_bat_pct: int | None = None
-            if raw_telem_bat is not None:
-                pct_norm, _ = normalize_battery(raw_telem_bat)
-                if pct_norm > 0 or raw_telem_bat in (0, "0", "0%"):
-                    calc_bat_pct = int(pct_norm)
-
-            telem_volt = payload_dict.get("voltage_v", payload_dict.get("voltage", payload_dict.get("vbat")))
-            if calc_bat_pct is None and telem_volt is not None:
-                clean_v = clean_battery_input(telem_volt)
-                if clean_v is not None and clean_v > 0:
-                    pct_norm, _ = normalize_battery(clean_v)
-                    calc_bat_pct = int(pct_norm)
-
             telem_role = payload_dict.get("role")
             if not telem_role:
                 if is_known_rep:
@@ -853,80 +793,16 @@ class RxEventRouter:
 
             clean_rssi = clean_numeric_value(payload_dict.get("last_rssi", payload_dict.get("rssi")))
             clean_snr = clean_numeric_value(payload_dict.get("last_snr", payload_dict.get("snr")))
-            clean_temp = clean_numeric_value(
-                payload_dict.get("temperature_c", payload_dict.get("temp", payload_dict.get("temperature", payload_dict.get("temp_c"))))
-            )
-            clean_hum = clean_numeric_value(
-                payload_dict.get("humidity_pct", payload_dict.get("humidity", payload_dict.get("hum", payload_dict.get("relative_humidity"))))
-            )
-            clean_press = clean_numeric_value(
-                payload_dict.get("pressure_hpa", payload_dict.get("pressure", payload_dict.get("press", payload_dict.get("barometer", payload_dict.get("barometric_pressure")))))
-            )
-            clean_solar = clean_numeric_value(payload_dict.get("solar_v", payload_dict.get("solar", payload_dict.get("solar_mv"))))
-            if clean_solar is not None and clean_solar > 100.0:
-                clean_solar = round(clean_solar / 1000.0, 2)
-            elif clean_solar is not None:
-                clean_solar = round(clean_solar, 2)
 
-            clean_alt = clean_numeric_value(payload_dict.get("altitude_m", payload_dict.get("altitude", payload_dict.get("alt"))))
-            clean_airtime = clean_numeric_value(payload_dict.get("airtime_ms", payload_dict.get("airtime", payload_dict.get("tx_air_secs"))))
-            clean_noise = clean_numeric_value(payload_dict.get("noise_floor_dbm", payload_dict.get("noise_floor", payload_dict.get("noise"))))
-            clean_sent = clean_numeric_value(payload_dict.get("packets_sent", payload_dict.get("sent")))
-            clean_recv = clean_numeric_value(payload_dict.get("packets_recv", payload_dict.get("recv")))
-            clean_errors = clean_numeric_value(payload_dict.get("packet_errors", payload_dict.get("errors", payload_dict.get("recv_errors"))))
-            clean_queue = clean_numeric_value(payload_dict.get("queue_len", payload_dict.get("queue")))
-            clean_freq = clean_numeric_value(payload_dict.get("frequency", payload_dict.get("freq")))
-            clean_pwr = clean_numeric_value(payload_dict.get("tx_power", payload_dict.get("power")))
-            clean_sf = clean_numeric_value(payload_dict.get("spreading_factor", payload_dict.get("sf")))
-            clean_bw = clean_numeric_value(payload_dict.get("bandwidth", payload_dict.get("bw")))
-            clean_adv_int = clean_numeric_value(payload_dict.get("advert_interval"))
-            clean_hop_lim = clean_numeric_value(payload_dict.get("hop_limit", payload_dict.get("max_hops")))
-            clean_hops = clean_numeric_value(payload_dict.get("hops", payload_dict.get("hop_count")))
-
-            updated_telem_contact = self._ctx.node_registry.add_or_update(
-                sender,
-                NodeContactUpdate(
-                    last_seen=time.time() if not is_local_telem else None,
-                    name=sender_name_cand,
-                    role=telem_role,
-                    last_rssi=int(round(clean_rssi)) if clean_rssi is not None else None,
-                    last_snr=round(clean_snr, 1) if clean_snr is not None else None,
-                    battery_pct=calc_bat_pct,
-                    voltage_v=payload_dict.get("voltage_v", telem_volt),
-                    solar_v=clean_solar,
-                    temperature_c=round(clean_temp, 1) if clean_temp is not None else None,
-                    humidity_pct=round(clean_hum, 1) if clean_hum is not None else None,
-                    pressure_hpa=round(clean_press, 1) if clean_press is not None else None,
-                    latitude=payload_dict.get("latitude") if payload_dict.get("latitude") is not None else (payload_dict.get("lat") if payload_dict.get("lat") is not None else payload_dict.get("adv_lat")),
-                    longitude=payload_dict.get("longitude") if payload_dict.get("longitude") is not None else (payload_dict.get("lon") if payload_dict.get("lon") is not None else payload_dict.get("adv_lon")),
-                    adv_lat=payload_dict.get("adv_lat") if payload_dict.get("adv_lat") is not None else (payload_dict.get("latitude") if payload_dict.get("latitude") is not None else payload_dict.get("lat")),
-                    adv_lon=payload_dict.get("adv_lon") if payload_dict.get("adv_lon") is not None else (payload_dict.get("longitude") if payload_dict.get("longitude") is not None else payload_dict.get("lon")),
-                    altitude_m=round(clean_alt, 1) if clean_alt is not None else None,
-                    fixed_position=payload_dict.get("fixed_position"),
-                    uptime=payload_dict.get("uptime"),
-                    clock=payload_dict.get("clock"),
-                    airtime_ms=int(round(clean_airtime)) if clean_airtime is not None else None,
-                    noise_floor_dbm=int(round(clean_noise)) if clean_noise is not None else None,
-                    packets_sent=int(round(clean_sent)) if clean_sent is not None else None,
-                    packets_recv=int(round(clean_recv)) if clean_recv is not None else None,
-                    duplicate_packets=payload_dict.get("duplicate_packets"),
-                    packet_errors=int(round(clean_errors)) if clean_errors is not None else None,
-                    queue_len=int(round(clean_queue)) if clean_queue is not None else None,
-                    owner_name=payload_dict.get("owner_name"),
-                    owner_info=payload_dict.get("owner_info"),
-                    firmware_version=payload_dict.get("firmware_version"),
-                    hardware_board=payload_dict.get("hardware_board"),
-                    frequency=round(clean_freq, 3) if clean_freq is not None else None,
-                    tx_power=int(round(clean_pwr)) if clean_pwr is not None else None,
-                    spreading_factor=int(round(clean_sf)) if clean_sf is not None else None,
-                    bandwidth=round(clean_bw, 1) if clean_bw is not None else None,
-                    coding_rate=payload_dict.get("coding_rate"),
-                    repeat_enabled=payload_dict.get("repeat_enabled"),
-                    advert_interval=int(round(clean_adv_int)) if clean_adv_int is not None else None,
-                    hop_limit=int(round(clean_hop_lim)) if clean_hop_lim is not None else None,
-                    hops=int(round(clean_hops)) if clean_hops is not None else None,
-                ),
+            telem_update = NodeContactUpdate.from_dict(
+                payload_dict,
+                last_seen=time.time() if not is_local_telem else None,
+                name=sender_name_cand,
+                role=telem_role,
+                last_rssi=int(round(clean_rssi)) if clean_rssi is not None else None,
+                last_snr=round(clean_snr, 1) if clean_snr is not None else None,
             )
+            updated_telem_contact = self._ctx.node_registry.add_or_update(sender, telem_update)
             if updated_telem_contact and not is_local_telem:
                 self._spawn_broadcast_task({
                     "type": "contact_updated",
