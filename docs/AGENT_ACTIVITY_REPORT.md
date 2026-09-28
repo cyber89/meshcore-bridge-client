@@ -2,6 +2,22 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Auditoría Capa 1 — Dependencias y Estructura (Ejecución)
+- **Fecha**: 2026-09-28
+- **Estado**: ✅ COMPLETADO — Limpieza de dependencias huérfanas y anomalías estructurales.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect).
+- **Cambios Realizados**:
+  1. **`requirements.txt`**: Eliminadas `pyserial-asyncio>=0.6` y `pycayennelpp>=2.0.0` (ambas son dependencias transitivas incluidas automáticamente por `meshcore>=2.3.8` vía su `pyproject.toml`: `pyserial-asyncio-fast` y `pycayennelpp`). Documentado `psutil>=5.9.0` como dependencia opcional comentada (import condicional en `src/admin/cli_command_executor.py:313`).
+  2. **`scratch_analyzer.py`**: Eliminado del directorio raíz. Script de análisis temporal que no pertenece al flujo de producción.
+  3. **`report.md`**: Eliminado del directorio raíz. Reporte de auditoría temporal que no pertenece al flujo de producción.
+  4. **`__pycache__/`**: Limpiados 10 directorios de bytecode compilado en `src/`, `tests/`, `scripts/` y raíz (ya excluidos por `.gitignore` pero presentes en disco).
+- **Módulos Modificados**:
+  - `requirements.txt`
+- **Archivos Eliminados**:
+  - `scratch_analyzer.py` (script temporal de auditoría)
+  - `report.md` (reporte temporal de auditoría)
+- **Impacto en Contratos de Interfaz**: Ninguno. Las dependencias eliminadas eran redundantes (ya instaladas transitivamente por `meshcore`).
+
 ### Hito: Verificación y Pruebas Integrales de la Capa Bridge, Resolución de Regresiones y Saneamiento de Código
 - **Fecha**: 2026-09-27
 - **Estado**: ✅ COMPLETADO — Verificada toda la capa del bridge (`src/bridge_core.py`, `src/routers/`, `src/serial/`, `src/admin/`, `src/mqtt_client.py`). Diagnosticadas y solucionadas las 19 fallas de tests previas, alcanzando el 100% de aprobación en la suite de pruebas unitarias e integración (274 tests aprobados, 0 fallos). Añadida suite exhaustiva de tests para `MeshCoreBridge`. Auditado y saneado código en desuso con vulture y ruff.
