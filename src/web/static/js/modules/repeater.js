@@ -43,6 +43,11 @@ export class RepeaterModule {
       repeaterTerminalInput: document.getElementById("repeaterTerminalInput"),
       repeaterTerminalForm: document.getElementById("repeaterTerminalForm"),
       repeaterTerminalOutput: document.getElementById("repeaterTerminalOutput"),
+      btnClearRepeaterTerminal: document.getElementById("btnClearRepeaterTerminal"),
+      repQuickCmdForm: document.getElementById("repQuickCmdForm"),
+      repQuickCmdInput: document.getElementById("repQuickCmdInput"),
+      repQuickCmdFeedback: document.getElementById("repQuickCmdFeedback"),
+      btnGoToTerminalTab: document.getElementById("btnGoToTerminalTab"),
       btnCloseRepeaterAdminModal: document.getElementById("btnCloseRepeaterAdminModal"),
     };
   }
@@ -113,8 +118,67 @@ export class RepeaterModule {
         const panelId = btn.getAttribute("data-subtab");
         const panel = document.getElementById(panelId);
         if (panel) panel.classList.add("active");
+
+        if (panelId === "rep-console") {
+          setTimeout(() => {
+            const inp = this.dom.repeaterTerminalInput || document.getElementById("repeaterTerminalInput");
+            if (inp) inp.focus();
+            const out = this.dom.repeaterTerminalOutput || document.getElementById("repeaterTerminalOutput");
+            if (out) out.scrollTop = out.scrollHeight;
+          }, 80);
+        }
       });
     });
+
+    // Atajo desde Telemetría a Consola Terminal Completa
+    const btnGoToTerm = this.dom.btnGoToTerminalTab || document.getElementById("btnGoToTerminalTab");
+    if (btnGoToTerm) {
+      btnGoToTerm.addEventListener("click", () => {
+        const termSubtab = document.querySelector('.repeater-subtabs .subtab-btn[data-subtab="rep-console"]');
+        if (termSubtab) termSubtab.click();
+      });
+    }
+
+    // Consola de Comando Directo en Pestaña Principal (Telemetría & Estado)
+    const repQuickCmdForm = this.dom.repQuickCmdForm || document.getElementById("repQuickCmdForm");
+    const repQuickCmdInput = this.dom.repQuickCmdInput || document.getElementById("repQuickCmdInput");
+    const repQuickCmdFeedback = this.dom.repQuickCmdFeedback || document.getElementById("repQuickCmdFeedback");
+
+    if (repQuickCmdForm) {
+      repQuickCmdForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const cmd = repQuickCmdInput ? repQuickCmdInput.value.trim() : "";
+        const target = this.selectedRepeaterTarget;
+        if (!cmd) return;
+        if (!target) {
+          if (this.ctx.showToast) this.ctx.showToast("⚠️ Selecciona primero un repetidor objetivo", "warning");
+          return;
+        }
+        this._remoteCliHistory.push(cmd);
+        this._remoteCliHistoryIdx = -1;
+        if (repQuickCmdInput) repQuickCmdInput.value = "";
+
+        if (repQuickCmdFeedback) {
+          repQuickCmdFeedback.className = "rep-quick-feedback pending";
+          repQuickCmdFeedback.textContent = `📡 Transmitiendo: repeater> ${cmd}...`;
+          repQuickCmdFeedback.classList.remove("hidden");
+        }
+
+        const password = this.getRepeaterPassword(target);
+        try {
+          if (cmd.toLowerCase() === "ping" || cmd.toLowerCase() === "ping 0" || cmd.toLowerCase() === "pingzero") {
+            await this.pingZero(target, this.selectedRepeaterName);
+          } else {
+            await this.executeRepeaterCommand(target, cmd, {}, password);
+          }
+        } catch (err) {
+          if (repQuickCmdFeedback) {
+            repQuickCmdFeedback.className = "rep-quick-feedback error";
+            repQuickCmdFeedback.textContent = `✗ Error: ${err.message}`;
+          }
+        }
+      });
+    }
 
     // Cierre del modal de administración de repetidor
     const closeBtn = this.dom.btnCloseRepeaterAdminModal || document.getElementById("btnCloseRepeaterAdminModal");
@@ -612,6 +676,26 @@ export class RepeaterModule {
       });
     }
 
+    // Botón Limpiar Consola de Repetidor
+    const btnClearRepTerm = this.dom.btnClearRepeaterTerminal || document.getElementById("btnClearRepeaterTerminal");
+    if (btnClearRepTerm) {
+      btnClearRepTerm.addEventListener("click", () => {
+        const out = this.dom.repeaterTerminalOutput || document.getElementById("repeaterTerminalOutput");
+        if (out) {
+          out.innerHTML = `<div class="term-line term-sys">MeshCore Remote CLI — Consola limpia.</div>`;
+        }
+      });
+    }
+
+    // Clic en el área de salida del terminal enfoca automáticamente el campo de entrada
+    const repTermOutput = this.dom.repeaterTerminalOutput || document.getElementById("repeaterTerminalOutput");
+    if (repTermOutput) {
+      repTermOutput.addEventListener("click", () => {
+        const inp = this.dom.repeaterTerminalInput || document.getElementById("repeaterTerminalInput");
+        if (inp) inp.focus();
+      });
+    }
+
     if (repeaterTerminalForm) {
       repeaterTerminalForm.addEventListener("submit", (e) => {
         e.preventDefault();
@@ -622,6 +706,19 @@ export class RepeaterModule {
           this.appendTerminalLine("⚠️ Selecciona primero un repetidor objetivo.", "term-error");
           return;
         }
+
+        // Comandos de emulación de terminal local interactiva
+        if (cmd.toLowerCase() === "clear" || cmd.toLowerCase() === "cls") {
+          const out = this.dom.repeaterTerminalOutput || document.getElementById("repeaterTerminalOutput");
+          if (out) out.innerHTML = `<div class="term-line term-sys">MeshCore Remote CLI — Consola limpia.</div>`;
+          if (repeaterTerminalInput) repeaterTerminalInput.value = "";
+          return;
+        }
+        if (cmd.toLowerCase() === "help" || cmd.toLowerCase() === "?") {
+          const helpDrawer = document.getElementById("terminalHelpDrawer");
+          if (helpDrawer) helpDrawer.classList.toggle("hidden");
+        }
+
         this._remoteCliHistory.push(cmd);
         this._remoteCliHistoryIdx = -1;
         if (repeaterTerminalInput) repeaterTerminalInput.value = "";
@@ -1512,6 +1609,7 @@ export class RepeaterModule {
         body: JSON.stringify({ target_node: target, action, params, password: pwd }),
       });
       const data = await res.json();
+      const qFeedback = document.getElementById("repQuickCmdFeedback");
       if (data.status === "ok") {
         const payload = data.data || data;
         const respTxt = payload.text || payload.response || payload.message || "";
@@ -1519,6 +1617,13 @@ export class RepeaterModule {
           const cleanTxt = String(respTxt).replace(/^>\s*/, "").trim();
           if (cleanTxt) {
             this.appendTerminalLine(`← [RESP] ${cleanTxt}`, "term-resp");
+            if (qFeedback) {
+              qFeedback.className = "rep-quick-feedback success";
+              qFeedback.textContent = `← [RESP] ${cleanTxt}`;
+              setTimeout(() => {
+                if (qFeedback && qFeedback.classList.contains("success")) qFeedback.classList.add("hidden");
+              }, 6000);
+            }
           }
           const parsed = { ...(payload.telemetry || {}), ...this.parseRepeaterTelemetryFromText(cleanTxt) };
           if (parsed && Object.keys(parsed).length > 0) {
@@ -1533,15 +1638,31 @@ export class RepeaterModule {
               if (this.ctx.updateNodeInDom) this.ctx.updateNodeInDom(canonicalPk, updated);
             }
           }
+        } else if (qFeedback) {
+          qFeedback.className = "rep-quick-feedback success";
+          qFeedback.textContent = `✓ Comando transmitido por RF a ${target.slice(0, 8)}.`;
+          setTimeout(() => {
+            if (qFeedback && qFeedback.classList.contains("success")) qFeedback.classList.add("hidden");
+          }, 5000);
         }
       } else {
-        this.appendTerminalLine(`✗ Error: ${data.message || data.error}`, "term-error");
-        if (data.message && (data.message.toLowerCase().includes("password") || data.message.toLowerCase().includes("auth") || data.message.toLowerCase().includes("pin"))) {
-          this.handleRepeaterAuthError(target, data.message);
+        const errMsg = data.detail || data.message || data.error || "Error desconocido";
+        this.appendTerminalLine(`✗ Error: ${errMsg}`, "term-error");
+        if (qFeedback) {
+          qFeedback.className = "rep-quick-feedback error";
+          qFeedback.textContent = `✗ ${errMsg}`;
+        }
+        if (errMsg && (errMsg.toLowerCase().includes("password") || errMsg.toLowerCase().includes("auth") || errMsg.toLowerCase().includes("pin"))) {
+          this.handleRepeaterAuthError(target, errMsg);
         }
       }
     } catch (err) {
       this.appendTerminalLine(`✗ Error de red: ${err.message}`, "term-error");
+      const qFeedback = document.getElementById("repQuickCmdFeedback");
+      if (qFeedback) {
+        qFeedback.className = "rep-quick-feedback error";
+        qFeedback.textContent = `✗ Error de red: ${err.message}`;
+      }
     }
   }
 

@@ -1842,6 +1842,24 @@
                 </button>
               </div>
             </div>
+
+            <!-- Comando Manual Directo / Consola Rápida RF -->
+            <div class="card-panel rep-quick-cmd-panel">
+              <div class="panel-header-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h4 style="margin: 0; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+                  <span data-lucide="terminal" data-size="15"></span> Comando RF Directo
+                </h4>
+                <button type="button" class="btn-xs btn-outline" id="btnGoToTerminalTab" title="Abrir consola terminal completa con historial y ayuda de comandos">
+                  <span data-lucide="external-link" data-size="12"></span> Abrir Consola Completa
+                </button>
+              </div>
+              <form id="repQuickCmdForm" class="rep-quick-cmd-bar">
+                <span class="linux-term-prompt">repeater&gt;</span>
+                <input type="text" id="repQuickCmdInput" class="linux-term-input" placeholder="Escribe comando RF manual (ej: ver, get radio, neighbors, clock, get lat, reboot)..." autocomplete="off" spellcheck="false" aria-label="Comando directo de repetidor" />
+                <button type="submit" class="btn-term-send" id="btnSendRepQuickCmd">↵ Ejecutar</button>
+              </form>
+              <div id="repQuickCmdFeedback" class="rep-quick-feedback hidden"></div>
+            </div>
           </div>
 
           <!-- Subpanel 2: Radio RF y Parámetros -->
@@ -2035,7 +2053,6 @@
                   <button type="button" class="btn-secondary btn-sm" id="btnDiscoverNeighbors"><span data-lucide="wifi" data-size="14"></span> Sondear Vecinos (req_neighbours)</button>
                 </div>
               </div>
-              </div>
               <div class="table-responsive modal-table-scroll">
                 <table class="data-table" id="neighborsTable">
                   <thead>
@@ -2068,6 +2085,7 @@
                 <span class="linux-term-title">MeshCore Remote CLI — Repetidor</span>
                 <div class="linux-term-actions">
                   <button type="button" class="btn-xs btn-outline-term" id="btnToggleCmdHelp"><span data-lucide="info" data-size="13"></span> Ayuda (help)</button>
+                  <button type="button" class="btn-xs btn-outline-term" id="btnClearRepeaterTerminal" title="Limpiar salida de consola"><span data-lucide="trash-2" data-size="13"></span> Limpiar</button>
                   <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="ping"><span data-lucide="crosshair" data-size="13"></span> ping</button>
                   <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="ver">ver</button>
                   <button type="button" class="btn-xs btn-outline-term rep-quick-cmd" data-cmd="get radio">get radio</button>

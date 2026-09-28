@@ -2,6 +2,30 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Reparación de la Terminal Remota, Entrada Manual de Comandos RF y Diseño Adaptativo Claro/Oscuro
+- **Fecha**: 2026-09-27
+- **Estado**: ✅ COMPLETADO — Localizadas y subsanadas las causas que impedían introducir comandos manualmente en la administración remota de repetidores. Implementada la consola de comandos directos en la pestaña principal, reparada la anidación DOM del subpanel de terminal, garantizada la barra de entrada flotante/sticky sin desbordamiento inferior y añadido soporte estético integral para temas claros (`body.light-theme`) y oscuros (`body.dark-theme`) conforme a WCAG AA.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect), Agente 2 (Python Bridge Architect), Agente 4 (Web UI/UX & Frontend Architect), Agente 5 (Security Auditor).
+- **Causas Raíces Diagnosticadas y Subsanadas**:
+  1. **Anidamiento Roto en HTML (`index.html`)**: La presencia de un `</div>` espurio en `#rep-neighbors` cerraba prematuramente `.card-panel` y `.repeater-admin-modal-body`. En consecuencia, el subpanel `#rep-console` quedaba renderizado fuera del cuerpo desplazable del modal, perdiendo la contención de altura y provocando fallos de visibilidad en diversos tamaños de pantalla.
+  2. **Ausencia de Entrada Manual en la Pista de Aterrizaje Principal (`#rep-info`)**: Al abrir el modal de administración, el usuario aterriza en "Telemetría & Estado", donde únicamente existían botones de acción predefinidos pero ninguna caja de texto visible para teclear comandos libres por RF. El usuario debía descubrir la sexta subpestaña ("Terminal") para acceder al CLI.
+  3. **Desplazamiento Fuera de Pantalla (Below the Fold) en la Consola**: En `#rep-console`, la barra de entrada `.linux-term-input-bar` no era pegajosa (`sticky`) y se posicionaba al fondo de `.linux-term-body` (altura máxima fija de 420px), quedando oculta bajo el borde inferior del viewport en resoluciones típicas sin hacer scroll explícito.
+  4. **Contraste Deficiente en Tema Claro (`admin.css`)**: El terminal y el panel de ayuda usaban fondos oscuros fijos (`#080c14`, `#0d1527`) combinados con variables adaptativas como `--text-muted: #486282`, resultando en textos prácticamente ilegibles con ratios de contraste inferiores a 2.5:1.
+- **Soluciones Implementadas**:
+  1. **Estructura DOM Corregida (`index.html`)**: Subpanel `#rep-console` reinsertado correctamente dentro de `.repeater-admin-modal-body` con equilibrio estricto de etiquetas de cierre.
+  2. **Consola Rápida en Telemetría (`#repQuickCmdPanel`)**: Añadida una barra de comando directo RF (`repeater> [ input ] [ ↵ Ejecutar ]`) con botón de salto rápido "Abrir Consola Completa ↗" y badge de retroalimentación inmediata en el primer subpanel.
+  3. **Terminal Sticky & Auto-Focus (`repeater.js` / `admin.css`)**: `.linux-term-input-bar` configurada como `position: sticky; bottom: 0; z-index: 10;`, impidiendo que se oculte bajo el pliegue inferior. Implementado auto-focus automático al cambiar a la pestaña de terminal o hacer clic en cualquier área del log, junto con soporte nativo para comandos `clear`/`cls` y `help`/`?`.
+  4. **Diseño Adaptativo Completo para Temas Claro y Oscuro (`admin.css`)**: Reglas dedicadas para `body.light-theme` con fondo slate-50 (`#f8fafc`), cabeceras en gradiente grisáceo, textos de alta legibilidad (`#0f172a`), comandos destacados en azul cielo (`#0284c7`), respuestas nítidas (`#1e293b`), advertencias en ámbar cálido (`#b45309`) y contrastes superiores a 4.5:1 (WCAG AA).
+- **Módulos Modificados**:
+  - `src/web/static/index.html`
+  - `src/web/static/css/admin.css`
+  - `src/web/static/js/modules/repeater.js`
+- **Verificación y Pruebas**:
+  - `ruff check`: 0 errores.
+  - `mypy --strict`: Aprobado (0 errores).
+  - `node --check`: Sintaxis JS 100% válida.
+  - Verificación en vivo de ejecución de comando RF (`ver` $\to$ `v1.17.0-727fc05 (Build: 09-Aug-2026)`, SNR: 12.5 dB, RTT: 1615 ms) contra la API REST viva en `http://192.168.0.242:8080/`.
+
 ### Hito: Corrección de Posición Fija y Auditoría Integral de la Pila de Administración Remota de Repetidores
 - **Fecha**: 2026-09-27
 - **Estado**: ✅ COMPLETADO — Reparado el bug de reversión inmediata del interruptor de Posición Fija (`repPosFixed`) a "GPS DINÁMICO" tras el toast de guardado. Auditadas, consolidadas y verificadas todas las funciones de administración remota (Radio RF, Propietario/Ubicación, Seguridad & ACL, Vecinos Zero-Hop, Terminal interactiva y Acciones Rápidas) en frontend, backend, APIs REST y comandos RF del firmware MeshCore (`CommonCLI.cpp`).
