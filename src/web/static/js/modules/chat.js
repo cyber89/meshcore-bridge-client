@@ -1532,6 +1532,7 @@ export class ChatModule {
     if (!payload || typeof payload !== "object") return;
     const rawAck = (payload.ack_code || payload.code || "").toString().toLowerCase().trim();
     const ackClean = rawAck.startsWith("0x") ? rawAck.slice(2) : rawAck;
+    if (!ackClean || /^0+$/.test(ackClean)) return;
     let msgId = payload.msg_id;
     if (!msgId && ackClean) {
       msgId = this.pendingOutgoingAcks.get(ackClean);

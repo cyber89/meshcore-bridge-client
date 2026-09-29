@@ -136,7 +136,7 @@ class MeshCoreBridge:
         clean_ack = str(expected_ack).lower().strip()
         if clean_ack.startswith("0x"):
             clean_ack = clean_ack[2:]
-        if not clean_ack:
+        if not clean_ack or set(clean_ack) <= {"0"}:
             return
         now = time.time()
         # Podar entradas de más de 1 hora si la tabla supera 200 elementos
@@ -153,7 +153,7 @@ class MeshCoreBridge:
         clean_ack = str(ack_code).lower().strip()
         if clean_ack.startswith("0x"):
             clean_ack = clean_ack[2:]
-        if not clean_ack:
+        if not clean_ack or set(clean_ack) <= {"0"}:
             return None
         return self._pending_acks.get(clean_ack)
 

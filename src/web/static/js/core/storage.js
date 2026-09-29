@@ -108,19 +108,23 @@ export class MeshCoreStorage {
     await this.readyPromise;
     if (!this.db) return;
     try {
+      const rawAck = (ackCode || "").toString().toLowerCase().trim();
+      const ackClean = rawAck.startsWith("0x") ? rawAck.slice(2) : rawAck;
+      const hasValidAck = ackClean && !/^0+$/.test(ackClean);
+      const hasValidMsgId = Boolean(msgId && msgId !== "None" && msgId !== "null");
+      if (!hasValidAck && !hasValidMsgId) return;
+
       const tx = this.db.transaction("chat_messages", "readwrite");
       const store = tx.objectStore("chat_messages");
       const req = store.openCursor();
-      const rawAck = (ackCode || "").toString().toLowerCase().trim();
-      const ackClean = rawAck.startsWith("0x") ? rawAck.slice(2) : rawAck;
       req.onsuccess = (e) => {
         const cursor = e.target.result;
         if (cursor) {
           const val = cursor.value;
           const valExp = (val.expected_ack || "").toString().toLowerCase().trim();
           const valExpClean = valExp.startsWith("0x") ? valExp.slice(2) : valExp;
-          const ackMatch = ackClean && valExpClean && valExpClean === ackClean;
-          const match = (msgId && (val.msg_id === msgId || String(val.id) === String(msgId))) || ackMatch;
+          const ackMatch = hasValidAck && valExpClean && valExpClean === ackClean;
+          const match = (hasValidMsgId && (val.msg_id === msgId || String(val.id) === String(msgId))) || ackMatch;
           if (match) {
             val.delivered = true;
             val.status = "delivered";

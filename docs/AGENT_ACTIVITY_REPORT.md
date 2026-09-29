@@ -2,6 +2,36 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Remediación de ACK Falso/Nulo (`Código: 00000000 | RTT: None ms`), Supresión de Eventos Espurios y Protección Integral de Estado de Entrega
+- **Fecha**: 2026-09-29
+- **Estado**: ✅ COMPLETADO — Análisis, reproducción determinista y resolución definitiva de la emisión de logs erróneos `[RX-ACK] Mensaje desconocido confirmado por la malla. Código: 00000000 | RTT: None ms` y de eventos espurios `message_delivered` con `msg_id=None` hacia WebSockets y MQTT ante tramas de confirmación nulas o no inicializadas de la radio LoRa.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect), Agente 1 (Protocol & Firmware Investigator), Agente 2 (Python Bridge Architect), Agente 4 (Web UI/UX Architect), Agente 5 (Security Auditor).
+- **Diagnóstico y Causa Raíz**:
+  1. **Origen en Firmware (`PUSH_CODE_SEND_CONFIRMED` 0x82)**: En el firmware de referencia (`MyMesh::processAck`), las entradas libres de `expected_ack_table` poseen `ack = 0`. Al llegar una trama radioeléctrica o de control con bytes nulos (`00 00 00 00`), o en ciertos eventos de reset/latencia, el microcontrolador envía la trama de confirmación `0x82` con 4 bytes de ceros.
+  2. **Fallback Erróneo a Cero**: En `src/routers/repeater_handler.py:49`, la instrucción `payload.get("ack_code", payload.get("code", 0))` forzaba a `0` cualquier payload carente de código, transformándolo en la cadena `"00000000"`.
+  3. **Log de Falsa Alarma**: Al no existir ningún mensaje local en espera con hash cero en `bridge.resolve_pending_ack()`, el handler emitía a nivel `INFO`: `[RX-ACK] Mensaje desconocido confirmado por la malla. Código: 00000000 | RTT: None ms`, transmitiendo la falsa impresión de que un mensaje misterioso había sido entregado.
+  4. **Emisión de Eventos Espurios**: Se difundía un evento `message_delivered` con `msg_id: null` y `ack_code: "00000000"` tanto a clientes WebSocket como al broker MQTT (`meshcore/tx/status`), pudiendo ocasionar estados inconsistentes de entrega en el chat frontend y ráfagas innecesarias en flujos de n8n.
+- **Acciones y Remediación Implementadas**:
+  1. **`src/routers/repeater_handler.py`**:
+     - Normalización estricta de `ack_code`: sin fallback numérico arbitrario a cero.
+     - Detección y descarte silencioso a nivel `DEBUG` de tramas de acuse con códigos nulos, vacíos o consistentes exclusivamente de ceros (`set(ack_code) <= {"0"}`). Retorno inmediato `True` sin difusión a WebSockets ni publicación en MQTT.
+     - Enriquecimiento del formato de logging: si el mensaje está correlacionado localmente se notifica su `msg_id` y RTT; si es un ACK legítimo de la malla no originado en la sesión local, se documenta de forma neutral sin la alarmante etiqueta de "desconocido".
+  2. **`src/bridge_core.py`**:
+     - Blindaje en `register_pending_ack` y `resolve_pending_ack`: rechazo automático de claves nulas o compuestas únicamente de ceros (`set(clean_ack) <= {"0"}`).
+  3. **`src/web/static/js/modules/chat.js`**:
+     - Salvaguarda en `handleDeliveryAck`: aborto inmediato si el código ACK limpio es nulo o compuesto únicamente de ceros (`/^0+$/.test(ackClean)`), evitando colisiones accidentales de estado en la UI.
+  4. **`src/web/static/js/core/storage.js`**:
+     - Validación en `updateMessageDelivery`: requisito indispensable de contar con un `msgId` válido o un `ackClean` legítimo no nulo antes de ejecutar transacciones de actualización en IndexedDB.
+- **Módulos Modificados**:
+  - `src/routers/repeater_handler.py`
+  - `src/bridge_core.py`
+  - `src/web/static/js/modules/chat.js`
+  - `src/web/static/js/core/storage.js`
+- **Métricas de Calidad y Verificación**:
+  - `ruff check src/routers/repeater_handler.py src/bridge_core.py`: **All checks passed!**
+  - `mypy --strict src/routers/repeater_handler.py src/bridge_core.py`: **Success: no issues found in 2 source files.**
+  - Script determinista de verificación (`scratch/test_ack_null_repro.py`): **5/5 pruebas unitarias aprobadas al 100%** (códigos 00000000, 0 int y vacíos descartados sin emitir eventos; ACKs locales y de malla legítimos procesados con precisión).
+
 ### Hito: Remediación de Clasificación Errónea de CHANNEL_INFO como Telemetría de 'Desconocido' y Fuga de Secretos en Logs/MQTT
 - **Fecha**: 2026-09-29
 - **Estado**: ✅ COMPLETADO — Reproducción en caliente determinista y resolución de la clasificación errónea de tramas de configuración interna de canal (`RESP_CODE_CHANNEL_INFO` 0x12 / `EventType.CHANNEL_INFO`) como paquetes de telemetría RF provenientes de "Desconocido". Supresión de 7 eventos espurios por slots vacíos del transceptor, prevención de fugas de claves criptográficas (`channel_secret`) en logs/MQTT y eliminación de conteo falso en contadores de paquetes RF.

@@ -46,15 +46,25 @@ class RepeaterAdminHandler(BaseRxHandler):
             or "ACK" in p_type_upper
             or payload.get("event_type") in ("ack", "delivered", "message_delivered")
         ):
-            ack_code_raw = payload.get("ack_code", payload.get("code", 0))
-            if isinstance(ack_code_raw, int):
-                ack_code = f"{ack_code_raw:08x}"
+            ack_code_raw = payload.get("ack_code", payload.get("code"))
+            if ack_code_raw is None:
+                ack_code = ""
+            elif isinstance(ack_code_raw, int):
+                ack_code = f"{ack_code_raw:08x}" if ack_code_raw != 0 else ""
             elif isinstance(ack_code_raw, (bytes, bytearray)):
                 ack_code = ack_code_raw.hex().lower()
             else:
                 ack_code = str(ack_code_raw).strip().lower()
                 if ack_code.startswith("0x"):
                     ack_code = ack_code[2:]
+
+            # Si el código ACK está vacío o compuesto exclusivamente por ceros, descartar silenciosamente
+            if not ack_code or set(ack_code) <= {"0"}:
+                logging.debug(
+                    f"[RX-ACK] Trama ACK nula/vacía descartada (código: '{ack_code or '00000000'}'). "
+                    f"Ignorando confirmación no asociada a mensaje real."
+                )
+                return True
 
             ack_msg_id = payload.get("msg_id", payload.get("id", payload.get("request_id")))
             trip_time = payload.get("trip_time_ms", payload.get("trip_time", payload.get("rtt_ms")))
@@ -67,10 +77,17 @@ class RepeaterAdminHandler(BaseRxHandler):
                     if not meta.sender and ack_info.get("target"):
                         meta.sender = str(ack_info.get("target"))
 
-            logging.info(
-                f"[RX-ACK] Mensaje {ack_msg_id or 'desconocido'} confirmado por la malla. "
-                f"Código: {ack_code} | RTT: {trip_time} ms"
-            )
+            rtt_str = f" | RTT: {trip_time} ms" if trip_time is not None else ""
+            if ack_msg_id:
+                logging.info(
+                    f"[RX-ACK] Mensaje {ack_msg_id} confirmado por la malla. "
+                    f"Código: {ack_code}{rtt_str}"
+                )
+            else:
+                logging.info(
+                    f"[RX-ACK] Confirmación recibida de la malla (Código: {ack_code}{rtt_str}). "
+                    f"Mensaje no correlacionado localmente."
+                )
 
             ack_evt_data = {
                 "event_type": "message_delivered",
