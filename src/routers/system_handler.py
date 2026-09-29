@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from src.routers.base import BaseRxHandler, RxMeta
+from src.shared_utils import is_empty_channel_slot
 
 
 class SystemHandler(BaseRxHandler):
@@ -27,7 +28,8 @@ class SystemHandler(BaseRxHandler):
             "STATUS_RESPONSE", "LOGIN_SUCCESS", "LOGIN_FAILED",
             "STATS_CORE", "STATS_RADIO"
         }
-        if meta.ev_upper in unhandled or str(payload.get("event_type", "")).upper() in unhandled:
+        clean_ev = meta.ev_upper.replace("EVENTTYPE.", "").strip()
+        if clean_ev in unhandled or str(payload.get("event_type", "")).upper() in unhandled:
             return True
         return False
 
@@ -40,9 +42,28 @@ class SystemHandler(BaseRxHandler):
     ) -> bool:
         router_ctx = getattr(ctx, "_ctx", ctx)
 
-        event_type = payload.get("event_type", meta.ev_upper).lower()
+        clean_ev = meta.ev_upper.replace("EVENTTYPE.", "").strip()
+        event_type = payload.get("event_type", clean_ev).lower()
         if "event_type" not in payload:
             payload["event_type"] = event_type
+
+        # Tratamiento limpio para respuestas de canales del transceptor local
+        if event_type == "channel_info" or clean_ev == "CHANNEL_INFO":
+            ch_name = str(payload.get("channel_name", "")).strip()
+            ch_sec = payload.get("channel_secret")
+            if is_empty_channel_slot(ch_name, ch_sec):
+                logging.debug(f"[ESTACIÓN LOCAL] Canal #{payload.get('channel_idx')} no configurado / vacío")
+                return True
+            ch_idx = int(payload.get("channel_idx", 0))
+            ch_hash = str(payload.get("channel_hash", "--"))
+            logging.info(f"[ESTACIÓN LOCAL] Canal #{ch_idx}: {ch_name} (Hash: {ch_hash})")
+            if router_ctx.web_server and hasattr(router_ctx.web_server, "router") and hasattr(router_ctx.web_server.router, "channels"):
+                router_ctx.web_server.router.channels[ch_idx] = {
+                    "index": ch_idx,
+                    "name": ch_name,
+                    "channel_hash": ch_hash,
+                }
+            return True
 
         import config
 

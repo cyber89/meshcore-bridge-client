@@ -330,3 +330,33 @@ async def safe_device_query(
         return fallback
 
 
+def is_empty_channel_slot(name: Any, secret: Any = None) -> bool:
+    """Determina si una ranura de canal está vacía o sin configurar en el firmware.
+
+    Una ranura se considera vacía cuando el nombre es nulo/vacío y la clave es nula,
+    cadena vacía, bytes nulos (b'\\x00' * 16) o secuencia hexadecimal de ceros.
+    """
+    clean_name = str(name or "").strip()
+    if clean_name:
+        return False
+
+    if secret is None:
+        return True
+
+    if isinstance(secret, (bytes, bytearray)):
+        return not any(secret)
+
+    sec_str = str(secret).strip()
+    if not sec_str:
+        return True
+
+    if sec_str.startswith("b'") and sec_str.endswith("'"):
+        inner = sec_str[2:-1]
+        if not inner or inner.replace("\\x00", "") == "":
+            return True
+
+    clean_hex = sec_str.replace("0x", "").replace(" ", "").replace("-", "")
+    return not clean_hex or all(c == "0" for c in clean_hex)
+
+
+

@@ -2,6 +2,45 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Remediación de Clasificación Errónea de CHANNEL_INFO como Telemetría de 'Desconocido' y Fuga de Secretos en Logs/MQTT
+- **Fecha**: 2026-09-29
+- **Estado**: ✅ COMPLETADO — Reproducción en caliente determinista y resolución de la clasificación errónea de tramas de configuración interna de canal (`RESP_CODE_CHANNEL_INFO` 0x12 / `EventType.CHANNEL_INFO`) como paquetes de telemetría RF provenientes de "Desconocido". Supresión de 7 eventos espurios por slots vacíos del transceptor, prevención de fugas de claves criptográficas (`channel_secret`) en logs/MQTT y eliminación de conteo falso en contadores de paquetes RF.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect), Agente 1 (Protocol & Firmware Investigator), Agente 2 (Python Bridge Architect), Agente 5 (Security Auditor).
+- **Diagnóstico y Causa Raíz**:
+  1. **Ráfaga de Canales del Transceptor**: Los 8 logs reportados ocurrieron en una ventana de 9 milisegundos (`22:37:35.542` a `22:37:35.551`) producto de la sincronización de canales iniciada por `get_channels()` al consultar los 8 slots del MCU (`CMD_GET_CHANNEL` 0x05 / `RESP_CODE_CHANNEL_INFO` 0x12). El slot 0 correspondía al canal legítimo "Public" (clave `8b33...`, hash `11`), mientras que los slots 1 al 7 eran ranuras vacías/no configuradas en la flash con clave de ceros (`00000000000000000000000000000000`) y hash `0x37` (`sha256(16 ceros)[:2] == '37'`).
+  2. **Desalineación de Enum `EventType.CHANNEL_INFO`**: En `rx_router._extract_normalized_meta()`, la conversión `str(event.type)` generaba `"EventType.CHANNEL_INFO"`. En `SystemHandler.can_handle()`, la comprobación `meta.ev_upper in unhandled` (donde `unhandled` contiene `"CHANNEL_INFO"`) evaluaba `'EVENTTYPE.CHANNEL_INFO' in unhandled` como `False`.
+  3. **Caída al Fallback de Telemetría**: Al no ser interceptado por ningún handler y carecer de campo `"event_type"` explícito en el payload del SDK, el router ejecutaba el fallback `payload_dict["event_type"] = "telemetry"`, despachando el evento a `_handle_mesh_telemetry_msg()`.
+  4. **Falsa Atribución y Fuga de Claves**: Como la respuesta de hardware local carece de emisor de radio RF, `extract_sender_from_payload()` devolvía `sender=""`, resolviendo la etiqueta a `"Desconocido"`. En `sensor_decoder.format_telemetry_summary()`, al no hallar sensores ambientales, se volcaban todas las claves no ignoradas, formateando `channel_name: | channel_secret: 000...000 | channel_hash: 37` y considerando `has_readings = True`, lo que emitía el log `INFO: [RX-TELEMETRÍA] De: Desconocido -> Para: Gateway/MQTT` y publicaba el secreto a `config.TOPIC_RX_ALL`.
+  5. **Contaminación de Métricas RF**: Las respuestas internas de canal no estaban en `is_internal_or_diag`, incrementando indebidamente `counters.rx_count` y grabando paquetes artificiales en el `packet_buffer` del sniffer.
+- **Acciones y Remediación Implementadas**:
+  1. **`src/shared_utils.py`**:
+     - Implementada la función canónica `is_empty_channel_slot(name, secret)` como Single Source of Truth para identificar ranuras vacías (nombre vacío con secret nulo, `bytes(16)` de ceros o cadena hexadecimal de ceros).
+  2. **`src/serial/sdk_adapter.py`**:
+     - Implementado handler dedicado `_handle_channel_info(data)` en el dispatch map del SDK.
+     - Detección y filtrado silencioso de slots vacíos sin despachar a `rx_callback`.
+     - Actualización inmediata del caché de canales en memoria (`self.mc.channels`).
+     - Despacho a `rx_callback` únicamente para canales configurados válidos con payload limpio tipado (`type="channel_info"`, `is_local=True`), omitiendo la clave secreta cruda para prevenir filtraciones.
+  3. **`src/rx_router.py`**:
+     - Normalizado `ev_type_str` en `_extract_normalized_meta()` extrayendo `.name` / `.value` y eliminando prefijos `"EventType."` para compatibilidad universal con Enums.
+     - Añadido `"CHANNEL_INFO"` y `"channel_info"` a `is_internal_or_diag`, impidiendo que respuestas locales incrementen `counters.rx_count` o contaminen el sniffer RF.
+     - Implementado bloque de tratamiento de canal local en `handle_event()`: descarta slots vacíos a nivel `DEBUG` y registra canales configurados bajo el formato limpio `[ESTACIÓN LOCAL] Canal #{idx}: {name} (Hash: {hash})`, actualizando el registro de canales del servidor web.
+     - Actualizado `_log_rx_telemetry()` reconociendo `"channel"` dentro de `is_ev_local` e `is_local_station`.
+  4. **`src/routers/system_handler.py`**:
+     - Normalizada la evaluación en `can_handle()` mediante `clean_ev = meta.ev_upper.replace("EVENTTYPE.", "").strip()`.
+     - Añadida salvaguarda en `handle()` para descartar ranuras vacías y formatear canales válidos como `[ESTACIÓN LOCAL]`.
+  5. **`src/sensor_decoder.py`**:
+     - Incorporadas las claves `channel_name`, `channel_secret`, `channel_hash`, `psk`, `secret` e `is_local` al conjunto `ignored_keys` de `format_telemetry_summary()`, erradicando por completo cualquier posibilidad de exposición de claves o confusión con lecturas de telemetría.
+- **Módulos Modificados**:
+  - `src/shared_utils.py`
+  - `src/serial/sdk_adapter.py`
+  - `src/rx_router.py`
+  - `src/routers/system_handler.py`
+  - `src/sensor_decoder.py`
+- **Métricas de Calidad y Verificación**:
+  - `ruff check src/shared_utils.py src/serial/sdk_adapter.py src/rx_router.py src/routers/system_handler.py src/sensor_decoder.py`: **All checks passed!**
+  - `mypy --strict src/shared_utils.py src/serial/sdk_adapter.py src/rx_router.py src/routers/system_handler.py src/sensor_decoder.py`: **Success: no issues found in 5 source files**.
+  - Script de reproducción y verificación en caliente (`scratch/test_channel_telemetry_misclassification.py`): **100% de pruebas aprobadas** (0 mensajes espurios de telemetría, 0 incremento de rx_count, canal Public configurado limpiamente y slots 1..7 filtrados sin ruido).
+
 ### Hito: Auditoría de Capacidades de Protocolo MeshCore, Sincronización de Comandos y Remediación en `src/admin/`
 - **Fecha**: 2026-09-29
 - **Estado**: ✅ COMPLETADO — Auditoría exhaustiva comparativa multi-agente entre `src/admin/` (`cli_command_executor.py`, `local_config_executor.py`, `repeater_executor.py`, `traceroute_executor.py`), `protocol_types.py` y el firmware/SDK oficial de MeshCore (`/reference/meshcore/`, `/reference/meshcore_py/`, `PROTOCOL_SPEC.md`). Reproducción en caliente de fallos y resolución determinista de 11 inconsistencias y vulnerabilidades de red LoRa.

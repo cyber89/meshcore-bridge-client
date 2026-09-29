@@ -14,7 +14,7 @@ from typing import Any
 
 from src.protocol_types import MeshCoreSDKProtocol
 from src.serial.serial_base import BaseSerialAdapter
-from src.shared_utils import classify_device_role
+from src.shared_utils import classify_device_role, is_empty_channel_slot
 from src.target_resolver import TargetResolver
 
 try:
@@ -449,6 +449,8 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                     EventType.RAW_DATA: self._handle_raw_data,
                     EventType.CONTROL_DATA: self._handle_control_data,
                 }
+                if hasattr(EventType, "CHANNEL_INFO"):
+                    self._sdk_dispatch_cache[EventType.CHANNEL_INFO] = self._handle_channel_info
                 if hasattr(EventType, "LOG_DATA"):
                     self._sdk_dispatch_cache[EventType.LOG_DATA] = self._handle_log_data
                 if hasattr(EventType, "RX_LOG_DATA"):
@@ -467,7 +469,6 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                     "CONTACTS_FULL",
                     "CURRENT_TIME",
                     "CONTACT_URI",
-                    "CHANNEL_INFO",
                 ):
                     ev_val = getattr(EventType, extra_name, None)
                     if ev_val is not None:
@@ -607,6 +608,63 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         logging.debug(f"Channel data received: {data}")
         if self.rx_callback:
             self.rx_callback(data)
+
+    async def _handle_channel_info(self, data: Any) -> None:
+        """Maneja respuestas CHANNEL_INFO del transceptor serial y actualiza el caché de canales."""
+        payload: dict[str, Any] = {}
+        if hasattr(data, "payload") and isinstance(data.payload, dict):
+            payload = data.payload
+        elif isinstance(data, dict):
+            payload = data
+
+        idx_raw = payload.get("channel_idx")
+        if idx_raw is None:
+            return
+        try:
+            ch_idx = int(idx_raw)
+        except (ValueError, TypeError):
+            return
+
+        ch_name = str(payload.get("channel_name", "")).strip()
+        ch_sec = payload.get("channel_secret")
+        psk_hex = ch_sec.hex() if isinstance(ch_sec, (bytes, bytearray)) else str(ch_sec or "")
+        ch_hash = str(payload.get("channel_hash", ""))
+
+        if is_empty_channel_slot(ch_name, ch_sec):
+            logging.debug(f"Canal #{ch_idx} slot vacío en transceptor serial")
+            if hasattr(self.mc, "channels"):
+                if isinstance(self.mc.channels, dict):
+                    self.mc.channels.pop(ch_idx, None)
+                    self.mc.channels.pop(str(ch_idx), None)
+                elif isinstance(self.mc.channels, list) and 0 <= ch_idx < len(self.mc.channels):
+                    self.mc.channels[ch_idx] = {}
+            return
+
+        # Canal configurado legítimo
+        logging.debug(f"Canal #{ch_idx} sincronizado desde radio: {ch_name} (hash: {ch_hash})")
+        if hasattr(self.mc, "channels"):
+            ch_entry = {
+                "index": ch_idx,
+                "name": ch_name,
+                "psk": psk_hex,
+                "channel_hash": ch_hash,
+            }
+            if isinstance(self.mc.channels, dict):
+                self.mc.channels[ch_idx] = ch_entry
+            elif isinstance(self.mc.channels, list):
+                if len(self.mc.channels) <= ch_idx:
+                    self.mc.channels.extend([{} for _ in range(1 + ch_idx - len(self.mc.channels))])
+                self.mc.channels[ch_idx] = ch_entry
+
+        if self.rx_callback:
+            self.rx_callback({
+                "type": "channel_info",
+                "event_type": "channel_info",
+                "is_local": True,
+                "channel_idx": ch_idx,
+                "channel_name": ch_name,
+                "channel_hash": ch_hash,
+            })
 
     async def _handle_status_response(self, data: Any) -> None:
         """Maneja respuestas de status del dispositivo."""

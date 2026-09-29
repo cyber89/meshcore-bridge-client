@@ -36,6 +36,7 @@ from src.sensor_decoder import (
 )
 from src.shared_utils import (
     clean_numeric_value,
+    is_empty_channel_slot,
     is_repeater_name,
 )
 
@@ -256,10 +257,10 @@ class RxEventRouter:
                 or any(k in meta.ev_upper for k in (
                     "SELF", "BATTERY", "DEVICE_INFO", "STATUS", "STATS", "TUNING",
                     "CUSTOM_VARS", "MSG_SENT", "ACK", "LOGIN", "CONTROL", "LOG", "DEBUG",
-                    "NO_MORE"
+                    "NO_MORE", "CHANNEL_INFO"
                 ))
                 or payload_dict.get("event_type") in (
-                    "system_log", "log_data", "rx_log_data", "metrics_update", "status", "ping", "pong", "no_more_messages"
+                    "system_log", "log_data", "rx_log_data", "metrics_update", "status", "ping", "pong", "no_more_messages", "channel_info"
                 )
                 or "messages_available" in payload_dict
             )
@@ -304,6 +305,24 @@ class RxEventRouter:
                 logging.debug("[INTERNAL-RADIO] Fin de cola de mensajes en transceptor (NO_MORE_MSGS)")
                 return
 
+            # Manejar eventos de configuración de canales de la estación local
+            if "CHANNEL_INFO" in meta.ev_upper or payload_dict.get("event_type") == "channel_info":
+                ch_name = str(payload_dict.get("channel_name", "")).strip()
+                ch_sec = payload_dict.get("channel_secret")
+                if is_empty_channel_slot(ch_name, ch_sec):
+                    logging.debug(f"[ESTACIÓN LOCAL] Canal #{payload_dict.get('channel_idx')} no configurado / vacío")
+                    return
+                ch_idx = int(payload_dict.get("channel_idx", 0))
+                ch_hash = str(payload_dict.get("channel_hash", "--"))
+                logging.info(f"[ESTACIÓN LOCAL] Canal #{ch_idx}: {ch_name} (Hash: {ch_hash})")
+                if self._ctx.web_server and hasattr(self._ctx.web_server, "router") and hasattr(self._ctx.web_server.router, "channels"):
+                    self._ctx.web_server.router.channels[ch_idx] = {
+                        "index": ch_idx,
+                        "name": ch_name,
+                        "channel_hash": ch_hash,
+                    }
+                return
+
             if "event_type" not in payload_dict:
                 payload_dict["event_type"] = (
                     "self_info" if "SELF" in meta.ev_upper
@@ -313,7 +332,8 @@ class RxEventRouter:
                     else ("stats_radio" if "STATS_RADIO" in meta.ev_upper
                     else ("tuning" if "TUNING" in meta.ev_upper
                     else ("time" if "TIME" in meta.ev_upper
-                    else "telemetry"))))))
+                    else ("channel_info" if "CHANNEL_INFO" in meta.ev_upper
+                    else "telemetry")))))))
                 )
             self._handle_mesh_telemetry_msg(payload_dict)
 
@@ -336,7 +356,16 @@ class RxEventRouter:
             task.add_done_callback(self._ctx.background_tasks.discard)
 
     def _extract_normalized_meta(self, event: Any) -> tuple[dict[str, Any], RxMeta] | None:
-        ev_type_str = str(getattr(event, "type", getattr(event, "event_type", "")))
+        raw_type = getattr(event, "type", getattr(event, "event_type", ""))
+        if hasattr(raw_type, "name"):
+            ev_type_str = str(raw_type.name)
+        elif hasattr(raw_type, "value") and isinstance(raw_type.value, str):
+            ev_type_str = str(raw_type.value)
+        else:
+            ev_type_str = str(raw_type)
+        if ev_type_str.startswith("EventType."):
+            ev_type_str = ev_type_str[len("EventType."):]
+
         payload_obj = getattr(event, "payload", getattr(event, "data", event))
         attributes = getattr(event, "attributes", None)
 
@@ -926,7 +955,7 @@ class RxEventRouter:
             sender_label = f"Nodo [{str(payload_dict['pubkey_prefix'])[:8]}]"
         else:
             is_ev_local = any(k in ev_name.lower() for k in (
-                "self", "battery", "device", "stats", "tuning", "time", "custom_vars", "status"
+                "self", "battery", "device", "stats", "tuning", "time", "custom_vars", "status", "channel"
             ))
             sender_label = "Estación Base Local" if is_ev_local else "Desconocido"
 
@@ -951,7 +980,7 @@ class RxEventRouter:
             or (sender and self._ctx.node_registry and sender == self._ctx.node_registry.local_pubkey)
             or (sender and str(sender).upper() == "LOCAL")
             or payload_dict.get("is_local") is True
-            or any(k in ev_name.lower() for k in ("self", "battery", "device", "stats", "tuning", "time", "custom_vars"))
+            or any(k in ev_name.lower() for k in ("self", "battery", "device", "stats", "tuning", "time", "custom_vars", "channel"))
         )
         has_readings = telem_summary != "Sin lecturas adicionales"
 

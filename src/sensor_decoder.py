@@ -628,11 +628,12 @@ def format_telemetry_summary(data: dict[str, Any]) -> str:
         badges.append(f"📍 ({extracted['latitude']:.4f}, {extracted['longitude']:.4f})")
 
     if not badges:
-        # Extraer cualquier clave informativa omitiendo metadatos internos
+        # Extraer cualquier clave informativa omitiendo metadatos internos y credenciales de canal
         ignored_keys = {
             "type", "event_type", "sender", "sender_name", "recipient", "timestamp",
             "rssi", "snr", "hops", "raw", "raw_hex", "raw_bytes", "txt_type",
             "is_outgoing", "channel_idx", "channel", "messages_available",
+            "channel_name", "channel_secret", "channel_hash", "psk", "secret", "is_local",
         }
         for k, v in data.items():
             if k not in ignored_keys and v is not None and not isinstance(v, (dict, list)):
