@@ -69,23 +69,24 @@ class SerialWatchdog:
     async def _supervise_loop(self) -> None:
         while self._running:
             try:
-                # Comprobación proactiva y rápida de presencia física USB cada 2 segundos (o interval_sec si es menor)
-                step_sleep = min(2.0, max(0.005, self.interval_sec))
-                steps = max(1, int(self.interval_sec / step_sleep))
-                for _ in range(steps):
-                    if not self._running:
-                        break
-                    await asyncio.sleep(step_sleep)
-                    if self.adapter.is_connected:
-                        try:
-                            if not self.adapter.is_hardware_alive():
-                                logging.warning("Watchdog Serial: Transceptor LoRa desconectado físicamente del puerto USB.")
+                # Comprobación proactiva de presencia física USB solo si está conectado
+                if self.adapter.is_connected:
+                    step_sleep = min(2.0, max(0.005, self.interval_sec))
+                    steps = max(1, int(self.interval_sec / step_sleep))
+                    for _ in range(steps):
+                        if not self._running:
+                            break
+                        await asyncio.sleep(step_sleep)
+                        if self.adapter.is_connected:
+                            try:
+                                if not self.adapter.is_hardware_alive():
+                                    logging.warning("Watchdog Serial: Transceptor LoRa desconectado físicamente del puerto USB.")
+                                    self.adapter.is_connected = False
+                                    break
+                            except Exception as e_hw:
+                                logging.warning(f"Watchdog Serial: Error comprobando presencia física de hardware: {e_hw}")
                                 self.adapter.is_connected = False
                                 break
-                        except Exception as e_hw:
-                            logging.warning(f"Watchdog Serial: Error comprobando presencia física de hardware: {e_hw}")
-                            self.adapter.is_connected = False
-                            break
 
                 now = time.time()
                 idle_sec = now - self.adapter.last_heartbeat_time

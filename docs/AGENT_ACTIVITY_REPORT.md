@@ -2,6 +2,26 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Auditoría de Conformidad de Protocolo MeshCore y Alineación con Firmware/SDK en `src/serial/`
+- **Fecha**: 2026-09-29
+- **Estado**: ✅ COMPLETADO — Auditoría exhaustiva comparativa entre `src/serial/` y las especificaciones canónicas de MeshCore (`/reference/meshcore/`, `/reference/meshcore_py/`, `PROTOCOL_SPEC.md`). Detección, reproducción en caliente mediante scripts aislados y resolución de 10 inconsistencias y bugs de protocolo y rendimiento.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol & Firmware Investigator), Agente 2 (Python Bridge Architect), Agente 5 (Security Auditor).
+- **Diagnóstico y Análisis (10 Inconsistencias Detectadas y Resueltas)**:
+  1. **BUG-01 (`sync_all_contacts` - Clave Local Propia)**: `self.self_info` en el SDK contiene `"public_key"` pero se buscaba solo `"key"`, dejando `my_pk` vacío y clasificando erróneamente al transceptor local como contacto externo (`AGENTS.md` Regla 1.1).
+  2. **BUG-02 (`add_contact` / `_ensure_contact_for_tx` - Desbordamiento UTF-8)**: El truncamiento por caracteres `name[:32]` permitía que cadenas con acentos o emojis excedieran los 32 bytes de la memoria flash del firmware (`MAX_CONTACT_NAME_LEN = 32`). Se implementó `_safe_truncate_utf8(text, max_bytes=32)`.
+  3. **BUG-03 (`_on_sdk_event` - Advertisement `pk_hint`)**: `data.payload` en eventos `EventType.ADVERTISEMENT` no era inspeccionado, mostrando `pk=?` en los logs en lugar del prefijo real de la clave pública.
+  4. **BUG-04 (`ping_or_check_alive` - Falsos Positivos)**: Se consideraba vivo al transceptor incluso si `cmds.has_connection()` devolvía un evento de tipo `EventType.ERROR`. Corregido para requerir `res.type != EventType.ERROR`.
+  5. **BUG-05 (`SerialWatchdog` - Latencia en Reconexión)**: El bucle de sondeo de presencia física USB se ejecutaba incondicionalmente (`steps * step_sleep` = 30 segundos) incluso con el dispositivo ya desconectado, sumando 30s de retraso antes del backoff. Se condicionó a `if self.adapter.is_connected`.
+  6. **BUG-06 (`_BootWaitSerialConnection` - Atributos de Transporte)**: El wrapper de conexión serial carecía de `__getattr__`, perdiendo acceso a atributos dinámicos del socket/puerto del SDK.
+  7. **BUG-07 (`MeshCore` - Colisión de Reconectadores en Windows)**: Se instanciaba `MeshCore` con `auto_reconnect=True`, lo que provocaba colisiones de acceso exclusivo al puerto COM entre el `ConnectionManager` interno del SDK y el `SerialWatchdog` de la aplicación. Corregido a `auto_reconnect=False` para control unificado.
+  8. **BUG-08 (`_get_sdk_dispatch_map` - Paridad de Eventos SDK)**: Faltaban eventos oficiales del SDK (`PATH_RESPONSE`, `MMA_RESPONSE`, `ACL_RESPONSE`, `AUTOADD_CONFIG`, `DEFAULT_FLOOD_SCOPE`, `CONTACTS_FULL`, `CURRENT_TIME`, etc.) y existía un evento inexistente `PATH_HASH_MODE`.
+  9. **BUG-09 (`_handle_device_info` - Metadatos de Hardware)**: No se persistían campos de capacidad de radio (`repeat`, `max_channels`, `max_contacts`, `model`, `ver`, `fw_build`) en `self.self_info`, y `get_channels()` usaba un rango fijo de 8 canales en vez de adaptarse a `max_channels` (hasta 16).
+  10. **BUG-10 (`share_contact` / `export_contact` - Validación de Prefijo de Destino)**: El comando SDK `_validate_destination(key, prefix_length=32)` requería estrictamente 64 caracteres hex (32 bytes). Al pasar prefijos cortos (< 64 hex chars) se producía una excepción `ValueError`. Corregido integrando `_resolve_target(key, min_hex_len=64)` con relleno canónico de 64 caracteres.
+- **Verificación y Calidad**:
+  - `mypy --strict src/serial`: **0 errores** (aprobación estricta de tipos completa).
+  - `ruff check src/serial`: **All checks passed!** (100% conformidad PEP 8).
+  - Suite de verificación en caliente (`scratch/verify_all_serial_inconsistencies.py`): **100% aprobado** en los 10 casos.
+
 ### Hito: Auditoría Multi-Agente Integral y Remediación del Subsistema Serial (`src/serial/`)
 - **Fecha**: 2026-09-29
 - **Estado**: ✅ COMPLETADO — Auditoría estática y dinámica exhaustiva conducida en paralelo por el equipo multi-agente (Concurrencia, Protocolo/Seguridad, Clean Code). Detección, reproducción en caliente y corrección total de fallos críticos de bucle caliente en watchdog, fugas de tareas en SDK, sincronización de transporte, desbordamientos de framing y eliminación de 22 métodos huérfanos.
