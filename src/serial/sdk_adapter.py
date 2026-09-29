@@ -114,6 +114,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         self._sdk_dispatch_cache: dict[Any, Callable[[Any], Any]] | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._background_tasks: set[asyncio.Task[Any]] = set()
+        self._is_syncing_hardware: bool = False
 
     @property
     def self_info(self) -> Any:
@@ -336,17 +337,27 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             self.is_connected = False
             return False
 
-        # Si hay comandos disponibles, verificar con timeout activo
+        # Si hay comandos disponibles, verificar vivacidad mediante comando canónico ligero (get_time / get_bat)
         if self.mc and hasattr(self.mc, "commands"):
             try:
                 cmds = self.mc.commands
-                if hasattr(cmds, "has_connection"):
-                    res = await asyncio.wait_for(cmds.has_connection(), timeout=3.0)
-                    if res is not None and getattr(res, "type", None) != EventType.ERROR:
+                if hasattr(cmds, "get_time"):
+                    res = await asyncio.wait_for(cmds.get_time(), timeout=3.0)
+                    if res is not None and getattr(res, "type", None) != getattr(EventType, "ERROR", None):
+                        self.heartbeat()
+                        return True
+                elif hasattr(cmds, "get_bat"):
+                    res = await asyncio.wait_for(cmds.get_bat(), timeout=3.0)
+                    if res is not None and getattr(res, "type", None) != getattr(EventType, "ERROR", None):
+                        self.heartbeat()
+                        return True
+                elif hasattr(cmds, "send_device_query"):
+                    res = await asyncio.wait_for(cmds.send_device_query(), timeout=3.0)
+                    if res is not None and getattr(res, "type", None) != getattr(EventType, "ERROR", None):
                         self.heartbeat()
                         return True
             except Exception as e_ping:
-                logging.debug(f"Comprobación activa con has_connection devolvió excepción: {e_ping}")
+                logging.debug(f"Comprobación activa de vivacidad devolvió excepción: {e_ping}")
 
         self.heartbeat()
         return bool(self.is_hardware_alive())
@@ -513,7 +524,17 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                 return
 
             if event_type == getattr(EventType, "ERROR", None):
-                logging.warning(f"SDK Error: {data}")
+                payload: dict[str, Any] = {}
+                if hasattr(data, "payload") and isinstance(data.payload, dict):
+                    payload = data.payload
+                elif isinstance(data, dict):
+                    payload = data
+                code_str = str(payload.get("code_string", ""))
+                err_code = payload.get("error_code")
+                if self._is_syncing_hardware and code_str == "ERR_CODE_UNSUPPORTED_CMD":
+                    logging.debug(f"Capacidad de hardware opcional no soportada por el firmware: {data}")
+                else:
+                    logging.warning(f"Error SDK recibido desde la radio ({code_str or err_code or 'desconocido'}): {data}")
                 return
             if event_type == getattr(EventType, "CONNECTED", None):
                 logging.info("SDK connected")
@@ -531,40 +552,44 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         """Interroga parámetros extendidos y telemetría de hardware al conectar."""
         if not self.mc or not hasattr(self.mc, "commands"):
             return
-        await asyncio.sleep(1.0)
-        cmds = self.mc.commands
-        for cmd_name in (
-            "send_device_query",
-            "get_bat",
-            "get_stats_core",
-            "get_stats_radio",
-            "get_stats_packets",
-            "get_tuning",
-            "get_self_telemetry",
-            "get_custom_vars",
-        ):
-            if hasattr(cmds, cmd_name):
+        self._is_syncing_hardware = True
+        try:
+            await asyncio.sleep(1.0)
+            cmds = self.mc.commands
+            for cmd_name in (
+                "send_device_query",
+                "get_bat",
+                "get_stats_core",
+                "get_stats_radio",
+                "get_stats_packets",
+                "get_tuning",
+                "get_self_telemetry",
+                "get_custom_vars",
+            ):
+                if hasattr(cmds, cmd_name):
+                    try:
+                        fn = getattr(cmds, cmd_name)
+                        await fn()
+                        await asyncio.sleep(0.15)
+                    except Exception as e:
+                        logging.debug(f"Aviso en sincronización inicial de radio ({cmd_name}): {e}")
+
+            # Sincronizar automáticamente el reloj RTC del ESP32 con la hora del host para eliminar desfase
+            if hasattr(cmds, "set_time"):
                 try:
-                    fn = getattr(cmds, cmd_name)
-                    await fn()
+                    await cmds.set_time(int(time.time()))
                     await asyncio.sleep(0.15)
                 except Exception as e:
-                    logging.warning(f"Aviso en sincronización inicial de radio ({cmd_name}): {e}")
+                    logging.debug(f"Aviso sincronizando reloj RTC inicial: {e}")
 
-        # Sincronizar automáticamente el reloj RTC del ESP32 con la hora del host para eliminar desfase
-        if hasattr(cmds, "set_time"):
-            try:
-                await cmds.set_time(int(time.time()))
-                await asyncio.sleep(0.15)
-            except Exception as e:
-                logging.debug(f"Aviso sincronizando reloj RTC inicial: {e}")
-
-        if hasattr(cmds, "get_time"):
-            try:
-                await cmds.get_time()
-                await asyncio.sleep(0.15)
-            except Exception as e:
-                logging.debug(f"Aviso consultando hora tras sincronización RTC: {e}")
+            if hasattr(cmds, "get_time"):
+                try:
+                    await cmds.get_time()
+                    await asyncio.sleep(0.15)
+                except Exception as e:
+                    logging.debug(f"Aviso consultando hora tras sincronización RTC: {e}")
+        finally:
+            self._is_syncing_hardware = False
 
 
     async def _handle_direct_message(self, data: Any) -> None:
