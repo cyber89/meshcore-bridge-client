@@ -970,7 +970,7 @@ class NodeRegistry:
         if existing and existing.role in ("REPEATER", "ROUTER") and up_role == "SENSOR":
             return existing.role
         if up_role is not None:
-            return up_role
+            return str(up_role)
         if existing and existing.role:
             return existing.role
         return "CLIENT"

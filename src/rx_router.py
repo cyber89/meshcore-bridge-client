@@ -828,6 +828,18 @@ class RxEventRouter:
             self._ctx.mqtt.publish_safe(config.TOPIC_RX_TELEMETRY, evt_json, qos=0)
         self._spawn_broadcast_task(payload_dict)
 
+        # Actualizar ocupación de canal en RateLimiter para gobernar el Airtime Cutoff
+        ch_util_cand = payload_dict.get("channel_utilization", payload_dict.get("ch_util"))
+        if ch_util_cand is not None:
+            try:
+                ch_util_val = float(ch_util_cand)
+                bridge = getattr(self._ctx, "bridge", None) or getattr(self._ctx, "_bridge", None)
+                if bridge and hasattr(bridge, "rate_limiter") and bridge.rate_limiter:
+                    bridge.rate_limiter.update_channel_utilization(ch_util_val)
+            except Exception as e:
+                logging.debug(f"Error actualizando ocupación de canal en rate limiter: {e}")
+
+
         ev_name = str(payload_dict.get("event_type", payload_dict.get("type", "telemetry")))
 
         # Si el evento corresponde a configuración o hardware del nodo local, registrar con formato limpio [ESTACIÓN LOCAL]

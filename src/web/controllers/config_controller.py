@@ -9,6 +9,7 @@ import time
 from datetime import datetime
 from typing import Any
 
+import config
 from src.web.controllers.base import BaseController, problem_details
 
 
@@ -86,6 +87,12 @@ class ConfigController(BaseController):
             "status_level": airtime_stats.get("status_level", "normal"),
             "channel_stats": airtime_stats.get("channel_stats", {}),
             "airtime": airtime_stats,
+            "airtime_cutoff_enabled": airtime_stats.get("cutoff_enabled", getattr(config, "AIRTIME_CUTOFF_ENABLED", True)),
+            "airtime_cutoff_active": airtime_stats.get("cutoff_active", False),
+            "airtime_cutoff_threshold_pct": airtime_stats.get("cutoff_threshold_pct", getattr(config, "AIRTIME_CUTOFF_THRESHOLD_PCT", 35.0)),
+            "airtime_cutoff_resume_pct": airtime_stats.get("cutoff_resume_pct", getattr(config, "AIRTIME_CUTOFF_RESUME_PCT", 30.0)),
+            "repeater_pre_send_delay_enabled": getattr(config, "REPEATER_PRE_SEND_DELAY_ENABLED", True),
+            "repeater_pre_send_delay_s": getattr(config, "REPEATER_PRE_SEND_DELAY_S", 2.5),
             "tx_count": int(tx_val) if isinstance(tx_val, (int, float)) else 0,
             "rx_count": int(rx_val) if isinstance(rx_val, (int, float)) else 0,
             "duplicate_packets": getattr(self.ctx.bridge, "dup_count", 0),
@@ -112,6 +119,27 @@ class ConfigController(BaseController):
                     limiter.airtime_tracker.warn_threshold_pct = float(params["warn_threshold_pct"])
                 except (ValueError, TypeError):
                     pass
+            if "airtime_cutoff_enabled" in params:
+                limiter.airtime_tracker.cutoff_enabled = bool(params["airtime_cutoff_enabled"])
+            if "airtime_cutoff_threshold_pct" in params:
+                try:
+                    limiter.airtime_tracker.cutoff_threshold_pct = float(params["airtime_cutoff_threshold_pct"])
+                except (ValueError, TypeError):
+                    pass
+            if "airtime_cutoff_resume_pct" in params:
+                try:
+                    limiter.airtime_tracker.cutoff_resume_pct = float(params["airtime_cutoff_resume_pct"])
+                except (ValueError, TypeError):
+                    pass
+
+        if "repeater_pre_send_delay_enabled" in params:
+            config.REPEATER_PRE_SEND_DELAY_ENABLED = bool(params["repeater_pre_send_delay_enabled"])
+        if "repeater_pre_send_delay_s" in params:
+            try:
+                config.REPEATER_PRE_SEND_DELAY_S = float(params["repeater_pre_send_delay_s"])
+            except (ValueError, TypeError):
+                pass
+
 
         cmd = {"action": "set_local_config", "params": params}
         res = await self.ctx.bridge.handle_admin(cmd)

@@ -61,5 +61,6 @@ export const EVENTS = Object.freeze({
   METRICS_UPDATE: "meshcore:metrics_update",
   RF_PACKET: "meshcore:rf_packet",
   DUTY_CYCLE_ALERT: "meshcore:duty_cycle_alert",
+  AIRTIME_CUTOFF_CHANGE: "meshcore:airtime_cutoff_change",
   VISIBILITY_CHANGED: "meshcore:visibility_changed",
 });

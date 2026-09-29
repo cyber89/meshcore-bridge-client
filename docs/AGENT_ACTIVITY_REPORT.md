@@ -2,6 +2,48 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Implementación de Airtime Cutoff Dinámico y Pre-Send Delay para Repetidores (Inspirado en MeshMonitor)
+- **Fecha**: 2026-09-28
+- **Estado**: ✅ COMPLETADO — Protección avanzada de espectro LoRa: suspensión automática de tareas periódicas por congestión y retardo deliberado para evitar colisiones de eco con repetidores.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect), Agente 1 (Firmware Investigator), Agente 2 (Bridge Architect), Agente 4 (Web Frontend Architect).
+- **Diagnóstico y Análisis**:
+  1. Tras analizar el proyecto `Yeraze/meshmonitor` e incorporarlo al catálogo `/reference/meshmonitor/`, se identificaron dos patrones de alta efectividad para optimizar el canal LoRa half-duplex:
+     - **Airtime Cutoff**: En redes saturadas (ocupación de canal $\ge 35\%$), los pings automáticos y consultas de telemetría agravan la congestión. Se implementó una conmutación con histéresis (corte al $35\%$, reanudación al $30\%$) que suspende sondeos de fondo mientras mantiene comandos interactivos prioritarios.
+     - **Pre-Send Delay**: Responder inmediatamente a tramas que transitaron por repetidores (`hops >= 1`) provoca colisiones directas con las retransmisiones del propio repetidor. Se implementó un retardo deliberado y configurable ($2.5$s) antes de emitir por radio.
+- **Cambios Realizados**:
+  1. **`config.py`**:
+     - Añadidas variables `AIRTIME_CUTOFF_ENABLED`, `AIRTIME_CUTOFF_THRESHOLD_PCT` ($35.0\%$), `AIRTIME_CUTOFF_RESUME_PCT` ($30.0\%$), `REPEATER_PRE_SEND_DELAY_ENABLED` y `REPEATER_PRE_SEND_DELAY_S` ($2.5$s), junto con validación de rangos seguros en `_validate_config()`.
+  2. **`src/rate_limiter.py`**:
+     - `AirtimeTracker`: Añadidos atributos `_channel_utilization_pct`, `_cutoff_active`, métodos `update_channel_utilization(pct)` con histéresis y persistencia atómica en disco en `save_history`/`load_history`.
+     - `TxRateLimiter`: Delegación de consultas de estado y actualización hacia el tracker.
+  3. **`src/repeater_manager.py`**:
+     - En `check_airtime_cooldown`, `check_ping_cooldown`, `check_traceroute_cooldown` y `check_neighbours_cooldown`, rechazo de consultas automáticas con código 429 cuando el cutoff está activo.
+  4. **`src/sensor_decoder.py` & `src/rx_router.py`**:
+     - Extracción normalizada de `channel_utilization` / `ch_util` / `air_util_tx` en `_extract_radio_telemetry` y transferencia automática hacia `RateLimiter` en el event router.
+  5. **`src/admin/repeater_executor.py`**:
+     - Implementado `_determine_target_hops(dest_target, target_node)` e integrado el `Pre-Send Delay` asíncrono no bloqueante en `_send_rf_command` para saltos $\ge 1$.
+  6. **`src/bridge_core.py`**:
+     - Cableado de `is_cutoff_active_callback` en `RepeaterManager`, registro del callback `_on_airtime_cutoff_change` y difusión del evento a WebSockets y al tópico MQTT `TOPIC_ALERT`.
+  7. **`src/web/controllers/config_controller.py`**:
+     - Exposición de parámetros en `get_local_config` y capacidad de ajuste dinámico desde REST API en `set_local_config`.
+  8. **Frontend Web (`src/web/static/js/`, `src/web/static/css/`)**:
+     - EventBus y WebSocket suscritos a `AIRTIME_CUTOFF_CHANGE`, indicador dinámico de estado en `updateAirtimeBadge` y estilo `.airtime-cutoff` con pulso de advertencia en `nodes.css`.
+- **Módulos Modificados**:
+  - `config.py`
+  - `src/rate_limiter.py`
+  - `src/repeater_manager.py`
+  - `src/sensor_decoder.py`
+  - `src/rx_router.py`
+  - `src/admin/repeater_executor.py`
+  - `src/bridge_core.py`
+  - `src/web/controllers/config_controller.py`
+  - `src/web/static/js/core/eventbus.js`
+  - `src/web/static/js/core/websocket.js`
+  - `src/web/static/js/app.js`
+  - `src/web/static/css/nodes.css`
+  - `docs/AGENT_ACTIVITY_REPORT.md`
+- **Métricas de Calidad**: `mypy --strict` superado (0 errores en todos los módulos), `ruff check` limpio (100% PEP 8).
+
 ### Hito: Identificación y Normalización de Telemetría de la Estación Base Local
 - **Fecha**: 2026-09-28
 - **Estado**: ✅ COMPLETADO — Resolución de procedencia local de telemetría y diagnóstico de hardware (`stats_core`, `stats_radio`, `tuning`, `time`).

@@ -103,6 +103,16 @@ DUTY_CYCLE_LIMIT_PCT = _safe_float("DUTY_CYCLE_LIMIT_PCT", 1.0)           # Lím
 DUTY_CYCLE_WARN_THRESHOLD_PCT = _safe_float("DUTY_CYCLE_WARN_THRESHOLD_PCT", 80.0) # Umbral de advertencia preventiva (80% del límite)
 AIRTIME_HISTORY_FILE = os.getenv("AIRTIME_HISTORY_FILE", os.path.join(DATA_DIR, "airtime_history.json"))
 
+# --- Airtime Cutoff Dinámico (Protección de Espectro LoRa) ---
+AIRTIME_CUTOFF_ENABLED = os.getenv("AIRTIME_CUTOFF_ENABLED", "true").lower() in ("true", "1", "yes")
+AIRTIME_CUTOFF_THRESHOLD_PCT = _safe_float("AIRTIME_CUTOFF_THRESHOLD_PCT", 35.0)  # Suspende sondeos automáticos si ocupación >= 35%
+AIRTIME_CUTOFF_RESUME_PCT = _safe_float("AIRTIME_CUTOFF_RESUME_PCT", 30.0)        # Reanuda cuando ocupación desciende a <= 30%
+
+# --- Pre-Send Delay para Repetidores (Prevención de Colisiones de Eco) ---
+REPEATER_PRE_SEND_DELAY_ENABLED = os.getenv("REPEATER_PRE_SEND_DELAY_ENABLED", "true").lower() in ("true", "1", "yes")
+REPEATER_PRE_SEND_DELAY_S = _safe_float("REPEATER_PRE_SEND_DELAY_S", 2.5)         # Retardo deliberado (segundos) para saltos >= 1
+
+
 # ================= Servidor Web Embebido y Cliente Web SPA =================
 WEB_ENABLED = os.getenv("WEB_ENABLED", "true").lower() in ("true", "1", "yes")
 WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")
@@ -166,6 +176,11 @@ def _validate_config() -> None:
         errors.append(f"DUTY_CYCLE_LIMIT_PCT={DUTY_CYCLE_LIMIT_PCT} must be between 0.01% and 100.0%")
     if not (1.0 <= DUTY_CYCLE_WARN_THRESHOLD_PCT <= 100.0):
         warnings.append(f"DUTY_CYCLE_WARN_THRESHOLD_PCT={DUTY_CYCLE_WARN_THRESHOLD_PCT} is non-standard (use 50-95%)")
+    if not (5.0 <= AIRTIME_CUTOFF_THRESHOLD_PCT <= 95.0):
+        warnings.append(f"AIRTIME_CUTOFF_THRESHOLD_PCT={AIRTIME_CUTOFF_THRESHOLD_PCT} is non-standard (recommended 20-50%)")
+    if not (0.5 <= REPEATER_PRE_SEND_DELAY_S <= 15.0):
+        warnings.append(f"REPEATER_PRE_SEND_DELAY_S={REPEATER_PRE_SEND_DELAY_S} is non-standard (recommended 1.5-5.0s)")
+
 
     import logging as _log
     for w in warnings:

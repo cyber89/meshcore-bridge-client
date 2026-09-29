@@ -193,11 +193,19 @@ class AirtimeTracker:
         warn_threshold_pct: float = 80.0,
         history_file: str | None = None,
         on_alert_callback: Callable[[str, dict[str, Any]], None] | None = None,
+        cutoff_threshold_pct: float = 35.0,
+        cutoff_resume_pct: float = 30.0,
+        cutoff_enabled: bool = True,
+        on_cutoff_change_callback: Callable[[bool, float], None] | None = None,
     ) -> None:
         self.duty_cycle_limit_pct = duty_cycle_limit_pct
         self.warn_threshold_pct = warn_threshold_pct
         self.history_file = history_file
         self.on_alert_callback = on_alert_callback
+        self.cutoff_threshold_pct = cutoff_threshold_pct
+        self.cutoff_resume_pct = cutoff_resume_pct
+        self.cutoff_enabled = cutoff_enabled
+        self.on_cutoff_change_callback = on_cutoff_change_callback
 
         self._history: collections.deque[AirtimeRecord] = collections.deque()
         self.total_airtime_ms: float = 0.0
@@ -207,6 +215,8 @@ class AirtimeTracker:
         self._current_status: str = "normal"  # "normal", "warning", "critical"
         self._last_save_time: float = 0.0
         self._last_tx_time: float | None = None
+        self._channel_utilization_pct: float = 0.0
+        self._cutoff_active: bool = False
 
         if self.history_file:
             self.load_history()
@@ -242,11 +252,16 @@ class AirtimeTracker:
                 except Exception:
                     continue
 
+            self._channel_utilization_pct = float(data.get("channel_utilization_pct", 0.0))
+            if self.cutoff_enabled:
+                self._cutoff_active = bool(data.get("cutoff_active", False))
+
             stats = self.get_stats()
             self._current_status = stats["status_level"]
             logging.info(
                 f"AirtimeTracker: Rehidratados {loaded_count} registros de airtime desde {self.history_file}. "
-                f"Consumo 1h: {stats['hourly_used_ms']}ms ({stats['hourly_duty_cycle_pct']}%), Estado: {self._current_status}."
+                f"Consumo 1h: {stats['hourly_used_ms']}ms ({stats['hourly_duty_cycle_pct']}%), Estado: {self._current_status}, "
+                f"Cutoff: {'ACTIVO' if self._cutoff_active else 'INACTIVO'} ({self._channel_utilization_pct}% ocupación)."
             )
         except Exception as e:
             logging.warning(f"AirtimeTracker: No se pudo cargar historial previo de {self.history_file}: {e}")
@@ -273,6 +288,11 @@ class AirtimeTracker:
                 "warn_threshold_pct": self.warn_threshold_pct,
                 "total_airtime_ms": round(self.total_airtime_ms, 1),
                 "total_packets": self.total_packets,
+                "channel_utilization_pct": round(self._channel_utilization_pct, 2),
+                "cutoff_active": self._cutoff_active,
+                "cutoff_threshold_pct": self.cutoff_threshold_pct,
+                "cutoff_resume_pct": self.cutoff_resume_pct,
+                "cutoff_enabled": self.cutoff_enabled,
                 "records": [r.to_dict() for r in self._history],
             }
             with open(temp_path, "w", encoding="utf-8") as f:
@@ -281,6 +301,7 @@ class AirtimeTracker:
             self._last_save_time = now
         except Exception as e:
             logging.warning(f"AirtimeTracker: Error al persistir historial en {self.history_file}: {e}")
+
 
     def record_tx(self, airtime_ms: float, channel_idx: int = 0, target: str | None = None) -> None:
         """Registra una transmisión realizada y evalúa alertas de umbral progresivo."""
@@ -373,6 +394,11 @@ class AirtimeTracker:
             "is_warning": is_warning,
             "is_critical": is_critical,
             "status_level": status_level,
+            "channel_utilization_pct": round(self._channel_utilization_pct, 2),
+            "cutoff_active": self.is_cutoff_active(),
+            "cutoff_enabled": self.cutoff_enabled,
+            "cutoff_threshold_pct": self.cutoff_threshold_pct,
+            "cutoff_resume_pct": self.cutoff_resume_pct,
             "last_tx_time": self._last_tx_time,
             "channel_stats": {
                 ch: {
@@ -382,6 +408,46 @@ class AirtimeTracker:
                 for ch in self._channel_airtime
             },
         }
+
+    def update_channel_utilization(self, ch_util_pct: float) -> bool:
+        """
+        Actualiza el porcentaje de ocupación del canal LoRa (ChUtil) recibido de telemetría
+        o calculado localmente. Evalúa y conmuta el estado de Airtime Cutoff con histéresis.
+        Retorna True si hubo cambio de estado (activo/inactivo).
+        """
+        val = max(0.0, min(100.0, round(float(ch_util_pct), 2)))
+        self._channel_utilization_pct = val
+        state_changed = False
+
+        if self.cutoff_enabled:
+            if not self._cutoff_active and val >= self.cutoff_threshold_pct:
+                self._cutoff_active = True
+                state_changed = True
+                logging.warning(
+                    f"⚠️ AIRTIME CUTOFF ACTIVADO: Ocupación de canal al {val}% >= {self.cutoff_threshold_pct}%. "
+                    "Sondeos periódicos de telemetría y pings automáticos suspendidos temporalmente."
+                )
+            elif self._cutoff_active and val <= self.cutoff_resume_pct:
+                self._cutoff_active = False
+                state_changed = True
+                logging.info(
+                    f"✅ AIRTIME CUTOFF DESACTIVADO: Ocupación de canal normalizada a {val}% <= {self.cutoff_resume_pct}%. "
+                    "Reanudando sondeos periódicos y tareas normales de red."
+                )
+
+        if state_changed:
+            self.save_history(sync=True)
+            if self.on_cutoff_change_callback:
+                try:
+                    self.on_cutoff_change_callback(self._cutoff_active, self._channel_utilization_pct)
+                except Exception as e:
+                    logging.error(f"Error en on_cutoff_change_callback de AirtimeTracker: {e}")
+
+        return state_changed
+
+    def is_cutoff_active(self) -> bool:
+        """Indica si el Airtime Cutoff está activo (deben suspenderse tareas automáticas no críticas)."""
+        return bool(self.cutoff_enabled and self._cutoff_active)
 
 
 class TxRateLimiter:
@@ -399,6 +465,10 @@ class TxRateLimiter:
         warn_threshold_pct: float = 80.0,
         history_file: str | None = None,
         on_alert_callback: Callable[[str, dict[str, Any]], None] | None = None,
+        cutoff_threshold_pct: float = 35.0,
+        cutoff_resume_pct: float = 30.0,
+        cutoff_enabled: bool = True,
+        on_cutoff_change_callback: Callable[[bool, float], None] | None = None,
     ) -> None:
         self.tx_interval_sec = tx_interval_sec
         self.radio_config = radio_config or LoRaRadioConfig()
@@ -412,10 +482,23 @@ class TxRateLimiter:
             warn_threshold_pct=warn_threshold_pct,
             history_file=history_file,
             on_alert_callback=on_alert_callback,
+            cutoff_threshold_pct=cutoff_threshold_pct,
+            cutoff_resume_pct=cutoff_resume_pct,
+            cutoff_enabled=cutoff_enabled,
+            on_cutoff_change_callback=on_cutoff_change_callback,
         )
         self._seq_counter = 0
         self._worker_task: asyncio.Task[None] | None = None
         self._running = False
+
+    def update_channel_utilization(self, ch_util_pct: float) -> bool:
+        """Actualiza la ocupación de canal y evalúa si activa/desactiva el Airtime Cutoff."""
+        return self.airtime_tracker.update_channel_utilization(ch_util_pct)
+
+    def is_cutoff_active(self) -> bool:
+        """Indica si el Airtime Cutoff dinámico está actualmente activo."""
+        return self.airtime_tracker.is_cutoff_active()
+
 
     def start(self) -> None:
         """Inicia la tarea worker de procesamiento en segundo plano."""

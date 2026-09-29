@@ -31,6 +31,7 @@ class RepeaterManager:
         min_ping_interval_s: float = 15.0,
         min_traceroute_interval_s: float = 60.0,
         min_neighbours_interval_s: float = 30.0,
+        is_cutoff_active_callback: Callable[[], bool] | None = None,
     ) -> None:
         self.transmit_callback = transmit_callback
         self.min_cmd_interval_s = min_cmd_interval_s
@@ -38,17 +39,28 @@ class RepeaterManager:
         self.min_ping_interval_s = min_ping_interval_s
         self.min_traceroute_interval_s = min_traceroute_interval_s
         self.min_neighbours_interval_s = min_neighbours_interval_s
+        self.is_cutoff_active_callback = is_cutoff_active_callback
         self._last_cmd_ts: dict[str, float] = {}
         self._last_full_telemetry_ts: dict[str, float] = {}
         self._last_ping_ts: dict[str, float] = {}
         self._last_traceroute_ts: dict[str, float] = {}
         self._last_neighbours_ts: dict[str, float] = {}
 
-    def check_airtime_cooldown(self, repeater_pk: str, is_full_query: bool = False) -> tuple[bool, float]:
+    def is_airtime_cutoff_active(self) -> bool:
+        """Consulta si el Airtime Cutoff dinámico está activo en el sistema."""
+        return self.is_cutoff_active_callback() if self.is_cutoff_active_callback else False
+
+    def check_airtime_cooldown(
+        self, repeater_pk: str, is_full_query: bool = False, is_automated: bool = False
+    ) -> tuple[bool, float]:
         """
         Verifica si el repetidor ha cumplido su periodo de enfriamiento (cooldown) antes de transmitir.
+        Si la consulta es automática y el Airtime Cutoff está activo, bloquea la transmisión.
         Retorna (puede_enviar: bool, segundos_restantes: float).
         """
+        if is_automated and self.is_airtime_cutoff_active():
+            return False, 999.0
+
         now = time.monotonic()
         clean_pk = repeater_pk.strip().lower()
 
@@ -62,12 +74,18 @@ class RepeaterManager:
         return True, 0.0
 
     def build_cooldown_error_response(self, remaining_cd: float) -> dict[str, Any]:
-        """Construye la respuesta de error 429 estandar para proteccion de airtime LoRa."""
+        """Construye la respuesta de error 429 estándar para protección de airtime LoRa."""
+        if remaining_cd >= 900.0:
+            msg = "Airtime Cutoff Dinámico activo: el canal LoRa supera el umbral de congestión. Consultas automáticas suspendidas temporalmente."
+        else:
+            msg = f"Protección de Airtime LoRa activa. Espere {remaining_cd}s."
+
         return {
             "status": "error",
             "code": 429,
-            "message": f"Protección de Airtime LoRa activa. Espere {remaining_cd}s.",
+            "message": msg,
             "cooldown_remaining": remaining_cd,
+            "cutoff_active": remaining_cd >= 900.0,
         }
 
     def record_command_sent(self, repeater_pk: str, is_full_query: bool = False) -> None:
@@ -78,8 +96,11 @@ class RepeaterManager:
         if is_full_query:
             self._last_full_telemetry_ts[clean_pk] = now
 
-    def check_ping_cooldown(self, target_pk: str) -> tuple[bool, float]:
+    def check_ping_cooldown(self, target_pk: str, is_automated: bool = False) -> tuple[bool, float]:
         """Verifica si ha transcurrido el cooldown mínimo antes de enviar otro ping 0 a target_pk."""
+        if is_automated and self.is_airtime_cutoff_active():
+            return False, 999.0
+
         now = time.monotonic()
         clean_pk = target_pk.strip().lower()
         last_ts = self._last_ping_ts.get(clean_pk, 0.0)
@@ -92,8 +113,11 @@ class RepeaterManager:
         """Registra la emisión de un ping 0 hacia target_pk."""
         self._last_ping_ts[target_pk.strip().lower()] = time.monotonic()
 
-    def check_traceroute_cooldown(self, target_pk: str) -> tuple[bool, float]:
+    def check_traceroute_cooldown(self, target_pk: str, is_automated: bool = False) -> tuple[bool, float]:
         """Verifica si ha transcurrido el cooldown mínimo antes de iniciar otro traceroute a target_pk."""
+        if is_automated and self.is_airtime_cutoff_active():
+            return False, 999.0
+
         now = time.monotonic()
         clean_pk = target_pk.strip().lower()
         last_ts = self._last_traceroute_ts.get(clean_pk, 0.0)
@@ -106,8 +130,11 @@ class RepeaterManager:
         """Registra la emisión de un traceroute hacia target_pk."""
         self._last_traceroute_ts[target_pk.strip().lower()] = time.monotonic()
 
-    def check_neighbours_cooldown(self, target_pk: str) -> tuple[bool, float]:
+    def check_neighbours_cooldown(self, target_pk: str, is_automated: bool = False) -> tuple[bool, float]:
         """Verifica si ha transcurrido el cooldown antes de consultar vecinos de target_pk."""
+        if is_automated and self.is_airtime_cutoff_active():
+            return False, 999.0
+
         now = time.monotonic()
         clean_pk = target_pk.strip().lower()
         last_ts = self._last_neighbours_ts.get(clean_pk, 0.0)
@@ -119,6 +146,7 @@ class RepeaterManager:
     def record_neighbours_sent(self, target_pk: str) -> None:
         """Registra la consulta de vecinos hacia target_pk."""
         self._last_neighbours_ts[target_pk.strip().lower()] = time.monotonic()
+
 
     def build_repeater_command_payload(self, action: str, params: dict[str, Any]) -> str:
         """Construye la cadena de comando en texto para enviar al firmware del repetidor."""

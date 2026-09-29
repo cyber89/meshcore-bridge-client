@@ -408,6 +408,21 @@ class MeshCoreApp {
       }
     });
 
+    this.eventBus.on(EVENTS.AIRTIME_CUTOFF_CHANGE, (payload) => {
+      if (!payload) return;
+      const active = Boolean(payload.active);
+      const chUtil = Number(payload.channel_utilization_pct != null ? payload.channel_utilization_pct : (payload.channel_utilization || 0));
+      const thresh = Number(payload.threshold_pct || 35.0);
+      const resume = Number(payload.resume_pct || 30.0);
+      if (active) {
+        this.showToast(`⚠️ Airtime Cutoff Activo: Ocupación LoRa ${chUtil}% >= ${thresh}%. Tareas automáticas en pausa.`, "warning", 6000);
+      } else {
+        this.showToast(`✅ Airtime Cutoff Restablecido: Ocupación LoRa ${chUtil}% <= ${resume}%. Tareas reanudadas.`, "info", 4000);
+      }
+      this.updateAirtimeBadge({ cutoff_active: active, channel_utilization_pct: chUtil });
+    });
+
+
     this.eventBus.on(EVENTS.RX_PACKET, (payload) => {
       if (!payload) return;
       const evType = String(payload.event || payload.event_type || payload.type || "").toLowerCase();
@@ -445,16 +460,31 @@ class MeshCoreApp {
       fill.className = `header-airtime-fill ${newStatus === "critical" ? "danger" : newStatus}`;
     }
 
+    if (payload.cutoff_active != null) {
+      this._lastCutoffActive = Boolean(payload.cutoff_active);
+    }
+    if (payload.channel_utilization_pct != null) {
+      this._lastChannelUtil = Number(payload.channel_utilization_pct);
+    }
+
     if (chip) {
       chip.classList.toggle("warning", isWarning);
       chip.classList.toggle("danger", isCritical);
       chip.classList.toggle("normal", !isWarning && !isCritical);
-      chip.title = isCritical
+      chip.classList.toggle("airtime-cutoff", Boolean(this._lastCutoffActive));
+
+      let titleStr = isCritical
         ? `ALERTA CRÍTICA: Duty Cycle LoRa al ${pct.toFixed(1)}% (Límite horario ${limitPct}% superado. Transmisiones bloqueadas)`
         : (isWarning
           ? `ADVERTENCIA: Duty Cycle LoRa al ${pct.toFixed(1)}% (Supera el ${warnPct}% del cupo horario)`
           : `Presupuesto de Airtime LoRa y Duty Cycle (1h): ${pct.toFixed(1)}% / ${limitPct}%`);
+
+      if (this._lastCutoffActive) {
+        titleStr += ` | ⚠️ AIRTIME CUTOFF ACTIVO (Ocupación LoRa: ${this._lastChannelUtil || 0}%)`;
+      }
+      chip.title = titleStr;
     }
+
 
     if (this._lastAirtimeStatus && this._lastAirtimeStatus !== newStatus) {
       if (newStatus === "critical") {

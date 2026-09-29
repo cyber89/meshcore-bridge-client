@@ -876,8 +876,46 @@ class RepeaterAdminExecutor:
             except Exception as e:
                 logging.debug(f"Asegurando contacto en radio: {e}")
 
+    def _determine_target_hops(self, dest_target: Any, target_node: str) -> int:
+        """Determina la distancia estimada en saltos hacia el nodo destino."""
+        if isinstance(dest_target, dict):
+            out_path_len = dest_target.get("out_path_len", -1)
+            if isinstance(out_path_len, int) and out_path_len > 0:
+                return out_path_len
+            if dest_target.get("hops") is not None:
+                try:
+                    return int(dest_target["hops"])
+                except Exception:
+                    pass
+        elif hasattr(dest_target, "out_path_len"):
+            val = getattr(dest_target, "out_path_len", -1)
+            if isinstance(val, int) and val > 0:
+                return val
+
+        if hasattr(self._ctx, "node_registry") and self._ctx.node_registry:
+            node = self._ctx.node_registry.get_node(target_node)
+            if node:
+                if hasattr(node, "out_path_len") and isinstance(node.out_path_len, int) and node.out_path_len > 0:
+                    return node.out_path_len
+                if hasattr(node, "hop_count") and isinstance(node.hop_count, int) and node.hop_count > 0:
+                    return node.hop_count
+                if hasattr(node, "hops") and isinstance(node.hops, int) and node.hops > 0:
+                    return node.hops
+                if hasattr(node, "out_path") and node.out_path and len(node.out_path) >= 2:
+                    return len(node.out_path) // 2
+        return 0
+
     async def _send_rf_command(self, mc: Any, dest_target: Any, cmd_text: str, target_node: str, req_id: Any) -> None:
-        """Envía un comando RF usando el método send_cmd del SDK o el fallback de transmisión."""
+        """Envía un comando RF aplicando Pre-Send Delay si el nodo está a múltiples saltos."""
+        hops = self._determine_target_hops(dest_target, target_node)
+        if getattr(config, "REPEATER_PRE_SEND_DELAY_ENABLED", True) and hops >= 1:
+            delay_s = float(getattr(config, "REPEATER_PRE_SEND_DELAY_S", 2.5))
+            logging.info(
+                f"[PRE-SEND-DELAY] Retardando emisión {delay_s}s hacia repetidor {str(target_node)[:8]} "
+                f"({hops} saltos) para evitar colisión con eco LoRa."
+            )
+            await asyncio.sleep(delay_s)
+
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_cmd"):
             try:
                 await mc.commands.send_cmd(dest_target, cmd_text)
@@ -885,6 +923,7 @@ class RepeaterAdminExecutor:
             except Exception as e:
                 logging.debug(f"Fallo send_cmd: {e}")
         await self._ctx.execute_tx({"to": target_node, "text": cmd_text, "request_id": req_id})
+
 
     async def _send_login_fallback(self, rf_ctx: RfExecutionContext, cmd_text: str) -> None:
         """Envía login usando send_login o send_cmd según capacidades."""

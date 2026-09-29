@@ -82,6 +82,12 @@ export class MeshCoreWebSocketClient {
           return;
         }
 
+        if (pType === "airtime_cutoff_change") {
+          this.eventBus.emit(EVENTS.AIRTIME_CUTOFF_CHANGE, payload);
+          return;
+        }
+
+
         this.eventBus.emit(EVENTS.RX_PACKET, payload);
       } catch (err) {
         console.error("Error parseando WebSocket payload:", err);

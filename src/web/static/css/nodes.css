@@ -814,3 +814,20 @@ body.light-theme .header-airtime-track {
     transform: scale(1.02);
   }
 }
+
+.header-airtime-chip.airtime-cutoff {
+  border: 1px dashed var(--accent-warning, #f59e0b) !important;
+  animation: airtimeCutoffPulse 1.8s infinite ease-in-out alternate;
+}
+
+@keyframes airtimeCutoffPulse {
+  0% {
+    opacity: 0.85;
+    filter: drop-shadow(0 0 2px rgba(245, 158, 11, 0.4));
+  }
+  100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.8));
+  }
+}
+

@@ -111,7 +111,12 @@ class MeshCoreBridge:
             warn_threshold_pct=getattr(config, "DUTY_CYCLE_WARN_THRESHOLD_PCT", 80.0),
             history_file=getattr(config, "AIRTIME_HISTORY_FILE", None),
             on_alert_callback=self._on_duty_cycle_alert,
+            cutoff_threshold_pct=getattr(config, "AIRTIME_CUTOFF_THRESHOLD_PCT", 35.0),
+            cutoff_resume_pct=getattr(config, "AIRTIME_CUTOFF_RESUME_PCT", 30.0),
+            cutoff_enabled=getattr(config, "AIRTIME_CUTOFF_ENABLED", True),
+            on_cutoff_change_callback=self._on_airtime_cutoff_change,
         )
+        self.repeater_manager.is_cutoff_active_callback = self.rate_limiter.is_cutoff_active
         self.mqtt = AsyncBridgeMQTTClient(
             config=MQTTConfig(
                 broker=config.MQTT_BROKER,
@@ -861,6 +866,36 @@ class MeshCoreBridge:
                 self.mqtt.publish_safe(alert_topic, json.dumps(payload), qos=1)
             except Exception as e:
                 logging.debug(f"Error publicando duty_cycle_alert en MQTT: {e}")
+
+    def _on_airtime_cutoff_change(self, active: bool, channel_utilization: float) -> None:
+        """Notifica transiciones del Airtime Cutoff dinámico a WebSockets y MQTT."""
+        payload = {
+            "type": "airtime_cutoff_change",
+            "event": "airtime_cutoff_change",
+            "active": active,
+            "channel_utilization_pct": channel_utilization,
+            "threshold_pct": getattr(config, "AIRTIME_CUTOFF_THRESHOLD_PCT", 35.0),
+            "resume_pct": getattr(config, "AIRTIME_CUTOFF_RESUME_PCT", 30.0),
+            "timestamp": time.time(),
+        }
+
+        ws_server = self.web_server
+        if ws_server is not None:
+            try:
+                loop = self._custom_loop or asyncio.get_running_loop()
+                loop.create_task(ws_server.broadcast_event(payload))
+            except RuntimeError:
+                pass
+            except Exception as e:
+                logging.debug(f"Error emitiendo airtime_cutoff_change a WebSockets: {e}")
+
+        if getattr(self, "mqtt", None):
+            try:
+                alert_topic = getattr(config, "TOPIC_ALERT", f"{config.TOPIC_PREFIX}/bridge/alert")
+                self.mqtt.publish_safe(alert_topic, json.dumps(payload), qos=1)
+            except Exception as e:
+                logging.debug(f"Error publicando airtime_cutoff_change en MQTT: {e}")
+
 
     def run_forever(self) -> None:
         """Punto de entrada síncrono que corre el bucle asyncio con manejo de señales y apagado acotado."""

@@ -509,6 +509,15 @@ def _extract_radio_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
         if clean_h is not None:
             res["hops"] = int(round(clean_h))
 
+    for util_k in ("channel_utilization", "ch_util", "air_util_tx", "air_util", "utilization"):
+        if util_k in data and data[util_k] is not None:
+            clean_u = clean_numeric_value(data[util_k])
+            if clean_u is not None:
+                res["channel_utilization"] = round(clean_u, 2)
+                res["ch_util"] = round(clean_u, 2)
+                break
+
+
 
 def _extract_location_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
     """Extrae coordenadas GPS (latitud, longitud, altitud), soportando estructuras anidadas y adverts."""
