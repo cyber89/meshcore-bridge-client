@@ -16,6 +16,9 @@ from src.protocol_types import (
 )
 from src.serial.serial_base import BaseSerialAdapter
 
+# Header (9) + Max LoRa Payload (256) + CRC-16 (2) = 267 bytes
+MAX_FRAME_SIZE: int = 267
+
 
 class RawSerialFramingAdapter(BaseSerialAdapter):
     """
@@ -23,8 +26,14 @@ class RawSerialFramingAdapter(BaseSerialAdapter):
     (SOF 0xAA, EOF 0x55, ESC 0x1B, CRC-16 CCITT).
     """
 
-    def __init__(self, port: str, baud_rate: int = 115200, timeout_sec: float = 30.0) -> None:
-        super().__init__(port, baud_rate, timeout_sec)
+    def __init__(
+        self,
+        port: str,
+        baud_rate: int = 115200,
+        timeout_sec: float = 30.0,
+        node_registry: Any = None,
+    ) -> None:
+        super().__init__(port, baud_rate, timeout_sec, node_registry)
         self._rx_buffer = bytearray()
         self._in_escape = False
         self._in_frame = False
@@ -52,31 +61,48 @@ class RawSerialFramingAdapter(BaseSerialAdapter):
                     self._rx_buffer.clear()
             else:
                 if self._in_escape:
+                    if b in (SOF_BYTE, EOF_BYTE):
+                        # Violación estricta de protocolo: SOF/EOF no pueden escaparse como datos
+                        self._in_frame = False
+                        self._in_escape = False
+                        self._rx_buffer.clear()
+                        logging.warning(f"Violación de framing: delimitador 0x{b:02X} tras ESC. Trama abortada.")
+                        continue
                     self._rx_buffer.append(b ^ ESC_MASK)
                     self._in_escape = False
                 elif b == ESC_BYTE:
                     self._in_escape = True
+                    continue
                 elif b == EOF_BYTE:
                     self._in_frame = False
+                    self._in_escape = False
                     if len(self._rx_buffer) >= 11:  # Min header (9) + CRC (2)
                         try:
                             frame = MeshcoreFrame.parse_raw_packet(bytes(self._rx_buffer), strict=True)
                             frames.append(frame)
                             if self.rx_callback:
-                                self.rx_callback(frame)
+                                try:
+                                    self.rx_callback(frame)
+                                except Exception as e_cb:
+                                    logging.error(f"Error en rx_callback de trama raw: {e_cb}", exc_info=True)
                         except Exception as e:
                             logging.warning(f"Error parseando trama raw (frame rechazado): {e}")
                     self._rx_buffer.clear()
+                    continue
                 elif b == SOF_BYTE:
-                    # Nuevo SOF inesperado: reiniciar buffer
+                    # Nuevo SOF inesperado en medio de trama: reiniciar buffer
                     self._rx_buffer.clear()
                     self._in_escape = False
+                    continue
                 else:
                     self._rx_buffer.append(b)
-                    if len(self._rx_buffer) > 512:
-                        # Protección anti-desbordamiento
-                        self._in_frame = False
-                        self._rx_buffer.clear()
+
+                # Protección anti-desbordamiento universal (rama regular y rama escape)
+                if len(self._rx_buffer) > MAX_FRAME_SIZE:
+                    self._in_frame = False
+                    self._in_escape = False
+                    self._rx_buffer.clear()
+                    logging.warning(f"Desbordamiento de trama raw (> {MAX_FRAME_SIZE} bytes). Trama abortada.")
 
         return frames
 

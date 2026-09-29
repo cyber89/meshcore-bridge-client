@@ -53,6 +53,19 @@ class SerialWatchdog:
             except asyncio.CancelledError:
                 pass
 
+    async def _trigger_reconnect(self) -> bool:
+        """Ejecuta el callback de reconexión de forma segura."""
+        if not self.on_timeout_reconnect:
+            return False
+        try:
+            res = self.on_timeout_reconnect()
+            if asyncio.iscoroutine(res):
+                await res
+            return bool(self.adapter.is_connected)
+        except Exception as e:
+            logging.error(f"Watchdog Serial: Fallo ejecutando callback de reconexión: {e}", exc_info=True)
+            return False
+
     async def _supervise_loop(self) -> None:
         while self._running:
             try:
@@ -63,9 +76,14 @@ class SerialWatchdog:
                     if not self._running:
                         break
                     await asyncio.sleep(step_sleep)
-                    if self.adapter.is_connected and hasattr(self.adapter, "is_hardware_alive"):
-                        if not self.adapter.is_hardware_alive():
-                            logging.warning("Watchdog Serial: Transceptor LoRa desconectado físicamente del puerto USB.")
+                    if self.adapter.is_connected:
+                        try:
+                            if not self.adapter.is_hardware_alive():
+                                logging.warning("Watchdog Serial: Transceptor LoRa desconectado físicamente del puerto USB.")
+                                self.adapter.is_connected = False
+                                break
+                        except Exception as e_hw:
+                            logging.warning(f"Watchdog Serial: Error comprobando presencia física de hardware: {e_hw}")
                             self.adapter.is_connected = False
                             break
 
@@ -88,26 +106,25 @@ class SerialWatchdog:
                         await asyncio.sleep(reconnect_wait)
 
                     self._total_reconnect_attempts += 1
-                    if self.on_timeout_reconnect:
-                        res = self.on_timeout_reconnect()
-                        if asyncio.iscoroutine(res):
-                            await res
-                    if not self.adapter.is_connected:
+                    reconnected = await self._trigger_reconnect()
+                    if not reconnected or not self.adapter.is_connected:
                         self._reconnect_backoff_sec = min(self._reconnect_backoff_sec * 1.5, 30.0)
                     else:
                         self._reconnect_backoff_sec = 5.0
                         self._consecutive_ping_failures = 0
                         self._total_reconnect_attempts = 0
+                        self.adapter.heartbeat()
                     continue
 
                 # 2. CASO CONECTADO: Si no ha habido tráfico RF reciente, verificar vivacidad mediante ping suave
                 if idle_sec > self.timeout_sec:
                     logging.debug(f"Watchdog Serial: Sin tráfico RF en {idle_sec:.1f}s. Comprobando respuesta del transceptor...")
                     try:
-                        is_alive = await asyncio.wait_for(self.adapter.ping_or_check_alive(), timeout=10.0)
-                    except asyncio.TimeoutError:
+                        is_alive = bool(await asyncio.wait_for(self.adapter.ping_or_check_alive(), timeout=10.0))
+                    except (asyncio.TimeoutError, Exception) as ping_err:
                         is_alive = False
-                        logging.warning("Watchdog ping timeout")
+                        logging.warning(f"Watchdog Serial: Ping o comprobación de vivacidad falló: {ping_err}")
+
                     if is_alive:
                         # El nodo local responde perfectamente al ping (solo hay silencio de radio en la malla)
                         self._consecutive_ping_failures = 0
@@ -126,11 +143,9 @@ class SerialWatchdog:
                                 "Iniciando ciclo de reconexión segura..."
                             )
                             self._consecutive_ping_failures = 0
-                            if self.on_timeout_reconnect:
-                                res = self.on_timeout_reconnect()
-                                if asyncio.iscoroutine(res):
-                                    await res
-                            self.adapter.heartbeat()
+                            reconnected = await self._trigger_reconnect()
+                            if reconnected and self.adapter.is_connected:
+                                self.adapter.heartbeat()
                 else:
                     self._consecutive_ping_failures = 0
 
@@ -138,3 +153,5 @@ class SerialWatchdog:
                 break
             except Exception as e:
                 logging.error(f"Error en bucle de supervisión SerialWatchdog: {e}")
+                # Salvaguarda obligatoria anti-spin (Hot Loop prevention)
+                await asyncio.sleep(max(1.0, min(self.interval_sec, 5.0)))

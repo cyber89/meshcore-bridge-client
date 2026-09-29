@@ -5,15 +5,16 @@ MeshCore Official SDK Adapter (meshcore_py) for MeshCore Bridge.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
-import os
 import re
 import time
 from collections.abc import Callable
-from typing import Any, cast
+from typing import Any
 
 from src.protocol_types import MeshCoreSDKProtocol
-from src.serial.serial_base import BaseSerialAdapter, detect_serial_port
+from src.serial.serial_base import BaseSerialAdapter
+from src.shared_utils import classify_device_role
 from src.target_resolver import TargetResolver
 
 try:
@@ -26,6 +27,65 @@ except ImportError:
 
 __all__ = ["MeshcoreSDKAdapter", "MeshCore", "EventType", "Event"]
 
+
+class _BootWaitSerialConnection:
+    """Wrapper de SerialConnection que añade espera de boot tras apertura del puerto."""
+
+    def __init__(self, inner: Any, boot_wait: float = 5.0) -> None:
+        self._inner = inner
+        self._boot_wait = boot_wait
+        self._disconnect_callback: Any = None
+
+    @property
+    def transport(self) -> Any:
+        return getattr(self._inner, "transport", None)
+
+    @transport.setter
+    def transport(self, val: Any) -> None:
+        if hasattr(self._inner, "transport"):
+            self._inner.transport = val
+
+    @property
+    def reader(self) -> Any:
+        return getattr(self._inner, "reader", None)
+
+    @reader.setter
+    def reader(self, val: Any) -> None:
+        if hasattr(self._inner, "reader"):
+            self._inner.reader = val
+
+    @property
+    def _connected_event(self) -> Any:
+        return getattr(self._inner, "_connected_event", None)
+
+    @property
+    def _background_tasks(self) -> Any:
+        return getattr(self._inner, "_background_tasks", None)
+
+    async def connect(self) -> Any:
+        result = await self._inner.connect()
+        if result is not None:
+            logging.debug(
+                f"Puerto {getattr(self._inner, 'port', '?')} abierto. "
+                f"Esperando {self._boot_wait}s de boot del ESP32-S3..."
+            )
+            await asyncio.sleep(self._boot_wait)
+        return result
+
+    async def disconnect(self) -> None:
+        await self._inner.disconnect()
+
+    async def send(self, data: Any) -> None:
+        await self._inner.send(data)
+
+    def set_reader(self, reader: Any) -> None:
+        self._inner.set_reader(reader)
+
+    def set_disconnect_callback(self, callback: Any) -> None:
+        self._disconnect_callback = callback
+        self._inner.set_disconnect_callback(callback)
+
+
 class MeshcoreSDKAdapter(BaseSerialAdapter):
     """Adaptador principal basado en el SDK oficial meshcore_py."""
 
@@ -36,13 +96,13 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         timeout_sec: float = 30.0,
         node_registry: Any = None,
     ) -> None:
-        super().__init__(port, baud_rate, timeout_sec)
-        self.node_registry = node_registry
+        super().__init__(port, baud_rate, timeout_sec, node_registry)
         self.mc: MeshCoreSDKProtocol | Any = None
         self._initial_sync_task: asyncio.Task[None] | None = None
         self._self_info: dict[str, Any] | None = None
         self._sdk_dispatch_cache: dict[Any, Callable[[Any], Any]] | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._background_tasks: set[asyncio.Task[Any]] = set()
 
     @property
     def self_info(self) -> Any:
@@ -74,14 +134,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             await asyncio.sleep(0.5)
 
         try:
-            # Re-detectar puerto dinámicamente si no está fijado estáticamente o si es formato Unix en Windows
-            port_str = str(self.port or "")
-            if not port_str.startswith("tcp://") and (
-                port_str.upper() in ("AUTO", "DETECT", "DEFAULT", "")
-                or not port_str
-                or (os.name == "nt" and port_str.startswith("/dev/"))
-            ):
-                self.port = detect_serial_port()
+            self.port = self.resolve_port(self.port)
 
             if self.port.startswith("tcp://"):
                 addr = self.port.replace("tcp://", "")
@@ -97,50 +150,8 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                         await self.mc.connect()
             else:
                 logging.info(f"Iniciando conexión MeshCore SDK en puerto {self.port} ({self.baud_rate} baud)...")
-                # Solución definitiva: inyectamos el sleep de boot DENTRO del SerialConnection.connect()
-                # mediante una subclase que añade la espera tras la apertura del puerto USB-CDC.
-                # Así mc.connect() gestiona correctamente dispatcher, suscriptores y timeouts internos
-                # sin conflictos con asyncio.wait_for externos.
-                _BOOT_WAIT_SEC = 5.0    # espera post-apertura para boot del ESP32-S3 (reset vía DTR/RTS)
-                _MC_TOTAL_TIMEOUT = 35.0  # timeout total = boot(5s) + SDK default_timeout(15s) + margen
-
-                class _BootWaitSerialConnection:
-                    """Wrapper de SerialConnection que añade espera de boot tras apertura del puerto."""
-                    def __init__(self, inner: Any, boot_wait: float) -> None:
-                        self._inner = inner
-                        self._boot_wait = boot_wait
-                        # Exponer todos los atributos del inner para que MeshCore funcione normalmente
-                        self.transport = inner.transport
-                        self.reader = inner.reader
-                        self._connected_event = inner._connected_event
-                        self._disconnect_callback: Any = None
-                        self._background_tasks = inner._background_tasks
-
-                    async def connect(self) -> Any:
-                        result = await self._inner.connect()
-                        if result is not None:
-                            logging.debug(
-                                f"Puerto {self._inner.port} abierto. "
-                                f"Esperando {self._boot_wait}s de boot del ESP32-S3..."
-                            )
-                            await asyncio.sleep(self._boot_wait)
-                        return result
-
-                    async def disconnect(self) -> None:
-                        await self._inner.disconnect()
-
-                    async def send(self, data: Any) -> None:
-                        # Mantener transport sincronizado (puede cambiar tras connect)
-                        self._inner.transport = self._inner.transport
-                        await self._inner.send(data)
-
-                    def set_reader(self, reader: Any) -> None:
-                        self._inner.set_reader(reader)
-                        self.reader = reader
-
-                    def set_disconnect_callback(self, callback: Any) -> None:
-                        self._disconnect_callback = callback
-                        self._inner.set_disconnect_callback(callback)
+                _BOOT_WAIT_SEC = 5.0
+                _MC_TOTAL_TIMEOUT = max(35.0, self.timeout_sec + 5.0)
 
                 _mc_raw: Any = None
                 try:
@@ -149,9 +160,6 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                     cx_wrapped = _BootWaitSerialConnection(cx_inner, _BOOT_WAIT_SEC)
                     _mc_raw = MeshCore(cx_wrapped, auto_reconnect=True)
 
-                    # mc.connect() = dispatcher.start() + connection_manager.connect() + send_appstart()
-                    # El wrapper añade el sleep de boot DENTRO de connection_manager.connect()
-                    # antes de que mc.connect() llame a send_appstart() — sincronización perfecta.
                     res_app = await asyncio.wait_for(_mc_raw.connect(), timeout=_MC_TOTAL_TIMEOUT)
 
                     if res_app is not None and getattr(res_app, "type", None) != EventType.ERROR:
@@ -184,7 +192,6 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                 except Exception as ex_init:
                     logging.error(f"Error inesperado conectando con MeshCore SDK en {self.port}: {ex_init}", exc_info=True)
                 finally:
-                    # Garantizar limpieza del dispatcher si la conexión no se completó
                     if _mc_raw is not None:
                         try:
                             await asyncio.wait_for(_mc_raw.disconnect(), timeout=1.5)
@@ -215,12 +222,14 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             logging.info("MeshCore SDK conectado e iniciado exitosamente.")
             self._initial_sync_task = asyncio.create_task(self._initial_hardware_sync())
         except asyncio.CancelledError:
-            pass
+            self.is_connected = False
+            raise
         except Exception as e:
             logging.error(f"Error conectando con MeshCore SDK: {e}", exc_info=True)
             self.is_connected = False
 
     async def disconnect(self) -> None:
+        self.is_connected = False
         if self._initial_sync_task and not self._initial_sync_task.done():
             self._initial_sync_task.cancel()
             try:
@@ -228,6 +237,19 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             except (asyncio.CancelledError, asyncio.TimeoutError, Exception):
                 pass
             self._initial_sync_task = None
+
+        # Drenar y cancelar tareas en segundo plano
+        for task in list(self._background_tasks):
+            task.cancel()
+        if self._background_tasks:
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*self._background_tasks, return_exceptions=True),
+                    timeout=1.0
+                )
+            except Exception:
+                pass
+            self._background_tasks.clear()
 
         if self.mc:
             try:
@@ -249,7 +271,6 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             finally:
                 self.mc = None
         self._self_info = None
-        self.is_connected = False
 
     def is_hardware_alive(self) -> bool:
         """Verifica si el transceptor USB / TCP sigue presente en el sistema operativo y operativo."""
@@ -302,8 +323,21 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         if not self.is_hardware_alive():
             self.is_connected = False
             return False
+
+        # Si hay comandos disponibles, verificar con timeout activo
+        if self.mc and hasattr(self.mc, "commands"):
+            try:
+                cmds = self.mc.commands
+                if hasattr(cmds, "has_connection"):
+                    res = await asyncio.wait_for(cmds.has_connection(), timeout=3.0)
+                    if res is not None:
+                        self.heartbeat()
+                        return True
+            except Exception as e_ping:
+                logging.debug(f"Comprobación activa con has_connection devolvió excepción: {e_ping}")
+
         self.heartbeat()
-        return True
+        return bool(self.is_hardware_alive())
 
     def _register_event_handlers(self) -> None:
         if not self.mc:
@@ -327,30 +361,36 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         if not hasattr(self.mc, "subscribe"):
             return
 
+        def _make_handler(et: Any) -> Callable[[Any], None]:
+            def _handler(event: Any) -> None:
+                try:
+                    loop = self._loop
+                    if loop is None or loop.is_closed():
+                        try:
+                            loop = asyncio.get_running_loop()
+                        except RuntimeError:
+                            pass
+                    if loop and loop.is_running():
+                        try:
+                            running = asyncio.get_running_loop()
+                            if running is loop:
+                                task = loop.create_task(self._on_sdk_event(et, event))
+                                self._background_tasks.add(task)
+                                task.add_done_callback(self._background_tasks.discard)
+                                return
+                        except RuntimeError:
+                            pass
+                        fut = asyncio.run_coroutine_threadsafe(self._on_sdk_event(et, event), loop)
+                        fut.add_done_callback(
+                            lambda f: logging.debug(f"SDK event fut done: {f.exception()}") if f.exception() else None
+                        )
+                except Exception as ex:
+                    logging.debug(f"Error despachando evento SDK {et}: {ex}")
+            return _handler
+
         if EventType:
             for ev_type in EventType:
                 try:
-                    def _make_handler(et: Any) -> Any:
-                        def _handler(event: Any) -> None:
-                            try:
-                                loop = self._loop
-                                if loop is None or loop.is_closed():
-                                    try:
-                                        loop = asyncio.get_running_loop()
-                                    except RuntimeError:
-                                        pass
-                                if loop and loop.is_running():
-                                    try:
-                                        running = asyncio.get_running_loop()
-                                        if running is loop:
-                                            loop.create_task(self._on_sdk_event(et, event))
-                                            return
-                                    except RuntimeError:
-                                        pass
-                                    asyncio.run_coroutine_threadsafe(self._on_sdk_event(et, event), loop)
-                            except Exception as ex:
-                                logging.debug(f"Error despachando evento SDK {et}: {ex}")
-                        return _handler
                     self.mc.subscribe(ev_type, _make_handler(ev_type))
                 except Exception as e:
                     logging.debug(f"Suscripción a evento {ev_type}: {e}")
@@ -475,7 +515,6 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         # Sincronizar automáticamente el reloj RTC del ESP32 con la hora del host para eliminar desfase
         if hasattr(cmds, "set_time"):
             try:
-                import time
                 await cmds.set_time(int(time.time()))
                 await asyncio.sleep(0.15)
             except Exception as e:
@@ -668,17 +707,42 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         if not self.is_connected or not self.mc:
             raise ConnectionError("MeshCore SDK no conectado")
 
+        # 1. Validación estricta de MTU LoRa
+        raw_bytes = text.encode("utf-8")
+        if len(raw_bytes) > 238:
+            raise ValueError(f"Payload de mensaje excede MTU de LoRa ({len(raw_bytes)} > 238 bytes)")
+
+        # 2. Validación estricta de rango de canal
+        safe_ch = int(channel_idx) if channel_idx is not None else 0
+        if not (0 <= safe_ch <= 15):
+            raise ValueError(f"Índice de canal inválido ({safe_ch}). Debe estar en el rango 0..15.")
+
         target_clean = str(target).strip() if target else ""
         is_dm = bool(
             target_clean
             and target_clean.upper() not in ("0xFFFF", "BROADCAST", "PUBLIC", "ALL", "GLOBAL", "NONE", "")
             and not target_clean.lower().startswith("channel")
         )
-        safe_ch = int(channel_idx) if channel_idx is not None else 0
 
         # Canal público vs mensaje directo (DM)
         if is_dm:
             dest_target = self._resolve_target(target_clean)
+            dest_target_str = str(dest_target).lower()
+
+            # AGENTS.md Regla 1.1: NUNCA permitir mensajería de chat hacia repetidores
+            if self.node_registry:
+                node = self.node_registry.get_by_key_or_prefix(dest_target_str) or self.node_registry.find_by_name(target_clean)
+                if node and str(getattr(node, "role", "")).upper() in ("REPEATER", "ROUTER"):
+                    raise ValueError(
+                        f"Envío de chat prohibido: el nodo '{target_clean}' es un REPEATER de infraestructura (AGENTS.md Regla 1.1)"
+                    )
+
+            # AGENTS.md Regla 1.1: NUNCA permitir envío dirigido a la clave propia local (bucle local prohibido)
+            local_pk = ""
+            if self.self_info and isinstance(self.self_info, dict):
+                local_pk = str(self.self_info.get("public_key", self.self_info.get("key", ""))).lower()
+            if local_pk and (dest_target_str.startswith(local_pk) or local_pk.startswith(dest_target_str)):
+                raise ValueError("Bucle local prohibido: no se puede enviar mensaje al propio nodo local (AGENTS.md Regla 1.1)")
 
             # Asegurar contacto en la radio antes de transmitir
             await self._ensure_contact_for_tx(dest_target, target_clean)
@@ -696,6 +760,19 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                 res = await self.mc.commands.send_msg(text)
             else:
                 raise NotImplementedError("send_chan_msg no soportado en este SDK")
+
+        # Comprobar si el SDK reportó error explícito
+        if res is not None:
+            res_type = getattr(res, "type", None)
+            if EventType is not None and res_type == EventType.ERROR:
+                err_msg = str(getattr(res, "payload", "Error reportado por MeshCore SDK"))
+                logging.warning(f"MeshCore SDK devolvió EventType.ERROR al enviar mensaje: {err_msg}")
+                return {
+                    "status": "ERROR",
+                    "reason": err_msg,
+                    "response": str(res),
+                    "event": res,
+                }
 
         expected_ack_hex = None
         if res is not None and hasattr(res, "payload") and isinstance(res.payload, dict):
@@ -892,21 +969,17 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             elif len(clean_psk) == 16:
                 secret_bytes = clean_psk.encode("utf-8")
             else:
-                import hashlib
                 secret_bytes = hashlib.sha256(clean_psk.encode("utf-8")).digest()[:16]
         elif name.startswith("#"):
-            import hashlib
             secret_bytes = hashlib.sha256(name.encode("utf-8")).digest()[:16]
         else:
             secret_bytes = b"\x00" * 16
 
+        chan_hash_hex = hashlib.sha256(secret_bytes).hexdigest()[:2]
+
         try:
             if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "set_channel"):
                 res = await self.mc.commands.set_channel(index, name, secret_bytes)
-            elif hasattr(self.mc, "commands") and hasattr(self.mc.commands, "send_cmd"):
-                clean_ch_name = name.strip().replace('"', "")
-                cmd_str = f'set_chan {index} "{clean_ch_name}" {psk}'
-                res = await self.mc.commands.send_cmd(cmd_str)
             else:
                 res = "OK"
 
@@ -918,14 +991,29 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                     if isinstance(packet_parser.channels, list):
                         if len(packet_parser.channels) <= index:
                             packet_parser.channels.extend([{} for _ in range(1 + index - len(packet_parser.channels))])
-                        packet_parser.channels[index] = {"channel_idx": index, "channel_name": name, "channel_secret": secret_bytes}
+                        packet_parser.channels[index] = {
+                            "channel_idx": index,
+                            "channel_name": name,
+                            "channel_secret": secret_bytes,
+                            "channel_hash": chan_hash_hex,
+                        }
                 if hasattr(self.mc, "channels"):
                     if isinstance(self.mc.channels, dict):
-                        self.mc.channels[index] = {"index": index, "name": name, "psk": psk}
+                        self.mc.channels[index] = {
+                            "index": index,
+                            "name": name,
+                            "psk": psk,
+                            "channel_hash": chan_hash_hex,
+                        }
                     elif isinstance(self.mc.channels, list):
                         if len(self.mc.channels) <= index:
                             self.mc.channels.extend([{} for _ in range(1 + index - len(self.mc.channels))])
-                        self.mc.channels[index] = {"index": index, "name": name, "psk": psk}
+                        self.mc.channels[index] = {
+                            "index": index,
+                            "name": name,
+                            "psk": psk,
+                            "channel_hash": chan_hash_hex,
+                        }
             except Exception as e:
                 logging.debug(f"Error actualizando canal {index} en memoria del SDK: {e}")
 
@@ -964,10 +1052,6 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         try:
             if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "set_channel"):
                 res = await self.mc.commands.set_channel(index, "", zero_secret)
-                return {"status": "OK", "response": str(res)}
-            if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "send_cmd"):
-                cmd_str = f'remove_channel {index}'
-                res = await self.mc.commands.send_cmd(cmd_str)
                 return {"status": "OK", "response": str(res)}
         except Exception as e:
             logging.warning(f"Fallo eliminando canal {index} en el transceptor serial: {e}")
@@ -1075,7 +1159,6 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                         norm_pk = pk.strip().lower()
                         my_pk = str(getattr(self, "public_key", "") or getattr(self.mc, "public_key", "")).strip().lower()
                         is_local_contact = bool(my_pk and (norm_pk == my_pk or (len(my_pk) >= 6 and len(norm_pk) >= 6 and (my_pk.startswith(norm_pk) or norm_pk.startswith(my_pk)))))
-                        from src.shared_utils import classify_device_role
                         role = classify_device_role(raw_type, is_local_contact)
 
                         imported_contacts.append({
@@ -1095,60 +1178,37 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
         return imported_contacts
 
-    async def get_channel(self, index: int) -> dict[str, Any] | None:
-        if not self.is_connected or not self.mc:
-            return None
-        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "get_channel"):
-            return cast(dict[str, Any] | None, await self.mc.commands.get_channel(index))
-        return None
-
-    async def get_stats(self) -> dict[str, Any] | None:
-        if not self.is_connected or not self.mc:
-            return None
-        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "get_stats"):
-            return cast(dict[str, Any] | None, await self.mc.commands.get_stats())
-        return None
-
-    async def device_query(self) -> dict[str, Any] | None:
-        if not self.is_connected or not self.mc:
-            return None
-        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "device_query"):
-            return cast(dict[str, Any] | None, await self.mc.commands.device_query())
-        return None
-
     async def share_contact(self, contact_key: str) -> Any:
         if not self.is_connected or not self.mc:
             return None
         if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "share_contact"):
-            return await self.mc.commands.share_contact(contact_key)
+            try:
+                return await asyncio.wait_for(self.mc.commands.share_contact(contact_key), timeout=10.0)
+            except Exception as e:
+                logging.warning(f"Error compartiendo contacto en radio: {e}")
+                return None
         return None
 
     async def export_contact(self, contact_key: str | None = None) -> Any:
         if not self.is_connected or not self.mc:
             return None
         if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "export_contact"):
-            return await self.mc.commands.export_contact(contact_key)
+            try:
+                return await asyncio.wait_for(self.mc.commands.export_contact(contact_key), timeout=10.0)
+            except Exception as e:
+                logging.warning(f"Error exportando contacto desde radio: {e}")
+                return None
         return None
 
     async def import_contact(self, contact_data: bytes) -> Any:
         if not self.is_connected or not self.mc:
             return None
         if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "import_contact"):
-            return await self.mc.commands.import_contact(contact_data)
-        return None
-
-    async def send_login(self, target_node: str, password: str) -> Any:
-        if not self.is_connected or not self.mc:
-            return None
-        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "send_login"):
-            return await self.mc.commands.send_login(target_node, password)
-        return None
-
-    async def logout(self, target_node: str) -> Any:
-        if not self.is_connected or not self.mc:
-            return None
-        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "logout"):
-            return await self.mc.commands.logout(target_node)
+            try:
+                return await asyncio.wait_for(self.mc.commands.import_contact(contact_data), timeout=10.0)
+            except Exception as e:
+                logging.warning(f"Error importando contacto a radio: {e}")
+                return None
         return None
 
     def resolve_sender_name(self, prefix_or_key: str) -> str:
@@ -1170,123 +1230,3 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             except Exception as ex:
                 logging.debug(f"Error resolviendo nombre de contacto para prefijo {prefix_str}: {ex}")
         return prefix_str
-
-
-
-    async def get_stats_core(self) -> Any:
-        if not self.is_connected or not self.mc:
-            return None
-        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "get_stats_core"):
-            return await self.mc.commands.get_stats_core()
-        return None
-
-    async def get_stats_radio(self) -> Any:
-        if not self.is_connected or not self.mc:
-            return None
-        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "get_stats_radio"):
-            return await self.mc.commands.get_stats_radio()
-        return None
-
-    async def get_stats_packets(self) -> Any:
-        if not self.is_connected or not self.mc:
-            return None
-        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "get_stats_packets"):
-            return await self.mc.commands.get_stats_packets()
-        return None
-
-    async def get_autoadd_config(self) -> Any:
-        # Note: the sdk doesn't have a direct get_autoadd_config, but we return from self_info
-        if hasattr(self, "self_info") and isinstance(self.self_info, dict):
-            return self.self_info.get("manual_add_contacts")
-        return None
-
-    async def set_autoadd_config(self, flag: bool) -> Any:
-        if not self.is_connected or not self.mc:
-            return None
-        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "set_manual_add_contacts"):
-            return await self.mc.commands.set_manual_add_contacts(flag)
-        return None
-
-    async def set_other_params_from_infos(self, infos: dict[str, Any]) -> Any:
-        if not self.is_connected or not self.mc:
-            return None
-        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "set_other_params_from_infos"):
-            return await self.mc.commands.set_other_params_from_infos(infos)
-        return None
-
-    async def get_advert_path(self, key: str) -> Any:
-        if not self.is_connected or not self.mc:
-            return None
-        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "get_advert_path"):
-            return await self.mc.commands.get_advert_path(key)
-        return None
-
-    async def get_contact_by_key(self, pubkey: str) -> Any:
-        if not self.is_connected or not self.mc:
-            return None
-        if hasattr(self.mc, "get_contact_by_key"):
-            return self.mc.get_contact_by_key(pubkey)
-        return None
-
-    async def send_path_discovery_sync(self, dst: str) -> Any:
-        if not self.is_connected or not self.mc:
-            return None
-        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "send_path_discovery_sync"):
-            return await self.mc.commands.send_path_discovery_sync(dst)
-        return None
-
-    async def set_flood_scope(self, scope: int) -> Any:
-        if not self.is_connected or not self.mc:
-            return None
-        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "set_flood_scope"):
-            return await self.mc.commands.set_flood_scope(scope)
-        return None
-
-    async def get_default_flood_scope(self) -> Any:
-        if not self.is_connected or not self.mc:
-            return None
-        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "get_default_flood_scope"):
-            return await self.mc.commands.get_default_flood_scope()
-        return None
-
-    async def set_devicepin(self, pin: int) -> Any:
-        if not self.is_connected or not self.mc:
-            return None
-        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "set_devicepin"):
-            return await self.mc.commands.set_devicepin(pin)
-        return None
-
-    async def set_time(self, val: int) -> Any:
-        if not self.is_connected or not self.mc:
-            return None
-        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "set_time"):
-            return await self.mc.commands.set_time(val)
-        return None
-
-    async def has_connection(self) -> Any:
-        if not self.is_connected or not self.mc:
-            return None
-        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "has_connection"):
-            return await self.mc.commands.has_connection()
-        return None
-
-    async def set_path_hash_mode(self, mode: int) -> Any:
-        if not self.is_connected or not self.mc:
-            return None
-        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "set_path_hash_mode"):
-            return await self.mc.commands.set_path_hash_mode(mode)
-        return None
-
-    async def req_status_sync(self, contact: Any, timeout: float = 0, min_timeout: float = 0) -> Any:
-        if not self.is_connected or not self.mc:
-            return None
-        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "req_status_sync"):
-            return await self.mc.commands.req_status_sync(contact, timeout=timeout, min_timeout=min_timeout)
-        return None
-
-    async def req_telemetry_sync(self, contact: Any, timeout: float = 0, min_timeout: float = 0) -> Any:
-        if not self.is_connected or not self.mc:
-            return None
-        if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "req_telemetry_sync"):
-            return await self.mc.commands.req_telemetry_sync(contact, timeout=timeout, min_timeout=min_timeout)
-        return None

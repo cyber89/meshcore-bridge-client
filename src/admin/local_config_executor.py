@@ -572,11 +572,8 @@ class LocalConfigExecutor:
                     mc._self_info.update(update_fields)
 
             ser = getattr(self._ctx, "serial_adapter", None)
-            if ser:
-                if hasattr(ser, "_self_info") and isinstance(ser._self_info, dict):
-                    ser._self_info.update(update_fields)
-                if hasattr(ser, "self_info") and isinstance(ser.self_info, dict):
-                    ser.self_info.update(update_fields)
+            if ser and hasattr(ser, "self_info") and isinstance(ser.self_info, dict):
+                ser.self_info.update(update_fields)
 
             rl = getattr(self._ctx, "rate_limiter", None)
             if rl and hasattr(rl, "radio_config") and rl.radio_config:

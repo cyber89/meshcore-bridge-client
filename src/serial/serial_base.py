@@ -20,9 +20,20 @@ def detect_serial_port() -> str:
         for p in ports:
             desc = (p.description or "").lower()
             hwid = (p.hwid or "").lower()
-            if any(k in desc or k in hwid for k in ("heltec", "cp210", "ch340", "ch341", "ftdi", "uart", "acm", "usb serial", "usb-serial", "espressif", "t-beam", "rak", "com")):
+            if any(k in desc or k in hwid for k in (
+                "heltec", "cp210", "ch340", "ch341", "ftdi", "uart", "acm",
+                "usb serial", "usb-serial", "espressif", "t-beam", "rak",
+                "silicon labs", "wch"
+            )):
                 return str(p.device)
+        # Fallback: preferir puertos explícitamente USB antes que COM de placa madre
+        usb_ports = [p for p in ports if "usb" in (p.hwid or "").lower() or "usb" in (p.description or "").lower()]
+        if usb_ports:
+            return str(usb_ports[0].device)
         if ports:
+            non_com1 = [p for p in ports if str(p.device).upper() != "COM1"]
+            if non_com1:
+                return str(non_com1[0].device)
             return str(ports[0].device)
     except Exception as e:
         logging.warning(f"Error detecting serial port: {e}", exc_info=True)
@@ -32,18 +43,29 @@ def detect_serial_port() -> str:
 class BaseSerialAdapter(abc.ABC):
     """Interfaz abstracta para adaptadores de comunicación serial con hardware MeshCore."""
 
-    def __init__(self, port: str, baud_rate: int = 115200, timeout_sec: float = 30.0) -> None:
+    @classmethod
+    def resolve_port(cls, port: str) -> str:
+        """Resuelve el puerto serial canónico aplicando auto-detección segura si se solicita."""
         port_clean = str(port or "").strip()
         if not port_clean.startswith("tcp://") and (
             port_clean.upper() in ("AUTO", "DETECT", "DEFAULT", "")
             or not port_clean
             or (os.name == "nt" and port_clean.startswith("/dev/"))
         ):
-            self.port = detect_serial_port()
-        else:
-            self.port = port_clean
+            return detect_serial_port()
+        return port_clean
+
+    def __init__(
+        self,
+        port: str,
+        baud_rate: int = 115200,
+        timeout_sec: float = 30.0,
+        node_registry: Any = None,
+    ) -> None:
+        self.port = self.resolve_port(port)
         self.baud_rate = baud_rate
         self.timeout_sec = timeout_sec
+        self.node_registry = node_registry
         self.is_connected = False
         self.rx_callback: Callable[[Any], None] | None = None
         self.companion_rx_callback: Callable[[bytes], Any] | None = None
@@ -111,18 +133,6 @@ class BaseSerialAdapter(abc.ABC):
         """Verifica si el transceptor local sigue vivo y respondiendo por serial."""
         return self.is_hardware_alive()
 
-    async def get_channel(self, index: int) -> dict[str, Any] | None:
-        """Obtiene la configuración de un canal específico."""
-        return None
-
-    async def get_stats(self) -> dict[str, Any] | None:
-        """Obtiene las estadísticas de la radio."""
-        return None
-
-    async def device_query(self) -> dict[str, Any] | None:
-        """Consulta el estado del dispositivo."""
-        return None
-
     async def share_contact(self, contact_key: str) -> Any:
         """Comparte un contacto con la red."""
         return {"status": "NOT_SUPPORTED"}
@@ -135,58 +145,5 @@ class BaseSerialAdapter(abc.ABC):
         """Importa un contacto hacia el transceptor."""
         return {"status": "NOT_SUPPORTED"}
 
-    async def send_login(self, target_node: str, password: str) -> Any:
-        """Envía credenciales de login a un repetidor remoto."""
-        return {"status": "NOT_SUPPORTED"}
-
-    async def logout(self, target_node: str) -> Any:
-        """Cierra sesión administrativa en un repetidor remoto."""
-        return {"status": "NOT_SUPPORTED"}
-
     def resolve_sender_name(self, prefix_or_key: str) -> str:
         return str(prefix_or_key)
-
-    async def get_stats_core(self) -> Any:
-        return None
-
-    async def get_stats_radio(self) -> Any:
-        return None
-
-    async def get_stats_packets(self) -> Any:
-        return None
-
-    async def get_autoadd_config(self) -> Any:
-        return None
-
-    async def set_autoadd_config(self, flag: bool) -> Any:
-        return None
-
-    async def set_other_params_from_infos(self, infos: dict[str, Any]) -> Any:
-        return None
-
-    async def get_advert_path(self, key: str) -> Any:
-        return None
-
-    async def get_contact_by_key(self, pubkey: str) -> Any:
-        return None
-
-    async def send_path_discovery_sync(self, dst: str) -> Any:
-        return None
-
-    async def set_flood_scope(self, scope: int) -> Any:
-        return None
-
-    async def get_default_flood_scope(self) -> Any:
-        return None
-
-    async def set_devicepin(self, pin: int) -> Any:
-        return None
-
-    async def set_time(self, val: int) -> Any:
-        return None
-
-    async def has_connection(self) -> Any:
-        return None
-
-    async def set_path_hash_mode(self, mode: int) -> Any:
-        return None

@@ -2,6 +2,54 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Auditoría Multi-Agente Integral y Remediación del Subsistema Serial (`src/serial/`)
+- **Fecha**: 2026-09-29
+- **Estado**: ✅ COMPLETADO — Auditoría estática y dinámica exhaustiva conducida en paralelo por el equipo multi-agente (Concurrencia, Protocolo/Seguridad, Clean Code). Detección, reproducción en caliente y corrección total de fallos críticos de bucle caliente en watchdog, fugas de tareas en SDK, sincronización de transporte, desbordamientos de framing y eliminación de 22 métodos huérfanos.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect), Agente 1 (Async Concurrency & Lifecycle Auditor), Agente 2 (Clean Code & Dead Code Auditor), Agente 3 (Protocol & Security Auditor).
+- **Diagnóstico y Análisis**:
+  1. **Concurrencia y Watchdog**:
+     - `SerialWatchdog`: Se detectó y reprodujo la ceguera ante excepciones no-timeout en `ping_or_check_alive()` que impedían incrementar el contador de fallos, la falta de salvaguarda `sleep` en el bloque `except Exception:` del loop de supervisión (riesgo de spin caliente al 100% de CPU), y la renovación incondicional de heartbeat ante fallos de reconexión.
+     - `MeshcoreSDKAdapter`: Fuga de tareas asíncronas no retenidas en `_register_event_handlers` (recolección prematura por GC en Python 3.10+), condición de carrera en `disconnect()`, y typo en la clase `_BootWaitSerialConnection` (`self._inner.transport = self._inner.transport`) que dejaba huérfana la detección de desconexión USB en el SO.
+  2. **Protocolo y Robustez**:
+     - `RawSerialFramingAdapter`: Posible desbordamiento de búfer por falta de control de tamaño en bytes con secuencias de escape alternadas y vulnerabilidad a inyección de delimitadores (EOF/SOF tras byte ESC).
+     - Validación de Reglas Inmutables (`AGENTS.md` Regla 1.1): En `send_message()`, ausencia de comprobación de tamaño máximo MTU (> 238 bytes), rango de canales (0..15), prohibición estricta de envío de chat a repetidores (`REPEATER`/`ROUTER`), prohibición de bucle local contra la propia clave pública del nodo local, y falso reporte de `status: "SENT"` ante errores del SDK.
+     - Canales HMAC: Omisión del cómputo de `channel_hash` al guardar canales en la memoria del SDK, impidiendo el descifrado HMAC en `meshcore_parser.py`. Crash de aridad por invocación incorrecta de `send_cmd(cmd_str)` con 1 parámetro en lugar de 2.
+  3. **Clean Code y Código Huérfano**:
+     - Confirmación de 22 métodos huérfanos y passthrough en `BaseSerialAdapter` y `MeshcoreSDKAdapter` que no eran invocados por ningún controlador del proyecto, simplificando la interfaz del adaptador.
+     - Disparidad de firmas en `BaseSerialAdapter.__init__` respecto a `node_registry`.
+     - Falso positivo en auto-detección de puerto serie en Windows al buscar `"com"` genérico en la descripción del hardware (coincidencia con `COM1` de placa base).
+- **Acciones y Correcciones Realizadas**:
+  1. **`src/serial/watchdog.py`**:
+     - Implementado método auxiliar `_trigger_reconnect()` con manejo de errores y actualización condicional del heartbeat únicamente tras reconexión exitosa.
+     - Captura exhaustiva de `(asyncio.TimeoutError, Exception)` en el ping suave, garantizando incremento riguroso del contador de fallos.
+     - Añadida salvaguarda anti-spin `await asyncio.sleep(max(1.0, min(self.interval_sec, 5.0)))` en el bloque `except Exception:` para prevenir hot-loops.
+  2. **`src/serial/raw_framing.py`**:
+     - Fijada la constante canónica `MAX_FRAME_SIZE = 267` bytes.
+     - Control universal de desbordamiento en cada byte añadido (regular y escapado) con aborto inmediato y limpieza de búfer.
+     - Aborto inmediato de trama ante delimitadores `SOF`/`EOF` inválidos dentro de secuencia de escape.
+     - Aislado el callback `rx_callback` con captura de excepciones para evitar que fallos del llamador colapsen el de-framing.
+  3. **`src/serial/serial_base.py`**:
+     - Refactorizada la función `detect_serial_port()`: retirado `"com"` genérico, añadida lista de chips USB LoRa conocidos y preferencia obligatoria por puertos USB sobre el puerto `COM1` de placa madre.
+     - Unificada la firma de `BaseSerialAdapter.__init__` para soportar `node_registry: Any = None`.
+     - Implementado método de clase canónico `resolve_port(port: str) -> str`.
+     - Eliminados los 20 métodos muertos / cascarones vacíos.
+  4. **`src/serial/sdk_adapter.py`**:
+     - Elevada la clase `_BootWaitSerialConnection` a nivel de módulo con propiedades dinámicas delegadas (`transport`, `reader`, etc.) eliminando la recreación innecesaria en tiempo de ejecución.
+     - Añadido conjunto `_background_tasks: set[asyncio.Task[Any]]` con retención fuerte contra el Garbage Collector y drenado limpio en `disconnect()`.
+     - Establecido `self.is_connected = False` al inicio de `disconnect()` para prevenir carreras de transmisión concurrente.
+     - Validaciones en `send_message()`: MTU ($\le 238$ bytes), rango de canales (0..15), rechazo de DMs a `REPEATER` y prevención de bucles locales hacia la clave pública del host. Detección de `EventType.ERROR` para retornar estado de error real.
+     - Inyección obligatoria de `channel_hash = sha256(secret)[:2]` en `set_channel()`, y eliminación de llamadas inválidas a `send_cmd()`.
+     - Retirados los 22 métodos huérfanos y aplicados timeouts en `share_contact`, `export_contact` e `import_contact`.
+     - Limpieza de imports redundantes (`hashlib`, `time`, `classify_device_role`).
+  5. **`src/bridge_core.py`**:
+     - Eliminado el método huérfano `resolve_recipient_target()` y propagado `node_registry` al fallback de `RawSerialFramingAdapter`.
+  6. **`src/admin/local_config_executor.py`**:
+     - Respetado el encapsulamiento público utilizando `ser.self_info` en lugar de acceder al atributo privado `ser._self_info`.
+- **Verificación y Calidad**:
+  - `mypy --strict src/serial`: **0 errores** (aprobación estricta de tipos completa).
+  - `ruff check src/serial src/bridge_core.py src/admin/local_config_executor.py`: **All checks passed!** (100% conformidad PEP 8).
+  - Suite de pruebas de reproducción y validación en caliente (`test_comprehensive_serial_fixes.py`): **100% pruebas aprobadas**.
+
 ### Hito: Implementación de Airtime Cutoff Dinámico y Pre-Send Delay para Repetidores (Inspirado en MeshMonitor)
 - **Fecha**: 2026-09-28
 - **Estado**: ✅ COMPLETADO — Protección avanzada de espectro LoRa: suspensión automática de tareas periódicas por congestión y retardo deliberado para evitar colisiones de eco con repetidores.
