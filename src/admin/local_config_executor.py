@@ -287,9 +287,11 @@ class LocalConfigExecutor:
         tun_data = extract_payload_dict(tun_res)
         if tun_data and isinstance(tun_data, dict):
             if "rx_delay" in tun_data:
-                self._local_config["rx_delay"] = tun_data["rx_delay"]
+                rx_val = float(tun_data["rx_delay"])
+                self._local_config["rx_delay"] = round(rx_val / 1000.0, 3) if rx_val > 10 else rx_val
             if "airtime_factor" in tun_data:
-                self._local_config["airtime_factor"] = tun_data["airtime_factor"]
+                af_val = float(tun_data["airtime_factor"])
+                self._local_config["airtime_factor"] = round(af_val / 1000.0, 3) if af_val > 10 else af_val
 
         t_res = await safe_device_query(mc, "get_time")
         t_data = extract_payload_dict(t_res)
@@ -666,14 +668,23 @@ class LocalConfigExecutor:
         tuning_keys = ("rx_delay", "airtime_factor", "af", "rx_dly")
         if any(k in params for k in tuning_keys):
             try:
-                rx_dly = int(params.get("rx_delay", params.get("rx_dly", self._local_config.get("rx_delay", 0))))
-                af = int(params.get("airtime_factor", params.get("af", self._local_config.get("airtime_factor", 0))))
-                self._local_config["rx_delay"] = rx_dly
-                self._local_config["airtime_factor"] = af
-                applied["rx_delay"] = rx_dly
-                applied["airtime_factor"] = af
+                raw_rx = params.get("rx_delay", params.get("rx_dly", self._local_config.get("rx_delay", 0)))
+                raw_af = params.get("airtime_factor", params.get("af", self._local_config.get("airtime_factor", 1.0)))
+
+                rx_flt = float(raw_rx)
+                af_flt = float(raw_af)
+                wire_rx = int(round(rx_flt * 1000.0)) if rx_flt <= 10.0 else int(round(rx_flt))
+                wire_af = int(round(af_flt * 1000.0)) if af_flt <= 10.0 else int(round(af_flt))
+
+                stored_rx = rx_flt if rx_flt <= 10.0 else round(rx_flt / 1000.0, 3)
+                stored_af = af_flt if af_flt <= 10.0 else round(af_flt / 1000.0, 3)
+
+                self._local_config["rx_delay"] = stored_rx
+                self._local_config["airtime_factor"] = stored_af
+                applied["rx_delay"] = stored_rx
+                applied["airtime_factor"] = stored_af
                 if mc:
-                    await safe_device_query(mc, "set_tuning", rx_dly, af, timeout=2.0)
+                    await safe_device_query(mc, "set_tuning", wire_rx, wire_af, timeout=2.0)
             except (ValueError, TypeError) as err:
                 logging.warning(f"Parámetros de tuning inválidos: {err}")
 

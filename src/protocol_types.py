@@ -173,8 +173,10 @@ class CommandType(IntEnum):
     GET_AUTOADD_CONFIG = 59
     GET_ALLOWED_REPEAT_FREQ = 60
     SET_PATH_HASH_MODE = 61
+    SEND_CHANNEL_DATA = 62
     SET_DEFAULT_FLOOD_SCOPE = 63
     GET_DEFAULT_FLOOD_SCOPE = 64
+    SEND_RAW_PACKET = 65
 
 
 # Deprecated: Use CommandType instead. FirmwareCommandType was an alias maintained

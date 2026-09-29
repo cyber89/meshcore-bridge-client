@@ -86,6 +86,7 @@ class AdminCommandHandler:
             self._publish_safe,
             self._resolve_target,
             self._wait_for_repeater_response,
+            self.get_local_config,
         )
         self._cli_executor = CliCommandExecutor(
             ctx=self._ctx,

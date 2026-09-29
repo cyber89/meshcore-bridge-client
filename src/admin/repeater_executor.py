@@ -129,12 +129,14 @@ class RepeaterAdminExecutor:
         publish_safe: Callable[[str, str, int], None],
         resolve_target: Callable[[str, int], Any],
         wait_for_repeater_response: Callable[..., Awaitable[dict[str, Any] | None]],
+        get_local_config: Callable[[], dict[str, Any]] | None = None,
     ) -> None:
         self._ctx = ctx
         self._waiters = waiters
         self._publish_safe = publish_safe
         self._resolve_target = resolve_target
         self._wait_for_repeater_response = wait_for_repeater_response
+        self._get_local_config = get_local_config or (lambda: {})
 
     async def execute(self, req: RemoteRepeaterRequest) -> dict[str, Any]:
         """Punto de entrada principal para despachar acciones sobre un repetidor remoto."""
@@ -191,8 +193,24 @@ class RepeaterAdminExecutor:
         dispatched: list[str] = []
 
         if req.password:
-            login_cmd = f"cmd login {req.password}"
-            await self._ctx.execute_tx({"to": str(req.target_node), "text": login_cmd, "request_id": req.req_id})
+            login_sent = False
+            if req.mc and hasattr(req.mc, "commands"):
+                dest_login_target = self._resolve_target(str(req.target_node), 64)
+                if hasattr(req.mc.commands, "send_login_sync"):
+                    try:
+                        await req.mc.commands.send_login_sync(dest_login_target, req.password, min_timeout=3.0)
+                        login_sent = True
+                    except Exception as e:
+                        logging.debug(f"send_login_sync en batch_config falló: {e}")
+                elif hasattr(req.mc.commands, "send_login"):
+                    try:
+                        await req.mc.commands.send_login(dest_login_target, req.password)
+                        login_sent = True
+                    except Exception as e:
+                        logging.debug(f"send_login en batch_config falló: {e}")
+            if not login_sent:
+                login_cmd = f"cmd login {req.password}"
+                await self._ctx.execute_tx({"to": str(req.target_node), "text": login_cmd, "request_id": req.req_id})
             dispatched.append(f"login {'*' * len(req.password)}")
             await asyncio.sleep(0.35)
 
@@ -310,12 +328,24 @@ class RepeaterAdminExecutor:
         norm_target = self._ctx.node_registry.get_canonical_key(str(req.target_node)) or str(req.target_node).strip().lower()
         target_name = str((target_info.get("name") or target_info.get("alias")) if target_info else f"Nodo {norm_target[:8]}")
 
+        # Guarda contra bucle local (Regla Inmutable SSoT 1.1)
+        cfg = self._get_local_config()
+        local_pk = str(cfg.get("public_key", "")).lower().strip()
+        if local_pk and (norm_target == local_pk or norm_target.startswith(local_pk[:12])):
+            return {
+                "status": "error",
+                "error": "Bucle local prohibido: no se pueden enviar pruebas de enlace dirigidas a la propia estación base",
+                "target_node": str(req.target_node),
+            }
+
         waiter_keys = [norm_target, norm_target[:8], norm_target[:4], str(req.target_node).strip().lower()]
         if target_info and target_info.get("name"):
             waiter_keys.append(str(target_info["name"]).lower())
 
         async with self._waiters.expect_response(waiter_keys, include_ping=True) as fut:
-            await self._ensure_radio_contact(req.mc, dest_target, target_name)
+            await self._ensure_radio_contact(
+                req.mc, dest_target, target_name, out_path_override="", out_path_len_override=0
+            )
 
             t_start = time.perf_counter()
             cmd_text = "ping 0"
@@ -568,6 +598,16 @@ class RepeaterAdminExecutor:
         dest_login_target = self._resolve_target(str(req.target_node), 64)
         norm_target = self._ctx.node_registry.get_canonical_key(str(req.target_node)) or str(req.target_node).strip().lower()
 
+        # Guarda contra bucle local (Regla Inmutable SSoT 1.1)
+        cfg = self._get_local_config()
+        local_pk = str(cfg.get("public_key", "")).lower().strip()
+        if local_pk and (norm_target == local_pk or norm_target.startswith(local_pk[:12])):
+            return {
+                "status": "error",
+                "error": "Bucle local prohibido: no se permite enviar comandos dirigidos a la propia estación base",
+                "target_node": str(req.target_node),
+            }
+
         waiter_keys = [norm_target, norm_target[:8], norm_target[:4], str(req.target_node).strip().lower()]
         if target_info and target_info.get("name"):
             waiter_keys.append(str(target_info["name"]).lower())
@@ -590,6 +630,7 @@ class RepeaterAdminExecutor:
             if req.action in (
                 "req_neighbours", "req_neighbors", "neighbours", "neighbors",
                 "req_owner", "req_regions", "req_clock", "req_acl",
+                "req_status", "status", "req_telemetry", "telemetry",
             ):
                 bin_res = await self._try_execute_binary_or_anon(rf_ctx)
                 if bin_res is not None:
@@ -608,10 +649,11 @@ class RepeaterAdminExecutor:
             return None
 
         action = rf_ctx.req.action.lower()
-        target = rf_ctx.dest_target
+        target = rf_ctx.dest_login_target
         cmds = mc.commands
 
         try:
+            data: Any = None
             if action in ("req_neighbours", "req_neighbors", "neighbours", "neighbors"):
                 force = bool(rf_ctx.req.admin_data.get("force", False))
                 if not force and hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "check_neighbours_cooldown"):
@@ -637,6 +679,36 @@ class RepeaterAdminExecutor:
                         "message": f"{data.get('results_count', 0)} vecinos directos descubiertos por radio",
                     })
                     self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{rf_ctx.req.target_node}/neighbours", json.dumps(rf_ctx.res), 1)
+                    return rf_ctx.res
+
+            elif action in ("req_status", "status") and hasattr(cmds, "req_status_sync"):
+                data = await cmds.req_status_sync(target, min_timeout=4.0)
+                if data is not None and isinstance(data, dict):
+                    rf_ctx.res.update({
+                        "status": "ok",
+                        "action": action,
+                        "target_node": str(rf_ctx.req.target_node),
+                        "data": data,
+                        "message": "Estado binario del repetidor obtenido correctamente",
+                    })
+                    if "telemetry" in data and isinstance(data["telemetry"], dict):
+                        rf_ctx.res["telemetry"] = data["telemetry"]
+                        self._update_local_registry_from_params(str(rf_ctx.req.target_node), data["telemetry"])
+                    self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{rf_ctx.req.target_node}/status", json.dumps(rf_ctx.res), 1)
+                    return rf_ctx.res
+
+            elif action in ("req_telemetry", "telemetry") and hasattr(cmds, "req_telemetry_sync"):
+                data = await cmds.req_telemetry_sync(target, min_timeout=4.0)
+                if data is not None and isinstance(data, dict):
+                    rf_ctx.res.update({
+                        "status": "ok",
+                        "action": action,
+                        "target_node": str(rf_ctx.req.target_node),
+                        "telemetry": data,
+                        "message": "Telemetría binaria del repetidor obtenida",
+                    })
+                    self._update_local_registry_from_params(str(rf_ctx.req.target_node), data)
+                    self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{rf_ctx.req.target_node}/telemetry", json.dumps(rf_ctx.res), 1)
                     return rf_ctx.res
 
             elif action in ("req_owner", "owner") and hasattr(cmds, "req_owner_sync"):
@@ -734,7 +806,7 @@ class RepeaterAdminExecutor:
             except Exception as e:
                 logging.debug(f"send_login_sync falló ({e}), usando fallback...")
 
-        if not login_success and error_msg is None:
+        if not login_success:
             await self._send_login_fallback(rf_ctx, cmd_text)
             resp_data = await self._wait_for_repeater_response(req.mc, rf_ctx.fut, timeout=6.0) or {}
             raw_resp = resp_data.get("text") or resp_data.get("message") or ""
@@ -766,13 +838,13 @@ class RepeaterAdminExecutor:
     async def _execute_unit_command(self, rf_ctx: RfExecutionContext) -> dict[str, Any]:
         """Ejecuta un comando unitario con protección de Airtime LoRa."""
         req = rf_ctx.req
-        if req.password and req.action != "login":
-            await self._send_pre_login(rf_ctx)
-            await asyncio.sleep(0.35)
-
         can_send, rem_cd = self._ctx.repeater_manager.check_airtime_cooldown(str(req.target_node), is_full_query=False)
         if not can_send:
             return self._ctx.repeater_manager.build_cooldown_error_response(rem_cd)
+
+        if req.password and req.action != "login":
+            await self._send_pre_login(rf_ctx)
+            await asyncio.sleep(0.35)
 
         cmd_text = self._ctx.repeater_manager.build_repeater_command_payload(req.action, req.admin_data)
         self._ctx.repeater_manager.record_command_sent(str(req.target_node), is_full_query=False)
@@ -812,7 +884,14 @@ class RepeaterAdminExecutor:
     # Helpers Privados de Radio y Registro
     # --------------------------------------------------------------------------
 
-    async def _ensure_radio_contact(self, mc: Any, dest_target: Any, target_name: str) -> None:
+    async def _ensure_radio_contact(
+        self,
+        mc: Any,
+        dest_target: Any,
+        target_name: str,
+        out_path_override: str | None = None,
+        out_path_len_override: int | None = None,
+    ) -> None:
         """Asegura que el nodo destino esté presente en la tabla del firmware."""
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "add_contact"):
             try:
@@ -854,6 +933,11 @@ class RepeaterAdminExecutor:
                     lon = float(getattr(dest_target, "longitude", 0.0) or 0.0)
                 elif isinstance(dest_target, str):
                     pubkey = dest_target.strip()
+
+                if out_path_override is not None:
+                    out_path = out_path_override
+                if out_path_len_override is not None:
+                    out_path_len = out_path_len_override
 
                 if pubkey and len(pubkey) >= 12:
                     full_pk = pubkey.ljust(64, "0")[:64]

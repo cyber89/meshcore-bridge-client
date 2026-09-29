@@ -14,7 +14,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 import config
-from src.shared_utils import extract_payload_dict
+from src.shared_utils import extract_payload_dict, normalize_battery
 
 if TYPE_CHECKING:
     from src.admin_handler import AdminContext
@@ -60,7 +60,9 @@ class CliCommandExecutor:
         register(("board", "hardware", "hw"), self._cli_board)
 
         # 2. Radio LoRa y Parámetros RF
-        register(("radio", "stats_radio", "get_stats_radio", "tuning", "get_tuning", "rf"), self._cli_radio)
+        register(("radio", "rf"), self._cli_radio)
+        register(("stats_radio", "get_stats_radio"), self._cli_stats_radio)
+        register(("tuning", "get_tuning"), self._cli_tuning)
         register(("stats", "stats_core", "get_stats_core", "stats_packets", "stats_all"), self._cli_stats_core)
         register(("packets", "stats_packets", "get_stats_packets"), self._cli_packets)
         register(("channels", "channel", "channel info", "channel_info", "chan", "canales", "get_channels"), self._cli_channels)
@@ -111,7 +113,7 @@ class CliCommandExecutor:
                 else:
                     res = out
             elif act_clean.startswith("set ") or act_clean.startswith("set_"):
-                res = await self._cli_set_param(act_clean, res)
+                res = await self._cli_set_param(act_clean, res, mc)
             else:
                 res["result"] = f"✓ Comando '{action}' procesado correctamente por el firmware MeshCore."
         except Exception as e:
@@ -127,6 +129,44 @@ class CliCommandExecutor:
 
     def _cli_radio(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
         res["result"] = self._cli_radio_info(cfg)
+        return res
+
+    async def _cli_stats_radio(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
+        """Consulta estadísticas de radio en tiempo real desde el transceptor LoRa."""
+        if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_stats_radio"):
+            try:
+                r_res = await mc.commands.get_stats_radio()
+                r_payload = extract_payload_dict(r_res)
+                if r_payload:
+                    tx_air = r_payload.get("tx_air_secs", 0)
+                    rx_air = r_payload.get("rx_air_secs", 0)
+                    noise = r_payload.get("noise_floor", cfg.get("noise_floor_dbm", -118))
+                    res["result"] = (
+                        f"📻 [RADIO STATS] TX Airtime: {tx_air}s | RX Airtime: {rx_air}s | "
+                        f"Piso de Ruido: {noise} dBm"
+                    )
+                    return res
+            except Exception as e:
+                logging.debug(f"Error en get_stats_radio: {e}")
+        res["result"] = self._cli_radio_info(cfg)
+        return res
+
+    async def _cli_tuning(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
+        """Consulta parámetros de sintonización y tiempos de guarda del módem."""
+        rx_dly = cfg.get("rx_delay", 0)
+        af = cfg.get("airtime_factor", 1.0)
+        if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_tuning_params"):
+            try:
+                t_res = await mc.commands.get_tuning_params()
+                t_payload = extract_payload_dict(t_res)
+                if t_payload:
+                    rx_raw = float(t_payload.get("rx_delay", t_payload.get("rx", rx_dly)))
+                    af_raw = float(t_payload.get("airtime_factor", t_payload.get("af", af)))
+                    rx_dly = round(rx_raw / 1000.0, 3) if rx_raw > 10 else rx_raw
+                    af = round(af_raw / 1000.0, 3) if af_raw > 10 else af_raw
+            except Exception as e:
+                logging.debug(f"Error en get_tuning_params: {e}")
+        res["result"] = f"🎛️ [TUNING] Retardo RX: {rx_dly}s | Factor de Airtime: {af}x"
         return res
 
     def _cli_packets(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
@@ -367,16 +407,23 @@ class CliCommandExecutor:
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_bat"):
             try:
                 bat_res = await mc.commands.get_bat()
-                if hasattr(bat_res, "payload") and isinstance(bat_res.payload, dict):
-                    pct = bat_res.payload.get("battery_pct", pct)
-                    mv = bat_res.payload.get("battery_mv", mv)
-                    volt = round(mv / 1000.0, 2)
-                elif isinstance(bat_res, dict):
-                    pct = bat_res.get("battery_pct", pct)
-                    mv = bat_res.get("battery_mv", mv)
-                    volt = round(mv / 1000.0, 2)
-            except Exception:
-                pass
+                b_payload = extract_payload_dict(bat_res)
+                if b_payload:
+                    raw_val = (
+                        b_payload.get("level")
+                        if "level" in b_payload
+                        else b_payload.get("battery_mv", b_payload.get("voltage", b_payload.get("battery_pct")))
+                    )
+                    if raw_val is not None:
+                        calc_pct, calc_v = normalize_battery(raw_val)
+                        if calc_pct > 0 or calc_v > 0:
+                            pct = calc_pct
+                            volt = calc_v
+                            mv = int(calc_v * 1000) if calc_v > 0 else (int(raw_val) if int(raw_val) > 100 else mv)
+                        elif "battery_pct" in b_payload:
+                            pct = float(b_payload["battery_pct"])
+            except Exception as e:
+                logging.debug(f"Error procesando get_bat: {e}")
         res["result"] = f"🔋 [BATERÍA] Nivel: {pct}% | Voltaje: {volt:.2f} V ({mv} mV) | Alimentación: {src}"
         return res
 
@@ -844,29 +891,97 @@ class CliCommandExecutor:
             "    • set <param> <val>     : Ajuste directo (name, tx, freq, coords, sf, bw, cr)."
         )
 
-    async def _cli_set_param(self, act_clean: str, res: dict[str, Any]) -> dict[str, Any]:
-        """Handler para comandos CLI de ajuste directo (set <param> <val>)."""
-        parts = act_clean.split()
+    async def _cli_set_param(self, act_clean: str, res: dict[str, Any], mc: Any = None) -> dict[str, Any]:
+        """Handler para comandos CLI de ajuste directo (set <param> <val> o set_<param> <val>)."""
+        norm = "set " + act_clean[4:] if act_clean.startswith("set_") else act_clean
+        parts = norm.split()
         if len(parts) >= 3:
-            sub_cmd = parts[1]
+            sub_cmd = parts[1].lower()
             val = " ".join(parts[2:])
             if sub_cmd in ("name", "alias"):
-                await self._handle_set_local_config({"action": "set_local_config", "params": {"name": val}}, res, None)
+                await self._handle_set_local_config({"action": "set_local_config", "params": {"name": val}}, res, mc)
                 res["result"] = f"✓ Nombre del nodo local establecido a: '{val}'"
-            elif sub_cmd in ("tx", "tx_power", "power"):
-                await self._handle_set_local_config({"action": "set_local_config", "params": {"tx_power": int(val)}}, res, None)
-                res["result"] = f"✓ Potencia TX establecida a: {val} dBm"
+            elif sub_cmd in ("tx", "tx_power", "power", "txpower"):
+                try:
+                    await self._handle_set_local_config({"action": "set_local_config", "params": {"tx_power": int(val)}}, res, mc)
+                    res["result"] = f"✓ Potencia TX establecida a: {val} dBm"
+                except ValueError:
+                    res["result"] = f"⚠️ Valor de potencia inválido: {val}"
             elif sub_cmd in ("freq", "frequency"):
-                await self._handle_set_local_config({"action": "set_local_config", "params": {"frequency": float(val)}}, res, None)
-                res["result"] = f"✓ Frecuencia RF establecida a: {val} MHz"
+                try:
+                    await self._handle_set_local_config({"action": "set_local_config", "params": {"frequency": float(val)}}, res, mc)
+                    res["result"] = f"✓ Frecuencia RF establecida a: {val} MHz"
+                except ValueError:
+                    res["result"] = f"⚠️ Valor de frecuencia inválido: {val}"
+            elif sub_cmd in ("sf", "spreading_factor"):
+                try:
+                    await self._handle_set_local_config({"action": "set_local_config", "params": {"sf": int(val)}}, res, mc)
+                    res["result"] = f"✓ Spreading Factor establecido a: SF{val}"
+                except ValueError:
+                    res["result"] = f"⚠️ Spreading factor inválido: {val}"
+            elif sub_cmd in ("bw", "bandwidth"):
+                try:
+                    await self._handle_set_local_config({"action": "set_local_config", "params": {"bw": float(val)}}, res, mc)
+                    res["result"] = f"✓ Ancho de banda (BW) establecido a: {val} kHz"
+                except ValueError:
+                    res["result"] = f"⚠️ Ancho de banda inválido: {val}"
+            elif sub_cmd in ("cr", "coding_rate"):
+                try:
+                    cr_val = int(val) if val.isdigit() else val
+                    await self._handle_set_local_config({"action": "set_local_config", "params": {"cr": cr_val}}, res, mc)
+                    res["result"] = f"✓ Coding Rate (CR) establecido a: {val}"
+                except ValueError:
+                    res["result"] = f"⚠️ Coding rate inválido: {val}"
+            elif sub_cmd == "radio":
+                r_parts = val.split()
+                if len(r_parts) >= 4:
+                    try:
+                        p_dict = {
+                            "frequency": float(r_parts[0]),
+                            "bandwidth": float(r_parts[1]),
+                            "sf": int(r_parts[2]),
+                            "cr": int(r_parts[3]) if r_parts[3].isdigit() else r_parts[3],
+                        }
+                        await self._handle_set_local_config({"action": "set_local_config", "params": p_dict}, res, mc)
+                        res["result"] = f"✓ Radio configurado: {r_parts[0]} MHz, BW{r_parts[1]}, SF{r_parts[2]}, CR{r_parts[3]}"
+                    except ValueError as ve:
+                        res["result"] = f"⚠️ Error en parámetros de radio: {ve}"
+                else:
+                    res["result"] = "⚠️ Uso: set radio <frecuencia_mhz> <bw_khz> <sf> <cr>"
+            elif sub_cmd == "tuning":
+                t_parts = val.split()
+                if len(t_parts) >= 2:
+                    try:
+                        p_dict = {"rx_delay": float(t_parts[0]), "airtime_factor": float(t_parts[1])}
+                        await self._handle_set_local_config({"action": "set_local_config", "params": p_dict}, res, mc)
+                        res["result"] = f"✓ Tuning actualizado: rx_delay={t_parts[0]}, airtime_factor={t_parts[1]}"
+                    except ValueError as ve:
+                        res["result"] = f"⚠️ Error en parámetros de tuning: {ve}"
+                else:
+                    res["result"] = "⚠️ Uso: set tuning <rx_delay> <airtime_factor>"
+            elif sub_cmd in ("pin", "ble_pin"):
+                try:
+                    await self._handle_set_local_config({"action": "set_local_config", "params": {"pin": int(val)}}, res, mc)
+                    res["result"] = f"✓ PIN de vinculación establecido a: {val}"
+                except ValueError:
+                    res["result"] = f"⚠️ PIN numérico inválido: {val}"
+            elif sub_cmd in ("repeat", "repeater"):
+                from src.shared_utils import to_bool
+                b_val = to_bool(val)
+                await self._handle_set_local_config({"action": "set_local_config", "params": {"repeat": b_val}}, res, mc)
+                res["result"] = f"✓ Modo repetidor {'activado' if b_val else 'desactivado'}"
             elif sub_cmd in ("coords", "pos", "gps"):
                 c_parts = val.split(",")
                 if len(c_parts) >= 2:
-                    await self._handle_set_local_config({"action": "set_local_config", "params": {"latitude": float(c_parts[0]), "longitude": float(c_parts[1])}}, res, None)
-                    res["result"] = f"✓ Coordenadas GPS establecidas a: {val}"
+                    try:
+                        await self._handle_set_local_config({"action": "set_local_config", "params": {"latitude": float(c_parts[0]), "longitude": float(c_parts[1])}}, res, mc)
+                        res["result"] = f"✓ Coordenadas GPS establecidas a: {val}"
+                    except ValueError:
+                        res["result"] = f"⚠️ Coordenadas numéricas inválidas: {val}"
                 else:
                     res["result"] = "⚠️ Formato de coordenadas inválido. Uso: set coords <lat>,<lon>"
             else:
+                await self._handle_set_local_config({"action": "set_local_config", "params": {sub_cmd: val}}, res, mc)
                 res["result"] = f"✓ Parámetro '{sub_cmd}' actualizado a: {val}"
         else:
             res["result"] = f"⚠️ Comando de configuración incompleto: {act_clean}"

@@ -175,6 +175,17 @@ HARDWARE_TX_POWER_LIMITS: dict[str, tuple[int, int, int]] = {
     "DEFAULT": (2, 22, 20),
 }
 
+NUMERIC_BOARD_ID_MAP: dict[int, str] = {
+    1: "HELTEC_V1",
+    2: "HELTEC_V2",
+    3: "TLORA_V2",
+    4: "LILYGO_TBEAM",
+    5: "HELTEC_V3",
+    6: "RAK4631",
+    7: "LILYGO_TECHO",
+    8: "LILYGO_TDECK",
+}
+
 
 def get_hardware_power_limits(
     hardware_info: str | int | None = None,
@@ -196,6 +207,11 @@ def get_hardware_power_limits(
 
     if not hardware_info:
         return HARDWARE_TX_POWER_LIMITS["DEFAULT"]
+
+    if isinstance(hardware_info, int) or (isinstance(hardware_info, str) and hardware_info.strip().isdigit()):
+        mapped = NUMERIC_BOARD_ID_MAP.get(int(hardware_info))
+        if mapped and mapped in HARDWARE_TX_POWER_LIMITS:
+            return HARDWARE_TX_POWER_LIMITS[mapped]
 
     hw_clean = str(hardware_info).upper().replace("-", "_").replace(" ", "_")
     for key, limits in HARDWARE_TX_POWER_LIMITS.items():

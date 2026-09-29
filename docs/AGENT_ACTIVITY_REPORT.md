@@ -2,6 +2,42 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Auditoría de Capacidades de Protocolo MeshCore, Sincronización de Comandos y Remediación en `src/admin/`
+- **Fecha**: 2026-09-29
+- **Estado**: ✅ COMPLETADO — Auditoría exhaustiva comparativa multi-agente entre `src/admin/` (`cli_command_executor.py`, `local_config_executor.py`, `repeater_executor.py`, `traceroute_executor.py`), `protocol_types.py` y el firmware/SDK oficial de MeshCore (`/reference/meshcore/`, `/reference/meshcore_py/`, `PROTOCOL_SPEC.md`). Reproducción en caliente de fallos y resolución determinista de 11 inconsistencias y vulnerabilidades de red LoRa.
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect), Agente 1 (Protocol & Firmware Investigator), Agente 2 (Python Bridge Architect), Agente 4 (Web UI/UX Architect), Agente 5 (Security Auditor).
+- **Diagnóstico y Análisis (11 Inconsistencias Detectadas y Resueltas)**:
+  1. **BUG-01 (`repeater_executor.py` - Longitud de Destino en Peticiones Binarias)**: `_try_execute_binary_or_anon` pasaba `rf_ctx.dest_target` (12 hex chars = 6 bytes). El validador del SDK oficial `_validate_destination(dst, prefix_length=32)` exigía estrictamente 32 bytes (64 caracteres hex). Toda solicitud binaria (`req_neighbours_sync`, `req_owner_sync`, `req_regions_sync`, `req_basic_sync`, `req_acl_sync`) lanzaba `ValueError` y caía silenciosamente al fallback de comandos de texto CLI. Corregido pasando `target = rf_ctx.dest_login_target` (64 caracteres hex).
+  2. **BUG-02 (`repeater_executor.py` - Saturación de la Malla LoRa en Ping 0)**: `_execute_ping_zero` llamaba a `_ensure_radio_contact(..., out_path_len=-1)`. En el protocolo de enrutamiento de MeshCore, `out_path_len = -1` representa un broadcast flood de malla. Enviar `ping 0` con `out_path_len = -1` inundaba toda la red LoRa multihop en lugar de probar un enlace directo de 0 saltos. Se parametrizó `_ensure_radio_contact` con `out_path_override=""` y `out_path_len_override=0` para forzar transmisión punto a punto de 0 saltos.
+  3. **BUG-03 (`repeater_executor.py` - Evasión de Cooldown de Airtime)**: `_execute_unit_command` transmitía `await self._send_pre_login(rf_ctx)` por radiofrecuencia *antes* de evaluar `check_airtime_cooldown`. Si el nodo estaba en cooldown, emitía el paquete RF de login, esperaba 350 ms y luego retornaba error 429. Se reordenó la evaluación de `check_airtime_cooldown` al inicio absoluto del método, antes de cualquier transmisión RF.
+  4. **BUG-04 (`repeater_executor.py` - Anti-patrón de Autenticación en `_execute_batch_config`)**: Se enviaba `cmd login {password}` como mensaje de texto. En el firmware C++ de repetidores (`simple_repeater` / `CommonCLI.cpp`), no existe el comando de texto `login` y los paquetes de texto no autenticados son ignorados. Se corrigió para autenticar formalmente mediante `send_login_sync` o `send_login` (Opcode 26) antes de aplicar parámetros en lote.
+  5. **BUG-05 (`repeater_executor.py` - UnboundLocalError & Bloqueo de Fallback en Login)**: En `_try_execute_binary_or_anon`, la variable `data` no se inicializaba si `cmds` carecía de `req_neighbours_sync`, provocando `UnboundLocalError`. En `_execute_auth_command`, al retornar `None` el comando `send_login_sync`, se poblaba `error_msg`, impidiendo que se evaluara la condición `if not login_success and error_msg is None:` y dejando muerto el fallback. Se inicializó `data = None` y se ajustó la condición a `if not login_success:`.
+  6. **BUG-06 (`repeater_executor.py` - Bucle Local Prohibido - Regla Inmutable SSoT 1.1)**: Se implementó guarda explícita en `_execute_ping_zero` y `_dispatch_rf_command` rechazando comandos dirigidos a la clave pública de la propia estación base local. Se añadió el parámetro `get_local_config` a `RepeaterAdminExecutor.__init__` conectado desde `admin_handler.py`.
+  7. **BUG-07 (`cli_command_executor.py` - Pérdida de Control Hardware por Omisión de `mc`)**: `_cli_set_param` invocaba `_handle_set_local_config(..., mc=None)`. Como consecuencia, comandos CLI como `set tx 20`, `set freq 915.0` o `set name Nodo` actualizaban el diccionario en memoria RAM pero nunca enviaban los comandos binarios al MCU de radio (`set_tx_power`, `set_radio_params`, `set_name`). Se corrigió pasando `mc` y despachando todos los parámetros al transceptor.
+  8. **BUG-08 (`cli_command_executor.py` - Parseo de Comandos `set_*` y Modulaciones LoRa)**: El chequeo `len(parts) >= 3` fallaba para comandos con sintaxis `set_name MiNodo` o `set_tx 20` (`len(parts) == 2`). Además, `sf`, `bw`, `cr`, `radio`, `tuning`, `pin` y `repeat` caían en un `else` genérico sin aplicarse. Se normalizó el prefijo `set_` a `set `, y se implementó el parseo completo de todas las variables RF y de sintonización.
+  9. **BUG-09 (`cli_command_executor.py` - Clave de Lectura de Batería en Firmware MeshCore)**: `_cli_battery` buscaba claves `battery_pct` y `battery_mv`. En el parser oficial `reader.py:416`, el evento `BATTERY` entrega el valor en milivoltios bajo la clave `"level"`. Se integró `normalize_battery()` extrayendo `"level"`, `"battery_mv"` y `"voltage"`. Asimismo, se añadieron handlers dedicados para `stats_radio` y `tuning`.
+  10. **BUG-10 (`traceroute_executor.py` - Mutilación de Alias, RTT Sintético y Compatibilidad `map.js`)**:
+      - `_format_trace_hops` filtraba caracteres hex sobre strings crudos; un alias como `"Repeater-North"` extraía las letras `"eeae"`. Se integró `TargetResolver` y búsqueda por nombre/alias en `node_registry`.
+      - Se implementó la espera determinista del evento `EventType.TRACE_DATA` (Opcode 0x89) emitido por el dispatcher de MeshCore con correlación por `tag`, midiendo el RTT real de la malla en lugar de estimaciones UART locales.
+      - Se agregaron las claves requeridas por la interfaz gráfica `map.js` (`snr`, `rtt_ms`, `role`, `hop_index`, `pubkey`, `name`), preservando `snr_in`, `snr_out` y `rtt_segment_ms`.
+  11. **BUG-11 (`local_config_executor.py` / `protocol_types.py` / `shared_utils.py`)**:
+      - Escalado de sintonización: El firmware C++ (`MyMesh.cpp:1432-1433`) divide `rx` y `af` por `1000.0f`. Se corrigió para escalar valores menores a 10.0 por 1000 al emitir `CMD_SET_TUNING_PARAMS` (21) y normalizar al leer `GET_TUNING_PARAMS` (43).
+      - Añadidos opcodes oficiales faltantes `SEND_CHANNEL_DATA = 62` y `SEND_RAW_PACKET = 65` a `CommandType`.
+      - Añadido mapa de identificadores numéricos de placa (`NUMERIC_BOARD_ID_MAP`) en `shared_utils.py` para prevenir sobrepotencia en chips SX1276 (20 dBm máx).
+- **Módulos Modificados**:
+  - `src/protocol_types.py`
+  - `src/shared_utils.py`
+  - `src/admin/cli_command_executor.py`
+  - `src/admin/repeater_executor.py`
+  - `src/admin/local_config_executor.py`
+  - `src/admin/traceroute_executor.py`
+  - `src/admin_handler.py`
+- **Métricas de Calidad**:
+  - `ruff check src/admin/ src/protocol_types.py src/shared_utils.py src/admin_handler.py`: **All checks passed!** (100% limpio).
+  - `mypy --strict src/admin/ src/protocol_types.py src/shared_utils.py src/admin_handler.py`: **Success: no issues found in 8 source files**.
+  - Suite de verificación en caliente (`scratch/test_admin_inconsistencies.py`): **100% de pruebas aprobadas**.
+
+
 ### Hito: Auditoría de Conformidad de Protocolo MeshCore y Alineación con Firmware/SDK en `src/serial/`
 - **Fecha**: 2026-09-29
 - **Estado**: ✅ COMPLETADO — Auditoría exhaustiva comparativa entre `src/serial/` y las especificaciones canónicas de MeshCore (`/reference/meshcore/`, `/reference/meshcore_py/`, `PROTOCOL_SPEC.md`). Detección, reproducción en caliente mediante scripts aislados y resolución de 10 inconsistencias y bugs de protocolo y rendimiento.
