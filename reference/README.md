@@ -16,6 +16,7 @@ Este directorio contiene los repositorios oficiales de MeshCore utilizados exclu
 | **`/reference/openHop_docs/`** | `https://github.com/openhop-dev/openHop_docs` | Documentación técnica del ecosistema openHop | Guías de integración de hardware, repetidores y especificaciones. |
 | **`/reference/openHop_RepeaterUI/`** | `https://github.com/openhop-dev/openHop_RepeaterUI` | Dashboard Web oficial de openHop Repeater (Vue/Vite) | Referencia de interfaces web, componentes visuales, gráficas y control de repetidores MeshCore. |
 | **`/reference/openHop-Glass/`** | `https://github.com/openhop-dev/openHop-Glass` | Stack de gestión integral para repetidores (API, DB, MQTT y UI Glass) | Referencia de arquitectura full-stack, persistencia y monitoreo de repetidores. |
+| **`/reference/meshmonitor/`** | `https://github.com/Yeraze/meshmonitor` | Plataforma web multi-fuente (React 19, Node.js 22, Express 5, Drizzle ORM) para Meshtastic, MeshCore y MQTT | Referencia de algoritmos de Airtime Cutoff, Pre-Send Delay para repetidores, inferencia de ecos, virtual node servers y cartografía LoRa. |
 
 ---
 
