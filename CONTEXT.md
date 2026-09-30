@@ -52,12 +52,14 @@ La clasificación de cualquier dispositivo en la red se determina **exclusivamen
 
 ---
 
-## 4. Terminología de Radiofrecuencia y Framing Binario
+## 4. Terminología de Radiofrecuencia y transporte
 
 - **Airtime**: Tiempo en milisegundos durante el cual la portadora de radio está ocupada transmitiendo un paquete LoRa (depende de Spreading Factor, Bandwidth y longitud del payload).
-- **Hop Limit**: Contador de saltos de un paquete dentro de la malla para evitar bucles infinitos (valor estándar: 3–4, máximo: 7). Cada salto decrementa el contador.
+- **Flood Max / presupuesto de inundación**: Parámetro configurable del firmware que limita la propagación por repetidores. La CLI oficial admite valores regionales/configurables de `0..64`; no debe confundirse con un “hop limit máximo 7”.
+- **Path Length (`path_len`)**: Descriptor compacto del paquete LoRa on-air. Sus 6 bits inferiores codifican el número de hashes de ruta y los 2 bits superiores el tamaño de cada hash menos uno; el tamaño efectivo está además limitado por `MAX_PATH_SIZE` (64 bytes).
 - **Duty Cycle**: Presupuesto o límite de transmisión aplicable a una banda/sub-banda y jurisdicción concretas. Los valores legales no se asumen globalmente: deben configurarse y verificarse para la región de despliegue.
-- **Byte Stuffing**: Técnica de delimitación de tramas serie (UART) utilizando bytes especiales de inicio (`SOF` / `0xAA`) y fin (`EOF` / `0x55`), con secuencias de escape (`ESC` / `0x1B`) para evitar colisiones con datos binarios arbitrarios.
+- **Companion Framing**: Transporte oficial Host↔Radio usado por USB Serial y TCP: `0x3C ('<') + uint16_le(length) + command_payload` en dirección App→Radio y `0x3E ('>') + uint16_le(length) + response_payload` en dirección Radio→App.
+- **Paquete LoRa on-air**: Estructura definida por `Packet.h`: cabecera de 1 byte, códigos de transporte opcionales, descriptor de ruta, ruta y payload. Es una capa distinta del framing Companion.
 - **LQI (Link Quality Indicator)**: Métrica compuesta calculada a partir de RSSI, SNR y tasa de pérdida de paquetes para estimar la calidad de enlace entre dos nodos.
 - **Deduplication Window**: Búfer temporal (LRU con caducidad en segundos) que descarta tramas idénticas retransmitidas por repetidores vecinos.
 
@@ -70,7 +72,7 @@ Esta sección orienta al desarrollador sobre cómo el código actual materializa
 - **`BaseSerialAdapter` (Seam)**: Costura o interfaz abstracta que desacopla la lógica del bridge del driver de hardware serie o SDK.
 - **`MeshcoreSDKAdapter`**: Adaptador concreto que envuelve el SDK oficial de MeshCore para comunicación con el chip LoRa.
 - **`MeshCoreBridge`**: Módulo profundo que orquesta el ciclo de vida del servicio, backpressure de colas y apagado ordenado (*graceful shutdown*).
-- **`RawSerialFramingAdapter`**: Deserializador y decodificador binario de tramas MeshCore con validación estricta de CRC y longitud.
+- **`RawSerialFramingAdapter`**: Utilidad sintética/legada de pruebas para un formato interno `0xAA/0x55/CRC`; no representa el transporte Companion oficial ni el paquete LoRa on-air y no forma parte del camino de producción.
 - **`NodeRegistry`**: Módulo profundo para indexación rápida por clave pública y alias, persistencia y filtrado de contactos vs nodos de infraestructura.
 - **`RepeaterManager`**: Gestor de comandos administrativos remotos con control de cooldowns y deduplicación de respuestas.
 - **Rate limiter / airtime guard**: Subsistema que aplica pacing, prioridades y guardas de airtime. El algoritmo concreto pertenece a `docs/ARCHITECTURE.md` y puede evolucionar sin redefinir este dominio.
