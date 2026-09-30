@@ -43,4 +43,4 @@ python .agents/skills/meshcore-source-inspector/scripts/inspect_meshcore_ast.py 
 
 ## Buenas Prácticas
 - No volcar archivos `.cpp` enteros en el prompt; utilizar siempre esta herramienta para extraer únicamente las firmas y layouts necesarios.
-- Utilizar los offsets calculados para redactar `/docs/PROTOCOL_SPEC.md` y verificar la correspondencia con `/src/protocol_types.py`.
+- Tratar los offsets extraídos como estimaciones; cotejarlos con el serializador/parser oficial antes de documentar `/docs/PROTOCOL_SPEC.md` o implementarlos en `/src/protocol_types.py`.

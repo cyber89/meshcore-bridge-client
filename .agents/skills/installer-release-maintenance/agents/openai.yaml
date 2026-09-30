@@ -1,0 +1,4 @@
+interface:
+  display_name: "Mantenimiento de instaladores y publicación"
+  short_description: "Revisa instaladores, servicios y publicación Git"
+  default_prompt: "Usa $installer-release-maintenance para revisar los instaladores y preparar una publicación de MeshCore Bridge."

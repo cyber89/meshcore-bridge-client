@@ -37,7 +37,7 @@ sequenceDiagram
     RateLimiter->>RateLimiter: Calcular Airtime Semtech & Aplicar Pacing
     RateLimiter->>HW: Enviar comando por UART
     HW-->>RateLimiter: Acuse de radio (OK / MSG_SENT)
-    Bridge->>MQTT: Publicar ACK en meshcore/tx/status
+    Bridge->>MQTT: Publicar resultado de envío en meshcore/tx/status
 ```
 
 ---
@@ -45,12 +45,12 @@ sequenceDiagram
 ## 2. Pautas por Rol de Agente
 
 ### 2.1 Para el Protocol & Firmware Investigator Agent
-1. **Regla de Oro**: La única fuente de verdad binaria reside en [`/reference/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/reference/).
+1. **Regla de Oro**: La única fuente de verdad binaria reside en [`/reference/`](../../reference/).
 2. **Procedimiento ante nuevos tipos**:
    - Usar la skill `meshcore-source-inspector` para extraer los campos, tipos C/C++ y modificadores `#pragma pack`.
    - Calcular offsets en bytes y documentar Little-Endianness.
-   - Definir los nuevos tipos en [`src/protocol_types.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/protocol_types.py) utilizando estrictamente `@dataclass(frozen=True)` o `IntEnum`.
-   - Actualizar [`docs/PROTOCOL_SPEC.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/docs/PROTOCOL_SPEC.md).
+   - Definir los nuevos tipos en [`src/protocol_types.py`](../../src/protocol_types.py) utilizando estrictamente `@dataclass(frozen=True)` o `IntEnum`.
+   - Actualizar [`docs/PROTOCOL_SPEC.md`](../PROTOCOL_SPEC.md).
 
 ### 2.2 Para el Python Bridge Architect Agent
 1. **Regla de Oro**: Ninguna operación I/O puede bloquear el bucle de `asyncio`.
@@ -75,7 +75,7 @@ sequenceDiagram
 
 | Código / Excepción | Causa Probable | Acción de Mitigación del Bridge |
 | :--- | :--- | :--- |
-| `ERR_BUSY` (`0x01`) | El canal LoRa está ocupado por otra transmisión (CAD detectó portadora) | El `TxRateLimiter` reintenta con backoff exponencial y jitter aleatorio |
+| `ERR_CODE_UNSUPPORTED_CMD` (`0x01`) | Comando no soportado por el firmware Companion; interpretar el código de la respuesta ERROR | El worker TX propaga el fallo al solicitante. El jitter es pacing entre transmisiones, no retry exponencial |
 | `ERR_TIMEOUT` | La radio no respondió al comando serial en el tiempo límite | El `SerialWatchdog` detecta inactividad y ejecuta reconexión suave |
 | `CRC_MISMATCH` | Interferencia RF o ruido en la línea UART corrompió bytes de la trama | El `RawSerialFramingAdapter` descarta la trama e incrementa `rx_error_count` |
 | `MQTT_DISCONNECTED` | Pérdida de conectividad con el broker Mosquitto | Reintento en segundo plano con reconexión exponencial asíncrona |

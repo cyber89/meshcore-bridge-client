@@ -1,9 +1,9 @@
 # MeshCore Python SDK (`meshcore_py`) — Análisis y Contratos de Integración
 
 > **Documento de Referencia para Agentes de Antigravity**  
-> **Repositorio de Origen**: [`/reference/meshcore_py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/reference/meshcore_py)  
+> **Repositorio de Origen**: [`/reference/meshcore_py`](../../reference/meshcore_py)\
 > **Área de Responsabilidad**: Protocol & Firmware Investigator Agent / Python Bridge Architect  
-> **Estándar**: Python 3.10+ / Asyncio / Paho-MQTT / CayenneLPP
+> **Estándar**: Python / Asyncio; dependencias SDK: bleak, pyserial-asyncio-fast, pycayennelpp y pycryptodome. Paho-MQTT pertenece al bridge.
 
 ---
 
@@ -14,7 +14,7 @@ El SDK oficial `meshcore_py` proporciona una abstracción orientada a eventos pa
 ```mermaid
 flowchart TB
     subgraph TransportLayer["Capa de Transporte Concurrente"]
-        SER_CX["SerialConnection (pyserial-asyncio)"]
+        SER_CX["SerialConnection (pyserial-asyncio-fast)"]
         BLE_CX["BLEConnection (bleak)"]
         TCP_CX["TCPConnection (asyncio streams)"]
     end
@@ -85,7 +85,7 @@ Respuestas sincrónicas y eventos asíncronos emitidos por el microcontrolador h
 
 ### 3.1 Respuestas a Comandos (`0x00` a `0x1C`)
 - `0x00` (`OK`): Ejecución exitosa de comando (puede incluir valor entero de 4 bytes en Little-Endian).
-- `0x01` (`ERROR`): Error de ejecución con código numérico (`ERR_BUSY`, `ERR_INVALID_PARAM`, `ERR_TIMEOUT`).
+- `0x01` (`ERROR`): Respuesta Companion de error: códigos 1 UNSUPPORTED_CMD, 2 NOT_FOUND, 3 TABLE_FULL, 4 BAD_STATE, 5 FILE_IO_ERROR, 6 ILLEGAL_ARG. Distinguir de timeout del host.
 - `0x02` (`CONTACT_START`): Indica inicio de transferencia de la libreta de contactos (incluye conteo total).
 - `0x03` (`CONTACT`): Datos de un contacto individual (clave pública de 32 bytes, nombre, saltos, métricas).
 - `0x04` (`CONTACT_END`): Finalización del volcado de contactos.

@@ -1,7 +1,7 @@
 # MeshCore Firmware C/C++ — Análisis Técnico y Estructura Interna
 
 > **Documento de Referencia para Agentes de Antigravity**  
-> **Repositorio de Origen**: [`/reference/meshcore`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/reference/meshcore)  
+> **Repositorio de Origen**: [`/reference/meshcore`](../../reference/meshcore)\
 > **Área de Responsabilidad**: Protocol & Firmware Investigator Agent  
 > **Estándar**: C++11 / Arduino / PlatformIO / FreeRTOS (ESP32, NRF52840, RP2040, STM32)
 
@@ -93,7 +93,7 @@ Para evitar la retransmisión infinita de tramas en la malla:
   - Clave Pública (`PUB_KEY_SIZE`): `32 Bytes`.
   - Clave Privada (`PRV_KEY_SIZE`): `64 Bytes`.
   - Firma Digital (`SIGNATURE_SIZE`): `64 Bytes`.
-  - Bloque de Cifrado (`CIPHER_BLOCK_SIZE`): `16 Bytes` (AES-128 / Speck-128).
+  - Bloque de Cifrado (`CIPHER_BLOCK_SIZE`): `16 Bytes` (AES-128; `Utils.cpp` usa `AES128`).
   - Código de Autenticación de Mensaje (`CIPHER_MAC_SIZE`): `2 Bytes` (V1).
 
 ---
@@ -105,7 +105,7 @@ El archivo `CommonCLI.cpp` implementa el parser de comandos de texto y binarios 
 ### Parámetros Configurables de Radio (`NodePrefs`):
 - `freq`: Frecuencia RF en MHz (ej. `915.0`, `868.0`, `433.0`).
 - `bw`: Ancho de banda en kHz (`62.5`, `125.0`, `250.0`, `500.0`).
-- `sf`: Spreading Factor (`7` a `12`).
+- `sf`: El parser `CommonCLI.cpp` de esta revisión admite Spreading Factor `5` a `12`; disponibilidad efectiva según hardware/build.
 - `cr`: Coding Rate (`5` a `8`, que representan $4/5$ a $4/8$).
 - `tx`: Potencia de transmisión en dBm (`2` a `22` dBm).
 - `cad`: Channel Activity Detection (`1` habilitado, `0` deshabilitado).

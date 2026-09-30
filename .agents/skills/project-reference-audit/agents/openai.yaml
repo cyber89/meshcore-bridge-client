@@ -1,0 +1,4 @@
+interface:
+  display_name: "Auditoría de referencias del proyecto"
+  short_description: "Verifica procedencia, revisiones y contratos locales"
+  default_prompt: "Usa $project-reference-audit para verificar referencias y documentación de MeshCore Bridge."

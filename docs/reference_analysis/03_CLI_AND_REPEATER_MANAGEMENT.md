@@ -1,7 +1,7 @@
 # MeshCore CLI y Gestión de Repetidores — Análisis y Comandos
 
 > **Documento de Referencia para Agentes de Antigravity**  
-> **Repositorio de Origen**: [`/reference/meshcore_cli`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/reference/meshcore_cli)  
+> **Repositorio de Origen**: [`/reference/meshcore_cli`](../../reference/meshcore_cli)\
 > **Área de Responsabilidad**: Protocol & Firmware Investigator Agent / QA & Fuzzing Agent  
 > **Estándar**: Python 3.10+ / Prompt-Toolkit / Rich TUI / CLI Automation
 
@@ -75,7 +75,7 @@ Comandos estandarizados documentados en `REPEATER_COMMANDS.md` que pueden ser en
 - `get/set repeat on|off`: Activa o desactiva la función de retransmisión de paquetes (modo repetidor).
 - `get/set lat <val>` / `get/set lon <val>`: Coordenadas geográficas estáticas para localización en mapas.
 - `get/set advert.interval <min>`: Intervalo de emisión periódica de anuncios.
-- `get/set flood.max <hops>`: Número máximo de saltos permitidos para paquetes de inundación (límite de TTL de red).
+- `get/set flood.max <hops>`: Límite configurado de retransmisión flood; el wire Packet no contiene un campo TTL separado.
 
 ---
 

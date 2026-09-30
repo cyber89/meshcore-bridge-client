@@ -11,7 +11,7 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
 - **`/reference/meshcore_cli/`**: Implementación CLI oficial de MeshCore (Solo Lectura).
 - **`CONTEXT.md`**: Lenguaje Ubicuo y Modelo de Dominio canónico del proyecto (Glosario, roles de nodos, principios de Deep Modules).
 - **`/docs/`**: Especificaciones formales del protocolo (`PROTOCOL_SPEC.md`), arquitectura (`ARCHITECTURE.md`), Decisiones de Arquitectura (`/docs/adr/`) y Reporte de Actividad Multi-Agente (`AGENT_ACTIVITY_REPORT.md`).
-- **`/src/`**: Código fuente de producción del bridge en Python (`asyncio`, `pyserial-asyncio`, `paho-mqtt`).
+- **`/src/`**: Código fuente de producción del bridge en Python (`asyncio`, SDK `meshcore`, `pyserial`, `paho-mqtt`).
 - **`/tests/`**: Suites de pruebas automatizadas con `pytest` (**Solo ejecutadas bajo demanda explícita del usuario**).
 - **`.agents/skills/`**: Herramientas y skills personalizadas para inspección, validación de tramas y verificación estática.
 
@@ -59,7 +59,7 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
   - Lectura: `/reference/**`
   - Escritura: `/docs/PROTOCOL_SPEC.md`, `/src/protocol_types.py`
 - **Herramientas**:
-  - Skill: `meshcore_source_inspector` (AST / Struct / Enum Extractor)
+  - Skill: `meshcore-source-inspector` (AST / Struct / Enum Extractor)
   - Skill: `tgrep-code-search` (Búsqueda indexada por trigramas en código firmware C/C++)
 - **Reglas y Restricciones Estrictas**:
   1. **NUNCA** escribir código de red (MQTT, Sockets), persistencia de archivos ni controladores de hardware serie en `/src/meshcore_bridge.py`.
@@ -75,7 +75,7 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
   - Lectura: `/docs/PROTOCOL_SPEC.md`, `/src/protocol_types.py`, `/reference/**`
   - Escritura: `/src/**` (excepto `protocol_types.py`), `/docs/ARCHITECTURE.md`
 - **Herramientas**:
-  - Skill: `lora_frame_validator`
+  - Skill: `lora-frame-validator`
   - Skill: `lora-packet-simulator` (Simulación en memoria y virtual mesh replay)
   - Skill: `asyncio-profiler-leak-detector` (Monitoreo de event loop y memoria RAM)
 - **Reglas y Restricciones Estrictas**:
@@ -93,8 +93,8 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
   - Lectura: `/docs/PROTOCOL_SPEC.md`, `/src/**`, `/reference/**`
   - Escritura: `/tests/**`
 - **Herramientas**:
-  - Skill: `bridge_test_runner`
-  - Skill: `lora_frame_validator`
+  - Skill: `bridge-test-runner`
+  - Skill: `lora-frame-validator`
 - **Reglas y Restricciones Estrictas**:
   1. No ejecutar pruebas de forma automática tras tareas de programación a menos que haya una orden explícita del usuario.
   2. Al ser invocado, reportar matriz completa de verificación (pytest, coverage, mypy strict, ruff).
@@ -127,6 +127,24 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
   1. Validación y sanitización estricta de esquemas JSON y tipos de datos.
   2. Sanitización estricta de entradas antes de almacenar o renderizar (`escapeHtml`).
   3. Registrar auditorías de seguridad y parches en `docs/AGENT_ACTIVITY_REPORT.md`.
+
+---
+
+### Agente 6: Documentation & Reference Provenance Agent
+- **Objetivo**: Mantener el mapa de conocimiento y acreditar procedencia/revisión de referencias; conciliar documentación con fuentes y código.
+- **Lectura**: Todo el repositorio, sin datos operativos ni secretos; `reference/` sólo lectura.
+- **Escritura asignable**: `docs/PROJECT_KNOWLEDGE.md`, `docs/PROJECT_INVENTORY.json`, documentación derivada y `scripts/inventory_project_knowledge.py`.
+- **Skills**: `project-reference-audit`, `domain-adr-keeper`, `meshcore-source-inspector`, `tgrep-code-search`.
+- **Contrato**: Distinguir oficial/tercero, revisión Git/origen declarado y evidencia estructural/semántica. Comprobar `.git` propio antes de atribuir el HEAD del padre. No actualizar referencias ni ejecutar suites por una petición de inventario. Entregar hallazgos con fuente, corrección y limitaciones al principal; éste integra el ledger.
+
+### Agente 7: Installer & Release Maintenance Agent
+- **Objetivo**: Revisar instaladores raíz, selección de intérprete, servicio y publicación Git sin afectar una estación operativa durante la auditoría.
+- **Lectura**: `install.sh`, `install.ps1`, `meshcore-bridge.service`, dependencias, documentación de despliegue, CI y diff Git.
+- **Escritura asignable**: Instaladores raíz, servicio, dependencias y `docs/DEPLOYMENT_GUIDE.md`, sólo dentro de la tarea autorizada.
+- **Skills**: `installer-release-maintenance`; `security-code-auditor` cuando la tarea incluya auditoría de seguridad.
+- **Contrato**: Inspeccionar antes de ejecutar; comprobar rutas origen/destino, códigos de salida, entorno Python y conservación de datos. No recrear `deploy/`, iniciar servicios ni transmitir RF durante revisión documental. Publicar únicamente archivos/hunks propios conforme a la sección 5; sin force push. Entregar evidencia y pendientes al principal.
+
+Mapa e inventario de fuentes: [PROJECT_KNOWLEDGE.md](docs/PROJECT_KNOWLEDGE.md) y [PROJECT_INVENTORY.json](docs/PROJECT_INVENTORY.json).
 
 ---
 

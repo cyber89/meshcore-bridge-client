@@ -62,7 +62,7 @@ flowchart TB
     subgraph Capa de Gestión
         NR[NodeRegistry]
         RM[RepeaterManager]
-        LQI[LqiEngine]
+        LQI[LinkQualityEngine]
         DED[PacketDeduplicator]
     end
 
@@ -250,7 +250,7 @@ sequenceDiagram
     BridgeCore->>EventLoop: run_forever()
     note over EventLoop: Running
     EventLoop->>BridgeCore: SIGINT
-    BridgeCore->>MQTT: LWT publish
+    BridgeCore->>MQTT: Publicar offline (graceful_shutdown); LWT para caída inesperada
     BridgeCore->>Web: stop()
     BridgeCore->>Serial: close()
     BridgeCore->>Main: exit
@@ -278,12 +278,12 @@ sequenceDiagram
 | `AdminCommandHandler` | `admin_handler.py` | Interpreta, mapea y delega la ejecución de comandos de administración por Web/MQTT. | Command Invoker | `admin/*`, `repeater_manager` |
 | `LocalConfigExecutor` | `admin/local_config_executor.py` | Ejecuta comandos de configuración en el nodo base local. | Command | `serial_driver` |
 | `RepeaterExecutor` | `admin/repeater_executor.py` | Envía comandos remotos a repetidores vía RF. | Command | `serial_driver` |
-| `TracerouteExecutor` | `admin/traceroute_executor.py` | Realiza pings progresivos e inspecciona rutas (Saltos L3). | Command | `serial_driver` |
+| `TracerouteExecutor` | `admin/traceroute_executor.py` | Envía `send_trace` y espera `TRACE_DATA` para inspeccionar la ruta; no ejecuta pings progresivos. | Command | `serial_driver` |
 | `CliCommandExecutor` | `admin/cli_command_executor.py` | Ejecuta comandos de terminal CLI de radio local (ver, bat, stats_core, etc.). | Command / Executor | `serial_driver` |
 | `CayenneLPPDecoder` | `sensor_decoder.py` | Convierte flujos de bytes Cayenne LPP a valores decimales estructurados. | Decoder | `protocol_types` |
-| `LinkQualityEngine` | `lqi_engine.py` | Evalúa las condiciones SNR, RSSI y califica enlaces bidireccionales en la malla. | Engine | Ninguna |
+| `LinkQualityEngine` | `lqi_engine.py` | Calcula LQI con SNR, RSSI y saltos, EMA y decaimiento temporal; no acredita enlaces bidireccionales. | Engine | Ninguna |
 | `DiagnosticManager` | `diagnostics.py` | Colecta métricas de OS, proceso y logs para reportes de salud avanzados. | Manager | Ninguna |
-| `HealthReporter` | `health_reporter.py` | Monitorea la RAM, estado del hardware y publica un pulso periódico en MQTT. | Worker | `mqtt_client` |
+| `HealthReporter` | `health_reporter.py` | Publica conectividad, uptime, nodos, cola TX y contadores en MQTT; sin métricas RAM/CPU del OS. | Worker | `mqtt_client` |
 | `MeshCoreWebServer` | `web/http_server.py` | Servidor HTTP nativo de asyncio para servir SPA, UI y WebSockets. | Server | `WebAPIRouter` |
 | `WebAPIRouter` | `web/api_router.py` | Enrutador HTTP que dirige el tráfico a módulos tipo API de dominio. | Router / Dispatcher | `controllers/*` |
 | `LogsController` | `web/controllers/logs_controller.py` | Controlador REST dedicado para mensajes, telemetría y logs del sistema. | Controller (MVC) | `diagnostics`, `PacketBuffer` |
@@ -303,7 +303,7 @@ sequenceDiagram
 | Método HTTP | Ruta | Controller | Descripción |
 | --- | --- | --- | --- |
 | GET | `/api/status` | `ConfigController` | Obtiene el estado físico y variables lógicas del nodo local. |
-| GET | `/api/health` | `SystemController` | Reporta el estado de uso de memoria, disco, y CPU del servidor puente. |
+| GET | `/api/health` | `SystemController` | Reporta subsistemas, contadores, uptime y último error mediante DiagnosticManager; sin métricas RAM/disco/CPU del OS. |
 | GET | `/api/diagnostics` | `SystemController` | Idéntico a `/api/health`. |
 | GET | `/api/diagnostics/report.md` | `LogsController` | Genera un volcado completo de diagnósticos exportable en formato Markdown. |
 | GET | `/api/preflight` | `SystemController` | Analiza disponibilidad de sistema de archivos, hardware y dependencias. |
@@ -317,7 +317,7 @@ sequenceDiagram
 | GET | `/api/nodes` | `NodesController` | Devuelve el catálogo y lista maestra de nodos almacenados. |
 | GET | `/api/lqi` | `NodesController` | Informe del índice Link Quality (LQI) entre vecinos en la malla local. |
 | GET | `/api/analytics` | `NodesController` | Calcula KPIs agregados sobre topología, baterías promedio, etc. |
-| GET | `/api/rf/heatmap` | `NodesController` | Datos tabulares de interconexión para generar el grafo L2. |
+| GET | `/api/rf/heatmap` | `NodesController` | Puntos GPS de nodos con RSSI/SNR y rol; no devuelve aristas de un grafo L2. |
 | GET | `/api/airtime/stats` | `NodesController` | Reporta los tiempos en el aire (Airtime) y métricas de Duty-Cycle. |
 | GET | `/api/rf/noise` | `NodesController` | Procesa datos de ruido de fondo (SNR/RSSI de base) de nodos para el mapa en vivo. |
 | GET | `/api/contacts/discovered` | `ContactsController` | Lista los nodos observados de manera anónima y pasiva, pero no añadidos a la agenda. |
@@ -335,7 +335,7 @@ sequenceDiagram
 | POST | `/api/repeater/remote/action` | `RepeaterController` | Ejecución de una acción instantánea en el dispositivo objetivo (e.g., LED Toggle). |
 | POST | `/api/repeater/ping_zero` | `RepeaterController` | Lanza una petición ICMP análoga en L2 (Zero Ping) pura, descartando paquetes asimétricos. |
 | POST | `/api/traceroute` | `RepeaterController` | Herramienta de medición y exploración de saltos entre el servidor y un destino remoto. |
-| GET | `/api/config` | `ConfigController` | Provee en JSON las settings base grabadas en el firmware base local del puente. |
+| GET | `/api/config` | `ConfigController` | Devuelve caché/defaults de configuración y métricas runtime; `refresh` solicita consulta al hardware con fallback. |
 | POST | `/api/config` | `ConfigController` | Aplica una configuración estructural de manera unificada a variables de sistema y hardware. |
 | POST | `/api/config/radio` | `ConfigController` | Refuerza cambios a las portadoras (BW, Frecuencia, Spreading Factor). |
 | POST | `/api/config/identity` | `ConfigController` | Edita el pseudónimo del puente y propiedades de visualización pública. |
@@ -362,10 +362,10 @@ sequenceDiagram
 | Tópico (`topic_prefix/...`) | Puente Publica | Puente Suscribe | Descripción |
 | --- | --- | --- | --- |
 | `{prefix}/bridge/state` | Sí | No | Estado Last Will Testament del servidor local (Online / Offline). |
-| `{prefix}/bridge/health` | Sí | No | Telemetría periódica L7: Uso RAM OS local, Uptime y carga CPU. |
+| `{prefix}/bridge/health` | Sí | No | Salud periódica del bridge: conectividad, uptime, nodos, cola y contadores; sin RAM/CPU del OS. |
 | `{prefix}/tx` | No | Sí | Inyección externa. Escucha strings para que el Puente enrute hacia un paquete LoRa a los nodos en la banda. |
-| `{prefix}/tx/status` | Sí | No | Notificación de éxito o falla (ACK/NAK de capa L2/L3) al enviar el paquete a los nodos aéreos. |
-| `{prefix}/admin/cmd` | No | Sí | Interfaz de administración remota; acepta comandos CLI puros. |
+| `{prefix}/tx/status` | Sí | No | Resultado del envío o error; la confirmación de entrega DM/ACK se procesa como evento separado. |
+| `{prefix}/admin/cmd` | No | Sí | Administración JSON con `action` en el dict entregado al handler. El fallback textual/escalar pierde la acción en el checkout actual; divergencia pendiente, véase PROJECT_KNOWLEDGE.md. |
 | `{prefix}/admin/status` | Sí | No | Proporciona una salida JSON formateada y serializada confirmando los comandos remotos al broker MQTT. |
 | `{prefix}/admin/repeater/{node_id}/cmd` | No | Sí | Comandos remotos específicos para repetidores suscritos vía wildcard (`{prefix}/admin/repeater/+/cmd`). |
 | `{prefix}/admin/repeater/{node_id}/status` | Sí | No | Reportes específicos dirigidos que confirman latencias y estados de repetidores tras comandos remotos por RF. |

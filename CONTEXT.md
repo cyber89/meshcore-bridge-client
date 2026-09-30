@@ -30,7 +30,7 @@ La clasificación de cualquier dispositivo en la red se determina **exclusivamen
 
 1. **Aislamiento Estricto de Repetidores (`REPEATER`)**:
    - **Prohibición de Contacto**: Un repetidor **NUNCA** debe registrarse en la lista de Contactos (`NodeRegistry.list_client_contacts()`). Pertenece única y exclusivamente a la vista unificada de **Nodos** (`#unifiedNodesGridUi`) y a la **Analítica**.
-   - **Prohibición de Chat**: Está terminantemente prohibido despachar mensajes de chat (canales o DM) hacia un repetidor. Su canal de control es estrictamente administrativo (`CMD_ADMIN`, `CMD_PING_NODE`, `CMD_TRACEROUTE`).
+   - **Prohibición de Chat**: Está terminantemente prohibido despachar mensajes de chat (canales o DM) hacia un repetidor. Su canal de control es estrictamente administrativo (administración, ping y traceroute mediante los ejecutores del bridge y comandos SDK; no son opcodes `CMD_ADMIN`, `CMD_PING_NODE` o `CMD_TRACEROUTE` oficiales).
 2. **Aislamiento del Nodo Local (`LOCAL`)**:
    - La estación base no debe añadirse a la libreta de contactos.
    - Prohibido el bucle local: nunca enviar mensajes dirigidos a la clave pública de la propia estación base.
@@ -47,7 +47,7 @@ La clasificación de cualquier dispositivo en la red se determina **exclusivamen
 - **Hop Limit**: Contador de saltos de un paquete dentro de la malla para evitar bucles infinitos (valor estándar: 3–4, máximo: 7). Cada salto decrementa el contador.
 - **Duty Cycle**: Límite regulatorio regional (ej. sub-bandas de 868 MHz al 1% o 10%) que restringe el tiempo acumulado de transmisión por hora.
 - **Byte Stuffing**: Técnica de delimitación de tramas serie (UART) utilizando bytes especiales de inicio (`SOF` / `0xAA`) y fin (`EOF` / `0x55`), con secuencias de escape (`ESC` / `0x1B`) para evitar colisiones con datos binarios arbitrarios.
-- **LQI (Link Quality Indicator)**: Métrica compuesta calculada a partir de RSSI, SNR y tasa de pérdida de paquetes para estimar la calidad de enlace entre dos nodos.
+- **LQI (Link Quality Indicator)**: Métrica del bridge calculada a partir de RSSI, SNR y saltos, con suavizado EMA y decaimiento temporal (`src/lqi_engine.py`). No calcula tasa de pérdida ni acredita calidad bidireccional.
 - **Deduplication Window**: Búfer temporal (LRU con caducidad en segundos) que descarta tramas idénticas retransmitidas por repetidores vecinos.
 
 ---

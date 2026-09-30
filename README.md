@@ -201,7 +201,7 @@ flowchart TB
 | Tópico | Tipo | Dirección | Descripción |
 | :--- | :--- | :--- | :--- |
 | `meshcore/bridge/state` | Estado | Bridge ➔ Broker | Estado `online`/`offline` (Retained LWT). |
-| `meshcore/bridge/health`| Salud | Bridge ➔ Broker | Métricas periódicas de salud, memoria y contadores. |
+| `meshcore/bridge/health`| Salud | Bridge ➔ Broker | Conectividad, uptime, nodos, cola TX y contadores; sin RAM/CPU del sistema operativo. |
 | `meshcore/rx/all` | Stream | Bridge ➔ Broker | **Tópico unificado**: Todos los eventos RX normalizados en JSON. |
 | `meshcore/rx/public` | RX | Bridge ➔ Broker | Mensajes recibidos en el canal público (Canal 0). |
 | `meshcore/rx/channel/ch_<idx>` | RX | Bridge ➔ Broker | Mensajes recibidos en canal secundario `<idx>`. |

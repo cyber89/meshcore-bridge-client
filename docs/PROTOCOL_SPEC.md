@@ -7,7 +7,7 @@
 > - Documentación Oficial: [docs.meshcore.io](https://docs.meshcore.io/) | [meshcore.io](https://meshcore.io)
 > - Repositorio Oficial en GitHub: [github.com/meshcore-dev/MeshCore](https://github.com/meshcore-dev/MeshCore)
 > - SDK Oficial en Python: [github.com/meshcore-dev/meshcore_py](https://github.com/meshcore-dev/meshcore_py)
-> - CLI Oficial: [github.com/meshcore-dev/meshcore_cli](https://github.com/meshcore-dev/meshcore_cli)
+> - CLI Oficial: [github.com/meshcore-dev/meshcore-cli](https://github.com/meshcore-dev/meshcore-cli)
 > **Firmware Target**: MeshCore Firmware v1.17+ / Companion USB  
 > **Microcontroladores Soportados**: ESP32-S3, ESP32-C3, nRF52840, RP2040, STM32 (ARM Cortex-M / RISC-V)  
 > **Módulos de Radio LoRa**: Semtech SX1262, SX1268, SX1276, LR1121  
@@ -68,7 +68,7 @@ graph TD
 | **Parity** | `None` (N) | Sin comprobación de paridad |
 | **Stop Bits** | `1` | Formato 8N1 |
 | **Flow Control** | `None` | Control por software con watchdog y heartbeats activos |
-| **Inter-byte Timeout** | `20 ms` | Tiempo límite para delimitar tramas en flujos continuos |
+| **Delimitación Companion** | Marcador y longitud | No hay timeout inter-byte universal de 20 ms acreditado en los parsers oficiales de esta revisión |
 | **Endianness** | `Little-Endian` (LE) | Todos los valores enteros (`uint16_t`, `uint32_t`, `int32_t`, coordenadas GPS) |
 
 ---
@@ -162,7 +162,7 @@ uint16_t meshcore_crc16_ccitt(const uint8_t *data, size_t length) {
 
 ## 5. Roles y Tipos de Nodo en MeshCore (`AdvertDataHelpers.h`)
 
-En el firmware oficial de MeshCore, los nodos anuncian explícitamente su rol mediante el campo binario `type` (1 byte):
+En el advert RF oficial, el rol ocupa los cuatro bits bajos del byte `flags` (`AdvertDataHelpers.h`). El contacto Companion serializa un campo `type` separado de un byte:
 
 ```c
 #define ADV_TYPE_NONE         0   // 0x00: Nodo anónimo o no configurado
@@ -211,7 +211,7 @@ En el firmware oficial de MeshCore, los nodos anuncian explícitamente su rol me
 
 ## 7. Estructura Binaria de la Libreta de Contactos (`Contact Data`)
 
-Cada registro de contacto en el firmware de MeshCore y el SDK en Python tiene un layout de **147 bytes**:
+Cada registro de contacto Companion contiene **147 bytes de datos**, o **148 bytes de payload incluyendo el opcode**. `MyMesh.cpp` serializa los campos individualmente: este layout no es `sizeof(ContactInfo)` ni determina el padding de structs C++:
 
 | Offset (Bytes) | Campo | Tipo de Dato | Descripción |
 | :--- | :--- | :--- | :--- |
@@ -314,7 +314,7 @@ MeshCore soporta hasta **8 canales concurrentes** (Canales 0 al 7):
 | `0` / `0x00` | `OK` | ACK positivo a comando ejecutado con éxito |
 | `1` / `0x01` | `ERROR` | NACK o error de procesamiento de comando |
 | `2` / `0x02` | `CONTACT_START` | Inicio de transmisión de contactos almacenados |
-| `3` / `0x03` | `CONTACT` | Datos de un contacto individual (147 bytes) |
+| `3` / `0x03` | `CONTACT` | 147 bytes de datos de contacto; payload de 148 bytes contando opcode |
 | `4` / `0x04` | `CONTACT_END` | Fin del listado de contactos |
 | `5` / `0x05` | `SELF_INFO` | Identidad, clave pública y configuración local |
 | `6` / `0x06` | `MSG_SENT` | Confirmación de trama transmitida al medio RF |
@@ -374,7 +374,7 @@ MeshCore empaqueta lecturas de sensores ambientales utilizando el estándar bina
 En total conformidad con el firmware oficial de MeshCore en C/C++ (`reference/meshcore/` y `AdvertDataHelpers.h`):
 
 ### 12.1 Identificación Canónica según la Pila MeshCore
-Cada nodo de la red se clasifica formalmente por su tipo de anuncio (`FirmwareAdvertType` / `type` en el struct binario de 147 bytes):
+Cada nodo de la red se clasifica formalmente por su tipo de anuncio (`FirmwareAdvertType`; rol en flags del advert RF o `type` separado en los 147 bytes de datos de contacto Companion):
 - **`FirmwareAdvertType.NONE (0)` / `CHAT (1)` $\to$ Rol `CLIENT`**: Dispositivos de usuario final capaces de intercambiar mensajes de texto directos (DM) y participar en canales.
 - **`FirmwareAdvertType.REPEATER (2)` $\to$ Rol `REPEATER`**: Nodos de infraestructura dedicados exclusivamente al enrutamiento de paquetes LoRa, retransmisión multi-salto y gestión remota.
 - **`FirmwareAdvertType.ROOM (3)` $\to$ Rol `ROOM`**: Servidores de sala comunitaria o BBS.
