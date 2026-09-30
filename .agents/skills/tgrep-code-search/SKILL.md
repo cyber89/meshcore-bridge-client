@@ -10,10 +10,11 @@ description: >-
 
 Esta skill permite a los agentes ejecutar búsquedas de código a escala con latencia submilisegundo utilizando el motor **`microsoft/tgrep`**.
 
-## Binarios Disponibles
+## Disponibilidad
 
-- **Ruta Global en PATH**: `tgrep.exe` (ubicado en `C:\Users\Ruby\.gemini\antigravity\bin\tgrep.exe`).
-- **Ruta de Respaldo Local**: `.agents\bin\tgrep.exe`.
+- Resolver `tgrep` desde el `PATH`; no asumir rutas personales ni específicas de Windows.
+- Si `tgrep` no está instalado, usar `rg`/`ripgrep` o `git grep` como fallback y documentar la limitación.
+- No asumir la existencia de `.agents/bin/` salvo que el repositorio la contenga realmente.
 
 ---
 
