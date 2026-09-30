@@ -36,4 +36,4 @@ Esta skill define las pautas estéticas, visuales y de interacción para constru
    - Respeta `@media (prefers-reduced-motion: reduce)`.
 
 ## Referencias
-Consultar [design_tokens_cheatsheet.md](file:///c:/Users/Ruby/Desktop/meshcore-bridge/.agents/skills/web-ui-design-system/references/design_tokens_cheatsheet.md).
+Consultar [design_tokens_cheatsheet.md](references/design_tokens_cheatsheet.md).
