@@ -8,7 +8,7 @@
     "views": [
       {
         "id": "rf-ingress",
-        "label": "Ingreso LoRa y Framing",
+        "label": "Ingreso Companion y RF",
         "focus": [
           "lora_radio",
           "tcp_companion",
@@ -16,7 +16,7 @@
           "protocol_engine",
           "bridge_core"
         ],
-        "note": "Recepción física por transceptor LoRa o túnel TCP Companion hacia el motor HDLC."
+        "note": "Recepción desde la radio mediante el transporte Companion oficial (Serial/TCP) y separación posterior de eventos RF."
       },
       {
         "id": "core-routing",
@@ -79,7 +79,7 @@
       "id": "serial_adapter",
       "type": "backend",
       "label": "Driver Serie",
-      "sublabel": "Watchdog + Framing",
+      "sublabel": "Watchdog + Companion",
       "pos": [
         240,
         100
@@ -94,7 +94,7 @@
       "id": "protocol_engine",
       "type": "backend",
       "label": "Motor Protocolo",
-      "sublabel": "HDLC SOF/EOF/CRC",
+      "sublabel": "Companion 0x3C/0x3E + len",
       "pos": [
         240,
         260
@@ -346,8 +346,8 @@
       "dot": "cyan",
       "title": "Protocolo & Resiliencia RF",
       "items": [
-        "Framing HDLC determinista con delimitadores SOF/EOF y byte-stuffing",
-        "Validación estricta de CRC-16 y deduplicación por hash de paquete",
+        "Framing Companion determinista con marcador de dirección y longitud uint16 little-endian",
+        "Validación de longitud/estructura Companion y deduplicación de eventos/paquetes",
         "Watchdog serie con reconexión automática y backoff exponencial"
       ]
     },
