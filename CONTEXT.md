@@ -4,6 +4,17 @@ Este documento define el **Lenguaje Ubicuo (Ubiquitous Language)** y el **Modelo
 
 ---
 
+## 0. Alcance y autoridad
+
+Este archivo es la **fuente canónica del lenguaje de dominio y de sus invariantes**. No es un inventario de implementación.
+
+- Los layouts binarios, opcodes y comportamiento del firmware/SDK se verifican contra `/reference/`.
+- Las decisiones arquitectónicas que materializan este dominio viven en `docs/adr/`.
+- Los nombres de clases o algoritmos concretos mencionados aquí son ejemplos de implementación y **no forman parte del contrato de dominio**, salvo que una sección los declare expresamente como invariantes.
+- Si una guía, README, reporte o skill contradice este documento, debe corregirse la documentación derivada en vez de duplicar una nueva regla.
+
+---
+
 ## 1. Propósito y Arquitectura General del Sistema
 
 - **MeshCore Bridge**: Aplicación asíncrona en Python 3.10+ que actúa como pasarela bidireccional determinista entre una red de malla LoRa (basada en el protocolo y firmware oficial de MeshCore) y redes IP (WebSockets, REST API y MQTT para automatización con n8n/Node-RED).
@@ -45,16 +56,16 @@ La clasificación de cualquier dispositivo en la red se determina **exclusivamen
 
 - **Airtime**: Tiempo en milisegundos durante el cual la portadora de radio está ocupada transmitiendo un paquete LoRa (depende de Spreading Factor, Bandwidth y longitud del payload).
 - **Hop Limit**: Contador de saltos de un paquete dentro de la malla para evitar bucles infinitos (valor estándar: 3–4, máximo: 7). Cada salto decrementa el contador.
-- **Duty Cycle**: Límite regulatorio regional (ej. sub-bandas de 868 MHz al 1% o 10%) que restringe el tiempo acumulado de transmisión por hora.
+- **Duty Cycle**: Presupuesto o límite de transmisión aplicable a una banda/sub-banda y jurisdicción concretas. Los valores legales no se asumen globalmente: deben configurarse y verificarse para la región de despliegue.
 - **Byte Stuffing**: Técnica de delimitación de tramas serie (UART) utilizando bytes especiales de inicio (`SOF` / `0xAA`) y fin (`EOF` / `0x55`), con secuencias de escape (`ESC` / `0x1B`) para evitar colisiones con datos binarios arbitrarios.
 - **LQI (Link Quality Indicator)**: Métrica compuesta calculada a partir de RSSI, SNR y tasa de pérdida de paquetes para estimar la calidad de enlace entre dos nodos.
 - **Deduplication Window**: Búfer temporal (LRU con caducidad en segundos) que descarta tramas idénticas retransmitidas por repetidores vecinos.
 
 ---
 
-## 5. Módulos Clave del Sistema y Principios de Diseño
+## 5. Mapeo de implementación (informativo)
 
-El sistema sigue la filosofía de **Deep Modules** (John Ousterhout, *A Philosophy of Software Design*): módulos con una interfaz diminuta y simple que encapsulan gran cantidad de lógica determinista.
+Esta sección orienta al desarrollador sobre cómo el código actual materializa el dominio. **No es normativa**: si cambian nombres de clases o algoritmos sin cambiar las invariantes, no cambia el modelo de dominio. El sistema favorece módulos profundos con interfaces pequeñas y comportamiento encapsulado.
 
 - **`BaseSerialAdapter` (Seam)**: Costura o interfaz abstracta que desacopla la lógica del bridge del driver de hardware serie o SDK.
 - **`MeshcoreSDKAdapter`**: Adaptador concreto que envuelve el SDK oficial de MeshCore para comunicación con el chip LoRa.
@@ -62,10 +73,10 @@ El sistema sigue la filosofía de **Deep Modules** (John Ousterhout, *A Philosop
 - **`RawSerialFramingAdapter`**: Deserializador y decodificador binario de tramas MeshCore con validación estricta de CRC y longitud.
 - **`NodeRegistry`**: Módulo profundo para indexación rápida por clave pública y alias, persistencia y filtrado de contactos vs nodos de infraestructura.
 - **`RepeaterManager`**: Gestor de comandos administrativos remotos con control de cooldowns y deduplicación de respuestas.
-- **`RateLimiter`**: Limitador de tasa con algoritmo Token Bucket para proteger el canal de radio contra ráfagas no autorizadas.
+- **Rate limiter / airtime guard**: Subsistema que aplica pacing, prioridades y guardas de airtime. El algoritmo concreto pertenece a `docs/ARCHITECTURE.md` y puede evolucionar sin redefinir este dominio.
 - **`PacketDeduplicator`**: Filtro de idempotencia para eventos entrantes y salientes.
 - **`AsyncBridgeMQTTClient`**: Conector asíncrono MQTT con soporte LWT (*Last Will and Testament*) y reconexión automática.
-- **`HttpServer / WebSocketServer`**: Servidor ASGI nativo ligero en Vanilla Python con autenticación de sesión y difusión de eventos en tiempo real.
+- **Servidor HTTP / WebSocket**: Frontera web ligera que expone REST, activos estáticos y eventos en tiempo real; su implementación concreta se documenta en `docs/ARCHITECTURE.md`.
 
 ---
 
