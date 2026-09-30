@@ -20,7 +20,7 @@ Permite:
 
 ## 2. Reglas Inmutables y SSoT del Protocolo
 
-Todo cambio que se introduzca en este workflow debe respetar estrictamente las reglas inmutables de [AGENTS.md](file:///c:/Users/Ruby/Desktop/meshcore-bridge/AGENTS.md) y [CONTEXT.md](file:///c:/Users/Ruby/Desktop/meshcore-bridge/CONTEXT.md):
+Todo cambio que se introduzca en este workflow debe respetar las invariantes de dominio de [CONTEXT.md](../CONTEXT.md). [AGENTS.md](../AGENTS.md) define el procedimiento operativo de los agentes, pero no duplica ni redefine esas invariantes:
 
 | Regla SSoT | Descripción y Restricción Inmutable |
 |---|---|
@@ -150,7 +150,7 @@ flowchart TD
 
 ## 5. Anatomía Detallada de los Nodos del Workflow
 
-El archivo [n8n_workflow_meshcore.json](file:///c:/Users/Ruby/Desktop/meshcore-bridge/n8n_workflow_meshcore.json) contiene 14 nodos organizados jerárquicamente:
+El archivo [n8n_workflow_meshcore.json](../n8n_workflow_meshcore.json) contiene 14 nodos organizados jerárquicamente:
 
 ### Nodo 1: `MQTT Trigger - MeshCore RX`
 - **Tipo**: `n8n-nodes-base.mqttTrigger`
@@ -267,7 +267,7 @@ Abre el **Nodo 11** (`Cron Trigger - Cada 30 Minutos`) y selecciona el intervalo
 
 1. Accede a tu instancia de **n8n** en el navegador web (por defecto `http://localhost:5678`).
 2. En el panel izquierdo, haz clic en **Workflows** $\to$ **Import from File**.
-3. Selecciona el archivo [n8n_workflow_meshcore.json](file:///c:/Users/Ruby/Desktop/meshcore-bridge/n8n_workflow_meshcore.json).
+3. Selecciona el archivo [n8n_workflow_meshcore.json](../n8n_workflow_meshcore.json).
 4. Configura las credenciales MQTT de tu broker Mosquitto:
    - **Host**: IP o hostname del broker (ej. `127.0.0.1` o `mosquitto`).
    - **Port**: `1883` (o `8883` si usas TLS).
@@ -280,7 +280,7 @@ Abre el **Nodo 11** (`Cron Trigger - Cada 30 Minutos`) y selecciona el intervalo
 
 El comportamiento y los contratos de este workflow están validados por la suite de pruebas unitarias en Python:
 
-- Archivo de prueba: [tests/test_n8n_parser_matrix.py](file:///c:/Users/Ruby/Desktop/meshcore-bridge/tests/test_n8n_parser_matrix.py)
+- Archivo de prueba: [tests/test_n8n_parser_matrix.py](../tests/test_n8n_parser_matrix.py)
 - Para ejecutar la validación local:
   ```powershell
   python tests/test_n8n_parser_matrix.py
