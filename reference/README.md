@@ -8,7 +8,7 @@ Este directorio contiene los repositorios oficiales de MeshCore utilizados exclu
 
 | Directorio | Origen | Descripción | Propósito para Agentes |
 | :--- | :--- | :--- | :--- |
-| **`/reference/meshcore/`** | `https://github.com/meshcore-dev/MeshCore` | Firmware oficial en C/C++ (ESP32, nRF52840, RP2040) | Extracción de layouts de structs, enums, opcodes, constantes de framing UART y algoritmos CRC. |
+| **`/reference/meshcore/`** | `https://github.com/meshcore-dev/MeshCore` | Firmware oficial en C/C++ (ESP32, nRF52840, RP2040) | Extracción de `Packet.h`, roles, layouts, opcodes y framing Companion. No asumir CRC o delimitadores que no aparezcan en upstream. |
 | **`/reference/meshcore_py/`** | `https://github.com/meshcore-dev/meshcore_py` | SDK oficial de Python para MeshCore | Consulta de clases de eventos, deserializadores de paquetes y comandos seriales. |
 | **`/reference/meshcore_cli/`** | `https://github.com/meshcore-dev/meshcore-cli` | CLI oficial en Python | Referencia de interacción interactiva, comandos de repetidor y utilidades de configuración. |
 | **`/reference/openhop_core/`** | `https://github.com/openhop-dev/openhop_core` | Reimplementación completa de MeshCore en Python nativo para Linux/Raspberry Pi con soporte LoRa SPI | Referencia de routing en Python, drivers SPI SX1262/SX127x y compatibilidad binaria MeshCore. |
