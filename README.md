@@ -1,6 +1,8 @@
 # MeshCore Universal Bridge & Web Station v3.0 Pro
 
-Puente bidireccional asíncrono, resiliente y de grado industrial para conectar transceptores de radio **MeshCore Companion USB / TCP (v1.17+)** (**Heltec v2/v3/v4**, **LilyGO T-Beam/T-Echo**, **RAKwireless WisBlock**, **Seeed Studio**, **Raspberry Pi RP2040**) con **MQTT (Mosquitto)**, flujos de automatización en **n8n**, y una **Estación Web SPA Reactiva Moderna (HTML5, Vanilla CSS, ES6+)** con **Centro de Control de Repetidores**, **Consola CLI Interactiva**, **Autenticación API Key** y **Paleta de Comandos (`Ctrl+K`)**.
+Puente bidireccional asíncrono para conectar transceptores compatibles con **MeshCore Companion USB / TCP** con **MQTT (Mosquitto)**, flujos de automatización en **n8n** y una **Estación Web SPA en HTML5, Vanilla CSS y ES6+** con control de repetidores, consola CLI, autenticación API Key y paleta de comandos (`Ctrl+K`). La compatibilidad exacta depende del firmware/SDK y se valida contra las fuentes incluidas en `reference/`.
+
+> **Documentación:** consulta [`docs/README.md`](docs/README.md) para conocer qué documentos son canónicos, cuáles son guías y cuáles son snapshots históricos.
 
 ---
 
@@ -18,8 +20,8 @@ Puente bidireccional asíncrono, resiliente y de grado industrial para conectar 
 ## 🚀 Características Principales (v3.0 Pro)
 
 - **🌐 Cliente Web Station SPA Integrado (`http://<IP>:8080`)**:
-  - Interfaz ultraligera sin dependencias pesadas (< 10 MB RAM, arranque instantáneo en < 50ms).
-  - Cumplimiento **WCAG 2.2 AA** con navegación 100% por teclado, foco visible `:focus-visible` y `prefers-reduced-motion`.
+  - Interfaz ultraligera sin frameworks frontend pesados, orientada a SBCs y despliegues de bajo consumo.
+  - Diseño orientado a **WCAG 2.2 AA**, con navegación por teclado, foco visible `:focus-visible` y `prefers-reduced-motion`; las verificaciones concretas se registran en auditorías fechadas.
   - **Paleta de Comandos (`Ctrl+K` / `⌘K`)**: Acceso rápido a cualquier sección, comandos de administración y descubrimiento.
   - **WebSocket Hub RFC 6455 Resiliente**:
     - Reconexión con retroceso exponencial (*exponential backoff*).
@@ -35,7 +37,7 @@ Puente bidireccional asíncrono, resiliente y de grado industrial para conectar 
   - **Centro de Control de Repetidores LoRa**:
     - 📋 *Telemetría de Hardware*: Batería, voltaje solar, SNR, RSSI y tiempo activo (*uptime*).
     - 📻 *Ajustes de Radio RF*: Frecuencia, potencia TX (dBm), Spreading Factor (SF7..SF12) y ancho de banda.
-    - 🌐 *Vecinos y Topología*: Tabla de vecinos directos con sondeo `discover.neighbors` y acceso directo a chat DM.
+    - 🌐 *Vecinos y Topología*: Tabla de vecinos directos con sondeo `discover.neighbors`; el acceso a chat solo se habilita para vecinos cuyo rol permita mensajería.
     - 💻 *Terminal Interactiva*: Consola CLI con historial de comandos (`ArrowUp`/`ArrowDown`), botones rápidos y ejecución de comandos directos.
   - **Mapa GPS Interactivo** (Leaflet) con detección de coordenadas en tiempo real de nodos y routers, con soporte de mapas locales *offline*.
   - **📈 Tablero de Métricas Avanzadas**: Top Nodos por Tráfico, Top Repetidores por Calidad de Enlace y Rendimiento del Puente.
@@ -109,7 +111,12 @@ meshcore-bridge/
 │   │   └── telemetry_handler.py
 │   ├── rx_router.py                  # Enrutador de eventos LoRa/RF → MQTT + WebSocket
 │   ├── sensor_decoder.py             # Decodificador CayenneLPP para sensores ambientales
-│   ├── serial_driver.py              # Adaptadores de comunicación serial, TCP y Watchdog
+│   ├── serial_driver.py              # Fachada/compatibilidad del subsistema serial
+│   ├── serial/                        # Implementación modular de transporte serie
+│   │   ├── raw_framing.py             # Framing binario y validación de límites
+│   │   ├── sdk_adapter.py             # Adaptador del SDK oficial MeshCore
+│   │   ├── serial_base.py             # Contrato base y autodetección de puerto
+│   │   └── watchdog.py                # Supervisión y reconexión del transporte
 │   ├── shared_utils.py               # Utilidades compartidas del proyecto
 │   ├── target_resolver.py            # Resolución de destinatarios y alias
 │   ├── tcp_companion_server.py       # Servidor TCP para Companion Apps oficiales (Android/iOS/CLI)
@@ -172,7 +179,8 @@ meshcore-bridge/
 │   ├── export_logs.py                # Exportador de logs estructurados
 │   ├── build_diagrams.py             # Generador de diagramas de arquitectura
 │   └── generate_sample_mbtiles.py    # Generador de teselas de muestra para mapas offline
-├── docs/                             # Documentación técnica completa
+├── docs/                             # Documentación técnica
+│   ├── README.md                      # Índice, autoridad y estado de la documentación
 │   ├── ARCHITECTURE.md               # Diagramas de arquitectura v3.0, clases y flujos
 │   ├── AUDIT_REPORT_2026-08-17.md    # Reporte de auditoría de seguridad
 │   ├── CODE_EXPLANATION.md           # Explicación detallada de módulos y patrones
