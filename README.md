@@ -32,7 +32,7 @@ Puente bidireccional asíncrono para conectar transceptores compatibles con **Me
     - Deduplicación estricta de la Estación Base local (aparece exactamente una vez con distintivo *Base Station*).
     - Fusión inteligente de alias, nombres y prefijos de claves públicas en $O(1)$.
   - **Mensajería Multi-Canal y DMs Aislados**:
-    - Transmisión inmediata en canales públicos (Canales 0..7) con confirmación RF `✓ TX`.
+    - Transmisión en canales públicos/privados según la capacidad `max_channels` anunciada por el dispositivo, con confirmación RF `✓ TX`.
     - Mensajes directos (DMs) punto a punto con seguimiento de ACK por radio (25s) y acuse `✓✓ Entregado`.
   - **Centro de Control de Repetidores LoRa**:
     - 📋 *Telemetría de Hardware*: Batería, voltaje solar, SNR, RSSI y tiempo activo (*uptime*).
