@@ -23,7 +23,7 @@ Esta skill define los estándares de diseño, arquitectura y validación de endp
    - `204 No Content`: Operación completada con éxito sin cuerpo de retorno (ej. CORS Preflight OPTIONS).
    - `400 Bad Request`: Payload malformado o campos requeridos ausentes.
    - `401 Unauthorized`: Token o autenticación administrativa faltante o inválida.
-   - `403 Forbidden`: Acción rechazada por políticas de seguridad o reglas de dominio (ej. enviar chat a un repetidor).
+   - `403 Forbidden`: Acción rechazada por autorización/permisos aun cuando la identidad sea conocida. Las invariantes de dominio de TX (por ejemplo, destino local o `REPEATER`) siguen el contrato implementado por `TxController`, actualmente `400 Bad Request`, hasta que un cambio coordinado de API/ADR defina otra cosa.
    - `404 Not Found`: Recurso o ruta no existente.
    - `413 Payload Too Large`: Cuerpo de solicitud superior al límite configurado (`MAX_BODY_SIZE`).
    - `422 Unprocessable Entity`: Formato sintáctico JSON válido pero semántica de negocio errónea.
