@@ -120,7 +120,7 @@
       "from": "serial_drv",
       "to": "rx_router",
       "y": 225,
-      "label": "Trama HDLC válida",
+      "label": "Frame Companion válido",
       "variant": "emphasis"
     },
     {
@@ -168,7 +168,7 @@
       "from": "rx_router",
       "to": "serial_drv",
       "y": 415,
-      "label": "HDLC frame TX",
+      "label": "Companion command TX",
       "variant": "security"
     },
     {
@@ -257,7 +257,7 @@
       "dot": "cyan",
       "title": "Pipeline Inbound Reactivo",
       "items": [
-        "Des-empaquetado y chequeo de CRC inmediatos sin bloqueos",
+        "Parsing de marcador/longitud Companion sin bloqueos",
         "Persistencia asíncrona de telemetría y actualización en SQLite",
         "Notificación instantánea simultánea por WebSockets hacia la UI"
       ]
