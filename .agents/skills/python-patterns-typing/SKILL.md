@@ -16,7 +16,7 @@ Esta skill establece las directrices de ingeniería y tipado estático estricto 
    - Uso de uniones modernas con sintaxis de pipe (`str | None`, `int | float`) en lugar de `Optional` o `Union`.
    - Colecciones nativas parametrizadas (`list[dict[str, Any]]`, `tuple[int, ...]`, `set[str]`) importando `from __future__ import annotations`.
    - Prohibido el uso indiscriminado de `Any`. Utilizar `TypeVar`, `Generic[T]`, o `typing.Protocol` para polimorfismo estructural.
-   - Uso de `typing.Self` para métodos fluidos o constructores alternativos que retornan la instancia de la clase.
+   - Para métodos fluidos o constructores alternativos, usar `typing.Self` en Python 3.11+; cuando se mantenga compatibilidad con Python 3.10, usar `typing_extensions.Self` o una alternativa tipada equivalente.
    - Uso de `typing.assert_never()` en ramas de exhaustividad de `match`/`if-elif` sobre Enums.
    - `typing.TypeGuard` para funciones de estrechamiento de tipos seguras en tiempo de análisis estático.
 
