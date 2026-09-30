@@ -1,13 +1,13 @@
 # Arquitectura de MeshCore Bridge v3.0
 
 ## 1. Resumen Ejecutivo
-MeshCore Bridge v3.0 es una pasarela asíncrona avanzada que interconecta redes de radio LoRa (mediante protocolo serial en formato HDLC derivado con SOF/EOF) con infraestructuras IP a través de MQTT y una interfaz de usuario Web moderna (SPA). Construida sobre Python 3.10+ y la biblioteca `asyncio`, ofrece un puente bidireccional transparente, concurrente y resiliente entre mallas de radiofrecuencia (RF) y redes IP, todo sin depender de frameworks web pesados.
+MeshCore Bridge v3.0 es una pasarela asíncrona que interconecta una radio MeshCore mediante el **protocolo Companion oficial** (USB Serial o TCP) con MQTT, REST/WebSocket y una SPA web ligera. El transporte Host↔Radio usa frames `0x3C/0x3E + uint16_le(length) + payload`; el paquete LoRa on-air es una capa independiente definida por `Packet.h`.
 
 ## 1.1 Mapas Interactivos de Arquitectura (Generados con Archify)
 El sistema cuenta con mapas interactivos de alta fidelidad compilados determinísticamente con el motor [**Archify** (`tt-a1i/archify`)](https://github.com/tt-a1i/archify). Estos artefactos son completamente autónomos en **HTML + SVG**, no requieren conexión a internet y cuentan con soporte para tema Claro/Oscuro, modos visuales (*classic*, *signal-flow*, *blueprint*), zoom, paneo, búsqueda y capítulos guiados:
 
 - 🗺️ [**Arquitectura General del Sistema (`meshcore_architecture.html`)**](diagrams/meshcore_architecture.html): Mapeo completo de subsistemas, capas de aislamiento, drivers serie, núcleo asyncio, persistencia y clientes IP.
-- ⚡ [**Pipeline de Tramas LoRa a IP (`meshcore_packet_pipeline.html`)**](diagrams/meshcore_packet_pipeline.html): Flujo determinista paso a paso desde el paquete RF, framing HDLC, chequeo CRC-16, deduplicador, hasta el WebSocket Hub y broker MQTT.
+- ⚡ [**Pipeline de Tramas LoRa a IP (`meshcore_packet_pipeline.html`)**](diagrams/meshcore_packet_pipeline.html): artefacto generado. Si todavía muestra HDLC/SOF/EOF/CRC como framing MeshCore, se considera **obsoleto** hasta regenerarse desde esta arquitectura y `PROTOCOL_SPEC.md`.
 - ⏱️ [**Secuencia Operativa Bidireccional (`meshcore_rx_tx_sequence.html`)**](diagrams/meshcore_rx_tx_sequence.html): Diagrama de secuencia temporal que ilustra la recepción reactiva de tramas y la ejecución de comandos administrativos Hop 0 con rate limiter.
 
 > **Regeneración de diagramas**:
@@ -15,6 +15,18 @@ El sistema cuenta con mapas interactivos de alta fidelidad compilados determiní
 > ```bash
 > python scripts/build_diagrams.py
 > ```
+
+## 1.2 Fronteras de protocolo
+
+La arquitectura distingue explícitamente:
+
+- **Companion**: framing de stream Host↔Radio, comandos y respuestas.
+- **Packet.h**: estructura LoRa on-air (`header/path/payload`, `MAX_PACKET_PAYLOAD=184`).
+- **Bridge APIs**: REST/MQTT/WebSocket propios del proyecto.
+- **Legacy synthetic framing**: utilidades históricas internas, fuera de producción.
+
+`MeshCoreBridge` requiere que `MeshcoreSDKAdapter.connect()` establezca una sesión Companion válida.
+Un adaptador sintético no puede reportarse como “conectado” para permitir un arranque aparentemente sano.
 
 ## 2. Diagrama de Arquitectura General
 
@@ -25,15 +37,16 @@ flowchart TB
         TCP[TCP Companion\n:5000]
     end
 
-    subgraph Capa de Adaptación Serial
+    subgraph Capa de Adaptación Companion
         WD[SerialWatchdog]
         Base[BaseSerialAdapter]
-        SDK[MeshcoreSDKAdapter]
-        Raw[RawSerialFramingAdapter]
+        SDK[MeshcoreSDKAdapter\nmeshcore_py]
     end
 
     subgraph Capa de Protocolo
-        PT[protocol_types.py\nSOF=0xAA / EOF=0x55 / ESC=0x1B]
+        CP[Companion Stream\n0x3C/0x3E + uint16 LE]
+        PT[protocol_types.py\nCommandType / PacketType / Packet.h enums]
+        Legacy[RawSerialFramingAdapter\nLEGACY / TEST-ONLY]
     end
 
     subgraph Capa Core
@@ -92,9 +105,9 @@ flowchart TB
     Radio <--> Base
     TCP <--> Base
     Base <--> SDK
-    Base <--> Raw
-    SDK --> PT
-    Raw --> PT
+    SDK --> CP
+    CP --> PT
+    Legacy -. no production fallback .-> PT
 
     PT --> RxR
     TxL --> PT
@@ -180,7 +193,7 @@ sequenceDiagram
     RateLimiter->>AirtimeTracker: check_duty()
     AirtimeTracker-->>RateLimiter: ok
     RateLimiter->>SerialDriver: send()
-    SerialDriver->>Radio: TX (SOF/EOF/ESC)
+    SerialDriver->>Radio: Companion TX (0x3C + len + command)
     Radio-->>SerialDriver: ACK received
     SerialDriver->>RxRouter: on_frame()
     RxRouter->>WebSocket: broadcast(status)
@@ -199,7 +212,7 @@ sequenceDiagram
     participant MQTT
     participant WebSocket
 
-    Radio->>SerialDriver: RX Frame
+    Radio->>SerialDriver: Companion RX (0x3E + len + response)
     SerialDriver->>RxRouter: on_frame()
     RxRouter->>RouterHandlers: route()
     RouterHandlers->>Managers: update(NodeRegistry/LQI)
@@ -261,9 +274,9 @@ sequenceDiagram
 | Nombre de clase | Módulo | Responsabilidad | Patrón | Dependencias |
 | --- | --- | --- | --- | --- |
 | `MeshCoreBridge` | `bridge_core.py` | Orquesta la aplicación uniendo MQTT, Web, Serial y Routers. | Facade | `serial_driver`, `rx_router`, `mqtt_client`, etc. |
-| `BaseSerialAdapter` | `serial_driver.py` | Define la interfaz para interactuar con puertos serie o TCP. | Adapter | Ninguna explícita |
-| `MeshcoreSDKAdapter` | `serial_driver.py` | Adapta la comunicación serie usando el SDK propietario. | Adapter | `protocol_types` |
-| `RawSerialFramingAdapter` | `serial_driver.py` | Implementa el enmarcado serie crudo (SOF=0xAA, EOF=0x55, ESC=0x1B). | Adapter / Decorator | `protocol_types` |
+| `BaseSerialAdapter` | `src/serial/serial_base.py` | Contrato de adaptadores de transporte del bridge. | Adapter | Ninguna explícita |
+| `MeshcoreSDKAdapter` | `src/serial/sdk_adapter.py` | Adaptador de producción sobre el SDK oficial `meshcore_py` y su transporte Companion. | Adapter | `meshcore_py`, `protocol_types` |
+| `RawSerialFramingAdapter` | `src/serial/raw_framing.py` | Parser sintético legado `0xAA/0x55/CRC` para herramientas/simuladores; falla cerrado y no es fallback de producción. | Test/Legacy Adapter | `protocol_types` |
 | `SerialWatchdog` | `serial_driver.py` | Monitoriza el puerto serie y reinicia en caso de bloqueo. | Observer / Watchdog | `BaseSerialAdapter` |
 | `RxEventRouter` | `rx_router.py` | Enruta mensajes recibidos de la radio a los handlers correctos. | Strategy / Router | `routers/*`, `contact_manager`, etc. |
 | `TxRateLimiter` | `rate_limiter.py` | Controla la tasa de envío (Duty Cycle) a la red de radio. | Rate Limiter | `protocol_types` |
