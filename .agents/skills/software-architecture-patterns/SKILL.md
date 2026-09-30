@@ -18,7 +18,7 @@ Esta skill define los lineamientos arquitectónicos de nivel enterprise para sis
 ```
 +-------------------------------------------------------------------+
 |                        Adaptadores Primarios                      |
-|  [REST API / FastAPI]  [WebSockets]  [TCP Companion]  [CLI/Admin] |
+|  [REST API / HTTP nativo]  [WebSockets]  [TCP Companion]  [CLI/Admin] |
 +---------------------------------+---------------------------------+
                                   |
                                   v
@@ -66,7 +66,7 @@ Esta skill define los lineamientos arquitectónicos de nivel enterprise para sis
 3. **Múltiples Suscriptores Asíncronos**:
    * Evento `RxPacketReceived` $\to$ Consumido simultáneamente por:
      * `NodeRegistry` (actualización en memoria y persistencia JSON).
-     * `MqttBridge` (publicación hacia Home Assistant / n8n).
+     * `MqttBridge` (publicación hacia consumidores MQTT documentados, por ejemplo n8n).
      * `WebSocketHub` (actualización reactiva de la SPA).
      * `TCPCompanionServer` (reenvío a apps móviles conectadas).
 
@@ -90,7 +90,7 @@ Esta skill define los lineamientos arquitectónicos de nivel enterprise para sis
 ## 4. Lenguaje Ubicuo (CONTEXT.md) y Registro de Decisiones de Arquitectura (ADR)
 
 1. **Lenguaje Ubicuo Centralizado (`CONTEXT.md`)**:
-   - Todo término técnico, rol de nodo (`CLIENT`, `REPEATER`, `ROOM`, `SENSOR`, `LOCAL`), concepto de framing (`Byte Stuffing`, `SOF/EOF`, `Hop Limit`) y métricas (`Airtime`, `LQI`) deben coincidir estrictamente con [`CONTEXT.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/CONTEXT.md).
+   - Los términos de dominio (`CLIENT`, `REPEATER`, `ROOM`, `SENSOR`, `LOCAL`, `Airtime`, `LQI`) deben coincidir con [`CONTEXT.md`](../../CONTEXT.md). Los detalles de framing y protocolo se verifican contra `/reference/` y `docs/PROTOCOL_SPEC.md`.
    - Prohibido inventar sinónimos o jerga ambigua ("dispositivo", "router cliente", "peer") cuando el dominio define contratos canónicos.
 
 2. **Architecture Decision Records (`docs/adr/`)**:
