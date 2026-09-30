@@ -230,7 +230,11 @@ class AnonReqType(IntEnum):
 
 
 class HardwareModel(IntEnum):
-    """Modelos de hardware soportados por MeshCore."""
+    """IDs normalizados internos del bridge; NO corresponden a un enum oficial MeshCore.
+
+    Mantener aislado de DEVICE_INFO/model IDs del firmware hasta disponer de un
+    mapeo upstream verificable.
+    """
     UNKNOWN = 0x00
     HELTEC_V2 = 0x01
     HELTEC_V3 = 0x02
