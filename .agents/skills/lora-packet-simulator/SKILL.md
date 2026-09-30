@@ -15,8 +15,8 @@ Esta skill proporciona un entorno de simulación en memoria para depurar y verif
 ## 1. Capacidades Principales
 
 1. **`VirtualSerialAdapter` en Memoria**:
-   - Emula la capa UART del transceptor MeshCore utilizando colas asíncronas `asyncio.Queue`.
-   - Permite inyectar tramas serie delimitadas con `SOF` (`0xAA`), byte stuffing (`ESC 0x1B`) y `EOF` (`0x55`).
+   - Emula eventos/transporte de pruebas utilizando colas asíncronas `asyncio.Queue`.
+   - El modo legado puede inyectar el formato sintético `0xAA/0x55/ESC`, pero ese formato **no** es el transporte Companion oficial. Los escenarios que pretendan fidelidad MeshCore deben usar payloads Companion (`0x3C/0x3E + len`) o estructuras `Packet.h`, según la capa ensayada.
 2. **Reproducción de Trazas (Packet Replay)**:
    - Lee archivos de captura en formato JSON, CSV o volcado hexadecimal (`.hex`, `.log`) y los reproduce con temporización configurable.
 3. **Simulación de Topologías de Malla**:
