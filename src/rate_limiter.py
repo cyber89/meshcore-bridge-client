@@ -590,8 +590,9 @@ class TxRateLimiter:
                     if item is None:
                         continue
 
-                    # Protección de Airtime LoRa: Si estamos en estado crítico (100% de duty cycle),
-                    # descartar paquetes de baja prioridad (telemetría/anuncios) para no violar el límite legal.
+                    # Protección de Airtime LoRa: si el presupuesto operativo configurado entra
+                    # en estado crítico, aplicar load shedding a tráfico de baja prioridad.
+                    # Esto no constituye por sí solo una garantía de cumplimiento regulatorio.
                     if isinstance(item, TxItem) and item.priority >= int(TxPriority.LOW):
                         stats = self.airtime_tracker.get_stats()
                         if stats.get("is_critical"):
