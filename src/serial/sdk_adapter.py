@@ -838,22 +838,47 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         if not self.is_connected or not self.mc:
             raise ConnectionError("MeshCore SDK no conectado")
 
-        # 1. Validación estricta de MTU LoRa
-        raw_bytes = text.encode("utf-8")
-        if len(raw_bytes) > 238:
-            raise ValueError(f"Payload de mensaje excede MTU de LoRa ({len(raw_bytes)} > 238 bytes)")
-
-        # 2. Validación estricta de rango de canal
-        safe_ch = int(channel_idx) if channel_idx is not None else 0
-        if not (0 <= safe_ch <= 15):
-            raise ValueError(f"Índice de canal inválido ({safe_ch}). Debe estar en el rango 0..15.")
-
         target_clean = str(target).strip() if target else ""
         is_dm = bool(
             target_clean
             and target_clean.upper() not in ("0xFFFF", "BROADCAST", "PUBLIC", "ALL", "GLOBAL", "NONE", "")
             and not target_clean.lower().startswith("channel")
         )
+
+        # 1. Límite de texto del firmware oficial.
+        # BaseChatMesh.h: MAX_TEXT_LEN = 10 * CIPHER_BLOCK_SIZE = 160 bytes.
+        # En mensajes de canal el firmware serializa "<sender_name>: <text>"
+        # dentro del mismo presupuesto y, si se excede, trunca silenciosamente.
+        raw_bytes = text.encode("utf-8")
+        max_text_bytes = 160
+        if not is_dm:
+            sender_name = ""
+            if isinstance(self.self_info, dict):
+                sender_name = str(self.self_info.get("name", "") or "")
+            prefix_bytes = len(f"{sender_name}: ".encode("utf-8"))
+            max_text_bytes = max(0, 160 - prefix_bytes)
+        if len(raw_bytes) > max_text_bytes:
+            kind = "DM" if is_dm else "canal"
+            raise ValueError(
+                f"Texto {kind} excede el límite del firmware "
+                f"({len(raw_bytes)} > {max_text_bytes} bytes UTF-8)"
+            )
+
+        # 2. Validación del índice de canal contra capacidad conocida del dispositivo.
+        safe_ch = int(channel_idx) if channel_idx is not None else 0
+        max_channels = 16
+        if isinstance(self.self_info, dict):
+            try:
+                advertised_max = int(self.self_info.get("max_channels", max_channels))
+                if advertised_max > 0:
+                    max_channels = advertised_max
+            except (TypeError, ValueError):
+                pass
+        if not (0 <= safe_ch < max_channels):
+            raise ValueError(
+                f"Índice de canal inválido ({safe_ch}). "
+                f"El dispositivo anuncia {max_channels} canales (0..{max_channels - 1})."
+            )
 
         # Canal público vs mensaje directo (DM)
         if is_dm:
