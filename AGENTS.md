@@ -17,23 +17,31 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
 
 ---
 
-## 1.1 Reglas y Restricciones Inmutables de Protocolo, Contactos y Mensajería (SSoT)
+## 1.1 Jerarquía de autoridad documental
 
-1. **Restricción Estricta de Dispositivos Repetidores (`REPEATER` / `ROUTER`)**:
-   - **NUNCA** incluir un dispositivo de tipo repetidor en la libreta de **Contactos** (`#tab-contacts` / `NodeRegistry.list_client_contacts()`). Los repetidores son nodos de infraestructura de red que pertenecen exclusivamente a la vista unificada **Nodos** (`#unifiedNodesGridUi`) y a la **Analítica**.
-   - **NUNCA** permitir el envío de mensajería de chat (ni por canales broadcast ni por mensajería directa DM) hacia un repetidor. Los repetidores no poseen interfaz de chat de usuario ni procesan mensajería de texto; su interacción es exclusivamente administrativa (`🎛️ Administrar`, `🎯 Ping (Hop 0)`, `🗺️ Traceroute`, telemetría y comandos remotos).
-2. **Restricción Estricta del Nodo Local (`LOCAL` / Estación Base Host)**:
-   - **NUNCA** incluir la estación base o transceptor local en la libreta de **Contactos** ni duplicarlo como vecino de la malla.
-   - **NUNCA** permitir el envío de mensajería de ningún tipo dirigida a la propia clave pública del nodo local (bucle local prohibido).
-3. **Identificación Canónica basada en la Pila Oficial MeshCore**:
-   - Utilizar **SIEMPRE la especificación binaria y de opcodes de la pila oficial de MeshCore** (`reference/meshcore/`, `AdvertDataHelpers.h`, `FirmwareAdvertType`, `protocol_types.py`) para clasificar e identificar cada dispositivo en la red:
-     - `FirmwareAdvertType.NONE (0)` / `CHAT (1)` $\to$ Rol `CLIENT` (Dispositivo de usuario / Mensajería).
-     - `FirmwareAdvertType.REPEATER (2)` $\to$ Rol `REPEATER` (Router / Repetidor de infraestructura).
-     - `FirmwareAdvertType.ROOM (3)` $\to$ Rol `ROOM` (Servidor de sala comunitaria / BBS).
-     - `FirmwareAdvertType.SENSOR (4)` $\to$ Rol `SENSOR` (Dispositivo de telemetría).
+Para evitar múltiples fuentes de verdad, los documentos tienen la siguiente precedencia:
+
+1. **`/reference/meshcore/`, `/reference/meshcore_py/`, `/reference/meshcore_cli/`**: autoridad externa para protocolo, layouts binarios, opcodes y comportamiento del firmware/SDK.
+2. **`CONTEXT.md`**: autoridad del dominio del proyecto: vocabulario, roles e invariantes.
+3. **`docs/adr/`**: decisiones arquitectónicas aceptadas que refinan la implementación del dominio. Un ADR no debe redefinir el protocolo externo.
+4. **`docs/PROTOCOL_SPEC.md` y `docs/ARCHITECTURE.md`**: especificaciones derivadas del código y de las fuentes anteriores.
+5. **`AGENTS.md`**: reglas operativas para agentes; no redefine el dominio ni el protocolo.
+6. **Skills**: herramientas y procedimientos. **Nunca pueden contradecir esta jerarquía, el stack del proyecto ni una restricción explícita del usuario.**
+7. **README, guías, reportes y ledger de actividad**: documentación descriptiva o histórica; no son SSoT.
+
+Ante una discrepancia, prevalece la fuente de mayor autoridad. La discrepancia debe corregirse en la documentación derivada y, cuando represente una decisión de diseño, registrarse mediante ADR.
 
 ---
 
+## 1.2 Invariantes de dominio
+
+Las reglas canónicas de roles, contactos, repetidores, nodo local y protección de airtime se definen **una sola vez** en [`CONTEXT.md`](CONTEXT.md), especialmente en las secciones 2 y 3, y se refinan mediante los ADR aceptados.
+
+Los agentes **no deben copiar ni reinterpretar** esas invariantes dentro de otros documentos. Deben enlazarlas y aplicar los contratos vigentes. Para detalles binarios u opcodes, verificar siempre las fuentes de `/reference/` antes de modificar `docs/PROTOCOL_SPEC.md` o `src/protocol_types.py`.
+
+---
+
+## 2. Orquestación y Definición de Agentes
 ## 2. Orquestación y Definición de Agentes
 
 ### Agente 0: Lead Orchestrator & System Architect Agent (Agente Principal)
@@ -47,7 +55,7 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
   - Skill: `tgrep-code-search` (Búsqueda indexada por trigramas submilisegundo en monorepo/referencia)
 - **Responsabilidades y Reglas Estrictas**:
   1. **Desglose y Asignación**: Al iniciar una tarea, desglosa los requerimientos y delega subtareas a los agentes correspondientes (Investigador, Arquitecto de Bridge, Arquitecto Web, Auditor de Seguridad).
-  2. **Auditoría del Reporte**: Consulta obligatoriamente `docs/AGENT_ACTIVITY_REPORT.md` tras cada fase para verificar qué módulos fueron modificados y qué contratos cambiaron.
+  2. **Auditoría del historial**: Consulta `docs/README.md` y solo las entradas relevantes o recientes de `docs/AGENT_ACTIVITY_REPORT.md`. El ledger es histórico y no debe cargarse completo en cada fase.
   3. **Armonización Cruzada**: Actualiza y refactoriza el código de cualquier subsistema que deba mantenerse compatible con los cambios introducidos (APIs REST, WebSockets, MQTT, persistencia JSON / memoria, frontend).
   4. **Control de Pruebas**: **NUNCA ejecutar suites de pruebas (pytest/Playwright/fuzzing) automáticamente**, a menos que el usuario lo solicite de manera explícita en su mensaje.
 
@@ -59,7 +67,7 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
   - Lectura: `/reference/**`
   - Escritura: `/docs/PROTOCOL_SPEC.md`, `/src/protocol_types.py`
 - **Herramientas**:
-  - Skill: `meshcore_source_inspector` (AST / Struct / Enum Extractor)
+  - Skill: `meshcore-source-inspector` (AST / Struct / Enum Extractor)
   - Skill: `tgrep-code-search` (Búsqueda indexada por trigramas en código firmware C/C++)
 - **Reglas y Restricciones Estrictas**:
   1. **NUNCA** escribir código de red (MQTT, Sockets), persistencia de archivos ni controladores de hardware serie en `/src/meshcore_bridge.py`.
@@ -75,7 +83,7 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
   - Lectura: `/docs/PROTOCOL_SPEC.md`, `/src/protocol_types.py`, `/reference/**`
   - Escritura: `/src/**` (excepto `protocol_types.py`), `/docs/ARCHITECTURE.md`
 - **Herramientas**:
-  - Skill: `lora_frame_validator`
+  - Skill: `lora-frame-validator`
   - Skill: `lora-packet-simulator` (Simulación en memoria y virtual mesh replay)
   - Skill: `asyncio-profiler-leak-detector` (Monitoreo de event loop y memoria RAM)
 - **Reglas y Restricciones Estrictas**:
@@ -93,8 +101,8 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
   - Lectura: `/docs/PROTOCOL_SPEC.md`, `/src/**`, `/reference/**`
   - Escritura: `/tests/**`
 - **Herramientas**:
-  - Skill: `bridge_test_runner`
-  - Skill: `lora_frame_validator`
+  - Skill: `bridge-test-runner`
+  - Skill: `lora-frame-validator`
 - **Reglas y Restricciones Estrictas**:
   1. No ejecutar pruebas de forma automática tras tareas de programación a menos que haya una orden explícita del usuario.
   2. Al ser invocado, reportar matriz completa de verificación (pytest, coverage, mypy strict, ruff).
@@ -105,7 +113,7 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
 - **Objetivo**: Diseñar y maquetar la interfaz web SPA en HTML5 semántico, CSS3 moderno (Vanilla CSS) y JavaScript asíncrono para WebSockets y REST API.
 - **Área de Trabajo**:
   - Lectura: `/docs/ARCHITECTURE.md`, `/src/protocol_types.py`
-  - Escritura: `/src/web/static/**`, `/src/web/templates/**`
+  - Escritura: `/src/web/static/**` y módulos web existentes documentados en `docs/ARCHITECTURE.md`
 - **Herramientas**:
   - Skill: `contract-openapi-sync` (Verificación de paridad API Python/JS)
   - Skill: `web-browser-inspection` (Inspección Playwright)
@@ -156,7 +164,7 @@ sequenceDiagram
 
 ## 4. Checklist de Impacto en la Malla LoRa (Obligatorio)
 
-> **Regla**: Antes de implementar cualquier feature que **envíe paquetes por radio**, **dispare notificaciones** automáticas, **arme un timer** periódico o **modifique parámetros de radio**, el agente DEBE responder estas tres preguntas y documentar las respuestas en el plan de implementación. **NUNCA elegir un límite, umbral o intervalo de forma unilateral — siempre preguntar al usuario.**
+> **Regla**: Antes de implementar cualquier feature que **envíe paquetes por radio**, **dispare notificaciones** automáticas, **arme un timer** periódico o **modifique parámetros de radio**, el agente DEBE responder estas tres preguntas y documentar las respuestas en el plan de implementación. Los límites e intervalos deben provenir, por orden, de un ADR aceptado, una configuración existente o una instrucción explícita del usuario; si ninguna fuente los define, hay que pedir decisión al usuario antes de fijarlos.
 
 ---
 
@@ -171,7 +179,7 @@ Evaluar antes de programar:
 - ¿Es un timer permanente o una acción puntual? Los timers permanentes acumulan coste indefinidamente.
 - ¿Se puede sustituir por **datos pasivos** que ya se reciben (adverts, telemetría, ACKs) en vez de paquetes de consulta activa?
 
-**Regla**: Preferir siempre la recepción pasiva sobre la consulta activa. Los traceroutes, pings y solicitudes de telemetría son costosos — ejecutarlos bajo demanda o con intervalos mínimos de **5–15 minutos**.
+**Regla**: Preferir siempre la recepción pasiva sobre la consulta activa. Los traceroutes, pings y solicitudes de telemetría son costosos. Para automatizaciones, usar los límites definidos por los ADR/configuración vigentes; en ausencia de una decisión previa, mantenerlos bajo demanda hasta que el usuario defina el intervalo.
 
 ---
 
@@ -204,7 +212,7 @@ Reglas obligatorias:
 1. **Persistir el timestamp del último disparo en la base de datos o en el archivo `.json` de configuración**, nunca solo en una variable de instancia Python.
 2. Al reiniciar un scheduler, verificar el tiempo transcurrido desde el último disparo antes de ejecutar la primera iteración.
 3. Verificar que el comportamiento es correcto tras reiniciar el proceso bridge (simular con `pkill` + arranque manual).
-4. Ante la duda, preguntar al usuario el intervalo mínimo aceptable antes de hardcodear cualquier valor.
+4. No hardcodear nuevos intervalos sin una fuente de autoridad: ADR aceptado, configuración existente o decisión explícita del usuario.
 
 ---
 
@@ -227,5 +235,5 @@ Ejecutar obligatoriamente cuando la feature a implementar involucre:
 - **Linter & Formatter**: `ruff` (conformidad PEP 8 y buenas prácticas)
 - **Type Checker**: `mypy --strict`
 - **Pruebas Automatizadas**: **Suspendidas hasta petición explícita del usuario**.
-- **Sincronización con GitHub (`origin/main`)**: Tras cada modificación o entrega, realizar obligatoriamente `git add`, `git commit` y `git push origin main` para mantener el repositorio remoto actualizado.
+- **Sincronización con GitHub**: Trabajar por defecto en una rama dedicada y entregar mediante commit + Pull Request. El push directo a `origin/main` solo se realiza cuando el usuario lo solicite explícitamente o exista una política externa del repositorio que lo exija.
 
