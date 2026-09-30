@@ -91,7 +91,7 @@ Comandos transmitidos desde la aplicación Python hacia el microcontrolador. El 
 
 Respuestas sincrónicas y eventos asíncronos emitidos por el microcontrolador hacia la aplicación:
 
-### 3.1 Respuestas a Comandos (`0x00` a `0x1C`)
+### 3.1 Respuestas a Comandos (`0x00` a `0x1D` en `meshcore_py 2.3.14`)
 - `0x00` (`OK`): Ejecución exitosa de comando (puede incluir valor entero de 4 bytes en Little-Endian).
 - `0x01` (`ERROR`): Error de ejecución con código numérico (`ERR_BUSY`, `ERR_INVALID_PARAM`, `ERR_TIMEOUT`).
 - `0x02` (`CONTACT_START`): Indica inicio de transferencia de la libreta de contactos (incluye conteo total).
