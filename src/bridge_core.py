@@ -35,7 +35,6 @@ from src.rx_router import RxEventRouter, RxRouterContext
 from src.serial_driver import (
     BaseSerialAdapter,
     MeshcoreSDKAdapter,
-    RawSerialFramingAdapter,
     SerialWatchdog,
 )
 from src.tcp_companion_server import MeshCoreCompanionServer
@@ -444,21 +443,18 @@ class MeshCoreBridge:
         return self.serial_adapter.resolve_sender_name(prefix_or_key)
 
     def _create_serial_adapter(self) -> BaseSerialAdapter:
-        """Crea el adaptador serial adecuado con fallback transparente."""
-        try:
-            return MeshcoreSDKAdapter(
-                port=config.SERIAL_PORT,
-                baud_rate=config.BAUD_RATE,
-                timeout_sec=config.SERIAL_TIMEOUT,
-                node_registry=self.node_registry,
-            )
-        except Exception:
-            return RawSerialFramingAdapter(
-                port=config.SERIAL_PORT,
-                baud_rate=config.BAUD_RATE,
-                timeout_sec=config.SERIAL_TIMEOUT,
-                node_registry=self.node_registry,
-            )
+        """Crea el adaptador de producción basado en el SDK oficial MeshCore.
+
+        El antiguo RawSerialFramingAdapter implementa un formato sintético legado
+        (0xAA/0x55/CRC) que no corresponde al protocolo Companion oficial. Por ello
+        no se usa como fallback transparente de producción.
+        """
+        return MeshcoreSDKAdapter(
+            port=config.SERIAL_PORT,
+            baud_rate=config.BAUD_RATE,
+            timeout_sec=config.SERIAL_TIMEOUT,
+            node_registry=self.node_registry,
+        )
 
     async def start(self) -> None:
         """Inicia todos los subsistemas del bridge de forma asíncrona."""
@@ -480,8 +476,12 @@ class MeshCoreBridge:
         self.rate_limiter.start()
         self.mqtt.start(loop=loop)
 
-        # Conectar con hardware serial
-        await self.serial_adapter.connect()
+        # Conectar con hardware mediante el protocolo Companion oficial.
+        serial_connected = await self.serial_adapter.connect()
+        if not serial_connected:
+            raise ConnectionError(
+                "No fue posible establecer una sesión MeshCore Companion válida con el transceptor"
+            )
         self.watchdog.start()
 
         # Iniciar servidor web si está habilitado
