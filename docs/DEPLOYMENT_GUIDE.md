@@ -6,7 +6,7 @@ Esta guía describe el procedimiento para desplegar el puente **MeshCore Bridge*
 
 ## 📻 Dispositivos de Radio LoRa Compatibles
 
-El puente es **100% compatible con cualquier placa** que ejecute el firmware **MeshCore Companion USB (v1.17+)**:
+El bridge está diseñado para dispositivos que expongan el protocolo **MeshCore Companion** compatible con el SDK soportado. La compatibilidad concreta depende del firmware, transporte USB/TCP y capacidades anunciadas por el dispositivo; la lista siguiente representa familias objetivo, no una garantía universal:
 
 | Fabricante / Familia | Modelos Soportados | Chipset USB Típico | Puerto Serial Habitual |
 | :--- | :--- | :--- | :--- |
@@ -46,7 +46,7 @@ sudo bash install.sh --update
 
 ### 1. Requisitos Previos
 
-- Placa de desarrollo LoRa (Heltec, LilyGO, RAKwireless, Seeed, RP2040) flasheada con firmware **MeshCore Companion** (v1.17+).
+- Placa LoRa compatible flasheada con firmware **MeshCore Companion** y una versión de protocolo soportada por el SDK instalado.
 - Cable USB con soporte de datos conectado al host Linux.
 - Sistema Operativo Linux (Armbian, Debian 11/12, Ubuntu 22.04/24.04, Raspberry Pi OS).
 - Python 3.10 o superior (`python3 --version`).
