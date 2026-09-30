@@ -150,7 +150,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
             if self.port.startswith("tcp://"):
                 addr = self.port.replace("tcp://", "")
-                host, port_str = addr.split(":", 1) if ":" in addr else (addr, "4000")
+                host, port_str = addr.split(":", 1) if ":" in addr else (addr, "5000")
                 logging.info(f"Iniciando conexión MeshCore SDK remota TCP en {host}:{port_str}...")
                 if hasattr(MeshCore, "create_tcp"):
                     self.mc = await MeshCore.create_tcp(host, int(port_str), auto_reconnect=False)
