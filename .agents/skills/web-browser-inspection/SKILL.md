@@ -9,17 +9,19 @@ Esta habilidad proporciona capacidades automatizadas de inspección visual, func
 
 ---
 
-## Directiva Operativa Obligatoria
+## Procedimiento de QA visual (cuando esté autorizado)
 
 > [!IMPORTANT]
-> Cada vez que implementes, refactorices o modifiques una vista, panel o componente web en `src/web/`:
+> Cuando el usuario haya solicitado o autorizado expresamente pruebas/inspección visual para una modificación en `src/web/`:
 > 1. Asegúrate de que el servidor web local esté ejecutándose (por ejemplo, en `http://localhost:8080`).
 > 2. Ejecuta el script de inspección visual:
 >    ```bash
 >    python scripts/inspect_web.py --url http://localhost:8080
 >    ```
 > 3. Valida que el informe retorne `[PASS]`, sin excepciones de JavaScript no capturadas ni peticiones HTTP fallidas (4xx/5xx).
-> 4. Inspecciona las capturas generadas en `tests/artifacts/desktop.png` y `tests/artifacts/mobile.png` antes de dar la tarea por completada.
+> 4. Inspecciona las capturas generadas en `tests/artifacts/desktop.png` y `tests/artifacts/mobile.png` antes de declarar aprobada la QA visual.
+>
+> Si no existe autorización explícita para pruebas, limita el trabajo a revisión estática y deja constancia de que Playwright no fue ejecutado.
 
 ---
 
