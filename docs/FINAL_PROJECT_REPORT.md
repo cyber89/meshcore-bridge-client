@@ -1,8 +1,11 @@
 # MeshCore Bridge v3.0 - Reporte Integral de Ingeniería y Auditoría de Sistema
 
+> [!IMPORTANT]
+> **Snapshot histórico publicado en agosto de 2026.** Este reporte conserva el estado conocido en su fecha de publicación y no es una fuente normativa del estado actual. Para la documentación vigente y su jerarquía consulta [`docs/README.md`](README.md), `CONTEXT.md`, los ADR aceptados y el código actual.
+
 > **Documento Consolidado de Arquitectura, Especificación de Protocolo, Seguridad Informática y Calidad de Código**  
 > **Fecha de Publicación**: Agosto 2026  
-> **Estado**: Producción (Ready for Deployment)  
+> **Estado**: Snapshot histórico de una revisión de producción; requiere revalidación contra el estado actual antes de desplegar.  
 > **Clasificación**: Grado Industrial / Telecomunicaciones & IoT  
 
 ---
@@ -163,7 +166,7 @@ La estación web (`http://<IP>:8080` o `http://<IP>:8085`) provee **11 paneles o
 - `GET /api/analytics`: Métricas y rankings top en tiempo real.
 - `POST /api/sniffer/control` & `GET /api/sniffer/packets`: Control y consulta del interceptor de paquetes RF.
 - `POST /api/admin/command` & `POST /api/admin/repeater`: Envío de comandos a nodos locales y repetidores distantes.
-- `GET /api/ha/status` & `POST /api/ha/publish`: Estado y publicación de Home Assistant Discovery.
+- Los endpoints históricos de Home Assistant (`/api/ha/*`) no forman parte del contrato vigente salvo que estén presentes en `src/web/api_router.py`; verificar el código actual.
 - `GET /api/preflight`: Diagnósticos de infraestructura (Mosquitto, puerto serial/TCP, companion).
 - `GET /api/system/logs`: Historial de eventos y logs del sistema.
 - `OPTIONS *`: CORS preflight retornando `204 No Content`.
