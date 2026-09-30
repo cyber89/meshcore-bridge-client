@@ -19,7 +19,8 @@ Cuando dos documentos discrepen, corrige el de menor autoridad en vez de copiar 
 - [PROTOCOL_SPEC.md](PROTOCOL_SPEC.md): especificación derivada del protocolo y contratos de datos.
 - [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md): instalación y operación.
 - [N8N_WORKFLOW_GUIDE.md](N8N_WORKFLOW_GUIDE.md): integración con n8n.
-- [adr/](adr/): decisiones arquitectónicas aceptadas.
+- [PROTOCOL_AUDIT_2026-09-29.md](PROTOCOL_AUDIT_2026-09-29.md): auditoría de alineación con documentación, firmware y SDK oficiales MeshCore.
+- [adr/](adr/): decisiones arquitectónicas aceptadas, incluyendo ADR 0009 (capas Companion/on-air) y ADR 0010 (presupuesto de duty cycle configurable).
 - [reference_analysis/](reference_analysis/): análisis derivados de las fuentes incluidas en `reference/`; deben revalidarse cuando cambie la referencia upstream.
 
 ## Snapshots y reportes históricos
