@@ -1,9 +1,10 @@
 """
 Protocol Types and Binary Data Contracts for MeshCore Bridge.
 Define dataclasses inmutables y tipadas con validación y serialización estricta.
-Single Source of Truth para el bridge y suites de pruebas.
+Contratos derivados usados por el bridge y suites de pruebas.
 
-Aligned with official MeshCore SDK (meshcore_py/src/meshcore/packets.py).
+Los enums Companion se contrastan con firmware + meshcore_py. Las estructuras
+legacy internas se marcan explícitamente y no son SSoT del protocolo.
 """
 
 from __future__ import annotations
@@ -130,8 +131,12 @@ class FirmwareAdvertType(IntEnum):
 
 
 class CommandType(IntEnum):
-    """OpCodes de comandos Host -> Radio del SDK oficial (packets.py).
-    Aligned with meshcore_py/src/meshcore/packets.py CommandType."""
+    """Comandos Host -> Radio reconciliados entre firmware Companion y SDK.
+
+    Nota: CMD_SEND_CHANNEL_DATA=62 aparece en firmware/docs upstream pero falta
+    en el enum de meshcore_py 2.3.14; RUN_CLI_COMMAND=66 aparece en el SDK y su
+    soporte debe negociarse/verificarse contra el firmware desplegado.
+    """
     APP_START = 1
     SEND_TXT_MSG = 2
     SEND_CHANNEL_TXT_MSG = 3
@@ -190,6 +195,7 @@ class CommandType(IntEnum):
     SET_DEFAULT_FLOOD_SCOPE = 63
     GET_DEFAULT_FLOOD_SCOPE = 64
     SEND_RAW_PACKET = 65
+    RUN_CLI_COMMAND = 66
 
 
 # Deprecated: Use CommandType instead. FirmwareCommandType was an alias maintained
