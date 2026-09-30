@@ -1,6 +1,6 @@
 # ADR 0004: Persistencia Atómica de Airtime y Alertas Progresivas de Duty Cycle LoRa
 
-- **Estado**: Aceptado
+- **Estado**: Supersedido parcialmente por [ADR 0010](0010-duty-cycle-configurable-budget.md)
 - **Fecha**: 2026-09-18
 - **Autores**: Agente 0 (Lead Orchestrator), Agente 2 (Bridge Architect), Agente 4 (Web UI/UX Architect), Agente 5 (Security Auditor)
 - **Contexto**: `CONTEXT.md`, `AGENTS.md` (Sección 4 - Checklist de Impacto en la Malla LoRa), Entrevista técnica `/grill-me`
@@ -9,7 +9,7 @@
 
 ## Contexto y Problema
 
-El protocolo MeshCore opera sobre transceptores LoRa (Semtech SX1262/SX1276) en bandas ISM (868 MHz / 915 MHz / 433 MHz), donde las regulaciones de telecomunicaciones (ej. ETSI en la Unión Europea) imponen un límite estricto de ciclo de trabajo (*Duty Cycle*, comúnmente 1% por hora, equivalente a un máximo de 36 segundos de emisión por ventana de 3600 segundos).
+MeshCore opera sobre transceptores LoRa en bandas cuyo uso está sujeto a reglas distintas según jurisdicción, banda y sub-banda. Este ADR usó inicialmente 1%/hora como presupuesto operativo de referencia; ADR 0010 corrige su interpretación: no es un límite legal universal ni una certificación de cumplimiento.
 
 Con anterioridad a este ADR:
 1. El historial de transmisiones (`AirtimeTracker`) residía exclusivamente en memoria RAM en una cola efímera (`collections.deque`). Un reinicio del bridge, una recarga de configuración o un fallo de proceso reseteaba a cero el cálculo de tiempo en el aire, violando la regla del Checklist de Impacto en la Malla LoRa (*"¿Un guardado de configuración rearma un timer de seguridad?"*).
@@ -21,7 +21,7 @@ Con anterioridad a este ADR:
 ## Factores de Decisión
 
 1. **Disponibilidad Operativa en Emergencias vs. Bloqueo**: Ante saturación de duty cycle, bloquear de golpe las transmisiones puede interrumpir comunicaciones críticas o dejar inoperativo un centro de mando en el terreno. Se requirió definir si el bridge debe estrangular, pausar o alertar sin bloquear.
-2. **Conformidad Regulatoria y Prevención**: Disparar advertencias tempranas antes de agotar el presupuesto de 36 segundos por hora.
+2. **Prevención y observabilidad**: Disparar advertencias tempranas antes de agotar el presupuesto operativo configurado.
 3. **Persistencia No Bloqueante**: La persistencia en disco de las marcas de tiempo debe ser atómica (evitando archivos corruptos en caídas de tensión) y con debounce para no degradar el I/O en SBCs como Raspberry Pi o microSD.
 
 ---
@@ -30,12 +30,12 @@ Con anterioridad a este ADR:
 
 Tras la alineación en la entrevista `/grill-me`, se adoptan las siguientes directrices arquitectónicas:
 
-1. **Modo Solo Alerta (Sin Bloqueo)**:
+1. **Decisión histórica — supersedida por ADR 0010**:
    - El subsistema de transmisión LoRa (`TxRateLimiter` / `AirtimeTracker`) calcula y supervisa en tiempo continuo el tiempo en el aire de cada paquete saliente según los parámetros de modulación Semtech (SF, BW, CR, preámbulo).
-   - Al alcanzar o sobrepasar el límite horario (100%), el sistema **emite alertas críticas visuales y telemétricas**, pero **continúa transmitiendo sin descartar ni retrasar paquetes**, priorizando la continuidad operativa del enlace.
+   - La política vigente ya no es “solo alerta”: `TxRateLimiter` puede aplicar load shedding a paquetes de baja prioridad al alcanzar el estado crítico configurado. Véase ADR 0010.
 
 2. **Umbrales Progresivos en Dos Fases**:
-   - **Nivel Preventivo (Advertencia - Ámbar)**: Disparado al alcanzar el **80%** del límite horario reglamentario (`DUTY_CYCLE_WARN_THRESHOLD_PCT = 80.0`).
+   - **Nivel Preventivo (Advertencia - Ámbar)**: Disparado al alcanzar el **80%** del presupuesto horario configurado (`DUTY_CYCLE_WARN_THRESHOLD_PCT = 80.0`).
    - **Nivel Crítico (Alarma - Rojo)**: Disparado al alcanzar o superar el **100%** del límite horario (`DUTY_CYCLE_LIMIT_PCT = 1.0`).
    - Ambas transiciones se notifican de manera instantánea mediante:
      - Evento WebSocket `duty_cycle_alert` hacia la SPA web.
@@ -63,4 +63,4 @@ Tras la alineación en la entrevista `/grill-me`, se adoptan las siguientes dire
   - La ventana deslizante de duty cycle no se falsifica ni se resetea por un reinicio del bridge.
   - No interrumpe la entrega de mensajes directos, de canal o comandos de administración en situaciones de tráfico denso.
 - **Compensaciones / Mitigaciones**:
-  - En modo solo alerta, un operador que ignore las advertencias podría exceder el límite legal de ciclo de trabajo en su región; por ello, las alertas visuales en el header usan micro-animaciones prominentes y se publica el evento en MQTT para supervisión remota en n8n o Home Assistant.
+  - En modo solo alerta, un operador que ignore las advertencias podría exceder el presupuesto configurado y/o los límites aplicables a su despliegue; por ello, las alertas visuales en el header usan micro-animaciones prominentes y se publica el evento en MQTT para supervisión remota en n8n o Home Assistant.
