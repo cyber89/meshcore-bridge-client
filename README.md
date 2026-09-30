@@ -97,7 +97,7 @@ meshcore-bridge/
 │   ├── mqtt_dispatcher.py            # Despachador de mensajes MQTT entrantes (TX/Admin)
 │   ├── packet_buffer.py              # Buffer de paquetes en tránsito
 │   ├── preflight.py                  # Motor de diagnósticos previos al arranque
-│   ├── protocol_types.py             # Dataclasses inmutables y tipadas con CRC-16 y PacketType oficial
+│   ├── protocol_types.py             # CommandType/PacketType oficiales + tipos on-air; framing sintético legado aislado
 │   ├── rate_limiter.py               # Rate Limiter con PriorityQueue y LoRa Airtime Tracker
 │   ├── repeater_manager.py           # Gestor de repetidores remotos y telemetría
 │   ├── routers/                      # Manejadores de enrutamiento por tipo de paquete
