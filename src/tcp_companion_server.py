@@ -1,7 +1,7 @@
 """
 TCP Companion Server for MeshCore Bridge.
-Servidor TCP asíncrono que expone la interfaz de protocolo Companion estándar
-(0x3C / 0x3E con longitud uint16 little-endian) en el puerto 5000 para conectar
+Servidor TCP asíncrono que expone la interfaz de protocolo Companion
+(0x3C / 0x3E con longitud uint16 little-endian) en el puerto 5000 por defecto del bridge para conectar
 la App Móvil oficial de MeshCore (Android/iOS) y clientes oficiales (meshcore-cli / meshcore_py).
 """
 
