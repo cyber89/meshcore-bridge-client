@@ -228,15 +228,34 @@ class ChannelsController(BaseController):
             "data": channel_data,
         }
 
+    def _max_channels(self) -> int:
+        """Capacidad anunciada por el transceptor; fallback compatible con Companion clásico."""
+        ser = getattr(self.ctx.bridge, "serial_adapter", None)
+        info = getattr(ser, "self_info", None) if ser else None
+        if isinstance(info, dict):
+            try:
+                value = int(info.get("max_channels", 8))
+                if value > 0:
+                    return value
+            except (TypeError, ValueError):
+                pass
+        return 8
+
     async def _create_or_update_channel(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-        """Crea o actualiza un canal en el rango 0..7."""
+        """Crea o actualiza un canal dentro de la capacidad anunciada por el dispositivo."""
         try:
             idx = int(req_body.get("index", 1))
         except (ValueError, TypeError):
             return problem_details(400, "Bad Request", "Índice de canal inválido", "invalid_channel_index")
 
-        if idx < 0 or idx > 7:
-            return problem_details(400, "Bad Request", "El índice de canal debe estar entre 0 y 7", "channel_index_out_of_bounds")
+        max_channels = self._max_channels()
+        if idx < 0 or idx >= max_channels:
+            return problem_details(
+                400,
+                "Bad Request",
+                f"El índice de canal debe estar entre 0 y {max_channels - 1}",
+                "channel_index_out_of_bounds",
+            )
 
         overwrite = bool(req_body.get("overwrite", False))
         if idx in self.channels and not overwrite:
@@ -272,7 +291,7 @@ class ChannelsController(BaseController):
         return status_code, {"status": "ok", "data": self._mask_channel(self.channels[idx])}
 
     async def _delete_channel(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-        """Elimina un canal secundario (1..7) tanto del bridge como del transceptor físico."""
+        """Elimina un canal secundario dentro de la capacidad del transceptor físico."""
         try:
             idx = int(req_body.get("index", 0))
         except (ValueError, TypeError):
