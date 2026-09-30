@@ -27,7 +27,7 @@ Cualquier operación bloqueante (como `time.sleep()`, lecturas síncronas de soc
 
 1. **`asyncio` Puro de Extremo a Extremo**:
    - Todo el flujo del core utiliza corutinas nativas de Python (`async def` / `await`).
-   - El puerto serie se gestiona asíncronamente mediante `pyserial-asyncio` con protocolo de descompresión de tramas byte a byte en memoria.
+   - El puerto serie se gestiona asíncronamente mediante el SDK oficial `meshcore_py`, cuyo transporte Companion delimita cada frame con `0x3C/0x3E` y longitud `uint16` little-endian. El parsing debe tolerar fragmentación de reads sin inventar delimitadores alternativos.
 2. **Backpressure mediante Colas Limitadas (`asyncio.Queue(maxsize=...)`)**:
    - Los buses de eventos internos tienen un tamaño máximo prefijado. Si una cola se llena, se descartan los eventos más antiguos o se frena al productor de forma controlada.
 3. **Reconexión Automática con Backoff Exponencial en `serial_driver.py`**:
