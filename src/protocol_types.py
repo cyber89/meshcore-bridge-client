@@ -13,14 +13,26 @@ from dataclasses import asdict, dataclass
 from enum import IntEnum
 from typing import Any, Protocol
 
-# ================= Constantes de Protocolo =================
+# ================= Contratos oficiales + formato sintético legado =================
+#
+# El transporte Companion oficial (USB Serial/TCP) usa 0x3C/0x3E + uint16 LE de
+# longitud. El paquete LoRa on-air usa Packet.h (header/path/payload).
+# Las constantes SOF/EOF/ESC siguientes pertenecen EXCLUSIVAMENTE al formato
+# sintético legado MeshcoreFrame usado por herramientas/simuladores internos.
+LEGACY_SOF_BYTE: int = 0xAA
+LEGACY_EOF_BYTE: int = 0x55
+LEGACY_ESC_BYTE: int = 0x1B
+LEGACY_ESC_MASK: int = 0x20
 
-SOF_BYTE: int = 0xAA
-EOF_BYTE: int = 0x55
-ESC_BYTE: int = 0x1B
-ESC_MASK: int = 0x20
+# Alias temporales para compatibilidad con módulos internos existentes.
+SOF_BYTE: int = LEGACY_SOF_BYTE
+EOF_BYTE: int = LEGACY_EOF_BYTE
+ESC_BYTE: int = LEGACY_ESC_BYTE
+ESC_MASK: int = LEGACY_ESC_MASK
+
 BROADCAST_NODE_ID: int = 0xFFFF
-MAX_PAYLOAD_SIZE: int = 256
+LEGACY_MAX_PAYLOAD_SIZE: int = 256
+MAX_PAYLOAD_SIZE: int = LEGACY_MAX_PAYLOAD_SIZE
 HEADER_SIZE_BYTES: int = 9
 CRC_SIZE_BYTES: int = 2
 
@@ -57,6 +69,7 @@ class PacketType(IntEnum):
     ALLOWED_REPEAT_FREQ = 26
     CHANNEL_DATA_RECV = 27
     DEFAULT_FLOOD_SCOPE = 28
+    CLI_REPLY = 29
 
     # Push notifications (0x80-0x90)
     ADVERTISEMENT = 0x80
@@ -240,7 +253,7 @@ def compute_crc16_ccitt(data: bytes, init: int = 0xFFFF, poly: int = 0x1021) -> 
 
 @dataclass(frozen=True)
 class FrameHeader:
-    """Cabecera de 9 Bytes de trama binaria MeshCore."""
+    """Cabecera del formato sintético legado interno; NO es Packet.h ni Companion."""
     packet_type: PacketType
     seq_num: int
     src_node_id: int
@@ -541,7 +554,11 @@ class MeshcoreFrame:
     is_valid: bool
 
     def serialize(self) -> bytes:
-        """Serializa la trama completa con framing SOF/EOF, byte stuffing y CRC-16."""
+        """Serializa el formato sintético legado interno con SOF/EOF y CRC-16.
+
+        No usar como representación del transporte Companion oficial ni del paquete
+        LoRa on-air de MeshCore.
+        """
         header_bytes = self.header.pack()
         body = header_bytes + self.raw_payload
         crc_val = compute_crc16_ccitt(body)
