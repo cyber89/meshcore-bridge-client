@@ -20,7 +20,7 @@ En proyectos comunitarios previos, esto requería ejecutar un binario independie
 
 ## Factores de Decisión
 
-1. **Multiplexación de Medio Físico Único**: El bus serie UART no permite accesos concurrentes no coordinados sin corromper el delimitado de tramas binarias (`SOF 0xAA` / `EOF 0x55`).
+1. **Multiplexación de Medio Físico Único**: El bus serie UART no permite accesos concurrentes no coordinados. La sesión Companion oficial usa frames `0x3C/0x3E` con longitud `uint16` little-endian y debe conservar sus límites de frame y secuenciación.
 2. **Compatibilidad con Clientes Oficiales**: La aplicación oficial de MeshCore para smartphones y el CLI oficial esperan comunicarse mediante un socket TCP en el puerto por defecto `5000`, enviando y recibiendo exactamente las mismas tramas binarias encapsuladas que se intercambian por el puerto serie USB.
 3. **Consolidación en Proceso Único**: Ejecutar múltiples procesos en Linux aumenta el riesgo de fallos en cadena, orfandad de procesos o bloqueos mutuos si uno de ellos reinicia el puerto serie sin avisar a los demás.
 
@@ -31,7 +31,7 @@ Se decide implementar un **Servidor TCP Companion Proxy Integrado** (`TcpCompani
    - Se expone un servidor `asyncio.start_server` en el puerto configurable `5000` (configurable mediante variable de entorno `TCP_COMPANION_PORT`).
 2. **Enrutamiento Bidireccional Asíncrono**:
    - Todo paquete binario recibido desde la radio LoRa se retransmite de forma transparente e instantánea a todos los clientes TCP conectados (modo broadcast de tramas).
-   - Toda trama binaria emitida por un cliente TCP se inyecta en el serial driver respetando las colas de prioridad y guardas de airtime.
+   - Todo payload Companion recibido de un cliente TCP (`0x3C + uint16_le(length) + payload`) se entrega al transporte oficial hacia la radio, preservando las guardas aplicables del bridge.
 3. **Aislamiento de Sesión y Robustez**:
    - Cada cliente TCP conectado se aísla con tareas de lectura independientes (`StreamReader` / `StreamWriter`). Si un cliente se desconecta abruptamente, se cierran sus recursos sin perturbar el tráfico serie ni el broker MQTT.
 
