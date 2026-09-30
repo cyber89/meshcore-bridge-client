@@ -1,15 +1,14 @@
 ---
 name: lora-frame-validator
 description: >-
-  Herramienta de análisis, cálculo y verificación de tramas binarias de protocolo LoRa/MeshCore.
-  Permite validar delimitación SOF/EOF, secuencias de escape (byte stuffing) y calcular
-  múltiples algoritmos de CRC (CRC-CCITT, CRC-16-IBM, CRC-32, Fletcher-16, XOR). Usar para
-  validar capturas de tramas UART/LoRa reales o depurar serializadores/deserializadores.
+  Herramienta de análisis de checksums y del formato sintético legado usado por simuladores del bridge.
+  NO representa el framing Companion oficial de MeshCore ni el layout on-air de Packet.h. Para capturas
+  MeshCore reales, identificar primero la capa: Companion 0x3C/0x3E o paquete LoRa Packet.h.
 ---
 
-# LoRa & MeshCore Frame Validator Skill
+# Legacy/Synthetic Frame & Checksum Validator Skill
 
-Esta skill proporciona herramientas para que el **Protocol & Firmware Investigator**, el **Python Bridge Architect** y el **Protocol QA Agent** validen tramas binarias crudas, offsets de campos y coherencia de checksums.
+Esta skill valida el formato sintético `0xAA/0x55/ESC/CRC` conservado para pruebas internas y puede calcular checksums sobre dumps arbitrarios. No debe utilizarse como evidencia de que MeshCore Companion o `Packet.h` usan ese framing.
 
 ## Scripts y Herramientas
 
