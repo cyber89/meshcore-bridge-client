@@ -10,8 +10,7 @@ El sistema cuenta con mapas interactivos de alta fidelidad compilados determiní
 - ⚡ [**Pipeline de Tramas LoRa a IP (`meshcore_packet_pipeline.html`)**](diagrams/meshcore_packet_pipeline.html): artefacto generado. Si todavía muestra HDLC/SOF/EOF/CRC como framing MeshCore, se considera **obsoleto** hasta regenerarse desde esta arquitectura y `PROTOCOL_SPEC.md`.
 - ⏱️ [**Secuencia Operativa Bidireccional (`meshcore_rx_tx_sequence.html`)**](diagrams/meshcore_rx_tx_sequence.html): Diagrama de secuencia temporal que ilustra la recepción reactiva de tramas y la ejecución de comandos administrativos Hop 0 con rate limiter.
 
-> **Regeneración de diagramas**:
-> Para compilar o validar los diagramas tras cualquier modificación arquitectónica, ejecute:
+> **Regeneración de diagramas**: los JSON fuente de `docs/diagrams/` ya están alineados con Companion. Los HTML/SVG generados previos pueden contener nomenclatura histórica hasta regenerarse. Para compilar o validar los diagramas ejecute:
 > ```bash
 > python scripts/build_diagrams.py
 > ```
