@@ -43,7 +43,7 @@
     },
     {
       "id": "serial",
-      "label": "Framing HDLC & Serie"
+      "label": "Framing Companion & Serie"
     },
     {
       "id": "core",
@@ -61,7 +61,7 @@
   "phases": [
     {
       "id": "reception",
-      "label": "Recepción & Framing",
+      "label": "Recepción & Companion",
       "fromCol": 0,
       "toCol": 1
     },
@@ -124,8 +124,8 @@
       "lane": "serial",
       "col": 2,
       "type": "backend",
-      "label": "Unescape HDLC",
-      "sublabel": "SOF 0xAA / EOF 0x55",
+      "label": "Parse Companion",
+      "sublabel": "0x3E + uint16 LE",
       "width": 132
     },
     {
@@ -133,8 +133,8 @@
       "lane": "serial",
       "col": 3,
       "type": "security",
-      "label": "Validador CRC",
-      "sublabel": "CRC-16 estricto",
+      "label": "Validador de longitud",
+      "sublabel": "frame Companion <= 300 B",
       "width": 132
     },
     {
@@ -214,14 +214,14 @@
       "variant": "default"
     },
     {
-      "id": "hdlc-to-crc",
+      "id": "companion-to-length",
       "from": "hdlc_frame",
       "to": "crc_val",
       "label": "trama",
       "variant": "emphasis"
     },
     {
-      "id": "crc-to-dedup",
+      "id": "length-to-dedup",
       "from": "crc_val",
       "to": "dedup",
       "label": "válida",
@@ -266,18 +266,18 @@
   "cards": [
     {
       "dot": "cyan",
-      "title": "Ingreso y Framing Físico",
+      "title": "Ingreso y Framing Companion",
       "items": [
         "Recepción en radio LoRa SX1262 con demodulación por hardware",
         "Ingreso asíncrono a pyserial-asyncio con reconexión por watchdog",
-        "Extracción HDLC delimitada por 0xAA / 0x55 con des-escape de bytes (0x1B)"
+        "Extracción de payload Companion desde 0x3E + longitud uint16 little-endian"
       ]
     },
     {
       "dot": "emerald",
       "title": "Integridad y Deduplicación",
       "items": [
-        "Cálculo estricto de CRC-16 para descartar tramas corruptas por RF",
+        "Validación del tamaño declarado y entrega del payload al parser oficial",
         "Buffer circular de 10,000 hashes para deduplicar ecos y retransmisiones",
         "Clasificación canónica por OpCode y AdvertType oficial"
       ]
