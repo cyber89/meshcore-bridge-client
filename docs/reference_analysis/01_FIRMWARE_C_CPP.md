@@ -1,7 +1,7 @@
 # MeshCore Firmware C/C++ — Análisis Técnico y Estructura Interna
 
 > **Documento de Referencia para Agentes de Antigravity**  
-> **Repositorio de Origen**: [`/reference/meshcore`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/reference/meshcore)  
+> **Repositorio de Origen**: [`/reference/meshcore`](../../reference/meshcore)  
 > **Área de Responsabilidad**: Protocol & Firmware Investigator Agent  
 > **Estándar**: C++11 / Arduino / PlatformIO / FreeRTOS (ESP32, NRF52840, RP2040, STM32)
 
