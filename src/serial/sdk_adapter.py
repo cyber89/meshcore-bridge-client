@@ -829,6 +829,17 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             logging.error(f"Error enviando trama raw companion a la radio: {e}")
             return False
 
+    def _get_max_channels(self, default: int = 8) -> int:
+        """Devuelve la capacidad de canales anunciada por DEVICE_INFO, con fallback seguro."""
+        if isinstance(self.self_info, dict):
+            try:
+                advertised = int(self.self_info.get("max_channels", default))
+                if advertised > 0:
+                    return advertised
+            except (TypeError, ValueError):
+                pass
+        return default
+
     async def send_message(
         self,
         text: str,
@@ -866,14 +877,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
         # 2. Validación del índice de canal contra capacidad conocida del dispositivo.
         safe_ch = int(channel_idx) if channel_idx is not None else 0
-        max_channels = 16
-        if isinstance(self.self_info, dict):
-            try:
-                advertised_max = int(self.self_info.get("max_channels", max_channels))
-                if advertised_max > 0:
-                    max_channels = advertised_max
-            except (TypeError, ValueError):
-                pass
+        max_channels = self._get_max_channels(default=8)
         if not (0 <= safe_ch < max_channels):
             raise ValueError(
                 f"Índice de canal inválido ({safe_ch}). "
@@ -1082,12 +1086,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
             # 2. Si no hay canales en memoria, consultar canales al firmware mediante get_channel
             if not channels and hasattr(self.mc, "commands") and hasattr(self.mc.commands, "get_channel"):
-                max_ch = 8
-                if isinstance(self.self_info, dict) and "max_channels" in self.self_info:
-                    try:
-                        max_ch = min(16, max(1, int(self.self_info["max_channels"])))
-                    except (ValueError, TypeError):
-                        max_ch = 8
+                max_ch = self._get_max_channels(default=8)
                 for ch_idx in range(max_ch):
                     try:
                         ev = await self.mc.commands.get_channel(ch_idx)
@@ -1114,8 +1113,11 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         """Configura un canal en el firmware del transceptor serial."""
         if not re.match(r'^[a-fA-F0-9]{0,64}$', psk):
             raise ValueError("Invalid PSK format")
-        if not (0 <= index <= 15):
-            raise ValueError("Channel index out of range (0-15)")
+        max_channels = self._get_max_channels(default=8)
+        if not (0 <= index < max_channels):
+            raise ValueError(
+                f"Channel index out of range: {index}; device capacity is 0..{max_channels - 1}"
+            )
         if len(name) > 32 or any(ord(c) < 0x20 for c in name):
             raise ValueError("Invalid channel name")
 
