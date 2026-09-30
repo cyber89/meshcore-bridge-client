@@ -45,12 +45,12 @@ sequenceDiagram
 ## 2. Pautas por Rol de Agente
 
 ### 2.1 Para el Protocol & Firmware Investigator Agent
-1. **Regla de Oro**: La única fuente de verdad binaria reside en [`/reference/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/reference/).
+1. **Regla de Oro**: La única fuente de verdad binaria reside en [`/reference/`](../../reference/).
 2. **Procedimiento ante nuevos tipos**:
    - Usar la skill `meshcore-source-inspector` para extraer los campos, tipos C/C++ y modificadores `#pragma pack`.
    - Calcular offsets en bytes y documentar Little-Endianness.
-   - Definir los nuevos tipos en [`src/protocol_types.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/protocol_types.py) utilizando estrictamente `@dataclass(frozen=True)` o `IntEnum`.
-   - Actualizar [`docs/PROTOCOL_SPEC.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/docs/PROTOCOL_SPEC.md).
+   - Definir los nuevos tipos en [`src/protocol_types.py`](../../src/protocol_types.py) utilizando estrictamente `@dataclass(frozen=True)` o `IntEnum`.
+   - Actualizar [`docs/PROTOCOL_SPEC.md`](../PROTOCOL_SPEC.md).
 
 ### 2.2 Para el Python Bridge Architect Agent
 1. **Regla de Oro**: Ninguna operación I/O puede bloquear el bucle de `asyncio`.
@@ -60,9 +60,9 @@ sequenceDiagram
    - Asegurar que el espaciado de transmisión LoRa respete el tiempo en el aire calculado por `estimate_lora_airtime_ms()`.
 
 ### 2.3 Para el QA & Fuzzing Agent
-1. **Regla de Oro**: Cero regresiones y 100% de aprobación en `bridge_test_runner`.
+1. **Regla de Oro**: Cuando el usuario autorice pruebas, buscar cero regresiones en el alcance solicitado.
 2. **Procedimiento de Verificación**:
-   - Ejecutar siempre:
+   - Con autorización explícita, ejecutar:
      ```powershell
      python .agents/skills/bridge-test-runner/scripts/run_checks.py
      ```
