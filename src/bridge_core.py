@@ -472,17 +472,19 @@ class MeshCoreBridge:
         )
         logging.debug(f"Preflight Diagnostics: Estado {report['status']} ({len(report['checks'])} comprobaciones realizadas)")
 
-        # Iniciar Rate Limiter y Cliente MQTT
-        self.rate_limiter.start()
-        self.mqtt.start(loop=loop)
-
-        # Conectar con hardware mediante el protocolo Companion oficial.
+        # Conectar primero con hardware mediante el protocolo Companion oficial.
+        # Fallar antes de iniciar workers/red evita dejar tareas huérfanas si no hay radio.
         serial_connected = await self.serial_adapter.connect()
         if not serial_connected:
+            self.running = False
             raise ConnectionError(
                 "No fue posible establecer una sesión MeshCore Companion válida con el transceptor"
             )
         self.watchdog.start()
+
+        # Iniciar Rate Limiter y Cliente MQTT solo tras confirmar la radio.
+        self.rate_limiter.start()
+        self.mqtt.start(loop=loop)
 
         # Iniciar servidor web si está habilitado
         if self.web_server:
