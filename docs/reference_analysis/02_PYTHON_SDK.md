@@ -1,7 +1,7 @@
 # MeshCore Python SDK (`meshcore_py`) — Análisis y Contratos de Integración
 
 > **Documento de Referencia para Agentes de Antigravity**  
-> **Repositorio de Origen**: [`/reference/meshcore_py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/reference/meshcore_py)  
+> **Repositorio de Origen**: [`/reference/meshcore_py`](../../reference/meshcore_py)  
 > **Área de Responsabilidad**: Protocol & Firmware Investigator Agent / Python Bridge Architect  
 > **Estándar**: Python 3.10+ / Asyncio / Paho-MQTT / CayenneLPP
 
