@@ -20,7 +20,7 @@ from src.protocol_types import (
 )
 from src.serial.serial_base import BaseSerialAdapter
 
-# Header (9) + Max LoRa Payload (256) + CRC-16 (2) = 267 bytes
+# Header sintético (9) + payload legado (256) + CRC-16 (2) = 267 bytes
 MAX_FRAME_SIZE: int = 267
 
 
