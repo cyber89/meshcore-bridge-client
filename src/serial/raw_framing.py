@@ -1,5 +1,9 @@
 """
-Raw Serial Framing Adapter (SOF/EOF/ESC and CRC) for MeshCore Bridge.
+Legacy synthetic frame adapter used only by isolated tooling/simulators.
+
+IMPORTANT: 0xAA/0x55/0x1B + CRC-16 is NOT the official MeshCore Companion
+USB/TCP framing and is NOT the MeshCore on-air Packet.h layout. Production
+connections must use MeshcoreSDKAdapter / the official Companion protocol.
 """
 
 from __future__ import annotations
@@ -22,8 +26,11 @@ MAX_FRAME_SIZE: int = 267
 
 class RawSerialFramingAdapter(BaseSerialAdapter):
     """
-    Adaptador determinista basado en pyserial-asyncio con de-framing continuo
+    Adaptador de parsing para el formato sintético legado interno
     (SOF 0xAA, EOF 0x55, ESC 0x1B, CRC-16 CCITT).
+
+    No abre un transporte MeshCore real y no debe seleccionarse como fallback
+    de producción.
     """
 
     def __init__(
@@ -39,10 +46,12 @@ class RawSerialFramingAdapter(BaseSerialAdapter):
         self._in_frame = False
 
     async def connect(self) -> bool:
-        logging.info(f"Iniciando adaptador Serial Raw en {self.port}...")
-        self.is_connected = True
-        self.heartbeat()
-        return True
+        logging.error(
+            "RawSerialFramingAdapter es sintético/test-only y no implementa "
+            "una conexión MeshCore Companion de producción."
+        )
+        self.is_connected = False
+        return False
 
     async def disconnect(self) -> None:
         self.is_connected = False
@@ -112,4 +121,7 @@ class RawSerialFramingAdapter(BaseSerialAdapter):
         target: str | None = None,
         channel_idx: int = 0,
     ) -> dict[str, Any]:
-        return {"status": "SENT_RAW", "text": text}
+        raise NotImplementedError(
+            "RawSerialFramingAdapter no transmite al hardware MeshCore; "
+            "use MeshcoreSDKAdapter para producción."
+        )
