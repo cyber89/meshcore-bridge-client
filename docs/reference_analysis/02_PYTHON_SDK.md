@@ -52,7 +52,7 @@ flowchart TB
 
 ## 2. Catálogo de Comandos Host $\to$ Radio (`CommandType`)
 
-Comandos transmitidos desde la aplicación Python hacia el microcontrolador a través del enlace serial (`0x01` a `0x40`):
+Comandos transmitidos desde la aplicación Python hacia el microcontrolador. El SDK oficial encapsula el payload con Companion framing (`0x3C + uint16_le(length)`); el rango de comandos no es continuo:
 
 | OpCode | Identificador | Parámetros / Propósito |
 | :---: | :--- | :--- |
@@ -76,6 +76,14 @@ Comandos transmitidos desde la aplicación Python hacia el microcontrolador a tr
 | `39` | `SEND_TELEMETRY_REQ` | Solicita el envío de paquete de telemetría a un nodo remoto |
 | `50` | `BINARY_REQ` | Petición binaria tipada (`STATUS`, `TELEMETRY`, `MMA`, `ACL`, `NEIGHBOURS`) |
 | `56` | `GET_STATS` | Consulta contadores de rendimiento: `stats-core`, `stats-radio`, `stats-packets` |
+| `61` | `SET_PATH_HASH_MODE` | Configura tamaño de hashes de ruta (modo 0→1B, 1→2B, 2→3B) |
+| `63` | `SET_DEFAULT_FLOOD_SCOPE` | Configura el flood scope por defecto |
+| `64` | `GET_DEFAULT_FLOOD_SCOPE` | Consulta el flood scope por defecto |
+| `65` | `SEND_RAW_PACKET` | Envía un paquete on-air serializado |
+| `66` | `RUN_CLI_COMMAND` | Superficie presente en `meshcore_py 2.3.14`; soporte depende del firmware |
+
+
+> **Divergencia upstream observada (2026-09-29):** el firmware Companion y la documentación oficial incluyen `CMD_SEND_CHANNEL_DATA = 62`, mientras `meshcore_py 2.3.14` no lo enumera. A la inversa, el SDK enumera `RUN_CLI_COMMAND = 66`, cuyo soporte no se confirmó en el `MyMesh.cpp` auditado. Los agentes deben contrastar ambas fuentes y no asumir soporte solo por presencia en una de ellas.
 
 ---
 
@@ -94,7 +102,10 @@ Respuestas sincrónicas y eventos asíncronos emitidos por el microcontrolador h
 - `0x07` (`CONTACT_MSG_RECV`): Mensaje directo recibido de un contacto.
 - `0x08` (`CHANNEL_MSG_RECV`): Mensaje recibido en un canal grupal o público.
 - `0x09` (`CURRENT_TIME`): Hora UNIX epoch actual devuelta por el RTC.
-- `0x0C` (`BATTERY`): Voltaje actual de la celda de batería en milivoltios.
+- `0x0C` (`BATTERY`): batería/almacenamiento.
+- `0x1B` (`CHANNEL_DATA_RECV`): datagrama binario de canal.
+- `0x1C` (`DEFAULT_FLOOD_SCOPE`): flood scope por defecto.
+- `0x1D` (`CLI_REPLY`): respuesta de CLI en versiones del SDK que soportan ese comando.
 
 ### 3.2 Notificaciones Push Asíncronas (`0x80` a `0x90`)
 - `0x80` (`ADVERTISEMENT`): Notificación de un nuevo nodo anunciado en la red LoRa.
