@@ -88,7 +88,7 @@ Los agentes **no deben copiar ni reinterpretar** esas invariantes dentro de otro
   - Skill: `asyncio-profiler-leak-detector` (Monitoreo de event loop y memoria RAM)
 - **Reglas y Restricciones Estrictas**:
   1. Todo código asíncrono debe usar `asyncio` nativo, sin llamadas bloqueantes en el event loop.
-  2. Implementar siempre descompresión/framing determinista (Byte Stuffing / SOF / EOF / CRC validation).
+  2. Implementar el transporte según la capa correcta: Companion USB/TCP oficial (`0x3C`/`0x3E` + longitud `uint16` little-endian) para Host↔Radio, y `Packet.h` para paquetes LoRa on-air. No inventar ni reutilizar framing sintético como si fuera protocolo MeshCore.
   3. La persistencia en disco de canales y configuraciones debe ser atómica y no bloqueante mediante archivos JSON.
   4. Los mensajes MQTT deben cumplir con el esquema JSON documentado para n8n.
   5. Registrar modificaciones de endpoints y drivers en `docs/AGENT_ACTIVITY_REPORT.md`.
