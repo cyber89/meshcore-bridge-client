@@ -55,19 +55,19 @@ El paquete fundamental de transmisión en el aire consta de un encabezado de 1 b
 | `2..5` | `0x3C` (`0x0F`) | `2` | `PayloadType` | `0x00`: `REQ` (Petición directa con hash y MAC)<br>`0x01`: `RESPONSE` (Respuesta a REQ o ANON_REQ)<br>`0x02`: `TXT_MSG` (Mensaje de texto directo)<br>`0x03`: `ACK` (Confirmación simple de recepción)<br>`0x04`: `ADVERT` (Anuncio de presencia e identidad de nodo)<br>`0x05`: `GRP_TXT` (Mensaje de canal grupal con hash de canal)<br>`0x06`: `GRP_DATA` (Datagrama de canal para telemetría binaria)<br>`0x07`: `ANON_REQ` (Petición anónima con clave efímera)<br>`0x08`: `PATH` (Ruta descubierta devuelta al emisor)<br>`0x09`: `TRACE` (Trazador de ruta con recopilación de SNR por salto)<br>`0x0A`: `MULTIPART` (Segmento de paquete fragmentado)<br>`0x0B`: `CONTROL` (Descubrimiento y control de red)<br>`0x0F`: `RAW_CUSTOM` (Carga cruda para aplicaciones externas) |
 | `6..7` | `0xC0` (`0x03`) | `6` | `PayloadVer` | `0x00`: `PAYLOAD_VER_1` (Hashes de 1 byte, MAC de 2 bytes)<br>`0x01..0x03`: Reservado para versiones futuras |
 
-### 2.2 Layout de Memoria de la Clase `Packet`
+### 2.2 Layout wire serializado por `Packet::writeTo()`
 
 ```
 +------------------+-------------------+--------------------+------------------------+--------------------------+
-|  header (1 Byte) | transport_codes   | path_len (1-2 B)   | path[MAX_PATH_SIZE]    | payload[MAX_PAYLOAD_LEN] |
-|  [Ver|Type|Route]| (4 Bytes opcional)| [Size:2b | Count:6b| (Secuencia de Hashes) | (Datos de Aplicación)    |
+|  header (1 Byte) | transport_codes   | path_len (1 B)     | path[MAX_PATH_SIZE]    | payload[MAX_PACKET_PAYLOAD] |
+|  [Ver|Type|Route]| (4 Bytes opcional)| [Size:2b | Count:6b]| (Secuencia de Hashes) | (Datos de Aplicación)       |
 +------------------+-------------------+--------------------+------------------------+--------------------------+
 ```
 
 - **`MAX_PACKET_PAYLOAD`**: `184 Bytes`.
 - **`MAX_PATH_SIZE`**: `64 Bytes`.
-- **`MAX_TRANS_UNIT` (MTU Total)**: `255 Bytes` (límite físico del buffer FIFO del chip LoRa SX1262).
-- **Endianness**: Little-Endian (`<`) en todas las arquitecturas soportadas.
+- El tamaño wire efectivo es `2 + path_bytes + payload_len + (4 si hay transport_codes)` según `Packet::getRawLength()`.
+- Los `transport_codes` son enteros de 16 bits copiados en el orden nativo esperado por el firmware; los formatos de payload multi-byte deben seguir su especificación correspondiente.
 
 ---
 
@@ -75,13 +75,12 @@ El paquete fundamental de transmisión en el aire consta de un encabezado de 1 b
 
 ### 3.1 Flood Routing (Enrutamiento por Inundación)
 1. Cuando un nodo emite un paquete con tipo `ROUTE_TYPE_FLOOD`, el nodo destino añade el hash de su identidad al campo `path`.
-2. Cada nodo intermedio que retransmite el paquete añade su propio hash de salto (`path_hash`) y decrementa el número de saltos restantes (`hop_limit`).
+2. Los repetidores construyen/propagan la ruta según el modo flood y el descriptor `path_len`; el límite de flooding es configuración del firmware (`flood.max`) y no un campo genérico `hop_limit` de `Packet.h`.
 3. Al llegar al destino final, el paquete contiene la ruta inversa exacta recorrida, la cual el destinatario almacena en su tabla de contactos para futuras transmisiones en modo `ROUTE_TYPE_DIRECT`.
 
 ### 3.2 Tabla de Prevención de Bucles y Hash de Paquetes
 Para evitar la retransmisión infinita de tramas en la malla:
-- Cada paquete calcula un hash criptográfico de 8 bytes sobre su contenido:
-  $$\text{PacketHash} = \text{SHA256}(\text{payload} \parallel \text{header})[0..7]$$
+- `Packet::calculatePacketHash()` calcula SHA-256 sobre el **tipo de payload** y el payload; para paquetes TRACE incluye además `path_len`. El resultado se trunca a `MAX_HASH_SIZE`.
 - El firmware mantiene una tabla circular en RAM (`recent_packet_hashes[64]`). Si un hash ya existe en la tabla, el paquete se descarta de forma silenciosa e instantánea.
 
 ---
