@@ -126,7 +126,8 @@ Ejemplos:
 
 - `0x05`: 5 hashes × 1 byte = 5 bytes de ruta;
 - `0x45`: 5 hashes × 2 bytes = 10 bytes;
-- `0x8A`: 10 hashes × 3 bytes = 30 bytes.
+- `0x8A`: 10 hashes × 3 bytes = 30 bytes;
+- `0xC4`: 4 hashes × 4 bytes = 16 bytes.
 
 El descriptor debe satisfacer `Packet::isValidPathLen()`, es decir, el tamaño efectivo de la
 ruta no puede exceder `MAX_PATH_SIZE`.
@@ -287,7 +288,7 @@ firmwares.
 
 ### `SET_PATH_HASH_MODE`
 
-El valor configura el tamaño de hash de ruta:
+Aunque `Packet.h` puede representar hashes de ruta de 1 a 4 bytes, el comando Companion actual `CMD_SET_PATH_HASH_MODE` acepta únicamente modos `< 3`; por ello la configuración expuesta por ese firmware es:
 
 - modo 0 → 1 byte por hash;
 - modo 1 → 2 bytes;
@@ -329,7 +330,7 @@ El valor configura el tamaño de hash de ruta:
 | 26 / 1A | ALLOWED_REPEAT_FREQ |
 | 27 / 1B | CHANNEL_DATA_RECV |
 | 28 / 1C | DEFAULT_FLOOD_SCOPE |
-| 29 / 1D | CLI_REPLY |
+| 29 / 1D | CLI_REPLY *(presente en meshcore_py 2.3.14; no confirmado en MyMesh.cpp auditado)* |
 | 0x80 | ADVERTISEMENT |
 | 0x81 | PATH_UPDATE |
 | 0x82 | ACK |
@@ -347,6 +348,18 @@ El valor configura el tamaño de hash de ruta:
 | 0x8E | CONTROL_DATA |
 | 0x8F | CONTACT_DELETED |
 | 0x90 | CONTACTS_FULL |
+
+---
+
+## 9.1 Límite de texto del firmware
+
+`BaseChatMesh.h` define `MAX_TEXT_LEN = 10 * CIPHER_BLOCK_SIZE = 160 bytes`.
+
+- DM/CLI text: el texto debe caber en esos 160 bytes UTF-8.
+- Canal: el firmware antepone `"<sender_name>: "` dentro del mismo presupuesto y trunca el texto
+  si el total lo supera.
+
+El bridge valida este presupuesto antes de llamar al SDK para evitar truncamiento silencioso.
 
 ---
 
