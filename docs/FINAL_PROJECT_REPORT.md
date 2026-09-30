@@ -55,7 +55,7 @@ graph TD
 5. **`html-css-modern-js`**: Estándares de frontend moderno (HTML5 semántico, CSS Grid/Flexbox, async/await, WebSockets resilientes).
 6. **`security-code-auditor`**: Orquestador de análisis SAST con Bandit, prevención de inyecciones SQL, Directory Traversal y XSS.
 7. **`bridge-test-runner`**: Orquestador unificado de calidad (Ruff + Mypy Strict + Pytest).
-8. **`lora-frame-validator`**: Análisis y validación de tramas binarias LoRa y cálculo de CRC-16.
+8. **`lora-frame-validator`**: Herramienta histórica de checksum/formato sintético; no valida por sí sola el framing Companion oficial.
 9. **`meshcore-source-inspector`**: Extractor AST de structs binarios en firmware C/C++ y SDK Python.
 
 ---
@@ -69,7 +69,7 @@ flowchart TB
     end
 
     subgraph SerialLayer["Sub-sistema Serial (/src/serial_driver.py)"]
-        ADAPTER["BaseSerialAdapter (SDK / Raw Framing Fallback)"]
+        ADAPTER["BaseSerialAdapter (SDK oficial; raw sintético solo test)"]
         WATCHDOG["SerialWatchdog (Monitoreo Activo & Keepalive)"]
         DEV <==> ADAPTER
         WATCHDOG -.->|Supervisa| ADAPTER
@@ -118,13 +118,12 @@ flowchart TB
 
 ## 5. Especificación de Protocolo y Mensajería
 
-### 5.1 Framing Serial UART
-Toda trama binaria sin procesar se delimita mediante bytes de inicio y fin con escape de bytes (*Byte Stuffing*):
-* `SOF`: `0xAA` (Inicio de trama)
-* `EOF`: `0x55` (Fin de trama)
-* `ESC`: `0x1B` (Byte de escape; el byte siguiente se transmite como `b ^ ESC_MASK`)
-* `ESC_MASK`: `0x20` (Máscara XOR para escape de bytes)
-* `CRC`: Verificación mediante CRC-16-CCITT (`Poly: 0x1021`, `Init: 0xFFFF`).
+### 5.1 Framing Serial UART — corrección posterior al snapshot
+
+> Esta sección del snapshot original quedó obsoleta. La auditoría del 29 de septiembre de 2026
+> confirmó que el transporte Companion oficial usa `0x3C/0x3E + uint16_le(length) + payload`.
+> El formato `0xAA/0x55/0x1B + CRC-16` es una representación sintética/legada interna del
+> proyecto y no debe describirse como protocolo MeshCore. Véase `docs/PROTOCOL_SPEC.md`.
 
 ### 5.2 Decodificación Ambiental CayenneLPP (`src/sensor_decoder.py`)
 Deserialización de canales estándar IPSO:
