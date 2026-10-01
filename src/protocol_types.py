@@ -60,6 +60,7 @@ class PacketType(IntEnum):
     ALLOWED_REPEAT_FREQ = 26
     CHANNEL_DATA_RECV = 27
     DEFAULT_FLOOD_SCOPE = 28
+    CLI_REPLY = 29
 
     # Push notifications (0x80-0x90)
     ADVERTISEMENT = 0x80
@@ -180,6 +181,7 @@ class CommandType(IntEnum):
     SET_DEFAULT_FLOOD_SCOPE = 63
     GET_DEFAULT_FLOOD_SCOPE = 64
     SEND_RAW_PACKET = 65
+    RUN_CLI_COMMAND = 66
 
 
 # Deprecated: Use CommandType instead. FirmwareCommandType was an alias maintained

@@ -20,7 +20,10 @@ from src.web.security_inspector import (
 FRAME_APP_TO_RADIO = 0x3C  # '<' : Trama enviada desde la app hacia la radio
 FRAME_RADIO_TO_APP = 0x3E  # '>' : Trama enviada desde la radio hacia la app
 HEADER_SIZE = 3            # 1 byte tipo + 2 bytes longitud uint16
-MAX_FRAME_SIZE = 512       # Límite de seguridad contra tramas malformadas
+# El parser Serial/TCP del SDK oficial meshcore_py 2.3.14 descarta frames >300 B.
+# Mantener el proxy dentro de ese contrato evita aceptar tramas que un cliente
+# oficial no podría procesar de forma equivalente.
+MAX_FRAME_SIZE = 300
 
 
 class MeshCoreCompanionServer:

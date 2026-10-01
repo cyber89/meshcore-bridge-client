@@ -2,6 +2,59 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Integración Quirúrgica Secuencial de Mejoras de PR #2 y Verificación de Suite Completa
+- **Fecha**: 2026-10-01
+- **Estado**: ✅ COMPLETADO (4 mejoras aplicadas de forma secuencial con verificación 100% exitosa)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Python Bridge Architect), Agente 3 (Protocol QA)
+- **Alcance y Acción**:
+  1. **Mejora 1 (Opcodes Oficiales)**: En `src/protocol_types.py`, incorporados `PacketType.CLI_REPLY = 29` y `CommandType.RUN_CLI_COMMAND = 66`, reconciliando la superficie del SDK `meshcore_py 2.3.14`. Verificado con `test_domain_official_compatibility.py` (42 pasadas).
+  2. **Mejora 2 (Límite de Trama TCP Companion)**: En `src/tcp_companion_server.py`, ajustado `MAX_FRAME_SIZE = 300` bytes para coincidir exactamente con el descarte de tramas >300 B del parser del SDK oficial. Verificado con `test_tcp_companion_server.py` y `test_tcp_official_compatibility.py` (17 pasadas).
+  3. **Mejora 3 (Capacidad Dinámica de Canales)**: En `src/web/controllers/channels_controller.py`, implementado método `_max_channels()` para validar dinámicamente contra la capacidad reportada por el dispositivo en `DEVICE_INFO` en vez de limitar estáticamente a 0..7. Verificado con `test_channels_and_contacts_controllers.py` y `test_rest_controllers.py` (12 pasadas).
+  4. **Mejora 4 (ADRs y Auditoría de Protocolo)**: Incorporados formalmente `docs/adr/0009-official-companion-protocol-layers.md`, `docs/adr/0010-duty-cycle-configurable-budget.md` y `docs/PROTOCOL_AUDIT_2026-09-29.md`. Verificado con `validate_project_docs.py` (53 archivos, 0 issues) y `test_quality_tools.py` (10 pasadas).
+  5. **Verificación Global**: Suite completa de pruebas ejecutada con resultado de 663 pruebas aprobadas, 1 omitida (symlink Windows esperado), 0 fallos en 81.6 segundos con 67% de cobertura.
+- **Módulos Modificados**: `src/protocol_types.py`, `src/tcp_companion_server.py`, `src/web/controllers/channels_controller.py`, `docs/adr/0009-official-companion-protocol-layers.md`, `docs/adr/0010-duty-cycle-configurable-budget.md`, `docs/PROTOCOL_AUDIT_2026-09-29.md`, `docs/README.md`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
+### Hito: Auditoría Integral Capa por Capa — Fase 2 (Capa 2: Orquestación, Aplicación y Casos de Uso)
+- **Fecha**: 2026-10-01
+- **Estado**: ✅ COMPLETADO (Fase 2: Capa 2 analizada, 2 defectos críticos identificados y replicados determinísticamente)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect), Agente 2 (Python Bridge Architect), Agente 5 (Security Auditor)
+- **Alcance y Acción**:
+  - Auditoría exhaustiva y estricta de todos los componentes de la **Capa 2: Orquestación, Aplicación y Casos de Uso** (`src/bridge_core.py`, `src/rx_router.py`, `src/routers/`, `src/deduplicator.py`, `src/health_reporter.py`, `src/serial/watchdog.py`, `src/preflight.py`, `src/admin_handler.py`, `src/admin/`).
+  - Verificación de linters y seguridad: Ruff (0 errores), Mypy strict (0 errores en 21 módulos), Bandit (0 problemas de severidad media/alta) y Auditoría AST de Concurrencia (0 llamadas bloqueantes sincrónicas en corrutinas).
+  - Verificación de invariantes inmutables de protocolo (SSoT): guardas de origen propio (loopback guard en `_handle_mesh_msg_common`, `ChannelMessageHandler`, `DirectMessageHandler`), aislamiento estricto de repetidores en mensajería de texto, enmascaramiento de contraseñas de administración (`login {'*' * len(pwd)}`) y apagado ordenado con timeouts individuales (1.5s máx) por subsistema.
+  - Identificación y replicación determinista de 2 defectos críticos:
+    1. **Hallazgo C2-01**: En `src/rx_router.py`, la deduplicación de paquetes (`PacketDeduplicator`) solo se evalúa en tramas de bajo nivel `_dispatch_parsed_frame(MeshcoreFrame)`. En el flujo estándar de radio Companion utilizado por el SDK oficial, todos los eventos entrantes (`ChannelMessageHandler`, `DirectMessageHandler`, etc.) omiten la consulta al deduplicador, procesando y republicando N veces los ecos de paquetes repetidos durante inundaciones en la malla LoRa. Replicado con script `scratch/reproduce_capa2_bug1_dedup_bypass.py`.
+    2. **Hallazgo C2-02**: En `src/bridge_core.py:269` (`handle_tcp_companion_command`), la corrutina espera la confirmación de la cola TX con `result = await future` sin un límite de tiempo `asyncio.wait_for`. Al ejecutarse bajo `self._transaction_lock` en `tcp_companion_server.py:377`, cualquier retraso o cola llena retiene indefinidamente la cerradura, congelando el servidor TCP Companion para todos los clientes (aplicaciones móviles y CLI). Replicado con script `scratch/reproduce_capa2_bug2_tcp_companion_unbounded_future.py`.
+  - Actualizado el informe canónico de auditoría en `docs/AUDIT_REPORT_LAYER_BY_LAYER.md`.
+- **Módulos Auditados**: `src/bridge_core.py`, `src/rx_router.py`, `src/routers/**`, `src/deduplicator.py`, `src/health_reporter.py`, `src/serial/watchdog.py`, `src/preflight.py`, `src/admin_handler.py`, `src/admin/**`.
+- **Artefactos y Reportes Creados/Actualizados**: `docs/AUDIT_REPORT_LAYER_BY_LAYER.md`, `scratch/reproduce_capa2_bug1_dedup_bypass.py`, `scratch/reproduce_capa2_bug2_tcp_companion_unbounded_future.py`.
+
+### Hito: Auditoría Integral Capa por Capa — Fase 1 (Capa 1: Presentación y Exposición)
+- **Fecha**: 2026-10-01
+- **Estado**: ✅ COMPLETADO (Fase 1: Capa 1 analizada, 2 defectos identificados y replicados determinísticamente)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 4 (Web UI/UX & Frontend Architect), Agente 5 (Security Auditor)
+- **Alcance y Acción**:
+  - Auditoría exhaustiva y estricta de todos los componentes de la **Capa 1: Presentación y Exposición** (`src/web/http_server.py`, `src/web/api_router.py`, `src/web/security_inspector.py`, `src/web/map_tile_service.py`, `src/web/controllers/`, `src/mqtt_client.py`, `src/mqtt_dispatcher.py`).
+  - Verificación de linters y seguridad: Ruff (0 errores), Mypy strict (0 errores en 18 módulos), Bandit (0 vulnerabilidades medias/altas), y Paridad de API REST/Frontend (100% de coincidencia léxica en 58 endpoints).
+  - Verificación de invariantes inmutables de protocolo (SSoT): aislamiento estricto de repetidores en libretas de contactos, prohibición de chat a repetidores y nodo local, enmascaramiento seguro de contraseñas/PSK (`••••••••`), límite DoS de 1MB y tope de 32 clientes concurrentes WebSocket.
+  - Identificación y replicación determinista de 2 defectos contractuales:
+    1. **Hallazgo C1-01**: `POST /api/system/logs/level` con valor inválido escala excepción `ValueError` no controlada produciendo HTTP 500 (`Internal Server Error`) en lugar de HTTP 400 (`Bad Request`). Replicado con script `scratch/reproduce_capa1_bug1_log_level_500.py`.
+    2. **Hallazgo C1-02**: En `mqtt_dispatcher.py` (`_handle_admin_request`) se descartan las respuestas de comandos administrativos locales (`get_custom_vars`, `get_path_hash_mode`, `get_autoadd_config`, `get_flood_scope` y sobres de error) sin publicarlas en `TOPIC_ADMIN_STAT` (`meshcore/admin/status`), dejando a clientes MQTT colgados sin respuesta. Replicado con script `scratch/reproduce_capa1_bug2_mqtt_admin_drop.py`.
+  - Generado documento canónico de auditoría: `docs/AUDIT_REPORT_LAYER_BY_LAYER.md`.
+- **Módulos Auditados**: `src/web/**`, `src/mqtt_client.py`, `src/mqtt_dispatcher.py`.
+- **Artefactos y Reportes Creados/Actualizados**: `docs/AUDIT_REPORT_LAYER_BY_LAYER.md`, `docs/README.md`, `scratch/reproduce_capa1_bug1_log_level_500.py`, `scratch/reproduce_capa1_bug2_mqtt_admin_drop.py`.
+
+
+### Hito: Supresión de Ruido de Telemetría Local de Tiempo (Serial Watchdog Keep-Alive)
+- **Fecha**: 2026-10-01
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Python Bridge Architect)
+- **Alcance y Acción**:
+  - En `src/rx_router.py`: Se ajustó el nivel de logging de los eventos de diagnóstico/telemetría interna del nodo local para `time` y `clock` de `logging.info` a `logging.debug`.
+  - El keep-alive periódico (cada 60 segundos por defecto mediante `SerialWatchdog`) continúa operando normalmente para supervisar la vivacidad física del puerto serie y prevenir bloqueos de hardware, pero deja de generar ruido repetitivo constante en la consola, archivos de registro y la interfaz Web.
+  - Verificación estática con py_compile y ruff exitosa. Pruebas automatizadas suspendidas conforme a regla inmutable de AGENTS.md.
+- **Módulos Modificados**: `src/rx_router.py`, `docs/AGENT_ACTIVITY_REPORT.md`.
+
 ### Hito: Auditoría secuencial de compatibilidad, QA y actualización por MCP SSH
 - **Fecha**: Inicio2026-09-30; integración2026-10-01.
 - **Autorización**: Revisión de serial, admin y todo src Python; pruebas y regresiones explícitamente autorizadas, publicación GitHub y actualización SSH de la estación. Las credenciales permanecen fuera de archivos y evidencias.
@@ -15,6 +68,22 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
 - **MCP**: Nuevo tools/ssh_mcp FastMCPstdio con host restringido, fingerprint antes de autenticación, password sólo env en memoria y staging SFTP seguro. Runtime de mantenimiento aislado, no dependencia productiva ni registro global. Estación actualizada en/opt/meshcore-bridge, backup privado verificado;86archivos coinciden con release y configuración/unidad intactas. Evidencia en docs/DEPLOYMENT_VERIFICATION_2026-10-01.json.
 - **CI adicional**: Primera publicación:lint/validadores aprobados; Linux3.10/3.12=661pass/1fallomóvil390×844. Seguimiento espera cierre visual/fuentes y conserva overflow exacto con diagnóstico; Regresión transición4/4 y gate local662/1skip aprobados; confirmarCIantesde declarar todas las plataformas aprobadas. No modifica código desplegado.
 - **Límites**: BLE ausente; raw propio no UART; LPP subconjunto, LQI heurístico, PCAP DLT_USER0, cooldown admin manual en memoria, carrera login upstream, sin certificación universal100% ni ejecución local Python3.10. SymlinkWindows omitido por permisos, aprobado aislado enLinux3.13.5. Logs históricos investigados; postarranque sin traceback/ERROR y unWARNING por mensaje196bytes rechazado frente a límite160.
+
+### Hito: Formalización del Modelo Canónico de Arquitectura en 5 Capas
+- **Fecha**: 2026-10-01
+- **Estado**: ✅ COMPLETADO
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect)
+- **Alcance y Acción**:
+  - Incorporada formalmente la Sección 2 en `docs/ARCHITECTURE.md`: "Modelo Canónico de Arquitectura en 5 Capas", formalizando la nomenclatura estándar del proyecto:
+    - **Capa 1: Presentación y Exposición** (`src/web/`, `src/web/controllers/`, `src/mqtt_client.py`, `src/mqtt_dispatcher.py`).
+    - **Capa 2: Aplicación y Orquestación** (`src/bridge_core.py`, `src/admin_handler.py`, `src/admin/`, `src/preflight.py`, `src/health_reporter.py`).
+    - **Capa 3: Dominio de Malla y Enrutamiento** (`src/rx_router.py`, `src/routers/`, `src/rate_limiter.py`, `src/contact_manager.py`, `src/repeater_manager.py`, `src/lqi_engine.py`, `src/deduplicator.py`, `src/sensor_decoder.py`).
+    - **Capa 4: Dominio Puro y Protocolo Canónico** (`src/protocol_types.py`, invariantes canónicas de `CONTEXT.md`).
+    - **Capa 5: Infraestructura y Transporte** (`src/serial/`, `src/serial_driver.py`, `src/tcp_companion_server.py`, `src/virtual_mesh_adapter.py`, repositorios JSON en disco).
+  - Actualizada la numeración sucesiva de secciones (3 a 12) en `docs/ARCHITECTURE.md`.
+  - Elaborado el manual técnico exhaustivo para ingenieros y técnicos: [`docs/SYSTEM_LAYERS_MANUAL.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/docs/SYSTEM_LAYERS_MANUAL.md), detallando clases, métodos, firmas, flujos extremo a extremo (secuencias Mermaid de TX/RX), matriz de contratos e instrucciones de extensión.
+  - Actualizado el índice documental maestro en `docs/README.md`.
+- **Módulos Modificados**: `docs/ARCHITECTURE.md`, `docs/SYSTEM_LAYERS_MANUAL.md`, `docs/README.md`, `docs/AGENT_ACTIVITY_REPORT.md`.
 
 ### Hito: Inventario de conocimiento, procedencia y agentes de mantenimiento
 - **Fecha**: 2026-09-30

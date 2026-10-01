@@ -1003,7 +1003,8 @@ class RxEventRouter:
         has_readings = telem_summary != "Sin lecturas adicionales"
 
         if is_local_station:
-            logging.info(
+            log_fn = logging.debug if str(ev_name).lower() in ("time", "clock") else logging.info
+            log_fn(
                 f"[ESTACIÓN LOCAL] Telemetría/Diagnóstico ({ev_name}): {telem_summary}"
             )
             return
