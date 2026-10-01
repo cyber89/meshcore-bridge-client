@@ -1,64 +1,42 @@
+"""HTTP tile contracts using a temporary MBTiles database and ephemeral loopback port."""
+
 import asyncio
 import json
-import sys
+import sqlite3
 import urllib.error
 import urllib.request
-from pathlib import Path
-
-ROOT_DIR = Path(__file__).resolve().parent.parent
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
 
 from src.bridge_core import MeshCoreBridge
-from src.virtual_mesh_adapter import VirtualMeshAdapter
-from src.web.http_server import MeshCoreWebServer
 
 
-def fetch_url(url: str):
-    req = urllib.request.Request(url, headers={"User-Agent": "TileTester/1.0"})
-    with urllib.request.urlopen(req, timeout=5) as resp:
-        return resp.status, resp.headers.get("Content-Type"), resp.read()
+def fetch_url(url: str) -> tuple[int, str | None, bytes]:
+    request = urllib.request.Request(url, headers={"User-Agent": "TileTester/1.0"})
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return response.status, response.headers.get("Content-Type"), response.read()
+    except urllib.error.HTTPError as error:
+        return error.code, error.headers.get("Content-Type"), error.read()
 
-async def test_tile_server():
-    bridge = MeshCoreBridge()
-    adapter = VirtualMeshAdapter()
-    bridge.serial_adapter = adapter
-    await adapter.connect()
-    server = MeshCoreWebServer(bridge=bridge, host='127.0.0.1', port=8092)
-    await server.start()
 
-    # 1. Test /api/map/status
-    status, content_type, data = await asyncio.to_thread(fetch_url, "http://127.0.0.1:8092/api/map/status")
-    status_data = json.loads(data.decode())
-    print("STATUS DATA:", json.dumps(status_data, indent=2))
+async def test_tile_server(virtual_bridge: MeshCoreBridge) -> None:
+    server = virtual_bridge.web_server
+    assert server is not None and server.server is not None
+    tile_bytes = b"\x89PNG\r\n\x1a\nFixtureTile"
+    database = server.tile_service.maps_dir / "fixture.mbtiles"
+    with sqlite3.connect(database) as connection:
+        connection.execute("CREATE TABLE metadata (name TEXT, value TEXT)")
+        connection.execute("INSERT INTO metadata VALUES ('name', 'Fixture'), ('format', 'png')")
+        connection.execute("CREATE TABLE tiles (zoom_level INTEGER, tile_column INTEGER, tile_row INTEGER, tile_data BLOB)")
+        connection.execute("INSERT INTO tiles VALUES (0, 0, 0, ?)", (tile_bytes,))
+    server.tile_service.reload_mbtiles()
+    origin = f"http://127.0.0.1:{server.server.sockets[0].getsockname()[1]}"
+
+    status, _, body = await asyncio.to_thread(fetch_url, origin + "/api/map/status")
     assert status == 200
-    assert status_data["status"] == "ok"
-    assert status_data["data"]["has_local_maps"] is True
-    assert status_data["data"]["mbtiles_count"] >= 1
+    assert json.loads(body)["data"]["has_local_maps"] is True
+    assert json.loads(body)["data"]["mbtiles_count"] == 1
 
-    # 2. Test /api/map/tiles/0/0/0.png
-    status, mime, tile_bytes = await asyncio.to_thread(fetch_url, "http://127.0.0.1:8092/api/map/tiles/0/0/0.png")
-    assert status == 200
-    assert mime == "image/png"
-    png_magic = b"\x89PNG"
-    is_png = bool(tile_bytes[:4] == png_magic)
-    print(f"TILE 0/0/0 bytes: {len(tile_bytes)}, PNG header: {is_png}")
-    assert tile_bytes[:4] == png_magic
-
-    # 3. Test non-existing tile
-    def fetch_404():
-        try:
-            return fetch_url("http://127.0.0.1:8092/api/map/tiles/18/999/999.png")
-        except urllib.error.HTTPError as e:
-            return e.code, None, None
-
-    code, _, _ = await asyncio.to_thread(fetch_404)
-    print(f"Non-existing tile returned expected code: {code}")
-    assert code == 404
-
-    await server.stop()
-    await adapter.disconnect()
-    print("ALL MAP TILE SERVER TESTS PASSED!")
-
-if __name__ == "__main__":
-    asyncio.run(test_tile_server())
+    status, mime, body = await asyncio.to_thread(fetch_url, origin + "/api/map/tiles/0/0/0.png")
+    assert (status, mime, body) == (200, "image/png", tile_bytes)
+    status, _, _ = await asyncio.to_thread(fetch_url, origin + "/api/map/tiles/18/999/999.png")
+    assert status == 404

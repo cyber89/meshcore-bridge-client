@@ -25,6 +25,8 @@ class TestTXRateLimiter(unittest.TestCase):
         self.bridge.mc.commands = MagicMock()
         self.bridge.mc.commands.send_chan_msg = AsyncMock()
         self.bridge.mc.commands.send_msg = AsyncMock()
+        self.bridge.serial_adapter.is_connected = True
+        self.bridge.serial_adapter.send_message = AsyncMock(return_value={"status": "SENT"})
 
     def tearDown(self):
         self.loop.close()

@@ -948,6 +948,7 @@ body.light-theme .card-local-pill {
 
 .chat-composer input {
   flex: 1;
+  min-width: 0;
   background-color: var(--bg-surface-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);

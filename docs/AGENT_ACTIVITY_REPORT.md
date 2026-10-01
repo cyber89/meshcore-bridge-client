@@ -2,6 +2,19 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Auditoría secuencial de compatibilidad, QA y actualización por MCP SSH
+- **Fecha**: Inicio2026-09-30; integración2026-10-01.
+- **Autorización**: Revisión de serial, admin y todo src Python; pruebas y regresiones explícitamente autorizadas, publicación GitHub y actualización SSH de la estación. Las credenciales permanecen fuera de archivos y evidencias.
+- **Estado**: Gate del árbol exacto aprobado:661pass/1symlinkWindowsomitido,0fail; cobertura67.07%; mypy59/Ruff/docs44 aprobados. Publicación y despliegue pendientes.
+- **Autoridad**: Firmware1.17.1 d929643, SDK2.3.8 c487efb y CLI0856c72; referencias intactas. Inventario59 módulos en docs/SOURCE_COMPATIBILITY_MATRIX_2026-10-01.json; reporte docs/COMPATIBILITY_AUDIT_2026-09-30.md.
+- **Agentes/skills**: Investigador de protocolo/serial y arquitecto Python; QA de dominio, persistencia y MQTT; auditor de contratos/seguridad web; principal integrador. Skills meshcore-source-inspector, python-patterns-typing, async-concurrency-engineering, bridge-test-runner, contract-openapi-sync, security-code-auditor e installer-release-maintenance. Propiedad separada de archivos y ledger integrado por principal.
+- **Fases**: Serial32regresiones y gate88; admin33 y gate102; dominio42, persistencia2, MQTT16, ciclo de vida/TCP19, núcleo19, simulador16, números/reloj29 y exportCSV6. Los gates se solapan: no son un conteo final de pruebas únicas. Inspector3 regresiones antes/después.
+- **Cambios**: Confirmación/error SDK, UTF8/identidad/roles, cache tras ACK local, capacidad de canales, lock Companion/auto-fetch/proxy, fin de streams y respuesta por dueño; admin sin chatfallback, login y traceroute reales, ping0 restaura contacto. MQTT sin JSON inválido transmitido ni secretos estructurados, ACK4bytes, salud y rcPaho. API/WS/mapas/clientIP y CSV endurecidos; colas sin bypass ni envíos cancelados; startup/shutdown/tareas de threads con ownership y errores sin feedback; persistencia de nodos con generación y airtime fuera del loop.
+- **Reproducciones/evidencia**: Baseline370 aprobadas. Integración intermedia557pass/15fail/1skip, luego615pass/1fail/1skip; fallos registrados y corregidos con fixtures válidas. JUnit y JSON locales tests/artifacts y scratch conservados; resumen publicado en audit/matriz, artefactos ignorados. Ruff, mypy59 y Bandit nivelmedio/confianzamedia aprobados antes del gate final; no se reutilizan como sustituto de él.
+- **RF**: Ningún límite, cooldown, intervalo o timer nuevo. Chat TCP usa cola existente; tests virtuales/mocks/loopback/temporales. No TX/ping/traceroute/hardware ni broker operativo como fixture.
+- **MCP**: Nuevo tools/ssh_mcp FastMCPstdio con host restringido, fingerprint antes de autenticación, password sólo env en memoria y staging SFTP seguro. Runtime de mantenimiento aislado, no dependencia productiva ni registro global. Publicación y acceso a estación todavía pendientes.
+- **Límites**: BLE ausente; raw propio no UART; LPP subconjunto, LQI heurístico, PCAP DLT_USER0, cooldown admin manual en memoria, carrera login upstream, sin certificación universal100% ni ejecución local Python3.10. SymlinkWindows omitido por permisos, se verificará aislado en Linux si accesible.
+
 ### Hito: Inventario de conocimiento, procedencia y agentes de mantenimiento
 - **Fecha**: 2026-09-30
 - **Estado**: Revisión documental integrada; verificación estructural y contrastes dirigidos, sin certificación del sistema completo.

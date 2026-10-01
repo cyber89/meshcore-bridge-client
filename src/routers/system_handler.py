@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from src.routers.base import BaseRxHandler, RxMeta
-from src.shared_utils import is_empty_channel_slot
+from src.shared_utils import is_empty_channel_slot, sanitize_public_payload
 
 
 class SystemHandler(BaseRxHandler):
@@ -41,6 +41,7 @@ class SystemHandler(BaseRxHandler):
         raw_event: Any,
     ) -> bool:
         router_ctx = getattr(ctx, "_ctx", ctx)
+        payload = sanitize_public_payload(payload)
 
         clean_ev = meta.ev_upper.replace("EVENTTYPE.", "").strip()
         event_type = payload.get("event_type", clean_ev).lower()

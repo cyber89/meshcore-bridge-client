@@ -22,6 +22,7 @@ from src.admin import (
     TracerouteExecutor,
     WaiterRegistry,
 )
+from src.admin.sdk_commands import require_success, run_sdk_command
 from src.contact_manager import (
     NodeRegistry,
 )
@@ -127,15 +128,12 @@ class AdminCommandHandler:
         mc = self._ctx.mc_provider()
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_advert"):
             try:
-                await mc.commands.send_advert(flood=flood)
+                require_success(await run_sdk_command(self._ctx, mc, "send_advert", flood=flood), "send_advert")
                 mode_str = "Flood Routed (toda la malla)" if flood else "Hop 0 (vecindario directo)"
                 return {"status": "ok", "message": f"Anuncio emitido ({mode_str})", "flood": flood}
             except Exception as e:
-                logging.warning(f"Error enviando advert via SDK: {e}")
-        # Fallback a emisión TX
-        payload = {"to": "ffffffffffff", "text": "ADVERT", "channel_idx": 0}
-        await self._ctx.execute_tx(payload)
-        return {"status": "ok", "message": f"Anuncio emitido por TX (flood={flood})", "flood": flood}
+                logging.warning("El firmware no confirmó el anuncio: %s", type(e).__name__)
+        return {"status": "error", "message": "Anuncio no confirmado por el firmware", "flood": flood}
 
     async def get_custom_vars(self) -> dict[str, Any]:
         """Obtiene las variables personalizadas del nodo local."""
@@ -271,7 +269,7 @@ class AdminCommandHandler:
                 return fut.result()
             if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_msg"):
                 try:
-                    await mc.commands.get_msg(timeout=0.8)
+                    await run_sdk_command(self._ctx, mc, "get_msg", timeout=0.8)
                     if fut.done():
                         return fut.result()
                     await asyncio.sleep(0.20)
@@ -284,6 +282,17 @@ class AdminCommandHandler:
         return None
 
     async def handle(self, admin_data: dict[str, Any]) -> dict[str, Any]:
+        """Preserve command failures in the response envelope without exposing secrets."""
+        try:
+            return await self._handle(admin_data)
+        except (ValueError, TypeError):
+            return {"status": "error", "code": 422, "message": "Parámetros administrativos inválidos"}
+        except (ConnectionError, NotImplementedError):
+            return {"status": "error", "code": 503, "message": "Operación no disponible en el transceptor"}
+        except RuntimeError:
+            return {"status": "error", "code": 400, "message": "El firmware no confirmó la operación"}
+
+    async def _handle(self, admin_data: dict[str, Any]) -> dict[str, Any]:
         """Ejecuta comandos de administración sobre la radio o repetidores."""
         raw_cmd = str(admin_data.get("command", admin_data.get("cmd", ""))).strip()
         raw_act = str(admin_data.get("action", "")).strip()
@@ -344,15 +353,21 @@ class AdminCommandHandler:
             vars_data = admin_data.get("vars", admin_data.get("custom_vars", {}))
             if not vars_data and "key" in admin_data:
                 vars_data = {admin_data["key"]: admin_data.get("value", admin_data.get("val", ""))}
+            if not isinstance(vars_data, dict):
+                raise ValueError("custom_vars debe ser un objeto")
             for k, v in vars_data.items():
-                await self.set_custom_var(str(k), str(v))
+                result = await self.set_custom_var(str(k), str(v))
+                if str(result.get("status", "")).lower() == "error":
+                    return result
             res["custom_vars"] = await self.get_custom_vars()
             return res
 
         if action == "delete_custom_var":
             k_del = str(admin_data.get("key", ""))
             if k_del:
-                await self.delete_custom_var(k_del)
+                result = await self.delete_custom_var(k_del)
+                if str(result.get("status", "")).lower() == "error":
+                    return result
             res["custom_vars"] = await self.get_custom_vars()
             return res
 

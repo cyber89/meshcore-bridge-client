@@ -11,6 +11,7 @@ import json
 import logging
 import signal
 import time
+from collections.abc import Callable, Coroutine
 from datetime import datetime, timezone
 from typing import Any, Protocol, cast
 
@@ -27,6 +28,7 @@ from src.preflight import PreflightChecker
 from src.rate_limiter import (
     LoRaRadioConfig,
     TxItem,
+    TxPriority,
     TxRateLimiter,
     estimate_lora_airtime_ms,
 )
@@ -35,7 +37,6 @@ from src.rx_router import RxEventRouter, RxRouterContext
 from src.serial_driver import (
     BaseSerialAdapter,
     MeshcoreSDKAdapter,
-    RawSerialFramingAdapter,
     SerialWatchdog,
 )
 from src.tcp_companion_server import MeshCoreCompanionServer
@@ -78,6 +79,8 @@ class MeshCoreBridge:
         self.running = True
         self._is_stopped = False
         self._cleanup_task: asyncio.Task[None] | None = None
+        self._lifecycle_lock = asyncio.Lock()
+        self._started = False
         self.start_time = time.time()
         self._custom_loop = loop
 
@@ -201,41 +204,76 @@ class MeshCoreBridge:
         if web is None or not getattr(self, "running", False):
             return
 
+        self._schedule_background(lambda: web.broadcast_event(payload))
+
+    def _schedule_background(self, factory: Callable[[], Coroutine[Any, Any, Any]]) -> None:
+        """Create and own tasks on their event loop, including callbacks from threads."""
+        if not getattr(self, "running", False):
+            return
         loop = getattr(self, "_custom_loop", None)
-        if loop and loop.is_running():
+        try:
+            current_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            current_loop = None
+        if loop is None or not loop.is_running():
+            loop = current_loop
+        if loop is None or loop.is_closed():
+            return
+
+        def launch() -> None:
+            if not getattr(self, "running", False):
+                return
             try:
-                running_loop = asyncio.get_running_loop()
-                if running_loop is loop:
-                    task = asyncio.create_task(web.broadcast_event(payload))
-                    self._add_background_task(task)
-                else:
-                    asyncio.run_coroutine_threadsafe(web.broadcast_event(payload), loop)
-            except RuntimeError:
-                asyncio.run_coroutine_threadsafe(web.broadcast_event(payload), loop)
+                self._add_background_task(asyncio.create_task(factory()))
+            except Exception:
+                logging.exception("No se pudo iniciar tarea background", extra={"skip_broadcast": True})
+
+        if current_loop is loop:
+            launch()
         else:
             try:
-                coro = web.broadcast_event(payload)
-                try:
-                    task = asyncio.create_task(coro)
-                    self._add_background_task(task)
-                except RuntimeError:
-                    coro.close()
-            except Exception:
-                pass
+                loop.call_soon_threadsafe(launch)
+            except RuntimeError:
+                # The loop may have stopped between inspection and scheduling.
+                return
 
     def _on_raw_companion_frame_rx(self, payload: bytes) -> None:
         """Difunde tramas binarias de la radio hacia clientes TCP Companion conectados (App Móvil / CLI)."""
         tcp_srv = getattr(self, "tcp_server", None)
         if tcp_srv is not None and getattr(self, "running", False):
-            task = asyncio.create_task(tcp_srv.broadcast_companion_frame(payload))
-            self._add_background_task(task)
+            owner = tcp_srv.get_response_owner() if hasattr(tcp_srv, "get_response_owner") else None
+            if payload and payload[0] < 0x80:
+                if owner is None:
+                    return
+                if hasattr(tcp_srv, "note_response_received"):
+                    tcp_srv.note_response_received(owner)
+                self._schedule_background(lambda: tcp_srv.broadcast_companion_frame(payload, response_owner=owner))
+            else:
+                self._schedule_background(lambda: tcp_srv.broadcast_companion_frame(payload))
 
-    async def handle_tcp_companion_command(self, payload: bytes, client_writer: Any) -> None:
+    async def handle_tcp_companion_command(self, payload: bytes, client_writer: Any) -> bool:
         """Maneja comandos binarios enviados por apps móviles o CLI a través del socket TCP Companion."""
         if not payload:
-            return
+            return False
+        if payload[0] in (2, 3):
+            # Companion text layout: type + attempt/channel + timestampLE,
+            # then the six-byte destination prefix for direct messages.
+            if len(payload) < (14 if payload[0] == 2 else 8):
+                return False
+            if payload[0] == 3 or payload[1] != 1:
+                channel_idx = payload[2] if payload[0] == 3 else 0
+                target = payload[7:13].hex() if payload[0] == 2 else None
+                try:
+                    future = await self.rate_limiter.submit(payload=payload, priority=TxPriority.NORMAL,
+                                                           target=target, channel_idx=channel_idx)
+                    result = await future
+                    return isinstance(result, dict) and str(result.get("status", "")).lower() in ("sent", "ok", "success")
+                except Exception:
+                    logging.warning("No se pudo enviar chat TCP por la cola TX", extra={"skip_broadcast": True})
+                    return False
         if hasattr(self.serial_adapter, "send_raw_companion_frame"):
-            await self.serial_adapter.send_raw_companion_frame(payload)
+            return bool(await self.serial_adapter.send_raw_companion_frame(payload))
+        return False
 
     def _init_metrics_and_tasks(self) -> None:
         """Inicializa contadores y conjuntos de tareas en background."""
@@ -264,14 +302,31 @@ class MeshCoreBridge:
     def _add_background_task(self, task: asyncio.Task[Any]) -> asyncio.Task[Any]:
         """Registra una tarea asíncrona previniendo recolección prematura por GC."""
         self._background_tasks.add(task)
-        task.add_done_callback(self._background_tasks.discard)
+        task.add_done_callback(self._background_task_done)
         return task
+
+    def _background_task_done(self, task: asyncio.Task[Any]) -> None:
+        self._background_tasks.discard(task)
+        if task.cancelled():
+            return
+        error = task.exception()
+        if error is not None:
+            logging.error("Error en tarea background: %s", error,
+                          exc_info=(type(error), error, error.__traceback__),
+                          extra={"skip_broadcast": True})
+
+    def _get_lifecycle_lock(self) -> asyncio.Lock:
+        lock = getattr(self, "_lifecycle_lock", None)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._lifecycle_lock = lock
+        return cast(asyncio.Lock, lock)
 
     async def _cleanup_loop(self) -> None:
         while self.running:
             await asyncio.sleep(60.0)
             async with self._tasks_lock:
-                self._background_tasks = {t for t in self._background_tasks if not t.done()}
+                self._background_tasks.difference_update([t for t in self._background_tasks if t.done()])
             try:
                 if hasattr(self, "node_registry"):
                     if hasattr(self.node_registry, "cleanup_inactive"):
@@ -310,6 +365,7 @@ class MeshCoreBridge:
                 mqtt=self.mqtt,
                 rate_limiter=self.rate_limiter,
                 handle_admin=self.handle_admin,
+                register_task=self._add_background_task,
             )
         )
 
@@ -326,6 +382,7 @@ class MeshCoreBridge:
                 counters=self,
                 packet_buffer=self.packet_buffer,
                 bridge=self,
+                register_task=self._add_background_task,
             )
         )
 
@@ -444,7 +501,7 @@ class MeshCoreBridge:
         return self.serial_adapter.resolve_sender_name(prefix_or_key)
 
     def _create_serial_adapter(self) -> BaseSerialAdapter:
-        """Crea el adaptador serial adecuado con fallback transparente."""
+        """Select the official physical transport; memory framing is not a UART."""
         try:
             return MeshcoreSDKAdapter(
                 port=config.SERIAL_PORT,
@@ -452,21 +509,39 @@ class MeshCoreBridge:
                 timeout_sec=config.SERIAL_TIMEOUT,
                 node_registry=self.node_registry,
             )
-        except Exception:
-            return RawSerialFramingAdapter(
-                port=config.SERIAL_PORT,
-                baud_rate=config.BAUD_RATE,
-                timeout_sec=config.SERIAL_TIMEOUT,
-                node_registry=self.node_registry,
-            )
+        except Exception as error:
+            raise RuntimeError("No se pudo inicializar el transporte SDK MeshCore") from error
 
     async def start(self) -> None:
         """Inicia todos los subsistemas del bridge de forma asíncrona."""
+        async with self._get_lifecycle_lock():
+            if getattr(self, "_started", False):
+                return
+            self._is_stopped = False
+            self.running = True
+            self._custom_loop = asyncio.get_running_loop()
+            for name in ("mqtt_dispatcher", "rx_router"):
+                component = getattr(self, name, None)
+                if component is not None:
+                    component._ctx.loop = self._custom_loop
+            if hasattr(self, "log_handler") and self.log_handler not in logging.getLogger().handlers:
+                logging.getLogger().addHandler(self.log_handler)
+            sdk_logger = logging.getLogger("meshcore")
+            sdk_logger.setLevel(max(logging.INFO, sdk_logger.getEffectiveLevel()))
+            try:
+                await self._start_subsystems()
+            except BaseException:
+                # Already inside the lifecycle lock; avoid re-entering public stop().
+                await self._stop_subsystems()
+                raise
+            self._started = True
+
+    async def _start_subsystems(self) -> None:
         self.running = True
         loop = self._custom_loop or asyncio.get_running_loop()
 
         # 0. Diagnósticos Preflight de arranque
-        report = self.preflight.run_all(
+        report = await asyncio.to_thread(self.preflight.run_all,
             mqtt_host=config.MQTT_BROKER,
             mqtt_port=config.MQTT_PORT,
             serial_port=getattr(self.serial_adapter, "port", config.SERIAL_PORT),
@@ -504,9 +579,13 @@ class MeshCoreBridge:
 
     async def stop(self) -> None:
         """Detención ordenada de todos los subsistemas."""
+        async with self._get_lifecycle_lock():
+            await self._stop_subsystems()
+
+    async def _stop_subsystems(self) -> None:
         if getattr(self, "_is_stopped", False):
             return
-        self._is_stopped = True
+        self._started = False
         logging.info("Deteniendo MeshCore Bridge...")
         self.running = False
 
@@ -518,6 +597,19 @@ class MeshCoreBridge:
             except (asyncio.CancelledError, asyncio.TimeoutError, Exception):
                 pass
             self._cleanup_task = None
+
+        current_task = asyncio.current_task()
+        owned = [task for task in self._background_tasks if task is not current_task]
+        for task in owned:
+            if not task.done():
+                task.cancel()
+        if owned:
+            # Reuse the existing per-subsystem shutdown bound.
+            try:
+                await asyncio.wait_for(asyncio.gather(*owned, return_exceptions=True), timeout=1.5)
+            except asyncio.TimeoutError:
+                logging.warning("Timeout al detener tareas background", extra={"skip_broadcast": True})
+            self._background_tasks.difference_update(task for task in owned if task.done())
 
         # Detención resiliente: cada subsistema se cierra con timeout individual estricto (1.5s máx)
         for subsystem_name, coro in [
@@ -551,6 +643,7 @@ class MeshCoreBridge:
 
         if hasattr(self, "log_handler") and self.log_handler in logging.getLogger().handlers:
             logging.getLogger().removeHandler(self.log_handler)
+        self._is_stopped = True
         logging.info("MeshCore Bridge detenido correctamente.")
 
     async def shutdown(self) -> None:
@@ -666,13 +759,9 @@ class MeshCoreBridge:
         """Valida que el destino no viole reglas inmutables de dominio."""
         if is_broadcast:
             return None
-        clean_txt = text.strip().lower()
-        first_token = clean_txt.split()[0] if clean_txt.split() else ""
-        is_admin_cmd = first_token in ("login", "cmd", "set", "get", "reboot", "ping", "trace", "ver", "status", "info")
-
         if self.node_registry.is_local_key(target_str):
             return "No se puede enviar mensajes de chat hacia el nodo local."
-        if not is_admin_cmd and self.node_registry.is_repeater_key(target_str):
+        if self.node_registry.is_repeater_key(target_str):
             return "Los repetidores son nodos de infraestructura y no admiten mensajería de chat."
         return None
 
@@ -730,16 +819,14 @@ class MeshCoreBridge:
 
             target_arg = str(target) if not is_broadcast else None
             send_res = await self.serial_adapter.send_message(text=text, target=target_arg, channel_idx=ch_idx)
-            if isinstance(send_res, dict):
-                expected_ack_hex = send_res.get("expected_ack")
-                res_obj = send_res.get("event")
-                if res_obj is not None:
-                    ev_type = str(getattr(res_obj, "type", ""))
-                    if ev_type.upper() in ("ERROR", "ERR") or "ERR_" in str(res_obj):
-                        status_val = "error"
-                        async with self._tx_metrics_lock:
-                            self.tx_error_count += 1
-                        error_detail = str(getattr(res_obj, "payload", "Radio returned error event"))
+            if not isinstance(send_res, dict) or str(send_res.get("status", "")).lower() not in ("ok", "sent", "success"):
+                raise RuntimeError("El transceptor no confirmó la transmisión")
+            expected_ack_hex = send_res.get("expected_ack")
+            res_obj = send_res.get("event")
+            if res_obj is not None:
+                ev_type = getattr(res_obj, "type", None)
+                if str(getattr(ev_type, "name", ev_type)).upper() == "ERROR":
+                    raise RuntimeError("El transceptor rechazó la transmisión")
 
         except Exception as e:
             async with self._tx_metrics_lock:
@@ -823,6 +910,19 @@ class MeshCoreBridge:
 
     async def _execute_tx_transmission(self, item: TxItem) -> dict[str, Any]:
         """Callback real de emisión hacia el adaptador serial."""
+        if isinstance(item.payload, bytes):
+            if item.future is not None and item.future.cancelled():
+                return {"status": "error", "error": "Solicitud TCP cancelada"}
+            success = False
+            try:
+                success = bool(await self.serial_adapter.send_raw_companion_frame(item.payload))
+            except Exception:
+                logging.warning("Fallo en transmisión de chat Companion TCP", extra={"skip_broadcast": True})
+            async with self._tx_metrics_lock:
+                self.tx_count += 1
+                if not success:
+                    self.tx_error_count += 1
+            return {"status": "sent" if success else "error", "target": item.target, "channel_idx": item.channel_idx}
         return await self._execute_tx(item)
 
     def _on_duty_cycle_alert(self, level: str, stats: dict[str, Any]) -> None:
@@ -843,13 +943,7 @@ class MeshCoreBridge:
         # 1. Notificar a clientes WebSockets de la SPA
         ws_server = self.web_server
         if ws_server is not None:
-            try:
-                loop = self._custom_loop or asyncio.get_running_loop()
-                loop.create_task(ws_server.broadcast_event(payload))
-            except RuntimeError:
-                pass
-            except Exception as e:
-                logging.debug(f"Error emitiendo duty_cycle_alert a WebSockets: {e}")
+            self._schedule_background(lambda: ws_server.broadcast_event(payload))
 
         # 2. Publicar en tópico MQTT de alertas
         if getattr(self, "mqtt", None):
@@ -873,13 +967,7 @@ class MeshCoreBridge:
 
         ws_server = self.web_server
         if ws_server is not None:
-            try:
-                loop = self._custom_loop or asyncio.get_running_loop()
-                loop.create_task(ws_server.broadcast_event(payload))
-            except RuntimeError:
-                pass
-            except Exception as e:
-                logging.debug(f"Error emitiendo airtime_cutoff_change a WebSockets: {e}")
+            self._schedule_background(lambda: ws_server.broadcast_event(payload))
 
         if getattr(self, "mqtt", None):
             try:
@@ -899,9 +987,10 @@ class MeshCoreBridge:
             logging.getLogger("asyncio").setLevel(logging.DEBUG)
 
         _shutdown_triggered = False
+        shutdown_task: asyncio.Task[None] | None = None
 
         def _stop_task() -> None:
-            nonlocal _shutdown_triggered
+            nonlocal _shutdown_triggered, shutdown_task
             if _shutdown_triggered:
                 return
             _shutdown_triggered = True
@@ -914,8 +1003,9 @@ class MeshCoreBridge:
                 finally:
                     loop.stop()
 
-            task = loop.create_task(_async_shutdown())
-            self._add_background_task(task)
+            # Keep the shutdown controller outside the tasks it asks stop() to cancel.
+            shutdown_task = loop.create_task(_async_shutdown(), name="BridgeShutdown")
+            shutdown_task.add_done_callback(self._background_task_done)
 
         for sig in (signal.SIGINT, signal.SIGTERM):
             try:

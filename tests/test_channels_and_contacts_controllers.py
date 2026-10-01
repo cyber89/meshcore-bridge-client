@@ -5,7 +5,7 @@ Verifies PSK masking, bounds checking, atomic persistence, and strict ADR 0001 r
 
 from collections import deque
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -19,7 +19,10 @@ from src.web.controllers.contacts_controller import ContactsController
 def mock_api_context(tmp_path: Any) -> ApiContext:
     mock_bridge = MagicMock()
     mock_bridge.node_registry = NodeRegistry()
-    mock_bridge.serial_adapter = None
+    mock_bridge.serial_adapter = MagicMock()
+    for method in ("set_channel", "delete_channel", "add_contact", "remove_contact", "import_contact", "share_contact"):
+        setattr(mock_bridge.serial_adapter, method, AsyncMock(return_value={"status": "OK"}))
+    mock_bridge.serial_adapter.get_channels = AsyncMock(return_value=[])
     mock_bridge.execute_tx = MagicMock()
     mock_bridge.recent_messages = []
 

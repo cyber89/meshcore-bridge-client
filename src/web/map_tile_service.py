@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,7 @@ class MapTileService:
         self.maps_dir = self.base_dir / "maps"
         self.tiles_dir = self.maps_dir / "tiles"
         self.mbtiles_conns: list[tuple[Path, sqlite3.Connection]] = []
+        self._storage_lock = threading.RLock()
         self._init_storage()
 
     def _init_storage(self) -> None:
@@ -36,6 +38,10 @@ class MapTileService:
             logging.warning("Error inicializando almacenamiento de mapas offline: %s", e)
 
     def close(self) -> None:
+        with self._storage_lock:
+            self._close()
+
+    def _close(self) -> None:
         """Cierra todas las conexiones activas a bases de datos MBTiles."""
         for _, conn in self.mbtiles_conns:
             try:
@@ -45,6 +51,10 @@ class MapTileService:
         self.mbtiles_conns.clear()
 
     def reload_mbtiles(self) -> None:
+        with self._storage_lock:
+            self._reload_mbtiles()
+
+    def _reload_mbtiles(self) -> None:
         """Cierra y vuelve a cargar los archivos .mbtiles presentes en data/maps/."""
         self.close()
 
@@ -53,6 +63,8 @@ class MapTileService:
 
         for mbtiles_path in self.maps_dir.glob("*.mbtiles"):
             try:
+                if not mbtiles_path.resolve().is_relative_to(self.maps_dir.resolve()):
+                    continue
                 # Conexión SQLite de solo lectura optimizada para alto rendimiento
                 uri = f"file:{mbtiles_path.resolve()}?mode=ro"
                 conn = sqlite3.connect(uri, uri=True, check_same_thread=False)
@@ -65,6 +77,10 @@ class MapTileService:
                 logging.warning("No se pudo abrir archivo MBTiles '%s': %s", mbtiles_path.name, err)
 
     def get_tile(self, z: int, x: int, y: int) -> tuple[int, bytes, str]:
+        with self._storage_lock:
+            return self._get_tile(z, x, y)
+
+    def _get_tile(self, z: int, x: int, y: int) -> tuple[int, bytes, str]:
         """
         Recupera los bytes de una tesela XYZ específica.
         Busca primero en directorios XYZ y posteriormente en archivos MBTiles indexados.
@@ -79,7 +95,7 @@ class MapTileService:
         # 1. Búsqueda en directorio de archivos sueltos XYZ (data/maps/tiles/{z}/{x}/{y}.ext)
         for ext in ("png", "jpg", "jpeg", "webp", "pbf"):
             tile_path = self.tiles_dir / str(z) / str(x) / f"{y}.{ext}"
-            if tile_path.is_file():
+            if tile_path.is_file() and tile_path.resolve().is_relative_to(self.tiles_dir.resolve()):
                 try:
                     data = tile_path.read_bytes()
                     mime = self._detect_mime(data, ext)
@@ -139,6 +155,10 @@ class MapTileService:
         return mime_map.get(default_ext.lower(), "image/png")
 
     def get_status(self) -> dict[str, Any]:
+        with self._storage_lock:
+            return self._get_status()
+
+    def _get_status(self) -> dict[str, Any]:
         """Devuelve el estado del almacenamiento de mapas locales y MBTiles detectados."""
         mbtiles_info = []
         for path, conn in self.mbtiles_conns:

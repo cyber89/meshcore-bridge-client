@@ -22,8 +22,8 @@ MAX_FRAME_SIZE: int = 267
 
 class RawSerialFramingAdapter(BaseSerialAdapter):
     """
-    Adaptador determinista basado en pyserial-asyncio con de-framing continuo
-    (SOF 0xAA, EOF 0x55, ESC 0x1B, CRC-16 CCITT).
+    Adaptador de framing en memoria, sin transporte UART físico.
+    SOF/EOF/ESC/CRC son propios del bridge, no el protocolo Companion oficial.
     """
 
     def __init__(
@@ -47,6 +47,8 @@ class RawSerialFramingAdapter(BaseSerialAdapter):
     async def disconnect(self) -> None:
         self.is_connected = False
         self._rx_buffer.clear()
+        self._in_escape = False
+        self._in_frame = False
 
     def process_incoming_bytes(self, chunk: bytes) -> list[MeshcoreFrame]:
         """Procesa bytes entrantes a través de la máquina de estados de framing."""

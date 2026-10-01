@@ -11,28 +11,21 @@ from typing import Any
 
 from src.contact_manager import NodeContactUpdate, NodeDiscoveryEvent, is_valid_node_key
 from src.routers.base import BaseRxHandler, RxMeta
-from src.shared_utils import classify_device_role, is_repeater_name
+from src.shared_utils import classify_device_role, clean_coordinate_value, clean_numeric_value
 
 
-def _get_coord(data: dict[str, Any], keys: tuple[str, ...]) -> float | None:
+def _get_coord(data: dict[str, Any], keys: tuple[str, ...], *, latitude: bool = False) -> float | None:
     for k in keys:
         if k in data and data[k] is not None:
-            try:
-                val = float(data[k])
-                if -180.0 <= val <= 180.0 and val != 0.0:
-                    return val
-            except (ValueError, TypeError):
-                pass
+            val = clean_coordinate_value(data[k], latitude=latitude)
+            if val is not None:
+                return val
     return None
 
 
 def _safe_int(val: Any) -> int | None:
-    if val is not None:
-        try:
-            return int(val)
-        except (ValueError, TypeError):
-            pass
-    return None
+    number = clean_numeric_value(val)
+    return int(number) if number is not None else None
 
 
 class AdvertHandler(BaseRxHandler):
@@ -94,19 +87,14 @@ class AdvertHandler(BaseRxHandler):
 
             c_name = str(c_item.get("adv_name", c_item.get("name", c_item.get("alias", f"Node_{c_pk[:6]}")))).strip()
             c_raw_type = c_item.get("type", c_item.get("adv_type", 1))
-            c_name_upper = c_name.upper()
+            c_role = classify_device_role(c_raw_type)
 
-            if is_repeater_name(c_name):
-                c_role = "REPEATER"
-            elif "ROOM" in c_name_upper or "BBS" in c_name_upper:
-                c_role = "ROOM"
-            elif "SENSOR" in c_name_upper:
-                c_role = "SENSOR"
-            else:
-                c_role = classify_device_role(c_raw_type)
-
-            c_lat = _get_coord(c_item, ("adv_lat", "lat", "latitude", "gps_lat"))
+            c_lat = _get_coord(c_item, ("adv_lat", "lat", "latitude", "gps_lat"), latitude=True)
             c_lon = _get_coord(c_item, ("adv_lon", "lon", "longitude", "gps_lon"))
+            if c_lat == 0 and c_lon in (0, None):
+                c_lat = None
+            if c_lon == 0 and c_lat is None:
+                c_lon = None
             c_bat = _safe_int(c_item.get("battery_pct", c_item.get("battery", c_item.get("batt"))))
 
             is_c_new, _ = router_ctx.node_registry.discover_node(

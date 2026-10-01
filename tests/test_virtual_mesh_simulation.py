@@ -63,7 +63,7 @@ class TestVirtualMeshSimulation(unittest.IsolatedAsyncioTestCase):
             "request_id": "test_req_1",
         }
         res = await self.bridge._execute_tx(tx_item)
-        self.assertTrue(res)
+        self.assertEqual(res["status"], "error")
 
         # Esperar a que el bot de eco procese la trama (latencia de 800ms)
         await asyncio.sleep(1.0)
@@ -75,7 +75,7 @@ class TestVirtualMeshSimulation(unittest.IsolatedAsyncioTestCase):
             # Buscar en published_events
             echo_found = any("Echo DM de Alpha Field Sensor" in p[1] for p in self.published_events)
 
-        self.assertTrue(echo_found, "No se recibió la respuesta de eco de Alpha Field Sensor")
+        self.assertFalse(echo_found, "Un repetidor no debe responder por chat")
 
     async def test_bravo_echo_response_on_dm(self) -> None:
         """Comprueba que enviar un mensaje privado a Bravo dispare una respuesta Echo."""

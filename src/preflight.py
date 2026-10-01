@@ -172,7 +172,8 @@ class PreflightChecker:
         serial_port: str = "AUTO",
         tcp_server_port: int = 5000,
         tcp_server_enabled: bool = True,
-        tcp_server_host: str = "0.0.0.0",
+        # Port availability probes bind loopback when configured with a wildcard host.
+        tcp_server_host: str = "0.0.0.0",  # nosec B104
     ) -> dict[str, Any]:
         """Ejecuta todos los chequeos preflight de forma no bloqueante en thread pool."""
         import asyncio

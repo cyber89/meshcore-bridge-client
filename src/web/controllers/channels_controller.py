@@ -12,7 +12,12 @@ import os
 import urllib.parse
 from typing import Any
 
-from src.web.controllers.base import ApiContext, BaseController, problem_details
+from src.web.controllers.base import (
+    ApiContext,
+    BaseController,
+    firmware_name_valid,
+    problem_details,
+)
 
 
 class ChannelsController(BaseController):
@@ -29,6 +34,7 @@ class ChannelsController(BaseController):
         self.channels: dict[int, dict[str, Any]] = {}
         self._deleted_channels: set[int] = set()
         self._dirty: bool = False
+        self._mutation_lock = asyncio.Lock()
         self._load_channels()
 
     def _load_channels(self) -> None:
@@ -68,12 +74,19 @@ class ChannelsController(BaseController):
             logging.debug(f"Canales persistidos exitosamente en {self.channels_file}")
         except Exception as e:
             logging.error(f"Error persistiendo canales en {self.channels_file}: {e}")
+            raise
 
     async def _save_channels_async(self, force: bool = False) -> None:
         """Persiste la tabla de canales a disco de forma atómica y no bloqueante en thread pool."""
         await asyncio.to_thread(self._save_channels, force)
 
     async def handle_channels_route(
+        self, path: str, method: str, req_body: dict[str, Any]
+    ) -> tuple[int, dict[str, Any]]:
+        async with self._mutation_lock:
+            return await self._handle_channels_route(path, method, req_body)
+
+    async def _handle_channels_route(
         self,
         path: str,
         method: str,
@@ -248,21 +261,20 @@ class ChannelsController(BaseController):
             )
 
         is_new_channel = idx not in self.channels
-        name = str(req_body.get("name", f"Canal {idx}")).strip()
+        raw_name = req_body.get("name", f"Canal {idx}")
+        if not firmware_name_valid(raw_name):
+            return problem_details(422, "Unprocessable Entity", "El nombre debe caber en 31 bytes UTF-8 sin caracteres de control", "invalid_channel_name")
+        name = raw_name.strip()
         psk = str(req_body.get("psk", "")).strip()
         if psk == "••••••••" and idx in self.channels:
             psk = str(self.channels[idx].get("psk", ""))
+        failure = await self.serial_mutation("set_channel", idx, name, psk)
+        if failure:
+            return failure
         self.channels[idx] = {"index": idx, "name": name, "psk": psk, "is_public": (idx == 0)}
         self._deleted_channels.discard(idx)
         self._dirty = True
         await self._save_channels_async()
-
-        ser = getattr(self.ctx.bridge, "serial_adapter", None)
-        if ser and hasattr(ser, "set_channel"):
-            try:
-                await ser.set_channel(idx, name, psk)
-            except Exception as e:
-                logging.debug(f"Error despachando canal al transceptor serial: {e}")
 
         if self.ctx.broadcast_ws:
             self.ctx.broadcast_ws({"type": "channels_updated", "data": self._get_masked_channels_list()})
@@ -284,21 +296,15 @@ class ChannelsController(BaseController):
         if idx not in self.channels:
             return problem_details(404, "Not Found", f"Canal {idx} no encontrado", "channel_not_found")
 
+        # Enviar orden de vaciado de slot al transceptor serial si está activo
+        ser = getattr(self.ctx.bridge, "serial_adapter", None)
+        failure = await self.serial_mutation("delete_channel", idx) if callable(getattr(ser, "delete_channel", None)) else await self.serial_mutation("set_channel", idx, "", "00" * 16)
+        if failure:
+            return failure
         self._deleted_channels.add(idx)
         del self.channels[idx]
         self._dirty = True
         await self._save_channels_async()
-
-        # Enviar orden de vaciado de slot al transceptor serial si está activo
-        ser = getattr(self.ctx.bridge, "serial_adapter", None)
-        if ser:
-            try:
-                if hasattr(ser, "delete_channel"):
-                    await ser.delete_channel(idx)
-                elif hasattr(ser, "set_channel"):
-                    await ser.set_channel(idx, "", "00" * 16)
-            except Exception as e:
-                logging.warning(f"Error borrando canal {idx} en el transceptor serial: {e}")
 
         if self.ctx.broadcast_ws:
             self.ctx.broadcast_ws({"type": "channels_updated", "data": self._get_masked_channels_list()})

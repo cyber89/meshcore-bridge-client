@@ -126,13 +126,12 @@ class TestTargetResolver:
         obj.public_key = "abc123def456"
         assert resolver.resolve(obj) is obj  # type: ignore[arg-type]
 
-    def test_resolve_short_hex_padded(self) -> None:
-        """Verifica que clave hex corta se rellena a min_hex_len."""
+    def test_resolve_unknown_short_hex_rejected(self) -> None:
+        """Una clave desconocida incompleta no inventa bytes ni identifica un destino."""
         from src.target_resolver import TargetResolver
         resolver = TargetResolver()
-        result = resolver.resolve("abc123", min_hex_len=12)
-        assert result == "abc123000000"
-        assert len(result) == 12
+        with pytest.raises(ValueError, match="clave pública incompleta"):
+            resolver.resolve("abc123", min_hex_len=12)
 
     def test_resolve_non_hex_raises_when_requested(self) -> None:
         """Verifica que nombres no-hex lanzan ValueError con raise_on_not_found=True."""
@@ -149,10 +148,10 @@ class TestTargetResolver:
         assert result == "Alice"
 
     def test_resolve_full_hex_key_passthrough(self) -> None:
-        """Verifica que una clave hex >= min_hex_len pasa sin cambios."""
+        """Una clave pública de 32 bytes pasa sin relleno ni truncamiento."""
         from src.target_resolver import TargetResolver
         resolver = TargetResolver()
-        key = "abcdef123456"
+        key = "abcdef1234567890" * 4
         result = resolver.resolve(key, min_hex_len=12)
         assert result == key
 
@@ -463,7 +462,7 @@ class TestChannelsPersistence:
     @pytest.mark.asyncio
     async def test_channels_persistence_and_reload(self, tmp_path: Any, monkeypatch: Any) -> None:
         import json
-        from unittest.mock import MagicMock
+        from unittest.mock import AsyncMock, MagicMock
 
         from src.web.api_router import WebAPIRouter
 
@@ -474,7 +473,8 @@ class TestChannelsPersistence:
             def __init__(self) -> None:
                 self.web_server = MagicMock()
                 self.diagnostics = MagicMock()
-                self.serial_adapter = None
+                self.serial_adapter = MagicMock()
+                self.serial_adapter.set_channel = AsyncMock(return_value={"status": "OK"})
 
         bridge1 = MockBridge()
         router1 = WebAPIRouter(bridge1)

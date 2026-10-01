@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import math
 import re
 from typing import Any
 
@@ -26,7 +27,7 @@ def classify_device_role(advert_type: int, is_local: bool = False) -> str:
         if fat in (FirmwareAdvertType.NONE, FirmwareAdvertType.CHAT):
             return "CLIENT"
         return fat.name
-    except ValueError:
+    except (ValueError, TypeError):
         return "CLIENT"
 
 
@@ -41,7 +42,11 @@ def clean_numeric_value(val: Any) -> float | None:
     if val is None or isinstance(val, bool):
         return None
     if isinstance(val, (int, float)):
-        return float(val)
+        try:
+            number = float(val)
+            return number if math.isfinite(number) else None
+        except OverflowError:
+            return None
     if isinstance(val, str):
         cleaned = val.strip()
         if not cleaned:
@@ -49,10 +54,18 @@ def clean_numeric_value(val: Any) -> float | None:
         m = re.search(r"[-+]?\d*\.?\d+", cleaned)
         if m:
             try:
-                return float(m.group(0))
-            except (ValueError, TypeError):
+                number = float(m.group(0))
+                return number if math.isfinite(number) else None
+            except (ValueError, TypeError, OverflowError):
                 return None
     return None
+
+
+def clean_coordinate_value(value: Any, *, latitude: bool = False) -> float | None:
+    """Accept finite geographic degrees, including equator/prime-meridian zero."""
+    number = clean_numeric_value(value)
+    limit = 90.0 if latitude else 180.0
+    return number if number is not None and -limit <= number <= limit else None
 
 
 def clean_battery_input(val: Any) -> float | None:
@@ -249,7 +262,7 @@ REPEATER_SUBSTRINGS: tuple[str, ...] = (
 
 
 def is_repeater_name(name: str | None) -> bool:
-    """Determina si un nombre de nodo corresponde canónicamente a un repetidor según SSoT."""
+    """Heurística de presentación por nombre; nunca acredita un rol de firmware."""
     if not name or not isinstance(name, str):
         return False
     name_clean = name.strip().upper()
@@ -289,6 +302,29 @@ def extract_payload_dict(data: Any) -> dict[str, Any]:
     if hasattr(data, "payload") and isinstance(data.payload, dict):
         return data.payload
     return {}
+
+
+_SECRET_FIELDS = frozenset({
+    "private_key", "privatekey", "channel_secret", "secret", "secrets", "psk",
+    "password", "passwd", "admin_password", "mqtt_password", "pin", "token", "api_key",
+})
+
+
+def sanitize_public_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Copy structured SDK data for public sinks, omitting credential fields."""
+    def sanitize(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {key: sanitize(item) for key, item in value.items()
+                    if str(key).lower().replace("-", "_") not in _SECRET_FIELDS}
+        if isinstance(value, (list, tuple)):
+            return [sanitize(item) for item in value]
+        if isinstance(value, (bytes, bytearray)):
+            return bytes(value).hex()
+        if isinstance(value, float) and not math.isfinite(value):
+            return None
+        return value
+
+    return dict(sanitize(payload))
 
 
 async def safe_device_query(

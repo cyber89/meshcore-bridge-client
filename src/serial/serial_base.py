@@ -107,19 +107,19 @@ class BaseSerialAdapter(abc.ABC):
 
     async def set_channel(self, index: int, name: str, psk: str) -> dict[str, Any]:
         """Configura un canal en el firmware del transceptor serial."""
-        return {"status": "OK", "index": index, "name": name}
+        return {"status": "NOT_SUPPORTED", "index": index}
 
     async def delete_channel(self, index: int) -> dict[str, Any]:
         """Elimina o vacía un canal en el firmware del transceptor serial."""
-        return {"status": "OK", "index": index}
+        return {"status": "NOT_SUPPORTED", "index": index}
 
     async def add_contact(self, contact_data: dict[str, Any]) -> dict[str, Any]:
         """Añade o actualiza un contacto en la memoria del transceptor serial."""
-        return {"status": "OK", "contact": contact_data}
+        return {"status": "NOT_SUPPORTED"}
 
     async def remove_contact(self, pubkey: str) -> dict[str, Any]:
         """Elimina un contacto de la memoria del transceptor serial."""
-        return {"status": "OK", "public_key": pubkey}
+        return {"status": "NOT_SUPPORTED", "public_key": pubkey}
 
     async def sync_all_contacts(self) -> list[dict[str, Any]]:
         """Descarga e importa todos los contactos almacenados en el hardware."""

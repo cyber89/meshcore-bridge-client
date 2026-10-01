@@ -79,13 +79,13 @@ def is_route_covered(fe_call: str, be_routes: set[str]) -> bool:
 
     # Comprobar coincidencia con rutas de prefijo (ej: /api/channels, /api/contacts)
     for r in be_routes:
-        if base_prefix.startswith(r) or r.startswith(base_prefix):
+        if base_prefix.startswith(r + "/"):
             return True
 
     return False
 
 
-def main() -> None:
+def main() -> int:
     print("🔍 [API PARITY] Verificando paridad entre API Backend y Frontend SPA...\n")
     be_routes = extract_backend_routes()
     fe_calls = extract_frontend_api_calls()
@@ -93,6 +93,10 @@ def main() -> None:
     print(f"📦 Rutas detectadas en Backend: {len(be_routes)}")
     total_fe_calls = sum(len(c) for c in fe_calls.values())
     print(f"🌐 Llamadas API detectadas en Frontend: {total_fe_calls} en {len(fe_calls)} archivos JS\n")
+
+    if not be_routes or not total_fe_calls:
+        print("No routes/calls detected: comparison is inconclusive.")
+        return 1
 
     missing_in_backend: list[tuple[str, str]] = []
     matched_calls = 0
@@ -110,11 +114,13 @@ def main() -> None:
         for f, c in missing_in_backend:
             print(f"   • {f}: {c}")
     else:
-        print("✅ [PARIDAD 100% OK] Todas las llamadas del frontend corresponden a rutas válidas.")
+        print("✅ [COINCIDENCIA LÉXICA] Todas las llamadas del frontend corresponden a rutas válidas.")
 
     print(f"   • Llamadas verificadas con éxito: {matched_calls}/{total_fe_calls}")
     print("=" * 60)
 
+    return 1 if missing_in_backend else 0
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

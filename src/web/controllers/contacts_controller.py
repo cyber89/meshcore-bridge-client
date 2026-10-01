@@ -13,12 +13,36 @@ import time
 import urllib.parse
 from typing import Any
 
-from src.contact_manager import NodeContactUpdate
-from src.web.controllers.base import BaseController, problem_details
+from src.contact_manager import NodeContactUpdate, is_valid_node_key
+from src.web.controllers.base import (
+    ApiContext,
+    BaseController,
+    firmware_name_valid,
+    problem_details,
+)
 
 
 class ContactsController(BaseController):
     """Controlador para libreta de contactos (clientes LoRa) y sincronización con el firmware."""
+
+    def __init__(self, ctx: ApiContext) -> None:
+        super().__init__(ctx)
+        self._mutation_lock = asyncio.Lock()
+
+    def _contact_validation(self, pubkey: str, name: str, role: str) -> tuple[int, dict[str, Any]] | None:
+        if not is_valid_node_key(pubkey) or len(pubkey) != 64:
+            return problem_details(422, "Unprocessable Entity", "Se requiere una clave pública de 32 bytes", "invalid_public_key")
+        if not firmware_name_valid(name):
+            return problem_details(422, "Unprocessable Entity", "El nombre debe caber en 31 bytes UTF-8 sin caracteres de control", "invalid_contact_name")
+        registry = self.ctx.bridge.node_registry
+        if registry.is_local_key(pubkey):
+            return problem_details(400, "Bad Request", "No se permite agregar la estación base local", "cannot_add_local_station")
+        existing = registry.get_node(pubkey)
+        if role.upper() in {"REPEATER", "ROUTER", "LOCAL"} or (existing and existing.role in {"REPEATER", "ROUTER", "LOCAL"}):
+            return problem_details(400, "Bad Request", "Los nodos de infraestructura no pertenecen a contactos", "repeater_contact_forbidden")
+        if role.upper() not in {"CLIENT", "CHAT", "NONE", "ROOM", "SENSOR"}:
+            return problem_details(422, "Unprocessable Entity", "Tipo de contacto no reconocido por el firmware", "invalid_contact_role")
+        return None
 
     async def _save_registry_async(self) -> None:
         """Persiste el registro de nodos en un thread pool sin bloquear el event loop."""
@@ -30,6 +54,12 @@ class ContactsController(BaseController):
                 await asyncio.to_thread(reg.save_to_file)
 
     async def handle_contacts_route(
+        self, path: str, method: str, req_body: dict[str, Any]
+    ) -> tuple[int, dict[str, Any]]:
+        async with self._mutation_lock:
+            return await self._handle_contacts_route(path, method, req_body)
+
+    async def _handle_contacts_route(
         self,
         path: str,
         method: str,
@@ -109,6 +139,9 @@ class ContactsController(BaseController):
 
         ser = getattr(self.ctx.bridge, "serial_adapter", None)
         res = await ser.share_contact(pubkey) if ser and hasattr(ser, "share_contact") else None
+        failure = self.command_failure(res)
+        if failure:
+            return failure
         self.ctx.log_system_event("INFO", f"Contacto compartido con la malla: {pubkey}", source="contacts")
         return 200, {"status": "ok", "result": res}
 
@@ -296,6 +329,9 @@ class ContactsController(BaseController):
                     if not contacts_to_add:
                         ser = getattr(self.ctx.bridge, "serial_adapter", None)
                         res = await ser.import_contact(bin_data) if ser and hasattr(ser, "import_contact") else None
+                        failure = self.command_failure(res)
+                        if failure:
+                            return failure
                         self.ctx.log_system_event("INFO", "Contacto binario importado hacia el firmware", source="contacts")
                         return 200, {"status": "ok", "result": res}
                 except ValueError:
@@ -323,6 +359,16 @@ class ContactsController(BaseController):
             # Regla 1.1: Prohibido agregar repetidores a libreta de contactos
             if role in ("REPEATER", "ROUTER"):
                 continue
+
+            validation = self._contact_validation(pubkey, name or alias, role)
+            if validation:
+                return validation
+            failure = await self.serial_mutation("add_contact", {"public_key": pubkey, "name": name or alias, "role": role})
+            if failure:
+                # Earlier successful records in a batch must remain persisted and acknowledged.
+                if imported_records:
+                    await self._save_registry_async()
+                return failure
 
             is_fav = c_dict.get("is_favorite")
             is_favorite_val = bool(is_fav) if is_fav is not None else None
@@ -357,13 +403,6 @@ class ContactsController(BaseController):
             )
             imported_records.append(contact.to_dict())
 
-            # Enviar al transceptor serial si está activo
-            if ser and hasattr(ser, "add_contact"):
-                try:
-                    await ser.add_contact({"public_key": pubkey, "name": name or alias, "role": role})
-                except Exception as e:
-                    logging.debug(f"Error sincronizando contacto importado con serial: {e}")
-
         if imported_records:
             await self._save_registry_async()
 
@@ -383,6 +422,10 @@ class ContactsController(BaseController):
         role = str(req_body.get("role", "CLIENT")).strip()
         if not pubkey:
             return problem_details(400, "Bad Request", "Se requiere 'public_key'", "missing_public_key")
+
+        validation = self._contact_validation(pubkey, name or alias or f"Node_{pubkey[:6]}", role)
+        if validation:
+            return validation
 
         if hasattr(self.ctx.bridge, "node_registry") and self.ctx.bridge.node_registry.is_local_key(pubkey):
             return problem_details(400, "Bad Request", "No se permite agregar la estación base local a la libreta de contactos", "cannot_add_local_station")
@@ -409,6 +452,9 @@ class ContactsController(BaseController):
             except (ValueError, TypeError):
                 pass
 
+        failure = await self.serial_mutation("add_contact", {"public_key": pubkey, "name": name or alias or f"Node_{pubkey[:6]}", "role": role})
+        if failure:
+            return failure
         contact = self.ctx.bridge.node_registry.add_or_update(
             pubkey,
             NodeContactUpdate(
@@ -424,13 +470,6 @@ class ContactsController(BaseController):
         )
         await self._save_registry_async()
 
-        ser = getattr(self.ctx.bridge, "serial_adapter", None)
-        if ser and hasattr(ser, "add_contact"):
-            try:
-                await ser.add_contact({"public_key": pubkey, "name": name or alias, "role": role})
-            except Exception as e:
-                logging.debug(f"Error enviando contacto al transceptor serial: {e}")
-
         if self.ctx.broadcast_ws:
             self.ctx.broadcast_ws({"type": "contacts_updated", "data": self.ctx.bridge.node_registry.list_nodes()})
 
@@ -445,12 +484,11 @@ class ContactsController(BaseController):
         if hasattr(self.ctx.bridge, "node_registry") and self.ctx.bridge.node_registry.is_local_key(pubkey):
             return problem_details(400, "Bad Request", "No se permite eliminar la estación base local", "cannot_delete_local_station")
 
-        ser = getattr(self.ctx.bridge, "serial_adapter", None)
-        if ser and hasattr(ser, "remove_contact"):
-            try:
-                await ser.remove_contact(pubkey)
-            except Exception as e:
-                logging.debug(f"Error eliminando contacto del transceptor serial: {e}")
+        if not self.ctx.bridge.node_registry.get_node(pubkey):
+            return problem_details(404, "Not Found", "Contacto no encontrado", "contact_not_found")
+        failure = await self.serial_mutation("remove_contact", pubkey)
+        if failure:
+            return failure
 
         if pubkey and self.ctx.bridge.node_registry.remove_node(pubkey):
             await self._save_registry_async()

@@ -10,7 +10,7 @@ import json
 import logging
 import re
 import time
-from collections.abc import Coroutine
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Protocol, cast
@@ -35,9 +35,11 @@ from src.sensor_decoder import (
     format_telemetry_summary,
 )
 from src.shared_utils import (
+    classify_device_role,
+    clean_coordinate_value,
     clean_numeric_value,
     is_empty_channel_slot,
-    is_repeater_name,
+    sanitize_public_payload,
 )
 
 _SENDER_PREFIX_RE = re.compile(
@@ -46,24 +48,32 @@ _SENDER_PREFIX_RE = re.compile(
 )
 
 
-def _get_coord(d: dict[str, Any], keys: tuple[str, ...]) -> float | None:
-    """Extrae coordenadas GPS válidas evitando tuplas nulas o ceros."""
+def _get_coord(d: dict[str, Any], keys: tuple[str, ...], *, latitude: bool = False) -> float | None:
+    """Extract a finite, bounded geographic coordinate; zero can be valid."""
     if not isinstance(d, dict):
         return None
     for k in keys:
         if k in d and d[k] is not None:
-            try:
-                v = float(d[k])
-                if v != 0.0:
-                    return v
-            except (ValueError, TypeError):
-                pass
+            value = clean_coordinate_value(d[k], latitude=latitude)
+            if value is not None:
+                return value
     for sub in ("gps", "position", "pos", "location", "telemetry"):
         if sub in d and isinstance(d[sub], dict):
-            res = _get_coord(d[sub], keys)
+            res = _get_coord(d[sub], keys, latitude=latitude)
             if res is not None:
                 return res
     return None
+
+
+def _location_pair(data: dict[str, Any]) -> tuple[float | None, float | None]:
+    lat = _get_coord(data, ("lat", "latitude", "gps_lat", "adv_lat"), latitude=True)
+    lon = _get_coord(data, ("lon", "longitude", "gps_lon", "adv_lon"))
+    # Firmware advert (0,0) denotes no GPS; a single zero is incomplete too.
+    if lat == 0 and lon in (0, None):
+        lat = None
+    if lon == 0 and lat is None:
+        lon = None
+    return lat, lon
 
 
 def extract_sender_from_text(text: str) -> tuple[str | None, str]:
@@ -181,6 +191,7 @@ class RxRouterContext:
     counters: BridgeCounters
     admin_handler: Any = None
     last_rx_rssi: int | None = None
+    register_task: Callable[[asyncio.Task[Any]], asyncio.Task[Any]] | None = None
     last_rx_snr: float | None = None
     packet_buffer: Any = None
     bridge: Any = None
@@ -219,6 +230,8 @@ class RxEventRouter:
 
         try:
             if isinstance(event, MeshcoreFrame):
+                if not event.is_valid or event.header.packet_type == PacketType.PRIVATE_KEY:
+                    return
                 self._ctx.counters.rx_count += 1
                 if getattr(self._ctx, "packet_buffer", None) is not None:
                     try:
@@ -241,8 +254,7 @@ class RxEventRouter:
 
                 loop = self._ctx.loop or asyncio.get_running_loop()
                 task = loop.create_task(self._dispatch_parsed_frame(event))
-                self._ctx.background_tasks.add(task)
-                task.add_done_callback(self._ctx.background_tasks.discard)
+                self._register_task(task)
                 return
 
             normalized = self._extract_normalized_meta(event)
@@ -296,8 +308,7 @@ class RxEventRouter:
             for handler in self._handlers:
                 if handler.can_handle(meta, payload_dict):
                     task = loop.create_task(cast(Coroutine[Any, Any, None], handler.handle(self, payload_dict, meta, event)))
-                    self._ctx.background_tasks.add(task)
-                    task.add_done_callback(self._ctx.background_tasks.discard)
+                    self._register_task(task)
                     return
 
             # Descartar eventos internos de control de flujo de la radio (NO_MORE_MSGS)
@@ -341,6 +352,13 @@ class RxEventRouter:
             self._ctx.counters.err_count += 1
             logging.error(f"Error procesando evento de radio Mesh: {e}", exc_info=True)
 
+    def _register_task(self, task: asyncio.Task[Any]) -> None:
+        if self._ctx.register_task is not None:
+            self._ctx.register_task(task)
+        else:
+            self._ctx.background_tasks.add(task)
+            task.add_done_callback(self._ctx.background_tasks.discard)
+
     def _spawn_broadcast_task(self, payload: dict[str, Any]) -> None:
         """Emite eventos WebSocket registrando la tarea en background_tasks."""
         if not self._ctx.web_server:
@@ -352,8 +370,7 @@ class RxEventRouter:
         coro = self._ctx.web_server.broadcast_event(payload)
         if asyncio.iscoroutine(coro):
             task: asyncio.Task[Any] = loop.create_task(coro)
-            self._ctx.background_tasks.add(task)
-            task.add_done_callback(self._ctx.background_tasks.discard)
+            self._register_task(task)
 
     def _extract_normalized_meta(self, event: Any) -> tuple[dict[str, Any], RxMeta] | None:
         raw_type = getattr(event, "type", getattr(event, "event_type", ""))
@@ -365,6 +382,9 @@ class RxEventRouter:
             ev_type_str = str(raw_type)
         if ev_type_str.startswith("EventType."):
             ev_type_str = ev_type_str[len("EventType."):]
+        if ev_type_str.upper() == "PRIVATE_KEY":
+            # The original SDK event stays available to its command waiter.
+            return None
 
         payload_obj = getattr(event, "payload", getattr(event, "data", event))
         attributes = getattr(event, "attributes", None)
@@ -380,6 +400,8 @@ class RxEventRouter:
             for ak, av in attributes.items():
                 if ak not in payload_dict or payload_dict[ak] is None:
                     payload_dict[ak] = av
+
+        payload_dict = sanitize_public_payload(payload_dict)
 
         if payload_dict.get("is_outgoing") is True:
             return None
@@ -456,8 +478,10 @@ class RxEventRouter:
                 or (is_valid_node_key(sender) and self._ctx.node_registry.is_local_key(sender))
             )
         )
-        effective_rssi = None if is_local_sender else (int(rssi) if isinstance(rssi, (int, float)) else None)
-        effective_snr = None if is_local_sender else (float(snr) if isinstance(snr, (int, float)) else None)
+        clean_rssi = clean_numeric_value(rssi)
+        clean_snr = clean_numeric_value(snr)
+        effective_rssi = None if is_local_sender or clean_rssi is None else int(clean_rssi)
+        effective_snr = None if is_local_sender else clean_snr
         effective_hops = 0 if is_local_sender else hops
 
         if effective_snr is not None:
@@ -512,9 +536,10 @@ class RxEventRouter:
         role_val = payload_dict.get("role")
         if role_val:
             return str(role_val)
-        is_named_rep = is_repeater_name(sender_name)
         raw_type = payload_dict.get("adv_type", payload_dict.get("type"))
-        if raw_type in (2, "REPEATER") or is_named_rep:
+        if isinstance(raw_type, int):
+            return classify_device_role(raw_type)
+        if raw_type == "REPEATER":
             return "REPEATER"
         if raw_type in (3, "ROOM"):
             return "ROOM"
@@ -522,7 +547,7 @@ class RxEventRouter:
             return "SENSOR"
         if raw_type in (1, "CHAT", "CLIENT"):
             return "CLIENT"
-        return "REPEATER" if is_named_rep else "CLIENT"
+        return "CLIENT"
 
     def _update_node_registry_presence(
         self,
@@ -530,10 +555,12 @@ class RxEventRouter:
         payload_dict: dict[str, Any],
     ) -> None:
         bat_pct = self._extract_battery_percentage(payload_dict)
-        effective_role = self._resolve_effective_role(payload_dict, meta.sender_name, meta.is_local_sender)
+        existing = self._ctx.node_registry.get_contact(meta.sender)
+        has_role = any(key in payload_dict for key in ("role", "adv_type")) or isinstance(payload_dict.get("type"), int)
+        effective_role = (existing.role if existing and not has_role and not meta.is_local_sender
+                          else self._resolve_effective_role(payload_dict, meta.sender_name, meta.is_local_sender))
 
-        lat_val = _get_coord(payload_dict, ("lat", "latitude", "gps_lat", "adv_lat"))
-        lon_val = _get_coord(payload_dict, ("lon", "longitude", "gps_lon", "adv_lon"))
+        lat_val, lon_val = _location_pair(payload_dict)
 
         is_new, contact_info = self._ctx.node_registry.discover_node(
             NodeDiscoveryEvent(
@@ -591,22 +618,8 @@ class RxEventRouter:
 
         extracted_telem = self._ctx.repeater_manager.parse_repeater_telemetry_or_response(msg.text)
         existing_contact = self._ctx.node_registry.get_contact(msg.sender)
-        is_explicit_rep_name = is_repeater_name(msg.sender_name)
-        is_cmd_resp_indicator = (
-            msg.txt_type == 1
-            or is_command_or_system_message(msg.text, msg.txt_type)
-            or bool(
-                extracted_telem
-                and any(
-                    k in extracted_telem
-                    for k in ("airtime_ms", "noise_floor_dbm", "packets_sent", "packets_recv", "uptime", "queue_len", "repeat_enabled")
-                )
-            )
-        )
         should_treat_as_repeater = bool(
-            (existing_contact and existing_contact.role in ("REPEATER", "ROUTER"))
-            or is_explicit_rep_name
-            or is_cmd_resp_indicator
+            existing_contact and existing_contact.role in ("REPEATER", "ROUTER")
         )
 
         if extracted_telem and should_treat_as_repeater:
@@ -773,9 +786,17 @@ class RxEventRouter:
         )
 
     def _handle_mesh_telemetry_msg(self, payload_dict: dict[str, Any]) -> None:
+        payload_dict = sanitize_public_payload(payload_dict)
         # Extraer y normalizar exhaustivamente todas las lecturas de telemetría/sensores
         extracted_fields = extract_telemetry_fields(payload_dict)
         payload_dict.update(extracted_fields)
+        latitude, longitude = _location_pair(payload_dict)
+        for key in ("lat", "latitude", "gps_lat", "adv_lat"):
+            if key in payload_dict:
+                payload_dict[key] = latitude
+        for key in ("lon", "longitude", "gps_lon", "adv_lon"):
+            if key in payload_dict:
+                payload_dict[key] = longitude
 
         # Si el payload contiene texto de telemetría de repetidor
         raw_text_cand = payload_dict.get("text", payload_dict.get("raw_text", payload_dict.get("message", "")))
@@ -811,16 +832,13 @@ class RxEventRouter:
             )
             existing_contact = self._ctx.node_registry.get_contact(sender)
             is_known_rep = bool(
-                (existing_contact and existing_contact.role in ("REPEATER", "ROUTER"))
-                or is_repeater_name(sender_name_cand)
+                existing_contact and existing_contact.role in ("REPEATER", "ROUTER")
             )
 
             telem_role = payload_dict.get("role")
             if not telem_role:
                 if is_known_rep:
                     telem_role = "REPEATER"
-                elif any(k in payload_dict for k in ("temperature_c", "temp", "humidity_pct", "humidity", "pressure_hpa")):
-                    telem_role = "SENSOR"
                 elif existing_contact and existing_contact.role:
                     telem_role = existing_contact.role
                 else:
@@ -1003,6 +1021,8 @@ class RxEventRouter:
 
     async def _dispatch_parsed_frame(self, frame: MeshcoreFrame) -> None:
         """Enruta instancias de MeshcoreFrame validadas a MQTT."""
+        if not frame.is_valid or frame.header.packet_type == PacketType.PRIVATE_KEY:
+            return
         async with self._rx_semaphore:
             mqtt_evt = frame.to_mqtt_event()
             evt_json = json.dumps(mqtt_evt)

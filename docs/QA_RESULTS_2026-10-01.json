@@ -1,0 +1,63 @@
+{
+  "recorded_at_utc": "2026-10-01T21:45:36Z",
+  "base_commit": "dbd185ef64129ee980deb6994d13b59d08d46b62",
+  "runtime": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]",
+  "suite": {
+    "passed": 661,
+    "skipped": [
+      {
+        "name": "test_map_tile_symlink_cannot_escape_map_storage",
+        "class": "tests.test_web_official_compatibility",
+        "reason": "Platform does not permit creating a symlink for this regression"
+      }
+    ],
+    "failed": 0,
+    "errors": 0,
+    "duration_seconds": 83.29,
+    "browser_cases": 17
+  },
+  "coverage": {
+    "lines_valid": 12613,
+    "lines_covered": 8460,
+    "line_rate": 0.6707
+  },
+  "tools": [
+    {
+      "tool_name": "pytest",
+      "exit_code": 0,
+      "duration_sec": 86.609,
+      "passed": true
+    },
+    {
+      "tool_name": "mypy",
+      "exit_code": 0,
+      "duration_sec": 8.516,
+      "passed": true
+    },
+    {
+      "tool_name": "ruff",
+      "exit_code": 0,
+      "duration_sec": 0.281,
+      "passed": true
+    },
+    {
+      "tool_name": "documentation",
+      "exit_code": 0,
+      "duration_sec": 0.14,
+      "passed": true
+    }
+  ],
+  "method": "HEAD plus reviewed task selection, isolated Git index/objects, committed reference exports, disposable storage, own virtual station/browser/loopback. Source/test hashes identical to final publication; final reporting edits are documentation-only.",
+  "limits": [
+    "Local runtime3.12.14;3.10 syntax AST and mypy configuration passed, runtime3.10 not executed locally.",
+    "One symlink regression skipped becauseWindows privilege absent; isolatedLinux check pendingSSH access.",
+    "Bandit src -ll -ii passed; this is scopedSAST, not complete security certification.",
+    "No physical radio transmission, production broker, n8n workflow or universal100% stack certification in QA."
+  ],
+  "unhandled_task_noise": [],
+  "post_gate_changes": {
+    "source_ast_identical": true,
+    "fixture_eof_normalization": "tests/test_admin_official_compatibility.py;33cases rerun passed in3.02s",
+    "documentation_validation": "44files/0issues after final reporting update"
+  }
+}

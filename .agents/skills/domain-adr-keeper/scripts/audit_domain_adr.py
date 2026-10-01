@@ -114,7 +114,7 @@ Describir la situación técnica, motivación o necesidad que origina esta decis
     return target_path
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(description="Auditor de Integridad de CONTEXT.md y ADRs")
     parser.add_argument("--new", type=str, help="Crear borrador para un nuevo ADR con el título indicado")
     args = parser.parse_args()
@@ -127,7 +127,7 @@ def main() -> None:
     if args.new:
         new_path = create_new_adr(args.new, adr_files)
         print(f"✨ [NUEVO ADR CREADO] Archivo: {new_path.relative_to(ROOT_DIR)}")
-        return
+        return 0
 
     print(f"📄 CONTEXT.md: {'✅ Válido' if not context_issues else '⚠️  Incidencias'}")
     for ci in context_issues:
@@ -144,6 +144,8 @@ def main() -> None:
     else:
         print("\n✅ [INTEGRIDAD 100% OK] Todos los ADRs cumplen con la secuencia y secciones requeridas.")
 
+    return 1 if context_issues or adr_issues else 0
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

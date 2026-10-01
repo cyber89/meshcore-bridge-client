@@ -14,6 +14,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 import config
+from src.admin.sdk_commands import require_success, run_sdk_command
 from src.shared_utils import extract_payload_dict, normalize_battery
 
 if TYPE_CHECKING:
@@ -113,9 +114,9 @@ class CliCommandExecutor:
                 else:
                     res = out
             elif act_clean.startswith("set ") or act_clean.startswith("set_"):
-                res = await self._cli_set_param(act_clean, res, mc)
+                res = await self._cli_set_param(action.strip(), res, mc)
             else:
-                res["result"] = f"✓ Comando '{action}' procesado correctamente por el firmware MeshCore."
+                raise NotImplementedError(f"Comando no soportado: {action}")
         except Exception as e:
             res["status"] = "error"
             res["error"] = str(e)
@@ -135,7 +136,7 @@ class CliCommandExecutor:
         """Consulta estadísticas de radio en tiempo real desde el transceptor LoRa."""
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_stats_radio"):
             try:
-                r_res = await mc.commands.get_stats_radio()
+                r_res = require_success(await run_sdk_command(self._ctx, mc, "get_stats_radio"), "get_stats_radio")
                 r_payload = extract_payload_dict(r_res)
                 if r_payload:
                     tx_air = r_payload.get("tx_air_secs", 0)
@@ -155,15 +156,16 @@ class CliCommandExecutor:
         """Consulta parámetros de sintonización y tiempos de guarda del módem."""
         rx_dly = cfg.get("rx_delay", 0)
         af = cfg.get("airtime_factor", 1.0)
-        if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_tuning_params"):
+        if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_tuning"):
             try:
-                t_res = await mc.commands.get_tuning_params()
+                t_res = await run_sdk_command(self._ctx, mc, "get_tuning")
+                require_success(t_res, "get_tuning")
                 t_payload = extract_payload_dict(t_res)
                 if t_payload:
                     rx_raw = float(t_payload.get("rx_delay", t_payload.get("rx", rx_dly)))
                     af_raw = float(t_payload.get("airtime_factor", t_payload.get("af", af)))
-                    rx_dly = round(rx_raw / 1000.0, 3) if rx_raw > 10 else rx_raw
-                    af = round(af_raw / 1000.0, 3) if af_raw > 10 else af_raw
+                    rx_dly = round(rx_raw / 1000.0, 3)
+                    af = round(af_raw / 1000.0, 3)
             except Exception as e:
                 logging.debug(f"Error en get_tuning_params: {e}")
         res["result"] = f"🎛️ [TUNING] Retardo RX: {rx_dly}s | Factor de Airtime: {af}x"
@@ -223,15 +225,19 @@ class CliCommandExecutor:
         return res
 
     def _cli_board(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
-        board_name = cfg.get("hardware_board") or cfg.get("board") or cfg.get("model") or "ESP32-S3 / nRF52840"
+        board_name = cfg.get("hardware_board") or cfg.get("board") or cfg.get("model") or "desconocida"
         res["result"] = (
             f"🖥️ [HARDWARE BOARD] Microcontrolador / Placa: {board_name} | "
-            f"Transceptor: Semtech SX1262 LoRa | Bus: Serial UART 115200"
+            f"Transceptor: no disponible | Bus: {cfg.get('serial_port', 'desconocido')}"
         )
         return res
 
-    def _cli_ping(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
-        res["result"] = "🎯 [PING] Enlace del transceptor local verificado y operativo (RTT: < 1 ms | Canal Serial Directo)."
+    async def _cli_ping(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
+        started = time.perf_counter()
+        response = await run_sdk_command(self._ctx, mc, "get_time")
+        require_success(response, "get_time")
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        res["result"] = f"🎯 [PING] Transceptor local respondió por Companion ({elapsed_ms:.1f} ms)."
         return res
 
     async def _cli_advert_hop0(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
@@ -245,9 +251,8 @@ class CliCommandExecutor:
         return res
 
     async def _cli_reboot(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
-        if mc and hasattr(mc, "commands") and hasattr(mc.commands, "reboot"):
-            await mc.commands.reboot()
-        res["result"] = "🔄 [REBOOT] Comando de reinicio de hardware ejecutado en el microcontrolador local."
+        await run_sdk_command(self._ctx, mc, "reboot")
+        res["result"] = "🔄 [REBOOT] Comando de reinicio enviado al microcontrolador local."
         return res
 
     def _cli_clear_stats(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
@@ -278,10 +283,10 @@ class CliCommandExecutor:
         pk_prefix = pk[:8] if len(pk) >= 8 else pk
         name = cfg.get("name", "MeshCore Local Node")
         role = "Repeater / Router" if cfg.get("repeat", False) else cfg.get("role", "Base Station")
-        ver = cfg.get("ver", cfg.get("fw_ver", "v1.6.0"))
-        build = cfg.get("fw_build", "2026-08-20")
+        ver = cfg.get("ver", cfg.get("fw_ver", "desconocida"))
+        build = cfg.get("fw_build", "desconocido")
         uptime_str = cfg.get("uptime_str", "Activo")
-        hw = cfg.get("hardware_board") or cfg.get("board") or cfg.get("model") or "ESP32 / SX1262"
+        hw = cfg.get("hardware_board") or cfg.get("board") or cfg.get("model") or "desconocido"
 
         res["result"] = (
             f"ℹ️ [INFORMACIÓN GENERAL DEL NODO LOCAL]\n"
@@ -348,20 +353,21 @@ class CliCommandExecutor:
         errors = cfg.get("packet_errors", 0)
 
         # Memoria del proceso Python (Bridge)
-        rss_mb = 0.0
+        rss_mb: float | None = None
         try:
             import psutil  # type: ignore[import-untyped]
             process = psutil.Process(os.getpid())
             rss_mb = round(process.memory_info().rss / (1024 * 1024), 2)
         except Exception:
-            rss_mb = 38.5  # Estimado típico en microcontrolador SBC
+            rss_mb = None
 
+        rss_text = f"{rss_mb:.1f} MB" if rss_mb is not None else "no disponible"
         active_tasks = len([t for t in asyncio.all_tasks() if not t.done()])
 
         res["result"] = (
             f"🧠 [MEMORIA & RECURSOS DEL SISTEMA]\n"
             f"  • Cola de Paquetes MCU  : {queue_len} / 256 paquetes en búfer\n"
-            f"  • Memoria Proceso Bridge: {rss_mb:.1f} MB RAM (RSS en SBC)\n"
+            f"  • Memoria Proceso Bridge: {rss_text} RAM (RSS del proceso)\n"
             f"  • Tareas Asíncronas     : {active_tasks} corrutinas en Event Loop\n"
             f"  • Registro NVS / Flash  : data/node_registry.json, data/channels.json (Sincronizado)\n"
             f"  • Errores Acumulados    : {errors} fallos registrados"
@@ -370,16 +376,14 @@ class CliCommandExecutor:
 
     async def _cli_version(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
         """Handler para comandos: ver, v, q, query, version, build."""
-        model = cfg.get("model", cfg.get("hardware_board", "MeshCore ESP32-S3 Transceiver"))
-        ver = cfg.get("ver", cfg.get("fw_ver", "v1.6.0"))
-        build = cfg.get("fw_build", "2026-08-20")
-        arch = "ESP32-S3 (Xtensa LX7 dual-core) / SX1262 LoRa"
-        if "nrf" in str(model).lower():
-            arch = "nRF52840 (ARM Cortex-M4F) / SX1262 LoRa"
+        model = cfg.get("model", cfg.get("hardware_board", "desconocido"))
+        ver = cfg.get("ver", cfg.get("fw_ver", "desconocida"))
+        build = cfg.get("fw_build", "desconocido")
+        arch = cfg.get("hardware_arch", "desconocida")
         rep_str = "Activado" if cfg.get("repeat", False) else "Desactivado"
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_device_query"):
             try:
-                q_res = await mc.commands.send_device_query()
+                q_res = require_success(await run_sdk_command(self._ctx, mc, "send_device_query"), "send_device_query")
                 if hasattr(q_res, "payload") and isinstance(q_res.payload, dict):
                     pl = q_res.payload
                     model = pl.get("model", model)
@@ -400,13 +404,13 @@ class CliCommandExecutor:
 
     async def _cli_battery(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
         """Handler para comandos: bat, get_bat, battery, bateria."""
-        pct = cfg.get("battery_pct", 100)
-        volt = cfg.get("voltage", 5.0)
-        mv = cfg.get("battery_mv", 5000)
-        src = cfg.get("power_source", "USB 5V Directo")
+        pct = cfg.get("battery_pct")
+        volt = cfg.get("voltage")
+        mv = cfg.get("battery_mv")
+        src = cfg.get("power_source", "desconocida")
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_bat"):
             try:
-                bat_res = await mc.commands.get_bat()
+                bat_res = require_success(await run_sdk_command(self._ctx, mc, "get_bat"), "get_bat")
                 b_payload = extract_payload_dict(bat_res)
                 if b_payload:
                     raw_val = (
@@ -424,7 +428,11 @@ class CliCommandExecutor:
                             pct = float(b_payload["battery_pct"])
             except Exception as e:
                 logging.debug(f"Error procesando get_bat: {e}")
-        res["result"] = f"🔋 [BATERÍA] Nivel: {pct}% | Voltaje: {volt:.2f} V ({mv} mV) | Alimentación: {src}"
+        if pct is None and volt is None and mv is None:
+            res["result"] = "🔋 [BATERÍA] Sin lectura de alimentación disponible"
+        else:
+            voltage_text = f"{volt:.2f}" if volt is not None else "desconocido"
+            res["result"] = f"🔋 [BATERÍA] Nivel: {pct}% | Voltaje: {voltage_text} V ({mv} mV) | Alimentación: {src}"
         return res
 
     async def _cli_time(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
@@ -433,7 +441,7 @@ class CliCommandExecutor:
         now_ts = int(time.time())
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_time"):
             try:
-                t_res = await mc.commands.get_time()
+                t_res = require_success(await run_sdk_command(self._ctx, mc, "get_time"), "get_time")
                 if hasattr(t_res, "payload") and isinstance(t_res.payload, dict):
                     raw_time = t_res.payload.get("time", t_res.payload.get("timestamp"))
                     if raw_time is not None:
@@ -449,13 +457,8 @@ class CliCommandExecutor:
         actual_mc = mc if mc is not None else cfg_or_mc
         now_ts = int(time.time())
         now_str = time.strftime("%Y-%m-%d %H:%M:%S")
-        if actual_mc and hasattr(actual_mc, "commands") and hasattr(actual_mc.commands, "set_time"):
-            try:
-                res_cmd = actual_mc.commands.set_time(now_ts)
-                if asyncio.iscoroutine(res_cmd):
-                    await asyncio.wait_for(res_cmd, timeout=3.0)
-            except Exception as e:
-                logging.warning(f"Error enviando set_time a radio: {e}")
+        result = await asyncio.wait_for(run_sdk_command(self._ctx, actual_mc, "set_time", now_ts), timeout=3.0)
+        require_success(result, "set_time")
         self._local_config["clock"] = time.strftime("%I:%M:%S %p", time.localtime(now_ts))
         self._local_config["device_epoch_time"] = now_ts
         res["result"] = f"✓ [RTC OK] Reloj RTC sincronizado exitosamente con la hora del host: {now_str}"
@@ -472,7 +475,7 @@ class CliCommandExecutor:
         # 1. Intentar consultar estadísticas de núcleo del hardware oficial (MeshCore SDK)
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_stats_core"):
             try:
-                c_res = await mc.commands.get_stats_core()
+                c_res = require_success(await run_sdk_command(self._ctx, mc, "get_stats_core"), "get_stats_core")
                 c_payload = extract_payload_dict(c_res)
                 if c_payload:
                     u_val = c_payload.get("uptime_secs") or c_payload.get("uptime")
@@ -490,7 +493,7 @@ class CliCommandExecutor:
         # 2. Consultar estadísticas de radio (Airtime) del transceptor si están disponibles
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_stats_radio"):
             try:
-                r_res = await mc.commands.get_stats_radio()
+                r_res = require_success(await run_sdk_command(self._ctx, mc, "get_stats_radio"), "get_stats_radio")
                 r_payload = extract_payload_dict(r_res)
                 if r_payload and "tx_air_secs" in r_payload:
                     airtime_ms = int(float(r_payload["tx_air_secs"]) * 1000)
@@ -789,13 +792,13 @@ class CliCommandExecutor:
         temp = cfg.get("temperature_c")
         hum = cfg.get("humidity_pct")
         press = cfg.get("pressure_hpa")
-        volt = cfg.get("voltage", 5.0)
-        bat_pct = cfg.get("battery_pct", 100)
+        volt = cfg.get("voltage")
+        bat_pct = cfg.get("battery_pct")
 
         custom_vars: dict[str, Any] = {}
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_custom_vars"):
             try:
-                cv_res = await mc.commands.get_custom_vars()
+                cv_res = require_success(await run_sdk_command(self._ctx, mc, "get_custom_vars"), "get_custom_vars")
                 payload = extract_payload_dict(cv_res)
                 if payload:
                     custom_vars = payload
@@ -849,9 +852,10 @@ class CliCommandExecutor:
     async def _cli_send_advert(self, mc: Any, flood: bool = False) -> None:
         """Envía anuncio de presencia por radio."""
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_advert"):
-            await mc.commands.send_advert(flood=flood)
+            result = await run_sdk_command(self._ctx, mc, "send_advert", flood=flood)
+            require_success(result, "send_advert")
         else:
-            await self._broadcast_advert(flood=flood)
+            raise NotImplementedError("SDK sin send_advert")
 
     def _cli_help_text(self) -> str:
         """Retorna texto de ayuda de comandos soportados."""
@@ -891,44 +895,51 @@ class CliCommandExecutor:
             "    • set <param> <val>     : Ajuste directo (name, tx, freq, coords, sf, bw, cr)."
         )
 
+    async def _confirmed_local_config(self, data: dict[str, Any], res: dict[str, Any], mc: Any) -> None:
+        result = await self._handle_set_local_config(data, res, mc)
+        if isinstance(result, dict):
+            res.update(result)
+        if res.get("status") in ("error", "partial"):
+            raise RuntimeError(str(res.get("message") or res.get("error") or "Configuración no confirmada"))
+
     async def _cli_set_param(self, act_clean: str, res: dict[str, Any], mc: Any = None) -> dict[str, Any]:
         """Handler para comandos CLI de ajuste directo (set <param> <val> o set_<param> <val>)."""
-        norm = "set " + act_clean[4:] if act_clean.startswith("set_") else act_clean
+        norm = "set " + act_clean[4:] if act_clean.lower().startswith("set_") else act_clean
         parts = norm.split()
         if len(parts) >= 3:
             sub_cmd = parts[1].lower()
             val = " ".join(parts[2:])
             if sub_cmd in ("name", "alias"):
-                await self._handle_set_local_config({"action": "set_local_config", "params": {"name": val}}, res, mc)
+                await self._confirmed_local_config({"action": "set_local_config", "params": {"name": val}}, res, mc)
                 res["result"] = f"✓ Nombre del nodo local establecido a: '{val}'"
             elif sub_cmd in ("tx", "tx_power", "power", "txpower"):
                 try:
-                    await self._handle_set_local_config({"action": "set_local_config", "params": {"tx_power": int(val)}}, res, mc)
+                    await self._confirmed_local_config({"action": "set_local_config", "params": {"tx_power": int(val)}}, res, mc)
                     res["result"] = f"✓ Potencia TX establecida a: {val} dBm"
                 except ValueError:
                     res["result"] = f"⚠️ Valor de potencia inválido: {val}"
             elif sub_cmd in ("freq", "frequency"):
                 try:
-                    await self._handle_set_local_config({"action": "set_local_config", "params": {"frequency": float(val)}}, res, mc)
+                    await self._confirmed_local_config({"action": "set_local_config", "params": {"frequency": float(val)}}, res, mc)
                     res["result"] = f"✓ Frecuencia RF establecida a: {val} MHz"
                 except ValueError:
                     res["result"] = f"⚠️ Valor de frecuencia inválido: {val}"
             elif sub_cmd in ("sf", "spreading_factor"):
                 try:
-                    await self._handle_set_local_config({"action": "set_local_config", "params": {"sf": int(val)}}, res, mc)
+                    await self._confirmed_local_config({"action": "set_local_config", "params": {"sf": int(val)}}, res, mc)
                     res["result"] = f"✓ Spreading Factor establecido a: SF{val}"
                 except ValueError:
                     res["result"] = f"⚠️ Spreading factor inválido: {val}"
             elif sub_cmd in ("bw", "bandwidth"):
                 try:
-                    await self._handle_set_local_config({"action": "set_local_config", "params": {"bw": float(val)}}, res, mc)
+                    await self._confirmed_local_config({"action": "set_local_config", "params": {"bw": float(val)}}, res, mc)
                     res["result"] = f"✓ Ancho de banda (BW) establecido a: {val} kHz"
                 except ValueError:
                     res["result"] = f"⚠️ Ancho de banda inválido: {val}"
             elif sub_cmd in ("cr", "coding_rate"):
                 try:
                     cr_val = int(val) if val.isdigit() else val
-                    await self._handle_set_local_config({"action": "set_local_config", "params": {"cr": cr_val}}, res, mc)
+                    await self._confirmed_local_config({"action": "set_local_config", "params": {"cr": cr_val}}, res, mc)
                     res["result"] = f"✓ Coding Rate (CR) establecido a: {val}"
                 except ValueError:
                     res["result"] = f"⚠️ Coding rate inválido: {val}"
@@ -942,7 +953,7 @@ class CliCommandExecutor:
                             "sf": int(r_parts[2]),
                             "cr": int(r_parts[3]) if r_parts[3].isdigit() else r_parts[3],
                         }
-                        await self._handle_set_local_config({"action": "set_local_config", "params": p_dict}, res, mc)
+                        await self._confirmed_local_config({"action": "set_local_config", "params": p_dict}, res, mc)
                         res["result"] = f"✓ Radio configurado: {r_parts[0]} MHz, BW{r_parts[1]}, SF{r_parts[2]}, CR{r_parts[3]}"
                     except ValueError as ve:
                         res["result"] = f"⚠️ Error en parámetros de radio: {ve}"
@@ -953,7 +964,7 @@ class CliCommandExecutor:
                 if len(t_parts) >= 2:
                     try:
                         p_dict = {"rx_delay": float(t_parts[0]), "airtime_factor": float(t_parts[1])}
-                        await self._handle_set_local_config({"action": "set_local_config", "params": p_dict}, res, mc)
+                        await self._confirmed_local_config({"action": "set_local_config", "params": p_dict}, res, mc)
                         res["result"] = f"✓ Tuning actualizado: rx_delay={t_parts[0]}, airtime_factor={t_parts[1]}"
                     except ValueError as ve:
                         res["result"] = f"⚠️ Error en parámetros de tuning: {ve}"
@@ -961,27 +972,27 @@ class CliCommandExecutor:
                     res["result"] = "⚠️ Uso: set tuning <rx_delay> <airtime_factor>"
             elif sub_cmd in ("pin", "ble_pin"):
                 try:
-                    await self._handle_set_local_config({"action": "set_local_config", "params": {"pin": int(val)}}, res, mc)
-                    res["result"] = f"✓ PIN de vinculación establecido a: {val}"
+                    await self._confirmed_local_config({"action": "set_local_config", "params": {"pin": int(val)}}, res, mc)
+                    res["result"] = "✓ PIN de vinculación actualizado"
                 except ValueError:
                     res["result"] = f"⚠️ PIN numérico inválido: {val}"
             elif sub_cmd in ("repeat", "repeater"):
                 from src.shared_utils import to_bool
                 b_val = to_bool(val)
-                await self._handle_set_local_config({"action": "set_local_config", "params": {"repeat": b_val}}, res, mc)
+                await self._confirmed_local_config({"action": "set_local_config", "params": {"repeat": b_val}}, res, mc)
                 res["result"] = f"✓ Modo repetidor {'activado' if b_val else 'desactivado'}"
             elif sub_cmd in ("coords", "pos", "gps"):
                 c_parts = val.split(",")
                 if len(c_parts) >= 2:
                     try:
-                        await self._handle_set_local_config({"action": "set_local_config", "params": {"latitude": float(c_parts[0]), "longitude": float(c_parts[1])}}, res, mc)
+                        await self._confirmed_local_config({"action": "set_local_config", "params": {"latitude": float(c_parts[0]), "longitude": float(c_parts[1])}}, res, mc)
                         res["result"] = f"✓ Coordenadas GPS establecidas a: {val}"
                     except ValueError:
                         res["result"] = f"⚠️ Coordenadas numéricas inválidas: {val}"
                 else:
                     res["result"] = "⚠️ Formato de coordenadas inválido. Uso: set coords <lat>,<lon>"
             else:
-                await self._handle_set_local_config({"action": "set_local_config", "params": {sub_cmd: val}}, res, mc)
+                await self._confirmed_local_config({"action": "set_local_config", "params": {sub_cmd: val}}, res, mc)
                 res["result"] = f"✓ Parámetro '{sub_cmd}' actualizado a: {val}"
         else:
             res["result"] = f"⚠️ Comando de configuración incompleto: {act_clean}"

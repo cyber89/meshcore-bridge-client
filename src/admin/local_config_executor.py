@@ -17,12 +17,14 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
 import config
+from src.admin.sdk_commands import require_success, run_sdk_command
 from src.contact_manager import NodeContactUpdate, is_valid_node_key
 from src.shared_utils import (
     clamp_tx_power,
     extract_payload_dict,
     get_hardware_power_limits,
-    safe_device_query,
+    normalize_battery,
+    to_bool,
 )
 
 if TYPE_CHECKING:
@@ -45,6 +47,17 @@ class LocalConfigExecutor:
         self._publish_safe = publish_safe
         self._last_fetch_time: float = 0.0
         self._fetch_lock = asyncio.Lock()
+
+    async def _write_device(self, mc: Any, command: str, *args: Any, timeout: float = 3.0, **kwargs: Any) -> Any:
+        response = await asyncio.wait_for(run_sdk_command(self._ctx, mc, command, *args, **kwargs), timeout=timeout)
+        return require_success(response, command)
+
+    async def _query_device(self, mc: Any, command: str, *args: Any, timeout: float = 3.0, **kwargs: Any) -> Any:
+        try:
+            return await self._write_device(mc, command, *args, timeout=timeout, **kwargs)
+        except Exception:
+            logging.debug("Consulta SDK sin respuesta válida: %s", command)
+            return None
 
     def get_local_config(self) -> dict[str, Any]:
         """Devuelve la configuración consolidada del nodo local y su telemetría."""
@@ -106,9 +119,9 @@ class LocalConfigExecutor:
             "telemetry_interval": si.get("telemetry_interval", cfg.get("telemetry_interval")),
             "beacon_interval": si.get("beacon_interval", si.get("advert_interval", cfg.get("beacon_interval"))),
             "advert_interval": si.get("advert_interval", si.get("beacon_interval", cfg.get("advert_interval"))),
-            "battery_pct": si.get("battery_pct", si.get("battery", cfg.get("battery_pct", 100))),
-            "voltage": si.get("voltage", cfg.get("voltage", 5.0)),
-            "battery_mv": si.get("battery_mv", cfg.get("battery_mv", 5000)),
+            "battery_pct": si.get("battery_pct", si.get("battery", cfg.get("battery_pct"))),
+            "voltage": si.get("voltage", cfg.get("voltage")),
+            "battery_mv": si.get("battery_mv", cfg.get("battery_mv")),
             "telemetry_mode_base": si.get("telemetry_mode_base", cfg.get("telemetry_mode_base")),
             "telemetry_mode_loc": si.get("telemetry_mode_loc", cfg.get("telemetry_mode_loc")),
             "telemetry_mode_env": si.get("telemetry_mode_env", cfg.get("telemetry_mode_env")),
@@ -124,10 +137,10 @@ class LocalConfigExecutor:
 
     def _ensure_default_telemetry(self, cfg: dict[str, Any]) -> None:
         """Asegura campos por defecto para alimentación USB cuando no hay batería."""
-        cfg.setdefault("battery_pct", 100)
-        cfg.setdefault("voltage", 5.0)
-        cfg.setdefault("battery_mv", 5000)
-        cfg.setdefault("power_source", "USB 5V Directo")
+        cfg.setdefault("battery_pct", None)
+        cfg.setdefault("voltage", None)
+        cfg.setdefault("battery_mv", None)
+        cfg.setdefault("power_source", "desconocida")
         cfg.setdefault("pin", self._local_config.get("pin", 0))
         cfg.setdefault("rx_delay", self._local_config.get("rx_delay", 0))
         cfg.setdefault("airtime_factor", self._local_config.get("airtime_factor", 0))
@@ -139,9 +152,9 @@ class LocalConfigExecutor:
         cfg.setdefault("multi_acks", self._local_config.get("multi_acks", 0))
         cfg.setdefault("manual_add_contacts", self._local_config.get("manual_add_contacts", 0))
         cfg.setdefault("custom_vars", self._local_config.get("custom_vars", {}))
-        cfg.setdefault("temperature_c", self._local_config.get("temperature_c", 24.5))
-        cfg.setdefault("humidity_pct", self._local_config.get("humidity_pct", 52.0))
-        cfg.setdefault("pressure_hpa", self._local_config.get("pressure_hpa", 1013.2))
+        cfg.setdefault("temperature_c", self._local_config.get("temperature_c"))
+        cfg.setdefault("humidity_pct", self._local_config.get("humidity_pct"))
+        cfg.setdefault("pressure_hpa", self._local_config.get("pressure_hpa"))
         cfg.setdefault("satellites", self._local_config.get("satellites", 0))
 
     def _populate_uptime_and_airtime(self, cfg: dict[str, Any]) -> None:
@@ -234,7 +247,7 @@ class LocalConfigExecutor:
 
     async def _query_hardware_device_and_battery(self, mc: Any) -> None:
         """Consulta identidad, modo repetidor, parámetros avanzados y nivel de batería por serial."""
-        res_app = await safe_device_query(mc, "send_appstart")
+        res_app = await self._query_device(mc, "send_appstart")
         app_data = extract_payload_dict(res_app)
         if app_data and isinstance(app_data, dict):
             self._apply_self_info_to_cfg(self._local_config, app_data)
@@ -254,7 +267,7 @@ class LocalConfigExecutor:
                     ),
                 )
 
-        dev_res = await safe_device_query(mc, "send_device_query")
+        dev_res = await self._query_device(mc, "send_device_query")
         dev_data = extract_payload_dict(dev_res)
         if dev_data and isinstance(dev_data, dict):
             if "model" in dev_data:
@@ -272,28 +285,29 @@ class LocalConfigExecutor:
             if "path_hash_mode" in dev_data:
                 self._local_config["path_hash_mode"] = dev_data["path_hash_mode"]
 
-        bat_res = await safe_device_query(mc, "get_bat")
+        bat_res = await self._query_device(mc, "get_bat")
         bat_data = extract_payload_dict(bat_res)
         if bat_data and isinstance(bat_data, dict):
-            mv = bat_data.get("battery_mv", bat_data.get("mv", 5000))
-            pct = bat_data.get("battery_pct", bat_data.get("pct", 100))
-            self._local_config.update({
-                "battery_pct": pct,
-                "battery_mv": mv,
-                "voltage": round(mv / 1000.0, 2) if mv else 5.0,
-            })
+            mv = bat_data.get("level", bat_data.get("battery_mv", bat_data.get("mv")))
+            if mv is not None:
+                pct, voltage = normalize_battery(mv)
+                self._local_config.update({
+                    "battery_pct": bat_data.get("battery_pct", bat_data.get("pct", pct)),
+                    "battery_mv": mv,
+                    "voltage": voltage,
+                })
 
-        tun_res = await safe_device_query(mc, "get_tuning")
+        tun_res = await self._query_device(mc, "get_tuning")
         tun_data = extract_payload_dict(tun_res)
         if tun_data and isinstance(tun_data, dict):
             if "rx_delay" in tun_data:
                 rx_val = float(tun_data["rx_delay"])
-                self._local_config["rx_delay"] = round(rx_val / 1000.0, 3) if rx_val > 10 else rx_val
+                self._local_config["rx_delay"] = round(rx_val / 1000.0, 3)
             if "airtime_factor" in tun_data:
                 af_val = float(tun_data["airtime_factor"])
-                self._local_config["airtime_factor"] = round(af_val / 1000.0, 3) if af_val > 10 else af_val
+                self._local_config["airtime_factor"] = round(af_val / 1000.0, 3)
 
-        t_res = await safe_device_query(mc, "get_time")
+        t_res = await self._query_device(mc, "get_time")
         t_data = extract_payload_dict(t_res)
         if t_data and isinstance(t_data, dict) and "time" in t_data:
             now_ts = time.time()
@@ -304,7 +318,7 @@ class LocalConfigExecutor:
 
     async def _query_hardware_stats_and_packets(self, mc: Any) -> None:
         """Consulta estadísticas de núcleo, radio, sensores y paquetes por serial."""
-        c_res = await safe_device_query(mc, "get_stats_core")
+        c_res = await self._query_device(mc, "get_stats_core")
         c_data = extract_payload_dict(c_res)
         if c_data and isinstance(c_data, dict):
             self._local_config['stats_core'] = c_data
@@ -320,7 +334,7 @@ class LocalConfigExecutor:
             if "errors" in c_data:
                 self._local_config["packet_errors"] = c_data["errors"]
 
-        r_res = await safe_device_query(mc, "get_stats_radio")
+        r_res = await self._query_device(mc, "get_stats_radio")
         r_data = extract_payload_dict(r_res)
         if r_data and isinstance(r_data, dict):
             self._local_config['stats_radio'] = r_data
@@ -333,7 +347,7 @@ class LocalConfigExecutor:
             if "tx_air_secs" in r_data:
                 self._local_config["airtime_ms"] = int(float(r_data["tx_air_secs"]) * 1000)
 
-        p_res = await safe_device_query(mc, "get_stats_packets")
+        p_res = await self._query_device(mc, "get_stats_packets")
         p_data = extract_payload_dict(p_res)
         if p_data and isinstance(p_data, dict):
             self._local_config['stats_packets'] = p_data
@@ -344,7 +358,7 @@ class LocalConfigExecutor:
             if "recv_errors" in p_data:
                 self._local_config["packet_errors"] = p_data["recv_errors"]
 
-        st_res = await safe_device_query(mc, "get_self_telemetry")
+        st_res = await self._query_device(mc, "get_self_telemetry")
         st_data = extract_payload_dict(st_res)
         if st_data and isinstance(st_data, dict):
             self._local_config["self_telemetry"] = st_data
@@ -355,12 +369,12 @@ class LocalConfigExecutor:
             if "pressure" in st_data or "pressure_hpa" in st_data:
                 self._local_config["pressure_hpa"] = st_data.get("pressure", st_data.get("pressure_hpa"))
 
-        cv_res = await safe_device_query(mc, "get_custom_vars")
+        cv_res = await self._query_device(mc, "get_custom_vars")
         cv_data = extract_payload_dict(cv_res)
         if cv_data and isinstance(cv_data, dict):
             self._local_config["custom_vars"] = cv_data
 
-        arf_res = await safe_device_query(mc, "get_allowed_repeat_freq")
+        arf_res = await self._query_device(mc, "get_allowed_repeat_freq")
         arf_data = extract_payload_dict(arf_res)
         if arf_data and isinstance(arf_data, dict):
             self._local_config["allowed_repeat_freq"] = arf_data.get("allowed_freqs", arf_data)
@@ -370,18 +384,20 @@ class LocalConfigExecutor:
         ts = int(epoch_ts if epoch_ts is not None else time.time())
         now_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts))
         mc = self._ctx.mc_provider()
-        res = await safe_device_query(mc, "set_time", ts, timeout=3.0)
-        success = res is not None
+        try:
+            await self._write_device(mc, "set_time", ts, timeout=3.0)
+        except (RuntimeError, NotImplementedError, ConnectionError, asyncio.TimeoutError) as error:
+            return {"status": "error", "message": str(error)}
 
         self._local_config["clock"] = time.strftime("%I:%M:%S %p", time.localtime(ts))
         self._local_config["device_epoch_time"] = ts
         self._local_config["device_time_sampled_at"] = time.time()
         self._local_config["device_time_drift"] = 0
         return {
-            "status": "ok" if success else "partial",
+            "status": "ok",
             "clock": now_str,
             "epoch": ts,
-            "message": f"Reloj RTC sincronizado exitosamente con la hora del host: {now_str}" if success else "Hora del host registrada localmente",
+            "message": f"Reloj RTC sincronizado exitosamente con la hora del host: {now_str}",
         }
 
     async def clear_device_stats(self) -> dict[str, Any]:
@@ -407,11 +423,18 @@ class LocalConfigExecutor:
         params = admin_data.get("params", admin_data)
         applied: dict[str, Any] = {}
 
-        await self._apply_identity_settings(params, applied, mc)
-        await self._apply_radio_settings(params, applied, mc)
-        self._apply_timing_settings(params, applied, mc)
-        await self._apply_other_params_settings(params, applied, mc)
-        await self._apply_advanced_meshcore_settings(params, applied, mc)
+        try:
+            if not isinstance(params, dict):
+                raise ValueError("params debe ser un objeto")
+            await self._apply_identity_settings(params, applied, mc)
+            await self._apply_radio_settings(params, applied, mc)
+            self._apply_timing_settings(params, applied, mc)
+            await self._apply_other_params_settings(params, applied, mc)
+            await self._apply_advanced_meshcore_settings(params, applied, mc)
+        except Exception as error:
+            res.update({"status": "partial" if applied else "error", "action": "set_local_config", "applied": applied, "message": str(error), "config": self.get_local_config()})
+            self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), 1)
+            return res
 
         # Actualizar en el NodeRegistry local
         cfg_now = self.get_local_config()
@@ -444,10 +467,12 @@ class LocalConfigExecutor:
         """Aplica nombre, propietario y coordenadas GPS."""
         if "name" in params:
             new_name = str(params["name"]).strip()
+            if len(new_name.encode("utf-8")) > 31 or any(ord(char) < 0x20 for char in new_name):
+                raise ValueError("Nombre de nodo inválido: máximo 31 bytes UTF-8")
+            await self._write_device(mc, "set_name", new_name, timeout=2.0)
             self._local_config["name"] = new_name
             applied["name"] = new_name
             if mc:
-                await safe_device_query(mc, "set_name", new_name, timeout=2.0)
                 if hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
                     mc.self_info["name"] = new_name
 
@@ -456,17 +481,19 @@ class LocalConfigExecutor:
         if lat_val is not None and lon_val is not None:
             try:
                 lat_f, lon_f = float(lat_val), float(lon_val)
+                if not (-90 <= lat_f <= 90 and -180 <= lon_f <= 180):
+                    raise ValueError("Coordenadas fuera de rango")
+                await self._write_device(mc, "set_coords", lat=lat_f, lon=lon_f, timeout=2.0)
                 self._local_config["latitude"] = lat_f
                 self._local_config["longitude"] = lon_f
                 applied["latitude"] = lat_f
                 applied["longitude"] = lon_f
                 if mc:
-                    await safe_device_query(mc, "set_coords", lat=lat_f, lon=lon_f, timeout=2.0)
                     if hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
                         mc.self_info["adv_lat"] = lat_f
                         mc.self_info["adv_lon"] = lon_f
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as error:
+                raise ValueError("Coordenadas inválidas") from error
 
         alt_val = params.get("altitude", params.get("alt", params.get("altitude_m")))
         if alt_val is not None:
@@ -499,10 +526,9 @@ class LocalConfigExecutor:
             hw_board = self._local_config.get("hardware_board")
             raw_p = int(params.get("tx_power", params.get("power", 20)))
             new_p = clamp_tx_power(raw_p, hw_board, self._local_config.get("max_tx_power"))
+            await self._write_device(mc, "set_tx_power", new_p, timeout=2.0)
             self._local_config["tx_power"] = new_p
             applied["tx_power"] = new_p
-            if mc:
-                await safe_device_query(mc, "set_tx_power", new_p, timeout=2.0)
 
         radio_keys = ("frequency", "radio_freq", "bandwidth", "bw", "spreading_factor", "sf", "coding_rate", "cr", "repeat", "repeat_enabled")
         if any(k in params for k in radio_keys):
@@ -534,7 +560,9 @@ class LocalConfigExecutor:
                 new_cr = 5
 
             rep_val = params.get("repeat", params.get("repeat_enabled", self._local_config.get("repeat", False)))
-            new_rep = bool(rep_val)
+            new_rep = to_bool(rep_val)
+
+            await self._write_device(mc, "set_radio", new_f, new_bw, new_sf, new_cr, int(new_rep), timeout=3.0)
 
             self._local_config["frequency"] = new_f
             self._local_config["radio_freq"] = new_f
@@ -552,8 +580,6 @@ class LocalConfigExecutor:
             applied["coding_rate"] = new_cr
             applied["repeat"] = new_rep
 
-            if mc:
-                await safe_device_query(mc, "set_radio", new_f, new_bw, new_sf, new_cr, int(new_rep), timeout=3.0)
 
             update_fields = {
                 "freq": new_f,
@@ -626,6 +652,7 @@ class LocalConfigExecutor:
         need_update = any(k in params for k in keys)
 
         if need_update:
+            pending: dict[str, int] = {}
             for k in keys:
                 if k in params:
                     val = params[k]
@@ -633,8 +660,7 @@ class LocalConfigExecutor:
                         int_val = int(bool(val)) if not isinstance(val, (int, float)) else int(val)
                     else:
                         int_val = int(val)
-                    self._local_config[k] = int_val
-                    applied[k] = int_val
+                    pending[k] = int_val
 
             if mc:
                 infos: dict[str, Any] = {}
@@ -645,11 +671,15 @@ class LocalConfigExecutor:
 
                 for k in keys:
                     if k in params:
-                        infos[k] = applied[k]
+                        infos[k] = pending[k]
                     else:
                         infos.setdefault(k, int(self._local_config.get(k, 0)))
 
-                await safe_device_query(mc, "set_other_params_from_infos", infos, timeout=2.0)
+                await self._write_device(mc, "set_other_params_from_infos", infos, timeout=2.0)
+            else:
+                raise ConnectionError("Radio no conectada")
+            self._local_config.update(pending)
+            applied.update(pending)
 
     async def _apply_advanced_meshcore_settings(self, params: dict[str, Any], applied: dict[str, Any], mc: Any) -> None:
         """Aplica PIN del dispositivo, tuning de radio, path hash mode y custom variables."""
@@ -657,10 +687,9 @@ class LocalConfigExecutor:
         if "pin" in params or "devicepin" in params:
             try:
                 pin_val = int(params.get("pin", params.get("devicepin", 0)))
+                await self._write_device(mc, "set_devicepin", pin_val, timeout=2.0)
                 self._local_config["pin"] = pin_val
                 applied["pin"] = pin_val
-                if mc:
-                    await safe_device_query(mc, "set_devicepin", pin_val, timeout=2.0)
             except (ValueError, TypeError) as err:
                 logging.warning(f"PIN inválido proporcionado: {err}")
 
@@ -679,12 +708,12 @@ class LocalConfigExecutor:
                 stored_rx = rx_flt if rx_flt <= 10.0 else round(rx_flt / 1000.0, 3)
                 stored_af = af_flt if af_flt <= 10.0 else round(af_flt / 1000.0, 3)
 
+                await self._write_device(mc, "set_tuning", wire_rx, wire_af, timeout=2.0)
+
                 self._local_config["rx_delay"] = stored_rx
                 self._local_config["airtime_factor"] = stored_af
                 applied["rx_delay"] = stored_rx
                 applied["airtime_factor"] = stored_af
-                if mc:
-                    await safe_device_query(mc, "set_tuning", wire_rx, wire_af, timeout=2.0)
             except (ValueError, TypeError) as err:
                 logging.warning(f"Parámetros de tuning inválidos: {err}")
 
@@ -692,10 +721,11 @@ class LocalConfigExecutor:
         if "path_hash_mode" in params:
             try:
                 phm = int(params["path_hash_mode"])
+                if phm not in (0, 1, 2):
+                    raise ValueError("path_hash_mode debe ser 0, 1 o 2")
+                await self._write_device(mc, "set_path_hash_mode", phm, timeout=2.0)
                 self._local_config["path_hash_mode"] = phm
                 applied["path_hash_mode"] = phm
-                if mc:
-                    await safe_device_query(mc, "set_path_hash_mode", phm, timeout=2.0)
             except (ValueError, TypeError) as err:
                 logging.warning(f"Path hash mode inválido: {err}")
 
@@ -704,15 +734,14 @@ class LocalConfigExecutor:
             if "custom_vars" not in self._local_config or not isinstance(self._local_config["custom_vars"], dict):
                 self._local_config["custom_vars"] = {}
             for k, v in params["custom_vars"].items():
+                await self._write_device(mc, "set_custom_var", str(k), str(v), timeout=2.0)
                 self._local_config["custom_vars"][str(k)] = str(v)
-                if mc:
-                    await safe_device_query(mc, "set_custom_var", str(k), str(v), timeout=2.0)
             applied["custom_vars"] = self._local_config["custom_vars"]
 
     async def get_custom_vars(self) -> dict[str, Any]:
         """Obtiene las variables personalizadas almacenadas en el nodo local o en la flash."""
         mc = self._ctx.mc_provider()
-        cv_res = await safe_device_query(mc, "get_custom_vars", timeout=3.0)
+        cv_res = await self._query_device(mc, "get_custom_vars", timeout=3.0)
         cv_data = extract_payload_dict(cv_res)
         if cv_data and isinstance(cv_data, dict):
             self._local_config["custom_vars"] = cv_data
@@ -721,19 +750,19 @@ class LocalConfigExecutor:
 
     async def set_custom_var(self, key: str, val: str) -> dict[str, Any]:
         """Asigna o actualiza una variable personalizada en el transceptor."""
+        mc = self._ctx.mc_provider()
+        await self._write_device(mc, "set_custom_var", str(key), str(val), timeout=3.0)
         if "custom_vars" not in self._local_config or not isinstance(self._local_config["custom_vars"], dict):
             self._local_config["custom_vars"] = {}
         self._local_config["custom_vars"][str(key)] = str(val)
-        mc = self._ctx.mc_provider()
-        await safe_device_query(mc, "set_custom_var", str(key), str(val), timeout=3.0)
         return {"status": "ok", "custom_vars": self._local_config["custom_vars"]}
 
     async def delete_custom_var(self, key: str) -> dict[str, Any]:
         """Elimina una variable personalizada asignando cadena vacía al firmware."""
+        mc = self._ctx.mc_provider()
+        await self._write_device(mc, "set_custom_var", str(key), "", timeout=3.0)
         if "custom_vars" in self._local_config and isinstance(self._local_config["custom_vars"], dict):
             self._local_config["custom_vars"].pop(str(key), None)
-        mc = self._ctx.mc_provider()
-        await safe_device_query(mc, "set_custom_var", str(key), "", timeout=3.0)
         return {"status": "ok", "custom_vars": self._local_config.get("custom_vars", {})}
 
     async def get_path_hash_mode(self) -> int:
@@ -742,16 +771,18 @@ class LocalConfigExecutor:
 
     async def set_path_hash_mode(self, mode: int) -> dict[str, Any]:
         """Configura el modo de path hash (0, 1, 2)."""
-        mode = max(0, min(2, int(mode)))
-        self._local_config["path_hash_mode"] = mode
+        mode = int(mode)
+        if mode not in (0, 1, 2):
+            raise ValueError("path_hash_mode debe ser 0, 1 o 2")
         mc = self._ctx.mc_provider()
-        await safe_device_query(mc, "set_path_hash_mode", mode, timeout=3.0)
+        await self._write_device(mc, "set_path_hash_mode", mode, timeout=3.0)
+        self._local_config["path_hash_mode"] = mode
         return {"status": "ok", "path_hash_mode": mode}
 
     async def get_autoadd_config(self) -> dict[str, Any]:
         """Obtiene la configuración de auto-adición de contactos."""
         mc = self._ctx.mc_provider()
-        res = await safe_device_query(mc, "get_autoadd_config", timeout=3.0)
+        res = await self._query_device(mc, "get_autoadd_config", timeout=3.0)
         res_dict = extract_payload_dict(res)
         if res_dict and isinstance(res_dict, dict):
             if "max_hops" not in res_dict and isinstance(self._local_config.get("autoadd_config"), dict):
@@ -765,23 +796,16 @@ class LocalConfigExecutor:
     async def set_autoadd_config(self, flags: int, max_hops: int | None = None) -> dict[str, Any]:
         """Aplica la máscara de auto-adición de contactos."""
         mc = self._ctx.mc_provider()
-        if mc and hasattr(mc, "commands") and hasattr(mc.commands, "set_autoadd_config"):
-            try:
-                import inspect
-                sig = inspect.signature(mc.commands.set_autoadd_config)
-                if "max_hops" in sig.parameters and max_hops is not None:
-                    await safe_device_query(mc, "set_autoadd_config", int(flags), max_hops=int(max_hops), timeout=3.0)
-                else:
-                    await safe_device_query(mc, "set_autoadd_config", int(flags), timeout=3.0)
-            except Exception as e:
-                logging.warning(f"Aviso configurando autoadd: {e}")
+        if max_hops is not None:
+            raise NotImplementedError("El SDK oficial set_autoadd_config no admite max_hops")
+        await self._write_device(mc, "set_autoadd_config", int(flags), timeout=3.0)
         self._local_config["autoadd_config"] = {"config": int(flags), "max_hops": max_hops if max_hops is not None else 0}
         return {"status": "ok", "autoadd_config": self._local_config["autoadd_config"]}
 
     async def get_flood_scope(self) -> dict[str, Any]:
         """Obtiene el ámbito de inundación configurado."""
         mc = self._ctx.mc_provider()
-        res = await safe_device_query(mc, "get_default_flood_scope", timeout=3.0)
+        res = await self._query_device(mc, "get_default_flood_scope", timeout=3.0)
         res_dict = extract_payload_dict(res)
         if res_dict and isinstance(res_dict, dict):
             self._local_config["flood_scope"] = res_dict
@@ -792,11 +816,11 @@ class LocalConfigExecutor:
         """Asigna o reinicia el ámbito de inundación por defecto."""
         mc = self._ctx.mc_provider()
         if not scope or scope in ("*", "0", "global", "none"):
-            await safe_device_query(mc, "reset_default_flood_scope", timeout=3.0)
+            await self._write_device(mc, "reset_default_flood_scope", timeout=3.0)
             self._local_config["flood_scope"] = {"scope_name": "", "scope_key": ""}
             return {"status": "ok", "flood_scope": self._local_config["flood_scope"]}
 
-        await safe_device_query(mc, "set_default_flood_scope", scope, timeout=3.0)
+        await self._write_device(mc, "set_default_flood_scope", scope, timeout=3.0)
         self._local_config["flood_scope"] = {"scope_name": str(scope)}
         return {"status": "ok", "flood_scope": self._local_config["flood_scope"]}
 

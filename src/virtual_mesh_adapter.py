@@ -11,6 +11,7 @@ Simula un transceptor físico LoRa conectado por USB con soporte bidireccional p
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import io
 import logging
 import math
@@ -174,7 +175,7 @@ class VirtualMeshCoreMock:
     def __init__(self, adapter: VirtualMeshAdapter) -> None:
         self.self_info: dict[str, Any] = {
             "name": "MeshCore_Base_Station",
-            "public_key": "000000000000",
+            "public_key": "11223344556677889900aabbccddeeff11223344556677889900aabbccddeeff",
             "role": "Base Station",
             "owner_info": "Operador Estación Base / TG-0",
             "latitude": 20.1500,
@@ -490,6 +491,8 @@ class VirtualMeshAdapter(BaseSerialAdapter):
 
     async def connect(self) -> bool:
         """Inicializa la conexión virtual y arranca el bucle de simulación RF."""
+        if self.is_connected and self._sim_task and not self._sim_task.done():
+            return True
         self.is_connected = True
         self.running = True
         logging.info("⚡ [USB-HARDWARE] Heltec v4 MeshCore Companion USB conectado (modo virtual).")
@@ -507,13 +510,18 @@ class VirtualMeshAdapter(BaseSerialAdapter):
     async def disconnect(self) -> None:
         """Detiene la simulación y libera recursos."""
         self.running = False
-        if self._sim_task and not self._sim_task.done():
-            self._sim_task.cancel()
-            try:
-                await asyncio.wait_for(self._sim_task, timeout=1.0)
-            except (asyncio.CancelledError, asyncio.TimeoutError, Exception):
-                pass
         self.is_connected = False
+        tasks = set(self._background_tasks)
+        if self._sim_task:
+            tasks.add(self._sim_task)
+        tasks.discard(asyncio.current_task())
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        self._background_tasks.clear()
+        self._sim_task = None
         logging.info("Adaptador Virtual LoRa MeshCore desconectado.")
 
     async def send_message(
@@ -523,8 +531,13 @@ class VirtualMeshAdapter(BaseSerialAdapter):
         channel_idx: int = 0,
     ) -> dict[str, Any]:
         """Envía un mensaje de texto simulado y programa la respuesta eco si va a un nodo cliente."""
+        if not self.is_connected:
+            return {"status": "ERROR", "reason": "Simulador desconectado"}
         self.heartbeat()
         target_clean = str(target or "").strip().lower()
+        local_key = str(self.mc.self_info.get("public_key", "")).lower()
+        if target_clean and (target_clean == "local" or target_clean == local_key):
+            return {"status": "ERROR", "reason": "No se permite chat al nodo local"}
 
         if target_clean.startswith("channel"):
             is_direct = False
@@ -532,7 +545,7 @@ class VirtualMeshAdapter(BaseSerialAdapter):
                 channel_idx = int(target_clean.split("_")[1])
             except Exception:
                 pass
-            target_node = self.node_bravo if channel_idx == 1 else self.node_alpha
+            target_node = self.node_bravo
         elif target_clean and target_clean not in ("broadcast", "public", "0xffff", "none"):
             is_direct = True
             matched = None
@@ -542,6 +555,8 @@ class VirtualMeshAdapter(BaseSerialAdapter):
                     break
             if matched:
                 target_node = matched
+                if str(matched.get("role", "")).upper() in ("REPEATER", "ROUTER", "LOCAL", "BASE STATION"):
+                    return {"status": "ERROR", "reason": "El destino no admite chat"}
             else:
                 target_node = {
                     "key": target_clean,
@@ -554,11 +569,11 @@ class VirtualMeshAdapter(BaseSerialAdapter):
         else:
             is_direct = False
             if channel_idx == 0:
-                target_node = self.node_alpha
+                target_node = self.node_bravo
             elif channel_idx == 1:
                 target_node = self.node_bravo
             else:
-                target_node = self.node_alpha
+                target_node = self.node_bravo
 
         exp_ack = f"{(int(time.time() * 1000) ^ (hash(text) & 0xffffffff)) & 0xffffffff:08x}" if is_direct else None
         if target_node:
@@ -576,7 +591,7 @@ class VirtualMeshAdapter(BaseSerialAdapter):
 
         return {
             "status": "ok",
-            "delivered": True,
+            "delivered": False,
             "target": target or "broadcast",
             "channel": channel_idx,
             "expected_ack": exp_ack,
@@ -584,8 +599,12 @@ class VirtualMeshAdapter(BaseSerialAdapter):
         }
 
     async def send_raw_companion_frame(self, data: bytes) -> bool:
-        """Procesa comandos crudos Companion recibidos desde app móvil o CLI y genera respuestas acordes."""
-        if not data:
+        """Emulate the documented read/message subset; unsupported commands return ERROR.
+
+        Synthetic identities are generated only for this simulator. They are not
+        padding rules for public keys received from a physical MeshCore network.
+        """
+        if not data or not self.is_connected:
             return False
 
         cmd_type = data[0]
@@ -593,10 +612,10 @@ class VirtualMeshAdapter(BaseSerialAdapter):
 
         # CMD_APP_START (1) -> Responder con SELF_INFO (5)
         if cmd_type == 1:
-            pubkey_bytes = bytes.fromhex("11223344556677889900aabbccddeeff11223344556677889900aabbccddeeff")
+            pubkey_bytes = bytes.fromhex(str(self.mc.self_info["public_key"]))
             lat_int = int(20.1520 * 1000000)
             lon_int = int(-75.1980 * 1000000)
-            freq = 915000000
+            freq = 915000
             bw = 250000
             sf = 11
             cr = 5
@@ -635,21 +654,26 @@ class VirtualMeshAdapter(BaseSerialAdapter):
                 contact_buf = bytearray([3])
                 raw_key = bytes.fromhex(node["key"].ljust(64, "0"))
                 contact_buf.extend(raw_key)
-                contact_buf.append(1 if node["role"] == "REPEATER" else 0)
-                contact_buf.append(0)
+                contact_buf.append({"CLIENT": 1, "REPEATER": 2, "ROOM": 3, "SENSOR": 4}.get(node["role"], 1))
+                contact_buf.extend(b"\x00\xff")  # flags, flood out_path_len
+                contact_buf.extend(bytes(64))
+                alias = node["alias"].encode("utf-8")[:31].decode("utf-8", "ignore").encode("utf-8")
+                contact_buf.extend(alias.ljust(32, b"\x00"))
                 contact_buf.extend(int(time.time()).to_bytes(4, "little"))
-                contact_buf.extend(node["alias"].encode("utf-8"))
+                contact_buf.extend(int(float(node["lat"]) * 1e6).to_bytes(4, "little", signed=True))
+                contact_buf.extend(int(float(node["lon"]) * 1e6).to_bytes(4, "little", signed=True))
+                contact_buf.extend(int(time.time()).to_bytes(4, "little"))
                 if self.companion_rx_callback:
                     self.companion_rx_callback(bytes(contact_buf))
 
-            end_pkt = bytearray([4])
+            end_pkt = bytearray([4]) + int(time.time()).to_bytes(4, "little")
             if self.companion_rx_callback:
                 self.companion_rx_callback(bytes(end_pkt))
             return True
 
         # CMD_GET_BATT_AND_STORAGE (20) -> BATTERY (12)
         if cmd_type == 20:
-            bat_pkt = bytearray([12]) + (4150).to_bytes(2, "little") + bytes([95])
+            bat_pkt = struct.pack("<BHII", 12, 4150, 0, 1024)
             if self.companion_rx_callback:
                 self.companion_rx_callback(bytes(bat_pkt))
             return True
@@ -663,39 +687,74 @@ class VirtualMeshAdapter(BaseSerialAdapter):
 
         # CMD_DEVICE_QUERY (22) -> DEVICE_INFO (13)
         if cmd_type == 22:
-            dev_pkt = bytearray([13]) + b"MeshCore Virtual Transceiver v1.6.0"
+            dev_pkt = (
+                bytes([13, 10, 64, max(self.channels, default=-1) + 1])
+                + bytes(4)  # virtual BLE PIN
+                + b"2026-09-30".ljust(12, b"\x00")
+                + b"MeshCore Virtual Transceiver".ljust(40, b"\x00")
+                + b"virtual-subset".ljust(20, b"\x00")
+                + b"\x00\x00"  # repeater mode, path hash mode
+            )
             if self.companion_rx_callback:
                 self.companion_rx_callback(bytes(dev_pkt))
             return True
 
         # CMD_GET_STATS (56) -> STATS (24)
         if cmd_type == 56:
-            stats_pkt = bytearray([24]) + int(time.time() - getattr(self, "_start_time", time.time())).to_bytes(4, "little")
+            subtype = data[1] if len(data) == 2 else -1
+            if subtype == 0:
+                stats_pkt = struct.pack("<BBHIHB", 24, 0, 4150, max(0, int(time.time() - self._start_time)), 0, 0)
+            elif subtype == 1:
+                stats_pkt = struct.pack("<BBhbbII", 24, 1, -118, -72, 48, 2, 5)
+            elif subtype == 2:
+                stats_pkt = struct.pack("<BBIIIIIII", 24, 2, 24, 15, 10, 5, 18, 6, 0)
+            else:
+                stats_pkt = b"\x01\x06"  # ERR_CODE_ILLEGAL_ARG
             if self.companion_rx_callback:
                 self.companion_rx_callback(bytes(stats_pkt))
             return True
 
         # CMD_SEND_TXT_MSG (2) o CMD_SEND_CHANNEL_TXT_MSG (3)
         if cmd_type in (2, 3):
-            ok_pkt = bytearray([6]) + int(time.time()).to_bytes(4, "little")
-            if self.companion_rx_callback:
-                self.companion_rx_callback(bytes(ok_pkt))
-
             try:
-                text_bytes = data[1:]
-                text = text_bytes.decode("utf-8", errors="ignore").strip()
-                if text:
-                    asyncio.create_task(
-                        self._simulate_echo_reply(self.node_alpha, text, channel_idx=0, is_direct=(cmd_type == 2))
-                    )
-            except Exception:
-                pass
+                if data[1] != 0:
+                    raise ValueError("Virtual administrative CLI is not emulated")
+                if cmd_type == 2:
+                    if len(data) < 14:
+                        raise ValueError("Truncated DM")
+                    target = data[7:13].hex()
+                    text = data[13:].decode("utf-8")
+                    result = await self.send_message(text, target)
+                else:
+                    if len(data) < 8:
+                        raise ValueError("Truncated channel message")
+                    text = data[7:].decode("utf-8")
+                    result = await self.send_message(text, channel_idx=data[2])
+                if str(result.get("status", "")).upper() == "ERROR":
+                    raise ValueError("Rejected virtual message")
+                if cmd_type == 2:
+                    ack = bytes.fromhex(str(result["expected_ack"]))
+                    response = b"\x06\x01" + ack + (1000).to_bytes(4, "little")
+                else:
+                    response = b"\x00"
+            except (ValueError, IndexError, UnicodeDecodeError):
+                response = b"\x01\x06"
+            if self.companion_rx_callback:
+                self.companion_rx_callback(response)
             return True
 
-        # Cualquier otro comando -> OK (0)
-        ok_pkt = bytearray([0]) + (0).to_bytes(4, "little")
+        if cmd_type == 10:
+            response = b"\x0a"  # NO_MORE_MSGS: simulator delivers RX through its event callback
+        elif cmd_type == 31 and len(data) == 2 and data[1] in self.channels:
+            channel = self.channels[data[1]]
+            name = str(channel["name"]).encode("utf-8")[:31].decode("utf-8", "ignore").encode("utf-8")
+            secret = str(channel.get("psk", ""))
+            key = bytes.fromhex(secret) if secret else hashlib.sha256(b"#public").digest()[:16]
+            response = bytes([18, data[1]]) + name.ljust(32, b"\x00") + key
+        else:
+            response = b"\x01\x02"  # ERR_CODE_UNSUPPORTED_CMD
         if self.companion_rx_callback:
-            self.companion_rx_callback(bytes(ok_pkt))
+            self.companion_rx_callback(response)
         return True
 
     async def _simulate_echo_reply(
@@ -800,6 +859,8 @@ class VirtualMeshAdapter(BaseSerialAdapter):
         """Genera un evento de anuncio de nodo descubierto."""
         event = {
             "type": "ADVERTISEMENT",
+            "role": node.get("role", "CLIENT"),
+            "adv_type": {"CLIENT": 1, "REPEATER": 2, "ROOM": 3, "SENSOR": 4}.get(str(node.get("role")), 1),
             "event_type": "node_discovered",
             "sender": node["key"],
             "public_key": node["key"],

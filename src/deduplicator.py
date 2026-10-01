@@ -35,7 +35,7 @@ class PacketDeduplicator:
 
     def _check_and_insert(self, key: str) -> bool:
         """Evalúa e inserta una clave en la ventana deslizante bajo protección de lock."""
-        now = time.time()
+        now = time.monotonic()
         self._prune(now)
 
         if key in self._cache:

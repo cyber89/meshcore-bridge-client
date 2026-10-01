@@ -8,9 +8,7 @@ dependencies = [
     "paho-mqtt>=2.1.0",
     "meshcore>=2.3.8",
     "pyserial>=3.5",
-    "pyserial-asyncio>=0.6",
     "python-dotenv>=1.0.1",
-    "pycayennelpp>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -30,6 +28,7 @@ dev = [
 pythonpath = ["."]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+norecursedirs = [".*", "build", "dist", "artifacts", "__pycache__"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]

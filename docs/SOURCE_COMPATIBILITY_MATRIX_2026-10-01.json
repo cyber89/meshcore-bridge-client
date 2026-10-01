@@ -1,0 +1,994 @@
+{
+  "recorded_at_utc": "2026-10-01T21:42:36.805750+00:00",
+  "source_count": 59,
+  "authority": "All src Python files inventoried structurally; domain/routers semantic inspection plus read-only targeted remainder inspection. No universal compatibility certification.",
+  "files": [
+    {
+      "path": "src/__init__.py",
+      "sha256": "2d08dedee38b806b4272802e726fd2165865f2528717297737e1975b9e9e3f16",
+      "python310_ast": "pass",
+      "review": "Canonical facade exports read; no independent transport implementation.",
+      "limitations": [],
+      "core_review": "Read complete package exports and version; no radio side effects added.",
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/__main__.py",
+      "sha256": "eb20fe0261c02e783893508a54f3fe733796eacc66c7403a8ed069311b91273b",
+      "python310_ast": "pass",
+      "review": "CLI entry point creates real bridge only under main guard; not executed during QA.",
+      "limitations": [],
+      "core_review": "Read complete CLI logging/bootstrap wrapper; actual lifecycle delegates bridge.run_forever.",
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/admin/__init__.py",
+      "sha256": "f8b2de790f8d8d10158e5d161574d542662e3f72e4fe46b00c2509855a9d6275",
+      "python310_ast": "pass",
+      "review": "Source changes reviewed by designated serial/admin agent; structural AST inventory only in this report.",
+      "limitations": [
+        "full-stack-certification"
+      ],
+      "scope": "admin"
+    },
+    {
+      "path": "src/admin/cli_command_executor.py",
+      "sha256": "150313aff6f27c548f0f7987696a2f7b2ec992992c91464641fa79069bb2853f",
+      "python310_ast": "pass",
+      "review": "Source changes reviewed by designated serial/admin agent; structural AST inventory only in this report.",
+      "limitations": [
+        "full-stack-certification"
+      ],
+      "scope": "admin"
+    },
+    {
+      "path": "src/admin/local_config_executor.py",
+      "sha256": "b137e1ee137e986ee96b7e58ad742d968046f46ac2f3bf95e7db52af61ce981a",
+      "python310_ast": "pass",
+      "review": "Source changes reviewed by designated serial/admin agent; structural AST inventory only in this report.",
+      "limitations": [
+        "full-stack-certification"
+      ],
+      "scope": "admin"
+    },
+    {
+      "path": "src/admin/repeater_executor.py",
+      "sha256": "815ae4c8a191bca782c5813776966602be13585eb07d91a70b798a2aa4b2d44f",
+      "python310_ast": "pass",
+      "review": "Source changes reviewed by designated serial/admin agent; structural AST inventory only in this report.",
+      "limitations": [
+        "full-stack-certification"
+      ],
+      "scope": "admin"
+    },
+    {
+      "path": "src/admin/sdk_commands.py",
+      "sha256": "11f908884be9126877f31c0aaa282b7e79849d72d1327f303aa1af7eab92209b",
+      "python310_ast": "pass",
+      "review": "Source changes reviewed by designated serial/admin agent; structural AST inventory only in this report.",
+      "limitations": [
+        "full-stack-certification"
+      ],
+      "scope": "admin"
+    },
+    {
+      "path": "src/admin/traceroute_executor.py",
+      "sha256": "9e3d432943f623022f5f7b6bcd20004b9ae2efe57adc943d48a9e71133c75f21",
+      "python310_ast": "pass",
+      "review": "Source changes reviewed by designated serial/admin agent; structural AST inventory only in this report.",
+      "limitations": [
+        "full-stack-certification"
+      ],
+      "scope": "admin"
+    },
+    {
+      "path": "src/admin_handler.py",
+      "sha256": "a14d3b13e2214d13228341745b7bfb714025424fd184871d1b2a95c8c09d06b2",
+      "python310_ast": "pass",
+      "review": "Facade/controller routing, TargetResolver usage and admin futures inspected selectively; source changes owned by principal/serial agent.",
+      "limitations": [],
+      "core_review": "Reviewed admin initialization, advert fallback, local setters and RF polling entry points; full final source review belongs principal.",
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/bridge_core.py",
+      "sha256": "b5c2835da862e9be1e040b7c0781dd135f19b4428d7c570f0a90f18d9805e947",
+      "python310_ast": "pass",
+      "review": "Initialization/state, pending ACK, TX invariants and start/stop paths inspected selectively; concurrent source work owned by principal/serial agent.",
+      "limitations": [],
+      "core_review": "Reviewed lifecycle, coreTX/ACK guards, task/thread broadcasts, bootstrap, properties/facades; final ownership and verification above.",
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/contact_manager.py",
+      "sha256": "23552d7e3cb740c8116478edcf125c78ba4c1e6aba3b19ecbaa0efd7c29ed295",
+      "python310_ast": "pass",
+      "review": "Canonical advertised roles; distinct full keys never merge by names; unique prefix lookup; full-key listing. Coherent locked persistence snapshot/generation preserves updates during atomic replacement; serialized writers prevent old snapshot overwrite; node removal marks dirty. Async facade retains to_thread.",
+      "limitations": [
+        "store-dirty-race"
+      ],
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/deduplicator.py",
+      "sha256": "aac49cfee7612d181d580d88174ad4d56610f1c67cd8871fb810772f58146a0d",
+      "python310_ast": "pass",
+      "review": "Full source read. Ordered bounded in-memory TTL cache under threading lock; no device/network interaction.",
+      "limitations": [
+        "dedup-wall-clock"
+      ],
+      "core_review": "Read complete source: atomic bounded OrderedDict dedup window with threading lock, no wire operations.",
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/diagnostics.py",
+      "sha256": "56321a6345d650b496eaba7e815041a9c077512f7b67cb2e9d22986f17c1f42f",
+      "python310_ast": "pass",
+      "review": "Logger/ring buffer/health/raw-tail paths inspected selectively. Log-level restriction owned by serial agent; no SDK hexdump certification by this review.",
+      "limitations": [],
+      "core_review": "Reviewed log emission/callback, diagnostic snapshots, mutable levels, export and file logging; final ownership and verification above.",
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/event_utils.py",
+      "sha256": "0fc225bb0a0464e3208a4bfbf8288657c43e9c564a294ff252b49de68310ee8b",
+      "python310_ast": "pass",
+      "review": "Full source read. Sender aliases (including nested payloads) normalized; display aliases are not authenticated identities.",
+      "limitations": [],
+      "core_review": "Read complete initial source: sender/name extraction only, no sends/timers.",
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/health_reporter.py",
+      "sha256": "1307e07f33228ac0f845dff34deca4a3952c511e3c66760fa523f514377a0921",
+      "python310_ast": "pass",
+      "review": "Full source read. Async sleep and MQTT-only snapshot publication; no RF polling.",
+      "limitations": [],
+      "core_review": "Read complete initial source; MQTT/serial healthy mismatch reproduced in earlier coreofficial suite; final edits owned principal.",
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/lqi_engine.py",
+      "sha256": "d86c1050f6def3bddc67c578d8505a6ad94fad980741e9c41085a22570edc87d",
+      "python310_ast": "pass",
+      "review": "Signal-weight/hop/EMA/time-decay formulas read fully. Project heuristic; no firmware opcode/layout and no radio transmissions.",
+      "limitations": [
+        "heuristic-lqi"
+      ],
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/mqtt_client.py",
+      "sha256": "5f499d676e6b8ec6f91d5d0883105dda25979be2623d2ce217bd93e3a3dd6aac",
+      "python310_ast": "pass",
+      "review": "Full source read. Paho VERSION2 callbacks, connect_async/thread loop, call_soon_threadsafe and bounded outgoing payload. stop joins thread; caller must offload.",
+      "limitations": [],
+      "core_review": "Read initial complete source including callbacks/thread-loop bridge and publish return codes; final edits/tests by principal, not independently certified here.",
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/mqtt_dispatcher.py",
+      "sha256": "c51a12ac437b7ae979986c6c88a3a5bc6c0be20cec5e080c1a00fec2977c33d0",
+      "python310_ast": "pass",
+      "review": "Malformed structured TX rejected without text fallback or credential echo; exact relative repeater target/cmd route supports multi-component configured topic prefixes. Fresh 13-prefail/16-pass evidence.",
+      "limitations": [],
+      "core_review": "Read initial complete source and identified envelope loss/duplicate fallback; final edits by principal, targeted integration included.",
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/packet_buffer.py",
+      "sha256": "6e55c1df7b52da944755a1462edef7fb0d6a6bfb1a18d111dffb4c3a5432af1c",
+      "python310_ast": "pass",
+      "review": "Full source read. Bounded deque, JSON/CSV/PCAP serializers. PCAP DLT_USER0 is bridge/custom data and synthetic text fallback; not official wire replay.",
+      "limitations": [
+        "sniffer-export"
+      ],
+      "core_review": "Read complete source: bounded in-memory snapshots and CSV/JSON/PCAP DLT_USER0 exports. Synthetic fallback payload is an export format, not a captured official radio frame.",
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/preflight.py",
+      "sha256": "ec5320afaf3273ca9633bb55ba980e85c18366c3c5e6a89c89d75d5f8507afec",
+      "python310_ast": "pass",
+      "review": "Check structure/socket probes and async to_thread facade inspected. QA fixture broker probe mocked and TCP binds loopback port0; no real probe performed.",
+      "limitations": [],
+      "core_review": "Read complete source including nonblocking wrapper and socket context cleanup; core calls use to_thread; leaf changes owned principal.",
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/protocol_types.py",
+      "sha256": "ee5a4a971a13ec2d1730dbc6a756d404bd06180a7c6161fa7a112a2f83770108",
+      "python310_ast": "pass",
+      "review": "Official enum values separated from custom AA55/ESC/CRC dataclasses. Outer and typed inner lengths enforced: exact fixed ACK/telemetry/advert sizes and text-length prefix. Private-key frame routing blocked.",
+      "limitations": [
+        "custom-typed-length"
+      ],
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/rate_limiter.py",
+      "sha256": "87faa765674ed0c6ae42ae6fa087163de326b06e0444ad5d7a5dbcb87a1d5496",
+      "python310_ast": "pass",
+      "review": "Full source read in chunks. Bounded queue/LOW eviction, future/cancellation paths, airtime formula, atomic persisted history, load/cutoff and worker spacing inspected.",
+      "limitations": [
+        "airtime-sync-io"
+      ],
+      "core_review": "Reviewed queue/worker, future cancellation, airtime persistence, reconstruction and accounting sections; final whole-file changes owned principal.",
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/repeater_manager.py",
+      "sha256": "df7271ac442a5be9204eef1f196f9fe5f3d20f2c13da84a97d14418d8b350492",
+      "python310_ast": "pass",
+      "review": "Cooldown, command builder and telemetry parsing sections read; official remote command execution owned by serial agent. Configured thresholds not changed.",
+      "limitations": [
+        "cooldown-memory"
+      ],
+      "core_review": "Read initial cooldown/build-command entry sections; mapping/parser bodies not fully audited by this agent; final assessment belongs principal.",
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/routers/__init__.py",
+      "sha256": "93e0f83e7c3df1fd997600baf0fae16804b9e50ddc03a621a3473e62f754ffe3",
+      "python310_ast": "pass",
+      "review": "Exports match handler modules; no protocol transformations.",
+      "limitations": [],
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/routers/advert_handler.py",
+      "sha256": "45eeb08c0556c491b271cddd9b4c8b9ac35a642ee3b822143a9dbefe1bc22aeb",
+      "python310_ast": "pass",
+      "review": "Official type overrides mutable name for contact adverts. SDK payload shapes and registry update flow inspected.",
+      "limitations": [
+        "numeric-validation"
+      ],
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/routers/base.py",
+      "sha256": "809e4493decc53c16a22607b4efb59b3d645c0af712fdd35797cff045bc0d80f",
+      "python310_ast": "pass",
+      "review": "Typed slotted message/meta data and handler Protocol; Python3.10 syntax compatible.",
+      "limitations": [],
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/routers/channel_handler.py",
+      "sha256": "0ff1d43d77e695fee22fca4e860f77f5a15ffdd7ed8b18f3f9babc5e6eb1c81d",
+      "python310_ast": "pass",
+      "review": "Dedicated channel text normalization/scheduling. Added explicit local-sender guard, symmetric with direct messages.",
+      "limitations": [],
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/routers/direct_handler.py",
+      "sha256": "7a81cb5e93e0f47aab816a9a6fe3150f02643e109d75882b7011f924a97f98e0",
+      "python310_ast": "pass",
+      "review": "Local-sender guard and common message dispatch inspected; no edits required.",
+      "limitations": [],
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/routers/repeater_handler.py",
+      "sha256": "41f0ea8fcc93ccd0548fc28cfe41e7bcd28187cfac170eec7fa78039bc385882",
+      "python310_ast": "pass",
+      "review": "Official reader ACK is four bytes encoded hex. Rejects zero/malformed/bool/out-of-range/local ACK; integer adapter representation uses LE bytes. Trace dispatch inspected.",
+      "limitations": [],
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/routers/system_handler.py",
+      "sha256": "ee1a52a0e8a9e15fe0e0486bc00ba490962542f645623c35e0caf27d051dd8f2",
+      "python310_ast": "pass",
+      "review": "Local CHANNEL_INFO does not publish channel secret. Structured system payload copied/redacted recursively before MQTT/WebSocket/log sinks.",
+      "limitations": [
+        "public-redaction-scope"
+      ],
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/routers/telemetry_handler.py",
+      "sha256": "a9f508073be152e70951852e80930709dfaf3c50bd535fbbad7102301f5b6ec6",
+      "python310_ast": "pass",
+      "review": "SDK log/metrics branches, remote packet accounting, and common telemetry dispatcher inspected; no role inferred by sensor values.",
+      "limitations": [
+        "numeric-validation"
+      ],
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/rx_router.py",
+      "sha256": "275b2949acffa08c310dbbc80ee8bad70fd5f280f504745683908a6f87247b23",
+      "python310_ast": "pass",
+      "review": "SDK event normalization, role/presence/chat/telemetry routing and raw dispatch inspected. Explicit PRIVATE_KEY event dropped before any public sink; invalid raw CRC blocked; mutable names no role authority.",
+      "limitations": [
+        "public-redaction-scope"
+      ],
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/sensor_decoder.py",
+      "sha256": "f575c178cf18edef62b296fbe6096fdd278665e8f3b33304bfa952df2f35cf08",
+      "python310_ast": "pass",
+      "review": "Known LPP scalar/multiaxis/GPS decoding compared with SDK dependency; gyrometer fixed. Unknown/truncated fields stop scanning instead of fabricating later readings.",
+      "limitations": [
+        "lpp-subset"
+      ],
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/serial/__init__.py",
+      "sha256": "03df74590b3076b3856a4572d9a854b91cab3943b68b63b330bac33471a98f2a",
+      "python310_ast": "pass",
+      "review": "Source changes reviewed by designated serial/admin agent; structural AST inventory only in this report.",
+      "limitations": [
+        "full-stack-certification"
+      ],
+      "scope": "serial"
+    },
+    {
+      "path": "src/serial/raw_framing.py",
+      "sha256": "c8e9b7b62c530089869c202a01cde7e77ca9c44751c94d45069a015a705604d7",
+      "python310_ast": "pass",
+      "review": "Source changes reviewed by designated serial/admin agent; structural AST inventory only in this report.",
+      "limitations": [
+        "full-stack-certification"
+      ],
+      "scope": "serial"
+    },
+    {
+      "path": "src/serial/sdk_adapter.py",
+      "sha256": "e2f6a679dc9596cc86e9a77eecadf4262723f12fbc821f4d8aa08f891f03031f",
+      "python310_ast": "pass",
+      "review": "Source changes reviewed by designated serial/admin agent; structural AST inventory only in this report.",
+      "limitations": [
+        "full-stack-certification"
+      ],
+      "scope": "serial"
+    },
+    {
+      "path": "src/serial/serial_base.py",
+      "sha256": "20c62fecaeb461cb123a70990e3d76e93cc3a42d514cbdf76790b39a4abad5bc",
+      "python310_ast": "pass",
+      "review": "Source changes reviewed by designated serial/admin agent; structural AST inventory only in this report.",
+      "limitations": [
+        "full-stack-certification"
+      ],
+      "scope": "serial"
+    },
+    {
+      "path": "src/serial/watchdog.py",
+      "sha256": "99d02db0a831cca0098764959d0af316ea4594bfadfd079d72b8f59eb5ad6a2d",
+      "python310_ast": "pass",
+      "review": "Source changes reviewed by designated serial/admin agent; structural AST inventory only in this report.",
+      "limitations": [
+        "full-stack-certification"
+      ],
+      "scope": "serial"
+    },
+    {
+      "path": "src/serial_driver.py",
+      "sha256": "42c1c6dc52a7c28da4730ae8ab710148bb378475333db23b4c06ac72904b4301",
+      "python310_ast": "pass",
+      "review": "Full facade read; delegates to serial package, no duplicate physical raw transport.",
+      "limitations": [],
+      "core_review": "Read complete facade exports; no additional transport implementation.",
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/shared_utils.py",
+      "sha256": "e6fada0d46f76fe4c8edabe9e602bc4d5d029637d0333b40a2a37e08478adead",
+      "python310_ast": "pass",
+      "review": "Advert roles derive from FirmwareAdvertType; name heuristic labelled presentation-only. Recursive public payload copies omit credential keys and hex encode bytes.",
+      "limitations": [
+        "numeric-validation",
+        "public-redaction-scope"
+      ],
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/target_resolver.py",
+      "sha256": "4378462471f4e61d302333b0d2519a9fee7993ff1ca33cf07c9a8083471147c1",
+      "python310_ast": "pass",
+      "review": "Exact/unique target lookup; rejects ambiguous name/prefix and unknown short keys; no zero padding. SDK dictionary enumerated before first-match helper.",
+      "limitations": [],
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/tcp_companion_server.py",
+      "sha256": "12f369d50de6f6ff7c064f887b2fa32518722235e35eb63474f458f69b96a345",
+      "python310_ast": "pass",
+      "review": "Structural/read-only integration inventory. Gateway response ownership/protocol fixes owned by principal, not independently certified here.",
+      "limitations": [
+        "full-stack-certification"
+      ],
+      "specialist_review": {
+        "file": "src/tcp_companion_server.py",
+        "python310_ast": "pass",
+        "functions": 10,
+        "reviewed": [
+          "Transaction lock selects one response owner; local response frames sent only to synchronously captured owner, pushes fan out.",
+          "Core/SDK gateway owns local/repeater guard and shared SDK lock; CONTACTS streaming and reboot fire-and-forget tested in separate gateway regressions.",
+          "Empty raw commands ignored; false/exception dispatch maps to ERROR frame; finally clears owner; client tasks tracked."
+        ],
+        "risks_and_limits": [
+          "Companion replies have no correlation identifier: stream ownership must remain coordinated with SDK gateway/core callbacks.",
+          "TCP optional token behavior retained; no new authentication policy added.",
+          "No real radio command was sent by this reviewer."
+        ]
+      },
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/virtual_mesh_adapter.py",
+      "sha256": "bb3a72424e08f396e3d2de742b918a068e974e2960a2cee6ff4fc9f9c14ac33b",
+      "python310_ast": "pass",
+      "review": "Structural/read-only inventory. Virtual protocol/advert and fixture fixes owned by principal; virtual behavior cannot prove real-radio interoperability.",
+      "limitations": [],
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/web/__init__.py",
+      "sha256": "e65b81ea405c2c6b9a441357ea18cd2fbf3dddac3d0bbcf5f61021ed86439b0b",
+      "python310_ast": "pass",
+      "review": "Facade exports read.",
+      "limitations": [],
+      "specialist_review": {
+        "file": "src/web/__init__.py",
+        "python310_ast": "pass",
+        "functions": 0,
+        "reviewed": [
+          "Router/server package exports inspected."
+        ],
+        "risks_and_limits": []
+      },
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/web/api_router.py",
+      "sha256": "c2f25a8790d3329258ee3178198246f9b8fa82bd46ce7a21472ae0f8474e9a4a",
+      "python310_ast": "pass",
+      "review": "REST routing/import/method/state/persistence sections inspected structurally and selectively; API regressions integrated by principal.",
+      "limitations": [],
+      "specialist_review": {
+        "file": "src/web/api_router.py",
+        "python310_ast": "pass",
+        "functions": 20,
+        "reviewed": [
+          "REST routes/aliases, pagination, websocket event projection and router shutdown inspected.",
+          "Map status/reload calls run in threads; owned background tasks tracked."
+        ],
+        "risks_and_limits": [
+          "Some schema/scalar conversion failures rely on router exception mapping; exhaustive OpenAPI schema conformance is not established."
+        ]
+      },
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/web/controllers/__init__.py",
+      "sha256": "213281a2fc5d7f387a12b3e78387e55ce1fb62b6a92424a8ec4a667d49b7773a",
+      "python310_ast": "pass",
+      "review": "Controller facade exports read.",
+      "limitations": [],
+      "specialist_review": {
+        "file": "src/web/controllers/__init__.py",
+        "python310_ast": "pass",
+        "functions": 0,
+        "reviewed": [
+          "Controller exports inspected."
+        ],
+        "risks_and_limits": []
+      },
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/web/controllers/base.py",
+      "sha256": "4a8f7086606fc219abaa2c3c0c3146a333114df9c65d66bc07f2ce66d8f45cd2",
+      "python310_ast": "pass",
+      "review": "Full source read. Problem details, shared SDK command failure mapping and serial mutation exceptions; principal owns source changes.",
+      "limitations": [],
+      "specialist_review": {
+        "file": "src/web/controllers/base.py",
+        "python310_ast": "pass",
+        "functions": 5,
+        "reviewed": [
+          "Shared Companion failure mapping handles missing responses, explicit failure status and official ERROR events.",
+          "Serial exceptions map to HTTP errors; firmware names enforce UTF8 31-byte bound and no control characters."
+        ],
+        "risks_and_limits": [
+          "Legacy statusless dictionaries/booleans remain accepted by shared mapper; this is compatibility behavior, not proof of SDK acknowledgement for arbitrary adapters."
+        ]
+      },
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/web/controllers/channels_controller.py",
+      "sha256": "53de61aed5995363f2c820d9393ede74e946fc5855df718dcdd268c9aad16755",
+      "python310_ast": "pass",
+      "review": "Atomic channel persistence/masking/export and serial mutation sections inspected selectively. Explicit channel exports intentionally disclose PSK to authenticated owner.",
+      "limitations": [],
+      "specialist_review": {
+        "file": "src/web/controllers/channels_controller.py",
+        "python310_ast": "pass",
+        "functions": 14,
+        "reviewed": [
+          "Create/delete require SDK acceptance before cache/disk mutation; lock serializes route mutations.",
+          "Names and PSK formats checked; export secret requires transport API-key gate."
+        ],
+        "risks_and_limits": [
+          "Synchronization read path catches exceptions and returns cached data; HTTP success for cached GET/sync is not a hardware liveness assertion.",
+          "Initial file loading is synchronous; durable atomic save and lifecycle follow-up owned by principal."
+        ]
+      },
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/web/controllers/config_controller.py",
+      "sha256": "f87779575fddc7de5c81d044f1048d9b436fbc62944ef8eeead8d315739af885",
+      "python310_ast": "pass",
+      "review": "Config/admin mutation failure propagation, parameters and async persistence inspected selectively; principal owns source changes.",
+      "limitations": [],
+      "specialist_review": {
+        "file": "src/web/controllers/config_controller.py",
+        "python310_ast": "pass",
+        "functions": 17,
+        "reviewed": [
+          "Configuration/admin wrappers check failure before reporting success and projecting local changes.",
+          "Local clock/stats operations require admin capability; reconnect verifies connection."
+        ],
+        "risks_and_limits": [
+          "Command result wrappers are verified using isolated adapters; real firmware unsupported capability/version behavior remains station-dependent."
+        ]
+      },
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/web/controllers/contacts_controller.py",
+      "sha256": "776eaa4f0028dc1d1449d6eac3228dbaa9b6e4053cb5ee5239768b960197919b",
+      "python310_ast": "pass",
+      "review": "Role/local rejection, SDK sync/URI import/export and async persistence sections inspected selectively; principal owns source changes.",
+      "limitations": [],
+      "specialist_review": {
+        "file": "src/web/controllers/contacts_controller.py",
+        "python310_ast": "pass",
+        "functions": 11,
+        "reviewed": [
+          "SDK rejection preserves registry for create/import/delete; full public keys and names checked.",
+          "Local/repeater exclusion and known-repeater role downgrade guard inspected; mutation lock serializes requests."
+        ],
+        "risks_and_limits": [
+          "Firmware binary import acknowledgement cannot itself prove the imported advert role without a subsequent SDK contact snapshot.",
+          "Mixed batch import can commit earlier acknowledged entries before a later error; this is partial progress, not whole-batch atomicity."
+        ]
+      },
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/web/controllers/logs_controller.py",
+      "sha256": "56f09077df876d6d77974792ce01e4b33d0315d1702f7a4e053d769cfdd22d4e",
+      "python310_ast": "pass",
+      "review": "Full source read. Paginated recent buffers, diagnostics reports, raw log to_thread; requires auth boundary in HTTP layer.",
+      "limitations": [],
+      "specialist_review": {
+        "file": "src/web/controllers/logs_controller.py",
+        "python310_ast": "pass",
+        "functions": 4,
+        "reviewed": [
+          "Memory logs/messages/telemetry and diagnostic export routes inspected; raw log download awaits existing bounded tail mechanism."
+        ],
+        "risks_and_limits": [
+          "Log/message contents are operational data, not a blanket sanitized-secret guarantee; downloads depend on existing HTTP API-key gate.",
+          "Raw/read diagnostics require targeted sanitization review before sharing outside trusted operators."
+        ]
+      },
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/web/controllers/nodes_controller.py",
+      "sha256": "9b4cf7074ae5dd8bf5648b25e8cc4aa84b3df321e6163d6f03b71d1ace322056",
+      "python310_ast": "pass",
+      "review": "Full source read. Node listing/analytics/reset/heatmap/airtime read models; metrics are project-derived, not official route proof.",
+      "limitations": [],
+      "specialist_review": {
+        "file": "src/web/controllers/nodes_controller.py",
+        "python310_ast": "pass",
+        "functions": 6,
+        "reviewed": [
+          "Unified node inventory/analytics intentionally include infrastructure; contact lists have separate domain filtering."
+        ],
+        "risks_and_limits": [
+          "Passive role rendering follows registry state; accuracy depends on official advert ingestion."
+        ]
+      },
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/web/controllers/packets_controller.py",
+      "sha256": "b7c13a5dff03a9f340a5b52c44a0bdb13c45f599d1c42a74c27144a3cb5d220e",
+      "python310_ast": "pass",
+      "review": "Full source read. Packet pagination/export/clear; no RF/network replay.",
+      "limitations": [
+        "sniffer-export"
+      ],
+      "specialist_review": {
+        "file": "src/web/controllers/packets_controller.py",
+        "python310_ast": "pass",
+        "functions": 3,
+        "reviewed": [
+          "RAM packet pagination and JSON/CSV/PCAP export inspected; exports do not initiate radio requests."
+        ],
+        "risks_and_limits": [
+          "PCAP export is a bridge representation, not independent evidence of on-air protocol interoperability."
+        ]
+      },
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/web/controllers/repeater_controller.py",
+      "sha256": "030e1a1507bff291260fab76cbb97cbd931b26e113ab958ebcae85520d3c2d04",
+      "python310_ast": "pass",
+      "review": "Remote admin/password/ping/traceroute routes and error propagation inspected selectively; principal owns source changes.",
+      "limitations": [],
+      "specialist_review": {
+        "file": "src/web/controllers/repeater_controller.py",
+        "python310_ast": "pass",
+        "functions": 13,
+        "reviewed": [
+          "Global and local admin error wrappers return error HTTP statuses.",
+          "Login authentication failure preserves401; explicit repeater administration remains allowed."
+        ],
+        "risks_and_limits": [
+          "No operational login, ping or traceroute was executed by this reviewer."
+        ]
+      },
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/web/controllers/system_controller.py",
+      "sha256": "c0b1667f405a35588a5214ff22893804a56e7aee34ffbd2ec868939c8f452731",
+      "python310_ast": "pass",
+      "review": "Full source read. Status/health/logs/preflight async thread facade; preflight on-demand performs network probes in actual use.",
+      "limitations": [],
+      "specialist_review": {
+        "file": "src/web/controllers/system_controller.py",
+        "python310_ast": "pass",
+        "functions": 6,
+        "reviewed": [
+          "Status/health are passive snapshots; preflight is distinct from normal health read."
+        ],
+        "risks_and_limits": [
+          "HTTP200 can contain degraded state; deployment must validate payload and serial/MQTT connection flags."
+        ]
+      },
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/web/controllers/tx_controller.py",
+      "sha256": "70c22e2d921d7b8319bdf9f5e253c84de5312b5b4672e1087055b58f92bcf3a5",
+      "python310_ast": "pass",
+      "review": "Full source read. Required explicit target, local/repeater guards, channel parse, queue timeout/no fallback on failure and command result mapping.",
+      "limitations": [],
+      "specialist_review": {
+        "file": "src/web/controllers/tx_controller.py",
+        "python310_ast": "pass",
+        "functions": 2,
+        "reviewed": [
+          "Local/repeater chat guards inspected.",
+          "Unavailable limiter and invalid admission result now return503 without direct execution; generic queue errors do not bypass queue.",
+          "Existing submission timeout and existing limiter settings retained."
+        ],
+        "risks_and_limits": [
+          "Admission can be Future/coroutine; the worker result still needs actual SDK confirmation in the underlying bridge."
+        ]
+      },
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/web/http_server.py",
+      "sha256": "7dcf63642cc3cc952bb75828cbfd152cd2613bda606ccf69e2de7ae5693c8d24",
+      "python310_ast": "pass",
+      "review": "Request size/auth/CORS/WebSocket/traversal/static and map-to_thread sections inspected selectively. Positive traversal boundaries, no complete security certification.",
+      "limitations": [],
+      "specialist_review": {
+        "file": "src/web/http_server.py",
+        "python310_ast": "pass",
+        "functions": 28,
+        "reviewed": [
+          "HTTP invalid length/unsupported transfer encoding/non-object JSON map to client errors; request reads are bounded.",
+          "WebSocket invalid mask/RSV/control/fragment frames rejected with1002; ping payload echoed.",
+          "Sensitive channel export read uses existing API-key gate; static SHA256 ETag retained; writer drains bounded."
+        ],
+        "risks_and_limits": [
+          "Absent BRIDGE_API_KEY retains existing development-mode authorization bypass; no new auth policy added.",
+          "WebSocket fragmentation is explicitly unsupported/rejected rather than implemented.",
+          "Existing CORS/LAN origin allowances are policy behavior, not comprehensive origin isolation."
+        ]
+      },
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/web/map_tile_service.py",
+      "sha256": "0cf837a8feb36265a287fabe60f22e50034367ef3b62ec6c18e6188ce6b99384",
+      "python310_ast": "pass",
+      "review": "Full source read. SQLite read-only URI, locked connection lifecycle, parameterized queries, XYZ boundaries and resolved containment; HTTP caller offloads tile reads.",
+      "limitations": [],
+      "specialist_review": {
+        "file": "src/web/map_tile_service.py",
+        "python310_ast": "pass",
+        "functions": 11,
+        "reviewed": [
+          "Loose tiles/MBTiles resolve within configured storage; SQLite read-only handles protected by RLock across read/reload/close.",
+          "HTTP/database reads moved to asyncio.to_thread."
+        ],
+        "risks_and_limits": [
+          "Symlink containment test skipped on this Windows account because symlink creation is unavailable; source inspection is not runtime proof for that case.",
+          "Cold startup file/database discovery still synchronous; real service performance was not profiled."
+        ]
+      },
+      "scope": "remaining src"
+    },
+    {
+      "path": "src/web/security_inspector.py",
+      "sha256": "b51fd77b5443002c7af47a521d353308ebb154650d361f54cff63d98d6016d78",
+      "python310_ast": "pass",
+      "review": "Ingress logging/signature/IP extraction/traversal sections inspected; signature checks are heuristics, not complete vulnerability coverage.",
+      "limitations": [
+        "proxy-attribution"
+      ],
+      "specialist_review": {
+        "file": "src/web/security_inspector.py",
+        "python310_ast": "pass",
+        "functions": 8,
+        "reviewed": [
+          "Traversal/scanner/injection rules inspected; suspicious log query credentials redacted heuristically and CR/LF escaped.",
+          "Socket peer determines client address; untrusted XFF/XRealIP ignored; unavailable peer is unknown rather than fabricated loopback."
+        ],
+        "risks_and_limits": [
+          "Deployments behind a proxy now log the proxy peer address; a trusted-proxy policy is not implemented.",
+          "Heuristic scanning/redaction is not comprehensive input validation or guaranteed secret removal."
+        ]
+      },
+      "scope": "remaining src"
+    }
+  ],
+  "limitations_and_findings": [
+    {
+      "id": "store-dirty-race",
+      "paths": [
+        "src/contact_manager.py"
+      ],
+      "evidence": "Observed dirty lost after update during paused Path.replace; node removal also skipped next non-forced save. Fixed generation/coherent snapshot under registry lock, serialized writer lock and dirty mark on removal. Two isolated regressions pass.",
+      "status": "reproduced-and-fixed",
+      "limit": "Filesystem failures still return False; crash/fsync durability and external multi-process writers not certified."
+    },
+    {
+      "id": "airtime-sync-io",
+      "paths": [
+        "src/rate_limiter.py"
+      ],
+      "evidence": "Record snapshots on loop, serialized atomic writer via asyncio.to_thread, owned drain task and awaited shutdown flush; targeted22 pass. Existing10second throttle unchanged.",
+      "status": "reproduced-and-fixed",
+      "limit": "Atomic replace is not fsync/crash-durability proof; startup reads remain synchronous before the service runs."
+    },
+    {
+      "id": "cooldown-memory",
+      "paths": [
+        "src/repeater_manager.py"
+      ],
+      "evidence": "_last_cmd_ts/_last_full_telemetry_ts/_last_ping_ts/_last_traceroute_ts dictionaries are monotonic memory-only.",
+      "status": "static-observation",
+      "limit": "Restart resets cooldown history; on-demand command rate policy belongs to user, thresholds not changed."
+    },
+    {
+      "id": "dedup-wall-clock",
+      "paths": [
+        "src/deduplicator.py"
+      ],
+      "evidence": "Backward/forward wall-clock jumps reproduced wrong expiration/duplicate outcomes. Fixed time.monotonic elapsed TTL; both virtual clock regressions pass.",
+      "status": "reproduced-and-fixed",
+      "limit": "Window and max-entry policy unchanged; dedup cache intentionally not persisted across process restart."
+    },
+    {
+      "id": "lpp-subset",
+      "paths": [
+        "src/sensor_decoder.py"
+      ],
+      "evidence": "SDK lpp_json_encoder lists additional 100,117,118,121,122,125,128,130,131,132,133,135,142 types; bridge handles subset plus gyro.",
+      "status": "explicit-supported-subset",
+      "limit": "Unknown data now stops safely, but full extended LPP interoperability is not claimed."
+    },
+    {
+      "id": "custom-typed-length",
+      "paths": [
+        "src/protocol_types.py"
+      ],
+      "evidence": "Five new prefail regressions reproduce inner text truncation/trailing data and fixed ACK/telemetry/advert trailing bytes. Exact typed length checks now reject all five.",
+      "status": "reproduced-and-fixed",
+      "limit": "These models remain custom, not Companion UART layouts; firmware version serialization and UTF8 truncation policies are custom-format limitations."
+    },
+    {
+      "id": "heuristic-lqi",
+      "paths": [
+        "src/lqi_engine.py"
+      ],
+      "evidence": "Weights, hop penalty, EMA and age decay are project policy; no official firmware LQI field.",
+      "status": "project-metric",
+      "limit": "No RF calibration, throughput, airtime or accuracy measurement performed."
+    },
+    {
+      "id": "sniffer-export",
+      "paths": [
+        "src/packet_buffer.py",
+        "src/web/controllers/packets_controller.py"
+      ],
+      "evidence": "Six CSV formula regressions failed before and13packet/export cases pass after escaping textcells; original buffered text unchanged.",
+      "status": "formula-export-reproduced-and-fixed; custom-PCAP-limit-retained",
+      "limit": "PCAP DLT_USER0 is a container, not an official MeshCore dissector or general RF replay format."
+    },
+    {
+      "id": "proxy-attribution",
+      "paths": [
+        "src/web/security_inspector.py"
+      ],
+      "evidence": "Only socketpeer accepted;3forged-header/unknown-peer regressions reproduced and fixed.",
+      "status": "reproduced-and-fixed",
+      "limit": "Reverse-proxy requests are attributed to the proxy peer; no trusted-proxy policy added."
+    },
+    {
+      "id": "numeric-validation",
+      "paths": [
+        "src/shared_utils.py",
+        "src/rx_router.py",
+        "src/routers/telemetry_handler.py",
+        "src/routers/advert_handler.py"
+      ],
+      "evidence": "23 clean prefails reproduced NaN/infinity/overflow, poisoned RSSI/SNR, wrong latitude bounds, zero-axis exclusion/no-GPS and clock jumps. 29 new cases now pass, including SDK NEW_CONTACT/RX_LOG_DATA ingress. 114 affected tests pass.",
+      "status": "reproduced-and-fixed",
+      "limit": "Validated latitude +/-90, longitude +/-180 and equator/meridian when other coordinate is nonzero; firmware (0,0) absence preserved. Numeric policy is not RF calibration."
+    },
+    {
+      "id": "public-redaction-scope",
+      "paths": [
+        "src/shared_utils.py",
+        "src/rx_router.py",
+        "src/routers/system_handler.py"
+      ],
+      "evidence": "Known credential field keys recursively omitted, explicit PRIVATE_KEY SDK responses dropped.",
+      "status": "fixed-known-secret-paths",
+      "limit": "Free-text commands, opaque encrypted/log raw bytes, arbitrary field aliases and vendor logs require separate security review; no generic secret detector claim."
+    },
+    {
+      "id": "full-stack-certification",
+      "paths": [
+        "src/serial",
+        "src/admin",
+        "src/tcp_companion_server.py"
+      ],
+      "evidence": "Hardware transmission forbidden for isolated QA; official references and virtual regressions only.",
+      "status": "unverified-real-hardware",
+      "limit": "No 100% compatibility certification for every firmware version, encryption mode, radio, network or transport."
+    }
+  ],
+  "phase_results": {
+    "domain": {
+      "domain_prefail": {
+        "failed": 32,
+        "passed": 5,
+        "junit": "tests/artifacts/audit-20260930-baseline/domain-before.xml"
+      },
+      "domain_after": {
+        "passed": 37,
+        "failed": 0,
+        "junit": "tests/artifacts/audit-20260930-baseline/domain-after.xml"
+      },
+      "domain_static": {
+        "ruff": "pass",
+        "mypy_strict": "pass, 15 files"
+      },
+      "mqtt_prefail": {
+        "failed": 13,
+        "passed": 3,
+        "junit": "tests/artifacts/audit-20260930-baseline/mqtt-before.xml"
+      },
+      "mqtt_after": {
+        "passed": 16,
+        "failed": 0,
+        "junit": "tests/artifacts/audit-20260930-baseline/mqtt-after.xml"
+      },
+      "mqtt_static": {
+        "ruff": "pass",
+        "mypy_strict": "pass, 1 file"
+      },
+      "persistence_and_typed_prefail": {
+        "failed": 7,
+        "passed": 0,
+        "junit": "tests/artifacts/audit-20260930-baseline/persistence-typed-before.xml"
+      },
+      "persistence_and_typed_after": {
+        "failed": 0,
+        "passed": 44,
+        "junit": "tests/artifacts/audit-20260930-baseline/persistence-typed-after.xml",
+        "scope": "42 domain tests + 2 persistence tests; includes initial 37 domain regressions"
+      },
+      "persistence_and_typed_static": {
+        "ruff": "pass",
+        "mypy_strict": "pass, 2 source files"
+      },
+      "numeric_clock_prefail": {
+        "failed": 23,
+        "passed": 6,
+        "junit": "tests/artifacts/audit-20260930-baseline/numeric-clock-prefail.xml",
+        "note": "Two earlier iterations retained separately: test fixture mistakenly named NEW_ADVERT and omitted new register_task hook; these are not used as production defect evidence."
+      },
+      "numeric_clock_after": {
+        "failed": 0,
+        "passed": 29,
+        "junit": "tests/artifacts/audit-20260930-baseline/numeric-clock-after.xml"
+      },
+      "numeric_clock_targeted": {
+        "failed": 0,
+        "passed": 114,
+        "junit": "tests/artifacts/audit-20260930-baseline/numeric-clock-targeted.xml"
+      },
+      "numeric_clock_static": {
+        "ruff": "pass",
+        "mypy_strict": "pass, 5 source files"
+      },
+      "full_suite": "Not rerun concurrently in this phase; principal owns final combined verification.",
+      "browser": "No browser run in this phase; separate baseline browser evidence previously delivered.",
+      "official_source_inspector": "tests/artifacts/audit-20260930-baseline/domain-reference-inspector.json",
+      "inspector_limit": "Regex C extraction/Python AST is structural evidence only, not ABI/padding or radio interoperability."
+    },
+    "web": {
+      "fixture_integration": {
+        "passed": 71,
+        "failed": 0,
+        "junit": "tests/artifacts/audit-20261001-web-fixture-integration.xml"
+      },
+      "remaining_tx_bypass_prefail": {
+        "failed": 3,
+        "junit": "tests/artifacts/audit-20261001-tx-admission-prefail.xml"
+      },
+      "web_and_fixture_postpass": {
+        "passed": 119,
+        "failed": 0,
+        "skipped": 1,
+        "junit": "tests/artifacts/audit-20261001-web-final-postpass.xml"
+      },
+      "client_ip_spoof_prefail": {
+        "failed": 3,
+        "junit": "tests/artifacts/audit-20261001-client-ip-prefail.xml"
+      },
+      "ruff": "Six edited controller/test files pass",
+      "limits": [
+        "This report is not a full-suite result.",
+        "No real station, radio or production broker contacted by this reviewer.",
+        "AST, source inspection and isolated mocks do not establish100% interoperability or complete security."
+      ]
+    },
+    "core": [
+      {
+        "command": ".venv/Scripts/python.exe -m pytest tests/test_core_lifecycle_regressions.py tests/test_core_official_compatibility.py tests/test_bridge_core_comprehensive.py tests/test_diagnostics.py tests/test_diagnostics_export.py tests/test_mqtt_dispatcher_regressions.py tests/test_tcp_companion_server.py --no-cov -p no:cacheprovider --basetemp scratch/pytest-lifecycle-raw-final --junitxml scratch/core-lifecycle-targeted-final.xml -q",
+        "passed": 71,
+        "failed": 0,
+        "seconds": 1.76,
+        "new_cases": 19
+      },
+      {
+        "command": ".venv/Scripts/python.exe -m ruff check src/bridge_core.py src/diagnostics.py tests/test_core_lifecycle_regressions.py",
+        "result": "pass"
+      },
+      {
+        "command": ".venv/Scripts/python.exe -m mypy --strict src/bridge_core.py src/diagnostics.py",
+        "result": "pass 2sourcefiles"
+      },
+      {
+        "command": "git diff --check -- src/bridge_core.py src/diagnostics.py tests/test_core_lifecycle_regressions.py",
+        "result": "pass"
+      }
+    ]
+  },
+  "integration_status": "661passed/1Windows-symlinkskip; mypy59/Ruff/docs44 passed on exact selected source/tests; reporting updated afterward without source changes.",
+  "hash_basis": "Exact publication Git archive source bytes; may differ from Windows working-copy CRLF."
+}

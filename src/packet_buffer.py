@@ -1,6 +1,7 @@
 """
 PacketBuffer: Búfer circular en RAM para tramas LoRa con generadores de exportación
-(PCAP estándar compatible con Wireshark, CSV tabular y JSON estructurado).
+(contenedor PCAP DLT_USER0, CSV tabular y JSON estructurado).
+DLT_USER0 no define un dissector ni acredita captura/replay RF de MeshCore.
 """
 
 from __future__ import annotations
@@ -209,7 +210,7 @@ class PacketBuffer:
         ])
 
         for p in self._buffer:
-            writer.writerow([
+            row: list[Any] = [
                 p.packet_id,
                 p.iso_time,
                 f"{p.timestamp:.4f}",
@@ -225,6 +226,10 @@ class PacketBuffer:
                 p.size_bytes,
                 p.text.replace("\n", " ").replace("\r", ""),
                 p.raw_bytes.hex(),
+            ]
+            writer.writerow([
+                "'" + value if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")) else value
+                for value in row
             ])
 
         return output.getvalue()

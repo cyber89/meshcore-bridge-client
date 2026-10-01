@@ -7,7 +7,7 @@ sin fugas de memoria, bloqueos ni excepciones no controladas.
 import asyncio
 import time
 import unittest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import config
 from meshcore_bridge import MeshCoreBridge
@@ -91,7 +91,6 @@ class TestStressFlood(unittest.TestCase):
     def test_flood_tx_queue_processing(self):
         """Encola 50 órdenes TX y verifica que se procesen sin pérdidas ni fallos."""
         async def run_stress_tx():
-            config.TX_INTERVAL_SEC = 0.0001  # Acelerar intervalo para el test
             self.bridge.rate_limiter.tx_interval_sec = 0.0001
             self.bridge.rate_limiter._running = True
             self.bridge.serial_adapter.is_connected = True
@@ -116,7 +115,8 @@ class TestStressFlood(unittest.TestCase):
             self.assertEqual(self.bridge.tx_count, 50, "Las 50 órdenes TX deben haber sido transmitidas con éxito")
             self.assertEqual(self.bridge.tx_error_count, 0, "No debe haber errores de transmisión")
 
-        self.loop.run_until_complete(run_stress_tx())
+        with patch.object(config, "TX_INTERVAL_SEC", 0.0001):
+            self.loop.run_until_complete(run_stress_tx())
 
 
 if __name__ == "__main__":

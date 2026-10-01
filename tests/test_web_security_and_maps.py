@@ -30,11 +30,11 @@ class TestSecurityTrafficInspector(unittest.TestCase):
         ip2 = SecurityTrafficInspector.extract_client_ip(
             mock_writer, {"x-forwarded-for": "203.0.113.195, 70.41.3.18, 150.172.238.178"}
         )
-        self.assertEqual(ip2, "203.0.113.195")
+        self.assertEqual(ip2, "192.168.1.100")
 
         # 3. Con X-Real-IP
         ip3 = SecurityTrafficInspector.extract_client_ip(mock_writer, {"x-real-ip": "198.51.100.22"})
-        self.assertEqual(ip3, "198.51.100.22")
+        self.assertEqual(ip3, "192.168.1.100")
 
         # 4. Limpieza de notación IPv4 mapeada en IPv6
         mock_writer.get_extra_info.return_value = ("::ffff:10.0.0.5", 12345)

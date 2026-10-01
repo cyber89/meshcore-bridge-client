@@ -26,6 +26,7 @@ class MqttInboundContext:
     mqtt: AsyncBridgeMQTTClient
     rate_limiter: TxRateLimiter
     handle_admin: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
+    register_task: Callable[[asyncio.Task[Any]], asyncio.Task[Any]] | None = None
 
 
 class MqttInboundDispatcher:
@@ -36,13 +37,30 @@ class MqttInboundDispatcher:
 
     def handle_incoming(self, topic: str, payload_str: str) -> None:
         """Punto de entrada sincrónico que programa el procesamiento asíncrono."""
+        def schedule() -> None:
+            if loop.is_closed():
+                return
+            task = loop.create_task(self._process_mqtt_input(topic, payload_str))
+            if self._ctx.register_task is not None:
+                self._ctx.register_task(task)
+            else:
+                self._ctx.background_tasks.add(task)
+                task.add_done_callback(self._ctx.background_tasks.discard)
+
         try:
             loop = self._ctx.loop or asyncio.get_running_loop()
-            task = loop.create_task(self._process_mqtt_input(topic, payload_str))
-            self._ctx.background_tasks.add(task)
-            task.add_done_callback(self._ctx.background_tasks.discard)
-        except RuntimeError as e:
-            logging.error(f"No se pudo programar procesamiento de mensaje MQTT entrante ({topic}): {e}")
+            if loop.is_closed():
+                return
+            try:
+                running = asyncio.get_running_loop()
+            except RuntimeError:
+                running = None
+            if running is loop:
+                schedule()
+            else:
+                loop.call_soon_threadsafe(schedule)
+        except RuntimeError:
+            logging.error("No se pudo programar procesamiento MQTT")
 
     async def _process_mqtt_input(self, topic: str, payload_str: str) -> None:
         """Clasifica el tópico entrante y delega en el manejador correspondiente."""
@@ -51,19 +69,18 @@ class MqttInboundDispatcher:
                 await self._handle_tx_request(payload_str)
             elif topic == self._ctx.mqtt.topic_admin_cmd:
                 await self._handle_admin_request(payload_str)
-            elif topic.startswith(config.TOPIC_ADMIN_REPEATER):
-                # Extraer prefijo de nodo: {prefix}/admin/repeater/{target_node}/cmd
-                parts = topic.split("/")
-                target_node = parts[3] if len(parts) > 3 else "repeater"
+            elif topic.startswith(config.TOPIC_ADMIN_REPEATER.rstrip("/") + "/"):
+                relative = topic[len(config.TOPIC_ADMIN_REPEATER.rstrip("/")) + 1:].split("/")
+                if len(relative) != 2 or not relative[0] or relative[1] != "cmd":
+                    return
+                target_node = relative[0]
                 try:
                     data = json.loads(payload_str)
-                    if isinstance(data, dict):
-                        data["target_node"] = target_node
-                        await self._ctx.handle_admin(data)
-                    else:
-                        await self._ctx.handle_admin({"action": str(data), "target_node": target_node})
-                except Exception:
-                    await self._ctx.handle_admin({"action": payload_str, "target_node": target_node})
+                except json.JSONDecodeError:
+                    data = payload_str
+                command = dict(data) if isinstance(data, dict) else {"action": str(data)}
+                command["target_node"] = target_node
+                await self._ctx.handle_admin(command)
         except Exception as e:
             logging.error(f"Error procesando mensaje MQTT entrante ({topic}): {e}", exc_info=True)
 
@@ -77,18 +94,37 @@ class MqttInboundDispatcher:
 
         try:
             data = json.loads(payload_str)
+        except json.JSONDecodeError:
+            if payload_str.lstrip().startswith(("{", "[")):
+                self._reject_tx_input("Solicitud JSON de transmisión inválida")
+                return
+            data = payload_str
+
+        try:
             if isinstance(data, dict):
-                text = str(data.get("text", data.get("message", "")))
+                raw_text = data.get("text", data.get("message", ""))
+                if not isinstance(raw_text, str):
+                    raise ValueError("El texto debe ser una cadena")
+                text = raw_text
                 target = data.get("dest_node_id", data.get("target", data.get("to", data.get("recipient"))))
+                if target is not None and not isinstance(target, str):
+                    raise ValueError("El destino debe ser una cadena")
                 raw_ch = data.get("channel_idx", data.get("channel_index", data.get("channel", 0)))
+                if isinstance(raw_ch, bool) or not isinstance(raw_ch, (str, int, type(None))):
+                    raise ValueError("El canal debe ser un entero")
                 channel_idx = int(raw_ch) if raw_ch is not None else 0
                 req_id = data.get("request_id", data.get("id"))
                 prio_val = data.get("priority", 1)
                 priority = TxPriority(prio_val) if prio_val in (0, 1, 2) else TxPriority.NORMAL
+            elif isinstance(data, str):
+                text = data
             else:
-                text = str(data)
-        except (json.JSONDecodeError, ValueError):
-            text = payload_str
+                raise ValueError("La transmisión debe ser texto o un objeto JSON")
+        except (ValueError, TypeError):
+            # Invalid control objects never become chat text, which could leak
+            # credentials or transmit to the default broadcast destination.
+            self._reject_tx_input("Campos de transmisión inválidos")
+            return
 
         if not text:
             return
@@ -116,6 +152,7 @@ class MqttInboundDispatcher:
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
             self._ctx.mqtt.publish_safe(config.TOPIC_TX_STATUS, json.dumps(status_payload), qos=1)
+
         except asyncio.TimeoutError:
             logging.error("TX future timeout, activating diagnostic alert")
             status_payload = {
@@ -139,19 +176,19 @@ class MqttInboundDispatcher:
             }
             self._ctx.mqtt.publish_safe(config.TOPIC_TX_STATUS, json.dumps(status_payload), qos=1)
 
+    def _reject_tx_input(self, error: str) -> None:
+        self._ctx.mqtt.publish_safe(config.TOPIC_TX_STATUS, json.dumps({
+            "status": "error", "error": error,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }), qos=1)
+
     async def _handle_admin_request(self, payload_str: str) -> None:
         """Ejecuta comandos de administración sobre el hardware."""
-        action = ""
-        params: dict[str, Any] = {}
         try:
             data = json.loads(payload_str)
-            if isinstance(data, dict):
-                action = str(data.get("action", data.get("command", "")))
-                params = data.get("params", data)
-            else:
-                action = str(data)
-        except Exception:
-            action = payload_str
-
-        logging.info(f"[MQTT-ADMIN-IN] Comando admin recibido vía MQTT: '{action}'")
-        await self._ctx.handle_admin(params if isinstance(params, dict) else {"action": action})
+        except json.JSONDecodeError:
+            data = payload_str
+        command = dict(data) if isinstance(data, dict) else {"action": str(data)}
+        command.setdefault("action", command.get("command", ""))
+        logging.info("[MQTT-ADMIN-IN] Solicitud de administración recibida")
+        await self._ctx.handle_admin(command)

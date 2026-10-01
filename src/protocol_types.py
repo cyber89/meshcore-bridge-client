@@ -3,7 +3,10 @@ Protocol Types and Binary Data Contracts for MeshCore Bridge.
 Define dataclasses inmutables y tipadas con validación y serialización estricta.
 Single Source of Truth para el bridge y suites de pruebas.
 
-Aligned with official MeshCore SDK (meshcore_py/src/meshcore/packets.py).
+Enums reflect official firmware/SDK opcodes. FrameHeader, MeshcoreFrame and their
+typed payloads describe the bridge's custom in-memory AA/55/ESC/CRC format;
+they are neither Companion UART framing nor MeshCore over-the-air packets.
+Companion UART framing is managed by the official SDK.
 """
 
 from __future__ import annotations
@@ -240,7 +243,7 @@ def compute_crc16_ccitt(data: bytes, init: int = 0xFFFF, poly: int = 0x1021) -> 
 
 @dataclass(frozen=True)
 class FrameHeader:
-    """Cabecera de 9 Bytes de trama binaria MeshCore."""
+    """Cabecera de 9 bytes del formato raw propio del bridge."""
     packet_type: PacketType
     seq_num: int
     src_node_id: int
@@ -405,8 +408,8 @@ class TelemetryPayload:
 
     @classmethod
     def unpack(cls, data: bytes) -> TelemetryPayload:
-        if len(data) < 16:
-            raise ValueError(f"Payload de telemetría demasiado corto: {len(data)}B < 16B")
+        if len(data) != 16:
+            raise ValueError(f"Longitud de telemetría raw inválida: {len(data)}B != 16B")
         bat_mv, sol_mv, t_cdeg, h_pct, p_pa, snr, rssi, bat_pct = struct.unpack("<HHhhIbhB", data[:16])
         return cls(
             battery_mv=bat_mv,
@@ -440,6 +443,8 @@ class TextMessagePayload:
         if len(data) < 18:
             raise ValueError(f"Payload de texto demasiado corto: {len(data)}B < 18B")
         ch_idx, alias_raw, text_len = struct.unpack("<B16sB", data[:18])
+        if len(data) != 18 + text_len:
+            raise ValueError("Longitud de texto raw no coincide con su prefijo")
         alias = alias_raw.split(b"\x00", 1)[0].decode("utf-8", errors="replace")
         text = data[18: 18 + text_len].decode("utf-8", errors="replace")
         return cls(channel_idx=ch_idx, sender_alias=alias, text=text)
@@ -480,8 +485,8 @@ class NodeAdvertisement:
 
     @classmethod
     def unpack(cls, data: bytes) -> NodeAdvertisement:
-        if len(data) < 39:
-            raise ValueError(f"Payload de anuncio demasiado corto: {len(data)}B < 39B")
+        if len(data) != 39:
+            raise ValueError(f"Longitud de anuncio raw inválida: {len(data)}B != 39B")
         node_id, sname_raw, lname_raw, hw, fw, lat_e7, lon_e7, alt = struct.unpack("<H4s20sBHiih", data[:39])
         sname = sname_raw.split(b"\x00", 1)[0].decode("utf-8", errors="replace")
         lname = lname_raw.split(b"\x00", 1)[0].decode("utf-8", errors="replace")
@@ -508,7 +513,7 @@ class NodeAdvertisement:
 
 @dataclass(frozen=True)
 class AckPayload:
-    """Payload de confirmación / ACK (OpCode 0x07)."""
+    """ACK de dos bytes propio del bridge; no es el ACK Companion de cuatro bytes."""
     ack_seq_num: int
     status_code: int
 
@@ -517,8 +522,8 @@ class AckPayload:
 
     @classmethod
     def unpack(cls, data: bytes) -> AckPayload:
-        if len(data) < 2:
-            raise ValueError(f"Payload ACK demasiado corto: {len(data)}B < 2B")
+        if len(data) != 2:
+            raise ValueError(f"Longitud de ACK raw inválida: {len(data)}B != 2B")
         ack_seq, status = struct.unpack("<BB", data[:2])
         return cls(ack_seq_num=ack_seq, status_code=status)
 
@@ -533,7 +538,7 @@ ParsedPayload = (
 
 @dataclass(frozen=True)
 class MeshcoreFrame:
-    """Trama binaria completa y verificada de MeshCore."""
+    """Trama del formato raw propio; is_valid indica integridad CRC."""
     header: FrameHeader
     payload: ParsedPayload
     raw_payload: bytes
@@ -542,10 +547,12 @@ class MeshcoreFrame:
 
     def serialize(self) -> bytes:
         """Serializa la trama completa con framing SOF/EOF, byte stuffing y CRC-16."""
+        if len(self.raw_payload) != self.header.payload_len:
+            raise ValueError("Longitud del payload no coincide con la cabecera raw")
         header_bytes = self.header.pack()
         body = header_bytes + self.raw_payload
         crc_val = compute_crc16_ccitt(body)
-        # NOTE: CRC is serialized as big-endian (>H) while the header uses little-endian (<BB HH BH). This is intentional per the MeshCore wire format spec. Do NOT change.
+        # El formato raw propio usa CRC big-endian y cabecera little-endian.
         crc_bytes = struct.pack(">H", crc_val)
 
         # Aplicar Byte Stuffing
@@ -568,7 +575,7 @@ class MeshcoreFrame:
             raise ValueError(f"Trama truncada ({len(unescaped_body)}B)")
 
         data_to_crc = unescaped_body[:-CRC_SIZE_BYTES]
-        # NOTE: CRC is serialized as big-endian (>H) while the header uses little-endian (<BB HH BH). This is intentional per the MeshCore wire format spec. Do NOT change.
+        # El CRC big-endian pertenece al formato raw propio, no al wire oficial.
         crc_embedded = struct.unpack(">H", unescaped_body[-CRC_SIZE_BYTES:])[0]
         crc_calc = compute_crc16_ccitt(data_to_crc)
 
@@ -577,6 +584,8 @@ class MeshcoreFrame:
 
         is_valid = (crc_embedded == crc_calc)
         header = FrameHeader.unpack(data_to_crc[:HEADER_SIZE_BYTES])
+        if len(data_to_crc) != HEADER_SIZE_BYTES + header.payload_len:
+            raise ValueError("Longitud del payload no coincide con la cabecera raw")
         payload_data = data_to_crc[HEADER_SIZE_BYTES: HEADER_SIZE_BYTES + header.payload_len]
 
         payload: ParsedPayload

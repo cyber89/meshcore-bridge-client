@@ -1,0 +1,3 @@
+# Maintenance MCP only; never install these in the bridge production venv.
+mcp>=1.28,<2
+paramiko>=3.5,<5

@@ -135,11 +135,15 @@ def _decode_scalar_sensors(stream: io.BytesIO, channel: int, type_val: int, summ
 
 
 def _decode_multiaxis_or_gps(stream: io.BytesIO, channel: int, type_val: int, summary: dict[str, Any]) -> SensorReading | None:
-    if type_val == LppDataType.ACCELEROMETER:
+    if type_val in (LppDataType.ACCELEROMETER, LppDataType.GYROSCOPE):
         raw = stream.read(6)
         if len(raw) < 6:
             return None
         x, y, z = struct.unpack(">hhh", raw)
+        if type_val == LppDataType.GYROSCOPE:
+            gyroscope = {"x": x / 100.0, "y": y / 100.0, "z": z / 100.0}
+            summary[f"ch_{channel}_gyroscope_dps"] = gyroscope
+            return SensorReading(channel, type_val, "gyrometer", gyroscope, "°/s")
         val_accel = {"x": round(x * 0.001, 3), "y": round(y * 0.001, 3), "z": round(z * 0.001, 3)}
         summary[f"ch_{channel}_accel_g"] = val_accel
         return SensorReading(channel, type_val, "accelerometer", val_accel, "G")
@@ -189,13 +193,17 @@ class CayenneLPPDecoder:
                     reading = _decode_digital_io(stream, channel, type_val, summary)
                 elif type_val in (LppDataType.ANALOG_INPUT, LppDataType.ANALOG_OUTPUT):
                     reading = _decode_analog_io(stream, channel, type_val, summary)
-                elif type_val in (LppDataType.ACCELEROMETER, LppDataType.GPS_LOCATION):
+                elif type_val in (LppDataType.ACCELEROMETER, LppDataType.GYROSCOPE, LppDataType.GPS_LOCATION):
                     reading = _decode_multiaxis_or_gps(stream, channel, type_val, summary)
                 else:
                     reading = _decode_scalar_sensors(stream, channel, type_val, summary)
 
                 if reading is None:
                     reading = SensorReading(channel, type_val, "unknown", None, "")
+                    readings.append(reading)
+                    # Sin tamaño conocido no se puede encontrar el siguiente registro.
+                    # Un valor truncado tampoco constituye una lectura completa.
+                    break
 
                 readings.append(reading)
 

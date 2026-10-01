@@ -709,17 +709,17 @@ class WebAPIRouter:
     async def _dispatch_misc(self, method: str, raw_path: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Despacha servicios de mapas y visualización de diagnósticos históricos."""
         if clean_path == "/api/map/status" and method == "GET":
-            return 200, {"status": "ok", "data": self.map_tile_service.get_status()}
+            return 200, {"status": "ok", "data": await asyncio.to_thread(self.map_tile_service.get_status)}
 
         if clean_path == "/api/map/reload" and method in ("GET", "POST"):
             try:
-                self.map_tile_service.reload_mbtiles()
+                await asyncio.to_thread(self.map_tile_service.reload_mbtiles)
             except Exception as e:
                 logging.warning("Error recargando mosaicos de mapas: %s", e)
             return 200, {
                 "status": "ok",
                 "message": "Archivos MBTiles reindexados correctamente",
-                "data": self.map_tile_service.get_status(),
+                "data": await asyncio.to_thread(self.map_tile_service.get_status),
             }
 
         if clean_path in (

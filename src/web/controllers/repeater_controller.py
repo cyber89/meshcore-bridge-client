@@ -18,6 +18,9 @@ class RepeaterController(BaseController):
         """Ejecuta un comando de administración directa."""
         action = req_body.get("action")
         res = await self.ctx.bridge.handle_admin(req_body)
+        failure = self.command_failure(res)
+        if failure:
+            return failure
         self.ctx.log_system_event("INFO", f"Comando admin ejecutado: {action}", source="admin")
         out_msg = ""
         if isinstance(res, dict):
@@ -61,6 +64,11 @@ class RepeaterController(BaseController):
 
         cmd = {"action": "login", "target_node": target, "password": pwd}
         res = await self.ctx.bridge.handle_admin(cmd)
+        if isinstance(res, dict) and res.get("authenticated") is False:
+            return problem_details(401, "Unauthorized", "Autenticación no confirmada por el repetidor", "auth_failed", {"data": res})
+        failure = self.command_failure(res)
+        if failure:
+            return failure
         if res.get("status") == "error" or not res.get("authenticated", False):
             msg = res.get("message", "Contraseña incorrecta o sin respuesta del repetidor")
             self.ctx.log_system_event("WARN", f"Fallo de autenticación con repetidor {target}: {msg}", source="repeater_admin")

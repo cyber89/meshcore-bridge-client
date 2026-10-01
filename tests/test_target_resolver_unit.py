@@ -56,12 +56,11 @@ def test_target_resolver_registry_lookup() -> None:
     assert res_prefix == "112233445566"
 
 
-def test_target_resolver_hex_padding() -> None:
+def test_target_resolver_does_not_invent_key_bytes() -> None:
     resolver = TargetResolver()
     # Cadena hex corta de 6 caracteres con min_hex_len=12
-    padded = resolver.resolve("a1b2c3", min_hex_len=12)
-    assert padded == "a1b2c3000000"
-    assert len(padded) == 12
+    with pytest.raises(ValueError):
+        resolver.resolve("a1b2c3", min_hex_len=12)
 
 
 def test_target_resolver_raise_on_not_found() -> None:

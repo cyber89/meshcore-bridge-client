@@ -102,6 +102,12 @@ class CSourceInspector:
 
         return self.result
 
+    def _inspect_file(self, file_path: Path) -> None:
+        if file_path.suffix in (".h", ".hpp", ".c", ".cpp", ".ino"):
+            self._inspect_c_file(file_path)
+        elif file_path.suffix == ".py":
+            self._inspect_py_file(file_path)
+
     def _inspect_c_file(self, file_path: Path) -> None:
         try:
             content = file_path.read_text(encoding="utf-8", errors="replace")
@@ -112,7 +118,7 @@ class CSourceInspector:
         lines = content.splitlines()
 
         # 1. Extraer #define relevantes para protocolo, framing, buffers, opcodes
-        define_regex = re.compile(r"^\s*#define\s+([A-Za-z0-9_]+)\s+([^\/\n]+)", re.MULTILINE)
+        define_regex = re.compile(r"^[ \t]*#define[ \t]+([A-Za-z0-9_]+)[ \t]+([^\/\n]+)", re.MULTILINE)
         for match in define_regex.finditer(content):
             name = match.group(1).strip()
             val = match.group(2).strip()
@@ -245,7 +251,7 @@ class CSourceInspector:
 
 
 def format_markdown(res: InspectionResult) -> str:
-    out = ["# MeshCore AST & Protocol Inspection Summary\n"]
+    out = ["# MeshCore Source Inspection Summary\n", "Extracción heurística por regex. Los tamaños de structs son sumas estimadas de campos, sin acreditar ABI, padding, endianness ni layout wire. Cotejar con parsers oficiales.\n"]
     
     out.append(f"## 1. Framing & Protocol `#define` Constants ({len(res.defines)} encontradas)\n")
     if res.defines:

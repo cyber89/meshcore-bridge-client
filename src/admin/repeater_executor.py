@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -19,6 +20,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import config
+from src.admin.sdk_commands import require_success, run_sdk_command
 from src.contact_manager import (
     NodeContactUpdate,
     PacketRecord,
@@ -139,6 +141,12 @@ class RepeaterAdminExecutor:
         self._get_local_config = get_local_config or (lambda: {})
 
     async def execute(self, req: RemoteRepeaterRequest) -> dict[str, Any]:
+        try:
+            return await self._execute_request(req)
+        except Exception as error:
+            return {"status": "error", "target_node": str(req.target_node), "message": str(error)}
+
+    async def _execute_request(self, req: RemoteRepeaterRequest) -> dict[str, Any]:
         """Punto de entrada principal para despachar acciones sobre un repetidor remoto."""
         res = req.res if req.res is not None else {}
         res["target_node"] = req.target_node
@@ -148,13 +156,15 @@ class RepeaterAdminExecutor:
         )
 
         target_info = self._collect_target_info(str(req.target_node))
+        canonical_target = self._ctx.node_registry.get_canonical_key(str(req.target_node)) or str(req.target_node).strip().lower()
+        local_key = str(self._get_local_config().get("public_key", "")).strip().lower()
+        if self._ctx.node_registry.is_local_key(canonical_target) or (
+            local_key and canonical_target and (local_key.startswith(canonical_target) or canonical_target.startswith(local_key))
+        ):
+            return {"status": "error", "message": "Bucle local prohibido: el destino es la estación base"}
         is_client_only = bool(
             target_info
             and target_info.get("role") == "CLIENT"
-            and not (
-                "REPEATER" in str(target_info.get("name", "")).upper()
-                or str(target_info.get("name", "")).upper().startswith(("R-", "R1-", "R2-", "R3-", "REP-", "ROUTER-"))
-            )
         )
 
         if req.action in ("remote_repeater_set_config", "set_remote_config"):
@@ -193,24 +203,22 @@ class RepeaterAdminExecutor:
         dispatched: list[str] = []
 
         if req.password:
-            login_sent = False
-            if req.mc and hasattr(req.mc, "commands"):
-                dest_login_target = self._resolve_target(str(req.target_node), 64)
-                if hasattr(req.mc.commands, "send_login_sync"):
-                    try:
-                        await req.mc.commands.send_login_sync(dest_login_target, req.password, min_timeout=3.0)
-                        login_sent = True
-                    except Exception as e:
-                        logging.debug(f"send_login_sync en batch_config falló: {e}")
-                elif hasattr(req.mc.commands, "send_login"):
-                    try:
-                        await req.mc.commands.send_login(dest_login_target, req.password)
-                        login_sent = True
-                    except Exception as e:
-                        logging.debug(f"send_login en batch_config falló: {e}")
-            if not login_sent:
-                login_cmd = f"cmd login {req.password}"
-                await self._ctx.execute_tx({"to": str(req.target_node), "text": login_cmd, "request_id": req.req_id})
+            norm_target = self._ctx.node_registry.get_canonical_key(str(req.target_node)) or str(req.target_node).strip().lower()
+            waiter_keys = [norm_target, norm_target[:8], norm_target[:4], str(req.target_node).strip().lower()]
+            async with self._waiters.expect_response(waiter_keys) as fut:
+                rf_ctx = RfExecutionContext(
+                    req=req,
+                    dest_target=self._resolve_target(str(req.target_node), 12),
+                    dest_login_target=self._resolve_target(str(req.target_node), 12),
+                    waiter_keys=waiter_keys,
+                    fut=fut,
+                    res=res,
+                )
+                authenticated, message = await self._authenticate_repeater(rf_ctx, min_timeout=3.0)
+            if not authenticated:
+                res.update({"status": "error", "authenticated": False, "message": message, "dispatched_commands": []})
+                self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{req.target_node}/status", json.dumps(res), 1)
+                return res
             dispatched.append(f"login {'*' * len(req.password)}")
             await asyncio.sleep(0.35)
 
@@ -230,7 +238,7 @@ class RepeaterAdminExecutor:
                 if len(parts) > 1 and parts[1].strip() in ("5", "6", "7", "8"):
                     cr_num = int(parts[1].strip())
             radio_cmd = f"set radio {freq} {bw} {sf} {cr_num}"
-            await self._ctx.execute_tx({"to": str(req.target_node), "text": f"cmd {radio_cmd}", "request_id": req.req_id})
+            await self._send_rf_command(req.mc, self._resolve_target(str(req.target_node), 12), radio_cmd, str(req.target_node), req.req_id)
             dispatched.append(radio_cmd)
             await asyncio.sleep(0.35)
 
@@ -241,16 +249,17 @@ class RepeaterAdminExecutor:
                 continue
             cmd_str = self._ctx.repeater_manager.build_repeater_command_payload(f"set_{p_key}", {p_key: p_val})
             if cmd_str:
-                await self._ctx.execute_tx({"to": str(req.target_node), "text": f"cmd {cmd_str}", "request_id": req.req_id})
+                await self._send_rf_command(req.mc, self._resolve_target(str(req.target_node), 12), cmd_str, str(req.target_node), req.req_id)
                 dispatched.append(cmd_str)
                 await asyncio.sleep(0.35)
 
-        self._update_local_registry_from_params(str(req.target_node), params)
+        # MSG_SENT acknowledges local dispatch, not that the remote setting was applied.
+        res["status"] = "dispatched"
         res["dispatched_commands"] = dispatched
         self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{req.target_node}/status", json.dumps(res), 1)
         return res
 
-    def _update_local_registry_from_params(self, target_node: str, params: dict[str, Any]) -> None:
+    async def _update_local_registry_from_params(self, target_node: str, params: dict[str, Any]) -> None:
         """Actualiza inmediatamente los parámetros del repetidor en el registro local."""
         canon = self._ctx.node_registry.get_canonical_key(target_node) or target_node.strip().lower()
         owner_n = params.get("owner_name", params.get("name"))
@@ -310,7 +319,7 @@ class RepeaterAdminExecutor:
                 }
                 coro = self._ctx.web_server.broadcast_event(broadcast_data)
                 if asyncio.iscoroutine(coro):
-                    asyncio.create_task(coro)
+                    await coro
             except Exception:
                 pass
 
@@ -343,17 +352,26 @@ class RepeaterAdminExecutor:
             waiter_keys.append(str(target_info["name"]).lower())
 
         async with self._waiters.expect_response(waiter_keys, include_ping=True) as fut:
-            await self._ensure_radio_contact(
-                req.mc, dest_target, target_name, out_path_override="", out_path_len_override=0
-            )
+            contact_key = str(dest_target.get("public_key", "")) if isinstance(dest_target, dict) else str(dest_target)
+            cached = getattr(req.mc, "_contacts", {})
+            original = dict(cached[contact_key]) if isinstance(cached, dict) and contact_key in cached else None
+            try:
+                await self._ensure_radio_contact(
+                    req.mc, dest_target, target_name, out_path_override="", out_path_len_override=0
+                )
 
-            t_start = time.perf_counter()
-            cmd_text = "ping 0"
-            await self._send_rf_command(req.mc, dest_target, cmd_text, str(req.target_node), req.req_id)
-            if hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "record_ping_sent"):
-                self._ctx.repeater_manager.record_ping_sent(str(req.target_node))
+                t_start = time.perf_counter()
+                cmd_text = "ping 0"
+                await self._send_rf_command(req.mc, dest_target, cmd_text, str(req.target_node), req.req_id)
+                if hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "record_ping_sent"):
+                    self._ctx.repeater_manager.record_ping_sent(str(req.target_node))
 
-            resp_data = await self._wait_for_repeater_response(req.mc, fut, timeout=5.0) or {}
+                resp_data = await self._wait_for_repeater_response(req.mc, fut, timeout=5.0) or {}
+            finally:
+                if original is not None and cached.get(contact_key) != original:
+                    response = await run_sdk_command(self._ctx, req.mc, "add_contact", original)
+                    require_success(response, "add_contact")
+                    cached[contact_key] = original
 
         elapsed_rtt = round((time.perf_counter() - t_start) * 1000, 1)
         if resp_data:
@@ -427,7 +445,7 @@ class RepeaterAdminExecutor:
             self._ctx.repeater_manager.record_command_sent(str(req.target_node), is_full_query=True)
 
         dest_target = self._resolve_target(str(req.target_node), 12)
-        dest_login_target = self._resolve_target(str(req.target_node), 64)
+        dest_login_target = self._resolve_target(str(req.target_node), 12)
         norm_target = self._ctx.node_registry.get_canonical_key(str(req.target_node)) or str(req.target_node).strip().lower()
 
         waiter_keys = [norm_target, norm_target[:8], norm_target[:4], str(req.target_node).strip().lower()]
@@ -438,14 +456,13 @@ class RepeaterAdminExecutor:
         await self._ensure_radio_contact(req.mc, dest_target, target_name)
 
         if req.password:
-            login_cmd = f"login {req.password}"
-            if req.mc and hasattr(req.mc, "commands") and hasattr(req.mc.commands, "send_login"):
-                try:
-                    await req.mc.commands.send_login(dest_login_target, req.password)
-                except Exception:
-                    await self._send_rf_command(req.mc, dest_target, login_cmd, str(req.target_node), req.req_id)
-            else:
-                await self._send_rf_command(req.mc, dest_target, login_cmd, str(req.target_node), req.req_id)
+            async with self._waiters.expect_response(waiter_keys) as login_fut:
+                login_ctx = RfExecutionContext(req, dest_target, dest_login_target, waiter_keys, login_fut, res)
+                authenticated, message = await self._authenticate_repeater(login_ctx, min_timeout=4.0)
+            if not authenticated:
+                res.update({"status": "error", "authenticated": False, "message": message, "dispatched": []})
+                self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{norm_target}/telemetry", json.dumps(res), 1)
+                return res
             await asyncio.sleep(0.4)
 
         accumulated_telemetry: dict[str, Any] = {}
@@ -453,7 +470,7 @@ class RepeaterAdminExecutor:
         # 1. Consulta binaria directa de estado (RepeaterStats del firmware MeshCore)
         if req.mc and hasattr(req.mc, "commands") and hasattr(req.mc.commands, "req_status_sync"):
             try:
-                status_res = await req.mc.commands.req_status_sync(dest_login_target, timeout=4.0)
+                status_res = await run_sdk_command(self._ctx, req.mc, "req_status_sync", dest_login_target, timeout=4.0)
                 if status_res and isinstance(status_res, dict):
                     raw_bat = status_res.get("bat")
                     if raw_bat is not None:
@@ -492,7 +509,7 @@ class RepeaterAdminExecutor:
         # 2. Consulta binaria directa de telemetría / sensores LPP
         if req.mc and hasattr(req.mc, "commands") and hasattr(req.mc.commands, "req_telemetry_sync"):
             try:
-                lpp_res = await req.mc.commands.req_telemetry_sync(dest_login_target, timeout=3.5)
+                lpp_res = await run_sdk_command(self._ctx, req.mc, "req_telemetry_sync", dest_login_target, timeout=3.5)
                 if lpp_res:
                     from src.sensor_decoder import extract_telemetry_fields
                     decoded_lpp = extract_telemetry_fields({"lpp": lpp_res})
@@ -571,7 +588,7 @@ class RepeaterAdminExecutor:
                     try:
                         coro = self._ctx.web_server.broadcast_event(broadcast_data)
                         if asyncio.iscoroutine(coro):
-                            asyncio.create_task(coro)
+                            await coro
                     except Exception:
                         pass
 
@@ -595,7 +612,7 @@ class RepeaterAdminExecutor:
             return await self._execute_batch_telemetry_query(req, target_info, res)
 
         dest_target = self._resolve_target(str(req.target_node), 12)
-        dest_login_target = self._resolve_target(str(req.target_node), 64)
+        dest_login_target = self._resolve_target(str(req.target_node), 12)
         norm_target = self._ctx.node_registry.get_canonical_key(str(req.target_node)) or str(req.target_node).strip().lower()
 
         # Guarda contra bucle local (Regla Inmutable SSoT 1.1)
@@ -632,6 +649,17 @@ class RepeaterAdminExecutor:
                 "req_owner", "req_regions", "req_clock", "req_acl",
                 "req_status", "status", "req_telemetry", "telemetry",
             ):
+                allowed, remaining = self._ctx.repeater_manager.check_airtime_cooldown(str(req.target_node), is_full_query=False)
+                if not allowed:
+                    return self._ctx.repeater_manager.build_cooldown_error_response(remaining)
+                if req.password:
+                    authenticated, message = await self._authenticate_repeater(rf_ctx, min_timeout=4.0)
+                    if not authenticated:
+                        res.update({"status": "error", "authenticated": False, "message": message})
+                        return res
+                    # Auth completed; a fallback CLI must not log in again.
+                    req.password = ""
+                self._ctx.repeater_manager.record_command_sent(str(req.target_node), is_full_query=False)
                 bin_res = await self._try_execute_binary_or_anon(rf_ctx)
                 if bin_res is not None:
                     return bin_res
@@ -652,6 +680,20 @@ class RepeaterAdminExecutor:
         target = rf_ctx.dest_login_target
         cmds = mc.commands
 
+        supported_methods = {
+            "req_neighbours": "req_neighbours_sync", "req_neighbors": "req_neighbours_sync",
+            "neighbours": "req_neighbours_sync", "neighbors": "req_neighbours_sync",
+            "req_status": "req_status_sync", "status": "req_status_sync",
+            "req_telemetry": "req_telemetry_sync", "telemetry": "req_telemetry_sync",
+            "req_owner": "req_owner_sync", "owner": "req_owner_sync",
+            "req_regions": "req_regions_sync", "regions": "req_regions_sync",
+            "req_clock": "req_basic_sync", "clock": "req_basic_sync", "req_basic": "req_basic_sync",
+            "req_acl": "req_acl_sync", "acl": "req_acl_sync",
+        }
+        method = supported_methods.get(action)
+        if method is None or not hasattr(cmds, method):
+            return None
+
         try:
             data: Any = None
             if action in ("req_neighbours", "req_neighbors", "neighbours", "neighbors"):
@@ -667,7 +709,7 @@ class RepeaterAdminExecutor:
                         self._ctx.repeater_manager.record_neighbours_sent(str(rf_ctx.req.target_node))
                     count = int(rf_ctx.req.admin_data.get("count", 255))
                     offset = int(rf_ctx.req.admin_data.get("offset", 0))
-                    data = await cmds.req_neighbours_sync(target, count=count, offset=offset, min_timeout=4.0)
+                    data = await run_sdk_command(self._ctx, mc, "req_neighbours_sync", target, count=count, offset=offset, min_timeout=4.0)
                 if data is not None and isinstance(data, dict):
                     rf_ctx.res.update({
                         "status": "ok",
@@ -682,7 +724,7 @@ class RepeaterAdminExecutor:
                     return rf_ctx.res
 
             elif action in ("req_status", "status") and hasattr(cmds, "req_status_sync"):
-                data = await cmds.req_status_sync(target, min_timeout=4.0)
+                data = await run_sdk_command(self._ctx, mc, "req_status_sync", target, min_timeout=4.0)
                 if data is not None and isinstance(data, dict):
                     rf_ctx.res.update({
                         "status": "ok",
@@ -693,12 +735,12 @@ class RepeaterAdminExecutor:
                     })
                     if "telemetry" in data and isinstance(data["telemetry"], dict):
                         rf_ctx.res["telemetry"] = data["telemetry"]
-                        self._update_local_registry_from_params(str(rf_ctx.req.target_node), data["telemetry"])
+                        await self._update_local_registry_from_params(str(rf_ctx.req.target_node), data["telemetry"])
                     self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{rf_ctx.req.target_node}/status", json.dumps(rf_ctx.res), 1)
                     return rf_ctx.res
 
             elif action in ("req_telemetry", "telemetry") and hasattr(cmds, "req_telemetry_sync"):
-                data = await cmds.req_telemetry_sync(target, min_timeout=4.0)
+                data = await run_sdk_command(self._ctx, mc, "req_telemetry_sync", target, min_timeout=4.0)
                 if data is not None and isinstance(data, dict):
                     rf_ctx.res.update({
                         "status": "ok",
@@ -707,12 +749,12 @@ class RepeaterAdminExecutor:
                         "telemetry": data,
                         "message": "Telemetría binaria del repetidor obtenida",
                     })
-                    self._update_local_registry_from_params(str(rf_ctx.req.target_node), data)
+                    await self._update_local_registry_from_params(str(rf_ctx.req.target_node), data)
                     self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{rf_ctx.req.target_node}/telemetry", json.dumps(rf_ctx.res), 1)
                     return rf_ctx.res
 
             elif action in ("req_owner", "owner") and hasattr(cmds, "req_owner_sync"):
-                data = await cmds.req_owner_sync(target, min_timeout=4.0)
+                data = await run_sdk_command(self._ctx, mc, "req_owner_sync", target, min_timeout=4.0)
                 if data is not None and isinstance(data, dict):
                     rf_ctx.res.update({
                         "status": "ok",
@@ -726,7 +768,7 @@ class RepeaterAdminExecutor:
                     return rf_ctx.res
 
             elif action in ("req_regions", "regions") and hasattr(cmds, "req_regions_sync"):
-                data = await cmds.req_regions_sync(target, min_timeout=4.0)
+                data = await run_sdk_command(self._ctx, mc, "req_regions_sync", target, min_timeout=4.0)
                 if data is not None:
                     rf_ctx.res.update({
                         "status": "ok",
@@ -739,7 +781,7 @@ class RepeaterAdminExecutor:
                     return rf_ctx.res
 
             elif action in ("req_clock", "clock", "req_basic") and hasattr(cmds, "req_basic_sync"):
-                data = await cmds.req_basic_sync(target, min_timeout=4.0)
+                data = await run_sdk_command(self._ctx, mc, "req_basic_sync", target, min_timeout=4.0)
                 if data is not None:
                     clock_str = ""
                     raw_tag = data.get("tag") or (data.get("data")[:8] if isinstance(data.get("data"), str) else "")
@@ -762,12 +804,12 @@ class RepeaterAdminExecutor:
                         "message": f"Respuesta de reloj obtenida: {clock_str}" if clock_str else "Respuesta de reloj y estado básico obtenida",
                     })
                     if clock_str:
-                        self._update_local_registry_from_params(str(rf_ctx.req.target_node), {"clock": clock_str})
+                        await self._update_local_registry_from_params(str(rf_ctx.req.target_node), {"clock": clock_str})
                     self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{rf_ctx.req.target_node}/clock", json.dumps(rf_ctx.res), 1)
                     return rf_ctx.res
 
             elif action in ("req_acl", "acl") and hasattr(cmds, "req_acl_sync"):
-                data = await cmds.req_acl_sync(target, min_timeout=4.0)
+                data = await run_sdk_command(self._ctx, mc, "req_acl_sync", target, min_timeout=4.0)
                 if data is not None:
                     rf_ctx.res.update({
                         "status": "ok",
@@ -782,7 +824,65 @@ class RepeaterAdminExecutor:
         except Exception as e:
             logging.debug(f"Fallo en ejecución de solicitud binaria/anónima ({action}): {e}")
 
-        return None
+        rf_ctx.res.update({"status": "error", "action": action, "target_node": str(rf_ctx.req.target_node),
+                           "message": "Solicitud binaria sin respuesta válida del repetidor"})
+        return rf_ctx.res
+
+    @staticmethod
+    def _login_event_name(event: Any) -> str:
+        """Normaliza tipos SDK Enum y sus nombres/valores serializados."""
+        event_type = event.get("type", event.get("event_type")) if isinstance(event, dict) else getattr(event, "type", None)
+        event_name = getattr(event_type, "name", getattr(event_type, "value", event_type))
+        return str(event_name or "").rsplit(".", 1)[-1].upper()
+
+    async def _authenticate_repeater(self, rf_ctx: RfExecutionContext, min_timeout: float) -> tuple[bool, str]:
+        """Exige confirmación de autenticación; MSG_SENT/ACK solo confirman transporte."""
+        req = rf_ctx.req
+        if len(req.password.encode("utf-8")) > 15 or "\x00" in req.password:
+            return False, "Contraseña no representable: máximo oficial 15 bytes UTF-8 sin NUL"
+        if req.mc and hasattr(req.mc, "commands") and hasattr(req.mc.commands, "send_login_sync"):
+            try:
+                login_ev = await run_sdk_command(self._ctx, req.mc, "send_login_sync", rf_ctx.dest_login_target, req.password, min_timeout=min_timeout)
+            except Exception:
+                return False, "No se pudo confirmar la autenticación del repetidor"
+            if self._login_is_authorized(login_ev, rf_ctx.dest_login_target):
+                return True, "Autenticación exitosa (LOGIN_SUCCESS)"
+            return False, "Contraseña incorrecta o autenticación no confirmada por el repetidor"
+
+        try:
+            login_ev = await self._send_login_fallback(rf_ctx)
+            if self._login_is_authorized(login_ev, rf_ctx.dest_login_target):
+                return True, "Autenticación exitosa (LOGIN_SUCCESS)"
+            event_type = getattr(login_ev, "type", None)
+            success_type = getattr(type(event_type), "LOGIN_SUCCESS", None)
+            dispatcher = getattr(req.mc, "dispatcher", None)
+            if success_type is not None and dispatcher is not None and hasattr(dispatcher, "wait_for_event"):
+                login_result = await dispatcher.wait_for_event(success_type, timeout=6.0)
+                if self._login_is_authorized(login_result, rf_ctx.dest_login_target):
+                    return True, "Autenticación exitosa (LOGIN_SUCCESS)"
+                return False, "Autenticación no confirmada por el repetidor"
+            resp_data = await self._wait_for_repeater_response(req.mc, rf_ctx.fut, timeout=6.0) or {}
+        except Exception:
+            return False, "No se pudo confirmar la autenticación del repetidor"
+        event_name = self._login_event_name(resp_data)
+        auth_status = resp_data.get("auth_status")
+        if event_name in ("ERROR", "ERR", "COMMAND_ERROR", "LOGIN_FAILED") or auth_status == "failed":
+            return False, "Autenticación rechazada por el repetidor"
+        if self._login_is_authorized(resp_data, rf_ctx.dest_login_target):
+            return True, "Autenticación exitosa (LOGIN_SUCCESS)"
+        return False, "Autenticación no confirmada por el repetidor"
+
+    def _login_is_authorized(self, event: Any, target: Any) -> bool:
+        if self._login_event_name(event) != "LOGIN_SUCCESS":
+            return False
+        payload = event if isinstance(event, dict) else getattr(event, "payload", {})
+        if not isinstance(payload, dict):
+            return False
+        if payload.get("is_admin") is False:
+            return False
+        prefix = str(payload.get("pubkey_prefix") or "").lower()
+        target_key = target.get("public_key", "") if isinstance(target, dict) else str(target)
+        return not prefix or str(target_key).lower().startswith(prefix)
 
     async def _execute_auth_command(self, rf_ctx: RfExecutionContext) -> dict[str, Any]:
         """Ejecuta inicio de sesión remoto en el repetidor."""
@@ -790,38 +890,7 @@ class RepeaterAdminExecutor:
         if not req.password:
             return {"status": "error", "message": "La contraseña de administración no puede estar vacía"}
 
-        cmd_text = f"login {req.password}"
-        login_success = False
-        resp_text = ""
-        error_msg: str | None = None
-
-        if req.mc and hasattr(req.mc, "commands") and hasattr(req.mc.commands, "send_login_sync"):
-            try:
-                login_ev = await req.mc.commands.send_login_sync(rf_ctx.dest_login_target, req.password, min_timeout=4.0)
-                if login_ev is not None and getattr(login_ev, "type", None) not in ("ERROR", "ERR"):
-                    login_success = True
-                    resp_text = "Autenticación exitosa (LOGIN_SUCCESS)"
-                else:
-                    error_msg = "Contraseña incorrecta o repetidor fuera de alcance"
-            except Exception as e:
-                logging.debug(f"send_login_sync falló ({e}), usando fallback...")
-
-        if not login_success:
-            await self._send_login_fallback(rf_ctx, cmd_text)
-            resp_data = await self._wait_for_repeater_response(req.mc, rf_ctx.fut, timeout=6.0) or {}
-            raw_resp = resp_data.get("text") or resp_data.get("message") or ""
-            resp_text = raw_resp[2:].strip() if raw_resp.startswith("> ") else raw_resp.strip()
-            lower = resp_text.lower()
-
-            if resp_data.get("auth_status") == "failed" or any(p in lower for p in ("invalid", "denied", "wrong", "failed")):
-                login_success = False
-                error_msg = resp_text or "Contraseña incorrecta en el repetidor"
-            elif resp_data.get("auth_status") == "success" or any(p in lower for p in ("ok", "success", "logged in", "auth ok")):
-                login_success = True
-            elif resp_text:
-                login_success = True
-            else:
-                error_msg = f"Sin respuesta del repetidor {str(req.target_node)[:8]}"
+        login_success, message = await self._authenticate_repeater(rf_ctx, min_timeout=4.0)
 
         status_str = "ok" if login_success else "error"
         rf_ctx.res.update({
@@ -829,7 +898,7 @@ class RepeaterAdminExecutor:
             "action": "login",
             "target_node": str(req.target_node),
             "authenticated": login_success,
-            "message": resp_text if login_success else (error_msg or "Error en autenticación"),
+            "message": message,
             "cmd_dispatched": f"login {'*' * len(req.password)}",
         })
         self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{req.target_node}/status", json.dumps(rf_ctx.res), 1)
@@ -843,8 +912,23 @@ class RepeaterAdminExecutor:
             return self._ctx.repeater_manager.build_cooldown_error_response(rem_cd)
 
         if req.password and req.action != "login":
-            await self._send_pre_login(rf_ctx)
+            authenticated, message = await self._send_pre_login(rf_ctx)
+            if not authenticated:
+                rf_ctx.res.update({"status": "error", "authenticated": False, "message": message})
+                self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{req.target_node}/status", json.dumps(rf_ctx.res), 1)
+                return rf_ctx.res
             await asyncio.sleep(0.35)
+            # La respuesta de login no debe completar la espera del comando siguiente.
+            self._waiters.unregister(rf_ctx.waiter_keys, rf_ctx.fut)
+            async with self._waiters.expect_response(rf_ctx.waiter_keys) as command_fut:
+                rf_ctx.fut = command_fut
+                return await self._execute_unit_command_rf(rf_ctx)
+
+        return await self._execute_unit_command_rf(rf_ctx)
+
+    async def _execute_unit_command_rf(self, rf_ctx: RfExecutionContext) -> dict[str, Any]:
+        """Envía el comando con su propia espera, después de validar el prelogin solicitado."""
+        req = rf_ctx.req
 
         cmd_text = self._ctx.repeater_manager.build_repeater_command_payload(req.action, req.admin_data)
         self._ctx.repeater_manager.record_command_sent(str(req.target_node), is_full_query=False)
@@ -858,6 +942,7 @@ class RepeaterAdminExecutor:
         resp_text = raw_resp[2:].strip() if raw_resp.startswith("> ") else raw_resp.strip()
 
         rf_ctx.res["cmd_dispatched"] = cmd_text
+        rf_ctx.res["status"] = "ok" if resp_text else "dispatched"
         rf_ctx.res["response"] = resp_text or f"Comando '{cmd_text}' transmitido por RF a {str(req.target_node)[:8]}"
         rf_ctx.res["message"] = rf_ctx.res["response"]
 
@@ -869,7 +954,7 @@ class RepeaterAdminExecutor:
 
         if telem:
             rf_ctx.res["telemetry"] = telem
-            self._update_local_registry_from_params(str(req.target_node), telem)
+            await self._update_local_registry_from_params(str(req.target_node), telem)
 
         if resp_data.get("rssi") is not None:
             rf_ctx.res["rssi"] = resp_data["rssi"]
@@ -939,9 +1024,12 @@ class RepeaterAdminExecutor:
                 if out_path_len_override is not None:
                     out_path_len = out_path_len_override
 
-                if pubkey and len(pubkey) >= 12:
-                    full_pk = pubkey.ljust(64, "0")[:64]
-                    clean_name = (name or target_name or f"Node_{full_pk[:6]}")[:32]
+                if pubkey and re.fullmatch(r"[a-fA-F0-9]{64}", pubkey):
+                    full_pk = pubkey.lower()
+                    cached = getattr(mc, "_contacts", None)
+                    if isinstance(cached, dict) and full_pk in cached and out_path_override is None and out_path_len_override is None:
+                        return
+                    clean_name = (name or target_name or f"Node_{full_pk[:6]}").encode("utf-8")[:31].decode("utf-8", "ignore")
                     clean_contact = {
                         "public_key": full_pk,
                         "adv_name": clean_name,
@@ -954,11 +1042,18 @@ class RepeaterAdminExecutor:
                         "adv_lat": float(lat or 0.0),
                         "adv_lon": float(lon or 0.0),
                     }
-                    await mc.commands.add_contact(clean_contact)
+                    if isinstance(cached, dict) and full_pk in cached:
+                        clean_contact = dict(cached[full_pk])
+                        if out_path_override is not None:
+                            clean_contact["out_path"] = out_path_override
+                        if out_path_len_override is not None:
+                            clean_contact["out_path_len"] = out_path_len_override
+                    response = await run_sdk_command(self._ctx, mc, "add_contact", clean_contact)
+                    require_success(response, "add_contact")
                     if hasattr(mc, "_contacts") and isinstance(mc._contacts, dict):
                         mc._contacts[full_pk] = clean_contact
             except Exception as e:
-                logging.debug(f"Asegurando contacto en radio: {e}")
+                raise RuntimeError("No se pudo registrar el contacto oficial en la radio") from e
 
     def _determine_target_hops(self, dest_target: Any, target_node: str) -> int:
         """Determina la distancia estimada en saltos hacia el nodo destino."""
@@ -1001,25 +1096,24 @@ class RepeaterAdminExecutor:
             await asyncio.sleep(delay_s)
 
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_cmd"):
-            try:
-                await mc.commands.send_cmd(dest_target, cmd_text)
-                return
-            except Exception as e:
-                logging.debug(f"Fallo send_cmd: {e}")
-        await self._ctx.execute_tx({"to": target_node, "text": cmd_text, "request_id": req_id})
+            if len(cmd_text.encode("utf-8")) > 160 or "\x00" in cmd_text:
+                raise ValueError("Comando CLI inválido: máximo oficial 160 bytes UTF-8 sin NUL")
+            response = await run_sdk_command(self._ctx, mc, "send_cmd", dest_target, cmd_text)
+            require_success(response, "send_cmd")
+            return
+        raise NotImplementedError("SDK sin send_cmd: no se permite fallback de administración a chat")
 
 
-    async def _send_login_fallback(self, rf_ctx: RfExecutionContext, cmd_text: str) -> None:
-        """Envía login usando send_login o send_cmd según capacidades."""
+    async def _send_login_fallback(self, rf_ctx: RfExecutionContext) -> Any:
+        """Usa el login binario disponible; nunca transmite la contraseña como texto CLI/chat."""
         req = rf_ctx.req
         if req.mc and hasattr(req.mc, "commands") and hasattr(req.mc.commands, "send_login"):
-            try:
-                await req.mc.commands.send_login(rf_ctx.dest_login_target, cmd_text.split(" ", 1)[1])
-                return
-            except Exception:
-                pass
-        await self._send_rf_command(req.mc, rf_ctx.dest_target, cmd_text, str(req.target_node), req.req_id)
+            login_ev = await run_sdk_command(self._ctx, req.mc, "send_login", rf_ctx.dest_login_target, req.password)
+            if self._login_event_name(login_ev) in ("ERROR", "ERR", "COMMAND_ERROR", "LOGIN_FAILED"):
+                raise RuntimeError("Autenticación rechazada por el repetidor")
+            return login_ev
+        raise RuntimeError("El SDK no dispone de autenticación binaria para el repetidor")
 
-    async def _send_pre_login(self, rf_ctx: RfExecutionContext) -> None:
-        """Envía autenticación previa antes de ejecutar un comando."""
-        await self._send_login_fallback(rf_ctx, f"login {rf_ctx.req.password}")
+    async def _send_pre_login(self, rf_ctx: RfExecutionContext) -> tuple[bool, str]:
+        """Confirma autenticación previa antes de ejecutar un comando."""
+        return await self._authenticate_repeater(rf_ctx, min_timeout=4.0)

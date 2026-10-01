@@ -46,11 +46,15 @@ class RepeaterAdminHandler(BaseRxHandler):
             or "ACK" in p_type_upper
             or payload.get("event_type") in ("ack", "delivered", "message_delivered")
         ):
+            if meta.is_local_sender:
+                return True
             ack_code_raw = payload.get("ack_code", payload.get("code"))
             if ack_code_raw is None:
                 ack_code = ""
+            elif isinstance(ack_code_raw, bool):
+                ack_code = ""
             elif isinstance(ack_code_raw, int):
-                ack_code = f"{ack_code_raw:08x}" if ack_code_raw != 0 else ""
+                ack_code = ack_code_raw.to_bytes(4, "little").hex() if 0 < ack_code_raw <= 0xFFFFFFFF else ""
             elif isinstance(ack_code_raw, (bytes, bytearray)):
                 ack_code = ack_code_raw.hex().lower()
             else:
@@ -59,7 +63,7 @@ class RepeaterAdminHandler(BaseRxHandler):
                     ack_code = ack_code[2:]
 
             # Si el código ACK está vacío o compuesto exclusivamente por ceros, descartar silenciosamente
-            if not ack_code or set(ack_code) <= {"0"}:
+            if len(ack_code) != 8 or any(char not in "0123456789abcdef" for char in ack_code) or set(ack_code) <= {"0"}:
                 logging.debug(
                     f"[RX-ACK] Trama ACK nula/vacía descartada (código: '{ack_code or '00000000'}'). "
                     f"Ignorando confirmación no asociada a mensaje real."

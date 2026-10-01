@@ -213,7 +213,7 @@ class TestRepeaterAdminHandler:
         mock_ctx._ctx.web_server = None
 
         meta = _dummy_meta(ev_type="ack")
-        payload = {"event_type": "ack", "msg_id": "msg-123", "ack_code": 0, "trip_time_ms": 45}
+        payload = {"event_type": "ack", "msg_id": "msg-123", "ack_code": "12ab34cd", "trip_time_ms": 45}
 
         res = await handler.handle(mock_ctx, payload, meta, raw_event=None)
         assert res is True
@@ -273,6 +273,7 @@ class TestRxEventRouterIntegration:
         mock_ctx = MagicMock()
         mock_ctx.loop = None
         mock_ctx.background_tasks = set()
+        mock_ctx.register_task = None
         mock_ctx.serial_adapter = MagicMock()
         mock_ctx.counters = MagicMock(rx_count=0)
 
@@ -291,10 +292,11 @@ class TestRxEventRouterIntegration:
         mock_ctx = MagicMock()
         mock_ctx.loop = loop
         mock_ctx.background_tasks = set()
+        mock_ctx.register_task = None
         mock_ctx.serial_adapter = MagicMock()
         mock_ctx.packet_buffer = MagicMock()
         mock_ctx.deduplicator = MagicMock()
-        mock_ctx.deduplicator.is_duplicate.return_value = False
+        mock_ctx.deduplicator.is_duplicate = AsyncMock(return_value=False)
         mock_ctx.node_registry = MagicMock()
         mock_ctx.counters = MagicMock(rx_count=0)
 
@@ -318,5 +320,6 @@ class TestRxEventRouterIntegration:
 
         router = RxEventRouter(mock_ctx)
         router.handle_event(frame)
+        await asyncio.gather(*tuple(mock_ctx.background_tasks))
         assert mock_ctx.counters.rx_count == 1
         mock_ctx.serial_adapter.heartbeat.assert_called_once()

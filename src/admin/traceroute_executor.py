@@ -5,6 +5,7 @@ Descompone el cálculo de saltos, emisión RF y formateo de resultados multihop.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import random
@@ -13,6 +14,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 import config
+from src.admin.sdk_commands import require_success, run_sdk_command
 from src.target_resolver import TargetResolver
 
 if TYPE_CHECKING:
@@ -64,45 +66,58 @@ class TracerouteExecutor:
         if not path_list and target_str:
             d_node = self._find_node_info(target_str)
             if d_node and d_node.get("out_path"):
-                path_list = self._parse_path_list(d_node["out_path"])
+                hash_mode = int(d_node.get("out_path_hash_mode") or 0)
+                hash_bytes = hash_mode + 1
+                if hash_bytes == 3:
+                    return {"status": "error", "message": "send_trace no representa hashes de ruta de 3 bytes"}
+                path_hex = str(d_node["out_path"])
+                hops = int(d_node.get("out_path_len") or len(path_hex) // (hash_bytes * 2))
+                path_list = [path_hex[pos:pos + hash_bytes * 2] for pos in range(0, hops * hash_bytes * 2, hash_bytes * 2)]
 
         trace_path_arg, trace_flags = self._format_trace_hops(path_list)
 
         tag = random.randint(1, 0xFFFFFFFF)
-        send_ev = await self._dispatch_trace_rf(mc, trace_path_arg, trace_flags, tag=tag)
-        if hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "record_traceroute_sent"):
-            self._ctx.repeater_manager.record_traceroute_sent(target_str)
-
-        # Esperar respuesta TRACE_DATA del transceptor si el dispatcher está disponible
         trace_data_payload: dict[str, Any] | None = None
-        if mc and hasattr(mc, "dispatcher") and hasattr(mc.dispatcher, "wait_for_event"):
-            try:
-                from meshcore.events import EventType
+        trace_waiter: asyncio.Task[Any] | None = None
+        try:
+            from meshcore.events import EventType
+            if mc and hasattr(mc, "dispatcher") and hasattr(mc.dispatcher, "wait_for_event"):
+                # Subscribe before sending: a valid trace may arrive before MSG_SENT.
+                trace_waiter = asyncio.create_task(mc.dispatcher.wait_for_event(EventType.TRACE_DATA, attribute_filters={"tag": tag}, timeout=None))
+                await asyncio.sleep(0)
+            send_ev = await self._dispatch_trace_rf(mc, trace_path_arg, trace_flags, tag=tag)
+            require_success(send_ev, "send_trace")
+            if hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "record_traceroute_sent"):
+                self._ctx.repeater_manager.record_traceroute_sent(target_str)
+            if trace_waiter is not None:
                 suggested_to = 6.0
                 if send_ev and hasattr(send_ev, "payload") and isinstance(send_ev.payload, dict):
                     raw_to = send_ev.payload.get("suggested_timeout")
                     if raw_to:
                         suggested_to = max(4.0, float(raw_to) / 800.0)
-                trace_ev = await mc.dispatcher.wait_for_event(
-                    EventType.TRACE_DATA,
-                    attribute_filters={"tag": tag},
-                    timeout=suggested_to,
-                )
+                trace_ev = await asyncio.wait_for(trace_waiter, timeout=suggested_to)
                 if trace_ev and hasattr(trace_ev, "payload") and isinstance(trace_ev.payload, dict):
                     trace_data_payload = trace_ev.payload
-            except Exception as e:
-                logging.debug(f"Timeout o error esperando TRACE_DATA: {e}")
+            if trace_data_payload is None:
+                return {"status": "error", "action": "traceroute", "target_node": target_str, "timeout": True, "message": "Sin respuesta TRACE_DATA del firmware"}
+        except Exception as error:
+            return {"status": "error", "action": "traceroute", "target_node": target_str, "message": str(error)}
+        finally:
+            if trace_waiter is not None and not trace_waiter.done():
+                trace_waiter.cancel()
+                await asyncio.gather(trace_waiter, return_exceptions=True)
 
         rtt_ms = round((time.perf_counter() - t_start) * 1000, 1)
 
         hops_breakdown = self._build_hops_breakdown(path_list, str(target_node), rtt_ms, trace_data_payload)
 
         res.update({
+            "status": "ok",
             "action": "traceroute",
             "target_node": str(target_node),
             "path": path_list,
             "total_hops": len(hops_breakdown) - 1,
-            "total_rtt_ms": max(25.0, rtt_ms),
+            "total_rtt_ms": rtt_ms,
             "hops_breakdown": hops_breakdown,
             "timestamp": int(time.time()),
             "cmd_dispatched": f"send_trace({trace_path_arg or ''})",
@@ -136,6 +151,11 @@ class TracerouteExecutor:
         for p in path_list:
             clean_p = p.strip()
             clean_hex = ""
+            test_p = clean_p[2:] if clean_p.lower().startswith("0x") else clean_p
+            if test_p and all(char in "0123456789abcdefABCDEF" for char in test_p):
+                if len(test_p) in (2, 4) or (len(test_p) == 8 and not self._find_node_info(test_p)):
+                    formatted.append(test_p.lower())
+                    continue
             # 1. Intentar resolver con TargetResolver
             resolved = resolver.resolve(clean_p, min_hex_len=4)
             if resolved != clean_p:
@@ -166,13 +186,17 @@ class TracerouteExecutor:
                     formatted.append(clean_hex[:4])
                 elif len(clean_hex) >= 2:
                     formatted.append(clean_hex[:2])
+            else:
+                raise ValueError(f"Salto de traceroute no resuelto: {clean_p}")
 
         if not formatted:
             return None, 0
 
-        if all(len(h) == 4 for h in formatted):
-            return ",".join(formatted), 1
-        return ",".join(h[:2] for h in formatted), 0
+        widths = {len(h) for h in formatted}
+        if len(widths) != 1:
+            raise ValueError("Todos los hashes de traceroute deben tener la misma longitud")
+        width = next(iter(widths))
+        return ",".join(formatted), {2: 0, 4: 1, 8: 2}[width]
 
     async def _dispatch_trace_rf(
         self, mc: Any, trace_path_arg: str | None, trace_flags: int, tag: int | None = None
@@ -183,7 +207,7 @@ class TracerouteExecutor:
                 kwargs: dict[str, Any] = {"path": trace_path_arg, "flags": trace_flags}
                 if tag is not None:
                     kwargs["tag"] = tag
-                return await mc.commands.send_trace(**kwargs)
+                return await run_sdk_command(self._ctx, mc, "send_trace", **kwargs)
             except Exception as e:
                 logging.debug(f"Error invocando mc.commands.send_trace: {e}")
         return None
@@ -217,10 +241,14 @@ class TracerouteExecutor:
         if trace_data and isinstance(trace_data.get("path"), list):
             for p_node in trace_data["path"]:
                 if isinstance(p_node, dict) and "snr" in p_node:
-                    snr_by_hop.append(float(p_node["snr"]))
+                    if "hash" in p_node:
+                        snr_by_hop.append(float(p_node["snr"]))
+                    else:
+                        # The final unhashed SNR is the packet received locally.
+                        hops[0]["snr"] = float(p_node["snr"])
+                        hops[0]["snr_in"] = float(p_node["snr"])
 
         # Saltos intermedios
-        seg_rtt = round(rtt_ms / (len(path_list) + 1), 1)
         for idx, hop_key in enumerate(path_list, start=1):
             n_info = self._find_node_info(hop_key)
             h_name = (n_info.get("name") or n_info.get("alias")) if n_info else f"Repetidor {hop_key[:6]}"
@@ -237,10 +265,10 @@ class TracerouteExecutor:
                 "name": h_name,
                 "role": str(h_role),
                 "snr": h_snr,
-                "rtt_ms": round(seg_rtt * idx, 1),
+                "rtt_ms": None,
                 "snr_in": h_snr,
                 "snr_out": h_snr,
-                "rtt_segment_ms": seg_rtt,
+                "rtt_segment_ms": None,
             })
 
         # Destino final si no estaba incluido
@@ -249,9 +277,7 @@ class TracerouteExecutor:
             d_name = (d_info.get("name") or d_info.get("alias")) if d_info else f"Destino {target_node[:8]}"
             d_role = (d_info.get("role") or d_info.get("type")) if d_info else "CLIENT"
 
-            final_snr = snr_by_hop[-1] if snr_by_hop else (
-                float(d_info["last_snr"]) if d_info and d_info.get("last_snr") is not None else None
-            )
+            final_snr = float(d_info["last_snr"]) if d_info and d_info.get("last_snr") is not None else None
 
             hops.append({
                 "hop_index": len(hops),
@@ -262,7 +288,7 @@ class TracerouteExecutor:
                 "rtt_ms": rtt_ms,
                 "snr_in": final_snr,
                 "snr_out": final_snr,
-                "rtt_segment_ms": round(rtt_ms / len(hops), 1),
+                "rtt_segment_ms": None,
             })
 
         return hops

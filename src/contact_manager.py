@@ -22,7 +22,6 @@ from src.lqi_engine import LinkQualityEngine, LQIStatus
 from src.shared_utils import (
     clean_numeric_value,
     get_hardware_power_limits,
-    is_repeater_name,
     normalize_battery,
 )
 
@@ -775,7 +774,14 @@ class NodeRegistry:
             "MQTT_DISCONNECT": 0,
         }
         self._dirty: bool = False
+        self._generation = 0
+        self._save_lock = threading.Lock()
         self._save_debounce_task: asyncio.Task[Any] | None = None
+
+    def _mark_dirty(self) -> None:
+        """Called while holding _lock, identifying every persistence mutation."""
+        self._generation += 1
+        self._dirty = True
 
     def set_local_pubkey(self, pubkey: str) -> None:
         """Establece la clave pública del nodo local y consolida entradas existentes para evitar duplicados."""
@@ -784,7 +790,7 @@ class NodeRegistry:
             return
 
         with self._lock:
-            self._dirty = True
+            self._mark_dirty()
             # Consolidar y purgar cualquier entrada local previa bajo la clave canónica oficial
             local_entries = [
                 (k, node) for k, node in list(self._nodes_by_key.items())
@@ -852,11 +858,15 @@ class NodeRegistry:
         if norm and norm in self._nodes_by_key:
             return norm
 
-        # 2. Coincidencia por prefijo (cuando una clave es prefijo de la otra)
+        # Los prefijos sólo identifican un nodo cuando la coincidencia es única.
         if norm and is_valid_node_key(norm):
-            for k in self._nodes_by_key:
-                if (len(k) < len(norm) and norm.startswith(k)) or (len(norm) < len(k) and k.startswith(norm)):
-                    return k
+            matches = [k for k in self._nodes_by_key if
+                       (len(k) < len(norm) and norm.startswith(k)) or
+                       (len(norm) < len(k) and k.startswith(norm))]
+            if len(matches) == 1:
+                return matches[0]
+            # Una clave pública nueva nunca se fusiona por un nombre mutable.
+            return None
 
         # 3. Coincidencia por nombre exacto o alias si no es un nombre genérico
         if name:
@@ -961,16 +971,11 @@ class NodeRegistry:
         is_local_flag: bool,
     ) -> str:
         """Determina el rol canónico del nodo respetando la clasificación oficial y repetidores."""
-        is_named_repeater = is_repeater_name(clean_name) or is_repeater_name(clean_alias)
         if is_local_flag:
             return "LOCAL"
-        if is_named_repeater:
-            return "REPEATER"
         up_role = getattr(update, "role", None)
-        if existing and existing.role in ("REPEATER", "ROUTER") and up_role == "SENSOR":
-            return existing.role
         if up_role is not None:
-            return str(up_role)
+            return str(up_role).upper()
         if existing and existing.role:
             return existing.role
         return "CLIENT"
@@ -1137,23 +1142,13 @@ class NodeRegistry:
             if clean_alias:
                 self._nodes_by_name[clean_alias.lower()] = canonical_key
 
-            self._dirty = True
+            self._mark_dirty()
             return contact
 
     def _classify_advert_role(self, clean_name: str, role: str) -> tuple[str, bool]:
         """Clasifica el rol de un nodo descubierto y si es parte de la infraestructura de red."""
-        name_upper = clean_name.upper()
         role_upper = (role or "CLIENT").upper()
-        rep_by_name = is_repeater_name(clean_name)
-        is_infrastructure = (
-            role_upper in ("REPEATER", "ROUTER", "ROOM", "SENSOR")
-            or rep_by_name
-            or "SENSOR" in name_upper
-            or "ROOM" in name_upper
-            or "BBS" in name_upper
-        )
-        effective_role = "REPEATER" if rep_by_name else role
-        return effective_role, is_infrastructure
+        return role_upper, role_upper in ("REPEATER", "ROUTER", "ROOM", "SENSOR")
 
     def _handle_local_discovery(self, norm_key: str, clean_name: str) -> tuple[bool, NodeContactInfo]:
         """Maneja el descubrimiento de la propia estación base local."""
@@ -1215,7 +1210,7 @@ class NodeRegistry:
                     last_snr=evt.snr,
                     hops=evt.hops,
                     name=evt.name if evt.name and evt.name != existing.name else None,
-                    role=effective_role if existing.role == "CLIENT" and is_infrastructure else None,
+                    role=effective_role,
                 ),
             )
             return False, updated
@@ -1343,12 +1338,10 @@ class NodeRegistry:
             target_key = self._nodes_by_name[q]
             return self._nodes_by_key.get(target_key)
 
-        # 3. Búsqueda por prefijo de clave pública (cuando una clave es prefijo de la otra)
-        for key, contact in self._nodes_by_key.items():
-            if (len(q) < len(key) and key.startswith(q)) or (len(key) < len(q) and q.startswith(key)):
-                return contact
-
-        return None
+        # Una clave completa diferente no es un prefijo de una identidad conocida.
+        matches = [contact for key, contact in self._nodes_by_key.items()
+                   if len(q) < len(key) and key.startswith(q)]
+        return matches[0] if len(matches) == 1 else None
 
 
     def find_by_name(self, name: str) -> NodeContactInfo | None:
@@ -1403,16 +1396,21 @@ class NodeRegistry:
             stale_names = [k for k, v in self._nodes_by_name.items() if v == canon]
             for sn in stale_names:
                 self._nodes_by_name.pop(sn, None)
+            self._mark_dirty()
             return True
 
     def list_nodes(self) -> list[dict[str, Any]]:
         """Retorna la lista de todos los nodos registrados en formato serializable sin duplicados."""
+        with self._lock:
+            return self._list_nodes_snapshot()
+
+    def _list_nodes_snapshot(self) -> list[dict[str, Any]]:
+        """Serialize one coherent registry snapshot while the caller holds _lock."""
         seen_keys: set[str] = set()
         local_included = False
         result: list[dict[str, Any]] = []
 
-        with self._lock:
-            contacts_snapshot = list(self._nodes_by_key.values())
+        contacts_snapshot = list(self._nodes_by_key.values())
 
         for c in contacts_snapshot:
             if not is_valid_node_key(c.public_key) or c.name.startswith("Node_unknow"):
@@ -1425,10 +1423,8 @@ class NodeRegistry:
                 local_included = True
 
             norm_pk = c.public_key.strip().lower()
-            prefix = norm_pk[:8] if len(norm_pk) >= 8 else norm_pk
-            if prefix in seen_keys or norm_pk in seen_keys:
+            if norm_pk in seen_keys:
                 continue
-            seen_keys.add(prefix)
             seen_keys.add(norm_pk)
 
             result.append(c.to_dict())
@@ -1445,11 +1441,7 @@ class NodeRegistry:
         if contact.is_local or str(contact.role).upper() == "LOCAL":
             return False
         role_upper = str(contact.role).upper()
-        return bool(
-            role_upper in ("REPEATER", "ROUTER")
-            or is_repeater_name(contact.alias)
-            or is_repeater_name(contact.name)
-        )
+        return role_upper in ("REPEATER", "ROUTER")
 
     def list_client_contacts(self) -> list[dict[str, Any]]:
         """Retorna únicamente los contactos de tipo CLIENT (excluye repetidores, infraestructura y nodo local)."""
@@ -1470,9 +1462,6 @@ class NodeRegistry:
                 role_str in ("REPEATER", "ROUTER")
                 or n.get("type") == 2
                 or n.get("adv_type") == 2
-                or n.get("repeat_enabled") is True
-                or is_repeater_name(n.get("alias"))
-                or is_repeater_name(n.get("name"))
             )
 
         repeaters_list = []
@@ -1546,7 +1535,7 @@ class NodeRegistry:
                 self._nodes_by_key[k] = new_contact
                 reset_count += 1
             self.error_categories.clear()
-            self._dirty = True
+            self._mark_dirty()
             return {"nodes_reset": reset_count}
 
     def get_all_lqi_metrics(self) -> list[dict[str, Any]]:
@@ -1587,35 +1576,42 @@ class NodeRegistry:
 
         if to_remove:
             with self._lock:
-                self._dirty = True
+                self._mark_dirty()
             logging.info(f"Limpieza de NodeRegistry: eliminados {len(to_remove)} nodos obsoletos.")
         return len(to_remove)
 
     def save_to_file(self, filepath: str | Path | None = None, force: bool = False) -> bool:
         """Guarda la libreta de contactos y estado de nodos en un archivo JSON sin duplicados si hubo cambios."""
+        # Serialize writers so a slow older snapshot cannot replace a newer file.
+        # The async facade runs this filesystem/writer wait in a worker thread.
+        with self._save_lock:
+            return self._save_snapshot_to_file(filepath, force)
+
+    def _save_snapshot_to_file(self, filepath: str | Path | None, force: bool) -> bool:
         with self._lock:
             if not force and not self._dirty:
                 logging.debug("NodeRegistry sin cambios pendientes de persistencia (omitiendo escritura en disco)")
                 return True
+            generation = self._generation
+            nodes_list = self._list_nodes_snapshot()
+            data = {
+                "local_pubkey": self._local_pubkey,
+                "saved_at": time.time(),
+                "nodes": nodes_list,
+                "error_categories": dict(self.error_categories),
+            }
 
         target_str = str(filepath or os.getenv("NODE_REGISTRY_STORAGE_PATH") or os.path.join("data", "node_registry.json"))
         target_path = Path(target_str)
         try:
             target_path.parent.mkdir(parents=True, exist_ok=True)
-            nodes_list = self.list_nodes()
-            with self._lock:
-                data = {
-                    "local_pubkey": self._local_pubkey,
-                    "saved_at": time.time(),
-                    "nodes": nodes_list,
-                    "error_categories": dict(self.error_categories),
-                }
             tmp_path = target_path.with_name(f"{target_path.stem}_{os.getpid()}_{time.time_ns()}.tmp")
             with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
             tmp_path.replace(target_path)
             with self._lock:
-                self._dirty = False
+                if self._generation == generation:
+                    self._dirty = False
             logging.debug(f"NodeRegistry guardado exitosamente en {target_path} ({len(nodes_list)} nodos)")
             return True
         except Exception as e:

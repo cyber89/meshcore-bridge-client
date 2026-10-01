@@ -176,7 +176,9 @@ class AsyncBridgeMQTTClient:
             return False
 
         try:
-            self.client.publish(topic, payload_str, qos=qos, retain=retain)
+            info = self.client.publish(topic, payload_str, qos=qos, retain=retain)
+            if getattr(info, "rc", 0) != 0:
+                return False
             self.total_published += 1
             return True
         except Exception as e:

@@ -97,11 +97,12 @@ class TestMeshCoreCompanionServer(unittest.IsolatedAsyncioTestCase):
         reader, writer = await asyncio.open_connection("127.0.0.1", self.port)
         await asyncio.sleep(0.05)
 
-        out_payload = b"\x10\x20\x30\x40"
+        # Only asynchronous pushes are broadcast; local replies belong to a request.
+        out_payload = b"\x80\x20\x30\x40"
         await self.server.broadcast_companion_frame(out_payload)
 
         # Leer respuesta esperada '>' (0x3E) + len uint16 + payload
-        resp_hdr = await reader.readexactly(3)
+        resp_hdr = await asyncio.wait_for(reader.readexactly(3), timeout=1)
         self.assertEqual(resp_hdr[0], FRAME_RADIO_TO_APP)
         resp_len = resp_hdr[1] | (resp_hdr[2] << 8)
         self.assertEqual(resp_len, len(out_payload))

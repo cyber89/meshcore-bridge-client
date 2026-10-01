@@ -291,6 +291,15 @@ class MeshCoreWebServer:
     async def _parse_request_head(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> tuple[str, str, dict[str, str]] | None:
+        try:
+            return await asyncio.wait_for(self._read_request_head(reader, writer), timeout=10.0)
+        except (asyncio.TimeoutError, ValueError):
+            await self._write_http_response(writer, "400 Bad Request", b"Invalid or incomplete HTTP headers")
+            return None
+
+    async def _read_request_head(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> tuple[str, str, dict[str, str]] | None:
         """Lee y decodifica la línea inicial de petición HTTP y sus cabeceras."""
         request_line = await reader.readline()
         if not request_line:
@@ -305,10 +314,14 @@ class MeshCoreWebServer:
 
         method, path = parts[0].upper(), parts[1]
         headers: dict[str, str] = {}
+        header_bytes = len(request_line)
         while True:
             line = await reader.readline()
             if not line or line in (b"\r\n", b"\n"):
                 break
+            header_bytes += len(line)
+            if header_bytes > 65536:
+                raise ValueError("HTTP header limit exceeded")
             h_str = line.decode("utf-8", errors="ignore").strip()
             if ":" in h_str:
                 k, v = h_str.split(":", 1)
@@ -373,14 +386,20 @@ class MeshCoreWebServer:
         path: str,
     ) -> dict[str, Any] | None:
         """Lee el cuerpo JSON controlando el límite de 1MB para prevenir ataques DoS."""
+        if headers.get("transfer-encoding"):
+            await self._write_http_response(writer, "400 Bad Request", b"Unsupported Transfer-Encoding")
+            return None
         if "content-length" not in headers:
             return {}
 
         try:
             content_len = int(headers["content-length"])
             if content_len < 0:
-                return {}
+                raise ValueError("Negative Content-Length")
         except (ValueError, TypeError):
+            await self._write_http_response(writer, "400 Bad Request", b"Invalid Content-Length")
+            return None
+        if content_len == 0:
             return {}
 
         if content_len > 1024 * 1024:  # 1 MB max
@@ -408,7 +427,7 @@ class MeshCoreWebServer:
             parsed: Any = json.loads(body_bytes.decode("utf-8"))
             if isinstance(parsed, dict):
                 return parsed
-            return {"data": parsed}
+            raise ValueError("JSON request must be an object")
         except Exception:
             cors_origin = self._calculate_cors_origin(headers)
             await self._write_http_response(
@@ -532,7 +551,7 @@ class MeshCoreWebServer:
                 max_coord = 1 << z
                 if not (0 <= x < max_coord and 0 <= y < max_coord):
                     return False
-                status_code, tile_bytes, mime = self.tile_service.get_tile(z, x, y)
+                status_code, tile_bytes, mime = await asyncio.to_thread(self.tile_service.get_tile, z, x, y)
                 if status_code == 200 and tile_bytes:
                     await self._write_http_response(
                         ctx.writer,
@@ -565,6 +584,7 @@ class MeshCoreWebServer:
             "/api/logs/download",
             "/api/logs/raw",
             "/api/diagnostics/export",
+            "/api/channels/export",
         )
         needs_auth = False
         clean_p = ctx.path.split("?")[0]
@@ -773,8 +793,8 @@ class MeshCoreWebServer:
                 if opcode == 0x8:  # Close frame
                     break
                 if opcode == 0x9:  # Ping binario -> Enviar Pong
-                    writer.write(bytearray([0x8A, 0x00]))
-                    await writer.drain()
+                    writer.write(bytes([0x8A, len(payload)]) + payload)
+                    await asyncio.wait_for(writer.drain(), timeout=2.0)
                 elif opcode == 0x1:  # Text frame (ej. ping heartbeat JSON)
                     try:
                         msg_obj = json.loads(payload.decode("utf-8", errors="ignore"))
@@ -810,20 +830,31 @@ class MeshCoreWebServer:
                 b1, b2 = head[0], head[1]
                 opcode = b1 & 0x0F
                 masked = bool(b2 & 0x80)
+                is_control = opcode >= 0x8
+                if not masked or b1 & 0x70 or not b1 & 0x80 or opcode not in (0x1, 0x2, 0x8, 0x9, 0xA):
+                    if writer is not None:
+                        writer.write(b"\x88\x02\x03\xea")  # Close 1002, protocol error.
+                        await asyncio.wait_for(writer.drain(), timeout=2.0)
+                    return None
                 length = b2 & 0x7F
+                if is_control and (length > 125 or (opcode == 0x8 and length == 1)):
+                    if writer is not None:
+                        writer.write(b"\x88\x02\x03\xea")
+                        await asyncio.wait_for(writer.drain(), timeout=2.0)
+                    return None
                 if length == 126:
-                    len_bytes = await reader.readexactly(2)
+                    len_bytes = await asyncio.wait_for(reader.readexactly(2), timeout=timeout_sec)
                     length = struct.unpack(">H", len_bytes)[0]
                 elif length == 127:
-                    len_bytes = await reader.readexactly(8)
+                    len_bytes = await asyncio.wait_for(reader.readexactly(8), timeout=timeout_sec)
                     length = struct.unpack(">Q", len_bytes)[0]
 
                 if length > max_ws_payload:
                     logging.warning("Trama WebSocket excede el límite permitido: %d > %d", length, max_ws_payload)
                     return None
 
-                mask_key = await reader.readexactly(4) if masked else b""
-                payload = await reader.readexactly(length) if length > 0 else b""
+                mask_key = await asyncio.wait_for(reader.readexactly(4), timeout=timeout_sec)
+                payload = await asyncio.wait_for(reader.readexactly(length), timeout=timeout_sec) if length > 0 else b""
                 if masked and mask_key:
                     unmasked = bytearray(len(payload))
                     for i in range(len(payload)):
@@ -838,7 +869,7 @@ class MeshCoreWebServer:
                 if writer is not None:
                     try:
                         writer.write(bytearray([0x89, 0x00]))
-                        await writer.drain()
+                        await asyncio.wait_for(writer.drain(), timeout=2.0)
                         continue
                     except Exception:
                         return None
@@ -1022,7 +1053,7 @@ class MeshCoreWebServer:
                 else:
                     content_type = "text/html" if target_file.suffix == ".html" else "application/octet-stream"
 
-                etag = f'"{hashlib.md5(raw_bytes).hexdigest()[:16]}"'
+                etag = f'"{hashlib.sha256(raw_bytes).hexdigest()[:16]}"'
 
                 # Comprimir dinámicamente si el archivo es textual y supera los 256 bytes
                 is_textual = (

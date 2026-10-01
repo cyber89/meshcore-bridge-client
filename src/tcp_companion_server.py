@@ -43,6 +43,9 @@ class MeshCoreCompanionServer:
         self.active_clients: set[asyncio.StreamWriter] = set()
         self._client_tasks: set[asyncio.Task[Any]] = set()
         self.running = False
+        self._transaction_lock = asyncio.Lock()
+        self._active_transaction_writer: asyncio.StreamWriter | None = None
+        self._response_received = False
 
     async def start(self) -> None:
         """Inicia el servidor TCP y escucha conexiones entrantes."""
@@ -107,12 +110,25 @@ class MeshCoreCompanionServer:
         """Retorna el número de clientes TCP conectados actualmente."""
         return len(self.active_clients)
 
-    async def broadcast_companion_frame(self, payload: bytes) -> None:
+    def get_response_owner(self) -> asyncio.StreamWriter | None:
+        """Capture the current request owner before scheduling an asynchronous write."""
+        return self._active_transaction_writer
+
+    def note_response_received(self, owner: asyncio.StreamWriter) -> None:
+        """Capture receipt before the raw future releases its transaction."""
+        if owner is self._active_transaction_writer:
+            self._response_received = True
+
+    async def broadcast_companion_frame(self, payload: bytes, response_owner: asyncio.StreamWriter | None = None) -> None:
         """
         Emite una trama de respuesta o evento ('>' + len:2 + payload)
         a todos los clientes móviles/CLI conectados.
         """
         if not self.running or not self.active_clients or not payload:
+            return
+        if payload[0] < 0x80:
+            if response_owner is not None:
+                await self.send_frame_to_client(response_owner, payload)
             return
 
         frame_len = len(payload)
@@ -357,8 +373,22 @@ class MeshCoreCompanionServer:
         cmd_type = payload[0]
         logging.debug(f"TCP Companion RX comando 0x{cmd_type:02X} (len={len(payload)})")
 
-        # Notificar al bridge / adaptador serial
-        if hasattr(self.bridge, "handle_tcp_companion_command"):
-            await self.bridge.handle_tcp_companion_command(payload, client_writer)
-        elif hasattr(self.bridge, "serial_adapter") and hasattr(self.bridge.serial_adapter, "send_raw_companion_frame"):
-            await self.bridge.serial_adapter.send_raw_companion_frame(payload)
+        # Companion replies have no request ID; one client owns the response stream.
+        async with self._transaction_lock:
+            self._active_transaction_writer = client_writer
+            self._response_received = False
+            try:
+                if hasattr(self.bridge, "handle_tcp_companion_command"):
+                    sent = await self.bridge.handle_tcp_companion_command(payload, client_writer)
+                elif hasattr(self.bridge, "serial_adapter") and hasattr(self.bridge.serial_adapter, "send_raw_companion_frame"):
+                    sent = await self.bridge.serial_adapter.send_raw_companion_frame(payload)
+                else:
+                    sent = False
+                if sent is False and not self._response_received:
+                    await self.send_frame_to_client(client_writer, b"\x01\x01")
+            except Exception:
+                logging.warning("Fallo procesando comando TCP Companion", exc_info=True)
+                if not self._response_received:
+                    await self.send_frame_to_client(client_writer, b"\x01\x01")
+            finally:
+                self._active_transaction_writer = None

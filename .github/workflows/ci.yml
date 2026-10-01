@@ -27,11 +27,14 @@ jobs:
 
       - name: Lint and code style (Ruff)
         run: |
-          ruff check .
+          ruff check src tests scripts
 
       - name: Type checking (Mypy strict)
         run: |
           mypy --strict src
+
+      - name: Validate documentation structure and local links
+        run: python scripts/validate_project_docs.py
 
       - name: Security audit (Bandit SAST)
         run: |
@@ -48,3 +51,28 @@ jobs:
       - name: Verify Async Concurrency
         run: |
           python .agents/skills/async-concurrency-engineering/scripts/audit_async_concurrency.py
+
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install runtime and QA dependencies
+        run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Install Chromium for isolated browser tests
+        run: python -m playwright install --with-deps chromium
+      - name: Run maintained tests and coverage
+        run: python -m pytest tests --junitxml=tests/artifacts/junit.xml --cov-report=xml:tests/artifacts/coverage.xml
+      - name: Upload test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-python-${{ matrix.python-version }}
+          path: tests/artifacts/

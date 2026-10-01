@@ -5,6 +5,7 @@ Directly tests isolated controllers without full HTTP server overhead.
 
 from __future__ import annotations
 
+import asyncio
 import collections
 import time
 from typing import Any
@@ -28,11 +29,11 @@ from src.web.controllers.tx_controller import TxController
 @pytest.fixture
 def api_context(tmp_path: Any) -> ApiContext:
     registry = NodeRegistry()
-    registry.set_local_pubkey("aabbccddeeff1122")
+    registry.set_local_pubkey("aabbccddeeff1122aabbccddeeff1122aabbccddeeff1122aabbccddeeff1122")
 
     # Add sample client node and sample repeater node (must be valid hex keys)
-    registry.add_or_update("1122334455667788", NodeContactUpdate(name="BobClient", role="CLIENT"))
-    registry.add_or_update("bbccddeeff001122", NodeContactUpdate(name="RepeaterNorth", role="REPEATER"))
+    registry.add_or_update("1122334455667788112233445566778811223344556677881122334455667788", NodeContactUpdate(name="BobClient", role="CLIENT"))
+    registry.add_or_update("bbccddeeff001122bbccddeeff001122bbccddeeff001122bbccddeeff001122", NodeContactUpdate(name="RepeaterNorth", role="REPEATER"))
 
     mock_bridge = MagicMock()
     mock_bridge.node_registry = registry
@@ -58,22 +59,30 @@ def api_context(tmp_path: Any) -> ApiContext:
     mock_serial.is_connected = True
     mock_serial.is_hardware_alive.return_value = True
     mock_serial.get_channels = AsyncMock(return_value=[{"index": 0, "name": "Public", "psk": "", "is_public": True}])
-    mock_serial.set_channel = AsyncMock(return_value=True)
-    mock_serial.sync_all_contacts = AsyncMock(return_value=[{"public_key": "syncnode11223344", "name": "Synced"}])
-    mock_serial.share_contact = AsyncMock(return_value=True)
+    mock_serial.set_channel = AsyncMock(return_value={"status": "OK"})
+    mock_serial.delete_channel = AsyncMock(return_value={"status": "OK"})
+    mock_serial.sync_all_contacts = AsyncMock(return_value=[{"public_key": "99" * 32, "name": "Synced"}])
+    mock_serial.share_contact = AsyncMock(return_value={"status": "OK"})
     mock_serial.export_contact = AsyncMock(return_value="aabbcc")
-    mock_serial.import_contact = AsyncMock(return_value=True)
-    mock_serial.add_contact = AsyncMock(return_value=True)
-    mock_serial.remove_contact = AsyncMock(return_value=True)
+    mock_serial.import_contact = AsyncMock(return_value={"status": "OK"})
+    mock_serial.add_contact = AsyncMock(return_value={"status": "OK"})
+    mock_serial.remove_contact = AsyncMock(return_value={"status": "OK"})
     mock_bridge.serial_adapter = mock_serial
 
     mock_admin = MagicMock()
-    mock_admin.get_local_config.return_value = {"public_key": "local112233445566", "name": "BaseStation"}
-    mock_admin.fetch_device_config = AsyncMock(return_value={"public_key": "local112233445566", "name": "BaseStation"})
+    mock_admin.get_local_config.return_value = {"public_key": "aabbccddeeff1122aabbccddeeff1122aabbccddeeff1122aabbccddeeff1122", "name": "BaseStation"}
+    mock_admin.fetch_device_config = AsyncMock(return_value={"public_key": "aabbccddeeff1122aabbccddeeff1122aabbccddeeff1122aabbccddeeff1122", "name": "BaseStation"})
     mock_admin.broadcast_advert = AsyncMock(return_value={"status": "ok", "action": "advert"})
     mock_bridge.admin_handler = mock_admin
     mock_bridge.handle_admin = AsyncMock(return_value={"status": "ok"})
-    mock_bridge._execute_tx = AsyncMock(return_value={"status": "dispatched", "request_id": "req_1"})
+    mock_bridge._execute_tx = AsyncMock(return_value={"status": "sent", "request_id": "req_1"})
+
+    def admitted_tx(**kwargs: Any) -> asyncio.Future[dict[str, str]]:
+        result: asyncio.Future[dict[str, str]] = asyncio.get_running_loop().create_future()
+        result.set_result({"status": "sent", "request_id": str(kwargs.get("request_id", "req_1"))})
+        return result
+
+    mock_bridge.rate_limiter.submit.side_effect = admitted_tx
 
     recent_msgs: collections.deque[dict[str, Any]] = collections.deque(maxlen=100)
     system_logs: collections.deque[dict[str, Any]] = collections.deque(maxlen=100)
@@ -101,17 +110,17 @@ async def test_tx_controller_validation(api_context: ApiContext) -> None:
     ctrl = TxController(api_context)
 
     # Empty text
-    status, res = await ctrl.send_tx({"text": "", "to": "1122334455667788"})
+    status, res = await ctrl.send_tx({"text": "", "to": "1122334455667788112233445566778811223344556677881122334455667788"})
     assert status == 400
     assert res["error"] == "missing_text_field"
 
     # Send to local node (prohibited)
-    status, res = await ctrl.send_tx({"text": "Hello me", "to": "aabbccddeeff1122"})
+    status, res = await ctrl.send_tx({"text": "Hello me", "to": "aabbccddeeff1122aabbccddeeff1122aabbccddeeff1122aabbccddeeff1122"})
     assert status == 400
     assert res["error"] == "tx_to_local_forbidden"
 
     # Send to repeater node (prohibited)
-    status, res = await ctrl.send_tx({"text": "Hello repeater", "to": "bbccddeeff001122"})
+    status, res = await ctrl.send_tx({"text": "Hello repeater", "to": "bbccddeeff001122bbccddeeff001122bbccddeeff001122bbccddeeff001122"})
     assert status == 400
     assert res["error"] == "tx_to_repeater_forbidden"
 
@@ -124,7 +133,8 @@ async def test_tx_controller_validation(api_context: ApiContext) -> None:
     status, res = await ctrl.send_tx({"text": "Hello Mesh", "to": "broadcast", "channel_index": 0})
     assert status == 200
     assert res["status"] == "ok"
-    assert api_context.bridge._execute_tx.called
+    api_context.bridge.rate_limiter.submit.assert_called_once()
+    api_context.bridge._execute_tx.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -152,7 +162,7 @@ async def test_channels_controller_crud(api_context: ApiContext, tmp_path: Any) 
     assert res["data"][0]["index"] == 0
 
     # POST create channel 1
-    status, res = await ctrl.handle_channels_route("/api/channels", "POST", {"index": 1, "name": "Team", "psk": "secret"})
+    status, res = await ctrl.handle_channels_route("/api/channels", "POST", {"index": 1, "name": "Team", "psk": "ab" * 16})
     assert status in (200, 201)
     assert res["data"]["name"] == "Team"
 
@@ -191,7 +201,7 @@ async def test_contacts_controller(api_context: ApiContext) -> None:
     status, res = await ctrl.handle_contacts_route(
         "/api/contacts",
         "POST",
-        {"public_key": "3344556677889900", "name": "Charlie", "role": "CLIENT"},
+        {"public_key": "3344556677889900334455667788990033445566778899003344556677889900", "name": "Charlie", "role": "CLIENT"},
     )
     assert status in (200, 201)
     assert res["data"]["name"] == "Charlie"
@@ -202,7 +212,7 @@ async def test_contacts_controller(api_context: ApiContext) -> None:
     assert res["error"] == "missing_public_key"
 
     # POST share contact
-    status, res = await ctrl.handle_contacts_route("/api/contacts/share", "POST", {"public_key": "3344556677889900"})
+    status, res = await ctrl.handle_contacts_route("/api/contacts/share", "POST", {"public_key": "3344556677889900334455667788990033445566778899003344556677889900"})
     assert status == 200
     assert api_context.bridge.serial_adapter.share_contact.called
 
@@ -217,7 +227,7 @@ async def test_contacts_controller(api_context: ApiContext) -> None:
     assert res["imported"] >= 1
 
     # DELETE contact
-    status, res = await ctrl.handle_contacts_route("/api/contacts", "DELETE", {"public_key": "3344556677889900"})
+    status, res = await ctrl.handle_contacts_route("/api/contacts", "DELETE", {"public_key": "3344556677889900334455667788990033445566778899003344556677889900"})
     assert status == 204
 
 
@@ -253,7 +263,7 @@ async def test_packets_controller(api_context: ApiContext) -> None:
         direction="RX",
         channel_idx=0,
         packet_type="CHAT",
-        sender="1122334455667788",
+        sender="1122334455667788112233445566778811223344556677881122334455667788",
         sender_name="Alice",
         text="Hello world",
         rssi=-70,
@@ -293,7 +303,7 @@ async def test_config_controller(api_context: ApiContext) -> None:
 
     status, res = await ctrl.get_device_config(refresh=False)
     assert status == 200
-    assert res["data"]["public_key"] == "local112233445566"
+    assert res["data"]["public_key"] == "aabbccddeeff1122aabbccddeeff1122aabbccddeeff1122aabbccddeeff1122"
     assert "uptime_str" in res["data"]
     assert "airtime_ms" in res["data"]
 
@@ -319,31 +329,31 @@ async def test_repeater_controller(api_context: ApiContext) -> None:
     assert res["error"] == "missing_target_node"
 
     # Login without password
-    status, res = await ctrl.login({"target_node": "bbccddeeff001122", "password": ""})
+    status, res = await ctrl.login({"target_node": "bbccddeeff001122bbccddeeff001122bbccddeeff001122bbccddeeff001122", "password": ""})
     assert status == 400
     assert res["error"] == "empty_password"
 
     # Successful login simulation
     api_context.bridge.handle_admin.return_value = {"status": "ok", "authenticated": True}
-    status, res = await ctrl.login({"target_node": "bbccddeeff001122", "password": "mypassword"})
+    status, res = await ctrl.login({"target_node": "bbccddeeff001122bbccddeeff001122bbccddeeff001122bbccddeeff001122", "password": "mypassword"})
     assert status == 200
     assert res["data"]["authenticated"] is True
 
     # Failed login simulation
     api_context.bridge.handle_admin.return_value = {"status": "ok", "authenticated": False, "message": "Wrong pass"}
-    status, res = await ctrl.login({"target_node": "bbccddeeff001122", "password": "wrong"})
+    status, res = await ctrl.login({"target_node": "bbccddeeff001122bbccddeeff001122bbccddeeff001122bbccddeeff001122", "password": "wrong"})
     assert status == 401
     assert res["error"] == "auth_failed"
 
     # Ping zero
     api_context.bridge.handle_admin.return_value = {"status": "ok", "rtt_ms": 42.0}
-    status, res = await ctrl.ping_zero({"target_node": "bbccddeeff001122"})
+    status, res = await ctrl.ping_zero({"target_node": "bbccddeeff001122bbccddeeff001122bbccddeeff001122bbccddeeff001122"})
     assert status == 200
     assert res["data"]["rtt_ms"] == 42.0
 
     # Traceroute
     api_context.bridge.handle_admin.return_value = {"status": "ok", "hop_count": 2}
-    status, res = await ctrl.traceroute({"target_node": "bbccddeeff001122"})
+    status, res = await ctrl.traceroute({"target_node": "bbccddeeff001122bbccddeeff001122bbccddeeff001122bbccddeeff001122"})
     assert status == 200
 
 

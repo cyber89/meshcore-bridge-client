@@ -27,6 +27,8 @@ class TestConcurrencyAndFlapping(unittest.TestCase):
         self.mock_mc.commands.send_chan_msg = AsyncMock(return_value=MagicMock(type=MagicMock(name="SENT")))
         self.mock_mc.contacts = []
         self.bridge.mc = self.mock_mc
+        self.bridge.serial_adapter.is_connected = True
+        self.bridge.serial_adapter.send_message = AsyncMock(return_value={"status": "SENT"})
 
     def tearDown(self):
         self.loop.close()
@@ -54,7 +56,7 @@ class TestConcurrencyAndFlapping(unittest.TestCase):
 
     def test_serial_exception_during_active_tx(self):
         """Verifica que una falla de hardware en el puerto USB durante TX no congele el worker."""
-        self.mock_mc.commands.send_chan_msg = AsyncMock(side_effect=OSError("USB Device Disconnected"))
+        self.bridge.serial_adapter.send_message = AsyncMock(side_effect=OSError("USB Device Disconnected"))
 
         tx_data = {
             "request_id": "test_crash_safe",

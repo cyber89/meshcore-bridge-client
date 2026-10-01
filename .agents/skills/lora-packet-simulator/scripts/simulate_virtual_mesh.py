@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""Simulador de Malla LoRa y Replay de Paquetes en Memoria para MeshCore Bridge.
+"""Escenario sintético multi_hop de LQI y deduplicación en memoria.
 
-Permite probar el pipeline de decodificación, deduplicación y cálculo de LQI
-sin requerir hardware físico ni emitir paquetes de radio reales.
+No implementa replay PCAP, flood o stress. No requiere hardware físico ni emite RF.
 """
 
 from __future__ import annotations
@@ -100,11 +99,15 @@ async def run_scenario_multi_hop(num_nodes: int = 3) -> None:
         print(f"   • {k[:14]}... -> LQI: {score:.1f}% [{st}]")
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Simulador de Malla LoRa en Memoria")
     parser.add_argument("--scenario", choices=["multi_hop", "flood", "stress"], default="multi_hop")
     parser.add_argument("--nodes", type=int, default=4, help="Número de nodos a simular")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+    if args.scenario != "multi_hop":
+        parser.error(f"Escenario '{args.scenario}' no implementado; sólo multi_hop está disponible")
+    if args.nodes < 1:
+        parser.error("--nodes debe ser un entero positivo")
 
     asyncio.run(run_scenario_multi_hop(args.nodes))
 

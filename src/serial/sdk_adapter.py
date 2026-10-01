@@ -27,6 +27,11 @@ except ImportError:
 
 __all__ = ["MeshcoreSDKAdapter", "MeshCore", "EventType", "Event"]
 
+# Firmware BaseChatMesh.h: MAX_TEXT_LEN = 10 * CIPHER_BLOCK_SIZE (16).
+MAX_TEXT_BYTES = 160
+# Firmware stores channel names in char[32], with a trailing NUL.
+MAX_CHANNEL_NAME_BYTES = 31
+
 
 class _BootWaitSerialConnection:
     """Wrapper de SerialConnection que añade espera de boot tras apertura del puerto."""
@@ -115,6 +120,111 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         self._loop: asyncio.AbstractEventLoop | None = None
         self._background_tasks: set[asyncio.Task[Any]] = set()
         self._is_syncing_hardware: bool = False
+        self._command_lock = asyncio.Lock()
+        self._serialized_commands: Any = None
+        self._raw_command_future: asyncio.Future[bool] | None = None
+        self._raw_command_opcode: int | None = None
+
+    def _observe_companion_frame(self, data: bytes) -> None:
+        """Route pushes and the current raw transaction, never internal SDK replies.
+
+        The callback is called synchronously so the TCP response owner is captured
+        before completing the future and releasing the transaction lock.
+        """
+        if not data:
+            return
+        pending = self._raw_command_future
+        raw_active = pending is not None and not pending.done()
+        if (data[0] >= 0x80 or raw_active) and self.companion_rx_callback:
+            try:
+                self.companion_rx_callback(data)
+            except Exception as ex:
+                logging.debug("Error en companion_rx_callback: %s", ex)
+        if pending is not None and raw_active and data[0] < 0x80:
+            if self._raw_command_opcode != 4 or data[0] in (0, 1, 4):
+                pending.set_result(data[0] != 1)
+
+    def _raw_chat_permitted(self, data: bytes) -> bool:
+        """Keep the same local identity and infrastructure guards on the raw path."""
+        if data[0] == 2:
+            if len(data) < 14:
+                return False
+            prefix = data[7:13].hex()
+            local = str((self.self_info or {}).get("public_key", "")).lower()
+            if local and local.startswith(prefix):
+                return False
+            if self.node_registry and self.node_registry.is_local_key(prefix):
+                return False
+            # MeshCore text type 1 is administrative CLI, not user chat.
+            if data[1] != 1:
+                if self.node_registry and self.node_registry.is_repeater_key(prefix):
+                    return False
+                contacts = getattr(self.mc, "contacts", {})
+                if isinstance(contacts, dict):
+                    for key, contact in contacts.items():
+                        if str(key).lower().startswith(prefix) and isinstance(contact, dict):
+                            if int(contact.get("type", -1)) == 2:
+                                return False
+            text = data[13:]
+        elif data[0] == 3:
+            if len(data) < 8:
+                return False
+            text = data[7:]
+            name = str((self.self_info or {}).get("name", ""))
+            if len(text) + len((name + ": ").encode("utf-8")) > MAX_TEXT_BYTES:
+                return False
+        else:
+            return True
+        return b"\x00" not in text and len(text) <= MAX_TEXT_BYTES
+
+    async def run_sdk_command(self, command: str, *args: Any, **kwargs: Any) -> Any:
+        """Serialize response waits: Companion OK/ERROR frames carry no request ID.
+
+        Administrative callers use this same entry point to share the lock with
+        message TX, local probes and initial synchronization.
+        """
+        if self.mc is None or not self.is_connected:
+            raise ConnectionError("MeshCore SDK no conectado")
+        commands = self.mc.commands
+        if self._serialized_commands is commands:
+            return await getattr(commands, command)(*args, **kwargs)
+        async with self._command_lock:
+            if self.mc is None or not self.is_connected:
+                raise ConnectionError("MeshCore SDK no conectado")
+            return await getattr(commands, command)(*args, **kwargs)
+
+    def _serialize_sdk_response_waits(self) -> None:
+        """Wrap only this SDK instance, including its internal auto-fetch calls.
+
+        The SDK's high-level mesh request lock serves a different purpose and
+        is never acquired here. One local response lock covers CommandHandler.send
+        so unsolicited ERROR cannot satisfy several pending commands at once.
+        """
+        commands = getattr(self.mc, "commands", None)
+        if commands is None:
+            return
+        original_send = getattr(commands, "send", None)
+        if not callable(original_send):
+            return
+        if getattr(commands, "_meshcore_bridge_serialized_owner", None) is self:
+            self._serialized_commands = commands
+            return
+
+        async def serialized_send(*args: Any, **kwargs: Any) -> Any:
+            async with self._command_lock:
+                return await original_send(*args, **kwargs)
+
+        commands._meshcore_bridge_serialized_owner = self
+        commands.send = serialized_send
+        self._serialized_commands = commands
+
+    @staticmethod
+    def _command_error(response: Any) -> dict[str, Any] | None:
+        if response is None or (
+            EventType is not None and getattr(response, "type", None) == EventType.ERROR
+        ):
+            return {"status": "ERROR", "reason": str(getattr(response, "payload", "sin respuesta")), "response": str(response)}
+        return None
 
     @property
     def self_info(self) -> Any:
@@ -216,6 +326,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                 self.is_connected = False
                 return
 
+            self.is_connected = True
             self._register_event_handlers()
             if hasattr(self.mc, "start_auto_message_fetching"):
                 await self.mc.start_auto_message_fetching()
@@ -225,7 +336,6 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                 except Exception as e:
                     logging.warning(f"Error sincronizando libreta de contactos de MeshCore: {e}")
 
-            self.is_connected = True
             self.heartbeat()
             if self.self_info and self.rx_callback and Event and EventType:
                 try:
@@ -235,14 +345,16 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             logging.info("MeshCore SDK conectado e iniciado exitosamente.")
             self._initial_sync_task = asyncio.create_task(self._initial_hardware_sync())
         except asyncio.CancelledError:
-            self.is_connected = False
+            await self.disconnect()
             raise
         except Exception as e:
             logging.error(f"Error conectando con MeshCore SDK: {e}", exc_info=True)
-            self.is_connected = False
+            await self.disconnect()
 
     async def disconnect(self) -> None:
         self.is_connected = False
+        if self._raw_command_future and not self._raw_command_future.done():
+            self._raw_command_future.set_result(False)
         if self._initial_sync_task and not self._initial_sync_task.done():
             self._initial_sync_task.cancel()
             try:
@@ -284,6 +396,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             finally:
                 self.mc = None
         self._self_info = None
+        self._serialized_commands = None
 
     def is_hardware_alive(self) -> bool:
         """Verifica si el transceptor USB / TCP sigue presente en el sistema operativo y operativo."""
@@ -291,7 +404,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             return False
 
         port_str = str(self.port)
-        if port_str.startswith("tcp://") or port_str.upper().startswith("VIRTUAL"):
+        if port_str.upper().startswith("VIRTUAL"):
             return bool(self.is_connected)
 
         # 1. Comprobación física de transporte serial abierto y estado de conexión en el SDK oficial
@@ -342,22 +455,25 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             try:
                 cmds = self.mc.commands
                 if hasattr(cmds, "get_time"):
-                    res = await asyncio.wait_for(cmds.get_time(), timeout=3.0)
+                    res = await asyncio.wait_for(self.run_sdk_command("get_time"), timeout=3.0)
                     if res is not None and getattr(res, "type", None) != getattr(EventType, "ERROR", None):
                         self.heartbeat()
                         return True
                 elif hasattr(cmds, "get_bat"):
-                    res = await asyncio.wait_for(cmds.get_bat(), timeout=3.0)
+                    res = await asyncio.wait_for(self.run_sdk_command("get_bat"), timeout=3.0)
                     if res is not None and getattr(res, "type", None) != getattr(EventType, "ERROR", None):
                         self.heartbeat()
                         return True
                 elif hasattr(cmds, "send_device_query"):
-                    res = await asyncio.wait_for(cmds.send_device_query(), timeout=3.0)
+                    res = await asyncio.wait_for(self.run_sdk_command("send_device_query"), timeout=3.0)
                     if res is not None and getattr(res, "type", None) != getattr(EventType, "ERROR", None):
                         self.heartbeat()
                         return True
             except Exception as e_ping:
                 logging.debug(f"Comprobación activa de vivacidad devolvió excepción: {e_ping}")
+                return False
+            if any(hasattr(cmds, name) for name in ("get_time", "get_bat", "send_device_query")):
+                return False
 
         self.heartbeat()
         return bool(self.is_hardware_alive())
@@ -365,6 +481,8 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
     def _register_event_handlers(self) -> None:
         if not self.mc:
             return
+        owning_mc = self.mc
+        self._serialize_sdk_response_waits()
 
         # Hook para interceptar tramas binarias de la radio y difundirlas a clientes companion (App/CLI)
         if hasattr(self.mc, "_reader") and hasattr(self.mc._reader, "handle_rx"):
@@ -372,11 +490,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
             async def _hooked_handle_rx(data: bytearray) -> None:
                 self.heartbeat()
-                if self.companion_rx_callback and data:
-                    try:
-                        self.companion_rx_callback(bytes(data))
-                    except Exception as ex:
-                        logging.debug(f"Error en companion_rx_callback: {ex}")
+                self._observe_companion_frame(bytes(data))
                 await original_handle_rx(data)
 
             self.mc._reader.handle_rx = _hooked_handle_rx
@@ -394,19 +508,26 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                         except RuntimeError:
                             pass
                     if loop and loop.is_running():
+                        def schedule() -> None:
+                            if not self.is_connected or self.mc is not owning_mc or loop is None or loop.is_closed():
+                                return
+                            task = loop.create_task(self._on_sdk_event(et, event))
+                            self._background_tasks.add(task)
+                            def completed(done: asyncio.Task[Any]) -> None:
+                                self._background_tasks.discard(done)
+                                if not done.cancelled():
+                                    error = done.exception()
+                                    if error:
+                                        logging.debug("Evento SDK falló: %s", type(error).__name__)
+                            task.add_done_callback(completed)
                         try:
                             running = asyncio.get_running_loop()
                             if running is loop:
-                                task = loop.create_task(self._on_sdk_event(et, event))
-                                self._background_tasks.add(task)
-                                task.add_done_callback(self._background_tasks.discard)
+                                schedule()
                                 return
                         except RuntimeError:
                             pass
-                        fut = asyncio.run_coroutine_threadsafe(self._on_sdk_event(et, event), loop)
-                        fut.add_done_callback(
-                            lambda f: logging.debug(f"SDK event fut done: {f.exception()}") if f.exception() else None
-                        )
+                        loop.call_soon_threadsafe(schedule)
                 except Exception as ex:
                     logging.debug(f"Error despachando evento SDK {et}: {ex}")
             return _handler
@@ -569,8 +690,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             ):
                 if hasattr(cmds, cmd_name):
                     try:
-                        fn = getattr(cmds, cmd_name)
-                        await fn()
+                        await self.run_sdk_command(cmd_name)
                         await asyncio.sleep(0.15)
                     except Exception as e:
                         logging.debug(f"Aviso en sincronización inicial de radio ({cmd_name}): {e}")
@@ -578,14 +698,14 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             # Sincronizar automáticamente el reloj RTC del ESP32 con la hora del host para eliminar desfase
             if hasattr(cmds, "set_time"):
                 try:
-                    await cmds.set_time(int(time.time()))
+                    await self.run_sdk_command("set_time", int(time.time()))
                     await asyncio.sleep(0.15)
                 except Exception as e:
                     logging.debug(f"Aviso sincronizando reloj RTC inicial: {e}")
 
             if hasattr(cmds, "get_time"):
                 try:
-                    await cmds.get_time()
+                    await self.run_sdk_command("get_time")
                     await asyncio.sleep(0.15)
                 except Exception as e:
                     logging.debug(f"Aviso consultando hora tras sincronización RTC: {e}")
@@ -736,13 +856,12 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
     async def _handle_self_info(self, data: Any) -> None:
         """Maneja información del nodo local."""
         logging.debug(f"Self info: {data}")
-        if isinstance(data, dict):
+        payload = getattr(data, "payload", data)
+        if isinstance(payload, dict):
             if self._self_info is None or not isinstance(self._self_info, dict):
-                self._self_info = dict(data)
+                self._self_info = dict(payload)
             else:
-                self._self_info.update(data)
-        elif data is not None:
-            self._self_info = data
+                self._self_info.update(payload)
         if self.rx_callback:
             self.rx_callback(data)
 
@@ -812,18 +931,35 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             self.rx_callback(data)
 
     async def send_raw_companion_frame(self, data: bytes) -> bool:
-        """Envía una trama cruda recibida desde un cliente companion hacia el hardware de radio."""
-        if not self.is_connected or not self.mc or not data:
+        """Serialize a raw transaction with SDK response waits; GET_CONTACTS is a stream.
+
+        Companion responses have no request ID. After a timeout a late reply cannot
+        be attributed with certainty; no automatic retransmission is introduced.
+        """
+        if not self.is_connected or not self.mc or not data or not self._raw_chat_permitted(data):
             return False
         try:
-            if hasattr(self.mc, "cx") and hasattr(self.mc.cx, "send"):
-                await self.mc.cx.send(data)
-                self.heartbeat()
-                return True
-            elif hasattr(self.mc, "connection") and hasattr(self.mc.connection, "send"):
-                await self.mc.connection.send(data)
-                self.heartbeat()
-                return True
+            async with self._command_lock:
+                if not self.is_connected or not self.mc:
+                    return False
+                connection = getattr(self.mc, "cx", None) or getattr(self.mc, "connection", None)
+                if connection is None or not hasattr(connection, "send"):
+                    return False
+                self._raw_command_opcode = data[0]
+                pending = asyncio.get_running_loop().create_future()
+                self._raw_command_future = pending
+                try:
+                    await connection.send(data)
+                    if data[0] == 19:  # Official reboot is fire-and-forget.
+                        return True
+                    return bool(await asyncio.wait_for(pending, timeout=self.timeout_sec))
+                finally:
+                    if not pending.done():
+                        pending.cancel()
+                    self._raw_command_future = None
+                    self._raw_command_opcode = None
+        except asyncio.TimeoutError:
+            logging.warning("Timeout de respuesta Companion raw (opcode=%s)", data[0])
             return False
         except Exception as e:
             logging.error(f"Error enviando trama raw companion a la radio: {e}")
@@ -840,8 +976,10 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
         # 1. Validación estricta de MTU LoRa
         raw_bytes = text.encode("utf-8")
-        if len(raw_bytes) > 238:
-            raise ValueError(f"Payload de mensaje excede MTU de LoRa ({len(raw_bytes)} > 238 bytes)")
+        if len(raw_bytes) > MAX_TEXT_BYTES:
+            raise ValueError(f"Payload de mensaje excede límite oficial ({len(raw_bytes)} > {MAX_TEXT_BYTES} bytes)")
+        if "\x00" in text:
+            raise ValueError("El texto no puede contener NUL: el firmware usa cadenas terminadas en NUL")
 
         # 2. Validación estricta de rango de canal
         safe_ch = int(channel_idx) if channel_idx is not None else 0
@@ -858,7 +996,14 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         # Canal público vs mensaje directo (DM)
         if is_dm:
             dest_target = self._resolve_target(target_clean)
-            dest_target_str = str(dest_target).lower()
+            if isinstance(dest_target, dict):
+                dest_target_str = str(dest_target.get("public_key", "")).strip().lower()
+                target_role = classify_device_role(int(dest_target.get("type", dest_target.get("adv_type", 1)) or 0), False)
+            else:
+                dest_target_str = str(getattr(dest_target, "public_key", dest_target)).strip().lower()
+                target_role = str(getattr(dest_target, "role", "")).upper()
+            if target_role in ("REPEATER", "ROUTER"):
+                raise ValueError("Envío de chat prohibido: el destinatario es un REPEATER de infraestructura")
 
             # AGENTS.md Regla 1.1: NUNCA permitir mensajería de chat hacia repetidores
             if self.node_registry:
@@ -872,38 +1017,37 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             local_pk = ""
             if self.self_info and isinstance(self.self_info, dict):
                 local_pk = str(self.self_info.get("public_key", self.self_info.get("key", ""))).lower()
-            if local_pk and (dest_target_str.startswith(local_pk) or local_pk.startswith(dest_target_str)):
+            if local_pk and dest_target_str and (dest_target_str.startswith(local_pk) or local_pk.startswith(dest_target_str)):
                 raise ValueError("Bucle local prohibido: no se puede enviar mensaje al propio nodo local (AGENTS.md Regla 1.1)")
 
             # Asegurar contacto en la radio antes de transmitir
             await self._ensure_contact_for_tx(dest_target, target_clean)
 
             if hasattr(self.mc.commands, "send_msg"):
-                res = await self.mc.commands.send_msg(dest_target, text)
+                res = await self.run_sdk_command("send_msg", dest_target, text)
             else:
                 raise NotImplementedError("send_msg no soportado en este SDK")
         else:
+            info = self.self_info
+            name = str(info.get("name", "")) if isinstance(info, dict) else ""
+            # BaseChatMesh::sendGroupMessage prepends '<sender>: ' within MAX_TEXT_LEN.
+            prefix_bytes = len(name.encode("utf-8")) + 2
+            max_channel_bytes = MAX_TEXT_BYTES - prefix_bytes
+            if len(raw_bytes) > max_channel_bytes:
+                raise ValueError(f"Texto de canal excede límite oficial con prefijo ({len(raw_bytes)} > {max_channel_bytes} bytes)")
             if hasattr(self.mc.commands, "send_chan_msg"):
-                res = await self.mc.commands.send_chan_msg(safe_ch, text)
+                res = await self.run_sdk_command("send_chan_msg", safe_ch, text)
             elif hasattr(self.mc.commands, "send_channel_msg"):
-                res = await self.mc.commands.send_channel_msg(safe_ch, text)
+                res = await self.run_sdk_command("send_channel_msg", safe_ch, text)
             elif hasattr(self.mc.commands, "send_msg"):
-                res = await self.mc.commands.send_msg(text)
+                raise NotImplementedError("send_chan_msg no soportado en este SDK")
             else:
                 raise NotImplementedError("send_chan_msg no soportado en este SDK")
 
-        # Comprobar si el SDK reportó error explícito
-        if res is not None:
-            res_type = getattr(res, "type", None)
-            if EventType is not None and res_type == EventType.ERROR:
-                err_msg = str(getattr(res, "payload", "Error reportado por MeshCore SDK"))
-                logging.warning(f"MeshCore SDK devolvió EventType.ERROR al enviar mensaje: {err_msg}")
-                return {
-                    "status": "ERROR",
-                    "reason": err_msg,
-                    "response": str(res),
-                    "event": res,
-                }
+        error = self._command_error(res)
+        if error:
+            error["event"] = res
+            return error
 
         expected_ack_hex = None
         if res is not None and hasattr(res, "payload") and isinstance(res.payload, dict):
@@ -963,6 +1107,12 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             if not pubkey or len(pubkey) < 12:
                 return
 
+            cached_contacts = getattr(self.mc, "_contacts", None)
+            if isinstance(cached_contacts, dict) and any(
+                str(key).lower().startswith(pubkey.lower()) for key in cached_contacts
+            ):
+                return
+
             # Enriquecer con NodeRegistry si está disponible
             if hasattr(self, "node_registry") and self.node_registry:
                 reg_node = self.node_registry.get_contact(pubkey) or self.node_registry.get_by_key_or_prefix(pubkey)
@@ -978,7 +1128,11 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                     lat = float(getattr(reg_node, "latitude", lat) or lat or 0.0)
                     lon = float(getattr(reg_node, "longitude", lon) or lon or 0.0)
 
-            full_pk = pubkey.ljust(64, "0")[:64]
+            # A 6-byte TX prefix identifies an existing firmware contact; it
+            # cannot reconstruct the full 32-byte identity for CMD_ADD_CONTACT.
+            if not re.fullmatch(r"[a-fA-F0-9]{64}", pubkey):
+                return
+            full_pk = pubkey.lower()
             clean_name = _safe_truncate_utf8(name or f"Node_{full_pk[:6]}", 32)
             contact_data = {
                 "public_key": full_pk,
@@ -1060,12 +1214,12 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                 max_ch = 8
                 if isinstance(self.self_info, dict) and "max_channels" in self.self_info:
                     try:
-                        max_ch = min(16, max(1, int(self.self_info["max_channels"])))
+                        max_ch = min(255, max(1, int(self.self_info["max_channels"])))
                     except (ValueError, TypeError):
                         max_ch = 8
                 for ch_idx in range(max_ch):
                     try:
-                        ev = await self.mc.commands.get_channel(ch_idx)
+                        ev = await self.run_sdk_command("get_channel", ch_idx)
                         if ev and hasattr(ev, "payload") and isinstance(ev.payload, dict):
                             p = ev.payload
                             ch_name = str(p.get("channel_name", "")).strip()
@@ -1085,13 +1239,22 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
         return channels
 
+    def _channel_capacity(self) -> int:
+        info = self.self_info
+        if isinstance(info, dict) and "max_channels" in info:
+            try:
+                return min(255, max(1, int(info["max_channels"])))
+            except (ValueError, TypeError):
+                pass
+        return 16  # Legacy firmware without a capacity announcement.
+
     async def set_channel(self, index: int, name: str, psk: str) -> dict[str, Any]:
         """Configura un canal en el firmware del transceptor serial."""
         if not re.match(r'^[a-fA-F0-9]{0,64}$', psk):
             raise ValueError("Invalid PSK format")
-        if not (0 <= index <= 15):
-            raise ValueError("Channel index out of range (0-15)")
-        if len(name) > 32 or any(ord(c) < 0x20 for c in name):
+        if not (0 <= index < self._channel_capacity()):
+            raise ValueError("Channel index outside firmware capacity")
+        if len(name.encode("utf-8")) > MAX_CHANNEL_NAME_BYTES or any(ord(c) < 0x20 for c in name):
             raise ValueError("Invalid channel name")
 
         if not self.is_connected or not self.mc:
@@ -1099,7 +1262,9 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
         # Convertir PSK a 16 bytes exactos (AES-128) según lo requerido por el SDK de MeshCore
         secret_bytes: bytes | None = None
-        if psk:
+        if name.startswith("#"):
+            secret_bytes = hashlib.sha256(name.encode("utf-8")).digest()[:16]
+        elif psk:
             clean_psk = psk.strip()
             if len(clean_psk) == 32 and all(c in "0123456789abcdefABCDEF" for c in clean_psk):
                 secret_bytes = bytes.fromhex(clean_psk)
@@ -1107,8 +1272,6 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                 secret_bytes = clean_psk.encode("utf-8")
             else:
                 secret_bytes = hashlib.sha256(clean_psk.encode("utf-8")).digest()[:16]
-        elif name.startswith("#"):
-            secret_bytes = hashlib.sha256(name.encode("utf-8")).digest()[:16]
         else:
             secret_bytes = b"\x00" * 16
 
@@ -1116,9 +1279,12 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
         try:
             if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "set_channel"):
-                res = await self.mc.commands.set_channel(index, name, secret_bytes)
+                res = await self.run_sdk_command("set_channel", index, name, secret_bytes)
             else:
-                res = "OK"
+                return {"status": "ERROR", "reason": "set_channel no soportado"}
+            error = self._command_error(res)
+            if error:
+                return error
 
             # Actualizar la memoria RAM del SDK de MeshCore para sincronización inmediata
             try:
@@ -1139,7 +1305,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                         self.mc.channels[index] = {
                             "index": index,
                             "name": name,
-                            "psk": psk,
+                            "psk": secret_bytes.hex(),
                             "channel_hash": chan_hash_hex,
                         }
                     elif isinstance(self.mc.channels, list):
@@ -1148,7 +1314,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                         self.mc.channels[index] = {
                             "index": index,
                             "name": name,
-                            "psk": psk,
+                            "psk": secret_bytes.hex(),
                             "channel_hash": chan_hash_hex,
                         }
             except Exception as e:
@@ -1157,16 +1323,27 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             return {"status": "OK", "response": str(res)}
         except Exception as e:
             logging.warning(f"Fallo aplicando canal al transceptor serial: {e}")
-
-        return {"status": "SAVED", "index": index, "name": name}
+            return {"status": "ERROR", "reason": str(e), "index": index}
 
     async def delete_channel(self, index: int) -> dict[str, Any]:
         """Elimina o vacía un canal en el firmware del transceptor serial enviando set_channel con nombre vacío y clave de ceros."""
-        if not (1 <= index <= 15):
-            raise ValueError("Channel index out of range for deletion (1-15)")
+        if not (1 <= index < self._channel_capacity()):
+            raise ValueError("Channel index outside firmware capacity for deletion")
 
         if not self.is_connected or not self.mc:
             return {"status": "LOCAL_DELETED", "index": index}
+
+        # Firmware acknowledgement precedes committing the cached deletion.
+        try:
+            if not hasattr(self.mc, "commands") or not hasattr(self.mc.commands, "set_channel"):
+                return {"status": "ERROR", "reason": "set_channel no soportado"}
+            res = await self.run_sdk_command("set_channel", index, "", b"\x00" * 16)
+            error = self._command_error(res)
+            if error:
+                return error
+        except Exception as e:
+            logging.warning(f"Fallo eliminando canal {index} en el transceptor serial: {e}")
+            return {"status": "ERROR", "reason": str(e), "index": index}
 
         # 1. Purgar inmediatamente la memoria RAM del SDK de MeshCore
         try:
@@ -1184,19 +1361,13 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         except Exception as e:
             logging.debug(f"Error limpiando canal {index} de la memoria del SDK: {e}")
 
-        # 2. Enviar orden de vaciado al firmware
-        zero_secret = b"\x00" * 16
-        try:
-            if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "set_channel"):
-                res = await self.mc.commands.set_channel(index, "", zero_secret)
-                return {"status": "OK", "response": str(res)}
-        except Exception as e:
-            logging.warning(f"Fallo eliminando canal {index} en el transceptor serial: {e}")
-
-        return {"status": "DELETED", "index": index}
+        return {"status": "OK", "response": str(res)}
 
     async def add_contact(self, contact_data: dict[str, Any]) -> dict[str, Any]:
         """Añade o actualiza un contacto en la memoria flash del transceptor serial."""
+        pubkey = str(contact_data.get("public_key", "")).strip()
+        if not re.fullmatch(r"[a-fA-F0-9]{64}", pubkey):
+            raise ValueError("CMD_ADD_CONTACT requiere la clave pública completa de 32 bytes")
         if not self.is_connected or not self.mc:
             return {"status": "LOCAL_SAVED", "contact": contact_data}
 
@@ -1207,7 +1378,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                 name = f"Node_{pubkey[:6]}"
 
             if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "add_contact"):
-                full_pk = pubkey.ljust(64, "0")[:64]
+                full_pk = pubkey.lower()
                 # Normalizar estructura completa requerida por el SDK y firmware
                 clean_contact = {
                     "public_key": full_pk,
@@ -1221,14 +1392,18 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                     "adv_lat": float(contact_data.get("adv_lat", contact_data.get("latitude", 0.0)) or 0.0),
                     "adv_lon": float(contact_data.get("adv_lon", contact_data.get("longitude", 0.0)) or 0.0),
                 }
-                res = await self.mc.commands.add_contact(clean_contact)
+                res = await self.run_sdk_command("add_contact", clean_contact)
+                error = self._command_error(res)
+                if error:
+                    return error
                 if hasattr(self.mc, "_contacts") and isinstance(self.mc._contacts, dict):
                     self.mc._contacts[full_pk] = clean_contact
                 return {"status": "OK", "response": str(res)}
         except Exception as e:
             logging.warning(f"Fallo registrando contacto en transceptor serial: {e}")
+            return {"status": "ERROR", "reason": str(e)}
 
-        return {"status": "SAVED", "contact": contact_data}
+        return {"status": "ERROR", "reason": "add_contact no soportado"}
 
     async def remove_contact(self, pubkey: str) -> dict[str, Any]:
         """Elimina un contacto de la memoria flash del transceptor serial."""
@@ -1237,12 +1412,19 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
         try:
             if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "remove_contact"):
-                res = await self.mc.commands.remove_contact(pubkey)
+                res = await self.run_sdk_command("remove_contact", pubkey)
+                error = self._command_error(res)
+                if error:
+                    return error
+                contacts = getattr(self.mc, "_contacts", None)
+                if isinstance(contacts, dict):
+                    contacts.pop(pubkey, None)
                 return {"status": "OK", "response": str(res)}
         except Exception as e:
             logging.warning(f"Fallo eliminando contacto del transceptor serial: {e}")
+            return {"status": "ERROR", "reason": str(e)}
 
-        return {"status": "REMOVED", "public_key": pubkey}
+        return {"status": "ERROR", "reason": "remove_contact no soportado"}
 
     async def sync_all_contacts(self) -> list[dict[str, Any]]:
         """Descarga e importa todos los contactos almacenados en el hardware."""
@@ -1253,7 +1435,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         try:
             if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "get_contacts"):
                 try:
-                    await self.mc.commands.get_contacts(timeout=5)
+                    await self.run_sdk_command("get_contacts", timeout=5)
                 except Exception as ex:
                     logging.debug(f"Comando get_contacts emitido: {ex}")
 
@@ -1335,7 +1517,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             try:
                 target_key = contact_key
                 try:
-                    target = self._resolve_target(contact_key, min_hex_len=64)
+                    target = self._resolve_target(contact_key)
                     if isinstance(target, dict) and "public_key" in target:
                         target_key = str(target["public_key"])
                     elif hasattr(target, "public_key"):
@@ -1345,11 +1527,10 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                 except Exception as ex_res:
                     logging.debug(f"Target resolution for share_contact fallback to input: {ex_res}")
 
-                if isinstance(target_key, str) and all(c in "0123456789abcdefABCDEF" for c in target_key):
-                    if len(target_key) < 64:
-                        target_key = (target_key + "0" * 64)[:64]
+                if not isinstance(target_key, str) or not re.fullmatch(r"[a-fA-F0-9]{64}", target_key):
+                    raise ValueError("share_contact requiere una clave pública completa resuelta")
 
-                return await asyncio.wait_for(self.mc.commands.share_contact(target_key), timeout=10.0)
+                return await asyncio.wait_for(self.run_sdk_command("share_contact", target_key), timeout=10.0)
             except Exception as e:
                 logging.warning(f"Error compartiendo contacto en radio: {e}")
                 return None
@@ -1364,7 +1545,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                 if contact_key:
                     target_key = contact_key
                     try:
-                        target = self._resolve_target(contact_key, min_hex_len=64)
+                        target = self._resolve_target(contact_key)
                         if isinstance(target, dict) and "public_key" in target:
                             target_key = str(target["public_key"])
                         elif hasattr(target, "public_key"):
@@ -1374,11 +1555,10 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                     except Exception as ex_res:
                         logging.debug(f"Target resolution for export_contact fallback to input: {ex_res}")
 
-                    if isinstance(target_key, str) and all(c in "0123456789abcdefABCDEF" for c in target_key):
-                        if len(target_key) < 64:
-                            target_key = (target_key + "0" * 64)[:64]
+                    if not isinstance(target_key, str) or not re.fullmatch(r"[a-fA-F0-9]{64}", target_key):
+                        raise ValueError("export_contact requiere una clave pública completa resuelta")
 
-                return await asyncio.wait_for(self.mc.commands.export_contact(target_key), timeout=10.0)
+                return await asyncio.wait_for(self.run_sdk_command("export_contact", target_key), timeout=10.0)
             except Exception as e:
                 logging.warning(f"Error exportando contacto desde radio: {e}")
                 return None
@@ -1389,7 +1569,7 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             return None
         if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "import_contact"):
             try:
-                return await asyncio.wait_for(self.mc.commands.import_contact(contact_data), timeout=10.0)
+                return await asyncio.wait_for(self.run_sdk_command("import_contact", contact_data), timeout=10.0)
             except Exception as e:
                 logging.warning(f"Error importando contacto a radio: {e}")
                 return None

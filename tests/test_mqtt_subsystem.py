@@ -18,6 +18,7 @@ from src.rate_limiter import TxPriority, TxRateLimiter
 class TestMqttSubsystem(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         self.mock_paho = MagicMock()
+        self.mock_paho.publish.return_value.rc = 0
         self.config = MQTTConfig(
             broker="192.168.1.50",
             port=1883,

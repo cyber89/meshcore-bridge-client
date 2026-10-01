@@ -96,9 +96,10 @@ class SerialWatchdog:
                     if self.max_reconnect_attempts > 0 and self._total_reconnect_attempts >= self.max_reconnect_attempts:
                         logging.warning(
                             f"Watchdog Serial: Se alcanzó el límite máximo de reintentos ({self.max_reconnect_attempts}). "
-                            "Entrando en modo dormant (reintentando cada 300s)..."
+                            "Reconexión automática detenida."
                         )
-                        await asyncio.sleep(300.0)
+                        self._running = False
+                        break
                     else:
                         reconnect_wait = min(self._reconnect_backoff_sec, max(0.005, self.interval_sec))
                         logging.info(

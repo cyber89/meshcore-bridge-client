@@ -116,7 +116,7 @@ class SystemLogHandler(logging.Handler):
             self.buffer.append(log_entry)
 
             # Notificar callback en vivo (WebSocket) de forma segura sin reentrancia
-            if self.broadcast_callback and not self._is_emitting:
+            if self.broadcast_callback and not self._is_emitting and not getattr(record, "skip_broadcast", False):
                 self._is_emitting = True
                 try:
                     payload = {
@@ -184,7 +184,8 @@ class DiagnosticManager:
             level_val = getattr(logging, lvl)
             if isinstance(level_val, int):
                 logging.getLogger().setLevel(level_val)
-                logging.getLogger("meshcore").setLevel(level_val)
+                # SDK DEBUG logs include plaintext login commands and binary secrets.
+                logging.getLogger("meshcore").setLevel(max(logging.INFO, level_val))
                 if hasattr(self, "log_handler") and self.log_handler:
                     self.log_handler.setLevel(level_val)
                 logging.info(f"Nivel global de logging cambiado dinámicamente a: {lvl}")

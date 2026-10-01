@@ -14,6 +14,7 @@ import logging
 import math
 import os
 import random
+import threading
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -101,6 +102,10 @@ class CustomTxQueue(asyncio.PriorityQueue[Any]):
                 oldest = min(low_items, key=lambda x: getattr(x, "counter", 0))
                 queue_list.remove(oldest)
                 heapq.heapify(queue_list)
+                future = getattr(oldest, "future", None)
+                if future is not None and not future.done():
+                    future.set_exception(RuntimeError("Elemento TX desalojado por prioridad"))
+                self.task_done()
                 logging.warning("CustomTxQueue: Evicted oldest LOW priority item to make room.")
                 return True
         return False
@@ -214,6 +219,9 @@ class AirtimeTracker:
         self._channel_packets: dict[int, int] = {}
         self._current_status: str = "normal"  # "normal", "warning", "critical"
         self._last_save_time: float = 0.0
+        self._save_task: asyncio.Task[None] | None = None
+        self._pending_save: dict[str, Any] | None = None
+        self._save_lock = threading.Lock()
         self._last_tx_time: float | None = None
         self._channel_utilization_pct: float = 0.0
         self._cutoff_active: bool = False
@@ -276,31 +284,57 @@ class AirtimeTracker:
             return
 
         self._prune(now)
+        payload: dict[str, Any] = {
+            "version": 1, "saved_at": now,
+            "duty_cycle_limit_pct": self.duty_cycle_limit_pct,
+            "warn_threshold_pct": self.warn_threshold_pct,
+            "total_airtime_ms": round(self.total_airtime_ms, 1),
+            "total_packets": self.total_packets,
+            "channel_utilization_pct": round(self._channel_utilization_pct, 2),
+            "cutoff_active": self._cutoff_active,
+            "cutoff_threshold_pct": self.cutoff_threshold_pct,
+            "cutoff_resume_pct": self.cutoff_resume_pct,
+            "cutoff_enabled": self.cutoff_enabled,
+            "records": [r.to_dict() for r in self._history],
+        }
+        self._last_save_time = now
         try:
-            target_dir = os.path.dirname(os.path.abspath(self.history_file))
-            os.makedirs(target_dir, exist_ok=True)
-            temp_path = f"{self.history_file}.tmp"
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._write_history(payload)
+            return
+        self._pending_save = payload
+        if self._save_task is None or self._save_task.done():
+            self._save_task = loop.create_task(self._drain_history(), name="AirtimePersistence")
 
-            payload = {
-                "version": 1,
-                "saved_at": now,
-                "duty_cycle_limit_pct": self.duty_cycle_limit_pct,
-                "warn_threshold_pct": self.warn_threshold_pct,
-                "total_airtime_ms": round(self.total_airtime_ms, 1),
-                "total_packets": self.total_packets,
-                "channel_utilization_pct": round(self._channel_utilization_pct, 2),
-                "cutoff_active": self._cutoff_active,
-                "cutoff_threshold_pct": self.cutoff_threshold_pct,
-                "cutoff_resume_pct": self.cutoff_resume_pct,
-                "cutoff_enabled": self.cutoff_enabled,
-                "records": [r.to_dict() for r in self._history],
-            }
-            with open(temp_path, "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=2)
-            os.replace(temp_path, self.history_file)
-            self._last_save_time = now
-        except Exception as e:
-            logging.warning(f"AirtimeTracker: Error al persistir historial en {self.history_file}: {e}")
+    def _write_history(self, payload: dict[str, Any]) -> None:
+        """Write an immutable snapshot; serialize writers sharing the atomic temp path."""
+        if not self.history_file:
+            return
+        with self._save_lock:
+            try:
+                target_dir = os.path.dirname(os.path.abspath(self.history_file))
+                os.makedirs(target_dir, exist_ok=True)
+                temp_path = f"{self.history_file}.tmp"
+                with open(temp_path, "w", encoding="utf-8") as stream:
+                    json.dump(payload, stream, indent=2)
+                os.replace(temp_path, self.history_file)
+            except Exception:
+                logging.warning("AirtimeTracker: Error al persistir historial")
+
+    async def _drain_history(self) -> None:
+        try:
+            while self._pending_save is not None:
+                payload, self._pending_save = self._pending_save, None
+                await asyncio.to_thread(self._write_history, payload)
+        finally:
+            self._save_task = None
+
+    async def flush_history(self) -> None:
+        """Snapshot the final state on the loop and wait for the owned disk writer."""
+        self.save_history(sync=True)
+        if self._save_task is not None:
+            await asyncio.shield(self._save_task)
 
 
     def record_tx(self, airtime_ms: float, channel_idx: int = 0, target: str | None = None) -> None:
@@ -531,7 +565,7 @@ class TxRateLimiter:
             logging.debug("TxRateLimiter: drenados %d items huérfanos al detener.", drained)
 
         # Persistir historial de transmisiones en disco de forma segura
-        self.airtime_tracker.save_history(sync=True)
+        await self.airtime_tracker.flush_history()
         logging.debug("TxRateLimiter worker detenido.")
 
     async def submit(
@@ -589,6 +623,8 @@ class TxRateLimiter:
                 try:
                     if item is None:
                         continue
+                    if isinstance(item, TxItem) and item.future is not None and item.future.cancelled():
+                        continue
 
                     # Protección de Airtime LoRa: Si estamos en estado crítico (100% de duty cycle),
                     # descartar paquetes de baja prioridad (telemetría/anuncios) para no violar el límite legal.
@@ -609,13 +645,18 @@ class TxRateLimiter:
                         try:
                             res = await self.transmit_callback(item)
                             if isinstance(item, TxItem):
-                                self.airtime_tracker.record_tx(
-                                    airtime_ms=item.estimated_airtime_ms,
-                                    channel_idx=item.channel_idx,
-                                    target=item.target,
-                                )
+                                if isinstance(res, dict) and str(res.get("status", "")).lower() in ("sent", "ok", "success"):
+                                    self.airtime_tracker.record_tx(
+                                        airtime_ms=item.estimated_airtime_ms,
+                                        channel_idx=item.channel_idx,
+                                        target=item.target,
+                                    )
                                 if item.future and not item.future.done():
                                     item.future.set_result(res)
+                        except asyncio.CancelledError:
+                            if isinstance(item, TxItem) and item.future and not item.future.done():
+                                item.future.cancel()
+                            raise
                         except Exception as e:
                             logging.error(f"Error en callback de transmisión: {e}")
                             if isinstance(item, TxItem) and item.future and not item.future.done():

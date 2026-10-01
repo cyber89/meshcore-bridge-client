@@ -31,6 +31,8 @@ class ConfigController(BaseController):
 
         if not isinstance(local_cfg, dict):
             local_cfg = {}
+        else:
+            local_cfg = dict(local_cfg)
 
         bridge_uptime_sec = int(time.time() - getattr(self.ctx.bridge, "start_time", self.ctx.start_time))
         b_days = bridge_uptime_sec // 86400
@@ -107,6 +109,11 @@ class ConfigController(BaseController):
 
     async def set_local_config(self, params: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Aplica cambios en los parámetros del transceptor o configuración de red."""
+        cmd = {"action": "set_local_config", "params": params}
+        res = await self.ctx.bridge.handle_admin(cmd)
+        failure = self.command_failure(res)
+        if failure:
+            return failure
         limiter = getattr(self.ctx.bridge, "rate_limiter", None)
         if limiter and hasattr(limiter, "airtime_tracker"):
             if "duty_cycle_limit_pct" in params:
@@ -141,8 +148,6 @@ class ConfigController(BaseController):
                 pass
 
 
-        cmd = {"action": "set_local_config", "params": params}
-        res = await self.ctx.bridge.handle_admin(cmd)
         self.ctx.log_system_event("INFO", f"Configuración de nodo local actualizada: {list(params.keys())}", source="admin")
         if self.ctx.broadcast_ws and isinstance(res, dict) and "config" in res:
             self.ctx.broadcast_ws({
@@ -157,6 +162,9 @@ class ConfigController(BaseController):
         admin = getattr(self.ctx.bridge, "admin_handler", None)
         if admin and hasattr(admin, "broadcast_advert"):
             res = await admin.broadcast_advert(flood=flood)
+            failure = self.command_failure(res)
+            if failure:
+                return failure
             mode_str = "Flood Routed (toda la malla)" if flood else "Hop 0 (vecindario directo)"
             self.ctx.log_system_event("INFO", f"📢 Anuncio Advert emitido ({mode_str})", source="admin")
             return 200, {"status": "ok", "data": res}
@@ -169,9 +177,10 @@ class ConfigController(BaseController):
         if admin and hasattr(admin, "sync_device_clock"):
             res = await admin.sync_device_clock(epoch_ts=epoch_ts)
         else:
-            now_ts = int(epoch_ts if epoch_ts is not None else time.time())
-            now_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now_ts))
-            res = {"status": "ok", "clock": now_str, "epoch": now_ts, "message": "Hora del host registrada"}
+            return problem_details(503, "Service Unavailable", "Sin acceso al reloj del transceptor", "admin_handler_unavailable")
+        failure = self.command_failure(res)
+        if failure:
+            return failure
 
         self.ctx.log_system_event("INFO", f"Reloj RTC sincronizado: {res.get('clock')}", source="admin")
         if self.ctx.broadcast_ws:
@@ -189,7 +198,10 @@ class ConfigController(BaseController):
         if admin and hasattr(admin, "clear_device_stats"):
             res = await admin.clear_device_stats()
         else:
-            res = {"status": "ok", "message": "Estadísticas restablecidas"}
+            return problem_details(503, "Service Unavailable", "Admin handler no disponible", "admin_handler_unavailable")
+        failure = self.command_failure(res)
+        if failure:
+            return failure
 
         if hasattr(self.ctx.bridge, "rx_count"):
             self.ctx.bridge.rx_count = 0
@@ -226,7 +238,9 @@ class ConfigController(BaseController):
         serial_adapter = getattr(self.ctx.bridge, "serial_adapter", None)
         if serial_adapter and hasattr(serial_adapter, "reconnect"):
             try:
-                await serial_adapter.reconnect()
+                res = await serial_adapter.reconnect()
+                if res is False or getattr(serial_adapter, "is_connected", False) is not True:
+                    return problem_details(503, "Service Unavailable", "El transceptor no se reconectó", "serial_reconnect_failed")
                 self.ctx.log_system_event("INFO", "Reconexión de puerto serial completada", source="serial")
                 return 200, {"status": "ok", "message": "Puerto serial reconectado exitosamente"}
             except Exception as e:
@@ -235,12 +249,18 @@ class ConfigController(BaseController):
 
         # Fallback a comando admin
         res = await self.ctx.bridge.handle_admin({"action": "reconnect_serial"})
+        failure = self.command_failure(res)
+        if failure:
+            return failure
         return 200, {"status": "ok", "data": res}
 
     async def reboot_local(self) -> tuple[int, dict[str, Any]]:
         """Solicita reinicio de hardware del nodo local."""
         cmd = {"action": "reboot_local"}
         res = await self.ctx.bridge.handle_admin(cmd)
+        failure = self.command_failure(res)
+        if failure:
+            return failure
         self.ctx.log_system_event("WARN", "Reinicio de hardware de nodo local solicitado", source="admin")
         return 200, {"status": "ok", "data": res}
 
@@ -292,7 +312,10 @@ class ConfigController(BaseController):
             )
 
         for k, v in pairs.items():
-            await admin.set_custom_var(k, v)
+            result = await admin.set_custom_var(k, v)
+            failure = self.command_failure(result)
+            if failure:
+                return failure
 
         fresh_vars = await admin.get_custom_vars()
         self.ctx.log_system_event("INFO", f"Variables custom actualizadas: {list(pairs.keys())}", source="admin")
@@ -308,6 +331,9 @@ class ConfigController(BaseController):
         if not admin:
             return problem_details(503, "Service Unavailable", "Admin handler no disponible", "admin_unavailable")
         res = await admin.delete_custom_var(clean_key)
+        failure = self.command_failure(res)
+        if failure:
+            return failure
         self.ctx.log_system_event("INFO", f"Variable custom '{clean_key}' eliminada", source="admin")
         return 200, {"status": "ok", "custom_vars": res.get("custom_vars", {}), "data": res.get("custom_vars", {})}
 
@@ -325,6 +351,9 @@ class ConfigController(BaseController):
         raw_mode = body.get("mode", body.get("path_hash_mode", 0))
         mode = int(raw_mode) if str(raw_mode).isdigit() else 0
         res = await admin.set_path_hash_mode(mode)
+        failure = self.command_failure(res)
+        if failure:
+            return failure
         self.ctx.log_system_event("INFO", f"Path Hash Mode configurado a {mode}", source="admin")
         return 200, {"status": "ok", "path_hash_mode": mode, "data": res}
 
@@ -342,6 +371,9 @@ class ConfigController(BaseController):
         flags = int(body.get("flags", body.get("config", body.get("autoadd", 0))))
         max_hops = body.get("max_hops")
         res = await admin.set_autoadd_config(flags, int(max_hops) if max_hops is not None else None)
+        failure = self.command_failure(res)
+        if failure:
+            return failure
         self.ctx.log_system_event("INFO", f"AutoAdd config actualizado (flags={flags})", source="admin")
         return 200, {"status": "ok", "data": res}
 
@@ -358,6 +390,9 @@ class ConfigController(BaseController):
             return problem_details(503, "Service Unavailable", "Admin handler no disponible", "admin_unavailable")
         scope = body.get("scope", body.get("scope_name"))
         res = await admin.set_flood_scope(str(scope) if scope else None)
+        failure = self.command_failure(res)
+        if failure:
+            return failure
         self.ctx.log_system_event("INFO", f"Flood Scope actualizado a '{scope or 'Global'}'", source="admin")
         return 200, {"status": "ok", "data": res}
 

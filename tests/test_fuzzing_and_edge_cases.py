@@ -61,6 +61,11 @@ def bridge_setup():
 
     yield bridge, loop, published, mock_mc
 
+    pending = asyncio.all_tasks(loop)
+    for task in pending:
+        task.cancel()
+    if pending:
+        loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
     loop.close()
     try:
         if os.path.exists(temp_db_path):

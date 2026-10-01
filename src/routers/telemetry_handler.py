@@ -9,6 +9,7 @@ from typing import Any
 
 from src.contact_manager import PacketRecord, is_valid_node_key
 from src.routers.base import BaseRxHandler, RxMeta
+from src.shared_utils import clean_numeric_value
 
 
 class TelemetryHandler(BaseRxHandler):
@@ -38,8 +39,8 @@ class TelemetryHandler(BaseRxHandler):
 
         # Caso Log de RF / Métricas de señal a bajo nivel (LOG_DATA / RX_LOG_DATA)
         if "LOG" in meta.ev_upper or payload.get("event_type") in ("log_data", "rx_log_data"):
-            rx_rssi = payload.get("rssi", payload.get("RSSI"))
-            rx_snr = payload.get("snr", payload.get("SNR"))
+            rx_rssi = clean_numeric_value(payload.get("rssi", payload.get("RSSI")))
+            rx_snr = clean_numeric_value(payload.get("snr", payload.get("SNR")))
             if rx_rssi is not None:
                 try:
                     router_ctx.last_rx_rssi = int(rx_rssi)

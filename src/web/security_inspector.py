@@ -122,18 +122,7 @@ class SecurityTrafficInspector:
         writer: asyncio.StreamWriter,
         headers: dict[str, str] | None = None,
     ) -> str:
-        """Extrae y normaliza la dirección IP del cliente desde el socket o encabezados proxy."""
-        if headers:
-            # Si hay proxy inverso o CDN configurado
-            forwarded = headers.get("x-forwarded-for", "")
-            if forwarded:
-                client_ip = forwarded.split(",")[0].strip()
-                if client_ip:
-                    return client_ip
-            real_ip = headers.get("x-real-ip", "").strip()
-            if real_ip:
-                return real_ip
-
+        """Use the socket peer; proxy headers lack a configured trust boundary."""
         peer = writer.get_extra_info("peername")
         if peer and isinstance(peer, (tuple, list)) and len(peer) >= 1:
             raw_ip = str(peer[0])
@@ -141,7 +130,7 @@ class SecurityTrafficInspector:
             if raw_ip.startswith("::ffff:"):
                 return raw_ip[7:]
             return raw_ip
-        return "127.0.0.1"
+        return "unknown"
 
     @classmethod
     def is_traversal_attempt(cls, raw_path: str) -> bool:
@@ -270,10 +259,14 @@ class SecurityTrafficInspector:
     @classmethod
     def log_suspicious_traffic(cls, event: SuspiciousTrafficEvent) -> None:
         """Registra un evento de tráfico sospechoso con alta visibilidad en el sistema de logs."""
+        def safe(value: str) -> str:
+            value = value.replace("\r", "\\r").replace("\n", "\\n")
+            return re.sub(r"(?i)((?:api_key|token|password|secret|psk)=)[^&\s\"']*", r"\1[REDACTED]", value)
+
         ua_info = f" | UA: '{event.user_agent[:60]}'" if event.user_agent else ""
         logging.warning(
             f"🚨 [TRAFICO-SOSPECHOSO] [{event.source_type}] IP: {event.client_ip} | "
-            f"Tipo: {event.anomaly_type} | Endpoint: {event.endpoint} | Detalle: {event.detail}{ua_info}"
+            f"Tipo: {event.anomaly_type} | Endpoint: {safe(event.endpoint)} | Detalle: {safe(event.detail)}{safe(ua_info)}"
         )
 
     @classmethod

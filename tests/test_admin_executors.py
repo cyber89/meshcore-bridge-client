@@ -5,10 +5,12 @@ Unit tests for LocalConfigExecutor, TracerouteExecutor, and RepeaterAdminExecuto
 from __future__ import annotations
 
 import time
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from meshcore.events import Event, EventType
 
 import config
 from src.admin import (
@@ -31,15 +33,19 @@ class MockRadioCommands:
         self.get_stats_core = AsyncMock(return_value={"rx_packets": 10, "tx_packets": 5})
         self.get_stats_radio = AsyncMock(return_value={"noise_floor": -115})
         self.get_self_telemetry = AsyncMock(return_value={"temperature_c": 24.5, "humidity_pct": 50})
-        self.set_name = MagicMock(return_value=None)
-        self.set_radio_params = MagicMock(return_value=None)
-        self.set_coordinates = MagicMock(return_value=None)
-        self.send_trace = AsyncMock(return_value=True)
+        self.set_name = AsyncMock(return_value=Event(EventType.OK, {}))
+        self.set_tx_power = AsyncMock(return_value=Event(EventType.OK, {}))
+        self.set_radio = AsyncMock(return_value=Event(EventType.OK, {}))
+        self.set_coords = AsyncMock(return_value=Event(EventType.OK, {}))
+        self.send_trace = AsyncMock(return_value=Event(EventType.MSG_SENT, {"suggested_timeout": 4000}))
+        self.send_cmd = AsyncMock(return_value=Event(EventType.MSG_SENT, {}))
+        self.send_login_sync = AsyncMock(return_value=SimpleNamespace(type=EventType.LOGIN_SUCCESS, payload={}))
 
 
 class MockMC:
     def __init__(self) -> None:
         self.commands = MockRadioCommands()
+        self.dispatcher = SimpleNamespace(wait_for_event=AsyncMock(return_value=Event(EventType.TRACE_DATA, {"path": [{"hash": "1234", "snr": 2.0}, {"hash": "5678", "snr": 3.0}, {"snr": 4.0}]})))
         self.self_info = {
             "public_key": "aabbccdd11223344",
             "name": "LocalStation",
@@ -317,10 +323,12 @@ async def test_repeater_admin_executor_batch_config(admin_context: Any) -> None:
         req_id="batch_01",
         target_node="2233445566778899",
         password="secretpassword",
+        mc=mock_mc,
     )
 
     res = await executor.execute(req)
     assert "dispatched_commands" in res
     assert len(res["dispatched_commands"]) >= 2
-    # Verify execute_tx was called with password login and set commands
-    assert ctx.execute_tx.call_count >= 2
+    mock_mc.commands.send_login_sync.assert_awaited_once()
+    assert mock_mc.commands.send_cmd.await_count == 3
+    ctx.execute_tx.assert_not_awaited()

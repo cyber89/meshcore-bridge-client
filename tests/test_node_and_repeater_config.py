@@ -5,8 +5,11 @@ Unit and Integration tests for Local Node Configuration and Authenticated Remote
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import ANY, AsyncMock, MagicMock
+
+from meshcore.events import Event, EventType
 
 from src.admin_handler import AdminCommandHandler, AdminContext
 from src.rate_limiter import LoRaRadioConfig, TxRateLimiter
@@ -26,17 +29,28 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
             "bw": 250,
         }
         self.mock_mc.commands = MagicMock()
+        repeater_key = "a1b2c3d4e5f6" + "00" * 26
+        self.mock_mc.contacts = {repeater_key: {"public_key": repeater_key, "adv_name": "Tower", "type": 2}}
+        self.mock_mc.get_contact_by_key_prefix.side_effect = lambda key: next(
+            (contact for pk, contact in self.mock_mc.contacts.items() if pk.startswith(key)), None
+        )
+        self.mock_mc.get_contact_by_name.return_value = None
         self.mock_mc.commands.set_name = AsyncMock()
         self.mock_mc.commands.set_tx_power = AsyncMock()
         self.mock_mc.commands.reboot = AsyncMock()
-        # Forzar fallback a execute_tx: send_login/send_cmd deben fallar
-        self.mock_mc.commands.send_login = AsyncMock(side_effect=Exception("SDK not available"))
-        self.mock_mc.commands.send_cmd = AsyncMock(side_effect=Exception("SDK not available"))
+        # Both login and CLI requests use SDK opcodes; MSG_SENT is dispatch only.
+        self.mock_mc.commands.send_login = AsyncMock(return_value=Event(EventType.MSG_SENT, {}))
+        self.mock_mc.commands.send_login_sync = AsyncMock(return_value=None)
+        self.mock_mc.commands.send_cmd = AsyncMock(return_value=Event(EventType.MSG_SENT, {}))
+        self.mock_mc.dispatcher.wait_for_event = AsyncMock(return_value=None)
 
         self.mock_registry = MagicMock()
         self.mock_registry.list_nodes.return_value = []
         self.mock_registry.get_count.return_value = 0
         self.mock_registry.is_local_key.return_value = False
+        self.mock_registry.find_by_name.return_value = None
+        self.mock_registry.get_by_key_or_prefix.return_value = None
+        self.mock_registry.get_canonical_key.side_effect = lambda key: str(key)
 
         self.repeater_mgr = RepeaterManager(
             min_cmd_interval_s=0.0,
@@ -73,6 +87,27 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
         self.mock_bridge.store_and_forward.count = AsyncMock(return_value=0)
 
         self.router = WebAPIRouter(self.mock_bridge)
+
+    def _provide_trace_reply(self, flags: int, hashes: list[str]) -> None:
+        """Return an explicit SDK trace event with the requested correlation tag."""
+        self.mock_mc.commands.send_trace = AsyncMock(return_value=Event(EventType.MSG_SENT, {}))
+
+        async def trace_reply(
+            event_type: EventType, attribute_filters: dict[str, Any], timeout: Any,
+        ) -> Event:
+            self.assertEqual(event_type, EventType.TRACE_DATA)
+            self.assertIsNone(timeout)
+            payload: dict[str, Any] = {
+                "tag": attribute_filters["tag"], "auth": 0, "flags": flags,
+                "path_len": len(hashes),
+            }
+            if hashes:
+                payload["path"] = [
+                    {"hash": hop, "snr": 8.0 - index} for index, hop in enumerate(hashes)
+                ] + [{"snr": 9.25}]
+            return Event(EventType.TRACE_DATA, payload, {"tag": payload["tag"], "auth_code": 0})
+
+        self.mock_mc.dispatcher.wait_for_event = AsyncMock(side_effect=trace_reply)
 
     def test_repeater_manager_payload_builder(self) -> None:
         """Verifica la serialización precisa de comandos para firmware MeshCore."""
@@ -187,7 +222,7 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resp_fail["status"], 401)
 
         # 2. Login remoto exitoso con send_login_sync
-        self.mock_mc.commands.send_login_sync = AsyncMock(return_value=MagicMock(type="LOGIN_SUCCESS"))
+        self.mock_mc.commands.send_login_sync = AsyncMock(return_value=SimpleNamespace(type=EventType.LOGIN_SUCCESS, payload={}))
         code, resp = await self.router.handle_request(
             "POST",
             "/api/repeater/remote/login",
@@ -211,16 +246,18 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
         }
         code, resp = await self.router.handle_request("POST", "/api/repeater/remote/config", config_payload)
         self.assertEqual(code, 200)
-        # Login + 4 set commands = 5 transmissions
-        self.assertEqual(len(self.dispatched_txs), 5)
-        self.assertEqual(self.dispatched_txs[0]["text"], "cmd login repeater_secret")
-        self.assertIn("cmd set name Tower_Alpha_West", [tx["text"] for tx in self.dispatched_txs])
-        self.assertIn("cmd set tx 22", [tx["text"] for tx in self.dispatched_txs])
-        self.assertIn("cmd set repeat on", [tx["text"] for tx in self.dispatched_txs])
-        self.assertIn("cmd set hop_limit 4", [tx["text"] for tx in self.dispatched_txs])
+        # Authentication uses the SDK opcode, followed by four administrative commands.
+        self.assertEqual(len(self.dispatched_txs), 0)
+        self.mock_mc.commands.send_login_sync.assert_awaited()
+        cli_commands = [call.args[1] for call in self.mock_mc.commands.send_cmd.await_args_list]
+        self.assertEqual(cli_commands, [
+            "set name Tower_Alpha_West", "set tx 22", "set repeat on", "set hop_limit 4",
+        ])
+        self.assertEqual(resp["data"]["status"], "dispatched")
 
         # 4. Acción remota (reboot del repetidor)
         self.dispatched_txs.clear()
+        self.mock_mc.commands.send_cmd.reset_mock()
         action_payload = {
             "target_node": "a1b2c3d4e5f6",
             "password": "repeater_secret",
@@ -228,8 +265,10 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
         }
         code, resp = await self.router.handle_request("POST", "/api/repeater/remote/action", action_payload)
         self.assertEqual(code, 200)
-        self.assertEqual(self.dispatched_txs[0]["text"], "login repeater_secret")
-        self.assertEqual(self.dispatched_txs[1]["text"], "reboot")
+        self.mock_mc.commands.send_login_sync.assert_awaited()
+        self.assertEqual(len(self.dispatched_txs), 0)
+        self.assertEqual(self.mock_mc.commands.send_cmd.await_args.args[1], "reboot")
+        self.assertEqual(resp["data"]["status"], "dispatched")
 
     def test_record_incoming_telemetry_with_known_and_unknown_nodes(self) -> None:
         """Verifica que la telemetría identifique al repetidor por nombre o prefijo y registre todas las métricas."""
@@ -280,7 +319,7 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
 
     async def test_traceroute_empty_path_passes_none_and_flags_zero(self) -> None:
         """Verifica que un traceroute con path vacío despache path=None y flags=0 sin causar 'unknown path_hash_len 0'."""
-        self.mock_mc.commands.send_trace = AsyncMock()
+        self._provide_trace_reply(flags=0, hashes=[])
 
         # 1. Petición con path vacío ""
         res = await self.admin_handler.handle({
@@ -289,7 +328,11 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
             "path": "",
         })
         self.assertEqual(res["status"], "ok")
-        self.mock_mc.commands.send_trace.assert_awaited_once_with(path=None, flags=0)
+        self.mock_mc.commands.send_trace.assert_awaited_once_with(path=None, flags=0, tag=ANY)
+        tag = self.mock_mc.commands.send_trace.await_args.kwargs["tag"]
+        self.mock_mc.dispatcher.wait_for_event.assert_awaited_once_with(
+            EventType.TRACE_DATA, attribute_filters={"tag": tag}, timeout=None,
+        )
 
         # 2. Petición con lista vacía []
         self.mock_mc.commands.send_trace.reset_mock()
@@ -299,21 +342,23 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
             "path": [],
         })
         self.assertEqual(res2["status"], "ok")
-        self.mock_mc.commands.send_trace.assert_awaited_once_with(path=None, flags=0)
+        self.mock_mc.commands.send_trace.assert_awaited_once_with(path=None, flags=0, tag=ANY)
 
     async def test_traceroute_custom_path_normalizes_hashes_and_flags(self) -> None:
         """Verifica que un traceroute con saltos intermedios normalice los hashes y use flags correctos."""
-        self.mock_mc.commands.send_trace = AsyncMock()
+        self._provide_trace_reply(flags=1, hashes=["1122", "aabb"])
 
         # Petición con claves públicas completas de repetidores intermedios
         res = await self.admin_handler.handle({
             "action": "traceroute",
             "target_node": "deadbeefcafe0099",
-            "path": ["112233445566778899aabbccddeeff00", "aabbccddeeff00112233445566778899"],
+            "path": ["1122", "aabb"],
         })
         self.assertEqual(res["status"], "ok")
         # Debe normalizar a 2 bytes (4 hex chars por salto) y flags=1
-        self.mock_mc.commands.send_trace.assert_awaited_once_with(path="1122,aabb", flags=1)
+        self.mock_mc.commands.send_trace.assert_awaited_once_with(path="1122,aabb", flags=1, tag=ANY)
+        self.assertEqual([hop["snr"] for hop in res["hops_breakdown"][1:]], [8.0, 7.0, None])
+        self.assertEqual(res["hops_breakdown"][0]["snr"], 9.25)
 
     async def test_neighbors_command_excludes_local_node(self) -> None:
         """Verifica que el comando 'neighbors' excluya la estación base local y reporte solo vecinos remotos."""

@@ -58,7 +58,7 @@ class HealthReporter:
     async def build_payload(self) -> dict[str, Any]:
         """Construye el snapshot de métricas de salud del bridge."""
         return {
-            "status": "healthy" if self._ctx.serial_adapter.is_connected else "degraded",
+            "status": "healthy" if self._ctx.serial_adapter.is_connected and self._ctx.mqtt.is_connected else "degraded",
             "uptime_seconds": int(time.time() - self._ctx.start_time),
             "serial_port": config.SERIAL_PORT,
             "serial_connected": self._ctx.serial_adapter.is_connected,

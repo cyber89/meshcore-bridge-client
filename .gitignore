@@ -55,3 +55,8 @@ SHA256SUMS
 # Local tooling & search indices
 .tgrep/
 .agents/bin/
+
+# Generated QA evidence (summaries are maintained in docs/TESTING.md)
+tests/artifacts/
+scratch/qa-results/
+scratch/maintenance/

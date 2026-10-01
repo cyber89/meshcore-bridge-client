@@ -37,6 +37,8 @@ class ChannelMessageHandler(BaseRxHandler):
         meta: RxMeta,
         raw_event: Any,
     ) -> bool:
+        if meta.is_local_sender:
+            return True
         router_ctx = getattr(ctx, "_ctx", ctx)
         raw_txt_type = payload.get("txt_type", payload.get("text_type", 0))
         try:
