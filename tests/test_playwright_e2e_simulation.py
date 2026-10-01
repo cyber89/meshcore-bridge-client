@@ -1,10 +1,38 @@
 """End-to-end delivery and responsive SPA evidence with no hardware or CDN traffic."""
 
+import json
 import re
 from pathlib import Path
 
 import pytest
 from playwright.async_api import Page, expect
+
+
+async def _wait_for_mobile_sidebar_closed(page: Page) -> None:
+    # Removing the class starts a CSS transition; it does not finish closing it.
+    await expect(page.locator("#sidebarChannelList")).not_to_have_class(re.compile(r".*\bmobile-open\b.*"))
+    await page.wait_for_function("""() => {
+        const sidebar = document.querySelector('#sidebarChannelList');
+        return sidebar && sidebar.getBoundingClientRect().right <= 0 &&
+            sidebar.getAnimations().every(animation => animation.playState !== 'running');
+    }""")
+
+
+async def test_mobile_sidebar_waits_for_visible_transition(browser_page: Page) -> None:
+    await browser_page.set_viewport_size({"width": 390, "height": 844})
+    sidebar = browser_page.locator("#sidebarChannelList")
+    await sidebar.evaluate("element => element.style.transitionDuration = '1s'")
+    await browser_page.locator("#btnBackToChannelsMobile").click()
+    await browser_page.wait_for_function("""() => {
+        const sidebar = document.querySelector('#sidebarChannelList');
+        return sidebar.classList.contains('mobile-open') &&
+            sidebar.getAnimations().every(animation => animation.playState !== 'running');
+    }""")
+    await browser_page.locator('#channelListUi [data-channel-idx="1"]').click()
+    await expect(sidebar).not_to_have_class(re.compile(r".*\bmobile-open\b.*"))
+    assert await sidebar.evaluate("element => element.getBoundingClientRect().right > 0"), "Class removal must precede the visible closing transition"
+    await _wait_for_mobile_sidebar_closed(browser_page)
+    assert await sidebar.evaluate("element => element.getBoundingClientRect().right <= 0")
 
 
 async def test_playwright_delivery_ack_and_echo(browser_page: Page) -> None:
@@ -25,13 +53,26 @@ async def test_playwright_responsive_layout(browser_page: Page, width: int, heig
     if width < 900:
         await browser_page.locator("#btnBackToChannelsMobile").click()
         await browser_page.locator('#channelListUi [data-channel-idx="1"]').click()
-        await expect(browser_page.locator("#sidebarChannelList")).not_to_have_class(re.compile(r".*\bmobile-open\b.*"))
+        await _wait_for_mobile_sidebar_closed(browser_page)
         await expect(browser_page.locator("#chatInputText")).to_be_visible()
-    overflow = await browser_page.evaluate("document.documentElement.scrollWidth > window.innerWidth")
-    assert not overflow, f"Horizontal overflow at {width}x{height}"
+    await browser_page.evaluate("document.fonts.ready")
+    geometry = await browser_page.evaluate("""() => ({
+        viewport: innerWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+        sidebar: document.querySelector('#sidebarChannelList').getBoundingClientRect().toJSON(),
+        header: document.querySelector('header.app-header').getBoundingClientRect().toJSON(),
+        send: document.querySelector('#btnSendMsg').getBoundingClientRect().toJSON(),
+        outside: [...document.querySelectorAll('body *')].map(element => {
+            const rect = element.getBoundingClientRect();
+            return {tag: element.tagName, id: element.id, className: String(element.className),
+                x: rect.x, right: rect.right, width: rect.width};
+        }).filter(rect => rect.width > 0 && rect.right > innerWidth)
+    })""")
+    artifacts = Path("tests/artifacts")
+    artifacts.mkdir(exist_ok=True)
+    (artifacts / f"qa_spa_{width}x{height}-geometry.json").write_text(json.dumps(geometry, indent=2), encoding="utf-8")
+    assert geometry["scrollWidth"] <= geometry["viewport"], f"Horizontal overflow at {width}x{height}: {json.dumps(geometry)}"
     send_box = await browser_page.locator("#btnSendMsg").bounding_box()
     assert send_box is not None
     assert send_box["x"] >= 0 and send_box["x"] + send_box["width"] <= width, f"Send control clipped at {width}x{height}: {send_box}"
-    artifacts = Path("tests/artifacts")
-    artifacts.mkdir(exist_ok=True)
     await browser_page.screenshot(path=str(artifacts / f"qa_spa_{width}x{height}.png"), full_page=True, animations="disabled")

@@ -108,7 +108,7 @@ fallo. Los hashes de ruta de tres bytes no se convierten a otro tamaño de TRACE
 Límites: el SDK oficial `send_login_sync` se suscribe después de enviar; validar
 su retorno no elimina esa carrera upstream. Respuestas antiguas sin identidad ni
 permiso no acreditan esos campos. Caché válida retenida no garantiza frescura.
-La integración de wrappers en `admin_handler.py` pertenece a la fase siguiente.
+La integración de wrappers en `admin_handler.py` se revisó en la fase3.
 
 ## Fase 3 — Resto de src
 
@@ -151,14 +151,52 @@ de producción. SDK MCP 1.30.0 y Paramiko 4.0.0 instalados exclusivamente en
 La contraseña sólo se inyecta en memoria del proceso. Se fija el fingerprint
 negociado antes de autenticar; no existe known_hosts local previo para este host.
 
-Host solicitado: `192.168.0.242`. La ruta `/opt/meshcore-brdige/` se contrasta con
-la unidad activa; no se asume que el typo coincida con la instalación real.
-El instalador raíz modifica broker, configuración y servicios: no se usa como
-actualizador de esta estación. Se prepara archivo desde el SHA publicado, backup
-privado, sustitución sólo de código y rollback, conservando unidad, venv, `.env`,
-datos, mapas, logs y broker. Acceso remoto pendiente hasta publicar los arreglos.
+Host `192.168.0.242`: la unidad activa usa **`/opt/meshcore-bridge`**;
+`/opt/meshcore-brdige/` era un error de escritura. Se desplegó, tras publicar,
+el commit **36539f60c64c6a292efa9f595c3fe7011e7a3c5e** mediante archivo verificado
+SHA256. Los **86 archivos** instalados coinciden con el archivo publicado.
+Se conserva Python3.13.5/SDK2.3.8, unidad, venv, `.env`, datos, mapas, logs y broker;
+no se ejecutó el instalador raíz. Backup privado:
+`/opt/meshcore-backup-20261001T215535Z-36539f60c64c`, permisos0700 y copia de
+configuración0600; contenido de configuración y unidad comprobados sin cambios.
 
-Las comprobaciones previstas son estado/PID/reinicios del servicio, logs históricos
-y posteriores, versiones del intérprete/SDK y GET de snapshots `/api/status` y
-`/api/health`. Un HTTP 200 no demuestra salud: se examina el contenido. No se
-ejecutan pruebas sobre hardware real ni se fuerza chat, ping, traceroute o RF.
+Comprobación a850segundos: PID62404 estable, active/running, reinicios0,
+serial y MQTT conectados, salud healthy, error_count0, GET `/api/status`,
+`/api/health` y `/`200. RX32; TX1 es actividad operativa existente, no prueba
+RF iniciada por mantenimiento. Linux ejecutó la regresión de contención de
+symlink omitida en Windows usando el módulo desplegado y almacenamiento temporal:
+aprobada. No se ejecutó la suite completa contra datos operativos.
+
+Se revisaron cinco logs y las últimas5000líneas del journal antes de actualizar.
+Los históricos contienen529tracebacks en error.log y440 en el log principal
+(incluyen duplicados entre sinks y versiones anteriores). Destacan el campo
+NodeContactUpdate.out_path_hash_mode, atributos de contextos antiguos, nombres
+no definidos y mutación de dataclass frozen; se contrastaron con código y
+regresiones actuales. No se atribuyen todos los históricos a una única versión.
+
+Tras el cambio, hasta22:09:49UTC, no se observaron tracebacks, tareas sin consumir
+ni entradas de nivel ERROR. Hay un WARNING: una solicitud operativa broadcast
+de196bytes fue rechazada por superar el límite oficial160bytes. El marcador
+TX-ERROR de ese mensaje no es su nivel de log. La regresión virtual verifica
+que los mensajes demasiado largos no llegan al comando SDK. Se mantiene el límite
+oficial; el emisor operativo debe reducir el contenido.
+
+[Evidencia de despliegue y logs](DEPLOYMENT_VERIFICATION_2026-10-01.json).
+Estos resultados acreditan el alcance comprobado, no compatibilidad universal100%.
+
+## Verificación adicional en GitHub CI
+
+La primera publicación aprobó Ruff, mypy, documentación, Bandit y scripts de
+integridad, REST y asyncio. Linux Python3.10 y3.12 aprobaron661casos cada uno
+y detectaron un fallo móvil390×844 en `test_playwright_responsive_layout`.
+El runner instaló SDK2.3.14 y Playwright1.63.0. La prueba local Windows no
+reprodujo ese desbordamiento; observó una transición activa del sidebar después
+de retirar su clase. No se atribuye causalidad al cambio de versión sin prueba.
+
+La prueba de seguimiento espera fuentes listas, ausencia de animación y panel
+fuera del viewport antes de medir; conserva la exigencia exacta de ausencia de
+desbordamiento y añade diagnóstico geométrico para identificar un defecto real
+si persiste. La nueva ejecución Linux determinará el resultado; estos cambios
+son de pruebas y documentación y no alteran el código desplegado.
+
+Gate local de seguimiento del árbol seleccionado: **662aprobadas,1skipWindows,0fallos**, con18casos de navegador;111.59s. Cobertura **67.11%** (8465/12613líneas), mypy59/Ruff/documentación44/0 aprobados. El skip de symlink fue aprobado separado enLinux con almacenamiento temporal. Fuente de producción intacta.
