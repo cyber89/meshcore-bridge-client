@@ -2,7 +2,7 @@
 name: tgrep-code-search
 description: >-
   Motor de búsqueda indexada por trigramas de alto rendimiento (microsoft/tgrep).
-  Permite realizar búsquedas regex ultra-rápidas (<10ms) en miles de archivos del
+  Permite realizar búsquedas regex ultra-rápidas (según índice y carga) en miles de archivos del
   repositorio, bases de código C/C++ de referencia (/reference/) y módulos del bridge.
 ---
 
@@ -72,3 +72,9 @@ tgrep --no-index "patrón"
 1. **Exploración de `/reference/`**: Siempre preferir `tgrep` para localizar firmas de structs o enums en `/reference/meshcore/` antes de abrir archivos completos con `view_file`.
 2. **Medición de Tiempos**: Agregar `--stats` cuando se requiera diagnosticar el plan de ejecución y número de candidatos filtrados por trigramas.
 3. **No Indexar Binarios**: `tgrep` excluye automáticamente archivos binarios detectados y respeta `.gitignore`.
+
+## Contrato de uso en MeshCore Bridge
+
+Leer [AGENTS.md](../../../AGENTS.md) y el [índice documental](../../../docs/README.md). Las suites, fuzzing y Playwright sólo se ejecutan bajo petición del usuario; la autorización permanece durante la tarea.
+
+Comprobar disponibilidad con Get-Command tgrep antes de asumir rutas globales. rg es fallback suficiente. No instalar herramientas o reconstruir índices si la búsqueda directa resuelve la tarea; respetar exclusiones de secretos, vendors y reference read-only.

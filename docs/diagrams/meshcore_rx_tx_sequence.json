@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "sequence",
   "meta": {
-    "title": "MeshCore Bridge v3.0 - Secuencia Operativa RF & Web",
+    "title": "MeshCore Bridge - Secuencia RF y Web",
     "output": "docs/diagrams/meshcore_rx_tx_sequence.html",
     "viewBox": [
       1080,
@@ -59,25 +59,25 @@
       "id": "serial_drv",
       "type": "backend",
       "label": "Driver Serie",
-      "sublabel": "pyserial"
+      "sublabel": "SDK Companion"
     },
     {
       "id": "rx_router",
       "type": "backend",
-      "label": "RxRouter",
-      "sublabel": "Core Facade"
+      "label": "Bridge Core",
+      "sublabel": "RxRouter / Admin"
     },
     {
       "id": "registry",
       "type": "database",
       "label": "NodeRegistry",
-      "sublabel": "SQLite SSoT"
+      "sublabel": "RAM / JSON"
     },
     {
       "id": "web_server",
       "type": "backend",
       "label": "Servidor Web",
-      "sublabel": "aiohttp WS/REST"
+      "sublabel": "HTTP / WS nativo"
     },
     {
       "id": "web_ui",
@@ -120,7 +120,7 @@
       "from": "serial_drv",
       "to": "rx_router",
       "y": 225,
-      "label": "Trama HDLC válida",
+      "label": "Evento SDK normalizado",
       "variant": "emphasis"
     },
     {
@@ -152,7 +152,7 @@
       "from": "web_ui",
       "to": "web_server",
       "y": 355,
-      "label": "POST /api/repeaters/ping",
+      "label": "POST /api/node/ping_zero",
       "variant": "emphasis"
     },
     {
@@ -168,7 +168,7 @@
       "from": "rx_router",
       "to": "serial_drv",
       "y": 415,
-      "label": "HDLC frame TX",
+      "label": "Comando SDK Companion",
       "variant": "security"
     },
     {
@@ -252,24 +252,5 @@
       "type": "external"
     }
   ],
-  "cards": [
-    {
-      "dot": "cyan",
-      "title": "Pipeline Inbound Reactivo",
-      "items": [
-        "Des-empaquetado y chequeo de CRC inmediatos sin bloqueos",
-        "Persistencia asíncrona de telemetría y actualización en SQLite",
-        "Notificación instantánea simultánea por WebSockets hacia la UI"
-      ]
-    },
-    {
-      "dot": "rose",
-      "title": "Comando Outbound Protegido",
-      "items": [
-        "Guardas estrictas contra envíos hacia el nodo local",
-        "Rate limiting por canal y nodo para proteger el airtime LoRa",
-        "Medición de latencia RTT y timeout automático"
-      ]
-    }
-  ]
+  "cards": []
 }

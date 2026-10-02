@@ -183,7 +183,7 @@ class MqttInboundDispatcher:
         }), qos=1)
 
     async def _handle_admin_request(self, payload_str: str) -> None:
-        """Ejecuta comandos de administración sobre el hardware."""
+        """Ejecuta comandos de administración sobre el hardware y publica el resultado."""
         try:
             data = json.loads(payload_str)
         except json.JSONDecodeError:
@@ -191,4 +191,19 @@ class MqttInboundDispatcher:
         command = dict(data) if isinstance(data, dict) else {"action": str(data)}
         command.setdefault("action", command.get("command", ""))
         logging.info("[MQTT-ADMIN-IN] Solicitud de administración recibida")
-        await self._ctx.handle_admin(command)
+        res = await self._ctx.handle_admin(command)
+        if isinstance(res, dict):
+            action = str(command.get("action", "")).strip()
+            if action in (
+                "get_custom_vars",
+                "set_custom_vars",
+                "set_custom_var",
+                "delete_custom_var",
+                "get_path_hash_mode",
+                "set_path_hash_mode",
+                "get_autoadd_config",
+                "set_autoadd_config",
+                "get_flood_scope",
+                "set_flood_scope",
+            ) or res.get("status") == "error":
+                self._ctx.mqtt.publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)

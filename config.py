@@ -6,6 +6,27 @@ Carga variables de entorno desde un archivo .env si existe o desde el sistema.
 import os
 from pathlib import Path
 
+
+def _parse_env_value(raw: str) -> str:
+    """Extrae el valor limpio de una línea .env, eliminando comentarios en línea y comillas."""
+    v = raw.strip()
+    if not v:
+        return ""
+    if v.startswith('"'):
+        end = v.find('"', 1)
+        while end != -1 and v[end - 1] == '\\':
+            end = v.find('"', end + 1)
+        return v[1:end] if end != -1 else v.strip('"')
+    if v.startswith("'"):
+        end = v.find("'", 1)
+        while end != -1 and v[end - 1] == '\\':
+            end = v.find("'", end + 1)
+        return v[1:end] if end != -1 else v.strip("'")
+    if "#" in v:
+        v = v.split("#", 1)[0].strip()
+    return v
+
+
 # Cargar archivo .env desde el directorio del proyecto
 env_path = Path(__file__).resolve().parent / ".env"
 try:
@@ -19,9 +40,9 @@ except ImportError:
                 for line in f:
                     line = line.strip()
                     if line and not line.startswith("#") and "=" in line:
-                        k, v = line.split("=", 1)
+                        k, raw_v = line.split("=", 1)
                         k = k.strip()
-                        v = v.strip().strip("\"'")
+                        v = _parse_env_value(raw_v)
                         if k and k not in os.environ:
                             os.environ[k] = v
         except Exception:

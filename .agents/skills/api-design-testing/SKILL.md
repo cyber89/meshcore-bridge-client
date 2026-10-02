@@ -44,9 +44,9 @@ Esta skill define los estándares de diseño, arquitectura y validación de endp
 
 4. **Cabeceras Obligatorias y de Seguridad**:
    - `Content-Type: application/json; charset=utf-8`
-   - `Access-Control-Allow-Origin: *`
+   - `Access-Control-Allow-Origin`: devolver sólo el origen autorizado por la política vigente; no imponer `*` ni ampliar la allowlist al corregir un contrato.
    - `Access-Control-Allow-Methods: GET, POST, OPTIONS, DELETE`
-   - `Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With`
+   - `Access-Control-Allow-Headers`: incluir las cabeceras realmente admitidas, especialmente `Content-Type` y `X-Api-Key`; contrastar la lista con el servidor.
    - `X-Content-Type-Options: nosniff`
    - `X-Frame-Options: DENY`
    - `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
@@ -58,6 +58,12 @@ Esta skill define los estándares de diseño, arquitectura y validación de endp
 ## Herramientas de Verificación
 ```bash
 python .agents/skills/api-design-testing/scripts/validate_api_contract.py
-python tests/tools/verify_api_parity.py
+python .agents/skills/contract-openapi-sync/scripts/verify_api_parity.py
 ```
 
+
+## Contrato de uso en MeshCore Bridge
+
+Leer [AGENTS.md](../../../AGENTS.md) y el [índice documental](../../../docs/README.md). Las suites, fuzzing y Playwright sólo se ejecutan bajo petición del usuario; la autorización permanece durante la tarea.
+
+El servidor es HTTP/WebSocket propio, no FastAPI. Contrastar rutas, métodos y CORS en src/web/api_router.py, src/web/http_server.py y controllers; RFC 7807 y OpenAPI son guías, no una especificación OpenAPI ya generada. El helper API histórico no comprueba cabeceras HTTP y utiliza mocks antiguos: no ejecutarlo como garantía de contrato o aislamiento. Priorizar tests REST mantenidos y aislados cuando estén autorizados. El verificador de paridad léxica no verifica métodos, payloads ni WebSocket.

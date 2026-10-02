@@ -536,7 +536,15 @@ class VirtualMeshAdapter(BaseSerialAdapter):
         self.heartbeat()
         target_clean = str(target or "").strip().lower()
         local_key = str(self.mc.self_info.get("public_key", "")).lower()
-        if target_clean and (target_clean == "local" or target_clean == local_key):
+        is_local_target = bool(
+            target_clean
+            and (
+                target_clean in ("local", "000000000000")
+                or target_clean == local_key
+                or (len(local_key) >= 6 and len(target_clean) >= 6 and (local_key.startswith(target_clean) or target_clean.startswith(local_key)))
+            )
+        )
+        if is_local_target:
             return {"status": "ERROR", "reason": "No se permite chat al nodo local"}
 
         if target_clean.startswith("channel"):
@@ -746,11 +754,28 @@ class VirtualMeshAdapter(BaseSerialAdapter):
         if cmd_type == 10:
             response = b"\x0a"  # NO_MORE_MSGS: simulator delivers RX through its event callback
         elif cmd_type == 31 and len(data) == 2 and data[1] in self.channels:
-            channel = self.channels[data[1]]
-            name = str(channel["name"]).encode("utf-8")[:31].decode("utf-8", "ignore").encode("utf-8")
-            secret = str(channel.get("psk", ""))
-            key = bytes.fromhex(secret) if secret else hashlib.sha256(b"#public").digest()[:16]
-            response = bytes([18, data[1]]) + name.ljust(32, b"\x00") + key
+            try:
+                channel = self.channels[data[1]]
+                name = str(channel["name"]).encode("utf-8")[:31].decode("utf-8", "ignore").encode("utf-8")
+                secret = str(channel.get("psk", "")).strip()
+                if not secret:
+                    key = hashlib.sha256(b"#public").digest()[:16]
+                else:
+                    try:
+                        key_bytes = bytes.fromhex(secret)
+                        if len(key_bytes) >= 16:
+                            key = key_bytes[:16]
+                        else:
+                            key = key_bytes.ljust(16, b"\x00")
+                    except ValueError:
+                        raw_bytes = secret.encode("utf-8")
+                        if len(raw_bytes) == 16:
+                            key = raw_bytes
+                        else:
+                            key = hashlib.sha256(raw_bytes).digest()[:16]
+                response = bytes([18, data[1]]) + name.ljust(32, b"\x00") + key
+            except Exception:
+                response = b"\x01\x06"  # ERR_CODE_ILLEGAL_ARG
         else:
             response = b"\x01\x02"  # ERR_CODE_UNSUPPORTED_CMD
         if self.companion_rx_callback:

@@ -5,7 +5,6 @@ Handles broadcast and group channel messages across LoRa mesh.
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
 from src.routers.base import BaseRxHandler, MeshMessageEvent, RxMeta
@@ -39,7 +38,6 @@ class ChannelMessageHandler(BaseRxHandler):
     ) -> bool:
         if meta.is_local_sender:
             return True
-        router_ctx = getattr(ctx, "_ctx", ctx)
         raw_txt_type = payload.get("txt_type", payload.get("text_type", 0))
         try:
             txt_type = int(raw_txt_type)
@@ -56,8 +54,5 @@ class ChannelMessageHandler(BaseRxHandler):
             txt_type=txt_type,
         )
 
-        loop = router_ctx.loop or asyncio.get_running_loop()
-        task = loop.create_task(ctx._handle_mesh_channel_msg(msg_evt))
-        router_ctx.background_tasks.add(task)
-        task.add_done_callback(router_ctx.background_tasks.discard)
+        await ctx._handle_mesh_channel_msg(msg_evt)
         return True

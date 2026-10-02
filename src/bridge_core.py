@@ -251,7 +251,7 @@ class MeshCoreBridge:
             else:
                 self._schedule_background(lambda: tcp_srv.broadcast_companion_frame(payload))
 
-    async def handle_tcp_companion_command(self, payload: bytes, client_writer: Any) -> bool:
+    async def handle_tcp_companion_command(self, payload: bytes, client_writer: Any, timeout: float = 30.0) -> bool:
         """Maneja comandos binarios enviados por apps móviles o CLI a través del socket TCP Companion."""
         if not payload:
             return False
@@ -266,8 +266,11 @@ class MeshCoreBridge:
                 try:
                     future = await self.rate_limiter.submit(payload=payload, priority=TxPriority.NORMAL,
                                                            target=target, channel_idx=channel_idx)
-                    result = await future
+                    result = await asyncio.wait_for(future, timeout=timeout)
                     return isinstance(result, dict) and str(result.get("status", "")).lower() in ("sent", "ok", "success")
+                except asyncio.TimeoutError:
+                    logging.warning("Timeout esperando confirmación de transmisión chat TCP en rate limiter", extra={"skip_broadcast": True})
+                    return False
                 except Exception:
                     logging.warning("No se pudo enviar chat TCP por la cola TX", extra={"skip_broadcast": True})
                     return False

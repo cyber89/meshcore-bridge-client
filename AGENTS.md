@@ -10,7 +10,7 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
 - **`/reference/meshcore_py/`**: SDK oficial en Python de MeshCore (Solo Lectura).
 - **`/reference/meshcore_cli/`**: Implementación CLI oficial de MeshCore (Solo Lectura).
 - **`CONTEXT.md`**: Lenguaje Ubicuo y Modelo de Dominio canónico del proyecto (Glosario, roles de nodos, principios de Deep Modules).
-- **`/docs/`**: Especificaciones formales del protocolo (`PROTOCOL_SPEC.md`), arquitectura (`ARCHITECTURE.md`), Decisiones de Arquitectura (`/docs/adr/`) y Reporte de Actividad Multi-Agente (`AGENT_ACTIVITY_REPORT.md`).
+- **`/docs/`**: Especificaciones formales del protocolo (`PROTOCOL_SPEC.md`), arquitectura (`ARCHITECTURE.md`) y Decisiones de Arquitectura (`/docs/adr/`).
 - **`/src/`**: Código fuente de producción del bridge en Python (`asyncio`, SDK `meshcore`, `pyserial`, `paho-mqtt`).
 - **`/tests/`**: Suites de pruebas automatizadas con `pytest` (**Solo ejecutadas bajo demanda explícita del usuario**).
 - **`.agents/skills/`**: Herramientas y skills personalizadas para inspección, validación de tramas y verificación estática.
@@ -37,17 +37,17 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
 ## 2. Orquestación y Definición de Agentes
 
 ### Agente 0: Lead Orchestrator & System Architect Agent (Agente Principal)
-- **Objetivo**: Coordinar la ejecución global, analizar requerimientos del usuario, asignar tareas a los agentes especializados, auditar el Reporte de Actividad y garantizar la compatibilidad armónica e integral entre todos los componentes de la aplicación.
+- **Objetivo**: Coordinar la ejecución global, analizar requerimientos del usuario, asignar tareas a los agentes especializados y garantizar la compatibilidad armónica e integral entre todos los componentes de la aplicación.
 - **Área de Trabajo**:
-  - Lectura: Todo el repositorio (`/docs/**`, `/src/**`, `/reference/**`, `docs/AGENT_ACTIVITY_REPORT.md`, `CONTEXT.md`).
+  - Lectura: Todo el repositorio (`/docs/**`, `/src/**`, `/reference/**`, `CONTEXT.md`).
   - Escritura: Coordinación general, conciliación de compatibilidad cruzada entre backend, frontend y protocolos.
 - **Herramientas**:
   - Skill: `domain-adr-keeper` (Gobernanza de CONTEXT.md y ADRs)
   - Skill: `clean-code-solid` (Deep Modules y auditoría de complejidad)
-  - Skill: `tgrep-code-search` (Búsqueda indexada por trigramas submilisegundo en monorepo/referencia)
+  - Skill: `tgrep-code-search` (Búsqueda por trigramas cuando el binario está disponible; `rg` como fallback)
 - **Responsabilidades y Reglas Estrictas**:
-  1. **Desglose y Asignación**: Al iniciar una tarea, desglosa los requerimientos y delega subtareas a los agentes correspondientes (Investigador, Arquitecto de Bridge, Arquitecto Web, Auditor de Seguridad).
-  2. **Auditoría del Reporte**: Consulta obligatoriamente `docs/AGENT_ACTIVITY_REPORT.md` tras cada fase para verificar qué módulos fueron modificados y qué contratos cambiaron.
+  1. **Desglose y Asignación**: En tareas de varios subsistemas, desglosa y delega a los roles correspondientes. Define propiedad de archivos para evitar ediciones concurrentes; el principal integra y registra el resultado. Una tarea pequeña puede resolverse por un solo agente.
+  2. **Control de Cambios y Contratos**: Verifica directamente en los diffs y el código qué módulos fueron modificados y qué contratos cambiaron.
   3. **Armonización Cruzada**: Actualiza y refactoriza el código de cualquier subsistema que deba mantenerse compatible con los cambios introducidos (APIs REST, WebSockets, MQTT, persistencia JSON / memoria, frontend).
   4. **Control de Pruebas**: **NUNCA ejecutar suites de pruebas (pytest/Playwright/fuzzing) automáticamente**, a menos que el usuario lo solicite de manera explícita en su mensaje.
 
@@ -65,7 +65,7 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
   1. **NUNCA** escribir código de red (MQTT, Sockets), persistencia de archivos ni controladores de hardware serie en `/src/meshcore_bridge.py`.
   2. Cada struct de C/C++ extraído debe documentar: Endianness, empaquetado (`packed`), padding y CRC.
   3. Los tipos en `/src/protocol_types.py` deben ser `@dataclass(frozen=True)` o Enums con tipado estricto.
-  4. Registrar cambios de tipos y layouts en `docs/AGENT_ACTIVITY_REPORT.md`.
+  4. Documentar cambios de tipos y layouts en las especificaciones correspondientes (`docs/PROTOCOL_SPEC.md`).
 
 ---
 
@@ -80,10 +80,10 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
   - Skill: `asyncio-profiler-leak-detector` (Monitoreo de event loop y memoria RAM)
 - **Reglas y Restricciones Estrictas**:
   1. Todo código asíncrono debe usar `asyncio` nativo, sin llamadas bloqueantes en el event loop.
-  2. Implementar siempre descompresión/framing determinista (Byte Stuffing / SOF / EOF / CRC validation).
+  2. Distinguir el framing Companion oficial (dirección + longitud LE, gestionado por el SDK) del framing propio de `RawSerialFramingAdapter` (SOF/EOF/ESC/CRC). El adaptador raw actual procesa bytes en memoria y no implementa transporte UART físico.
   3. La persistencia en disco de canales y configuraciones debe ser atómica y no bloqueante mediante archivos JSON.
   4. Los mensajes MQTT deben cumplir con el esquema JSON documentado para n8n.
-  5. Registrar modificaciones de endpoints y drivers en `docs/AGENT_ACTIVITY_REPORT.md`.
+  5. Documentar modificaciones de endpoints y drivers en la arquitectura del sistema (`docs/ARCHITECTURE.md`).
 
 ---
 
@@ -96,7 +96,7 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
   - Skill: `bridge-test-runner`
   - Skill: `lora-frame-validator`
 - **Reglas y Restricciones Estrictas**:
-  1. No ejecutar pruebas de forma automática tras tareas de programación a menos que haya una orden explícita del usuario.
+  1. No ejecutar pruebas de forma automática tras tareas de programación a menos que haya una orden explícita del usuario. Una autorización para revisar y comprobar pruebas permite ejecutar las suites, reparar fixtures y añadir regresiones durante esa tarea, sin pedir confirmación por cada comando. No autoriza transmitir por hardware real.
   2. Al ser invocado, reportar matriz completa de verificación (pytest, coverage, mypy strict, ruff).
 
 ---
@@ -110,9 +110,9 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
   - Skill: `contract-openapi-sync` (Verificación de paridad API Python/JS)
   - Skill: `web-browser-inspection` (Inspección Playwright)
 - **Reglas y Restricciones Estrictas**:
-  1. **Cero Dependencias Pesadas**: Vanilla CSS y Vanilla JS nativo sin frameworks bloqueantes (React/Vue/Tailwind) para arranque instantáneo (< 100ms) en SBCs.
+  1. **Frontend Ligero**: Vanilla CSS y Vanilla JS sin React/Vue/Tailwind. Cualquier cifra de arranque o memoria requiere medición con plataforma, carga y alcance documentados.
   2. **Diseño Visual de Grado Profesional**: Cumplir guía de diseño, responsividad total y actualización en vivo vía WebSockets.
-  3. Registrar cambios en UI, selectores DOM y endpoints consumidos en `docs/AGENT_ACTIVITY_REPORT.md`.
+  3. Mantener sincronizados los cambios en UI, selectores DOM y endpoints consumidos.
 
 ---
 
@@ -126,7 +126,7 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
 - **Reglas y Restricciones Estrictas**:
   1. Validación y sanitización estricta de esquemas JSON y tipos de datos.
   2. Sanitización estricta de entradas antes de almacenar o renderizar (`escapeHtml`).
-  3. Registrar auditorías de seguridad y parches en `docs/AGENT_ACTIVITY_REPORT.md`.
+  3. Documentar auditorías de seguridad y registrar parches en las notas de seguridad o especificaciones pertinentes.
 
 ---
 
@@ -135,7 +135,7 @@ Este documento establece las reglas operativas, roles, restricciones y contratos
 - **Lectura**: Todo el repositorio, sin datos operativos ni secretos; `reference/` sólo lectura.
 - **Escritura asignable**: `docs/PROJECT_KNOWLEDGE.md`, `docs/PROJECT_INVENTORY.json`, documentación derivada y `scripts/inventory_project_knowledge.py`.
 - **Skills**: `project-reference-audit`, `domain-adr-keeper`, `meshcore-source-inspector`, `tgrep-code-search`.
-- **Contrato**: Distinguir oficial/tercero, revisión Git/origen declarado y evidencia estructural/semántica. Comprobar `.git` propio antes de atribuir el HEAD del padre. No actualizar referencias ni ejecutar suites por una petición de inventario. Entregar hallazgos con fuente, corrección y limitaciones al principal; éste integra el ledger.
+- **Contrato**: Distinguir oficial/tercero, revisión Git/origen declarado y evidencia estructural/semántica. Comprobar `.git` propio antes de atribuir el HEAD del padre. No actualizar referencias ni ejecutar suites por una petición de inventario. Entregar hallazgos con fuente, corrección y limitaciones al principal.
 
 ### Agente 7: Installer & Release Maintenance Agent
 - **Objetivo**: Revisar instaladores raíz, selección de intérprete, servicio y publicación Git sin afectar una estación operativa durante la auditoría.
@@ -155,7 +155,6 @@ sequenceDiagram
     autonumber
     actor Usuario
     participant Principal as Agente Principal (Orchestrator)
-    participant Ledger as AGENT_ACTIVITY_REPORT.md
     participant Subagentes as Agentes Especializados (Inv / Arch / Web / Sec)
 
     Usuario->>Principal: Solicitud de desarrollo o ajuste
@@ -163,9 +162,8 @@ sequenceDiagram
     Principal->>Subagentes: Asigna tareas según rol y límites
     
     Subagentes->>Subagentes: Desarrollan cambios en sus respectivos módulos
-    Subagentes->>Ledger: Registran cambios, contratos y estado en el reporte
+    Subagentes-->>Principal: Reportan cambios, contratos y estado
     
-    Principal->>Ledger: Consulta reporte de cambios y contratos modificados
     Principal->>Principal: Actualiza código cruzado para asegurar compatibilidad total
     Principal-->>Usuario: Entrega solución lista y verificada (sin pruebas automáticas)
 ```
@@ -206,8 +204,8 @@ Si alguna de estas situaciones aplica, la feature necesita un limitador. Usar lo
 
 | Necesidad | Mecanismo en el Bridge |
 |---|---|
-| Limitar envíos por ventana temporal | `rate_limiter.py` (`RateLimiter` por canal/nodo) |
-| Deduplicar eventos recibidos | `deduplicator.py` (`MessageDeduplicator`) |
+| Regular la cola de envíos y medir airtime | `rate_limiter.py` (`TxRateLimiter`, `AirtimeTracker`) |
+| Deduplicar eventos recibidos | `deduplicator.py` (`PacketDeduplicator`) |
 | Cooldown entre operaciones admin | Parámetro `min_interval_s` en `repeater_manager.py` |
 | Backoff en reconexión serial | `serial_driver.py` (exponential backoff ya implementado) |
 
@@ -245,5 +243,22 @@ Ejecutar obligatoriamente cuando la feature a implementar involucre:
 - **Linter & Formatter**: `ruff` (conformidad PEP 8 y buenas prácticas)
 - **Type Checker**: `mypy --strict`
 - **Pruebas Automatizadas**: **Suspendidas hasta petición explícita del usuario**.
-- **Sincronización con GitHub (`origin/main`)**: Tras cada modificación o entrega, realizar obligatoriamente `git add`, `git commit` y `git push origin main` para mantener el repositorio remoto actualizado.
+- **Sincronización con GitHub (`origin/main`)**: Al completar modificaciones autorizadas, revisar el diff, añadir únicamente los archivos de la tarea, crear un commit y ejecutar `git push origin main`. Verificar la rama y el remoto antes de publicar; no forzar el push ni incorporar cambios ajenos. Una lectura sin cambios no requiere un commit vacío. Las restricciones de ejecución del entorno siguen aplicándose.
+
+## 6. Documentación, herramientas y evidencia
+
+- Índice y autoridad documental: `docs/README.md`. `CONTEXT.md` define el dominio; firmware/SDK oficiales definen el protocolo; el código actual determina qué capacidades están implementadas. Registrar discrepancias explícitamente sin presentar propuestas como comportamiento existente.
+- No recrear `deploy/` ni `scripts/sync_deploy.py`: se retiraron el 2026-09-25. Los instaladores vigentes están en la raíz.
+- Skills propias: `.agents/README.md`; los paquetes de terceros `archify` y `ui-ux-pro-max` conservan su procedencia. No actualizar paquetes, herramientas globales o referencias oficiales indiscriminadamente.
+- Reutilizar primero herramientas instaladas en el entorno del proyecto. Instalar dependencias necesarias de QA de forma local; registrar versión y propósito. No introducir dependencias de producción para una tarea documental.
+- Mantener compatibilidad con Python 3.10. `TaskGroup`, `asyncio.timeout`, `typing.Self` y `typing.assert_never` requieren Python 3.11 o un backport declarado; no usarlos como requisito implícito.
+
+## 7. Contrato de pruebas cuando están autorizadas
+
+- Suite mantenida: `python -m pytest tests`; configuración en `pyproject.toml`. Inventario y comandos: `docs/TESTING.md`.
+- Las pruebas usan directorios temporales, adaptadores virtuales y puertos de loopback asignados por el SO. No leen ni escriben `.env`, canales, nodos o airtime de una instalación operativa; no conectan a radio física o broker de producción.
+- Las pruebas de navegador levantan su propia estación virtual y cierran navegador, servidor y tareas en `finally`/fixtures. No asumir que `localhost:8080` es un entorno de pruebas.
+- Revisar scripts históricos antes de ejecutarlos: pueden iniciar procesos, modificar datos o consultar servicios. Un script de `scratch/` no se convierte automáticamente en una prueba mantenida.
+- Reportar resultados separados de pytest/cobertura, mypy, ruff y navegador, con motivos de skips y herramientas ausentes. Un análisis regex/AST no acredita interoperabilidad, seguridad completa ni rendimiento medido.
+- Agregar regresiones por comportamiento observable y riesgo real; conservar las invariantes de roles, secretos, framing, ACK, colas y apagado. No relajar expectativas para ocultar un fallo de producción.
 

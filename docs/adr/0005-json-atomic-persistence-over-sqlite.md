@@ -30,7 +30,7 @@ Se adopta **Persistencia Atómica en Archivos JSON** mediante el patrón POSIX d
 1. **Escritura Atómica Segura**:
    - Todo volcado a disco escribe primero en un archivo temporal adyacente (`.tmp`) en el mismo sistema de archivos.
    - Se asegura la persistencia física en soporte magnético/flash mediante `flush()` y `os.fsync()`.
-   - Se realiza un renombrado atómico sobre el archivo de destino mediante `os.replace(tmp_path, target_path)`. En sistemas compatibles con POSIX y Windows moderno, esta operación es atómica a nivel de sistema de archivos, garantizando que el archivo destino siempre es 100% íntegro (nunca queda truncado o a medio escribir).
+   - Se realiza un renombrado atómico sobre el archivo de destino mediante `os.replace(tmp_path, target_path)`. El reemplazo evita exponer una escritura parcial del destino. La atomicidad no equivale a durabilidad absoluta ante pérdida de energía: intervienen `fsync`, el sistema de archivos y el hardware.
 2. **Caché en Memoria RAM para Lecturas Rápidas**:
    - Las lecturas de canales y nodos se resuelven en memoria RAM (estructuras `OrderedDict` y diccionarios indexados por clave pública) en tiempo $O(1)$ sin I/O de disco bloqueante en el bucle de eventos `asyncio`.
 3. **Plantillas Desacopladas de Git**:
@@ -40,9 +40,13 @@ Se adopta **Persistencia Atómica en Archivos JSON** mediante el patrón POSIX d
 
 - **Positivas**:
   - Huella de memoria mínima (~45 - 65 MB de RAM para todo el proceso del bridge).
-  - Cero corrupción de estado ante cortes abruptos de alimentación gracias a `os.replace`.
+  - Menor riesgo de archivos truncados gracias al temporal y reemplazo atómico; no es una garantía de corrupción cero ante todo fallo de alimentación.
   - Máxima auditabilidad y portabilidad: copias de seguridad realizables con simple `cp` o `tar`.
   - Compatibilidad universal con herramientas de automatización n8n, Node-RED y scripts bash.
 - **Negativas / Compensaciones**:
   - No apto para datasets de millones de filas con consultas relacionales complejas (no requerido en el dominio de redes LoRa Mesh).
   - La reescritura de todo el archivo para mutaciones pequeñas requiere mantener el número de nodos en rangos razonables (< 10,000 nodos).
+
+## Verificación Documental (2026-09-29)
+
+La decisión sobre JSON se mantiene. El uso de `flush()` / `os.fsync()` es parte del diseño descrito, pero no está presente en todas las rutas actuales: `src/rate_limiter.py::AirtimeTracker.save_history()` usa `json.dump()` y `os.replace()` sin `fsync()`. Las cifras de memoria de este ADR son orientativas y requieren medición; no justifican por sí solas una comparación universal con SQLite.

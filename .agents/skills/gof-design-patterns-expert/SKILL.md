@@ -53,3 +53,9 @@ Esta skill proporciona una guía sistemática para seleccionar, implementar y re
 ```bash
 python .agents/skills/gof-design-patterns-expert/scripts/analyze_design_patterns.py
 ```
+
+## Contrato de uso en MeshCore Bridge
+
+Leer [AGENTS.md](../../../AGENTS.md) y el [índice documental](../../../docs/README.md). Las suites, fuzzing y Playwright sólo se ejecutan bajo petición del usuario; la autorización permanece durante la tarea.
+
+Los patrones son opciones, no obligaciones. Usar los seams existentes (adaptadores, handlers, ApiContext) antes de introducir clases nuevas. Los ejemplos de patrones no describen automáticamente el código del proyecto.

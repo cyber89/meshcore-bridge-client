@@ -1,0 +1,92 @@
+# Inventario de verificación
+
+Generado mediante `python scripts/inventory_verification.py`, leyendo y analizando los archivos con AST sin importar sus módulos ni ejecutar escenarios.
+
+El alcance incluye 74 archivos: 48 Python en `tests/` (47 suites y fixtures), 22 en `scripts/` y 4 archivos históricos de `scratch/`. Se excluyen referencias, vendors y las herramientas temporales de migración de esta revisión en `scratch/maintenance/`.
+
+La suite mantenida se ejecuta completa mediante `python scripts/run_quality_checks.py`; pytest descubre todas las suites de `tests/`. Los scripts auxiliares no se ejecutan como parte de pytest: su revisión AST no confirma que sus escenarios pasen. La evidencia y los conteos de la última ejecución completa están en `tests/artifacts/inventory.json` y `tests/artifacts/pytest-final.xml`. El runner puede producir `tests/artifacts/quality.json`. Consultar [TESTING.md](TESTING.md) para comandos y resultados finales.
+
+Verificación auxiliar ejecutada por el agente principal: `audit_codebase_integrity.py` importó 59 módulos de aplicación correctamente; el auditor estático de asyncio pasó y Bandit con `-ll -ii` no señaló hallazgos de severidad y confianza media/alta. Esto no constituye una prueba de ausencia de vulnerabilidades. Los helpers API de skills se validan aparte; sus resultados definitivos están en TESTING.md.
+
+Las pruebas mantenidas aíslan configuración `.env`, archivos JSON, mapas y logs. Usan mocks o radio virtual y servidores de loopback; no verifican radio física, un broker de producción, despliegue en SBC ni integración n8n externa. Las etiquetas hardware/flapping se refieren a fallos simulados.
+
+Chromium ejecuta la SPA, sus controles DOM, REST y WebSocket reales contra un origin de loopback efímero. La fixture concede acceso de red local únicamente a ese origin y bloquea solicitudes externas. Omite las etiquetas opcionales de fuentes remotas y Leaflet: navegación del mapa y servicio de tiles local están cubiertos, pero el renderizado geográfico con Leaflet/CDN no. Revisa errores JavaScript, consola, HTTP y peticiones fallidas. Capturas: `tests/artifacts/qa_spa_1920x1080.png` y `tests/artifacts/qa_spa_390x844.png`.
+
+La cobertura es de líneas Python ejecutadas; no equivale a cobertura del JavaScript ni a garantía de todos los contratos. Administración CLI, SDK físico y flujos de configuración siguen teniendo ramas sin ejecutar. Los archivos mutation/resilience contienen casos adversarios dirigidos, no una campaña automatizada de mutación.
+
+| Archivo | Clasificación | Estado y alcance |
+| --- | --- | --- |
+| [tests/conftest.py](../tests/conftest.py) | maintained-pytest-fixtures | Shared isolation and virtual loopback/browser fixtures. |
+| [tests/test_admin_executors.py](../tests/test_admin_executors.py) | maintained-pytest-suite | Suite del gate completo. Unit tests for LocalConfigExecutor, TracerouteExecutor, and RepeaterAdminExecutor. |
+| [tests/test_bridge_core_comprehensive.py](../tests/test_bridge_core_comprehensive.py) | maintained-pytest-suite | Suite del gate completo. Comprehensive Unit Tests for MeshCoreBridge (src/bridge_core.py). |
+| [tests/test_bridge_logic.py](../tests/test_bridge_logic.py) | maintained-pytest-suite | Suite del gate completo. Pruebas unitarias para validar la lógica del puente MeshCore Bridge: |
+| [tests/test_channels_and_contacts_controllers.py](../tests/test_channels_and_contacts_controllers.py) | maintained-pytest-suite | Suite del gate completo. Unit tests for ChannelsController and ContactsController. |
+| [tests/test_concurrency_and_flapping.py](../tests/test_concurrency_and_flapping.py) | maintained-pytest-suite | Suite del gate completo. Pruebas de Concurrencia Extrema y Fallas en Caliente para MeshCore Bridge. |
+| [tests/test_contact_manager.py](../tests/test_contact_manager.py) | maintained-pytest-suite | Suite del gate completo. Unit tests for NodeRegistry and Contact Directory. |
+| [tests/test_diagnostics.py](../tests/test_diagnostics.py) | maintained-pytest-suite | Suite del gate completo. Unit and Integration tests for Central Diagnostics and Real-time Log Hub. |
+| [tests/test_diagnostics_export.py](../tests/test_diagnostics_export.py) | maintained-pytest-suite | Suite del gate completo. Unit and integration tests for Persistent File Logging, Rotating Logs, |
+| [tests/test_e2e_playwright.py](../tests/test_e2e_playwright.py) | maintained-pytest-suite | Suite del gate completo. Real browser contracts against a fresh virtual bridge, never a running radio. |
+| [tests/test_e2e_simulation.py](../tests/test_e2e_simulation.py) | maintained-pytest-suite | Suite del gate completo. Prueba de Simulación End-to-End (E2E) Completa. |
+| [tests/test_fuzzing_and_edge_cases.py](../tests/test_fuzzing_and_edge_cases.py) | maintained-pytest-suite | Suite del gate completo.  |
+| [tests/test_health_and_events.py](../tests/test_health_and_events.py) | maintained-pytest-suite | Suite del gate completo. Unit tests for HealthReporter and event_utils. |
+| [tests/test_http_cache_contract.py](../tests/test_http_cache_contract.py) | maintained-pytest-suite | Suite del gate completo. Conditional static HTTP responses and cache invalidation over isolated loopback. |
+| [tests/test_lqi_routing.py](../tests/test_lqi_routing.py) | maintained-pytest-suite | Suite del gate completo. Unit and Integration tests for LinkQualityEngine and LQI-based routing. |
+| [tests/test_mqtt_subsystem.py](../tests/test_mqtt_subsystem.py) | maintained-pytest-suite | Suite del gate completo. Unit tests for AsyncBridgeMQTTClient and MqttInboundDispatcher. |
+| [tests/test_mutation_resilience.py](../tests/test_mutation_resilience.py) | maintained-pytest-suite | Suite del gate completo. Mutation & Robustness Resilience Tests for MeshCore Bridge. |
+| [tests/test_n8n_parser_matrix.py](../tests/test_n8n_parser_matrix.py) | maintained-pytest-suite | Suite del gate completo. Pruebas de Validación para la Lógica de Parsing, Desempaquetado y Deduplicación de n8n. |
+| [tests/test_node_and_repeater_config.py](../tests/test_node_and_repeater_config.py) | maintained-pytest-suite | Suite del gate completo. Unit and Integration tests for Local Node Configuration and Authenticated Remote Repeater Management. |
+| [tests/test_node_registry_telemetry.py](../tests/test_node_registry_telemetry.py) | maintained-pytest-suite | Suite del gate completo. Unit tests for NodeRegistry and ContactManager telemetry tracking in RAM. |
+| [tests/test_packet_buffer.py](../tests/test_packet_buffer.py) | maintained-pytest-suite | Suite del gate completo. Unit tests for PacketBuffer (In-Memory Circular Buffer, Wireshark PCAP, CSV and JSON Exports). |
+| [tests/test_packet_deduplicator.py](../tests/test_packet_deduplicator.py) | maintained-pytest-suite | Suite del gate completo. Unit tests for RAM PacketDeduplicator (Sliding window TTL & Cache eviction) |
+| [tests/test_playwright_e2e_simulation.py](../tests/test_playwright_e2e_simulation.py) | maintained-pytest-suite | Suite del gate completo. End-to-end delivery and responsive SPA evidence with no hardware or CDN traffic. |
+| [tests/test_preflight.py](../tests/test_preflight.py) | maintained-pytest-suite | Suite del gate completo. Unit tests for Preflight Diagnostics Engine. |
+| [tests/test_protocol_types.py](../tests/test_protocol_types.py) | maintained-pytest-suite | Suite del gate completo. Unit tests for MeshCore Protocol Types, Serialization, Framing, and CRC validation. |
+| [tests/test_quality_tools.py](../tests/test_quality_tools.py) | maintained-pytest-suite | Suite del gate completo. Regressions for trustworthy QA reporting and broken-document detection. |
+| [tests/test_rate_limiter_priority.py](../tests/test_rate_limiter_priority.py) | maintained-pytest-suite | Suite del gate completo. Unit tests for LoRa Transmission Rate Limiter, PriorityQueue, and Airtime estimation. |
+| [tests/test_recent_regressions.py](../tests/test_recent_regressions.py) | maintained-pytest-suite | Suite del gate completo. Regression contracts for recent ACK, channel, RF budget and authentication fixes. |
+| [tests/test_repeater_manager.py](../tests/test_repeater_manager.py) | maintained-pytest-suite | Suite del gate completo. Unit tests for RepeaterManager and RF Packet Sniffer. |
+| [tests/test_repeater_manager_unit.py](../tests/test_repeater_manager_unit.py) | maintained-pytest-suite | Suite del gate completo. Unit tests for RepeaterManager (Airtime Cooldowns, Command Formatting & Analysis). |
+| [tests/test_rest_controllers.py](../tests/test_rest_controllers.py) | maintained-pytest-suite | Suite del gate completo. Unit tests for REST API Controllers in src/web/controllers/ |
+| [tests/test_rx_routers.py](../tests/test_rx_routers.py) | maintained-pytest-suite | Suite del gate completo. Unit test suite for modular RxRouter Strategy Pattern handlers and RxEventRouter. |
+| [tests/test_sanitization_fixes.py](../tests/test_sanitization_fixes.py) | maintained-pytest-suite | Suite del gate completo. Tests de verificación para el saneamiento integral de MeshCore Bridge. |
+| [tests/test_security_audit.py](../tests/test_security_audit.py) | maintained-pytest-suite | Suite del gate completo. Automated Security Audit & Vulnerability Tests for MeshCore Bridge. |
+| [tests/test_sensor_decoder.py](../tests/test_sensor_decoder.py) | maintained-pytest-suite | Suite del gate completo. Unit tests and fuzzing for CayenneLPP Environmental Sensor Decoder. |
+| [tests/test_serial_adapter.py](../tests/test_serial_adapter.py) | maintained-pytest-suite | Suite del gate completo. Unit tests for Serial Communication Adapters, Framing byte-stuffing, and Watchdog. |
+| [tests/test_serial_watchdog.py](../tests/test_serial_watchdog.py) | maintained-pytest-suite | Suite del gate completo. Pruebas Unitarias para el SerialWatchdog de src/serial_driver.py. |
+| [tests/test_shared_utils_unit.py](../tests/test_shared_utils_unit.py) | maintained-pytest-suite | Suite del gate completo. Unit tests for shared_utils (Canonical Device Role, Power Limits, Battery Normalization, Repeater Detection). |
+| [tests/test_skill_helpers.py](../tests/test_skill_helpers.py) | maintained-pytest-suite | Suite del gate completo. Focused regressions for honest skill-helper results and scenario selection. |
+| [tests/test_stress_flood.py](../tests/test_stress_flood.py) | maintained-pytest-suite | Suite del gate completo. Prueba de Estrés y Ráfagas Masivas (Stress & Flood Test). |
+| [tests/test_target_resolver_unit.py](../tests/test_target_resolver_unit.py) | maintained-pytest-suite | Suite del gate completo. Unit tests for TargetResolver (SSoT Destination Target Resolution). |
+| [tests/test_tcp_companion_server.py](../tests/test_tcp_companion_server.py) | maintained-pytest-suite | Suite del gate completo. Unit and Integration tests for MeshCoreCompanionServer (TCP Companion Protocol). |
+| [tests/test_tile_server.py](../tests/test_tile_server.py) | maintained-pytest-suite | Suite del gate completo. HTTP tile contracts using a temporary MBTiles database and ephemeral loopback port. |
+| [tests/test_tx_rate_limiter.py](../tests/test_tx_rate_limiter.py) | maintained-pytest-suite | Suite del gate completo. Pruebas Unitarias para el Rate Limiter de Transmisión (TX). |
+| [tests/test_virtual_mesh_simulation.py](../tests/test_virtual_mesh_simulation.py) | maintained-pytest-suite | Suite del gate completo. Automated Integration & Simulation Tests for VirtualMeshAdapter. |
+| [tests/test_web_security_and_maps.py](../tests/test_web_security_and_maps.py) | maintained-pytest-suite | Suite del gate completo. Unit tests for SecurityTrafficInspector and MapTileService. |
+| [tests/test_web_server.py](../tests/test_web_server.py) | maintained-pytest-suite | Suite del gate completo. Unit and Integration tests for MeshCore Web Server and REST API Router. |
+| [tests/test_websocket_live.py](../tests/test_websocket_live.py) | maintained-pytest-suite | Suite del gate completo. Unit tests for WebSocket Live Streaming and Frame Handling in MeshCoreWebServer. |
+| [scripts/audit_codebase_integrity.py](../scripts/audit_codebase_integrity.py) | auxiliary-static-audit | Executed by main QA:59 application imports passed; scans source references. |
+| [scripts/audit_frontend_browser.py](../scripts/audit_frontend_browser.py) | auxiliary-browser-audit | Revisado con AST; sin ejecución independiente. Own virtual radio but standalone server and operator config; CDN assets not isolated. |
+| [scripts/build_diagrams.py](../scripts/build_diagrams.py) | manual-documentation-generator | Revisado con AST; sin ejecución independiente. Generates documentation diagrams; outside test suite and assigned QA write scope. |
+| [scripts/export_logs.py](../scripts/export_logs.py) | manual-operator-diagnostic | Revisado con AST; sin ejecución independiente. Reads current operator logs or existing bridge URL; produces export rather than test evidence. |
+| [scripts/generate_sample_mbtiles.py](../scripts/generate_sample_mbtiles.py) | manual-map-fixture-generator | Revisado con AST; sin ejecución independiente. Writes sample map database in working data; hermetic tile test creates its own temporary database. |
+| [scripts/inspect_all_views.py](../scripts/inspect_all_views.py) | historical-browser-experiment | Revisado con AST; sin ejecución independiente. Own virtual radio but standalone server and operator config; CDN assets not isolated. |
+| [scripts/inspect_web.py](../scripts/inspect_web.py) | manual-browser-inspection | Revisado con AST; sin ejecución independiente. Targets an existing localhost:8080 bridge by default; requires selected safe target and browser/CDN resources. |
+| [scripts/inventory_verification.py](../scripts/inventory_verification.py) | maintained-inventory-generator | Herramienta de inventario ejecutada: lectura AST y generación de JSON/Markdown; no ejecuta los módulos revisados. |
+| [scripts/run_all_test_categories.py](../scripts/run_all_test_categories.py) | historical-partial-runner | Revisado con AST; sin ejecución independiente. Hardcoded categories omit suites and repeat coverage; superseded by run_quality_checks.py. |
+| [scripts/run_quality_checks.py](../scripts/run_quality_checks.py) | maintained-quality-runner | Helper ejecutado en el gate o generación del inventario; contratos cubiertos por pruebas de tooling. Canonical pytest, mypy, ruff and documentation gate; exercised by test_quality_tools.py. |
+| [scripts/simulate_complex_mesh_scenario.py](../scripts/simulate_complex_mesh_scenario.py) | auxiliary-simulation | Revisado con AST; sin ejecución independiente. Mock multi-role scenario with standalone config/state; no hardware required. |
+| [scripts/simulate_concurrent_network.py](../scripts/simulate_concurrent_network.py) | auxiliary-simulation | Revisado con AST; sin ejecución independiente. Standalone mocked radio/MQTT load and rate limiter; current config/history not isolated. |
+| [scripts/simulate_extreme_scenarios.py](../scripts/simulate_extreme_scenarios.py) | manual-chaos-demo | Revisado con AST; sin ejecución independiente. Calls full bridge.start with virtual radio; can start configured broker/server services and mutate working data. |
+| [scripts/simulate_full_mesh_validation.py](../scripts/simulate_full_mesh_validation.py) | auxiliary-simulation | Revisado con AST; sin ejecución independiente. Custom multi-node mocks and concurrency scenario; current config/state not fixture-isolated. |
+| [scripts/simulate_heltec_v4_mesh.py](../scripts/simulate_heltec_v4_mesh.py) | manual-virtual-demo | Revisado con AST; sin ejecución independiente. COM7 is mocked, but full bridge.start and fixed web8080 can start broker services and mutate working data. |
+| [scripts/simulate_mesh_network.py](../scripts/simulate_mesh_network.py) | auxiliary-simulation | Revisado con AST; sin ejecución independiente. Mock radio/MQTT scenario with standalone config/state; no hardware required. |
+| [scripts/simulate_tcp_mesh_network.py](../scripts/simulate_tcp_mesh_network.py) | auxiliary-loopback-simulation | Revisado con AST; sin ejecución independiente. Custom virtual radio and real loopback TCP fixed port5000; standalone, outside pytest fixtures. |
+| [scripts/test_ip_and_security_logging.py](../scripts/test_ip_and_security_logging.py) | auxiliary-loopback-integration | Revisado con AST; sin ejecución independiente. Starts HTTP/TCP servers using operator config and logs; canonical tests isolate ports/state. |
+| [scripts/test_search_filters.py](../scripts/test_search_filters.py) | historical-browser-experiment | Revisado con AST; sin ejecución independiente. Search scenario with standalone virtual server and browser/CDN; migrated suite is hermetic. |
+| [scripts/validate_all_node_parameters.py](../scripts/validate_all_node_parameters.py) | auxiliary-simulation | Revisado con AST; sin ejecución independiente. Manual node parameter matrix uses current config and registry; no pytest fixture isolation. |
+| [scripts/validate_project_docs.py](../scripts/validate_project_docs.py) | maintained-documentation-validator | Helper ejecutado en el gate o generación del inventario; contratos cubiertos por pruebas de tooling. Run by canonical quality gate; exercised by test_quality_tools.py. |
+| [scripts/verify_all_components.py](../scripts/verify_all_components.py) | auxiliary-simulation | Revisado con AST; sin ejecución independiente. Standalone assertions with current config and registry; canonical pytest covers these contracts in isolated fixtures. |
+| [scratch/fix2.py](../scratch/fix2.py) | historical-source-mutation-tool | Revisado con AST; sin ejecución independiente. Rewrites production JS; not a verification scenario, never execute as QA. |
+| [scratch/test_heatmap_rf.py](../scratch/test_heatmap_rf.py) | historical-browser-experiment | Revisado con AST; sin ejecución independiente. Standalone virtual server on fixed port8094/8095/8098 with operator state and remote map assets; not pytest collected. |
+| [scratch/test_local_maps_e2e.py](../scratch/test_local_maps_e2e.py) | historical-browser-experiment | Revisado con AST; sin ejecución independiente. Standalone virtual server on fixed port8094/8095/8098 with operator state and remote map assets; not pytest collected. |
+| [scratch/test_repeater_battery_e2e.py](../scratch/test_repeater_battery_e2e.py) | historical-browser-experiment | Revisado con AST; sin ejecución independiente. Standalone virtual server on fixed port8094/8095/8098 with operator state and remote map assets; not pytest collected. |

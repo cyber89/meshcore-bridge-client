@@ -200,3 +200,16 @@ si persiste. La nueva ejecución Linux determinará el resultado; estos cambios
 son de pruebas y documentación y no alteran el código desplegado.
 
 Gate local de seguimiento del árbol seleccionado: **662aprobadas,1skipWindows,0fallos**, con18casos de navegador;111.59s. Cobertura **67.11%** (8465/12613líneas), mypy59/Ruff/documentación44/0 aprobados. El skip de symlink fue aprobado separado enLinux con almacenamiento temporal. Fuente de producción intacta.
+
+El seguimiento [16416a0 en CI](https://github.com/cyber89/meshcore-bridge-client/actions/runs/36934007427) aprobó662casos y falló1 en ambos runtimesLinux. El diagnóstico distingue
+una transición legítima del defecto real: viewport390, scrollWidth417, sidebar
+fuera del viewport(right−25), controles de cabecera hasta405.28. El defecto es
+el ajuste flex de cabecera con fuentes más anchas; esperar no lo resuelve.
+Se conserva esta reproducción y se corrige el CSS responsable, sin esconder
+el overflow del body ni retirar controles.
+
+Reproducción local anterior al CSS: etiqueta válida `/dev/serial/by-id/…` larga
+y fuente monospace; scrollWidth513>390 y botón de idioma hasta513.36. Fallo
+conservado en JUnit. El parche permite contracción flex/min-width0 y ellipsis
+en texto de cabecera móvil, manteniendo controles accesibles y sin ocultar el
+overflow de body. La misma regresión debe aprobar después.

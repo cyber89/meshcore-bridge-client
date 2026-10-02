@@ -38,3 +38,9 @@ python .agents/skills/lora-frame-validator/scripts/validate_frame.py --hex "AA01
 ```bash
 python .agents/skills/lora-frame-validator/scripts/validate_frame.py --file captures/serial_dump.bin
 ```
+
+## Contrato de uso en MeshCore Bridge
+
+Leer [AGENTS.md](../../../AGENTS.md) y el [índice documental](../../../docs/README.md). Las suites, fuzzing y Playwright sólo se ejecutan bajo petición del usuario; la autorización permanece durante la tarea.
+
+SOF AA/EOF55/ESC1B/CRC16 corresponde al fallback propio MeshcoreFrame, no al framing Companion oficial de dirección y longitud. Elegir algoritmo y endianness desde la especificación concreta; no deducir el wire oficial de un ejemplo del helper.

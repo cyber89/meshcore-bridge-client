@@ -1,5 +1,7 @@
 # Auditoría Integral MeshCore Bridge — Reporte de Cambios
 
+> **Snapshot histórico del 2026-08-17, identificado el 2026-09-29.** Los conteos de pruebas, capturas, medidas y afirmaciones de seguridad describen la auditoría reportada en esa fecha y se conservan sin reinterpretarlos como evidencia del checkout actual. Las referencias a buffers SQLite son históricas: hoy nodos/canales/airtime usan JSON y capturas usan RAM; el servicio cartográfico puede leer SQLite MBTiles. Véase el [índice de documentación vigente](README.md).
+
 > **Fecha**: 2026-08-17
 > **Alcance**: Código fuente (`/src`), tests (`/tests`), documentación (`/docs`, `README.md`), skills de agentes, verificación funcional (bridge + MQTT + Web SPA) y cumplimiento de diseño/UX.
 > **Herramientas**: `bridge-test-runner`, `security-code-auditor`, `api-design-testing`, `clean-code-solid`, `html-css-modern-js`, `python-patterns-typing`, `web-browser-inspection` (Playwright), `web-ui-design-system` (WCAG 2.2 AA) — todas ejecutadas con el entorno virtual `.venv` (Python 3.12.10).

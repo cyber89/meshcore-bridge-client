@@ -11,8 +11,165 @@ Este documento es el registro central y compartido (Single Source of Truth) dond
   2. **Mejora 2 (Límite de Trama TCP Companion)**: En `src/tcp_companion_server.py`, ajustado `MAX_FRAME_SIZE = 300` bytes para coincidir exactamente con el descarte de tramas >300 B del parser del SDK oficial. Verificado con `test_tcp_companion_server.py` y `test_tcp_official_compatibility.py` (17 pasadas).
   3. **Mejora 3 (Capacidad Dinámica de Canales)**: En `src/web/controllers/channels_controller.py`, implementado método `_max_channels()` para validar dinámicamente contra la capacidad reportada por el dispositivo en `DEVICE_INFO` en vez de limitar estáticamente a 0..7. Verificado con `test_channels_and_contacts_controllers.py` y `test_rest_controllers.py` (12 pasadas).
   4. **Mejora 4 (ADRs y Auditoría de Protocolo)**: Incorporados formalmente `docs/adr/0009-official-companion-protocol-layers.md`, `docs/adr/0010-duty-cycle-configurable-budget.md` y `docs/PROTOCOL_AUDIT_2026-09-29.md`. Verificado con `validate_project_docs.py` (53 archivos, 0 issues) y `test_quality_tools.py` (10 pasadas).
-  5. **Verificación Global**: Suite completa de pruebas ejecutada con resultado de 663 pruebas aprobadas, 1 omitida (symlink Windows esperado), 0 fallos en 81.6 segundos con 67% de cobertura.
-- **Módulos Modificados**: `src/protocol_types.py`, `src/tcp_companion_server.py`, `src/web/controllers/channels_controller.py`, `docs/adr/0009-official-companion-protocol-layers.md`, `docs/adr/0010-duty-cycle-configurable-budget.md`, `docs/PROTOCOL_AUDIT_2026-09-29.md`, `docs/README.md`, `docs/AGENT_ACTIVITY_REPORT.md`.
+### Hito: Remediación y Resolución Quirúrgica — Capa 5 (Infraestructura, Configuración y Persistencia) y Cierre Global de Auditoría
+- **Fecha**: 2026-10-01
+- **Estado**: ✅ COMPLETADO (Capa 5 saneada al 100%, 3 defectos corregidos y verificados con pruebas aisladas; 13 defectos de auditoría solventados integralmente)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Python Bridge Architect), Agente 5 (Security Auditor)
+- **Alcance y Acción**:
+  1. **Resolución Bug C5-01 (`src/web/controllers/channels_controller.py`)**:
+     - Incorporado cerrojo de sincronización `self._save_lock = threading.Lock()` en `ChannelsController`.
+     - Implementada generación de rutas temporales únicas con PID y nanosegundos (`f"{self.channels_file}_{os.getpid()}_{time.time_ns()}.tmp"`) y limpieza en bloque `finally/except`.
+     - Erradicada la colisión de descriptores `PermissionError: [WinError 32]` en Windows y las escrituras intercaladas en POSIX ante persistencias atómicas concurrentes.
+     - Verificado exitosamente con `scratch/reproduce_capa5_bug1_channels_temp_race.py`.
+  2. **Resolución Bug C5-02 (`src/web/controllers/config_controller.py`, `src/rate_limiter.py`)**:
+     - En `ConfigController.set_local_config()`, invocación forzada de `tracker.save_history(sync=True)` al mutar parámetros de ciclo de trabajo y ocupación espectral LoRa.
+     - En `AirtimeTracker.load_history()`, rehidratación completa de los 5 parámetros regulatorios (`duty_cycle_limit_pct`, `warn_threshold_pct`, `cutoff_threshold_pct`, `cutoff_resume_pct`, `cutoff_enabled`) desde `airtime_history.json`.
+     - Erradicada la reversión silenciosa a valores predeterminados tras reiniciar el servicio del puente.
+     - Verificado exitosamente con `scratch/reproduce_capa5_bug2_airtime_tracker_rehydration.py`.
+  3. **Resolución Bug C5-03 (`config.py`)**:
+     - Implementada la función canónica `_parse_env_value()` en `config.py` para el parser nativo de fallback de archivos `.env`.
+     - Soporte riguroso para comentarios en línea (`# ...`), eliminación de comillas en pares preservando caracteres `#` internos, y conversión numérica segura (`int` / `float`) sin excepciones `ValueError`.
+     - Erradicado el fallo de puertos, límites regulatorios o tokens de API contaminados con comentarios.
+     - Verificado exitosamente con `scratch/reproduce_capa5_bug3_env_fallback_parser.py`.
+- **Módulos Modificados**: `src/web/controllers/channels_controller.py`, `src/web/controllers/config_controller.py`, `src/rate_limiter.py`, `config.py`.
+- **Métricas de Calidad**:
+  - `ruff check src/web/controllers/channels_controller.py src/web/controllers/config_controller.py src/rate_limiter.py config.py`: **All checks passed!**
+  - `mypy --strict src/web/controllers/channels_controller.py src/web/controllers/config_controller.py src/rate_limiter.py config.py`: **Success: no issues found in 4 source files**.
+
+### Hito: Remediación y Resolución Quirúrgica — Capa 4 (Adaptadores, Dispositivos y Servicios de Red)
+- **Fecha**: 2026-10-01
+- **Estado**: ✅ COMPLETADO (Capa 4 saneada al 100%, 3 defectos corregidos y verificados con pruebas aisladas)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 1 (Protocol Investigator), Agente 2 (Python Bridge Architect), Agente 5 (Security Auditor)
+- **Alcance y Acción**:
+  1. **Resolución Bug C4-01 (`src/serial/sdk_adapter.py`, `src/target_resolver.py`)**:
+     - En `MeshcoreSDKAdapter.remove_contact()`, incorporada resolución previa de destino mediante `self._resolve_target(pubkey)` antes de emitir la orden `remove_contact` al transceptor serial.
+     - En `TargetResolver`, ampliada la inspección de `mc` para soportar contactos invocables (`mc.contacts()`) y el diccionario interno `mc._contacts`.
+     - Erradicado el fallo `ValueError: Invalid public key hex string` al solicitar eliminación de contactos utilizando prefijos de 12 caracteres o nombres amigables.
+     - Verificado exitosamente con `scratch/reproduce_capa4_bug1_remove_contact_prefix.py`.
+  2. **Resolución Bug C4-02 (`src/virtual_mesh_adapter.py`)**:
+     - Blindada la guarda de comprobación de la estación base host en `VirtualMeshAdapter.send_message()` para verificar si el destino es clave local, prefijo de al menos 6 caracteres (`local_key.startswith(target_clean)`), o etiquetas canónicas (`"local"`, `"000000000000"`).
+     - Cumplimiento inmutable de la Regla SSoT 1.1 Item 2 (prohibición estricta de bucles locales hacia la propia estación base), impidiendo que prefijos de la clave local creen nodos sintéticos que generen ecos de eco-bot hacia el puente.
+     - Verificado exitosamente con `scratch/reproduce_capa4_bug2_virtual_local_loopback.py`.
+  3. **Resolución Bug C4-03 (`src/virtual_mesh_adapter.py`)**:
+     - Refactorizado el manejador de `CMD_GET_CHANNEL` (31 / 0x1F) en `VirtualMeshAdapter.send_raw_companion_frame()`.
+     - Soporte integral y resiliente para PSKs no hexadecimales (contraseñas ASCII en texto plano y frases de paso), derivando claves de 16 bytes mediante codificación directa o hash SHA-256 cuando no son cadenas hex válidas de 32/64 caracteres, y captura defensiva de excepciones binarias.
+     - Erradicado el crash `ValueError: non-hexadecimal number found in fromhex()` durante consultas TCP Companion.
+     - Verificado exitosamente con `scratch/reproduce_capa4_bug3_virtual_channel_psk_crash.py`.
+- **Módulos Modificados**: `src/serial/sdk_adapter.py`, `src/virtual_mesh_adapter.py`, `src/target_resolver.py`.
+- **Métricas de Calidad**:
+  - `ruff check src/serial/sdk_adapter.py src/virtual_mesh_adapter.py src/target_resolver.py`: **All checks passed!**
+  - `mypy --strict src/serial/sdk_adapter.py src/virtual_mesh_adapter.py src/target_resolver.py`: **Success: no issues found in 3 source files**.
+
+### Hito: Remediación y Resolución Quirúrgica — Capa 3 (Dominio, Negocio y Red Malla)
+- **Fecha**: 2026-10-01
+- **Estado**: ✅ COMPLETADO (Capa 3 saneada al 100%, 3 defectos corregidos y verificados con pruebas aisladas)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Python Bridge Architect), Agente 5 (Security Auditor)
+- **Alcance y Acción**:
+  1. **Resolución Bug C3-01 (`src/rate_limiter.py`)**:
+     - Incorporado cerrojo de sincronización `self._lock = threading.Lock()` en `AirtimeTracker`.
+     - Protegidas todas las mutaciones (`record_tx`, `_prune`) y lecturas/iteraciones de `self._history` (`get_stats`, `save_history`) bajo `with self._lock:` con obtención de instantánea inmutable `list(self._history)`.
+     - Erradicado completamente `RuntimeError: deque mutated during iteration` bajo concurrencia de ráfagas LoRa o accesos multihilo.
+     - Verificado exitosamente con `scratch/reproduce_capa3_bug1_airtime_deque_concurrency.py`.
+  2. **Resolución Bug C3-02 (`src/contact_manager.py`)**:
+     - Actualizado cerrojo en `NodeRegistry` a reentrante `self._lock = threading.RLock()`.
+     - Envueltas las iteraciones de diccionarios en `get_by_key_or_prefix()`, `find_by_name()`, `list_discovered()`, `get_canonical_key()`, `accept_discovered_contact()` y `load_from_file()` bajo `with self._lock:`.
+     - Erradicado completamente `RuntimeError: dictionary changed size during iteration` ante inserciones concurrentes de nuevos nodos descubiertos en la malla.
+     - Verificado exitosamente con `scratch/reproduce_capa3_bug2_noderegistry_dict_concurrency.py`.
+  3. **Resolución Bug C3-03 (`src/rate_limiter.py`)**:
+     - Corregido `AirtimeTracker.load_history()` para rehidratar y preservar los acumulados históricos `total_airtime_ms` y `total_packets` almacenados en `airtime_history.json`.
+     - Erradicado el reseteo a 0.0 de las métricas acumuladas globales de tiempo en el aire y paquetes totales cuando los registros individuales superan la ventana deslizante de 24 horas tras un reinicio de la estación base.
+     - Verificado exitosamente con `scratch/reproduce_capa3_bug3_airtime_history_loss.py`.
+- **Módulos Modificados**: `src/rate_limiter.py`, `src/contact_manager.py`.
+- **Métricas de Calidad**:
+  - `ruff check src/rate_limiter.py src/contact_manager.py`: **All checks passed!**
+  - `mypy --strict src/rate_limiter.py src/contact_manager.py`: **Success: no issues found in 2 source files**.
+
+### Hito: Remediación y Resolución Quirúrgica — Capa 2 (Orquestación, Aplicación y Casos de Uso)
+- **Fecha**: 2026-10-01
+- **Estado**: ✅ COMPLETADO (Capa 2 saneada al 100%, 2 defectos corregidos y verificados con pruebas aisladas)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Python Bridge Architect), Agente 5 (Security Auditor)
+- **Alcance y Acción**:
+  1. **Resolución Bug C2-01 (`src/rx_router.py`, `src/deduplicator.py`, `src/routers/channel_handler.py`, `src/routers/direct_handler.py`)**:
+     - Implementado filtro de deduplicación en memoria RAM al inicio de `_handle_mesh_msg_common()` en `src/rx_router.py` evaluando la clave `mesh::{clean_sender}::{channel_idx}::{clean_text}::{txt_type}`.
+     - Corregido `PacketDeduplicator.__bool__` en `src/deduplicator.py` para devolver siempre `True`, evitando que instancias vacías evaluaran falsamente a `False` por herencia de `__len__`.
+     - Refactorizados `ChannelMessageHandler` y `DirectMessageHandler` para esperar directamente (`await ctx._handle_mesh_...`) en lugar de desacoplar tareas huérfanas en segundo plano.
+     - Ecos multihop repetidos de la malla LoRa son descartados transparentemente, previniendo duplicación de publicaciones MQTT y eventos WebSocket.
+     - Verificado exitosamente con `scratch/reproduce_capa2_bug1_dedup_bypass.py`.
+  2. **Resolución Bug C2-02 (`src/bridge_core.py`)**:
+     - Envuelto el `await future` en `handle_tcp_companion_command()` con `asyncio.wait_for(future, timeout=30.0)` y captura de `asyncio.TimeoutError`.
+     - Erradicada la retención indefinida de `_transaction_lock` en `tcp_companion_server.py`, garantizando que la congestión o demoras en la cola de radiofrecuencia nunca congelen el servidor TCP Companion para aplicaciones móviles o CLI.
+     - Verificado exitosamente con prueba aislada de timeout y resolución.
+- **Módulos Modificados**: `src/rx_router.py`, `src/deduplicator.py`, `src/routers/channel_handler.py`, `src/routers/direct_handler.py`, `src/bridge_core.py`.
+- **Métricas de Calidad**:
+  - `ruff check src/bridge_core.py src/rx_router.py src/deduplicator.py src/routers/channel_handler.py src/routers/direct_handler.py`: **All checks passed!**
+  - `mypy --strict src/bridge_core.py src/rx_router.py src/deduplicator.py src/routers/channel_handler.py src/routers/direct_handler.py`: **Success: no issues found in 5 source files**.
+
+### Hito: Remediación y Resolución Quirúrgica — Capa 1 (Presentación y Exposición)
+- **Fecha**: 2026-10-01
+- **Estado**: ✅ COMPLETADO (Capa 1 saneada al 100%, 2 defectos corregidos y verificados con pruebas aisladas)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator), Agente 2 (Python Bridge Architect), Agente 5 (Security Auditor)
+- **Alcance y Acción**:
+  1. **Resolución Bug C1-01 (`src/web/api_router.py`)**:
+     - Captura de `ValueError` en el endpoint `POST /api/system/logs/level` mediante `try...except ValueError as ve: return problem_details(400, "Bad Request", str(ve), "invalid_log_level")`.
+     - Cumplimiento estricto de RFC 7807 Problem Details: entradas de cliente con nombres de nivel de log inválidos devuelven HTTP 400 Bad Request y jamás escalan a HTTP 500.
+     - Verificado exitosamente con `scratch/reproduce_capa1_bug1_log_level_500.py`.
+  2. **Resolución Bug C1-02 (`src/mqtt_dispatcher.py`)**:
+     - Captura del diccionario de resultado `res = await self._ctx.handle_admin(command)` en `_handle_admin_request()`.
+     - Publicación inmediata en `config.TOPIC_ADMIN_STAT` (`meshcore/admin/status`) para todas las consultas administrativas locales que no emitían internamente (`get_custom_vars`, `set_custom_vars`, `set_custom_var`, `delete_custom_var`, `get_path_hash_mode`, `set_path_hash_mode`, `get_autoadd_config`, `set_autoadd_config`, `get_flood_scope`, `set_flood_scope`) y para sobres de error (`res.get("status") == "error"`).
+     - Erradicada la pérdida silenciosa de respuestas y los bloqueos por timeout en clientes MQTT / n8n.
+     - Verificado exitosamente con `scratch/reproduce_capa1_bug2_mqtt_admin_drop.py`.
+- **Módulos Modificados**: `src/web/api_router.py`, `src/mqtt_dispatcher.py`.
+- **Métricas de Calidad**:
+  - `ruff check src/web/api_router.py src/mqtt_dispatcher.py`: **All checks passed!**
+  - `mypy --strict src/web/api_router.py src/mqtt_dispatcher.py`: **Success: no issues found in 2 source files**.
+
+### Hito: Auditoría Integral Capa por Capa — Fase 5 (Capa 5: Infraestructura, Configuración y Persistencia) y Cierre Global
+- **Fecha**: 2026-10-01
+- **Estado**: ✅ COMPLETADO (Fase 5: Capa 5 analizada, 3 defectos identificados y replicados determinísticamente; Auditoría Global de 5 Capas culminada)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect), Agente 1 (Protocol & Firmware Investigator), Agente 2 (Python Bridge Architect), Agente 5 (Security Auditor)
+- **Alcance y Acción**:
+  - Auditoría exhaustiva y estricta de todos los componentes de la **Capa 5: Infraestructura, Configuración y Persistencia (Data & Runtime Services)** (`config.py`, `src/web/controllers/config_controller.py`, `src/web/controllers/channels_controller.py`, `src/contact_manager.py`, `src/rate_limiter.py`, `src/diagnostics.py`, `meshcore_bridge.py`).
+  - Verificación de linters y seguridad: Ruff (0 errores), Mypy strict (0 errores en tipado estricto), Bandit (B104 en `0.0.0.0` justificado para Docker/LAN con autenticación y B110 en fallback de `.env`).
+  - Verificación de tolerancia a fallos y apagados eléctricos: persistencia atómica mediante archivo temporal y reemplazo atómico (`os.replace`), validación semántica temprana en `config._validate_config()`, y logging rotativo de grado industrial.
+  - Identificación y replicación determinista de 3 defectos:
+    1. **Hallazgo C5-01**: En `src/web/controllers/channels_controller.py` (`_save_channels`), se emplea una ruta temporal fija `f"{self.channels_file}.tmp"` sin cerrojo de hilos. Ante concurrencia multihilo o corutinas asíncronas (`_save_channels_async`), Windows lanza `PermissionError: [WinError 32]` por colisión de descriptores y POSIX sufre riesgo de escrituras intercaladas/truncadas. Replicado con script `scratch/reproduce_capa5_bug1_channels_temp_race.py`.
+    2. **Hallazgo C5-02**: En `src/web/controllers/config_controller.py` (`set_local_config`), las modificaciones de límites y umbrales de espectro LoRa se aplican en memoria pero no persisten en disco; además, en `src/rate_limiter.py` (`AirtimeTracker.load_history`), se omiten 5 parámetros regulatorios guardados en `airtime_history.json` (`duty_cycle_limit_pct`, `warn_threshold_pct`, `cutoff_threshold_pct`, `cutoff_resume_pct`, `cutoff_enabled`), provocando que cualquier reinicio del puente revierta silenciosamente las configuraciones del usuario a los valores predeterminados. Replicado con script `scratch/reproduce_capa5_bug2_airtime_tracker_rehydration.py`.
+    3. **Hallazgo C5-03**: En `config.py` (parser nativo de fallback de `.env`), no se eliminan comentarios en línea `#`, provocando que `_safe_int("WEB_PORT")` o `_safe_float` arrojen `ValueError` y reviertan a valores por defecto, o que contraseñas y tokens entrecomillados queden corrompidos con los comentarios y comillas adjuntas. Replicado con script `scratch/reproduce_capa5_bug3_env_fallback_parser.py`.
+  - Actualizado el informe canónico de auditoría en `docs/AUDIT_REPORT_LAYER_BY_LAYER.md`, añadiendo la Sección 12 (Auditoría Capa 5), Sección 13 (Dictamen Capa 5: 8.9/10) y Sección 14 (Resumen Ejecutivo Global y Matriz Consolidada de 5 Capas: 8.84/10 con 13 defectos replicados).
+- **Módulos Auditados**: `config.py`, `src/web/controllers/config_controller.py`, `src/web/controllers/channels_controller.py`, `src/contact_manager.py`, `src/rate_limiter.py`, `src/diagnostics.py`, `meshcore_bridge.py`.
+- **Artefactos y Reportes Creados/Actualizados**: `docs/AUDIT_REPORT_LAYER_BY_LAYER.md`, `scratch/reproduce_capa5_bug1_channels_temp_race.py`, `scratch/reproduce_capa5_bug2_airtime_tracker_rehydration.py`, `scratch/reproduce_capa5_bug3_env_fallback_parser.py`.
+
+### Hito: Auditoría Integral Capa por Capa — Fase 4 (Capa 4: Adaptadores, Dispositivos y Servicios)
+- **Fecha**: 2026-10-01
+- **Estado**: ✅ COMPLETADO (Fase 4: Capa 4 analizada, 3 defectos identificados y replicados determinísticamente)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect), Agente 1 (Protocol & Firmware Investigator), Agente 2 (Python Bridge Architect), Agente 5 (Security Auditor)
+- **Alcance y Acción**:
+  - Auditoría exhaustiva y estricta de todos los componentes de la **Capa 4: Adaptadores, Dispositivos y Servicios (Hardware & Network Adapters)** (`src/serial_driver.py`, `src/serial/serial_base.py`, `src/serial/sdk_adapter.py`, `src/serial/raw_framing.py`, `src/serial/watchdog.py`, `src/tcp_companion_server.py`, `src/virtual_mesh_adapter.py`, `src/packet_buffer.py`).
+  - Verificación de linters y seguridad: Ruff (0 errores), Mypy strict (0 errores en 8 archivos), Bandit (0 problemas de severidad media/alta).
+  - Verificación de contratos y protocolos de hardware: framing binario Companion oficial (`0x3C`/`0x3E`), máquina de estados de de-framing en memoria (SOF/EOF/ESC/CRC-16), transceptor virtual con telemetría Cayenne LPP, supervisión y reconexión en `SerialWatchdog` con verificación directa de descriptor de socket/USB.
+  - Identificación y replicación determinista de 3 defectos:
+    1. **Hallazgo C4-01**: En `src/serial/sdk_adapter.py` (`remove_contact`), a diferencia de `share_contact` y `export_contact`, se omitió la llamada a `_resolve_target()`. Cuando se invoca con un prefijo de 12 caracteres (formato canónico de `NodeRegistry`), el SDK oficial `meshcore_py` lanza `ValueError("Invalid public key hex string: ...")`, devolviendo `status: ERROR`, abortando la eliminación en la API web y fallando silenciosamente en purgar `_contacts`. Replicado con script `scratch/reproduce_capa4_bug1_remove_contact_prefix.py`.
+    2. **Hallazgo C4-02**: En `src/virtual_mesh_adapter.py` (`send_message`), la verificación contra mensajes dirigidos a la estación base local solo chequea igualdad exacta con la clave de 64 caracteres. Al enviar hacia el prefijo de 12 caracteres de la estación base, la guarda es omitida, instanciando un nodo sintético con el prefijo local y generando un bucle de eco con ACKs y mensajes directos hacia el bridge (violación de `AGENTS.md` Regla 1.1 Item 2). Replicado con script `scratch/reproduce_capa4_bug2_virtual_local_loopback.py`.
+    3. **Hallazgo C4-03**: En `src/virtual_mesh_adapter.py` (`send_raw_companion_frame`), el manejo de `CMD_GET_CHANNEL (31 / 0x1F)` llama ciegamente a `bytes.fromhex(secret)`. Si el canal tiene una contraseña ASCII o no hexadecimal, arroja un `ValueError` no capturado que colapsa el despachador de comandos TCP Companion. Replicado con script `scratch/reproduce_capa4_bug3_virtual_channel_psk_crash.py`.
+  - Actualizado el informe canónico de auditoría en `docs/AUDIT_REPORT_LAYER_BY_LAYER.md`.
+- **Módulos Auditados**: `src/serial_driver.py`, `src/serial/serial_base.py`, `src/serial/sdk_adapter.py`, `src/serial/raw_framing.py`, `src/serial/watchdog.py`, `src/tcp_companion_server.py`, `src/virtual_mesh_adapter.py`, `src/packet_buffer.py`.
+- **Artefactos y Reportes Creados/Actualizados**: `docs/AUDIT_REPORT_LAYER_BY_LAYER.md`, `scratch/reproduce_capa4_bug1_remove_contact_prefix.py`, `scratch/reproduce_capa4_bug2_virtual_local_loopback.py`, `scratch/reproduce_capa4_bug3_virtual_channel_psk_crash.py`.
+
+### Hito: Auditoría Integral Capa por Capa — Fase 3 (Capa 3: Dominio, Negocio y Red Malla)
+- **Fecha**: 2026-10-01
+- **Estado**: ✅ COMPLETADO (Fase 3: Capa 3 analizada, 3 defectos identificados y replicados determinísticamente)
+- **Agentes Participantes**: Agente 0 (Lead Orchestrator & System Architect), Agente 1 (Protocol & Firmware Investigator), Agente 2 (Python Bridge Architect)
+- **Alcance y Acción**:
+  - Auditoría exhaustiva y estricta de todos los componentes de la **Capa 3: Dominio, Negocio y Red Malla (MeshCore Domain)** (`src/protocol_types.py`, `src/contact_manager.py`, `src/rate_limiter.py`, `src/repeater_manager.py`, `src/lqi_engine.py`, `src/sensor_decoder.py`, `src/shared_utils.py`, `src/target_resolver.py`).
+  - Verificación de linters y seguridad: Ruff (0 errores), Mypy strict (0 errores en 8 módulos), Bandit (0 problemas) y verificación de estándares Python 3.10.
+  - Verificación de contratos matemáticos y de radio: fórmula de airtime Semtech AN1200.13 por spreading factor / ancho de banda, decodificación Cayenne LPP ambiental, atenuación LQI y exclusión estricta de repetidores en libretas de contactos (`NodeRegistry.list_client_contacts()`).
+  - Identificación y replicación determinista de 3 defectos:
+    1. **Hallazgo C3-01**: En `src/rate_limiter.py` (`AirtimeTracker.get_stats`), la iteración sobre `self._history` (un `collections.deque`) no está sincronizada con `record_tx()`. Bajo tráfico concurrente de radio y consultas web/telemetría, lanza `RuntimeError: deque mutated during iteration`. Replicado con script `scratch/reproduce_capa3_bug1_airtime_deque_concurrency.py`.
+    2. **Hallazgo C3-02**: En `src/contact_manager.py` (`NodeRegistry`), los métodos de consulta `get_by_key_or_prefix()`, `find_by_name()` y `list_discovered()` iteran sobre `self._nodes_by_key` sin adquirir `self._lock`. Modificaciones concurrentes de paquetes LoRa provocan `RuntimeError: dictionary changed size during iteration`. Replicado con script `scratch/reproduce_capa3_bug2_noderegistry_dict_concurrency.py`.
+    3. **Hallazgo C3-03**: En `src/rate_limiter.py` (`AirtimeTracker.load_history`), se ignoran los valores acumulados guardados `total_airtime_ms` y `total_packets`, recalculándolos exclusivamente a partir de los registros no expirados en la ventana deslizante de 24 horas. Cualquier reinicio tras inactividad o a largo plazo resetea las estadísticas históricas de radio a cero. Replicado con script `scratch/reproduce_capa3_bug3_airtime_history_loss.py`.
+  - Actualizado el informe canónico de auditoría en `docs/AUDIT_REPORT_LAYER_BY_LAYER.md`.
+- **Módulos Auditados**: `src/protocol_types.py`, `src/contact_manager.py`, `src/rate_limiter.py`, `src/repeater_manager.py`, `src/lqi_engine.py`, `src/sensor_decoder.py`, `src/shared_utils.py`, `src/target_resolver.py`.
+- **Artefactos y Reportes Creados/Actualizados**: `docs/AUDIT_REPORT_LAYER_BY_LAYER.md`, `scratch/reproduce_capa3_bug1_airtime_deque_concurrency.py`, `scratch/reproduce_capa3_bug2_noderegistry_dict_concurrency.py`, `scratch/reproduce_capa3_bug3_airtime_history_loss.py`.
 
 ### Hito: Auditoría Integral Capa por Capa — Fase 2 (Capa 2: Orquestación, Aplicación y Casos de Uso)
 - **Fecha**: 2026-10-01

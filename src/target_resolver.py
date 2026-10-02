@@ -52,7 +52,17 @@ class TargetResolver:
         is_hex = bool(query) and all(char in "0123456789abcdefABCDEF" for char in query)
         mc = self._get_mc()
         if mc is not None:
-            contacts = getattr(mc, "contacts", None)
+            raw_contacts = getattr(mc, "contacts", None)
+            if callable(raw_contacts):
+                try:
+                    contacts = raw_contacts()
+                except Exception:
+                    contacts = getattr(mc, "_contacts", None)
+            elif raw_contacts is None:
+                contacts = getattr(mc, "_contacts", None)
+            else:
+                contacts = raw_contacts
+
             if isinstance(contacts, dict):
                 result = self._select_unique(contacts, query)
             else:

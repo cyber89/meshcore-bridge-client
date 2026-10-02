@@ -50,7 +50,7 @@ def documents() -> list[dict[str, object]]:
             continue
         content = path.read_bytes()
         historical = path.name in {
-            "AUDIT_REPORT_2026-08-17.md", "FINAL_PROJECT_REPORT.md", "AGENT_ACTIVITY_REPORT.md"
+            "AUDIT_REPORT_2026-08-17.md", "FINAL_PROJECT_REPORT.md"
         }
         result.append({
             "path": relative(path),

@@ -8,7 +8,7 @@ description: >-
 
 # Modern HTML5, CSS3 & JavaScript Skill
 
-Esta skill define las mejores prácticas de desarrollo web moderno utilizando tecnologías nativas sin dependencias pesadas para asegurar máxima velocidad de renderizado (< 50ms) y bajo consumo de memoria.
+Esta skill define las mejores prácticas de desarrollo web moderno utilizando tecnologías nativas sin dependencias pesadas para mantener un frontend ligero; medir latencia y memoria antes de publicar cifras.
 
 ## Estándares de HTML5 Semántico
 1. **Estructura Jerárquica y Accesible**:
@@ -51,6 +51,13 @@ Esta skill define las mejores prácticas de desarrollo web moderno utilizando te
 ## Herramientas de Verificación
 ```bash
 python .agents/skills/html-css-modern-js/scripts/lint_frontend_standards.py
-python scripts/inspect_web.py
+# Sólo con pruebas autorizadas y URL de una estación virtual propia:
+python scripts/inspect_web.py --url http://127.0.0.1:PUERTO_VIRTUAL
 ```
 
+
+## Contrato de uso en MeshCore Bridge
+
+Leer [AGENTS.md](../../../AGENTS.md) y el [índice documental](../../../docs/README.md). Las suites, fuzzing y Playwright sólo se ejecutan bajo petición del usuario; la autorización permanece durante la tarea.
+
+La SPA vive en src/web/static: Vanilla JS/CSS y EventBus, sin React/Vue/Tailwind. Mantener módulos CSS tokens/components/chat/nodes/admin. Suites y navegador requieren autorización; lectura estática no prueba layout o accesibilidad completa.

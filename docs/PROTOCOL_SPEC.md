@@ -2,7 +2,7 @@
 
 > **Documento Oficial de Contrato de Interfaz**  
 > **Single Source of Truth (SSoT) de Protocolo para Agentes de Antigravity**  
-> **Versión**: 3.0.0 (Actualización Integral)  
+> **Versión**: 3.0.1 (Corrección documental contrastada con referencias locales, 2026-09-29)
 > **Fuentes Oficiales**:
 > - Documentación Oficial: [docs.meshcore.io](https://docs.meshcore.io/) | [meshcore.io](https://meshcore.io)
 > - Repositorio Oficial en GitHub: [github.com/meshcore-dev/MeshCore](https://github.com/meshcore-dev/MeshCore)
@@ -69,7 +69,7 @@ graph TD
 | **Stop Bits** | `1` | Formato 8N1 |
 | **Flow Control** | `None` | Control por software con watchdog y heartbeats activos |
 | **Delimitación Companion** | Marcador y longitud | No hay timeout inter-byte universal de 20 ms acreditado en los parsers oficiales de esta revisión |
-| **Endianness** | `Little-Endian` (LE) | Todos los valores enteros (`uint16_t`, `uint32_t`, `int32_t`, coordenadas GPS) |
+| **Endianness** | Según formato | Companion: longitud y campos enteros documentados en LE; CayenneLPP: valores multibyte en BE. En el fallback propio, cabecera LE y CRC BE |
 
 ---
 
@@ -78,16 +78,16 @@ graph TD
 MeshCore Bridge opera bajo una **arquitectura de doble capa de transporte**:
 
 1. **Transporte Primario Oficial (Protocolo Companion MeshCore)**:
-   Tanto en la conexión física USB-CDC (Serial) con el transceptor como en la interfaz de red TCP (puerto 5000), el puente interactúa primariamente con el firmware de MeshCore a través del protocolo Companion con enmarcado `<` (comandos TX) y `>` (eventos/respuestas RX) con longitud en formato Little-Endian (detallado en la Sección 3.1).
+   Tanto en la conexión física USB-CDC (Serial) con el transceptor como en TCP, el puente interactúa con el firmware mediante Companion: `<` (comandos TX), `>` (eventos/respuestas RX) y longitud Little-Endian (Sección 3.1). El bridge y el firmware Companion WiFi de la referencia local usan por defecto 5000; son endpoints distintos y configurables.
 2. **Transporte Wire Fallback (Byte-Stuffing 9-Byte)**:
-   Se conserva la estructura `MeshcoreFrame` (`0xAA`/`0x55` con CRC-16 CCITT) como interfaz de bajo nivel para compatibilidad con simuladores de trama en memoria y hardware serial en bruto que no utilice el protocolo companion.
+   Se conserva la estructura propia del bridge `MeshcoreFrame` (`0xAA`/`0x55` con CRC-16 CCITT) para simuladores y enlaces expresamente compatibles con ese formato. No es el framing Companion ni el paquete LoRa oficial, y no permite interoperar por sí sola con firmware Companion. Su contrato reside en `src/protocol_types.py` y `src/serial/raw_framing.py`.
 
 ### Especificación de Trama Byte-Stuffing (Transporte Fallback / Wire Raw)
 Para asegurar que los flujos seriales continuos no interpreten datos arbitrarios como inicio/fin de trama, se aplica **Byte Stuffing (Escaping)** determinista:
 
 ```text
 +------+--------+--------+------------+----------+-------+------------+--------------------+-------+------+
-| SOF  | OpCode | SeqNum | Src NodeID | Dst Node | Flags | Length (L) | Payload (0..256 B) | CRC16 | EOF  |
+| SOF  | PType  | SeqNum | Src NodeID | Dst Node | Hops  | Length (L) | Payload (0..256 B) | CRC16 | EOF  |
 | 1 B  |  1 B   |  1 B   |    2 B     |   2 B    |  1 B  |    2 B     |      L Bytes       |  2 B  | 1 B  |
 +------+--------+--------+------------+----------+-------+------------+--------------------+-------+------+
 ```
@@ -103,14 +103,14 @@ Para asegurar que los flujos seriales continuos no interpreten datos arbitrarios
 ```
 
 ### Reglas de Escapado:
-- **Serialización**: Si un byte en el flujo (Payload o CRC) equivale a `0xAA`, `0x55` o `0x1B`, se reemplaza por `[0x1B, Byte ^ 0x20]`.
+- **Serialización**: Si un byte del cuerpo completo (cabecera, payload o CRC) equivale a `0xAA`, `0x55` o `0x1B`, se reemplaza por `[0x1B, Byte ^ 0x20]`. SOF y EOF externos no se escapan.
 - **Deserialización**: Al recibir `0x1B`, el siguiente byte se decodifica como `Byte ^ 0x20`.
 
 ---
 
-## 3.1 Protocolo Companion Oficial (Serial USB y WiFi / TCP Socket en Puerto 5000)
+## 3.1 Protocolo Companion Oficial (Serial USB y TCP)
 
-Para la interacción directa con la **App Móvil oficial de MeshCore (Android/iOS)**, el SDK Python (`meshcore_py`) y el CLI (`meshcore_cli`), el firmware y el bridge exponen un servidor de sockets TCP en el puerto `5000` con el siguiente formato de trama binaria:
+Para clientes Companion, incluido el SDK Python (`meshcore_py`) y el CLI (`meshcore_cli`), Serial y TCP utilizan el siguiente formato binario. El servidor TCP del bridge usa `TCP_SERVER_PORT` (por defecto `5000`); el firmware Companion WiFi de la referencia local define `TCP_PORT=5000` si la compilación no lo sobrescribe (`reference/meshcore/examples/companion_radio/main.cpp`). La dirección y el puerto deben corresponder al endpoint configurado; `4000` no es el valor por defecto de esta referencia.
 
 ### Trama de Aplicación a Radio (Comandos TX: Cliente $\rightarrow$ Bridge/Radio)
 ```text
@@ -128,18 +128,22 @@ Para la interacción directa con la **App Móvil oficial de MeshCore (Android/iO
 +-------------------+----------------------------+------------------------+
 ```
 
-* **Límite de seguridad**: `MAX_FRAME_SIZE = 512` bytes.
+* **Límite de seguridad del servidor del bridge**: `MAX_FRAME_SIZE = 512` bytes de payload (`src/tcp_companion_server.py`); no describe una capacidad universal de cada firmware.
 * **Comandos Principales**: `0x01` (`CMD_APP_START`), `0x02` (`CMD_SEND_TXT_MSG`), `0x03` (`CMD_SEND_CHANNEL_TXT_MSG`), `0x04` (`CMD_GET_CONTACTS`), `0x14` (`CMD_GET_BATT_AND_STORAGE`), `0x1F` (`CMD_GET_CHANNEL`).
 * **Eventos/Respuestas Principales**: `0x00` (`PACKET_OK`), `0x02` (`CONTACT_START`), `0x03` (`CONTACT`), `0x04` (`CONTACT_END`), `0x05` (`SELF_INFO`), `0x06` (`MSG_SENT`), `0x08` (`CHANNEL_MSG_RECV`), `0x0C` (`BATTERY`), `0x80` (`ADVERTISEMENT`), `0x88` (`LOG_DATA`).
 
 ---
 
-## 4. Algoritmo de Integridad (CRC-16 CCITT)
+## 4. Algoritmo de Integridad del Fallback Propio (CRC-16 CCITT)
 
-El CRC protege los bytes desde `OpCode` hasta el final del `Payload` (antes de aplicar escaping):
+El CRC protege los bytes desde `packet_type` hasta el final del `Payload` (antes de aplicar escaping):
+- **Ámbito**: exclusivamente `MeshcoreFrame`, no el framing Companion `<`/`>` ni una definición de la integridad RF del firmware.
+- **Serialización del CRC**: 2 bytes Big-Endian (`>H`); los enteros de la cabecera fallback son Little-Endian. Evidencia: `MeshcoreFrame.serialize()` / `parse_raw_packet()` en `src/protocol_types.py`.
 - **Polinomio**: $0x1021$ ($x^{16} + x^{12} + x^5 + 1$)
 - **Valor Inicial**: $0xFFFF$
 - **XOR Salida**: $0x0000$
+
+La cabecera propia usa `FrameHeader.pack()` con `<BBHHBH`: `packet_type`, secuencia, origen, destino, `hop_limit` y longitud. `packet_type` corresponde al enum de respuestas/eventos del bridge; no es el opcode de un comando Companion ni el `PayloadType` RF. El CRC cubre esa cabecera completa y el payload antes del escaping.
 
 ```c
 uint16_t meshcore_crc16_ccitt(const uint8_t *data, size_t length) {
@@ -230,17 +234,21 @@ Cada registro de contacto Companion contiene **147 bytes de datos**, o **148 byt
 
 ## 8. Estructura Binaria de Canales LoRa
 
-MeshCore soporta hasta **8 canales concurrentes** (Canales 0 al 7):
+La capacidad de canales depende de la compilación y dispositivo (`MAX_GROUP_CHANNELS`). Hay variantes con 8 y con 40 canales; el Companion anuncia su capacidad en `DEVICE_INFO`. Por ejemplo, `reference/meshcore/variants/heltec_v4/platformio.ini` configura 40 para builds Companion. Un límite del bridge debe distinguirse de la capacidad del firmware.
+
+En la ruta de consulta fallback del adaptador SDK, `src/serial/sdk_adapter.py::get_channels()` usa 8 si no conoce la capacidad y limita la exploración anunciada a 16. Ese límite de consulta es propio de esta implementación y no reduce la capacidad física del firmware a 16.
 
 | Canal | Tipo | Descripción | Cifrado |
 | :--- | :--- | :--- | :--- |
-| **Ch 0** | `PUBLIC_BROADCAST` | Canal público por defecto (`Public / Broadcast`) | Sin cifrado (Abierto) |
-| **Ch 1 .. 7** | `SECONDARY_PRIVATE` | Canales secundarios tácticos, de sensores o emergencias | Cifrado simétrico AES-128 con clave PSK |
+| **Public preconfigurado** | Canal público | Habitualmente índice 0; nombre y clave preconfigurados por el firmware | Cifrado con PSK pública conocida; no ofrece confidencialidad frente a quien conoce esa clave |
+| **Canales adicionales** | Canales configurados | Índices dentro de la capacidad anunciada por el dispositivo | Cifrado simétrico con PSK; la confidencialidad depende de mantener secreta la clave |
 
 ### Formato de Canal:
-- **`index`** (`uint8_t`): 0 a 7.
+- **`index`** (`uint8_t`): índice válido según capacidad del dispositivo y límites del bridge.
 - **`name`** (`char[32]`): Nombre UTF-8 del canal.
 - **`psk`** (`uint8_t[16]` o hex string de 32 caracteres): Clave precompartida AES-128.
+
+Evidencia: `PUBLIC_GROUP_PSK` / `addChannel("Public", ...)` en `reference/meshcore/examples/companion_radio/MyMesh.cpp`, `BaseChatMesh::sendGroupMessage()` y `Mesh::createGroupDatagram()`, que usa `Utils::encryptThenMAC()` también para el canal Public.
 
 ---
 
@@ -302,7 +310,7 @@ MeshCore soporta hasta **8 canales concurrentes** (Canales 0 al 7):
 | `58` / `0x3A` | `SET_AUTOADD_CONFIG`| Configura la directiva de auto-adición / aprobación manual de nodos |
 | `59` / `0x3B` | `GET_AUTOADD_CONFIG`| Consulta la directiva de auto-adición de contactos configurada |
 | `60` / `0x3C` | `GET_ALLOWED_REPEAT_FREQ` | Consulta el rango de frecuencias autorizadas para modo repetidor |
-| `61` / `0x3D` | `SET_PATH_HASH_MODE`| Modo de compresión hash para rutas multi-salto (0=full, 1=1B, 2=2B) |
+| `61` / `0x3D` | `SET_PATH_HASH_MODE`| Modo codificado 0/1/2 para hashes de ruta de 1/2/3 bytes, respectivamente (`path_hash_mode + 1` en el firmware) |
 | `62` / `0x3E` | `SEND_CHANNEL_DATA` | Envía datagrama binario sobre un canal grupal |
 | `63` / `0x3F` | `SET_DEFAULT_FLOOD_SCOPE` | Configura nombre y clave del ámbito de inundación por defecto |
 | `64` / `0x40` | `GET_DEFAULT_FLOOD_SCOPE` | Consulta nombre y clave del ámbito de inundación por defecto |
@@ -335,6 +343,7 @@ MeshCore soporta hasta **8 canales concurrentes** (Canales 0 al 7):
 | `137` / `0x89`| `TRACE_DATA` | Datos de salto del trazado de ruta (*Traceroute*) |
 | `138` / `0x8A`| `NEW_ADVERT` | Anuncio de nodo desconocido no presente en libreta |
 | `139` / `0x8B`| `TELEMETRY_RESPONSE`| Telemetría ambiental o hardware recibida |
+| `140` / `0x8C`| `BINARY_RESPONSE` | Respuesta a solicitud binaria, correlacionada por tag |
 | `143` / `0x8F`| `CONTACT_DELETED` | Notificación de contacto purgado |
 | `144` / `0x90`| `CONTACTS_FULL` | Libreta de contactos de hardware llena |
 
@@ -344,13 +353,18 @@ MeshCore soporta hasta **8 canales concurrentes** (Canales 0 al 7):
 
 MeshCore empaqueta lecturas de sensores ambientales utilizando el estándar binario **CayenneLPP**:
 
+Cada elemento contiene un identificador de canal de sensor y un tipo LPP; estos canales no son índices de canal de chat LoRa. Los valores multibyte LPP son Big-Endian, según el tipo. El canal de sensor no está fijado universalmente a temperatura, humedad, presión, batería o GPS.
+
 | Sensor | Tipo de Canal | Tamaño (Bytes) | Resolución | Fórmula de Decodificación |
 | :--- | :--- | :--- | :--- | :--- |
 | **Temperatura** | `0x67` | 2 Bytes (`int16_t` BE) | $0.1\,^\circ\text{C}$ | $\text{Temp}(^\circ\text{C}) = \frac{\text{raw}}{10.0}$ |
 | **Humedad Relativa** | `0x68` | 1 Byte (`uint8_t`) | $0.5\,\%$ | $\text{Hum}(\%) = \text{raw} \times 0.5$ |
 | **Presión Barométrica** | `0x73` | 2 Bytes (`uint16_t` BE) | $0.1\,\text{hPa}$ | $\text{Presión}(\text{hPa}) = \frac{\text{raw}}{10.0}$ |
-| **Voltaje de Batería** | `0x02` | 2 Bytes (`uint16_t` BE) | $0.01\,\text{V}$ | $\text{Voltaje}(\text{V}) = \frac{\text{raw}}{100.0}$ |
-| **GPS / Posición** | `0x88` | 9 Bytes (Lat: 3B, Lon: 3B, Alt: 3B) | $0.0001^\circ$ | $\text{Lat} = \frac{\text{raw}}{10000.0},\, \text{Lon} = \frac{\text{raw}}{10000.0}$ |
+| **Entrada Analógica / Voltaje según sensor** | `0x02` | 2 Bytes (`int16_t` BE) | $0.01$ unidades | $\text{Valor} = \frac{\text{raw}}{100.0}$ |
+| **Voltaje** | `0x74` | 2 Bytes (`uint16_t` BE) | $0.01\,\text{V}$ | $\text{Voltaje}(\text{V}) = \frac{\text{raw}}{100.0}$ |
+| **GPS / Posición** | `0x88` | 9 Bytes (Lat: 3B, Lon: 3B, Alt: 3B; signed BE) | $0.0001^\circ$, altitud $0.01\,\text{m}$ | $\text{Lat} = \frac{\text{raw}}{10000.0},\, \text{Lon} = \frac{\text{raw}}{10000.0},\, \text{Alt} = \frac{\text{raw}}{100.0}$ |
+
+Fuente: `reference/meshcore/src/helpers/sensors/LPPDataHelpers.h` (tipos, multiplicadores y `LPPReader`).
 
 ---
 
@@ -397,7 +411,7 @@ Cada nodo de la red se clasifica formalmente por su tipo de anuncio (`FirmwareAd
 ## 13. Especificación de Interfaz TCP Companion y Enrutamiento Multi-Salto
 
 ### 13.1 Protocolo de Tramas TCP (0x3C / 0x3E)
-A nivel de transporte TCP (puertos `4000` en firmware ESP32 WiFi y `5000` en el Companion Server del Bridge), la comunicación se estructura en tramas delimitadas por un byte indicador de dirección y longitud little-endian:
+A nivel de transporte TCP (por defecto `5000` tanto en el firmware Companion WiFi local como en el servidor del bridge, con configuraciones independientes), la comunicación se estructura en tramas delimitadas por un byte indicador de dirección y longitud little-endian:
 
 ```text
 +---------------------+-------------------------------+--------------------------------+
@@ -412,7 +426,7 @@ A nivel de transporte TCP (puertos `4000` en firmware ESP32 WiFi y `5000` en el 
 El protocolo opera en dos modalidades principales de enrutamiento:
 1. **Inundación Controlada (`ROUTE_TYPE_FLOOD = 0x01` / `TRANSPORT_FLOOD = 0x00`)**:
    - Utilizado para anuncios de identidad (`PAYLOAD_TYPE_ADVERT`) y mensajes públicos de canal (`PAYLOAD_TYPE_GRP_TXT`).
-   - Cada repetidor intermedio añade su hash de nodo al campo de ruta (`path[MAX_PATH_SIZE]`) y decrementa el límite de saltos (*hops*).
+   - Los repetidores construyen el campo de ruta añadiendo hashes, sujetos a límites de ruta y políticas de retransmisión. La longitud wire codifica cantidad y tamaño de hash; no es un campo TTL independiente que se decremente en el layout de `Packet`.
 2. **Enrutamiento Directo Punto a Punto (`ROUTE_TYPE_DIRECT = 0x02` / `TRANSPORT_DIRECT = 0x03`)**:
    - Utilizado para mensajes directos cifrados (DM) y comandos remotos.
    - El emisor incluye la secuencia exacta de hashes de repetidores calculada previamente por el algoritmo de descubrimiento de caminos (*Path Discovery*).
@@ -432,8 +446,8 @@ La administración remota de nodos repetidores se ejecuta mediante tramas de tex
 | **`LOCAL`** (Estación Base / Host) | Identidad, RF, Hardware, Rendimiento | `public_key`, `name`, `alias`, `role`, `is_local=True`, `hops=0`, `tx_power`, `min_tx_power`, `max_tx_power`, `default_tx_power`, `frequency`, `spreading_factor`, `bandwidth`, `coding_rate`, `hop_limit`, `repeat_enabled`, `hardware_board`, `firmware_version`, `uptime_secs`, `uptime_str`, `clock`, `airtime_ms`, `duty_cycle_pct`, `noise_floor_dbm`, `tx_count`, `rx_count`, `duplicate_packets`, `packet_errors`, `queue_len`, `battery_pct`, `voltage_v`, `latitude`, `longitude`, `altitude_m`, `fixed_position`, `owner_name`, `owner_info`, `advert_interval` | `fetch_device_config()`, `_cli_stats_core()`, `_cli_radio_info()`, `_cli_packets_info()`, `TxRateLimiter` |
 | **`CLIENT`** (Usuario / Chat) | Identidad, Ubicación, Calidad de Enlace, Mensajería | `public_key`, `key_prefix`, `name`, `alias`, `role="CLIENT"`, `hops`, `last_rssi`, `last_snr`, `battery_pct`, `voltage_v`, `latitude`, `longitude`, `altitude_m`, `owner_name`, `owner_info`, `is_favorite`, `verified_identity`, `lqi_score`, `lqi_status`, `best_route`, `rx_packets`, `tx_packets`, `total_packets`, `error_rate_pct`, `out_path` | `PAYLOAD_TYPE_ADVERT`, `CONTACT`, `CONTACT_MSG_RECV`, `CHANNEL_MSG_RECV`, `ACK` |
 | **`REPEATER`** (Router / Infraestructura) | RF, Enrutamiento, Telemetría, Comandos CLI | `public_key`, `name`, `alias`, `role="REPEATER"`, `hops`, `last_rssi`, `last_snr`, `noise_floor_dbm`, `battery_pct`, `voltage_v`, `uptime`, `firmware_version`, `hardware_board`, `frequency`, `spreading_factor`, `bandwidth`, `coding_rate`, `tx_power`, `min_tx_power`, `max_tx_power`, `default_tx_power`, `hop_limit`, `repeat_enabled=True`, `advert_interval`, `packets_sent`, `packets_recv`, `packet_errors`, `neighbors`, `lqi_score` | `PAYLOAD_TYPE_ADVERT`, `RepeaterManager.extract_all_repeater_params_from_text()`, `ping 0`, `traceroute` |
-| **`SENSOR`** (Sensor Ambiental) | Clima, Presión, Energía, GPS | `public_key`, `name`, `alias`, `role="SENSOR"`, `hops`, `last_rssi`, `last_snr`, `temperature_c` (0.1°C), `humidity_pct` (0.5%), `pressure_hpa` (0.1 hPa), `voltage_v`, `solar_v`, `battery_pct`, `latitude`, `longitude`, `altitude_m`, `gas_resistance_kohm`, `illuminance_lux` | `PAYLOAD_TYPE_SENSOR` / `CayenneLPP` (`0x67`, `0x68`, `0x73`, `0x02`, `0x88`) |
-| **`ROOM`** (Servidor de Sala / BBS) | Conectividad, Usuarios, GPS | `public_key`, `name`, `alias`, `role="ROOM"`, `hops`, `last_rssi`, `last_snr`, `battery_pct`, `voltage_v`, `connected_clients_count`, `owner_name`, `owner_info`, `latitude`, `longitude`, `altitude_m`, `room_name`, `topic` | `PAYLOAD_TYPE_ROOM` / `PAYLOAD_TYPE_ADVERT` |
+| **`SENSOR`** (Sensor Ambiental) | Clima, Presión, Energía, GPS | `public_key`, `name`, `alias`, `role="SENSOR"`, `hops`, `last_rssi`, `last_snr`, `temperature_c` (0.1°C), `humidity_pct` (0.5%), `pressure_hpa` (0.1 hPa), `voltage_v`, `solar_v`, `battery_pct`, `latitude`, `longitude`, `altitude_m`, `gas_resistance_kohm`, `illuminance_lux` | Rol `ADV_TYPE_SENSOR`; eventos de telemetría y datos CayenneLPP (`0x67`, `0x68`, `0x73`, `0x02`, `0x88`) según formato recibido |
+| **`ROOM`** (Servidor de Sala / BBS) | Conectividad, Usuarios, GPS | `public_key`, `name`, `alias`, `role="ROOM"`, `hops`, `last_rssi`, `last_snr`, `battery_pct`, `voltage_v`, `connected_clients_count`, `owner_name`, `owner_info`, `latitude`, `longitude`, `altitude_m`, `room_name`, `topic` | Rol `ADV_TYPE_ROOM`; `PAYLOAD_TYPE_ADVERT` y mensajes/respuestas de la sala según operación |
 | **`NETWORK`** (Topología y Calidad) | LQI, Tráfico, Enrutamiento | `lqi_score` (EMA), `lqi_status` (EXCELLENT/GOOD/FAIR/POOR), `best_route`, `hops`, `rx_packets`, `tx_packets`, `total_packets`, `error_count`, `error_rate_pct`, `direct_dups`, `flood_dups` | `LinkQualityEngine`, `PacketDeduplicator`, `RxEventRouter` |
 
 

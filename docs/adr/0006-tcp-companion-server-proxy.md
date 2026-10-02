@@ -20,18 +20,18 @@ En proyectos comunitarios previos, esto requería ejecutar un binario independie
 
 ## Factores de Decisión
 
-1. **Multiplexación de Medio Físico Único**: El bus serie UART no permite accesos concurrentes no coordinados sin corromper el delimitado de tramas binarias (`SOF 0xAA` / `EOF 0x55`).
+1. **Multiplexación de Medio Físico Único**: El bus serie UART no permite accesos concurrentes no coordinados sin corromper tramas Companion (`<` / `>` más longitud LE). `0xAA` / `0x55` pertenece al fallback propio del bridge, no al framing oficial.
 2. **Compatibilidad con Clientes Oficiales**: La aplicación oficial de MeshCore para smartphones y el CLI oficial esperan comunicarse mediante un socket TCP en el puerto por defecto `5000`, enviando y recibiendo exactamente las mismas tramas binarias encapsuladas que se intercambian por el puerto serie USB.
 3. **Consolidación en Proceso Único**: Ejecutar múltiples procesos en Linux aumenta el riesgo de fallos en cadena, orfandad de procesos o bloqueos mutuos si uno de ellos reinicia el puerto serie sin avisar a los demás.
 
 ## Decisión
 
-Se decide implementar un **Servidor TCP Companion Proxy Integrado** (`TcpCompanionServer` en `src/tcp_companion_server.py`) ejecutado de forma nativa dentro del bucle de eventos `asyncio` del bridge:
+Se decide implementar un **Servidor TCP Companion Proxy Integrado** (`MeshCoreCompanionServer` en `src/tcp_companion_server.py`) ejecutado dentro del bucle de eventos `asyncio` del bridge:
 1. **Escucha en Puerto Estándar (5000)**:
-   - Se expone un servidor `asyncio.start_server` en el puerto configurable `5000` (configurable mediante variable de entorno `TCP_COMPANION_PORT`).
+   - Se expone un servidor `asyncio.start_server` en el puerto `5000` por defecto, configurable mediante `TCP_SERVER_PORT` en `config.py`. El firmware Companion WiFi de la referencia local también usa por defecto 5000 mediante `TCP_PORT` (`examples/companion_radio/main.cpp`); los endpoints y sus configuraciones son independientes.
 2. **Enrutamiento Bidireccional Asíncrono**:
    - Todo paquete binario recibido desde la radio LoRa se retransmite de forma transparente e instantánea a todos los clientes TCP conectados (modo broadcast de tramas).
-   - Toda trama binaria emitida por un cliente TCP se inyecta en el serial driver respetando las colas de prioridad y guardas de airtime.
+   - Las tramas binarias de clientes TCP se delegan a `MeshCoreBridge.handle_tcp_companion_command()`, que invoca `serial_adapter.send_raw_companion_frame()`. Esta ruta transparente no pasa por `TxRateLimiter`; no se atribuyen a ella automáticamente las guardas de prioridad/airtime del flujo de mensajes del bridge.
 3. **Aislamiento de Sesión y Robustez**:
    - Cada cliente TCP conectado se aísla con tareas de lectura independientes (`StreamReader` / `StreamWriter`). Si un cliente se desconecta abruptamente, se cierran sus recursos sin perturbar el tráfico serie ni el broker MQTT.
 
@@ -44,3 +44,7 @@ Se decide implementar un **Servidor TCP Companion Proxy Integrado** (`TcpCompani
   - Detección centralizada de saturación o abusos en la red local.
 - **Negativas / Compensaciones**:
   - El host debe permitir la apertura del puerto TCP (requiere configurar reglas de firewall en `ufw` o router si se accede fuera de la subred local).
+
+## Alcance Verificado (2026-09-29)
+
+El framing de `MeshCoreCompanionServer` limita el payload a 512 bytes y difunde respuestas/eventos a clientes conectados. La compatibilidad del formato no garantiza aislamiento transaccional entre comandos simultáneos de clientes ni confirma interoperabilidad total con cada versión de aplicación móvil. Fuentes: `src/tcp_companion_server.py`, `src/bridge_core.py::handle_tcp_companion_command()` y `config.py`. Las consecuencias de interoperabilidad arriba expresan el objetivo del ADR y requieren verificación del cliente concreto.

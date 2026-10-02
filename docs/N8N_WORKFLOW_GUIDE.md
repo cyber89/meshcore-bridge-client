@@ -1,295 +1,85 @@
-# Guía de Arquitectura, Integración y Mantenimiento del Workflow n8n para MeshCore Bridge v3.0
+# Guía del workflow n8n de MeshCore Bridge
 
-Esta guía técnica describe el diseño, la configuración, el funcionamiento y el procedimiento de mantenimiento y extensión del workflow de **n8n** (`n8n_workflow_meshcore.json`) integrado con **MeshCore Bridge v3.0**.
+Describe el export [n8n_workflow_meshcore.json](../n8n_workflow_meshcore.json) revisado el 2026-09-29. El JSON exportado es la fuente de configuración del workflow; esta guía no certifica una instancia activa ni resultados actuales de pruebas. Véase el [índice documental](README.md).
 
----
+## 1. Flujo y nodos reales
 
-## 1. Visión General y Propósito
+El export contiene 14 nodos. RX entra por MQTT, se desempaqueta/normaliza, se marca la duplicación, se filtran duplicados mediante un nodo IF y se enruta por `event_type`. Un publicador común utiliza `$json.topic` o el fallback `meshcore/tx`. La rama meteorológica comienza en un Schedule Trigger independiente.
 
-El workflow `n8n_workflow_meshcore.json` (denominado *"MeshCore Universal Bridge v3.0 - Complete IoT, LoRa Bot & Periodic Weather Status"*) actúa como el motor de automatización, lógica de negocio e integración externa para la malla de radio LoRa. 
+| ID | Nombre en el export | Función |
+| --- | --- | --- |
+| 1 | `MQTT Trigger (MeshCore RX)` | Se suscribe a `meshcore/rx/all`. |
+| 2 | `Deduplicar y Validar` | Desempaqueta `message`/`data`, normaliza, descarta origen local y prefijos de bot, marca duplicados. |
+| 3 | `¿Es Mensaje Nuevo?` | Permite continuar cuando `is_duplicate` es false. |
+| 4 | `Enrutar por Tipo` | Enruta `public`, `channel`, `direct`, `telemetry`, `node_advert`, `rf_log` y `repeater_response`; este último usa la rama DM/Admin. |
+| 5 | `Procesar Canal Público` | Comandos de tiempo, ayuda, ping textual, clima y eco de fallback en canal 0. |
+| 6 | `Procesar Canal Secundario` | Eco en el índice del canal recibido. |
+| 7 | `Procesar DMs y Admin` | `/status`, `/admin` y eco DM; comandos admin requieren whitelist. |
+| 8 | `Procesar Telemetría CayenneLPP` | Normaliza campos y calcula flags de alerta. |
+| 9 | `Procesar Anuncio de Nodos` | Prepara `node_discovered`, preservando el rol recibido. |
+| 10 | `Procesar Sniffer RF` | Prepara datos de diagnóstico RF. |
+| 11 | `Publicar a MQTT (TX / Admin)` | Publica el objeto JSON al tópico dinámico indicado. |
+| 12 | `Schedule Trigger (Cada 6h - 00:00, 06:00, 12:00, 18:00)` | Programa la rama meteorológica. |
+| 13 | `Consultar Clima (Lehigh Acres, FL)` | Consulta Open-Meteo para 26.6254, -81.6248, con parámetro `timezone=America/New_York`. |
+| 14 | `Formatear Reporte Estado y Clima` | Produce broadcast en canal 0 con métricas meteorológicas. |
 
-Permite:
-1. **Recepción Unificada y Deduplicación**: Procesar todos los eventos de la red LoRa provenientes de Mosquitto MQTT (`meshcore/rx/all`) descartando ecos locales y ráfagas duplicadas.
-2. **Bot Interactivo de Radio (Canal 0)**: Responder automáticamente a comandos de usuario (`/ayuda`, `/hora`, `/eco`, `/status`) cumpliendo con las políticas de airtime de LoRa.
-3. **Control Administrativo y Diagnóstico de Red (DM)**: Ejecutar comandos privilegiados con lista blanca (`/admin ping <node>`, `/admin trace <node>`, `/admin get_config`), interactuando de forma nativa con los repetidores de infraestructura.
-4. **Procesamiento de Telemetría y Monitoreo IoT**: Recibir métricas de nodos de campo (batería, voltaje, temperatura, humedad, presión) y emitir alertas.
-5. **Descubrimiento de Nodos (Adverts)**: Catalogar dispositivos según su rol canónico MeshCore (`CLIENT`, `REPEATER`, `ROOM`, `SENSOR`).
-6. **Reporte Meteorológico Periódico**: Consultar la API de Open-Meteo cada 30 minutos y transmitir un resumen formateado del clima y estado de la red por broadcast en el canal público.
+El Schedule Trigger usa `0 0,6,12,18 * * *`: cuatro ejecuciones al día. El export no fija una zona horaria de workflow; la zona de ejecución depende de la configuración de n8n. El comentario de código dice UTC, pero el parámetro de zona de Open-Meteo y el formateo del texto no establecen la zona del scheduler. Configurar y verificar la zona de n8n antes de activar esta rama. La referencia antigua a intervalos de 30 minutos no corresponde al export actual.
 
----
+## 2. Contratos MQTT
 
-## 2. Reglas Inmutables y SSoT del Protocolo
+El bridge publica el stream normalizado en `meshcore/rx/all`; los tópicos específicos incluyen `meshcore/rx/public`, `meshcore/rx/channel/ch_<idx>`, `meshcore/rx/direct/<sender_id>`, `meshcore/rx/telemetry`, `meshcore/rx/nodes` y `meshcore/rx/log`. Un evento advert puede tener tipo `node_advert` sin que exista un tópico literal `meshcore/rx/advert`.
 
-Todo cambio que se introduzca en este workflow debe respetar estrictamente las reglas inmutables de [AGENTS.md](file:///c:/Users/Ruby/Desktop/meshcore-bridge/AGENTS.md) y [CONTEXT.md](file:///c:/Users/Ruby/Desktop/meshcore-bridge/CONTEXT.md):
+Un TX de chat tiene este formato, con aliases dobles conservados por el workflow:
 
-| Regla SSoT | Descripción y Restricción Inmutable |
-|---|---|
-| **Regla 1.1: Restricción de Repetidores (`REPEATER` / `ROUTER`)** | **NUNCA enviar respuestas de chat (ni por broadcast ni por DM) hacia un repetidor.** Los repetidores son infraestructura de red sin interfaz de chat ni usuario humano. Cualquier interacción con ellos debe ser exclusivamente de gestión administrativa (`meshcore/admin/repeater/{node}/cmd`). |
-| **Regla 1.2: Restricción del Nodo Local (`LOCAL`)** | **NUNCA procesar mensajes emitidos por el propio transceptor local** (`is_outgoing === true`, `is_local === true`, `role === 'LOCAL'`, `sender === 'local'`). Se deben descartar en el nodo inicial de deduplicación para evitar bucles de retroalimentación infinitos. |
-| **Compatibilidad Dual de Campos TX** | El dispatcher del bridge admite tanto `target` como `to`, y tanto `channel_index` como `channel_idx`. n8n genera siempre ambas claves en los payloads hacia `meshcore/tx` para garantizar compatibilidad retroactiva total. |
-
----
-
-## 3. Diagrama de Arquitectura y Flujo de Datos
-
-```mermaid
-flowchart TD
-    subgraph LoRaMesh["Malla LoRa MeshCore"]
-        NodeClient["Nodo Cliente (Chat)"]
-        NodeRepeater["Repetidor / Router"]
-        NodeSensor["Sensor IoT / Telemetría"]
-    end
-
-    subgraph BridgeCore["MeshCore Bridge v3.0"]
-        SerialDriver["Serial Driver (UART USB)"]
-        RxRouter["Rx Router & Normalizer"]
-        TxDispatcher["Tx Dispatcher"]
-    end
-
-    subgraph BrokerMQTT["Broker Mosquitto MQTT"]
-        TopicRX["meshcore/rx/all"]
-        TopicTX["meshcore/tx"]
-        TopicAdmin["meshcore/admin/repeater/:id/cmd"]
-    end
-
-    subgraph WorkflowN8N["Workflow n8n v3.0"]
-        TriggerMQTT["1. MQTT Trigger\n(meshcore/rx/all)"]
-        Deduplicator["14. Desempaquetar y\nDeduplicar (Memoria)"]
-        SwitchNode["2. Switch por\nTipo de Evento"]
-        
-        HandlerCh0["5. Handler Ch 0\n(/ayuda, /eco, /status)"]
-        HandlerChN["6. Handler Canales\nSecundarios (IoT)"]
-        HandlerDM["7. Handler DM y Admin\n(/admin ping, trace, config)"]
-        HandlerTelem["8. Handler Telemetría\n(Batería, Temp, Alertas)"]
-        HandlerAdv["9. Handler Adverts\n(Catalogación de Nodos)"]
-        HandlerRaw["10. Logger Sniffer\n(Diagnóstico)"]
-        
-        CronWeather["11. Cron Trigger\n(Cada 30 min)"]
-        HttpWeather["12. HTTP Open-Meteo\n(API Clima)"]
-        FormatWeather["13. Formatear Reporte\nClima y Estado"]
-        
-        PublishTX["4. MQTT Publish\n(meshcore/tx)"]
-    end
-
-    LoRaMesh <--> SerialDriver
-    SerialDriver --> RxRouter
-    RxRouter --> TopicRX
-    
-    TopicRX --> TriggerMQTT
-    TriggerMQTT --> Deduplicator
-    Deduplicator --> SwitchNode
-    
-    SwitchNode -->|public / ch 0| HandlerCh0
-    SwitchNode -->|ch 1..7| HandlerChN
-    SwitchNode -->|direct / admin| HandlerDM
-    SwitchNode -->|telemetry| HandlerTelem
-    SwitchNode -->|advert| HandlerAdv
-    SwitchNode -->|raw| HandlerRaw
-    
-    HandlerCh0 --> PublishTX
-    HandlerDM --> PublishTX
-    HandlerDM -.->|Comando Admin| TopicAdmin
-    
-    CronWeather --> HttpWeather --> FormatWeather --> PublishTX
-    
-    PublishTX --> TopicTX
-    TopicTX --> TxDispatcher --> SerialDriver
-    TopicAdmin --> TxDispatcher
-```
-
----
-
-## 4. Matriz de Tópicos MQTT y Esquemas de Payloads
-
-### 4.1. Entrada desde el Bridge hacia n8n
-
-* **Tópico suscrito**: `meshcore/rx/all` (o tópicos específicos `meshcore/rx/public`, `meshcore/rx/direct`, `meshcore/rx/telemetry`, `meshcore/rx/advert`).
-* **Ejemplo de Payload JSON recibido**:
 ```json
 {
-  "event_type": "public",
-  "sender_id": "9b12a8ef",
-  "sender_name": "Estacion_Norte",
-  "role": "CLIENT",
-  "channel_index": 0,
-  "text": "/status",
-  "rssi": -85,
-  "snr": 9.5,
-  "timestamp": 1727553600.0,
-  "is_outgoing": false,
-  "is_local": false
-}
-```
-
-### 4.2. Salida desde n8n hacia el Bridge
-
-* **Tópico de publicación para texto y chat**: `meshcore/tx`
-* **Esquema de Payload JSON emitido**:
-```json
-{
-  "request_id": "n8n_tx_1727553600000_1234",
+  "topic": "meshcore/tx",
+  "request_id": "n8n_example",
   "target": "broadcast",
   "to": "broadcast",
   "channel_index": 0,
   "channel_idx": 0,
-  "text": "[Status MeshCore v3.0]\nBridge: Online\nNodo: Activo"
+  "text": "Mensaje"
 }
 ```
 
-* **Tópico de publicación para comandos a Repetidores**: `meshcore/admin/repeater/{target_node}/cmd`
-* **Esquema de Payload JSON emitido**:
+Administración local usa `meshcore/admin/cmd`, con `action` y parámetros. Para repetidores se publica en `meshcore/admin/repeater/<id>/cmd`:
+
 ```json
 {
+  "topic": "meshcore/admin/repeater/<id>/cmd",
+  "request_id": "n8n_admin_example",
   "action": "ping_zero",
-  "target_node": "4a12bc88",
-  "timeout": 15
+  "target_node": "<id>"
 }
 ```
 
----
+El bridge publica resultados TX en `meshcore/tx/status` y resultados administrativos en sus tópicos de estado. `sent` no equivale a entrega universal a receptores. Las credenciales MQTT y permisos de publicación dependen del broker; la API key HTTP del bridge no protege MQTT.
 
-## 5. Anatomía Detallada de los Nodos del Workflow
+## 3. Comportamiento de los handlers
 
-El archivo [n8n_workflow_meshcore.json](file:///c:/Users/Ruby/Desktop/meshcore-bridge/n8n_workflow_meshcore.json) contiene 14 nodos organizados jerárquicamente:
+El canal público implementa `/time`, `/date`, `/datetime`, `/ping`, `/clima`, `/weather` y `/help`; otros textos reciben `[Eco Pub]`. `/ping` devuelve texto desde n8n y no realiza `ping_zero` administrativo. `/clima` informa de la programación, no dispara una consulta de clima en ese handler. `/status` se implementa en DM, aunque aparece en la ayuda pública.
 
-### Nodo 1: `MQTT Trigger - MeshCore RX`
-- **Tipo**: `n8n-nodes-base.mqttTrigger`
-- **Configuración**: Se suscribe al tópico `meshcore/rx/all` en modo QoS 0.
-- **Función**: Despierta el pipeline cada vez que un paquete LoRa es procesado y publicado por el bridge.
+El handler DM admite `/status`, `/admin ping <id>`, `/admin trace <id>`, `/admin repeater <id> <cmd>` y comandos locales `get_config`/`config`, `list_nodes`/`nodes`, `set_name`, `set_power` y `reboot`. Una operación admin puede producir tanto el comando como una respuesta textual al cliente. Los handlers de chat bloquean roles `REPEATER` y `ROUTER`; nunca se debe enviar chat al repetidor ni a la propia clave local.
 
-### Nodo 14: `Desempaquetar y Deduplicar Eventos` (JavaScript)
-- **Tipo**: `n8n-nodes-base.code`
-- **Funciones Críticas**:
-  1. **Tolerancia a Formatos**: Si el mensaje viene en `item.json.message` como un string JSON, lo parsea; si ya es un objeto, lo toma directamente; si es texto plano, construye la estructura básica.
-  2. **Normalización de Identidad y Roles**: Extrae `sender_id`, `sender_name`, y asigna roles canónicos (`CLIENT`, `REPEATER`, `ROOM`, `SENSOR`, `LOCAL`).
-  3. **Guarda Anti-Bucle Local (Regla SSoT 1.2)**: Si el mensaje tiene `is_outgoing: true`, `is_local: true`, `role: 'LOCAL'` o proviene de la propia dirección local, es descartado inmediatamente devolviendo `[]`.
-  4. **Filtro Anti-Eco de Bots**: Descarta mensajes generados por n8n u otros bots que comiencen con `[Eco `, `[Status `, `[ACK`, `📡 `, `⛔ `, `📖 `, `⏰ `, `📅 `, `🏓 `.
-  5. **Deduplicación en Memoria Estática**: Mantiene un mapa `staticCache` de firmas `[evento]_[remitente]_[canal]_[texto]` con un TTL de 30 segundos. Si un paquete llega repetido dentro de ese lapso, se etiqueta con `is_duplicate: true` para evitar spam en la malla.
+La telemetría devuelve `telemetry_processed` y marca `is_alert` para batería `<20`, temperatura `>45°C` o duty cycle `>0.8%`. Son umbrales existentes del ejemplo; calcular el flag no equivale a publicar una alarma RF o a persistir métricas en una base de datos. Cualquier conexión nueva de esa salida requiere diseñar el destino y revisar impacto.
 
-### Nodo 2: `Switch por Tipo de Evento`
-- **Tipo**: `n8n-nodes-base.switch`
-- **Rutas de Salida**:
-  - Salida 0 (`public_ch0`): Mensajes públicos dirigidos al canal 0 (`event_type == 'public' && channel_index == 0`).
-  - Salida 1 (`secondary_channels`): Mensajes en canales secundarios 1 a 7.
-  - Salida 2 (`dm_and_admin`): Mensajes directos o comandos administrativos (`event_type == 'direct' || event_type == 'admin'`).
-  - Salida 3 (`telemetry`): Paquetes con métricas de sensores o eventos de telemetría.
-  - Salida 4 (`advert_discovery`): Anuncios de presencia de nodos (`event_type == 'advert'`).
-  - Salida 5 (`sniffer_raw`): Tramas sin procesar, binarias o paquetes de diagnóstico.
+## 4. Deduplicación, identidad y límites actuales
 
-### Nodo 5: `Handler Canal Público (Ch 0)` (JavaScript)
-- **Lógica de Chat y Comandos Públicos**:
-  - Comandos disponibles: `/ayuda` (o `/help`), `/hora` (o `/time`), `/eco <mensaje>`, `/status`.
-  - **Protección SSoT 1.1**: Si `role === 'REPEATER'`, descarta la ejecución y no emite respuesta alguna.
-  - Respuestas formateadas y firmadas con prefijo de bot para evitar reingresos.
+`$getWorkflowStaticData('global').messageCache` guarda firmas de tipo, remitente, canal y texto. La ventana de deduplicación textual es 30 segundos y la limpieza elimina entradas mayores de 60 segundos. No es un rate limiter general para todos los comandos ni limita por sí solo el eco de mensajes distintos.
 
-### Nodo 6: `Handler Canales Secundarios (Ch 1-7)` (JavaScript)
-- Diseñado para canales temáticos, grupos de rescate o telemetría IoT privada.
-- Evita responder a repetidores y prepara métricas para almacenamiento en base de datos.
+El normalizador descarta `is_outgoing`, `is_local`, rol `LOCAL`, remitente literal `local` y prefijos de respuesta de bot. Esa guarda no compara por sí sola cualquier clave pública entrante con la clave local configurada: depende de los campos normalizados que entregue el bridge.
 
-### Nodo 7: `Handler Mensajería Directa (DM) y Admin` (JavaScript)
-- **Seguridad**: Dispone de una constante `ADMIN_WHITELIST` con las claves públicas de nodos autorizados.
-- **Comandos Administrativos**:
-  - `/admin ping <node_id>`: Dispara un `ping_zero` (Hop 0) hacia el repetidor indicado mediante el tópico `meshcore/admin/repeater/{node_id}/cmd`.
-  - `/admin trace <node_id>`: Ejecuta un `traceroute` hacia el repetidor indicado.
-  - `/admin get_config`: Solicita la configuración operativa actual del bridge.
-- **Control de Acceso**: Si un nodo no autorizado intenta ejecutar `/admin`, se emite una advertencia de rechazo en canal privado (DM) **únicamente si no es un repetidor**.
+La clasificación canónica debe proceder de `FirmwareAdvertType` (0/1 CLIENT, 2 REPEATER, 3 ROOM, 4 SENSOR). El export actual, si falta `role`, todavía puede inferir repetidor mediante `is_repeater` o un nombre que contiene `REP`; el handler de anuncios preserva el rol, no decodifica el advert binario. Esta heurística no es una prueba de rol oficial y debe considerarse al revisar los contratos.
 
-### Nodo 8: `Handler Telemetría IoT` (JavaScript)
-- Normaliza lecturas de sensores: Batería (`%` y `V`), Temperatura (`°C`), Humedad (`%`), Presión (`hPa`), Altitud (`m`), Coordenadas GPS (`lat`, `lon`).
-- Dispara alarmas de batería baja si el nivel es `<= 20%`.
+`ADMIN_WHITELIST` compara IDs y nombres visibles e incluye valores de ejemplo. No es una validación criptográfica de autorización basada exclusivamente en claves completas. Reemplazar los ejemplos y revisar identidad antes de habilitar comandos administrativos en una instancia real.
 
-### Nodo 9: `Handler Advert / Descubrimiento` (JavaScript)
-- Interpreta el campo `adv_type` conforme a la especificación oficial de MeshCore (`FirmwareAdvertType`):
-  - `0` / `1` $\to$ `CLIENT`
-  - `2` $\to$ `REPEATER`
-  - `3` $\to$ `ROOM`
-  - `4` $\to$ `SENSOR`
-- Extrae capacidades del hardware (`has_gps`, `has_screen`, `listen_only`).
+Los textos de clima/comandos pueden superar objetivos mencionados en comentarios; la guía no garantiza un tamaño máximo en bytes ni ausencia de fragmentación. `/time` usa la hora del proceso y la etiqueta UTC no demuestra que n8n se ejecute en UTC.
 
-### Nodo 10: `Logger Sniffer / Raw Packets` (JavaScript)
-- Inspección profunda de tramas LoRa: RSSI, SNR, Bytes totales, análisis de payload hexadecimal.
+## 5. Importación y cambios
 
-### Nodos 11, 12 y 13: `Clima y Estado Periódico`
-- **Nodo 11 (`Cron Trigger`)**: Se activa cada 30 minutos (ajustable).
-- **Nodo 12 (`HTTP Request Open-Meteo`)**: Consulta sin costo ni API key las condiciones meteorológicas actuales para las coordenadas configuradas.
-- **Nodo 13 (`Formatear Reporte Estado y Clima`)**: Mapea los códigos meteorológicos WMO a emojis descriptivos (☀️, 🌧️, ⛈️, ❄️) y genera un broadcast compacto para el canal 0.
+Importar el JSON en n8n y configurar credenciales del broker, prefijo de tópicos, whitelist, ubicación y zona del Schedule Trigger. Guardar y activar sólo las ramas deseadas. Importar el archivo no actualiza automáticamente una instancia ya activa; los cambios deben trasladarse al workflow de esa instancia.
 
-### Nodo 4: `MQTT Publish - MeshCore TX`
-- **Tipo**: `n8n-nodes-base.mqtt`
-- **Función**: Publica en `meshcore/tx` el mensaje procesado por los nodos anteriores para que el transceptor LoRa lo emita al aire.
+Antes de alterar respuestas automáticas, umbrales o periodicidad, aplicar [AGENTS.md](../AGENTS.md): estimar paquetes/airtime, revisar bucles y origen propio, estudiar persistencia del último disparo y acordar límites con el usuario. La programación cada seis horas describe el ejemplo existente, no autoriza nuevos timers ni su activación durante mantenimiento del repositorio.
 
----
-
-## 6. Guía Rápida de Modificación y Extensión
-
-### 6.1. ¿Cómo agregar un nuevo comando público al Bot (Canal 0)?
-
-Edita el código del **Nodo 5** (`Handler Canal Público (Ch 0)`):
-
-```javascript
-// Localiza el bloque switch (command) e inserta tu nuevo caso:
-case '/mi_comando':
-  replyText = `🤖 Respuesta personalizada para ${senderName}!`;
-  break;
-```
-
-> **Importante**: Mantén las respuestas por debajo de 160 caracteres para evitar fragmentación de paquetes LoRa y reducir el airtime en la red.
-
-### 6.2. ¿Cómo autorizar un nuevo Administrador?
-
-Edita el código del **Nodo 7** (`Handler Mensajería Directa (DM) y Admin`):
-
-```javascript
-// Agrega el ID hexadecimal o nombre público a la lista blanca:
-const ADMIN_WHITELIST = [
-  'admin_master',
-  '4a12bc88',
-  '9b3f01ca', // <- Nuevo administrador agregado
-];
-```
-
-### 6.3. ¿Cómo cambiar las coordenadas del reporte meteorológico?
-
-1. Abre el **Nodo 12** (`HTTP Request Open-Meteo`).
-2. Modifica los parámetros URL de `latitude` y `longitude`.
-3. Abre el **Nodo 13** (`Formatear Reporte Estado y Clima`) y actualiza la constante de ubicación:
-```javascript
-const LOCATION_NAME = 'Tu Ciudad, País'; // E.g., 'Miami, FL' o 'Santiago, CL'
-```
-
-### 6.4. ¿Cómo ajustar la frecuencia del reporte meteorológico?
-
-Abre el **Nodo 11** (`Cron Trigger - Cada 30 Minutos`) y selecciona el intervalo deseado (se recomiendan **30 a 60 minutos** para no saturar la malla LoRa).
-
----
-
-## 7. Despliegue e Importación en n8n
-
-1. Accede a tu instancia de **n8n** en el navegador web (por defecto `http://localhost:5678`).
-2. En el panel izquierdo, haz clic en **Workflows** $\to$ **Import from File**.
-3. Selecciona el archivo [n8n_workflow_meshcore.json](file:///c:/Users/Ruby/Desktop/meshcore-bridge/n8n_workflow_meshcore.json).
-4. Configura las credenciales MQTT de tu broker Mosquitto:
-   - **Host**: IP o hostname del broker (ej. `127.0.0.1` o `mosquitto`).
-   - **Port**: `1883` (o `8883` si usas TLS).
-   - **User / Password**: Credenciales de acceso MQTT configuradas en el bridge.
-5. Haz clic en **Save** y luego activa el switch **Active** en la esquina superior derecha.
-
----
-
-## 8. Verificación y Pruebas Automatizadas
-
-El comportamiento y los contratos de este workflow están validados por la suite de pruebas unitarias en Python:
-
-- Archivo de prueba: [tests/test_n8n_parser_matrix.py](file:///c:/Users/Ruby/Desktop/meshcore-bridge/tests/test_n8n_parser_matrix.py)
-- Para ejecutar la validación local:
-  ```powershell
-  python tests/test_n8n_parser_matrix.py
-  ```
-- **Casos de prueba cubiertos**:
-  - Deserialización de payloads envueltos en strings JSON y texto plano.
-  - Deduplicación temporal exacta con expiración de ventana de 30 segundos.
-  - Control de acceso estricto mediante whitelist para comandos `/admin`.
-  - Formateo de clima Open-Meteo con códigos WMO y conversión dual métrica/imperial.
-  - **SSoT Regla 1.1**: Verificación de bloqueo absoluto de respuestas de chat/DM a repetidores (`REPEATER` y `ROUTER`).
-  - **SSoT Regla 1.2**: Verificación de descarte inmediato de mensajes locales y salientes para evitar loops de retroalimentación.
-  - Comandos administrativos de repetidor (`/admin ping` y `/admin trace`) hacia tópicos `meshcore/admin/repeater/{node}/cmd`.
+Las suites del parser/workflow son comprobaciones disponibles bajo demanda. Esta guía se basa en inspección del export y no afirma que se hayan ejecutado pruebas o que una instancia externa esté conectada.

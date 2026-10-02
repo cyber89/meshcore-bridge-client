@@ -16,7 +16,7 @@
           "protocol_engine",
           "bridge_core"
         ],
-        "note": "Recepción física por transceptor LoRa o túnel TCP Companion hacia el motor HDLC."
+        "note": "El SDK recibe eventos Companion por USB o TCP; el parser raw propio es un camino separado en memoria."
       },
       {
         "id": "core-routing",
@@ -63,8 +63,8 @@
     {
       "id": "tcp_companion",
       "type": "external",
-      "label": "TCP Companion",
-      "sublabel": "Puerto :5000",
+      "label": "Companion Remoto",
+      "sublabel": "TCP hacia radio",
       "pos": [
         40,
         260
@@ -79,7 +79,7 @@
       "id": "serial_adapter",
       "type": "backend",
       "label": "Driver Serie",
-      "sublabel": "Watchdog + Framing",
+      "sublabel": "SDK + Watchdog",
       "pos": [
         240,
         100
@@ -88,13 +88,13 @@
         136,
         60
       ],
-      "tag": "pyserial-asyncio"
+      "tag": "src/serial/"
     },
     {
       "id": "protocol_engine",
       "type": "backend",
-      "label": "Motor Protocolo",
-      "sublabel": "HDLC SOF/EOF/CRC",
+      "label": "Tipos Protocolo",
+      "sublabel": "Enums / Raw propio",
       "pos": [
         240,
         260
@@ -148,7 +148,7 @@
         136,
         60
       ],
-      "tag": "SQLite SSoT"
+      "tag": "RAM / JSON"
     },
     {
       "id": "repeater_mgr",
@@ -199,7 +199,7 @@
       "id": "web_server",
       "type": "backend",
       "label": "Servidor Web",
-      "sublabel": "aiohttp REST & WS",
+      "sublabel": "HTTP / WS nativo",
       "pos": [
         920,
         100
@@ -208,7 +208,7 @@
         136,
         60
       ],
-      "tag": "Puerto :8000"
+      "tag": "Puerto :8080"
     },
     {
       "id": "web_ui",
@@ -293,7 +293,7 @@
     {
       "from": "protocol_engine",
       "to": "bridge_core",
-      "label": "Tramas",
+      "label": "Eventos",
       "variant": "emphasis"
     },
     {
@@ -346,8 +346,8 @@
       "dot": "cyan",
       "title": "Protocolo & Resiliencia RF",
       "items": [
-        "Framing HDLC determinista con delimitadores SOF/EOF y byte-stuffing",
-        "Validación estricta de CRC-16 y deduplicación por hash de paquete",
+        "SDK MeshCore: transporte Companion oficial por USB o TCP",
+        "Raw propio en memoria: SOF/EOF, escape y CRC; separado del Companion",
         "Watchdog serie con reconexión automática y backoff exponencial"
       ]
     },
@@ -355,16 +355,16 @@
       "dot": "emerald",
       "title": "Pipeline Asíncrono Core",
       "items": [
-        "Bucle de eventos asyncio sin bloqueos para concurrencia masiva",
+        "Bucle asyncio y puente seguro hacia el hilo de Paho MQTT",
         "RxEventRouter tipado con handlers desacoplados para Adverts, Canales y DMs",
-        "Gestión rigurosa de Nodos (SSoT) y aislamiento total de Repetidores"
+        "Registro RAM/JSON y reglas de exclusión de repetidores/local de chat"
       ]
     },
     {
       "dot": "rose",
       "title": "Integración IP & Telemetría",
       "items": [
-        "Servidor aiohttp con WebSocket Hub en tiempo real y REST API",
+        "Servidor HTTP 1.1 y WebSocket nativo con asyncio.start_server",
         "Cliente MQTT bidireccional asíncrono para n8n y Home Assistant",
         "Decodificación integrada de métricas de sensor y CayenneLPP"
       ]

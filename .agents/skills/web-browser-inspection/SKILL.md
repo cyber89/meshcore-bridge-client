@@ -1,59 +1,27 @@
 ---
 name: web-browser-inspection
-description: Inspección visual y funcional automatizada basada en Playwright (Chromium Headless). Captura screenshots en resoluciones Desktop (1920x1080) y Mobile (390x844), detecta excepciones JavaScript en consola, peticiones de red fallidas (4xx/5xx) y valida el renderizado del DOM en clientes web.
+description: Inspeccionar la SPA con Playwright autorizado, servidor virtual propio y capturas desktop/mobile; no usar una estación operativa como fixture.
 ---
 
-# Skill: Web Browser Inspection & Visual QA Automation
+# Navegador y SPA
 
-Esta habilidad proporciona capacidades automatizadas de inspección visual, funcional y de consola para aplicaciones web utilizando **Playwright** y **Chromium Headless**.
+Leer [AGENTS.md](../../../AGENTS.md) y [TESTING.md](../../../docs/TESTING.md).
+Las pruebas de navegador se ejecutan cuando el usuario las autoriza, no automáticamente
+por tocar frontend. Revisar las fixtures mantenidas en tests antes de iniciar procesos.
 
----
+Usar VirtualMeshAdapter, datos temporales y servidor en loopback con puerto asignado
+por el SO. No asumir que localhost:8080 es virtual: puede transmitir por radio real.
+Cerrar browser/context/server/tasks en finally. Si faltan Playwright o Chromium,
+instalarlos en el entorno de QA cuando sean necesarios y registrar versiones.
 
-## Directiva Operativa Obligatoria
+- Capturar pageerror, errores de consola, HTTP fallidos y WebSocket desconectado.
+- Verificar navegación, exclusión LOCAL/REPEATER, TX virtual, ACK y refresco de nodos.
+- Inspeccionar desktop 1920x1080 y móvil 390x844; guardar evidencia en tests/artifacts/.
+- Aislar recursos externos o declarar la dependencia. Un CDN fallido no demuestra
+  fallo del backend, pero tampoco debe quedar oculto por una afirmación de éxito total.
+- Los scripts históricos [inspect_web.py](../../../scripts/inspect_web.py) e
+  [inspect_all_views.py](../../../scripts/inspect_all_views.py) requieren leer sus
+  argumentos y confirmar el destino antes de usarlos.
 
-> [!IMPORTANT]
-> Cada vez que implementes, refactorices o modifiques una vista, panel o componente web en `src/web/`:
-> 1. Asegúrate de que el servidor web local esté ejecutándose (por ejemplo, en `http://localhost:8080`).
-> 2. Ejecuta el script de inspección visual:
->    ```bash
->    python scripts/inspect_web.py --url http://localhost:8080
->    ```
-> 3. Valida que el informe retorne `[PASS]`, sin excepciones de JavaScript no capturadas ni peticiones HTTP fallidas (4xx/5xx).
-> 4. Inspecciona las capturas generadas en `tests/artifacts/desktop.png` y `tests/artifacts/mobile.png` antes de dar la tarea por completada.
-
----
-
-## Capacidades y Funcionalidades del Inspector
-
-1. **Navegación Headless Multi-Dispositivo**:
-   - **Vista de Escritorio**: Resolución 1920x1080 (HD Desktop Viewport).
-   - **Vista Móvil**: Resolución 390x844 (Viewport móvil tipo iPhone 14/15 con emulación táctil).
-2. **Monitoreo Continuo de Consola y Red**:
-   - Escucha y registro de `console.error` y `console.warn`.
-   - Captura de excepciones JavaScript no controladas (`pageerror`).
-   - Auditoría de códigos de respuesta HTTP (`status >= 400`).
-3. **Generación de Artefactos de Calidad**:
-   - `tests/artifacts/desktop.png`: Captura de pantalla de página completa en resolución de escritorio.
-   - `tests/artifacts/mobile.png`: Captura de pantalla en vista responsive móvil.
-   - `tests/artifacts/dom_dump.html`: Volcado completo del árbol DOM para validar componentes cargados.
-4. **Reporte Estructurado**:
-   - Resumen visual en consola y opción de salida JSON con `--json`.
-
----
-
-## Formas de Ejecución
-
-### Inspección Estándar (Salida en Consola):
-```bash
-python scripts/inspect_web.py --url http://localhost:8080
-```
-
-### Inspección con Salida JSON Estricta:
-```bash
-python scripts/inspect_web.py --url http://localhost:8080 --json
-```
-
-### Inspección con Directorio de Artefactos Personalizado:
-```bash
-python scripts/inspect_web.py --url http://localhost:8080 --output tests/artifacts/run_01
-```
+Las capturas sirven para revisar layout; un chequeo DOM no acredita WCAG completo
+ni latencia medida. Reportar límites y skips de forma explícita.

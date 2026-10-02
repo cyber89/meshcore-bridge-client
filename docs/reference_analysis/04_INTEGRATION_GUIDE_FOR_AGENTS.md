@@ -15,7 +15,6 @@ sequenceDiagram
     autonumber
     actor DevOrAgent as Antigravity Agent
     participant Bridge as MeshCore Bridge Core
-    participant SQLite as Store & Forward WAL
     participant RateLimiter as TxRateLimiter (LoRa Airtime)
     participant HW as Hardware LoRa (SX1262)
     participant MQTT as Mosquitto MQTT Broker
@@ -23,7 +22,7 @@ sequenceDiagram
 
     Note over DevOrAgent,HW: Flujo de Recepción (RX)
     HW->>Bridge: Evento Serial RX (Trama LoRa)
-    Bridge->>Bridge: Validar CRC-16 & Deduplicar (LRU RAM)
+    Bridge->>Bridge: Decodificar evento Companion & Deduplicar
     Bridge->>Bridge: Actualizar NodeRegistry en Memoria / JSON
     alt MQTT Online
         Bridge->>MQTT: Publicar en meshcore/rx/all y tópicos específicos
@@ -48,21 +47,21 @@ sequenceDiagram
 1. **Regla de Oro**: La única fuente de verdad binaria reside en [`/reference/`](../../reference/).
 2. **Procedimiento ante nuevos tipos**:
    - Usar la skill `meshcore-source-inspector` para extraer los campos, tipos C/C++ y modificadores `#pragma pack`.
-   - Calcular offsets en bytes y documentar Little-Endianness.
+   - Documentar campos y offsets del formato serializado, diferenciándolos de estructuras en memoria, padding/ABI y endianness por campo (Companion LE; CayenneLPP BE).
    - Definir los nuevos tipos en [`src/protocol_types.py`](../../src/protocol_types.py) utilizando estrictamente `@dataclass(frozen=True)` o `IntEnum`.
    - Actualizar [`docs/PROTOCOL_SPEC.md`](../PROTOCOL_SPEC.md).
 
 ### 2.2 Para el Python Bridge Architect Agent
 1. **Regla de Oro**: Ninguna operación I/O puede bloquear el bucle de `asyncio`.
 2. **Procedimiento de Implementación**:
-   - Utilizar el patrón adaptador híbrido: el bridge debe funcionar con el SDK oficial `meshcore_py` cuando esté instalado, y conmutar a `RawSerialFramingAdapter` en entornos sin dependencias externas.
+   - Utilizar los adaptadores disponibles según el transporte real. El SDK oficial `meshcore_py` habla Companion; `RawSerialFramingAdapter` utiliza un formato propio del bridge (`0xAA`/`0x55`, escaping y CRC-16) para simulación/enlaces compatibles. No asumir que ausencia del SDK vuelve compatible ese fallback con firmware Companion.
    - Las operaciones de persistencia en disco deben ser atómicas mediante archivos JSON.
    - Asegurar que el espaciado de transmisión LoRa respete el tiempo en el aire calculado por `estimate_lora_airtime_ms()`.
 
 ### 2.3 Para el QA & Fuzzing Agent
-1. **Regla de Oro**: Cero regresiones y 100% de aprobación en `bridge_test_runner`.
+1. **Regla de Oro**: Ejecutar suites y verificación de QA únicamente bajo petición explícita del usuario, según `AGENTS.md`. Documentar resultados reales y limitaciones; no presentar una verificación pendiente como aprobada.
 2. **Procedimiento de Verificación**:
-   - Ejecutar siempre:
+   - Cuando se autorice explícitamente la ejecución de QA, usar:
      ```powershell
      python .agents/skills/bridge-test-runner/scripts/run_checks.py
      ```
@@ -77,5 +76,5 @@ sequenceDiagram
 | :--- | :--- | :--- |
 | `ERR_CODE_UNSUPPORTED_CMD` (`0x01`) | Comando no soportado por el firmware Companion; interpretar el código de la respuesta ERROR | El worker TX propaga el fallo al solicitante. El jitter es pacing entre transmisiones, no retry exponencial |
 | `ERR_TIMEOUT` | La radio no respondió al comando serial en el tiempo límite | El `SerialWatchdog` detecta inactividad y ejecuta reconexión suave |
-| `CRC_MISMATCH` | Interferencia RF o ruido en la línea UART corrompió bytes de la trama | El `RawSerialFramingAdapter` descarta la trama e incrementa `rx_error_count` |
+| `CRC_MISMATCH` | Corrupción del cuerpo del formato fallback propio; no es una respuesta Companion ni demuestra por sí sola interferencia RF | El `RawSerialFramingAdapter` descarta la trama inválida |
 | `MQTT_DISCONNECTED` | Pérdida de conectividad con el broker Mosquitto | Reintento en segundo plano con reconexión exponencial asíncrona |

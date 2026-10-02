@@ -116,28 +116,37 @@ class ConfigController(BaseController):
             return failure
         limiter = getattr(self.ctx.bridge, "rate_limiter", None)
         if limiter and hasattr(limiter, "airtime_tracker"):
+            tracker = limiter.airtime_tracker
+            airtime_changed = False
             if "duty_cycle_limit_pct" in params:
                 try:
-                    limiter.airtime_tracker.duty_cycle_limit_pct = float(params["duty_cycle_limit_pct"])
+                    tracker.duty_cycle_limit_pct = float(params["duty_cycle_limit_pct"])
+                    airtime_changed = True
                 except (ValueError, TypeError):
                     pass
             if "warn_threshold_pct" in params:
                 try:
-                    limiter.airtime_tracker.warn_threshold_pct = float(params["warn_threshold_pct"])
+                    tracker.warn_threshold_pct = float(params["warn_threshold_pct"])
+                    airtime_changed = True
                 except (ValueError, TypeError):
                     pass
             if "airtime_cutoff_enabled" in params:
-                limiter.airtime_tracker.cutoff_enabled = bool(params["airtime_cutoff_enabled"])
+                tracker.cutoff_enabled = bool(params["airtime_cutoff_enabled"])
+                airtime_changed = True
             if "airtime_cutoff_threshold_pct" in params:
                 try:
-                    limiter.airtime_tracker.cutoff_threshold_pct = float(params["airtime_cutoff_threshold_pct"])
+                    tracker.cutoff_threshold_pct = float(params["airtime_cutoff_threshold_pct"])
+                    airtime_changed = True
                 except (ValueError, TypeError):
                     pass
             if "airtime_cutoff_resume_pct" in params:
                 try:
-                    limiter.airtime_tracker.cutoff_resume_pct = float(params["airtime_cutoff_resume_pct"])
+                    tracker.cutoff_resume_pct = float(params["airtime_cutoff_resume_pct"])
+                    airtime_changed = True
                 except (ValueError, TypeError):
                     pass
+            if airtime_changed:
+                tracker.save_history(sync=True)
 
         if "repeater_pre_send_delay_enabled" in params:
             config.REPEATER_PRE_SEND_DELAY_ENABLED = bool(params["repeater_pre_send_delay_enabled"])

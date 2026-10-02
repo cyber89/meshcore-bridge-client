@@ -1,32 +1,28 @@
 ---
 name: contract-openapi-sync
-description: >-
-  Validador estático de paridad de contratos entre endpoints REST y eventos WebSockets en Python
-  (src/web/controllers/) y las llamadas fetch() / listeners en la SPA JavaScript (src/web/static/js/).
-  Previene desincronizaciones de contrato, nombres de campo erróneos y rutas 404/422.
+description: Revisar compatibilidad REST y WebSocket entre Python y la SPA de MeshCore Bridge; usar comparación léxica de rutas como señal parcial y pruebas aisladas para contratos reales.
 ---
 
-# Contract & API Parity Sync Skill
+# Contratos Python y SPA
 
-Esta skill garantiza la consistencia bidireccional entre la interfaz web en JavaScript y los controladores REST / WebSockets en Python.
+Leer [AGENTS.md](../../../AGENTS.md) y [TESTING.md](../../../docs/TESTING.md).
+El servidor y enrutador son propios: comparar src/web/api_router.py, controllers,
+src/web/static/js/core/websocket.js y módulos consumidores.
 
----
-
-## 1. Capacidades
-
-1. **Auditoría de Rutas REST**:
-   - Extrae todas las rutas y métodos HTTP (`GET`, `POST`, `PUT`, `DELETE`) registrados en `src/web/api_router.py` y `src/web/controllers/`.
-   - Extrae todas las llamadas `fetch('/api/...')` en los módulos JavaScript (`chat.js`, `nodes.js`, `settings.js`, etc.).
-   - Alerta si el frontend intenta invocar una ruta no implementada en el backend (potencial error 404).
-2. **Detección de Rutas Huérfanas**:
-   - Identifica endpoints del backend que nunca son consumidos por el cliente web ni por integraciones documentadas.
-3. **Validación de Payloads de Eventos WebSocket**:
-   - Comprueba que los tipos de eventos emitidos por `WebSocketServer` (`EVENT_TYPE_PACKET`, `EVENT_TYPE_NODE_UPDATE`, etc.) tengan manejadores correspondientes en el despachador de eventos del frontend.
-
----
-
-## 2. Ejecución del Verificador de Paridad
+- Registrar ruta, método, autorización, parámetros, esquema de respuesta y códigos
+  de estado. No considerar una ruta válida sólo porque contiene un prefijo conocido.
+- Para eventos WS, comparar type, campos obligatorios, formatos y handlers del
+  EventBus. No inventar constantes o generar OpenAPI sin inspeccionar implementación.
+- Mantener aliases documentados y consumidores MQTT/n8n cuando cambie el contrato.
+- Verificar rechazo LOCAL/REPEATER, secretos enmascarados, IDs de mensajes y ACKs.
 
 ```bash
 python .agents/skills/contract-openapi-sync/scripts/verify_api_parity.py
 ```
+
+El helper extrae algunas cadenas de rutas mediante regex y compara prefijos con
+límites de segmento. Falla si no detecta entradas o existen discrepancias. No extrae
+todos los métodos ni valida payloads, campos, WS o endpoints huérfanos. Su resultado
+es coincidencia léxica, no paridad completa. Para comprobar esos contratos, usar
+tests REST/WS aislados cuando el usuario autorice suites; la autorización se mantiene
+durante la tarea. Reportar alcance y pendientes en el ledger.

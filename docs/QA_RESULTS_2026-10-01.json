@@ -115,5 +115,30 @@
       "line_rate": 0.6707
     },
     "recorded_at_utc": "2026-10-01T21:45:36Z"
+  },
+  "github_ci_followup_16416a0": {
+    "run_id": 36934007427,
+    "url": "https://github.com/cyber89/meshcore-bridge-client/actions/runs/36934007427",
+    "linux_python310": {
+      "passed": 662,
+      "failed": 1
+    },
+    "linux_python312": {
+      "passed": 662,
+      "failed": 1
+    },
+    "lint_and_validate": "passed",
+    "diagnosis": {
+      "viewport": 390,
+      "scrollWidth": 417,
+      "sidebar_right": -25,
+      "header_controls_right": 405.28125,
+      "cause": "Header controls overflow with Linux fallback fonts even after sidebar transition finishes; real responsive CSS defect."
+    }
+  },
+  "responsive_css_regression": {
+    "before_patch": "Windows:long valid /dev/serial/by-id label and monospace fallback; scrollWidth513>390, language right513.36; one failure conserved in JUnit.",
+    "production_file": "src/web/static/css/components.css",
+    "policy": "Allow mobile flex text shrink/min-width0/ellipsis; preserve controls; no body overflow hiding; exact geometric assertions."
   }
 }

@@ -39,3 +39,9 @@ Esta skill define los protocolos, directrices y herramientas para la validación
 ```bash
 python scripts/simulate_extreme_scenarios.py
 ```
+
+## Contrato de uso en MeshCore Bridge
+
+Leer [AGENTS.md](../../../AGENTS.md) y el [índice documental](../../../docs/README.md). Las suites, fuzzing y Playwright sólo se ejecutan bajo petición del usuario; la autorización permanece durante la tarea.
+
+Simular con VirtualMeshAdapter y directorios temporales. Leer scripts históricos antes de ejecutarlos; la autorización de suites no autoriza hardware real. Los escenarios simulados no acreditan RF físico ni convergencia de rutas del firmware.

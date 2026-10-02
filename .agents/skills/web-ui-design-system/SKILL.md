@@ -2,7 +2,7 @@
 name: web-ui-design-system
 description: >-
   Diseño visual de interfaces de grado profesional: Sistema de tokens de diseño, paletas armónicas HSL,
-  escala tipográfica fluida (clamp), grilla espacial de 8pt, contraste accesible WCAG 2.2 AA (>= 4.5:1),
+  escala tipográfica fluida (clamp), grilla espacial de 8pt, contraste accesible WCAG 2.2 AA (al menos 4.5:1),
   micro-animaciones y soporte responsivo desktop/mobile.
 ---
 
@@ -37,3 +37,9 @@ Esta skill define las pautas estéticas, visuales y de interacción para constru
 
 ## Referencias
 Consultar [design_tokens_cheatsheet.md](references/design_tokens_cheatsheet.md).
+
+## Contrato de uso en MeshCore Bridge
+
+Leer [AGENTS.md](../../../AGENTS.md) y el [índice documental](../../../docs/README.md). Las suites, fuzzing y Playwright sólo se ejecutan bajo petición del usuario; la autorización permanece durante la tarea.
+
+Los valores visuales de la skill son recomendaciones; los tokens canónicos están en src/web/static/css/tokens.css. Mantener Vanilla CSS y verificar contraste medido para las combinaciones realmente usadas; no afirmar WCAG completo con un chequeo sintáctico.

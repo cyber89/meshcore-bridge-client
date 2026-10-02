@@ -447,8 +447,11 @@ class WebAPIRouter:
                 diag = getattr(self.bridge, "diagnostics", None)
                 target_lvl = req_body.get("level", "INFO")
                 if diag:
-                    new_lvl = diag.set_log_level(str(target_lvl))
-                    return 200, {"status": "ok", "level": new_lvl}
+                    try:
+                        new_lvl = diag.set_log_level(str(target_lvl))
+                        return 200, {"status": "ok", "level": new_lvl}
+                    except ValueError as ve:
+                        return problem_details(400, "Bad Request", str(ve), "invalid_log_level")
                 return problem_details(400, "Bad Request", "Diagnostic manager no disponible", "diagnostic_unavailable")
         if clean_path == "/api/system/logs":
             if method == "DELETE":

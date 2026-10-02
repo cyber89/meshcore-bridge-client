@@ -14,7 +14,7 @@
     "vendor code execution"
   ],
   "counts": {
-    "documents": 29,
+    "documents": 28,
     "references": 15,
     "source_files": 80,
     "project_skills": 22,
@@ -68,12 +68,6 @@
       "category": "maintained-or-decision",
       "sha256": "1d69a897948009630d4aead68f0f721dfe744306f5dad107cfd5700c54b9712b",
       "lines": 55
-    },
-    {
-      "path": "docs/AGENT_ACTIVITY_REPORT.md",
-      "category": "historical-ledger-or-report",
-      "sha256": "e91f5bf95c4d65eb14defd4198e90bd98ca2d9d12aa0c85cebbe4a22ab7428fa",
-      "lines": 5449
     },
     {
       "path": "docs/ARCHITECTURE.md",

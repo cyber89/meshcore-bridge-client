@@ -44,3 +44,9 @@ python .agents/skills/meshcore-source-inspector/scripts/inspect_meshcore_ast.py 
 ## Buenas Prácticas
 - No volcar archivos `.cpp` enteros en el prompt; utilizar siempre esta herramienta para extraer únicamente las firmas y layouts necesarios.
 - Tratar los offsets extraídos como estimaciones; cotejarlos con el serializador/parser oficial antes de documentar `/docs/PROTOCOL_SPEC.md` o implementarlos en `/src/protocol_types.py`.
+
+## Contrato de uso en MeshCore Bridge
+
+Leer [AGENTS.md](../../../AGENTS.md) y el [índice documental](../../../docs/README.md). Las suites, fuzzing y Playwright sólo se ejecutan bajo petición del usuario; la autorización permanece durante la tarea.
+
+El helper usa extracción regex/AST parcial. No certifica packing/padding C++ ni layout wire: leer el serializador/parser oficial, documentar endian por campo, separar structs de memoria de bytes transmitidos y verificar constantes por build. reference/ no se modifica.

@@ -26,10 +26,10 @@ Se adopta como contrato inmutable el **Checklist de Impacto en la Malla LoRa** p
 1. **Pregunta 1: ¿Cuánto airtime consume en la malla?**
    - Prohibido el sondeo activo $O(N)$ (donde $N$ es el número de nodos).
    - Preferir siempre la recepción pasiva de anuncios (`ADVERT`) y telemetría no solicitada sobre el polling activo.
-   - Pings, traceroutes y solicitudes remotas tienen intervalos mínimos garantizados de **5 a 15 minutos**.
+   - La directriz para sondeos automáticos es usar intervalos mínimos de **5 a 15 minutos**, acordados con el usuario conforme a `AGENTS.md`. Es una exigencia de diseño, no una garantía de todos los cooldowns actuales ni un límite universal de acciones manuales.
 2. **Pregunta 2: ¿Puede esta feature generar spam o bucles de feedback?**
    - Deduplicación obligatoria con `MessageDeduplicator` en cada paquete entrante y saliente.
-   - Limitación de tasa con `RateLimiter` (algoritmo Token Bucket) por canal y por clave pública.
+   - Limitación de envíos mediante los mecanismos existentes. La implementación actual de `TxRateLimiter` usa cola de prioridad y pacing basado en una estimación de airtime; no se debe describir como Token Bucket sin distinguir el mecanismo concreto.
    - Guarda de origen local: el bridge descarta inmediatamente cualquier paquete cuyo remitente sea la clave pública de la propia estación base (`self_info.public_key`).
 3. **Pregunta 3: ¿Un guardado de configuración rearma un timer de seguridad?**
    - El timestamp del último disparo de operaciones periódicas o cooldowns debe persistirse en archivo o base de datos, nunca exclusivamente en variables efímeras en RAM.
@@ -37,8 +37,12 @@ Se adopta como contrato inmutable el **Checklist de Impacto en la Malla LoRa** p
 ## Consecuencias
 
 - **Positivas**:
-  - Garantía de conformidad con regulaciones de telecomunicaciones.
+  - Ayuda a controlar el uso del espectro; no acredita por sí sola cumplimiento regulatorio, que depende de la configuración y el despliegue.
   - La red de malla permanece descongestionada y con alta tasa de entrega de mensajes útiles.
   - Protección contra ataques de denegación de servicio (DoS) involuntarios o bucles entre MQTT y LoRa.
 - **Negativas / Compensaciones**:
   - Respuestas más lentas en telemetría activa (debido a los cooldowns obligatorios).
+
+## Estado de Implementación Revisado (2026-09-29)
+
+`src/repeater_manager.py` conserva varios timestamps de cooldown en diccionarios de instancia basados en `time.monotonic()`; esa ruta no satisface por sí sola la persistencia exigida arriba. `src/rate_limiter.py::AirtimeTracker` sí persiste historial de TX y estado de cutoff. La política de protección evolucionó según ADR 0004: descarte de prioridad LOW ante duty cycle crítico y suspensión selectiva de consultas automáticas por ocupación del canal. Esta revisión documenta la diferencia y no modifica intervalos ni políticas.

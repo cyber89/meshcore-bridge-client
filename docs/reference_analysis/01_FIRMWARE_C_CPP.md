@@ -55,11 +55,11 @@ El paquete fundamental de transmisión en el aire consta de un encabezado de 1 b
 | `2..5` | `0x3C` (`0x0F`) | `2` | `PayloadType` | `0x00`: `REQ` (Petición directa con hash y MAC)<br>`0x01`: `RESPONSE` (Respuesta a REQ o ANON_REQ)<br>`0x02`: `TXT_MSG` (Mensaje de texto directo)<br>`0x03`: `ACK` (Confirmación simple de recepción)<br>`0x04`: `ADVERT` (Anuncio de presencia e identidad de nodo)<br>`0x05`: `GRP_TXT` (Mensaje de canal grupal con hash de canal)<br>`0x06`: `GRP_DATA` (Datagrama de canal para telemetría binaria)<br>`0x07`: `ANON_REQ` (Petición anónima con clave efímera)<br>`0x08`: `PATH` (Ruta descubierta devuelta al emisor)<br>`0x09`: `TRACE` (Trazador de ruta con recopilación de SNR por salto)<br>`0x0A`: `MULTIPART` (Segmento de paquete fragmentado)<br>`0x0B`: `CONTROL` (Descubrimiento y control de red)<br>`0x0F`: `RAW_CUSTOM` (Carga cruda para aplicaciones externas) |
 | `6..7` | `0xC0` (`0x03`) | `6` | `PayloadVer` | `0x00`: `PAYLOAD_VER_1` (Hashes de 1 byte, MAC de 2 bytes)<br>`0x01..0x03`: Reservado para versiones futuras |
 
-### 2.2 Layout de Memoria de la Clase `Packet`
+### 2.2 Layout Wire y Estructura de Memoria de `Packet`
 
 ```
 +------------------+-------------------+--------------------+------------------------+--------------------------+
-|  header (1 Byte) | transport_codes   | path_len (1-2 B)   | path[MAX_PATH_SIZE]    | payload[MAX_PAYLOAD_LEN] |
+|  header (1 Byte) | transport_codes   | path_len (1 B)     | path (longitud variable)| payload (longitud variable)|
 |  [Ver|Type|Route]| (4 Bytes opcional)| [Size:2b | Count:6b| (Secuencia de Hashes) | (Datos de Aplicación)    |
 +------------------+-------------------+--------------------+------------------------+--------------------------+
 ```
@@ -67,22 +67,27 @@ El paquete fundamental de transmisión en el aire consta de un encabezado de 1 b
 - **`MAX_PACKET_PAYLOAD`**: `184 Bytes`.
 - **`MAX_PATH_SIZE`**: `64 Bytes`.
 - **`MAX_TRANS_UNIT` (MTU Total)**: `255 Bytes` (límite físico del buffer FIFO del chip LoRa SX1262).
-- **Endianness**: Little-Endian (`<`) en todas las arquitecturas soportadas.
+- **Serialización wire**: `Packet::writeTo()` escribe header, códigos opcionales de transporte, un byte `path_len`, los bytes de ruta efectivos y payload. `path_len` codifica tamaño de hash en sus dos bits altos y número de hashes en sus seis bits bajos; tamaños válidos de 1, 2 o 3 bytes.
+- **Memoria**: `Packet` declara `payload_len` y `path_len` como `uint16_t`, `transport_codes[2]` como `uint16_t`, buffers fijos `path[64]` / `payload[184]` y `_snr`. No es un struct packed que deba enviarse con `memcpy(sizeof(Packet))`: el padding y tamaño de objeto dependen de la ABI, y sus longitudes no coinciden con los campos wire.
+- **Endianness**: los enteros de transporte y campos Companion documentados utilizan LE. Los valores multibyte CayenneLPP utilizan BE. El paquete wire descrito aquí no incorpora el CRC-16 del fallback propio `MeshcoreFrame`; la integridad RF corresponde a la capa de radio y a MAC/firmas según payload.
+
+Fuentes: `reference/meshcore/src/Packet.h`, `Packet.cpp` (`getRawLength`, `writeTo`, `readFrom`) y `MeshCore.h` (`MAX_PACKET_PAYLOAD`, `MAX_PATH_SIZE`, `MAX_TRANS_UNIT`).
 
 ---
 
 ## 3. Algoritmo de Enrutamiento y Deduplicación (`Mesh.cpp`)
 
 ### 3.1 Flood Routing (Enrutamiento por Inundación)
-1. Cuando un nodo emite un paquete con tipo `ROUTE_TYPE_FLOOD`, el nodo destino añade el hash de su identidad al campo `path`.
-2. Cada nodo intermedio que retransmite el paquete añade su propio hash de salto (`path_hash`) y decrementa el número de saltos restantes (`hop_limit`).
-3. Al llegar al destino final, el paquete contiene la ruta inversa exacta recorrida, la cual el destinatario almacena en su tabla de contactos para futuras transmisiones en modo `ROUTE_TYPE_DIRECT`.
+1. Un paquete flood permite construir la ruta durante su retransmisión.
+2. Los repetidores intermedios añaden su hash al campo `path`, sujetos a capacidad y reglas de retransmisión. El layout wire no define un contador TTL separado que se decremente por salto.
+3. La ruta recibida puede usarse para descubrir caminos de retorno y posteriores envíos directos; no garantiza por sí sola una ruta óptima o entrega.
 
 ### 3.2 Tabla de Prevención de Bucles y Hash de Paquetes
 Para evitar la retransmisión infinita de tramas en la malla:
-- Cada paquete calcula un hash criptográfico de 8 bytes sobre su contenido:
-  $$\text{PacketHash} = \text{SHA256}(\text{payload} \parallel \text{header})[0..7]$$
-- El firmware mantiene una tabla circular en RAM (`recent_packet_hashes[64]`). Si un hash ya existe en la tabla, el paquete se descarta de forma silenciosa e instantánea.
+- `Packet::calculatePacketHash()` calcula un hash de 8 bytes: SHA256 del tipo de payload seguido del payload. Para TRACE incluye también el `path_len` en memoria antes del payload, permitiendo distinguir visitas en la ruta de retorno.
+- `SimpleMeshTables` mantiene una tabla circular `_hashes` en RAM. La referencia declara `MAX_PACKET_HASHES = 128 + 32`, no una tabla universal de 64 entradas; registra duplicados directos y flood.
+
+Fuentes: `reference/meshcore/src/Packet.cpp` y `reference/meshcore/src/helpers/SimpleMeshTables.h`.
 
 ---
 
@@ -110,4 +115,4 @@ El archivo `CommonCLI.cpp` implementa el parser de comandos de texto y binarios 
 - `tx`: Potencia de transmisión en dBm (`2` a `22` dBm).
 - `cad`: Channel Activity Detection (`1` habilitado, `0` deshabilitado).
 - `rxgain`: Ganancia de recepción LNA / FEM boosted (`1` o `0`).
-- `hash_mode`: Modo de tamaño de hash de saltos en ruta (`1`, `2` o `3` bytes).
+- `hash_mode`: Tamaños efectivos de hash de saltos de `1`, `2` o `3` bytes. El comando Companion `SET_PATH_HASH_MODE` usa valores codificados `0`, `1`, `2`, respectivamente (`path_hash_mode + 1` en `examples/companion_radio/MyMesh.cpp`).

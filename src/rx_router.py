@@ -616,6 +616,19 @@ class RxEventRouter:
         if self._ctx.node_registry.is_local_key(msg.sender):
             return None
 
+        # Deduplicación en memoria RAM para descartar ecos multihop repetidos en la malla LoRa
+        if self._ctx.deduplicator is not None:
+            clean_sender = str(msg.sender or "").strip().lower()
+            clean_text = str(msg.text or "").strip()
+            dedup_key = f"mesh::{clean_sender}::{msg.channel_idx}::{clean_text}::{msg.txt_type}"
+            if await self._ctx.deduplicator.is_duplicate(dedup_key):
+                if self._ctx.bridge and hasattr(self._ctx.bridge, "dup_count"):
+                    self._ctx.bridge.dup_count += 1
+                if hasattr(self._ctx.counters, "dup_count"):
+                    self._ctx.counters.dup_count += 1
+                logging.debug(f"[RX-DEDUP] Mensaje duplicado LoRa ignorado: de {msg.sender_name or clean_sender[:8]} (canal {msg.channel_idx})")
+                return None
+
         extracted_telem = self._ctx.repeater_manager.parse_repeater_telemetry_or_response(msg.text)
         existing_contact = self._ctx.node_registry.get_contact(msg.sender)
         should_treat_as_repeater = bool(

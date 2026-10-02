@@ -71,7 +71,7 @@ Comandos estandarizados documentados en `REPEATER_COMMANDS.md` que pueden ser en
 - `get/set radio f,bw,sf,cr`: Configura los parámetros de modulación LoRa (requiere reboot para aplicar).
 - `get/set freq <mhz>`: Establece la frecuencia de operación (ej. `915.0`).
 - `get/set tx <power>`: Ajusta la potencia de emisión RF en dBm (ej. `20`).
-- `get/set af <value>`: Factor de antena / ganancia pasiva.
+- `get/set af <value>`: Factor de tiempo de aire (`airtime_factor`), usado en el control de espaciado/ciclo de trabajo; no es ganancia pasiva de antena. Fuente: `reference/meshcore/src/helpers/CommonCLI.cpp`, ramas `set af` y `get af`.
 - `get/set repeat on|off`: Activa o desactiva la función de retransmisión de paquetes (modo repetidor).
 - `get/set lat <val>` / `get/set lon <val>`: Coordenadas geográficas estáticas para localización en mapas.
 - `get/set advert.interval <min>`: Intervalo de emisión periódica de anuncios.
@@ -103,3 +103,11 @@ El bridge lo despacha hacia la radio o repetidor, procesa la respuesta y publica
 }
 ```
 Esto permite crear paneles de monitoreo en tiempo real y flujos automatizados de resolución de incidentes en n8n.
+
+## 4. Transporte y Sincronización de Reloj
+
+El CLI Companion utiliza framing `<`/`>` con longitud LE en Serial/TCP; el modo directo de repetidor utiliza texto. El servidor del bridge usa `TCP_SERVER_PORT=5000` por defecto y el firmware Companion WiFi local usa `TCP_PORT=5000` salvo sobrescritura de compilación (`reference/meshcore/examples/companion_radio/main.cpp`). El cliente debe usar el puerto configurado para cada endpoint.
+
+Para el dispositivo Companion local, `clock sync` / `sync_time` / `st` del CLI llaman `mc.commands.set_time(int(time.time()))`. Para repetidores, `process_repeater_line()` convierte esos alias en `time <epoch>`; el firmware también admite `clock sync` con el timestamp del remitente. `CommonCLI` impide retroceder el reloj en esas rutas. Fuente: `reference/meshcore_cli/src/meshcore_cli/meshcore_cli.py` y `reference/meshcore/src/helpers/CommonCLI.cpp`.
+
+Los comandos administrativos de texto cifrado a repetidores no habilitan mensajería de chat de usuario: se mantiene su exclusión de Contactos y DM.

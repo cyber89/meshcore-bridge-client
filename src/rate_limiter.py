@@ -222,6 +222,7 @@ class AirtimeTracker:
         self._save_task: asyncio.Task[None] | None = None
         self._pending_save: dict[str, Any] | None = None
         self._save_lock = threading.Lock()
+        self._lock = threading.Lock()
         self._last_tx_time: float | None = None
         self._channel_utilization_pct: float = 0.0
         self._cutoff_active: bool = False
@@ -241,28 +242,71 @@ class AirtimeTracker:
             cutoff_24h = now - 86400.0
             recs = data.get("records", [])
             loaded_count = 0
-            for r_data in recs:
-                try:
-                    rec = AirtimeRecord.from_dict(r_data)
-                    if rec.timestamp >= cutoff_24h:
-                        self._history.append(rec)
-                        self.total_airtime_ms += rec.airtime_ms
-                        self.total_packets += 1
-                        self._channel_airtime[rec.channel_idx] = (
-                            self._channel_airtime.get(rec.channel_idx, 0.0) + rec.airtime_ms
-                        )
-                        self._channel_packets[rec.channel_idx] = (
-                            self._channel_packets.get(rec.channel_idx, 0) + 1
-                        )
-                        if self._last_tx_time is None or rec.timestamp > self._last_tx_time:
-                            self._last_tx_time = rec.timestamp
-                        loaded_count += 1
-                except Exception:
-                    continue
 
-            self._channel_utilization_pct = float(data.get("channel_utilization_pct", 0.0))
-            if self.cutoff_enabled:
-                self._cutoff_active = bool(data.get("cutoff_active", False))
+            with self._lock:
+                has_saved_totals = "total_airtime_ms" in data and "total_packets" in data
+                if has_saved_totals:
+                    self.total_airtime_ms = float(data.get("total_airtime_ms", 0.0))
+                    self.total_packets = int(data.get("total_packets", 0))
+                else:
+                    self.total_airtime_ms = 0.0
+                    self.total_packets = 0
+
+                sum_loaded_airtime = 0.0
+                sum_loaded_packets = 0
+
+                for r_data in recs:
+                    try:
+                        rec = AirtimeRecord.from_dict(r_data)
+                        if rec.timestamp >= cutoff_24h:
+                            self._history.append(rec)
+                            sum_loaded_airtime += rec.airtime_ms
+                            sum_loaded_packets += 1
+                            self._channel_airtime[rec.channel_idx] = (
+                                self._channel_airtime.get(rec.channel_idx, 0.0) + rec.airtime_ms
+                            )
+                            self._channel_packets[rec.channel_idx] = (
+                                self._channel_packets.get(rec.channel_idx, 0) + 1
+                            )
+                            if self._last_tx_time is None or rec.timestamp > self._last_tx_time:
+                                self._last_tx_time = rec.timestamp
+                            loaded_count += 1
+                    except Exception:
+                        continue
+
+                if has_saved_totals:
+                    self.total_airtime_ms = max(self.total_airtime_ms, sum_loaded_airtime)
+                    self.total_packets = max(self.total_packets, sum_loaded_packets)
+                else:
+                    self.total_airtime_ms = sum_loaded_airtime
+                    self.total_packets = sum_loaded_packets
+
+                if "duty_cycle_limit_pct" in data:
+                    try:
+                        self.duty_cycle_limit_pct = float(data["duty_cycle_limit_pct"])
+                    except (ValueError, TypeError):
+                        pass
+                if "warn_threshold_pct" in data:
+                    try:
+                        self.warn_threshold_pct = float(data["warn_threshold_pct"])
+                    except (ValueError, TypeError):
+                        pass
+                if "cutoff_threshold_pct" in data:
+                    try:
+                        self.cutoff_threshold_pct = float(data["cutoff_threshold_pct"])
+                    except (ValueError, TypeError):
+                        pass
+                if "cutoff_resume_pct" in data:
+                    try:
+                        self.cutoff_resume_pct = float(data["cutoff_resume_pct"])
+                    except (ValueError, TypeError):
+                        pass
+                if "cutoff_enabled" in data:
+                    self.cutoff_enabled = bool(data["cutoff_enabled"])
+
+                self._channel_utilization_pct = float(data.get("channel_utilization_pct", 0.0))
+                if self.cutoff_enabled:
+                    self._cutoff_active = bool(data.get("cutoff_active", False))
 
             stats = self.get_stats()
             self._current_status = stats["status_level"]
@@ -283,20 +327,21 @@ class AirtimeTracker:
         if not sync and (now - self._last_save_time) < 10.0:
             return
 
-        self._prune(now)
-        payload: dict[str, Any] = {
-            "version": 1, "saved_at": now,
-            "duty_cycle_limit_pct": self.duty_cycle_limit_pct,
-            "warn_threshold_pct": self.warn_threshold_pct,
-            "total_airtime_ms": round(self.total_airtime_ms, 1),
-            "total_packets": self.total_packets,
-            "channel_utilization_pct": round(self._channel_utilization_pct, 2),
-            "cutoff_active": self._cutoff_active,
-            "cutoff_threshold_pct": self.cutoff_threshold_pct,
-            "cutoff_resume_pct": self.cutoff_resume_pct,
-            "cutoff_enabled": self.cutoff_enabled,
-            "records": [r.to_dict() for r in self._history],
-        }
+        with self._lock:
+            self._prune(now)
+            payload: dict[str, Any] = {
+                "version": 1, "saved_at": now,
+                "duty_cycle_limit_pct": self.duty_cycle_limit_pct,
+                "warn_threshold_pct": self.warn_threshold_pct,
+                "total_airtime_ms": round(self.total_airtime_ms, 1),
+                "total_packets": self.total_packets,
+                "channel_utilization_pct": round(self._channel_utilization_pct, 2),
+                "cutoff_active": self._cutoff_active,
+                "cutoff_threshold_pct": self.cutoff_threshold_pct,
+                "cutoff_resume_pct": self.cutoff_resume_pct,
+                "cutoff_enabled": self.cutoff_enabled,
+                "records": [r.to_dict() for r in self._history],
+            }
         self._last_save_time = now
         try:
             loop = asyncio.get_running_loop()
@@ -341,13 +386,14 @@ class AirtimeTracker:
         """Registra una transmisión realizada y evalúa alertas de umbral progresivo."""
         now = time.time()
         rec = AirtimeRecord(timestamp=now, airtime_ms=airtime_ms, channel_idx=channel_idx, target=target)
-        self._history.append(rec)
-        self.total_airtime_ms += airtime_ms
-        self.total_packets += 1
-        self._last_tx_time = now
-        self._channel_airtime[channel_idx] = self._channel_airtime.get(channel_idx, 0.0) + airtime_ms
-        self._channel_packets[channel_idx] = self._channel_packets.get(channel_idx, 0) + 1
-        self._prune(now)
+        with self._lock:
+            self._history.append(rec)
+            self.total_airtime_ms += airtime_ms
+            self.total_packets += 1
+            self._last_tx_time = now
+            self._channel_airtime[channel_idx] = self._channel_airtime.get(channel_idx, 0.0) + airtime_ms
+            self._channel_packets[channel_idx] = self._channel_packets.get(channel_idx, 0) + 1
+            self._prune(now)
 
         stats = self.get_stats()
         new_status = stats["status_level"]
@@ -379,7 +425,7 @@ class AirtimeTracker:
         self.save_history(sync=status_changed)
 
     def _prune(self, now: float) -> None:
-        """Elimina registros anteriores a 24 horas."""
+        """Elimina registros anteriores a 24 horas. El invocador DEBE sostener self._lock."""
         cutoff_24h = now - 86400.0
         while self._history and self._history[0].timestamp < cutoff_24h:
             self._history.popleft()
@@ -387,14 +433,23 @@ class AirtimeTracker:
     def get_stats(self) -> dict[str, Any]:
         """Retorna estadísticas completas de consumo de Airtime, Duty Cycle y estado de alertas."""
         now = time.time()
-        self._prune(now)
+        with self._lock:
+            self._prune(now)
+            records_snapshot = list(self._history)
+            total_airtime = self.total_airtime_ms
+            total_pkts = self.total_packets
+            ch_util = self._channel_utilization_pct
+            cutoff_act = self._cutoff_active
+            last_tx = self._last_tx_time
+            ch_airtime_copy = {ch: round(ms, 1) for ch, ms in self._channel_airtime.items()}
+            ch_packets_copy = dict(self._channel_packets)
 
         cutoff_1h = now - 3600.0
         hourly_ms = 0.0
         daily_ms = 0.0
         hourly_pkts = 0
 
-        for r in self._history:
+        for r in records_snapshot:
             daily_ms += r.airtime_ms
             if r.timestamp >= cutoff_1h:
                 hourly_ms += r.airtime_ms
@@ -422,24 +477,24 @@ class AirtimeTracker:
             "warn_threshold_pct": self.warn_threshold_pct,
             "hourly_packets": hourly_pkts,
             "daily_used_ms": round(daily_ms, 1),
-            "total_airtime_ms": round(self.total_airtime_ms, 1),
-            "total_packets": self.total_packets,
+            "total_airtime_ms": round(total_airtime, 1),
+            "total_packets": total_pkts,
             "is_throttled": is_critical,
             "is_warning": is_warning,
             "is_critical": is_critical,
             "status_level": status_level,
-            "channel_utilization_pct": round(self._channel_utilization_pct, 2),
-            "cutoff_active": self.is_cutoff_active(),
+            "channel_utilization_pct": round(ch_util, 2),
+            "cutoff_active": cutoff_act if self.cutoff_enabled else False,
             "cutoff_enabled": self.cutoff_enabled,
             "cutoff_threshold_pct": self.cutoff_threshold_pct,
             "cutoff_resume_pct": self.cutoff_resume_pct,
-            "last_tx_time": self._last_tx_time,
+            "last_tx_time": last_tx,
             "channel_stats": {
                 ch: {
-                    "airtime_ms": round(self._channel_airtime.get(ch, 0.0), 1),
-                    "packets": self._channel_packets.get(ch, 0),
+                    "airtime_ms": ch_airtime_copy.get(ch, 0.0),
+                    "packets": ch_packets_copy.get(ch, 0),
                 }
-                for ch in self._channel_airtime
+                for ch in ch_airtime_copy
             },
         }
 
@@ -450,30 +505,44 @@ class AirtimeTracker:
         Retorna True si hubo cambio de estado (activo/inactivo).
         """
         val = max(0.0, min(100.0, round(float(ch_util_pct), 2)))
-        self._channel_utilization_pct = val
         state_changed = False
+        log_msg: str | None = None
+        log_is_warning = False
 
-        if self.cutoff_enabled:
-            if not self._cutoff_active and val >= self.cutoff_threshold_pct:
-                self._cutoff_active = True
-                state_changed = True
-                logging.warning(
-                    f"⚠️ AIRTIME CUTOFF ACTIVADO: Ocupación de canal al {val}% >= {self.cutoff_threshold_pct}%. "
-                    "Sondeos periódicos de telemetría y pings automáticos suspendidos temporalmente."
-                )
-            elif self._cutoff_active and val <= self.cutoff_resume_pct:
-                self._cutoff_active = False
-                state_changed = True
-                logging.info(
-                    f"✅ AIRTIME CUTOFF DESACTIVADO: Ocupación de canal normalizada a {val}% <= {self.cutoff_resume_pct}%. "
-                    "Reanudando sondeos periódicos y tareas normales de red."
-                )
+        with self._lock:
+            self._channel_utilization_pct = val
+
+            if self.cutoff_enabled:
+                if not self._cutoff_active and val >= self.cutoff_threshold_pct:
+                    self._cutoff_active = True
+                    state_changed = True
+                    log_is_warning = True
+                    log_msg = (
+                        f"⚠️ AIRTIME CUTOFF ACTIVADO: Ocupación de canal al {val}% >= {self.cutoff_threshold_pct}%. "
+                        "Sondeos periódicos de telemetría y pings automáticos suspendidos temporalmente."
+                    )
+                elif self._cutoff_active and val <= self.cutoff_resume_pct:
+                    self._cutoff_active = False
+                    state_changed = True
+                    log_is_warning = False
+                    log_msg = (
+                        f"✅ AIRTIME CUTOFF DESACTIVADO: Ocupación de canal normalizada a {val}% <= {self.cutoff_resume_pct}%. "
+                        "Reanudando sondeos periódicos y tareas normales de red."
+                    )
+            cutoff_active = self._cutoff_active
+            ch_util = self._channel_utilization_pct
+
+        if log_msg:
+            if log_is_warning:
+                logging.warning(log_msg)
+            else:
+                logging.info(log_msg)
 
         if state_changed:
             self.save_history(sync=True)
             if self.on_cutoff_change_callback:
                 try:
-                    self.on_cutoff_change_callback(self._cutoff_active, self._channel_utilization_pct)
+                    self.on_cutoff_change_callback(cutoff_active, ch_util)
                 except Exception as e:
                     logging.error(f"Error en on_cutoff_change_callback de AirtimeTracker: {e}")
 
@@ -481,7 +550,8 @@ class AirtimeTracker:
 
     def is_cutoff_active(self) -> bool:
         """Indica si el Airtime Cutoff está activo (deben suspenderse tareas automáticas no críticas)."""
-        return bool(self.cutoff_enabled and self._cutoff_active)
+        with self._lock:
+            return bool(self.cutoff_enabled and self._cutoff_active)
 
 
 class TxRateLimiter:

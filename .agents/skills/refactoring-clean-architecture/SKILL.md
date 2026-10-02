@@ -49,3 +49,9 @@ Esta skill provee el estándar formal para transformar código complejo en códi
 ```bash
 python .agents/skills/refactoring-clean-architecture/scripts/evaluate_refactoring_metrics.py
 ```
+
+## Contrato de uso en MeshCore Bridge
+
+Leer [AGENTS.md](../../../AGENTS.md) y el [índice documental](../../../docs/README.md). Las suites, fuzzing y Playwright sólo se ejecutan bajo petición del usuario; la autorización permanece durante la tarea.
+
+Los umbrales orientativos pueden diferir del catálogo SOLID: no tratarlos como gates incompatibles. Preservar interfaces y comportamiento mediante regresiones autorizadas. Extraer módulos sólo cuando reduzca responsabilidad o acoplamiento demostrado.

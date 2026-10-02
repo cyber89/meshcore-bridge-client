@@ -90,7 +90,7 @@ Respuestas sincrónicas y eventos asíncronos emitidos por el microcontrolador h
 - `0x03` (`CONTACT`): Datos de un contacto individual (clave pública de 32 bytes, nombre, saltos, métricas).
 - `0x04` (`CONTACT_END`): Finalización del volcado de contactos.
 - `0x05` (`SELF_INFO`): Información propia del nodo (nombre, clave pública, frecuencia, modelo de hardware).
-- `0x06` (`MSG_SENT`): Acuse de emisión de mensaje de texto hacia la radio.
+- `0x06` (`MSG_SENT`): Respuesta de envío que incluye información de seguimiento; no acredita por sí sola entrega al destinatario. La confirmación remota corresponde al ACK.
 - `0x07` (`CONTACT_MSG_RECV`): Mensaje directo recibido de un contacto.
 - `0x08` (`CHANNEL_MSG_RECV`): Mensaje recibido en un canal grupal o público.
 - `0x09` (`CURRENT_TIME`): Hora UNIX epoch actual devuelta por el RTC.
@@ -112,10 +112,15 @@ Respuestas sincrónicas y eventos asíncronos emitidos por el microcontrolador h
 ## 4. Parser de Telemetría y Formato CayenneLPP (`parsing.py`)
 
 MeshCore empaqueta los sensores ambientales utilizando el estándar Cayenne Low Power Payload (LPP):
-- **Canal 1**: Temperatura ($0.1^\circ\text{C}$, signed int16).
-- **Canal 2**: Humedad ($0.5\%$, unsigned uint8).
-- **Canal 3**: Presión Barométrica ($0.1\text{ hPa}$, unsigned uint16).
-- **Canal 4**: Voltaje de Batería ($0.01\text{ V}$, unsigned uint16).
-- **Canal 5**: Posición GPS (Latitud/Longitud con resolución de $0.0001^\circ$ y Altitud en metros).
+- **Tipo `0x67`**: Temperatura ($0.1^\circ\text{C}$, signed int16 BE).
+- **Tipo `0x68`**: Humedad ($0.5\%$, unsigned uint8).
+- **Tipo `0x73`**: Presión Barométrica ($0.1\text{ hPa}$, unsigned uint16 BE).
+- **Tipo `0x02`**: Entrada analógica usada para voltaje ($0.01$ unidades, signed int16 BE).
+- **Tipo `0x74`**: Voltaje ($0.01$ V, unsigned int16 BE).
+- **Tipo `0x88`**: Posición GPS (Latitud/Longitud signed 24 bits BE con resolución de $0.0001^\circ$ y altitud signed 24 bits BE con resolución de $0.01$ metros).
+
+Cada elemento tiene un identificador de canal de sensor y un tipo LPP. El firmware elige el canal de sensor; no existe una asignación universal canal 1=temperatura, 2=humedad, etc. Estos identificadores no son canales de chat LoRa. `parsing.py::lpp_parse()` delega el formato a `cayennelpp.LppData.from_bytes()` y `lpp_json_encoder.py` normaliza valores. La referencia C++ `src/helpers/sensors/LPPDataHelpers.h` documenta tipos, signos, multiplicadores y lectura BE.
+
+El SDK usa Companion en Serial/TCP; el fallback `0xAA`/`0x55` con CRC-16 pertenece al bridge. La capacidad de canales se obtiene del dispositivo (`DEVICE_INFO`), y el canal Public del firmware utiliza una PSK conocida: está cifrado pero no es confidencial.
 
 El módulo `lpp_json_encoder.py` convierte estas estructuras binarias directamente en objetos JSON nativos listos para su envío a MQTT y su consumo en plataformas de automatización como n8n.

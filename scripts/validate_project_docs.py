@@ -1,7 +1,7 @@
 """Check maintained Markdown links, ADR metadata and project-owned skill entrypoints.
 
 This structural check does not prove that prose matches firmware or implementation.
-Historical reports, the activity ledger and third-party skill bundles are excluded.
+Historical reports and third-party skill bundles are excluded.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from pathlib import Path
 from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[1]
-HISTORICAL = {"AGENT_ACTIVITY_REPORT.md", "FINAL_PROJECT_REPORT.md", "AUDIT_REPORT_2026-08-17.md"}
+HISTORICAL = {"FINAL_PROJECT_REPORT.md", "AUDIT_REPORT_2026-08-17.md"}
 VENDOR_SKILLS = {"archify", "ui-ux-pro-max"}
 
 

@@ -1523,6 +1523,49 @@ body {
     gap: 8px;
   }
 
+  .header-left {
+    flex: 1;
+    min-width: 0;
+    gap: 8px;
+  }
+
+  .header-right,
+  .header-right > .btn-icon,
+  .header-left .logo-icon {
+    flex-shrink: 0;
+  }
+
+  .header-left .logo-badge,
+  .header-left .logo-text-group,
+  .header-left .connection-status,
+  .header-left .radio-status-pill {
+    min-width: 0;
+  }
+
+  .header-left .connection-status {
+    padding-inline: 6px;
+  }
+
+  .header-left .radio-status-pill {
+    max-width: 100%;
+    padding-inline: 6px;
+    gap: 4px;
+  }
+
+  .header-left .logo-title,
+  .header-left .logo-version,
+  .header-left .status-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .header-left .logo-version {
+    max-width: 100%;
+    align-self: flex-start;
+  }
+
   .header-center {
     display: none;
   }

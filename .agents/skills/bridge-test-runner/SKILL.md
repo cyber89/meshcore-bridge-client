@@ -1,44 +1,28 @@
 ---
 name: bridge-test-runner
-description: >-
-  Orquestador de verificación estática y dinámica para MeshCore Bridge. Ejecuta en secuencia
-  pytest (pruebas unitarias/fuzzing), mypy --strict (comprobación estricta de tipos) y ruff
-  (linter y estilo de código), generando un informe unificado de calidad. Usar siempre antes de
-  finalizar cambios o para depurar fallos en el parser/bridge.
+description: Ejecutar pytest, cobertura, mypy y ruff de MeshCore Bridge cuando el usuario autoriza pruebas; conservar resultados y fallos reales.
 ---
 
-# MeshCore Bridge Test & Quality Runner Skill
+# Verificación del proyecto
 
-Esta skill permite al **Protocol QA & Fuzzing Agent** y al **Python Bridge Architect Agent** validar de forma automatizada que los cambios cumplan con los estándares de robustez, tipado estricto y ausencia de regresiones.
+Leer [AGENTS.md](../../../AGENTS.md) y [TESTING.md](../../../docs/TESTING.md).
+Ejecutar suites únicamente cuando el usuario lo solicite; una autorización se mantiene
+durante la tarea. Las verificaciones usan radio virtual, loopback y datos temporales.
 
-## Scripts y Herramientas
+El ejecutor canónico es [run_quality_checks.py](../../../scripts/run_quality_checks.py).
+[run_checks.py](scripts/run_checks.py) conserva el punto de entrada de esta skill.
 
-El script principal de verificación se encuentra en:
-[run_checks.py](./scripts/run_checks.py)
-
-## Modos de Uso
-
-### 1. Ejecución Completa (Pytest + Mypy + Ruff)
 ```bash
-python .agents/skills/bridge-test-runner/scripts/run_checks.py
+python scripts/run_quality_checks.py --report tests/artifacts/quality.json
+python scripts/run_quality_checks.py --only-tests -- tests/test_rx_routers.py -q
+python scripts/run_quality_checks.py --only-types
+python scripts/run_quality_checks.py --only-lint
+python scripts/run_quality_checks.py --only-docs
+python scripts/run_quality_checks.py --only-tests --timeout 900 --json
 ```
 
-### 2. Ejecutar Solo Suites de Pruebas (Pytest)
-```bash
-python .agents/skills/bridge-test-runner/scripts/run_checks.py --only-tests
-```
-
-### 3. Pasar Argumentos Específicos a Pytest (ej. ejecutar solo un archivo de prueba)
-```bash
-python .agents/skills/bridge-test-runner/scripts/run_checks.py --only-tests tests/test_protocol_types.py
-```
-
-### 4. Ejecutar Solo Verificación Estricta de Tipos (Mypy)
-```bash
-python .agents/skills/bridge-test-runner/scripts/run_checks.py --only-types
-```
-
-### 5. Salida en Formato JSON
-```bash
-python .agents/skills/bridge-test-runner/scripts/run_checks.py --json
-```
+Usa el intérprete actual. Herramientas ausentes, colección vacía, fallos y timeouts
+son resultados fallidos; no sustituir pytest por unittest ni anunciar éxito de una
+suite distinta. El timeout es por herramienta; conservar stdout/stderr parciales.
+Informar conteos, cobertura, skips y limitaciones de navegador o hardware por separado.
+No repetir comprobaciones aprobadas salvo cambios posteriores o dudas concretas.

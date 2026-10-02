@@ -18,7 +18,7 @@ sin publicarse; el inventario identifica el HEAD usado como base.
 | MQTT/n8n | [guía](N8N_WORKFLOW_GUIDE.md), [export JSON](../n8n_workflow_meshcore.json), `mqtt_dispatcher.py` y routers RX. |
 | Configuración | [config.py](../config.py) y [.env.example](../.env.example); el ejemplo puede diferir del default. No leer ni publicar `.env` activo para inventariar. |
 | Decisiones | [ADRs](adr/); conservar su historia y distinguir propuesta, decisión e implementación. |
-| Evidencia histórica | [ledger](AGENT_ACTIVITY_REPORT.md), [auditoría agosto](AUDIT_REPORT_2026-08-17.md), [informe agosto](FINAL_PROJECT_REPORT.md). Sus resultados no acreditan este checkout. |
+| Evidencia histórica | [auditoría agosto](AUDIT_REPORT_2026-08-17.md), [informe agosto](FINAL_PROJECT_REPORT.md). Sus resultados no acreditan este checkout. |
 | Mapas | [guía MBTiles](../data/maps/README.md), `map_tile_service.py`; SQLite se usa para cartografía. |
 | Diagramas | [arquitectura](diagrams/meshcore_architecture.html), [pipeline](diagrams/meshcore_packet_pipeline.html), [secuencia](diagrams/meshcore_rx_tx_sequence.html); JSON fuente y recibos visuales tienen su propia fecha. |
 | Inventario reproducible | [PROJECT_INVENTORY.json](PROJECT_INVENTORY.json): documentos con hash, archivos fuente, skills, entradas raíz y referencias con revisión/procedencia. |

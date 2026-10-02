@@ -41,3 +41,7 @@ En versiones tempranas y en herramientas de terceros, ocurrían tres anomalías 
   - Interfaz de usuario veraz y coherente con la realidad física del hardware USB.
 - **Negativas / Compensaciones**:
   - El usuario no puede utilizar el chat para probar transmisiones "hacia sí mismo" (debe usar un segundo nodo físico o el simulador de radio).
+
+## Precisión de Alcance (2026-09-29)
+
+La exclusión de LOCAL de Contactos y el bloqueo de DM propio se mantienen como invariantes. El distintivo «5V USB» es una convención de presentación del host, no una medición ni prueba de ausencia de batería en cualquier placa conectada. El filtrado de origen reduce bucles de aplicación; no garantiza la imposibilidad de toda retransmisión RF ni de toda retroalimentación externa MQTT/n8n. En RX no se devuelven errores HTTP: la respuesta HTTP corresponde al controlador de transmisión, mientras el router identifica y filtra eventos.

@@ -761,7 +761,7 @@ class NodeRegistry:
     """Directorio en memoria para contactos y resolución de nombres de la red MeshCore."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._nodes_by_key: dict[str, NodeContactInfo] = {}
         self._nodes_by_name: dict[str, str] = {}  # lower(name) -> public_key
         self._local_pubkey: str = ""
@@ -884,8 +884,9 @@ class NodeRegistry:
         """Devuelve la clave pública canónica (más larga o conocida) para una clave o prefijo."""
         if not is_valid_node_key(raw_key):
             return ""
-        existing = self._find_existing_key(raw_key, name)
-        return existing if existing else raw_key.strip().lower()
+        with self._lock:
+            existing = self._find_existing_key(raw_key, name)
+            return existing if existing else raw_key.strip().lower()
 
     def _resolve_canonical_key_and_clean_locals(
         self,
@@ -1234,18 +1235,20 @@ class NodeRegistry:
 
     def list_discovered(self) -> list[dict[str, Any]]:
         """Lista los nodos clientes descubiertos automáticamente que no estén en la libreta."""
-        results = []
-        for c in self._nodes_by_key.values():
-            if c.auto_discovered and (c.role or "").upper() == "CLIENT" and not c.is_local:
-                results.append(c.to_dict())
-        return results
+        with self._lock:
+            results = []
+            for c in self._nodes_by_key.values():
+                if c.auto_discovered and (c.role or "").upper() == "CLIENT" and not c.is_local:
+                    results.append(c.to_dict())
+            return results
 
     def accept_discovered_contact(self, public_key: str) -> bool:
         """Marca un nodo descubierto como contacto permanente aceptado."""
         norm_key = public_key.strip().lower()
-        existing_key = self._find_existing_key(norm_key)
-        if not existing_key or existing_key not in self._nodes_by_key:
-            return False
+        with self._lock:
+            existing_key = self._find_existing_key(norm_key)
+            if not existing_key or existing_key not in self._nodes_by_key:
+                return False
         self.add_or_update(
             existing_key,
             NodeContactUpdate(
@@ -1329,19 +1332,20 @@ class NodeRegistry:
             return None
         q = query.strip().lower()
 
-        # 1. Búsqueda exacta por clave pública
-        if q in self._nodes_by_key:
-            return self._nodes_by_key[q]
+        with self._lock:
+            # 1. Búsqueda exacta por clave pública
+            if q in self._nodes_by_key:
+                return self._nodes_by_key[q]
 
-        # 2. Búsqueda por nombre o alias
-        if q in self._nodes_by_name:
-            target_key = self._nodes_by_name[q]
-            return self._nodes_by_key.get(target_key)
+            # 2. Búsqueda por nombre o alias
+            if q in self._nodes_by_name:
+                target_key = self._nodes_by_name[q]
+                return self._nodes_by_key.get(target_key)
 
-        # Una clave completa diferente no es un prefijo de una identidad conocida.
-        matches = [contact for key, contact in self._nodes_by_key.items()
-                   if len(q) < len(key) and key.startswith(q)]
-        return matches[0] if len(matches) == 1 else None
+            # Una clave completa diferente no es un prefijo de una identidad conocida.
+            matches = [contact for key, contact in self._nodes_by_key.items()
+                       if len(q) < len(key) and key.startswith(q)]
+            return matches[0] if len(matches) == 1 else None
 
 
     def find_by_name(self, name: str) -> NodeContactInfo | None:
@@ -1349,16 +1353,17 @@ class NodeRegistry:
         if not name:
             return None
         n_clean = name.strip().lower()
-        if n_clean in self._nodes_by_name:
-            cand_key = self._nodes_by_name[n_clean]
-            res = self._nodes_by_key.get(cand_key)
-            if res:
-                return res
-        for contact in self._nodes_by_key.values():
-            c_name = (contact.name or "").strip().lower()
-            c_alias = (contact.alias or "").strip().lower()
-            if c_name == n_clean or c_alias == n_clean:
-                return contact
+        with self._lock:
+            if n_clean in self._nodes_by_name:
+                cand_key = self._nodes_by_name[n_clean]
+                res = self._nodes_by_key.get(cand_key)
+                if res:
+                    return res
+            for contact in self._nodes_by_key.values():
+                c_name = (contact.name or "").strip().lower()
+                c_alias = (contact.alias or "").strip().lower()
+                if c_name == n_clean or c_alias == n_clean:
+                    return contact
         return None
 
     def get(self, query: str) -> NodeContactInfo | None:
@@ -1706,23 +1711,24 @@ class NodeRegistry:
             with open(target_path, encoding="utf-8") as f:
                 data = json.load(f)
             loaded_count = 0
-            for nd in data.get("nodes", []):
-                contact = self._deserialize_node_contact(nd)
-                if not contact:
-                    continue
-                self._nodes_by_key[contact.public_key] = contact
-                if contact.name:
-                    self._nodes_by_name[contact.name.lower()] = contact.public_key
-                if contact.alias:
-                    self._nodes_by_name[contact.alias.lower()] = contact.public_key
-                loaded_count += 1
+            with self._lock:
+                for nd in data.get("nodes", []):
+                    contact = self._deserialize_node_contact(nd)
+                    if not contact:
+                        continue
+                    self._nodes_by_key[contact.public_key] = contact
+                    if contact.name:
+                        self._nodes_by_name[contact.name.lower()] = contact.public_key
+                    if contact.alias:
+                        self._nodes_by_name[contact.alias.lower()] = contact.public_key
+                    loaded_count += 1
 
-            if "local_pubkey" in data and data["local_pubkey"]:
-                self.set_local_pubkey(data["local_pubkey"])
-            elif self._local_pubkey:
-                self.set_local_pubkey(self._local_pubkey)
-            if "error_categories" in data and isinstance(data["error_categories"], dict):
-                self.error_categories.update(data["error_categories"])
+                if "local_pubkey" in data and data["local_pubkey"]:
+                    self.set_local_pubkey(data["local_pubkey"])
+                elif self._local_pubkey:
+                    self.set_local_pubkey(self._local_pubkey)
+                if "error_categories" in data and isinstance(data["error_categories"], dict):
+                    self.error_categories.update(data["error_categories"])
 
             logging.info(f"NodeRegistry cargado exitosamente desde {target_path} ({loaded_count} nodos)")
             return loaded_count

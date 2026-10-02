@@ -7,8 +7,8 @@
   "visualReview": "pending",
   "artifact": {
     "path": "C:\\Users\\Ruby\\Desktop\\meshcore-bridge\\docs\\diagrams\\meshcore_architecture.html",
-    "sha256": "4823df0e79a56db5a40807412462aeec988985f541a5939a89c213fa57bf9c50",
-    "bytes": 820799
+    "sha256": "be01c3f9379285e0b122713bd89bcee647a7354726fedc5c363c52aec3095aef",
+    "bytes": 820784
   },
   "state": {
     "detail": "read",
@@ -16,7 +16,7 @@
   },
   "chrome": {
     "status": "available",
-    "executable": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+    "executable": "C:\\Users\\Ruby\\AppData\\Local\\ms-playwright\\chromium-1234\\chrome-win64\\chrome.exe"
   },
   "diagnostics": [],
   "containment": {

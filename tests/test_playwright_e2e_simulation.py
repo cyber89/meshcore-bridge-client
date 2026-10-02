@@ -46,6 +46,37 @@ async def test_playwright_delivery_ack_and_echo(browser_page: Page) -> None:
     await expect(browser_page.locator(".message-bubble-row.incoming").last).to_contain_text(message)
 
 
+async def test_mobile_header_with_wider_fallback_font(browser_page: Page) -> None:
+    """Platform font metrics must not push theme/language controls off screen."""
+    await browser_page.set_viewport_size({"width": 390, "height": 844})
+    await browser_page.locator("header.app-header").evaluate("""element => {
+        element.style.fontFamily = 'monospace';
+        element.style.letterSpacing = '1px';
+    }""")
+    await browser_page.evaluate("document.fonts.ready")
+    # Serial ports may be persistent /dev/serial/by-id paths, not only ttyUSB0.
+    await browser_page.locator("#radio-status .status-text").evaluate("""element => {
+        element.textContent = window.I18n.t('app.radio_online').replace(
+            '{port}', '/dev/serial/by-id/usb-MeshCore_Companion_123456789');
+    }""")
+    geometry = await browser_page.evaluate("""() => ({
+        viewport: innerWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+        header: document.querySelector('header.app-header').getBoundingClientRect().toJSON(),
+        actions: ['themeToggleBtn', 'langToggleBtn'].map(id => ({
+            id, ...document.getElementById(id).getBoundingClientRect().toJSON()
+        }))
+    })""")
+    assert geometry["scrollWidth"] <= geometry["viewport"], json.dumps(geometry)
+    for action in geometry["actions"]:
+        assert 0 <= action["left"] < action["right"] <= geometry["viewport"], json.dumps(geometry)
+        await expect(browser_page.locator(f"#{action['id']}")).to_be_visible()
+    # The controls remain usable rather than merely hidden to satisfy the bounds.
+    await browser_page.locator("#themeToggleBtn").click()
+    await expect(browser_page.locator("body")).to_have_class(re.compile(r".*\blight-theme\b.*"))
+    await browser_page.locator("#langToggleBtn").click(trial=True)
+
+
 @pytest.mark.parametrize("width,height", [(1920, 1080), (390, 844)])
 async def test_playwright_responsive_layout(browser_page: Page, width: int, height: int) -> None:
     await browser_page.set_viewport_size({"width": width, "height": height})

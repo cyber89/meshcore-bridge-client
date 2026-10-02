@@ -1410,14 +1410,27 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         if not self.is_connected or not self.mc:
             return {"status": "LOCAL_REMOVED", "public_key": pubkey}
 
+        resolved_target: str = pubkey
+        try:
+            target_obj = self._resolve_target(pubkey)
+            if isinstance(target_obj, dict):
+                resolved_target = str(target_obj.get("public_key") or target_obj.get("key") or pubkey)
+            elif hasattr(target_obj, "public_key"):
+                resolved_target = str(target_obj.public_key or pubkey)
+            elif isinstance(target_obj, str):
+                resolved_target = target_obj
+        except Exception as e_res:
+            logging.debug(f"TargetResolver no pudo resolver contacto para eliminación: {e_res}")
+
         try:
             if hasattr(self.mc, "commands") and hasattr(self.mc.commands, "remove_contact"):
-                res = await self.run_sdk_command("remove_contact", pubkey)
+                res = await self.run_sdk_command("remove_contact", resolved_target)
                 error = self._command_error(res)
                 if error:
                     return error
                 contacts = getattr(self.mc, "_contacts", None)
                 if isinstance(contacts, dict):
+                    contacts.pop(resolved_target, None)
                     contacts.pop(pubkey, None)
                 return {"status": "OK", "response": str(res)}
         except Exception as e:

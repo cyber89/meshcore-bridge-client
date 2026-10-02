@@ -2,11 +2,13 @@
 
 Esta guía describe el procedimiento para desplegar el puente **MeshCore Bridge** en **Armbian (Orange Pi 2W)**, **Raspberry Pi**, **Debian** o **Ubuntu** con arranque automático mediante **systemd**, broker **Mosquitto** y conexión a **n8n**.
 
+Guía vigente revisada el 2026-09-29 por lectura de los instaladores raíz. No acredita una instalación completada ni compatibilidad de cada modelo. Consulte el [índice documental](README.md); los informes de agosto son históricos. Los archivos vigentes son `install.sh`, `install.ps1` y `meshcore-bridge.service` en la raíz; no existe un directorio `deploy/` actual.
+
 ---
 
 ## 📻 Dispositivos de Radio LoRa Compatibles
 
-El puente es **100% compatible con cualquier placa** que ejecute el firmware **MeshCore Companion USB (v1.17+)**:
+El adaptador principal utiliza el SDK `meshcore>=2.3.8` con firmware **MeshCore Companion**. La versión del paquete Python no es la versión del firmware. La compatibilidad y los comandos disponibles dependen del dispositivo y de su firmware; estas familias son ejemplos que requieren verificación en hardware:
 
 | Fabricante / Familia | Modelos Soportados | Chipset USB Típico | Puerto Serial Habitual |
 | :--- | :--- | :--- | :--- |
@@ -27,17 +29,17 @@ cd meshcore-bridge
 # Para instalar desde cero:
 sudo bash install.sh
 
-# Para actualizar una instalación existente (conservando .env y base de datos):
+# Para actualizar una instalación existente (conservando .env y archivos de datos):
 sudo bash install.sh --update
 ```
 
-**El instalador realizará todo de forma 100% automática:**
+**El instalador realiza estas tareas si dispone de los permisos, paquetes y servicios necesarios:**
 1. Instala paquetes del sistema (`python3-venv`, `pip`, `mosquitto`, `git`, `udev`).
-2. Configura e inicia el broker **Mosquitto** escuchando en `127.0.0.1:1883`.
+2. Configura e inicia **Mosquitto** escuchando en `0.0.0.0:1883` con `allow_anonymous true`. Esto expone el broker a otras interfaces del host; revise el bind, autenticación y firewall para su red.
 3. Asigna permisos al usuario para el puerto serial (`dialout` / `tty`).
 4. **Detecta automáticamente el puerto de tu placa LoRa** conectada por USB.
 5. Despliega los archivos en `/opt/meshcore-bridge` y crea el archivo de configuración `.env`.
-6. Crea el entorno virtual e instala las librerías (`paho-mqtt`, `meshcore`, `python-dotenv`, `pyserial`, `pyserial-asyncio`, `pycayennelpp`).
+6. Crea `venv/` e instala `requirements.txt`: `paho-mqtt`, `meshcore`, `python-dotenv` y `pyserial`. El decodificador CayenneLPP es nativo; no requiere `pycayennelpp` ni el parser raw actual importa `pyserial-asyncio`.
 7. Registra, habilita y arranca el servicio **`meshcore-bridge.service`** en systemd.
 
 ---
@@ -46,7 +48,7 @@ sudo bash install.sh --update
 
 ### 1. Requisitos Previos
 
-- Placa de desarrollo LoRa (Heltec, LilyGO, RAKwireless, Seeed, RP2040) flasheada con firmware **MeshCore Companion** (v1.17+).
+- Placa LoRa con firmware **MeshCore Companion** compatible con los comandos usados por el SDK.
 - Cable USB con soporte de datos conectado al host Linux.
 - Sistema Operativo Linux (Armbian, Debian 11/12, Ubuntu 22.04/24.04, Raspberry Pi OS).
 - Python 3.10 o superior (`python3 --version`).
@@ -84,11 +86,11 @@ sudo apt install -y python3 python3-pip python3-venv mosquitto mosquitto-clients
 
 ### 4. Configuración del Broker Mosquitto
 
-Crea el archivo de configuración para permitir conexiones locales:
+Cree una configuración para un broker limitado al host. Este ejemplo manual usa loopback; difiere del bind abierto que escriben las ramas de instalación/actualización del instalador actual. Para un n8n remoto, configure explícitamente una interfaz accesible, credenciales y permisos del broker.
 
 ```bash
 sudo tee /etc/mosquitto/conf.d/meshcore_local.conf << 'EOF'
-listener 1883 0.0.0.0
+listener 1883 127.0.0.1
 allow_anonymous true
 EOF
 
@@ -121,13 +123,13 @@ sudo systemctl enable mosquitto
     cp .env.example .env
     nano .env
     ```
-    *Verifica que `SERIAL_PORT` apunte a tu dispositivo (ej. `/dev/ttyACM0`, `/dev/ttyUSB0` o `AUTO`) y que `DATA_DIR` esté configurado en `data`.*
+    *Verifique `SERIAL_PORT` (`/dev/ttyACM0`, `/dev/ttyUSB0`, `AUTO` o `tcp://host:port`) y `DATA_DIR`. Para USB puede utilizar una ruta persistente de `/dev/serial/by-id/`. El default de `config.py` es `/dev/ttyACM0` fuera de Windows y `AUTO` en Windows; `.env` puede sobrescribirlo.*
 
 ---
 
 ### 6. Configuración del Servicio systemd
 
-1. Copia y edita la plantilla de servicio:
+1. Copie y edite la plantilla de servicio, incluyendo `User`, `Group` y permisos del puerto. La plantilla usa `WorkingDirectory=/opt/meshcore-bridge` y ejecuta `venv/bin/python meshcore_bridge.py`:
    ```bash
    sudo cp meshcore-bridge.service /etc/systemd/system/
    ```
@@ -162,11 +164,12 @@ Una vez iniciado el servicio, accede desde cualquier navegador en la misma red l
 
 ## 📱 Conexión con Companion Apps Móviles (Android / iOS / CLI)
 
-El bridge incluye un servidor TCP Companion integrado (compatible con el protocolo oficial MeshCore):
+El bridge incluye un servidor TCP Companion que recibe comandos binarios y reenvía payloads al Companion conectado. Utiliza framing oficial (`<`/`>` y longitud little-endian); no el framing raw propio `0xAA/0x55`. Su compatibilidad efectiva depende del adaptador y firmware:
 - **Host**: IP de tu servidor o Raspberry Pi
 - **Puerto**: `5000` (configurable mediante `TCP_SERVER_PORT`)
 - **Límite Conexiones**: Hasta 8 clientes simultáneos (`MAX_COMPANION_CLIENTS=8`) con protección contra DoS.
 - **Token de Acceso (Opcional)**: Configurable mediante `COMPANION_TOKEN` en `.env`.
+- **Lista de IPs (Opcional)**: `COMPANION_ALLOWED_IPS`; vacío permite todas. Estos controles son independientes de `BRIDGE_API_KEY` y de las credenciales MQTT.
 
 ---
 
@@ -179,7 +182,7 @@ Si en cualquier momento cambias de placa (por ejemplo, cambias un Heltec por un 
    ```bash
    sudo bash install.sh --update
    ```
-3. El instalador detectará el nuevo puerto serial y reiniciará el servicio automáticamente.
+3. El instalador intenta detectar el puerto y reiniciar el servicio. Revise `.env`, permisos e identidad del nodo tras cambiar de placa; una ruta persistente USB suele facilitar esa revisión.
 
 ---
 
@@ -190,7 +193,7 @@ Si en cualquier momento cambias de placa (por ejemplo, cambias un Heltec por un 
 mosquitto_sub -t "meshcore/rx/#" -v
 ```
 
-### 2. Enviar mensaje de prueba por radio (TX):
+### 2. Enviar mensaje de prueba por radio (TX, opcional bajo demanda):
 ```bash
 mosquitto_pub -t "meshcore/tx" -m '{"to": "broadcast", "channel_index": 0, "text": "Prueba de enlace LoRa"}'
 ```
@@ -206,8 +209,10 @@ curl -s http://127.0.0.1:8080/api/status | jq .
 ```
 
 ### Instalación en Windows (PowerShell)
-Documenta el uso de `install.ps1`:
+`install.ps1` utiliza el intérprete `python`/`py` encontrado en PATH y ejecuta pip en ese intérprete. No crea un venv automáticamente. Para aislar dependencias, cree y active un entorno antes de invocarlo desde la raíz del proyecto:
 ```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 # Instalación completa
 .\install.ps1
 
@@ -232,4 +237,10 @@ python scripts/simulate_tcp_mesh_network.py
 ```
 
 ### Mapas Offline
-Documenta la configuración del servicio de teselas offline (`map_tile_service.py`) para SBCs sin Internet. Para usarlo, arranca el puente y asegúrate de que `WEB_ENABLED` esté en `true`. Las teselas se sirven localmente evitando peticiones a proveedores externos.
+`MapTileService` sirve archivos XYZ desde `data/maps/tiles/{z}/{x}/{y}.ext` o archivos `.mbtiles` de `data/maps/`. MBTiles utiliza SQLite de sólo lectura para cartografía; no es una base de nodos ni de mensajes. Consulte `/api/map/status` y recargue el índice cuando añada mapas. No basta con activar `WEB_ENABLED`: hacen falta teselas locales y seleccionar el modo de mapa correspondiente en la UI.
+
+### Datos y actualización
+
+Guarde copia de `.env`, archivos JSON de `DATA_DIR`, mapas y logs antes de una actualización. Canales, nodos y airtime estimado usan JSON; las capturas `PacketBuffer` y deduplicación son RAM, y chat del navegador usa IndexedDB. El código actual no mantiene una cola MQTT durable en disco ni una base SQLite de mensajes. `install.sh --update` conserva configuración/datos, pero puede volver a escribir la configuración de Mosquitto; revisar sus efectos antes de aplicarlo.
+
+La [guía n8n](N8N_WORKFLOW_GUIDE.md) describe la programación existente cada seis horas y su zona horaria a configurar. Ejecutar el bridge real, activar el workflow, enviar un TX o sondear un repetidor puede afectar hardware/RF. La lectura o edición de documentación no ejecuta esas operaciones. Para nuevas automatizaciones, intervalos o cambios de radio, aplicar el checklist de `AGENTS.md` y acordar límites con el usuario.

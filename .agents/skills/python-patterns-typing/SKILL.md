@@ -1,42 +1,29 @@
 ---
 name: python-patterns-typing
-description: >-
-  Estándares avanzados de Python moderno (3.10+): Tipado estático estricto (mypy --strict),
-  estructuras inmutables (@dataclass slots/frozen), protocolos estructurales (typing.Protocol),
-  patrones asíncronos nativos (asyncio/async generators) y suites deterministas de pytest.
+description: Mantener Python 3.10 compatible, tipos estrictos y modelos de dominio de MeshCore Bridge; usar al modificar Python del proyecto.
 ---
 
-# Python Patterns & Static Typing Skill
+# Python del bridge
 
-Esta skill establece las directrices de ingeniería y tipado estático estricto para Python moderno (>= 3.10) en arquitecturas de alto rendimiento y grado industrial.
+Respetar [AGENTS.md](../../../AGENTS.md), [CONTEXT.md](../../../CONTEXT.md) y
+[pyproject.toml](../../../pyproject.toml). El mínimo soportado es Python 3.10.
 
-## Principios Fundamentales
-1. **Tipado Estático Estricto (mypy --strict)**:
-   - Toda función, método y generador debe declarar anotaciones completas en parámetros y retorno (`def func(x: int) -> list[str]:`).
-   - Uso de uniones modernas con sintaxis de pipe (`str | None`, `int | float`) en lugar de `Optional` o `Union`.
-   - Colecciones nativas parametrizadas (`list[dict[str, Any]]`, `tuple[int, ...]`, `set[str]`) importando `from __future__ import annotations`.
-   - Prohibido el uso indiscriminado de `Any`. Utilizar `TypeVar`, `Generic[T]`, o `typing.Protocol` para polimorfismo estructural.
-   - Uso de `typing.Self` para métodos fluidos o constructores alternativos que retornan la instancia de la clase.
-   - Uso de `typing.assert_never()` en ramas de exhaustividad de `match`/`if-elif` sobre Enums.
-   - `typing.TypeGuard` para funciones de estrechamiento de tipos seguras en tiempo de análisis estático.
+- Anotar interfaces públicas y funciones nuevas; usar Protocol para adaptadores y
+  reservar Any para límites externos que todavía no tienen esquema validado.
+- Los enums de protocolo son IntEnum; usar dataclasses frozen para valores inmutables
+  y slots cuando corresponda. No congelar indiscriminadamente estado operativo mutable.
+- `typing.Self` y `assert_never` son de Python 3.11. En 3.10 usar TypeVar/patrones
+  compatibles; un backport requiere dependencia explícita y justificación.
+- Mantener cancelación, referencias a tareas propias y limpieza de recursos.
+  Ver [async-concurrency-engineering](../async-concurrency-engineering/SKILL.md).
+- Pruebas autorizadas: fixtures temporales, mocks del SDK y adaptadores virtuales;
+  expectativas sobre comportamiento, no detalles privados accidentales.
 
-2. **Inmutabilidad y Eficiencia de Memoria**:
-   - Modelos de datos y tramas de protocolo deben usar `@dataclass(frozen=True, slots=True)` para optimización de memoria (reducción de `__dict__`) e inmutabilidad garantizada.
-   - Enums tipados estrictos derivados de `enum.Enum` o `enum.IntEnum`.
-
-3. **Asincronía Determinista (asyncio)**:
-   - Nunca realizar llamadas I/O bloqueantes dentro del event loop (`time.sleep` $\to$ `asyncio.sleep`, `socket.recv` $\to$ `asyncio.StreamReader.read`).
-   - Gestión adecuada de tareas en segundo plano con `asyncio.create_task` y almacenamiento de referencias para evitar que el garbage collector las destruya prematuramente.
-   - Manejo de cancelación limpia (`asyncio.CancelledError`) en loops de larga duración.
-
-4. **Testing Determinista con Pytest**:
-   - Fixtures modulares y parametrización con `@pytest.mark.parametrize`.
-   - Aislamiento de recursos y limpieza garantizada (`setUp`/`tearDown` o `yield` fixtures).
-   - Uso de `unittest.IsolatedAsyncioTestCase` o `pytest-asyncio` para corutinas.
-
-## Herramientas de Verificación
 ```bash
+python -m mypy --strict src
+python -m ruff check src tests scripts
 python .agents/skills/python-patterns-typing/scripts/verify_python_standards.py
-python -m mypy src/
 ```
 
+El script propio es una inspección AST orientativa; mypy es el comprobador de tipos.
+No presentar ninguno como demostración de funcionamiento en hardware.

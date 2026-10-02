@@ -1,13 +1,17 @@
 # Arquitectura de MeshCore Bridge v3.0
 
 ## 1. Resumen Ejecutivo
-MeshCore Bridge v3.0 es una pasarela asíncrona avanzada que interconecta redes de radio LoRa (mediante protocolo serial en formato HDLC derivado con SOF/EOF) con infraestructuras IP a través de MQTT y una interfaz de usuario Web moderna (SPA). Construida sobre Python 3.10+ y la biblioteca `asyncio`, ofrece un puente bidireccional transparente, concurrente y resiliente entre mallas de radiofrecuencia (RF) y redes IP, todo sin depender de frameworks web pesados.
+MeshCore Bridge v3.0 conecta una radio MeshCore Companion con MQTT, REST y una SPA mediante Python 3.10+ y `asyncio`. El camino de hardware habitual utiliza el SDK `meshcore`; el servidor Web implementa HTTP 1.1 y WebSocket con `asyncio.start_server`, sin ASGI.
+
+Documento vigente revisado el 2026-09-29 por inspección de código. Los modelos/clases describen la implementación, no medidas de rendimiento o certificaciones. El [índice documental](README.md) distingue guías vigentes, contratos e informes históricos.
+
+El framing Companion oficial (`<`/`>`, longitud `uint16` little-endian y payload) es distinto del formato raw propio `0xAA/0x55/0x1B` con CRC-16 de `MeshcoreFrame`. El adaptador raw actual es un parser en memoria sin E/S física; no es una etapa obligatoria del RX/TX SDK ni del paquete RF oficial.
 
 ## 1.1 Mapas Interactivos de Arquitectura (Generados con Archify)
 El sistema cuenta con mapas interactivos de alta fidelidad compilados determinísticamente con el motor [**Archify** (`tt-a1i/archify`)](https://github.com/tt-a1i/archify). Estos artefactos son completamente autónomos en **HTML + SVG**, no requieren conexión a internet y cuentan con soporte para tema Claro/Oscuro, modos visuales (*classic*, *signal-flow*, *blueprint*), zoom, paneo, búsqueda y capítulos guiados:
 
 - 🗺️ [**Arquitectura General del Sistema (`meshcore_architecture.html`)**](diagrams/meshcore_architecture.html): Mapeo completo de subsistemas, capas de aislamiento, drivers serie, núcleo asyncio, persistencia y clientes IP.
-- ⚡ [**Pipeline de Tramas LoRa a IP (`meshcore_packet_pipeline.html`)**](diagrams/meshcore_packet_pipeline.html): Flujo determinista paso a paso desde el paquete RF, framing HDLC, chequeo CRC-16, deduplicador, hasta el WebSocket Hub y broker MQTT.
+- ⚡ [**Pipeline Raw Propio a IP (`meshcore_packet_pipeline.html`)**](diagrams/meshcore_packet_pipeline.html): Camino del parser raw propio, validación CRC de ese formato, deduplicación y consumo IP. El camino SDK entrega eventos Companion sin pasar por ese parser.
 - ⏱️ [**Secuencia Operativa Bidireccional (`meshcore_rx_tx_sequence.html`)**](diagrams/meshcore_rx_tx_sequence.html): Diagrama de secuencia temporal que ilustra la recepción reactiva de tramas y la ejecución de comandos administrativos Hop 0 con rate limiter.
 
 > **Regeneración de diagramas**:
@@ -16,24 +20,98 @@ El sistema cuenta con mapas interactivos de alta fidelidad compilados determiní
 > python scripts/build_diagrams.py
 > ```
 
-## 2. Diagrama de Arquitectura General
+## 2. Modelo Canónico de Arquitectura en 5 Capas
+
+El sistema se estructura bajo una arquitectura limpia y desacoplada (*Clean Architecture* / *Ports & Adapters*) complementada con la filosofía de **Deep Modules** (John Ousterhout). Esta distribución organiza el código en cinco capas concéntricas con responsabilidades unívocas e invariantes de dominio:
+
+```mermaid
+flowchart TB
+    subgraph L1 ["Capa 1: Presentación y Exposición (Ingress / Egress)"]
+        direction LR
+        UI["Web SPA (Vanilla HTML5/CSS3/JS)"]
+        HTTP["HTTP 1.1 / WS Server (asyncio nativo)"]
+        Controllers["Controladores REST (controllers/*)"]
+        MQTT_Ext["Cliente MQTT (AsyncBridgeMQTTClient)"]
+    end
+
+    subgraph L2 ["Capa 2: Aplicación y Orquestación (Application Services)"]
+        direction LR
+        Facade["Bridge Core Facade (MeshCoreBridge)"]
+        AdminHandler["Admin Command Handler (admin/* Executors)"]
+        Lifecycle["Preflight, Health & Diagnostics"]
+    end
+
+    subgraph L3 ["Capa 3: Dominio de Malla y Enrutamiento (Mesh Domain & Policies)"]
+        direction LR
+        Router["RxEventRouter (routers/* handlers)"]
+        RateLimiter["TxRateLimiter & AirtimeTracker"]
+        Managers["NodeRegistry & RepeaterManager"]
+        Engines["LinkQualityEngine & PacketDeduplicator"]
+        Decoders["SensorDecoder & CayenneLPP"]
+    end
+
+    subgraph L4 ["Capa 4: Dominio Puro y Protocolo Canónico (Domain Core / SSoT)"]
+        direction LR
+        ProtTypes["protocol_types.py (Dataclasses inmutables, Enums, Roles)"]
+        Invariants["Invariantes Inmutables de Dominio (CONTEXT.md SSoT)"]
+    end
+
+    subgraph L5 ["Capa 5: Infraestructura y Transporte (Hardware Adapters / Seams)"]
+        direction LR
+        BaseAdapter["BaseSerialAdapter (Seam abstracto)"]
+        SDKAdapter["MeshcoreSDKAdapter (SDK Oficial Companion)"]
+        RawAdapter["RawSerialFramingAdapter (Parser en memoria)"]
+        Drivers["SerialWatchdog & TCPCompanionServer"]
+        Storage["Persistencia JSON Atómica (data/*.json)"]
+    end
+
+    L1 --> L2
+    L2 --> L3
+    L3 --> L4
+    L2 --> L5
+    L3 --> L5
+    L5 --> L4
+```
+
+### 2.1 Especificación y Mapeo Canónico de Capas
+
+| Capa | Nombre Canónico | Responsabilidad Principal | Módulos y Rutas del Código |
+|---|---|---|---|
+| **Capa 1** | **Presentación y Exposición** | Frontera exterior con redes IP y usuarios humanos. Servidor HTTP/WS, controladores REST, cliente SPA y broker MQTT. Sin lógica RF directa. | [`src/web/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/) (SPA, `http_server.py`, `api_router.py`, `controllers/*`), [`src/mqtt_client.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/mqtt_client.py), [`src/mqtt_dispatcher.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/mqtt_dispatcher.py) |
+| **Capa 2** | **Aplicación y Orquestación** | Orquestación de casos de uso de alto nivel, coordinación de ciclo de vida, apagado ordenado y despacho de comandos administrativos. | [`src/bridge_core.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/bridge_core.py) (`MeshCoreBridge`), [`src/admin_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin_handler.py), [`src/admin/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/admin/) (`local_config`, `repeater`, `traceroute`, `cli`), [`src/preflight.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/preflight.py), [`src/health_reporter.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/health_reporter.py) |
+| **Capa 3** | **Dominio de Malla y Enrutamiento** | Lógica de red LoRa: enrutamiento de eventos entrantes, priorización TX, estimación de airtime, deduplicación de ecos, LQI y gestión de nodos. | [`src/rx_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rx_router.py), [`src/routers/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/routers/), [`src/rate_limiter.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/rate_limiter.py) (`TxRateLimiter`, `AirtimeTracker`), [`src/contact_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/contact_manager.py) (`NodeRegistry`), [`src/repeater_manager.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/repeater_manager.py), [`src/lqi_engine.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/lqi_engine.py), [`src/deduplicator.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/deduplicator.py), [`src/sensor_decoder.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/sensor_decoder.py) |
+| **Capa 4** | **Dominio Puro y Protocolo Canónico** | Definiciones fundamentales del protocolo y tipos estrictos alineados con el firmware C/C++ oficial. Invariantes inmutables de dominio de [`CONTEXT.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/CONTEXT.md). Libre de dependencias externas. | [`src/protocol_types.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/protocol_types.py) (`FirmwareAdvertType`, roles, opcodes, eventos `@dataclass(frozen=True)`), invariantes canónicas de [`CONTEXT.md`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/CONTEXT.md) |
+| **Capa 5** | **Infraestructura y Transporte** | Abstracción de hardware (*Seams*), drivers de comunicación serie (UART/USB), sockets TCP, parser binario raw y persistencia atómica en disco. | [`src/serial/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/serial/) (`BaseSerialAdapter`, `MeshcoreSDKAdapter`, `RawSerialFramingAdapter`, `watchdog.py`), [`src/serial_driver.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/serial_driver.py), [`src/tcp_companion_server.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/tcp_companion_server.py), [`src/virtual_mesh_adapter.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/virtual_mesh_adapter.py), repositorios JSON en disco |
+
+### 2.2 Invariantes de Dependencia entre Capas
+
+1. **Regla de Dependencia Unidireccional (DIP)**: El flujo de dependencias apunta siempre hacia adentro (hacia el Dominio). La Capa 4 no conoce a ninguna capa exterior.
+2. **Desacoplamiento de Hardware mediante Seams**: Las capas de Aplicación y Dominio interactúan con la radio a través del contrato abstracto `BaseSerialAdapter` (Capa 5), permitiendo alternar entre el SDK oficial (`MeshcoreSDKAdapter`), simulación (`VirtualMeshAdapter`) o túnel TCP (`TCPCompanionServer`) sin alterar el código de enrutamiento ni los controladores.
+3. **Invariantes Inmutables de Dominio en Capa 4**:
+   - Dispositivos con rol `REPEATER` (`FirmwareAdvertType.REPEATER`) pertenecen exclusivamente a la infraestructura de red: nunca entran en la libreta de Contactos de chat (`#tab-contacts`) ni reciben mensajería directa/canales.
+   - La estación base local (`LOCAL`) nunca se duplica como vecino ni puede ser destinataria de bucles locales de mensajería.
+   - Todo paquete saliente (TX) en Capa 3 debe atravesar el control de airtime y cola de prioridades (`TxRateLimiter`) para proteger el medio compartido LoRa.
+
+---
+
+## 3. Diagrama de Arquitectura General
 
 ```mermaid
 flowchart TB
     subgraph Capa Hardware
         Radio[Radio LoRa\nUART 115200]
-        TCP[TCP Companion\n:5000]
+        TCP[Companion remoto\ntcp://host:port]
     end
 
     subgraph Capa de Adaptación Serial
         WD[SerialWatchdog]
         Base[BaseSerialAdapter]
         SDK[MeshcoreSDKAdapter]
-        Raw[RawSerialFramingAdapter]
+        Raw[Parser Raw Propio\nsin E/S física]
     end
 
     subgraph Capa de Protocolo
-        PT[protocol_types.py\nSOF=0xAA / EOF=0x55 / ESC=0x1B]
+        PT[protocol_types.py\nEnums oficiales y formato raw propio]
     end
 
     subgraph Capa Core
@@ -92,9 +170,8 @@ flowchart TB
     Radio <--> Base
     TCP <--> Base
     Base <--> SDK
-    Base <--> Raw
+    Raw -. bytes en memoria .-> PT
     SDK --> PT
-    Raw --> PT
 
     PT --> RxR
     TxL --> PT
@@ -115,7 +192,7 @@ flowchart TB
     WebUI[Web UI SPA] <--> Web
 ```
 
-## 3. Diagrama de Dependencias entre Módulos
+## 4. Diagrama de Dependencias entre Módulos
 
 ```mermaid
 graph TD
@@ -160,9 +237,9 @@ graph TD
     protocol_types
 ```
 
-## 4. Diagramas de Secuencia (Flujos Principales)
+## 5. Diagramas de Secuencia (Flujos Principales)
 
-### 4.1 TX Completo (Transmisión a la red de Radio)
+### 5.1 TX Completo (Transmisión a la red de Radio)
 
 ```mermaid
 sequenceDiagram
@@ -176,18 +253,18 @@ sequenceDiagram
     participant WebSocket
 
     WebUI->>TxController: POST /api/tx
-    TxController->>RateLimiter: enqueue()
-    RateLimiter->>AirtimeTracker: check_duty()
-    AirtimeTracker-->>RateLimiter: ok
+    TxController->>RateLimiter: Encolar TX mediante submit()
+    RateLimiter->>AirtimeTracker: Consultar estado estimado
+    AirtimeTracker-->>RateLimiter: Estado / posible descarte LOW
     RateLimiter->>SerialDriver: send()
-    SerialDriver->>Radio: TX (SOF/EOF/ESC)
-    Radio-->>SerialDriver: ACK received
-    SerialDriver->>RxRouter: on_frame()
+    SerialDriver->>Radio: Comando Companion mediante SDK
+    Radio-->>SerialDriver: Resultado de envío / evento ACK posterior
+    SerialDriver->>RxRouter: Evento SDK normalizado
     RxRouter->>WebSocket: broadcast(status)
     WebSocket-->>WebUI: event
 ```
 
-### 4.2 RX Completo (Recepción desde la red de Radio)
+### 5.2 RX Completo (Recepción desde la red de Radio)
 
 ```mermaid
 sequenceDiagram
@@ -199,15 +276,15 @@ sequenceDiagram
     participant MQTT
     participant WebSocket
 
-    Radio->>SerialDriver: RX Frame
-    SerialDriver->>RxRouter: on_frame()
+    Radio->>SerialDriver: Evento Companion
+    SerialDriver->>RxRouter: Evento SDK normalizado
     RxRouter->>RouterHandlers: route()
     RouterHandlers->>Managers: update(NodeRegistry/LQI)
     RouterHandlers->>MQTT: publish()
     RouterHandlers->>WebSocket: broadcast()
 ```
 
-### 4.3 Comando de Administración (Local o Remoto)
+### 5.3 Comando de Administración (Local o Remoto)
 
 ```mermaid
 sequenceDiagram
@@ -227,7 +304,7 @@ sequenceDiagram
     Executors->>WebSocket: broadcast(result)
 ```
 
-### 4.4 Ciclo de Vida (Startup → Shutdown)
+### 5.4 Ciclo de Vida (Startup → Shutdown)
 
 ```mermaid
 sequenceDiagram
@@ -256,20 +333,20 @@ sequenceDiagram
     BridgeCore->>Main: exit
 ```
 
-## 5. Catálogo de Clases Principales
+## 6. Catálogo de Clases Principales
 
 | Nombre de clase | Módulo | Responsabilidad | Patrón | Dependencias |
 | --- | --- | --- | --- | --- |
 | `MeshCoreBridge` | `bridge_core.py` | Orquesta la aplicación uniendo MQTT, Web, Serial y Routers. | Facade | `serial_driver`, `rx_router`, `mqtt_client`, etc. |
-| `BaseSerialAdapter` | `serial_driver.py` | Define la interfaz para interactuar con puertos serie o TCP. | Adapter | Ninguna explícita |
-| `MeshcoreSDKAdapter` | `serial_driver.py` | Adapta la comunicación serie usando el SDK propietario. | Adapter | `protocol_types` |
-| `RawSerialFramingAdapter` | `serial_driver.py` | Implementa el enmarcado serie crudo (SOF=0xAA, EOF=0x55, ESC=0x1B). | Adapter / Decorator | `protocol_types` |
-| `SerialWatchdog` | `serial_driver.py` | Monitoriza el puerto serie y reinicia en caso de bloqueo. | Observer / Watchdog | `BaseSerialAdapter` |
+| `BaseSerialAdapter` | `serial/serial_base.py` | Interfaz para adaptadores. | Adapter | Ninguna explícita |
+| `MeshcoreSDKAdapter` | `serial/sdk_adapter.py` | Comunicación USB/TCP con SDK MeshCore. | Adapter | `protocol_types`, `meshcore` |
+| `RawSerialFramingAdapter` | `serial/raw_framing.py` | Parser en memoria del formato propio SOF=0xAA, EOF=0x55, ESC=0x1B y CRC; sin E/S física actual. | Adapter | `protocol_types` |
+| `SerialWatchdog` | `serial/watchdog.py` | Supervisa vivacidad local y reconecta el adaptador. | Watchdog | `BaseSerialAdapter` |
 | `RxEventRouter` | `rx_router.py` | Enruta mensajes recibidos de la radio a los handlers correctos. | Strategy / Router | `routers/*`, `contact_manager`, etc. |
 | `TxRateLimiter` | `rate_limiter.py` | Controla la tasa de envío (Duty Cycle) a la red de radio. | Rate Limiter | `protocol_types` |
 | `CustomTxQueue` | `rate_limiter.py` | Cola de prioridad asíncrona para la transmisión de paquetes. | Priority Queue | Ninguna |
 | `AirtimeTracker` | `rate_limiter.py` | Rastrea el tiempo en el aire para limitar transmisiones. | Tracker | Ninguna |
-| `NodeRegistry` | `contact_manager.py` | Gestiona el estado y directorio de nodos en memoria / disco. | Repository / Singleton | `lqi_engine` |
+| `NodeRegistry` | `contact_manager.py` | Directorio en RAM con persistencia JSON atómica. | Repository | `lqi_engine` |
 | `NodeContactInfo` | `contact_manager.py` | Estructura que almacena la información y métricas de un contacto en la malla. | DTO | Ninguna |
 | `RepeaterManager` | `repeater_manager.py` | Controla repetidores, rutas, jerarquías y tablas de salto de la red. | Manager | Ninguna |
 | `AsyncBridgeMQTTClient` | `mqtt_client.py` | Cliente asíncrono para publicar e interactuar con brokers MQTT. | Proxy / Client | Ninguna |
@@ -277,10 +354,10 @@ sequenceDiagram
 | `PacketDeduplicator` | `deduplicator.py` | Evita la re-evaluación y retransmisión de paquetes duplicados vía Hash. | Cache | Ninguna |
 | `AdminCommandHandler` | `admin_handler.py` | Interpreta, mapea y delega la ejecución de comandos de administración por Web/MQTT. | Command Invoker | `admin/*`, `repeater_manager` |
 | `LocalConfigExecutor` | `admin/local_config_executor.py` | Ejecuta comandos de configuración en el nodo base local. | Command | `serial_driver` |
-| `RepeaterExecutor` | `admin/repeater_executor.py` | Envía comandos remotos a repetidores vía RF. | Command | `serial_driver` |
+| `RepeaterAdminExecutor` | `admin/repeater_executor.py` | Autentica y ejecuta administración remota de repetidores vía SDK. | Command | `serial_driver` |
 | `TracerouteExecutor` | `admin/traceroute_executor.py` | Envía `send_trace` y espera `TRACE_DATA` para inspeccionar la ruta; no ejecuta pings progresivos. | Command | `serial_driver` |
 | `CliCommandExecutor` | `admin/cli_command_executor.py` | Ejecuta comandos de terminal CLI de radio local (ver, bat, stats_core, etc.). | Command / Executor | `serial_driver` |
-| `CayenneLPPDecoder` | `sensor_decoder.py` | Convierte flujos de bytes Cayenne LPP a valores decimales estructurados. | Decoder | `protocol_types` |
+| Decodificador CayenneLPP | `sensor_decoder.py` | Funciones nativas de decodificación y `SensorReading`, sin `pycayennelpp`. | Decoder | `shared_utils`, biblioteca estándar |
 | `LinkQualityEngine` | `lqi_engine.py` | Calcula LQI con SNR, RSSI y saltos, EMA y decaimiento temporal; no acredita enlaces bidireccionales. | Engine | Ninguna |
 | `DiagnosticManager` | `diagnostics.py` | Colecta métricas de OS, proceso y logs para reportes de salud avanzados. | Manager | Ninguna |
 | `HealthReporter` | `health_reporter.py` | Publica conectividad, uptime, nodos, cola TX y contadores en MQTT; sin métricas RAM/CPU del OS. | Worker | `mqtt_client` |
@@ -292,27 +369,27 @@ sequenceDiagram
 | `PacketBuffer` | `packet_buffer.py` | Búfer rotatorio (Ring Buffer) que registra temporalmente los paquetes TX/RX. | Buffer | Ninguna |
 | `TargetResolver` | `target_resolver.py` | Convierte nombres lógicos, alias o strings cortos de ID en las pubkeys verdaderas de la malla. | Resolver | `NodeRegistry` |
 
-## 6. Subpaquetes y Patrones de Diseño
+## 7. Subpaquetes y Patrones de Diseño
 
 - **`src/routers/`**: Utiliza el **Strategy Pattern** para enrutar los diferentes tipos de paquetes RF (`AdvertHandler`, `ChannelHandler`, `DirectHandler`, `RepeaterHandler`, `SystemHandler`, `TelemetryHandler`). Al desacoplar la lógica, simplifica la expansión del formato de los mensajes.
-- **`src/admin/`**: Implementa un esquema de comandos basado en **Command Pattern** y **Strategy Pattern** para separar la lógica de parseo, de la ejecución en RF: (`LocalConfigExecutor`, `RepeaterExecutor`, `TracerouteExecutor`).
+- **`src/admin/`**: Implementa un esquema de comandos basado en **Command Pattern** y **Strategy Pattern** para separar la lógica de parseo, de la ejecución en RF: (`LocalConfigExecutor`, `RepeaterAdminExecutor`, `TracerouteExecutor`).
 - **`src/web/controllers/`**: Sigue el patrón **MVC / Modular Controllers**. Organiza unívocamente las rutas REST por dominios funcionales (Contactos, Nodos, Sistema, Transmisiones).
 
-## 7. Mapa de Endpoints REST API
+## 8. Mapa de Endpoints REST API
 
 | Método HTTP | Ruta | Controller | Descripción |
 | --- | --- | --- | --- |
-| GET | `/api/status` | `ConfigController` | Obtiene el estado físico y variables lógicas del nodo local. |
+| GET | `/api/status` | `SystemController` | Estado físico y lógico del nodo local y del bridge. |
 | GET | `/api/health` | `SystemController` | Reporta subsistemas, contadores, uptime y último error mediante DiagnosticManager; sin métricas RAM/disco/CPU del OS. |
 | GET | `/api/diagnostics` | `SystemController` | Idéntico a `/api/health`. |
-| GET | `/api/diagnostics/report.md` | `LogsController` | Genera un volcado completo de diagnósticos exportable en formato Markdown. |
+| GET | `/api/diagnostics/report.md` | `WebAPIRouter` / `DiagnosticManager` | Reporte Markdown, con respuesta JSON que contiene el texto. |
 | GET | `/api/preflight` | `SystemController` | Analiza disponibilidad de sistema de archivos, hardware y dependencias. |
 | GET | `/api/system/logs/level` | `LogsController` | Obtiene el nivel de severidad de logs actual del módulo principal. |
 | POST | `/api/system/logs/level` | `LogsController` | Altera en caliente la verbosidad global de logs del sistema (`INFO`, `DEBUG`, etc.). |
 | DELETE | `/api/system/logs` | `LogsController` | Depura el historial de logs del sistema residentes en la memoria RAM del bridge. |
 | GET | `/api/system/logs` | `LogsController` | Interfaz paginable para visualizar logs del sistema filtrables. |
 | GET | `/api/packets/export` | `PacketsController` | Exportación JSON de todos los paquetes (TX/RX) capturados localmente. |
-| DELETE | `/api/packets` | `PacketsController` | Purgado de historial en disco de la base de datos de paquetes LoRa. |
+| DELETE | `/api/packets` | `PacketsController` | Vacía las capturas del buffer RAM; no elimina una base de datos en disco. |
 | GET | `/api/packets` | `PacketsController` | Interfaz de análisis paginada para la depuración forense RF del tráfico en aire. |
 | GET | `/api/nodes` | `NodesController` | Devuelve el catálogo y lista maestra de nodos almacenados. |
 | GET | `/api/lqi` | `NodesController` | Informe del índice Link Quality (LQI) entre vecinos en la malla local. |
@@ -323,17 +400,17 @@ sequenceDiagram
 | GET | `/api/contacts/discovered` | `ContactsController` | Lista los nodos observados de manera anónima y pasiva, pero no añadidos a la agenda. |
 | POST | `/api/contacts/accept` | `ContactsController` | Añade un nodo de la lista "Descubiertos" directamente al archivo permanente. |
 | GET, POST... | `/api/contacts/*` | `ContactsController` | Manejo CRUD base para la agenda telefónica del nodo. |
-| GET, POST... | `/api/channels/*` | `ChannelsController` | Manejo CRUD para perfiles o bandas de criptografía precompartida y frecuencia de canal de red. |
+| GET, POST... | `/api/channels/*` | `ChannelsController` | CRUD/sincronización de índices, nombres y PSK de canales lógicos; no configuran una frecuencia RF distinta por canal. |
 | POST | `/api/tx` | `TxController` | Comando de inyección directa de un mensaje de texto para salida al aire. |
 | GET | `/api/messages` | `LogsController` | Consulta paginada y filtrada de mensajes textuales almacenados. |
-| GET | `/api/messages/recent` | `TxController` | Lee y devuelve los mensajes textuales en memoria no consumidos en la base de datos local. |
-| POST | `/api/admin/command` | `RepeaterController` | API universal de ingreso libre de cadenas de terminal CLI (Ej: `/help`, `/reboot`). |
+| GET | `/api/messages/recent` | `TxController` | Consulta mensajes recientes en RAM. |
+| POST | `/api/admin` | `RepeaterController` | Entrada de administración; `/api/admin/command` es alias. |
 | POST | `/api/admin/repeater` | `RepeaterController` | Invocador base que interactúa con la lógica central de repetición remota en el aire. |
-| POST | `/api/repeater/remote/login` | `RepeaterController` | Generador de tokens de credenciales e inicialización de sesión remota de repetidor. |
+| POST | `/api/repeater/remote/login` | `RepeaterController` | Solicita autenticación administrativa al repetidor remoto. |
 | POST | `/api/repeater/remote/logout` | `RepeaterController` | Libera recursos y anula el inicio de sesión remoto. |
 | POST | `/api/repeater/remote/config` | `RepeaterController` | Envía paquete de reconfiguración remota con comprobación criptográfica L3. |
 | POST | `/api/repeater/remote/action` | `RepeaterController` | Ejecución de una acción instantánea en el dispositivo objetivo (e.g., LED Toggle). |
-| POST | `/api/repeater/ping_zero` | `RepeaterController` | Lanza una petición ICMP análoga en L2 (Zero Ping) pura, descartando paquetes asimétricos. |
+| POST | `/api/repeater/ping_zero` | `RepeaterController` | Operación de diagnóstico Hop 0; también `/api/node/ping_zero`. No es ICMP IP. |
 | POST | `/api/traceroute` | `RepeaterController` | Herramienta de medición y exploración de saltos entre el servidor y un destino remoto. |
 | GET | `/api/config` | `ConfigController` | Devuelve caché/defaults de configuración y métricas runtime; `refresh` solicita consulta al hardware con fallback. |
 | POST | `/api/config` | `ConfigController` | Aplica una configuración estructural de manera unificada a variables de sistema y hardware. |
@@ -346,23 +423,27 @@ sequenceDiagram
 | GET | `/api/telemetry` | `LogsController` | Recupera el buffer histórico (RAM) de variables métricas medioambientales procesadas. |
 | GET | `/api/logs/download` | `LogsController` | Inicia una descarga física de los archivos de registro brutos del framework. |
 
-## 8. Mapa de Eventos WebSocket
+## 9. Mapa de Eventos WebSocket
 
 | Nombre del Evento | Dirección | Payload | Módulo Emisor / Responsable |
 | --- | --- | --- | --- |
 | `ping` / `pong` | Bidireccional | `{ type, timestamp }` | Servidor Python `MeshCoreWebServer` y Cliente Javascript para KeepAlive. |
-| `metrics_update` | Server→Client | `node_count`, `rx_count`, `tx_count`, `error_rate`, `queue_depth`, `serial_connected` | Emitido por el ciclo interno periódico de `MeshCoreWebServer` (~cada 2 seg). |
+| `metrics_update` | Server→Client | `node_count`, `rx_count`, `tx_count`, `error_rate`, `queue_depth`, `serial_connected` | Periodicidad `WS_METRICS_INTERVAL_SEC` (default de config: 5 s). |
 | `system_log` | Server→Client | `level`, `message`, `source`, `timestamp` | Re-despachado por el registro en vivo desde `WebAPIRouter` y subsistema `DiagnosticManager`. |
 | `rf_packet` | Server→Client | Headers crudos L2 interceptados, metadata LQI. | Enrutado nativo a través del hub originado en `RxEventRouter` post-parseo. |
 | `ws_connected` | Server→Client | `message`, `timestamp` | Evento de handshake inicial en apertura confirmando vinculación con SPA local de UI. |
 | Otros (ej: mensajes de chat) | Server→Client | Payload RF completo decodificado L3. | Capturados genéricamente y retransmitidos al `EventBus` (`EVENTS.RX_PACKET`) en la SPA UI. |
 
-## 9. Tópicos MQTT Principales
+## 10. Tópicos MQTT Principales
 
 | Tópico (`topic_prefix/...`) | Puente Publica | Puente Suscribe | Descripción |
 | --- | --- | --- | --- |
 | `{prefix}/bridge/state` | Sí | No | Estado Last Will Testament del servidor local (Online / Offline). |
 | `{prefix}/bridge/health` | Sí | No | Salud periódica del bridge: conectividad, uptime, nodos, cola y contadores; sin RAM/CPU del OS. |
+| `{prefix}/rx/all` | Sí | No | Stream unificado de eventos normalizados. |
+| `{prefix}/rx/public`, `{prefix}/rx/channel/ch_<idx>` | Sí | No | Mensajería de canales lógicos. |
+| `{prefix}/rx/direct/<sender_id>` | Sí | No | Mensajes directos recibidos. |
+| `{prefix}/rx/telemetry`, `{prefix}/rx/nodes`, `{prefix}/rx/log` | Sí | No | Telemetría, anuncios/nodos y registros RF. |
 | `{prefix}/tx` | No | Sí | Inyección externa. Escucha strings para que el Puente enrute hacia un paquete LoRa a los nodos en la banda. |
 | `{prefix}/tx/status` | Sí | No | Resultado del envío o error; la confirmación de entrega DM/ACK se procesa como evento separado. |
 | `{prefix}/admin/cmd` | No | Sí | Administración JSON con `action` en el dict entregado al handler. El fallback textual/escalar pierde la acción en el checkout actual; divergencia pendiente, véase PROJECT_KNOWLEDGE.md. |
@@ -373,9 +454,26 @@ sequenceDiagram
 | `{prefix}/admin/repeater/{node_id}/trace` | Sí | No | Rutas punto-a-punto decodificadas y saltos en formato Traceroute dirigidos al hub MQTT externo. |
 | `{prefix}/{channel}/public` | Sí | No | Salidas del chat global encriptado a canales MQTT si la función de Forwarder está activa. |
 
-## 10. Seguridad y Resiliencia Perimetral
+## 11. Seguridad y Resiliencia Perimetral
 
 - **Autenticación API (`BRIDGE_API_KEY`)**: Cuando está configurada, se exige la cabecera `X-Api-Key` o parámetro `?api_key=` en todas las mutaciones (`POST`, `PUT`, `DELETE`, `PATCH`), endpoints de administración, inyección RF (`/api/tx`), descargas de logs (`/api/logs/download`, `/api/logs/raw`) y handshakes de WebSocket. Modo permisivo por defecto para desarrollo local si la variable no está definida.
 - **Límite de Conexiones WebSocket**: Máximo 32 conexiones simultáneas concurrentes para prevenir agotamiento de descriptores de sockets y memoria en SBCs.
 - **Protección de Teselas Cartográficas**: Validación estricta de coordenadas y zoom ($0 \le z \le 22$, $0 \le x < 2^z$, $0 \le y < 2^z$) para evitar desbordamientos de enteros o caídas por desplazamiento negativo de bits.
-- **Protección contra Inyección de Roles**: Los nodos clientes en la red conservan su rol de mensajería; sólo las balizas de firmware oficiales (`FirmwareAdvertType.REPEATER`) o nombres canónicos coincidentes son asignados al rol `REPEATER`.
+- **Autoridad de Roles**: La clasificación canónica deriva de `FirmwareAdvertType` (0/1 CLIENT, 2 REPEATER, 3 ROOM, 4 SENSOR), no del nombre. Las restricciones de `CONTEXT.md` excluyen repetidores y nodo local de Contactos/chat. Las heurísticas de normalización que aún existan deben revisarse frente a esa autoridad; la documentación no certifica cada ruta.
+
+## 12. Persistencia y límites del modelo
+
+| Estado | Almacenamiento actual |
+| --- | --- |
+| Nodos | Registro RAM y JSON atómico (`NODE_REGISTRY_STORAGE_PATH`). |
+| Canales | JSON atómico (`CHANNELS_JSON_PATH`) y sincronización con firmware. |
+| Contactos | SDK/memoria de radio y registro local; sólo clientes en la agenda de chat. |
+| Airtime | Estimación con historial JSON (`AIRTIME_HISTORY_FILE`). |
+| Capturas de paquetes, deduplicación, buffers Web y ACKs | RAM; no garantizan supervivencia a reinicios. |
+| Mensajes del navegador | IndexedDB del cliente. |
+| Logs | Archivos rotados y buffer de visualización en RAM. |
+| Cartografía | Archivos XYZ o lectura de SQLite MBTiles, independiente de nodos/mensajes. |
+
+No hay base SQLite de nodos/mensajes ni cola MQTT durable en disco. El código separa el parser raw propio del transporte SDK; los diagramas raw no deben leerse como un pipeline obligatorio del Companion. `TxRateLimiter` estima airtime, espacia TX y puede descartar prioridad `LOW` en estado crítico, pero no aplica un bloqueo absoluto a toda transmisión.
+
+El mapa REST es una selección de rutas: `ROUTE_ALIASES` y los dispatchers de `src/web/api_router.py` son la autoridad de implementación, con métodos/validación en los controladores. El estado `sent` de TX describe el resultado del envío; entrega DM/ACK y recepción en otros nodos son hechos distintos. Configuración de firmware, temporizadores, sondeos y reintentos pueden consumir RF: aplicar el checklist de `AGENTS.md` antes de introducir cambios y acordar umbrales/intervalos con el usuario.

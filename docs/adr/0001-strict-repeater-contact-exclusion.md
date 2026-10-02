@@ -16,9 +16,9 @@ Anteriormente existía la ambigüedad o el riesgo de que los repetidores apareci
 
 ## Factores de Decisión
 
-1. **Incompatibilidad de Firmware**: El firmware de un repetidor no contiene pila de chat, almacenamiento de buzón de usuario ni interfaz de usuario para leer mensajes de texto. Los paquetes de tipo texto enviados a un repetidor consumen valioso tiempo de aire LoRa innecesariamente y son ignorados o descartados.
+1. **Separación de Mensajería y Administración**: El repetidor no ofrece un buzón ni interfaz de chat de usuario. Puede procesar comandos administrativos transportados como texto cifrado; la prohibición se aplica al chat de usuario, no a esas operaciones explícitas de gestión.
 2. **Confusión de Experiencia de Usuario (UX)**: Un operador humano no debe ver repetidores de red como si fueran personas o contactos con los que puede "conversar".
-3. **Seguridad y Control**: Los repetidores solo deben interactuar mediante comandos administrativos firmados/autorizados (`CMD_ADMIN`, `CMD_PING_NODE`, `CMD_TRACEROUTE`, telemetría de batería/temperatura).
+3. **Seguridad y Control**: La interacción utiliza los comandos administrativos y permisos del firmware: login, texto CLI administrativo cifrado, estado, telemetría y trazado. Los nombres de acciones del bridge no deben confundirse con opcodes Companion; estos se consultan en `docs/PROTOCOL_SPEC.md` y `reference/meshcore_py/src/meshcore/packets.py`.
 
 ## Decisión
 

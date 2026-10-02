@@ -1,5 +1,7 @@
 # MeshCore Bridge v3.0 - Reporte Integral de Ingeniería y Auditoría de Sistema
 
+> **Snapshot histórico de agosto de 2026, identificado el 2026-09-29.** Se preserva el contenido como registro de las afirmaciones y resultados reportados entonces; no certifica el código actual, compatibilidad de hardware, rendimiento, accesibilidad o ausencia de vulnerabilidades. Algunas descripciones de módulos, persistencia y dependencias quedaron desactualizadas. Para instalación y arquitectura vigentes, consulte el [índice documental](README.md).
+
 > **Documento Consolidado de Arquitectura, Especificación de Protocolo, Seguridad Informática y Calidad de Código**  
 > **Fecha de Publicación**: Agosto 2026  
 > **Estado**: Producción (Ready for Deployment)  

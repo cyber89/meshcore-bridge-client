@@ -9,6 +9,8 @@ import asyncio
 import json
 import logging
 import os
+import threading
+import time
 import urllib.parse
 from typing import Any
 
@@ -35,6 +37,7 @@ class ChannelsController(BaseController):
         self._deleted_channels: set[int] = set()
         self._dirty: bool = False
         self._mutation_lock = asyncio.Lock()
+        self._save_lock = threading.Lock()
         self._load_channels()
 
     def _load_channels(self) -> None:
@@ -60,21 +63,29 @@ class ChannelsController(BaseController):
 
     def _save_channels(self, force: bool = False) -> None:
         """Persiste la tabla de canales a disco de forma atómica si hubo cambios."""
-        if not force and not self._dirty:
-            logging.debug("Tabla de canales sin cambios pendientes (omitiendo escritura en disco)")
-            return
+        with self._save_lock:
+            if not force and not self._dirty:
+                logging.debug("Tabla de canales sin cambios pendientes (omitiendo escritura en disco)")
+                return
 
-        os.makedirs(os.path.dirname(self.channels_file) or ".", exist_ok=True)
-        try:
-            tmp_path = f"{self.channels_file}.tmp"
-            with open(tmp_path, "w", encoding="utf-8") as f:
-                json.dump(list(self.channels.values()), f, indent=2, ensure_ascii=False)
-            os.replace(tmp_path, self.channels_file)
-            self._dirty = False
-            logging.debug(f"Canales persistidos exitosamente en {self.channels_file}")
-        except Exception as e:
-            logging.error(f"Error persistiendo canales en {self.channels_file}: {e}")
-            raise
+            target_dir = os.path.dirname(self.channels_file) or "."
+            os.makedirs(target_dir, exist_ok=True)
+            tmp_path = f"{self.channels_file}_{os.getpid()}_{time.time_ns()}.tmp"
+            try:
+                channels_data = list(self.channels.values())
+                with open(tmp_path, "w", encoding="utf-8") as f:
+                    json.dump(channels_data, f, indent=2, ensure_ascii=False)
+                os.replace(tmp_path, self.channels_file)
+                self._dirty = False
+                logging.debug(f"Canales persistidos exitosamente en {self.channels_file}")
+            except Exception as e:
+                if os.path.exists(tmp_path):
+                    try:
+                        os.remove(tmp_path)
+                    except OSError:
+                        pass
+                logging.error(f"Error persistiendo canales en {self.channels_file}: {e}")
+                raise
 
     async def _save_channels_async(self, force: bool = False) -> None:
         """Persiste la tabla de canales a disco de forma atómica y no bloqueante en thread pool."""

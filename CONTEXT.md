@@ -7,14 +7,14 @@ Este documento define el **Lenguaje Ubicuo (Ubiquitous Language)** y el **Modelo
 ## 1. Propósito y Arquitectura General del Sistema
 
 - **MeshCore Bridge**: Aplicación asíncrona en Python 3.10+ que actúa como pasarela bidireccional determinista entre una red de malla LoRa (basada en el protocolo y firmware oficial de MeshCore) y redes IP (WebSockets, REST API y MQTT para automatización con n8n/Node-RED).
-- **Base Station (Estación Base / Nodo Local)**: Dispositivo transceptor de radio LoRa conectado físicamente por puerto serie (USB/UART) al host que ejecuta el bridge.
-- **Event Bus (Bus Asíncrono de Eventos)**: Cola interna basada en `asyncio.Queue` para distribuir tramas recibidas, eventos de telemetría y cambios de estado sin bloquear el event loop.
+- **Base Station (Estación Base / Nodo Local)**: Transceptor MeshCore Companion conectado al host por USB/UART o mediante TCP al Companion remoto. Su identidad es la clave pública local.
+- **Enrutamiento de Eventos**: `RxEventRouter` distribuye eventos SDK o tramas raw propias entre handlers; MQTT/WebSocket reciben eventos normalizados. El frontend tiene su propio `EventBus` JavaScript. La cola TX usa `asyncio.PriorityQueue`.
 
 ---
 
 ## 2. Clasificación y Roles Canónicos de Nodos (SSoT MeshCore)
 
-La clasificación de cualquier dispositivo en la red se determina **exclusivamente** mediante el opcode binario `FirmwareAdvertType` del firmware MeshCore (`reference/meshcore/AdvertDataHelpers.h`, `src/protocol_types.py`):
+La clasificación canónica de dispositivos se determina mediante el campo de tipo de advert `FirmwareAdvertType` del firmware MeshCore (`reference/meshcore/src/helpers/AdvertDataHelpers.h`, `src/protocol_types.py`). Un nombre o alias no demuestra el rol.
 
 | Rol | Opcode `FirmwareAdvertType` | Descripción y Capacidades |
 |---|---|---|
@@ -44,9 +44,10 @@ La clasificación de cualquier dispositivo en la red se determina **exclusivamen
 ## 4. Terminología de Radiofrecuencia y Framing Binario
 
 - **Airtime**: Tiempo en milisegundos durante el cual la portadora de radio está ocupada transmitiendo un paquete LoRa (depende de Spreading Factor, Bandwidth y longitud del payload).
-- **Hop Limit**: Contador de saltos de un paquete dentro de la malla para evitar bucles infinitos (valor estándar: 3–4, máximo: 7). Cada salto decrementa el contador.
-- **Duty Cycle**: Límite regulatorio regional (ej. sub-bandas de 868 MHz al 1% o 10%) que restringe el tiempo acumulado de transmisión por hora.
-- **Byte Stuffing**: Técnica de delimitación de tramas serie (UART) utilizando bytes especiales de inicio (`SOF` / `0xAA`) y fin (`EOF` / `0x55`), con secuencias de escape (`ESC` / `0x1B`) para evitar colisiones con datos binarios arbitrarios.
+- **Hop Count / Path Length**: Métrica de recorrido obtenida del evento SDK o del formato de ruta del firmware. No implica un TTL universal ni un máximo fijo de siete saltos; interpretar su representación según el protocolo oficial.
+- **Duty Cycle**: Proporción de tiempo de transmisión acumulado en una ventana. `AirtimeTracker` calcula una estimación y la compara con el límite configurado; ese valor no certifica cumplimiento regulatorio.
+- **Framing Companion**: Transporte oficial con marcador `<` para comandos, `>` para respuestas, longitud `uint16` little-endian y payload.
+- **Byte Stuffing Raw Propio**: Formato interno del bridge con inicio `0xAA`, fin `0x55`, escape `0x1B` y XOR `0x20`, definido por `MeshcoreFrame`. Su CRC-16 no debe atribuirse al transporte Companion oficial ni a todos los paquetes RF.
 - **LQI (Link Quality Indicator)**: Métrica del bridge calculada a partir de RSSI, SNR y saltos, con suavizado EMA y decaimiento temporal (`src/lqi_engine.py`). No calcula tasa de pérdida ni acredita calidad bidireccional.
 - **Deduplication Window**: Búfer temporal (LRU con caducidad en segundos) que descarta tramas idénticas retransmitidas por repetidores vecinos.
 
@@ -59,13 +60,13 @@ El sistema sigue la filosofía de **Deep Modules** (John Ousterhout, *A Philosop
 - **`BaseSerialAdapter` (Seam)**: Costura o interfaz abstracta que desacopla la lógica del bridge del driver de hardware serie o SDK.
 - **`MeshcoreSDKAdapter`**: Adaptador concreto que envuelve el SDK oficial de MeshCore para comunicación con el chip LoRa.
 - **`MeshCoreBridge`**: Módulo profundo que orquesta el ciclo de vida del servicio, backpressure de colas y apagado ordenado (*graceful shutdown*).
-- **`RawSerialFramingAdapter`**: Deserializador y decodificador binario de tramas MeshCore con validación estricta de CRC y longitud.
+- **`RawSerialFramingAdapter`**: Parser en memoria del framing propio del bridge con validación de CRC y longitud; actualmente no abre un puerto físico ni transmite por UART.
 - **`NodeRegistry`**: Módulo profundo para indexación rápida por clave pública y alias, persistencia y filtrado de contactos vs nodos de infraestructura.
 - **`RepeaterManager`**: Gestor de comandos administrativos remotos con control de cooldowns y deduplicación de respuestas.
-- **`RateLimiter`**: Limitador de tasa con algoritmo Token Bucket para proteger el canal de radio contra ráfagas no autorizadas.
+- **`TxRateLimiter`**: Cola de prioridades y worker con espaciado y estimador de airtime. Puede descartar elementos `LOW` cuando el duty cycle estimado es crítico; no es Token Bucket ni bloqueo absoluto de todo TX.
 - **`PacketDeduplicator`**: Filtro de idempotencia para eventos entrantes y salientes.
 - **`AsyncBridgeMQTTClient`**: Conector asíncrono MQTT con soporte LWT (*Last Will and Testament*) y reconexión automática.
-- **`HttpServer / WebSocketServer`**: Servidor ASGI nativo ligero en Vanilla Python con autenticación de sesión y difusión de eventos en tiempo real.
+- **`MeshCoreWebServer`**: Servidor HTTP 1.1 y WebSocket con `asyncio.start_server`, API key opcional y difusión de eventos; no es una aplicación ASGI.
 
 ---
 
@@ -80,3 +81,9 @@ Al diseñar o refactorizar cualquier módulo del bridge, utilizar estos concepto
 5. **Costura (Seam)**: Lugar donde se puede cambiar o interceptar el comportamiento sin editar el código del llamador (ej. inyección de adaptadores serie o mocks de radio).
 6. **Apalancamiento (Leverage)**: Retorno de inversión para los llamadores: aprender 2 métodos públicos para obtener un subsistema completo y robusto.
 7. **Localidad (Locality)**: Garantía de que los cambios, bugs y estado residen en un solo archivo en vez de dispersarse por el sistema.
+
+## 7. Persistencia y autoridad documental
+
+Registro de nodos, canales e historial de airtime usan JSON. Los contactos también se sincronizan con la radio. `PacketBuffer` y deduplicación viven en RAM; el historial del navegador usa IndexedDB. No hay backend SQLite para estos datos ni cola MQTT durable en disco; el servicio cartográfico puede leer SQLite MBTiles.
+
+Las reglas anteriores expresan invariantes de dominio, no una certificación de toda la implementación. El [índice documental](docs/README.md) distingue guías vigentes, contratos, ADRs e informes históricos.

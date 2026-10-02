@@ -2,7 +2,7 @@
   "schema_version": 2,
   "diagram_type": "workflow",
   "meta": {
-    "title": "MeshCore Bridge v3.0 - Pipeline de Tramas LoRa a IP",
+    "title": "MeshCore Bridge - Parser Raw Propio a IP",
     "output": "docs/diagrams/meshcore_packet_pipeline.html",
     "quality_profile": "showcase",
     "animation": "trace",
@@ -10,16 +10,15 @@
     "views": [
       {
         "id": "rx-pipeline",
-        "label": "Ingreso y Validación RF",
+        "label": "Ingreso y Validación Raw",
         "focus": [
           "rf_air",
-          "sx1262",
           "serial_in",
           "hdlc_frame",
           "crc_val",
           "dedup"
         ],
-        "note": "Trayectoria desde la señal de radiofrecuencia hasta la deduplicación de la trama."
+        "note": "Camino del parser raw propio con bytes en memoria; el SDK Companion entrega eventos por un camino distinto."
       },
       {
         "id": "event-dispatch",
@@ -32,30 +31,22 @@
           "spa_client",
           "mqtt_pub"
         ],
-        "note": "Enrutamiento asíncrono a base de datos SQLite y distribución a clientes IP."
+        "note": "Enrutamiento a registro RAM/JSON y distribución a clientes IP."
       }
     ]
   },
   "lanes": [
     {
-      "id": "rf",
-      "label": "Capa Física & Radio"
-    },
-    {
       "id": "serial",
-      "label": "Framing HDLC & Serie"
+      "label": "Parser Raw en Memoria"
     },
     {
       "id": "core",
-      "label": "Enrutador & Filtros Core"
+      "label": "Enrutador y Registro"
     },
     {
       "id": "web",
-      "label": "Servidor Web & SPA"
-    },
-    {
-      "id": "mqtt",
-      "label": "Integración MQTT / IoT"
+      "label": "Distribución Web y MQTT"
     }
   ],
   "phases": [
@@ -82,7 +73,6 @@
   ],
   "mainPath": [
     "rf_air",
-    "sx1262",
     "serial_in",
     "hdlc_frame",
     "crc_val",
@@ -94,20 +84,11 @@
   "nodes": [
     {
       "id": "rf_air",
-      "lane": "rf",
+      "lane": "serial",
       "col": 0,
       "type": "external",
-      "label": "Paquete LoRa",
-      "sublabel": "RF 868/915 MHz",
-      "width": 132
-    },
-    {
-      "id": "sx1262",
-      "lane": "rf",
-      "col": 1,
-      "type": "external",
-      "label": "Módulo SX1262",
-      "sublabel": "Demodulación RF",
+      "label": "Bytes Raw Propios",
+      "sublabel": "Captura/simulador",
       "width": 132
     },
     {
@@ -115,8 +96,8 @@
       "lane": "serial",
       "col": 1,
       "type": "backend",
-      "label": "UART Watchdog",
-      "sublabel": "Buffer RX 115200",
+      "label": "Buffer de Bytes",
+      "sublabel": "Parser Raw",
       "width": 132
     },
     {
@@ -124,7 +105,7 @@
       "lane": "serial",
       "col": 2,
       "type": "backend",
-      "label": "Unescape HDLC",
+      "label": "Unescape Raw",
       "sublabel": "SOF 0xAA / EOF 0x55",
       "width": 132
     },
@@ -134,7 +115,7 @@
       "col": 3,
       "type": "security",
       "label": "Validador CRC",
-      "sublabel": "CRC-16 estricto",
+      "sublabel": "CRC del Raw Propio",
       "width": 132
     },
     {
@@ -143,7 +124,7 @@
       "col": 3,
       "type": "backend",
       "label": "Deduplicador",
-      "sublabel": "Hash 10k entradas",
+      "sublabel": "Hash y ventana TTL",
       "width": 132
     },
     {
@@ -161,7 +142,7 @@
       "col": 5,
       "type": "database",
       "label": "NodeRegistry",
-      "sublabel": "Persistencia SQLite",
+      "sublabel": "RAM / JSON atómico",
       "width": 132
     },
     {
@@ -184,8 +165,8 @@
     },
     {
       "id": "mqtt_pub",
-      "lane": "mqtt",
-      "col": 5,
+      "lane": "web",
+      "col": 2,
       "type": "messagebus",
       "label": "Dispatcher MQTT",
       "sublabel": "JSON n8n / HA",
@@ -194,16 +175,10 @@
   ],
   "edges": [
     {
-      "id": "rf-to-sx",
-      "from": "rf_air",
-      "to": "sx1262",
-      "variant": "default"
-    },
-    {
       "id": "sx-to-uart",
-      "from": "sx1262",
+      "from": "rf_air",
       "to": "serial_in",
-      "label": "UART",
+      "label": "bytes",
       "variant": "emphasis"
     },
     {
@@ -263,33 +238,5 @@
       "variant": "dashed"
     }
   ],
-  "cards": [
-    {
-      "dot": "cyan",
-      "title": "Ingreso y Framing Físico",
-      "items": [
-        "Recepción en radio LoRa SX1262 con demodulación por hardware",
-        "Ingreso asíncrono a pyserial-asyncio con reconexión por watchdog",
-        "Extracción HDLC delimitada por 0xAA / 0x55 con des-escape de bytes (0x1B)"
-      ]
-    },
-    {
-      "dot": "emerald",
-      "title": "Integridad y Deduplicación",
-      "items": [
-        "Cálculo estricto de CRC-16 para descartar tramas corruptas por RF",
-        "Buffer circular de 10,000 hashes para deduplicar ecos y retransmisiones",
-        "Clasificación canónica por OpCode y AdvertType oficial"
-      ]
-    },
-    {
-      "dot": "rose",
-      "title": "Distribución IP Concurrente",
-      "items": [
-        "Actualización atómica de telemetría y tabla de vecinos en SQLite",
-        "Difusión instantánea a todos los clientes web conectados vía WebSockets",
-        "Publicación estructurada JSON a tópicos MQTT para flujos n8n"
-      ]
-    }
-  ]
+  "cards": []
 }

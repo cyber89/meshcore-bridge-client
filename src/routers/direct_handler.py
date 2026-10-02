@@ -5,7 +5,6 @@ Handles direct messages (DMs) between mesh nodes with strict loopback guard.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Any
 
@@ -36,7 +35,6 @@ class DirectMessageHandler(BaseRxHandler):
             logging.debug("[RX-DM] Ignorando mensaje directo originado en la propia estación local (loopback guard).")
             return True
 
-        router_ctx = getattr(ctx, "_ctx", ctx)
         raw_txt_type = payload.get("txt_type", payload.get("text_type", 0))
         try:
             txt_type = int(raw_txt_type)
@@ -53,8 +51,5 @@ class DirectMessageHandler(BaseRxHandler):
             txt_type=txt_type,
         )
 
-        loop = router_ctx.loop or asyncio.get_running_loop()
-        task = loop.create_task(ctx._handle_mesh_direct_msg(msg_evt))
-        router_ctx.background_tasks.add(task)
-        task.add_done_callback(router_ctx.background_tasks.discard)
+        await ctx._handle_mesh_direct_msg(msg_evt)
         return True
