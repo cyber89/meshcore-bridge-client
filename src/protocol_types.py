@@ -547,6 +547,135 @@ class AckPayload:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class RouteObservation:
+    """Observación de ruta RF para un nodo (SSoT de rutas observadas de entrada o salida)."""
+    hashes: tuple[str, ...]
+    count: int
+    hash_size_bytes: int  # 1, 2, 3 bytes (8, 16, 24 bits)
+    route_type: str  # "FLOOD", "DIRECT", "TRACE", "UNKNOWN"
+    received_at: float  # host timestamp
+    source: str  # "RX_LOG_DATA", "ADVERT_PATH", "PACKET", "CONTACT_OUT_PATH"
+    completeness: str = "unknown"  # "full_traversed", "remaining_only", "unknown"
+    identity_trust: str = "unverified"  # "verified", "correlated", "unverified"
+    route_trust: str = "observed_unauthenticated"  # "observed_unauthenticated", "trusted", "unknown"
+    packet_correlation: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+def normalize_hash_mode(val: Any) -> int | None:
+    """Normaliza representaciones de modo de hash a entero (0, 1, 2) o -1 para flood/desconocido."""
+    if val is None:
+        return None
+    if isinstance(val, int):
+        if val in (0, 1, 2, -1):
+            return val
+        return None
+    if isinstance(val, str):
+        v = val.strip().lower()
+        if v in ("0", "1_byte", "mode_0", "8_bit", "8bit"):
+            return 0
+        if v in ("1", "2_byte", "mode_1", "16_bit", "16bit"):
+            return 1
+        if v in ("2", "3_byte", "mode_2", "24_bit", "24bit"):
+            return 2
+        if v in ("-1", "flood", "unknown", "none"):
+            return -1
+    return None
+
+
+def hash_mode_to_bytes(mode: int | None) -> int | None:
+    """Retorna el ancho en bytes (1, 2, 3) correspondiente a un modo de hash, o None."""
+    norm = normalize_hash_mode(mode)
+    if norm in (0, 1, 2):
+        return norm + 1
+    return None
+
+
+def decode_path_hashes(
+    path_data: bytes | str | None,
+    count: int | None = None,
+    mode: int | None = None,
+) -> tuple[tuple[str, ...], int, int]:
+    """Decodifica una secuencia de hashes de ruta de MeshCore de forma determinista y segura.
+
+    Preserva estrictamente bytes nulos (0x00) dentro de los hashes (sin truncarlos ni alterarlos).
+    Maneja modos 0 (1B = 8 bits), 1 (2B = 16 bits), 2 (3B = 24 bits).
+    Rechaza o normaliza sentinels (-1 / 255 / modo 3).
+    Acota al buffer máximo de 64 bytes (Packet.h).
+
+    Args:
+        path_data: Secuencia de bytes o cadena hexadecimal con los hashes.
+        count: Número de hashes si ya fue decodificado del byte de longitud (o None si viene con byte inicial).
+        mode: Modo de hash 0, 1, 2 (o None si viene con byte inicial).
+
+    Returns:
+        Tupla (hashes_tuple, count_normalizado, bytes_por_hash).
+    """
+    if not path_data:
+        return (), 0, 1
+
+    if isinstance(path_data, str):
+        try:
+            raw_bytes = bytes.fromhex(path_data.strip())
+        except (ValueError, TypeError):
+            return (), 0, 1
+    else:
+        raw_bytes = bytes(path_data)
+
+    if not raw_bytes:
+        return (), 0, 1
+
+    # Si count no fue suministrado, el primer byte es la cabecera wire de longitud/modo
+    if count is None:
+        first_byte = raw_bytes[0]
+        if first_byte == 255:  # Sentinel flood/desconocido
+            return (), -1, 1
+        raw_count = first_byte & 0x3F
+        raw_mode = (first_byte >> 6) & 0x03
+        if raw_mode == 3:  # Modo reservado / inválido
+            return (), 0, 1
+        bytes_per_hash = raw_mode + 1
+        body = raw_bytes[1:]
+    else:
+        # Longitud ya decodificada por el SDK
+        if count == -1 or count == 255:
+            return (), -1, 1
+        raw_count = max(0, min(63, count))
+        norm_mode = normalize_hash_mode(mode)
+        if norm_mode is not None and norm_mode in (0, 1, 2):
+            bytes_per_hash = norm_mode + 1
+        else:
+            bytes_per_hash = 1
+        body = raw_bytes
+
+    if raw_count == 0:
+        return (), 0, bytes_per_hash
+
+    # Acotar al buffer máximo de 64 bytes del firmware
+    max_hashes = 64 // bytes_per_hash
+    effective_count = min(raw_count, max_hashes)
+    total_bytes = effective_count * bytes_per_hash
+
+    if len(body) < total_bytes:
+        # Buffer truncado: tomar los hashes completos que quepan
+        effective_count = len(body) // bytes_per_hash
+        total_bytes = effective_count * bytes_per_hash
+
+    if effective_count <= 0:
+        return (), 0, bytes_per_hash
+
+    hashes: list[str] = []
+    for i in range(effective_count):
+        start = i * bytes_per_hash
+        chunk = body[start : start + bytes_per_hash]
+        hashes.append(chunk.hex().lower())
+
+    return tuple(hashes), effective_count, bytes_per_hash
+
+
 ParsedPayload = (
     TextMessagePayload | NodeAdvertisement | AckPayload | TelemetryPayload | bytes
 )

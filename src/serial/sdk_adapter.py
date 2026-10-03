@@ -912,8 +912,15 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
     async def _handle_log_data(self, data: Any) -> None:
         """Maneja datos de log del firmware de radio UART (PUSH_CODE_LOG_RX_DATA 0x88)."""
-        # Descartar en silencio para evitar saturación de logs y de la interfaz web
-        return
+        if self.rx_callback and data:
+            if isinstance(data, dict):
+                evt = dict(data)
+                evt.setdefault("event_type", "RX_LOG_DATA")
+                self.rx_callback(evt)
+            elif hasattr(data, "payload"):
+                self.rx_callback(data)
+            else:
+                self.rx_callback({"event_type": "RX_LOG_DATA", "data": data})
 
     async def _handle_control_data(self, data: Any) -> None:
         """Maneja datos de control."""
@@ -1471,6 +1478,10 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                     adv_lat = None
                     adv_lon = None
                     last_advert = None
+                    flags = None
+                    out_path = None
+                    out_path_len = None
+                    out_path_hash_mode = None
                     if isinstance(c, dict):
                         pk = str(c.get("public_key", c.get("key", ""))).strip()
                         adv_name = str(c.get("adv_name", c.get("name", c.get("alias", f"Node_{pk[:6]}")))).strip()
@@ -1479,6 +1490,10 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                         adv_lat = c.get("adv_lat", c.get("latitude"))
                         adv_lon = c.get("adv_lon", c.get("longitude"))
                         last_advert = c.get("last_advert")
+                        flags = c.get("flags")
+                        out_path = c.get("out_path")
+                        out_path_len = c.get("out_path_len")
+                        out_path_hash_mode = c.get("out_path_hash_mode")
                     elif hasattr(c, "public_key") or hasattr(c, "adv_name") or hasattr(c, "name"):
                         pk = str(getattr(c, "public_key", "")).strip()
                         adv_name = str(getattr(c, "adv_name", getattr(c, "name", getattr(c, "alias", f"Node_{pk[:6]}")))).strip()
@@ -1487,6 +1502,10 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                         adv_lat = getattr(c, "adv_lat", getattr(c, "latitude", None))
                         adv_lon = getattr(c, "adv_lon", getattr(c, "longitude", None))
                         last_advert = getattr(c, "last_advert", None)
+                        flags = getattr(c, "flags", None)
+                        out_path = getattr(c, "out_path", None)
+                        out_path_len = getattr(c, "out_path_len", None)
+                        out_path_hash_mode = getattr(c, "out_path_hash_mode", None)
 
                     if pk:
                         norm_pk = pk.strip().lower()
@@ -1516,8 +1535,15 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
                             "adv_type": raw_type,
                             "latitude": adv_lat,
                             "longitude": adv_lon,
+                            "adv_lat": adv_lat,
+                            "adv_lon": adv_lon,
                             "last_advert": last_advert,
+                            "flags": flags,
+                            "out_path": out_path,
+                            "out_path_len": out_path_len,
+                            "out_path_hash_mode": out_path_hash_mode,
                             "is_local": is_local_contact,
+                            "is_import": True,
                         })
         except Exception as e:
             logging.warning(f"Fallo sincronizando libreta de contactos del nodo: {e}")

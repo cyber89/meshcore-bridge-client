@@ -3,7 +3,7 @@
  * filtrado reactivo, presencia en tiempo real y telemetría analítica.
  */
 
-import { escapeHtml, debounce, buildMeshCoreContactUri, formatLastSeen, getPresenceState } from "../core/utils.js";
+import { escapeHtml, debounce, buildMeshCoreContactUri, formatLastSeen, getPresenceState, calculateDistanceM, formatDistance, formatTimeAgo } from "../core/utils.js";
 import { EVENTS } from "../core/eventbus.js";
 
 export class NodesModule {
@@ -190,16 +190,249 @@ export class NodesModule {
 
   async fetchNodes() {
     try {
-      const res = await fetch("/api/nodes", {
-        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
-      });
-      const data = await res.json();
-      if (data.status === "ok" && Array.isArray(data.data)) {
-        this.renderNodesDirectory(data.data);
+      const allNodes = [];
+      let offset = 0;
+      const limit = 100;
+      let totalCount = Infinity;
+
+      while (allNodes.length < totalCount) {
+        const res = await fetch(`/api/nodes?limit=${limit}&offset=${offset}`, {
+          headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
+        });
+        const data = await res.json();
+        if (data.status === "ok" && Array.isArray(data.data)) {
+          allNodes.push(...data.data);
+          totalCount = typeof data.total_count === "number" ? data.total_count : data.data.length;
+          if (data.data.length < limit || allNodes.length >= totalCount) {
+            break;
+          }
+          offset += data.data.length;
+        } else {
+          break;
+        }
+      }
+
+      if (allNodes.length > 0) {
+        this.renderNodesDirectory(allNodes);
       }
     } catch (e) {
       console.warn("Error cargando nodos:", e);
     }
+  }
+
+  _getLocalCoordinates() {
+    for (const n of this.knownNodes.values()) {
+      if (n.is_local || n.public_key === "local") {
+        const lat = n.latitude ?? n.lat ?? n.adv_lat ?? n.gps?.latitude;
+        const lon = n.longitude ?? n.lon ?? n.adv_lon ?? n.gps?.longitude;
+        if (lat != null && lon != null) {
+          const fLat = parseFloat(lat);
+          const fLon = parseFloat(lon);
+          if (!isNaN(fLat) && !isNaN(fLon) && (fLat !== 0 || fLon !== 0 || n.position_valid)) {
+            return { lat: fLat, lon: fLon };
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  _renderTelemetryMetricsHtml(node, isLocal) {
+    // 1. Distance away
+    let distHtml = "";
+    if (isLocal) {
+      distHtml = `<span class="node-metric-tag">${escapeHtml(I18n.t('nodes.dist_local'))}</span>`;
+    } else if (node.distance_m != null) {
+      distHtml = `<strong>${escapeHtml(formatDistance(node.distance_m))}</strong>`;
+    } else {
+      const rawLat = node.latitude ?? node.lat ?? node.adv_lat ?? node.gps?.latitude;
+      const rawLon = node.longitude ?? node.lon ?? node.adv_lon ?? node.gps?.longitude;
+      const fLat = rawLat != null ? parseFloat(rawLat) : NaN;
+      const fLon = rawLon != null ? parseFloat(rawLon) : NaN;
+      const hasNodeGps = !isNaN(fLat) && !isNaN(fLon) && (fLat !== 0 || fLon !== 0 || node.position_valid);
+
+      if (!hasNodeGps) {
+        distHtml = `<span class="color-dim">${escapeHtml(I18n.t('nodes.dist_no_remote_gps'))}</span>`;
+      } else {
+        const localCoords = this._getLocalCoordinates();
+        if (localCoords) {
+          const d = calculateDistanceM(localCoords.lat, localCoords.lon, fLat, fLon);
+          distHtml = d != null ? `<strong>${escapeHtml(formatDistance(d))}</strong>` : `<span class="color-dim">--</span>`;
+        } else {
+          distHtml = `<span class="color-dim">${escapeHtml(I18n.t('nodes.dist_no_local_gps'))}</span>`;
+        }
+      }
+    }
+
+    // 2. Last Advert Heard
+    let advertHeardHtml = "";
+    if (isLocal) {
+      advertHeardHtml = `<span class="node-metric-tag">${escapeHtml(I18n.t('nodes.advert_heard_local'))}</span>`;
+    } else if (node.last_advert_heard_at != null && node.last_advert_heard_at > 0) {
+      const timeAgo = formatTimeAgo(node.last_advert_heard_at);
+      const fullDate = new Date(node.last_advert_heard_at * 1000).toLocaleString();
+      advertHeardHtml = `<span title="${escapeHtml(fullDate)}">${escapeHtml(timeAgo)}</span> <span class="node-metric-tag">${escapeHtml(I18n.t('nodes.advert_verified_badge'))}</span>`;
+    } else {
+      advertHeardHtml = `<span class="color-dim">--</span> <span class="node-metric-tag">${escapeHtml(I18n.t('nodes.advert_heard_never'))}</span>`;
+    }
+
+    // 3. Inbound Path (RX)
+    let rxPathHtml = "";
+    let rxHashesStr = "";
+    let rxRouteType = "--";
+    let rxHashWidth = "--";
+    let rxReceivedAt = "--";
+    let rxTrust = "--";
+
+    if (isLocal) {
+      rxPathHtml = `<span class="node-metric-tag">${escapeHtml(I18n.t('nodes.not_applicable'))}</span>`;
+    } else if (node.last_rx_route && Array.isArray(node.last_rx_route.hashes) && node.last_rx_route.hashes.length > 0) {
+      rxHashesStr = node.last_rx_route.hashes.join(" → ");
+      const chips = node.last_rx_route.hashes.slice(0, 3).map(h => `<span class="route-hash-chip">${escapeHtml(h)}</span>`).join('<span class="route-flow-arrow">→</span>');
+      const more = node.last_rx_route.hashes.length > 3 ? ` <span class="color-dim">+${node.last_rx_route.hashes.length - 3}</span>` : "";
+      const widthTag = node.last_rx_route.hash_size_bytes ? ` <span class="node-metric-tag">${node.last_rx_route.hash_size_bytes}B/hash</span>` : "";
+      rxPathHtml = `<div class="route-flow">${chips}${more}</div>${widthTag}`;
+      rxRouteType = node.last_rx_route.route_type || "FLOOD";
+      rxHashWidth = node.last_rx_route.hash_size_bytes ? `${node.last_rx_route.hash_size_bytes}B (${node.last_rx_route.hash_size_bytes * 8} bits)` : "--";
+      rxReceivedAt = node.last_rx_route.received_at ? new Date(node.last_rx_route.received_at * 1000).toLocaleString() : "--";
+      rxTrust = node.last_rx_route.identity_trust === "verified" ? I18n.t('nodes.route_trust_verified') : I18n.t('nodes.route_trust_unverified');
+    } else if (node.last_rx_route && node.last_rx_route.count === 0) {
+      rxPathHtml = `<span>${escapeHtml(I18n.t('nodes.rx_path_direct'))}</span>`;
+      rxRouteType = "DIRECT";
+    } else {
+      rxPathHtml = `<span class="color-dim">--</span> <span class="node-metric-tag">${escapeHtml(I18n.t('nodes.rx_path_none'))}</span>`;
+    }
+
+    // 4. Hops Away
+    let hopsHtml = "";
+    if (isLocal) {
+      hopsHtml = `<strong>0</strong> <span class="node-metric-tag">${escapeHtml(I18n.t('nodes.hops_source_local'))}</span>`;
+    } else if (node.hops !== null && node.hops !== undefined) {
+      let sourceTag = "";
+      if (node.hops_source === "rx_flood") sourceTag = I18n.t('nodes.hops_source_rx_flood');
+      else if (node.hops_source === "rx_direct") sourceTag = I18n.t('nodes.hops_source_rx_direct');
+      else if (node.hops_source === "out_path") sourceTag = I18n.t('nodes.hops_source_out_path');
+      else if (node.hops_source === "trace") sourceTag = I18n.t('nodes.hops_source_trace');
+      else if (node.hops === 0) sourceTag = I18n.t('nodes.route_direct');
+
+      hopsHtml = `<strong>${node.hops}</strong> ${sourceTag ? `<span class="node-metric-tag">${escapeHtml(sourceTag)}</span>` : ""}`;
+    } else {
+      hopsHtml = `<span class="color-dim">--</span> <span class="node-metric-tag">${escapeHtml(I18n.t('nodes.hops_unknown'))}</span>`;
+    }
+
+    // 5. Out Path
+    let outPathHtml = "";
+    let txHashesStr = "";
+    let txState = node.out_route_state || (node.out_path && node.out_path.length > 0 ? "known" : "unknown");
+    let txHashWidth = "--";
+
+    if (isLocal) {
+      outPathHtml = `<span class="node-metric-tag">${escapeHtml(I18n.t('nodes.not_applicable'))}</span>`;
+    } else if (node.out_path && Array.isArray(node.out_path) && node.out_path.length > 0) {
+      txHashesStr = node.out_path.join(" → ");
+      const chips = node.out_path.slice(0, 3).map(h => `<span class="route-hash-chip">${escapeHtml(h)}</span>`).join('<span class="route-flow-arrow">→</span>');
+      const more = node.out_path.length > 3 ? ` <span class="color-dim">+${node.out_path.length - 3}</span>` : "";
+      const hopCountStr = `${node.out_path.length} ${node.out_path.length === 1 ? I18n.t('nodes.hops.one') : I18n.t('nodes.hops')}`;
+      outPathHtml = `<div class="route-flow">${chips}${more}</div> <span class="node-metric-tag">${escapeHtml(hopCountStr)}</span>`;
+    } else if (txState === "direct") {
+      outPathHtml = `<span>${escapeHtml(I18n.t('nodes.out_path_direct'))}</span>`;
+    } else if (txState === "flood") {
+      outPathHtml = `<span>${escapeHtml(I18n.t('nodes.out_path_flood'))}</span>`;
+    } else {
+      outPathHtml = `<span class="color-dim">--</span> <span class="node-metric-tag">${escapeHtml(I18n.t('nodes.out_path_none'))}</span>`;
+    }
+
+    // 6. Out Path Hash Size
+    let hashSizeHtml = "";
+    const hashBytes = node.out_path_hash_size_bytes ?? (node.out_path_hash_mode != null ? (Number(node.out_path_hash_mode) + 1) : null);
+    if (isLocal) {
+      hashSizeHtml = `<span class="node-metric-tag">${escapeHtml(I18n.t('nodes.not_applicable'))}</span>`;
+    } else if (hashBytes != null && hashBytes >= 1 && hashBytes <= 3) {
+      const bits = hashBytes * 8;
+      const str = I18n.t('nodes.hash_size_val', { bytes: hashBytes, bits });
+      hashSizeHtml = `<span>${escapeHtml(str)}</span>`;
+      txHashWidth = `${hashBytes}B (${bits} bits)`;
+    } else {
+      hashSizeHtml = `<span class="color-dim">--</span> <span class="node-metric-tag">${escapeHtml(I18n.t('nodes.hash_size_none'))}</span>`;
+    }
+
+    const metricsDl = `
+      <dl class="node-telemetry-metrics">
+        <div class="node-metric-item">
+          <dt>${I18n.t('nodes.distance_label')}</dt>
+          <dd class="metric-distance-val">${distHtml}</dd>
+        </div>
+        <div class="node-metric-item">
+          <dt>${I18n.t('nodes.last_advert_heard_label')}</dt>
+          <dd class="metric-advert-heard-val">${advertHeardHtml}</dd>
+        </div>
+        <div class="node-metric-item">
+          <dt>${I18n.t('nodes.rx_path_label')}</dt>
+          <dd class="metric-rx-path-val">${rxPathHtml}</dd>
+        </div>
+        <div class="node-metric-item">
+          <dt>${I18n.t('nodes.hops_label')}</dt>
+          <dd class="metric-hops-val">${hopsHtml}</dd>
+        </div>
+        <div class="node-metric-item">
+          <dt>${I18n.t('nodes.out_path_label')}</dt>
+          <dd class="metric-out-path-val">${outPathHtml}</dd>
+        </div>
+        <div class="node-metric-item">
+          <dt>${I18n.t('nodes.out_hash_size_label')}</dt>
+          <dd class="metric-out-hash-val">${hashSizeHtml}</dd>
+        </div>
+      </dl>
+    `;
+
+    if (isLocal) {
+      return metricsDl;
+    }
+
+    const accordion = `
+      <details class="node-route-accordion">
+        <summary class="route-accordion-summary">
+          <span data-lucide="route" data-size="12"></span>
+          <span>${I18n.t('nodes.route_details_btn')}</span>
+        </summary>
+        <div class="route-accordion-content">
+          <div class="route-section">
+            <div class="route-section-title">
+              <span>${I18n.t('nodes.route_rx_title')}</span>
+              ${rxHashesStr ? `
+                <button type="button" class="btn-copy-hashes" data-hashes="${escapeHtml(rxHashesStr)}" title="${I18n.t('nodes.copy_hashes')}">
+                  <span data-lucide="copy" data-size="11"></span>
+                </button>
+              ` : ''}
+            </div>
+            ${rxHashesStr ? `<div class="route-full-hashes-box">${escapeHtml(rxHashesStr)}</div>` : ''}
+            <div class="route-details-grid">
+              <span>${I18n.t('nodes.route_type_label')} <strong>${escapeHtml(rxRouteType)}</strong></span>
+              <span>${I18n.t('nodes.hash_width_label')} <strong>${escapeHtml(rxHashWidth)}</strong></span>
+              <span>${I18n.t('nodes.route_received_label')} <strong>${escapeHtml(rxReceivedAt)}</strong></span>
+              <span>${I18n.t('nodes.route_trust_label')} <strong>${escapeHtml(rxTrust)}</strong></span>
+            </div>
+          </div>
+          <div class="route-section">
+            <div class="route-section-title">
+              <span>${I18n.t('nodes.route_tx_title')}</span>
+              ${txHashesStr ? `
+                <button type="button" class="btn-copy-hashes" data-hashes="${escapeHtml(txHashesStr)}" title="${I18n.t('nodes.copy_hashes')}">
+                  <span data-lucide="copy" data-size="11"></span>
+                </button>
+              ` : ''}
+            </div>
+            ${txHashesStr ? `<div class="route-full-hashes-box">${escapeHtml(txHashesStr)}</div>` : ''}
+            <div class="route-details-grid">
+              <span>${I18n.t('nodes.route_state_label')} <strong>${escapeHtml(txState)}</strong></span>
+              <span>${I18n.t('nodes.hash_width_label')} <strong>${escapeHtml(txHashWidth)}</strong></span>
+            </div>
+          </div>
+        </div>
+      </details>
+    `;
+
+    return metricsDl + accordion;
   }
 
 
@@ -443,6 +676,8 @@ export class NodesModule {
         </div>
         `}
 
+        ${this._renderTelemetryMetricsHtml(node, isLocal)}
+
         <div class="node-actions-bar">
           ${isRepeater ? `
             <button type="button" class="btn-primary btn-sm btn-manage-repeater" title="${I18n.t('nodes.title_manage')}">
@@ -474,6 +709,21 @@ export class NodesModule {
           </button>
         </div>
       `;
+
+      card.querySelectorAll(".btn-copy-hashes").forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const hashes = btn.getAttribute("data-hashes");
+          if (hashes) {
+            try {
+              await navigator.clipboard.writeText(hashes);
+              if (this.ctx.showToast) {
+                this.ctx.showToast(I18n.t('nodes.hashes_copied'), "info");
+              }
+            } catch (_) {}
+          }
+        });
+      });
 
       if (isRepeater) {
         card.querySelector(".btn-manage-repeater")?.addEventListener("click", () => {
@@ -936,6 +1186,53 @@ export class NodesModule {
       if (timeEl) {
         timeEl.textContent = lastSeenText;
         timeEl.title = signalTooltip;
+      }
+
+      // Coordenadas GPS
+      const rawLat = node.latitude ?? node.lat ?? node.adv_lat ?? node.gps?.latitude;
+      const rawLon = node.longitude ?? node.lon ?? node.adv_lon ?? node.gps?.longitude;
+      const fLat = rawLat != null ? parseFloat(rawLat) : NaN;
+      const fLon = rawLon != null ? parseFloat(rawLon) : NaN;
+      const hasGps = !isNaN(fLat) && !isNaN(fLon) && (fLat !== 0 || fLon !== 0 || node.position_valid);
+      const gpsEl = card.querySelector(".node-telemetry-panel .node-meta-row span:last-child");
+      if (gpsEl) {
+        gpsEl.innerHTML = hasGps ? `📍 ${fLat.toFixed(3)}, ${fLon.toFixed(3)}` : `<span class="color-dim font-mono">${I18n.t('common.no_gps')}</span>`;
+      }
+      card.setAttribute("data-has-gps", hasGps ? "1" : "0");
+
+      // Actualizar 6 Métricas de Telemetría y Acordeón de Rutas (en vista Nodos)
+      const metricsContainer = card.querySelector(".node-telemetry-metrics");
+      const accordionContainer = card.querySelector(".node-route-accordion");
+      if (metricsContainer) {
+        const tempDiv = document.createElement("div");
+        tempDiv.innerHTML = this._renderTelemetryMetricsHtml(node, isLocal);
+        const newMetrics = tempDiv.querySelector(".node-telemetry-metrics");
+        const newAccordion = tempDiv.querySelector(".node-route-accordion");
+        if (newMetrics) {
+          metricsContainer.replaceWith(newMetrics);
+        }
+        if (accordionContainer && newAccordion) {
+          accordionContainer.replaceWith(newAccordion);
+        } else if (!accordionContainer && newAccordion && newMetrics) {
+          newMetrics.insertAdjacentElement("afterend", newAccordion);
+        }
+        card.querySelectorAll(".btn-copy-hashes").forEach((btn) => {
+          btn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            const hashes = btn.getAttribute("data-hashes");
+            if (hashes) {
+              try {
+                await navigator.clipboard.writeText(hashes);
+                if (this.ctx.showToast) {
+                  this.ctx.showToast(I18n.t('nodes.hashes_copied'), "info");
+                }
+              } catch (_) {}
+            }
+          });
+        });
+        if (window.initLucideIcons) {
+          window.initLucideIcons(card);
+        }
       }
     });
   }

@@ -27,7 +27,13 @@ from src.deduplicator import PacketDeduplicator
 from src.event_utils import extract_sender_from_payload
 from src.lqi_engine import LinkQualityEngine
 from src.mqtt_client import AsyncBridgeMQTTClient
-from src.protocol_types import MeshcoreFrame, PacketType, TextMessagePayload
+from src.protocol_types import (
+    MeshcoreFrame,
+    PacketType,
+    RouteObservation,
+    TextMessagePayload,
+    decode_path_hashes,
+)
 from src.repeater_manager import RepeaterManager
 from src.routers.base import BaseRxHandler, MeshMessageEvent, RxMeta
 from src.sensor_decoder import (
@@ -39,6 +45,7 @@ from src.shared_utils import (
     clean_coordinate_value,
     clean_numeric_value,
     is_empty_channel_slot,
+    safe_device_query,
     sanitize_public_payload,
 )
 
@@ -337,6 +344,16 @@ class RxEventRouter:
                     self._register_task(task)
                     return
 
+            # Manejar observaciones pasivas de ruta RF del firmware (RX_LOG_DATA push 0x88)
+            if "RX_LOG_DATA" in meta.ev_upper or "LOG_DATA" in meta.ev_upper or payload_dict.get("event_type") in ("rx_log_data", "log_data"):
+                self._handle_rf_log_observation(payload_dict, meta)
+                return
+
+            # Manejar actualizaciones asíncronas de ruta por el firmware (PATH_UPDATE push 0x81)
+            if "PATH_UPDATE" in meta.ev_upper or payload_dict.get("event_type") == "path_update":
+                self._handle_path_update(payload_dict, meta)
+                return
+
             # Descartar eventos internos de control de flujo de la radio (NO_MORE_MSGS)
             if "NO_MORE" in meta.ev_upper or payload_dict.get("event_type") == "no_more_messages" or "messages_available" in payload_dict:
                 logging.debug("[INTERNAL-RADIO] Fin de cola de mensajes en transceptor (NO_MORE_MSGS)")
@@ -600,6 +617,7 @@ class RxEventRouter:
         )
 
         if is_valid_node_key(contact_info.public_key):
+            pos_valid = bool(lat_val is not None and lon_val is not None and (lat_val != 0 or lon_val != 0))
             if lat_val is not None or lon_val is not None or bat_pct is not None:
                 self._ctx.node_registry.add_or_update(
                     meta.sender,
@@ -610,6 +628,9 @@ class RxEventRouter:
                         longitude=lon_val,
                         adv_lat=lat_val,
                         adv_lon=lon_val,
+                        position_valid=pos_valid,
+                        position_source="TELEMETRY_LPP" if pos_valid else None,
+                        position_updated_at=time.time() if pos_valid else None,
                         is_local=meta.is_local_sender,
                     ),
                 )
@@ -624,12 +645,106 @@ class RxEventRouter:
                         hop_count=meta.effective_hops,
                     )
                 )
+                final_contact = self._ctx.node_registry.get_contact(meta.sender) or contact_info
                 self._spawn_broadcast_task({
                     "type": "contact_discovered" if is_new else "contact_updated",
                     "event_type": "contact_discovered" if is_new else "contact_updated",
                     "is_new": is_new,
-                    "contact": contact_info.to_dict(),
+                    "contact": final_contact.to_dict(),
                 })
+
+    def _handle_rf_log_observation(self, payload_dict: dict[str, Any], meta: RxMeta) -> None:
+        """Procesa una observación de log RF (push 0x88) correlacionando la ruta sin flood MQTT."""
+        adv_key = str(payload_dict.get("adv_key") or "").strip().lower()
+        path_hex = payload_dict.get("path")
+        path_len = payload_dict.get("path_len")
+        path_hash_size = payload_dict.get("path_hash_size", 1)
+        route_typename = str(payload_dict.get("route_typename", "UNK")).upper()
+        payload_typename = str(payload_dict.get("payload_typename", "UNK")).upper()
+
+        target_pk = adv_key if (adv_key and is_valid_node_key(adv_key)) else (
+            meta.sender if (meta.sender and is_valid_node_key(meta.sender) and not meta.is_local_sender) else None
+        )
+
+        if not target_pk or self._ctx.node_registry.is_local_key(target_pk):
+            return
+
+        # Decodificar hashes preservando bytes 00
+        hashes, count, bytes_per_hash = decode_path_hashes(
+            path_hex,
+            count=path_len if isinstance(path_len, int) else None,
+            mode=(path_hash_size - 1) if isinstance(path_hash_size, int) else None,
+        )
+
+        completeness = "full_traversed" if "FLOOD" in route_typename else ("remaining_only" if "DIRECT" in route_typename else "unknown")
+        identity_trust = "verified" if adv_key and is_valid_node_key(adv_key) else "correlated"
+
+        route_obs = RouteObservation(
+            hashes=hashes,
+            count=count,
+            hash_size_bytes=bytes_per_hash,
+            route_type=route_typename,
+            received_at=time.time(),
+            source="RX_LOG_DATA",
+            completeness=completeness,
+            identity_trust=identity_trust,
+            route_trust="observed_unauthenticated",
+            packet_correlation=payload_typename,
+        )
+
+        clean_rssi = clean_numeric_value(payload_dict.get("rssi"))
+        clean_snr = clean_numeric_value(payload_dict.get("snr"))
+
+        up = NodeContactUpdate(
+            last_rx_at=time.time(),
+            last_rx_route=route_obs.to_dict(),
+            last_rssi=int(clean_rssi) if clean_rssi is not None else None,
+            last_snr=float(clean_snr) if clean_snr is not None else None,
+            hops=len(hashes) if "FLOOD" in route_typename else None,
+            hops_source="rx_flood" if "FLOOD" in route_typename else "unknown",
+            best_route="FLOOD" if "FLOOD" in route_typename else ("DIRECT" if ("DIRECT" in route_typename and count == 0) else None),
+        )
+
+        updated_node = self._ctx.node_registry.add_or_update(target_pk, up)
+        self._spawn_broadcast_task({
+            "type": "contact_updated",
+            "event_type": "contact_updated",
+            "contact": updated_node.to_dict(),
+        })
+
+    def _handle_path_update(self, payload_dict: dict[str, Any], meta: RxMeta) -> None:
+        """Maneja el push 0x81 (PATH_UPDATE) solicitando GET_CONTACT de forma asíncrona."""
+        pk = str(payload_dict.get("public_key") or payload_dict.get("key") or meta.sender or "").strip().lower()
+        if not pk or not is_valid_node_key(pk) or self._ctx.node_registry.is_local_key(pk):
+            return
+
+        async def _query_and_update_path(target_key: str) -> None:
+            ser = self._ctx.serial_adapter
+            if not ser or not ser.mc:
+                return
+            res = await safe_device_query(ser.mc, "get_contact", target_key, timeout=4.0)
+            if res and isinstance(res, dict):
+                out_p = res.get("out_path")
+                out_plen = clean_numeric_value(res.get("out_path_len"))
+                out_pmode = res.get("out_path_hash_mode")
+                flags_val = clean_numeric_value(res.get("flags"))
+
+                up = NodeContactUpdate(
+                    out_path=str(out_p) if out_p is not None else None,
+                    out_path_len=int(out_plen) if out_plen is not None else None,
+                    out_path_hash_mode=out_pmode,
+                    flags=int(flags_val) if flags_val is not None else None,
+                )
+                updated_node = self._ctx.node_registry.add_or_update(target_key, up)
+                self._spawn_broadcast_task({
+                    "type": "contact_updated",
+                    "event_type": "contact_updated",
+                    "contact": updated_node.to_dict(),
+                })
+
+        loop = self._ctx.loop or asyncio.get_running_loop()
+        task = loop.create_task(_query_and_update_path(pk))
+        self._register_task(task)
 
     def _resolve_sender_name(self, prefix_or_key: str) -> str:
         # Primero consultar el registro dinámico local

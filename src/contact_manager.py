@@ -19,9 +19,16 @@ from pathlib import Path
 from typing import Any
 
 from src.lqi_engine import LinkQualityEngine, LQIStatus
+from src.protocol_types import (
+    RouteObservation,
+    decode_path_hashes,
+    hash_mode_to_bytes,
+    normalize_hash_mode,
+)
 from src.shared_utils import (
     clean_numeric_value,
     get_hardware_power_limits,
+    haversine_distance_m,
     normalize_battery,
 )
 
@@ -78,9 +85,15 @@ class NodeRfMetrics:
     advert_interval: int | None = None
     flags: int | None = None
     last_advert: float | None = None
+    last_advert_heard_at: float | None = None
+    last_rx_at: float | None = None
+    last_rx_route: dict[str, Any] | None = None
     out_path: str | None = None
     out_path_len: int | None = None
-    out_path_hash_mode: str | None = None
+    out_path_hash_mode: int | str | None = None
+    out_route_state: str = "unknown"
+    out_path_hash_size_bytes: int | None = None
+    hops_source: str = "unknown"
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +111,9 @@ class NodeTelemetry:
     fixed_position: bool | None = None
     adv_lat: float | None = None
     adv_lon: float | None = None
+    position_valid: bool = False
+    position_source: str | None = None
+    position_updated_at: float | None = None
     uptime: str | None = None
     clock: str | None = None
     airtime_ms: int | None = None
@@ -190,11 +206,20 @@ class NodeContactInfo:
         best_route: str = "DIRECT",
         flags: int | None = None,
         last_advert: float | None = None,
+        last_advert_heard_at: float | None = None,
+        last_rx_at: float | None = None,
+        last_rx_route: dict[str, Any] | None = None,
         out_path: str | None = None,
         out_path_len: int | None = None,
-        out_path_hash_mode: str | None = None,
+        out_path_hash_mode: int | str | None = None,
+        out_route_state: str = "unknown",
+        out_path_hash_size_bytes: int | None = None,
+        hops_source: str = "unknown",
         adv_lat: float | None = None,
         adv_lon: float | None = None,
+        position_valid: bool = False,
+        position_source: str | None = None,
+        position_updated_at: float | None = None,
         lat: float | None = None,
         lon: float | None = None,
         **kwargs: Any,
@@ -240,9 +265,15 @@ class NodeContactInfo:
                 advert_interval=advert_interval,
                 flags=flags,
                 last_advert=last_advert,
+                last_advert_heard_at=last_advert_heard_at,
+                last_rx_at=last_rx_at,
+                last_rx_route=last_rx_route,
                 out_path=out_path,
                 out_path_len=out_path_len,
                 out_path_hash_mode=out_path_hash_mode,
+                out_route_state=out_route_state,
+                out_path_hash_size_bytes=out_path_hash_size_bytes,
+                hops_source=hops_source,
             )
         if telemetry is None:
             telemetry = NodeTelemetry(
@@ -258,6 +289,9 @@ class NodeContactInfo:
                 fixed_position=fixed_position,
                 adv_lat=eff_adv_lat,
                 adv_lon=eff_adv_lon,
+                position_valid=position_valid,
+                position_source=position_source,
+                position_updated_at=position_updated_at,
                 uptime=uptime,
                 clock=clock,
                 airtime_ms=airtime_ms,
@@ -405,6 +439,18 @@ class NodeContactInfo:
         return self.rf.last_advert
 
     @property
+    def last_advert_heard_at(self) -> float | None:
+        return self.rf.last_advert_heard_at
+
+    @property
+    def last_rx_at(self) -> float | None:
+        return self.rf.last_rx_at
+
+    @property
+    def last_rx_route(self) -> dict[str, Any] | None:
+        return self.rf.last_rx_route
+
+    @property
     def out_path(self) -> str | None:
         return self.rf.out_path
 
@@ -413,8 +459,20 @@ class NodeContactInfo:
         return self.rf.out_path_len
 
     @property
-    def out_path_hash_mode(self) -> str | None:
+    def out_path_hash_mode(self) -> int | str | None:
         return self.rf.out_path_hash_mode
+
+    @property
+    def out_route_state(self) -> str:
+        return self.rf.out_route_state
+
+    @property
+    def out_path_hash_size_bytes(self) -> int | None:
+        return self.rf.out_path_hash_size_bytes
+
+    @property
+    def hops_source(self) -> str:
+        return self.rf.hops_source
 
     # Telemetría y Sensores Delegados
     @property
@@ -476,6 +534,18 @@ class NodeContactInfo:
     @property
     def adv_lon(self) -> float | None:
         return self.telemetry.adv_lon if self.telemetry.adv_lon is not None else self.telemetry.longitude
+
+    @property
+    def position_valid(self) -> bool:
+        return self.telemetry.position_valid
+
+    @property
+    def position_source(self) -> str | None:
+        return self.telemetry.position_source
+
+    @property
+    def position_updated_at(self) -> float | None:
+        return self.telemetry.position_updated_at
 
     @property
     def uptime(self) -> str | None:
@@ -547,7 +617,7 @@ class NodeContactInfo:
         current.update(changes)
         return NodeContactInfo(**current)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self, local_lat: float | None = None, local_lon: float | None = None) -> dict[str, Any]:
         d = self.as_flat_dict()
         d["key_prefix"] = self.public_key[:8] if len(self.public_key) >= 8 else self.public_key
         d["total_packets"] = self.rx_packets + self.tx_packets
@@ -559,13 +629,45 @@ class NodeContactInfo:
         d["longitude"] = eff_lon
         d["lat"] = eff_lat
         d["lon"] = eff_lon
-        d["fixed_position"] = self.fixed_position if self.fixed_position is not None else (True if (eff_lat is not None and eff_lat != 0.0) else None)
+
+        pos_valid = bool(self.position_valid)
+        if not pos_valid and (eff_lat is not None and eff_lon is not None):
+            if -90.0 <= eff_lat <= 90.0 and -180.0 <= eff_lon <= 180.0:
+                if eff_lat != 0.0 or eff_lon != 0.0 or self.fixed_position:
+                    pos_valid = True
+        d["position_valid"] = pos_valid
+        d["position_source"] = self.position_source or ("ADVERT" if pos_valid else "NONE")
+        d["position_updated_at"] = self.position_updated_at
+        d["fixed_position"] = self.fixed_position if self.fixed_position is not None else pos_valid
         d["best_route"] = self.best_route
         d["flags"] = self.flags
         d["last_advert"] = self.last_advert
+        d["last_advert_heard_at"] = self.last_advert_heard_at
+        d["last_rx_at"] = self.last_rx_at
+        d["last_rx_route"] = self.last_rx_route
         d["out_path"] = self.out_path
         d["out_path_len"] = self.out_path_len
-        d["out_path_hash_mode"] = self.out_path_hash_mode
+
+        norm_mode = normalize_hash_mode(self.out_path_hash_mode)
+        d["out_path_hash_mode"] = norm_mode
+        d["out_path_hash_mode_raw"] = self.out_path_hash_mode
+        d["out_path_hash_size_bytes"] = hash_mode_to_bytes(norm_mode) if norm_mode is not None else self.out_path_hash_size_bytes
+
+        if norm_mode == -1 or self.out_route_state == "flood":
+            d["out_route_state"] = "flood"
+        elif self.out_path and len(self.out_path) > 0 and self.out_path_len and self.out_path_len > 0:
+            d["out_route_state"] = "known"
+        else:
+            d["out_route_state"] = self.out_route_state or "unknown"
+
+        d["hops_source"] = self.hops_source or ("direct" if self.hops == 0 else ("rx_flood" if self.hops and self.hops > 0 else "unknown"))
+
+        # Distancia en metros respecto a coordenadas de origen (nodo local)
+        if not self.is_local and str(self.role).upper() != "LOCAL" and local_lat is not None and local_lon is not None and pos_valid:
+            d["distance_m"] = haversine_distance_m(local_lat, local_lon, eff_lat, eff_lon)
+        else:
+            d["distance_m"] = None
+
         d["adv_lat"] = self.adv_lat if self.adv_lat is not None else eff_lat
         d["adv_lon"] = self.adv_lon if self.adv_lon is not None else eff_lon
         d["repeat_enabled"] = self.repeat_enabled if self.repeat_enabled is not None else (self.role in ("REPEATER", "ROUTER"))
@@ -683,11 +785,20 @@ class NodeContactUpdate:
     fixed_position: bool | None = None
     flags: int | None = None
     last_advert: float | None = None
+    last_advert_heard_at: float | None = None
+    last_rx_at: float | None = None
+    last_rx_route: dict[str, Any] | None = None
     out_path: str | None = None
     out_path_len: int | None = None
-    out_path_hash_mode: str | None = None
+    out_path_hash_mode: int | str | None = None
+    out_route_state: str | None = None
+    out_path_hash_size_bytes: int | None = None
+    hops_source: str | None = None
     adv_lat: float | None = None
     adv_lon: float | None = None
+    position_valid: bool | None = None
+    position_source: str | None = None
+    position_updated_at: float | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any], **overrides: Any) -> NodeContactUpdate:
@@ -739,6 +850,9 @@ class NodeDiscoveryEvent:
     rssi: int | None = None
     snr: float | None = None
     hops: int | None = None
+    last_seen: float | None = None
+    last_advert_heard_at: float | None = None
+    is_import: bool = False
 
 
 def is_valid_node_key(key: Any) -> bool:
@@ -1083,11 +1197,20 @@ class NodeRegistry:
             fixed_position=m(u("fixed_position"), existing, "fixed_position"),
             flags=m(u("flags"), existing, "flags"),
             last_advert=m(u("last_advert"), existing, "last_advert"),
+            last_advert_heard_at=m(u("last_advert_heard_at"), existing, "last_advert_heard_at"),
+            last_rx_at=m(u("last_rx_at"), existing, "last_rx_at"),
+            last_rx_route=m(u("last_rx_route"), existing, "last_rx_route"),
             out_path=m(u("out_path"), existing, "out_path"),
             out_path_len=m(u("out_path_len"), existing, "out_path_len"),
             out_path_hash_mode=m(u("out_path_hash_mode"), existing, "out_path_hash_mode"),
+            out_route_state=m(u("out_route_state"), existing, "out_route_state", "unknown"),
+            out_path_hash_size_bytes=m(u("out_path_hash_size_bytes"), existing, "out_path_hash_size_bytes"),
+            hops_source=m(u("hops_source"), existing, "hops_source", "unknown"),
             adv_lat=m(up_adv_lat if up_adv_lat is not None else up_lat, existing, "adv_lat"),
             adv_lon=m(up_adv_lon if up_adv_lon is not None else up_lon, existing, "adv_lon"),
+            position_valid=m(u("position_valid"), existing, "position_valid", False),
+            position_source=m(u("position_source"), existing, "position_source"),
+            position_updated_at=m(u("position_updated_at"), existing, "position_updated_at"),
             auto_discovered=m(u("auto_discovered"), existing, "auto_discovered", False),
             discovery_time=m(u("discovery_time"), existing, "discovery_time", 0.0),
             verified_identity=m(u("verified_identity"), existing, "verified_identity", False),
@@ -1123,7 +1246,7 @@ class NodeRegistry:
             up_rssi = getattr(update, "last_rssi", None)
             up_snr = getattr(update, "last_snr", None)
             up_route = getattr(update, "best_route", None)
-            eff_hops = 0 if is_local_flag else (up_hops if up_hops is not None else (existing.hops if existing else 0))
+            eff_hops = 0 if is_local_flag else (up_hops if up_hops is not None else (existing.hops if existing else None))
             eff_rssi = None if is_local_flag else (up_rssi if up_rssi is not None else (existing.last_rssi if existing else None))
             eff_snr = None if is_local_flag else (up_snr if up_snr is not None else (existing.last_snr if existing else None))
             calc_route = up_route if up_route is not None else (existing.best_route if existing else "DIRECT")
@@ -1205,13 +1328,17 @@ class NodeRegistry:
 
         existing_key = self._find_existing_key(norm_key, evt.name)
         now_ts = time.time()
+        eff_ls = evt.last_seen if evt.last_seen is not None else (None if evt.is_import else now_ts)
+        eff_heard = evt.last_advert_heard_at if evt.last_advert_heard_at is not None else (None if evt.is_import else now_ts)
+
         if existing_key:
             existing = self._nodes_by_key[existing_key]
             target_key = norm_key if len(norm_key) >= len(existing_key) else existing_key
             updated = self.add_or_update(
                 target_key,
                 NodeContactUpdate(
-                    last_seen=now_ts,
+                    last_seen=eff_ls,
+                    last_advert_heard_at=eff_heard,
                     last_rssi=evt.rssi,
                     last_snr=evt.snr,
                     hops=evt.hops,
@@ -1225,7 +1352,8 @@ class NodeRegistry:
         contact = self.add_or_update(
             norm_key,
             NodeContactUpdate(
-                last_seen=now_ts,
+                last_seen=eff_ls if eff_ls is not None else 0.0,
+                last_advert_heard_at=eff_heard,
                 name=clean_name,
                 role=effective_role,
                 last_rssi=evt.rssi,
@@ -1309,6 +1437,7 @@ class NodeRegistry:
                 target_key,
                 NodeContactUpdate(
                     last_seen=rx_observed_ts,
+                    last_rx_at=rx_observed_ts,
                     name=existing.name if existing else f"Node_{target_key[:6]}",
                     alias=existing.alias if existing else "",
                     hops=m(event.hop_count, existing, "hops") if event.is_rx else (existing.hops if existing else None),
@@ -1326,6 +1455,9 @@ class NodeRegistry:
                     duty_cycle_pct=m(extracted.get("duty_cycle_pct"), existing, "duty_cycle_pct"),
                     latitude=m(extracted.get("latitude"), existing, "latitude"),
                     longitude=m(extracted.get("longitude"), existing, "longitude"),
+                    position_valid=True if (extracted.get("latitude") is not None and extracted.get("longitude") is not None) else (existing.position_valid if existing else False),
+                    position_source="TELEMETRY_LPP" if (extracted.get("latitude") is not None and extracted.get("longitude") is not None) else (existing.position_source if existing else None),
+                    position_updated_at=rx_observed_ts if (extracted.get("latitude") is not None and extracted.get("longitude") is not None) else (existing.position_updated_at if existing else None),
                     altitude_m=m(extracted.get("altitude_m"), existing, "altitude_m"),
                     uptime=m(extracted.get("uptime"), existing, "uptime"),
                     clock=m(extracted.get("clock"), existing, "clock"),
@@ -1429,6 +1561,16 @@ class NodeRegistry:
         result: list[dict[str, Any]] = []
 
         contacts_snapshot = list(self._nodes_by_key.values())
+        local_node = next(
+            (c for c in contacts_snapshot if c.is_local or self.is_local_key(c.public_key) or str(c.role).upper() == "LOCAL"),
+            None,
+        )
+        local_lat = local_node.latitude if local_node else None
+        local_lon = local_node.longitude if local_node else None
+        if local_lat is None and local_node:
+            local_lat = local_node.adv_lat
+        if local_lon is None and local_node:
+            local_lon = local_node.adv_lon
 
         for c in contacts_snapshot:
             if not is_valid_node_key(c.public_key) or c.name.startswith("Node_unknow"):
@@ -1445,7 +1587,7 @@ class NodeRegistry:
                 continue
             seen_keys.add(norm_pk)
 
-            node_dict = c.to_dict()
+            node_dict = c.to_dict(local_lat=local_lat, local_lon=local_lon)
             # Preservar métricas medidas reales de LQI y hardware sin contaminación de presentación
             node_dict["lqi_score"] = c.lqi_score
             node_dict["lqi_status"] = c.lqi_status
@@ -1741,9 +1883,18 @@ class NodeRegistry:
             fixed_position=bool(nd.get("fixed_position", False)) if nd.get("fixed_position") is not None else None,
             flags=_safe_int(nd.get("flags")) if nd.get("flags") is not None else None,
             last_advert=_safe_float(nd.get("last_advert")) if nd.get("last_advert") is not None else None,
+            last_advert_heard_at=_safe_float(nd.get("last_advert_heard_at")) if nd.get("last_advert_heard_at") is not None else None,
+            last_rx_at=_safe_float(nd.get("last_rx_at")) if nd.get("last_rx_at") is not None else None,
+            last_rx_route=nd.get("last_rx_route") if isinstance(nd.get("last_rx_route"), dict) else None,
             out_path=str(nd["out_path"]) if nd.get("out_path") is not None else None,
             out_path_len=_safe_int(nd.get("out_path_len")) if nd.get("out_path_len") is not None else None,
-            out_path_hash_mode=str(nd["out_path_hash_mode"]) if nd.get("out_path_hash_mode") is not None else None,
+            out_path_hash_mode=normalize_hash_mode(nd.get("out_path_hash_mode")) if nd.get("out_path_hash_mode") is not None else None,
+            out_route_state=str(nd.get("out_route_state", "unknown")),
+            out_path_hash_size_bytes=_safe_int(nd.get("out_path_hash_size_bytes")) if nd.get("out_path_hash_size_bytes") is not None else None,
+            hops_source=str(nd.get("hops_source", "unknown")),
+            position_valid=bool(nd.get("position_valid", False)),
+            position_source=nd.get("position_source"),
+            position_updated_at=_safe_float(nd.get("position_updated_at")) if nd.get("position_updated_at") is not None else None,
             is_local=bool(nd.get("is_local", False)),
             auto_discovered=bool(nd.get("auto_discovered", False)),
             discovery_time=_safe_float(nd.get("discovery_time", 0.0)),

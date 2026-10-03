@@ -69,6 +69,42 @@ def clean_coordinate_value(value: Any, *, latitude: bool = False) -> float | Non
     return number if number is not None and -limit <= number <= limit else None
 
 
+def haversine_distance_m(
+    lat1: Any,
+    lon1: Any,
+    lat2: Any,
+    lon2: Any,
+    earth_radius_m: float = 6371000.0,
+) -> float | None:
+    """Calcula la distancia geográfica en metros entre dos coordenadas mediante Haversine.
+
+    - Convierte grados a radianes.
+    - Fórmula: a = sin²(Δlat/2) + cos(lat1)*cos(lat2)*sin²(Δlon/2)
+               d = 2 * R * atan2(sqrt(a), sqrt(1-a))
+    - Acota errores numéricos de precisión flotante: a = max(0.0, min(1.0, a))
+    - Acepta valores en el ecuador (lat=0.0) y meridiano cero (lon=0.0).
+    - Valida rangos: latitud [-90, 90], longitud [-180, 180].
+    - Retorna None si alguna coordenada es nula, inválida o infinita.
+    """
+    c_lat1 = clean_coordinate_value(lat1, latitude=True)
+    c_lon1 = clean_coordinate_value(lon1, latitude=False)
+    c_lat2 = clean_coordinate_value(lat2, latitude=True)
+    c_lon2 = clean_coordinate_value(lon2, latitude=False)
+
+    if c_lat1 is None or c_lon1 is None or c_lat2 is None or c_lon2 is None:
+        return None
+
+    phi1 = math.radians(c_lat1)
+    phi2 = math.radians(c_lat2)
+    delta_phi = math.radians(c_lat2 - c_lat1)
+    delta_lambda = math.radians(c_lon2 - c_lon1)
+
+    a = (math.sin(delta_phi / 2.0) ** 2) + math.cos(phi1) * math.cos(phi2) * (math.sin(delta_lambda / 2.0) ** 2)
+    a = max(0.0, min(1.0, a))
+    c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
+    return round(earth_radius_m * c, 2)
+
+
 def clean_battery_input(val: Any) -> float | None:
     """Extrae y normaliza un valor numérico de batería o voltaje desde diversos tipos y formatos."""
     return clean_numeric_value(val)

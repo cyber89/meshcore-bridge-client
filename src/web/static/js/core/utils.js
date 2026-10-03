@@ -573,3 +573,96 @@ export function getPresenceState(lastSeen, isLocal = false) {
   return "status-offline";
 }
 
+/**
+ * Calcula la distancia ortodrómica en metros entre dos coordenadas WGS84
+ * usando la fórmula de Haversine. Soporta válidamente coordenadas (0, 0).
+ * @param {number} lat1 Latitud punto 1 (-90 a 90)
+ * @param {number} lon1 Longitud punto 1 (-180 a 180)
+ * @param {number} lat2 Latitud punto 2 (-90 a 90)
+ * @param {number} lon2 Longitud punto 2 (-180 a 180)
+ * @returns {number|null} Distancia en metros o null si los datos son inválidos
+ */
+export function calculateDistanceM(lat1, lon1, lat2, lon2) {
+  if (
+    lat1 === null || lat1 === undefined ||
+    lon1 === null || lon1 === undefined ||
+    lat2 === null || lat2 === undefined ||
+    lon2 === null || lon2 === undefined
+  ) {
+    return null;
+  }
+  const nLat1 = Number(lat1);
+  const nLon1 = Number(lon1);
+  const nLat2 = Number(lat2);
+  const nLon2 = Number(lon2);
+
+  if (!Number.isFinite(nLat1) || !Number.isFinite(nLon1) || !Number.isFinite(nLat2) || !Number.isFinite(nLon2)) {
+    return null;
+  }
+  if (nLat1 < -90.0 || nLat1 > 90.0 || nLat2 < -90.0 || nLat2 > 90.0) {
+    return null;
+  }
+  if (nLon1 < -180.0 || nLon1 > 180.0 || nLon2 < -180.0 || nLon2 > 180.0) {
+    return null;
+  }
+
+  const R = 6371000.0; // Radio medio de la Tierra en metros (IUGG)
+  const dLat = (nLat2 - nLat1) * (Math.PI / 180.0);
+  const dLon = (nLon2 - nLon1) * (Math.PI / 180.0);
+  const lat1Rad = nLat1 * (Math.PI / 180.0);
+  const lat2Rad = nLat2 * (Math.PI / 180.0);
+
+  const sinHalfLat = Math.sin(dLat / 2.0);
+  const sinHalfLon = Math.sin(dLon / 2.0);
+
+  let a = (sinHalfLat * sinHalfLat) + Math.cos(lat1Rad) * Math.cos(lat2Rad) * (sinHalfLon * sinHalfLon);
+  a = Math.max(0.0, Math.min(1.0, a));
+  const c = 2.0 * Math.atan2(Math.sqrt(a), Math.sqrt(1.0 - a));
+
+  return Math.round(R * c);
+}
+
+/**
+ * Formatea una distancia en metros a formato legible (m o km).
+ * @param {number|null} meters Distancia en metros
+ * @returns {string} Cadena formateada o '--'
+ */
+export function formatDistance(meters) {
+  if (meters === null || meters === undefined) return "--";
+  const m = Number(meters);
+  if (!Number.isFinite(m) || m < 0) return "--";
+  if (m < 1000) {
+    return `${Math.round(m)} m`;
+  }
+  return `${(m / 1000).toFixed(1)} km`;
+}
+
+/**
+ * Formatea un timestamp epoch en segundos a tiempo transcurrido relativo ("hace X s", "hace X m", etc.).
+ * @param {number|null} epochSec Segundos epoch
+ * @returns {string} Cadena legible
+ */
+export function formatTimeAgo(epochSec) {
+  if (!epochSec || epochSec <= 0) return "--";
+  let effTs = Number(epochSec);
+  if (effTs > 1e11) effTs = Math.floor(effTs / 1000);
+  let diff = Math.floor(Date.now() / 1000) - effTs;
+  if (diff < 0) diff = 0;
+
+  const isEs = !window.I18n || window.I18n.lang !== "en";
+  if (diff < 60) {
+    return isEs ? `hace ${diff} s` : `${diff}s ago`;
+  }
+  if (diff < 3600) {
+    const mins = Math.floor(diff / 60);
+    return isEs ? `hace ${mins} m` : `${mins}m ago`;
+  }
+  if (diff < 86400) {
+    const hrs = Math.floor(diff / 3600);
+    return isEs ? `hace ${hrs} h` : `${hrs}h ago`;
+  }
+  const days = Math.floor(diff / 86400);
+  return isEs ? `hace ${days} d` : `${days}d ago`;
+}
+
+

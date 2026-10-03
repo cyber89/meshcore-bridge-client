@@ -97,6 +97,16 @@ class AdvertHandler(BaseRxHandler):
                 c_lon = None
             c_bat = _safe_int(c_item.get("battery_pct", c_item.get("battery", c_item.get("batt"))))
 
+            is_snapshot_sync = any(k in meta.ev_upper for k in ("CONTACTS", "NEXT_CONTACT")) or bool(c_item.get("is_import"))
+            now_ts = time.time()
+            eff_last_seen = None if is_snapshot_sync else now_ts
+            eff_heard_at = None if is_snapshot_sync else now_ts
+            remote_advert_ts = _safe_float(c_item.get("last_advert"))
+
+            pos_valid = bool(c_lat is not None and c_lon is not None and (c_lat != 0 or c_lon != 0 or c_item.get("fixed_position")))
+            pos_src = "ADVERT_GPS" if pos_valid else None
+            pos_updated = now_ts if (pos_valid and not is_snapshot_sync) else None
+
             is_c_new, _ = router_ctx.node_registry.discover_node(
                 NodeDiscoveryEvent(
                     public_key=c_pk,
@@ -105,6 +115,9 @@ class AdvertHandler(BaseRxHandler):
                     rssi=meta.effective_rssi,
                     snr=meta.effective_snr,
                     hops=meta.effective_hops,
+                    last_seen=eff_last_seen,
+                    last_advert_heard_at=eff_heard_at,
+                    is_import=is_snapshot_sync,
                 )
             )
             if is_c_new:
@@ -112,10 +125,13 @@ class AdvertHandler(BaseRxHandler):
                     f"[NODO-DESCUBIERTO] Nuevo nodo detectado en la malla: {c_name} ({c_pk[:8]}) | "
                     f"Rol: {c_role} | RSSI: {meta.effective_rssi} dBm, SNR: {meta.effective_snr} dB, Saltos: {meta.effective_hops}"
                 )
-            router_ctx.node_registry.add_or_update(
+
+            updated_c = router_ctx.node_registry.add_or_update(
                 c_pk,
                 NodeContactUpdate(
-                    last_seen=time.time(),
+                    last_seen=eff_last_seen,
+                    last_advert_heard_at=eff_heard_at,
+                    last_advert=remote_advert_ts,
                     name=c_name,
                     alias=c_name,
                     role=c_role,
@@ -123,12 +139,28 @@ class AdvertHandler(BaseRxHandler):
                     longitude=c_lon,
                     adv_lat=c_lat,
                     adv_lon=c_lon,
+                    position_valid=pos_valid,
+                    position_source=pos_src,
+                    position_updated_at=pos_updated,
                     battery_pct=c_bat,
                     last_rssi=meta.effective_rssi,
                     last_snr=meta.effective_snr,
                     hops=meta.effective_hops,
+                    flags=_safe_int(c_item.get("flags")),
+                    out_path=c_item.get("out_path"),
+                    out_path_len=_safe_int(c_item.get("out_path_len")),
+                    out_path_hash_mode=c_item.get("out_path_hash_mode"),
                 ),
             )
+
+            # Emitir siempre el snapshot final actualizado
+            if ctx and hasattr(ctx, "_spawn_broadcast_task"):
+                ctx._spawn_broadcast_task({
+                    "type": "contact_discovered" if is_c_new else "contact_updated",
+                    "event_type": "contact_discovered" if is_c_new else "contact_updated",
+                    "is_new": is_c_new,
+                    "contact": updated_c.to_dict(),
+                })
 
         if "event_type" not in payload:
             payload["event_type"] = "advert"

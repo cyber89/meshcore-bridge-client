@@ -110,19 +110,24 @@ class ContactsController(BaseController):
                 pk = str(c.get("public_key", "")).strip()
                 if pk:
                     last_adv = c.get("last_advert")
-                    valid_last_seen = None
-                    if isinstance(last_adv, (int, float)) and 1_000_000_000 < last_adv <= now_cur:
-                        valid_last_seen = float(last_adv)
+                    eff_lat = c.get("latitude") if c.get("latitude") is not None else (c.get("lat") if c.get("lat") is not None else c.get("adv_lat"))
+                    eff_lon = c.get("longitude") if c.get("longitude") is not None else (c.get("lon") if c.get("lon") is not None else c.get("adv_lon"))
                     self.ctx.bridge.node_registry.add_or_update(
                         pk,
                         NodeContactUpdate(
                             name=c.get("name"),
                             alias=c.get("alias"),
                             role=c.get("role", "CLIENT"),
-                            last_seen=valid_last_seen,
+                            last_seen=None,
                             last_advert=float(last_adv) if isinstance(last_adv, (int, float)) and last_adv > 0 else None,
-                            latitude=c.get("latitude") if c.get("latitude") is not None else (c.get("lat") if c.get("lat") is not None else c.get("adv_lat")),
-                            longitude=c.get("longitude") if c.get("longitude") is not None else (c.get("lon") if c.get("lon") is not None else c.get("adv_lon")),
+                            latitude=eff_lat,
+                            longitude=eff_lon,
+                            adv_lat=c.get("adv_lat") or eff_lat,
+                            adv_lon=c.get("adv_lon") or eff_lon,
+                            flags=c.get("flags"),
+                            out_path=c.get("out_path"),
+                            out_path_len=c.get("out_path_len"),
+                            out_path_hash_mode=c.get("out_path_hash_mode"),
                         ),
                     )
                     imported_count += 1

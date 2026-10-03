@@ -677,14 +677,10 @@ class MeshCoreBridge:
             try:
                 imported_contacts = await self.serial_adapter.sync_all_contacts()
                 if imported_contacts:
-                    now_cur = time.time()
                     for c in imported_contacts:
                         pk = str(c.get("public_key", "")).strip()
                         if pk:
                             last_adv = c.get("last_advert")
-                            valid_last_seen = None
-                            if isinstance(last_adv, (int, float)) and 1_000_000_000 < last_adv <= now_cur:
-                                valid_last_seen = float(last_adv)
                             self.node_registry.add_or_update(
                                 pk,
                                 NodeContactUpdate(
@@ -693,10 +689,16 @@ class MeshCoreBridge:
                                     role=c.get("role", "CLIENT"),
                                     auto_discovered=False,
                                     is_favorite=True,
-                                    last_seen=valid_last_seen,
+                                    last_seen=None,
                                     last_advert=float(last_adv) if isinstance(last_adv, (int, float)) and last_adv > 0 else None,
                                     latitude=c.get("latitude"),
                                     longitude=c.get("longitude"),
+                                    adv_lat=c.get("adv_lat") or c.get("latitude"),
+                                    adv_lon=c.get("adv_lon") or c.get("longitude"),
+                                    flags=c.get("flags"),
+                                    out_path=c.get("out_path"),
+                                    out_path_len=c.get("out_path_len"),
+                                    out_path_hash_mode=c.get("out_path_hash_mode"),
                                 ),
                             )
 
