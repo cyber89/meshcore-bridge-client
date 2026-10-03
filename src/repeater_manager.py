@@ -176,7 +176,7 @@ class RepeaterManager:
         self._record_ts(self._last_neighbours_ts, target_pk.strip().lower(), time.monotonic())
 
 
-    def build_repeater_command_payload(self, action: str, params: dict[str, Any]) -> str:
+    def build_repeater_command_payload(self, action: str, params: dict[str, Any]) -> str | None:
         """Construye la cadena de comando en texto para enviar al firmware del repetidor."""
         act = action.strip().lower()
 
@@ -185,8 +185,8 @@ class RepeaterManager:
         if query_cmd:
             return query_cmd
 
-        # Comandos que ya vienen formateados directamente
-        if act.startswith(("set ", "login ", "acl ", "cmd ")):
+        # Comandos que ya vienen formateados directamente con prefijo reconocido
+        if act.startswith(("set ", "login ", "password ", "setperm ", "cmd ", "time ")):
             return action
 
         # 2. Comandos de radio y parámetros RF
@@ -204,7 +204,8 @@ class RepeaterManager:
         if acl_sec_cmd:
             return acl_sec_cmd
 
-        return action
+        # Rechazar acciones desconocidas para evitar despachar basura a la radio (B09)
+        return None
 
     def _build_query_cmd(self, act: str) -> str | None:
         """Construye comandos de lectura sin argumentos adicionales."""
@@ -296,12 +297,14 @@ class RepeaterManager:
         return query_map.get(act)
 
     def _build_radio_cmd(self, act: str, params: dict[str, Any]) -> str | None:
-        """Construye comandos de parámetros de radio y modem LoRa."""
+        """Construye comandos de parámetros de radio y modem LoRa conforme a CommonCLI."""
         if act in ("set_radio", "radio"):
-            freq = params.get("frequency", params.get("freq", 915.0))
-            bw = params.get("bandwidth", params.get("bw", 250.0))
-            sf = params.get("spreading_factor", params.get("sf", 11))
-            cr_raw = params.get("coding_rate", params.get("cr", 5))
+            freq = params.get("frequency", params.get("freq"))
+            bw = params.get("bandwidth", params.get("bw"))
+            sf = params.get("spreading_factor", params.get("sf"))
+            cr_raw = params.get("coding_rate", params.get("cr"))
+            if freq is None or bw is None or sf is None or cr_raw is None:
+                return None
             cr_num = 5
             if str(cr_raw).strip() in ("5", "6", "7", "8"):
                 cr_num = int(str(cr_raw).strip())
@@ -311,10 +314,6 @@ class RepeaterManager:
                     cr_num = int(parts[1].strip())
             return f"set radio {freq},{bw},{sf},{cr_num}"
 
-        if act in ("set_frequency", "set_freq", "frequency", "freq"):
-            freq = params.get("frequency", params.get("freq", 915.0))
-            return f"set freq {freq}"
-
         if act in ("set_tx_power", "set_power", "tx_power", "power", "set_tx", "tx"):
             pwr = params.get("tx_power", params.get("power", params.get("tx", 20)))
             hw_board = params.get("hardware_board", params.get("board", params.get("hw_model")))
@@ -322,27 +321,12 @@ class RepeaterManager:
             pwr_clamped = clamp_tx_power(int(pwr), hw_board, max_p_hint)
             return f"set tx {pwr_clamped}"
 
-        if act in ("set_sf", "set_spreading_factor", "sf"):
-            sf = params.get("spreading_factor", params.get("sf", 11))
-            return f"set sf {sf}"
-
-        if act in ("set_bw", "set_bandwidth", "bandwidth", "bw"):
-            bw = params.get("bandwidth", params.get("bw", 250.0))
-            return f"set bw {bw}"
-
-        if act in ("set_cr", "set_coding_rate", "coding_rate", "cr"):
-            cr = params.get("coding_rate", params.get("cr", 5))
-            return f"set cr {cr}"
-
         if act in ("set_repeat", "repeat_settings", "repeat"):
             enabled = params.get("repeat", params.get("enabled", True))
             val = "on" if enabled is True or str(enabled).lower() in ("true", "1", "on") else "off"
             return f"set repeat {val}"
 
-        if act in ("set_hop_limit", "hop_limit"):
-            hl = params.get("hop_limit", params.get("hops", 3))
-            return f"set hop_limit {hl}"
-
+        # Comandos unitarios de radio (set freq, set sf, set bw, set cr, set hop_limit) no existen en CommonCLI oficial
         return None
 
     def _build_owner_and_location_cmd(self, act: str, params: dict[str, Any]) -> str | None:
@@ -365,70 +349,59 @@ class RepeaterManager:
 
         if act in ("set_owner_info", "owner_info"):
             info = params.get("owner_info", params.get("info", ""))
-            return f"set owner.info \"{info}\""
+            # Sin comillas envolventes literales (CommonCLI consume hasta fin de línea)
+            return f"set owner.info {info}"
 
         if act in ("set_advert_interval", "set_beacon", "advert_intervals", "beacon"):
-            interval = params.get("advert_interval", params.get("beacon_interval", params.get("interval", params.get("beacon", 300))))
+            interval = params.get("advert_interval", params.get("beacon_interval", params.get("interval", params.get("beacon", 0))))
             try:
                 inv = int(interval)
-                if inv >= 60:
-                    mins = max(2, min(240, int(round(inv / 60))))
+                if inv == 0:
+                    mins = 0
+                elif inv >= 60:
+                    m = int(round(inv / 60)) if inv > 240 else inv
+                    m_clamped = max(60, min(240, m))
+                    mins = (m_clamped // 2) * 2
                 else:
-                    mins = max(2, min(240, inv))
+                    mins = 0
             except (ValueError, TypeError):
-                mins = 5
+                mins = 0
             return f"set advert.interval {mins}"
 
-        if act in ("set_fixed", "set_pos_fixed", "fixed", "pos_fixed"):
-            return None
-
-        if act in ("set_position", "set_pos", "position", "set_coords", "coords"):
-            lat = params.get("lat", params.get("latitude", 0.0))
-            lon = params.get("lon", params.get("longitude", 0.0))
-            alt = params.get("alt", params.get("altitude", 0.0))
-            fixed = params.get("fixed", True)
-            fixed_val = "1" if fixed is True or str(fixed).lower() in ("true", "1", "on") else "0"
-            return f"set pos {lat} {lon} {alt} {fixed_val}"
-
-        if act == "set_pos_alt":
-            alt = params.get("alt", params.get("altitude", 0.0))
-            return f"set pos.alt {alt}"
+        if act in ("set_flood_advert_interval", "flood_advert_interval", "flood_interval"):
+            interval = params.get("flood_advert_interval", params.get("interval", 0))
+            try:
+                inv = int(interval)
+                hours = 0 if inv == 0 else max(3, min(168, inv))
+            except (ValueError, TypeError):
+                hours = 0
+            return f"set flood.advert.interval {hours}"
 
         return None
 
     def _build_acl_and_security_cmd(self, act: str, params: dict[str, Any]) -> str | None:
-        """Construye comandos de autenticación, ACL y sincronización horaria."""
+        """Construye comandos de autenticación, ACL y sincronización horaria conforme a CommonCLI."""
         if act in ("login", "auth"):
-            password = params.get("password", params.get("pin", ""))
+            password = params.get("password", "")
             return f"login {password}"
 
-        if act in ("acl_add", "add_acl", "acl.add"):
-            pk = params.get("public_key", params.get("pk", ""))
-            perm = params.get("permission", params.get("perm", "admin"))
-            return f"acl add {pk} {perm}"
-
-        if act in ("acl_remove", "remove_acl", "acl.remove", "acl_del"):
-            pk = params.get("public_key", params.get("pk", ""))
-            return f"acl remove {pk}"
-
-        if act in ("acl_list", "get_acl_list", "acl.list"):
-            return "acl list"
-
-        if act in ("set_admin_password", "admin_password", "admin.password"):
+        if act in ("set_password", "change_password", "password", "set_admin_password", "admin_password"):
             new_pwd = params.get("new_password", params.get("password", params.get("admin_password", "")))
-            return f"set admin.password {new_pwd}"
+            if new_pwd:
+                return f"password {new_pwd}"
+            return None
 
-        if act in ("set_password", "change_password", "password"):
-            new_pwd = params.get("new_password", params.get("password", params.get("admin_password", "")))
-            return f"password {new_pwd}"
-
-        if act in ("set_guest_password", "guest_password"):
-            new_pwd = params.get("guest_password", params.get("password", ""))
-            return f"set guest.password {new_pwd}"
-
-        if act in ("set_identity_key", "set_prv_key", "prv_key", "prv.key"):
-            key = params.get("identity_key", params.get("prv_key", params.get("key", "")))
-            return f"set prv.key {key}"
+        if act in ("setperm", "acl_setperm", "acl_add", "add_acl", "acl_remove", "remove_acl"):
+            pk = params.get("public_key", params.get("pk", ""))
+            perm = params.get("permission", params.get("perm", 1))
+            if isinstance(perm, str):
+                perm_map = {"admin": 1, "administrator": 1, "guest": 2, "read": 2, "none": 0, "remove": 0, "delete": 0}
+                perm_u8 = perm_map.get(perm.lower().strip(), 1)
+            else:
+                perm_u8 = int(perm)
+            if pk:
+                return f"setperm {pk.lower().strip()} {perm_u8}"
+            return None
 
         if act in ("set_clock", "set_time", "sync_time", "clock_sync"):
             ts = params.get("timestamp", params.get("time", int(time.time())))

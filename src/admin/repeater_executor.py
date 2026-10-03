@@ -26,6 +26,12 @@ from src.contact_manager import (
     PacketRecord,
     is_valid_node_key,
 )
+from src.protocol_types import (
+    LORA_MAX_FREQ_MHZ,
+    LORA_MIN_FREQ_MHZ,
+    redact_command_str,
+    redact_sensitive_dict,
+)
 from src.shared_utils import normalize_battery, redact_sensitive_command
 
 if TYPE_CHECKING:
@@ -161,7 +167,11 @@ class RepeaterAdminExecutor:
         )
 
         target_info = self._collect_target_info(str(req.target_node))
-        canonical_target = self._ctx.node_registry.get_canonical_key(str(req.target_node)) or str(req.target_node).strip().lower()
+        if target_info and target_info.get("public_key"):
+            canonical_target = str(target_info["public_key"]).strip().lower()
+        else:
+            canonical_target = self._ctx.node_registry.get_canonical_key(str(req.target_node)) or str(req.target_node).strip().lower()
+
         local_key = str(self._get_local_config().get("public_key", "")).strip().lower()
         if self._ctx.node_registry.is_local_key(canonical_target) or (
             local_key and canonical_target and (local_key.startswith(canonical_target) or canonical_target.startswith(local_key))
@@ -169,7 +179,7 @@ class RepeaterAdminExecutor:
             return {"status": "error", "message": "Bucle local prohibido: el destino es la estación base"}
         is_client_only = bool(
             target_info
-            and target_info.get("role") == "CLIENT"
+            and str(target_info.get("role", "")).upper() in ("CLIENT", "NONE", "USER")
         )
 
         if req.action in ("remote_repeater_set_config", "set_remote_config"):
@@ -189,11 +199,24 @@ class RepeaterAdminExecutor:
         return await self._dispatch_rf_command(req, target_info, res)
 
     def _collect_target_info(self, target_node: str) -> dict[str, Any] | None:
-        """Obtiene la información del nodo destino desde el NodeRegistry."""
-        tgt = target_node.lower()
+        """Obtiene la información del nodo destino desde el NodeRegistry por pubkey, prefijo o alias/nombre."""
+        tgt = str(target_node).strip()
+        tgt_lower = tgt.lower()
+        # 1. Búsqueda por clave pública exacta o prefijo hexadecimal
         for n in self._ctx.node_registry.list_nodes():
             pk = str(n.get("public_key", "")).lower()
-            if pk == tgt or (len(pk) >= 8 and (pk.startswith(tgt) or tgt.startswith(pk))):
+            if pk == tgt_lower or (len(pk) >= 8 and (pk.startswith(tgt_lower) or tgt_lower.startswith(pk))):
+                return n
+        # 2. Búsqueda por nombre o alias (B12: evita que pasar nombre de cliente ignore el guard de rol)
+        finder = getattr(self._ctx.node_registry, "find_by_name", None)
+        if callable(finder):
+            found = finder(tgt)
+            if found:
+                return found
+        for n in self._ctx.node_registry.list_nodes():
+            n_name = str(n.get("name", "")).strip().lower()
+            n_alias = str(n.get("alias", "")).strip().lower()
+            if n_name == tgt_lower or n_alias == tgt_lower:
                 return n
         return None
 
@@ -203,66 +226,121 @@ class RepeaterAdminExecutor:
         if not can_send:
             return self._ctx.repeater_manager.build_cooldown_error_response(rem_cd)
 
-        self._ctx.repeater_manager.record_command_sent(str(req.target_node), is_full_query=True)
         params = req.admin_data.get("params", {})
+        if not isinstance(params, dict):
+            return {"status": "error", "message": "params debe ser un objeto"}
+
+        allowed_keys = frozenset({
+            "freq", "frequency", "bw", "bandwidth", "sf", "spreading_factor", "cr", "coding_rate",
+            "region", "tx_power", "power", "tx", "repeat", "repeat_enabled",
+            "advert_interval", "beacon_interval", "flood_advert_interval",
+            "name", "owner_name", "owner_info", "lat", "latitude", "lon", "longitude",
+            "password", "new_password", "admin_password", "guest_password",
+            "public_key", "pk", "permission", "perm", "acl_mode", "identity_key"
+        })
+        # Prevalidación estricta de parámetros permitidos (B09)
+        for p_key in params:
+            if p_key not in allowed_keys:
+                return {"status": "error", "message": f"Parámetro de configuración remota desconocido: '{p_key}'"}
+
+        # Consolidación atómica de parámetros de radio si se recibieron configuraciones de RF (B11)
+        radio_keys = {"freq", "frequency", "bw", "bandwidth", "sf", "spreading_factor", "cr", "coding_rate"}
+        target_node_info = self._collect_target_info(str(req.target_node)) or {}
+        has_radio = any(k in params for k in radio_keys)
+        radio_cmd: str | None = None
+        if has_radio:
+            freq_cand = params.get("freq", params.get("frequency", target_node_info.get("frequency")))
+            bw_cand = params.get("bw", params.get("bandwidth", target_node_info.get("bandwidth")))
+            sf_cand = params.get("sf", params.get("spreading_factor", target_node_info.get("spreading_factor")))
+            cr_cand = params.get("cr", params.get("coding_rate", target_node_info.get("coding_rate")))
+
+            if freq_cand is None or bw_cand is None or sf_cand is None or cr_cand is None:
+                return {
+                    "status": "error",
+                    "message": "Baseline de parámetros de radio no disponible para el nodo remoto; se requiere especificar frequency, bandwidth, spreading_factor y coding_rate completos.",
+                }
+            try:
+                freq_f = float(freq_cand)
+                if not (LORA_MIN_FREQ_MHZ <= freq_f <= LORA_MAX_FREQ_MHZ):
+                    return {"status": "error", "message": f"Frecuencia {freq_f} MHz fuera del rango permitido"}
+                bw_f = float(bw_cand)
+                if not (7.0 <= bw_f <= 500.0):
+                    return {"status": "error", "message": f"Ancho de banda {bw_f} kHz inválido"}
+                sf_i = int(sf_cand)
+                if sf_i not in range(5, 13):
+                    return {"status": "error", "message": f"Spreading factor SF{sf_i} inválido (5..12)"}
+                cr_raw = str(cr_cand).strip()
+                cr_num = 5
+                if cr_raw in ("5", "6", "7", "8"):
+                    cr_num = int(cr_raw)
+                elif "/" in cr_raw and cr_raw.split("/")[-1] in ("5", "6", "7", "8"):
+                    cr_num = int(cr_raw.split("/")[-1])
+            except (ValueError, TypeError) as err:
+                return {"status": "error", "message": f"Parámetros de radio inválidos: {err}"}
+
+            radio_cmd = f"set radio {freq_f},{bw_f},{sf_i},{cr_num}"
+
+        # Comprobar potencia si está presente
+        if "tx_power" in params or "power" in params or "tx" in params:
+            raw_pwr = params.get("tx_power", params.get("power", params.get("tx")))
+            try:
+                int(raw_pwr)
+            except (ValueError, TypeError) as err:
+                return {"status": "error", "message": f"Potencia TX remota inválida: {raw_pwr}"}
+
+        self._ctx.repeater_manager.record_command_sent(str(req.target_node), is_full_query=True)
         dispatched: list[str] = []
 
-        if req.password:
-            norm_target = self._ctx.node_registry.get_canonical_key(str(req.target_node)) or str(req.target_node).strip().lower()
-            waiter_keys = [norm_target, norm_target[:8], norm_target[:4], str(req.target_node).strip().lower()]
-            async with self._waiters.expect_response(waiter_keys) as fut:
-                rf_ctx = RfExecutionContext(
-                    req=req,
-                    dest_target=self._resolve_target(str(req.target_node), 12),
-                    dest_login_target=self._resolve_target(str(req.target_node), 12),
-                    waiter_keys=waiter_keys,
-                    fut=fut,
-                    res=res,
-                )
-                authenticated, message = await self._authenticate_repeater(rf_ctx, min_timeout=3.0)
-            if not authenticated:
-                res.update({"status": "error", "authenticated": False, "message": message, "dispatched_commands": []})
-                self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{req.target_node}/status", json.dumps(res), 1)
-                return res
-            dispatched.append(f"login {'*' * len(req.password)}")
-            await asyncio.sleep(0.35)
-
-        # Consolidación atómica de parámetros de radio si se recibieron configuraciones de RF
-        radio_keys = {"freq", "frequency", "bw", "bandwidth", "sf", "spreading_factor", "cr", "coding_rate"}
-        if any(k in params for k in radio_keys):
-            target_node_info = self._collect_target_info(str(req.target_node)) or {}
-            freq = params.get("freq", params.get("frequency", target_node_info.get("frequency", 915.0)))
-            bw = params.get("bw", params.get("bandwidth", target_node_info.get("bandwidth", 250.0)))
-            sf = params.get("sf", params.get("spreading_factor", target_node_info.get("spreading_factor", 11)))
-            cr_raw = params.get("cr", params.get("coding_rate", target_node_info.get("coding_rate", 5)))
-            cr_num = 5
-            if str(cr_raw).strip() in ("5", "6", "7", "8"):
-                cr_num = int(str(cr_raw).strip())
-            elif "/" in str(cr_raw):
-                parts = str(cr_raw).split("/")
-                if len(parts) > 1 and parts[1].strip() in ("5", "6", "7", "8"):
-                    cr_num = int(parts[1].strip())
-            radio_cmd = f"set radio {freq},{bw},{sf},{cr_num}"
-            await self._send_rf_command(req.mc, self._resolve_target(str(req.target_node), 12), radio_cmd, str(req.target_node), req.req_id)
-            dispatched.append(radio_cmd)
-            await asyncio.sleep(0.35)
-
-        for p_key, p_val in params.items():
-            if p_key in radio_keys or p_val is None:
-                continue
-            if isinstance(p_val, str) and not p_val.strip():
-                continue
-            cmd_str = self._ctx.repeater_manager.build_repeater_command_payload(f"set_{p_key}", {p_key: p_val})
-            if cmd_str:
-                await self._send_rf_command(req.mc, self._resolve_target(str(req.target_node), 12), cmd_str, str(req.target_node), req.req_id)
-                dispatched.append(cmd_str)
+        try:
+            if req.password:
+                norm_target = self._ctx.node_registry.get_canonical_key(str(req.target_node)) or str(req.target_node).strip().lower()
+                waiter_keys = [norm_target, norm_target[:8], norm_target[:4], str(req.target_node).strip().lower()]
+                async with self._waiters.expect_response(waiter_keys) as fut:
+                    rf_ctx = RfExecutionContext(
+                        req=req,
+                        dest_target=self._resolve_target(str(req.target_node), 12),
+                        dest_login_target=self._resolve_target(str(req.target_node), 12),
+                        waiter_keys=waiter_keys,
+                        fut=fut,
+                        res=res,
+                    )
+                    authenticated, message = await self._authenticate_repeater(rf_ctx, min_timeout=3.0)
+                if not authenticated:
+                    res.update({"status": "error", "authenticated": False, "message": message, "dispatched_commands": []})
+                    self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{req.target_node}/status", json.dumps(redact_sensitive_dict(res)), 1)
+                    return redact_sensitive_dict(res)
+                dispatched.append("login ********")
                 await asyncio.sleep(0.35)
 
-        # MSG_SENT acknowledges local dispatch, not that the remote setting was applied.
-        res["status"] = "dispatched"
-        res["dispatched_commands"] = dispatched
-        self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{req.target_node}/status", json.dumps(res), 1)
-        return res
+            if radio_cmd:
+                await self._send_rf_command(req.mc, self._resolve_target(str(req.target_node), 12), radio_cmd, str(req.target_node), req.req_id)
+                dispatched.append(radio_cmd)
+                res["pending_reboot"] = True
+                await asyncio.sleep(0.35)
+
+            for p_key, p_val in params.items():
+                if p_key in radio_keys or p_val is None:
+                    continue
+                if isinstance(p_val, str) and not p_val.strip():
+                    continue
+                cmd_str = self._ctx.repeater_manager.build_repeater_command_payload(f"set_{p_key}", {p_key: p_val})
+                if cmd_str:
+                    await self._send_rf_command(req.mc, self._resolve_target(str(req.target_node), 12), cmd_str, str(req.target_node), req.req_id)
+                    dispatched.append(redact_command_str(cmd_str))
+                    await asyncio.sleep(0.35)
+
+            res["status"] = "dispatched"
+            res["dispatched_commands"] = dispatched
+            self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{req.target_node}/status", json.dumps(redact_sensitive_dict(res)), 1)
+            return redact_sensitive_dict(res)
+        except Exception as error:
+            res.update({
+                "status": "partial" if dispatched else "error",
+                "message": str(error),
+                "dispatched_commands": dispatched,
+            })
+            self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{req.target_node}/status", json.dumps(redact_sensitive_dict(res)), 1)
+            return redact_sensitive_dict(res)
 
     async def _update_local_registry_from_params(self, target_node: str, params: dict[str, Any]) -> None:
         """Actualiza inmediatamente los parámetros del repetidor en el registro local."""

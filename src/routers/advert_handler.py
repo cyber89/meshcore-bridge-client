@@ -28,6 +28,12 @@ def _safe_int(val: Any) -> int | None:
     return int(number) if number is not None else None
 
 
+def _safe_float(val: Any) -> float | None:
+    number = clean_numeric_value(val)
+    return float(number) if number is not None else None
+
+
+
 class AdvertHandler(BaseRxHandler):
     """Manejador especializado para anuncios de presencia y descubrimiento de nodos."""
 

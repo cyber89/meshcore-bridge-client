@@ -781,6 +781,96 @@ class MeshcoreFrame:
             "crc_valid": self.is_valid,
         }
 
+
+# ================= Constantes y Límites Oficiales MeshCore =================
+
+LORA_MIN_FREQ_MHZ: float = 150.0
+LORA_MAX_FREQ_MHZ: float = 2500.0
+LORA_ALLOWED_BW_KHZ: tuple[float, ...] = (7.8, 10.4, 15.6, 20.8, 31.25, 41.7, 62.5, 125.0, 250.0, 500.0)
+LORA_ALLOWED_SF: tuple[int, ...] = (5, 6, 7, 8, 9, 10, 11, 12)
+LORA_ALLOWED_CR: tuple[int, ...] = (5, 6, 7, 8)
+
+REMOTE_ADVERT_INTERVAL_OFF: int = 0
+REMOTE_ADVERT_INTERVAL_MIN_MINS: int = 60
+REMOTE_ADVERT_INTERVAL_MAX_MINS: int = 240
+REMOTE_ADVERT_INTERVAL_QUANT_MINS: int = 2
+
+REMOTE_FLOOD_INTERVAL_OFF: int = 0
+REMOTE_FLOOD_INTERVAL_MIN_HOURS: int = 3
+REMOTE_FLOOD_INTERVAL_MAX_HOURS: int = 168
+
+
+# ================= Redacción Centralizada de Secretos =================
+
+SENSITIVE_CONFIG_KEYS: frozenset[str] = frozenset({
+    "pin",
+    "devicepin",
+    "password",
+    "admin_password",
+    "guest_password",
+    "new_password",
+    "current_password",
+    "secret",
+    "psk",
+    "token",
+    "private_key",
+    "prv_key",
+    "identity_key",
+})
+
+
+def redact_command_str(cmd: str) -> str:
+    """Redacta contraseñas y credenciales de comandos de texto y respuestas de firmware."""
+    if not cmd:
+        return cmd
+    s = str(cmd).strip()
+    lower = s.lower()
+    for prefix in (
+        "password ",
+        "login ",
+        "set admin.password ",
+        "set guest.password ",
+        "set prv.key ",
+        "set prv_key ",
+    ):
+        if lower.startswith(prefix):
+            return f"{s[:len(prefix)]}********"
+    if "password changed to " in lower:
+        idx = lower.find("password changed to ")
+        return f"{s[:idx + len('password changed to ')]}********"
+    return cmd
+
+
+def redact_sensitive_dict(data: Any) -> Any:
+    """
+    Recorre recursivamente estructuras de datos para redactar secretos antes de
+    cualquier salida pública (MQTT, WebSockets, REST, logs del sistema).
+    """
+    if isinstance(data, dict):
+        result: dict[str, Any] = {}
+        for k, v in data.items():
+            k_lower = str(k).lower().strip()
+            if k_lower in SENSITIVE_CONFIG_KEYS:
+                if k_lower in ("pin", "devicepin"):
+                    result["has_pin"] = bool(v and v != 0 and v != "0")
+                    result[k] = 0
+                else:
+                    result[k] = "********"
+            elif k_lower in ("dispatched_commands", "commands") and isinstance(v, list):
+                result[k] = [
+                    redact_command_str(item) if isinstance(item, str) else redact_sensitive_dict(item)
+                    for item in v
+                ]
+            else:
+                result[k] = redact_sensitive_dict(v)
+        return result
+    if isinstance(data, list):
+        return [redact_sensitive_dict(item) for item in data]
+    if isinstance(data, str):
+        return redact_command_str(data)
+    return data
+
+
 # TODO: migrate callers then remove
 _DEPRECATED_ALIASES: dict[str, str] = {
     "OpCode": "PacketType",
@@ -800,4 +890,5 @@ def __getattr__(name: str) -> Any:
         )
         return globals()[canonical]
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 

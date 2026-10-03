@@ -17,6 +17,10 @@ export class RepeaterModule {
     this._remoteCliHistoryIdx = -1;
     this._lastTerminalEntry = null;
     this.dom = {};
+    this.dirtyFields = new Set();
+    this._isSavingRadio = false;
+    this._isSavingOwnerPos = false;
+    this._isSavingSecurity = false;
   }
 
   init() {
@@ -29,6 +33,58 @@ export class RepeaterModule {
     if (this._neighbors) this.renderNeighborsTable(this._neighbors);
     const submit = this.dom.btnRepeaterGateSubmit;
     if (submit) I18n.setText(submit, submit.disabled ? 'repeater.verify' : 'repeater.unlock');
+  }
+
+  _setFieldIfNotDirty(id, value, isChecked = null) {
+    if (this.dirtyFields.has(id)) return;
+    const el = document.getElementById(id);
+    if (!el || document.activeElement === el) return;
+    if (isChecked !== null) {
+      el.checked = Boolean(isChecked);
+    } else if (value != null) {
+      el.value = String(value);
+    }
+  }
+
+  _resetModalInputs() {
+    this.dirtyFields.clear();
+    const setVal = (id, val = "") => {
+      const el = document.getElementById(id);
+      if (el) el.value = val;
+    };
+    setVal("radioFreq", "");
+    setVal("radioRegion", "US915");
+    setVal("radioPower", "20");
+    const pVal = document.getElementById("radioPowerVal");
+    if (pVal) pVal.textContent = "20 dBm";
+    setVal("radioHopLimit", "3");
+    setVal("radioBeaconInterval", "300");
+    setVal("radioSf", "11");
+    setVal("radioBw", "250");
+    setVal("radioCr", "4/5");
+    const repMode = document.getElementById("radioRepeatMode");
+    if (repMode) repMode.checked = true;
+    const repBadge = document.getElementById("radioRepeatBadge");
+    if (repBadge) {
+      I18n.setText(repBadge, 'common.on');
+      repBadge.className = "toggle-state-badge is-active-purple";
+    }
+    setVal("repOwnerName", "");
+    setVal("repOwnerInfo", "");
+    setVal("repPosLat", "");
+    setVal("repPosLon", "");
+    setVal("repPosAlt", "");
+    const posFixed = document.getElementById("repPosFixed");
+    if (posFixed) posFixed.checked = false;
+    const posFixedBadge = document.getElementById("repPosFixedBadge");
+    if (posFixedBadge) {
+      I18n.setText(posFixedBadge, "repeater.dynamic_gps");
+      posFixedBadge.className = "toggle-state-badge";
+    }
+    setVal("secNewAdminPwd", "");
+    setVal("secNewGuestPwd", "");
+    setVal("secAclMode", "public");
+    setVal("secIdentityKey", "");
   }
 
   _bindElements() {
@@ -59,6 +115,25 @@ export class RepeaterModule {
   }
 
   _bindEvents() {
+    // Rastreo de campos en borrador del modal de repetidor (F01, F11)
+    const markDirty = (e) => {
+      if (e.target && e.target.id) {
+        this.dirtyFields.add(e.target.id);
+      }
+    };
+    [
+      "radioFreq", "radioRegion", "radioPower", "radioHopLimit", "radioRepeatMode",
+      "radioBeaconInterval", "radioSf", "radioBw", "radioCr",
+      "repOwnerName", "repOwnerInfo", "repPosLat", "repPosLon", "repPosAlt", "repPosFixed",
+      "secNewAdminPwd", "secNewGuestPwd", "secAclMode", "secIdentityKey"
+    ].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener("input", markDirty);
+        el.addEventListener("change", markDirty);
+      }
+    });
+
     const { repeaterGatePassword, btnToggleGatePwd, repeaterTerminalInput, repeaterTerminalForm } = this.dom;
 
     if (btnToggleGatePwd && repeaterGatePassword) {
@@ -301,11 +376,16 @@ export class RepeaterModule {
     if (radioForm) {
       radioForm.addEventListener("submit", async (e) => {
         e.preventDefault();
+        if (this._isSavingRadio) return;
         const target = this.selectedRepeaterTarget;
         if (!target) {
           alert(I18n.t('repeater.select_repeater'));
           return;
         }
+        const submitBtn = radioForm.querySelector("button[type='submit']");
+        this._isSavingRadio = true;
+        if (submitBtn) submitBtn.disabled = true;
+
         const password = this.getRepeaterPassword(target);
         const freq = parseFloat(document.getElementById("radioFreq").value);
         const region = document.getElementById("radioRegion")?.value || "US915";
@@ -327,7 +407,14 @@ export class RepeaterModule {
             body: JSON.stringify({ target_node: target, password: password, params: params }),
           });
           const data = await res.json();
+          if (this.selectedRepeaterTarget !== target) return;
+
           if (data.status === "ok") {
+            [
+              "radioFreq", "radioRegion", "radioPower", "radioHopLimit",
+              "radioRepeatMode", "radioBeaconInterval", "radioSf", "radioBw", "radioCr"
+            ].forEach((id) => this.dirtyFields.delete(id));
+
             this.appendTerminalLine(I18n.t("repeater.rx_config", { p0: target.slice(0, 8) }), "term-success");
             if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.rep_cfg_ok'), "success");
 
@@ -358,15 +445,19 @@ export class RepeaterModule {
               }
             }
           } else {
-            this.appendTerminalLine(`✗ [RX ERROR] ${data.message || data.error}`, "term-error");
-            if (data.message && (data.message.toLowerCase().includes("password") || data.message.toLowerCase().includes("auth") || data.message.toLowerCase().includes("pin"))) {
-              this.handleRepeaterAuthError(target, data.message);
+            const errMsg = data.detail || data.message || data.error || I18n.t('settings.unknown');
+            this.appendTerminalLine(`✗ [RX ERROR] ${errMsg}`, "term-error");
+            if (errMsg.toLowerCase().includes("password") || errMsg.toLowerCase().includes("auth") || errMsg.toLowerCase().includes("pin")) {
+              this.handleRepeaterAuthError(target, errMsg);
             } else {
-              if (this.ctx.showToast) this.ctx.showToast(I18n.t('app.error', { error: data.message }), "error");
+              if (this.ctx.showToast) this.ctx.showToast(I18n.t('app.error', { error: errMsg }), "error");
             }
           }
         } catch (err) {
           this.appendTerminalLine(`✗ [ERROR] ${err.message}`, "term-error");
+        } finally {
+          this._isSavingRadio = false;
+          if (submitBtn) submitBtn.disabled = false;
         }
       });
     }
@@ -386,11 +477,16 @@ export class RepeaterModule {
     if (ownerPosForm) {
       ownerPosForm.addEventListener("submit", async (e) => {
         e.preventDefault();
+        if (this._isSavingOwnerPos) return;
         const target = this.selectedRepeaterTarget;
         if (!target) {
           alert(I18n.t("repeater.select_repeater"));
           return;
         }
+        const submitBtn = ownerPosForm.querySelector("button[type='submit']");
+        this._isSavingOwnerPos = true;
+        if (submitBtn) submitBtn.disabled = true;
+
         const password = this.getRepeaterPassword(target);
         const owner_name = document.getElementById("repOwnerName")?.value.trim() || "";
         const owner_info = document.getElementById("repOwnerInfo")?.value.trim() || "";
@@ -412,7 +508,13 @@ export class RepeaterModule {
             body: JSON.stringify({ target_node: target, password: password, params: params }),
           });
           const data = await res.json();
+          if (this.selectedRepeaterTarget !== target) return;
+
           if (data.status === "ok") {
+            [
+              "repOwnerName", "repOwnerInfo", "repPosLat", "repPosLon", "repPosAlt", "repPosFixed"
+            ].forEach((id) => this.dirtyFields.delete(id));
+
             this.appendTerminalLine(I18n.t("repeater.rx_owner", { p0: target.slice(0, 8) }), "term-success");
             if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.rep_pos_ok'), "success");
 
@@ -431,29 +533,38 @@ export class RepeaterModule {
               if (this.ctx.renderNodesDirectory) this.ctx.renderNodesDirectory(Array.from(this.ctx.knownNodes.values()));
             }
           } else {
-            this.appendTerminalLine(`✗ [RX ERROR] ${data.message || data.error}`, "term-error");
-            if (data.message && (data.message.toLowerCase().includes("password") || data.message.toLowerCase().includes("auth") || data.message.toLowerCase().includes("pin"))) {
-              this.handleRepeaterAuthError(target, data.message);
+            const errMsg = data.detail || data.message || data.error || I18n.t('settings.unknown');
+            this.appendTerminalLine(`✗ [RX ERROR] ${errMsg}`, "term-error");
+            if (errMsg.toLowerCase().includes("password") || errMsg.toLowerCase().includes("auth") || errMsg.toLowerCase().includes("pin")) {
+              this.handleRepeaterAuthError(target, errMsg);
             } else {
-              if (this.ctx.showToast) this.ctx.showToast(I18n.t('app.error', { error: data.message }), "error");
+              if (this.ctx.showToast) this.ctx.showToast(I18n.t('app.error', { error: errMsg }), "error");
             }
           }
         } catch (err) {
           this.appendTerminalLine(`✗ [ERROR] ${err.message}`, "term-error");
+        } finally {
+          this._isSavingOwnerPos = false;
+          if (submitBtn) submitBtn.disabled = false;
         }
       });
     }
 
-    // Formulario de Seguridad & ACL
+    // Formulario de Seguridad & ACL (F11)
     const securityForm = document.getElementById("repSecurityForm");
     if (securityForm) {
       securityForm.addEventListener("submit", async (e) => {
         e.preventDefault();
+        if (this._isSavingSecurity) return;
         const target = this.selectedRepeaterTarget;
         if (!target) {
           alert(I18n.t("repeater.select_repeater"));
           return;
         }
+        const submitBtn = securityForm.querySelector("button[type='submit']");
+        this._isSavingSecurity = true;
+        if (submitBtn) submitBtn.disabled = true;
+
         const currentPassword = this.getRepeaterPassword(target);
         const adminPwdInput = document.getElementById("secNewAdminPwd");
         const guestPwdInput = document.getElementById("secNewGuestPwd");
@@ -462,19 +573,22 @@ export class RepeaterModule {
 
         const newAdminPwd = adminPwdInput ? adminPwdInput.value.trim() : "";
         const newGuestPwd = guestPwdInput ? guestPwdInput.value.trim() : "";
-        const aclMode = aclModeInput ? aclModeInput.value : "public";
         const identityKey = identityKeyInput ? identityKeyInput.value.trim() : "";
-
-        if (!newAdminPwd && !newGuestPwd && !identityKey && !aclMode) {
-          if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.no_security_changes"), "info");
-          return;
-        }
+        const isAclDirty = this.dirtyFields.has("secAclMode");
+        const aclMode = (isAclDirty && aclModeInput) ? aclModeInput.value : null;
 
         const params = {};
         if (newAdminPwd) params.new_password = newAdminPwd;
         if (newGuestPwd) params.guest_password = newGuestPwd;
         if (identityKey) params.identity_key = identityKey;
         if (aclMode) params.acl_mode = aclMode;
+
+        if (Object.keys(params).length === 0) {
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.no_security_changes"), "info");
+          this._isSavingSecurity = false;
+          if (submitBtn) submitBtn.disabled = false;
+          return;
+        }
 
         this.appendTerminalLine(I18n.t("repeater.tx_security", { p0: target.slice(0, 8) }), "term-cmd");
 
@@ -485,7 +599,13 @@ export class RepeaterModule {
             body: JSON.stringify({ target_node: target, password: currentPassword, params: params }),
           });
           const data = await res.json();
+          if (this.selectedRepeaterTarget !== target) return;
+
           if (data.status === "ok") {
+            [
+              "secNewAdminPwd", "secNewGuestPwd", "secAclMode", "secIdentityKey"
+            ].forEach((id) => this.dirtyFields.delete(id));
+
             this.appendTerminalLine(I18n.t("repeater.rx_security", { p0: target.slice(0, 8) }), "term-success");
             if (newAdminPwd) {
               const canonicalPk = this.resolveCanonicalPubkey(target) || target;
@@ -499,11 +619,15 @@ export class RepeaterModule {
             if (identityKeyInput) identityKeyInput.value = "";
             if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.security_applied"), "success");
           } else {
-            this.appendTerminalLine(`✗ [RX ERROR] ${data.message || data.error}`, "term-error");
-            if (this.ctx.showToast) this.ctx.showToast(I18n.t('app.error', { error: data.message || data.error }), "error");
+            const errMsg = data.detail || data.message || data.error || I18n.t('settings.unknown');
+            this.appendTerminalLine(`✗ [RX ERROR] ${errMsg}`, "term-error");
+            if (this.ctx.showToast) this.ctx.showToast(I18n.t('app.error', { error: errMsg }), "error");
           }
         } catch (err) {
           this.appendTerminalLine(`✗ [ERROR] ${err.message}`, "term-error");
+        } finally {
+          this._isSavingSecurity = false;
+          if (submitBtn) submitBtn.disabled = false;
         }
       });
     }
@@ -1131,6 +1255,19 @@ export class RepeaterModule {
   }
 
   openRepeaterAdminModal(pubkey, name) {
+    if (this.ctx.knownNodes) {
+      const canonicalPk = this.resolveCanonicalPubkey(pubkey);
+      const existing = this.ctx.knownNodes.get(canonicalPk) || this.ctx.knownNodes.get(pubkey);
+      if (existing) {
+        const role = String(existing.role || existing.advert_type || "").toUpperCase();
+        if (role === "CLIENT" || existing.advert_type === 1 || existing.advert_type === 0) {
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.client_not_administrable"), "warning");
+          return;
+        }
+      }
+    }
+
+    this._resetModalInputs();
     this.selectedRepeaterTarget = pubkey;
     this.selectedRepeaterName = name || pubkey;
     const canonicalPk = this.resolveCanonicalPubkey(pubkey);
@@ -1179,6 +1316,7 @@ export class RepeaterModule {
     }
     this.selectedRepeaterTarget = null;
     this.selectedRepeaterName = null;
+    this._resetModalInputs();
   }
 
   populateRepeaterModalData(node) {
@@ -1307,82 +1445,79 @@ export class RepeaterModule {
       }
     }
 
-    const radioFreqInput = document.getElementById("radioFreq");
     const repFreq = node.frequency != null ? node.frequency : node.freq;
-    if (radioFreqInput && repFreq != null) {
+    if (repFreq != null) {
       const numF = parseFloat(repFreq);
-      radioFreqInput.value = !isNaN(numF) ? numF.toFixed(3) : String(repFreq);
+      this._setFieldIfNotDirty("radioFreq", !isNaN(numF) ? numF.toFixed(3) : String(repFreq));
     }
-    const radioRegionInput = document.getElementById("radioRegion");
-    if (radioRegionInput) {
-      if (node.region) {
-        radioRegionInput.value = node.region;
-      } else if (repFreq != null) {
-        const f = parseFloat(repFreq);
-        if (f >= 863.0 && f < 865.0) radioRegionInput.value = "RU864";
-        else if (f >= 865.0 && f < 867.0) radioRegionInput.value = "IN865";
-        else if (f >= 867.0 && f <= 870.0) radioRegionInput.value = "EU868";
-        else if (f >= 920.0 && f <= 925.0) radioRegionInput.value = "AS923";
-        else if (f >= 902.0 && f <= 928.0) radioRegionInput.value = "US915";
-      }
+    if (node.region) {
+      this._setFieldIfNotDirty("radioRegion", node.region);
+    } else if (repFreq != null) {
+      const f = parseFloat(repFreq);
+      if (f >= 863.0 && f < 865.0) this._setFieldIfNotDirty("radioRegion", "RU864");
+      else if (f >= 865.0 && f < 867.0) this._setFieldIfNotDirty("radioRegion", "IN865");
+      else if (f >= 867.0 && f <= 870.0) this._setFieldIfNotDirty("radioRegion", "EU868");
+      else if (f >= 920.0 && f <= 925.0) this._setFieldIfNotDirty("radioRegion", "AS923");
+      else if (f >= 902.0 && f <= 928.0) this._setFieldIfNotDirty("radioRegion", "US915");
     }
+
     const radioPowerInput = document.getElementById("radioPower");
     const radioPowerVal = document.getElementById("radioPowerVal");
     const pLimits = getHardwarePowerLimits(node);
     const rawPower = node.tx_power != null ? node.tx_power : (node.power != null ? node.power : pLimits.def);
-    const clampedPower = Math.max(pLimits.min, Math.min(pLimits.max, parseInt(rawPower, 10) || pLimits.def));
+    const parsedPower = parseInt(rawPower, 10);
+    const validPower = !isNaN(parsedPower) ? parsedPower : pLimits.def;
+    const clampedPower = Math.max(pLimits.min, Math.min(pLimits.max, validPower));
     if (radioPowerInput) {
       radioPowerInput.min = String(pLimits.min);
       radioPowerInput.max = String(pLimits.max);
-      radioPowerInput.value = String(clampedPower);
     }
+    this._setFieldIfNotDirty("radioPower", clampedPower);
     if (radioPowerVal) {
       radioPowerVal.textContent = `${clampedPower} dBm`;
     }
-    const radioHopLimitInput = document.getElementById("radioHopLimit");
-    if (radioHopLimitInput) {
-      radioHopLimitInput.value = String(repHopLimit);
+
+    this._setFieldIfNotDirty("radioHopLimit", repHopLimit);
+
+    if (node.advert_interval != null || node.beacon_interval != null) {
+      this._setFieldIfNotDirty("radioBeaconInterval", node.advert_interval != null ? node.advert_interval : node.beacon_interval);
     }
-    const radioBeaconInput = document.getElementById("radioBeaconInterval");
-    if (radioBeaconInput && (node.advert_interval != null || node.beacon_interval != null)) {
-      radioBeaconInput.value = node.advert_interval != null ? node.advert_interval : node.beacon_interval;
-    }
-    const radioSf = document.getElementById("radioSf");
-    if (radioSf && (node.spreading_factor != null || node.sf != null)) {
+
+    if (node.spreading_factor != null || node.sf != null) {
       let rawSf = String(node.spreading_factor != null ? node.spreading_factor : node.sf).toUpperCase().replace("SF", "").trim();
-      radioSf.value = rawSf;
+      this._setFieldIfNotDirty("radioSf", rawSf);
     }
-    const radioBw = document.getElementById("radioBw");
-    if (radioBw && (node.bandwidth != null || node.bw != null)) {
+
+    if (node.bandwidth != null || node.bw != null) {
       let rawBw = parseFloat(node.bandwidth != null ? node.bandwidth : node.bw);
       if (rawBw > 1000) rawBw = rawBw / 1000.0;
       const bwStr = String(rawBw);
       const supportedBws = ["7.8", "10.4", "15.6", "20.8", "31.25", "41.7", "62.5", "125", "250", "500"];
       const found = supportedBws.find((opt) => parseFloat(opt) === rawBw);
-      radioBw.value = found || bwStr;
+      this._setFieldIfNotDirty("radioBw", found || bwStr);
     }
-    const radioCr = document.getElementById("radioCr");
-    if (radioCr && (node.coding_rate != null || node.cr != null)) {
+
+    if (node.coding_rate != null || node.cr != null) {
       let rawCr = String(node.coding_rate != null ? node.coding_rate : node.cr).trim();
       if (["5", "6", "7", "8"].includes(rawCr)) rawCr = `4/${rawCr}`;
       if (["4/5", "4/6", "4/7", "4/8"].includes(rawCr)) {
-        radioCr.value = rawCr;
-      }
-    }
-    const radioRepeatMode = document.getElementById("radioRepeatMode");
-    const radioRepBadge = document.getElementById("radioRepeatBadge");
-    if (radioRepeatMode) {
-      radioRepeatMode.checked = isRep;
-      if (radioRepBadge) {
-        I18n.setText(radioRepBadge, isRep ? 'common.on' : 'common.off');
-        radioRepBadge.className = isRep ? "toggle-state-badge is-active-purple" : "toggle-state-badge";
+        this._setFieldIfNotDirty("radioCr", rawCr);
       }
     }
 
-    const ownerNameInput = document.getElementById("repOwnerName");
-    if (ownerNameInput) ownerNameInput.value = node.owner_name || node.alias || node.name || "";
-    const ownerInfoInput = document.getElementById("repOwnerInfo");
-    if (ownerInfoInput) ownerInfoInput.value = node.owner_info || "";
+    this._setFieldIfNotDirty("radioRepeatMode", null, isRep);
+    const radioRepBadge = document.getElementById("radioRepeatBadge");
+    if (radioRepBadge) {
+      I18n.setText(radioRepBadge, isRep ? 'common.on' : 'common.off');
+      radioRepBadge.className = isRep ? "toggle-state-badge is-active-purple" : "toggle-state-badge";
+    }
+
+    if (node.owner_name || node.alias || node.name) {
+      this._setFieldIfNotDirty("repOwnerName", node.owner_name || node.alias || node.name);
+    }
+    if (node.owner_info != null) {
+      this._setFieldIfNotDirty("repOwnerInfo", node.owner_info);
+    }
 
     const extractNum = (...keys) => {
       for (const k of keys) {
@@ -1394,25 +1529,29 @@ export class RepeaterModule {
       return "";
     };
 
-    const posLatInput = document.getElementById("repPosLat");
-    if (posLatInput) posLatInput.value = extractNum(node.latitude, node.lat, node.gps_lat, node.gps?.latitude, node.position?.latitude);
-    const posLonInput = document.getElementById("repPosLon");
-    if (posLonInput) posLonInput.value = extractNum(node.longitude, node.lon, node.gps_lon, node.gps?.longitude, node.position?.longitude);
-    const posAltInput = document.getElementById("repPosAlt");
-    if (posAltInput) posAltInput.value = extractNum(node.altitude_m, node.alt, node.altitude, node.gps?.altitude);
-    const posFixed = document.getElementById("repPosFixed");
+    const posLatVal = extractNum(node.latitude, node.lat, node.gps_lat, node.gps?.latitude, node.position?.latitude);
+    if (posLatVal !== "") this._setFieldIfNotDirty("repPosLat", posLatVal);
+
+    const posLonVal = extractNum(node.longitude, node.lon, node.gps_lon, node.gps?.longitude, node.position?.longitude);
+    if (posLonVal !== "") this._setFieldIfNotDirty("repPosLon", posLonVal);
+
+    const posAltVal = extractNum(node.altitude_m, node.alt, node.altitude, node.gps?.altitude);
+    if (posAltVal !== "") this._setFieldIfNotDirty("repPosAlt", posAltVal);
+
+    const isFixed = (node.fixed_position !== undefined && node.fixed_position !== null)
+      ? Boolean(node.fixed_position)
+      : (node.fixed !== undefined && node.fixed !== null
+          ? Boolean(node.fixed)
+          : (node.latitude !== undefined && node.latitude !== null && node.latitude !== 0));
+    this._setFieldIfNotDirty("repPosFixed", null, isFixed);
     const posFixedBadge = document.getElementById("repPosFixedBadge");
-    if (posFixed) {
-      const isFixed = (node.fixed_position !== undefined && node.fixed_position !== null)
-        ? Boolean(node.fixed_position)
-        : (node.fixed !== undefined && node.fixed !== null
-            ? Boolean(node.fixed)
-            : (node.latitude !== undefined && node.latitude !== null && node.latitude !== 0));
-      posFixed.checked = isFixed;
-      if (posFixedBadge) {
-        I18n.setText(posFixedBadge, isFixed ? "repeater.fixed" : "repeater.dynamic_gps");
-        posFixedBadge.className = isFixed ? "toggle-state-badge is-active" : "toggle-state-badge";
-      }
+    if (posFixedBadge) {
+      I18n.setText(posFixedBadge, isFixed ? "repeater.fixed" : "repeater.dynamic_gps");
+      posFixedBadge.className = isFixed ? "toggle-state-badge is-active" : "toggle-state-badge";
+    }
+
+    if (node.acl_mode) {
+      this._setFieldIfNotDirty("secAclMode", node.acl_mode);
     }
   }
 

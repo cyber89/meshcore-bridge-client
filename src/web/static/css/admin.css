@@ -381,7 +381,7 @@
   background: linear-gradient(180deg, var(--bg-surface-elevated) 0%, rgba(15, 23, 42, 0.8) 100%);
   padding: 8px 14px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 6px;
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
@@ -397,15 +397,15 @@
   cursor: pointer;
   border-radius: var(--radius-sm);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.25;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   text-align: center;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-height: 38px;
 }
 
 .repeater-subtabs .subtab-btn:hover {

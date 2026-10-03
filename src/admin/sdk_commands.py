@@ -20,8 +20,18 @@ async def run_sdk_command(ctx: AdminContext, mc: Any, command: str, *args: Any, 
 
 
 def require_success(response: Any, command: str) -> Any:
+    """Verifica confirmación positiva del firmware / SDK para un comando."""
+    if response is None or response is False:
+        raise RuntimeError(f"El firmware no confirmó el comando {command}")
     event_type = getattr(response, "type", None)
     event_name = str(getattr(event_type, "name", event_type) or "").upper()
-    if response is None or event_name in ("ERROR", "ERR", "COMMAND_ERROR", "LOGIN_FAILED"):
+    if event_name in ("ERROR", "ERR", "COMMAND_ERROR", "LOGIN_FAILED", "DISABLED"):
+        raise RuntimeError(f"El firmware rechazó el comando {command} con evento {event_name}")
+    if isinstance(response, dict):
+        if response.get("success") is False or str(response.get("status", "")).upper() in ("ERROR", "FAILED", "DISABLED"):
+            raise RuntimeError(f"El firmware rechazó el comando {command}")
+    if hasattr(response, "is_ok") and not response.is_ok:
         raise RuntimeError(f"El firmware no confirmó el comando {command}")
+    if hasattr(response, "is_error") and callable(response.is_error) and response.is_error():
+        raise RuntimeError(f"El firmware reportó error en el comando {command}")
     return response

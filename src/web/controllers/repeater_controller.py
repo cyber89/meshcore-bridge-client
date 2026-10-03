@@ -56,10 +56,11 @@ class RepeaterController(BaseController):
     async def login(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Autentica sesión administrativa con un repetidor remoto."""
         target = str(req_body.get("target_node", req_body.get("repeater", ""))).strip()
-        pwd = str(req_body.get("password", "")).strip()
+        raw_pwd = req_body.get("password")
+        pwd = str(raw_pwd) if raw_pwd is not None else ""
         if not target:
             return problem_details(400, "Bad Request", "Se requiere 'target_node'", "missing_target_node")
-        if not pwd:
+        if len(pwd) == 0:
             return problem_details(400, "Bad Request", "La contraseña de administración no puede estar vacía", "empty_password")
 
         cmd = {"action": "login", "target_node": target, "password": pwd}
@@ -97,7 +98,7 @@ class RepeaterController(BaseController):
     async def set_remote_config(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Aplica configuración remota en un repetidor."""
         target = str(req_body.get("target_node", req_body.get("repeater", ""))).strip()
-        pwd = str(req_body.get("password", "")).strip()
+        pwd = str(req_body.get("password", "")) if req_body.get("password") is not None else ""
         params = req_body.get("params", {})
         if not target:
             return problem_details(400, "Bad Request", "Se requiere 'target_node'", "missing_target_node")
@@ -124,7 +125,7 @@ class RepeaterController(BaseController):
     async def execute_remote_action(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Ejecuta una acción administrativa en un repetidor (reboot, set freq, etc.)."""
         target = str(req_body.get("target_node", req_body.get("repeater", ""))).strip()
-        pwd = str(req_body.get("password", "")).strip()
+        pwd = str(req_body.get("password", "")) if req_body.get("password") is not None else ""
         action_name = str(req_body.get("action", "")).strip()
         if not target or not action_name:
             return problem_details(400, "Bad Request", "Se requieren 'target_node' y 'action'", "missing_fields")

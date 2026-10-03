@@ -66,10 +66,19 @@ class BaseController:
             status = str(result.get("status", "")).upper()
             if status in {"OK", "SUCCESS", "SENT", "DELETED", "CLEARED"} and not result.get("error"):
                 return None
-            if status in {"ERROR", "FAILED", "NOT_SUPPORTED", "LOCAL_ONLY", "LOCAL_DELETED"} or result.get("error"):
-                raw_code = result.get("code", 503 if status.startswith(("NOT_SUPPORTED", "LOCAL_")) else 400)
+            if status in {"ERROR", "FAILED", "PARTIAL", "NOT_SUPPORTED", "LOCAL_ONLY", "LOCAL_DELETED"} or result.get("error"):
+                raw_code = result.get("code", 503 if status.startswith(("NOT_SUPPORTED", "LOCAL_")) else (400 if status in {"ERROR", "FAILED", "PARTIAL"} else 400))
                 code = raw_code if isinstance(raw_code, int) and not isinstance(raw_code, bool) and 400 <= raw_code <= 599 else 400
-                return problem_details(code, "Command Failed", "El transceptor rechazó la operación", "command_failed")
+                msg = str(result.get("message") or result.get("detail") or result.get("error") or "El transceptor rechazó la operación")
+                extra: dict[str, Any] = {}
+                for k in ("applied", "config", "action", "dispatched_commands", "target_node"):
+                    if k in result:
+                        extra[k] = result[k]
+                if status == "PARTIAL":
+                    extra["partial"] = True
+                err_code = "command_partial" if status == "PARTIAL" else "command_failed"
+                title = "Command Partial Failure" if status == "PARTIAL" else "Command Failed"
+                return problem_details(code, title, msg, err_code, extra=extra)
             # Read results/legacy administrator results can omit a status field.
             if not status:
                 return None
