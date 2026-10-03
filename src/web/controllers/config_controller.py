@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Any
 
 import config
+from src.protocol_types import redact_sensitive_dict
 from src.shared_utils import to_bool
 from src.web.controllers.base import BaseController, problem_details
 
@@ -107,7 +108,7 @@ class ConfigController(BaseController):
             "radio_connected": is_ser_ok,
             "serial_port": serial_port,
         })
-        return 200, {"status": "ok", "data": local_cfg}
+        return 200, {"status": "ok", "data": redact_sensitive_dict(local_cfg)}
 
     async def set_local_config(self, params: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Aplica cambios en los parámetros del transceptor o configuración de red."""
@@ -174,10 +175,10 @@ class ConfigController(BaseController):
         if self.ctx.broadcast_ws and isinstance(res, dict) and "config" in res:
             self.ctx.broadcast_ws({
                 "type": "self_info",
-                "data": res["config"],
+                "data": redact_sensitive_dict(res["config"]),
                 "timestamp": int(time.time()),
             })
-        return 200, {"status": "ok", "data": res}
+        return 200, {"status": "ok", "data": redact_sensitive_dict(res) if isinstance(res, dict) else res}
 
     async def broadcast_advert(self, flood: bool = False) -> tuple[int, dict[str, Any]]:
         """Emite un paquete de anuncio (advert) por radio LoRa."""
@@ -333,11 +334,18 @@ class ConfigController(BaseController):
                 "invalid_schema",
             )
 
+        applied_vars: dict[str, str] = {}
         for k, v in pairs.items():
             result = await admin.set_custom_var(k, v)
             failure = self.command_failure(result)
             if failure:
+                if applied_vars:
+                    code, details = failure
+                    details["applied"] = applied_vars
+                    details["partial"] = True
+                    return 400, details
                 return failure
+            applied_vars[k] = v
 
         fresh_vars = await admin.get_custom_vars()
         self.ctx.log_system_event("INFO", f"Variables custom actualizadas: {list(pairs.keys())}", source="admin")
@@ -425,6 +433,13 @@ class ConfigController(BaseController):
                 return problem_details(422, "Unprocessable Entity", "El parámetro 'max_hops' debe ser un entero", "invalid_max_hops")
 
         res = await admin.set_autoadd_config(flags, max_hops)
+        if isinstance(res, dict) and res.get("status") == "error":
+            return problem_details(
+                int(res.get("code", 422)),
+                "Unprocessable Entity",
+                str(res.get("message") or "Error en autoadd config"),
+                "unsupported_parameter",
+            )
         failure = self.command_failure(res)
         if failure:
             return failure

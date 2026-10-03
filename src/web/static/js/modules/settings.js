@@ -1801,8 +1801,7 @@ export class SettingsModule {
         ? parseInt(document.getElementById("localTelemetryInterval")?.value || "60", 10)
         : 0;
 
-      const pinVal = document.getElementById("localDevicePin")?.value.trim();
-      const pin = pinVal ? parseInt(pinVal, 10) : 0;
+      const isDirty = (id) => this.dirtyFields.has(id);
       const path_hash_mode = parseInt(document.getElementById("localPathHashMode")?.value || "0", 10);
       const rxDelayVal = document.getElementById("localRxDelay")?.value.trim();
       const rx_delay = rxDelayVal ? parseFloat(rxDelayVal) : 0;
@@ -1829,7 +1828,6 @@ export class SettingsModule {
         telemetry_interval,
         advert_interval,
         beacon_interval: advert_interval,
-        pin,
         path_hash_mode,
         rx_delay,
         airtime_factor,
@@ -1840,6 +1838,12 @@ export class SettingsModule {
         multi_acks,
         manual_add_contacts,
       };
+
+      // Omitir PIN si no fue explícitamente modificado por el usuario (VUI02)
+      if (isDirty("localDevicePin")) {
+        const pinVal = document.getElementById("localDevicePin")?.value.trim();
+        payload.pin = pinVal ? parseInt(pinVal, 10) : 0;
+      }
 
       const res = await fetch("/api/config/radio", {
         method: "POST",

@@ -118,6 +118,14 @@ class RepeaterController(BaseController):
                 "remote_config_failed",
                 {"data": res},
             )
+        if res.get("status") == "partial":
+            return problem_details(
+                400,
+                "Partial Remote Config",
+                str(res.get("error") or res.get("message") or "Configuración remota aplicada parcialmente"),
+                "remote_config_partial",
+                {"data": res, "partial": True},
+            )
 
         self.ctx.log_system_event("INFO", f"Configuración remota despachada a repetidor {target}", source="repeater_admin")
         return 200, {"status": "ok", "data": res}

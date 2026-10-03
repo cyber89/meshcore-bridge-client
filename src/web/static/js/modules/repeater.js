@@ -410,38 +410,45 @@ export class RepeaterModule {
           if (this.selectedRepeaterTarget !== target) return;
 
           if (data.status === "ok") {
+            const inner = data.data || {};
+            const isPendingReboot = Boolean(inner.pending_reboot);
             [
               "radioFreq", "radioRegion", "radioPower", "radioHopLimit",
               "radioRepeatMode", "radioBeaconInterval", "radioSf", "radioBw", "radioCr"
             ].forEach((id) => this.dirtyFields.delete(id));
 
-            this.appendTerminalLine(I18n.t("repeater.rx_config", { p0: target.slice(0, 8) }), "term-success");
-            if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.rep_cfg_ok'), "success");
+            if (isPendingReboot) {
+              this.appendTerminalLine(`✓ [DISPATCHED] ${I18n.t("repeater.rx_config", { p0: target.slice(0, 8) })} (Reinicio pendiente)`, "term-warning");
+              if (this.ctx.showToast) this.ctx.showToast("Comando despachado por radio (reinicio pendiente en repetidor)", "info");
+            } else {
+              this.appendTerminalLine(I18n.t("repeater.rx_config", { p0: target.slice(0, 8) }), "term-success");
+              if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.rep_cfg_ok'), "success");
 
-            const sFreq = document.getElementById("repSummaryFreq");
-            if (sFreq) sFreq.textContent = `${freq.toFixed(3)} MHz`;
-            const sPower = document.getElementById("repSummaryPower");
-            if (sPower) sPower.textContent = `${tx_power} dBm`;
-            const sModem = document.getElementById("repSummaryModem");
-            if (sModem) sModem.textContent = `SF${sf} / BW${bw}`;
-            const sHop = document.getElementById("repSummaryHopLimit");
-            if (sHop) I18n.setText(sHop, "repeater.hop_count", { p0: hop_limit });
-            const sRep = document.getElementById("repSummaryRepeat");
-            if (sRep) I18n.setText(sRep, repeat ? "repeater.enabled" : "repeater.disabled");
+              const sFreq = document.getElementById("repSummaryFreq");
+              if (sFreq) sFreq.textContent = `${freq.toFixed(3)} MHz`;
+              const sPower = document.getElementById("repSummaryPower");
+              if (sPower) sPower.textContent = `${tx_power} dBm`;
+              const sModem = document.getElementById("repSummaryModem");
+              if (sModem) sModem.textContent = `SF${sf} / BW${bw}`;
+              const sHop = document.getElementById("repSummaryHopLimit");
+              if (sHop) I18n.setText(sHop, "repeater.hop_count", { p0: hop_limit });
+              const sRep = document.getElementById("repSummaryRepeat");
+              if (sRep) I18n.setText(sRep, repeat ? "repeater.enabled" : "repeater.disabled");
 
-            if (this.ctx.knownNodes) {
-              const canonicalPk = this.resolveCanonicalPubkey(target) || target;
-              const existing = this.ctx.knownNodes.get(canonicalPk) || this.ctx.knownNodes.get(target);
-              if (existing) {
-                existing.frequency = freq;
-                existing.tx_power = tx_power;
-                existing.spreading_factor = sf;
-                existing.bandwidth = bw;
-                existing.coding_rate = cr;
-                existing.hop_limit = hop_limit;
-                existing.repeat_enabled = repeat;
-                existing.advert_interval = beacon_interval;
-                if (this.ctx.updateNodeInDom) this.ctx.updateNodeInDom(canonicalPk, existing);
+              if (this.ctx.knownNodes) {
+                const canonicalPk = this.resolveCanonicalPubkey(target) || target;
+                const existing = this.ctx.knownNodes.get(canonicalPk) || this.ctx.knownNodes.get(target);
+                if (existing) {
+                  existing.frequency = freq;
+                  existing.tx_power = tx_power;
+                  existing.spreading_factor = sf;
+                  existing.bandwidth = bw;
+                  existing.coding_rate = cr;
+                  existing.hop_limit = hop_limit;
+                  existing.repeat_enabled = repeat;
+                  existing.advert_interval = beacon_interval;
+                  if (this.ctx.updateNodeInDom) this.ctx.updateNodeInDom(canonicalPk, existing);
+                }
               }
             }
           } else {
@@ -1914,13 +1921,14 @@ export class RepeaterModule {
         body: JSON.stringify({ target_node: target, password: pwd }),
       });
       const data = await res.json();
+      if (this.selectedRepeaterTarget !== target) return;
       if (data.status === "ok") {
         const ownerName = data.data?.owner_name || data.owner_name || "";
         const ownerInfo = data.data?.owner_info || data.owner_info || "";
         const nameEl = document.getElementById("repOwnerName");
         const infoEl = document.getElementById("repOwnerInfo");
-        if (nameEl && ownerName) nameEl.value = ownerName;
-        if (infoEl && ownerInfo) infoEl.value = ownerInfo;
+        if (nameEl && ownerName && !this.dirtyFields.has("repOwnerName")) nameEl.value = ownerName;
+        if (infoEl && ownerInfo && !this.dirtyFields.has("repOwnerInfo")) infoEl.value = ownerInfo;
         this.appendTerminalLine(I18n.t("repeater.owner_details", { p0: ownerName, p1: ownerInfo }), "term-success");
         if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.owner_received", { p0: ownerName || "OK" }), "success");
       } else {
@@ -1941,6 +1949,7 @@ export class RepeaterModule {
         body: JSON.stringify({ target_node: target, password: pwd }),
       });
       const data = await res.json();
+      if (this.selectedRepeaterTarget !== target) return;
       if (data.status === "ok") {
         const regions = JSON.stringify(data.data?.regions || data.regions || []);
         this.appendTerminalLine(I18n.t("repeater.rx_regions", { p0: regions }), "term-success");
@@ -1963,6 +1972,7 @@ export class RepeaterModule {
         body: JSON.stringify({ target_node: target, password: pwd }),
       });
       const data = await res.json();
+      if (this.selectedRepeaterTarget !== target) return;
       if (data.status === "ok") {
         const aclData = JSON.stringify(data.data?.acl_data || data.acl_data || {});
         this.appendTerminalLine(I18n.t("repeater.rx_acl", { p0: aclData }), "term-success");

@@ -238,7 +238,13 @@ class RepeaterAdminExecutor:
             "password", "new_password", "admin_password", "guest_password",
             "public_key", "pk", "permission", "perm", "acl_mode", "identity_key"
         })
-        # Prevalidación estricta de parámetros permitidos (B09)
+        # Prevalidación estricta de parámetros permitidos y rechazo de no soportados (B09)
+        if "region" in params:
+            return {
+                "status": "error",
+                "message": "El parámetro 'region' no es compatible como comando remoto; configure los parámetros de radio (freq, bw, sf, cr) directamente.",
+            }
+
         for p_key in params:
             if p_key not in allowed_keys:
                 return {"status": "error", "message": f"Parámetro de configuración remota desconocido: '{p_key}'"}
@@ -270,23 +276,150 @@ class RepeaterAdminExecutor:
                 if sf_i not in range(5, 13):
                     return {"status": "error", "message": f"Spreading factor SF{sf_i} inválido (5..12)"}
                 cr_raw = str(cr_cand).strip()
-                cr_num = 5
+                cr_num = None
                 if cr_raw in ("5", "6", "7", "8"):
                     cr_num = int(cr_raw)
-                elif "/" in cr_raw and cr_raw.split("/")[-1] in ("5", "6", "7", "8"):
-                    cr_num = int(cr_raw.split("/")[-1])
+                elif "/" in cr_raw:
+                    parts = cr_raw.split("/")
+                    if len(parts) == 2 and parts[0].strip() == "4" and parts[1].strip() in ("5", "6", "7", "8"):
+                        cr_num = int(parts[1].strip())
+                if cr_num is None:
+                    return {"status": "error", "message": f"Coding rate CR '{cr_cand}' inválido (debe ser 5..8 o 4/5..4/8)"}
             except (ValueError, TypeError) as err:
                 return {"status": "error", "message": f"Parámetros de radio inválidos: {err}"}
 
             radio_cmd = f"set radio {freq_f},{bw_f},{sf_i},{cr_num}"
 
-        # Comprobar potencia si está presente
-        if "tx_power" in params or "power" in params or "tx" in params:
-            raw_pwr = params.get("tx_power", params.get("power", params.get("tx")))
-            try:
-                int(raw_pwr)
-            except (ValueError, TypeError) as err:
-                return {"status": "error", "message": f"Potencia TX remota inválida: {raw_pwr}"}
+        planned_commands: list[str] = []
+        handled_keys: set[str] = set()
+
+        # Potencia TX
+        for p_k in ("tx_power", "power", "tx"):
+            if p_k in params:
+                raw_pwr = params[p_k]
+                try:
+                    pwr_i = int(raw_pwr)
+                    if not (-9 <= pwr_i <= 30):
+                        return {"status": "error", "message": f"Potencia TX {pwr_i} dBm fuera de rango (-9..30)"}
+                except (ValueError, TypeError):
+                    return {"status": "error", "message": f"Potencia TX remota inválida: {raw_pwr}"}
+                tx_cmd = self._ctx.repeater_manager.build_repeater_command_payload("set_tx_power", {"tx_power": pwr_i})
+                if not tx_cmd:
+                    return {"status": "error", "message": f"No se pudo compilar comando de potencia TX: {raw_pwr}"}
+                planned_commands.append(tx_cmd)
+                handled_keys.update({"tx_power", "power", "tx"})
+                break
+
+        # Repetición
+        for r_k in ("repeat", "repeat_enabled"):
+            if r_k in params:
+                rep_val = params[r_k]
+                rep_cmd = self._ctx.repeater_manager.build_repeater_command_payload("set_repeat", {"repeat": rep_val})
+                if not rep_cmd:
+                    return {"status": "error", "message": f"No se pudo compilar comando de repetición: {rep_val}"}
+                planned_commands.append(rep_cmd)
+                handled_keys.update({"repeat", "repeat_enabled"})
+                break
+
+        # Coordenadas: latitud
+        for lat_k in ("lat", "latitude"):
+            if lat_k in params:
+                lat_val = params[lat_k]
+                lat_cmd = self._ctx.repeater_manager.build_repeater_command_payload("set_lat", {"lat": lat_val})
+                if not lat_cmd:
+                    return {"status": "error", "message": f"Latitud remota inválida o fuera de rango: {lat_val}"}
+                planned_commands.append(lat_cmd)
+                handled_keys.update({"lat", "latitude"})
+                break
+
+        # Coordenadas: longitud
+        for lon_k in ("lon", "longitude"):
+            if lon_k in params:
+                lon_val = params[lon_k]
+                lon_cmd = self._ctx.repeater_manager.build_repeater_command_payload("set_lon", {"lon": lon_val})
+                if not lon_cmd:
+                    return {"status": "error", "message": f"Longitud remota inválida o fuera de rango: {lon_val}"}
+                planned_commands.append(lon_cmd)
+                handled_keys.update({"lon", "longitude"})
+                break
+
+        # Nombre
+        for name_k in ("name", "owner_name"):
+            if name_k in params:
+                name_val = params[name_k]
+                name_cmd = self._ctx.repeater_manager.build_repeater_command_payload("set_name", {"name": name_val})
+                if not name_cmd:
+                    return {"status": "error", "message": f"Nombre de nodo remoto inválido: {name_val}"}
+                planned_commands.append(name_cmd)
+                handled_keys.update({"name", "owner_name"})
+                break
+
+        # Owner info
+        if "owner_info" in params:
+            info_val = params["owner_info"]
+            info_cmd = self._ctx.repeater_manager.build_repeater_command_payload("set_owner_info", {"owner_info": info_val})
+            if not info_cmd:
+                return {"status": "error", "message": "No se pudo compilar comando de owner_info"}
+            planned_commands.append(info_cmd)
+            handled_keys.add("owner_info")
+
+        # Intervalo de baliza (advert / beacon)
+        for adv_k in ("advert_interval", "beacon_interval"):
+            if adv_k in params:
+                adv_val = params[adv_k]
+                adv_cmd = self._ctx.repeater_manager.build_repeater_command_payload("set_advert_interval", {"advert_interval": adv_val})
+                if not adv_cmd:
+                    return {"status": "error", "message": f"Intervalo de baliza inválido: {adv_val} (debe ser 0 o entre 60 y 240 minutos)"}
+                planned_commands.append(adv_cmd)
+                handled_keys.update({"advert_interval", "beacon_interval"})
+                break
+
+        # Intervalo de flood advert
+        if "flood_advert_interval" in params:
+            fadv_val = params["flood_advert_interval"]
+            fadv_cmd = self._ctx.repeater_manager.build_repeater_command_payload("set_flood_advert_interval", {"flood_advert_interval": fadv_val})
+            if not fadv_cmd:
+                return {"status": "error", "message": f"Intervalo de baliza flood inválido: {fadv_val} (debe ser 0 o entre 3 y 168 horas)"}
+            planned_commands.append(fadv_cmd)
+            handled_keys.add("flood_advert_interval")
+
+        # Contraseña de administrador
+        for pwd_k in ("password", "new_password", "admin_password"):
+            if pwd_k in params:
+                pwd_val = params[pwd_k]
+                pwd_cmd = self._ctx.repeater_manager.build_repeater_command_payload("set_password", {"password": pwd_val})
+                if not pwd_cmd:
+                    return {"status": "error", "message": "Contraseña de administración remota inválida"}
+                planned_commands.append(pwd_cmd)
+                handled_keys.update({"password", "new_password", "admin_password"})
+                break
+
+        # Contraseña de invitado (guest)
+        if "guest_password" in params:
+            gpwd_val = params["guest_password"]
+            gpwd_cmd = self._ctx.repeater_manager.build_repeater_command_payload("set_guest_password", {"guest_password": gpwd_val})
+            if not gpwd_cmd:
+                return {"status": "error", "message": "Contraseña de invitado (guest) remota inválida"}
+            planned_commands.append(gpwd_cmd)
+            handled_keys.add("guest_password")
+
+        # ACL (public key / permission)
+        if any(pk_k in params for pk_k in ("public_key", "pk")):
+            pk_val = params.get("public_key", params.get("pk"))
+            perm_val = params.get("permission", params.get("perm", 1))
+            acl_cmd = self._ctx.repeater_manager.build_repeater_command_payload("setperm", {"public_key": pk_val, "permission": perm_val})
+            if not acl_cmd:
+                return {"status": "error", "message": f"Parámetros de ACL inválidos (clave pública: '{pk_val}', permiso: '{perm_val}')"}
+            planned_commands.append(acl_cmd)
+            handled_keys.update({"public_key", "pk", "permission", "perm", "acl_mode", "identity_key"})
+
+        # Comprobar si quedó alguna clave sin manejar
+        for remaining_k in params:
+            if remaining_k not in radio_keys and remaining_k not in handled_keys:
+                return {"status": "error", "message": f"Parámetro de configuración remota no soportado o incompleto: '{remaining_k}'"}
+
+        if not radio_cmd and not planned_commands:
+            return {"status": "error", "message": "No se encontraron parámetros válidos para configurar"}
 
         self._ctx.repeater_manager.record_command_sent(str(req.target_node), is_full_query=True)
         dispatched: list[str] = []
@@ -318,16 +451,10 @@ class RepeaterAdminExecutor:
                 res["pending_reboot"] = True
                 await asyncio.sleep(0.35)
 
-            for p_key, p_val in params.items():
-                if p_key in radio_keys or p_val is None:
-                    continue
-                if isinstance(p_val, str) and not p_val.strip():
-                    continue
-                cmd_str = self._ctx.repeater_manager.build_repeater_command_payload(f"set_{p_key}", {p_key: p_val})
-                if cmd_str:
-                    await self._send_rf_command(req.mc, self._resolve_target(str(req.target_node), 12), cmd_str, str(req.target_node), req.req_id)
-                    dispatched.append(redact_command_str(cmd_str))
-                    await asyncio.sleep(0.35)
+            for cmd_str in planned_commands:
+                await self._send_rf_command(req.mc, self._resolve_target(str(req.target_node), 12), cmd_str, str(req.target_node), req.req_id)
+                dispatched.append(redact_command_str(cmd_str))
+                await asyncio.sleep(0.35)
 
             res["status"] = "dispatched"
             res["dispatched_commands"] = dispatched

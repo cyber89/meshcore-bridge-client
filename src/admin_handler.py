@@ -328,7 +328,7 @@ class AdminCommandHandler:
 
         req_id = admin_data.get("request_id", admin_data.get("id"))
         target_node = admin_data.get("target_node", admin_data.get("repeater"))
-        password = str(admin_data.get("password", "")).strip()
+        password = str(admin_data.get("password", "")) if admin_data.get("password") is not None else ""
 
         res: dict[str, Any] = {"status": "ok", "action": redact_sensitive_command(action)}
         if req_id is not None:

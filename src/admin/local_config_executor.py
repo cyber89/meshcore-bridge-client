@@ -12,6 +12,7 @@ import asyncio
 import dataclasses
 import json
 import logging
+import math
 import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
@@ -34,6 +35,20 @@ from src.shared_utils import (
 
 if TYPE_CHECKING:
     from src.admin_handler import AdminContext
+
+
+def normalize_coding_rate(cr_val: Any) -> int | None:
+    """Normaliza y valida un coding rate LoRa (5..8 o 4/5..4/8), devolviendo 5..8 o None si es inválido."""
+    if cr_val is None:
+        return None
+    s = str(cr_val).strip()
+    if s in ("5", "6", "7", "8"):
+        return int(s)
+    if "/" in s:
+        parts = s.split("/")
+        if len(parts) == 2 and parts[0].strip() == "4" and parts[1].strip() in ("5", "6", "7", "8"):
+            return int(parts[1].strip())
+    return None
 
 
 class LocalConfigExecutor:
@@ -63,6 +78,20 @@ class LocalConfigExecutor:
         except Exception:
             logging.debug("Consulta SDK sin respuesta válida: %s", command)
             return None
+
+    def _get_device_baseline(self, field: str, aliases: tuple[str, ...]) -> Any:
+        """Obtiene el baseline del dispositivo físico conectado (self_info) antes de recurrir al host."""
+        mc = self._ctx.mc_provider()
+        for attr in ("self_info", "_self_info"):
+            si = getattr(mc, attr, None)
+            if isinstance(si, dict):
+                for a in (field, *aliases):
+                    if a in si and si[a] is not None:
+                        return si[a]
+        for a in (field, *aliases):
+            if a in self._local_config and self._local_config[a] is not None:
+                return self._local_config[a]
+        return None
 
     def get_local_config(self) -> dict[str, Any]:
         """Devuelve la configuración consolidada del nodo local y su telemetría."""
@@ -449,6 +478,30 @@ class LocalConfigExecutor:
         if not isinstance(params, dict):
             raise ValueError("params debe ser un objeto")
 
+        allowed_local_keys = frozenset({
+            # Identidad y ubicación
+            "name", "latitude", "lat", "longitude", "lon", "altitude", "alt", "altitude_m", "owner_info", "owner",
+            # Radio
+            "frequency", "radio_freq", "bandwidth", "bw", "spreading_factor", "sf", "coding_rate", "cr",
+            "tx_power", "power", "repeat", "repeat_enabled",
+            # Tiempos e intervalos
+            "beacon_interval", "advert_interval", "telemetry_interval", "hop_limit", "hops",
+            # Parámetros de telemetría y políticas
+            "telemetry_mode_base", "telemetry_mode_loc", "telemetry_mode_env",
+            "multi_acks", "adv_loc_policy", "manual_add_contacts",
+            # Ajustes avanzados y tuning
+            "pin", "devicepin", "rx_delay", "rx_dly", "airtime_factor", "af",
+            "path_hash_mode", "custom_vars",
+            # Políticas de host / airtime
+            "duty_cycle_limit_pct", "warn_threshold_pct",
+            "airtime_cutoff_enabled", "airtime_cutoff_threshold_pct", "airtime_cutoff_resume_pct",
+            "repeater_pre_send_delay_enabled", "repeater_pre_send_delay_s",
+        })
+
+        for k in params:
+            if k not in allowed_local_keys:
+                raise ValueError(f"Parámetro de configuración local desconocido: '{k}'")
+
         if "name" in params:
             name_val = str(params["name"]).strip()
             if len(name_val.encode("utf-8")) > 31 or any(ord(c) < 0x20 for c in name_val):
@@ -458,17 +511,29 @@ class LocalConfigExecutor:
         lon_val = params.get("longitude", params.get("lon"))
         if lat_val is not None or lon_val is not None:
             if lat_val is None:
-                lat_val = self._local_config.get("latitude")
+                lat_val = self._get_device_baseline("latitude", ("lat", "adv_lat"))
             if lon_val is None:
-                lon_val = self._local_config.get("longitude")
+                lon_val = self._get_device_baseline("longitude", ("lon", "adv_lon"))
             if lat_val is None or lon_val is None:
                 raise ValueError("Coordenadas incompletas: se requieren tanto latitud como longitud")
             try:
                 lat_f, lon_f = float(lat_val), float(lon_val)
+                if math.isnan(lat_f) or math.isnan(lon_f) or math.isinf(lat_f) or math.isinf(lon_f):
+                    raise ValueError("Coordenadas no pueden ser NaN o infinitas")
                 if not (-90.0 <= lat_f <= 90.0 and -180.0 <= lon_f <= 180.0):
                     raise ValueError("Coordenadas fuera de rango (-90..90, -180..180)")
             except (ValueError, TypeError) as err:
                 raise ValueError("Coordenadas inválidas") from err
+
+        if "altitude" in params or "alt" in params or "altitude_m" in params:
+            alt_raw = params.get("altitude", params.get("alt", params.get("altitude_m")))
+            if alt_raw is not None:
+                try:
+                    alt_f = float(alt_raw)
+                    if math.isnan(alt_f) or math.isinf(alt_f):
+                        raise ValueError("Altitud inválida")
+                except (ValueError, TypeError) as err:
+                    raise ValueError(f"Altitud inválida: {alt_raw}") from err
 
         if "path_hash_mode" in params:
             try:
@@ -487,12 +552,25 @@ class LocalConfigExecutor:
             except (ValueError, TypeError) as err:
                 raise ValueError(f"PIN inválido: {raw_pin}") from err
 
-        radio_keys = ("frequency", "radio_freq", "bandwidth", "bw", "spreading_factor", "sf", "coding_rate", "cr")
+        # Prevalidación de potencia TX (BV06)
+        if "tx_power" in params or "power" in params:
+            raw_pwr = params.get("tx_power", params.get("power"))
+            if isinstance(raw_pwr, bool):
+                raise ValueError("Potencia TX no puede ser un booleano")
+            try:
+                p_int = int(raw_pwr)
+                if not (-9 <= p_int <= 30):
+                    raise ValueError(f"Potencia TX fuera de rango (-9..30 dBm): {raw_pwr}")
+            except (ValueError, TypeError) as err:
+                raise ValueError(f"Potencia TX inválida: {raw_pwr}") from err
+
+        # Prevalidación de parámetros de radio (BV02, BV03, BV10)
+        radio_keys = ("frequency", "radio_freq", "bandwidth", "bw", "spreading_factor", "sf", "coding_rate", "cr", "repeat", "repeat_enabled")
         if any(k in params for k in radio_keys):
-            b_freq = params.get("frequency", params.get("radio_freq", self._local_config.get("frequency")))
-            b_bw = params.get("bandwidth", params.get("bw", self._local_config.get("bandwidth")))
-            b_sf = params.get("spreading_factor", params.get("sf", self._local_config.get("spreading_factor")))
-            b_cr = params.get("coding_rate", params.get("cr", self._local_config.get("coding_rate")))
+            b_freq = params.get("frequency", params.get("radio_freq", self._get_device_baseline("frequency", ("freq", "radio_freq"))))
+            b_bw = params.get("bandwidth", params.get("bw", self._get_device_baseline("bandwidth", ("bw", "radio_bw"))))
+            b_sf = params.get("spreading_factor", params.get("sf", self._get_device_baseline("spreading_factor", ("sf", "radio_sf"))))
+            b_cr = params.get("coding_rate", params.get("cr", self._get_device_baseline("coding_rate", ("cr", "radio_cr"))))
             if b_freq is None or b_bw is None or b_sf is None or b_cr is None:
                 raise ValueError("Baseline de parámetros de radio no disponible; se requiere especificar frequency, bandwidth, spreading_factor y coding_rate completos.")
             try:
@@ -505,8 +583,54 @@ class LocalConfigExecutor:
                 sf_int = int(b_sf)
                 if sf_int not in range(5, 13):
                     raise ValueError(f"Spreading factor SF{sf_int} inválido (5..12)")
+                cr_parsed = normalize_coding_rate(b_cr)
+                if cr_parsed is None:
+                    raise ValueError(f"Coding rate CR '{b_cr}' inválido (debe ser 5..8 o 4/5..4/8)")
             except (ValueError, TypeError) as err:
                 raise ValueError(f"Parámetros de radio inválidos: {err}") from err
+
+        # Prevalidación de tiempos e intervalos
+        for int_key in ("beacon_interval", "advert_interval", "telemetry_interval", "hop_limit", "hops"):
+            if int_key in params:
+                val = params[int_key]
+                if isinstance(val, bool):
+                    raise ValueError(f"El parámetro '{int_key}' no puede ser booleano")
+                try:
+                    i_val = int(val)
+                    if i_val < 0:
+                        raise ValueError(f"El parámetro '{int_key}' debe ser no negativo")
+                except (ValueError, TypeError) as err:
+                    raise ValueError(f"Parámetro '{int_key}' inválido: {val}") from err
+
+        # Prevalidación de modos de telemetría
+        for ok in ("telemetry_mode_base", "telemetry_mode_loc", "telemetry_mode_env"):
+            if ok in params:
+                o_val = params[ok]
+                if isinstance(o_val, bool):
+                    raise ValueError(f"El parámetro '{ok}' no puede ser booleano")
+                try:
+                    oi = int(o_val)
+                    if oi not in (0, 1, 2):
+                        raise ValueError(f"El parámetro '{ok}' debe ser 0, 1 o 2 (recibido: {oi})")
+                except (ValueError, TypeError) as err:
+                    raise ValueError(f"Parámetro '{ok}' inválido: {o_val}") from err
+
+        # Prevalidación de tuning
+        for tk in ("rx_delay", "airtime_factor", "af", "rx_dly"):
+            if tk in params:
+                t_val = params[tk]
+                if isinstance(t_val, bool):
+                    raise ValueError(f"El parámetro '{tk}' no puede ser booleano")
+                try:
+                    f_val = float(t_val)
+                    if not math.isfinite(f_val) or f_val < 0.0:
+                        raise ValueError(f"El parámetro '{tk}' debe ser un número finito no negativo")
+                except (ValueError, TypeError) as err:
+                    raise ValueError(f"Parámetro '{tk}' inválido: {t_val}") from err
+
+        # Prevalidación de custom_vars
+        if "custom_vars" in params and not isinstance(params["custom_vars"], dict):
+            raise ValueError("custom_vars debe ser un objeto/diccionario")
 
     async def set_local_config(self, admin_data: dict[str, Any], res: dict[str, Any], mc: Any) -> dict[str, Any]:
         """Aplica configuraciones locales sobre el nodo conectado."""
@@ -525,6 +649,7 @@ class LocalConfigExecutor:
         except Exception as error:
             res.update({
                 "status": "partial" if applied else "error",
+                "code": 422 if not applied and isinstance(error, ValueError) else (400 if applied else 422),
                 "action": "set_local_config",
                 "applied": redact_sensitive_dict(applied),
                 "message": str(error),
@@ -581,9 +706,9 @@ class LocalConfigExecutor:
         lon_val = params.get("longitude", params.get("lon"))
         if lat_val is not None or lon_val is not None:
             if lat_val is None:
-                lat_val = self._local_config.get("latitude")
+                lat_val = self._get_device_baseline("latitude", ("lat", "adv_lat"))
             if lon_val is None:
-                lon_val = self._local_config.get("longitude")
+                lon_val = self._get_device_baseline("longitude", ("lon", "adv_lon"))
             if lat_val is None or lon_val is None:
                 raise ValueError("Coordenadas incompletas: se requieren tanto latitud como longitud")
             try:
@@ -655,7 +780,7 @@ class LocalConfigExecutor:
                 except (ValueError, TypeError) as err:
                     raise ValueError(f"Frecuencia inválida: {freq_raw}") from err
             else:
-                baseline_f = self._local_config.get("frequency")
+                baseline_f = self._get_device_baseline("frequency", ("freq", "radio_freq"))
                 if baseline_f is None:
                     raise ValueError("Baseline de parámetros de radio no disponible; se requiere especificar frequency completa.")
                 new_f = float(baseline_f)
@@ -669,7 +794,7 @@ class LocalConfigExecutor:
                 except (ValueError, TypeError) as err:
                     raise ValueError(f"Ancho de banda inválido: {bw_raw}") from err
             else:
-                baseline_bw = self._local_config.get("bandwidth")
+                baseline_bw = self._get_device_baseline("bandwidth", ("bw", "radio_bw"))
                 if baseline_bw is None:
                     raise ValueError("Baseline de parámetros de radio no disponible; se requiere especificar bandwidth completo.")
                 new_bw = float(baseline_bw)
@@ -683,27 +808,21 @@ class LocalConfigExecutor:
                 except (ValueError, TypeError) as err:
                     raise ValueError(f"Spreading factor inválido: {sf_raw}") from err
             else:
-                baseline_sf = self._local_config.get("spreading_factor")
+                baseline_sf = self._get_device_baseline("spreading_factor", ("sf", "radio_sf"))
                 if baseline_sf is None:
                     raise ValueError("Baseline de parámetros de radio no disponible; se requiere especificar spreading_factor completo.")
                 new_sf = int(baseline_sf)
 
             if "coding_rate" in params or "cr" in params:
                 cr_raw = params.get("coding_rate") if "coding_rate" in params else params.get("cr")
-                if cr_raw is None:
-                    raise ValueError("Coding rate no especificado")
-                try:
-                    if isinstance(cr_raw, str) and "/" in cr_raw:
-                        new_cr = int(cr_raw.split("/")[-1])
-                    else:
-                        new_cr = int(cr_raw)
-                except (ValueError, TypeError) as err:
-                    raise ValueError(f"Coding rate inválido: {cr_raw}") from err
+                new_cr = normalize_coding_rate(cr_raw)
+                if new_cr is None:
+                    raise ValueError(f"Coding rate inválido: {cr_raw}")
             else:
-                baseline_cr = self._local_config.get("coding_rate")
-                if baseline_cr is None:
-                    raise ValueError("Baseline de parámetros de radio no disponible; se requiere especificar coding_rate completo.")
-                new_cr = int(baseline_cr)
+                baseline_cr = self._get_device_baseline("coding_rate", ("cr", "radio_cr"))
+                new_cr = normalize_coding_rate(baseline_cr)
+                if new_cr is None:
+                    raise ValueError(f"Baseline de coding rate inválido: {baseline_cr}")
 
             rep_val = params.get("repeat", params.get("repeat_enabled", self._local_config.get("repeat", False)))
             new_rep = to_bool(rep_val)
@@ -952,10 +1071,14 @@ class LocalConfigExecutor:
     async def set_autoadd_config(self, flags: int, max_hops: int | None = None) -> dict[str, Any]:
         """Aplica la máscara de auto-adición de contactos."""
         mc = self._ctx.mc_provider()
-        if max_hops is not None:
-            raise NotImplementedError("El SDK oficial set_autoadd_config no admite max_hops")
+        if max_hops is not None and max_hops != 0:
+            return {
+                "status": "error",
+                "code": 422,
+                "message": "El SDK oficial de MeshCore no admite 'max_hops' en set_autoadd_config (parámetro no soportado)",
+            }
         await self._write_device(mc, "set_autoadd_config", int(flags), timeout=3.0)
-        self._local_config["autoadd_config"] = {"config": int(flags), "max_hops": max_hops if max_hops is not None else 0}
+        self._local_config["autoadd_config"] = {"config": int(flags), "max_hops": 0}
         return {"status": "ok", "autoadd_config": self._local_config["autoadd_config"]}
 
     async def get_flood_scope(self) -> dict[str, Any]:

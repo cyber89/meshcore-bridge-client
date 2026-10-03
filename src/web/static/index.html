@@ -817,7 +817,7 @@
                 <form id="localRadioForm" class="grid-form-3col" aria-label="Parámetros de radio" data-i18n-aria-label="ui.form_radio">
                   <div class="form-group">
                     <label for="localFreq" data-i18n="ui.static_194">Frecuencia RF (MHz):</label>
-                    <input type="number" id="localFreq" step="0.025" value="915.000" required />
+                    <input type="number" id="localFreq" step="any" value="915.000" required />
                   </div>
                   <div class="form-group">
                     <label for="localRegion" data-i18n="ui.static_195">Región / Banda:</label>
@@ -841,6 +841,8 @@
                   <div class="form-group">
                     <label for="localSf" data-i18n="ui.static_204">Spreading Factor (SF):</label>
                     <select id="localSf" class="select-input">
+                      <option value="5">SF5</option>
+                      <option value="6">SF6</option>
                       <option value="7" data-i18n="ui.static_205">SF7 (Alta velocidad / Corto alcance)</option>
                       <option value="8" data-i18n="ui.static_206">SF8</option>
                       <option value="9" data-i18n="ui.static_207">SF9</option>
@@ -951,26 +953,26 @@
                   </div>
                   <div class="form-group">
                     <label for="localRxDelay" data-i18n="ui.static_243">Tuning: Retardo RX (µs):</label>
-                    <input type="number" id="localRxDelay" min="0" max="100000" placeholder="0" />
+                    <input type="number" id="localRxDelay" step="any" min="0" max="100000" placeholder="0" />
                   </div>
                   <div class="form-group">
                     <label for="localAirtimeFactor" data-i18n="ui.static_244">Tuning: Factor Tiempo Aire (AF):</label>
-                    <input type="number" id="localAirtimeFactor" min="0" max="1000" placeholder="0" />
+                    <input type="number" id="localAirtimeFactor" step="any" min="0" max="1000" placeholder="0" />
                   </div>
                   <div class="form-group">
                     <label for="localTelemBase" data-i18n="ui.static_245">Modo Telemetría Base:</label>
                     <select id="localTelemBase" class="select-input">
                       <option value="0" data-i18n="ui.static_246">0 - Desactivado</option>
-                      <option value="1" selected data-i18n="ui.static_247">1 - Todos los Nodos</option>
-                      <option value="2" data-i18n="ui.static_248">2 - Solo Contactos</option>
+                      <option value="1" data-i18n="ui.static_251">1 - Solo Contactos</option>
+                      <option value="2" selected data-i18n="ui.static_252">2 - Todos los Nodos</option>
                     </select>
                   </div>
                   <div class="form-group">
                     <label for="localTelemLoc" data-i18n="ui.static_249">Modo Telemetría Ubicación:</label>
                     <select id="localTelemLoc" class="select-input">
                       <option value="0" data-i18n="ui.static_246">0 - Desactivado</option>
-                      <option value="1" selected data-i18n="ui.static_247">1 - Todos los Nodos</option>
-                      <option value="2" data-i18n="ui.static_248">2 - Solo Contactos</option>
+                      <option value="1" data-i18n="ui.static_251">1 - Solo Contactos</option>
+                      <option value="2" selected data-i18n="ui.static_252">2 - Todos los Nodos</option>
                     </select>
                   </div>
                   <div class="form-group">
@@ -1889,7 +1891,7 @@
               <form id="repRadioForm" class="grid-form-3col" aria-labelledby="repeaterAdminTitle">
                 <div class="form-group">
                   <label for="radioFreq" data-i18n="ui.static_194">Frecuencia RF (MHz):</label>
-                  <input type="number" id="radioFreq" step="0.025" value="915.000" />
+                  <input type="number" id="radioFreq" step="any" value="915.000" />
                 </div>
                 <div class="form-group">
                   <label for="radioRegion" data-i18n="ui.static_195">Región / Banda:</label>
@@ -1913,6 +1915,8 @@
                 <div class="form-group">
                   <label for="radioSf" data-i18n="ui.static_204">Spreading Factor (SF):</label>
                   <select id="radioSf" class="select-input">
+                    <option value="5">SF5</option>
+                    <option value="6">SF6</option>
                     <option value="7" data-i18n="ui.static_459">SF7 (Alta velocidad)</option>
                     <option value="8" data-i18n="ui.static_206">SF8</option>
                     <option value="9" data-i18n="ui.static_207">SF9</option>
