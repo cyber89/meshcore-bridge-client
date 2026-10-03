@@ -597,7 +597,16 @@ export class NodesModule {
       });
 
       card.querySelector(".btn-contact-del")?.addEventListener("click", async () => {
-        if (!confirm(I18n.t('nodes.del_confirm').replace('{name}', cleanName))) return;
+        const confirmMsg = I18n.t('nodes.del_confirm').replace('{name}', cleanName);
+        const confirmFn = this.ctx?.showConfirm || window?.showConfirm;
+        const confirmed = confirmFn
+          ? await confirmFn(confirmMsg, {
+              title: I18n.t("modal.delete") || "Eliminar Contacto",
+              isDanger: true,
+              confirmText: I18n.t("modal.delete") || "Eliminar",
+            })
+          : true;
+        if (!confirmed) return;
         try {
           const res = await fetch(`/api/contacts/${encodeURIComponent(node.public_key)}`, {
             method: "DELETE",

@@ -634,10 +634,14 @@ export class ChatModule {
     }
 
     if (!isPublic && (!secret || secret.includes("•"))) {
-      if (this.ctx.showToast) {
-        this.ctx.showToast(I18n.t("chat.protected_channel"), "warning");
-      } else {
-        alert(I18n.t("chat.protected_channel_alert"));
+      const alertMsg = I18n.t("chat.protected_channel_alert") || I18n.t("chat.protected_channel");
+      if (this.ctx.showAlert) {
+        await this.ctx.showAlert(alertMsg, {
+          title: I18n.t("modal.warning") || "Advertencia",
+          type: "warning",
+        });
+      } else if (this.ctx.showToast) {
+        this.ctx.showToast(alertMsg, "warning");
       }
       return;
     }
@@ -646,7 +650,15 @@ export class ChatModule {
     if (!isPublic && secret && !this.activeDmTarget && Number(this.activeChannelIdx) === 0) {
       const confirmWarning = (window.I18n ? window.I18n.t("chat.warn_share_psk_public") : null) ||
         `⚠️ ADVERTENCIA DE SEGURIDAD:\n\nEstás a punto de compartir la clave secreta (PSK) de un canal privado en el CANAL PÚBLICO (Broadcast #0).\nCualquier nodo que reciba este mensaje podrá descifrar y unirse a este canal.\n\n¿Estás seguro de que deseas transmitir esta clave por radio abierta?`;
-      if (!confirm(confirmWarning)) return;
+      const confirmFn = this.ctx?.showConfirm || window?.showConfirm;
+      const confirmed = confirmFn
+        ? await confirmFn(confirmWarning, {
+            title: I18n.t("modal.warning") || "Advertencia de Seguridad",
+            isDanger: true,
+            confirmText: I18n.t("modal.confirm") || "Transmitir Clave",
+          })
+        : true;
+      if (!confirmed) return;
     }
 
     const uri = buildMeshCoreChannelUri(ch.name, secret, ch.index);

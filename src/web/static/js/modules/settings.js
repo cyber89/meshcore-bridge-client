@@ -90,8 +90,10 @@ export class SettingsModule {
   _notify(msg, type = "info") {
     if (this.ctx && typeof this.ctx.showToast === "function") {
       this.ctx.showToast(msg, type);
-    } else {
-      alert(msg);
+    } else if (this.ctx && typeof this.ctx.showAlert === "function") {
+      this.ctx.showAlert(msg, { type });
+    } else if (typeof window !== "undefined" && typeof window.showAlert === "function") {
+      window.showAlert(msg, { type });
     }
   }
 
@@ -832,7 +834,16 @@ export class SettingsModule {
     const btnClearIdb = document.getElementById("btnClearIndexedDbStorage");
     if (btnClearIdb) {
       btnClearIdb.addEventListener("click", async () => {
-        if (!confirm(I18n.t("settings.clear_storage_confirm"))) return;
+        const confirmMsg = I18n.t("settings.clear_storage_confirm");
+        const confirmFn = this.ctx?.showConfirm || window?.showConfirm;
+        const confirmed = confirmFn
+          ? await confirmFn(confirmMsg, {
+              title: I18n.t("settings.clear_storage_title") || "Vaciar Almacenamiento",
+              isDanger: true,
+              confirmText: I18n.t("modal.confirm") || "Vaciar",
+            })
+          : true;
+        if (!confirmed) return;
         try {
           if (this.ctx.storage && this.ctx.storage.clearAll) {
             await this.ctx.storage.clearAll();
@@ -973,7 +984,16 @@ export class SettingsModule {
 
     if (this.dom.btnActionRebootLocal) {
       this.dom.btnActionRebootLocal.addEventListener("click", async () => {
-        if (!confirm(I18n.t("settings.reboot_confirm"))) return;
+        const confirmMsg = I18n.t("settings.reboot_confirm");
+        const confirmFn = this.ctx?.showConfirm || window?.showConfirm;
+        const confirmed = confirmFn
+          ? await confirmFn(confirmMsg, {
+              title: I18n.t("settings.reboot_title") || "Reiniciar Dispositivo",
+              isDanger: true,
+              confirmText: I18n.t("settings.btn_reboot") || "Reiniciar",
+            })
+          : true;
+        if (!confirmed) return;
         const btn = this.dom.btnActionRebootLocal;
         btn.disabled = true;
         try {
@@ -999,7 +1019,15 @@ export class SettingsModule {
     if (this.dom.btnActionClearLocalStats) {
       this.dom.btnActionClearLocalStats.addEventListener("click", async () => {
         const confirmMsg = I18n.t('analytics.confirm_reset') || "¿Deseas restablecer todos los contadores de paquetes y métricas acumuladas?";
-        if (!confirm(confirmMsg)) return;
+        const confirmFn = this.ctx?.showConfirm || window?.showConfirm;
+        const confirmed = confirmFn
+          ? await confirmFn(confirmMsg, {
+              title: I18n.t("analytics.reset_title") || "Restablecer Estadísticas",
+              isDanger: true,
+              confirmText: I18n.t("modal.confirm") || "Restablecer",
+            })
+          : true;
+        if (!confirmed) return;
         const btn = this.dom.btnActionClearLocalStats;
         btn.disabled = true;
         try {
@@ -1209,9 +1237,15 @@ export class SettingsModule {
           const chIdx = Number(btnDelete.getAttribute("data-ch-idx"));
           const chName = btnDelete.getAttribute("data-ch-name") || I18n.t('settings.channel_label', { p0: chIdx });
 
-          const confirmed = window.confirm(
-            I18n.t("settings.channel_delete_confirm", { p0: chIdx, p1: chName })
-          );
+          const confirmMsg = I18n.t("settings.channel_delete_confirm", { p0: chIdx, p1: chName });
+          const confirmFn = this.ctx?.showConfirm || window?.showConfirm;
+          const confirmed = confirmFn
+            ? await confirmFn(confirmMsg, {
+                title: I18n.t("modal.delete") || "Eliminar Canal",
+                isDanger: true,
+                confirmText: I18n.t("modal.delete") || "Eliminar",
+              })
+            : true;
           if (!confirmed) return;
 
           try {
@@ -1262,9 +1296,15 @@ export class SettingsModule {
 
         const exists = this.channelsList.some((c) => Number(c.index) === idx);
         if (exists) {
-          const overwrite = window.confirm(
-            I18n.t("settings.overwrite_channel", { p0: idx, p1: name })
-          );
+          const confirmMsg = I18n.t("settings.overwrite_channel", { p0: idx, p1: name });
+          const confirmFn = this.ctx?.showConfirm || window?.showConfirm;
+          const overwrite = confirmFn
+            ? await confirmFn(confirmMsg, {
+                title: I18n.t("settings.overwrite_title") || "Sobrescribir Canal",
+                isDanger: true,
+                confirmText: I18n.t("settings.overwrite_btn") || "Sobrescribir",
+              })
+            : true;
           if (!overwrite) return;
         }
 
@@ -1297,9 +1337,15 @@ export class SettingsModule {
             const cleanPsk = (psk && psk !== MESHCORE_PUBLIC_CHANNEL_SECRET) ? psk : "";
             const exists = this.channelsList.some((c) => Number(c.index) === idx);
             if (exists) {
-              const overwrite = window.confirm(
-                I18n.t("settings.overwrite_channel", { p0: idx, p1: name })
-              );
+              const confirmMsg = I18n.t("settings.overwrite_channel", { p0: idx, p1: name });
+              const confirmFn = this.ctx?.showConfirm || window?.showConfirm;
+              const overwrite = confirmFn
+                ? await confirmFn(confirmMsg, {
+                    title: I18n.t("settings.overwrite_title") || "Sobrescribir Canal",
+                    isDanger: true,
+                    confirmText: I18n.t("settings.overwrite_btn") || "Sobrescribir",
+                  })
+                : true;
               if (!overwrite) return;
             }
 
@@ -2058,7 +2104,17 @@ export class SettingsModule {
   }
 
   async deleteCustomVar(key) {
-    if (!key || !confirm(I18n.t("settings.custom_var_delete_confirm", { p0: key }))) return;
+    if (!key) return;
+    const confirmMsg = I18n.t("settings.custom_var_delete_confirm", { p0: key });
+    const confirmFn = this.ctx?.showConfirm || window?.showConfirm;
+    const confirmed = confirmFn
+      ? await confirmFn(confirmMsg, {
+          title: I18n.t("modal.delete") || "Eliminar Variable",
+          isDanger: true,
+          confirmText: I18n.t("modal.delete") || "Eliminar",
+        })
+      : true;
+    if (!confirmed) return;
     try {
       const res = await fetch(`/api/config/custom_vars?key=${encodeURIComponent(key)}`, {
         method: "DELETE",

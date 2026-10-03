@@ -331,11 +331,21 @@ export class RepeaterModule {
         const target = this.selectedRepeaterTarget;
         const password = this.getRepeaterPassword(target);
         if (!target) {
-          alert(I18n.t("repeater.select_repeater"));
+          const msg = I18n.t("repeater.select_repeater");
+          if (this.ctx.showAlert) {
+            await this.ctx.showAlert(msg, { type: "warning", title: I18n.t("modal.warning") || "Atención" });
+          } else if (this.ctx.showToast) {
+            this.ctx.showToast(msg, "warning");
+          }
           return;
         }
         if (!password) {
-          alert(I18n.t("repeater.enter_pin"));
+          const msg = I18n.t("repeater.enter_pin");
+          if (this.ctx.showAlert) {
+            await this.ctx.showAlert(msg, { type: "warning", title: I18n.t("modal.warning") || "Atención" });
+          } else if (this.ctx.showToast) {
+            this.ctx.showToast(msg, "warning");
+          }
           return;
         }
         await this.authenticateRepeater(target, password);
@@ -379,7 +389,12 @@ export class RepeaterModule {
         if (this._isSavingRadio) return;
         const target = this.selectedRepeaterTarget;
         if (!target) {
-          alert(I18n.t('repeater.select_repeater'));
+          const msg = I18n.t('repeater.select_repeater');
+          if (this.ctx.showAlert) {
+            await this.ctx.showAlert(msg, { type: "warning", title: I18n.t("modal.warning") || "Atención" });
+          } else if (this.ctx.showToast) {
+            this.ctx.showToast(msg, "warning");
+          }
           return;
         }
         const submitBtn = radioForm.querySelector("button[type='submit']");
@@ -487,7 +502,12 @@ export class RepeaterModule {
         if (this._isSavingOwnerPos) return;
         const target = this.selectedRepeaterTarget;
         if (!target) {
-          alert(I18n.t("repeater.select_repeater"));
+          const msg = I18n.t("repeater.select_repeater");
+          if (this.ctx.showAlert) {
+            await this.ctx.showAlert(msg, { type: "warning", title: I18n.t("modal.warning") || "Atención" });
+          } else if (this.ctx.showToast) {
+            this.ctx.showToast(msg, "warning");
+          }
           return;
         }
         const submitBtn = ownerPosForm.querySelector("button[type='submit']");
@@ -565,7 +585,12 @@ export class RepeaterModule {
         if (this._isSavingSecurity) return;
         const target = this.selectedRepeaterTarget;
         if (!target) {
-          alert(I18n.t("repeater.select_repeater"));
+          const msg = I18n.t("repeater.select_repeater");
+          if (this.ctx.showAlert) {
+            await this.ctx.showAlert(msg, { type: "warning", title: I18n.t("modal.warning") || "Atención" });
+          } else if (this.ctx.showToast) {
+            this.ctx.showToast(msg, "warning");
+          }
           return;
         }
         const submitBtn = securityForm.querySelector("button[type='submit']");
@@ -723,10 +748,19 @@ export class RepeaterModule {
 
     const btnReboot = document.getElementById("btnModalActionReboot");
     if (btnReboot) {
-      btnReboot.addEventListener("click", () => {
+      btnReboot.addEventListener("click", async () => {
         const target = this.selectedRepeaterTarget;
         if (!target) return;
-        if (confirm(I18n.t("repeater.reboot_confirm", { p0: target.slice(0, 8) }))) {
+        const confirmMsg = I18n.t("repeater.reboot_confirm", { p0: target.slice(0, 8) });
+        const confirmFn = this.ctx?.showConfirm || window?.showConfirm;
+        const confirmed = confirmFn
+          ? await confirmFn(confirmMsg, {
+              title: I18n.t("repeater.reboot_title") || "Reiniciar Repetidor",
+              isDanger: true,
+              confirmText: I18n.t("modal.confirm") || "Reiniciar",
+            })
+          : true;
+        if (confirmed) {
           const password = this.getRepeaterPassword(target);
           this.executeRepeaterCommand(target, "reboot", {}, password);
         }

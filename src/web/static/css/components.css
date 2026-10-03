@@ -1997,3 +1997,55 @@ body.light-theme .radio-status-pill.radio-status--disconnected {
   flex-direction: column;
   gap: 1.25rem;
 }
+
+/* ==========================================================================
+   Diálogos Modales del Sistema (Confirm / Alert / Prompt)
+   ========================================================================== */
+.system-dialog-card {
+  width: 92%;
+  max-width: 480px;
+  border-radius: var(--radius-lg, 16px);
+  background: var(--bg-surface, #1e293b);
+  border: 1px solid var(--border-strong, #334155);
+  box-shadow: var(--shadow-lg, 0 10px 25px -5px rgba(0, 0, 0, 0.5));
+}
+
+.system-dialog-header {
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  background: var(--bg-surface-elevated, #243044);
+}
+
+.system-dialog-body {
+  padding: 18px 20px;
+}
+
+.system-dialog-message {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--text-main, #f8fafc);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.modal-title-icon.is-danger {
+  color: var(--danger-fill, #ef4444);
+}
+
+.modal-title-icon.is-warning {
+  color: var(--accent-warning, #f59e0b);
+}
+
+.system-dialog-footer {
+  padding: 12px 20px 16px 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  background: var(--bg-surface, #1e293b);
+}
+

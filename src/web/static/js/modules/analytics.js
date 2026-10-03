@@ -147,7 +147,15 @@ export class AnalyticsModule {
 
   async resetMetrics() {
     const confirmMsg = I18n.t("analytics.confirm_reset") || "¿Deseas restablecer todos los contadores de paquetes y métricas acumuladas de la red?";
-    if (!confirm(confirmMsg)) return;
+    const confirmFn = this.ctx?.showConfirm || window?.showConfirm;
+    const confirmed = confirmFn
+      ? await confirmFn(confirmMsg, {
+          title: I18n.t("analytics.reset") || "Restablecer Métricas",
+          isDanger: true,
+          confirmText: I18n.t("modal.confirm") || "Restablecer",
+        })
+      : true;
+    if (!confirmed) return;
 
     try {
       const res = await fetch("/api/analytics/reset", {

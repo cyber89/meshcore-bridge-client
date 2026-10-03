@@ -36,6 +36,9 @@ class MeshCoreApp {
       knownNodes: this.knownNodes,
       localNodePubkey: "",
       showToast: (msg, type, duration) => this.showToast(msg, type, duration),
+      showConfirm: (msg, opts) => this.showConfirm(msg, opts),
+      showAlert: (msg, opts) => this.showAlert(msg, opts),
+      showPrompt: (msg, defVal, opts) => this.showPrompt(msg, defVal, opts),
       getAuthHeaders: (custom) => this.getAuthHeaders(custom),
       resolveCanonicalPubkey: (pk) => this.resolveCanonicalPubkey(pk),
       switchChannel: (idx) => this.chatModule.switchChannel(idx),
@@ -101,6 +104,11 @@ class MeshCoreApp {
 
     // Renderizar iconos vectoriales Lucide en el DOM cargado
     if (window.initLucideIcons) window.initLucideIcons();
+
+    // Exponer helpers globales de diálogos del sistema
+    window.showConfirm = (msg, opts) => this.showConfirm(msg, opts);
+    window.showAlert = (msg, opts) => this.showAlert(msg, opts);
+    window.showPrompt = (msg, defVal, opts) => this.showPrompt(msg, defVal, opts);
 
     // Conectar WebSocket
     this.wsClient.connect();
@@ -830,6 +838,221 @@ class MeshCoreApp {
 
   resolveCanonicalPubkey(pubkey) {
     return this.nodesModule.resolveCanonicalPubkey(pubkey);
+  }
+
+  /**
+   * Muestra un diálogo de confirmación modal con diseño del sistema.
+   * @param {string} message
+   * @param {Object} [options]
+   * @returns {Promise<boolean>}
+   */
+  showConfirm(message, options = {}) {
+    return this._showSystemDialog({
+      mode: "confirm",
+      message,
+      title: options.title || (options.isDanger ? (I18n.t("modal.confirm") || "Confirmar") : (I18n.t("modal.confirm") || "Confirmar")),
+      confirmText: options.confirmText || I18n.t("modal.confirm") || "Confirmar",
+      cancelText: options.cancelText || I18n.t("modal.cancel") || "Cancelar",
+      isDanger: Boolean(options.isDanger),
+      type: options.type || (options.isDanger ? "warning" : "info"),
+      icon: options.icon || (options.isDanger ? "alert-triangle" : "help-circle"),
+    });
+  }
+
+  /**
+   * Muestra un diálogo de alerta informativa o de error con diseño del sistema.
+   * @param {string} message
+   * @param {Object} [options]
+   * @returns {Promise<void>}
+   */
+  showAlert(message, options = {}) {
+    const isError = options.type === "error";
+    return this._showSystemDialog({
+      mode: "alert",
+      message,
+      title: options.title || (isError ? (I18n.t("modal.error") || "Error") : (I18n.t("modal.info") || "Información")),
+      confirmText: options.confirmText || options.buttonText || I18n.t("modal.close") || "Aceptar",
+      isDanger: false,
+      type: options.type || (isError ? "error" : "info"),
+      icon: options.icon || (isError ? "alert-triangle" : (options.type === "warning" ? "shield-alert" : "info")),
+    });
+  }
+
+  /**
+   * Muestra un diálogo para solicitud de texto simple.
+   * @param {string} message
+   * @param {string} [defaultValue=""]
+   * @param {Object} [options]
+   * @returns {Promise<string|null>}
+   */
+  showPrompt(message, defaultValue = "", options = {}) {
+    return this._showSystemDialog({
+      mode: "prompt",
+      message,
+      defaultValue,
+      title: options.title || "Entrada de Datos",
+      confirmText: options.confirmText || I18n.t("modal.confirm") || "Aceptar",
+      cancelText: options.cancelText || I18n.t("modal.cancel") || "Cancelar",
+      isDanger: false,
+      type: "info",
+      icon: options.icon || "help-circle",
+    });
+  }
+
+  _ensureSystemDialogModal() {
+    let modal = document.getElementById("systemDialogModal");
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = "systemDialogModal";
+      modal.className = "modal-overlay hidden";
+      modal.setAttribute("role", "dialog");
+      modal.setAttribute("aria-modal", "true");
+      modal.setAttribute("aria-labelledby", "systemDialogTitleText");
+      modal.setAttribute("aria-describedby", "systemDialogMessage");
+      modal.innerHTML = `
+        <div class="modal-card system-dialog-card" id="systemDialogCard">
+          <div class="modal-header system-dialog-header">
+            <h3 id="systemDialogTitle">
+              <span class="modal-title-icon" id="systemDialogIcon" data-lucide="help-circle" data-size="18"></span>
+              <span id="systemDialogTitleText">Confirmar</span>
+            </h3>
+            <button type="button" class="btn-icon modal-close" id="btnCloseSystemDialog" aria-label="Cerrar modal">✕</button>
+          </div>
+          <div class="modal-body system-dialog-body">
+            <p id="systemDialogMessage" class="system-dialog-message"></p>
+            <div id="systemDialogInputWrap" class="system-dialog-input-wrap hidden" style="margin-top: 14px;">
+              <input type="text" id="systemDialogInput" class="text-input" style="width: 100%;" autocomplete="off" />
+            </div>
+          </div>
+          <div class="modal-footer system-dialog-footer">
+            <button type="button" class="btn-secondary" id="btnCancelSystemDialog">Cancelar</button>
+            <button type="button" class="btn-primary" id="btnConfirmSystemDialog">Confirmar</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+    return modal;
+  }
+
+  _showSystemDialog(config) {
+    return new Promise((resolve) => {
+      const modal = this._ensureSystemDialogModal();
+
+      const titleEl = document.getElementById("systemDialogTitleText");
+      const iconEl = document.getElementById("systemDialogIcon");
+      const msgEl = document.getElementById("systemDialogMessage");
+      const inputWrap = document.getElementById("systemDialogInputWrap");
+      const inputEl = document.getElementById("systemDialogInput");
+      const btnConfirm = document.getElementById("btnConfirmSystemDialog");
+      const btnCancel = document.getElementById("btnCancelSystemDialog");
+      const btnClose = document.getElementById("btnCloseSystemDialog");
+
+      if (titleEl) titleEl.textContent = config.title;
+      if (msgEl) msgEl.textContent = config.message;
+
+      if (iconEl && window.getLucideIcon) {
+        iconEl.innerHTML = window.getLucideIcon(config.icon || "info", "", 18);
+        iconEl.className = `modal-title-icon ${config.type === "error" || config.isDanger ? "is-danger" : (config.type === "warning" ? "is-warning" : "")}`;
+      }
+
+      if (btnConfirm) {
+        btnConfirm.textContent = config.confirmText;
+        btnConfirm.className = config.isDanger ? "btn-danger" : "btn-primary";
+      }
+
+      if (btnCancel) {
+        if (config.mode === "alert") {
+          btnCancel.classList.add("hidden");
+        } else {
+          btnCancel.classList.remove("hidden");
+          btnCancel.textContent = config.cancelText;
+        }
+      }
+
+      if (inputWrap && inputEl) {
+        if (config.mode === "prompt") {
+          inputWrap.classList.remove("hidden");
+          inputEl.value = config.defaultValue || "";
+        } else {
+          inputWrap.classList.add("hidden");
+        }
+      }
+
+      let settled = false;
+      const cleanup = () => {
+        if (settled) return;
+        settled = true;
+        modal.classList.add("hidden");
+        document.removeEventListener("keydown", onKeyDown);
+        if (btnConfirm) btnConfirm.removeEventListener("click", onConfirm);
+        if (btnCancel) btnCancel.removeEventListener("click", onCancel);
+        if (btnClose) btnClose.removeEventListener("click", onCancel);
+        modal.removeEventListener("click", onOverlayClick);
+      };
+
+      const onConfirm = (e) => {
+        if (e) e.preventDefault();
+        cleanup();
+        if (config.mode === "prompt") {
+          resolve(inputEl ? inputEl.value : "");
+        } else if (config.mode === "confirm") {
+          resolve(true);
+        } else {
+          resolve();
+        }
+      };
+
+      const onCancel = (e) => {
+        if (e) e.preventDefault();
+        cleanup();
+        if (config.mode === "prompt") {
+          resolve(null);
+        } else if (config.mode === "confirm") {
+          resolve(false);
+        } else {
+          resolve();
+        }
+      };
+
+      const onOverlayClick = (e) => {
+        if (e.target === modal) {
+          onCancel(e);
+        }
+      };
+
+      const onKeyDown = (e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          onCancel(e);
+        } else if (e.key === "Enter" && config.mode !== "prompt") {
+          e.preventDefault();
+          onConfirm(e);
+        } else if (e.key === "Enter" && config.mode === "prompt" && document.activeElement === inputEl) {
+          e.preventDefault();
+          onConfirm(e);
+        }
+      };
+
+      if (btnConfirm) btnConfirm.addEventListener("click", onConfirm);
+      if (btnCancel) btnCancel.addEventListener("click", onCancel);
+      if (btnClose) btnClose.addEventListener("click", onCancel);
+      modal.addEventListener("click", onOverlayClick);
+      document.addEventListener("keydown", onKeyDown);
+
+      modal.classList.remove("hidden");
+
+      setTimeout(() => {
+        if (config.mode === "prompt" && inputEl) {
+          inputEl.focus();
+          inputEl.select();
+        } else if (config.isDanger && btnCancel) {
+          btnCancel.focus();
+        } else if (btnConfirm) {
+          btnConfirm.focus();
+        }
+      }, 50);
+    });
   }
 }
 

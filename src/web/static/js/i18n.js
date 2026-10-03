@@ -1076,6 +1076,8 @@
       'modal.success':     'Éxito',
       'modal.yes':         'Sí',
       'modal.no':          'No',
+      'modal.warning':     'Advertencia',
+      'modal.info':        'Información',
 
 
       // Analytics
@@ -2481,6 +2483,8 @@
       'modal.success':     'Success',
       'modal.yes':         'Yes',
       'modal.no':          'No',
+      'modal.warning':     'Warning',
+      'modal.info':        'Information',
 
 
       // Analytics

@@ -377,7 +377,12 @@ export class SnifferModule {
       });
       const data = await res.json();
       if (data.status !== "ok") {
-        alert(I18n.t("sniffer.export_error") + (data.message || data.title || I18n.t("sniffer.server_failure")));
+        const errMsg = I18n.t("sniffer.export_error") + (data.message || data.title || I18n.t("sniffer.server_failure"));
+        if (this.ctx.showAlert) {
+          await this.ctx.showAlert(errMsg, { title: I18n.t("modal.error") || "Error", type: "error" });
+        } else if (this.ctx.showToast) {
+          this.ctx.showToast(errMsg, "error");
+        }
         return;
       }
 
@@ -403,7 +408,12 @@ export class SnifferModule {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert(I18n.t("sniffer.export_failed") + e.message);
+      const errMsg = I18n.t("sniffer.export_failed") + e.message;
+      if (this.ctx.showAlert) {
+        await this.ctx.showAlert(errMsg, { title: I18n.t("modal.error") || "Error", type: "error" });
+      } else if (this.ctx.showToast) {
+        this.ctx.showToast(errMsg, "error");
+      }
     }
   }
 
@@ -845,7 +855,12 @@ export class SnifferModule {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert(I18n.t('sniffer.logs_download_error', { error: e.message }));
+      const errMsg = I18n.t('sniffer.logs_download_error', { error: e.message });
+      if (this.ctx.showAlert) {
+        await this.ctx.showAlert(errMsg, { title: I18n.t("modal.error") || "Error", type: "error" });
+      } else if (this.ctx.showToast) {
+        this.ctx.showToast(errMsg, "error");
+      }
     }
   }
 }

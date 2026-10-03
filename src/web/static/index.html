@@ -2347,6 +2347,29 @@
     </div>
   </div>
 
+  <!-- Modal: Diálogo del Sistema (Confirm / Alert / Prompt) -->
+  <div id="systemDialogModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="systemDialogTitleText" aria-describedby="systemDialogMessage">
+    <div class="modal-card system-dialog-card" id="systemDialogCard">
+      <div class="modal-header system-dialog-header">
+        <h3 id="systemDialogTitle">
+          <span class="modal-title-icon" id="systemDialogIcon" data-lucide="help-circle" data-size="18"></span>
+          <span id="systemDialogTitleText" data-i18n="modal.confirm">Confirmar</span>
+        </h3>
+        <button type="button" class="btn-icon modal-close" id="btnCloseSystemDialog" aria-label="Cerrar modal" data-i18n-aria-label="modal.close">✕</button>
+      </div>
+      <div class="modal-body system-dialog-body">
+        <p id="systemDialogMessage" class="system-dialog-message"></p>
+        <div id="systemDialogInputWrap" class="system-dialog-input-wrap hidden" style="margin-top: 14px;">
+          <input type="text" id="systemDialogInput" class="text-input" style="width: 100%;" autocomplete="off" />
+        </div>
+      </div>
+      <div class="modal-footer system-dialog-footer">
+        <button type="button" class="btn-secondary" id="btnCancelSystemDialog" data-i18n="modal.cancel">Cancelar</button>
+        <button type="button" class="btn-primary" id="btnConfirmSystemDialog" data-i18n="modal.confirm">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Contenedor Global de Notificaciones Toast -->
   <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
