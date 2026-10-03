@@ -1,5 +1,75 @@
 # Revisión de frontend, diseño e idiomas — 2026-10-03
 
+## Estado de los errores registrados
+
+Las correcciones iniciales de esta revisión están aplicadas en el commit `80007ce`,
+publicado en `origin/main`. El seguimiento de los errores restantes se detalla
+en la sección siguiente. El error de teardown descrito más abajo pertenece
+a una ejecución intermedia; la ejecución final terminó sin ese error.
+
+| Error registrado | Estado | Corrección y evidencia |
+| --- | --- | --- |
+| Anidación de chat, CSS duplicado y controles sin nombre accesible | Corregido | `index.html`: cierre del layout, una hoja maestra CSS y controles/etiquetas nativos. |
+| Navegación y foco inconsistentes en pestañas y diálogos | Corregido | `app.js`: tabulación, flechas/Home/End, foco de modales y restauración; casos de navegador aprobados. |
+| Nombres sin escapar y selección de chat para repetidores/local | Corregido | Paleta con nombres escapados y guardas de destino; clasificación de nodos por rol, sin heurísticas de nombre. |
+| DEBUG que no alternaba, errores HTTP/portapapeles y pérdida de duty cycle | Corregido | Alternancia INFO/DEBUG, comprobación HTTP, manejo de portapapeles y combinación de eventos parciales en `app.js`. |
+| Contraste, alias de tema y distribución móvil incoherentes | Corregido | Tokens por tema, alias resueltos, compositor y modales responsive; 48 pares de contraste y matriz de tamaños aprobados. |
+| Textos sin traducir o cambio de idioma que alteraba datos visibles | Corregido | Catálogos ES/EN, interpolación y refresco desde caché; auditoría sin incidencias y casos de idioma aprobados. |
+| `ERR_ABORTED` de un mosaico retirado tratado como fallo de QA | Corregido | Fixture que distingue esa cancelación, comprobación de carga de mosaicos visibles y ejecución final sin errores de teardown. |
+
+Las limitaciones de verificación se conservan al final del informe.
+
+## Seguimiento: correcciones adicionales solicitadas
+
+La revisión independiente encontró mensajes de error propios de la UI que el
+auditor anterior no detectaba. Su salida inicial sin candidatos no demostraba que
+esas ramas estuvieran traducidas. También encontró resultados obsoletos en la
+paleta y una excepción demasiado amplia en la fixture cartográfica.
+
+| Hallazgo adicional | Corrección |
+| --- | --- |
+| Errores de guardar/exportar/eliminar canales, añadir contactos, radio/identidad y descargar logs permanecían en español | Mensajes e interpolaciones del catálogo ES/EN en settings y sniffer; los detalles originales del error se conservan y escapan al renderizar. |
+| Selección de repetidor, fallo de ping, aceptación/actualización de contactos y fallbacks de analítica sin traducción | Catálogo para mensajes propios; añadida la clave de actualización de contactos que antes podía mostrarse literalmente. |
+| Textos redundantes de chat, batería y nombres de canal predeterminados | Uso directo del catálogo e interpolación; nombres proporcionados por usuarios conservados. |
+| Buscar por «repetidor» o «cliente» no encontraba los roles canónicos en español | La paleta compara el rol original y su traducción. |
+| Cambiar ES/EN con una búsqueda abierta mantenía resultados ocultos del filtro previo | Se recalcula el filtro conservando consulta y foco; se restaura la opción seleccionada si continúa presente. |
+| El auditor ignoraba líneas mixtas con `I18n.t`, errores sin tildes y mensajes de terminal; los candidatos no hacían fallar el comando | Inspección léxica de argumentos, templates, errores y terminales; candidatos bloqueantes y regresiones con casos positivos/negativos. |
+| QA cartográfica reemplazaba cualquier imagen externa y toleraba cualquier cancelación de imagen externa | URLs exactas de Leaflet 1.9.4 y rutas de mosaicos OSM/Esri permitidas; otras dependencias fallan. Sólo cancelaciones de mosaicos esperados se toleran. |
+
+Catálogo del seguimiento: 1.249 claves por idioma, 1.111 referencias y 132 reglas
+de selectores. Auditor ampliado sin hallazgos ni candidatos; siete fallbacks
+exactos del catálogo listados individualmente con su motivo. La inspección sigue
+siendo léxica y no demuestra por sí sola todos los flujos de ejecución.
+
+Regresiones: nueve operaciones fallidas en ambos idiomas conservando detalles
+literales, búsqueda/refresco de la paleta, política de URLs cartográficas y 13
+casos del auditor. Los fallos se inyectan en `fetch` del navegador; no se realizan
+guardados ni consultas por RF. Artefactos del seguimiento en
+`tests/artifacts/frontend-followup-verified.json`, `frontend-i18n-followup-final.json`
+y `frontend-followup-coverage.xml`.
+
+Resultado final del seguimiento: **77 pruebas aprobadas**, sin skips ni errores
+de teardown, en 105.37 s; 57 casos de navegador y 20 de auditor/política de recursos.
+Ruff y validación documental aprobados. Mypy conserva el resultado de 59 archivos
+de producción: este seguimiento no modifica código Python de `src`.
+Cobertura Python de esta selección: 36.68% (4.896 de 13.347 líneas de `src`),
+parcial y separada de los casos de navegador/JavaScript.
+
+Reproducción de la matriz del seguimiento:
+
+```powershell
+# UTF-8 permite conservar también mensajes de error Unicode en Windows.
+$env:PYTHONUTF8 = '1'
+python scripts/run_quality_checks.py --only-tests --report tests/artifacts/frontend-followup-verified.json -- tests/test_frontend_followup.py tests/test_frontend_i18n_audit.py tests/test_frontend_ui_audit.py tests/test_e2e_playwright.py tests/test_playwright_e2e_simulation.py -q --tb=short --cov-report=xml:tests/artifacts/frontend-followup-coverage.xml
+node scripts/audit_frontend_i18n.cjs
+```
+
+La primera ejecución del seguimiento aprobó 26 casos y falló dos al intentar
+operar el input oculto de un switch. La regresión ahora hace clic en su etiqueta
+visible y comprueba el estado nativo; el comportamiento de producción no se
+relajó. El JSON intermedio preserva el fallo aunque la consola Windows del runner
+no pudo imprimir un carácter Unicode; la ejecución final usa UTF-8.
+
 ## Plan y responsabilidades
 
 Solicitud: revisar errores e incongruencias del frontend, traducciones de toda la
@@ -77,7 +147,7 @@ sirve Leaflet desde una caché verificada y usa mosaicos virtuales.
   La paleta de búsqueda traduce etiquetas y roles mientras está abierta,
   sin alterar ni interpretar como HTML los nombres del usuario.
 
-## Verificación y límites
+## Verificación inicial y límites
 
 `node scripts/audit_frontend_i18n.cjs` revisa 1.097 referencias y 132 reglas de
 selectores: cero duplicados, referencias ausentes, incompatibilidades entre
@@ -102,7 +172,8 @@ por Playwright; se mantiene compatibilidad de código Python con 3.10.
 
 Una ejecución intermedia terminó con 37 casos aprobados y un error de teardown:
 Chromium notificó `ERR_ABORTED` cuando Leaflet retiró un mosaico obsoleto.
-La fixture distingue cancelaciones de imágenes externas; siguen fallando las
+La fixture inicial distinguía cancelaciones de imágenes externas; el seguimiento
+restringe la excepción a mosaicos de rutas esperadas. Siguen fallando las
 peticiones locales, recursos externos inesperados, otros errores HTTP/red y
 errores de consola/JavaScript. El caso cartográfico exige que todos los mosaicos
 visibles terminen de cargar. Los resultados intermedios se conservan en artefactos.

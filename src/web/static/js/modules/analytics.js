@@ -96,7 +96,7 @@ export class AnalyticsModule {
         await this.fetchAnalytics();
         if (this.ctx.fetchNodes) await this.ctx.fetchNodes();
       } else {
-        if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || "Fallo al restablecer"}`, "error");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t('app.error', { error: data.message || I18n.t('settings.reset_failed') }), "error");
       }
     } catch (err) {
       if (this.ctx.showToast) this.ctx.showToast(I18n.t("analytics.network_error", { p0: err.message }), "error");

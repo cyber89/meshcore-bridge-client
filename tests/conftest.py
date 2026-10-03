@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import pytest_asyncio
+from frontend_browser_resources import is_expected_remote_map_tile
 from playwright.async_api import Page, Request, Route, async_playwright
 
 with patch("dotenv.load_dotenv", return_value=False):
@@ -150,12 +151,12 @@ async def browser_page(virtual_bridge: MeshCoreBridge) -> AsyncIterator[Page]:
             # Leaflet removes obsolete tile images on resize/zoom. Chromium reports
             # those intentional cancellations as ERR_ABORTED. Local assets/APIs,
             # unexpected external requests and all other failures still fail QA.
-            cancelled_external_image = (
+            cancelled_expected_tile = (
                 request.resource_type == "image"
-                and not request.url.startswith(origin + "/")
+                and is_expected_remote_map_tile(request.url)
                 and request.failure == "net::ERR_ABORTED"
             )
-            if not cancelled_external_image:
+            if not cancelled_expected_tile:
                 failures.append(f"{request.failure} {request.url}")
 
         page.on("pageerror", lambda error: errors.append(error.stack or str(error)))

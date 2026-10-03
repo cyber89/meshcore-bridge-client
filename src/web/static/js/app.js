@@ -359,7 +359,8 @@ class MeshCoreApp {
             const name = String(n.name || "").toLowerCase();
             const pk = String(n.public_key || k).toLowerCase();
             const role = String(n.role || "CLIENT").toLowerCase();
-            if (name.includes(query) || pk.includes(query) || role.includes(query)) {
+            const translatedRole = I18n.role(n.role || "CLIENT").toLowerCase();
+            if (name.includes(query) || pk.includes(query) || role.includes(query) || translatedRole.includes(query)) {
               matchedNodes.push(n);
               if (matchedNodes.length >= 8) break;
             }
@@ -386,6 +387,21 @@ class MeshCoreApp {
         }
       }
     };
+
+    window.addEventListener("mc:langchange", () => {
+      if (!commandPaletteModal || commandPaletteModal.classList.contains("hidden")) return;
+      const focused = document.activeElement;
+      const focusedItem = focused?.closest(".cmd-item");
+      const action = focusedItem?.getAttribute("data-action");
+      const pubkey = focusedItem?.getAttribute("data-pubkey");
+      filterCmdItems(cmdPaletteInput?.value || "");
+      if (focusedItem) {
+        const items = getVisibleItems();
+        const index = items.findIndex((item) => item.getAttribute("data-action") === action && item.getAttribute("data-pubkey") === pubkey);
+        if (index >= 0) updateSelection(index);
+        else cmdPaletteInput?.focus();
+      }
+    });
 
     const openPalette = () => {
       if (!commandPaletteModal) return;

@@ -9,6 +9,7 @@ import re
 from pathlib import Path
 
 import pytest
+from frontend_browser_resources import is_expected_remote_map_tile
 from playwright.async_api import Page, Route, expect
 
 from src.bridge_core import MeshCoreBridge
@@ -283,11 +284,11 @@ async def test_leaflet_map_with_cached_library_and_virtual_tiles(browser_page: P
                 await route.fulfill(response=response, body=html)
             else:
                 await route.continue_()
-        elif url.endswith("/leaflet.js"):
+        elif url == "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js":
             await route.fulfill(body=js, content_type="application/javascript")
-        elif url.endswith("/leaflet.css"):
+        elif url == "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css":
             await route.fulfill(body=css, content_type="text/css")
-        elif route.request.resource_type == "image":
+        elif route.request.resource_type == "image" and is_expected_remote_map_tile(url):
             await route.fulfill(body=tile, content_type="image/png")
         else:
             raise AssertionError(f"Unexpected external dependency: {url}")

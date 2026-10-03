@@ -303,7 +303,7 @@ export class RepeaterModule {
         e.preventDefault();
         const target = this.selectedRepeaterTarget;
         if (!target) {
-          alert("Selecciona primero un repetidor objetivo.");
+          alert(I18n.t('repeater.select_repeater'));
           return;
         }
         const password = this.getRepeaterPassword(target);
@@ -362,7 +362,7 @@ export class RepeaterModule {
             if (data.message && (data.message.toLowerCase().includes("password") || data.message.toLowerCase().includes("auth") || data.message.toLowerCase().includes("pin"))) {
               this.handleRepeaterAuthError(target, data.message);
             } else {
-              if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message}`, "error");
+              if (this.ctx.showToast) this.ctx.showToast(I18n.t('app.error', { error: data.message }), "error");
             }
           }
         } catch (err) {
@@ -435,7 +435,7 @@ export class RepeaterModule {
             if (data.message && (data.message.toLowerCase().includes("password") || data.message.toLowerCase().includes("auth") || data.message.toLowerCase().includes("pin"))) {
               this.handleRepeaterAuthError(target, data.message);
             } else {
-              if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message}`, "error");
+              if (this.ctx.showToast) this.ctx.showToast(I18n.t('app.error', { error: data.message }), "error");
             }
           }
         } catch (err) {
@@ -500,7 +500,7 @@ export class RepeaterModule {
             if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.security_applied"), "success");
           } else {
             this.appendTerminalLine(`✗ [RX ERROR] ${data.message || data.error}`, "term-error");
-            if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || data.error}`, "error");
+            if (this.ctx.showToast) this.ctx.showToast(I18n.t('app.error', { error: data.message || data.error }), "error");
           }
         } catch (err) {
           this.appendTerminalLine(`✗ [ERROR] ${err.message}`, "term-error");
@@ -643,7 +643,7 @@ export class RepeaterModule {
         const cmd = btn.getAttribute("data-cmd");
         const target = this.selectedRepeaterTarget;
         if (!target) {
-          this.appendTerminalLine("⚠️ Selecciona primero un repetidor objetivo.", "term-error");
+          this.appendTerminalLine(I18n.t('repeater.choose_target'), "term-error");
           return;
         }
         const password = this.getRepeaterPassword(target);
@@ -709,7 +709,7 @@ export class RepeaterModule {
         const target = this.selectedRepeaterTarget;
         if (!cmd) return;
         if (!target) {
-          this.appendTerminalLine("⚠️ Selecciona primero un repetidor objetivo.", "term-error");
+          this.appendTerminalLine(I18n.t('repeater.choose_target'), "term-error");
           return;
         }
 
@@ -1558,8 +1558,8 @@ export class RepeaterModule {
         if (this.ctx.showToast) this.ctx.showToast(`🎯 Pong: ${rtt} ms | SNR: ${snrBack} | RSSI: ${rssi}`, "success");
         this._startModalPingCooldown(15);
       } else {
-        const errMsg = data.message || "Timeout";
-        this.appendTerminalLine(`✗ [PING FALLIDO] ${errMsg}`, "term-error");
+        const errMsg = data.message || I18n.t('common.request_timeout');
+        this.appendTerminalLine(I18n.t('repeater.ping_failure_line', { error: errMsg }), "term-error");
         if (errMsg.toLowerCase().includes("password") || errMsg.toLowerCase().includes("auth") || errMsg.toLowerCase().includes("pin")) {
           this.handleRepeaterAuthError(target, errMsg);
         } else {
@@ -1659,7 +1659,7 @@ export class RepeaterModule {
         }
       } else {
         const errMsg = data.detail || data.message || data.error || I18n.t("repeater.unknown_error");
-        this.appendTerminalLine(`✗ Error: ${errMsg}`, "term-error");
+        this.appendTerminalLine(I18n.t('repeater.command_error', { p0: errMsg }), "term-error");
         if (qFeedback) {
           qFeedback.className = "rep-quick-feedback error";
           qFeedback.textContent = `✗ ${errMsg}`;
@@ -1820,7 +1820,7 @@ export class RepeaterModule {
       if (data.status === "ok") {
         const aclData = JSON.stringify(data.data?.acl_data || data.acl_data || {});
         this.appendTerminalLine(I18n.t("repeater.rx_acl", { p0: aclData }), "term-success");
-        if (this.ctx.showToast) this.ctx.showToast(`Tabla ACL obtenida`, "success");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t('repeater.acl_received'), "success");
       } else {
         this.appendTerminalLine(`✗ [ERROR] ${data.message || data.error}`, "term-error");
       }

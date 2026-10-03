@@ -270,7 +270,7 @@ export class SettingsModule {
             this._notify(I18n.t("settings.channel_save_error", { p0: data.message || I18n.t("settings.unknown_failure") }), "error");
           }
         } catch (err) {
-          this._notify(`Error de red al guardar canal: ${err.message}`, "error");
+          this._notify(I18n.t('settings.channel_save_network_error', { error: err.message }), "error");
         }
       });
     }
@@ -342,7 +342,7 @@ export class SettingsModule {
             this._notify(I18n.t("settings.contact_add_error", { p0: data.message || I18n.t("settings.unknown_failure") }), "error");
           }
         } catch (err) {
-          this._notify(`Error de red al agregar contacto: ${err.message}`, "error");
+          this._notify(I18n.t('settings.contact_add_network_error', { error: err.message }), "error");
         }
       });
     }
@@ -1079,7 +1079,7 @@ export class SettingsModule {
         ? I18n.t("settings.encrypted_channel")
         : (ch.index === 0 ? I18n.t("settings.public_channel") : I18n.t("settings.open_channel"));
 
-      const chDisplayName = ch.name || (ch.index === 0 ? "Public / Broadcast" : I18n.t("settings.channel_label", { p0: ch.index }));
+      const chDisplayName = ch.name || (ch.index === 0 ? I18n.t('chat.ch_0_default') : I18n.t("settings.channel_label", { p0: ch.index }));
 
       li.innerHTML = `
         <span class="ch-badge font-mono">Ch ${ch.index}</span>
@@ -1123,7 +1123,7 @@ export class SettingsModule {
               this._notify(I18n.t("settings.channel_export_error", { p0: data.message || I18n.t("settings.unknown_failure") }), "error");
             }
           } catch (err) {
-            this._notify(`Error obteniendo datos del canal: ${err.message}`, "error");
+            this._notify(I18n.t('settings.channel_data_error', { error: err.message }), "error");
           }
         });
       }
@@ -1133,7 +1133,7 @@ export class SettingsModule {
         btnDelete.addEventListener("click", async (e) => {
           e.stopPropagation();
           const chIdx = Number(btnDelete.getAttribute("data-ch-idx"));
-          const chName = btnDelete.getAttribute("data-ch-name") || `Canal ${chIdx}`;
+          const chName = btnDelete.getAttribute("data-ch-name") || I18n.t('settings.channel_label', { p0: chIdx });
 
           const confirmed = window.confirm(
             I18n.t("settings.channel_delete_confirm", { p0: chIdx, p1: chName })
@@ -1162,7 +1162,7 @@ export class SettingsModule {
               this._notify(I18n.t("settings.channel_delete_error", { p0: data.detail || data.message || I18n.t("settings.unknown_failure") }), "error");
             }
           } catch (err) {
-            this._notify(`Error de red al eliminar canal: ${err.message}`, "error");
+            this._notify(I18n.t('settings.channel_delete_network_error', { error: err.message }), "error");
           }
         });
       }
@@ -1768,10 +1768,10 @@ export class SettingsModule {
         this.populateLocalConfig(payload);
         if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.radio_cfg_ok'), "success");
       } else {
-        this._notify("Error guardando radio: " + (data.message || I18n.t("settings.unknown")), "error");
+        this._notify(I18n.t('settings.radio_save_error', { error: data.message || I18n.t('settings.unknown') }), "error");
       }
     } catch (e) {
-      this._notify("Error de red guardando radio: " + e.message, "error");
+      this._notify(I18n.t('settings.radio_save_network_error', { error: e.message }), "error");
     }
   }
 
@@ -1804,10 +1804,10 @@ export class SettingsModule {
         this.populateLocalConfig(payload);
         if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.identity_ok'), "success");
       } else {
-        this._notify("Error guardando identidad: " + (data.message || I18n.t("settings.unknown")), "error");
+        this._notify(I18n.t('settings.identity_save_error', { error: data.message || I18n.t('settings.unknown') }), "error");
       }
     } catch (e) {
-      this._notify("Error de red: " + e.message, "error");
+      this._notify(I18n.t('settings.network_error', { p0: e.message }), "error");
     }
   }
 

@@ -46,8 +46,7 @@ export class NodesModule {
       this.dom.btnRefreshContacts.addEventListener("click", () => {
         this.fetchNodes();
         if (this.ctx.showToast) {
-          const t = window.I18n ? window.I18n.t : (k) => k;
-          this.ctx.showToast(t("contacts.refreshed") || "Contactos actualizados", "info");
+          this.ctx.showToast(I18n.t('contacts.refreshed'), "info");
         }
       });
     }
@@ -375,7 +374,7 @@ export class NodesModule {
           if (!res.ok) {
             const errData = await res.json().catch(() => ({}));
             const msg = errData.detail || errData.error || `HTTP ${res.status}`;
-            if (this.ctx.showToast) this.ctx.showToast(`Error: ${msg}`, "error");
+            if (this.ctx.showToast) this.ctx.showToast(I18n.t('app.error', { error: msg }), "error");
             return;
           }
           card.remove();
@@ -717,7 +716,7 @@ export class NodesModule {
       acceptBtn.addEventListener("click", () => {
         banner.classList.add("hidden");
         discoveredPks.clear();
-        if (this.ctx.showToast) this.ctx.showToast("Contactos aceptados en el directorio", "success");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t('nodes.contacts_accepted'), "success");
       });
     }
 
@@ -902,13 +901,13 @@ export class NodesModule {
         let batEl = card.querySelector(".contact-battery-chip");
         if (batEl) {
           batEl.textContent = `🔋 ${batText}`;
-          batEl.title = window.I18n ? window.I18n.t('nodes.battery_title').replace('{val}', batText) : `Batería: ${batText}`;
+          batEl.title = I18n.t('nodes.battery_title', { val: batText });
         } else {
           const titleRow = card.querySelector(".contact-title-row, .node-card-badges-group");
           if (titleRow) {
             const chip = document.createElement("span");
             chip.className = "contact-battery-chip";
-            chip.title = window.I18n ? window.I18n.t('nodes.battery_title').replace('{val}', batText) : `Batería: ${batText}`;
+            chip.title = I18n.t('nodes.battery_title', { val: batText });
             chip.textContent = `🔋 ${batText}`;
             titleRow.insertBefore(chip, titleRow.firstChild);
           }
@@ -1014,7 +1013,7 @@ export class NodesModule {
         if (this.ctx.showToast) this.ctx.showToast(msg, "success");
         this._startPingButtonCooldown(btnEl, cleanKey, 15, originalHtml);
       } else {
-        const errMsg = data.detail || data.message || data.error || "Timeout";
+        const errMsg = data.detail || data.message || data.error || I18n.t('common.request_timeout');
         const msg = (window.I18n ? window.I18n.t('toast.ping_err') : null)?.replace('{name}', cleanName) || `⚠️ Sin respuesta de Ping (${errMsg})`;
         if (this.ctx.showToast) this.ctx.showToast(msg, "warning");
         if (btnEl && originalHtml) {

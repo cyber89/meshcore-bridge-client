@@ -344,7 +344,7 @@ export class SnifferModule {
         headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
       });
       if (!res.ok) {
-        let errMsg = `Error HTTP ${res.status}`;
+        let errMsg = I18n.t('sniffer.http_error', { status: res.status });
         try {
           const errData = await res.json();
           errMsg = errData.message || errData.detail || errData.error || errMsg;
@@ -845,7 +845,7 @@ export class SnifferModule {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert("Error descargando archivo de logs: " + e.message);
+      alert(I18n.t('sniffer.logs_download_error', { error: e.message }));
     }
   }
 }

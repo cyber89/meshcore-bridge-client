@@ -788,13 +788,11 @@ export class ChatModule {
 
       if (this.dom.chatTargetSub) {
         if (this.activeChannelIdx === 0) {
-          this.dom.chatTargetSub.textContent = (window.I18n ? window.I18n.t('chat.ch_0_sub') : null) || '📢 Canal público broadcast • Sin cifrar';
+          this.dom.chatTargetSub.textContent = I18n.t('chat.ch_0_sub');
         } else if (isEncrypted) {
-          const subTemplate = (window.I18n ? window.I18n.t('chat.ch_n_encrypted_sub') : null) || '🔒 Canal privado cifrado #{n}';
-          this.dom.chatTargetSub.textContent = subTemplate.replace('{n}', this.activeChannelIdx);
+          this.dom.chatTargetSub.textContent = I18n.t('chat.ch_n_encrypted_sub', { n: this.activeChannelIdx });
         } else {
-          const subTemplate = (window.I18n ? window.I18n.t('chat.ch_n_open_sub') : null) || '📻 Canal abierto sin cifrar #{n}';
-          this.dom.chatTargetSub.textContent = subTemplate.replace('{n}', this.activeChannelIdx);
+          this.dom.chatTargetSub.textContent = I18n.t('chat.ch_n_open_sub', { n: this.activeChannelIdx });
         }
       }
     }
@@ -1079,8 +1077,8 @@ export class ChatModule {
     if (!msgs || msgs.length === 0) {
       this.dom.chatMessageFeed.innerHTML = `
         <div class="chat-empty-state">
-          <p>${window.I18n ? window.I18n.t('chat.no_messages') : 'No hay mensajes en esta conversación'}</p>
-          <small>${window.I18n ? window.I18n.t('chat.write_below') : 'Escribe un mensaje abajo para comenzar'}</small>
+          <p>${I18n.t('chat.no_messages')}</p>
+          <small>${I18n.t('chat.write_below')}</small>
         </div>
       `;
       return;
