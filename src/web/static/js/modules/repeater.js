@@ -1555,7 +1555,14 @@ export class RepeaterModule {
           if (this.ctx.updateNodeInDom) this.ctx.updateNodeInDom(canonicalTarget, existing);
         }
 
-        if (this.ctx.showToast) this.ctx.showToast(`🎯 Pong: ${rtt} ms | SNR: ${snrBack} | RSSI: ${rssi}`, "success");
+        const snrStr = snrBack !== "--" ? ` | SNR: ${snrBack}` : "";
+        const rssiStr = rssi !== "--" ? ` | RSSI: ${rssi}` : "";
+        const pingMsg = (window.I18n ? window.I18n.t('toast.ping_ok') : null)
+          ?.replace('{name}', name || cleanTarget)
+          ?.replace('{rtt}', `${rtt} ms`)
+          ?.replace('{snr}', snrStr)
+          ?.replace('{rssi}', rssiStr) || `🎯 Pong de ${name || cleanTarget}: RTT ${rtt} ms${snrStr}${rssiStr}`;
+        if (this.ctx.showToast) this.ctx.showToast(pingMsg, "success");
         this._startModalPingCooldown(15);
       } else {
         const errMsg = data.message || I18n.t('common.request_timeout');
