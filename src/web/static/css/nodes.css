@@ -101,25 +101,25 @@
 
 .node-status-chip.status-online {
   background: rgba(16, 185, 129, 0.15);
-  color: #34d399;
+  color: var(--accent-success);
   border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
 .node-status-chip.status-idle {
   background: rgba(245, 158, 11, 0.15);
-  color: #fbbf24;
+  color: var(--accent-warning);
   border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
 .node-status-chip.status-offline {
   background: rgba(148, 163, 184, 0.15);
-  color: #94a3b8;
+  color: var(--text-muted);
   border: 1px solid rgba(148, 163, 184, 0.3);
 }
 
 .node-card.node-card-offline {
-  opacity: 0.75;
-  filter: grayscale(25%);
+  /* Keep offline metadata readable; the status chip communicates availability. */
+  border-style: dashed;
   border-color: rgba(148, 163, 184, 0.2);
 }
 
@@ -209,7 +209,7 @@
 .nodes-grid {
 
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(295px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(295px, 100%), 1fr));
   gap: 16px;
   align-items: stretch;
   width: 100%;
@@ -315,11 +315,11 @@
   box-sizing: border-box;
 }
 .avatar-status-dot.status-online {
-  background-color: #22c55e;
+  background-color: var(--accent-success);
   box-shadow: 0 0 6px rgba(34, 197, 94, 0.7);
 }
 .avatar-status-dot.status-idle {
-  background-color: #f59e0b;
+  background-color: var(--accent-warning);
   box-shadow: 0 0 6px rgba(245, 158, 11, 0.7);
 }
 .avatar-status-dot.status-offline {
@@ -366,12 +366,12 @@
 }
 
 .btn-toggle-fav:hover {
-  color: #f59e0b;
+  color: var(--accent-warning);
   transform: scale(1.18);
 }
 
 .btn-toggle-fav.is-fav {
-  color: #f59e0b;
+  color: var(--accent-warning);
   filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.5));
 }
 
@@ -445,11 +445,11 @@
   flex-shrink: 0;
   white-space: nowrap;
 }
-.node-role-badge.role-local { background: rgba(16, 185, 129, 0.18); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4); }
-.node-role-badge.role-client { background: rgba(56, 189, 248, 0.18); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); }
-.node-role-badge.role-repeater { background: rgba(192, 132, 252, 0.18); color: #c084fc; border: 1px solid rgba(192, 132, 252, 0.4); }
-.node-role-badge.role-sensor { background: rgba(52, 211, 153, 0.18); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.4); }
-.node-role-badge.role-room { background: rgba(251, 191, 36, 0.18); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.4); }
+.node-role-badge.role-local { background: var(--bg-success-soft); color: var(--accent-success); border: 1px solid rgba(16, 185, 129, 0.4); }
+.node-role-badge.role-client { background: var(--bg-primary-soft); color: var(--accent-primary); border: 1px solid rgba(56, 189, 248, 0.4); }
+.node-role-badge.role-repeater { background: var(--bg-purple-soft); color: var(--accent-purple); border: 1px solid rgba(192, 132, 252, 0.4); }
+.node-role-badge.role-sensor { background: var(--bg-success-soft); color: var(--accent-success); border: 1px solid rgba(52, 211, 153, 0.4); }
+.node-role-badge.role-room { background: var(--bg-warning-soft); color: var(--accent-warning); border: 1px solid rgba(251, 191, 36, 0.4); }
 
 .contact-battery-chip {
   font-size: 10.5px;
@@ -457,7 +457,7 @@
   padding: 1.5px 7px;
   border-radius: 9999px;
   background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
+  color: var(--accent-success);
   border: 1px solid rgba(34, 197, 94, 0.35);
   flex-shrink: 0;
   white-space: nowrap;
@@ -470,7 +470,7 @@
 
 /* Panel de Metadata Central Uniforme (Exactamente 44px) */
 .node-telemetry-panel {
-  background: rgba(7, 11, 20, 0.55);
+  background: var(--bg-canvas);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   padding: 6px 10px;
@@ -509,11 +509,11 @@
 .node-meta-highlight {
   font-weight: 700;
 }
-.node-meta-highlight.color-success, strong.color-success { color: #22c55e !important; }
-.node-meta-highlight.color-purple, strong.color-purple { color: #c084fc !important; }
-.node-meta-highlight.color-cyan, strong.color-cyan { color: #38bdf8 !important; }
-.node-meta-highlight.color-amber, strong.color-amber { color: #fbbf24 !important; }
-.node-meta-highlight.color-green, strong.color-green { color: #34d399 !important; }
+.node-meta-highlight.color-success, strong.color-success { color: var(--accent-success) !important; }
+.node-meta-highlight.color-purple, strong.color-purple { color: var(--accent-purple) !important; }
+.node-meta-highlight.color-cyan, strong.color-cyan { color: var(--accent-primary) !important; }
+.node-meta-highlight.color-amber, strong.color-amber { color: var(--accent-warning) !important; }
+.node-meta-highlight.color-green, strong.color-green { color: var(--accent-success) !important; }
 
 .node-meta-sub {
   display: flex;
@@ -660,7 +660,7 @@
 
 .btn-modal-ping-zero:hover {
   background: var(--accent-primary);
-  color: #ffffff;
+  color: var(--text-inverse);
 }
 
 .btn-node-ping-zero {
@@ -674,7 +674,7 @@
 
 .btn-node-ping-zero:hover {
   background: var(--accent-primary);
-  color: #ffffff;
+  color: var(--text-inverse);
   border-color: var(--accent-primary);
 }
 

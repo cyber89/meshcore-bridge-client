@@ -39,7 +39,17 @@ export class SettingsModule {
     this.fetchFloodScope();
     this.fetchAutoAddConfig();
     this._startLiveTick();
-    window.showQrModal = (title, uri, rawJson) => this.showQrModal(title, uri, rawJson);
+    window.showQrModal = (title, uri, rawJson, label) => this.showQrModal(title, uri, rawJson, label);
+  }
+
+  onLanguageChange() {
+    this.renderChannelsList(this.channelsList);
+    if (this._customVars) this.renderCustomVarsTable(this._customVars);
+    if (this.dom.chModalIndex) {
+      Array.from(this.dom.chModalIndex.options).forEach(option => {
+        option.textContent = I18n.t('settings.secondary_channel', { p0: option.value });
+      });
+    }
   }
 
   _startLiveTick() {
@@ -159,7 +169,7 @@ export class SettingsModule {
       const availableIndices = [1, 2, 3, 4, 5, 6, 7].filter((idx) => !occupiedIndices.has(idx));
 
       if (availableIndices.length === 0) {
-        const msg = "No hay ranuras disponibles de canales secundarios (canales 1 a 7 ocupados). Elimina un canal antes de crear uno nuevo.";
+        const msg = I18n.t("settings.slots_full");
         this._notify(msg, "warning");
         return;
       }
@@ -169,7 +179,7 @@ export class SettingsModule {
         availableIndices.forEach((idx) => {
           const opt = document.createElement("option");
           opt.value = String(idx);
-          opt.textContent = `Canal ${idx} (Secundario)`;
+          I18n.setText(opt, "settings.secondary_channel", { p0: idx });
           this.dom.chModalIndex.appendChild(opt);
         });
         this.dom.chModalIndex.value = String(availableIndices[0]);
@@ -181,7 +191,7 @@ export class SettingsModule {
         this.dom.chModalIsEncrypted.checked = true;
       }
       if (this.dom.chModalEncryptedBadge) {
-        this.dom.chModalEncryptedBadge.textContent = "CIFRADO";
+        I18n.setText(this.dom.chModalEncryptedBadge, "settings.encrypted");
         this.dom.chModalEncryptedBadge.classList.add("is-active");
       }
       if (this.dom.chModalPskGroup) {
@@ -213,7 +223,7 @@ export class SettingsModule {
       this.dom.chModalIsEncrypted.addEventListener("change", (e) => {
         const isEnc = e.target.checked;
         if (this.dom.chModalEncryptedBadge) {
-          this.dom.chModalEncryptedBadge.textContent = isEnc ? "CIFRADO" : "ABIERTO";
+          I18n.setText(this.dom.chModalEncryptedBadge, isEnc ? "settings.encrypted" : "settings.open");
           this.dom.chModalEncryptedBadge.classList.toggle("is-active", isEnc);
         }
         if (this.dom.chModalPskGroup) {
@@ -257,7 +267,7 @@ export class SettingsModule {
             if (this.ctx.switchChannel) this.ctx.switchChannel(index);
             if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.ch_saved').replace('{index}', index).replace('{name}', escapeHtml(name)), "success");
           } else {
-            this._notify(`Error guardando canal: ${data.message || "Fallo desconocido"}`, "error");
+            this._notify(I18n.t("settings.channel_save_error", { p0: data.message || I18n.t("settings.unknown_failure") }), "error");
           }
         } catch (err) {
           this._notify(`Error de red al guardar canal: ${err.message}`, "error");
@@ -277,7 +287,7 @@ export class SettingsModule {
         this.dom.contactModalFavorite.checked = false;
       }
       if (this.dom.contactModalFavBadge) {
-        this.dom.contactModalFavBadge.textContent = "NO";
+        I18n.setText(this.dom.contactModalFavBadge, "settings.no");
         this.dom.contactModalFavBadge.classList.remove("is-active");
       }
       if (this.dom.contactModalPubKey) this.dom.contactModalPubKey.focus();
@@ -295,7 +305,7 @@ export class SettingsModule {
       this.dom.contactModalFavorite.addEventListener("change", (e) => {
         const isFav = e.target.checked;
         if (this.dom.contactModalFavBadge) {
-          this.dom.contactModalFavBadge.textContent = isFav ? "SÍ" : "NO";
+          I18n.setText(this.dom.contactModalFavBadge, isFav ? "settings.yes" : "settings.no");
           this.dom.contactModalFavBadge.classList.toggle("is-active", isFav);
         }
       });
@@ -329,7 +339,7 @@ export class SettingsModule {
             if (this.ctx.setDmTarget) this.ctx.setDmTarget(pubkey, name || pubkey);
             if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.contact_added').replace('{name}', name || pubkey.slice(0, 8)), "success");
           } else {
-            this._notify(`Error agregando contacto: ${data.message || "Fallo desconocido"}`, "error");
+            this._notify(I18n.t("settings.contact_add_error", { p0: data.message || I18n.t("settings.unknown_failure") }), "error");
           }
         } catch (err) {
           this._notify(`Error de red al agregar contacto: ${err.message}`, "error");
@@ -482,7 +492,7 @@ export class SettingsModule {
       repeatSwitch.addEventListener("change", (e) => {
         const checked = e.target.checked;
         if (repeatBadge) {
-          repeatBadge.textContent = checked ? "ON" : "OFF";
+          I18n.setText(repeatBadge, checked ? 'common.on' : 'common.off');
           if (checked) {
             repeatBadge.classList.add("badge-active");
           } else {
@@ -491,7 +501,7 @@ export class SettingsModule {
         }
         const sumRepeat = document.getElementById("localSummaryRepeat");
         if (sumRepeat) {
-          sumRepeat.textContent = checked ? "Activado" : "Desactivado";
+          I18n.setText(sumRepeat, checked ? "settings.enabled" : "settings.disabled");
           sumRepeat.style.color = checked ? "var(--accent-success, #22c55e)" : "var(--text-muted, #94a3b8)";
         }
       });
@@ -504,7 +514,7 @@ export class SettingsModule {
         chk.addEventListener("change", (e) => {
           const checked = e.target.checked;
           if (badge) {
-            badge.textContent = checked ? "ON" : "OFF";
+            I18n.setText(badge, checked ? 'common.on' : 'common.off');
             badge.classList.toggle("badge-active", checked);
           }
         });
@@ -518,7 +528,7 @@ export class SettingsModule {
         chk.addEventListener("change", (e) => {
           const checked = e.target.checked;
           if (badge) {
-            badge.textContent = checked ? "ON" : "OFF";
+            I18n.setText(badge, checked ? 'common.on' : 'common.off');
             badge.classList.toggle("badge-active", checked);
           }
           if (input) {
@@ -554,7 +564,7 @@ export class SettingsModule {
       posFixedSwitch.addEventListener("change", (e) => {
         const checked = e.target.checked;
         if (posFixedBadge) {
-          posFixedBadge.textContent = checked ? "FIJA" : "OFF";
+          I18n.setText(posFixedBadge, checked ? "settings.fixed" : 'common.off');
           posFixedBadge.classList.toggle("is-active", checked);
         }
       });
@@ -571,14 +581,14 @@ export class SettingsModule {
           localStorage.setItem("meshcore_bridge_api_key", val);
           if (this.dom.apiKeyStatusHint) {
             this.dom.apiKeyStatusHint.classList.remove("hidden");
-            this.dom.apiKeyStatusHint.textContent = "✓ API Key guardada con éxito en este navegador";
+            I18n.setText(this.dom.apiKeyStatusHint, "settings.api_saved_hint");
           }
           if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.api_key_saved'), "success");
         } else {
           localStorage.removeItem("meshcore_bridge_api_key");
           if (this.dom.apiKeyStatusHint) {
             this.dom.apiKeyStatusHint.classList.remove("hidden");
-            this.dom.apiKeyStatusHint.textContent = "ℹ️ Clave eliminada (modo sin autenticación)";
+            I18n.setText(this.dom.apiKeyStatusHint, "settings.api_removed_hint");
           }
           if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.api_key_del'), "info");
         }
@@ -590,7 +600,7 @@ export class SettingsModule {
         localStorage.removeItem("meshcore_bridge_api_key");
         if (this.dom.apiKeyStatusHint) {
           this.dom.apiKeyStatusHint.classList.remove("hidden");
-          this.dom.apiKeyStatusHint.textContent = I18n.t('toast.api_key_del');
+          I18n.setText(this.dom.apiKeyStatusHint, 'toast.api_key_del');
         }
         if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.api_key_del'), "info");
       });
@@ -655,7 +665,7 @@ export class SettingsModule {
             }
           }
         } catch (err) {
-          this.appendLocalTerminalLine(`✗ Error de conexión: ${err.message}`, "term-error");
+          this.appendLocalTerminalLine(I18n.t("settings.connection_error", { p0: err.message }), "term-error");
         }
       });
     }
@@ -702,7 +712,7 @@ export class SettingsModule {
         this.dom.localTerminalOutput.innerHTML = "";
       });
     }
-    document.querySelectorAll(".help-cmd-item[data-cmd]").forEach((item) => {
+    document.querySelectorAll("#localTerminalHelpDrawer .help-cmd-item[data-cmd]").forEach((item) => {
       item.addEventListener("click", () => {
         const cmd = item.getAttribute("data-cmd");
         if (this.dom.localTerminalInput && cmd) {
@@ -717,7 +727,7 @@ export class SettingsModule {
     if (btnGetGps) {
       btnGetGps.addEventListener("click", () => {
         if (!navigator.geolocation) {
-          if (this.ctx.showToast) this.ctx.showToast("Geolocalización no soportada en este navegador", "error");
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.geo_unsupported"), "error");
           return;
         }
         btnGetGps.disabled = true;
@@ -730,11 +740,11 @@ export class SettingsModule {
             if (latIn) latIn.value = pos.coords.latitude.toFixed(6);
             if (lonIn) lonIn.value = pos.coords.longitude.toFixed(6);
             if (altIn && pos.coords.altitude != null) altIn.value = Math.round(pos.coords.altitude);
-            if (this.ctx.showToast) this.ctx.showToast("Coordenadas GPS obtenidas del navegador", "success");
+            if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.geo_received"), "success");
           },
           (err) => {
             btnGetGps.disabled = false;
-            if (this.ctx.showToast) this.ctx.showToast(`Error de GPS: ${err.message}`, "error");
+            if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.gps_error", { p0: err.message }), "error");
           },
           { enableHighAccuracy: true, timeout: 10000 }
         );
@@ -746,16 +756,16 @@ export class SettingsModule {
     if (btnReloadMaps) {
       btnReloadMaps.addEventListener("click", async () => {
         const content = document.getElementById("localMapsStatusContent");
-        if (content) content.textContent = "Reindexando archivos MBTiles...";
+        if (content) I18n.setText(content, "settings.maps_reindexing");
         try {
           const res = await fetch("/api/map/reload", {
             method: "POST",
             headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
           });
-          if (content) content.textContent = res.ok ? "Archivos .mbtiles reindexados correctamente." : "Servicio de mapas activo.";
-          if (this.ctx.showToast) this.ctx.showToast("Mosaicos locales reindexados", "success");
+          if (content) I18n.setText(content, res.ok ? "settings.maps_reindexed" : "settings.maps_active");
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.tiles_reindexed"), "success");
         } catch (e) {
-          if (content) content.textContent = "Listo. Verifique directorio data/maps/.";
+          if (content) I18n.setText(content, "settings.maps_check_dir");
         }
       });
     }
@@ -765,7 +775,7 @@ export class SettingsModule {
         const url = (this.dom.inputLocalTileUrl?.value || "").trim();
         if (url) {
           localStorage.setItem("meshcore_local_tile_url", url);
-          if (this.ctx.showToast) this.ctx.showToast("Configuración de mapas guardada", "success");
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.maps_saved"), "success");
         }
       });
     }
@@ -773,16 +783,16 @@ export class SettingsModule {
     const btnClearIdb = document.getElementById("btnClearIndexedDbStorage");
     if (btnClearIdb) {
       btnClearIdb.addEventListener("click", async () => {
-        if (!confirm("¿Deseas vaciar todo el almacenamiento local IndexedDB (mensajes y caché)?")) return;
+        if (!confirm(I18n.t("settings.clear_storage_confirm"))) return;
         try {
           if (this.ctx.storage && this.ctx.storage.clearAll) {
             await this.ctx.storage.clearAll();
           } else {
             indexedDB.deleteDatabase("MeshCoreStationDB");
           }
-          if (this.ctx.showToast) this.ctx.showToast("Almacenamiento IndexedDB vaciado con éxito", "info");
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.storage_cleared"), "info");
         } catch (err) {
-          if (this.ctx.showToast) this.ctx.showToast(`Error al vaciar: ${err.message}`, "error");
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.storage_error", { p0: err.message }), "error");
         }
       });
     }
@@ -794,9 +804,9 @@ export class SettingsModule {
       if (icon) icon.classList.add("spin-animation");
       try {
         await this.fetchLocalNodeConfig(true);
-        if (this.ctx.showToast) this.ctx.showToast("Parámetros de hardware actualizados desde la radio", "success");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.hardware_updated"), "success");
       } catch (err) {
-        if (this.ctx.showToast) this.ctx.showToast(`Error consultando radio: ${err.message}`, "error");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.radio_query_error", { p0: err.message }), "error");
       } finally {
         if (icon) icon.classList.remove("spin-animation");
       }
@@ -823,16 +833,16 @@ export class SettingsModule {
             if (clockEl) clockEl.textContent = data.data?.clock || new Date().toLocaleTimeString();
             const statusEl = document.getElementById("localClockStatus");
             if (statusEl) {
-              statusEl.textContent = "Sincronizado con Host";
+              I18n.setText(statusEl, "settings.host_clock");
               statusEl.style.color = "var(--accent-success, #22c55e)";
             }
-            if (this.ctx.showToast) this.ctx.showToast("Reloj RTC sincronizado exitosamente con el host", "success");
+            if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.clock_synced"), "success");
             await this.fetchLocalNodeConfig(false);
           } else {
-            if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || "Fallo al sincronizar"}`, "error");
+            if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || I18n.t("settings.sync_failed")}`, "error");
           }
         } catch (err) {
-          if (this.ctx.showToast) this.ctx.showToast(`Error de red: ${err.message}`, "error");
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.network_error", { p0: err.message }), "error");
         }
       });
     }
@@ -847,12 +857,12 @@ export class SettingsModule {
           });
           const data = await res.json();
           if (data.status === "ok") {
-            if (this.ctx.showToast) this.ctx.showToast("Baliza Advert Hop 0 emitida a vecinos directos", "success");
+            if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.advert_sent"), "success");
           } else {
-            if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || "Fallo al emitir advert"}`, "error");
+            if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || I18n.t("settings.advert_failed")}`, "error");
           }
         } catch (err) {
-          if (this.ctx.showToast) this.ctx.showToast(`Error de red: ${err.message}`, "error");
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.network_error", { p0: err.message }), "error");
         }
       });
     }
@@ -867,12 +877,12 @@ export class SettingsModule {
           });
           const data = await res.json();
           if (data.status === "ok") {
-            if (this.ctx.showToast) this.ctx.showToast("Baliza Advert Flood propagada a la malla", "success");
+            if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.flood_sent"), "success");
           } else {
-            if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || "Fallo al emitir flood"}`, "error");
+            if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || I18n.t("settings.flood_failed")}`, "error");
           }
         } catch (err) {
-          if (this.ctx.showToast) this.ctx.showToast(`Error de red: ${err.message}`, "error");
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.network_error", { p0: err.message }), "error");
         }
       });
     }
@@ -886,20 +896,20 @@ export class SettingsModule {
           });
           const data = await res.json();
           if (data.status === "ok") {
-            if (this.ctx.showToast) this.ctx.showToast("Reconexión de puerto serial completada", "success");
+            if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.serial_reconnected"), "success");
             setTimeout(() => this.fetchLocalNodeConfig(true), 1500);
           } else {
-            if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || "Fallo al reconectar"}`, "error");
+            if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || I18n.t("settings.reconnect_failed")}`, "error");
           }
         } catch (err) {
-          if (this.ctx.showToast) this.ctx.showToast(`Error de red: ${err.message}`, "error");
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.network_error", { p0: err.message }), "error");
         }
       });
     }
 
     if (this.dom.btnActionRebootLocal) {
       this.dom.btnActionRebootLocal.addEventListener("click", async () => {
-        if (!confirm("¿Deseas reiniciar el microcontrolador de hardware del nodo local?")) return;
+        if (!confirm(I18n.t("settings.reboot_confirm"))) return;
         try {
           const res = await fetch("/api/config/reboot", {
             method: "POST",
@@ -907,12 +917,12 @@ export class SettingsModule {
           });
           const data = await res.json();
           if (data.status === "ok") {
-            if (this.ctx.showToast) this.ctx.showToast("Comando de reinicio de hardware transmitido al dispositivo", "warning");
+            if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.reboot_sent"), "warning");
           } else {
-            if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || "Fallo al reiniciar"}`, "error");
+            if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || I18n.t("settings.reboot_failed")}`, "error");
           }
         } catch (err) {
-          if (this.ctx.showToast) this.ctx.showToast(`Error de red: ${err.message}`, "error");
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.network_error", { p0: err.message }), "error");
         }
       });
     }
@@ -928,14 +938,14 @@ export class SettingsModule {
           });
           const data = await res.json();
           if (data.status === "ok") {
-            if (this.ctx.showToast) this.ctx.showToast("Contadores y métricas restablecidos a cero", "success");
+            if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.counters_reset"), "success");
             await this.fetchLocalNodeConfig(false);
             if (this.ctx.fetchNodes) await this.ctx.fetchNodes();
           } else {
-            if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || "Fallo al restablecer"}`, "error");
+            if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || I18n.t("settings.reset_failed")}`, "error");
           }
         } catch (err) {
-          if (this.ctx.showToast) this.ctx.showToast(`Error de red: ${err.message}`, "error");
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.network_error", { p0: err.message }), "error");
         }
       });
     }
@@ -1004,11 +1014,11 @@ export class SettingsModule {
       if (elPktErrs && (payload.packet_errors != null || payload.duplicate_packets != null)) {
         const dups = payload.duplicate_packets ?? this.cachedConfig.duplicate_packets ?? 0;
         const errs = payload.packet_errors ?? this.cachedConfig.packet_errors ?? 0;
-        elPktErrs.textContent = `Duplicados: ${dups} | Errores: ${errs}`;
+        I18n.setText(elPktErrs, "settings.packet_errors", { p0: dups, p1: errs });
       }
       const sumQueue = document.getElementById("localSummaryQueue");
       if (sumQueue && payload.queue_depth != null) {
-        sumQueue.textContent = `${payload.queue_depth} paquetes`;
+        I18n.setText(sumQueue, "settings.queue_packets", { p0: payload.queue_depth });
       }
       const elAirtime = document.getElementById("localAirtimeValue");
       if (elAirtime && payload.airtime_ms != null) {
@@ -1066,10 +1076,10 @@ export class SettingsModule {
       const isEnc = ch.index !== 0 && Boolean(ch.is_encrypted ?? (ch.has_psk || (ch.psk && ch.psk.trim().length > 0)));
       const lockIcon = isEnc ? "lock" : "unlock";
       const lockTitle = isEnc
-        ? "Canal Cifrado (AES-128)"
-        : (ch.index === 0 ? "Canal Público (Abierto)" : "Canal Abierto (Sin Cifrar)");
+        ? I18n.t("settings.encrypted_channel")
+        : (ch.index === 0 ? I18n.t("settings.public_channel") : I18n.t("settings.open_channel"));
 
-      const chDisplayName = ch.name || (ch.index === 0 ? "Public / Broadcast" : `Canal ${ch.index}`);
+      const chDisplayName = ch.name || (ch.index === 0 ? "Public / Broadcast" : I18n.t("settings.channel_label", { p0: ch.index }));
 
       li.innerHTML = `
         <span class="ch-badge font-mono">Ch ${ch.index}</span>
@@ -1079,10 +1089,10 @@ export class SettingsModule {
             <span data-lucide="${lockIcon}" data-size="13"></span>
           </span>
           ${ch.index > 0 ? `
-            <button type="button" class="btn-item-qr" data-ch-idx="${ch.index}" data-ch-name="${escapeHtml(chDisplayName)}" title="Compartir canal vía QR / URI oficial" aria-label="Compartir canal ${ch.index}">
+            <button type="button" class="btn-item-qr" data-ch-idx="${ch.index}" data-ch-name="${escapeHtml(chDisplayName)}" title="${I18n.t('settings.channel_qr_title')}" aria-label="${I18n.t('settings.share_channel', { index: ch.index })}">
               <span data-lucide="qr-code" data-size="13"></span>
             </button>
-            <button type="button" class="btn-item-delete" data-ch-idx="${ch.index}" data-ch-name="${escapeHtml(chDisplayName)}" title="Eliminar canal ${ch.index}" aria-label="Eliminar canal ${ch.index}">
+            <button type="button" class="btn-item-delete" data-ch-idx="${ch.index}" data-ch-name="${escapeHtml(chDisplayName)}" title="${I18n.t('settings.delete_channel', { index: ch.index })}" aria-label="${I18n.t('settings.delete_channel', { index: ch.index })}">
               <span data-lucide="trash-2" data-size="13"></span>
             </button>
           ` : ''}
@@ -1107,10 +1117,10 @@ export class SettingsModule {
             const data = await res.json();
             if (data.status === "ok" && data.uri) {
               if (window.showQrModal) {
-                window.showQrModal(`Canal ${chIdx}: ${chDisplayName}`, data.uri, data.data);
+                window.showQrModal('', data.uri, data.data, { key: 'settings.qr_channel_title', params: { p0: chIdx, p1: chDisplayName } });
               }
             } else {
-              this._notify(`Error exportando canal: ${data.message || "Fallo desconocido"}`, "error");
+              this._notify(I18n.t("settings.channel_export_error", { p0: data.message || I18n.t("settings.unknown_failure") }), "error");
             }
           } catch (err) {
             this._notify(`Error obteniendo datos del canal: ${err.message}`, "error");
@@ -1126,7 +1136,7 @@ export class SettingsModule {
           const chName = btnDelete.getAttribute("data-ch-name") || `Canal ${chIdx}`;
 
           const confirmed = window.confirm(
-            `⚠️ ADVERTENCIA: ¿Estás seguro de que deseas eliminar el Canal ${chIdx} ("${chName}")?\n\nEsta acción borrará la configuración y desvinculará este canal.`
+            I18n.t("settings.channel_delete_confirm", { p0: chIdx, p1: chName })
           );
           if (!confirmed) return;
 
@@ -1138,7 +1148,7 @@ export class SettingsModule {
             });
             if (res.ok) {
               if (this.ctx.showToast) {
-                this.ctx.showToast(`Canal ${chIdx} ("${chName}") eliminado correctamente`, "success");
+                this.ctx.showToast(I18n.t("settings.channel_deleted", { p0: chIdx, p1: chName }), "success");
               }
               this.channelsList = (this.channelsList || []).filter((c) => Number(c.index) !== chIdx);
               this.renderChannelsList(this.channelsList);
@@ -1149,7 +1159,7 @@ export class SettingsModule {
               await this.fetchChannels();
             } else {
               const data = await res.json().catch(() => ({}));
-              this._notify(`Error al eliminar canal: ${data.detail || data.message || "Fallo desconocido"}`, "error");
+              this._notify(I18n.t("settings.channel_delete_error", { p0: data.detail || data.message || I18n.t("settings.unknown_failure") }), "error");
             }
           } catch (err) {
             this._notify(`Error de red al eliminar canal: ${err.message}`, "error");
@@ -1179,7 +1189,7 @@ export class SettingsModule {
         const exists = this.channelsList.some((c) => Number(c.index) === idx);
         if (exists) {
           const overwrite = window.confirm(
-            `El Canal ${idx} ("${name}") ya existe en la configuración.\n\n¿Deseas sobreescribirlo con los datos importados?`
+            I18n.t("settings.overwrite_channel", { p0: idx, p1: name })
           );
           if (!overwrite) return;
         }
@@ -1194,9 +1204,9 @@ export class SettingsModule {
           if (closeCallback) closeCallback();
           await this.fetchChannels();
           if (this.ctx.switchChannel) this.ctx.switchChannel(idx);
-          if (this.ctx.showToast) this.ctx.showToast(`Canal ${idx} ("${name}") importado correctamente`, "success");
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.channel_imported", { p0: idx, p1: name }), "success");
         } else {
-          this._notify(`Error importando canal: ${data.message || "Fallo desconocido"}`, "error");
+          this._notify(I18n.t("settings.channel_import_error", { p0: data.message || I18n.t("settings.unknown_failure") }), "error");
         }
         return;
       }
@@ -1214,7 +1224,7 @@ export class SettingsModule {
             const exists = this.channelsList.some((c) => Number(c.index) === idx);
             if (exists) {
               const overwrite = window.confirm(
-                `El Canal ${idx} ("${name}") ya existe en la configuración.\n\n¿Deseas sobreescribirlo con los datos importados?`
+                I18n.t("settings.overwrite_channel", { p0: idx, p1: name })
               );
               if (!overwrite) return;
             }
@@ -1229,9 +1239,9 @@ export class SettingsModule {
               if (closeCallback) closeCallback();
               await this.fetchChannels();
               if (this.ctx.switchChannel) this.ctx.switchChannel(idx);
-              if (this.ctx.showToast) this.ctx.showToast(`Canal ${idx} ("${name}") importado correctamente`, "success");
+              if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.channel_imported", { p0: idx, p1: name }), "success");
             } else {
-              this._notify(`Error importando canal: ${data.message || "Fallo desconocido"}`, "error");
+              this._notify(I18n.t("settings.channel_import_error", { p0: data.message || I18n.t("settings.unknown_failure") }), "error");
             }
             return;
           }
@@ -1249,12 +1259,12 @@ export class SettingsModule {
         if (closeCallback) closeCallback();
         if (this.ctx.fetchNodes) await this.ctx.fetchNodes();
         const count = data.imported ?? (data.data ? (Array.isArray(data.data) ? data.data.length : 1) : 1);
-        if (this.ctx.showToast) this.ctx.showToast(`Se importaron ${count} contacto(s) correctamente a la libreta`, "success");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.contacts_imported", { p0: count }), "success");
       } else {
-        this._notify(`Error importando: ${data.message || "Formato no válido o contacto rechazado"}`, "error");
+        this._notify(I18n.t("settings.import_error", { p0: data.message || I18n.t("settings.invalid_import") }), "error");
       }
     } catch (err) {
-      this._notify(`Error de red al procesar importación: ${err.message}`, "error");
+      this._notify(I18n.t("settings.import_network_error", { p0: err.message }), "error");
     }
   }
 
@@ -1328,7 +1338,7 @@ export class SettingsModule {
     const roleBadge = document.getElementById("localNodeRoleBadge");
     if (roleBadge && (cfg.repeat != null || cfg.repeat_enabled != null || cfg.role != null)) {
       const isRepeat = Boolean(cfg.repeat ?? cfg.repeat_enabled);
-      roleBadge.textContent = isRepeat ? "Repeater / Router" : (cfg.role || "Base Station");
+      I18n.setText(roleBadge, isRepeat ? 'node.role_repeater' : 'node.role_local');
       roleBadge.className = `badge-pill ${isRepeat ? "badge-warning" : "badge-primary"}`;
     }
 
@@ -1378,7 +1388,7 @@ export class SettingsModule {
       const repeatBadge = document.getElementById("localRepeatBadge");
       if (repeatChk) repeatChk.checked = isRepeat;
       if (repeatBadge) {
-        repeatBadge.textContent = isRepeat ? "ON" : "OFF";
+        I18n.setText(repeatBadge, isRepeat ? 'common.on' : 'common.off');
         if (isRepeat) {
           repeatBadge.classList.add("badge-active");
         } else {
@@ -1387,7 +1397,7 @@ export class SettingsModule {
       }
       const sumRepeat = document.getElementById("localSummaryRepeat");
       if (sumRepeat) {
-        sumRepeat.textContent = isRepeat ? "Activado" : "Desactivado";
+        I18n.setText(sumRepeat, isRepeat ? "settings.enabled" : "settings.disabled");
         sumRepeat.style.color = isRepeat ? "var(--accent-success, #22c55e)" : "var(--text-muted, #94a3b8)";
       }
     }
@@ -1401,7 +1411,7 @@ export class SettingsModule {
       const isAdvOn = Number(advIntVal) > 0;
       advChk.checked = isAdvOn;
       if (advBadge) {
-        advBadge.textContent = isAdvOn ? "ON" : "OFF";
+        I18n.setText(advBadge, isAdvOn ? 'common.on' : 'common.off');
         advBadge.classList.toggle("badge-active", isAdvOn);
       }
       if (advIntInput) {
@@ -1422,7 +1432,7 @@ export class SettingsModule {
       const isTelemOn = Number(telemIntVal) > 0 && cfg.telemetry_mode_base !== 0;
       telemChk.checked = isTelemOn;
       if (telemBadge) {
-        telemBadge.textContent = isTelemOn ? "ON" : "OFF";
+        I18n.setText(telemBadge, isTelemOn ? 'common.on' : 'common.off');
         telemBadge.classList.toggle("badge-active", isTelemOn);
       }
       if (telemIntInput) {
@@ -1449,7 +1459,7 @@ export class SettingsModule {
 
     const sumQueue = document.getElementById("localSummaryQueue");
     if (sumQueue && (cfg.queue_len != null || cfg.queue_depth != null)) {
-      sumQueue.textContent = `${cfg.queue_len ?? cfg.queue_depth} paquetes`;
+      I18n.setText(sumQueue, "settings.queue_config", { p0: cfg.queue_len ?? cfg.queue_depth });
     }
 
     const sumPos = document.getElementById("localSummaryPos");
@@ -1484,7 +1494,7 @@ export class SettingsModule {
       const isFixed = Boolean(cfg.fixed_position ?? cfg.pos_fixed);
       posFixedSwitch.checked = isFixed;
       if (posFixedBadge) {
-        posFixedBadge.textContent = isFixed ? "FIJA" : "OFF";
+        I18n.setText(posFixedBadge, isFixed ? "settings.fixed" : 'common.off');
         posFixedBadge.classList.toggle("is-active", isFixed);
       }
     }
@@ -1532,7 +1542,7 @@ export class SettingsModule {
       const isAdv = Boolean(cfg.adv_loc_policy);
       if (advLocChk) advLocChk.checked = isAdv;
       if (advLocBadge) {
-        advLocBadge.textContent = isAdv ? "ON" : "OFF";
+        I18n.setText(advLocBadge, isAdv ? 'common.on' : 'common.off');
         advLocBadge.classList.toggle("badge-active", isAdv);
       }
     }
@@ -1543,7 +1553,7 @@ export class SettingsModule {
       const isMulti = Boolean(cfg.multi_acks);
       if (multiAcksChk) multiAcksChk.checked = isMulti;
       if (multiAcksBadge) {
-        multiAcksBadge.textContent = isMulti ? "ON" : "OFF";
+        I18n.setText(multiAcksBadge, isMulti ? 'common.on' : 'common.off');
         multiAcksBadge.classList.toggle("badge-active", isMulti);
       }
     }
@@ -1554,7 +1564,7 @@ export class SettingsModule {
       const isManual = Boolean(cfg.manual_add_contacts);
       if (manualAddChk) manualAddChk.checked = isManual;
       if (manualAddBadge) {
-        manualAddBadge.textContent = isManual ? "ON" : "OFF";
+        I18n.setText(manualAddBadge, isManual ? 'common.on' : 'common.off');
         manualAddBadge.classList.toggle("badge-active", isManual);
       }
     }
@@ -1567,7 +1577,7 @@ export class SettingsModule {
       const inScope = document.getElementById("inputFloodScope");
       const lbl = document.getElementById("currentFloodScopeLabel");
       if (inScope && !inScope.value) inScope.value = scopeName;
-      if (lbl) lbl.textContent = scopeName ? scopeName : "Global (*)";
+      if (lbl) lbl.textContent = scopeName ? scopeName : I18n.t("settings.global_scope");
     }
     if (cfg.autoadd_config && typeof cfg.autoadd_config === "object") {
       const flags = Number(cfg.autoadd_config.config ?? 0);
@@ -1586,11 +1596,12 @@ export class SettingsModule {
     const elSolarStatus = document.getElementById("localSolarStatus");
     if (elSolar && (cfg.power_source != null || cfg.battery_pct != null)) {
       if (cfg.power_source) {
+        elSolar.removeAttribute('data-i18n');
         elSolar.textContent = cfg.power_source;
       } else if (cfg.battery_pct != null && cfg.battery_pct < 100) {
-        elSolar.textContent = "Batería LiPo";
+        I18n.setText(elSolar, "settings.lipo");
       } else {
-        elSolar.textContent = "USB Conectado";
+        I18n.setText(elSolar, "settings.usb");
       }
     }
     if (elSolarStatus && (cfg.battery_mv != null || cfg.voltage != null)) {
@@ -1613,20 +1624,20 @@ export class SettingsModule {
               : 0);
 
         if (drift <= 2) {
-          elClockStatus.textContent = "Sincronizado (±0s)";
+          I18n.setText(elClockStatus, "settings.clock_exact");
           elClockStatus.style.color = "var(--accent-success, #22c55e)";
         } else if (drift <= 60) {
-          elClockStatus.textContent = `Desfase: ${drift}s`;
+          I18n.setText(elClockStatus, "settings.clock_drift_s", { p0: drift });
           elClockStatus.style.color = "var(--accent-warning, #eab308)";
         } else {
-          elClockStatus.textContent = `Desfase: ${Math.round(drift / 60)}m`;
+          I18n.setText(elClockStatus, "settings.clock_drift_m", { p0: Math.round(drift / 60) });
           elClockStatus.style.color = "var(--accent-danger, #ef4444)";
         }
       }
     } else if (cfg.clock) {
       if (elClock) elClock.textContent = cfg.clock;
       if (elClockStatus) {
-        elClockStatus.textContent = "Sincronizado con Host";
+        I18n.setText(elClockStatus, "settings.host_clock");
         elClockStatus.style.color = "var(--accent-success, #22c55e)";
       }
     }
@@ -1679,7 +1690,7 @@ export class SettingsModule {
 
     const elPktErrs = document.getElementById("localPacketErrorsValue");
     if (elPktErrs && (cfg.duplicate_packets != null || cfg.packet_errors != null)) {
-      elPktErrs.textContent = `Duplicados: ${cfg.duplicate_packets ?? 0} | Errores: ${cfg.packet_errors ?? 0}`;
+      I18n.setText(elPktErrs, "settings.config_packet_errors", { p0: cfg.duplicate_packets ?? 0, p1: cfg.packet_errors ?? 0 });
     }
 
     if (this.ctx.updateRadioBadge && (cfg.serial_connected != null || cfg.radio_connected != null)) {
@@ -1757,7 +1768,7 @@ export class SettingsModule {
         this.populateLocalConfig(payload);
         if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.radio_cfg_ok'), "success");
       } else {
-        this._notify("Error guardando radio: " + (data.message || "desconocido"), "error");
+        this._notify("Error guardando radio: " + (data.message || I18n.t("settings.unknown")), "error");
       }
     } catch (e) {
       this._notify("Error de red guardando radio: " + e.message, "error");
@@ -1793,16 +1804,24 @@ export class SettingsModule {
         this.populateLocalConfig(payload);
         if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.identity_ok'), "success");
       } else {
-        this._notify("Error guardando identidad: " + (data.message || "desconocido"), "error");
+        this._notify("Error guardando identidad: " + (data.message || I18n.t("settings.unknown")), "error");
       }
     } catch (e) {
       this._notify("Error de red: " + e.message, "error");
     }
   }
 
-  showQrModal(title, uri, rawJson = "") {
+  showQrModal(title, uri, rawJson = "", label = null) {
     if (!this.dom.qrShareModal) return;
-    if (this.dom.qrModalTitle) this.dom.qrModalTitle.textContent = title || "Compartir por Código QR";
+    if (this.dom.qrModalTitle) {
+      if (label) I18n.setText(this.dom.qrModalTitle, label.key, label.params || {});
+      else if (!title) I18n.setText(this.dom.qrModalTitle, 'settings.qr_share');
+      else {
+        this.dom.qrModalTitle.removeAttribute('data-i18n');
+        this.dom.qrModalTitle.removeAttribute('data-i18n-params');
+        this.dom.qrModalTitle.textContent = title;
+      }
+    }
     if (this.dom.qrUriDisplay) this.dom.qrUriDisplay.value = uri || "";
     if (this.dom.qrShareJson) {
       this.dom.qrShareJson.value = typeof rawJson === "object" ? JSON.stringify(rawJson, null, 2) : String(rawJson || "");
@@ -1867,11 +1886,12 @@ export class SettingsModule {
   }
 
   renderCustomVarsTable(varsObj) {
+    this._customVars = varsObj;
     const tbody = document.getElementById("localCustomVarsTableBody");
     if (!tbody) return;
     const entries = typeof varsObj === "object" && varsObj !== null ? Object.entries(varsObj) : [];
     if (entries.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="3" class="text-center" style="color: var(--color-text-secondary);">Sin variables registradas</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="3" class="text-center" style="color: var(--color-text-secondary);">${I18n.t("settings.no_custom_vars")}</td></tr>`;
       return;
     }
 
@@ -1882,8 +1902,8 @@ export class SettingsModule {
         <td class="font-mono"><strong>${escapeHtml(String(k))}</strong></td>
         <td><code>${escapeHtml(String(v))}</code></td>
         <td style="text-align: right;">
-          <button type="button" class="btn-danger btn-xs btn-del-custom-var" data-key="${escapeHtml(String(k))}" title="Eliminar variable">
-            🗑️ Borrar
+          <button type="button" class="btn-danger btn-xs btn-del-custom-var" data-key="${escapeHtml(String(k))}" title="${I18n.t("settings.delete_variable")}">
+            ${I18n.t("settings.delete_variable_button")}
           </button>
         </td>
       `;
@@ -1900,7 +1920,7 @@ export class SettingsModule {
     const k = key || document.getElementById("inputCustomVarKey")?.value.trim() || "";
     const v = val || document.getElementById("inputCustomVarVal")?.value.trim() || "";
     if (!k) {
-      this._notify("El nombre de la variable no puede estar vacío", "warning");
+      this._notify(I18n.t("settings.custom_var_empty"), "warning");
       return;
     }
 
@@ -1917,17 +1937,17 @@ export class SettingsModule {
         const inVal = document.getElementById("inputCustomVarVal");
         if (inKey) inKey.value = "";
         if (inVal) inVal.value = "";
-        if (this.ctx.showToast) this.ctx.showToast(`Variable '${k}' guardada`, "success");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.custom_var_saved", { p0: k }), "success");
       } else {
-        this._notify(`Error guardando variable: ${data.message || "desconocido"}`, "error");
+        this._notify(I18n.t("settings.variable_save_error", { p0: data.message || I18n.t("settings.unknown") }), "error");
       }
     } catch (err) {
-      this._notify(`Error de red: ${err.message}`, "error");
+      this._notify(I18n.t("settings.network_error", { p0: err.message }), "error");
     }
   }
 
   async deleteCustomVar(key) {
-    if (!key || !confirm(`¿Deseas eliminar la variable personalizada '${key}'?`)) return;
+    if (!key || !confirm(I18n.t("settings.custom_var_delete_confirm", { p0: key }))) return;
     try {
       const res = await fetch(`/api/config/custom_vars?key=${encodeURIComponent(key)}`, {
         method: "DELETE",
@@ -1937,12 +1957,12 @@ export class SettingsModule {
       const data = await res.json();
       if (data.status === "ok") {
         this.renderCustomVarsTable(data.custom_vars || data.data || {});
-        if (this.ctx.showToast) this.ctx.showToast(`Variable '${key}' eliminada`, "info");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.custom_var_deleted", { p0: key }), "info");
       } else {
-        this._notify(`Error eliminando variable: ${data.message || "desconocido"}`, "error");
+        this._notify(I18n.t("settings.variable_delete_error", { p0: data.message || I18n.t("settings.unknown") }), "error");
       }
     } catch (err) {
-      this._notify(`Error de red: ${err.message}`, "error");
+      this._notify(I18n.t("settings.network_error", { p0: err.message }), "error");
     }
   }
 
@@ -1958,7 +1978,7 @@ export class SettingsModule {
         const inScope = document.getElementById("inputFloodScope");
         const lbl = document.getElementById("currentFloodScopeLabel");
         if (inScope && !inScope.value) inScope.value = scopeName;
-        if (lbl) lbl.textContent = scopeName ? scopeName : "Global (*)";
+        if (lbl) lbl.textContent = scopeName ? scopeName : I18n.t("settings.global_scope");
       }
     } catch (e) {
       console.warn("Error consultando flood scope:", e);
@@ -1977,13 +1997,13 @@ export class SettingsModule {
       const data = await res.json();
       if (data.status === "ok") {
         const lbl = document.getElementById("currentFloodScopeLabel");
-        if (lbl) lbl.textContent = scopeVal ? scopeVal : "Global (*)";
-        if (this.ctx.showToast) this.ctx.showToast(`Ámbito de inundación aplicado: ${scopeVal || "Global"}`, "success");
+        if (lbl) lbl.textContent = scopeVal ? scopeVal : I18n.t("settings.global_scope");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.scope_applied", { p0: scopeVal || I18n.t("settings.global") }), "success");
       } else {
-        this._notify(`Error guardando scope: ${data.message || "desconocido"}`, "error");
+        this._notify(I18n.t("settings.scope_save_error", { p0: data.message || I18n.t("settings.unknown") }), "error");
       }
     } catch (err) {
-      this._notify(`Error de red: ${err.message}`, "error");
+      this._notify(I18n.t("settings.network_error", { p0: err.message }), "error");
     }
   }
 
@@ -1999,11 +2019,11 @@ export class SettingsModule {
         const inScope = document.getElementById("inputFloodScope");
         const lbl = document.getElementById("currentFloodScopeLabel");
         if (inScope) inScope.value = "";
-        if (lbl) lbl.textContent = "Global (*)";
-        if (this.ctx.showToast) this.ctx.showToast("Ámbito de inundación restablecido a Global (*)", "info");
+        if (lbl) I18n.setText(lbl, "settings.global_scope");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.scope_reset"), "info");
       }
     } catch (err) {
-      this._notify(`Error de red: ${err.message}`, "error");
+      this._notify(I18n.t("settings.network_error", { p0: err.message }), "error");
     }
   }
 
@@ -2046,12 +2066,12 @@ export class SettingsModule {
       });
       const data = await res.json();
       if (data.status === "ok") {
-        if (this.ctx.showToast) this.ctx.showToast("Política de Auto-Adición guardada exitosamente", "success");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.auto_add_saved"), "success");
       } else {
-        this._notify(`Error guardando política: ${data.message || "desconocido"}`, "error");
+        this._notify(I18n.t("settings.policy_save_error", { p0: data.message || I18n.t("settings.unknown") }), "error");
       }
     } catch (err) {
-      this._notify(`Error de red: ${err.message}`, "error");
+      this._notify(I18n.t("settings.network_error", { p0: err.message }), "error");
     }
   }
 }

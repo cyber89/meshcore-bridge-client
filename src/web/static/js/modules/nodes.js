@@ -9,7 +9,7 @@ import { EVENTS } from "../core/eventbus.js";
 export class NodesModule {
   constructor(context) {
     this.ctx = context;
-    this.knownNodes = new Map();
+    this.knownNodes = context.knownNodes || new Map();
     this.activeNodesFilter = "all";
     this.activeContactsFilter = "all";
     this._analyticsDebounceTimer = null;
@@ -24,6 +24,10 @@ export class NodesModule {
     this.initContactDiscovery();
     this.initAnalytics();
     this.fetchNodes();
+  }
+
+  onLanguageChange() {
+    this.renderNodesDirectory(Array.from(this.knownNodes.values()));
   }
 
   _bindElements() {
@@ -227,7 +231,7 @@ export class NodesModule {
     const hasGps = !isNaN(fLat) && !isNaN(fLon) && (fLat !== 0 || fLon !== 0);
     const lastSeenText = formatLastSeen(node.last_seen, isLocal);
     const fullDateTime = node.last_seen_formatted || (node.last_seen && node.last_seen > 0 ? new Date(node.last_seen * 1000).toLocaleString() : (window.I18n ? window.I18n.t('time.no_signal') : "Sin señal registrada"));
-    const signalTooltip = isLocal ? "Estación Base Local (En línea permanente)" : (window.I18n ? window.I18n.t('time.last_signal_tooltip').replace('{time}', fullDateTime) : `Última señal recibida: ${fullDateTime}`);
+    const signalTooltip = isLocal ? I18n.t("nodes.local_signal") : (window.I18n ? window.I18n.t('time.last_signal_tooltip').replace('{time}', fullDateTime) : `Última señal recibida: ${fullDateTime}`);
 
     const roleUpper = isLocal ? "LOCAL" : (isRepeater ? "REPEATER" : (isSensor ? "SENSOR" : (isRoom ? "ROOM" : "CLIENT")));
     const roleClass = isLocal ? "role-local" : (isRepeater ? "role-repeater" : (isSensor ? "role-sensor" : (isRoom ? "role-room" : "role-client")));
@@ -236,7 +240,7 @@ export class NodesModule {
     const snrVal = isLocal ? null : (node.last_snr != null ? `${node.last_snr} dB` : "--");
     const rssiVal = isLocal ? null : (node.last_rssi != null ? `${node.last_rssi} dBm` : "--");
     const lqiVal = isLocal ? null : (node.lqi_score ? `${Math.round(node.lqi_score)}%` : (node.last_rssi != null ? "50%" : "--"));
-    const hopsVal = isLocal ? null : (node.hops != null ? (node.hops === 0 ? I18n.t('nodes.route_direct') : `${node.hops} ${I18n.t('nodes.hops')}`) : "--");
+    const hopsVal = isLocal ? null : (node.hops != null ? (node.hops === 0 ? I18n.t('nodes.route_direct') : `${node.hops} ${I18n.t('nodes.hops', { count: node.hops })}`) : "--");
 
     const card = document.createElement("div");
     card.setAttribute("data-pk", node.public_key);
@@ -257,7 +261,7 @@ export class NodesModule {
             <div class="contact-title-row">
               <span class="contact-name font-mono" title="${escapeHtml(cleanName)}">${escapeHtml(cleanName)}</span>
               ${batText ? `<span class="contact-battery-chip" title="${I18n.t('nodes.battery_title').replace('{val}', batText)}">🔋 ${escapeHtml(batText)}</span>` : ""}
-              <button type="button" class="btn-toggle-fav ${node.is_favorite ? "is-fav" : ""}" title="${node.is_favorite ? I18n.t('nodes.remove_fav') : I18n.t('nodes.add_fav')}" aria-label="Favorito">
+              <button type="button" class="btn-toggle-fav ${node.is_favorite ? "is-fav" : ""}" title="${node.is_favorite ? I18n.t('nodes.remove_fav') : I18n.t('nodes.add_fav')}" aria-label="${I18n.t('nodes.favorite')}">
                 <span data-lucide="star" data-size="14"></span>
               </button>
             </div>
@@ -357,7 +361,7 @@ export class NodesModule {
       card.querySelector(".btn-contact-qr")?.addEventListener("click", () => {
         const uri = buildMeshCoreContactUri(cleanName, node.public_key, node.role || "CLIENT");
         const json = JSON.stringify({ type: "contact", public_key: node.public_key, name: cleanName, role: node.role || "CLIENT", uri }, null, 2);
-        if (window.showQrModal) window.showQrModal(`Contacto: ${cleanName}`, uri, json);
+        if (window.showQrModal) window.showQrModal('', uri, json, { key: 'nodes.qr_contact_title', params: { name: cleanName } });
       });
 
       card.querySelector(".btn-contact-del")?.addEventListener("click", async () => {
@@ -392,7 +396,7 @@ export class NodesModule {
 
       let telemLine2 = `${I18n.t('nodes.route_label')} <strong>${escapeHtml(node.best_route || (node.hops === 0 ? I18n.t('nodes.route_direct') : I18n.t('nodes.route_mesh')))}</strong>`;
       if (isLocal) {
-        telemLine2 = `🖥️ <strong>Estación Base Host USB</strong>`;
+        telemLine2 = `🖥️ <strong>${I18n.t("nodes.usb_host")}</strong>`;
       } else if (node.temperature_c != null) {
         telemLine2 = `🌡️ <strong>${escapeHtml(String(node.temperature_c))}°C</strong> ${node.humidity_pct != null ? `💧 ${escapeHtml(String(node.humidity_pct))}%` : ""}`;
       } else if (node.owner_name) {
@@ -412,7 +416,7 @@ export class NodesModule {
               <span class="node-card-name font-mono" title="${escapeHtml(cleanName)}">${escapeHtml(cleanName)}</span>
               <div class="node-card-badges-group">
                 ${batText ? `<span class="contact-battery-chip" title="${I18n.t('nodes.battery_title').replace('{val}', batText)}">🔋 ${escapeHtml(batText)}</span>` : ""}
-                <span class="node-role-badge ${roleClass}">${escapeHtml(roleUpper)}</span>
+                <span class="node-role-badge ${roleClass}">${escapeHtml(I18n.role(roleUpper))}</span>
               </div>
             </div>
             <div class="node-card-sub-row">
@@ -501,18 +505,19 @@ export class NodesModule {
       card.querySelector(".btn-node-qr")?.addEventListener("click", () => {
         const uri = buildMeshCoreContactUri(cleanName, node.public_key, node.role || "CLIENT");
         const json = JSON.stringify({ type: "node", public_key: node.public_key, name: cleanName, role: node.role || "CLIENT", uri }, null, 2);
-        if (window.showQrModal) window.showQrModal(`Nodo: ${cleanName}`, uri, json);
+        if (window.showQrModal) window.showQrModal('', uri, json, { key: 'nodes.qr_node_title', params: { name: cleanName } });
       });
     }
 
     return card;
   }
 
-  renderNodesDirectory(nodes) {
+  renderNodesDirectory(nodes = Array.from(this.knownNodes.values())) {
     const contactsGrid = this.dom.contactsGridUi;
     const unifiedNodesGrid = this.dom.nodesUnifiedGridUi;
 
     if (!nodes || nodes.length === 0) {
+      this.knownNodes.clear();
       if (contactsGrid) contactsGrid.innerHTML = `<div class="empty-state">${I18n.t('nodes.no_contacts')}</div>`;
       if (unifiedNodesGrid) unifiedNodesGrid.innerHTML = `<div class="empty-state">${I18n.t('nodes.no_nodes')}</div>`;
       return;
@@ -531,11 +536,8 @@ export class NodesModule {
         (localPk && (normPk === localPk || (localPk.length >= 8 && normPk.startsWith(localPk.slice(0, 8)))));
 
       const roleStr = (rawNode.role || "CLIENT").toUpperCase();
-      const nodeNameUpper = String(rawNode.name || rawNode.alias || "").toUpperCase();
-
       const isRepeater = !isThisLocal && (
-        roleStr === "REPEATER" || roleStr === "ROUTER" ||
-        nodeNameUpper.startsWith("R-") || nodeNameUpper.startsWith("REP-") || nodeNameUpper.includes("REPEATER")
+        roleStr === "REPEATER" || roleStr === "ROUTER"
       );
 
       const effectiveRole = isThisLocal ? "LOCAL" : (isRepeater ? "REPEATER" : (rawNode.role || "CLIENT"));
@@ -674,7 +676,7 @@ export class NodesModule {
         const st = getPresenceState(node.last_seen, isLoc);
         const isDisc = !isLoc && (st === "status-offline" || node.presence_status === "offline");
         const fullDateTime = node.last_seen_formatted || (node.last_seen && node.last_seen > 0 ? new Date(node.last_seen * 1000).toLocaleString() : (window.I18n ? window.I18n.t('time.no_signal') : "Sin señal registrada"));
-        const signalTooltip = isLoc ? "Estación Base Local (En línea permanente)" : (window.I18n ? window.I18n.t('time.last_signal_tooltip').replace('{time}', fullDateTime) : `Última señal recibida: ${fullDateTime}`);
+        const signalTooltip = isLoc ? I18n.t("nodes.local_signal") : (window.I18n ? window.I18n.t('time.last_signal_tooltip').replace('{time}', fullDateTime) : `Última señal recibida: ${fullDateTime}`);
 
         const dot = card.querySelector(".avatar-status-dot");
         const act = card.querySelector(".node-card-activity");
@@ -857,7 +859,7 @@ export class NodesModule {
     const presenceClass = getPresenceState(node.last_seen, isLocal);
     const isDisconnected = !isLocal && (presenceClass === "status-offline" || node.presence_status === "offline");
     const fullDateTime = node.last_seen_formatted || (node.last_seen && node.last_seen > 0 ? new Date(node.last_seen * 1000).toLocaleString() : (window.I18n ? window.I18n.t('time.no_signal') : "Sin señal registrada"));
-    const signalTooltip = isLocal ? "Estación Base Local (En línea permanente)" : (window.I18n ? window.I18n.t('time.last_signal_tooltip').replace('{time}', fullDateTime) : `Última señal recibida: ${fullDateTime}`);
+    const signalTooltip = isLocal ? I18n.t("nodes.local_signal") : (window.I18n ? window.I18n.t('time.last_signal_tooltip').replace('{time}', fullDateTime) : `Última señal recibida: ${fullDateTime}`);
     const lastSeenText = formatLastSeen(node.last_seen, isLocal);
 
     cards.forEach((card) => {
@@ -891,7 +893,7 @@ export class NodesModule {
       // Saltos / Hops
       const hopsEl = card.querySelector(".stat-pill:nth-child(3) strong");
       if (hopsEl) {
-        hopsEl.textContent = isLocal ? "0" : (node.hops != null ? (node.hops === 0 ? (window.I18n ? window.I18n.t('nodes.route_direct') : "Directo") : `${node.hops} ${window.I18n ? window.I18n.t('nodes.hops') : 'Hops'}`) : "--");
+        hopsEl.textContent = isLocal ? "0" : (node.hops != null ? (node.hops === 0 ? I18n.t('nodes.route_direct') : `${node.hops} ${I18n.t('nodes.hops', { count: node.hops })}`) : "--");
       }
 
       // Chip de Batería (los nodos locales se alimentan por USB 5V, no llevan batería LoRa)
@@ -920,7 +922,7 @@ export class NodesModule {
       const telemEl = card.querySelector(".node-telemetry-panel .node-meta-sub span:first-child");
       if (telemEl) {
         if (isLocal) {
-          telemEl.innerHTML = `🖥️ <strong>Estación Base Host USB</strong>`;
+          telemEl.innerHTML = `🖥️ <strong>${I18n.t("nodes.usb_host")}</strong>`;
         } else if (node.temperature_c != null) {
           telemEl.innerHTML = `🌡️ <strong>${escapeHtml(String(node.temperature_c))}°C</strong> ${node.humidity_pct != null ? `💧 ${escapeHtml(String(node.humidity_pct))}%` : ""}`;
         } else if (node.owner_name) {
@@ -948,7 +950,7 @@ export class NodesModule {
     const roleUpper = String(node?.role || "").toUpperCase();
     if (roleUpper === "CLIENT") {
       if (this.ctx.showToast) {
-        this.ctx.showToast("Ping (Hop 0) solo está disponible para repetidores de infraestructura", "warning");
+        this.ctx.showToast(I18n.t("nodes.ping_repeaters_only"), "warning");
       }
       return;
     }
@@ -967,7 +969,7 @@ export class NodesModule {
     if (now < cooldownExpires) {
       const remainingSec = Math.ceil((cooldownExpires - now) / 1000);
       if (this.ctx.showToast) {
-        this.ctx.showToast(`⏳ Protección de Airtime LoRa activa: Espera ${remainingSec}s para otro ping a ${cleanName}`, "warning");
+        this.ctx.showToast(I18n.t("nodes.ping_cooldown", { p0: remainingSec, p1: cleanName }), "warning");
       }
       return;
     }
@@ -993,7 +995,7 @@ export class NodesModule {
       if (res.status === 429 || data.code === 429) {
         const remSec = data.cooldown_remaining || 15;
         this._pingCooldowns.set(cleanKey, Date.now() + remSec * 1000);
-        const warnMsg = data.detail || data.message || `Protección de Airtime LoRa activa: Espera ${remSec}s`;
+        const warnMsg = data.detail || data.message || I18n.t("nodes.ping_airtime", { p0: remSec });
         if (this.ctx.showToast) this.ctx.showToast(`⏳ ${warnMsg}`, "warning");
         this._startPingButtonCooldown(btnEl, cleanKey, remSec, originalHtml);
         return;
@@ -1022,7 +1024,7 @@ export class NodesModule {
         }
       }
     } catch (err) {
-      if (this.ctx.showToast) this.ctx.showToast(`Error ejecutando Ping: ${err.message}`, "error");
+      if (this.ctx.showToast) this.ctx.showToast(I18n.t("nodes.ping_execution_error", { p0: err.message }), "error");
       if (btnEl && originalHtml) {
         btnEl.disabled = false;
         btnEl.innerHTML = originalHtml;

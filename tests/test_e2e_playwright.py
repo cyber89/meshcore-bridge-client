@@ -13,7 +13,7 @@ async def send_message(page: Page, text: str) -> None:
 
 
 async def test_e2e_page_loads_and_has_title(browser_page: Page) -> None:
-    await expect(browser_page).to_have_title("MeshCore Web Client - Base Station & RF Command Center")
+    await expect(browser_page).to_have_title(await browser_page.evaluate("I18n.t('ui.document_title')"))
     await expect(browser_page.locator("header.app-header")).to_be_visible()
     await expect(browser_page.locator("#chatInputText")).to_be_visible()
 

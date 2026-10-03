@@ -15,3 +15,145 @@
 @import url("./chat.css");
 @import url("./nodes.css");
 @import url("./admin.css");
+
+/* Cross-component defaults belong after the component styles. */
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-dim);
+  opacity: 1;
+}
+
+button:disabled,
+input:disabled,
+select:disabled {
+  cursor: not-allowed;
+}
+
+.tab-pane,
+.chat-layout,
+.chat-conversation-panel {
+  min-height: 0;
+}
+
+.header-title-group,
+.active-target-info,
+.settings-card,
+.analytics-card,
+.form-group {
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .nav-btn,
+  .btn-icon,
+  .modal-close,
+  .btn-back-channels-mobile,
+  .btn-channels-toggle-mobile {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .app-main {
+    height: auto;
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select,
+  .chat-composer input {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .map-overlay-info {
+    top: auto;
+    bottom: 12px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: none;
+    max-height: 42%;
+  }
+
+  .map-overlay-info.minimized {
+    max-height: none;
+  }
+
+  .btn-toggle-overlay {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .nodes-toolbar .search-input,
+  .contacts-toolbar .search-input,
+  #nodesSearchInput,
+  #contactsSearchInput {
+    flex: 0 0 auto;
+    min-width: 0;
+    max-width: none;
+    width: 100%;
+  }
+
+  .settings-view-container,
+  .analytics-view-container,
+  .sniffer-view-container {
+    padding: 16px;
+  }
+
+  .form-group.flex-1 {
+    min-width: min(200px, 100%);
+  }
+}
+
+@media (max-width: 640px) {
+  .chat-composer {
+    display: grid;
+    grid-template-columns: 44px 44px minmax(0, 1fr) auto;
+    gap: 8px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  .chat-composer input {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .chat-char-counter {
+    justify-self: end;
+    padding-inline: 4px;
+    font-size: 12px;
+  }
+
+  .chat-composer .btn-primary {
+    min-height: 44px;
+    padding-inline: 12px;
+  }
+
+  .modal-card {
+    max-height: calc(100dvh - 16px) !important;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .modal-header,
+  .modal-footer {
+    flex-shrink: 0;
+  }
+
+  .modal-body {
+    min-height: 0;
+    overflow-y: auto;
+  }
+}
+
+@media (pointer: coarse) {
+  button,
+  [role="button"],
+  .panel-btn-group .btn-xs {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

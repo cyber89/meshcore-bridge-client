@@ -25,6 +25,12 @@ export class RepeaterModule {
     this._subscribeBus();
   }
 
+  onLanguageChange() {
+    if (this._neighbors) this.renderNeighborsTable(this._neighbors);
+    const submit = this.dom.btnRepeaterGateSubmit;
+    if (submit) I18n.setText(submit, submit.disabled ? 'repeater.verify' : 'repeater.unlock');
+  }
+
   _bindElements() {
     this.dom = {
       repeaterAdminModal: document.getElementById("repeaterAdminModal"),
@@ -151,7 +157,7 @@ export class RepeaterModule {
         const target = this.selectedRepeaterTarget;
         if (!cmd) return;
         if (!target) {
-          if (this.ctx.showToast) this.ctx.showToast("⚠️ Selecciona primero un repetidor objetivo", "warning");
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.choose_target"), "warning");
           return;
         }
         this._remoteCliHistory.push(cmd);
@@ -160,7 +166,7 @@ export class RepeaterModule {
 
         if (repQuickCmdFeedback) {
           repQuickCmdFeedback.className = "rep-quick-feedback pending";
-          repQuickCmdFeedback.textContent = `📡 Transmitiendo: repeater> ${cmd}...`;
+          I18n.setText(repQuickCmdFeedback, "repeater.transmitting_command", { p0: cmd });
           repQuickCmdFeedback.classList.remove("hidden");
         }
 
@@ -174,7 +180,7 @@ export class RepeaterModule {
         } catch (err) {
           if (repQuickCmdFeedback) {
             repQuickCmdFeedback.className = "rep-quick-feedback error";
-            repQuickCmdFeedback.textContent = `✗ Error: ${err.message}`;
+            I18n.setText(repQuickCmdFeedback, "repeater.command_error", { p0: err.message });
           }
         }
       });
@@ -234,7 +240,7 @@ export class RepeaterModule {
     }
 
     // Clic en items de ayuda para insertar comando
-    document.querySelectorAll(".help-cmd-item").forEach((item) => {
+    document.querySelectorAll("#terminalHelpDrawer .help-cmd-item").forEach((item) => {
       item.addEventListener("click", () => {
         const cmd = item.getAttribute("data-cmd");
         if (repeaterTerminalInput && cmd) {
@@ -250,11 +256,11 @@ export class RepeaterModule {
         const target = this.selectedRepeaterTarget;
         const password = this.getRepeaterPassword(target);
         if (!target) {
-          alert("Selecciona primero un repetidor.");
+          alert(I18n.t("repeater.select_repeater"));
           return;
         }
         if (!password) {
-          alert("Ingresa la contraseña o PIN de administración del repetidor.");
+          alert(I18n.t("repeater.enter_pin"));
           return;
         }
         await this.authenticateRepeater(target, password);
@@ -287,7 +293,7 @@ export class RepeaterModule {
     if (repToggle && repBadge) {
       repToggle.addEventListener("change", (e) => {
         const isChecked = e.target.checked;
-        repBadge.textContent = isChecked ? "ON" : "OFF";
+        I18n.setText(repBadge, isChecked ? 'common.on' : 'common.off');
         repBadge.className = isChecked ? "toggle-state-badge is-active-purple" : "toggle-state-badge";
       });
     }
@@ -312,7 +318,7 @@ export class RepeaterModule {
         const beacon_interval = parseInt(document.getElementById("radioBeaconInterval")?.value || "300", 10);
 
         const params = { freq, region, tx_power, sf, bw, cr, hop_limit, repeat, beacon_interval };
-        this.appendTerminalLine(`> [TX CONFIG] Transmitiendo parámetros RF a ${target.slice(0, 8)} (${freq}MHz, ${tx_power}dBm, SF${sf}, BW${bw}kHz)...`, "term-cmd");
+        this.appendTerminalLine(I18n.t("repeater.tx_config", { p0: target.slice(0, 8), p1: freq, p2: tx_power, p3: sf, p4: bw }), "term-cmd");
 
         try {
           const res = await fetch("/api/repeater/remote/config", {
@@ -322,7 +328,7 @@ export class RepeaterModule {
           });
           const data = await res.json();
           if (data.status === "ok") {
-            this.appendTerminalLine(`✓ [RX OK] Parámetros RF aplicados al repetidor ${target.slice(0, 8)}.`, "term-success");
+            this.appendTerminalLine(I18n.t("repeater.rx_config", { p0: target.slice(0, 8) }), "term-success");
             if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.rep_cfg_ok'), "success");
 
             const sFreq = document.getElementById("repSummaryFreq");
@@ -332,9 +338,9 @@ export class RepeaterModule {
             const sModem = document.getElementById("repSummaryModem");
             if (sModem) sModem.textContent = `SF${sf} / BW${bw}`;
             const sHop = document.getElementById("repSummaryHopLimit");
-            if (sHop) sHop.textContent = `${hop_limit} saltos`;
+            if (sHop) I18n.setText(sHop, "repeater.hop_count", { p0: hop_limit });
             const sRep = document.getElementById("repSummaryRepeat");
-            if (sRep) sRep.textContent = repeat ? "Activado" : "Desactivado";
+            if (sRep) I18n.setText(sRep, repeat ? "repeater.enabled" : "repeater.disabled");
 
             if (this.ctx.knownNodes) {
               const canonicalPk = this.resolveCanonicalPubkey(target) || target;
@@ -372,7 +378,7 @@ export class RepeaterModule {
     if (posFixedToggle && posFixedBadge) {
       posFixedToggle.addEventListener("change", (e) => {
         const isChecked = e.target.checked;
-        posFixedBadge.textContent = isChecked ? "FIJA" : "GPS DINÁMICO";
+        I18n.setText(posFixedBadge, isChecked ? "repeater.fixed" : "repeater.dynamic_gps");
         posFixedBadge.className = isChecked ? "toggle-state-badge is-active" : "toggle-state-badge";
       });
     }
@@ -382,7 +388,7 @@ export class RepeaterModule {
         e.preventDefault();
         const target = this.selectedRepeaterTarget;
         if (!target) {
-          alert("Selecciona primero un repetidor.");
+          alert(I18n.t("repeater.select_repeater"));
           return;
         }
         const password = this.getRepeaterPassword(target);
@@ -397,7 +403,7 @@ export class RepeaterModule {
         const fixed = document.getElementById("repPosFixed")?.checked === true;
 
         const params = { owner_name, owner_info, lat, lon, alt, fixed, fixed_position: fixed };
-        this.appendTerminalLine(`> [TX OWNER/POS] Configurando propietario '${owner_name}' y posición (${lat ?? '--'}, ${lon ?? '--'}) en ${target.slice(0, 8)}...`, "term-cmd");
+        this.appendTerminalLine(I18n.t("repeater.tx_owner", { p0: owner_name, p1: lat ?? '--', p2: lon ?? '--', p3: target.slice(0, 8) }), "term-cmd");
 
         try {
           const res = await fetch("/api/repeater/remote/config", {
@@ -407,7 +413,7 @@ export class RepeaterModule {
           });
           const data = await res.json();
           if (data.status === "ok") {
-            this.appendTerminalLine(`✓ [RX OK] Información y coordenadas guardadas en repetidor ${target.slice(0, 8)}.`, "term-success");
+            this.appendTerminalLine(I18n.t("repeater.rx_owner", { p0: target.slice(0, 8) }), "term-success");
             if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.rep_pos_ok'), "success");
 
             if (this.ctx.knownNodes) {
@@ -445,7 +451,7 @@ export class RepeaterModule {
         e.preventDefault();
         const target = this.selectedRepeaterTarget;
         if (!target) {
-          alert("Selecciona primero un repetidor.");
+          alert(I18n.t("repeater.select_repeater"));
           return;
         }
         const currentPassword = this.getRepeaterPassword(target);
@@ -460,7 +466,7 @@ export class RepeaterModule {
         const identityKey = identityKeyInput ? identityKeyInput.value.trim() : "";
 
         if (!newAdminPwd && !newGuestPwd && !identityKey && !aclMode) {
-          if (this.ctx.showToast) this.ctx.showToast("No hay cambios de seguridad para aplicar.", "info");
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.no_security_changes"), "info");
           return;
         }
 
@@ -470,7 +476,7 @@ export class RepeaterModule {
         if (identityKey) params.identity_key = identityKey;
         if (aclMode) params.acl_mode = aclMode;
 
-        this.appendTerminalLine(`> [TX SEC] Aplicando parámetros de seguridad en ${target.slice(0, 8)}...`, "term-cmd");
+        this.appendTerminalLine(I18n.t("repeater.tx_security", { p0: target.slice(0, 8) }), "term-cmd");
 
         try {
           const res = await fetch("/api/repeater/remote/config", {
@@ -480,18 +486,18 @@ export class RepeaterModule {
           });
           const data = await res.json();
           if (data.status === "ok") {
-            this.appendTerminalLine(`✓ [RX OK] Parámetros de seguridad aplicados en ${target.slice(0, 8)}.`, "term-success");
+            this.appendTerminalLine(I18n.t("repeater.rx_security", { p0: target.slice(0, 8) }), "term-success");
             if (newAdminPwd) {
               const canonicalPk = this.resolveCanonicalPubkey(target) || target;
               this.setStoredRepeaterPassword(canonicalPk, newAdminPwd);
               this.setStoredRepeaterPassword(target, newAdminPwd);
               if (this.dom.repeaterGatePassword) this.dom.repeaterGatePassword.value = newAdminPwd;
-              this.appendTerminalLine(`ℹ [CREDENTIALS] Clave de administración actualizada en caché local.`, "term-info");
+              this.appendTerminalLine(I18n.t("repeater.cached_credentials", {  }), "term-info");
             }
             if (adminPwdInput) adminPwdInput.value = "";
             if (guestPwdInput) guestPwdInput.value = "";
             if (identityKeyInput) identityKeyInput.value = "";
-            if (this.ctx.showToast) this.ctx.showToast("Parámetros de seguridad aplicados", "success");
+            if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.security_applied"), "success");
           } else {
             this.appendTerminalLine(`✗ [RX ERROR] ${data.message || data.error}`, "term-error");
             if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || data.error}`, "error");
@@ -509,11 +515,11 @@ export class RepeaterModule {
         const target = this.selectedRepeaterTarget;
         if (!target) return;
         const password = this.getRepeaterPassword(target);
-        this.appendTerminalLine(`> [TX] Solicitando telemetría completa, batería y parámetros a ${target.slice(0, 8)}...`, "term-cmd");
+        this.appendTerminalLine(I18n.t("repeater.tx_telemetry", { p0: target.slice(0, 8) }), "term-cmd");
         btnRefreshTelem.disabled = true;
         const lbl = btnRefreshTelem.querySelector(".btn-compact-label") || btnRefreshTelem;
         const origText = lbl.textContent;
-        lbl.textContent = "Consultando...";
+        I18n.setText(lbl, "repeater.querying");
         try {
           await this.refreshRepeaterFullTelemetry(target, password);
           if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.rep_telem_req'), "info");
@@ -589,7 +595,7 @@ export class RepeaterModule {
       btnReboot.addEventListener("click", () => {
         const target = this.selectedRepeaterTarget;
         if (!target) return;
-        if (confirm(`¿Confirmas el reinicio remoto por RF del repetidor ${target.slice(0, 8)}?`)) {
+        if (confirm(I18n.t("repeater.reboot_confirm", { p0: target.slice(0, 8) }))) {
           const password = this.getRepeaterPassword(target);
           this.executeRepeaterCommand(target, "reboot", {}, password);
         }
@@ -682,7 +688,7 @@ export class RepeaterModule {
       btnClearRepTerm.addEventListener("click", () => {
         const out = this.dom.repeaterTerminalOutput || document.getElementById("repeaterTerminalOutput");
         if (out) {
-          out.innerHTML = `<div class="term-line term-sys">MeshCore Remote CLI — Consola limpia.</div>`;
+          out.innerHTML = `<div class="term-line term-sys">${I18n.t("repeater.console_cleared")}</div>`;
         }
       });
     }
@@ -710,7 +716,7 @@ export class RepeaterModule {
         // Comandos de emulación de terminal local interactiva
         if (cmd.toLowerCase() === "clear" || cmd.toLowerCase() === "cls") {
           const out = this.dom.repeaterTerminalOutput || document.getElementById("repeaterTerminalOutput");
-          if (out) out.innerHTML = `<div class="term-line term-sys">MeshCore Remote CLI — Consola limpia.</div>`;
+          if (out) out.innerHTML = `<div class="term-line term-sys">${I18n.t("repeater.console_cleared")}</div>`;
           if (repeaterTerminalInput) repeaterTerminalInput.value = "";
           return;
         }
@@ -859,10 +865,12 @@ export class RepeaterModule {
     if (statusEl) {
       if (errorMessage) {
         statusEl.className = "auth-gate-status error";
+        statusEl.removeAttribute('data-i18n');
         statusEl.textContent = errorMessage;
         statusEl.classList.remove("hidden");
       } else {
         statusEl.className = "auth-gate-status hidden";
+        statusEl.removeAttribute('data-i18n');
         statusEl.textContent = "";
       }
     }
@@ -875,7 +883,8 @@ export class RepeaterModule {
     const submitBtn = this.dom.btnRepeaterGateSubmit || document.getElementById("btnRepeaterGateSubmit");
     if (submitBtn) {
       submitBtn.disabled = false;
-      submitBtn.innerHTML = '<span class="btn-icon">🔐</span> Desbloquear & Autenticar Repetidor';
+      submitBtn.innerHTML = `<span class="btn-icon">🔐</span> ${I18n.t('repeater.unlock')}`;
+      I18n.setText(submitBtn, 'repeater.unlock');
     }
   }
 
@@ -893,7 +902,7 @@ export class RepeaterModule {
     const authStatus = this.dom.adminModalAuthStatus || document.getElementById("adminModalAuthStatus");
     if (authStatus) {
       authStatus.className = "auth-status-chip authenticated";
-      authStatus.textContent = "🔓 Autenticado";
+      I18n.setText(authStatus, "repeater.authenticated");
     }
 
     const statusEl = this.dom.repeaterGateStatus || document.getElementById("repeaterGateStatus");
@@ -911,7 +920,7 @@ export class RepeaterModule {
 
   async authenticateRepeater(pubkey, password) {
     if (!pubkey || !password) {
-      this.handleRepeaterAuthError(pubkey, "Ingresa la contraseña de administración.");
+      this.handleRepeaterAuthError(pubkey, I18n.t("repeater.enter_password"));
       return false;
     }
 
@@ -921,12 +930,13 @@ export class RepeaterModule {
 
     if (statusEl) {
       statusEl.className = "auth-gate-status loading";
-      statusEl.textContent = I18n.t('rep.verifying');
+      I18n.setText(statusEl, 'rep.verifying');
       statusEl.classList.remove("hidden");
     }
     if (submitBtn) {
       submitBtn.disabled = true;
-      submitBtn.innerHTML = '<span class="btn-icon">⏳</span> Verificando...';
+      submitBtn.innerHTML = `<span class="btn-icon">⏳</span> ${I18n.t('repeater.verify')}`;
+      I18n.setText(submitBtn, 'repeater.verify');
     }
 
     try {
@@ -947,17 +957,18 @@ export class RepeaterModule {
         this.refreshRepeaterFullTelemetry(canonicalPk, password);
         return true;
       } else {
-        const errorDetail = data.message || data.data?.message || "Contraseña incorrecta o el repetidor no respondió";
+        const errorDetail = data.message || data.data?.message || I18n.t("repeater.bad_password");
         this.handleRepeaterAuthError(canonicalPk, errorDetail);
         return false;
       }
     } catch (err) {
-      this.handleRepeaterAuthError(canonicalPk, `Error de conexión: ${err.message}`);
+      this.handleRepeaterAuthError(canonicalPk, I18n.t("repeater.connection_error", { p0: err.message }));
       return false;
     } finally {
       if (submitBtn) {
         submitBtn.disabled = false;
-        submitBtn.innerHTML = '<span class="btn-icon">🔐</span> Desbloquear & Autenticar Repetidor';
+        submitBtn.innerHTML = `<span class="btn-icon">🔐</span> ${I18n.t('repeater.unlock')}`;
+        I18n.setText(submitBtn, 'repeater.unlock');
       }
     }
   }
@@ -989,7 +1000,7 @@ export class RepeaterModule {
           }
         }
       } else if (data.status === "error" && data.cooldown_remaining) {
-        this.appendTerminalLine(`⏳ Cooldown activo: espere ${data.cooldown_remaining}s para nueva telemetría`, "term-resp");
+        this.appendTerminalLine(I18n.t("repeater.telemetry_cooldown", { p0: data.cooldown_remaining }), "term-resp");
       }
     } catch (err) {
       console.warn("Error en refreshRepeaterFullTelemetry:", err);
@@ -1209,7 +1220,7 @@ export class RepeaterModule {
     const uptimeEl = document.getElementById("repUptimeValue");
     if (uptimeEl) uptimeEl.textContent = node.uptime || "--";
     const seenEl = document.getElementById("repLastSeenValue");
-    if (seenEl) seenEl.textContent = node.last_seen ? "Activo en malla LoRa" : "Sin contacto directo";
+    if (seenEl) I18n.setText(seenEl, node.last_seen ? "repeater.active_mesh" : "repeater.no_direct_contact");
 
     const airtimeVal = node.airtime_ms != null ? node.airtime_ms : (node.airtime != null ? node.airtime : null);
     const airtimeEl = document.getElementById("repAirtimeValue");
@@ -1257,7 +1268,7 @@ export class RepeaterModule {
     if (pktsErrEl) {
       const dStr = dupsVal != null ? dupsVal : "--";
       const eStr = errsVal != null ? errsVal : "--";
-      pktsErrEl.textContent = `Duplicados: ${dStr} | Errores: ${eStr}`;
+      I18n.setText(pktsErrEl, "repeater.packet_errors", { p0: dStr, p1: eStr });
     }
 
     const sumFreq = document.getElementById("repSummaryFreq");
@@ -1278,20 +1289,21 @@ export class RepeaterModule {
     const repHopLimit = node.hop_limit != null ? node.hop_limit : (node.default_hop_limit != null ? node.default_hop_limit : (node.hopLimit != null ? node.hopLimit : 3));
 
     const sumHopLimit = document.getElementById("repSummaryHopLimit");
-    if (sumHopLimit) sumHopLimit.textContent = `${repHopLimit} saltos`;
+    if (sumHopLimit) I18n.setText(sumHopLimit, "repeater.hop_limit", { p0: repHopLimit });
 
     const sumRepeat = document.getElementById("repSummaryRepeat");
-    if (sumRepeat) sumRepeat.textContent = isRep ? "Activado" : "Desactivado";
+    if (sumRepeat) I18n.setText(sumRepeat, isRep ? "repeater.enabled" : "repeater.disabled");
 
     const sumQueue = document.getElementById("repSummaryQueue");
-    if (sumQueue) sumQueue.textContent = `${node.queue_len != null ? node.queue_len : (node.tx_queue_len != null ? node.tx_queue_len : 0)} paquetes`;
+    if (sumQueue) I18n.setText(sumQueue, "repeater.queue_packets", { p0: node.queue_len != null ? node.queue_len : (node.tx_queue_len != null ? node.tx_queue_len : 0) });
 
     const sumPos = document.getElementById("repSummaryPos");
     if (sumPos) {
       if (node.latitude != null && node.longitude != null) {
+        sumPos.removeAttribute('data-i18n');
         sumPos.textContent = `${Number(node.latitude).toFixed(4)}, ${Number(node.longitude).toFixed(4)}`;
       } else {
-        sumPos.textContent = "No configurada";
+        I18n.setText(sumPos, "repeater.position_unset");
       }
     }
 
@@ -1362,7 +1374,7 @@ export class RepeaterModule {
     if (radioRepeatMode) {
       radioRepeatMode.checked = isRep;
       if (radioRepBadge) {
-        radioRepBadge.textContent = isRep ? "ON" : "OFF";
+        I18n.setText(radioRepBadge, isRep ? 'common.on' : 'common.off');
         radioRepBadge.className = isRep ? "toggle-state-badge is-active-purple" : "toggle-state-badge";
       }
     }
@@ -1398,7 +1410,7 @@ export class RepeaterModule {
             : (node.latitude !== undefined && node.latitude !== null && node.latitude !== 0));
       posFixed.checked = isFixed;
       if (posFixedBadge) {
-        posFixedBadge.textContent = isFixed ? "FIJA" : "GPS DINÁMICO";
+        I18n.setText(posFixedBadge, isFixed ? "repeater.fixed" : "repeater.dynamic_gps");
         posFixedBadge.className = isFixed ? "toggle-state-badge is-active" : "toggle-state-badge";
       }
     }
@@ -1450,9 +1462,9 @@ export class RepeaterModule {
 
   async pingZero(targetNode, targetName) {
     const target = targetNode || this.selectedRepeaterTarget;
-    const name = targetName || this.selectedRepeaterName || (target ? target.slice(0, 8) : "desconocido");
+    const name = targetName || this.selectedRepeaterName || (target ? target.slice(0, 8) : I18n.t("repeater.unknown"));
     if (!target) {
-      if (this.ctx.showToast) this.ctx.showToast("⚠️ Selecciona un repetidor o nodo objetivo", "warning");
+      if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.select_node"), "warning");
       return;
     }
 
@@ -1464,14 +1476,14 @@ export class RepeaterModule {
       (norm.length >= 8 && localPk.startsWith(norm.slice(0, 8)))
     ));
     if (isLocal) {
-      if (this.ctx.showToast) this.ctx.showToast("No se puede hacer ping a la estación base local", "warning");
+      if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.no_local_ping"), "warning");
       return;
     }
 
     if (this.ctx.knownNodes && this.ctx.knownNodes.has(target)) {
       const nodeInfo = this.ctx.knownNodes.get(target);
       if (nodeInfo && nodeInfo.role === "CLIENT") {
-        if (this.ctx.showToast) this.ctx.showToast("Ping está disponible únicamente para repetidores de malla", "warning");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.ping_repeaters_only"), "warning");
         return;
       }
     }
@@ -1482,8 +1494,8 @@ export class RepeaterModule {
     const cooldownExpires = this._pingCooldowns.get(cleanTarget) || 0;
     if (now < cooldownExpires) {
       const remainingSec = Math.ceil((cooldownExpires - now) / 1000);
-      this.appendTerminalLine(`⚠️ [COOLDOWN] Protección de Airtime LoRa activa: Espera ${remainingSec}s para otro ping a ${escapeHtml(name)}.`, "term-warning");
-      if (this.ctx.showToast) this.ctx.showToast(`⏳ Espera ${remainingSec}s para otro ping a este repetidor`, "warning");
+      this.appendTerminalLine(I18n.t("repeater.ping_airtime_log", { p0: remainingSec, p1: escapeHtml(name) }), "term-warning");
+      if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.ping_cooldown", { p0: remainingSec }), "warning");
       return;
     }
 
@@ -1492,7 +1504,7 @@ export class RepeaterModule {
     const btnActionPingEl = document.getElementById("btnModalActionPing");
     if (btnActionPingEl) {
       btnActionPingEl.disabled = true;
-      btnActionPingEl.textContent = "🎯 Midiendo...";
+      I18n.setText(btnActionPingEl, "repeater.measuring");
     }
 
     try {
@@ -1507,7 +1519,7 @@ export class RepeaterModule {
       if (res.status === 429 || data.code === 429) {
         const remSec = data.cooldown_remaining || 15;
         this._pingCooldowns.set(cleanTarget, Date.now() + remSec * 1000);
-        const warnMsg = data.detail || data.message || `Protección de Airtime LoRa activa: Espera ${remSec}s`;
+        const warnMsg = data.detail || data.message || I18n.t("repeater.ping_airtime", { p0: remSec });
         this.appendTerminalLine(`⚠️ [COOLDOWN] ${warnMsg}`, "term-warning");
         if (this.ctx.showToast) this.ctx.showToast(`⏳ ${warnMsg}`, "warning");
         this._startModalPingCooldown(remSec);
@@ -1522,7 +1534,7 @@ export class RepeaterModule {
         const snrThere = pingData.snr_there != null ? `${Number(pingData.snr_there).toFixed(1)} dB` : (pingData.snr != null ? `${Number(pingData.snr).toFixed(1)} dB` : "--");
         const snrBack = pingData.snr_back != null ? `${Number(pingData.snr_back).toFixed(1)} dB` : (pingData.snr != null ? `${Number(pingData.snr).toFixed(1)} dB` : "--");
 
-        const line = `✓ [PONG DIRECTO] Duration: ${rtt} ms | SNR there: ${snrThere} | SNR back: ${snrBack} | RSSI: ${rssi}`;
+        const line = I18n.t("repeater.pong_direct", { p0: rtt, p1: snrThere, p2: snrBack, p3: rssi });
         this.appendTerminalLine(line, "term-success");
 
         const canonicalTarget = this.resolveCanonicalPubkey(target);
@@ -1551,18 +1563,18 @@ export class RepeaterModule {
         if (errMsg.toLowerCase().includes("password") || errMsg.toLowerCase().includes("auth") || errMsg.toLowerCase().includes("pin")) {
           this.handleRepeaterAuthError(target, errMsg);
         } else {
-          if (this.ctx.showToast) this.ctx.showToast(`⚠️ Sin respuesta de Ping (${errMsg})`, "error");
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.ping_failed", { p0: errMsg }), "error");
         }
       }
     } catch (err) {
       this.appendTerminalLine(`✗ [PING ERROR] ${err.message}`, "term-error");
-      if (this.ctx.showToast) this.ctx.showToast(`Error de conexión en Ping: ${err.message}`, "error");
+      if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.ping_connection_error", { p0: err.message }), "error");
     } finally {
       if (!this._modalPingInterval) {
         const btnActionPingElFin = document.getElementById("btnModalActionPing");
         if (btnActionPingElFin) {
           btnActionPingElFin.disabled = false;
-          btnActionPingElFin.textContent = "🎯 Ping";
+          I18n.setText(btnActionPingElFin, 'repeater.ping_button');
         }
       }
     }
@@ -1575,7 +1587,7 @@ export class RepeaterModule {
     if (this._modalPingInterval) clearInterval(this._modalPingInterval);
 
     let remaining = durationSec;
-    btn.textContent = `🎯 Espera ${remaining}s...`;
+    I18n.setText(btn, "repeater.ping_wait", { p0: remaining });
 
     this._modalPingInterval = setInterval(() => {
       remaining--;
@@ -1585,12 +1597,12 @@ export class RepeaterModule {
         const currentBtn = document.getElementById("btnModalActionPing");
         if (currentBtn) {
           currentBtn.disabled = false;
-          currentBtn.textContent = "🎯 Ping";
+          I18n.setText(currentBtn, 'repeater.ping_button');
         }
       } else {
         const currentBtn = document.getElementById("btnModalActionPing");
         if (currentBtn) {
-          currentBtn.textContent = `🎯 Espera ${remaining}s...`;
+          I18n.setText(currentBtn, "repeater.ping_wait", { p0: remaining });
         } else {
           clearInterval(this._modalPingInterval);
           this._modalPingInterval = null;
@@ -1640,13 +1652,13 @@ export class RepeaterModule {
           }
         } else if (qFeedback) {
           qFeedback.className = "rep-quick-feedback success";
-          qFeedback.textContent = `✓ Comando transmitido por RF a ${target.slice(0, 8)}.`;
+          I18n.setText(qFeedback, "repeater.command_sent", { p0: target.slice(0, 8) });
           setTimeout(() => {
             if (qFeedback && qFeedback.classList.contains("success")) qFeedback.classList.add("hidden");
           }, 5000);
         }
       } else {
-        const errMsg = data.detail || data.message || data.error || "Error desconocido";
+        const errMsg = data.detail || data.message || data.error || I18n.t("repeater.unknown_error");
         this.appendTerminalLine(`✗ Error: ${errMsg}`, "term-error");
         if (qFeedback) {
           qFeedback.className = "rep-quick-feedback error";
@@ -1657,11 +1669,11 @@ export class RepeaterModule {
         }
       }
     } catch (err) {
-      this.appendTerminalLine(`✗ Error de red: ${err.message}`, "term-error");
+      this.appendTerminalLine(I18n.t("repeater.command_network_error", { p0: err.message }), "term-error");
       const qFeedback = document.getElementById("repQuickCmdFeedback");
       if (qFeedback) {
         qFeedback.className = "rep-quick-feedback error";
-        qFeedback.textContent = `✗ Error de red: ${err.message}`;
+        I18n.setText(qFeedback, "repeater.command_network_error", { p0: err.message });
       }
     }
   }
@@ -1670,9 +1682,9 @@ export class RepeaterModule {
     const pwd = this.getRepeaterPassword(target) || "";
     const btn = document.getElementById("btnDiscoverNeighbors");
     const tbody = document.getElementById("neighborsTableBody");
-    if (btn) { btn.disabled = true; btn.textContent = "Sondeando..."; }
-    if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-center">Sondeando vecinos por RF (req_neighbours)...</td></tr>`;
-    this.appendTerminalLine(`> [TX] Consultando vecinos zero-hop a ${target.slice(0, 8)}...`, "term-cmd");
+    if (btn) { btn.disabled = true; I18n.setText(btn, "repeater.probing"); }
+    if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-center">${I18n.t("repeater.probing_neighbors")}</td></tr>`;
+    this.appendTerminalLine(I18n.t("repeater.tx_neighbors", { p0: target.slice(0, 8) }), "term-cmd");
 
     try {
       const res = await fetch("/api/repeater/remote/neighbours", {
@@ -1685,27 +1697,32 @@ export class RepeaterModule {
         const neighbours = data.data?.neighbours || data.neighbours || [];
         this.renderNeighborsTable(neighbours);
         const countBadge = document.getElementById("neighborsCountBadge");
-        if (countBadge) countBadge.textContent = `${neighbours.length} vecinos`;
-        this.appendTerminalLine(`✓ [RX OK] ${neighbours.length} vecinos descubiertos.`, "term-success");
-        if (this.ctx.showToast) this.ctx.showToast(`${neighbours.length} vecinos detectados en repetidor`, "success");
+        if (countBadge) I18n.setText(countBadge, "repeater.neighbor_count", { p0: neighbours.length });
+        this.appendTerminalLine(I18n.t("repeater.rx_neighbors", { p0: neighbours.length }), "term-success");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.neighbors_detected", { p0: neighbours.length }), "success");
       } else {
-        if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">${escapeHtml(data.message || "Error al consultar")}</td></tr>`;
+        if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">${escapeHtml(data.message || I18n.t("repeater.query_failed"))}</td></tr>`;
         this.appendTerminalLine(`✗ [ERROR] ${data.message || data.error}`, "term-error");
       }
     } catch (err) {
       if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">${escapeHtml(err.message)}</td></tr>`;
       this.appendTerminalLine(`✗ [ERROR] ${err.message}`, "term-error");
     } finally {
-      if (btn) { btn.disabled = false; btn.innerHTML = '<span data-lucide="wifi" data-size="14"></span> Sondear Vecinos (req_neighbours)'; }
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `<span data-lucide="wifi" data-size="14"></span> ${I18n.t('repeater.discover_neighbors')}`;
+        I18n.setText(btn, 'repeater.discover_neighbors');
+      }
       if (window.lucide && window.lucide.createIcons) window.lucide.createIcons();
     }
   }
 
   renderNeighborsTable(neighbours) {
+    this._neighbors = neighbours;
     const tbody = document.getElementById("neighborsTableBody");
     if (!tbody) return;
     if (!Array.isArray(neighbours) || neighbours.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6" class="text-center" style="color: var(--color-text-secondary);">Sin nodos vecinos directos en alcance RF</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" class="text-center" style="color: var(--color-text-secondary);">${I18n.t("repeater.no_neighbors")}</td></tr>`;
       return;
     }
 
@@ -1713,19 +1730,19 @@ export class RepeaterModule {
     neighbours.forEach((nb) => {
       const tr = document.createElement("tr");
       const pk = String(nb.public_key || nb.pubkey || nb.node || "").toLowerCase();
-      const name = nb.name || nb.alias || (pk ? `Nodo ${pk.slice(0, 8)}` : "--");
+      const name = nb.name || nb.alias || (pk ? I18n.t("repeater.neighbor_name", { p0: pk.slice(0, 8) }) : "--");
       const snr = nb.snr != null ? `${nb.snr} dB` : "--";
       const hops = nb.hops != null ? nb.hops : 0;
-      const lastSeen = nb.last_seen || nb.time || "Reciente";
+      const lastSeen = nb.last_seen || nb.time || I18n.t("repeater.recent");
 
       tr.innerHTML = `
         <td class="font-mono"><strong>${escapeHtml(pk ? pk.slice(0, 12) + "..." : "--")}</strong></td>
         <td>${escapeHtml(name)}</td>
         <td><span class="badge-pill badge-outline">${escapeHtml(snr)}</span></td>
-        <td><span class="badge-pill badge-secondary">${hops} saltos</span></td>
+        <td><span class="badge-pill badge-secondary">${I18n.t('repeater.hops', { n: hops })}</span></td>
         <td>${escapeHtml(String(lastSeen))}</td>
         <td>
-          <button type="button" class="btn-secondary btn-xs btn-neighbor-ping" data-target="${escapeHtml(pk)}" title="Ping 0 saltos">
+          <button type="button" class="btn-secondary btn-xs btn-neighbor-ping" data-target="${escapeHtml(pk)}" title="${I18n.t('repeater.direct_ping')}">
             🎯 Ping
           </button>
         </td>
@@ -1743,7 +1760,7 @@ export class RepeaterModule {
 
   async fetchRepeaterOwner(target) {
     const pwd = this.getRepeaterPassword(target) || "";
-    this.appendTerminalLine(`> [TX] Consultando información de propietario (req_owner) a ${target.slice(0, 8)}...`, "term-cmd");
+    this.appendTerminalLine(I18n.t("repeater.tx_owner_query", { p0: target.slice(0, 8) }), "term-cmd");
     try {
       const res = await fetch("/api/repeater/remote/owner", {
         method: "POST",
@@ -1758,8 +1775,8 @@ export class RepeaterModule {
         const infoEl = document.getElementById("repOwnerInfo");
         if (nameEl && ownerName) nameEl.value = ownerName;
         if (infoEl && ownerInfo) infoEl.value = ownerInfo;
-        this.appendTerminalLine(`✓ [RX OK] Propietario: ${ownerName} | Info: ${ownerInfo}`, "term-success");
-        if (this.ctx.showToast) this.ctx.showToast(`Propietario: ${ownerName || "OK"}`, "success");
+        this.appendTerminalLine(I18n.t("repeater.owner_details", { p0: ownerName, p1: ownerInfo }), "term-success");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.owner_received", { p0: ownerName || "OK" }), "success");
       } else {
         this.appendTerminalLine(`✗ [ERROR] ${data.message || data.error}`, "term-error");
       }
@@ -1770,7 +1787,7 @@ export class RepeaterModule {
 
   async fetchRepeaterRegions(target) {
     const pwd = this.getRepeaterPassword(target) || "";
-    this.appendTerminalLine(`> [TX] Consultando regiones (req_regions) a ${target.slice(0, 8)}...`, "term-cmd");
+    this.appendTerminalLine(I18n.t("repeater.tx_regions", { p0: target.slice(0, 8) }), "term-cmd");
     try {
       const res = await fetch("/api/repeater/remote/regions", {
         method: "POST",
@@ -1780,8 +1797,8 @@ export class RepeaterModule {
       const data = await res.json();
       if (data.status === "ok") {
         const regions = JSON.stringify(data.data?.regions || data.regions || []);
-        this.appendTerminalLine(`✓ [RX OK] Regiones: ${regions}`, "term-success");
-        if (this.ctx.showToast) this.ctx.showToast(`Regiones: ${regions}`, "info");
+        this.appendTerminalLine(I18n.t("repeater.rx_regions", { p0: regions }), "term-success");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.regions", { p0: regions }), "info");
       } else {
         this.appendTerminalLine(`✗ [ERROR] ${data.message || data.error}`, "term-error");
       }
@@ -1792,7 +1809,7 @@ export class RepeaterModule {
 
   async fetchRepeaterAcl(target) {
     const pwd = this.getRepeaterPassword(target) || "";
-    this.appendTerminalLine(`> [TX] Consultando tabla ACL (req_acl) a ${target.slice(0, 8)}...`, "term-cmd");
+    this.appendTerminalLine(I18n.t("repeater.tx_acl", { p0: target.slice(0, 8) }), "term-cmd");
     try {
       const res = await fetch("/api/repeater/remote/acl", {
         method: "POST",
@@ -1802,7 +1819,7 @@ export class RepeaterModule {
       const data = await res.json();
       if (data.status === "ok") {
         const aclData = JSON.stringify(data.data?.acl_data || data.acl_data || {});
-        this.appendTerminalLine(`✓ [RX OK] Tabla ACL: ${aclData}`, "term-success");
+        this.appendTerminalLine(I18n.t("repeater.rx_acl", { p0: aclData }), "term-success");
         if (this.ctx.showToast) this.ctx.showToast(`Tabla ACL obtenida`, "success");
       } else {
         this.appendTerminalLine(`✗ [ERROR] ${data.message || data.error}`, "term-error");

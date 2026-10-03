@@ -68,6 +68,7 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
+  min-height: 100dvh;
   overflow-x: hidden;
 }
 
@@ -76,12 +77,14 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
 }
 
 /* Header */
 /* Header Táctico Glassmorphic */
 .app-header {
   height: var(--header-height);
+  flex-shrink: 0;
   background-color: var(--bg-glass);
   backdrop-filter: blur(16px) saturate(180%);
   -webkit-backdrop-filter: blur(16px) saturate(180%);
@@ -477,6 +480,7 @@ body {
 .app-body {
   display: flex;
   flex: 1;
+  min-height: 0;
   overflow: hidden;
   position: relative;
 }
@@ -722,13 +726,16 @@ body {
 
 .channel-item:hover .btn-item-delete,
 .channel-item:hover .btn-item-qr,
+.channel-item:focus-within .btn-item-delete,
+.channel-item:focus-within .btn-item-qr,
+.metric-card:focus-within .btn-item-delete,
 .metric-card:hover .btn-item-delete {
   opacity: 0.85;
 }
 
 .btn-item-delete:hover {
   opacity: 1 !important;
-  color: #ef4444;
+  color: var(--accent-danger);
   background: rgba(239, 68, 68, 0.15);
 }
 
@@ -746,8 +753,8 @@ body {
 }
 
 .ch-unread-badge {
-  background-color: var(--accent-danger);
-  color: #ffffff;
+  background-color: var(--danger-fill);
+  color: var(--on-danger);
   font-size: 9.5px;
   font-weight: 700;
   padding: 1px 5.5px;
@@ -772,6 +779,8 @@ body {
 /* App Main & Panes */
 .app-main {
   flex: 1;
+  min-width: 0;
+  min-height: 0;
   background-color: var(--bg-canvas);
   overflow-y: auto;
   overflow-x: hidden;
@@ -1083,7 +1092,7 @@ body {
    ============================================================================== */
 
 :focus-visible {
-  outline: 2px solid var(--accent-primary);
+  outline: 2px solid var(--border-focus);
   outline-offset: 2px;
 }
 
@@ -1263,7 +1272,7 @@ body {
 
   .modal-footer button {
     width: 100% !important;
-    height: 36px !important;
+    min-height: 44px !important;
   }
 
   /* 1. Modal Repetidor / Centro de Control RF */
@@ -1380,7 +1389,7 @@ body {
 
   .qr-actions-row button {
     width: 100% !important;
-    height: 36px !important;
+    min-height: 44px !important;
   }
 
   /* 3. Modal Paleta de Comandos en Móvil */
@@ -1419,7 +1428,8 @@ body {
     overflow: hidden;
   }
 
-  .app-sidebar {
+  .app-sidebar,
+  .app-sidebar.collapsed {
     width: 100%;
     height: auto;
     border-right: none;
@@ -1431,6 +1441,16 @@ body {
     scrollbar-width: none;
     -ms-overflow-style: none;
     flex-shrink: 0;
+  }
+
+  /* Desktop rail preferences must not collapse the mobile navigation row. */
+  .app-sidebar.collapsed .nav-label {
+    display: inline !important;
+  }
+
+  .app-sidebar.collapsed .nav-btn {
+    padding: 6px 10px;
+    gap: 10px;
   }
 
   .app-sidebar .channel-selector-card,
@@ -1458,7 +1478,7 @@ body {
 
   .app-main {
     flex: 1;
-    height: calc(100vh - var(--header-height) - 52px);
+    height: auto;
     overflow-y: auto;
   }
 
@@ -1632,7 +1652,7 @@ body {
 
 @media (max-width: 640px) {
   .toast-container {
-    bottom: 16px;
+    bottom: max(16px, env(safe-area-inset-bottom));
     right: 16px;
     left: 16px;
     max-width: calc(100vw - 32px);
@@ -1854,20 +1874,20 @@ body.light-theme .radio-status-pill.radio-status--disconnected {
 
 .ws-badge--connected {
   background: rgba(16, 185, 129, 0.16);
-  color: #10b981;
+  color: var(--accent-success);
   border: 1px solid rgba(16, 185, 129, 0.35);
 }
 
 .ws-badge--connecting,
 .ws-badge--reconnecting {
   background: rgba(245, 158, 11, 0.16);
-  color: #f59e0b;
+  color: var(--accent-warning);
   border: 1px solid rgba(245, 158, 11, 0.35);
 }
 
 .ws-badge--disconnected {
   background: rgba(239, 68, 68, 0.16);
-  color: #ef4444;
+  color: var(--accent-danger);
   border: 1px solid rgba(239, 68, 68, 0.35);
 }
 
@@ -1875,8 +1895,8 @@ body.light-theme .radio-status-pill.radio-status--disconnected {
    Componentes Utilitarios de Grado Profesional y Accesibilidad
    ========================================================================== */
 .btn-danger {
-  background: var(--color-danger, #ef4444);
-  color: #ffffff;
+  background: var(--danger-fill);
+  color: var(--on-danger);
   border: 1px solid rgba(239, 68, 68, 0.4);
   font-weight: 600;
   border-radius: var(--radius-sm, 6px);
@@ -1885,8 +1905,8 @@ body.light-theme .radio-status-pill.radio-status--disconnected {
 }
 
 .btn-danger:hover {
-  background: #dc2626;
-  border-color: #dc2626;
+  background: var(--danger-fill-hover);
+  border-color: var(--danger-fill-hover);
   transform: translateY(-1px);
 }
 

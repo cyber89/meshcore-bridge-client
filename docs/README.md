@@ -28,6 +28,7 @@ su atributo HTML de idioma usan el fallback inglés del paquete instalado.
 
 - [ADRs](adr/): decisiones y contexto histórico (ADR 0001 a ADR 0010); revisar estado y fecha. Una decisión anterior que no coincida con el código necesita conciliación explícita, sin borrar su historia.
 - [PROTOCOL_AUDIT_2026-09-29.md](PROTOCOL_AUDIT_2026-09-29.md): auditoría de frontera de protocolo MeshCore contrastando firmware C/C++, SDK oficial 2.3.14 y el bridge.
+- [FRONTEND_UI_REVIEW_2026-10-03.md](FRONTEND_UI_REVIEW_2026-10-03.md): plan, mejoras y evidencia de la revisión de temas, responsive, accesibilidad e idiomas de la SPA.
 - [AUDIT_REPORT_LAYER_BY_LAYER.md](AUDIT_REPORT_LAYER_BY_LAYER.md): informe de auditoría exhaustiva capa por capa (Capa 1 a Capa 5) con replicación de errores.
 - [AUDIT_REPORT_2026-08-17.md](AUDIT_REPORT_2026-08-17.md): snapshot de auditoría de agosto. Sus conteos, capturas, SQLite y resultados se conservan como afirmaciones históricas.
 - [FINAL_PROJECT_REPORT.md](FINAL_PROJECT_REPORT.md): consolidado histórico de agosto. Sus afirmaciones de producción, rendimiento y accesibilidad no son garantías actuales.

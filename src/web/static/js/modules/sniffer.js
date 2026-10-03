@@ -81,6 +81,15 @@ export class SnifferModule {
     this.fetchCapturedPackets();
   }
 
+  onLanguageChange() {
+    this.renderFilteredPackets();
+    this.renderFilteredLogs();
+    if (this.selectedPacketForInspect && this.dom.packetInspectorModal &&
+        !this.dom.packetInspectorModal.classList.contains('hidden')) {
+      this.openPacketInspector(this.selectedPacketForInspect, false);
+    }
+  }
+
   _bindElements() {
     this.dom = {
       // Subpestañas Dual Sniffer
@@ -250,7 +259,7 @@ export class SnifferModule {
         const portName = payload.radio_port || "";
         const el = this.dom.chipSerialHealth.querySelector(".val");
         if (el) {
-          el.textContent = isSerOk ? `Conectado (${portName || "/dev/ttyACM0"})` : "Desconectado";
+          I18n.setText(el, isSerOk ? 'sniffer.serial_connected' : 'sniffer.disconnected', { p0: portName || '/dev/ttyACM0' });
           el.className = `val ${isSerOk ? "ok" : "err"}`;
         }
       }
@@ -323,7 +332,7 @@ export class SnifferModule {
       this.dom.chkSnifferCapture.checked = isCapturing;
     }
     if (this.dom.snifferCaptureBadge) {
-      this.dom.snifferCaptureBadge.textContent = isCapturing ? "ON" : "OFF";
+      I18n.setText(this.dom.snifferCaptureBadge, isCapturing ? 'common.on' : 'common.off');
       this.dom.snifferCaptureBadge.classList.toggle("is-active-success", isCapturing);
     }
   }
@@ -351,12 +360,12 @@ export class SnifferModule {
       this.updateSnifferBadge();
       this.renderFilteredPackets();
       if (this.ctx.showToast) {
-        this.ctx.showToast("Búfer de paquetes limpiado correctamente", "success");
+        this.ctx.showToast(I18n.t("sniffer.buffer_cleared"), "success");
       }
     } catch (e) {
       console.warn("Error limpiando búfer de paquetes:", e);
       if (this.ctx.showToast) {
-        this.ctx.showToast("Error de conexión al limpiar paquetes", "error");
+        this.ctx.showToast(I18n.t("sniffer.clear_connection_error"), "error");
       }
     }
   }
@@ -368,7 +377,7 @@ export class SnifferModule {
       });
       const data = await res.json();
       if (data.status !== "ok") {
-        alert("Error exportando paquetes: " + (data.message || data.title || "Fallo en servidor"));
+        alert(I18n.t("sniffer.export_error") + (data.message || data.title || I18n.t("sniffer.server_failure")));
         return;
       }
 
@@ -394,7 +403,7 @@ export class SnifferModule {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert("Error descargando exportación de paquetes: " + e.message);
+      alert(I18n.t("sniffer.export_failed") + e.message);
     }
   }
 
@@ -491,7 +500,7 @@ export class SnifferModule {
   // Modal Inspector de Tramas LoRa
   // ================================================================
 
-  openPacketInspector(pkt) {
+  openPacketInspector(pkt, resetTab = true) {
     if (!this.dom.packetInspectorModal) return;
     this.selectedPacketForInspect = pkt;
 
@@ -501,7 +510,7 @@ export class SnifferModule {
     }
     if (this.dom.inspectorDirBadge) {
       const isRx = (pkt.direction || "").toLowerCase() === "rx";
-      this.dom.inspectorDirBadge.textContent = isRx ? I18n.t('sniffer.rx_incoming') : I18n.t('sniffer.tx_outgoing');
+      I18n.setText(this.dom.inspectorDirBadge, isRx ? 'sniffer.rx_incoming' : 'sniffer.tx_outgoing');
       this.dom.inspectorDirBadge.className = isRx ? "badge-pill badge-success" : "badge-pill badge-primary";
     }
     if (this.dom.inspectorTypeBadge) {
@@ -511,9 +520,9 @@ export class SnifferModule {
     // Panel Semántico
     if (this.dom.inspFieldTime) this.dom.inspFieldTime.textContent = pkt.iso_time || new Date().toISOString();
     if (this.dom.inspFieldDir) this.dom.inspFieldDir.textContent = (pkt.direction || "").toUpperCase();
-    if (this.dom.inspFieldChannel) this.dom.inspFieldChannel.textContent = `Canal #${pkt.channel_idx != null ? pkt.channel_idx : 0}`;
+    if (this.dom.inspFieldChannel) I18n.setText(this.dom.inspFieldChannel, "sniffer.packet_channel", { p0: pkt.channel_idx != null ? pkt.channel_idx : 0 });
     if (this.dom.inspFieldType) this.dom.inspFieldType.textContent = pkt.packet_type || "PACKET";
-    if (this.dom.inspFieldSender) this.dom.inspFieldSender.textContent = `${pkt.sender_name ? pkt.sender_name + " " : ""}(${pkt.sender || "desconocido"})`;
+    if (this.dom.inspFieldSender) this.dom.inspFieldSender.textContent = `${pkt.sender_name ? pkt.sender_name + " " : ""}(${pkt.sender || I18n.t("sniffer.unknown")})`;
     if (this.dom.inspFieldTarget) this.dom.inspFieldTarget.textContent = pkt.target || "broadcast";
 
     let rfStr = `SNR: ${pkt.snr != null ? pkt.snr + " dB" : "N/A"} | RSSI: ${pkt.rssi != null ? pkt.rssi + " dBm" : "N/A"}`;
@@ -523,7 +532,7 @@ export class SnifferModule {
     if (this.dom.inspFieldSize) this.dom.inspFieldSize.textContent = `${pkt.size_bytes || 0} bytes`;
 
     let decodedDetails = [];
-    if (pkt.text) decodedDetails.push(`Texto: "${pkt.text}"`);
+    if (pkt.text) decodedDetails.push(I18n.t("sniffer.decoded_text", { p0: pkt.text }));
     if (pkt.payload_dict && typeof pkt.payload_dict === "object") {
       decodedDetails.push(JSON.stringify(pkt.payload_dict, null, 2));
     }
@@ -542,7 +551,7 @@ export class SnifferModule {
       this.dom.inspJsonDumpView.textContent = JSON.stringify(pkt, null, 2);
     }
 
-    this.switchInspectorTab("semantic");
+    if (resetTab) this.switchInspectorTab("semantic");
     this.dom.packetInspectorModal.classList.remove("hidden");
   }
 
@@ -567,9 +576,8 @@ export class SnifferModule {
     if (this.dom.inspHexDumpView && navigator.clipboard) {
       navigator.clipboard.writeText(this.dom.inspHexDumpView.textContent);
       if (this.dom.btnCopyHexDump) {
-        const orig = this.dom.btnCopyHexDump.textContent;
-        this.dom.btnCopyHexDump.textContent = I18n.t('sniffer.copied');
-        setTimeout(() => { this.dom.btnCopyHexDump.textContent = orig; }, 1500);
+        I18n.setText(this.dom.btnCopyHexDump, 'sniffer.copied');
+        setTimeout(() => { I18n.setText(this.dom.btnCopyHexDump, 'ui.static_572'); }, 1500);
       }
     }
   }
@@ -578,9 +586,8 @@ export class SnifferModule {
     if (this.dom.inspJsonDumpView && navigator.clipboard) {
       navigator.clipboard.writeText(this.dom.inspJsonDumpView.textContent);
       if (this.dom.btnCopyJsonDump) {
-        const orig = this.dom.btnCopyJsonDump.textContent;
-        this.dom.btnCopyJsonDump.textContent = I18n.t('sniffer.copied');
-        setTimeout(() => { this.dom.btnCopyJsonDump.textContent = orig; }, 1500);
+        I18n.setText(this.dom.btnCopyJsonDump, 'sniffer.copied');
+        setTimeout(() => { I18n.setText(this.dom.btnCopyJsonDump, 'ui.static_573'); }, 1500);
       }
     }
   }
@@ -632,7 +639,7 @@ export class SnifferModule {
       if (this.ctx.updateRadioBadge) this.ctx.updateRadioBadge(isSerOk, isSerOk ? portName : "");
       const el = this.dom.chipSerialHealth.querySelector(".val");
       if (el) {
-        el.textContent = isSerOk ? `Conectado (${portName || "/dev/ttyACM0"})` : "Desconectado";
+        I18n.setText(el, isSerOk ? 'sniffer.serial_connected' : 'sniffer.disconnected', { p0: portName || '/dev/ttyACM0' });
         el.className = `val ${isSerOk ? "ok" : "err"}`;
       }
     }
@@ -781,7 +788,7 @@ export class SnifferModule {
       this.dom.chkDebugMode.checked = this.isDebugMode;
     }
     if (this.dom.debugModeBadge) {
-      this.dom.debugModeBadge.textContent = this.isDebugMode ? "ON" : "OFF";
+      I18n.setText(this.dom.debugModeBadge, this.isDebugMode ? 'common.on' : 'common.off');
       this.dom.debugModeBadge.classList.toggle("is-active", this.isDebugMode);
     }
   }
@@ -815,7 +822,7 @@ export class SnifferModule {
       this.dom.chkLogsAutoScroll.checked = isAutoScroll;
     }
     if (this.dom.logsAutoScrollBadge) {
-      this.dom.logsAutoScrollBadge.textContent = isAutoScroll ? "ON" : "OFF";
+      I18n.setText(this.dom.logsAutoScrollBadge, isAutoScroll ? 'common.on' : 'common.off');
       this.dom.logsAutoScrollBadge.classList.toggle("is-active-success", isAutoScroll);
     }
   }

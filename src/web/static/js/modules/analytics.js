@@ -20,6 +20,18 @@ export class AnalyticsModule {
     this.fetchAnalytics();
   }
 
+  onLanguageChange() {
+    if (this._lastAnalytics) {
+      const payload = this._lastAnalytics;
+      this.renderKpis(payload.summary || {}, payload);
+      this.renderTopActiveTable(payload.top_nodes_by_traffic || []);
+      this.renderSignalTable(payload.top_nodes_best_snr || [], payload.top_nodes_worst_snr || []);
+      this.renderRepeatersTable(payload.top_repeaters_by_clients || []);
+      this.renderBridgeHealth(payload);
+    }
+    if (this._lastAirtime) this.renderAirtimeStats(this._lastAirtime);
+  }
+
   _bindElements() {
     this.dom = {
       btnRefreshAnalytics: document.getElementById("btnRefreshAnalytics"),
@@ -87,7 +99,7 @@ export class AnalyticsModule {
         if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || "Fallo al restablecer"}`, "error");
       }
     } catch (err) {
-      if (this.ctx.showToast) this.ctx.showToast(`Error de red: ${err.message}`, "error");
+      if (this.ctx.showToast) this.ctx.showToast(I18n.t("analytics.network_error", { p0: err.message }), "error");
     }
   }
 
@@ -166,6 +178,7 @@ export class AnalyticsModule {
 
       if (dataAnalytics.status === "ok" && dataAnalytics.data) {
         const payload = dataAnalytics.data;
+        this._lastAnalytics = payload;
         this.renderKpis(payload.summary || {}, payload);
         this.renderTopActiveTable(payload.top_nodes_by_traffic || []);
         this.renderSignalTable(payload.top_nodes_best_snr || [], payload.top_nodes_worst_snr || []);
@@ -198,7 +211,7 @@ export class AnalyticsModule {
     }
     if (this.dom.kpiRepeatersCount) {
       const reps = Array.isArray(rootData.top_repeaters_by_clients) ? rootData.top_repeaters_by_clients.length : 0;
-      this.dom.kpiRepeatersCount.textContent = I18n.t('analytics.repeater_count').replace('{n}', reps);
+      I18n.setText(this.dom.kpiRepeatersCount, 'analytics.repeater_count', { n: reps });
     }
 
     if (this.dom.kpiErrorRate) {
@@ -208,12 +221,12 @@ export class AnalyticsModule {
     }
     if (this.dom.kpiErrorsTotal) {
       const errTotal = Number(summary.total_errors || 0);
-      this.dom.kpiErrorsTotal.textContent = I18n.t('analytics.errors_acc').replace('{n}', errTotal);
+      I18n.setText(this.dom.kpiErrorsTotal, 'analytics.errors_acc', { n: errTotal });
     }
 
     if (this.dom.kpiQueueDepth) {
       const qDepth = Number(rootData.queue_depth || 0);
-      this.dom.kpiQueueDepth.textContent = I18n.t('analytics.packets_count').replace('{n}', qDepth);
+      I18n.setText(this.dom.kpiQueueDepth, 'analytics.packets_count', { n: qDepth });
     }
   }
 
@@ -319,7 +332,7 @@ export class AnalyticsModule {
       const name = r.name || r.alias || (r.public_key ? `[${r.public_key.substring(0, 8)}]` : I18n.t('common.repeater'));
       const clientCount = r.routed_clients_count != null ? r.routed_clients_count : (r.client_count || 0);
       const txPower = r.tx_power != null ? `${r.tx_power} dBm` : I18n.t('analytics.standard');
-      const hopLimit = r.hop_limit != null ? I18n.t('analytics.hops_count').replace('{n}', r.hop_limit) : I18n.t('analytics.hops_count').replace('{n}', 3);
+      const hopLimit = I18n.t('analytics.hops_count', { n: r.hop_limit ?? 3 });
 
       tr.innerHTML = `
         <td><strong class="font-mono text-sm">${escapeHtml(name)}</strong></td>
@@ -335,24 +348,25 @@ export class AnalyticsModule {
   renderBridgeHealth(data) {
     if (this.dom.statDeduplication) {
       const dupCount = data.deduplication_count || 0;
-      this.dom.statDeduplication.textContent = I18n.t('analytics.in_ram_dup').replace('{n}', dupCount);
+      I18n.setText(this.dom.statDeduplication, 'analytics.in_ram_dup', { n: dupCount });
     }
     if (this.dom.statQueueDepth) {
-      this.dom.statQueueDepth.textContent = I18n.t('analytics.pkts_waiting').replace('{n}', data.queue_depth || 0);
+      I18n.setText(this.dom.statQueueDepth, 'analytics.pkts_waiting', { n: data.queue_depth || 0 });
     }
     if (this.dom.statSerialStatus) {
       const isSerOk = Boolean(data.serial_connected);
-      this.dom.statSerialStatus.textContent = isSerOk ? I18n.t('analytics.connected_ok') : I18n.t('analytics.disconnected');
+      I18n.setText(this.dom.statSerialStatus, isSerOk ? 'analytics.connected_ok' : 'analytics.disconnected');
       this.dom.statSerialStatus.style.color = isSerOk ? "var(--accent-success)" : "var(--accent-danger)";
     }
     if (this.dom.statMqttStatus) {
       const isMqttOk = Boolean(data.mqtt_connected);
-      this.dom.statMqttStatus.textContent = isMqttOk ? I18n.t('analytics.online_broker') : I18n.t('analytics.disconnected');
+      I18n.setText(this.dom.statMqttStatus, isMqttOk ? 'analytics.online_broker' : 'analytics.disconnected');
       this.dom.statMqttStatus.style.color = isMqttOk ? "var(--accent-success)" : "var(--accent-danger)";
     }
   }
 
   renderAirtimeStats(airtime) {
+    this._lastAirtime = airtime;
     if (!airtime) return;
     const usedMs = Number(airtime.hourly_used_ms != null ? airtime.hourly_used_ms : (airtime.airtime_ms || 0));
     const limitPct = Number(airtime.hourly_limit_pct || 1.0);
@@ -368,19 +382,19 @@ export class AnalyticsModule {
       this.dom.analyticsAirtimeLabel.textContent = `${I18n.t('analytics.usage_pct').replace('{pct}', dutyCyclePct.toFixed(2))}${statusSuffix}`;
     }
     if (this.dom.analyticsAirtimeMs) {
-      this.dom.analyticsAirtimeMs.textContent = `${Math.round(usedMs).toLocaleString()} ms / ${Math.round(budgetMs).toLocaleString()} ms (Límite: ${limitPct.toFixed(1)}%)`;
+      I18n.setText(this.dom.analyticsAirtimeMs, "analytics.airtime_limit", { p0: Math.round(usedMs).toLocaleString(), p1: Math.round(budgetMs).toLocaleString(), p2: limitPct.toFixed(1) });
     }
 
     if (this.dom.analyticsAirtimeWarnMarker) {
       this.dom.analyticsAirtimeWarnMarker.style.left = `${warnThresholdPct}%`;
-      this.dom.analyticsAirtimeWarnMarker.title = `Umbral de advertencia (${warnThresholdPct}% del límite)`;
+      this.dom.analyticsAirtimeWarnMarker.title = I18n.t("analytics.warning_threshold", { p0: warnThresholdPct });
     }
     if (this.dom.analyticsAirtimeWarnLabel) {
       const warnLimitPct = (limitPct * (warnThresholdPct / 100.0)).toFixed(2);
-      this.dom.analyticsAirtimeWarnLabel.textContent = `▲ ${warnLimitPct}% Advertencia (${warnThresholdPct}%)`;
+      I18n.setText(this.dom.analyticsAirtimeWarnLabel, "analytics.warning_label", { p0: warnLimitPct, p1: warnThresholdPct });
     }
     if (this.dom.analyticsAirtimeLimitLabel) {
-      this.dom.analyticsAirtimeLimitLabel.textContent = `${limitPct.toFixed(1)}% Límite Legal (Bloqueo)`;
+      I18n.setText(this.dom.analyticsAirtimeLimitLabel, "analytics.legal_limit", { p0: limitPct.toFixed(1) });
     }
 
     if (this.dom.analyticsAirtimeFill) {

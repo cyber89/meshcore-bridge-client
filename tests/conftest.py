@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import pytest_asyncio
-from playwright.async_api import Page, Route, async_playwright
+from playwright.async_api import Page, Request, Route, async_playwright
 
 with patch("dotenv.load_dotenv", return_value=False):
     import config
@@ -122,7 +122,9 @@ async def browser_page(virtual_bridge: MeshCoreBridge) -> AsyncIterator[Page]:
         context = await browser.new_context(viewport={"width": 1920, "height": 1080})
         cleanup.push_async_callback(context.close)
         await context.grant_permissions(["local-network-access"], origin=origin)
-        await context.add_init_script("localStorage.setItem('meshcore_lang', 'es');")
+        await context.add_init_script(
+            "if (!localStorage.getItem('mc_lang')) localStorage.setItem('mc_lang', 'es');"
+        )
 
         async def local_only(route: Route) -> None:
             if not route.request.url.startswith(origin + "/"):
@@ -143,10 +145,23 @@ async def browser_page(virtual_bridge: MeshCoreBridge) -> AsyncIterator[Page]:
         errors: list[str] = []
         console_errors: list[str] = []
         failures: list[str] = []
-        page.on("pageerror", lambda error: errors.append(str(error)))
+
+        def record_request_failure(request: Request) -> None:
+            # Leaflet removes obsolete tile images on resize/zoom. Chromium reports
+            # those intentional cancellations as ERR_ABORTED. Local assets/APIs,
+            # unexpected external requests and all other failures still fail QA.
+            cancelled_external_image = (
+                request.resource_type == "image"
+                and not request.url.startswith(origin + "/")
+                and request.failure == "net::ERR_ABORTED"
+            )
+            if not cancelled_external_image:
+                failures.append(f"{request.failure} {request.url}")
+
+        page.on("pageerror", lambda error: errors.append(error.stack or str(error)))
         page.on("console", lambda message: console_errors.append(message.text) if message.type == "error" else None)
         page.on("response", lambda response: failures.append(f"{response.status} {response.url}") if response.status >= 400 else None)
-        page.on("requestfailed", lambda request: failures.append(f"{request.failure} {request.url}"))
+        page.on("requestfailed", record_request_failure)
         await page.goto(origin, wait_until="domcontentloaded")
         await page.locator('#channelListUi [data-channel-idx="1"]').wait_for()
         for _ in range(100):

@@ -6,7 +6,7 @@
 import { eventBus, EVENTS } from "./core/eventbus.js";
 import { MeshCoreStorage } from "./core/storage.js";
 import { MeshCoreWebSocketClient } from "./core/websocket.js";
-import { debounce, escapeHtml, buildMeshCoreContactUri } from "./core/utils.js";
+import { escapeHtml, buildMeshCoreContactUri } from "./core/utils.js";
 
 import { SnifferModule } from "./modules/sniffer.js";
 import { RepeaterModule } from "./modules/repeater.js";
@@ -84,7 +84,9 @@ class MeshCoreApp {
     this._initTheme();
     this._initNavigation();
     this._initSidebar();
+    document.getElementById("btnSelectImportFile")?.addEventListener("click", () => document.getElementById("importFileInput")?.click());
     this._initCommandPalette();
+    this._initModalFocus();
     this._initVisibilityHandler();
     this._subscribeBus();
 
@@ -125,15 +127,17 @@ class MeshCoreApp {
   }
 
   _initTheme() {
-    const savedTheme = localStorage.getItem("meshcore_theme") || "dark";
-    document.body.className = `${savedTheme}-theme`;
+    const savedTheme = localStorage.getItem("meshcore_theme") === "light" ? "light" : "dark";
+    document.body.classList.remove("dark-theme", "light-theme");
+    document.body.classList.add(`${savedTheme}-theme`);
     this._updateThemeIcon(savedTheme);
 
     if (this.dom.themeToggleBtn) {
       this.dom.themeToggleBtn.addEventListener("click", () => {
         const isDark = document.body.classList.contains("dark-theme");
         const next = isDark ? "light" : "dark";
-        document.body.className = `${next}-theme`;
+        document.body.classList.remove("dark-theme", "light-theme");
+        document.body.classList.add(`${next}-theme`);
         localStorage.setItem("meshcore_theme", next);
         this._updateThemeIcon(next);
       });
@@ -147,16 +151,9 @@ class MeshCoreApp {
       this.updateRadioBadge(this._lastRadioConnected ?? false, this._lastRadioPort ?? "");
       const isDark = !document.body.classList.contains("light-theme");
       this._updateThemeIcon(isDark ? "dark" : "light");
-      if (this.nodesModule) {
-        if (typeof this.nodesModule.renderNodesDirectory === "function") this.nodesModule.renderNodesDirectory();
-        if (typeof this.nodesModule.renderContactsGrid === "function") this.nodesModule.renderContactsGrid();
-      }
-      if (this.chatModule && typeof this.chatModule.renderCurrentConversation === "function") {
-        this.chatModule.renderCurrentConversation();
-      }
-      if (this.analyticsModule && typeof this.analyticsModule.fetchAnalytics === "function") {
-        this.analyticsModule.fetchAnalytics();
-      }
+      this._updateSidebarState();
+      if (this._lastAirtimePayload) this.updateAirtimeBadge(this._lastAirtimePayload);
+      Object.values(this.modules).forEach((module) => module.onLanguageChange?.());
     });
     // Apply translations on init (i18n.js auto-applies on DOMContentLoaded,
     // but calling again here ensures post-module-load elements are covered)
@@ -172,12 +169,16 @@ class MeshCoreApp {
     } else {
       this.dom.themeToggleBtn.innerHTML = `<span data-lucide="${iconName}" data-size="16"></span>`;
     }
-    this.dom.themeToggleBtn.title = isDark ? I18n.t('app.light_theme_title') : I18n.t('app.dark_theme_title');
-    this.dom.themeToggleBtn.setAttribute("aria-label", isDark ? I18n.t('app.light_theme_title') : I18n.t('app.dark_theme_title'));
+    const label = I18n.t(isDark ? 'app.dark_theme_title' : 'app.light_theme_title');
+    this.dom.themeToggleBtn.title = label;
+    this.dom.themeToggleBtn.setAttribute("aria-label", label);
+    const canvasColor = getComputedStyle(document.body).getPropertyValue("--bg-canvas").trim();
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", canvasColor || (isDark ? "#070b14" : "#f8fafc"));
   }
 
   _initNavigation() {
-    document.querySelectorAll(".nav-btn").forEach((btn) => {
+    const tabs = Array.from(document.querySelectorAll(".nav-btn"));
+    tabs.forEach((btn, index) => {
       btn.addEventListener("click", () => {
         const tabId = btn.getAttribute("data-tab");
         if (!tabId) return;
@@ -185,6 +186,7 @@ class MeshCoreApp {
         document.querySelectorAll(".nav-btn").forEach((b) => {
           b.classList.remove("active");
           b.setAttribute("aria-selected", "false");
+          b.tabIndex = -1;
         });
         document.querySelectorAll(".tab-pane, .tab-content").forEach((pane) => {
           pane.classList.remove("active");
@@ -193,6 +195,7 @@ class MeshCoreApp {
 
         btn.classList.add("active");
         btn.setAttribute("aria-selected", "true");
+        btn.tabIndex = 0;
 
         const targetPane = document.getElementById(tabId);
         if (targetPane) {
@@ -202,6 +205,17 @@ class MeshCoreApp {
 
         this.activeTabId = tabId;
         this.eventBus.emit(EVENTS.TAB_CHANGED, tabId);
+      });
+      btn.addEventListener("keydown", (event) => {
+        let nextIndex;
+        if (event.key === "ArrowDown" || event.key === "ArrowRight") nextIndex = (index + 1) % tabs.length;
+        else if (event.key === "ArrowUp" || event.key === "ArrowLeft") nextIndex = (index - 1 + tabs.length) % tabs.length;
+        else if (event.key === "Home") nextIndex = 0;
+        else if (event.key === "End") nextIndex = tabs.length - 1;
+        else return;
+        event.preventDefault();
+        tabs[nextIndex].focus();
+        tabs[nextIndex].click();
       });
     });
   }
@@ -221,8 +235,76 @@ class MeshCoreApp {
     if (this.dom.btnToggleSidebar && this.dom.appSidebar) {
       this.dom.btnToggleSidebar.addEventListener("click", () => {
         this.dom.appSidebar.classList.toggle("collapsed");
+        this._updateSidebarState();
       });
+      this._updateSidebarState();
     }
+  }
+
+  _initModalFocus() {
+    const modals = Array.from(document.querySelectorAll('.modal-overlay[role="dialog"]'));
+    const focusable = (modal) => Array.from(modal.querySelectorAll(
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+    )).filter((element) => element.getClientRects().length > 0 && !element.closest('[hidden], .hidden'));
+    const isOpen = (modal) => !modal.classList.contains("hidden") && !modal.hidden;
+    let lastOutsideFocus = document.activeElement;
+    document.addEventListener("focusin", (event) => {
+      if (!modals.some((modal) => modal.contains(event.target))) lastOutsideFocus = event.target;
+    });
+    const previousFocus = new WeakMap();
+    const previousState = new WeakMap(modals.map((modal) => [modal, isOpen(modal)]));
+    modals.forEach((modal) => {
+      // Modules own dialog actions; observe visibility to provide consistent focus.
+      new MutationObserver(() => {
+        const open = isOpen(modal);
+        if (open === previousState.get(modal)) return;
+        previousState.set(modal, open);
+        if (open) {
+          previousFocus.set(modal, modal.contains(document.activeElement) ? lastOutsideFocus : document.activeElement);
+          if (!modal.contains(document.activeElement)) {
+            const target = focusable(modal).find((element) => !element.matches(".modal-close")) || focusable(modal)[0];
+            if (target) target.focus();
+            else {
+              modal.tabIndex = -1;
+              modal.focus();
+            }
+          }
+        } else {
+          const target = previousFocus.get(modal);
+          if (target?.isConnected && target.getClientRects().length > 0) target.focus();
+        }
+      }).observe(modal, { attributes: true, attributeFilter: ["class", "hidden"] });
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Tab") return;
+      const modal = modals.filter(isOpen).at(-1);
+      if (!modal || modal === this.dom.commandPaletteModal) return;
+      const items = focusable(modal);
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (!first) {
+        event.preventDefault();
+        modal.focus();
+      } else if (!modal.contains(document.activeElement) || (event.shiftKey && document.activeElement === first)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    });
+  }
+
+  _updateSidebarState() {
+    const btn = this.dom.btnToggleSidebar;
+    if (!btn || !this.dom.appSidebar) return;
+    const collapsed = this.dom.appSidebar.classList.contains("collapsed");
+    btn.setAttribute("aria-expanded", String(!collapsed));
+    const label = I18n.t(collapsed ? "nav.expand" : "nav.collapse");
+    btn.title = label;
+    btn.setAttribute("aria-label", label);
+    const text = btn.querySelector(".sidebar-toggle-label");
+    if (text) text.textContent = label;
   }
 
   _initCommandPalette() {
@@ -237,7 +319,10 @@ class MeshCoreApp {
 
     const updateSelection = (newIdx) => {
       const visible = getVisibleItems();
-      visible.forEach((it) => it.classList.remove("is-selected"));
+      visible.forEach((it) => {
+        it.classList.remove("is-selected");
+        it.setAttribute("aria-selected", "false");
+      });
       if (visible.length === 0) {
         selectedIdx = -1;
         return;
@@ -245,6 +330,7 @@ class MeshCoreApp {
       selectedIdx = (newIdx + visible.length) % visible.length;
       const target = visible[selectedIdx];
       target.classList.add("is-selected");
+      target.setAttribute("aria-selected", "true");
       target.focus();
       target.scrollIntoView({ block: "nearest" });
     };
@@ -261,12 +347,13 @@ class MeshCoreApp {
         const text = item.textContent.toLowerCase();
         item.style.display = (!query || text.includes(query)) ? "" : "none";
         item.classList.remove("is-selected");
+        item.setAttribute("aria-selected", "false");
       });
 
       // 3. Buscar y agregar nodos coincidentes (FE-11)
       if (query.length >= 2) {
         const matchedNodes = [];
-        const knownNodes = this.modules?.nodes?.knownNodes;
+        const knownNodes = this.context.knownNodes;
         if (knownNodes instanceof Map) {
           for (const [k, n] of knownNodes.entries()) {
             const name = String(n.name || "").toLowerCase();
@@ -284,10 +371,14 @@ class MeshCoreApp {
           item.className = "cmd-item cmd-node-match";
           item.setAttribute("role", "option");
           item.setAttribute("tabindex", "0");
+          item.setAttribute("aria-selected", "false");
           item.setAttribute("data-action", "select-node");
           item.setAttribute("data-pubkey", node.public_key || "");
-          const name = node.name || (node.public_key ? node.public_key.slice(0, 8) : "Nodo");
-          item.innerHTML = `<span data-lucide="radio" data-size="14"></span> Nodo: <strong>${name}</strong> [${node.role || "CLIENT"}]`;
+          const name = node.name || (node.public_key ? node.public_key.slice(0, 8) : I18n.t("app.node_fallback"));
+          item.setAttribute("data-name", name);
+          const role = String(node.role || "CLIENT").toUpperCase().replace(/^ROUTER$/, "REPEATER");
+          const roleKey = "node.role_" + (["CLIENT", "REPEATER", "ROOM", "SENSOR", "LOCAL"].includes(role) ? role.toLowerCase() : "unknown");
+          item.innerHTML = `<span data-lucide="radio" data-size="14" aria-hidden="true"></span> <span data-i18n="app.node_match">${escapeHtml(I18n.t("app.node_match"))}</span>: <strong>${escapeHtml(name)}</strong> [<span data-i18n="${roleKey}">${escapeHtml(I18n.t(roleKey))}</span>]`;
           cmdPaletteResults.appendChild(item);
         });
         if (window.lucide && typeof window.lucide.createIcons === "function") {
@@ -364,8 +455,8 @@ class MeshCoreApp {
         } else if (e.key === "ArrowUp") {
           e.preventDefault();
           updateSelection(selectedIdx <= 0 ? visible.length - 1 : selectedIdx - 1);
-        } else if (e.key === "Enter") {
-          const activeItem = visible[selectedIdx] || document.activeElement?.closest(".cmd-item");
+        } else if (e.key === "Enter" || (e.key === " " && document.activeElement?.matches(".cmd-item"))) {
+          const activeItem = document.activeElement?.closest(".cmd-item") || visible[selectedIdx < 0 ? 0 : selectedIdx];
           if (activeItem) {
             e.preventDefault();
             activeItem.click();
@@ -380,6 +471,9 @@ class MeshCoreApp {
               e.preventDefault();
               lastItem.focus();
             }
+          } else {
+            e.preventDefault();
+            cmdPaletteInput?.focus();
           }
         }
       });
@@ -404,8 +498,12 @@ class MeshCoreApp {
           if (navBtn) navBtn.click();
         } else if (action === "select-node") {
           const pubkey = item.getAttribute("data-pubkey");
-          if (pubkey && this.modules?.chat?.openDirectMessage) {
-            this.modules.chat.openDirectMessage(pubkey, item.textContent.replace("Nodo:", "").trim());
+          const node = this.context.knownNodes.get(String(pubkey || "").toLowerCase());
+          const role = String(node?.role || "CLIENT").toUpperCase();
+          const localPk = (this.context.localNodePubkey || document.getElementById("localNodePubkey")?.value || "").toLowerCase();
+          if (pubkey && pubkey.toLowerCase() !== localPk && role !== "REPEATER" && role !== "ROUTER") {
+            document.querySelector('.nav-btn[data-tab="tab-chat"]')?.click();
+            this.chatModule.openDmConversation(pubkey, item.getAttribute("data-name") || pubkey.slice(0, 8));
           } else {
             const navBtn = document.querySelector('.nav-btn[data-tab="tab-nodes"]');
             if (navBtn) navBtn.click();
@@ -417,54 +515,66 @@ class MeshCoreApp {
             const res = await fetch("/api/diagnostics/report", {
               headers: this.getAuthHeaders ? this.getAuthHeaders() : {},
             });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
-            this.showToast(data.status === "ok" ? "Auto-diagnóstico completado" : "Error en diagnóstico", data.status === "ok" ? "success" : "error");
+            this.showToast(I18n.t(data.status === "ok" ? "app.diag_ok" : "app.diag_error"), data.status === "ok" ? "success" : "error");
           } catch (err) {
-            this.showToast(`Error: ${err.message}`, "error");
+            this.showToast(I18n.t("app.error", { error: err.message }), "error");
           }
         } else if (action === "action-debug-toggle") {
           try {
+            const currentRes = await fetch("/api/system/logs/level", { headers: this.getAuthHeaders() });
+            if (!currentRes.ok) throw new Error(`HTTP ${currentRes.status}`);
+            const current = await currentRes.json();
+            const level = current.level === "DEBUG" ? "INFO" : "DEBUG";
             const res = await fetch("/api/system/logs/level", {
               method: "POST",
               headers: this.getAuthHeaders ? this.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
-              body: JSON.stringify({ level: "DEBUG" }),
+              body: JSON.stringify({ level }),
             });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
-            this.showToast(`Nivel de log: ${data.level || "DEBUG"}`, "info");
+            this.showToast(I18n.t("app.log_level", { level: data.level || level }), "info");
           } catch (err) {
-            this.showToast(`Error: ${err.message}`, "error");
+            this.showToast(I18n.t("app.error", { error: err.message }), "error");
           }
         } else if (action === "action-advert-hop") {
           try {
-            await fetch("/api/admin", {
+            const res = await fetch("/api/admin", {
               method: "POST",
               headers: this.getAuthHeaders ? this.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
               body: JSON.stringify({ action: "advert", hops: 0 }),
             });
-            this.showToast("Baliza Advert (0 saltos) transmitida", "success");
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            this.showToast(I18n.t("app.advert_hop_sent"), "success");
           } catch (err) {
-            this.showToast(`Error: ${err.message}`, "error");
+            this.showToast(I18n.t("app.error", { error: err.message }), "error");
           }
         } else if (action === "action-advert-flood") {
           try {
-            await fetch("/api/admin", {
+            const res = await fetch("/api/admin", {
               method: "POST",
               headers: this.getAuthHeaders ? this.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
               body: JSON.stringify({ action: "advert", hops: 7 }),
             });
-            this.showToast("Baliza Advert Flood transmitida", "success");
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            this.showToast(I18n.t("app.advert_flood_sent"), "success");
           } catch (err) {
-            this.showToast(`Error: ${err.message}`, "error");
+            this.showToast(I18n.t("app.error", { error: err.message }), "error");
           }
         } else if (action === "action-advert-clipboard") {
           const localPk = this.localNodePubkey || (document.getElementById("localNodePubkey")?.value || "");
           if (localPk) {
             const localName = (document.getElementById("localNodeName")?.value || "").trim() || "MeshCore Base";
             const uri = buildMeshCoreContactUri(localName, localPk, "CLIENT");
-            navigator.clipboard.writeText(uri);
-            this.showToast("Enlace de nodo copiado al portapapeles", "success");
+            try {
+              await navigator.clipboard.writeText(uri);
+              this.showToast(I18n.t("toast.uri_copied"), "success");
+            } catch (err) {
+              this.showToast(I18n.t("app.error", { error: err.message }), "error");
+            }
           } else {
-            this.showToast("Clave de nodo local no disponible", "info");
+            this.showToast(I18n.t("app.local_key_missing"), "info");
           }
         }
       });
@@ -518,9 +628,9 @@ class MeshCoreApp {
       const thresh = Number(payload.threshold_pct || 35.0);
       const resume = Number(payload.resume_pct || 30.0);
       if (active) {
-        this.showToast(`⚠️ Airtime Cutoff Activo: Ocupación LoRa ${chUtil}% >= ${thresh}%. Tareas automáticas en pausa.`, "warning", 6000);
+        this.showToast(I18n.t("app.cutoff_active", { value: chUtil, threshold: thresh }), "warning", 6000);
       } else {
-        this.showToast(`✅ Airtime Cutoff Restablecido: Ocupación LoRa ${chUtil}% <= ${resume}%. Tareas reanudadas.`, "info", 4000);
+        this.showToast(I18n.t("app.cutoff_restored", { value: chUtil, threshold: resume }), "info", 4000);
       }
       this.updateAirtimeBadge({ cutoff_active: active, channel_utilization_pct: chUtil });
     });
@@ -538,6 +648,18 @@ class MeshCoreApp {
   }
 
   updateAirtimeBadge(payload) {
+    // Cutoff events contain only utilization; preserve the last duty-cycle values.
+    const values = { ...payload };
+    if (values.duty_cycle_pct == null && values.hourly_duty_cycle_pct != null) {
+      values.duty_cycle_pct = values.hourly_duty_cycle_pct;
+    }
+    if (values.duty_cycle_pct != null) {
+      values.is_critical = Boolean(values.is_critical);
+      values.is_warning = Boolean(values.is_warning);
+      values.level = values.level || "";
+    }
+    this._lastAirtimePayload = { ...this._lastAirtimePayload, ...values };
+    payload = this._lastAirtimePayload;
     const chip = this.dom.headerAirtimeChip;
     const txt = this.dom.headerDutyCycle;
     const fill = this.dom.headerAirtimeFill || document.getElementById("headerAirtimeFill");
@@ -576,14 +698,12 @@ class MeshCoreApp {
       chip.classList.toggle("normal", !isWarning && !isCritical);
       chip.classList.toggle("airtime-cutoff", Boolean(this._lastCutoffActive));
 
-      let titleStr = isCritical
-        ? `ALERTA CRÍTICA: Duty Cycle LoRa al ${pct.toFixed(1)}% (Límite horario ${limitPct}% superado. Transmisiones bloqueadas)`
-        : (isWarning
-          ? `ADVERTENCIA: Duty Cycle LoRa al ${pct.toFixed(1)}% (Supera el ${warnPct}% del cupo horario)`
-          : `Presupuesto de Airtime LoRa y Duty Cycle (1h): ${pct.toFixed(1)}% / ${limitPct}%`);
+      let titleStr = I18n.t(isCritical ? "app.airtime_critical_title" : (isWarning ? "app.airtime_warning_title" : "app.airtime_normal_title"), {
+        value: pct.toFixed(1), limit: limitPct, warning: warnPct,
+      });
 
       if (this._lastCutoffActive) {
-        titleStr += ` | ⚠️ AIRTIME CUTOFF ACTIVO (Ocupación LoRa: ${this._lastChannelUtil || 0}%)`;
+        titleStr += I18n.t("app.airtime_cutoff_suffix", { value: this._lastChannelUtil || 0 });
       }
       chip.title = titleStr;
     }
@@ -591,11 +711,11 @@ class MeshCoreApp {
 
     if (this._lastAirtimeStatus && this._lastAirtimeStatus !== newStatus) {
       if (newStatus === "critical") {
-        this.showToast(`⚠️ Alerta Crítica: Duty Cycle LoRa al ${pct.toFixed(1)}% (Límite alcanzado)`, "error");
+        this.showToast(I18n.t("app.airtime_critical_toast", { value: pct.toFixed(1) }), "error");
       } else if (newStatus === "warning") {
-        this.showToast(`⚠️ Advertencia: Consumo de Airtime al ${pct.toFixed(1)}%`, "warning");
+        this.showToast(I18n.t("app.airtime_warning_toast", { value: pct.toFixed(1) }), "warning");
       } else if (newStatus === "normal" && this._lastAirtimeStatus !== "normal") {
-        this.showToast(`✅ Duty Cycle LoRa restablecido a normal (${pct.toFixed(1)}%)`, "info");
+        this.showToast(I18n.t("app.airtime_normal_toast", { value: pct.toFixed(1) }), "info");
       }
     }
     this._lastAirtimeStatus = newStatus;
@@ -629,8 +749,8 @@ class MeshCoreApp {
     }
 
     el.title = connected
-      ? `Transceptor LoRa Conectado${portClean ? ` (${portClean})` : ""} - Enlace RF activo`
-      : "Transceptor LoRa Desconectado - Verifique el puerto USB o adaptador serial";
+      ? I18n.t("app.radio_online_title", { port: portClean ? ` (${portClean})` : "" })
+      : I18n.t("app.radio_offline_title");
   }
 
   showToast(message, type = "info", durationMs = 3500) {
@@ -653,11 +773,11 @@ class MeshCoreApp {
 
     const toast = document.createElement("div");
     toast.className = `toast toast-item toast-${type}`;
-    toast.setAttribute("role", "alert");
+    toast.setAttribute("role", type === "error" ? "alert" : "status");
     toast.innerHTML = `
       <span class="toast-icon" aria-hidden="true">${icon}</span>
       <span class="toast-message">${escapeHtml(message)}</span>
-      <button type="button" class="toast-close" aria-label="Cerrar notificación">&times;</button>
+      <button type="button" class="toast-close" data-i18n-aria-label="app.close_toast" aria-label="${escapeHtml(I18n.t("app.close_toast"))}">&times;</button>
     `;
 
     let dismissed = false;

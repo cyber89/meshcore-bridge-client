@@ -85,8 +85,21 @@ export class ChatModule {
     this.loadInitialHistory();
     this._renderEmojiGrid("smileys");
     this.updateCharCounter();
+    this._updateActiveChatHeader();
     if (window.innerWidth <= 900 && this.dom.sidebarChannelList) {
       this.dom.sidebarChannelList.classList.add("mobile-open");
+    }
+  }
+
+  onLanguageChange() {
+    this._updateActiveChatHeader();
+    this.updateCharCounter();
+    this.renderCurrentConversation();
+    if (this.dom.modalShareContact && !this.dom.modalShareContact.classList.contains('hidden')) {
+      this._populateShareContactList(this.dom.shareContactSearch?.value || '');
+    }
+    if (this.dom.modalShareChannel && !this.dom.modalShareChannel.classList.contains('hidden')) {
+      this._populateShareChannelList();
     }
   }
 
@@ -421,7 +434,7 @@ export class ChatModule {
     // SSoT: Obtener nodos cliente exclusivamente (excluir REPEATER)
     const allNodes = this.ctx.knownNodes ? Array.from(this.ctx.knownNodes.values()) : [];
     const localPk = (this.ctx.localNodePubkey || document.getElementById("localNodePubkey")?.value || "").toLowerCase().trim();
-    const localName = (document.getElementById("localNodeName")?.value || "").trim() || "Estación Local";
+    const localName = (document.getElementById("localNodeName")?.value || "").trim() || I18n.t("chat.local_name");
 
     // Mi Contacto (Estación Local)
     const myContact = (localPk && localPk !== "local" && localPk !== "000000000000") ? {
@@ -457,7 +470,7 @@ export class ChatModule {
     if (clientContacts.length === 0) {
       this.dom.shareContactList.innerHTML = `
         <div class="empty-state" style="padding: 18px; font-size: 12px; color: var(--text-muted); text-align: center;">
-          ${q ? `No se encontraron contactos para "${escapeHtml(q)}"` : "No hay contactos disponibles para compartir en este momento."}
+          ${q ? I18n.t("chat.contacts_no_match", { p0: escapeHtml(q) }) : I18n.t("chat.no_contacts_share")}
         </div>
       `;
       return;
@@ -480,7 +493,7 @@ export class ChatModule {
             <div class="share-picker-sub">${contact.public_key.slice(0, 14)}… • ${isMyContact ? (window.I18n ? window.I18n.t('chat.my_station_sub') : "Mi Estación Local") : (contact.role || "CLIENT")}</div>
           </div>
         </div>
-        <span class="badge-pill ${isMyContact ? 'badge-primary' : ''}">${isMyContact ? (window.I18n ? window.I18n.t('chat.my_contact_badge') : "Mi Contacto") : (contact.is_favorite ? "⭐" : "Contacto")}</span>
+        <span class="badge-pill ${isMyContact ? 'badge-primary' : ''}">${isMyContact ? (window.I18n ? window.I18n.t('chat.my_contact_badge') : "Mi Contacto") : (contact.is_favorite ? "⭐" : I18n.t("chat.contact"))}</span>
       `;
 
       item.addEventListener("click", () => {
@@ -503,7 +516,7 @@ export class ChatModule {
   async confirmShareContact() {
     if (!this.selectedShareContact) return;
     const c = this.selectedShareContact;
-    const shareName = c.is_my_contact ? (c.alias || (document.getElementById("localNodeName")?.value || "").trim() || "Mi Nodo") : (c.name || c.alias || "Contacto");
+    const shareName = c.is_my_contact ? (c.alias || (document.getElementById("localNodeName")?.value || "").trim() || I18n.t("chat.my_node")) : (c.name || c.alias || I18n.t("chat.contact"));
     const contactMsg = formatMeshCoreContactMessage(shareName, c.public_key, "CLIENT");
     this.closeShareContactModal();
     await this.sendMessageWithText(contactMsg);
@@ -553,9 +566,9 @@ export class ChatModule {
       emptyDiv.style.cssText = "padding: 24px 16px; text-align: center; color: var(--text-muted); font-size: 0.85rem;";
       emptyDiv.innerHTML = `
         <div style="font-size: 28px; margin-bottom: 8px; opacity: 0.6;">📻</div>
-        <strong>No hay canales privados para compartir</strong>
+        <strong>${I18n.t("chat.no_private_channels")}</strong>
         <p style="margin: 6px 0 0 0; font-size: 0.78rem; opacity: 0.8;">
-          El canal 0 es público y universal (todos los nodos de la malla ya lo tienen). Puedes configurar canales cifrados en la pestaña <strong>Ajustes</strong>.
+          ${I18n.t("chat.public_channel_help")}
         </p>
       `;
       this.dom.shareChannelList.appendChild(emptyDiv);
@@ -567,7 +580,7 @@ export class ChatModule {
     chList.forEach((ch) => {
       const item = document.createElement("div");
       item.className = "share-picker-item";
-      const chName = ch.name || `Canal #${ch.index}`;
+      const chName = ch.name || I18n.t("chat.channel_name", { p0: ch.index });
       const isEncrypted = Boolean(ch.has_psk || (ch.psk && ch.psk.trim().length > 0 && ch.psk !== MESHCORE_PUBLIC_CHANNEL_SECRET));
 
       item.innerHTML = `
@@ -575,10 +588,10 @@ export class ChatModule {
           <span style="font-size: 18px;">${isEncrypted ? "🔒" : "📻"}</span>
           <div>
             <div class="share-picker-title">${escapeHtml(chName)}</div>
-            <div class="share-picker-sub">Índice #${ch.index} • ${isEncrypted ? "Canal Privado Cifrado" : "Canal Abierto Secundario"}</div>
+            <div class="share-picker-sub">${I18n.t('chat.index', { index: ch.index })} • ${isEncrypted ? I18n.t("chat.private_encrypted") : I18n.t("chat.open_secondary")}</div>
           </div>
         </div>
-        <span class="badge-pill">${isEncrypted ? "Cifrado" : "Abierto"}</span>
+        <span class="badge-pill">${isEncrypted ? I18n.t('chat.encrypted_badge') : I18n.t('chat.open_badge')}</span>
       `;
 
       item.addEventListener("click", () => {
@@ -621,9 +634,9 @@ export class ChatModule {
 
     if (!isPublic && (!secret || secret.includes("•"))) {
       if (this.ctx.showToast) {
-        this.ctx.showToast("No se puede compartir el canal privado: clave de cifrado protegida o no disponible.", "warning");
+        this.ctx.showToast(I18n.t("chat.protected_channel"), "warning");
       } else {
-        alert("No se puede compartir el canal privado: clave de cifrado protegida.");
+        alert(I18n.t("chat.protected_channel_alert"));
       }
       return;
     }
@@ -660,7 +673,7 @@ export class ChatModule {
     this.dom.chatCharCounter.textContent = `${byteLen} / ${maxBytes} B`;
 
     // Tooltip informativo con ocupación estimada de espectro
-    this.dom.chatCharCounter.title = `Carga útil LoRa: ${byteLen} bytes de ${maxBytes} B máx. (${charCount} car.). Modulación SF${sf}/${bw}kHz (Airtime estimado: ~${airtimeMs} ms)`;
+    this.dom.chatCharCounter.title = I18n.t("chat.payload_title", { p0: byteLen, p1: maxBytes, p2: charCount, p3: sf, p4: bw, p5: airtimeMs });
 
     // Manejo de umbrales visuales y estado del botón de envío
     this.dom.chatCharCounter.classList.remove("is-warning", "is-danger");
@@ -695,7 +708,7 @@ export class ChatModule {
         this.activeDmName === this.activeDmTarget ||
         this.activeDmName === this.activeDmTarget.slice(0, 8) ||
         this.activeDmName.startsWith("Nodo [") ||
-        this.activeDmName.includes("Estación Local") ||
+        this.activeDmName.includes(I18n.t("chat.local_name")) ||
         this.activeDmName.includes("Local Station");
 
       const displayName = (isHexOrFallback && (node?.name || node?.alias))
@@ -841,7 +854,7 @@ export class ChatModule {
 
     this.activeDmTarget = canonicalPk;
     this.activeDmName = name || canonicalPk.slice(0, 8);
-    if (this.activeDmName.includes("Estación Local") || this.activeDmName.includes("Local Station")) {
+    if (this.activeDmName.includes(I18n.t("chat.local_name")) || this.activeDmName.includes("Local Station")) {
       this.activeDmName = targetNode?.name || canonicalPk.slice(0, 8);
     }
 
@@ -869,7 +882,7 @@ export class ChatModule {
 
   shareCurrentLocation() {
     if (!navigator.geolocation) {
-      this._fallbackShareLocalStationLocation("Geolocalización no soportada en el navegador");
+      this._fallbackShareLocalStationLocation(I18n.t("chat.geo_unsupported"));
       return;
     }
 
@@ -884,7 +897,7 @@ export class ChatModule {
         }
       },
       (err) => {
-        this._fallbackShareLocalStationLocation(`No se pudo obtener GPS del navegador (${err.message})`);
+        this._fallbackShareLocalStationLocation(I18n.t("chat.gps_failed", { p0: err.message }));
       },
       { timeout: 8000, enableHighAccuracy: true }
     );
@@ -906,7 +919,7 @@ export class ChatModule {
     }
 
     if (this.ctx.showToast) {
-      this.ctx.showToast(`${reason}. Configura latitud/longitud en Ajustes.`, "warning");
+      this.ctx.showToast(I18n.t("chat.gps_settings", { p0: reason }), "warning");
     }
   }
 
@@ -1003,7 +1016,7 @@ export class ChatModule {
       name === canonicalPk ||
       name === canonicalPk.slice(0, 8) ||
       name.startsWith("Nodo [") ||
-      name.includes("Estación Local") ||
+      name.includes(I18n.t("chat.local_name")) ||
       name.includes("Local Station");
 
     let cleanDisplayName = (isHexOrFallback && (node?.name || node?.alias))
@@ -1161,7 +1174,7 @@ export class ChatModule {
 
     if (parsedUri) {
         if (parsedUri.type === "contact") {
-          const cName = parsedUri.name || "Contacto MeshCore";
+          const cName = parsedUri.name || I18n.t("chat.meshcore_contact");
           const cRole = parsedUri.role || "CLIENT";
           const cPk = parsedUri.public_key || "";
           const localPk = (this.ctx.localNodePubkey || document.getElementById("localNodePubkey")?.value || "").toLowerCase().trim();
@@ -1202,7 +1215,7 @@ export class ChatModule {
             </div>
           `;
         } else if (parsedUri.type === "channel") {
-          const chName = parsedUri.name || "Canal Compartido";
+          const chName = parsedUri.name || I18n.t("chat.shared_channel");
           const chIdx = parsedUri.index !== null && parsedUri.index !== undefined ? parsedUri.index : "?";
           const isEnc = Boolean(parsedUri.secret && parsedUri.secret.length > 0 && parsedUri.secret !== MESHCORE_PUBLIC_CHANNEL_SECRET);
 
@@ -1211,8 +1224,8 @@ export class ChatModule {
               <div class="card-top-row">
                 <div class="card-avatar">${isEnc ? "🔒" : "📻"}</div>
                 <div class="card-info">
-                  <span class="card-name">${escapeHtml(chName)} (Canal #${chIdx})</span>
-                  <span class="card-sub">${isEnc ? "🔒 Canal Privado Cifrado" : "📢 Canal Abierto Broadcast"}</span>
+                  <span class="card-name">${escapeHtml(chName)} (${I18n.t('chat.channel_number', { index: chIdx })})</span>
+                  <span class="card-sub">${isEnc ? I18n.t("chat.encrypted_channel_icon") : I18n.t("chat.broadcast_channel_icon")}</span>
                 </div>
               </div>
               <button type="button" class="card-action-btn btn-join-shared-channel" data-name="${escapeHtml(chName)}" data-secret="${escapeHtml(parsedUri.secret || '')}" data-idx="${chIdx}">
@@ -1301,7 +1314,7 @@ export class ChatModule {
                 <span>${window.I18n ? window.I18n.t('chat.saved_contact') : 'Contacto Guardado'}</span>
               `;
               if (window.initLucideIcons) window.initLucideIcons(btnSave);
-              if (this.ctx.showToast) this.ctx.showToast(`Contacto ${name} guardado con éxito`, "success");
+              if (this.ctx.showToast) this.ctx.showToast(I18n.t("chat.contact_saved", { p0: name }), "success");
             }
           } catch (e) {
             console.warn("Error guardando contacto compartido:", e);
@@ -1317,7 +1330,7 @@ export class ChatModule {
           const idx = parseInt(btnJoin.getAttribute("data-idx"), 10);
           if (!isNaN(idx) && idx >= 0) {
             this.switchChannel(idx);
-            if (this.ctx.showToast) this.ctx.showToast(`Cambiado al Canal #${idx}`, "info");
+            if (this.ctx.showToast) this.ctx.showToast(I18n.t("chat.channel_switched", { p0: idx }), "info");
           } else {
             const navBtn = document.querySelector('.nav-btn[data-tab="tab-settings"]');
             if (navBtn) navBtn.click();
@@ -1357,7 +1370,7 @@ export class ChatModule {
     if (byteLen > MAX_LORA_TEXT_BYTES) {
       if (this.ctx.showToast) {
         this.ctx.showToast(
-          `El mensaje excede el límite de transmisión LoRa (${byteLen}/${MAX_LORA_TEXT_BYTES} bytes). Reduce el texto o emoticones.`,
+          I18n.t("chat.text_too_long", { p0: byteLen, p1: MAX_LORA_TEXT_BYTES }),
           "warning"
         );
       }
@@ -1374,7 +1387,7 @@ export class ChatModule {
       const normTarget = canonicalTarget.toLowerCase().trim();
       const localPk = (document.getElementById("localNodePubkey")?.value || "").toLowerCase().trim();
       if (normTarget === "local" || (localPk && (normTarget === localPk || normTarget.startsWith(localPk) || localPk.startsWith(normTarget)))) {
-        if (this.ctx.showToast) this.ctx.showToast("No se puede enviar mensajes de chat hacia el nodo local", "warning");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t("chat.no_local_message"), "warning");
         return;
       }
       const targetNode = (this.ctx.knownNodes ? Array.from(this.ctx.knownNodes.values()) : []).find(
@@ -1394,7 +1407,7 @@ export class ChatModule {
       id: msgId,
       msg_id: msgId,
       sender: "local",
-      sender_name: window.I18n ? window.I18n.t('common.local_station') : "Estación Local",
+      sender_name: window.I18n ? window.I18n.t('common.local_station') : I18n.t("chat.local_name"),
       text: rawInput,
       is_outgoing: true,
       channel_idx: this.activeChannelIdx,

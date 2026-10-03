@@ -91,15 +91,16 @@ export function getAuthHeaders(customHeaders = {}) {
  * Extrae el nombre de remitente y el texto limpio de un mensaje si viene con formato 'Nombre: Texto'.
  */
 export function extractSenderAndText(text, currentSenderName = null) {
+  const anonymous = (typeof window !== "undefined" && window.I18n ? window.I18n.t("utils.anonymous") : "Anónimo");
   if (!text || typeof text !== "string") {
-    return { senderName: currentSenderName || "Anónimo", cleanText: text || "" };
+    return { senderName: currentSenderName || anonymous, cleanText: text || "" };
   }
   const trimmed = text.trim();
 
   // 1. Si coincide con el nombre de remitente actual al inicio
   if (currentSenderName && typeof currentSenderName === "string") {
     const sName = currentSenderName.trim();
-    if (sName && sName.toLowerCase() !== "unknown" && sName.toLowerCase() !== "anónimo" && sName.toLowerCase() !== "anonimo") {
+    if (sName && !["unknown", "anónimo", "anonimo", "anonymous"].includes(sName.toLowerCase())) {
       const escaped = sName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const namePrefixRegex = new RegExp(`^(?:\\[${escaped}\\]|<${escaped}>|${escaped})\\s*:\\s*([\\s\\S]*)$`, "i");
       const nameMatch = trimmed.match(namePrefixRegex);
@@ -126,6 +127,7 @@ export function extractSenderAndText(text, currentSenderName = null) {
         currentSenderName.toLowerCase() === "unknown" ||
         currentSenderName.toLowerCase() === "anónimo" ||
         currentSenderName.toLowerCase() === "anonimo" ||
+        currentSenderName.toLowerCase() === "anonymous" ||
         currentSenderName.startsWith("Node_unknow") ||
         currentSenderName.length >= 12;
       return {
@@ -135,7 +137,7 @@ export function extractSenderAndText(text, currentSenderName = null) {
     }
   }
   return {
-    senderName: currentSenderName && currentSenderName.toLowerCase() !== "unknown" ? currentSenderName : "Anónimo",
+    senderName: currentSenderName && !["unknown", "anónimo", "anonimo", "anonymous"].includes(currentSenderName.toLowerCase()) ? currentSenderName : anonymous,
     cleanText: trimmed
   };
 }
@@ -471,7 +473,8 @@ export function formatRelativeTime(timestamp) {
   yesterday.setDate(yesterday.getDate() - 1);
   const isYesterday = msgDate.toDateString() === yesterday.toDateString();
 
-  const timeStr = msgDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const locale = typeof window !== "undefined" ? window.I18n?.lang : undefined;
+  const timeStr = msgDate.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
 
   if (isToday) {
     return timeStr;
@@ -479,7 +482,7 @@ export function formatRelativeTime(timestamp) {
     const ayerStr = (typeof window !== "undefined" && window.I18n ? window.I18n.t('chat.yesterday') : null) || "Ayer";
     return `${ayerStr} ${timeStr}`;
   } else {
-    const dateStr = msgDate.toLocaleDateString([], { day: "2-digit", month: "2-digit", year: "numeric" });
+    const dateStr = msgDate.toLocaleDateString(locale, { day: "2-digit", month: "2-digit", year: "numeric" });
     return `${dateStr} ${timeStr}`;
   }
 }
@@ -505,7 +508,8 @@ export function getDateGroupLabel(timestamp) {
     return (typeof window !== "undefined" && window.I18n ? window.I18n.t('chat.date_yesterday') : null) || "AYER";
   }
 
-  return msgDate.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" }).toUpperCase();
+  const locale = typeof window !== "undefined" ? window.I18n?.lang : undefined;
+  return msgDate.toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short", year: "numeric" }).toUpperCase();
 }
 
 /**

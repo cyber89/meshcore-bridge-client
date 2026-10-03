@@ -40,6 +40,16 @@ export class MapModule {
     }
   }
 
+  onLanguageChange() {
+    const nodes = Array.from(this.ctx.knownNodes?.values() || []);
+    this.updateMapMarkers(nodes);
+    this.updateMapNodesOverlayList(nodes);
+    if (this._lastTraceHops) {
+      this.renderTracerouteGraph(this._lastTraceHops);
+      this.renderTracerouteTable(this._lastTraceHops);
+    }
+  }
+
   _bindElements() {
     this.dom = {
       liveGpsMap: document.getElementById("liveGpsMap"),
@@ -245,7 +255,7 @@ export class MapModule {
         const icon = btnToggle.querySelector(".toggle-icon");
         if (icon) icon.textContent = minimized ? "＋" : "−";
         btnToggle.setAttribute("aria-expanded", String(!minimized));
-        btnToggle.title = minimized ? "Expandir lista de nodos" : "Minimizar lista de nodos";
+        btnToggle.title = minimized ? I18n.t("map.expand_nodes") : I18n.t("map.minimize_nodes");
       }
       localStorage.setItem("meshcore_map_nodes_minimized", String(minimized));
     };
@@ -307,7 +317,7 @@ export class MapModule {
       this.dom.chkMapHeatmap.checked = this.rfHeatmapActive;
     }
     if (this.dom.mapHeatmapBadge) {
-      this.dom.mapHeatmapBadge.textContent = this.rfHeatmapActive ? "ON" : "OFF";
+      I18n.setText(this.dom.mapHeatmapBadge, this.rfHeatmapActive ? 'common.on' : 'common.off');
       this.dom.mapHeatmapBadge.classList.toggle("is-active", this.rfHeatmapActive);
     }
   }
@@ -366,7 +376,7 @@ export class MapModule {
           const rssiPart = pt.rssi != null ? `${Math.round(ptRssi)} dBm` : "--";
           const snrPart = pt.snr != null ? `${ptSnr > 0 ? "+" : ""}${ptSnr.toFixed(1)} dB` : "--";
           const noisePart = pt.noise_floor != null ? `${pt.noise_floor} dBm` : "--";
-          const roleLabel = pt.role || (isLocal ? "LOCAL" : "CLIENT");
+          const roleLabel = I18n.role(pt.role || (isLocal ? "LOCAL" : "CLIENT"));
 
           const popupHtml = `
             <div class="custom-map-popup" style="min-width: 190px;">
@@ -448,6 +458,7 @@ export class MapModule {
   }
 
   openTracerouteModal(targetNode, targetName) {
+    this._lastTraceHops = null;
     this.selectedTraceTarget = targetNode;
     this.selectedTraceName = targetName || (targetNode ? targetNode.slice(0, 8) : I18n.t('common.node'));
 
@@ -455,14 +466,14 @@ export class MapModule {
     if (this.dom.traceTargetPkDisplay) this.dom.traceTargetPkDisplay.textContent = targetNode;
     if (this.dom.traceCustomPathInput) this.dom.traceCustomPathInput.value = "";
     if (this.dom.traceStatusPill) {
-      this.dom.traceStatusPill.textContent = I18n.t('map.trace_ready');
+      I18n.setText(this.dom.traceStatusPill, 'map.trace_ready');
       this.dom.traceStatusPill.className = "trace-status-pill";
     }
     if (this.dom.traceVisualGraph) {
-      this.dom.traceVisualGraph.innerHTML = `<div class="trace-empty-hint">Haz clic en "Iniciar Traza" para enviar una sonda multi-salto y mapear los repetidores.</div>`;
+      this.dom.traceVisualGraph.innerHTML = `<div class="trace-empty-hint" data-i18n="map.trace_empty_help">${I18n.t("map.trace_empty_help")}</div>`;
     }
     if (this.dom.traceBreakdownTableBody) {
-      this.dom.traceBreakdownTableBody.innerHTML = `<tr><td colspan="6" class="text-center">Presiona "Iniciar Traza" para comenzar</td></tr>`;
+      this.dom.traceBreakdownTableBody.innerHTML = `<tr><td colspan="6" class="text-center" data-i18n="map.trace_start_help">${I18n.t("map.trace_start_help")}</td></tr>`;
     }
     if (this.dom.tracerouteModal) {
       this.dom.tracerouteModal.classList.remove("hidden");
@@ -475,12 +486,12 @@ export class MapModule {
     const customPath = this.dom.traceCustomPathInput ? this.dom.traceCustomPathInput.value.trim() : "";
 
     if (this.dom.traceStatusPill) {
-      this.dom.traceStatusPill.textContent = I18n.t('map.trace_transmitting');
+      I18n.setText(this.dom.traceStatusPill, 'map.trace_transmitting');
       this.dom.traceStatusPill.className = "trace-status-pill running";
     }
     if (this.dom.btnExecuteTrace) {
       this.dom.btnExecuteTrace.disabled = true;
-      this.dom.btnExecuteTrace.textContent = I18n.t('map.tracing');
+      I18n.setText(this.dom.btnExecuteTrace, 'map.tracing');
     }
 
     try {
@@ -493,34 +504,35 @@ export class MapModule {
       if (data.status === "ok" && data.data) {
         const trace = data.data;
         if (this.dom.traceStatusPill) {
-          this.dom.traceStatusPill.textContent = I18n.t('map.trace_completed').replace('{hops}', trace.total_hops || 0).replace('{rtt}', trace.total_rtt_ms || 0);
+          I18n.setText(this.dom.traceStatusPill, 'map.trace_completed', { hops: trace.total_hops || 0, rtt: trace.total_rtt_ms || 0 });
           this.dom.traceStatusPill.className = "trace-status-pill success";
         }
         this.renderTracerouteGraph(trace.hops_breakdown || []);
         this.renderTracerouteTable(trace.hops_breakdown || []);
-        if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.trace_completed').replace('{hops}', trace.total_hops || 0).replace('{rtt}', trace.total_rtt_ms || 0), "success");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.trace_completed', { hops: trace.total_hops || 0, rtt: trace.total_rtt_ms || 0 }), "success");
       } else {
         if (this.dom.traceStatusPill) {
-          this.dom.traceStatusPill.textContent = I18n.t('map.trace_failed');
+          I18n.setText(this.dom.traceStatusPill, 'map.trace_failed');
           this.dom.traceStatusPill.className = "trace-status-pill error";
         }
-        if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.trace_err').replace('{msg}', data.message || 'Sin respuesta'), "error");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.trace_err').replace('{msg}', data.message || I18n.t("map.no_response")), "error");
       }
     } catch (err) {
       if (this.dom.traceStatusPill) {
-        this.dom.traceStatusPill.textContent = I18n.t('map.trace_conn_err');
+        I18n.setText(this.dom.traceStatusPill, 'map.trace_conn_err');
         this.dom.traceStatusPill.className = "trace-status-pill error";
       }
       if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.net_err').replace('{msg}', err.message), "error");
     } finally {
       if (this.dom.btnExecuteTrace) {
         this.dom.btnExecuteTrace.disabled = false;
-        this.dom.btnExecuteTrace.textContent = I18n.t('map.start_trace');
+        I18n.setText(this.dom.btnExecuteTrace, 'map.start_trace');
       }
     }
   }
 
   renderTracerouteGraph(hops) {
+    this._lastTraceHops = hops;
     if (!this.dom.traceVisualGraph) return;
     this.dom.traceVisualGraph.innerHTML = "";
     if (!Array.isArray(hops) || hops.length === 0) return;
@@ -707,7 +719,7 @@ export class MapModule {
         <div class="map-node-item-header">
           <span class="map-node-icon">${isLocal ? "🏠" : (isRepeater ? "📡" : (isSensor ? "🌡️" : "👤"))}</span>
           <strong class="map-node-name font-mono">${escapeHtml(cleanName)}</strong>
-          <span class="badge-pill" style="font-size: 9.5px;">${escapeHtml(node.role || (isLocal ? "LOCAL" : "CLIENT"))}</span>
+          <span class="badge-pill" style="font-size: 9.5px;">${escapeHtml(I18n.role(node.role || (isLocal ? "LOCAL" : "CLIENT")))}</span>
         </div>
         <div class="map-node-item-sub font-mono">
           <span>📍 ${lat.toFixed(4)}, ${lon.toFixed(4)}</span>
@@ -752,12 +764,12 @@ export class MapModule {
           <span>${iconSymbol}</span> <strong>${escapeHtml(name)}</strong>
         </div>
         <div class="popup-info">
-          <div><span>${I18n.t('map.role_label')}</span> <span class="badge-pill">${escapeHtml(node.role || (isLocal ? "LOCAL" : "CLIENT"))}</span></div>
+          <div><span>${I18n.t('map.role_label')}</span> <span class="badge-pill">${escapeHtml(I18n.role(node.role || (isLocal ? "LOCAL" : "CLIENT")))}</span></div>
           <div><span>${I18n.t('map.key_label')}</span> <code>${escapeHtml(pk.slice(0, 8))}...</code></div>
           <div><span>${I18n.t('map.pos_label')}</span> <code>${lat.toFixed(5)}, ${lon.toFixed(5)}</code></div>
           ${node.last_rssi != null ? `<div><span>${I18n.t('map.rssi_label')}</span> <strong>${node.last_rssi} dBm</strong></div>` : ""}
           ${node.last_snr != null ? `<div><span>${I18n.t('map.snr_label')}</span> <strong>${node.last_snr} dB</strong></div>` : ""}
-          ${isLocal ? `<div style="color: #10b981; font-weight: 600; margin-top: 4px;">📍 ${I18n.t('map.local_connected')}</div>` : ""}
+          ${isLocal ? `<div style="color: var(--accent-success); font-weight: 600; margin-top: 4px;">📍 ${I18n.t('map.local_connected')}</div>` : ""}
         </div>
       </div>
     `;
