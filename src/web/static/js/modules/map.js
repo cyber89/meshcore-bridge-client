@@ -645,9 +645,26 @@ export class MapModule {
   updateMapMarkers(nodes) {
     if (!this.map || !Array.isArray(nodes)) return;
 
+    const currentPks = new Set();
     nodes.forEach((node) => {
+      const pk = String(node.public_key || node.pubkey || "").trim().toLowerCase();
+      if (pk) currentPks.add(pk);
       this.updateSingleNodeMarker(node);
     });
+
+    // Reconciliación: eliminar del mapa los marcadores de nodos que ya no están presentes
+    for (const [pk, marker] of this.mapMarkers.entries()) {
+      if (!currentPks.has(pk)) {
+        try {
+          if (marker && typeof marker.remove === "function") {
+            marker.remove();
+          } else if (this.map && typeof this.map.removeLayer === "function") {
+            this.map.removeLayer(marker);
+          }
+        } catch (_) {}
+        this.mapMarkers.delete(pk);
+      }
+    }
 
     this.updateMapNodesOverlayList(nodes);
   }

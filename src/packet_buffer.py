@@ -6,6 +6,7 @@ DLT_USER0 no define un dissector ni acredita captura/replay RF de MeshCore.
 
 from __future__ import annotations
 
+import copy
 import csv
 import io
 import json
@@ -140,7 +141,7 @@ class PacketBuffer:
             lqi_score=lqi_score,
             lqi_status=lqi_status,
             raw_bytes=b_bytes,
-            payload_dict=payload_dict or {},
+            payload_dict=copy.deepcopy(payload_dict) if payload_dict else {},
             size_bytes=len(b_bytes),
         )
 

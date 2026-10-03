@@ -258,6 +258,9 @@ class DiagnosticManager:
                     serial_port=getattr(
                         self.bridge.serial_adapter, "port", config.SERIAL_PORT
                     ),
+                    tcp_server_port=getattr(config, "TCP_SERVER_PORT", 5000),
+                    tcp_server_enabled=getattr(config, "TCP_SERVER_ENABLED", True),
+                    tcp_server_host=getattr(config, "TCP_SERVER_HOST", "0.0.0.0"),
                 )
             except Exception as e:
                 preflight_results = {"status": "ERROR", "error": str(e)}
@@ -332,8 +335,16 @@ class DiagnosticManager:
             lines.append("| Comprobación | Estado | Mensaje |")
             lines.append("|---|---|---|")
             for chk in preflight.get("checks", []):
-                chk_icon = "✅" if chk.get("status") == "PASS" else "⚠️" if chk.get("status") == "WARN" else "❌"
-                lines.append(f"| `{chk.get('name')}` | {chk_icon} `{chk.get('status')}` | {chk.get('message')} |")
+                passed = chk.get("passed", False)
+                is_critical = chk.get("is_critical", True)
+                status_str = chk.get("status")
+                if not status_str:
+                    if passed:
+                        status_str = "PASS"
+                    else:
+                        status_str = "FAIL" if is_critical else "WARN"
+                chk_icon = "✅" if status_str == "PASS" else "⚠️" if status_str == "WARN" else "❌"
+                lines.append(f"| `{chk.get('name')}` | {chk_icon} `{status_str}` | {chk.get('message')} |")
             lines.append("")
 
         # Sección de Errores y Excepciones Recientes

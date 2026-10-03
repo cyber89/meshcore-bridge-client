@@ -56,7 +56,7 @@ class LogsController(BaseController):
             return self._handle_system_logs(raw_path, limit)
 
         if clean_path in ("/api/diagnostics/report.md", "/api/diagnostics/report"):
-            return self._handle_diagnostics_report()
+            return await self._handle_diagnostics_report()
 
         if clean_path in ("/api/logs/download", "/api/logs/raw"):
             return await self._handle_raw_logs_download()
@@ -112,10 +112,11 @@ class LogsController(BaseController):
             "current_level": curr_lvl,
         }
 
-    def _handle_diagnostics_report(self) -> tuple[int, dict[str, Any]]:
+    async def _handle_diagnostics_report(self) -> tuple[int, dict[str, Any]]:
         diag = getattr(self.ctx.bridge, "diagnostics", None)
         if isinstance(diag, DiagnosticManager):
-            md_text = diag.generate_markdown_report()
+            import asyncio
+            md_text = await asyncio.to_thread(diag.generate_markdown_report)
         else:
             md_text = "# Reporte de Diagnóstico no disponible"
         return 200, {"status": "ok", "markdown": md_text, "text": md_text}

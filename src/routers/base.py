@@ -19,6 +19,7 @@ class MeshMessageEvent:
     rssi: float | int | None = None
     snr: float | None = None
     txt_type: int = 0
+    sender_timestamp: float | int | None = None
 
 
 @dataclass(slots=True)

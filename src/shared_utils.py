@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import logging
 import math
 import re
@@ -357,9 +358,17 @@ async def safe_device_query(
 
     cmd = getattr(mc.commands, command_name)
     try:
-        res = cmd(*args, **kwargs)
-        if asyncio.iscoroutine(res):
-            res = await asyncio.wait_for(res, timeout=timeout)
+        if inspect.iscoroutinefunction(cmd):
+            res = await asyncio.wait_for(cmd(*args, **kwargs), timeout=timeout)
+        else:
+            def _call_sync() -> Any:
+                return cmd(*args, **kwargs)
+
+            coro_or_val = await asyncio.wait_for(asyncio.to_thread(_call_sync), timeout=timeout)
+            if asyncio.iscoroutine(coro_or_val):
+                res = await asyncio.wait_for(coro_or_val, timeout=timeout)
+            else:
+                res = coro_or_val
         return res
     except Exception as e:
         logging.warning("Aviso ejecutando comando de radio '%s': %s", command_name, e)
@@ -393,6 +402,30 @@ def is_empty_channel_slot(name: Any, secret: Any = None) -> bool:
 
     clean_hex = sec_str.replace("0x", "").replace(" ", "").replace("-", "")
     return not clean_hex or all(c == "0" for c in clean_hex)
+
+
+def redact_sensitive_command(text: str) -> str:
+    """Oculta contraseñas y secretos en comandos administrativos para logs y envelopes."""
+    if not text:
+        return text
+    clean = text.strip()
+    clean_lower = clean.lower()
+
+    sensitive_prefixes = (
+        "password ",
+        "set password ",
+        "set admin.password ",
+        "set guest.password ",
+        "set wifi.password ",
+        "login ",
+    )
+    for prefix in sensitive_prefixes:
+        if clean_lower.startswith(prefix):
+            head = clean[: len(prefix)]
+            secret = clean[len(prefix) :].strip()
+            return f"{head}{'*' * len(secret)}"
+
+    return clean
 
 
 

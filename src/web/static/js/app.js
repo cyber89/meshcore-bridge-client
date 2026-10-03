@@ -227,47 +227,124 @@ class MeshCoreApp {
 
   _initCommandPalette() {
     const { btnCommandPalette, commandPaletteModal, cmdPaletteInput, cmdPaletteResults } = this.dom;
+    let lastActiveElement = null;
+    let selectedIdx = -1;
+
+    const getVisibleItems = () => {
+      if (!cmdPaletteResults) return [];
+      return Array.from(cmdPaletteResults.querySelectorAll(".cmd-item")).filter((item) => item.style.display !== "none");
+    };
+
+    const updateSelection = (newIdx) => {
+      const visible = getVisibleItems();
+      visible.forEach((it) => it.classList.remove("is-selected"));
+      if (visible.length === 0) {
+        selectedIdx = -1;
+        return;
+      }
+      selectedIdx = (newIdx + visible.length) % visible.length;
+      const target = visible[selectedIdx];
+      target.classList.add("is-selected");
+      target.focus();
+      target.scrollIntoView({ block: "nearest" });
+    };
+
     const filterCmdItems = (q) => {
       const query = (q || "").toLowerCase().trim();
-      document.querySelectorAll("#cmdPaletteResults .cmd-item").forEach((item) => {
+      selectedIdx = -1;
+
+      // 1. Limpiar nodos dinámicos previos
+      document.querySelectorAll("#cmdPaletteResults .cmd-node-match").forEach((el) => el.remove());
+
+      // 2. Filtrar comandos estáticos
+      document.querySelectorAll("#cmdPaletteResults .cmd-item:not(.cmd-node-match)").forEach((item) => {
         const text = item.textContent.toLowerCase();
         item.style.display = (!query || text.includes(query)) ? "" : "none";
+        item.classList.remove("is-selected");
       });
+
+      // 3. Buscar y agregar nodos coincidentes (FE-11)
+      if (query.length >= 2) {
+        const matchedNodes = [];
+        const knownNodes = this.modules?.nodes?.knownNodes;
+        if (knownNodes instanceof Map) {
+          for (const [k, n] of knownNodes.entries()) {
+            const name = String(n.name || "").toLowerCase();
+            const pk = String(n.public_key || k).toLowerCase();
+            const role = String(n.role || "CLIENT").toLowerCase();
+            if (name.includes(query) || pk.includes(query) || role.includes(query)) {
+              matchedNodes.push(n);
+              if (matchedNodes.length >= 8) break;
+            }
+          }
+        }
+
+        matchedNodes.forEach((node) => {
+          const item = document.createElement("div");
+          item.className = "cmd-item cmd-node-match";
+          item.setAttribute("role", "option");
+          item.setAttribute("tabindex", "0");
+          item.setAttribute("data-action", "select-node");
+          item.setAttribute("data-pubkey", node.public_key || "");
+          const name = node.name || (node.public_key ? node.public_key.slice(0, 8) : "Nodo");
+          item.innerHTML = `<span data-lucide="radio" data-size="14"></span> Nodo: <strong>${name}</strong> [${node.role || "CLIENT"}]`;
+          cmdPaletteResults.appendChild(item);
+        });
+        if (window.lucide && typeof window.lucide.createIcons === "function") {
+          window.lucide.createIcons();
+        }
+      }
+    };
+
+    const openPalette = () => {
+      if (!commandPaletteModal) return;
+      lastActiveElement = document.activeElement;
+      commandPaletteModal.classList.remove("hidden");
+      if (cmdPaletteInput) {
+        cmdPaletteInput.value = "";
+        cmdPaletteInput.focus();
+      }
+      filterCmdItems("");
+    };
+
+    const closePalette = () => {
+      if (!commandPaletteModal) return;
+      commandPaletteModal.classList.add("hidden");
+      if (lastActiveElement && typeof lastActiveElement.focus === "function") {
+        lastActiveElement.focus();
+      }
     };
 
     if (btnCommandPalette && commandPaletteModal) {
-      btnCommandPalette.addEventListener("click", () => {
-        commandPaletteModal.classList.remove("hidden");
-        if (cmdPaletteInput) {
-          cmdPaletteInput.value = "";
-          cmdPaletteInput.focus();
-        }
-        filterCmdItems("");
-      });
+      btnCommandPalette.addEventListener("click", openPalette);
     }
     if (commandPaletteModal) {
       commandPaletteModal.addEventListener("click", (e) => {
         if (e.target === commandPaletteModal) {
-          commandPaletteModal.classList.add("hidden");
+          closePalette();
         }
       });
     }
+
     window.addEventListener("keydown", (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         if (commandPaletteModal) {
-          commandPaletteModal.classList.toggle("hidden");
-          if (!commandPaletteModal.classList.contains("hidden") && cmdPaletteInput) {
-            cmdPaletteInput.value = "";
-            cmdPaletteInput.focus();
-            filterCmdItems("");
+          if (commandPaletteModal.classList.contains("hidden")) {
+            openPalette();
+          } else {
+            closePalette();
           }
         }
       } else if (e.key === "Escape") {
+        if (commandPaletteModal && !commandPaletteModal.classList.contains("hidden")) {
+          e.preventDefault();
+          closePalette();
+          return;
+        }
         const openModals = Array.from(document.querySelectorAll(".modal-overlay:not(.hidden)"));
         if (openModals.length > 0) {
           const topModal = openModals[openModals.length - 1];
-          // Close top modal via its close button or by adding hidden
           const closeBtn = topModal.querySelector(".modal-close");
           if (closeBtn) {
             closeBtn.click();
@@ -278,17 +355,35 @@ class MeshCoreApp {
       }
     });
 
-    // Cierre intuitivo al hacer clic en el backdrop de cualquier modal
-    document.addEventListener("click", (e) => {
-      if (e.target && e.target.classList && e.target.classList.contains("modal-overlay")) {
-        const closeBtn = e.target.querySelector(".modal-close");
-        if (closeBtn) {
-          closeBtn.click();
-        } else {
-          e.target.classList.add("hidden");
+    if (commandPaletteModal) {
+      commandPaletteModal.addEventListener("keydown", (e) => {
+        const visible = getVisibleItems();
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          updateSelection(selectedIdx + 1);
+        } else if (e.key === "ArrowUp") {
+          e.preventDefault();
+          updateSelection(selectedIdx <= 0 ? visible.length - 1 : selectedIdx - 1);
+        } else if (e.key === "Enter") {
+          const activeItem = visible[selectedIdx] || document.activeElement?.closest(".cmd-item");
+          if (activeItem) {
+            e.preventDefault();
+            activeItem.click();
+          }
+        } else if (e.key === "Tab") {
+          if (visible.length > 0) {
+            const lastItem = visible[visible.length - 1];
+            if (!e.shiftKey && document.activeElement === lastItem) {
+              e.preventDefault();
+              cmdPaletteInput?.focus();
+            } else if (e.shiftKey && document.activeElement === cmdPaletteInput) {
+              e.preventDefault();
+              lastItem.focus();
+            }
+          }
         }
-      }
-    });
+      });
+    }
 
     if (cmdPaletteInput) {
       cmdPaletteInput.addEventListener("input", (e) => {
@@ -302,11 +397,19 @@ class MeshCoreApp {
         if (!item) return;
         const action = item.getAttribute("data-action");
         if (!action) return;
-        if (commandPaletteModal) commandPaletteModal.classList.add("hidden");
+        closePalette();
 
         if (action.startsWith("tab-")) {
           const navBtn = document.querySelector(`.nav-btn[data-tab="${action}"]`);
           if (navBtn) navBtn.click();
+        } else if (action === "select-node") {
+          const pubkey = item.getAttribute("data-pubkey");
+          if (pubkey && this.modules?.chat?.openDirectMessage) {
+            this.modules.chat.openDirectMessage(pubkey, item.textContent.replace("Nodo:", "").trim());
+          } else {
+            const navBtn = document.querySelector('.nav-btn[data-tab="tab-nodes"]');
+            if (navBtn) navBtn.click();
+          }
         } else if (action === "action-diag") {
           const navBtn = document.querySelector('.nav-btn[data-tab="tab-logs"]');
           if (navBtn) navBtn.click();

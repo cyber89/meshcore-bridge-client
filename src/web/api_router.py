@@ -12,7 +12,6 @@ import logging
 import time
 from typing import Any
 
-from src.contact_manager import PacketRecord, is_valid_node_key
 from src.event_utils import extract_sender_from_payload
 from src.sensor_decoder import extract_telemetry_fields
 from src.shared_utils import to_bool
@@ -238,22 +237,16 @@ class WebAPIRouter:
             node_label = node_info.alias or node_info.name or (node_info.public_key[:8] if node_info.public_key else "desconocido")
             pk_short = node_info.public_key[:8] if node_info.public_key else ""
             sender_id_str = f"nodo '{node_label}' ({pk_short})" if pk_short and pk_short != node_label else f"nodo '{node_label}'"
-            canonical_sender = node_info.public_key
         elif sender_name and sender_raw:
             sender_id_str = f"nodo '{sender_name}' ({sender_raw[:8]})"
-            canonical_sender = sender_raw
         elif sender_name:
             sender_id_str = f"nodo '{sender_name}'"
-            canonical_sender = sender_name
         elif sender_raw:
             sender_id_str = f"nodo [{sender_raw[:8]}]"
-            canonical_sender = sender_raw
         elif ev_type in ("self_info", "battery", "device_info"):
             sender_id_str = "Estación Base Local"
-            canonical_sender = getattr(self.bridge.node_registry, "get_local_pubkey", lambda: "")() if hasattr(self.bridge, "node_registry") else ""
         else:
             sender_id_str = "nodo anónimo"
-            canonical_sender = ""
 
         rssi = data.get("rssi", data.get("RSSI", data.get("last_rssi")))
         snr = data.get("snr", data.get("SNR", data.get("last_snr")))
@@ -266,13 +259,6 @@ class WebAPIRouter:
             or bool(extracted_telem)
         ):
             self.recent_telemetry.append(data)
-            if canonical_sender and is_valid_node_key(canonical_sender):
-                contact = self.bridge.node_registry.get_by_key_or_prefix(canonical_sender) if hasattr(self.bridge, "node_registry") else None
-                is_local = (contact.is_local if contact else False) or (
-                    hasattr(self.bridge, "node_registry") and self.bridge.node_registry.is_local_key(canonical_sender)
-                )
-                if not is_local:
-                    self.bridge.node_registry.record_packet(PacketRecord(public_key=canonical_sender, is_rx=True, rssi=rssi, snr=snr, telemetry=data))
 
             readings = []
             if "temperature_c" in extracted_telem:
@@ -325,8 +311,6 @@ class WebAPIRouter:
             from src.rx_router import is_common_chat_message
             if is_common_chat_message(text_val, txt_type=txt_type, event_type=ev_type):
                 self.recent_messages.append(data)
-                if canonical_sender and is_valid_node_key(canonical_sender):
-                    self.bridge.node_registry.record_packet(PacketRecord(public_key=canonical_sender, is_rx=True, rssi=rssi, snr=snr))
                 self.log_system_event("INFO", f"Mensaje RX [{ev_type}] de {sender_id_str}: {text_val[:30]}", source="mesh_rx")
 
     async def handle_request(
@@ -425,7 +409,7 @@ class WebAPIRouter:
             from src.diagnostics import DiagnosticManager
 
             if isinstance(diag, DiagnosticManager):
-                md_text = diag.generate_markdown_report()
+                md_text = await asyncio.to_thread(diag.generate_markdown_report)
             else:
                 md_text = "# Reporte de Diagnóstico no disponible"
             return 200, {"status": "ok", "markdown": md_text, "text": md_text}
@@ -434,7 +418,8 @@ class WebAPIRouter:
             from src.diagnostics import DiagnosticManager
 
             if isinstance(diag, DiagnosticManager):
-                return 200, {"status": "ok", "data": diag.generate_full_diagnostic_bundle()}
+                bundle_data = await asyncio.to_thread(diag.generate_full_diagnostic_bundle)
+                return 200, {"status": "ok", "data": bundle_data}
             return 200, {"status": "error", "message": "No diagnostics"}
         if clean_path == "/api/preflight" and method == "GET":
             return await self.system_ctrl.run_preflight()
@@ -459,19 +444,28 @@ class WebAPIRouter:
             if method == "GET":
                 return await self._route_logs(raw_path, clean_path)
 
-        return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+        system_routes = {
+            "/api/status",
+            "/api/health",
+            "/api/diagnostics",
+            "/api/diagnostics/report.md",
+            "/api/diagnostics/report",
+            "/api/diagnostics/export",
+            "/api/preflight",
+            "/api/system/logs/level",
+            "/api/system/logs",
+        }
+        if clean_path in system_routes:
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+        return problem_details(404, "Not Found", f"Ruta no encontrada: {method} {clean_path}", "route_not_found")
 
     async def _dispatch_packets(self, method: str, raw_path: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Despacha rutas de inspección y exportación de paquetes LoRa al PacketsController."""
-        if clean_path == "/api/packets/export" and method == "GET":
-            export_fmt = "json"
-            if "?" in raw_path:
-                for part in raw_path.split("?", 1)[1].split("&"):
-                    if "=" in part:
-                        k, v = part.split("=", 1)
-                        if k.lower() == "format":
-                            export_fmt = v.lower()
-            return await self.packets_ctrl.export_packets(export_fmt)
+        if clean_path == "/api/packets/export":
+            if method == "GET":
+                export_fmt = str(req_body.get("format", "json")).lower()
+                return await self.packets_ctrl.export_packets(export_fmt)
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
         if clean_path == "/api/packets":
             if method == "DELETE":
@@ -479,20 +473,8 @@ class WebAPIRouter:
             if method == "GET":
                 raw_limit = req_body.get("limit")
                 raw_offset = req_body.get("offset")
-                direction = ""
-                p_type = ""
-                if "?" in raw_path:
-                    for part in raw_path.split("?", 1)[1].split("&"):
-                        if "=" in part:
-                            k, v = part.split("=", 1)
-                            if k.lower() == "limit":
-                                raw_limit = v
-                            elif k.lower() == "offset":
-                                raw_offset = v
-                            elif k.lower() == "direction":
-                                direction = v
-                            elif k.lower() == "type":
-                                p_type = v
+                direction = str(req_body.get("direction", ""))
+                p_type = str(req_body.get("type", ""))
 
                 limit, err = _parse_bounded_int(raw_limit, "limit", default=100, min_val=1, max_val=500)
                 if err:
@@ -501,59 +483,81 @@ class WebAPIRouter:
                 if err:
                     return err
                 return await self.packets_ctrl.get_packets(limit, offset, direction, p_type)
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
-        return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+        return problem_details(404, "Not Found", f"Ruta no encontrada: {method} {clean_path}", "route_not_found")
 
     async def _dispatch_nodes(self, method: str, raw_path: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Despacha rutas de directorio de nodos y analítica al NodesController."""
-        if clean_path == "/api/nodes" and method == "GET":
-            raw_limit = req_body.get("limit")
-            raw_offset = req_body.get("offset")
-            if "?" in raw_path:
-                for part in raw_path.split("?", 1)[1].split("&"):
-                    if "=" in part:
-                        k, v = part.split("=", 1)
-                        if k.lower() == "limit":
-                            raw_limit = v
-                        elif k.lower() == "offset":
-                            raw_offset = v
+        nodes_routes = {
+            "/api/nodes",
+            "/api/lqi",
+            "/api/analytics/reset",
+            "/api/analytics",
+            "/api/rf/heatmap",
+            "/api/airtime/stats",
+            "/api/rf/noise",
+        }
+        if clean_path == "/api/nodes":
+            if method == "GET":
+                raw_limit = req_body.get("limit")
+                raw_offset = req_body.get("offset")
+                limit, err = _parse_bounded_int(raw_limit, "limit", default=100, min_val=1, max_val=500)
+                if err:
+                    return err
+                offset, err = _parse_bounded_int(raw_offset, "offset", default=0, min_val=0, max_val=100000)
+                if err:
+                    return err
+                return await self.nodes_ctrl.list_nodes(limit, offset)
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
-            limit, err = _parse_bounded_int(raw_limit, "limit", default=100, min_val=1, max_val=500)
-            if err:
-                return err
-            offset, err = _parse_bounded_int(raw_offset, "offset", default=0, min_val=0, max_val=100000)
-            if err:
-                return err
-            return await self.nodes_ctrl.list_nodes(limit, offset)
+        if clean_path == "/api/lqi":
+            if method == "GET":
+                return await self.nodes_ctrl.get_lqi()
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
-        if clean_path == "/api/lqi" and method == "GET":
-            return await self.nodes_ctrl.get_lqi()
-        if clean_path == "/api/analytics/reset" and method in ("POST", "DELETE"):
-            return await self.nodes_ctrl.reset_metrics()
-        if clean_path == "/api/analytics" and method == "GET":
-            return await self.nodes_ctrl.get_analytics()
-        if clean_path == "/api/rf/heatmap" and method == "GET":
-            return await self.nodes_ctrl.get_rf_heatmap()
-        if clean_path == "/api/airtime/stats" and method == "GET":
-            return await self.nodes_ctrl.get_airtime_stats()
-        if clean_path == "/api/rf/noise" and method == "GET":
-            nodes = self.bridge.node_registry.list_nodes()
-            matrix = [
-                {
-                    "pubkey": n.get("public_key"),
-                    "name": n.get("name") or n.get("alias"),
-                    "role": n.get("role"),
-                    "noise_floor_dbm": n.get("noise_floor_dbm"),
-                    "snr": n.get("last_snr"),
-                    "rssi": n.get("last_rssi"),
-                    "channel": n.get("channel", 0),
-                    "freq": n.get("frequency", 915.0),
-                }
-                for n in nodes
-            ]
-            return 200, {"status": "ok", "data": {"matrix": matrix}}
+        if clean_path == "/api/analytics/reset":
+            if method in ("POST", "DELETE"):
+                return await self.nodes_ctrl.reset_metrics()
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
-        return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+        if clean_path == "/api/analytics":
+            if method == "GET":
+                return await self.nodes_ctrl.get_analytics()
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+        if clean_path == "/api/rf/heatmap":
+            if method == "GET":
+                return await self.nodes_ctrl.get_rf_heatmap()
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+        if clean_path == "/api/airtime/stats":
+            if method == "GET":
+                return await self.nodes_ctrl.get_airtime_stats()
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+        if clean_path == "/api/rf/noise":
+            if method == "GET":
+                nodes = self.bridge.node_registry.list_nodes()
+                matrix = [
+                    {
+                        "pubkey": n.get("public_key"),
+                        "name": n.get("name") or n.get("alias"),
+                        "role": n.get("role"),
+                        "noise_floor_dbm": n.get("noise_floor_dbm"),
+                        "snr": n.get("last_snr"),
+                        "rssi": n.get("last_rssi"),
+                        "channel": n.get("channel", 0),
+                        "freq": n.get("frequency", 915.0),
+                    }
+                    for n in nodes
+                ]
+                return 200, {"status": "ok", "data": {"matrix": matrix}}
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+        if clean_path in nodes_routes:
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+        return problem_details(404, "Not Found", f"Ruta no encontrada: {method} {clean_path}", "route_not_found")
 
     async def _dispatch_contacts(self, method: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Despacha rutas de libreta de contactos al ContactsController."""
@@ -613,11 +617,37 @@ class WebAPIRouter:
         if clean_path in ("/api/traceroute", "/api/repeater/traceroute") and method == "POST":
             return await self.repeater_ctrl.traceroute(req_body)
 
-        return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+        repeater_routes = {
+            "/api/admin",
+            "/api/admin/repeater",
+            "/api/repeater/remote/login",
+            "/api/repeater/remote/logout",
+            "/api/repeater/remote/config",
+            "/api/repeater/remote/action",
+            "/api/repeater/remote/neighbours",
+            "/api/repeater/remote/owner",
+            "/api/repeater/remote/regions",
+            "/api/repeater/remote/clock",
+            "/api/repeater/remote/acl",
+            "/api/repeater/ping_zero",
+            "/api/node/ping_zero",
+            "/api/traceroute",
+            "/api/repeater/traceroute",
+        }
+        if clean_path in repeater_routes:
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+        return problem_details(404, "Not Found", f"Ruta no encontrada: {method} {clean_path}", "route_not_found")
 
     async def _dispatch_config(self, method: str, raw_path: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Despacha rutas de configuración de nodo local y módem LoRa."""
-        force_refresh = "refresh=true" in raw_path.lower()
+        raw_refresh = req_body.get("refresh", False)
+        if isinstance(raw_refresh, str):
+            force_refresh = raw_refresh.strip().lower() in ("true", "1")
+        elif isinstance(raw_refresh, bool):
+            force_refresh = raw_refresh
+        else:
+            force_refresh = False
+
         if clean_path == "/api/config":
             if method == "GET":
                 return await self.config_ctrl.get_device_config(refresh=force_refresh)
@@ -632,10 +662,6 @@ class WebAPIRouter:
                 return await self.config_ctrl.set_custom_vars(req_body)
             if method == "DELETE":
                 k_del = str(req_body.get("key", ""))
-                if not k_del and "?" in raw_path:
-                    for part in raw_path.split("?", 1)[1].split("&"):
-                        if "=" in part and part.split("=", 1)[0].lower() == "key":
-                            k_del = part.split("=", 1)[1]
                 return await self.config_ctrl.delete_custom_var(k_del)
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
@@ -688,7 +714,20 @@ class WebAPIRouter:
         if clean_path == "/api/config/sync-clock":
             if method == "POST":
                 raw_epoch = req_body.get("epoch", req_body.get("timestamp"))
-                epoch_ts = int(raw_epoch) if raw_epoch is not None else None
+                if raw_epoch is not None:
+                    if isinstance(raw_epoch, (bool, float)):
+                        return problem_details(422, "Unprocessable Entity", "El parámetro 'epoch' debe ser un entero", "invalid_epoch")
+                    if isinstance(raw_epoch, int):
+                        parsed_epoch = raw_epoch
+                    elif isinstance(raw_epoch, str) and (raw_epoch.strip().isdigit() or (raw_epoch.strip().startswith("-") and raw_epoch.strip()[1:].isdigit())):
+                        parsed_epoch = int(raw_epoch.strip())
+                    else:
+                        return problem_details(422, "Unprocessable Entity", "El parámetro 'epoch' debe ser un entero", "invalid_epoch")
+                    if parsed_epoch <= 0:
+                        return problem_details(422, "Unprocessable Entity", "El parámetro 'epoch' debe ser mayor a 0", "invalid_epoch")
+                    epoch_ts: int | None = parsed_epoch
+                else:
+                    epoch_ts = None
                 return await self.config_ctrl.sync_clock(epoch_ts=epoch_ts)
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 

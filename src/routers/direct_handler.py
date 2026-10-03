@@ -41,6 +41,14 @@ class DirectMessageHandler(BaseRxHandler):
         except (ValueError, TypeError):
             txt_type = 0
 
+        raw_sender_ts = payload.get("sender_timestamp") or payload.get("timestamp")
+        sender_timestamp: float | int | None = None
+        if raw_sender_ts is not None:
+            try:
+                sender_timestamp = float(raw_sender_ts)
+            except (ValueError, TypeError):
+                sender_timestamp = None
+
         msg_evt = MeshMessageEvent(
             sender=meta.sender,
             sender_name=meta.sender_name,
@@ -49,6 +57,7 @@ class DirectMessageHandler(BaseRxHandler):
             rssi=meta.effective_rssi,
             snr=meta.effective_snr,
             txt_type=txt_type,
+            sender_timestamp=sender_timestamp,
         )
 
         await ctx._handle_mesh_direct_msg(msg_evt)

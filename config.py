@@ -3,6 +3,7 @@ Módulo de Configuración para MeshCore Bridge.
 Carga variables de entorno desde un archivo .env si existe o desde el sistema.
 """
 
+import math
 import os
 from pathlib import Path
 
@@ -48,17 +49,30 @@ except ImportError:
         except Exception:
             pass
 
-def _safe_int(key: str, default: int) -> int:
+def _safe_int(key: str, default: int, min_val: int | None = None, max_val: int | None = None) -> int:
     val = os.getenv(key, str(default))
     try:
-        return int(val)
+        res = int(val)
+        if min_val is not None and res < min_val:
+            return default
+        if max_val is not None and res > max_val:
+            return default
+        return res
     except (ValueError, TypeError):
         return default
 
-def _safe_float(key: str, default: float) -> float:
+
+def _safe_float(key: str, default: float, min_val: float | None = None, max_val: float | None = None) -> float:
     val = os.getenv(key, str(default))
     try:
-        return float(val)
+        res = float(val)
+        if not math.isfinite(res):
+            return default
+        if min_val is not None and res < min_val:
+            return default
+        if max_val is not None and res > max_val:
+            return default
+        return res
     except (ValueError, TypeError):
         return default
 
@@ -103,15 +117,15 @@ MQTT_MAX_PAYLOAD_BYTES = _safe_int("MQTT_MAX_PAYLOAD_BYTES", 128 * 1024)
 # ================= Parámetros de Resiliencia y Control =================
 TX_INTERVAL_SEC = _safe_float("TX_INTERVAL_SEC", 1.0)                 # Espaciado de transmisión RF (LoRa Rate Limiter)
 DEDUPLICATION_WINDOW_SEC = _safe_float("DEDUPLICATION_WINDOW_SEC", 60.0) # Ventana temporal de deduplicación de paquetes en RAM (segundos)
-WATCHDOG_INTERVAL_SEC = _safe_float("WATCHDOG_INTERVAL_SEC", 60.0)     # Intervalo de supervisión de vivacidad serial
+WATCHDOG_INTERVAL_SEC = _safe_float("WATCHDOG_INTERVAL_SEC", 60.0, min_val=5.0)     # Intervalo de supervisión de vivacidad serial
 HEALTH_METRICS_INTERVAL_SEC = _safe_float("HEALTH_METRICS_INTERVAL_SEC", 60.0) # Intervalo de reporte de salud
 MAX_RECONNECT_ATTEMPTS = _safe_int("MAX_RECONNECT_ATTEMPTS", 0)       # 0 = reintentos ilimitados
 DATA_DIR = os.getenv("DATA_DIR", "data")
 NODE_REGISTRY_STORAGE_PATH = os.getenv("NODE_REGISTRY_STORAGE_PATH", os.path.join(DATA_DIR, "node_registry.json"))
 
 # ================= Parámetros de Concurrencia (Nuevos) =================
-MAX_TX_QUEUE_SIZE = _safe_int("MAX_TX_QUEUE_SIZE", 500)
-MAX_RX_CONCURRENCY = _safe_int("MAX_RX_CONCURRENCY", 20)
+MAX_TX_QUEUE_SIZE = _safe_int("MAX_TX_QUEUE_SIZE", 500, min_val=1)
+MAX_RX_CONCURRENCY = _safe_int("MAX_RX_CONCURRENCY", 20, min_val=1)
 WS_IDLE_TIMEOUT_SEC = _safe_float("WS_IDLE_TIMEOUT_SEC", 30.0)
 WS_METRICS_INTERVAL_SEC = _safe_float("WS_METRICS_INTERVAL_SEC", 5.0)
 

@@ -166,7 +166,7 @@ class LocalConfigExecutor:
                 bridge_start = getattr(self._ctx.counters, "start_time", 0.0)
             if not bridge_start:
                 bridge_start = self._init_time
-            if bridge_start > 0:
+            if isinstance(bridge_start, (int, float)) and bridge_start > 0:
                 uptime_sec = max(1, int(time.time() - bridge_start))
 
         days = uptime_sec // 86400
@@ -523,8 +523,12 @@ class LocalConfigExecutor:
             previniendo excepciones de tipo `dataclasses.FrozenInstanceError`.
         """
         if "tx_power" in params or "power" in params:
+            raw_p_val = params.get("tx_power", params.get("power", 20))
+            try:
+                raw_p = int(raw_p_val)
+            except (ValueError, TypeError) as err:
+                raise ValueError(f"Potencia TX inválida: {raw_p_val}") from err
             hw_board = self._local_config.get("hardware_board")
-            raw_p = int(params.get("tx_power", params.get("power", 20)))
             new_p = clamp_tx_power(raw_p, hw_board, self._local_config.get("max_tx_power"))
             await self._write_device(mc, "set_tx_power", new_p, timeout=2.0)
             self._local_config["tx_power"] = new_p
@@ -532,32 +536,52 @@ class LocalConfigExecutor:
 
         radio_keys = ("frequency", "radio_freq", "bandwidth", "bw", "spreading_factor", "sf", "coding_rate", "cr", "repeat", "repeat_enabled")
         if any(k in params for k in radio_keys):
-            try:
-                freq_raw = params.get("frequency", params.get("radio_freq", self._local_config.get("frequency", 915.0)))
-                new_f = float(freq_raw)
-            except (ValueError, TypeError):
+            if "frequency" in params or "radio_freq" in params:
+                freq_raw = params.get("frequency") if "frequency" in params else params.get("radio_freq")
+                if freq_raw is None:
+                    raise ValueError("Frecuencia no especificada")
+                try:
+                    new_f = float(freq_raw)
+                except (ValueError, TypeError) as err:
+                    raise ValueError(f"Frecuencia inválida: {freq_raw}") from err
+            else:
                 new_f = float(self._local_config.get("frequency", 915.0))
 
-            try:
-                bw_raw = params.get("bandwidth", params.get("bw", self._local_config.get("bandwidth", 250.0)))
-                new_bw = float(bw_raw)
-            except (ValueError, TypeError):
+            if "bandwidth" in params or "bw" in params:
+                bw_raw = params.get("bandwidth") if "bandwidth" in params else params.get("bw")
+                if bw_raw is None:
+                    raise ValueError("Ancho de banda no especificado")
+                try:
+                    new_bw = float(bw_raw)
+                except (ValueError, TypeError) as err:
+                    raise ValueError(f"Ancho de banda inválido: {bw_raw}") from err
+            else:
                 new_bw = float(self._local_config.get("bandwidth", 250.0))
 
-            try:
-                sf_raw = params.get("spreading_factor", params.get("sf", self._local_config.get("spreading_factor", 11)))
-                new_sf = int(sf_raw)
-            except (ValueError, TypeError):
+            if "spreading_factor" in params or "sf" in params:
+                sf_raw = params.get("spreading_factor") if "spreading_factor" in params else params.get("sf")
+                if sf_raw is None:
+                    raise ValueError("Spreading factor no especificado")
+                try:
+                    new_sf = int(sf_raw)
+                except (ValueError, TypeError) as err:
+                    raise ValueError(f"Spreading factor inválido: {sf_raw}") from err
+            else:
                 new_sf = int(self._local_config.get("spreading_factor", 11))
 
-            try:
-                cr_raw = params.get("coding_rate", params.get("cr", self._local_config.get("coding_rate", 5)))
-                if isinstance(cr_raw, str) and "/" in cr_raw:
-                    new_cr = int(cr_raw.split("/")[-1])
-                else:
-                    new_cr = int(cr_raw)
-            except (ValueError, TypeError):
-                new_cr = 5
+            if "coding_rate" in params or "cr" in params:
+                cr_raw = params.get("coding_rate") if "coding_rate" in params else params.get("cr")
+                if cr_raw is None:
+                    raise ValueError("Coding rate no especificado")
+                try:
+                    if isinstance(cr_raw, str) and "/" in cr_raw:
+                        new_cr = int(cr_raw.split("/")[-1])
+                    else:
+                        new_cr = int(cr_raw)
+                except (ValueError, TypeError) as err:
+                    raise ValueError(f"Coding rate inválido: {cr_raw}") from err
+            else:
+                new_cr = int(self._local_config.get("coding_rate", 5))
 
             rep_val = params.get("repeat", params.get("repeat_enabled", self._local_config.get("repeat", False)))
             new_rep = to_bool(rep_val)
@@ -574,11 +598,16 @@ class LocalConfigExecutor:
             self._local_config["cr"] = new_cr
             self._local_config["repeat"] = new_rep
 
-            applied["frequency"] = new_f
-            applied["bandwidth"] = new_bw
-            applied["spreading_factor"] = new_sf
-            applied["coding_rate"] = new_cr
-            applied["repeat"] = new_rep
+            if "frequency" in params or "radio_freq" in params:
+                applied["frequency"] = new_f
+            if "bandwidth" in params or "bw" in params:
+                applied["bandwidth"] = new_bw
+            if "spreading_factor" in params or "sf" in params:
+                applied["spreading_factor"] = new_sf
+            if "coding_rate" in params or "cr" in params:
+                applied["coding_rate"] = new_cr
+            if "repeat" in params or "repeat_enabled" in params:
+                applied["repeat"] = new_rep
 
 
             update_fields = {
@@ -656,10 +685,13 @@ class LocalConfigExecutor:
             for k in keys:
                 if k in params:
                     val = params[k]
-                    if k in ("multi_acks", "manual_add_contacts", "adv_loc_policy"):
-                        int_val = int(bool(val)) if not isinstance(val, (int, float)) else int(val)
-                    else:
-                        int_val = int(val)
+                    try:
+                        if k in ("multi_acks", "manual_add_contacts", "adv_loc_policy"):
+                            int_val = int(to_bool(val))
+                        else:
+                            int_val = int(val)
+                    except (ValueError, TypeError) as err:
+                        raise ValueError(f"Valor inválido para {k}: {val}") from err
                     pending[k] = int_val
 
             if mc:
@@ -685,13 +717,14 @@ class LocalConfigExecutor:
         """Aplica PIN del dispositivo, tuning de radio, path hash mode y custom variables."""
         # 1. PIN del dispositivo / BLE PIN
         if "pin" in params or "devicepin" in params:
+            raw_pin = params.get("pin", params.get("devicepin", 0))
             try:
-                pin_val = int(params.get("pin", params.get("devicepin", 0)))
-                await self._write_device(mc, "set_devicepin", pin_val, timeout=2.0)
-                self._local_config["pin"] = pin_val
-                applied["pin"] = pin_val
+                pin_val = int(raw_pin)
             except (ValueError, TypeError) as err:
-                logging.warning(f"PIN inválido proporcionado: {err}")
+                raise ValueError(f"PIN inválido proporcionado: {raw_pin}") from err
+            await self._write_device(mc, "set_devicepin", pin_val, timeout=2.0)
+            self._local_config["pin"] = pin_val
+            applied["pin"] = pin_val
 
         # 2. Tuning de Radio (rx_delay y airtime_factor / af)
         tuning_keys = ("rx_delay", "airtime_factor", "af", "rx_dly")
@@ -702,32 +735,35 @@ class LocalConfigExecutor:
 
                 rx_flt = float(raw_rx)
                 af_flt = float(raw_af)
-                wire_rx = int(round(rx_flt * 1000.0)) if rx_flt <= 10.0 else int(round(rx_flt))
-                wire_af = int(round(af_flt * 1000.0)) if af_flt <= 10.0 else int(round(af_flt))
-
-                stored_rx = rx_flt if rx_flt <= 10.0 else round(rx_flt / 1000.0, 3)
-                stored_af = af_flt if af_flt <= 10.0 else round(af_flt / 1000.0, 3)
-
-                await self._write_device(mc, "set_tuning", wire_rx, wire_af, timeout=2.0)
-
-                self._local_config["rx_delay"] = stored_rx
-                self._local_config["airtime_factor"] = stored_af
-                applied["rx_delay"] = stored_rx
-                applied["airtime_factor"] = stored_af
             except (ValueError, TypeError) as err:
-                logging.warning(f"Parámetros de tuning inválidos: {err}")
+                raise ValueError(f"Parámetros de tuning inválidos: {err}") from err
+
+            wire_rx = int(round(rx_flt * 1000.0)) if rx_flt <= 10.0 else int(round(rx_flt))
+            wire_af = int(round(af_flt * 1000.0)) if af_flt <= 10.0 else int(round(af_flt))
+
+            stored_rx = rx_flt if rx_flt <= 10.0 else round(rx_flt / 1000.0, 3)
+            stored_af = af_flt if af_flt <= 10.0 else round(af_flt / 1000.0, 3)
+
+            await self._write_device(mc, "set_tuning", wire_rx, wire_af, timeout=2.0)
+
+            self._local_config["rx_delay"] = stored_rx
+            self._local_config["airtime_factor"] = stored_af
+            if "rx_delay" in params or "rx_dly" in params:
+                applied["rx_delay"] = stored_rx
+            if "airtime_factor" in params or "af" in params:
+                applied["airtime_factor"] = stored_af
 
         # 3. Path Hash Mode
         if "path_hash_mode" in params:
             try:
                 phm = int(params["path_hash_mode"])
                 if phm not in (0, 1, 2):
-                    raise ValueError("path_hash_mode debe ser 0, 1 o 2")
-                await self._write_device(mc, "set_path_hash_mode", phm, timeout=2.0)
-                self._local_config["path_hash_mode"] = phm
-                applied["path_hash_mode"] = phm
+                    raise ValueError(f"path_hash_mode debe ser 0, 1 o 2 (recibido: {phm})")
             except (ValueError, TypeError) as err:
-                logging.warning(f"Path hash mode inválido: {err}")
+                raise ValueError(f"Path hash mode inválido: {err}") from err
+            await self._write_device(mc, "set_path_hash_mode", phm, timeout=2.0)
+            self._local_config["path_hash_mode"] = phm
+            applied["path_hash_mode"] = phm
 
         # 4. Variables personalizadas (custom_vars)
         if "custom_vars" in params and isinstance(params["custom_vars"], dict):

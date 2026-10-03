@@ -60,7 +60,7 @@ class HealthReporter:
         return {
             "status": "healthy" if self._ctx.serial_adapter.is_connected and self._ctx.mqtt.is_connected else "degraded",
             "uptime_seconds": int(time.time() - self._ctx.start_time),
-            "serial_port": config.SERIAL_PORT,
+            "serial_port": getattr(self._ctx.serial_adapter, "port", config.SERIAL_PORT),
             "serial_connected": self._ctx.serial_adapter.is_connected,
             "mqtt_connected": self._ctx.mqtt.is_connected,
             "known_mesh_nodes": self._ctx.node_registry.get_count(),
@@ -77,7 +77,8 @@ class HealthReporter:
             try:
                 await asyncio.sleep(self._interval_sec)
                 payload = await self.build_payload()
-                self._ctx.mqtt.publish_safe(config.TOPIC_HEALTH, json.dumps(payload), qos=0)
+                topic_health = getattr(self._ctx.mqtt, "topic_health", config.TOPIC_HEALTH)
+                self._ctx.mqtt.publish_safe(topic_health, json.dumps(payload), qos=0)
             except asyncio.CancelledError:
                 break
             except Exception as e:

@@ -597,7 +597,38 @@ export class ChatModule {
   async confirmShareChannel() {
     if (!this.selectedShareChannel) return;
     const ch = this.selectedShareChannel;
-    const uri = buildMeshCoreChannelUri(ch.name, ch.psk || ch.secret || "", ch.index);
+    let secret = String(ch.psk || ch.secret || "").trim();
+    const isPublic = (ch.name || "").toLowerCase() === "public" || ch.index === 0;
+
+    // Si es un canal privado y la clave está enmascarada, intentar obtenerla de /api/channels/export
+    if (!isPublic && (!secret || secret.includes("•") || secret === "••••••••")) {
+      try {
+        const headers = this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {};
+        const res = await fetch("/api/channels/export", { headers });
+        if (res.ok) {
+          const exportData = await res.json();
+          const list = Array.isArray(exportData) ? exportData : (exportData.channels || []);
+          const found = list.find((c) => Number(c.index) === Number(ch.index) || c.name === ch.name);
+          if (found) {
+            const rawPsk = String(found.psk || found.secret || "").trim();
+            if (rawPsk && !rawPsk.includes("•")) {
+              secret = rawPsk;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (!isPublic && (!secret || secret.includes("•"))) {
+      if (this.ctx.showToast) {
+        this.ctx.showToast("No se puede compartir el canal privado: clave de cifrado protegida o no disponible.", "warning");
+      } else {
+        alert("No se puede compartir el canal privado: clave de cifrado protegida.");
+      }
+      return;
+    }
+
+    const uri = buildMeshCoreChannelUri(ch.name, secret, ch.index);
     this.closeShareChannelModal();
     await this.sendMessageWithText(uri);
   }

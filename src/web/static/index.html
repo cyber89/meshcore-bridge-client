@@ -1418,22 +1418,23 @@
     <!-- Modal: Paleta de Comandos (Ctrl+K / Cmd+K) -->
     <div id="commandPaletteModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="cmdPaletteTitle">
       <div class="modal-card cmd-palette-modal">
+        <h2 id="cmdPaletteTitle" class="sr-only">Paleta de Comandos</h2>
         <div class="cmd-palette-header">
           <span class="search-icon" data-lucide="search" data-size="16"></span>
           <input type="text" id="cmdPaletteInput" placeholder="Escribe un comando o busca un nodo..." autocomplete="off" aria-label="Buscar nodo, comando o canal" />
           <kbd class="kbd-esc">ESC</kbd>
         </div>
         <div class="cmd-palette-results" id="cmdPaletteResults" role="listbox">
-          <div class="cmd-item" data-action="tab-chat"><span data-lucide="message-square" data-size="14"></span> Ir a Mensajería</div>
-          <div class="cmd-item" data-action="tab-contacts"><span data-lucide="users" data-size="14"></span> Ir a Contactos</div>
-          <div class="cmd-item" data-action="tab-nodes"><span data-lucide="network" data-size="14"></span> Ir a Nodos</div>
-          <div class="cmd-item" data-action="tab-map"><span data-lucide="map" data-size="14"></span> Abrir Mapa</div>
-          <div class="cmd-item" data-action="tab-logs"><span data-lucide="file-text" data-size="14"></span> Ver Consola de Logs del Sistema</div>
-          <div class="cmd-item" data-action="action-diag"><span data-lucide="stethoscope" data-size="14"></span> Ejecutar Auto-Diagnóstico de Subsistemas</div>
-          <div class="cmd-item" data-action="action-debug-toggle"><span data-lucide="bug" data-size="14"></span> Alternar Modo DEBUG</div>
-          <div class="cmd-item" data-action="action-advert-hop"><span data-lucide="radio" data-size="14"></span> Advert Hop (0 Saltos)</div>
-          <div class="cmd-item" data-action="action-advert-flood"><span data-lucide="wifi" data-size="14"></span> Advert Flood Routed</div>
-          <div class="cmd-item" data-action="action-advert-clipboard"><span data-lucide="copy" data-size="14"></span> Copiar Advert al Portapapeles</div>
+          <div class="cmd-item" data-action="tab-chat" role="option" tabindex="0"><span data-lucide="message-square" data-size="14"></span> Ir a Mensajería</div>
+          <div class="cmd-item" data-action="tab-contacts" role="option" tabindex="0"><span data-lucide="users" data-size="14"></span> Ir a Contactos</div>
+          <div class="cmd-item" data-action="tab-nodes" role="option" tabindex="0"><span data-lucide="network" data-size="14"></span> Ir a Nodos</div>
+          <div class="cmd-item" data-action="tab-map" role="option" tabindex="0"><span data-lucide="map" data-size="14"></span> Abrir Mapa</div>
+          <div class="cmd-item" data-action="tab-logs" role="option" tabindex="0"><span data-lucide="file-text" data-size="14"></span> Ver Consola de Logs del Sistema</div>
+          <div class="cmd-item" data-action="action-diag" role="option" tabindex="0"><span data-lucide="stethoscope" data-size="14"></span> Ejecutar Auto-Diagnóstico de Subsistemas</div>
+          <div class="cmd-item" data-action="action-debug-toggle" role="option" tabindex="0"><span data-lucide="bug" data-size="14"></span> Alternar Modo DEBUG</div>
+          <div class="cmd-item" data-action="action-advert-hop" role="option" tabindex="0"><span data-lucide="radio" data-size="14"></span> Advert Hop (0 Saltos)</div>
+          <div class="cmd-item" data-action="action-advert-flood" role="option" tabindex="0"><span data-lucide="wifi" data-size="14"></span> Advert Flood Routed</div>
+          <div class="cmd-item" data-action="action-advert-clipboard" role="option" tabindex="0"><span data-lucide="copy" data-size="14"></span> Copiar Advert al Portapapeles</div>
         </div>
       </div>
     </div>

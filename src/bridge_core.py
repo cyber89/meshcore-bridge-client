@@ -888,6 +888,9 @@ class MeshCoreBridge:
     # ================================================================
     def on_mesh_event(self, event: Any) -> None:
         """Procesa y enruta eventos de la red Mesh hacia MQTT y n8n."""
+        if not self.running or getattr(self, "_is_stopped", False):
+            logging.debug("Descartando evento mesh recibido tras el apagado del bridge.")
+            return
         self.rx_router.handle_event(event)
 
     # ================================================================
@@ -895,6 +898,15 @@ class MeshCoreBridge:
     # ================================================================
     def _on_incoming_mqtt_message(self, topic: str, payload_str: str) -> None:
         """Enruta mensajes recibidos desde MQTT (TX o Admin) a la cola de eventos."""
+        if not self.running or getattr(self, "_is_stopped", False):
+            logging.debug("Descartando mensaje MQTT recibido tras el apagado del bridge.")
+            return
+        max_payload_size = getattr(config, "MQTT_MAX_PAYLOAD_BYTES", 128 * 1024)
+        if len(payload_str.encode("utf-8")) > max_payload_size:
+            logging.warning(
+                f"Payload MQTT entrante excede el límite máximo permitido ({len(payload_str.encode('utf-8'))} > {max_payload_size} B). Descartando en {topic}."
+            )
+            return
         self.mqtt_dispatcher.handle_incoming(topic, payload_str)
 
     def on_mqtt_message(self, client: Any, userdata: Any, msg: Any) -> None:
@@ -902,6 +914,12 @@ class MeshCoreBridge:
         try:
             topic = str(getattr(msg, "topic", ""))
             raw = getattr(msg, "payload", b"")
+            max_payload_size = getattr(config, "MQTT_MAX_PAYLOAD_BYTES", 128 * 1024)
+            if len(raw) > max_payload_size:
+                logging.warning(
+                    f"Payload MQTT entrante directo excede el límite permitido ({len(raw)} > {max_payload_size} B). Descartando en {topic}."
+                )
+                return
             payload_str = (
                 raw.decode("utf-8", errors="replace").strip()
                 if isinstance(raw, (bytes, bytearray))

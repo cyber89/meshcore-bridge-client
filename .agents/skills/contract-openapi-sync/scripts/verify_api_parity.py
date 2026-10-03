@@ -45,7 +45,7 @@ def extract_frontend_api_calls() -> dict[str, list[str]]:
     if not FRONTEND_DIR.exists():
         return calls_by_file
 
-    api_pattern = re.compile(r"""(?:fetch|url)\s*[(:=]\s*[`'"](/api/[a-zA-Z0-9_\-\./$${}]+)[`'"]""")
+    api_pattern = re.compile(r"""(?:fetch|url)\s*[(:=]\s*[`'"](/api/[^`'"]+)[`'"]""")
 
     for js_file in sorted(FRONTEND_DIR.rglob("*.js")):
         content = js_file.read_text(encoding="utf-8")
@@ -54,32 +54,37 @@ def extract_frontend_api_calls() -> dict[str, list[str]]:
             rel_path = str(js_file.relative_to(FRONTEND_DIR))
             calls_by_file[rel_path] = []
             for m in matches:
-                # Normalizar interpolaciones como ${id} o ${key} a comodines
-                norm = re.sub(r"\$\{[^}]+\}", "*", m).rstrip("/")
+                # Normalizar interpolaciones como ${id} o ${encodeURIComponent(key)} a comodines y omitir query string
+                raw_path = m.split("?")[0]
+                norm = re.sub(r"\$\{[^}]+\}", "*", raw_path).rstrip("/")
                 calls_by_file[rel_path].append(norm)
 
     return calls_by_file
 
 
 def is_route_covered(fe_call: str, be_routes: set[str]) -> bool:
-    """Comprueba si una llamada del frontend coincide o encaja con un prefijo del backend."""
-    if fe_call in be_routes:
-        return True
-
-    # Comprobación de comodín /api/nodes/* -> /api/nodes o similar
-    base_prefix = fe_call.split("?")[0]
+    """Comprueba si una llamada del frontend coincide o encaja con una ruta válida del backend."""
+    base_prefix = fe_call.split("?")[0].rstrip("/")
     if base_prefix in be_routes:
         return True
 
-    # Comprobar si coincide con rutas dinámicas conocidas
+    # Comprobación de comodín /api/nodes/* -> /api/nodes o similar
     prefix_parts = [p for p in base_prefix.split("/") if p and p != "*"]
     prefix_check = "/" + "/".join(prefix_parts)
     if prefix_check in be_routes:
         return True
 
-    # Comprobar coincidencia con rutas de prefijo (ej: /api/channels, /api/contacts)
-    for r in be_routes:
-        if base_prefix.startswith(r + "/"):
+    # Comprobar coincidencia exclusivamente con colecciones que soportan identificador subordinado
+    RESOURCE_COLLECTIONS = {
+        "/api/contacts",
+        "/api/channels",
+        "/api/nodes",
+        "/api/messages",
+        "/api/packets",
+        "/api/map",
+    }
+    for col in RESOURCE_COLLECTIONS:
+        if base_prefix.startswith(col + "/"):
             return True
 
     return False

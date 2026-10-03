@@ -10,10 +10,10 @@ import json
 import logging
 import re
 import time
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Protocol, cast
+from typing import Any, Protocol
 
 import config
 from src.contact_manager import (
@@ -29,7 +29,7 @@ from src.lqi_engine import LinkQualityEngine
 from src.mqtt_client import AsyncBridgeMQTTClient
 from src.protocol_types import MeshcoreFrame, PacketType, TextMessagePayload
 from src.repeater_manager import RepeaterManager
-from src.routers.base import MeshMessageEvent, RxMeta
+from src.routers.base import BaseRxHandler, MeshMessageEvent, RxMeta
 from src.sensor_decoder import (
     extract_telemetry_fields,
     format_telemetry_summary,
@@ -142,14 +142,20 @@ def is_command_or_system_message(text: str, txt_type: int = 0) -> bool:
     clean_lower = clean.lower()
 
     # Normalizar si contiene prefijos de prompt como "-> ", "- > ", "> "
-    if clean_lower.startswith(("->", "- >", ">")):
+    has_prompt = clean_lower.startswith(("->", "- >", ">"))
+    if has_prompt:
         clean_lower = re.sub(r"^(?:->|- >|>)\s*", "", clean_lower)
 
-    if clean_lower.startswith(_SYSTEM_PREFIXES) or clean_lower in _SYSTEM_EXACT_MATCHES:
+    if clean_lower.startswith(_SYSTEM_PREFIXES):
         return True
 
     # Respuestas de bots reflejadas
     if clean.startswith(_SYSTEM_EMOJI_PREFIXES):
+        return True
+
+    # Solo considerar coincidencias exactas cortas (como 'ok', 'ping', 'error')
+    # si vinieron precedidas de un prompt de comando explícito
+    if has_prompt and clean_lower in _SYSTEM_EXACT_MATCHES:
         return True
 
     return False
@@ -205,7 +211,6 @@ class RxEventRouter:
 
         from src.routers import (
             AdvertHandler,
-            BaseRxHandler,
             ChannelMessageHandler,
             DirectMessageHandler,
             RepeaterAdminHandler,
@@ -214,7 +219,16 @@ class RxEventRouter:
         )
 
         self._ctx = ctx
-        self._rx_semaphore = asyncio.Semaphore(int(os.getenv("MAX_RX_CONCURRENCY", "20")))
+        rx_limit = getattr(config, "MAX_RX_CONCURRENCY", 20)
+        try:
+            env_val = os.getenv("MAX_RX_CONCURRENCY")
+            if env_val is not None:
+                parsed = int(env_val)
+                if parsed >= 1:
+                    rx_limit = parsed
+        except (ValueError, TypeError):
+            pass
+        self._rx_semaphore = asyncio.Semaphore(rx_limit)
         self._handlers: list[BaseRxHandler] = [
             RepeaterAdminHandler(),
             DirectMessageHandler(),
@@ -226,6 +240,11 @@ class RxEventRouter:
 
     def handle_event(self, event: Any) -> None:
         """Procesa y enruta eventos de la red Mesh hacia MQTT y n8n."""
+        if self._ctx.bridge is not None:
+            if not getattr(self._ctx.bridge, "running", True) or getattr(self._ctx.bridge, "_is_stopped", False):
+                logging.debug("[RX-ROUTER] Descartando evento recibido tras el apagado del bridge.")
+                return
+
         self._ctx.serial_adapter.heartbeat()
 
         try:
@@ -307,7 +326,9 @@ class RxEventRouter:
 
             for handler in self._handlers:
                 if handler.can_handle(meta, payload_dict):
-                    task = loop.create_task(cast(Coroutine[Any, Any, None], handler.handle(self, payload_dict, meta, event)))
+                    task = loop.create_task(
+                        self._dispatch_sdk_event(handler, payload_dict, meta, event)
+                    )
                     self._register_task(task)
                     return
 
@@ -620,11 +641,14 @@ class RxEventRouter:
         if self._ctx.deduplicator is not None:
             clean_sender = str(msg.sender or "").strip().lower()
             clean_text = str(msg.text or "").strip()
-            dedup_key = f"mesh::{clean_sender}::{msg.channel_idx}::{clean_text}::{msg.txt_type}"
+            if msg.sender_timestamp is not None:
+                dedup_key = f"mesh::{clean_sender}::{msg.channel_idx}::{clean_text}::{msg.txt_type}::{msg.sender_timestamp}"
+            else:
+                dedup_key = f"mesh::{clean_sender}::{msg.channel_idx}::{clean_text}::{msg.txt_type}"
             if await self._ctx.deduplicator.is_duplicate(dedup_key):
                 if self._ctx.bridge and hasattr(self._ctx.bridge, "dup_count"):
                     self._ctx.bridge.dup_count += 1
-                if hasattr(self._ctx.counters, "dup_count"):
+                elif hasattr(self._ctx.counters, "dup_count"):
                     self._ctx.counters.dup_count += 1
                 logging.debug(f"[RX-DEDUP] Mensaje duplicado LoRa ignorado: de {msg.sender_name or clean_sender[:8]} (canal {msg.channel_idx})")
                 return None
@@ -657,11 +681,14 @@ class RxEventRouter:
             (sender_contact and sender_contact.role in ("REPEATER", "ROUTER"))
             or should_treat_as_repeater
         )
-        is_cmd_response = (
-            msg.txt_type == 1
-            or is_repeater_sender
-            or is_command_or_system_message(msg.text, msg.txt_type)
-        )
+        is_client_sender = bool(sender_contact and sender_contact.role in ("CLIENT", "ROOM", "SENSOR"))
+
+        if is_client_sender and msg.txt_type in (0, 2):
+            is_cmd_response = False
+        elif is_repeater_sender or msg.txt_type == 1:
+            is_cmd_response = True
+        else:
+            is_cmd_response = is_command_or_system_message(msg.text, msg.txt_type)
 
         now_iso = datetime.now(timezone.utc).isoformat()
 
@@ -714,14 +741,6 @@ class RxEventRouter:
 
         # Actualizar presencia y métricas del nodo emisor en NodeRegistry si es remoto
         if msg.sender and is_valid_node_key(msg.sender) and not self._ctx.node_registry.is_local_key(msg.sender):
-            self._ctx.node_registry.record_packet(
-                PacketRecord(
-                    public_key=msg.sender,
-                    is_rx=True,
-                    rssi=int(msg.rssi) if isinstance(msg.rssi, (int, float)) else None,
-                    snr=float(msg.snr) if isinstance(msg.snr, (int, float)) else None,
-                )
-            )
             updated_contact = self._ctx.node_registry.add_or_update(
                 msg.sender,
                 NodeContactUpdate(
@@ -760,6 +779,7 @@ class RxEventRouter:
             },
             "telemetry": extracted_telem if extracted_telem else None,
             "timestamp": now_iso,
+            "sender_timestamp": msg.sender_timestamp,
         }
 
         evt_json = json.dumps(evt_payload, sort_keys=True)
@@ -997,11 +1017,17 @@ class RxEventRouter:
 
         lqi_part = ""
         if rssi_val is not None and snr_val is not None:
-            instant_lqi = LinkQualityEngine.compute_instant_lqi(float(snr_val), float(rssi_val), hops=int(payload_dict.get("hops", 0)))
-            lqi_stat = LinkQualityEngine.classify_lqi_status(instant_lqi)
-            lqi_part = f" | LQI: {instant_lqi:.1f}% [{lqi_stat}]"
-            payload_dict["lqi_score"] = instant_lqi
-            payload_dict["lqi_status"] = lqi_stat
+            try:
+                snr_f = float(snr_val)
+                rssi_f = float(rssi_val)
+                hops_val = int(payload_dict.get("hops", 0) or 0)
+                instant_lqi = LinkQualityEngine.compute_instant_lqi(snr_f, rssi_f, hops=hops_val)
+                lqi_stat = LinkQualityEngine.classify_lqi_status(instant_lqi)
+                lqi_part = f" | LQI: {instant_lqi:.1f}% [{lqi_stat}]"
+                payload_dict["lqi_score"] = instant_lqi
+                payload_dict["lqi_status"] = lqi_stat
+            except (ValueError, TypeError):
+                pass
 
         telem_summary = format_telemetry_summary(payload_dict)
 
@@ -1032,6 +1058,23 @@ class RxEventRouter:
             f"[RX-TELEMETRÍA] De: {sender_label} -> Para: Gateway/MQTT | "
             f"Tipo: {ev_name} | {telem_summary} | RSSI: {rssi_str}, SNR: {snr_str}{lqi_part}"
         )
+
+    async def _dispatch_sdk_event(
+        self,
+        handler: BaseRxHandler,
+        payload_dict: dict[str, Any],
+        meta: RxMeta,
+        event: Any,
+    ) -> None:
+        """Enruta eventos SDK a su handler correspondiente respetando el límite de concurrencia."""
+        async with self._rx_semaphore:
+            try:
+                await handler.handle(self, payload_dict, meta, event)
+            except Exception as ex:
+                logging.error(
+                    f"[RX-ROUTER] Error no controlado procesando evento {meta.ev_type_str}: {ex}",
+                    exc_info=True,
+                )
 
     async def _dispatch_parsed_frame(self, frame: MeshcoreFrame) -> None:
         """Enruta instancias de MeshcoreFrame validadas a MQTT."""

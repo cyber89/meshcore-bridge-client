@@ -329,16 +329,23 @@ class AirtimeTracker:
 
         with self._lock:
             self._prune(now)
+            duty_pct = self.duty_cycle_limit_pct if math.isfinite(self.duty_cycle_limit_pct) and self.duty_cycle_limit_pct >= 0 else 10.0
+            warn_pct = self.warn_threshold_pct if math.isfinite(self.warn_threshold_pct) and self.warn_threshold_pct >= 0 else 80.0
+            cutoff_th = self.cutoff_threshold_pct if math.isfinite(self.cutoff_threshold_pct) and self.cutoff_threshold_pct >= 0 else 35.0
+            cutoff_res = self.cutoff_resume_pct if math.isfinite(self.cutoff_resume_pct) and self.cutoff_resume_pct >= 0 else 30.0
+            tot_air = self.total_airtime_ms if math.isfinite(self.total_airtime_ms) and self.total_airtime_ms >= 0 else 0.0
+            ch_util = self._channel_utilization_pct if math.isfinite(self._channel_utilization_pct) and self._channel_utilization_pct >= 0 else 0.0
+
             payload: dict[str, Any] = {
                 "version": 1, "saved_at": now,
-                "duty_cycle_limit_pct": self.duty_cycle_limit_pct,
-                "warn_threshold_pct": self.warn_threshold_pct,
-                "total_airtime_ms": round(self.total_airtime_ms, 1),
+                "duty_cycle_limit_pct": duty_pct,
+                "warn_threshold_pct": warn_pct,
+                "total_airtime_ms": round(tot_air, 1),
                 "total_packets": self.total_packets,
-                "channel_utilization_pct": round(self._channel_utilization_pct, 2),
+                "channel_utilization_pct": round(ch_util, 2),
                 "cutoff_active": self._cutoff_active,
-                "cutoff_threshold_pct": self.cutoff_threshold_pct,
-                "cutoff_resume_pct": self.cutoff_resume_pct,
+                "cutoff_threshold_pct": cutoff_th,
+                "cutoff_resume_pct": cutoff_res,
                 "cutoff_enabled": self.cutoff_enabled,
                 "records": [r.to_dict() for r in self._history],
             }
@@ -362,7 +369,7 @@ class AirtimeTracker:
                 os.makedirs(target_dir, exist_ok=True)
                 temp_path = f"{self.history_file}.tmp"
                 with open(temp_path, "w", encoding="utf-8") as stream:
-                    json.dump(payload, stream, indent=2)
+                    json.dump(payload, stream, indent=2, allow_nan=False)
                 os.replace(temp_path, self.history_file)
             except Exception:
                 logging.warning("AirtimeTracker: Error al persistir historial")
@@ -455,12 +462,14 @@ class AirtimeTracker:
                 hourly_ms += r.airtime_ms
                 hourly_pkts += 1
 
-        hourly_budget_ms = 3600.0 * 1000.0 * (self.duty_cycle_limit_pct / 100.0)
+        limit_pct = self.duty_cycle_limit_pct if math.isfinite(self.duty_cycle_limit_pct) and self.duty_cycle_limit_pct >= 0 else 0.0
+        warn_pct = self.warn_threshold_pct if math.isfinite(self.warn_threshold_pct) and self.warn_threshold_pct >= 0 else 0.0
+        hourly_budget_ms = 3600.0 * 1000.0 * (limit_pct / 100.0)
         duty_cycle_pct = (hourly_ms / 3600000.0) * 100.0 if hourly_ms > 0 else 0.0
-        warn_duty_pct = self.duty_cycle_limit_pct * (self.warn_threshold_pct / 100.0)
+        warn_duty_pct = limit_pct * (warn_pct / 100.0)
 
-        is_critical = duty_cycle_pct >= self.duty_cycle_limit_pct if self.duty_cycle_limit_pct > 0 else False
-        is_warning = (not is_critical) and (duty_cycle_pct >= warn_duty_pct) if self.duty_cycle_limit_pct > 0 else False
+        is_critical = duty_cycle_pct >= limit_pct if limit_pct > 0 else False
+        is_warning = (not is_critical) and (duty_cycle_pct >= warn_duty_pct) if limit_pct > 0 else False
 
         if is_critical:
             status_level = "critical"
@@ -579,8 +588,21 @@ class TxRateLimiter:
         self.transmit_callback = transmit_callback
 
         import os
-        MAX_TX_QUEUE_SIZE = int(os.getenv("MAX_TX_QUEUE_SIZE", "500"))
-        self.queue: CustomTxQueue = CustomTxQueue(maxsize=MAX_TX_QUEUE_SIZE)
+        tx_limit = 500
+        try:
+            import config
+            tx_limit = getattr(config, "MAX_TX_QUEUE_SIZE", 500)
+        except Exception:
+            pass
+        try:
+            env_val = os.getenv("MAX_TX_QUEUE_SIZE")
+            if env_val is not None:
+                parsed = int(env_val)
+                if parsed >= 1:
+                    tx_limit = parsed
+        except (ValueError, TypeError):
+            pass
+        self.queue: CustomTxQueue = CustomTxQueue(maxsize=tx_limit)
         self.airtime_tracker: AirtimeTracker = AirtimeTracker(
             duty_cycle_limit_pct=duty_cycle_limit_pct,
             warn_threshold_pct=warn_threshold_pct,
@@ -594,6 +616,7 @@ class TxRateLimiter:
         self._seq_counter = 0
         self._worker_task: asyncio.Task[None] | None = None
         self._running = False
+        self._stopped = False
 
     def update_channel_utilization(self, ch_util_pct: float) -> bool:
         """Actualiza la ocupación de canal y evalúa si activa/desactiva el Airtime Cutoff."""
@@ -607,6 +630,7 @@ class TxRateLimiter:
     def start(self) -> None:
         """Inicia la tarea worker de procesamiento en segundo plano."""
         if self._worker_task is None or self._worker_task.done():
+            self._stopped = False
             self._running = True
             self._worker_task = asyncio.create_task(self._worker_loop(), name="TxRateLimiterWorker")
             logging.debug("TxRateLimiter worker iniciado.")
@@ -614,6 +638,7 @@ class TxRateLimiter:
     async def stop(self) -> None:
         """Detiene limpiamente el despachador de transmisión."""
         self._running = False
+        self._stopped = True
         if self._worker_task and not self._worker_task.done():
             self._worker_task.cancel()
             try:
@@ -650,12 +675,26 @@ class TxRateLimiter:
         loop = asyncio.get_running_loop()
         future: asyncio.Future[Any] = loop.create_future()
 
+        if self._stopped:
+            future.set_exception(RuntimeError("TxRateLimiter ha sido detenido"))
+            return future
+
         if isinstance(payload, bytes):
             plen = len(payload)
         elif isinstance(payload, str):
             plen = len(payload.encode("utf-8"))
         elif hasattr(payload, "pack"):
             plen = len(payload.pack())
+        elif isinstance(payload, dict):
+            text_val = payload.get("text") or payload.get("message") or payload.get("payload") or payload.get("data")
+            if isinstance(text_val, bytes):
+                plen = len(text_val)
+            elif isinstance(text_val, str):
+                plen = len(text_val.encode("utf-8"))
+            elif "raw" in payload and isinstance(payload["raw"], (bytes, bytearray)):
+                plen = len(payload["raw"])
+            else:
+                plen = len(json.dumps(payload).encode("utf-8"))
         else:
             plen = 32
 

@@ -5,11 +5,13 @@ Handles /api/node/config, /api/node/settings, /api/node/advert, and /api/node/re
 
 from __future__ import annotations
 
+import math
 import time
 from datetime import datetime
 from typing import Any
 
 import config
+from src.shared_utils import to_bool
 from src.web.controllers.base import BaseController, problem_details
 
 
@@ -109,6 +111,32 @@ class ConfigController(BaseController):
 
     async def set_local_config(self, params: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Aplica cambios en los parámetros del transceptor o configuración de red."""
+        # Validar parámetros de airtime y retraso antes de aplicar cualquier mutación
+        airtime_keys = {
+            "duty_cycle_limit_pct",
+            "warn_threshold_pct",
+            "airtime_cutoff_threshold_pct",
+            "airtime_cutoff_resume_pct",
+            "repeater_pre_send_delay_s",
+        }
+        for k in airtime_keys:
+            if k in params:
+                val = params[k]
+                if isinstance(val, bool):
+                    return problem_details(422, "Unprocessable Entity", f"El parámetro '{k}' no puede ser booleano", "invalid_parameter")
+                try:
+                    f_val = float(val)
+                except (ValueError, TypeError):
+                    return problem_details(422, "Unprocessable Entity", f"El parámetro '{k}' debe ser un número finito", "invalid_parameter")
+                if not math.isfinite(f_val):
+                    return problem_details(422, "Unprocessable Entity", f"El parámetro '{k}' debe ser un número finito", "invalid_parameter")
+                if k in ("duty_cycle_limit_pct", "warn_threshold_pct", "airtime_cutoff_threshold_pct", "airtime_cutoff_resume_pct"):
+                    if not (0.0 <= f_val <= 100.0):
+                        return problem_details(422, "Unprocessable Entity", f"El parámetro '{k}' debe estar entre 0 y 100", "invalid_parameter")
+                elif k == "repeater_pre_send_delay_s":
+                    if f_val < 0.0:
+                        return problem_details(422, "Unprocessable Entity", f"El parámetro '{k}' debe ser no negativo", "invalid_parameter")
+
         cmd = {"action": "set_local_config", "params": params}
         res = await self.ctx.bridge.handle_admin(cmd)
         failure = self.command_failure(res)
@@ -119,42 +147,27 @@ class ConfigController(BaseController):
             tracker = limiter.airtime_tracker
             airtime_changed = False
             if "duty_cycle_limit_pct" in params:
-                try:
-                    tracker.duty_cycle_limit_pct = float(params["duty_cycle_limit_pct"])
-                    airtime_changed = True
-                except (ValueError, TypeError):
-                    pass
+                tracker.duty_cycle_limit_pct = float(params["duty_cycle_limit_pct"])
+                airtime_changed = True
             if "warn_threshold_pct" in params:
-                try:
-                    tracker.warn_threshold_pct = float(params["warn_threshold_pct"])
-                    airtime_changed = True
-                except (ValueError, TypeError):
-                    pass
+                tracker.warn_threshold_pct = float(params["warn_threshold_pct"])
+                airtime_changed = True
             if "airtime_cutoff_enabled" in params:
-                tracker.cutoff_enabled = bool(params["airtime_cutoff_enabled"])
+                tracker.cutoff_enabled = to_bool(params["airtime_cutoff_enabled"])
                 airtime_changed = True
             if "airtime_cutoff_threshold_pct" in params:
-                try:
-                    tracker.cutoff_threshold_pct = float(params["airtime_cutoff_threshold_pct"])
-                    airtime_changed = True
-                except (ValueError, TypeError):
-                    pass
+                tracker.cutoff_threshold_pct = float(params["airtime_cutoff_threshold_pct"])
+                airtime_changed = True
             if "airtime_cutoff_resume_pct" in params:
-                try:
-                    tracker.cutoff_resume_pct = float(params["airtime_cutoff_resume_pct"])
-                    airtime_changed = True
-                except (ValueError, TypeError):
-                    pass
+                tracker.cutoff_resume_pct = float(params["airtime_cutoff_resume_pct"])
+                airtime_changed = True
             if airtime_changed:
                 tracker.save_history(sync=True)
 
         if "repeater_pre_send_delay_enabled" in params:
-            config.REPEATER_PRE_SEND_DELAY_ENABLED = bool(params["repeater_pre_send_delay_enabled"])
+            config.REPEATER_PRE_SEND_DELAY_ENABLED = to_bool(params["repeater_pre_send_delay_enabled"])
         if "repeater_pre_send_delay_s" in params:
-            try:
-                config.REPEATER_PRE_SEND_DELAY_S = float(params["repeater_pre_send_delay_s"])
-            except (ValueError, TypeError):
-                pass
+            config.REPEATER_PRE_SEND_DELAY_S = float(params["repeater_pre_send_delay_s"])
 
 
         self.ctx.log_system_event("INFO", f"Configuración de nodo local actualizada: {list(params.keys())}", source="admin")
@@ -357,8 +370,19 @@ class ConfigController(BaseController):
         admin = getattr(self.ctx.bridge, "admin_handler", None)
         if not admin:
             return problem_details(503, "Service Unavailable", "Admin handler no disponible", "admin_unavailable")
-        raw_mode = body.get("mode", body.get("path_hash_mode", 0))
-        mode = int(raw_mode) if str(raw_mode).isdigit() else 0
+        raw_mode = body.get("mode", body.get("path_hash_mode"))
+        if raw_mode is None or isinstance(raw_mode, (bool, float)):
+            return problem_details(422, "Unprocessable Entity", "El modo debe ser un entero 0, 1 o 2", "invalid_mode")
+        if isinstance(raw_mode, int):
+            mode = raw_mode
+        elif isinstance(raw_mode, str) and raw_mode.strip() in {"0", "1", "2"}:
+            mode = int(raw_mode.strip())
+        else:
+            return problem_details(422, "Unprocessable Entity", "El modo debe ser un entero 0, 1 o 2", "invalid_mode")
+
+        if mode not in (0, 1, 2):
+            return problem_details(422, "Unprocessable Entity", "El modo debe ser 0, 1 o 2", "invalid_mode")
+
         res = await admin.set_path_hash_mode(mode)
         failure = self.command_failure(res)
         if failure:
@@ -377,9 +401,30 @@ class ConfigController(BaseController):
         admin = getattr(self.ctx.bridge, "admin_handler", None)
         if not admin:
             return problem_details(503, "Service Unavailable", "Admin handler no disponible", "admin_unavailable")
-        flags = int(body.get("flags", body.get("config", body.get("autoadd", 0))))
-        max_hops = body.get("max_hops")
-        res = await admin.set_autoadd_config(flags, int(max_hops) if max_hops is not None else None)
+        raw_flags = body.get("flags", body.get("config", body.get("autoadd", 0)))
+        raw_max_hops = body.get("max_hops")
+
+        if isinstance(raw_flags, (bool, float)):
+            return problem_details(422, "Unprocessable Entity", "El parámetro 'flags' debe ser un entero", "invalid_flags")
+        if isinstance(raw_flags, int):
+            flags = raw_flags
+        elif isinstance(raw_flags, str) and (raw_flags.isdigit() or (raw_flags.startswith("-") and raw_flags[1:].isdigit())):
+            flags = int(raw_flags)
+        else:
+            return problem_details(422, "Unprocessable Entity", "El parámetro 'flags' debe ser un entero", "invalid_flags")
+
+        max_hops: int | None = None
+        if raw_max_hops is not None:
+            if isinstance(raw_max_hops, (bool, float)):
+                return problem_details(422, "Unprocessable Entity", "El parámetro 'max_hops' debe ser un entero", "invalid_max_hops")
+            if isinstance(raw_max_hops, int):
+                max_hops = raw_max_hops
+            elif isinstance(raw_max_hops, str) and (raw_max_hops.isdigit() or (raw_max_hops.startswith("-") and raw_max_hops[1:].isdigit())):
+                max_hops = int(raw_max_hops)
+            else:
+                return problem_details(422, "Unprocessable Entity", "El parámetro 'max_hops' debe ser un entero", "invalid_max_hops")
+
+        res = await admin.set_autoadd_config(flags, max_hops)
         failure = self.command_failure(res)
         if failure:
             return failure

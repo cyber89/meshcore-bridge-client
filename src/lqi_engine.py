@@ -7,6 +7,7 @@ suavizado mediante Media Móvil Exponencial (EMA) y decaimiento por inactividad 
 
 from __future__ import annotations
 
+import math
 import time
 from enum import Enum
 
@@ -50,28 +51,44 @@ class LinkQualityEngine:
     ) -> float:
         """
         Calcula la puntuación LQI instantánea (0.0 a 100.0%) a partir de SNR, RSSI y saltos.
+        Rechaza valores NaN/infinitos asignándoles 0% o neutral según disponibilidad.
         """
-        if snr is None and rssi is None:
+        has_snr = False
+        snr_norm = 50.0
+        if snr is not None:
+            try:
+                snr_f = float(snr)
+                if math.isfinite(snr_f):
+                    snr_clamped = max(cls.MIN_SNR, min(cls.MAX_SNR, snr_f))
+                    snr_norm = ((snr_clamped - cls.MIN_SNR) / (cls.MAX_SNR - cls.MIN_SNR)) * 100.0
+                    has_snr = True
+            except (ValueError, TypeError):
+                pass
+
+        has_rssi = False
+        rssi_norm = 50.0
+        if rssi is not None:
+            try:
+                rssi_f = float(rssi)
+                if math.isfinite(rssi_f):
+                    rssi_clamped = max(cls.MIN_RSSI, min(cls.MAX_RSSI, rssi_f))
+                    rssi_norm = ((rssi_clamped - cls.MIN_RSSI) / (cls.MAX_RSSI - cls.MIN_RSSI)) * 100.0
+                    has_rssi = True
+            except (ValueError, TypeError):
+                pass
+
+        if not has_snr and not has_rssi:
             return 0.0
 
-        # 1. Normalizar SNR (-20dB a +10dB -> 0% a 100%)
-        if snr is not None:
-            snr_clamped = max(cls.MIN_SNR, min(cls.MAX_SNR, float(snr)))
-            snr_norm = ((snr_clamped - cls.MIN_SNR) / (cls.MAX_SNR - cls.MIN_SNR)) * 100.0
+        # Puntuación combinada ponderada
+        if has_snr and not has_rssi:
+            signal_score = snr_norm
+        elif has_rssi and not has_snr:
+            signal_score = rssi_norm
         else:
-            snr_norm = 50.0  # Valor neutral si falta SNR
+            signal_score = (cls.WEIGHT_SNR * snr_norm) + (cls.WEIGHT_RSSI * rssi_norm)
 
-        # 2. Normalizar RSSI (-125dBm a -40dBm -> 0% a 100%)
-        if rssi is not None:
-            rssi_clamped = max(cls.MIN_RSSI, min(cls.MAX_RSSI, float(rssi)))
-            rssi_norm = ((rssi_clamped - cls.MIN_RSSI) / (cls.MAX_RSSI - cls.MIN_RSSI)) * 100.0
-        else:
-            rssi_norm = 50.0  # Valor neutral si falta RSSI
-
-        # 3. Puntuación combinada ponderada
-        signal_score = (cls.WEIGHT_SNR * snr_norm) + (cls.WEIGHT_RSSI * rssi_norm)
-
-        # 4. Penalización por saltos multi-hop
+        # Penalización por saltos multi-hop
         hop_penalty = max(0, hops) * cls.PENALTY_PER_HOP
         lqi_instant = max(0.0, min(100.0, signal_score - hop_penalty))
 
@@ -86,13 +103,30 @@ class LinkQualityEngine:
     ) -> float:
         """
         Suaviza la puntuación LQI mediante Media Móvil Exponencial (EMA).
-        Si el LQI previo es 0 (nodo nuevo), se adopta directamente el LQI instantáneo.
+        Si el LQI previo es <= 0 (nodo nuevo), se adopta directamente el LQI instantáneo acotado (0..100).
         """
-        if prev_lqi <= 0.0:
-            return float(round(instant_lqi, 2))
+        try:
+            inst_f = float(instant_lqi)
+            if not math.isfinite(inst_f):
+                inst_f = 0.0
+        except (ValueError, TypeError):
+            inst_f = 0.0
 
+        clamped_instant = max(0.0, min(100.0, inst_f))
+
+        try:
+            prev_f = float(prev_lqi)
+            if not math.isfinite(prev_f):
+                prev_f = 0.0
+        except (ValueError, TypeError):
+            prev_f = 0.0
+
+        if prev_f <= 0.0:
+            return float(round(clamped_instant, 2))
+
+        clamped_prev = max(0.0, min(100.0, prev_f))
         clamped_alpha = max(0.05, min(0.95, alpha))
-        new_lqi = (clamped_alpha * instant_lqi) + ((1.0 - clamped_alpha) * prev_lqi)
+        new_lqi = (clamped_alpha * clamped_instant) + ((1.0 - clamped_alpha) * clamped_prev)
         return float(round(max(0.0, min(100.0, new_lqi)), 2))
 
     @classmethod
@@ -105,31 +139,42 @@ class LinkQualityEngine:
         """
         Aplica decaimiento temporal si el nodo no ha transmitido en más de INACTIVITY_THRESHOLD_SEC.
         """
-        if lqi <= 0.0:
+        try:
+            lqi_f = float(lqi)
+            if not math.isfinite(lqi_f) or lqi_f <= 0.0:
+                return 0.0
+        except (ValueError, TypeError):
             return 0.0
 
         current_time = time.time() if now_ts is None else now_ts
         inactive_seconds = max(0.0, current_time - last_seen_ts)
 
         if inactive_seconds <= cls.INACTIVITY_THRESHOLD_SEC:
-            return float(round(lqi, 2))
+            return float(round(max(0.0, min(100.0, lqi_f)), 2))
 
         # Minutos adicionales de inactividad tras el umbral
         extra_minutes = (inactive_seconds - cls.INACTIVITY_THRESHOLD_SEC) / 60.0
         decay_factor = max(0.0, 1.0 - (extra_minutes * cls.DECAY_RATE_PER_MINUTE))
-        decayed_lqi = lqi * decay_factor
+        decayed_lqi = lqi_f * decay_factor
 
         return float(round(max(0.0, min(100.0, decayed_lqi)), 2))
 
     @classmethod
     def classify_lqi_status(cls, lqi: float) -> str:
         """Determina la categoría cualitativa del enlace según el valor de LQI."""
-        if lqi >= 80.0:
+        try:
+            lqi_f = float(lqi)
+            if not math.isfinite(lqi_f):
+                return LQIStatus.UNREACHABLE.value
+        except (ValueError, TypeError):
+            return LQIStatus.UNREACHABLE.value
+
+        if lqi_f >= 80.0:
             return LQIStatus.EXCELLENT.value
-        if lqi >= 60.0:
+        if lqi_f >= 60.0:
             return LQIStatus.GOOD.value
-        if lqi >= 40.0:
+        if lqi_f >= 40.0:
             return LQIStatus.FAIR.value
-        if lqi > 0.0:
+        if lqi_f > 0.0:
             return LQIStatus.POOR.value
         return LQIStatus.UNREACHABLE.value

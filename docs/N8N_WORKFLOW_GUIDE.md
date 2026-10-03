@@ -70,11 +70,11 @@ La telemetría devuelve `telemetry_processed` y marca `is_alert` para batería `
 
 El normalizador descarta `is_outgoing`, `is_local`, rol `LOCAL`, remitente literal `local` y prefijos de respuesta de bot. Esa guarda no compara por sí sola cualquier clave pública entrante con la clave local configurada: depende de los campos normalizados que entregue el bridge.
 
-La clasificación canónica debe proceder de `FirmwareAdvertType` (0/1 CLIENT, 2 REPEATER, 3 ROOM, 4 SENSOR). El export actual, si falta `role`, todavía puede inferir repetidor mediante `is_repeater` o un nombre que contiene `REP`; el handler de anuncios preserva el rol, no decodifica el advert binario. Esta heurística no es una prueba de rol oficial y debe considerarse al revisar los contratos.
+La clasificación canónica procede de `FirmwareAdvertType` (0/1 CLIENT, 2 REPEATER, 3 ROOM, 4 SENSOR) y `is_repeater`, descartando cualquier inferencia heurística basada en nombres de nodo.
 
-`ADMIN_WHITELIST` compara IDs y nombres visibles e incluye valores de ejemplo. No es una validación criptográfica de autorización basada exclusivamente en claves completas. Reemplazar los ejemplos y revisar identidad antes de habilitar comandos administrativos en una instancia real.
+`ADMIN_WHITELIST` restringe la autorización exclusivamente a claves públicas / IDs de nodo canónicos (`senderId`), sin evaluar nombres de nodo para prevenir suplantación de identidad.
 
-Los textos de clima/comandos pueden superar objetivos mencionados en comentarios; la guía no garantiza un tamaño máximo en bytes ni ausencia de fragmentación. `/time` usa la hora del proceso y la etiqueta UTC no demuestra que n8n se ejecute en UTC.
+Los textos de clima y comandos respetan el presupuesto de canal (< 120 bytes de payload) para garantizar compatibilidad con el límite MTU oficial del transceptor incluso con nombres de estación configurados. `/time` formatea la hora UTC canónica mediante `toISOString()`.
 
 ## 5. Importación y cambios
 

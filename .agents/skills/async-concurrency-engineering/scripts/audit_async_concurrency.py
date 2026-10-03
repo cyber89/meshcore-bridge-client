@@ -24,40 +24,71 @@ def get_project_root() -> Path:
         current = current.parent
     return Path.cwd()
 
+
+class _AsyncBlockingVisitor(ast.NodeVisitor):
+    def __init__(self, file_path: Path) -> None:
+        self.file_path = file_path
+        self.violations: List[str] = []
+        self._current_async: str | None = None
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        prev = self._current_async
+        self._current_async = node.name
+        self.generic_visit(node)
+        self._current_async = prev
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        # Don't treat synchronous inner functions (e.g. passed to asyncio.to_thread) as async coroutines
+        prev = self._current_async
+        self._current_async = None
+        self.generic_visit(node)
+        self._current_async = prev
+
+    def visit_Call(self, node: ast.Call) -> None:
+        if self._current_async:
+            # Detect time.sleep() in async coroutine body
+            if isinstance(node.func, ast.Attribute) and node.func.attr == "sleep":
+                if isinstance(node.func.value, ast.Name) and node.func.value.id == "time":
+                    self.violations.append(
+                        f"[BLOQUEO I/O] {self.file_path.name}:{node.lineno} uso de time.sleep() en corrutina '{self._current_async}' (usar asyncio.sleep)"
+                    )
+            # Detect requests.* synchronous in async coroutine body
+            if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name) and node.func.value.id == "requests":
+                self.violations.append(
+                    f"[BLOQUEO I/O] {self.file_path.name}:{node.lineno} llamada a 'requests.{node.func.attr}' en corrutina '{self._current_async}'"
+                )
+        self.generic_visit(node)
+
+
 def check_blocking_calls(file_path: Path) -> List[str]:
-    violations: List[str] = []
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            tree = ast.parse(f.read(), filename=str(file_path))
-            
-        for node in ast.walk(tree):
-            if isinstance(node, ast.AsyncFunctionDef):
-                for sub in ast.walk(node):
-                    if isinstance(sub, ast.Call):
-                        # Detectar time.sleep() en funciones async
-                        if isinstance(sub.func, ast.Attribute) and sub.func.attr == "sleep":
-                            if isinstance(sub.func.value, ast.Name) and sub.func.value.id == "time":
-                                violations.append(f"[BLOQUEO I/O] {file_path.name}:{sub.lineno} uso de time.sleep() en corrutina '{node.name}' (usar asyncio.sleep)")
-                        # Detectar requests.* sincrónico en funciones async
-                        if isinstance(sub.func, ast.Attribute) and isinstance(sub.func.value, ast.Name) and sub.func.value.id == "requests":
-                            violations.append(f"[BLOQUEO I/O] {file_path.name}:{sub.lineno} llamada a 'requests.{sub.func.attr}' en corrutina '{node.name}'")
-    except Exception:
-        pass
-    return violations
+        content = file_path.read_text(encoding="utf-8")
+        tree = ast.parse(content, filename=str(file_path))
+    except SyntaxError as e:
+        return [f"[ERROR SINTAXIS] {file_path.name}:{e.lineno} Error al parsear AST: {e.msg}"]
+    except Exception as e:
+        return [f"[ERROR LECTURA] {file_path.name}: {e}"]
+
+    visitor = _AsyncBlockingVisitor(file_path)
+    visitor.visit(tree)
+    return visitor.violations
+
 
 def main() -> int:
     root = get_project_root()
     src_dir = root / "src"
-    
+
     print("=" * 68)
     print(" [ASYNC-AUDIT] Auditoria de Concurrencia y Event Loop Asincrono")
     print("=" * 68)
-    
+
     all_violations: List[str] = []
-    for py_file in sorted(src_dir.glob("*.py")):
+    for py_file in sorted(src_dir.rglob("*.py")):
+        if "__pycache__" in py_file.parts:
+            continue
         v = check_blocking_calls(py_file)
         all_violations.extend(v)
-        
+
     if not all_violations:
         print("[PASS] Cero llamadas bloqueantes (time.sleep, requests) en corrutinas async.")
         print("[PASS] Patrones asincronos y gestion del event loop conformes.")

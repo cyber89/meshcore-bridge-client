@@ -21,6 +21,7 @@ from typing import Any
 
 from src.sensor_decoder import LppDataType
 from src.serial_driver import BaseSerialAdapter
+from src.shared_utils import classify_device_role
 
 
 class VirtualMeshCoreCommands:
@@ -463,11 +464,22 @@ class VirtualMeshAdapter(BaseSerialAdapter):
         """Añade un contacto a los nodos simulados."""
         pk = str(contact_data.get("public_key", "")).strip().lower()
         if pk:
+            name = str(contact_data.get("name") or contact_data.get("adv_name") or f"Node_{pk[:6]}")
+            role = contact_data.get("role")
+            if not role:
+                adv_type = contact_data.get("type", contact_data.get("adv_type"))
+                if adv_type is not None:
+                    try:
+                        role = classify_device_role(int(adv_type), False)
+                    except (ValueError, TypeError):
+                        role = "CLIENT"
+                else:
+                    role = "CLIENT"
             self.nodes[pk] = {
                 "key": pk,
-                "name": contact_data.get("name", f"Node_{pk[:6]}"),
-                "alias": contact_data.get("alias", contact_data.get("name", f"Node_{pk[:6]}")),
-                "role": contact_data.get("role", "CLIENT"),
+                "name": name,
+                "alias": contact_data.get("alias", name),
+                "role": role,
                 "lat": 20.1600,
                 "lon": -75.2200,
                 "alt": 100.0,
@@ -534,6 +546,21 @@ class VirtualMeshAdapter(BaseSerialAdapter):
         if not self.is_connected:
             return {"status": "ERROR", "reason": "Simulador desconectado"}
         self.heartbeat()
+
+        # Validación MTU LoRa oficial y capacidad de canal (VRT-M01)
+        raw_bytes = text.encode("utf-8")
+        if len(raw_bytes) > 160:
+            return {
+                "status": "ERROR",
+                "reason": f"Payload de mensaje excede límite oficial ({len(raw_bytes)} > 160 bytes)",
+            }
+        safe_ch = int(channel_idx) if channel_idx is not None else 0
+        if not (0 <= safe_ch < 8):
+            return {
+                "status": "ERROR",
+                "reason": f"Índice de canal inválido ({safe_ch}). Debe estar en el rango 0..7",
+            }
+
         target_clean = str(target or "").strip().lower()
         local_key = str(self.mc.self_info.get("public_key", "")).lower()
         is_local_target = bool(
@@ -558,7 +585,12 @@ class VirtualMeshAdapter(BaseSerialAdapter):
             is_direct = True
             matched = None
             for k, n in self.nodes.items():
-                if target_clean in (k.lower(), n["name"].lower(), str(n["alias"]).lower()):
+                k_low = k.lower()
+                if (
+                    target_clean in (k_low, n["name"].lower(), str(n["alias"]).lower())
+                    or (len(target_clean) >= 8 and k_low.startswith(target_clean))
+                    or (len(k_low) >= 8 and target_clean.startswith(k_low))
+                ):
                     matched = n
                     break
             if matched:

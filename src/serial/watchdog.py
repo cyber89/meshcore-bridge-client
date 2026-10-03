@@ -26,7 +26,12 @@ class SerialWatchdog:
     ) -> None:
         self.adapter = adapter
         self.timeout_sec = timeout_sec
-        self.interval_sec = interval_sec
+        try:
+            import math
+            f_interval = float(interval_sec)
+            self.interval_sec = f_interval if math.isfinite(f_interval) and f_interval >= 5.0 else 30.0
+        except (ValueError, TypeError):
+            self.interval_sec = 30.0
         self.on_timeout_reconnect = on_timeout_reconnect
         self._task: asyncio.Task[None] | None = None
         self._running = False

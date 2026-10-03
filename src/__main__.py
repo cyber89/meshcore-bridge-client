@@ -2,20 +2,18 @@
 Main CLI entrypoint when running `python -m src`.
 """
 
-import logging
 import sys
-
-from src.bridge_core import MeshCoreBridge
+from pathlib import Path
 
 
 def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(message)s",
-        handlers=[logging.StreamHandler(sys.stdout)],
-    )
-    bridge = MeshCoreBridge()
-    bridge.run_forever()
+    root_dir = Path(__file__).resolve().parent.parent
+    if str(root_dir) not in sys.path:
+        sys.path.insert(0, str(root_dir))
+    import meshcore_bridge
+
+    meshcore_bridge.main()
+
 
 if __name__ == "__main__":
     main()

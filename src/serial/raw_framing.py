@@ -63,12 +63,18 @@ class RawSerialFramingAdapter(BaseSerialAdapter):
                     self._rx_buffer.clear()
             else:
                 if self._in_escape:
-                    if b in (SOF_BYTE, EOF_BYTE):
-                        # Violación estricta de protocolo: SOF/EOF no pueden escaparse como datos
+                    if b == SOF_BYTE:
+                        # Violación estricta de protocolo: SOF tras ESC aborta la trama previa pero inicia una nueva
+                        self._in_frame = True
+                        self._in_escape = False
+                        self._rx_buffer.clear()
+                        logging.warning("Violación de framing: delimitador SOF tras ESC. Trama previa abortada, resincronizando nueva trama.")
+                        continue
+                    if b == EOF_BYTE:
                         self._in_frame = False
                         self._in_escape = False
                         self._rx_buffer.clear()
-                        logging.warning(f"Violación de framing: delimitador 0x{b:02X} tras ESC. Trama abortada.")
+                        logging.warning("Violación de framing: delimitador EOF tras ESC. Trama abortada.")
                         continue
                     self._rx_buffer.append(b ^ ESC_MASK)
                     self._in_escape = False
@@ -114,4 +120,9 @@ class RawSerialFramingAdapter(BaseSerialAdapter):
         target: str | None = None,
         channel_idx: int = 0,
     ) -> dict[str, Any]:
-        return {"status": "SENT_RAW", "text": text}
+        """El adaptador raw es un parser de framing en memoria sin transporte de hardware."""
+        return {
+            "status": "NOT_SUPPORTED",
+            "error": "RawSerialFramingAdapter es un parser de framing en memoria sin transporte de hardware para transmisión",
+            "text": text,
+        }

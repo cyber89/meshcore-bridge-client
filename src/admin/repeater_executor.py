@@ -26,7 +26,7 @@ from src.contact_manager import (
     PacketRecord,
     is_valid_node_key,
 )
-from src.shared_utils import normalize_battery
+from src.shared_utils import normalize_battery, redact_sensitive_command
 
 if TYPE_CHECKING:
     from src.admin_handler import AdminContext
@@ -54,6 +54,10 @@ class WaiterRegistry:
 
     def register(self, keys: list[str], fut: asyncio.Future[dict[str, Any]], include_ping: bool = False) -> None:
         """Registra un futuro bajo una lista de claves de nodo."""
+        for k in keys:
+            if k and len(k) >= 32:
+                setattr(fut, "_target_canonical", k.strip().lower())  # noqa: B010
+                break
         for k in keys:
             if not k:
                 continue
@@ -150,9 +154,10 @@ class RepeaterAdminExecutor:
         """Punto de entrada principal para despachar acciones sobre un repetidor remoto."""
         res = req.res if req.res is not None else {}
         res["target_node"] = req.target_node
+        redacted_action = redact_sensitive_command(req.action)
         logging.info(
             f"[TX-ADMIN] De: Estación Base Local -> Para: {req.target_node} | "
-            f"Acción: '{req.action}' | ReqID: {req.req_id}"
+            f"Acción: '{redacted_action}' | ReqID: {req.req_id}"
         )
 
         target_info = self._collect_target_info(str(req.target_node))
@@ -237,7 +242,7 @@ class RepeaterAdminExecutor:
                 parts = str(cr_raw).split("/")
                 if len(parts) > 1 and parts[1].strip() in ("5", "6", "7", "8"):
                     cr_num = int(parts[1].strip())
-            radio_cmd = f"set radio {freq} {bw} {sf} {cr_num}"
+            radio_cmd = f"set radio {freq},{bw},{sf},{cr_num}"
             await self._send_rf_command(req.mc, self._resolve_target(str(req.target_node), 12), radio_cmd, str(req.target_node), req.req_id)
             dispatched.append(radio_cmd)
             await asyncio.sleep(0.35)
@@ -282,6 +287,9 @@ class RepeaterAdminExecutor:
         up_raw = params.get("uptime")
         at_raw = params.get("airtime_ms")
         nf_raw = params.get("noise_floor_dbm")
+        temp_raw = params.get("temperature_c", params.get("temperature"))
+        hum_raw = params.get("humidity_pct", params.get("humidity"))
+        press_raw = params.get("pressure_hpa", params.get("pressure"))
         fixed_val = params.get("fixed_position", params.get("fixed", params.get("pos_fixed")))
 
         update = NodeContactUpdate(
@@ -308,6 +316,9 @@ class RepeaterAdminExecutor:
             uptime=str(up_raw) if up_raw else None,
             airtime_ms=int(at_raw) if at_raw is not None else None,
             noise_floor_dbm=int(nf_raw) if nf_raw is not None else None,
+            temperature_c=float(temp_raw) if temp_raw is not None else None,
+            humidity_pct=float(hum_raw) if hum_raw is not None else None,
+            pressure_hpa=float(press_raw) if press_raw is not None else None,
         )
         updated_contact = self._ctx.node_registry.add_or_update(canon, update)
         if updated_contact and self._ctx.web_server and hasattr(self._ctx.web_server, "broadcast_event"):
@@ -741,17 +752,27 @@ class RepeaterAdminExecutor:
 
             elif action in ("req_telemetry", "telemetry") and hasattr(cmds, "req_telemetry_sync"):
                 data = await run_sdk_command(self._ctx, mc, "req_telemetry_sync", target, min_timeout=4.0)
-                if data is not None and isinstance(data, dict):
-                    rf_ctx.res.update({
-                        "status": "ok",
-                        "action": action,
-                        "target_node": str(rf_ctx.req.target_node),
-                        "telemetry": data,
-                        "message": "Telemetría binaria del repetidor obtenida",
-                    })
-                    await self._update_local_registry_from_params(str(rf_ctx.req.target_node), data)
-                    self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{rf_ctx.req.target_node}/telemetry", json.dumps(rf_ctx.res), 1)
-                    return rf_ctx.res
+                if data is not None:
+                    from src.sensor_decoder import extract_telemetry_fields
+                    if isinstance(data, list):
+                        telem_dict = extract_telemetry_fields({"lpp": data})
+                    elif isinstance(data, dict):
+                        telem_dict = extract_telemetry_fields(data) if "lpp" in data else data
+                    else:
+                        telem_dict = {}
+
+                    if telem_dict or isinstance(data, list):
+                        rf_ctx.res.update({
+                            "status": "ok",
+                            "action": action,
+                            "target_node": str(rf_ctx.req.target_node),
+                            "telemetry": telem_dict,
+                            "message": "Telemetría binaria del repetidor obtenida",
+                        })
+                        if telem_dict:
+                            await self._update_local_registry_from_params(str(rf_ctx.req.target_node), telem_dict)
+                        self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{rf_ctx.req.target_node}/telemetry", json.dumps(rf_ctx.res), 1)
+                        return rf_ctx.res
 
             elif action in ("req_owner", "owner") and hasattr(cmds, "req_owner_sync"):
                 data = await run_sdk_command(self._ctx, mc, "req_owner_sync", target, min_timeout=4.0)
@@ -941,9 +962,20 @@ class RepeaterAdminExecutor:
         raw_resp = resp_data.get("text") or resp_data.get("message") or ""
         resp_text = raw_resp[2:].strip() if raw_resp.startswith("> ") else raw_resp.strip()
 
-        rf_ctx.res["cmd_dispatched"] = cmd_text
-        rf_ctx.res["status"] = "ok" if resp_text else "dispatched"
-        rf_ctx.res["response"] = resp_text or f"Comando '{cmd_text}' transmitido por RF a {str(req.target_node)[:8]}"
+        is_error = False
+        if resp_text:
+            clean_lower = resp_text.lower()
+            if clean_lower.startswith(("error", "err:", "err,", "invalid", "fail", "unknown command", "denied")):
+                is_error = True
+
+        redacted_cmd = redact_sensitive_command(cmd_text)
+        rf_ctx.res["cmd_dispatched"] = redacted_cmd
+        if is_error:
+            rf_ctx.res["status"] = "error"
+            rf_ctx.res["error"] = resp_text
+        else:
+            rf_ctx.res["status"] = "ok" if resp_text else "dispatched"
+        rf_ctx.res["response"] = resp_text or f"Comando '{redacted_cmd}' transmitido por RF a {str(req.target_node)[:8]}"
         rf_ctx.res["message"] = rf_ctx.res["response"]
 
         parsed_telem = self._ctx.repeater_manager.parse_repeater_telemetry_or_response(resp_text) if resp_text else {}

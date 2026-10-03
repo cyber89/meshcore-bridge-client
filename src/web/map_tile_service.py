@@ -24,7 +24,7 @@ class MapTileService:
 
         self.maps_dir = self.base_dir / "maps"
         self.tiles_dir = self.maps_dir / "tiles"
-        self.mbtiles_conns: list[tuple[Path, sqlite3.Connection]] = []
+        self.mbtiles_conns: list[tuple[Path, sqlite3.Connection, str]] = []
         self._storage_lock = threading.RLock()
         self._init_storage()
 
@@ -43,9 +43,9 @@ class MapTileService:
 
     def _close(self) -> None:
         """Cierra todas las conexiones activas a bases de datos MBTiles."""
-        for _, conn in self.mbtiles_conns:
+        for item in self.mbtiles_conns:
             try:
-                conn.close()
+                item[1].close()
             except Exception:
                 pass
         self.mbtiles_conns.clear()
@@ -61,17 +61,30 @@ class MapTileService:
         if not self.maps_dir.exists():
             return
 
+        import urllib.request
         for mbtiles_path in self.maps_dir.glob("*.mbtiles"):
             try:
                 if not mbtiles_path.resolve().is_relative_to(self.maps_dir.resolve()):
                     continue
-                # Conexión SQLite de solo lectura optimizada para alto rendimiento
-                uri = f"file:{mbtiles_path.resolve()}?mode=ro"
+                # Conexión SQLite de solo lectura optimizada para alto rendimiento.
+                # Se utiliza pathname2url para codificar caracteres especiales como '#' o '?' en la URI.
+                clean_url_path = urllib.request.pathname2url(str(mbtiles_path.resolve()))
+                uri = f"file:{clean_url_path}?mode=ro"
                 conn = sqlite3.connect(uri, uri=True, check_same_thread=False)
                 conn.execute("PRAGMA journal_mode = OFF")
                 conn.execute("PRAGMA synchronous = OFF")
                 conn.execute("PRAGMA cache_size = -8000")  # 8MB de cache en RAM
-                self.mbtiles_conns.append((mbtiles_path, conn))
+                # Determinar el esquema de coordenadas a partir de metadata (TMS por defecto según MBTiles 1.3)
+                scheme = "tms"
+                try:
+                    cur = conn.cursor()
+                    cur.execute("SELECT value FROM metadata WHERE name = 'scheme'")
+                    m_row = cur.fetchone()
+                    if m_row and m_row[0]:
+                        scheme = str(m_row[0]).strip().lower()
+                except Exception:
+                    pass
+                self.mbtiles_conns.append((mbtiles_path, conn, scheme))
                 logging.info("Mapa MBTiles offline cargado: %s", mbtiles_path.name)
             except Exception as err:
                 logging.warning("No se pudo abrir archivo MBTiles '%s': %s", mbtiles_path.name, err)
@@ -107,23 +120,15 @@ class MapTileService:
         # MBTiles utiliza la convención TMS (Tile Map Service) donde el eje Y está invertido respecto a XYZ
         tms_y = (1 << z) - 1 - y
 
-        for mbtiles_path, conn in self.mbtiles_conns:
+        for mbtiles_path, conn, scheme in self.mbtiles_conns:
             try:
-                # Probar primero con coordenada estándar TMS
+                row_y = y if scheme == "xyz" else tms_y
                 cursor = conn.cursor()
                 cursor.execute(
                     "SELECT tile_data FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ? LIMIT 1",
-                    (z, x, tms_y),
+                    (z, x, row_y),
                 )
                 row = cursor.fetchone()
-
-                # Si no se encuentra, probar con coordenada directa XYZ (algunos generadores usan XYZ)
-                if not row:
-                    cursor.execute(
-                        "SELECT tile_data FROM tiles WHERE zoom_level = ? AND tile_column = ? AND tile_row = ? LIMIT 1",
-                        (z, x, y),
-                    )
-                    row = cursor.fetchone()
 
                 if row and row[0]:
                     tile_bytes = bytes(row[0])
@@ -161,7 +166,7 @@ class MapTileService:
     def _get_status(self) -> dict[str, Any]:
         """Devuelve el estado del almacenamiento de mapas locales y MBTiles detectados."""
         mbtiles_info = []
-        for path, conn in self.mbtiles_conns:
+        for path, conn, _scheme in self.mbtiles_conns:
             try:
                 size_mb = round(path.stat().st_size / (1024 * 1024), 2)
                 cursor = conn.cursor()

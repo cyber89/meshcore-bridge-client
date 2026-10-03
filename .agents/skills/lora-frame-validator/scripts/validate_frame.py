@@ -8,6 +8,7 @@ Permite verificar tramas capturadas de hardware LoRa o sintetizadas por el bridg
 import argparse
 import binascii
 import json
+from pathlib import Path
 import re
 import struct
 import sys
@@ -216,23 +217,26 @@ def parse_and_validate_frame(
             if sz == crc_size:
                 crc_matches[alg_name] = (calc_bytes == crc_embedded_bytes)
 
-        # Parsear Header si hay al menos 4 bytes
-        if len(data_to_crc) >= 4:
+        # Parsear Header si hay al menos 9 bytes (layout binario canónico <BBHHBH)
+        if len(data_to_crc) >= 9:
+            opcode, seq, src, dst, hop, plen = struct.unpack("<BBHHBH", data_to_crc[:9])
+            header_fields["opcode"] = f"0x{opcode:02X} ({opcode})"
+            header_fields["sequence"] = seq
+            header_fields["source_node_id"] = f"0x{src:04X} ({src})"
+            header_fields["dest_node_id"] = f"0x{dst:04X} ({dst})"
+            header_fields["hops"] = hop
+            header_fields["declared_payload_len"] = plen
+            payload_data = data_to_crc[9:]
+            if len(payload_data) != plen:
+                errors.append(
+                    f"Longitud de payload inconsistente: declarada {plen} B, recibida {len(payload_data)} B"
+                )
+            payload_hex = payload_data.hex().upper()
+            payload_len = len(payload_data)
+        elif len(data_to_crc) >= 1:
             opcode = data_to_crc[0]
             header_fields["opcode"] = f"0x{opcode:02X} ({opcode})"
-            if len(data_to_crc) >= 8:
-                seq = data_to_crc[1]
-                src = int.from_bytes(data_to_crc[2:4], "little")
-                dst = int.from_bytes(data_to_crc[4:6], "little")
-                plen = int.from_bytes(data_to_crc[6:8], "little")
-                header_fields["sequence"] = seq
-                header_fields["source_node_id"] = f"0x{src:04X} ({src})"
-                header_fields["dest_node_id"] = f"0x{dst:04X} ({dst})"
-                header_fields["declared_payload_len"] = plen
-                payload_data = data_to_crc[8:]
-            else:
-                payload_data = data_to_crc[1:]
-            
+            payload_data = data_to_crc[1:]
             payload_hex = payload_data.hex().upper()
             payload_len = len(payload_data)
         else:
@@ -363,5 +367,8 @@ def main() -> None:
     else:
         print(format_validation_report(result))
 
+    return 0 if result.validation_status == "VALID" else 1
+
+
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

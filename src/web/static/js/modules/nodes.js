@@ -161,13 +161,27 @@ export class NodesModule {
     const clean = String(pubkey).trim().toLowerCase();
     if (clean === "local") return "local";
 
+    // 1. Coincidencia exacta
     for (const [k, node] of this.knownNodes.entries()) {
       const nodePk = String(node.public_key || k).toLowerCase();
       if (nodePk === clean) return nodePk;
+    }
+
+    // 2. Coincidencias por prefijo
+    const matches = [];
+    for (const [k, node] of this.knownNodes.entries()) {
+      const nodePk = String(node.public_key || k).toLowerCase();
       if (nodePk.length >= 8 && clean.length >= 8 && (nodePk.startsWith(clean) || clean.startsWith(nodePk))) {
-        return nodePk;
+        if (!matches.includes(nodePk)) {
+          matches.push(nodePk);
+        }
       }
     }
+
+    if (matches.length === 1) {
+      return matches[0];
+    }
+
     return clean;
   }
 

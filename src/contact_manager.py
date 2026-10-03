@@ -868,14 +868,17 @@ class NodeRegistry:
             # Una clave pública nueva nunca se fusiona por un nombre mutable.
             return None
 
-        # 3. Coincidencia por nombre exacto o alias si no es un nombre genérico
+        # 3. Coincidencia por nombre exacto o alias si no es un nombre genérico (solo coincidencia única)
         if name:
             n_clean = name.strip().lower()
             if n_clean and not n_clean.startswith("node_") and not n_clean.startswith("unknow") and len(n_clean) >= 2:
-                for k, node in self._nodes_by_key.items():
-                    if (node.name and node.name.strip().lower() == n_clean) or \
-                       (node.alias and node.alias.strip().lower() == n_clean):
-                        return k
+                matching_keys = [
+                    k for k, node in self._nodes_by_key.items()
+                    if (node.name and node.name.strip().lower() == n_clean) or
+                       (node.alias and node.alias.strip().lower() == n_clean)
+                ]
+                if len(matching_keys) == 1:
+                    return matching_keys[0]
 
         return None
 
@@ -1102,8 +1105,9 @@ class NodeRegistry:
             )
         clean_name_candidate = (getattr(update, "name", None) or "").strip()
 
+        is_local_key_flag = self.is_local_key(norm_key)
         is_local_attr = getattr(update, "is_local", None)
-        is_local_flag = bool(is_local_attr if is_local_attr is not None else self.is_local_key(norm_key))
+        is_local_flag = bool(is_local_key_flag or (is_local_attr if is_local_attr is not None else False))
         up_role = getattr(update, "role", None)
         if up_role and str(up_role).upper() == "LOCAL":
             is_local_flag = True
@@ -1203,8 +1207,9 @@ class NodeRegistry:
         now_ts = time.time()
         if existing_key:
             existing = self._nodes_by_key[existing_key]
+            target_key = norm_key if len(norm_key) >= len(existing_key) else existing_key
             updated = self.add_or_update(
-                existing_key,
+                target_key,
                 NodeContactUpdate(
                     last_seen=now_ts,
                     last_rssi=evt.rssi,
@@ -1270,61 +1275,62 @@ class NodeRegistry:
         if not is_valid_node_key(norm_key):
             return
 
-        is_local_node = self.is_local_key(norm_key)
-        if is_local_node:
-            event.rssi = None
-            event.snr = None
-            # El nodo local (estación base) nunca debe contabilizar paquetes entrantes (RX) de sí mismo
-            if event.is_rx:
-                return
+        with self._lock:
+            is_local_node = self.is_local_key(norm_key)
+            if is_local_node:
+                event.rssi = None
+                event.snr = None
+                # El nodo local (estación base) nunca debe contabilizar paquetes entrantes (RX) de sí mismo
+                if event.is_rx:
+                    return
 
-        existing_key = self._find_existing_key(norm_key)
-        existing = self._nodes_by_key.get(existing_key) if existing_key else None
-        target_key = existing_key or norm_key
+            existing_key = self._find_existing_key(norm_key)
+            existing = self._nodes_by_key.get(existing_key) if existing_key else None
+            target_key = norm_key if (existing_key and len(norm_key) > len(existing_key)) else (existing_key or norm_key)
 
-        curr_rx = (existing.rx_packets if existing else 0) + (1 if event.is_rx else 0)
-        curr_tx = (existing.tx_packets if existing else 0) + (0 if event.is_rx else 1)
-        curr_err = (existing.error_count if existing else 0) + (1 if event.is_error else 0)
+            curr_rx = (existing.rx_packets if existing else 0) + (1 if event.is_rx else 0)
+            curr_tx = (existing.tx_packets if existing else 0) + (0 if event.is_rx else 1)
+            curr_err = (existing.error_count if existing else 0) + (1 if event.is_error else 0)
 
-        telem = event.telemetry or {}
-        extracted = self._extract_telemetry_fields(telem)
+            telem = event.telemetry or {}
+            extracted = self._extract_telemetry_fields(telem)
 
-        rx_observed_ts = time.time() if event.is_rx else None
-        m = self._merge_field
+            rx_observed_ts = time.time() if event.is_rx else None
+            m = self._merge_field
 
-        eff_volt = extracted.get("voltage_v") if extracted.get("voltage_v") is not None else (existing.voltage_v if existing else None)
-        calc_bat = extracted.get("battery_pct")
-        if eff_volt is not None and 2.5 <= eff_volt <= 4.5:
-            norm_pct, _ = normalize_battery(eff_volt)
-            if calc_bat is None or (existing and existing.battery_pct is not None and abs(existing.battery_pct - int(round(norm_pct))) > 10):
-                calc_bat = int(round(norm_pct))
+            eff_volt = extracted.get("voltage_v") if extracted.get("voltage_v") is not None else (existing.voltage_v if existing else None)
+            calc_bat = extracted.get("battery_pct")
+            if eff_volt is not None and 2.5 <= eff_volt <= 4.5:
+                norm_pct, _ = normalize_battery(eff_volt)
+                if calc_bat is None or (existing and existing.battery_pct is not None and abs(existing.battery_pct - int(round(norm_pct))) > 10):
+                    calc_bat = int(round(norm_pct))
 
-        self.add_or_update(
-            target_key,
-            NodeContactUpdate(
-                last_seen=rx_observed_ts,
-                name=existing.name if existing else f"Node_{target_key[:6]}",
-                alias=existing.alias if existing else "",
-                hops=m(event.hop_count, existing, "hops"),
-                last_rssi=int(event.rssi) if event.rssi is not None else (existing.last_rssi if existing else None),
-                last_snr=float(event.snr) if event.snr is not None else (existing.last_snr if existing else None),
-                battery_pct=m(calc_bat, existing, "battery_pct"),
-                rx_packets=curr_rx,
-                tx_packets=curr_tx,
-                error_count=curr_err,
-                temperature_c=m(extracted.get("temperature_c"), existing, "temperature_c"),
-                humidity_pct=m(extracted.get("humidity_pct"), existing, "humidity_pct"),
-                pressure_hpa=m(extracted.get("pressure_hpa"), existing, "pressure_hpa"),
-                voltage_v=m(extracted.get("voltage_v"), existing, "voltage_v"),
-                solar_v=m(extracted.get("solar_v"), existing, "solar_v"),
-                duty_cycle_pct=m(extracted.get("duty_cycle_pct"), existing, "duty_cycle_pct"),
-                latitude=m(extracted.get("latitude"), existing, "latitude"),
-                longitude=m(extracted.get("longitude"), existing, "longitude"),
-                altitude_m=m(extracted.get("altitude_m"), existing, "altitude_m"),
-                uptime=m(extracted.get("uptime"), existing, "uptime"),
-                clock=m(extracted.get("clock"), existing, "clock"),
-            ),
-        )
+            self.add_or_update(
+                target_key,
+                NodeContactUpdate(
+                    last_seen=rx_observed_ts,
+                    name=existing.name if existing else f"Node_{target_key[:6]}",
+                    alias=existing.alias if existing else "",
+                    hops=m(event.hop_count, existing, "hops") if event.is_rx else (existing.hops if existing else None),
+                    last_rssi=int(event.rssi) if (event.is_rx and event.rssi is not None) else None,
+                    last_snr=float(event.snr) if (event.is_rx and event.snr is not None) else None,
+                    battery_pct=m(calc_bat, existing, "battery_pct"),
+                    rx_packets=curr_rx,
+                    tx_packets=curr_tx,
+                    error_count=curr_err,
+                    temperature_c=m(extracted.get("temperature_c"), existing, "temperature_c"),
+                    humidity_pct=m(extracted.get("humidity_pct"), existing, "humidity_pct"),
+                    pressure_hpa=m(extracted.get("pressure_hpa"), existing, "pressure_hpa"),
+                    voltage_v=m(extracted.get("voltage_v"), existing, "voltage_v"),
+                    solar_v=m(extracted.get("solar_v"), existing, "solar_v"),
+                    duty_cycle_pct=m(extracted.get("duty_cycle_pct"), existing, "duty_cycle_pct"),
+                    latitude=m(extracted.get("latitude"), existing, "latitude"),
+                    longitude=m(extracted.get("longitude"), existing, "longitude"),
+                    altitude_m=m(extracted.get("altitude_m"), existing, "altitude_m"),
+                    uptime=m(extracted.get("uptime"), existing, "uptime"),
+                    clock=m(extracted.get("clock"), existing, "clock"),
+                ),
+            )
 
     def get_by_key_or_prefix(self, query: str) -> NodeContactInfo | None:
         """Busca un nodo por clave completa, prefijo hex o nombre exacto."""
@@ -1337,34 +1343,41 @@ class NodeRegistry:
             if q in self._nodes_by_key:
                 return self._nodes_by_key[q]
 
-            # 2. Búsqueda por nombre o alias
-            if q in self._nodes_by_name:
-                target_key = self._nodes_by_name[q]
-                return self._nodes_by_key.get(target_key)
+            # 2. Coincidencia por prefijo hex único
+            prefix_matches = [
+                contact for key, contact in self._nodes_by_key.items()
+                if len(q) < len(key) and key.startswith(q)
+            ]
+            if len(prefix_matches) == 1:
+                return prefix_matches[0]
 
-            # Una clave completa diferente no es un prefijo de una identidad conocida.
-            matches = [contact for key, contact in self._nodes_by_key.items()
-                       if len(q) < len(key) and key.startswith(q)]
-            return matches[0] if len(matches) == 1 else None
+            # 3. Búsqueda por nombre o alias único (rechaza nombres duplicados ambiguos)
+            name_matches = [
+                contact for contact in self._nodes_by_key.values()
+                if (contact.name and contact.name.strip().lower() == q) or
+                   (contact.alias and contact.alias.strip().lower() == q)
+            ]
+            if len(name_matches) == 1:
+                return name_matches[0]
+
+            return None
 
 
     def find_by_name(self, name: str) -> NodeContactInfo | None:
-        """Busca un nodo registrado por su nombre o alias de forma insensible a mayúsculas."""
+        """Busca un nodo registrado por su nombre o alias de forma insensible a mayúsculas.
+        Si existen múltiples nodos con el mismo nombre (ambiguo), devuelve None."""
         if not name:
             return None
         n_clean = name.strip().lower()
         with self._lock:
-            if n_clean in self._nodes_by_name:
-                cand_key = self._nodes_by_name[n_clean]
-                res = self._nodes_by_key.get(cand_key)
-                if res:
-                    return res
-            for contact in self._nodes_by_key.values():
-                c_name = (contact.name or "").strip().lower()
-                c_alias = (contact.alias or "").strip().lower()
-                if c_name == n_clean or c_alias == n_clean:
-                    return contact
-        return None
+            matches = [
+                contact for contact in self._nodes_by_key.values()
+                if (contact.name and contact.name.strip().lower() == n_clean) or
+                   (contact.alias and contact.alias.strip().lower() == n_clean)
+            ]
+            if len(matches) == 1:
+                return matches[0]
+            return None
 
     def get(self, query: str) -> NodeContactInfo | None:
         """Obtiene la información de un nodo por clave, prefijo o alias (alias estándar para get_by_key_or_prefix)."""
@@ -1432,7 +1445,15 @@ class NodeRegistry:
                 continue
             seen_keys.add(norm_pk)
 
-            result.append(c.to_dict())
+            node_dict = c.to_dict()
+            # Preservar métricas medidas reales de LQI y hardware sin contaminación de presentación
+            node_dict["lqi_score"] = c.lqi_score
+            node_dict["lqi_status"] = c.lqi_status
+            node_dict["measured_lqi_score"] = c.lqi_score
+            node_dict["measured_lqi_status"] = c.lqi_status
+            if c.max_tx_power is not None:
+                node_dict["max_tx_power"] = c.max_tx_power
+            result.append(node_dict)
 
         return result
 
@@ -1633,71 +1654,103 @@ class NodeRegistry:
         if not pk or not is_valid_node_key(pk):
             return None
 
+        def _safe_int(val: Any, default: int = 0) -> int:
+            if val is None:
+                return default
+            try:
+                return int(val)
+            except (ValueError, TypeError):
+                return default
+
+        def _safe_float(val: Any, default: float = 0.0) -> float:
+            if val is None:
+                return default
+            try:
+                return float(val)
+            except (ValueError, TypeError):
+                return default
+
         raw_neighbors = nd.get("neighbors", ())
         neighbors_tuple = tuple(raw_neighbors) if isinstance(raw_neighbors, (list, tuple)) else ()
 
         raw_bat = nd.get("battery_pct")
-        v_v = nd.get("voltage_v")
+        if raw_bat is not None:
+            raw_bat = _safe_int(raw_bat, 0)
+        v_v = _safe_float(nd.get("voltage_v"), 0.0) if nd.get("voltage_v") is not None else None
         if v_v is not None and 2.5 <= v_v <= 4.5:
             pct_norm, _ = normalize_battery(v_v)
             if raw_bat is None or abs(raw_bat - int(round(pct_norm))) > 10:
                 raw_bat = int(round(pct_norm))
+
+        stored_lqi = nd.get("measured_lqi_score")
+        if stored_lqi is None:
+            stored_lqi = nd.get("lqi_score", 0.0)
+        stored_status = nd.get("measured_lqi_status")
+        if not stored_status or stored_status == "DISCONNECTED":
+            raw_st = str(nd.get("lqi_status", "UNKNOWN"))
+            stored_status = raw_st if raw_st != "DISCONNECTED" else "UNKNOWN"
 
         return NodeContactInfo(
             public_key=str(pk).strip().lower(),
             name=str(nd.get("name", "")),
             alias=str(nd.get("alias", "")),
             role=str(nd.get("role", "CLIENT")),
-            hops=nd.get("hops"),
-            last_rssi=nd.get("last_rssi"),
-            last_snr=nd.get("last_snr"),
+            hops=_safe_int(nd.get("hops")) if nd.get("hops") is not None else None,
+            last_rssi=_safe_int(nd.get("last_rssi")) if nd.get("last_rssi") is not None else None,
+            last_snr=_safe_float(nd.get("last_snr")) if nd.get("last_snr") is not None else None,
             battery_pct=raw_bat,
-            last_seen=float(nd.get("last_seen", 0.0)),
-            rx_packets=int(nd.get("rx_packets", 0)),
-            tx_packets=int(nd.get("tx_packets", 0)),
-            error_count=int(nd.get("error_count", 0)),
-            connected_clients_count=int(nd.get("connected_clients_count", 0)),
+            last_seen=_safe_float(nd.get("last_seen", 0.0)),
+            rx_packets=_safe_int(nd.get("rx_packets", 0)),
+            tx_packets=_safe_int(nd.get("tx_packets", 0)),
+            error_count=_safe_int(nd.get("error_count", 0)),
+            connected_clients_count=_safe_int(nd.get("connected_clients_count", 0)),
             neighbors=neighbors_tuple,
-            temperature_c=nd.get("temperature_c"),
-            humidity_pct=nd.get("humidity_pct"),
-            pressure_hpa=nd.get("pressure_hpa"),
+            temperature_c=_safe_float(nd.get("temperature_c")) if nd.get("temperature_c") is not None else None,
+            humidity_pct=_safe_float(nd.get("humidity_pct")) if nd.get("humidity_pct") is not None else None,
+            pressure_hpa=_safe_float(nd.get("pressure_hpa")) if nd.get("pressure_hpa") is not None else None,
             voltage_v=v_v,
-            solar_v=nd.get("solar_v"),
-            latitude=nd.get("latitude") if nd.get("latitude") is not None else (nd.get("lat") if nd.get("lat") is not None else nd.get("adv_lat")),
-            longitude=nd.get("longitude") if nd.get("longitude") is not None else (nd.get("lon") if nd.get("lon") is not None else nd.get("adv_lon")),
-            adv_lat=nd.get("adv_lat") if nd.get("adv_lat") is not None else (nd.get("latitude") if nd.get("latitude") is not None else nd.get("lat")),
-            adv_lon=nd.get("adv_lon") if nd.get("adv_lon") is not None else (nd.get("longitude") if nd.get("longitude") is not None else nd.get("lon")),
-            altitude_m=nd.get("altitude_m"),
+            solar_v=_safe_float(nd.get("solar_v")) if nd.get("solar_v") is not None else None,
+            latitude=_safe_float(nd.get("latitude")) if nd.get("latitude") is not None else (_safe_float(nd.get("lat")) if nd.get("lat") is not None else None),
+            longitude=_safe_float(nd.get("longitude")) if nd.get("longitude") is not None else (_safe_float(nd.get("lon")) if nd.get("lon") is not None else None),
+            adv_lat=_safe_float(nd.get("adv_lat")) if nd.get("adv_lat") is not None else None,
+            adv_lon=_safe_float(nd.get("adv_lon")) if nd.get("adv_lon") is not None else None,
+            altitude_m=_safe_float(nd.get("altitude_m")) if nd.get("altitude_m") is not None else None,
             uptime=nd.get("uptime"),
             clock=nd.get("clock"),
-            airtime_ms=nd.get("airtime_ms"),
-            duty_cycle_pct=nd.get("duty_cycle_pct"),
-            noise_floor_dbm=nd.get("noise_floor_dbm"),
-            packets_sent=nd.get("packets_sent"),
-            packets_recv=nd.get("packets_recv"),
-            duplicate_packets=nd.get("duplicate_packets"),
-            packet_errors=nd.get("packet_errors"),
-            queue_len=nd.get("queue_len"),
+            airtime_ms=_safe_int(nd.get("airtime_ms")) if nd.get("airtime_ms") is not None else None,
+            duty_cycle_pct=_safe_float(nd.get("duty_cycle_pct")) if nd.get("duty_cycle_pct") is not None else None,
+            noise_floor_dbm=_safe_int(nd.get("noise_floor_dbm")) if nd.get("noise_floor_dbm") is not None else None,
+            packets_sent=_safe_int(nd.get("packets_sent")) if nd.get("packets_sent") is not None else None,
+            packets_recv=_safe_int(nd.get("packets_recv")) if nd.get("packets_recv") is not None else None,
+            duplicate_packets=_safe_int(nd.get("duplicate_packets")) if nd.get("duplicate_packets") is not None else None,
+            packet_errors=_safe_int(nd.get("packet_errors")) if nd.get("packet_errors") is not None else None,
+            queue_len=_safe_int(nd.get("queue_len")) if nd.get("queue_len") is not None else None,
             owner_name=nd.get("owner_name"),
             owner_info=nd.get("owner_info"),
             firmware_version=nd.get("firmware_version"),
             hardware_board=nd.get("hardware_board"),
-            advert_interval=nd.get("advert_interval"),
-            repeat_enabled=nd.get("repeat_enabled"),
-            tx_power=nd.get("tx_power"),
-            hop_limit=nd.get("hop_limit"),
-            frequency=nd.get("frequency"),
-            spreading_factor=nd.get("spreading_factor"),
-            bandwidth=nd.get("bandwidth"),
-            coding_rate=nd.get("coding_rate"),
-            fixed_position=nd.get("fixed_position"),
+            advert_interval=_safe_int(nd.get("advert_interval")) if nd.get("advert_interval") is not None else None,
+            repeat_enabled=bool(nd.get("repeat_enabled", False)) if nd.get("repeat_enabled") is not None else None,
+            tx_power=_safe_int(nd.get("tx_power")) if nd.get("tx_power") is not None else None,
+            max_tx_power=_safe_int(nd.get("max_tx_power")) if nd.get("max_tx_power") is not None else None,
+            hop_limit=_safe_int(nd.get("hop_limit")) if nd.get("hop_limit") is not None else None,
+            frequency=_safe_float(nd.get("frequency")) if nd.get("frequency") is not None else None,
+            spreading_factor=_safe_int(nd.get("spreading_factor")) if nd.get("spreading_factor") is not None else None,
+            bandwidth=_safe_float(nd.get("bandwidth")) if nd.get("bandwidth") is not None else None,
+            coding_rate=str(nd["coding_rate"]) if nd.get("coding_rate") is not None else None,
+            fixed_position=bool(nd.get("fixed_position", False)) if nd.get("fixed_position") is not None else None,
+            flags=_safe_int(nd.get("flags")) if nd.get("flags") is not None else None,
+            last_advert=_safe_float(nd.get("last_advert")) if nd.get("last_advert") is not None else None,
+            out_path=str(nd["out_path"]) if nd.get("out_path") is not None else None,
+            out_path_len=_safe_int(nd.get("out_path_len")) if nd.get("out_path_len") is not None else None,
+            out_path_hash_mode=str(nd["out_path_hash_mode"]) if nd.get("out_path_hash_mode") is not None else None,
             is_local=bool(nd.get("is_local", False)),
             auto_discovered=bool(nd.get("auto_discovered", False)),
-            discovery_time=float(nd.get("discovery_time", 0.0)),
+            discovery_time=_safe_float(nd.get("discovery_time", 0.0)),
             verified_identity=bool(nd.get("verified_identity", False)),
             is_favorite=bool(nd.get("is_favorite", False)),
-            lqi_score=float(nd.get("lqi_score", 0.0)),
-            lqi_status=str(nd.get("lqi_status", "UNKNOWN")),
+            lqi_score=_safe_float(stored_lqi, 0.0),
+            lqi_status=str(stored_status),
             best_route=str(nd.get("best_route", "DIRECT")),
         )
 
@@ -1713,7 +1766,11 @@ class NodeRegistry:
             loaded_count = 0
             with self._lock:
                 for nd in data.get("nodes", []):
-                    contact = self._deserialize_node_contact(nd)
+                    try:
+                        contact = self._deserialize_node_contact(nd)
+                    except Exception as ex_node:
+                        logging.warning(f"Omitiendo nodo inválido en {target_path}: {ex_node}")
+                        continue
                     if not contact:
                         continue
                     self._nodes_by_key[contact.public_key] = contact

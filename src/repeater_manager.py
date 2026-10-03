@@ -50,6 +50,33 @@ class RepeaterManager:
         """Consulta si el Airtime Cutoff dinámico está activo en el sistema."""
         return self.is_cutoff_active_callback() if self.is_cutoff_active_callback else False
 
+    def _find_matching_key(self, mapping: dict[str, float], clean_pk: str) -> str | None:
+        """Encuentra la clave canónica o prefijo coincidente en el mapa de timestamps."""
+        if clean_pk in mapping:
+            return clean_pk
+        if len(clean_pk) >= 8:
+            for k in mapping:
+                if len(k) >= 8 and (clean_pk.startswith(k) or k.startswith(clean_pk)):
+                    return k
+        return None
+
+    def _get_last_ts(self, mapping: dict[str, float], clean_pk: str) -> float:
+        """Obtiene el último timestamp registrado considerando prefijos y claves completas."""
+        matching = self._find_matching_key(mapping, clean_pk)
+        return mapping.get(matching, 0.0) if matching else 0.0
+
+    def _record_ts(self, mapping: dict[str, float], clean_pk: str, ts: float) -> None:
+        """Registra un timestamp promoviendo al prefijo o clave canónica más larga."""
+        matching = self._find_matching_key(mapping, clean_pk)
+        if matching:
+            if len(clean_pk) > len(matching):
+                mapping.pop(matching, None)
+                mapping[clean_pk] = ts
+            else:
+                mapping[matching] = ts
+        else:
+            mapping[clean_pk] = ts
+
     def check_airtime_cooldown(
         self, repeater_pk: str, is_full_query: bool = False, is_automated: bool = False
     ) -> tuple[bool, float]:
@@ -65,7 +92,8 @@ class RepeaterManager:
         clean_pk = repeater_pk.strip().lower()
 
         min_interval = self.min_telemetry_interval_s if is_full_query else self.min_cmd_interval_s
-        last_ts = self._last_full_telemetry_ts.get(clean_pk, 0.0) if is_full_query else self._last_cmd_ts.get(clean_pk, 0.0)
+        map_to_check = self._last_full_telemetry_ts if is_full_query else self._last_cmd_ts
+        last_ts = self._get_last_ts(map_to_check, clean_pk)
 
         elapsed = now - last_ts
         if elapsed < min_interval:
@@ -92,9 +120,9 @@ class RepeaterManager:
         """Registra el timestamp de transmisión hacia un repetidor para gobernar el airtime."""
         now = time.monotonic()
         clean_pk = repeater_pk.strip().lower()
-        self._last_cmd_ts[clean_pk] = now
+        self._record_ts(self._last_cmd_ts, clean_pk, now)
         if is_full_query:
-            self._last_full_telemetry_ts[clean_pk] = now
+            self._record_ts(self._last_full_telemetry_ts, clean_pk, now)
 
     def check_ping_cooldown(self, target_pk: str, is_automated: bool = False) -> tuple[bool, float]:
         """Verifica si ha transcurrido el cooldown mínimo antes de enviar otro ping 0 a target_pk."""
@@ -103,7 +131,7 @@ class RepeaterManager:
 
         now = time.monotonic()
         clean_pk = target_pk.strip().lower()
-        last_ts = self._last_ping_ts.get(clean_pk, 0.0)
+        last_ts = self._get_last_ts(self._last_ping_ts, clean_pk)
         elapsed = now - last_ts
         if elapsed < self.min_ping_interval_s:
             return False, round(self.min_ping_interval_s - elapsed, 1)
@@ -111,7 +139,7 @@ class RepeaterManager:
 
     def record_ping_sent(self, target_pk: str) -> None:
         """Registra la emisión de un ping 0 hacia target_pk."""
-        self._last_ping_ts[target_pk.strip().lower()] = time.monotonic()
+        self._record_ts(self._last_ping_ts, target_pk.strip().lower(), time.monotonic())
 
     def check_traceroute_cooldown(self, target_pk: str, is_automated: bool = False) -> tuple[bool, float]:
         """Verifica si ha transcurrido el cooldown mínimo antes de iniciar otro traceroute a target_pk."""
@@ -120,7 +148,7 @@ class RepeaterManager:
 
         now = time.monotonic()
         clean_pk = target_pk.strip().lower()
-        last_ts = self._last_traceroute_ts.get(clean_pk, 0.0)
+        last_ts = self._get_last_ts(self._last_traceroute_ts, clean_pk)
         elapsed = now - last_ts
         if elapsed < self.min_traceroute_interval_s:
             return False, round(self.min_traceroute_interval_s - elapsed, 1)
@@ -128,7 +156,7 @@ class RepeaterManager:
 
     def record_traceroute_sent(self, target_pk: str) -> None:
         """Registra la emisión de un traceroute hacia target_pk."""
-        self._last_traceroute_ts[target_pk.strip().lower()] = time.monotonic()
+        self._record_ts(self._last_traceroute_ts, target_pk.strip().lower(), time.monotonic())
 
     def check_neighbours_cooldown(self, target_pk: str, is_automated: bool = False) -> tuple[bool, float]:
         """Verifica si ha transcurrido el cooldown antes de consultar vecinos de target_pk."""
@@ -137,7 +165,7 @@ class RepeaterManager:
 
         now = time.monotonic()
         clean_pk = target_pk.strip().lower()
-        last_ts = self._last_neighbours_ts.get(clean_pk, 0.0)
+        last_ts = self._get_last_ts(self._last_neighbours_ts, clean_pk)
         elapsed = now - last_ts
         if elapsed < self.min_neighbours_interval_s:
             return False, round(self.min_neighbours_interval_s - elapsed, 1)
@@ -145,7 +173,7 @@ class RepeaterManager:
 
     def record_neighbours_sent(self, target_pk: str) -> None:
         """Registra la consulta de vecinos hacia target_pk."""
-        self._last_neighbours_ts[target_pk.strip().lower()] = time.monotonic()
+        self._record_ts(self._last_neighbours_ts, target_pk.strip().lower(), time.monotonic())
 
 
     def build_repeater_command_payload(self, action: str, params: dict[str, Any]) -> str:
@@ -281,7 +309,7 @@ class RepeaterManager:
                 parts = str(cr_raw).split("/")
                 if len(parts) > 1 and parts[1].strip() in ("5", "6", "7", "8"):
                     cr_num = int(parts[1].strip())
-            return f"set radio {freq} {bw} {sf} {cr_num}"
+            return f"set radio {freq},{bw},{sf},{cr_num}"
 
         if act in ("set_frequency", "set_freq", "frequency", "freq"):
             freq = params.get("frequency", params.get("freq", 915.0))

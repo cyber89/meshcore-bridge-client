@@ -19,7 +19,12 @@ export class MeshCoreWebSocketClient {
 
   connect() {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}${this.path}`;
+    let wsUrl = `${protocol}//${window.location.host}${this.path}`;
+    const apiKey = (localStorage.getItem("meshcore_bridge_api_key") || localStorage.getItem("bridge_api_key") || "").trim();
+    if (apiKey) {
+      const sep = wsUrl.includes("?") ? "&" : "?";
+      wsUrl += `${sep}api_key=${encodeURIComponent(apiKey)}`;
+    }
 
     if (this.ws) {
       try {

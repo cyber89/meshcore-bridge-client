@@ -37,6 +37,24 @@ class MqttInboundDispatcher:
 
     def handle_incoming(self, topic: str, payload_str: str) -> None:
         """Punto de entrada sincrónico que programa el procesamiento asíncrono."""
+        max_payload_size = getattr(config, "MQTT_MAX_PAYLOAD_BYTES", 128 * 1024)
+        if len(payload_str.encode("utf-8")) > max_payload_size:
+            logging.warning(
+                f"Payload MQTT entrante en dispatcher excede el límite permitido ({len(payload_str.encode('utf-8'))} > {max_payload_size} B). Descartando en {topic}."
+            )
+            return
+
+        max_inbound_tasks = getattr(config, "MAX_MQTT_INBOUND_TASKS", 50)
+        current_tasks = len(self._ctx.background_tasks)
+        if current_tasks >= max_inbound_tasks:
+            logging.warning(
+                "Descartando mensaje MQTT entrante por sobrecarga de tareas pendientes (%d >= %d). Tópico: %s",
+                current_tasks,
+                max_inbound_tasks,
+                topic,
+            )
+            return
+
         def schedule() -> None:
             if loop.is_closed():
                 return
@@ -62,15 +80,35 @@ class MqttInboundDispatcher:
         except RuntimeError:
             logging.error("No se pudo programar procesamiento MQTT")
 
+    @property
+    def topic_tx_status(self) -> str:
+        if self._ctx.mqtt and hasattr(self._ctx.mqtt, "topic_tx_status"):
+            return str(self._ctx.mqtt.topic_tx_status)
+        return getattr(config, "TOPIC_TX_STATUS", "meshcore/tx/status")
+
+    @property
+    def topic_admin_stat(self) -> str:
+        if self._ctx.mqtt and hasattr(self._ctx.mqtt, "topic_admin_stat"):
+            return str(self._ctx.mqtt.topic_admin_stat)
+        return getattr(config, "TOPIC_ADMIN_STAT", "meshcore/admin/status")
+
+    @property
+    def topic_admin_repeater(self) -> str:
+        if self._ctx.mqtt and hasattr(self._ctx.mqtt, "topic_admin_repeater"):
+            return str(self._ctx.mqtt.topic_admin_repeater).rstrip("/")
+        prefix = getattr(self._ctx.mqtt, "topic_prefix", config.TOPIC_PREFIX)
+        return f"{prefix}/admin/repeater"
+
     async def _process_mqtt_input(self, topic: str, payload_str: str) -> None:
         """Clasifica el tópico entrante y delega en el manejador correspondiente."""
         try:
+            repeater_base = self.topic_admin_repeater
             if topic == self._ctx.mqtt.topic_tx:
                 await self._handle_tx_request(payload_str)
             elif topic == self._ctx.mqtt.topic_admin_cmd:
                 await self._handle_admin_request(payload_str)
-            elif topic.startswith(config.TOPIC_ADMIN_REPEATER.rstrip("/") + "/"):
-                relative = topic[len(config.TOPIC_ADMIN_REPEATER.rstrip("/")) + 1:].split("/")
+            elif topic.startswith(repeater_base + "/"):
+                relative = topic[len(repeater_base) + 1:].split("/")
                 if len(relative) != 2 or not relative[0] or relative[1] != "cmd":
                     return
                 target_node = relative[0]
@@ -151,7 +189,13 @@ class MqttInboundDispatcher:
                 "queue_depth": self._ctx.rate_limiter.get_queue_depth(),
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
-            self._ctx.mqtt.publish_safe(config.TOPIC_TX_STATUS, json.dumps(status_payload), qos=1)
+            if "error" in res:
+                status_payload["error"] = res["error"]
+            if "expected_ack" in res:
+                status_payload["expected_ack"] = res["expected_ack"]
+            if "message" in res and "error" not in status_payload:
+                status_payload["message"] = res["message"]
+            self._ctx.mqtt.publish_safe(self.topic_tx_status, json.dumps(status_payload), qos=1)
 
         except asyncio.TimeoutError:
             logging.error("TX future timeout, activating diagnostic alert")
@@ -163,7 +207,7 @@ class MqttInboundDispatcher:
                 "channel_idx": channel_idx,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
-            self._ctx.mqtt.publish_safe(config.TOPIC_TX_STATUS, json.dumps(status_payload), qos=1)
+            self._ctx.mqtt.publish_safe(self.topic_tx_status, json.dumps(status_payload), qos=1)
         except Exception as e:
             logging.error(f"TX execution error: {e}", exc_info=True)
             status_payload = {
@@ -174,10 +218,10 @@ class MqttInboundDispatcher:
                 "channel_idx": channel_idx,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
-            self._ctx.mqtt.publish_safe(config.TOPIC_TX_STATUS, json.dumps(status_payload), qos=1)
+            self._ctx.mqtt.publish_safe(self.topic_tx_status, json.dumps(status_payload), qos=1)
 
     def _reject_tx_input(self, error: str) -> None:
-        self._ctx.mqtt.publish_safe(config.TOPIC_TX_STATUS, json.dumps({
+        self._ctx.mqtt.publish_safe(self.topic_tx_status, json.dumps({
             "status": "error", "error": error,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }), qos=1)
@@ -206,4 +250,4 @@ class MqttInboundDispatcher:
                 "get_flood_scope",
                 "set_flood_scope",
             ) or res.get("status") == "error":
-                self._ctx.mqtt.publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
+                self._ctx.mqtt.publish_safe(self.topic_admin_stat, json.dumps(res), qos=1)

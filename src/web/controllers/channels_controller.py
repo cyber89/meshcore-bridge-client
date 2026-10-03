@@ -124,39 +124,42 @@ class ChannelsController(BaseController):
     async def _sync_from_serial(self) -> None:
         """Sincroniza la tabla de canales desde el hardware serial si está disponible."""
         ser = getattr(self.ctx.bridge, "serial_adapter", None)
-        if ser and hasattr(ser, "get_channels"):
-            try:
-                node_channels = await ser.get_channels()
-                if node_channels is not None:
-                    for ch in node_channels:
-                        idx = int(ch.get("index", 0))
-                        # Si el canal fue eliminado explícitamente por el usuario, nunca resucitarlo
-                        if idx in self._deleted_channels:
-                            if idx in self.channels:
-                                del self.channels[idx]
-                                self._dirty = True
-                            continue
+        if not ser or not hasattr(ser, "get_channels"):
+            raise ConnectionError("Transceptor serial no disponible")
+        node_channels = await ser.get_channels()
+        if node_channels is not None:
+            for ch in node_channels:
+                idx = int(ch.get("index", 0))
+                # Si el canal fue eliminado explícitamente por el usuario, nunca resucitarlo
+                if idx in self._deleted_channels:
+                    if idx in self.channels:
+                        del self.channels[idx]
+                        self._dirty = True
+                    continue
 
-                        ch_name = str(ch.get("name") or "").strip()
-                        raw_psk = str(ch.get("psk") or "").strip()
-                        # Un canal con nombre vacío y clave vacía o de ceros se considera slot libre/borrado
-                        is_empty_slot = (not ch_name and (not raw_psk or raw_psk == "0" * 32 or raw_psk == "00" * 16))
-                        if idx > 0 and is_empty_slot:
-                            if idx in self.channels:
-                                del self.channels[idx]
-                                self._dirty = True
-                            continue
+                ch_name = str(ch.get("name") or "").strip()
+                raw_psk = str(ch.get("psk") or "").strip()
+                # Un canal con nombre vacío y clave vacía o de ceros se considera slot libre/borrado
+                is_empty_slot = (not ch_name and (not raw_psk or raw_psk == "0" * 32 or raw_psk == "00" * 16))
+                if idx > 0 and is_empty_slot:
+                    if idx in self.channels:
+                        del self.channels[idx]
+                        self._dirty = True
+                    continue
 
-                        if self.channels.get(idx) != ch:
-                            self.channels[idx] = ch
-                            self._dirty = True
-                    await self._save_channels_async()
-            except Exception as e:
-                logging.debug(f"Fallo sincronizando canales del nodo serial: {e}")
+                if self.channels.get(idx) != ch:
+                    self.channels[idx] = ch
+                    self._dirty = True
+            await self._save_channels_async()
 
     async def _sync_channels(self) -> tuple[int, dict[str, Any]]:
         """Sincroniza los canales desde el hardware serial y retorna la lista enmascarada."""
-        await self._sync_from_serial()
+        try:
+            await self._sync_from_serial()
+        except ConnectionError as e:
+            return problem_details(503, "Service Unavailable", f"No se pudo sincronizar canales: {e}", "sync_failed")
+        except Exception as e:
+            return problem_details(503, "Service Unavailable", f"Fallo sincronizando canales del transceptor: {e}", "sync_failed")
         masked_list = self._get_masked_channels_list()
         return 200, {"status": "ok", "data": masked_list, "count": len(masked_list)}
 
@@ -267,10 +270,17 @@ class ChannelsController(BaseController):
 
     async def _create_or_update_channel(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Crea o actualiza un canal dentro de la capacidad anunciada por el dispositivo."""
+        raw_idx = req_body.get("index", 1)
+        if isinstance(raw_idx, bool) or isinstance(raw_idx, float):
+            return problem_details(422, "Unprocessable Entity", "El índice de canal debe ser un número entero", "invalid_channel_index")
         try:
-            idx = int(req_body.get("index", 1))
+            if isinstance(raw_idx, str):
+                s = raw_idx.strip()
+                if not s.isdigit() and not (s.startswith("-") and s[1:].isdigit()):
+                    raise ValueError("Not an integer string")
+            idx = int(raw_idx)
         except (ValueError, TypeError):
-            return problem_details(400, "Bad Request", "Índice de canal inválido", "invalid_channel_index")
+            return problem_details(422, "Unprocessable Entity", "Índice de canal inválido", "invalid_channel_index")
 
         max_channels = self._max_channels()
         if idx < 0 or idx >= max_channels:
@@ -281,7 +291,8 @@ class ChannelsController(BaseController):
                 "channel_index_out_of_bounds",
             )
 
-        overwrite = bool(req_body.get("overwrite", False))
+        from src.shared_utils import to_bool
+        overwrite = to_bool(req_body.get("overwrite", False))
         if idx in self.channels and not overwrite:
             return problem_details(
                 409,
@@ -315,10 +326,17 @@ class ChannelsController(BaseController):
 
     async def _delete_channel(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Elimina un canal secundario (1..7) tanto del bridge como del transceptor físico."""
+        raw_idx = req_body.get("index", 0)
+        if isinstance(raw_idx, bool) or isinstance(raw_idx, float):
+            return problem_details(422, "Unprocessable Entity", "El índice de canal debe ser un número entero", "invalid_channel_index")
         try:
-            idx = int(req_body.get("index", 0))
+            if isinstance(raw_idx, str):
+                s = raw_idx.strip()
+                if not s.isdigit() and not (s.startswith("-") and s[1:].isdigit()):
+                    raise ValueError("Not an integer string")
+            idx = int(raw_idx)
         except (ValueError, TypeError):
-            return problem_details(400, "Bad Request", "Índice de canal inválido", "invalid_channel_index")
+            return problem_details(422, "Unprocessable Entity", "Índice de canal inválido", "invalid_channel_index")
 
         if idx == 0:
             return problem_details(400, "Bad Request", "No se puede eliminar el canal público 0", "cannot_delete_public_channel")

@@ -482,6 +482,20 @@
       'analytics.errors_acc':       '{n} acumulados',
       'analytics.packets_count':    '{n} paquetes',
       'analytics.no_traffic':       'No hay tráfico registrado',
+
+      // Command palette
+      'cmd.palette_title':          'Paleta de Comandos',
+      'cmd.palette_placeholder':    'Escribe un comando o busca un nodo...',
+      'cmd.tab_chat':               'Ir a Mensajería',
+      'cmd.tab_contacts':           'Ir a Contactos',
+      'cmd.tab_nodes':              'Ir a Nodos',
+      'cmd.tab_map':                'Abrir Mapa',
+      'cmd.tab_logs':               'Ver Consola de Logs del Sistema',
+      'cmd.action_diag':            'Ejecutar Auto-Diagnóstico de Subsistemas',
+      'cmd.action_debug':           'Alternar Modo DEBUG',
+      'cmd.advert_hop':             'Advert Hop (0 Saltos)',
+      'cmd.advert_flood':           'Advert Flood Routed',
+      'cmd.advert_clipboard':       'Copiar Advert al Portapapeles',
     },
 
     en: {
@@ -953,6 +967,20 @@
       'analytics.errors_acc':       '{n} accumulated',
       'analytics.packets_count':    '{n} packets',
       'analytics.no_traffic':       'No traffic recorded',
+
+      // Command palette
+      'cmd.palette_title':          'Command Palette',
+      'cmd.palette_placeholder':    'Type a command or search for a node...',
+      'cmd.tab_chat':               'Go to Messaging',
+      'cmd.tab_contacts':           'Go to Contacts',
+      'cmd.tab_nodes':              'Go to Nodes',
+      'cmd.tab_map':                'Open Map',
+      'cmd.tab_logs':               'View System Logs Console',
+      'cmd.action_diag':            'Run Subsystems Auto-Diagnostics',
+      'cmd.action_debug':           'Toggle DEBUG Mode',
+      'cmd.advert_hop':             'Advert Hop (0 Hops)',
+      'cmd.advert_flood':           'Advert Flood Routed',
+      'cmd.advert_clipboard':       'Copy Advert to Clipboard',
     },
   };
 
@@ -978,6 +1006,21 @@
     { s: '#headerAirtimeChip',           k: 'header.airtime', a: 'title' },
     { s: '.header-metrics .metric-chip:nth-child(5)', k: 'header.error_rate', a: 'title' },
     { s: '.header-metrics .metric-chip:nth-child(6)', k: 'header.tx_queue', a: 'title' },
+
+    // Command Palette
+    { s: '#cmdPaletteTitle',             k: 'cmd.palette_title' },
+    { s: '#cmdPaletteInput',             k: 'cmd.palette_placeholder', a: 'placeholder' },
+    { s: '#cmdPaletteInput',             k: 'cmd.palette_placeholder', a: 'aria-label' },
+    { s: '.cmd-item[data-action="tab-chat"]', k: 'cmd.tab_chat', last: true },
+    { s: '.cmd-item[data-action="tab-contacts"]', k: 'cmd.tab_contacts', last: true },
+    { s: '.cmd-item[data-action="tab-nodes"]', k: 'cmd.tab_nodes', last: true },
+    { s: '.cmd-item[data-action="tab-map"]', k: 'cmd.tab_map', last: true },
+    { s: '.cmd-item[data-action="tab-logs"]', k: 'cmd.tab_logs', last: true },
+    { s: '.cmd-item[data-action="action-diag"]', k: 'cmd.action_diag', last: true },
+    { s: '.cmd-item[data-action="action-debug-toggle"]', k: 'cmd.action_debug', last: true },
+    { s: '.cmd-item[data-action="action-advert-hop"]', k: 'cmd.advert_hop', last: true },
+    { s: '.cmd-item[data-action="action-advert-flood"]', k: 'cmd.advert_flood', last: true },
+    { s: '.cmd-item[data-action="action-advert-clipboard"]', k: 'cmd.advert_clipboard', last: true },
 
     // Chat
     { s: '#sidebarChannelList .chat-channels-header:first-of-type .panel-title', k: 'chat.channels' },

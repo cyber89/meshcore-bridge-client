@@ -44,6 +44,7 @@ class MeshCoreCompanionServer:
         self.port = port
         self.server: asyncio.Server | None = None
         self.active_clients: set[asyncio.StreamWriter] = set()
+        self._pending_clients: set[asyncio.StreamWriter] = set()
         self._client_tasks: set[asyncio.Task[Any]] = set()
         self.running = False
         self._transaction_lock = asyncio.Lock()
@@ -79,12 +80,13 @@ class MeshCoreCompanionServer:
                 pass
             self.server = None
 
-        # 1. Notificar cierre a writers activos
-        for writer in list(self.active_clients):
+        # 1. Notificar cierre a writers activos y pendientes
+        for writer in list(self.active_clients) + list(self._pending_clients):
             try:
                 writer.close()
             except Exception:
                 pass
+        self._pending_clients.clear()
 
         # 2. Cancelar proactivamente tareas de clientes activos
         for task in list(self._client_tasks):
@@ -204,45 +206,66 @@ class MeshCoreCompanionServer:
         current_task = asyncio.current_task()
         if current_task is not None:
             self._client_tasks.add(current_task)
-        import os
-        max_clients = int(os.getenv("MAX_COMPANION_CLIENTS", "8"))
-        if len(self.active_clients) >= max_clients:
-            await self._safe_close_writer(writer)
-            return
 
         peer = writer.get_extra_info("peername")
         peer_ip = str(peer[0]) if peer and len(peer) >= 1 else "desconocido"
         peer_port = int(peer[1]) if peer and len(peer) >= 2 else self.port
         peer_str = f"{peer_ip}:{peer_port}"
 
-        allowed_ips = [ip.strip() for ip in os.getenv("COMPANION_ALLOWED_IPS", "").split(",") if ip.strip()]
-        if allowed_ips and peer and peer_ip not in allowed_ips:
-            SecurityTrafficInspector.log_suspicious_traffic(
-                SuspiciousTrafficEvent(
-                    client_ip=peer_ip,
-                    source_type="TCP-COMPANION",
-                    endpoint=f"tcp://{self.host}:{self.port}",
-                    anomaly_type="IP_TCP_NO_AUTORIZADA",
-                    detail=f"Intento de conexión rechazado desde IP no permitida '{peer_ip}'",
-                )
-            )
-            await self._safe_close_writer(writer)
-            return
+        try:
+            import os
+            max_clients = int(os.getenv("MAX_COMPANION_CLIENTS", "8"))
+            if len(self.active_clients) + len(self._pending_clients) >= max_clients:
+                await self._safe_close_writer(writer)
+                return
 
-        token = os.getenv("COMPANION_TOKEN", "")
-        if token:
-            writer.write(b"AUTH_REQUIRED\n")
-            await writer.drain()
-            try:
-                auth_line = await asyncio.wait_for(reader.readline(), timeout=5.0)
-                if auth_line.decode("utf-8", errors="ignore").strip() != f"TOKEN:{token}":
+            self._pending_clients.add(writer)
+
+            allowed_ips = [ip.strip() for ip in os.getenv("COMPANION_ALLOWED_IPS", "").split(",") if ip.strip()]
+            if allowed_ips and peer and peer_ip not in allowed_ips:
+                SecurityTrafficInspector.log_suspicious_traffic(
+                    SuspiciousTrafficEvent(
+                        client_ip=peer_ip,
+                        source_type="TCP-COMPANION",
+                        endpoint=f"tcp://{self.host}:{self.port}",
+                        anomaly_type="IP_TCP_NO_AUTORIZADA",
+                        detail=f"Intento de conexión rechazado desde IP no permitida '{peer_ip}'",
+                    )
+                )
+                await self._safe_close_writer(writer)
+                return
+
+            token = os.getenv("COMPANION_TOKEN", "")
+            if token:
+                writer.write(b"AUTH_REQUIRED\n")
+                await writer.drain()
+                try:
+                    auth_line = await asyncio.wait_for(reader.readline(), timeout=5.0)
+                    if auth_line.decode("utf-8", errors="ignore").strip() != f"TOKEN:{token}":
+                        SecurityTrafficInspector.log_suspicious_traffic(
+                            SuspiciousTrafficEvent(
+                                client_ip=peer_ip,
+                                source_type="TCP-COMPANION",
+                                endpoint=f"tcp://{self.host}:{self.port}",
+                                anomaly_type="TOKEN_TCP_INVALIDO",
+                                detail=f"Fallo de autenticación por token desde {peer_str}",
+                            )
+                        )
+                        writer.write(b"AUTH_FAILED\n")
+                        try:
+                            await asyncio.wait_for(writer.drain(), timeout=1.0)
+                        except Exception:
+                            pass
+                        await self._safe_close_writer(writer)
+                        return
+                except asyncio.TimeoutError:
                     SecurityTrafficInspector.log_suspicious_traffic(
                         SuspiciousTrafficEvent(
                             client_ip=peer_ip,
                             source_type="TCP-COMPANION",
                             endpoint=f"tcp://{self.host}:{self.port}",
-                            anomaly_type="TOKEN_TCP_INVALIDO",
-                            detail=f"Fallo de autenticación por token desde {peer_str}",
+                            anomaly_type="TIMEOUT_AUTH_TCP",
+                            detail=f"Tiempo de espera de autenticación agotado para {peer_str}",
                         )
                     )
                     writer.write(b"AUTH_FAILED\n")
@@ -252,36 +275,24 @@ class MeshCoreCompanionServer:
                         pass
                     await self._safe_close_writer(writer)
                     return
-            except asyncio.TimeoutError:
-                SecurityTrafficInspector.log_suspicious_traffic(
-                    SuspiciousTrafficEvent(
-                        client_ip=peer_ip,
-                        source_type="TCP-COMPANION",
-                        endpoint=f"tcp://{self.host}:{self.port}",
-                        anomaly_type="TIMEOUT_AUTH_TCP",
-                        detail=f"Tiempo de espera de autenticación agotado para {peer_str}",
-                    )
-                )
-                writer.write(b"AUTH_FAILED\n")
-                try:
-                    await asyncio.wait_for(writer.drain(), timeout=1.0)
-                except Exception:
-                    pass
+
+            # Re-verificar límite antes de admitir como cliente activo
+            if len(self.active_clients) >= max_clients:
                 await self._safe_close_writer(writer)
                 return
 
-        SecurityTrafficInspector.log_tcp_connection(
-            client_ip=peer_ip,
-            port=peer_port,
-            event="Cliente TCP Companion conectado",
-            active_count=len(self.active_clients) + 1,
-        )
-        writer.transport.set_write_buffer_limits(high=65536)
-        self.active_clients.add(writer)
+            self._pending_clients.discard(writer)
+            self.active_clients.add(writer)
 
-        buffer = bytearray()
+            SecurityTrafficInspector.log_tcp_connection(
+                client_ip=peer_ip,
+                port=peer_port,
+                event="Cliente TCP Companion conectado",
+                active_count=len(self.active_clients),
+            )
+            writer.transport.set_write_buffer_limits(high=65536)
 
-        try:
+            buffer = bytearray()
             while self.running:
                 chunk = await reader.read(1024)
                 if not chunk:
@@ -353,15 +364,18 @@ class MeshCoreCompanionServer:
         except Exception as e:
             logging.debug(f"Excepción en cliente TCP Companion ({peer_str}): {e}")
         finally:
+            self._pending_clients.discard(writer)
             if current_task is not None:
                 self._client_tasks.discard(current_task)
+            was_active = writer in self.active_clients
             self.active_clients.discard(writer)
-            SecurityTrafficInspector.log_tcp_connection(
-                client_ip=peer_ip,
-                port=peer_port,
-                event="Cliente TCP Companion desconectado",
-                active_count=len(self.active_clients),
-            )
+            if was_active:
+                SecurityTrafficInspector.log_tcp_connection(
+                    client_ip=peer_ip,
+                    port=peer_port,
+                    event="Cliente TCP Companion desconectado",
+                    active_count=len(self.active_clients),
+                )
             await self._safe_close_writer(writer)
 
     async def _dispatch_companion_command(

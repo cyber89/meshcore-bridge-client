@@ -158,6 +158,9 @@ def _decode_multiaxis_or_gps(stream: io.BytesIO, channel: int, type_val: int, su
         gps_data = {"latitude": lat, "longitude": lon, "altitude_m": alt}
         summary["gps"] = gps_data
         summary[f"ch_{channel}_gps"] = gps_data
+        summary["latitude"] = lat
+        summary["longitude"] = lon
+        summary["altitude_m"] = alt
         return SensorReading(channel, type_val, "gps", gps_data, "deg/m")
 
     return None
@@ -269,21 +272,20 @@ def _map_lpp_item_to_res(t: str, val: Any, ch: Any, res: dict[str, Any]) -> None
                 res["pressure_hpa"] = round(clean_p, 1)
                 res[f"ch_{ch}_pressure_hpa"] = res["pressure_hpa"]
         elif "volt" in t:
-            clean_v = clean_battery_input(val)
+            clean_v = clean_numeric_value(val)
             if clean_v is not None:
                 norm_v = round(clean_v, 2)
                 res["voltage_v"] = norm_v
                 res[f"ch_{ch}_voltage_v"] = norm_v
-                if "battery_pct" not in res and 2.5 <= norm_v <= 5.5:
+                if "battery_pct" not in res and 2.5 <= norm_v <= 4.5:
                     pct_from_v, _ = normalize_battery(norm_v)
                     res["battery_pct"] = int(round(pct_from_v))
         elif "percent" in t or "bat" in t:
-            clean_b = clean_battery_input(val)
+            clean_b = clean_numeric_value(val)
             if clean_b is not None:
-                pct, volt = normalize_battery(clean_b)
-                res["battery_pct"] = int(pct)
-                if volt > 0 and "voltage_v" not in res:
-                    res["voltage_v"] = volt
+                pct = max(0, min(100, int(round(clean_b))))
+                res["battery_pct"] = pct
+                res[f"ch_{ch}_percentage"] = pct
         elif "illumin" in t or "lux" in t:
             clean_l = clean_numeric_value(val)
             if clean_l is not None:
@@ -319,7 +321,7 @@ def _parse_lpp_gps_val(val: Any, res: dict[str, Any]) -> None:
             c_lon = clean_numeric_value(v_lon)
             if c_lon is not None:
                 res["longitude"] = round(c_lon, 5)
-        v_alt = val.get("alt", val.get("altitude"))
+        v_alt = val.get("alt", val.get("altitude", val.get("altitude_m", val.get("alt_m"))))
         if v_alt is not None:
             c_alt = clean_numeric_value(v_alt)
             if c_alt is not None:
@@ -348,47 +350,54 @@ def _extract_environment_telemetry(data: dict[str, Any], res: dict[str, Any]) ->
 
 
 def _extract_power_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
-    """Extrae y normaliza métricas de batería, voltaje y panel solar."""
+    """Extrae y normaliza métricas de batería, voltaje y panel solar respetando unidades explícitas."""
     raw_bat = data.get("battery_pct", data.get("battery", data.get("bat", data.get("batt", data.get("level")))))
     raw_bat_mv = data.get("battery_mv", data.get("batt_mv", data.get("vbat_mv")))
     raw_volt = data.get("voltage_v", data.get("voltage", data.get("volt", data.get("vbat"))))
 
     if raw_bat_mv is not None:
-        clean_mv = clean_battery_input(raw_bat_mv)
+        clean_mv = clean_numeric_value(raw_bat_mv)
         if clean_mv is not None:
-            pct_norm, volt_norm = normalize_battery(clean_mv if clean_mv > 100 else clean_mv * 1000.0)
-            res["battery_mv"] = int(clean_mv) if clean_mv > 100 else int(clean_mv * 1000.0)
-            res["voltage_v"] = volt_norm
-            if "battery_pct" not in res and raw_bat is None:
+            res["battery_mv"] = int(round(clean_mv))
+            if "voltage_v" not in res and raw_volt is None:
+                res["voltage_v"] = round(clean_mv / 1000.0, 2)
+            if "battery_pct" not in res and raw_bat is None and 2500 <= clean_mv <= 4500:
+                pct_norm, _ = normalize_battery(clean_mv)
                 res["battery_pct"] = int(round(pct_norm))
 
     if raw_volt is not None:
-        clean_v = clean_battery_input(raw_volt)
+        clean_v = clean_numeric_value(raw_volt)
         if clean_v is not None:
-            pct_norm, volt_norm = normalize_battery(clean_v)
-            res["voltage_v"] = volt_norm
-            if "battery_pct" not in res and raw_bat is None:
+            res["voltage_v"] = round(clean_v, 2)
+            if "battery_pct" not in res and raw_bat is None and 2.5 <= clean_v <= 4.5:
+                pct_norm, _ = normalize_battery(clean_v)
                 res["battery_pct"] = int(round(pct_norm))
 
     if raw_bat is not None:
-        clean_b = clean_battery_input(raw_bat)
+        has_explicit_pct_key = "battery_pct" in data
+        clean_b = clean_numeric_value(raw_bat)
         if clean_b is not None:
-            pct_norm, volt_norm = normalize_battery(clean_b)
-            res["battery_pct"] = int(round(pct_norm))
-            if volt_norm > 0:
-                if "voltage_v" not in res:
-                    res["voltage_v"] = volt_norm
-                if "battery_mv" not in res:
-                    res["battery_mv"] = int(volt_norm * 1000.0)
+            if has_explicit_pct_key or (0 <= clean_b <= 100 and not isinstance(raw_bat, str)):
+                res["battery_pct"] = max(0, min(100, int(round(clean_b))))
+                if "voltage_v" not in res and raw_volt is None and raw_bat_mv is None:
+                    _, volt_norm = normalize_battery(clean_b)
+                    if volt_norm > 0:
+                        res["voltage_v"] = volt_norm
+                        res["battery_mv"] = int(volt_norm * 1000.0)
+            else:
+                pct_norm, volt_norm = normalize_battery(raw_bat)
+                res["battery_pct"] = int(round(pct_norm))
+                if volt_norm > 0:
+                    if "voltage_v" not in res:
+                        res["voltage_v"] = volt_norm
+                    if "battery_mv" not in res:
+                        res["battery_mv"] = int(volt_norm * 1000.0)
 
-    # Reconciliación determinista: si se dispone de voltaje de celda real (2.5V - 4.5V)
-    # y battery_pct falta o discrepa de la curva de celda, calcularlo desde el voltaje
+    # Estimación de porcentaje a partir de voltaje SOLO si battery_pct no fue provisto
     eff_v = res.get("voltage_v")
-    if eff_v is not None and 2.5 <= eff_v <= 4.5:
+    if eff_v is not None and 2.5 <= eff_v <= 4.5 and res.get("battery_pct") is None:
         calc_pct, _ = normalize_battery(eff_v)
-        current_bat = res.get("battery_pct")
-        if current_bat is None or abs(current_bat - int(round(calc_pct))) > 10:
-            res["battery_pct"] = int(round(calc_pct))
+        res["battery_pct"] = int(round(calc_pct))
 
     raw_solar = data.get("solar_v", data.get("solar_voltage", data.get("solar_mv", data.get("solar"))))
     if raw_solar is not None:
@@ -445,17 +454,23 @@ def _extract_radio_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
         if clean_n is not None:
             res["noise_floor_dbm"] = int(round(clean_n))
 
-    airtime = data.get("airtime_ms", data.get("tx_air_secs", data.get("airtime")))
-    if airtime is not None:
-        clean_at = clean_numeric_value(airtime)
+    if "airtime_ms" in data and data["airtime_ms"] is not None:
+        clean_at = clean_numeric_value(data["airtime_ms"])
         if clean_at is not None:
-            raw_s = str(airtime).strip().lower()
-            if raw_s.endswith("s") and not raw_s.endswith("ms"):
-                res["airtime_ms"] = int(clean_at * 1000)
-            elif clean_at < 10000 and "tx_air_secs" in data:
-                res["airtime_ms"] = int(clean_at * 1000)
-            else:
+            res["airtime_ms"] = int(clean_at)
+    elif "tx_air_secs" in data and data["tx_air_secs"] is not None:
+        clean_at = clean_numeric_value(data["tx_air_secs"])
+        if clean_at is not None:
+            res["airtime_ms"] = int(round(clean_at * 1000))
+    elif "airtime" in data and data["airtime"] is not None:
+        val = data["airtime"]
+        clean_at = clean_numeric_value(val)
+        if clean_at is not None:
+            raw_s = str(val).strip().lower()
+            if raw_s.endswith("ms"):
                 res["airtime_ms"] = int(clean_at)
+            else:
+                res["airtime_ms"] = int(round(clean_at * 1000))
 
     duty = data.get("duty_cycle_pct", data.get("duty_cycle", data.get("dutycycle")))
     if duty is not None:
@@ -529,11 +544,14 @@ def _extract_radio_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
 
 def _extract_location_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
     """Extrae coordenadas GPS (latitud, longitud, altitud), soportando estructuras anidadas y adverts."""
-    source_dicts: list[dict[str, Any]] = [data]
-    for nested_k in ("gps", "position", "location", "geo"):
-        nested = data.get(nested_k)
-        if isinstance(nested, dict):
-            source_dicts.append(nested)
+    source_dicts: list[dict[str, Any]] = []
+    for d in (res, data):
+        if isinstance(d, dict) and d not in source_dicts:
+            source_dicts.append(d)
+        for nested_k in ("gps", "position", "location", "geo"):
+            nested = d.get(nested_k) if isinstance(d, dict) else None
+            if isinstance(nested, dict) and nested not in source_dicts:
+                source_dicts.append(nested)
 
     for src in source_dicts:
         if "latitude" not in res:
@@ -553,7 +571,7 @@ def _extract_location_telemetry(data: dict[str, Any], res: dict[str, Any]) -> No
                         break
 
         if "altitude_m" not in res:
-            for alt_k in ("altitude_m", "altitude", "alt", "gps_alt"):
+            for alt_k in ("altitude_m", "alt_m", "altitude", "alt", "gps_alt"):
                 if alt_k in src and src[alt_k] is not None:
                     clean_alt = clean_numeric_value(src[alt_k])
                     if clean_alt is not None:

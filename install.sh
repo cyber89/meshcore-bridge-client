@@ -36,8 +36,31 @@ if [[ $EUID -ne 0 ]]; then
    exit 1
 fi
 
+# Validación de opciones CLI (INS-08)
+ACTION="${1:-}"
+case "$ACTION" in
+    ""|--uninstall|--dev|--update)
+        ;;
+    --help|-h)
+        echo "Uso: sudo bash install.sh [OPCIÓN]"
+        echo ""
+        echo "Opciones:"
+        echo "  (sin opción)   Instalación completa de producción desde cero"
+        echo "  --update       Actualizar instalación existente en /opt/meshcore-bridge"
+        echo "  --dev          Modo desarrollo y ejecución de verificación de QA"
+        echo "  --uninstall    Desinstalar MeshCore Bridge y retirar servicio"
+        echo "  --help, -h     Mostrar esta ayuda"
+        exit 0
+        ;;
+    *)
+        echo -e "${RED}[ERROR] Opción desconocida: '$ACTION'${NC}"
+        echo "Usa 'sudo bash install.sh --help' para ver las opciones disponibles."
+        exit 1
+        ;;
+esac
+
 # 2. Manejo de Desinstalación (--uninstall)
-if [[ "${1:-}" == "--uninstall" ]]; then
+if [[ "$ACTION" == "--uninstall" ]]; then
     echo -e "${YELLOW}[!] Iniciando desinstalación de MeshCore Bridge...${NC}"
     systemctl stop "$SERVICE_NAME" 2>/dev/null || true
     systemctl disable "$SERVICE_NAME" 2>/dev/null || true
@@ -48,8 +71,8 @@ if [[ "${1:-}" == "--uninstall" ]]; then
     exit 0
 fi
 
-# 3.0 Modo Desarrollo / QA (--dev): instala tooling de auditoría y ejecuta suite de tests
-if [[ "${1:-}" == "--dev" ]]; then
+# 3.0 Modo Desarrollo / QA (--dev): instala tooling de auditoría y ejecuta suite de tests (INS-04)
+if [[ "$ACTION" == "--dev" ]]; then
     echo -e "${CYAN}==================================================================${NC}"
     echo -e "${YELLOW}    🔬 MODO DESARROLLADOR: EJECUTANDO VERIFICACIÓN DE QA Y AUDITORÍA${NC}"
     echo -e "${CYAN}==================================================================${NC}"
@@ -73,9 +96,9 @@ if [[ "${1:-}" == "--dev" ]]; then
     echo -e "${BLUE}[3/3] Ejecutando verificación estática, unitaria y de calidad...${NC}"
     cd "$CURRENT_DIR"
     if [[ -f "$CURRENT_DIR/.agents/skills/bridge-test-runner/scripts/run_checks.py" ]]; then
-        "$PYTHON_BIN" "$CURRENT_DIR/.agents/skills/bridge-test-runner/scripts/run_checks.py" || true
+        "$PYTHON_BIN" "$CURRENT_DIR/.agents/skills/bridge-test-runner/scripts/run_checks.py"
     else
-        "$PYTHON_BIN" -m pytest -v tests || true
+        "$PYTHON_BIN" -m pytest -v tests
     fi
 
     echo ""
@@ -86,7 +109,7 @@ if [[ "${1:-}" == "--dev" ]]; then
 fi
 
 # 3.1 Manejo de Actualización en Caliente (--update)
-if [[ "${1:-}" == "--update" ]]; then
+if [[ "$ACTION" == "--update" ]]; then
     echo -e "${CYAN}==================================================================${NC}"
     echo -e "${YELLOW}    🔄 ACTUALIZANDO INSTALACIÓN EXISTENTE DE MESHCORE BRIDGE${NC}"
     echo -e "${CYAN}==================================================================${NC}"
@@ -101,28 +124,32 @@ if [[ "${1:-}" == "--update" ]]; then
     systemctl stop "$SERVICE_NAME" 2>/dev/null || true
 
     echo -e "${BLUE}[2/5] Actualizando archivos de código fuente, paquete src/ y configuración...${NC}"
-    cp -f "$CURRENT_DIR/config.py" "$INSTALL_DIR/"
-    cp -f "$CURRENT_DIR/meshcore_bridge.py" "$INSTALL_DIR/"
-    cp -f "$CURRENT_DIR/pyproject.toml" "$INSTALL_DIR/" 2>/dev/null || true
-    cp -f "$CURRENT_DIR/requirements.txt" "$INSTALL_DIR/"
-    cp -f "$CURRENT_DIR/meshcore-bridge.service" "$INSTALL_DIR/"
-    if [[ -f "$CURRENT_DIR/.env.example" ]]; then
-        cp -f "$CURRENT_DIR/.env.example" "$INSTALL_DIR/" 2>/dev/null || true
-    fi
-    
-    # Copiar paquete modular src/
-    rm -rf "$INSTALL_DIR/src"
-    cp -rf "$CURRENT_DIR/src" "$INSTALL_DIR/"
+    if [[ "$CURRENT_DIR" != "$INSTALL_DIR" ]]; then
+        cp -f "$CURRENT_DIR/config.py" "$INSTALL_DIR/"
+        cp -f "$CURRENT_DIR/meshcore_bridge.py" "$INSTALL_DIR/"
+        cp -f "$CURRENT_DIR/pyproject.toml" "$INSTALL_DIR/" 2>/dev/null || true
+        cp -f "$CURRENT_DIR/requirements.txt" "$INSTALL_DIR/"
+        cp -f "$CURRENT_DIR/meshcore-bridge.service" "$INSTALL_DIR/"
+        if [[ -f "$CURRENT_DIR/.env.example" ]]; then
+            cp -f "$CURRENT_DIR/.env.example" "$INSTALL_DIR/" 2>/dev/null || true
+        fi
+        
+        # Copiar paquete modular src/
+        rm -rf "$INSTALL_DIR/src"
+        cp -rf "$CURRENT_DIR/src" "$INSTALL_DIR/"
 
-    # Copiar scripts
-    if [[ -d "$CURRENT_DIR/scripts" ]]; then
-        mkdir -p "$INSTALL_DIR/scripts"
-        cp -rf "$CURRENT_DIR/scripts/"* "$INSTALL_DIR/scripts/" 2>/dev/null || true
+        # Copiar scripts
+        if [[ -d "$CURRENT_DIR/scripts" ]]; then
+            mkdir -p "$INSTALL_DIR/scripts"
+            cp -rf "$CURRENT_DIR/scripts/"* "$INSTALL_DIR/scripts/" 2>/dev/null || true
+        fi
+        
+        # Copiar documentación
+        mkdir -p "$INSTALL_DIR/docs"
+        cp -rf "$CURRENT_DIR/docs/"* "$INSTALL_DIR/docs/" 2>/dev/null || true
+    else
+        echo -e "${YELLOW}[AVISO] Ejecutando actualización desde el propio directorio de instalación (${INSTALL_DIR}). Omitiendo copia de archivos sobre sí mismos.${NC}"
     fi
-    
-    # Copiar documentación
-    mkdir -p "$INSTALL_DIR/docs"
-    cp -rf "$CURRENT_DIR/docs/"* "$INSTALL_DIR/docs/" 2>/dev/null || true
 
     # Si .env existe, conservarlo e incorporar nuevas variables si faltan
     if [[ -f "$INSTALL_DIR/.env" ]]; then
@@ -149,12 +176,14 @@ if [[ "${1:-}" == "--update" ]]; then
     mkdir -p "$INSTALL_DIR/logs"
     mkdir -p "$INSTALL_DIR/data"
     mkdir -p "$INSTALL_DIR/scripts"
-    cp -rf "$CURRENT_DIR/scripts/"* "$INSTALL_DIR/scripts/" 2>/dev/null || true
+    if [[ "$CURRENT_DIR" != "$INSTALL_DIR" && -d "$CURRENT_DIR/scripts" ]]; then
+        cp -rf "$CURRENT_DIR/scripts/"* "$INSTALL_DIR/scripts/" 2>/dev/null || true
+    fi
     chmod +x "$INSTALL_DIR/scripts/"*.py 2>/dev/null || true
 
-    # Corregir configuración de Mosquitto por si tenía directivas duplicadas
+    # Corregir configuración de Mosquitto únicamente si no existe política previa (INS-05)
     MOSQUITTO_CONF_DIR="/etc/mosquitto/conf.d"
-    if [[ -d "$MOSQUITTO_CONF_DIR" ]]; then
+    if [[ -d "$MOSQUITTO_CONF_DIR" && ! -f "$MOSQUITTO_CONF_DIR/meshcore_local.conf" ]]; then
         cat << 'EOF' > "$MOSQUITTO_CONF_DIR/meshcore_local.conf"
 # Configuración de acceso para MeshCore Bridge
 listener 1883 0.0.0.0
@@ -185,17 +214,17 @@ EOF
     sleep 2
     if systemctl is-active --quiet "$SERVICE_NAME"; then
         echo -e "${GREEN}[OK] ¡Servicio ${SERVICE_NAME} actualizado y en ejecución!${NC}"
+        echo ""
+        echo -e "${GREEN}    🎉 ¡ACTUALIZACIÓN COMPLETADA CON ÉXITO!${NC}"
+        echo "Tu configuración (.env) y base de datos persistente se conservaron intactas."
+        echo "Para ver los logs en vivo: sudo journalctl -u meshcore-bridge.service -f"
+        echo ""
+        exit 0
     else
-        echo -e "${YELLOW}[AVISO] El servicio está reiniciando o conectando serial.${NC}"
-        echo "       Revisa logs con: sudo journalctl -u $SERVICE_NAME -n 20"
+        echo -e "${RED}[ERROR] El servicio ${SERVICE_NAME} no se encuentra activo tras el reinicio.${NC}"
+        echo "       Revisa los logs con: sudo journalctl -u $SERVICE_NAME -n 20"
+        exit 1
     fi
-
-    echo ""
-    echo -e "${GREEN}    🎉 ¡ACTUALIZACIÓN COMPLETADA CON ÉXITO!${NC}"
-    echo "Tu configuración (.env) y base de datos persistente se conservaron intactas."
-    echo "Para ver los logs en vivo: sudo journalctl -u meshcore-bridge.service -f"
-    echo ""
-    exit 0
 fi
 
 # ==============================================================================

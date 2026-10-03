@@ -36,8 +36,14 @@ def check_python_file(path: Path) -> list[str]:
             if node.name != "__init__" and node.returns is None:
                 issues.append(f"Línea {node.lineno}: Función '{node.name}' no declara tipo de retorno.")
 
-            # Verificar argumentos tipados (excepto self y cls)
-            for arg in node.args.args:
+            # Verificar todos los parámetros (posonlyargs, args, kwonlyargs, vararg, kwarg), excepto self y cls
+            all_args: list[ast.arg] = list(node.args.posonlyargs) + list(node.args.args) + list(node.args.kwonlyargs)
+            if node.args.vararg:
+                all_args.append(node.args.vararg)
+            if node.args.kwarg:
+                all_args.append(node.args.kwarg)
+
+            for arg in all_args:
                 if arg.arg not in ("self", "cls") and arg.annotation is None:
                     issues.append(f"Línea {node.lineno}: Parámetro '{arg.arg}' en '{node.name}' no tiene anotación de tipo.")
 

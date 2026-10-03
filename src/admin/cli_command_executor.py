@@ -175,8 +175,8 @@ class CliCommandExecutor:
         res["result"] = self._cli_packets_info(cfg)
         return res
 
-    def _cli_channels(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
-        res["result"] = self._cli_channel_info(cfg)
+    async def _cli_channels(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
+        res["result"] = await self._cli_channel_info(cfg)
         return res
 
     def _cli_nodes(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
@@ -251,7 +251,8 @@ class CliCommandExecutor:
         return res
 
     async def _cli_reboot(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
-        await run_sdk_command(self._ctx, mc, "reboot")
+        resp = await run_sdk_command(self._ctx, mc, "reboot")
+        require_success(resp, "reboot")
         res["result"] = "🔄 [REBOOT] Comando de reinicio enviado al microcontrolador local."
         return res
 
@@ -302,7 +303,17 @@ class CliCommandExecutor:
 
     async def _cli_status(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
         """Handler para comando: status / node_status."""
-        serial_conn = "Conectado" if cfg.get("serial_connected", True) else "Desconectado"
+        ser_adapter = getattr(self._ctx, "serial_adapter", None)
+        if ser_adapter and hasattr(ser_adapter, "is_hardware_alive"):
+            is_ser_conn = bool(ser_adapter.is_hardware_alive())
+        elif ser_adapter:
+            is_ser_conn = bool(getattr(ser_adapter, "is_connected", False))
+        else:
+            is_ser_conn = bool(cfg.get("serial_connected", False))
+
+        is_radio_ok = is_ser_conn and (mc is not None)
+        radio_status = "Operativo" if is_radio_ok else "Desconectado / No disponible"
+        serial_conn = "Conectado" if is_ser_conn else "Desconectado"
         serial_port = cfg.get("serial_port", "USB/Serial UART")
         mqtt_conn = "Activo / En línea" if getattr(self._ctx.mqtt, "is_connected", False) else "Standby / Local"
         queue_len = cfg.get("queue_len", 0)
@@ -317,7 +328,7 @@ class CliCommandExecutor:
 
         res["result"] = (
             f"📡 [ESTADO OPERATIVO EN TIEMPO REAL]\n"
-            f"  • Transceptor LoRa  : Operativo | {freq:.3f} MHz (SF{sf} / BW{bw} kHz / CR {cr})\n"
+            f"  • Transceptor LoRa  : {radio_status} | {freq:.3f} MHz (SF{sf} / BW{bw} kHz / CR {cr})\n"
             f"  • Enlace Serial     : {serial_conn} ({serial_port} @ 115200 bps)\n"
             f"  • Puente MQTT       : {mqtt_conn}\n"
             f"  • Cola de Paquetes  : {queue_len} en búfer de salida\n"
@@ -677,18 +688,28 @@ class CliCommandExecutor:
             res["result"] = "\n".join(lines)
         return res
 
-    def _cli_channel_info(self, cfg: dict[str, Any]) -> str:
-        """Genera listado detallado de canales configurados y cifrado."""
-        channels_file = "data/channels.json"
-        ch_list: list[dict[str, Any]] = []
-        if os.path.exists(channels_file):
-            try:
-                with open(channels_file, encoding="utf-8") as f:
-                    data = json.load(f)
-                    if isinstance(data, list):
-                        ch_list = data
-            except Exception:
-                pass
+    async def _cli_channel_info(self, cfg: dict[str, Any]) -> str:
+        """Genera listado detallado de canales configurados y cifrado sin exponer material de clave."""
+        channels_file = str(
+            getattr(config, "CHANNELS_JSON_PATH", None)
+            or getattr(config, "CHANNELS_FILE", None)
+            or os.getenv("CHANNELS_STORAGE_PATH")
+            or os.getenv("CHANNELS_JSON_PATH")
+            or "data/channels.json"
+        )
+
+        def _read_channels() -> list[dict[str, Any]]:
+            if os.path.exists(channels_file):
+                try:
+                    with open(channels_file, encoding="utf-8") as f:
+                        data = json.load(f)
+                        if isinstance(data, list):
+                            return data
+                except Exception:
+                    pass
+            return []
+
+        ch_list = await asyncio.to_thread(_read_channels)
 
         if not ch_list:
             ch_list = [
@@ -701,7 +722,14 @@ class CliCommandExecutor:
             name = ch.get("name", f"Canal {idx}")
             is_pub = ch.get("is_public", idx == 0)
             psk = ch.get("psk", "")
-            enc_str = "Público (Sin cifrar)" if is_pub or not psk else f"Cifrado AES-128 (PSK: {psk[:6]}...{psk[-4:]})"
+            # SSoT: docs/PROTOCOL_SPEC.md:243 - Canal público utiliza cifrado estándar con PSK pública.
+            # Canales privados utilizan AES-128 con PSK privada sin exponer material de clave.
+            if is_pub or idx == 0:
+                enc_str = "Público (Cifrado estándar / PSK pública)"
+            elif psk:
+                enc_str = "Cifrado AES-128 (PSK privada)"
+            else:
+                enc_str = "Sin cifrar"
             active_mark = " [ACTIVO]" if idx == 0 else ""
             lines.append(f"  • Canal #{idx}: {name}{active_mark} | Modo: {enc_str}")
         return "\n".join(lines)
@@ -806,7 +834,9 @@ class CliCommandExecutor:
                 pass
 
         lines = ["🌡️ [SENSORES & TELEMETRÍA AMBIENTAL]"]
-        lines.append(f"  • Voltaje de Alimentación : {volt:.2f} V ({bat_pct}% carga)")
+        volt_str = f"{volt:.2f} V" if volt is not None else "No disponible"
+        bat_str = f"({bat_pct}% carga)" if bat_pct is not None else "(Alimentación USB / Sin batería)"
+        lines.append(f"  • Voltaje de Alimentación : {volt_str} {bat_str}")
         lines.append(f"  • Temperatura Ambiental   : {f'{temp:.1f} °C' if temp is not None else 'Sensor inactivo'}")
         lines.append(f"  • Humedad Relativa        : {f'{hum:.1f} %' if hum is not None else 'Sensor inactivo'}")
         lines.append(f"  • Presión Barométrica     : {f'{press:.1f} hPa' if press is not None else 'Sensor inactivo'}")

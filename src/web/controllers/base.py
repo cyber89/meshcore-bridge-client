@@ -64,7 +64,7 @@ class BaseController:
             return problem_details(503, "Service Unavailable", "El transceptor no confirmó la operación", "command_unconfirmed")
         if isinstance(result, dict):
             status = str(result.get("status", "")).upper()
-            if status in {"OK", "SUCCESS", "SENT"} and not result.get("error"):
+            if status in {"OK", "SUCCESS", "SENT", "DELETED", "CLEARED"} and not result.get("error"):
                 return None
             if status in {"ERROR", "FAILED", "NOT_SUPPORTED", "LOCAL_ONLY", "LOCAL_DELETED"} or result.get("error"):
                 raw_code = result.get("code", 503 if status.startswith(("NOT_SUPPORTED", "LOCAL_")) else 400)

@@ -85,6 +85,12 @@ class RepeaterController(BaseController):
 
         cmd = {"action": "logout", "target_node": target}
         res = await self.ctx.bridge.handle_admin(cmd)
+        if isinstance(res, dict) and (res.get("status") == "error" or res.get("error")):
+            msg = str(res.get("message") or res.get("error") or "Fallo al cerrar sesión en el repetidor")
+            code = res.get("code", 503)
+            status_code = code if isinstance(code, int) and 400 <= code <= 599 else 503
+            return problem_details(status_code, "Service Unavailable", msg, "logout_failed", {"data": res})
+
         self.ctx.log_system_event("INFO", f"Sesión cerrada en repetidor {target}", source="repeater_admin")
         return 200, {"status": "ok", "data": res}
 

@@ -97,13 +97,13 @@ Servidor web asíncrono implementado directamente sobre `asyncio.start_server` (
 
 #### `WebAPIRouter` (`src/web/api_router.py`)
 Enrutador de peticiones REST hacia los controladores modulares.
-- **`register_route(method: str, path: str, handler: Callable) -> None`**: Registra endpoints exactos o parametrizados (e.g. `/api/contacts/{id}`).
 - **`async dispatch(ctx: HttpRequestContext) -> HttpResponse`**: Evalúa ruta, método HTTP, parámetros de query y autenticación `X-Api-Key`, resolviendo la respuesta con códigos HTTP semánticos (200, 201, 204, 400, 401, 403, 404, 422, 429).
+- **`resolve_path(path: str) -> tuple[str, dict[str, str]]`**: Normaliza rutas, mapea aliases legacy y extrae parámetros de ruta dinámicos (e.g. `/api/contacts/{id}`).
 
 #### Controladores REST (`src/web/controllers/`)
 Cada controlador hereda de `BaseController` y atiende un subdominio específico:
 - **`TxController` (`tx_controller.py`)**:
-  - `async send_message(ctx: HttpRequestContext) -> HttpResponse`: Valida destinatario, longitud de texto y canal, resolviendo identidades con `TargetResolver` e inyectando la transmisión a la Capa 2 (`bridge.send_text()`).
+  - `async send_message(ctx: HttpRequestContext) -> HttpResponse`: Valida destinatario, longitud de texto y canal, resolviendo identidades con `TargetResolver` e inyectando la transmisión a la Capa 2 (`bridge.send_text_message()`).
 - **`NodesController` (`nodes_controller.py`)**:
   - `async get_nodes(...)`: Retorna el catálogo unificado de nodos (clientes, repetidores, sensores).
   - `async get_lqi(...)`: Retorna la matriz de calidad de enlace LQI de los nodos observados.
@@ -157,15 +157,15 @@ Fachada maestra (*System Facade*) que actúa como punto central de integración 
   4. Publica el estado explícito `offline` en MQTT y desconecta del broker.
   5. Sincroniza y vuelca el estado persistente a disco (archivos JSON atómicos).
 - **`on_mesh_event(event: dict[str, Any]) -> None`**: Callback registrado en el adaptador serie. Recibe eventos crudos normalizados y los pasa directamente al `RxEventRouter.handle_event()`.
-- **`async send_text(text: str, target: str = "broadcast", channel_idx: int = 0, priority: TxPriority = TxPriority.NORMAL, request_id: str | None = None) -> TxTicket`**:
+- **`rate_limiter.submit(payload: str, target: str | None = None, channel_idx: int = 0, priority: TxPriority = TxPriority.NORMAL, request_id: str | None = None) -> asyncio.Future`**:
   - Aplica validaciones de destino (prohíbe envíos de chat a repetidores y a la pubkey del nodo local).
-  - Encola la transmisión en `TxRateLimiter.submit()` retornando un ticket de seguimiento correlacionable con futuros eventos de confirmación (ACK).
+  - Encola la transmisión en `TxRateLimiter.submit()` retornando un future de seguimiento correlacionable con futuros eventos de confirmación (ACK).
 - **`register_pending_ack(expected_ack: str, req_id: str, target: str) -> None`** y **`resolve_pending_ack(ack_code: str) -> dict | None`**:
   - Registra y resuelve códigos ACK (de 4 bytes hexadecimales) recibidos por RF para calcular tiempos de ida y vuelta (*Round-Trip Time*, RTT) y correlacionar estados de entrega con mensajes específicos.
 
 #### `AdminCommandHandler` (`src/admin_handler.py`)
 Punto de despacho unificado para operaciones administrativas generadas desde REST o MQTT.
-- **`async execute_command(command: dict[str, Any]) -> dict[str, Any]`**: Interpreta la acción solicitada (`set_radio`, `set_identity`, `login`, `repeater_cmd`, `ping_zero`, `traceroute`) y delega al ejecutor específico.
+- **`async handle(command: dict[str, Any]) -> dict[str, Any]`**: Interpreta la acción solicitada (`set_radio`, `set_identity`, `login`, `repeater_cmd`, `ping_zero`, `traceroute`) y delega al ejecutor específico.
 
 #### Ejecutores Especializados (`src/admin/`)
 - **`LocalConfigExecutor` (`local_config_executor.py`)**: Aplica cambios de frecuencia, ancho de banda (BW), spreading factor (SF), potencia de transmisión (TX power) y sincroniza el reloj RTC del microcontrolador con la hora del host.
@@ -217,7 +217,7 @@ Controlador de tráfico saliente para evitar colisiones y cumplir regulaciones d
 Repositorio y directorio en RAM de todos los nodos participantes de la red.
 - **`upsert_node(update: NodeContactUpdate) -> bool`**: Inserta o actualiza un nodo en memoria, indexado por su clave pública (`public_key`) de 64 caracteres hex y alias.
 - **`list_client_contacts() -> list[NodeContactInfo]`**: Retorna exclusivamente los nodos de tipo `CLIENT`. Excluye categóricamente repetidores (`REPEATER`) y la estación base local (`LOCAL`).
-- **`list_all_nodes() -> list[NodeContactInfo]`**: Retorna la totalidad de nodos (clientes, repetidores, bbs/room, sensores) para la vista unificada de infraestructura.
+- **`list_nodes() -> list[NodeContactInfo]`**: Retorna la totalidad de nodos (clientes, repetidores, bbs/room, sensores) para la vista unificada de infraestructura.
 - **`is_repeater_key(pubkey: str) -> bool`** y **`is_local_key(pubkey: str) -> bool`**: Comprobaciones de seguridad de tiempo constante $O(1)$ utilizadas para rechazar envíos de chat indebidos.
 - **`save_to_file()` y `load_from_file()`**: Persistencia determinista en `data/node_registry.json` mediante guardado atómico (escritura en `.tmp` y reemplazo atómico del archivo).
 
@@ -334,8 +334,8 @@ sequenceDiagram
     participant HW as Hardware: Transceptor LoRa (Heltec)
 
     Client->>C1: POST /api/tx {to: "pubkey_bob", text: "Hola Bob", channel: 0}
-    C1->>C2: send_text("Hola Bob", target="pubkey_bob", channel_idx=0)
-    C2->>C2: Validar destinatario (No es LOCAL, No es REPEATER)
+    C1->>C3: rate_limiter.submit("Hola Bob", target="pubkey_bob", channel_idx=0)
+    C1->>C1: Validar destinatario (No es LOCAL, No es REPEATER)
     C2->>C3: submit(item, priority=NORMAL)
     Note over C3: TxRateLimiter calcula Airtime est. (Semtech Formula)<br/>Inserta en CustomTxQueue (heapq)
     C3-->>C2: Retorna Future[TxTicket]
@@ -394,9 +394,9 @@ sequenceDiagram
 
 | Capa Origen | Capa Destino | Punto de Contacto (Clase / Interfaz) | Métodos Principales Utilizados | Tipos de Datos Intercambiados |
 |---|---|---|---|---|
-| **Capa 1** | **Capa 2** | `MeshCoreBridge` | `send_text()`, `reset_counters()`, `start()`, `stop()` | `TxTicket`, `dict`, tipos primitivos |
-| **Capa 1** | **Capa 2** | `AdminCommandHandler` | `execute_command()` | `dict` de comando JSON |
-| **Capa 1** | **Capa 3** | `NodeRegistry` | `list_client_contacts()`, `list_all_nodes()`, `get_node()` | `NodeContactInfo` |
+| **Capa 1** | **Capa 2** | `MeshCoreBridge` | `send_text_message()`, `reset_counters()`, `start()`, `stop()` | `TxTicket`, `dict`, tipos primitivos |
+| **Capa 1** | **Capa 2** | `AdminCommandHandler` | `handle_command()` | `dict` de comando JSON |
+| **Capa 1** | **Capa 3** | `NodeRegistry` | `list_client_contacts()`, `list_nodes()`, `get_node()` | `NodeContactInfo` |
 | **Capa 2** | **Capa 3** | `RxEventRouter` | `handle_event()` | `dict` de evento normalizado |
 | **Capa 2** | **Capa 3** | `TxRateLimiter` | `submit()`, `start()`, `stop()` | `TxItem`, `asyncio.Future`, `TxPriority` |
 | **Capa 2** | **Capa 5** | `BaseSerialAdapter` (*Seam*) | `connect()`, `disconnect()`, `send()`, `is_connected()` | `bytes`, `bool` |
@@ -409,34 +409,35 @@ sequenceDiagram
 ## 10. Guía Práctica de Extensión para Desarrolladores y Técnicos
 
 ### 10.1 Cómo agregar un nuevo endpoint REST (Capas 1 y 2)
-1. **Capa 1**: En [`src/web/controllers/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/controllers/), define el método en el controlador correspondiente heredando de `BaseController` (o crea un nuevo controlador):
+1. **Capa 1**: En [`src/web/controllers/`](../src/web/controllers/), define el método en el controlador correspondiente heredando de `BaseController` (o crea un nuevo controlador):
    ```python
    async def get_custom_metric(self, ctx: HttpRequestContext) -> HttpResponse:
        data = self.bridge.get_custom_metric()
        return self.json_response({"metric": data}, status=200)
    ```
-2. **Capa 1**: Registra la ruta en [`src/web/api_router.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/web/api_router.py):
+2. **Capa 1**: En [`src/web/api_router.py`](../src/web/api_router.py), añade la condición de enrutamiento al método `dispatch()`:
    ```python
-   self.register_route("GET", "/api/system/custom-metric", self.system_controller.get_custom_metric)
+   if clean_path == "/api/system/custom-metric" and method == "GET":
+       return await self.system_controller.get_custom_metric(ctx)
    ```
-3. **Capa 2**: Expón el método correspondiente en `MeshCoreBridge` ([`src/bridge_core.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/bridge_core.py)), coordinando los datos desde Capa 3 o Capa 5.
+3. **Capa 2**: Expón el método correspondiente en `MeshCoreBridge` ([`src/bridge_core.py`](../src/bridge_core.py)), coordinando los datos desde Capa 3 o Capa 5.
 
 ### 10.2 Cómo agregar un nuevo decodificador de sensor o tipo de paquete (Capas 3 y 4)
-1. **Capa 4**: En [`src/protocol_types.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/protocol_types.py), declara el opcode o enum correspondiente si deriva del protocolo oficial:
+1. **Capa 4**: En [`src/protocol_types.py`](../src/protocol_types.py), declara el opcode o enum correspondiente si deriva del protocolo oficial:
    ```python
    class CustomSensorType(IntEnum):
        PRESSURE_BAR = 0x73
    ```
-2. **Capa 3**: En [`src/sensor_decoder.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/sensor_decoder.py), implementa la función de parsing binario o JSON:
+2. **Capa 3**: En [`src/sensor_decoder.py`](../src/sensor_decoder.py), implementa la función de parsing binario o JSON:
    ```python
    def parse_custom_telemetry(payload: bytes) -> SensorReading:
        # Lógica determinista sin dependencias externas
        return SensorReading(...)
    ```
-3. **Capa 3**: En [`src/routers/telemetry_handler.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/routers/telemetry_handler.py), invoca el nuevo decodificador al procesar paquetes con ese opcode.
+3. **Capa 3**: En [`src/routers/telemetry_handler.py`](../src/routers/telemetry_handler.py), invoca el nuevo decodificador al procesar paquetes con ese opcode.
 
 ### 10.3 Cómo implementar un nuevo transporte de hardware (Capa 5)
-1. **Capa 5**: En [`src/serial/`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/serial/), crea una nueva clase que herede de `BaseSerialAdapter` e implemente todos sus métodos abstractos:
+1. **Capa 5**: En [`src/serial/`](../src/serial/), crea una nueva clase que herede de `BaseSerialAdapter` e implemente todos sus métodos abstractos:
    ```python
    class BluetoothBLEAdapter(BaseSerialAdapter):
        async def connect(self) -> bool:
@@ -448,4 +449,4 @@ sequenceDiagram
        def is_connected(self) -> bool:
            ...
    ```
-2. **Capa 2**: En [`src/bridge_core.py`](file:///c:/Users/Ruby/Desktop/meshcore-bridge/src/bridge_core.py), en el método factoría `_create_serial_adapter()`, agrega la opción de instanciar el nuevo adaptador según la configuración de entorno (`config.py`). **El resto de las capas (C1, C2, C3, C4) permanecerán 100% inalteradas**.
+2. **Capa 2**: En [`src/bridge_core.py`](../src/bridge_core.py), en el método factoría `_create_serial_adapter()`, agrega la opción de instanciar el nuevo adaptador según la configuración de entorno (`config.py`). **El resto de las capas (C1, C2, C3, C4) permanecerán 100% inalteradas**.

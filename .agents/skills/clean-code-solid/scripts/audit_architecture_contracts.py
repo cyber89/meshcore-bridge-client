@@ -41,16 +41,26 @@ FORBIDDEN_FOR_DOMAIN = {
 }
 
 
+def _count_complexity_recursive(node: ast.AST) -> int:
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+        return 0
+    count = 0
+    if isinstance(node, (ast.If, ast.IfExp, ast.While, ast.For, ast.ExceptHandler)):
+        count += 1
+    elif isinstance(node, ast.BoolOp):
+        count += len(node.values) - 1
+    elif isinstance(node, ast.Assert):
+        count += 1
+    for child in ast.iter_child_nodes(node):
+        count += _count_complexity_recursive(child)
+    return count
+
+
 def compute_mccabe_complexity(node: ast.AST) -> int:
     """Calcula la complejidad ciclomática de McCabe para una función o método."""
     complexity = 1
-    for child in ast.walk(node):
-        if isinstance(child, (ast.If, ast.While, ast.For, ast.ExceptHandler, ast.With)):
-            complexity += 1
-        elif isinstance(child, ast.BoolOp):
-            complexity += len(child.values) - 1
-        elif isinstance(child, ast.Assert):
-            complexity += 1
+    for child in ast.iter_child_nodes(node):
+        complexity += _count_complexity_recursive(child)
     return complexity
 
 
@@ -82,12 +92,24 @@ def audit_imports_and_complexity() -> tuple[list[str], list[str]]:
                                 contract_violations.append(
                                     f"Violación Clean Architecture en {rel_path}: Importa '{alias.name}' prohibido para el Dominio"
                                 )
-                elif isinstance(node, ast.ImportFrom) and node.module:
-                    for forbidden in FORBIDDEN_FOR_DOMAIN:
-                        if node.module == forbidden or node.module.startswith(forbidden + "."):
-                            contract_violations.append(
-                                f"Violación Clean Architecture en {rel_path}: 'from {node.module} import ...' prohibido para el Dominio"
-                            )
+                elif isinstance(node, ast.ImportFrom):
+                    imported_targets: list[str] = []
+                    if node.module:
+                        imported_targets.append(node.module)
+                        for alias in node.names:
+                            imported_targets.append(f"{node.module}.{alias.name}")
+                    else:
+                        for alias in node.names:
+                            imported_targets.append(alias.name)
+                            imported_targets.append(f"src.{alias.name}")
+
+                    for target in imported_targets:
+                        for forbidden in FORBIDDEN_FOR_DOMAIN:
+                            if target == forbidden or target.startswith(forbidden + "."):
+                                contract_violations.append(
+                                    f"Violación Clean Architecture en {rel_path}: Importa '{target}' prohibido para el Dominio"
+                                )
+                                break
 
             # 2. Auditoría de Complejidad Ciclomática
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -100,7 +122,7 @@ def audit_imports_and_complexity() -> tuple[list[str], list[str]]:
     return contract_violations, complexity_warnings
 
 
-def main() -> None:
+def main() -> int:
     print("🏛️  [ARCHITECTURE & CLEAN CODE] Auditando contratos de capas y complejidad...\n")
 
     violations, warnings = audit_imports_and_complexity()
@@ -123,6 +145,8 @@ def main() -> None:
     else:
         print("✅ [COMPLEJIDAD OK] No se detectaron funciones con complejidad excesiva (> 20).")
 
+    return 1 if violations else 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

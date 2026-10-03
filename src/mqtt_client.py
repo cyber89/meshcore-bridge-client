@@ -11,6 +11,7 @@ import json
 import logging
 import threading
 import time
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -78,6 +79,7 @@ class AsyncBridgeMQTTClient:
         self.topic_tx_status = f"{self.topic_prefix}/tx/status"
         self.topic_admin_cmd = f"{self.topic_prefix}/admin/cmd"
         self.topic_admin_stat = f"{self.topic_prefix}/admin/status"
+        self.topic_admin_repeater = f"{self.topic_prefix}/admin/repeater"
 
         self.is_connected = False
         self.reconnect_count = 0
@@ -86,14 +88,15 @@ class AsyncBridgeMQTTClient:
         self._loop: asyncio.AbstractEventLoop | None = None
 
         # Inicialización de cliente con compatibilidad de versiones paho
+        client_uid = f"meshcore_bridge_{int(time.time())}_{uuid.uuid4().hex[:8]}"
         if hasattr(mqtt, "CallbackAPIVersion"):
             self.client = mqtt.Client(
                 mqtt.CallbackAPIVersion.VERSION2,
-                client_id=f"meshcore_bridge_{int(time.time())}",
+                client_id=client_uid,
                 protocol=mqtt.MQTTv311,
             )
         else:
-            self.client = mqtt.Client(client_id=f"meshcore_bridge_{int(time.time())}", protocol=mqtt.MQTTv311)
+            self.client = mqtt.Client(client_id=client_uid, protocol=mqtt.MQTTv311)
 
         if self.username:
             self.client.username_pw_set(self.username, self.password)
@@ -149,6 +152,9 @@ class AsyncBridgeMQTTClient:
             if isinstance(thread, threading.Thread) and thread.is_alive():
                 self.client._thread_terminate = True
                 thread.join(timeout=1.0)
+                if thread.is_alive():
+                    logging.warning("Hilo de red MQTT no terminó tras timeout; desacoplando para evitar bloqueo")
+                    self.client._thread = None
             self.client.loop_stop()
         except Exception as e:
             logging.debug(f"Error deteniendo bucle MQTT: {e}")
@@ -215,10 +221,10 @@ class AsyncBridgeMQTTClient:
             subscriptions = [
                 (self.topic_tx, 1),
                 (self.topic_admin_cmd, 1),
-                (f"{config.TOPIC_ADMIN_REPEATER}/+/cmd", 1),
+                (f"{self.topic_admin_repeater}/+/cmd", 1),
             ]
             self.client.subscribe(subscriptions)
-            logging.debug(f"Suscrito a: {self.topic_tx}, {self.topic_admin_cmd} y {config.TOPIC_ADMIN_REPEATER}/+/cmd")
+            logging.debug(f"Suscrito a: {self.topic_tx}, {self.topic_admin_cmd} y {self.topic_admin_repeater}/+/cmd")
         else:
             self.is_connected = False
             logging.debug(f"Fallo de conexión MQTT (rc: {rc})")
@@ -246,7 +252,14 @@ class AsyncBridgeMQTTClient:
         self.total_received += 1
         try:
             topic = str(msg.topic)
-            payload_str = msg.payload.decode("utf-8", errors="replace").strip()
+            raw_payload = getattr(msg, "payload", b"")
+            max_payload_size = getattr(config, "MQTT_MAX_PAYLOAD_BYTES", 128 * 1024)
+            if len(raw_payload) > max_payload_size:
+                logging.warning(
+                    f"Payload MQTT entrante excede el tamaño máximo permitido ({len(raw_payload)} > {max_payload_size} bytes). Descartando mensaje en {topic}."
+                )
+                return
+            payload_str = raw_payload.decode("utf-8", errors="replace").strip()
             if not payload_str:
                 return
 

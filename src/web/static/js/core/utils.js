@@ -275,8 +275,22 @@ export function buildMeshCoreContactUri(name, publicKey, role = "CLIENT") {
 export function buildMeshCoreChannelUri(name, secret = "", index = null) {
   const cleanName = String(name || "Public").trim();
   const rawSec = String(secret || "").trim();
-  const cleanSec = (rawSec && rawSec !== "••••••••") ? rawSec.toLowerCase() : MESHCORE_PUBLIC_CHANNEL_SECRET;
-  let uri = `meshcore://channel/add?name=${encodeURIComponent(cleanName)}&secret=${encodeURIComponent(cleanSec)}`;
+  const isMasked = !rawSec || rawSec.includes("•");
+  const isPublic = cleanName.toLowerCase() === "public" || index === 0;
+
+  let cleanSec = "";
+  if (!isMasked) {
+    cleanSec = rawSec.toLowerCase();
+  } else if (isPublic) {
+    cleanSec = MESHCORE_PUBLIC_CHANNEL_SECRET;
+  } else {
+    cleanSec = "";
+  }
+
+  let uri = `meshcore://channel/add?name=${encodeURIComponent(cleanName)}`;
+  if (cleanSec) {
+    uri += `&secret=${encodeURIComponent(cleanSec)}`;
+  }
   if (index !== null && index !== undefined && !isNaN(Number(index))) {
     uri += `&index=${Number(index)}`;
   }
@@ -328,12 +342,15 @@ export function parseMeshCoreUri(rawUri) {
 
   if (!str.startsWith("meshcore://")) return null;
 
+  // Extraer la ruta base sin el query string para clasificar inequívocamente el recurso
+  const pathPart = str.slice("meshcore://".length).split("?")[0].toLowerCase().replace(/^\/+/, "");
+  let qs = "";
+  const qIdx = str.indexOf("?");
+  if (qIdx !== -1) qs = str.slice(qIdx + 1);
+  const params = new URLSearchParams(qs);
+
   // Caso A: Canal (Canónico meshcore://channel/add o legado meshcore://channel?...)
-  if (str.includes("channel")) {
-    let qs = "";
-    const qIdx = str.indexOf("?");
-    if (qIdx !== -1) qs = str.slice(qIdx + 1);
-    const params = new URLSearchParams(qs);
+  if (pathPart === "channel" || pathPart.startsWith("channel/")) {
     const name = params.get("name") || "Canal Importado";
     const secret = params.get("secret") || params.get("psk") || "";
     const idxStr = params.get("index");
@@ -349,11 +366,7 @@ export function parseMeshCoreUri(rawUri) {
   }
 
   // Caso B: Contacto / Nodo (Canónico meshcore://contact/add o legado meshcore://contact? / meshcore://node?)
-  if (str.includes("contact") || str.includes("node")) {
-    let qs = "";
-    const qIdx = str.indexOf("?");
-    if (qIdx !== -1) qs = str.slice(qIdx + 1);
-    const params = new URLSearchParams(qs);
+  if (pathPart === "contact" || pathPart.startsWith("contact/") || pathPart === "node" || pathPart.startsWith("node/")) {
     const name = params.get("name") || params.get("alias") || "Contacto Importado";
     const publicKey = (params.get("public_key") || params.get("pubkey") || params.get("key") || "").trim().toLowerCase();
     const typeParam = params.get("type");

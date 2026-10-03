@@ -71,11 +71,22 @@ def audit_adrs() -> tuple[list[Path], list[str]]:
 
 
 def create_new_adr(title: str, existing_adrs: list[Path]) -> Path:
-    """Crea el borrador para el siguiente ADR en la secuencia."""
-    next_num = len(existing_adrs) + 1
+    """Crea el borrador para el siguiente ADR en la secuencia respetando el número máximo existente."""
+    max_num = 0
+    for adr_path in existing_adrs:
+        m = re.match(r"^(\d{4})-", adr_path.name)
+        if m:
+            max_num = max(max_num, int(m.group(1)))
+    next_num = max_num + 1
     slug = re.sub(r"[^a-zA-Z0-9]+", "-", title.lower()).strip("-")
     filename = f"{next_num:04d}-{slug}.md"
     target_path = ADR_DIR / filename
+
+    if target_path.exists():
+        raise FileExistsError(
+            f"Conflicto de ADR: el archivo destino '{target_path.name}' ya existe. "
+            f"No se sobrescribirá el historial existente."
+        )
 
     today = time.strftime("%Y-%m-%d")
     template = f"""# ADR {next_num:04d}: {title}
@@ -125,9 +136,17 @@ def main() -> int:
     adr_files, adr_issues = audit_adrs()
 
     if args.new:
-        new_path = create_new_adr(args.new, adr_files)
-        print(f"✨ [NUEVO ADR CREADO] Archivo: {new_path.relative_to(ROOT_DIR)}")
-        return 0
+        if adr_issues:
+            print("\n⚠️  [ALERTA]: Se detectaron incidencias de secuencia previa en docs/adr/:")
+            for ai in adr_issues:
+                print(f"   • {ai}")
+        try:
+            new_path = create_new_adr(args.new, adr_files)
+            print(f"✨ [NUEVO ADR CREADO] Archivo: {new_path.relative_to(ROOT_DIR)}")
+            return 0
+        except FileExistsError as err:
+            print(f"\n❌ [ERROR] {err}")
+            return 1
 
     print(f"📄 CONTEXT.md: {'✅ Válido' if not context_issues else '⚠️  Incidencias'}")
     for ci in context_issues:

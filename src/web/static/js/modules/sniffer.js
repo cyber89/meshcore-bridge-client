@@ -330,15 +330,34 @@ export class SnifferModule {
 
   async clearCapturedPackets() {
     try {
-      await fetch("/api/packets", {
+      const res = await fetch("/api/packets", {
         method: "DELETE",
         headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
       });
+      if (!res.ok) {
+        let errMsg = `Error HTTP ${res.status}`;
+        try {
+          const errData = await res.json();
+          errMsg = errData.message || errData.detail || errData.error || errMsg;
+        } catch (_) {}
+        if (this.ctx.showToast) {
+          this.ctx.showToast(errMsg, "error");
+        } else {
+          console.warn("Error limpiando búfer de paquetes:", errMsg);
+        }
+        return;
+      }
       this.rfPackets = [];
       this.updateSnifferBadge();
       this.renderFilteredPackets();
+      if (this.ctx.showToast) {
+        this.ctx.showToast("Búfer de paquetes limpiado correctamente", "success");
+      }
     } catch (e) {
       console.warn("Error limpiando búfer de paquetes:", e);
+      if (this.ctx.showToast) {
+        this.ctx.showToast("Error de conexión al limpiar paquetes", "error");
+      }
     }
   }
 

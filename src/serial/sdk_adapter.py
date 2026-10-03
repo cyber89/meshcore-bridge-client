@@ -983,13 +983,14 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
 
         # 2. Validación estricta de rango de canal
         safe_ch = int(channel_idx) if channel_idx is not None else 0
-        if not (0 <= safe_ch <= 15):
-            raise ValueError(f"Índice de canal inválido ({safe_ch}). Debe estar en el rango 0..15.")
+        cap = self._channel_capacity()
+        if not (0 <= safe_ch < cap):
+            raise ValueError(f"Índice de canal inválido ({safe_ch}). Debe estar en el rango 0..{cap - 1}.")
 
         target_clean = str(target).strip() if target else ""
         is_dm = bool(
             target_clean
-            and target_clean.upper() not in ("0xFFFF", "BROADCAST", "PUBLIC", "ALL", "GLOBAL", "NONE", "")
+            and target_clean.upper() not in ("0XFFFF", "0xFFFF", "BROADCAST", "PUBLIC", "ALL", "GLOBAL", "NONE", "")
             and not target_clean.lower().startswith("channel")
         )
 

@@ -73,6 +73,28 @@ class InspectionResult:
     crc_functions: List[Dict[str, Any]] = field(default_factory=list)
     python_classes: List[Dict[str, Any]] = field(default_factory=list)
 
+def _is_pragma_pack_active_at(content: str, offset: int) -> bool:
+    """Evalúa si #pragma pack(1) o pack(push, 1) está activo en un offset dado del archivo C/C++."""
+    pack_stack: list[int] = []
+    prefix = content[:offset]
+    for m in re.finditer(r"#pragma\s+pack\s*\(([^)]*)\)", prefix):
+        arg = m.group(1).strip()
+        parts = [p.strip() for p in arg.split(",") if p.strip()]
+        if not parts or parts[0] == "pop":
+            if pack_stack:
+                pack_stack.pop()
+        elif parts[0] == "push":
+            val = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else (pack_stack[-1] if pack_stack else 0)
+            pack_stack.append(val)
+        elif parts[0].isdigit():
+            val = int(parts[0])
+            if pack_stack:
+                pack_stack[-1] = val
+            else:
+                pack_stack.append(val)
+    return bool(pack_stack and pack_stack[-1] == 1)
+
+
 class CSourceInspector:
     def __init__(self, base_paths: List[Path]):
         self.base_paths = base_paths
@@ -163,7 +185,7 @@ class CSourceInspector:
             body = match.group(2)
             line_no = content[:match.start()].count("\n") + 1
             full_match_text = match.group(0)
-            is_packed = "packed" in full_match_text or "#pragma pack" in content[:match.start()]
+            is_packed = "packed" in full_match_text or _is_pragma_pack_active_at(content, match.start())
 
             struct_def = StructDefinition(
                 name=struct_name,

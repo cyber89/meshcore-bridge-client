@@ -13,6 +13,18 @@ param (
 
 $ErrorActionPreference = "Stop"
 
+function Invoke-NativeCommand {
+    param(
+        [Parameter(Mandatory=$true)][scriptblock]$Command,
+        [Parameter(Mandatory=$true)][string]$ErrorMessage
+    )
+    & $Command
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[ERROR] $ErrorMessage (Código de salida: $LASTEXITCODE)" -ForegroundColor Red
+        exit $LASTEXITCODE
+    }
+}
+
 Write-Host "==================================================================" -ForegroundColor Cyan
 Write-Host "    🚀 GESTOR DE MESHCORE BRIDGE PARA WINDOWS (v3.0.0)" -ForegroundColor Green
 Write-Host "    Heltec / LilyGO / RAKwireless / Seeed / RP2040 <-> MQTT <-> n8n" -ForegroundColor Yellow
@@ -21,25 +33,35 @@ Write-Host ""
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-# 1. Comprobar Python
+# 1. Comprobar / Crear entorno virtual de Python
 Write-Host "[1/4] Verificando entorno Python..." -ForegroundColor Blue
-$PythonPath = (Get-Command python -ErrorAction SilentlyContinue).Source
-if (-not $PythonPath) {
-    $PythonPath = (Get-Command py -ErrorAction SilentlyContinue).Source
-}
 
-if (-not $PythonPath) {
-    Write-Host "[ERROR] Python no fue encontrado en el PATH. Por favor instala Python 3.10+ desde python.org." -ForegroundColor Red
-    exit 1
-}
+$VenvPython = "$ScriptDir\.venv\Scripts\python.exe"
+if (Test-Path $VenvPython) {
+    $PythonPath = $VenvPython
+    Write-Host "[OK] Entorno virtual existente detectado: $PythonPath" -ForegroundColor Green
+} else {
+    $SystemPython = (Get-Command python -ErrorAction SilentlyContinue).Source
+    if (-not $SystemPython) {
+        $SystemPython = (Get-Command py -ErrorAction SilentlyContinue).Source
+    }
 
-Write-Host "[OK] Python encontrado: $PythonPath" -ForegroundColor Green
+    if (-not $SystemPython) {
+        Write-Host "[ERROR] Python no fue encontrado en el PATH. Por favor instala Python 3.10+ desde python.org." -ForegroundColor Red
+        exit 1
+    }
+
+    Write-Host "[*] Creando entorno virtual aislado en $ScriptDir\.venv..." -ForegroundColor Cyan
+    Invoke-NativeCommand { & $SystemPython -m venv "$ScriptDir\.venv" } "Fallo al crear el entorno virtual."
+    $PythonPath = $VenvPython
+    Write-Host "[OK] Entorno virtual creado: $PythonPath" -ForegroundColor Green
+}
 
 # 2. Instalar dependencias de producción
-if ($InstallDeps -or -not (Test-Path "$ScriptDir\.venv")) {
+if ($InstallDeps -or -not (Test-Path "$ScriptDir\.venv\Lib\site-packages\paho")) {
     Write-Host "[2/4] Instalando / verificando dependencias en requirements.txt..." -ForegroundColor Blue
-    & $PythonPath -m pip install --upgrade pip -q
-    & $PythonPath -m pip install -r "$ScriptDir\requirements.txt" -q
+    Invoke-NativeCommand { & $PythonPath -m pip install --upgrade pip -q } "Fallo al actualizar pip."
+    Invoke-NativeCommand { & $PythonPath -m pip install -r "$ScriptDir\requirements.txt" -q } "Fallo al instalar requirements.txt."
     Write-Host "[OK] Dependencias instaladas correctamente." -ForegroundColor Green
 } else {
     Write-Host "[2/4] Dependencias ya disponibles." -ForegroundColor Green
@@ -48,10 +70,11 @@ if ($InstallDeps -or -not (Test-Path "$ScriptDir\.venv")) {
 # 2.1 Instalar tooling de desarrollo / QA / auditoría
 if ($InstallDev) {
     Write-Host "[3/4] Instalando herramientas de desarrollo (pytest, mypy, ruff, bandit, playwright, amqtt)..." -ForegroundColor Blue
-    & $PythonPath -m pip install -r "$ScriptDir\requirements-dev.txt" -q
-    & $PythonPath -m pip install -e "$ScriptDir[dev]" -q 2>$null
-    if (Get-Command "$ScriptDir\.venv\Scripts\playwright.exe" -ErrorAction SilentlyContinue) {
-        & "$ScriptDir\.venv\Scripts\playwright.exe" install chromium
+    Invoke-NativeCommand { & $PythonPath -m pip install -r "$ScriptDir\requirements-dev.txt" -q } "Fallo al instalar requirements-dev.txt."
+    Invoke-NativeCommand { & $PythonPath -m pip install -e "$ScriptDir" -q } "Fallo al instalar el paquete en modo editable."
+    $PlaywrightExe = "$ScriptDir\.venv\Scripts\playwright.exe"
+    if (Test-Path $PlaywrightExe) {
+        Invoke-NativeCommand { & $PlaywrightExe install chromium } "Fallo al instalar Chromium para Playwright."
     }
     Write-Host "[OK] Tooling de desarrollo instalado." -ForegroundColor Green
 }
@@ -69,18 +92,20 @@ Write-Host ""
 Write-Host "🎉 Configuración de MeshCore Bridge completada." -ForegroundColor Green
 Write-Host "🌐 Cliente Web Station SPA: http://localhost:8080 (o http://localhost:8085 en simulación)" -ForegroundColor Green
 Write-Host "Para iniciar el servicio en producción:" -ForegroundColor Cyan
-Write-Host "    python -m src" -ForegroundColor Yellow
+Write-Host "    .\install.ps1 -Run" -ForegroundColor Yellow
 Write-Host "Para iniciar la simulación con 8 nodos LoRa y Heltec v4 USB:" -ForegroundColor Cyan
-Write-Host "    python scripts/simulate_heltec_v4_mesh.py --live" -ForegroundColor Yellow
-Write-Host "Para ejecutar la suite de calidad completa:" -ForegroundColor Cyan
-Write-Host "    python .agents/skills/bridge-test-runner/scripts/run_checks.py" -ForegroundColor Yellow
+Write-Host "    .\install.ps1 -Simulate" -ForegroundColor Yellow
 Write-Host ""
 
-if ($Simulate) {
-    Write-Host "Iniciando simulación interactiva con 8 nodos LoRa..." -ForegroundColor Cyan
-    & $PythonPath "$ScriptDir\scripts\simulate_heltec_v4_mesh.py" --live
-} elseif ($Run) {
-    Write-Host "Iniciando MeshCore Bridge en producción..." -ForegroundColor Cyan
-    & $PythonPath -m src
+Push-Location $ScriptDir
+try {
+    if ($Simulate) {
+        Write-Host "Iniciando simulación interactiva con 8 nodos LoRa..." -ForegroundColor Cyan
+        Invoke-NativeCommand { & $PythonPath "$ScriptDir\scripts\simulate_heltec_v4_mesh.py" --live } "La simulación finalizó con error."
+    } elseif ($Run) {
+        Write-Host "Iniciando MeshCore Bridge en producción..." -ForegroundColor Cyan
+        Invoke-NativeCommand { & $PythonPath -m src } "MeshCore Bridge finalizó con error."
+    }
+} finally {
+    Pop-Location
 }
-

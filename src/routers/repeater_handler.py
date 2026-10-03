@@ -21,14 +21,23 @@ class RepeaterAdminHandler(BaseRxHandler):
 
     def can_handle(self, meta: RxMeta, payload: dict[str, Any]) -> bool:
         p_type_upper = str(payload.get("type", "")).upper()
-        return (
-            "ACK" in meta.ev_upper
-            or "ACK" in p_type_upper
+        clean_ev = meta.ev_upper.replace("EVENTTYPE.", "").strip()
+        clean_p_type = p_type_upper.replace("EVENTTYPE.", "").strip()
+        is_ack = (
+            clean_ev == "ACK"
+            or clean_ev.startswith("ACK_")
+            or clean_ev.endswith("_ACK")
+            or clean_p_type == "ACK"
+            or clean_p_type.startswith("ACK_")
+            or clean_p_type.endswith("_ACK")
             or payload.get("event_type") in ("ack", "delivered", "message_delivered")
-            or "TRACE" in meta.ev_upper
-            or "TRACE" in p_type_upper
+        )
+        is_trace = (
+            "TRACE" in clean_ev
+            or "TRACE" in clean_p_type
             or payload.get("event_type") == "trace"
         )
+        return is_ack or is_trace
 
     async def handle(
         self,
@@ -39,13 +48,20 @@ class RepeaterAdminHandler(BaseRxHandler):
     ) -> bool:
         router_ctx = getattr(ctx, "_ctx", ctx)
         p_type_upper = str(payload.get("type", "")).upper()
+        clean_ev = meta.ev_upper.replace("EVENTTYPE.", "").strip()
+        clean_p_type = p_type_upper.replace("EVENTTYPE.", "").strip()
+        is_ack = (
+            clean_ev == "ACK"
+            or clean_ev.startswith("ACK_")
+            or clean_ev.endswith("_ACK")
+            or clean_p_type == "ACK"
+            or clean_p_type.startswith("ACK_")
+            or clean_p_type.endswith("_ACK")
+            or payload.get("event_type") in ("ack", "delivered", "message_delivered")
+        )
 
         # Caso ACK / Entrega Confirmada
-        if (
-            "ACK" in meta.ev_upper
-            or "ACK" in p_type_upper
-            or payload.get("event_type") in ("ack", "delivered", "message_delivered")
-        ):
+        if is_ack:
             if meta.is_local_sender:
                 return True
             ack_code_raw = payload.get("ack_code", payload.get("code"))

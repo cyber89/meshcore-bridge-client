@@ -106,6 +106,12 @@ class MeshCoreWebServer:
                 pass
             self.server = None
 
+        if self.tile_service:
+            try:
+                self.tile_service.close()
+            except Exception:
+                pass
+
         # 1. Notificar cierre a writers de WebSockets activos
         for writer in list(self.active_websockets):
             try:
@@ -534,7 +540,14 @@ class MeshCoreWebServer:
             resp_bytes = json.dumps(resp_json, indent=2, default=str).encode("utf-8")
             content_type = "application/json"
         status_text = self.HTTP_STATUS_TEXTS.get(status_code, "OK")
-        await self._write_http_response(ctx.writer, f"{status_code} {status_text}", resp_bytes, content_type, cors_origin=ctx.cors_origin)
+        await self._write_http_response(
+            ctx.writer,
+            f"{status_code} {status_text}",
+            resp_bytes,
+            content_type,
+            cors_origin=ctx.cors_origin,
+            head_only=(ctx.method == "HEAD"),
+        )
 
     async def _serve_map_tile(self, ctx: HttpRequestContext) -> bool:
         """Sirve una tesela cartográfica si la ruta es válida y existe."""
@@ -562,6 +575,7 @@ class MeshCoreWebServer:
                             extra_headers=["Cache-Control: public, max-age=86400"],
                             cors_origin=ctx.cors_origin,
                         ),
+                        head_only=(ctx.method == "HEAD"),
                     )
                     return True
             except (ValueError, TypeError, OverflowError):
@@ -583,11 +597,16 @@ class MeshCoreWebServer:
         sensitive_read_paths = (
             "/api/logs/download",
             "/api/logs/raw",
+            "/api/system/logs",
             "/api/diagnostics/export",
+            "/api/diagnostics/report",
+            "/api/diagnostics/report.md",
             "/api/channels/export",
         )
         needs_auth = False
-        clean_p = ctx.path.split("?")[0]
+        clean_p = ctx.path.split("?")[0].rstrip("/")
+        if not clean_p:
+            clean_p = "/"
         if any(clean_p.startswith(p) for p in protected_prefixes):
             if not (clean_p.startswith("/api/nodes") and ctx.method == "GET"):
                 needs_auth = True
@@ -605,9 +624,11 @@ class MeshCoreWebServer:
 
         req_api_key = ctx.headers.get("x-api-key", "")
         if not req_api_key and "?" in ctx.path:
-            for param in ctx.path.split("?", 1)[1].split("&"):
-                if param.startswith("api_key="):
-                    req_api_key = param.split("=", 1)[1]
+            import urllib.parse
+            query_str = ctx.path.split("?", 1)[1]
+            params = urllib.parse.parse_qs(query_str)
+            if "api_key" in params and params["api_key"]:
+                req_api_key = params["api_key"][0]
 
         if not hmac.compare_digest(req_api_key, api_key):
             SecurityTrafficInspector.log_suspicious_traffic(
@@ -791,13 +812,30 @@ class MeshCoreWebServer:
                     break
                 opcode, payload = frame
                 if opcode == 0x8:  # Close frame
+                    # Responder con Close frame ack antes de cerrar el socket (RFC 6455 §5.5.1)
+                    close_payload = payload[:2] if len(payload) >= 2 else struct.pack(">H", 1000)
+                    try:
+                        writer.write(bytes([0x88, len(close_payload)]) + close_payload)
+                        await asyncio.wait_for(writer.drain(), timeout=1.0)
+                    except Exception:
+                        pass
                     break
                 if opcode == 0x9:  # Ping binario -> Enviar Pong
                     writer.write(bytes([0x8A, len(payload)]) + payload)
                     await asyncio.wait_for(writer.drain(), timeout=2.0)
                 elif opcode == 0x1:  # Text frame (ej. ping heartbeat JSON)
                     try:
-                        msg_obj = json.loads(payload.decode("utf-8", errors="ignore"))
+                        decoded_text = payload.decode("utf-8")
+                    except UnicodeDecodeError:
+                        # RFC 6455 §8.1: Fallar conexión ante UTF-8 inválido con código 1007
+                        try:
+                            writer.write(b"\x88\x02\x03\xef")  # Close 1007 (0x03EF)
+                            await asyncio.wait_for(writer.drain(), timeout=1.0)
+                        except Exception:
+                            pass
+                        break
+                    try:
+                        msg_obj = json.loads(decoded_text)
                         if isinstance(msg_obj, dict) and msg_obj.get("type") == "ping":
                             pong_resp = json.dumps({"type": "pong", "timestamp": int(time.time())}).encode("utf-8")
                             writer.write(self._build_websocket_frame(pong_resp))
@@ -825,8 +863,28 @@ class MeshCoreWebServer:
         timeout_sec = float(os.getenv("WS_IDLE_TIMEOUT_SEC", "30.0"))
         max_ws_payload = 1024 * 1024  # 1 MB max frame
         while self.running:
+            # 1. Espera de inicio de nueva trama sujeta a idle timeout
             try:
                 head = await asyncio.wait_for(reader.readexactly(2), timeout=timeout_sec)
+            except asyncio.TimeoutError:
+                if not self.running:
+                    return None
+                # Si el socket estuvo ocioso entre tramas, enviamos un Ping de vivacidad RFC 6455
+                if writer is not None:
+                    try:
+                        writer.write(bytearray([0x89, 0x00]))
+                        await asyncio.wait_for(writer.drain(), timeout=2.0)
+                        continue
+                    except Exception:
+                        return None
+                return None
+            except (asyncio.IncompleteReadError, ConnectionResetError):
+                return None
+            except Exception:
+                return None
+
+            # 2. Lectura determinista del resto de la trama actual (sin recuperación por timeout parcial)
+            try:
                 b1, b2 = head[0], head[1]
                 opcode = b1 & 0x0F
                 masked = bool(b2 & 0x80)
@@ -843,18 +901,18 @@ class MeshCoreWebServer:
                         await asyncio.wait_for(writer.drain(), timeout=2.0)
                     return None
                 if length == 126:
-                    len_bytes = await asyncio.wait_for(reader.readexactly(2), timeout=timeout_sec)
+                    len_bytes = await asyncio.wait_for(reader.readexactly(2), timeout=10.0)
                     length = struct.unpack(">H", len_bytes)[0]
                 elif length == 127:
-                    len_bytes = await asyncio.wait_for(reader.readexactly(8), timeout=timeout_sec)
+                    len_bytes = await asyncio.wait_for(reader.readexactly(8), timeout=10.0)
                     length = struct.unpack(">Q", len_bytes)[0]
 
                 if length > max_ws_payload:
                     logging.warning("Trama WebSocket excede el límite permitido: %d > %d", length, max_ws_payload)
                     return None
 
-                mask_key = await asyncio.wait_for(reader.readexactly(4), timeout=timeout_sec)
-                payload = await asyncio.wait_for(reader.readexactly(length), timeout=timeout_sec) if length > 0 else b""
+                mask_key = await asyncio.wait_for(reader.readexactly(4), timeout=10.0)
+                payload = await asyncio.wait_for(reader.readexactly(length), timeout=10.0) if length > 0 else b""
                 if masked and mask_key:
                     unmasked = bytearray(len(payload))
                     for i in range(len(payload)):
@@ -862,19 +920,7 @@ class MeshCoreWebServer:
                     payload = bytes(unmasked)
 
                 return opcode, payload
-            except asyncio.TimeoutError:
-                if not self.running:
-                    return None
-                # Si el socket estuvo ocioso, enviamos un Ping de vivacidad RFC 6455
-                if writer is not None:
-                    try:
-                        writer.write(bytearray([0x89, 0x00]))
-                        await asyncio.wait_for(writer.drain(), timeout=2.0)
-                        continue
-                    except Exception:
-                        return None
-                return None
-            except (asyncio.IncompleteReadError, ConnectionResetError):
+            except (asyncio.TimeoutError, asyncio.IncompleteReadError, ConnectionResetError):
                 return None
             except Exception:
                 return None
@@ -914,6 +960,25 @@ class MeshCoreWebServer:
         500: "Internal Server Error", 503: "Service Unavailable",
     }
 
+    @staticmethod
+    def _client_accepts_gzip(accept_encoding: str) -> bool:
+        """Verifica si el cliente acepta compresión gzip considerando q-values RFC 9110."""
+        if not accept_encoding or "gzip" not in accept_encoding:
+            return False
+        for part in accept_encoding.split(","):
+            subparts = [p.strip() for p in part.split(";")]
+            if subparts[0].lower() in ("gzip", "*"):
+                q_val = 1.0
+                for p in subparts[1:]:
+                    if p.lower().startswith("q="):
+                        try:
+                            q_val = float(p[2:].strip())
+                        except ValueError:
+                            q_val = 0.0
+                if q_val > 0.0:
+                    return True
+        return False
+
     def _build_http_response(
         self,
         resp_or_status: HttpResponse | str,
@@ -921,6 +986,7 @@ class MeshCoreWebServer:
         content_type: str | None = None,
         extra_headers: list[str] | None = None,
         cors_origin: str = "",
+        head_only: bool = False,
     ) -> bytes:
         """Construye una respuesta HTTP 1.1 con cabeceras de seguridad obligatorias."""
         if isinstance(resp_or_status, HttpResponse):
@@ -966,6 +1032,8 @@ class MeshCoreWebServer:
             headers.append("Access-Control-Allow-Methods: GET, POST, OPTIONS, DELETE")
             headers.append("Access-Control-Allow-Headers: Content-Type, X-Api-Key")
         head = f"HTTP/1.1 {status_line}\r\n" + "\r\n".join(headers) + "\r\n\r\n"
+        if head_only:
+            return head.encode()
         return head.encode() + body
 
     async def _write_http_response(
@@ -975,12 +1043,13 @@ class MeshCoreWebServer:
         body: bytes = b"",
         content_type: str | None = None,
         cors_origin: str = "",
+        head_only: bool = False,
     ) -> None:
         """Envía una respuesta HTTP estructurada o texto plano y cierra la conexión."""
         if isinstance(resp_or_status, HttpResponse):
-            payload = self._build_http_response(resp_or_status)
+            payload = self._build_http_response(resp_or_status, head_only=head_only)
         else:
-            payload = self._build_http_response(resp_or_status, body, content_type, None, cors_origin)
+            payload = self._build_http_response(resp_or_status, body, content_type, None, cors_origin, head_only=head_only)
         writer.write(payload)
         await writer.drain()
         writer.close()
@@ -1100,7 +1169,7 @@ class MeshCoreWebServer:
 
             # Selección de compresión según Accept-Encoding del cliente
             accept_encoding = ctx.headers.get("accept-encoding", "")
-            use_gzip = ("gzip" in accept_encoding) and (gzip_bytes is not None) and (len(gzip_bytes) < len(raw_bytes))
+            use_gzip = self._client_accepts_gzip(accept_encoding) and (gzip_bytes is not None) and (len(gzip_bytes) < len(raw_bytes))
             serve_body: bytes = gzip_bytes if (use_gzip and gzip_bytes is not None) else raw_bytes
 
             duration_ms = (time.perf_counter() - ctx.t_start) * 1000.0 if ctx.t_start > 0 else 0.0
@@ -1130,7 +1199,14 @@ class MeshCoreWebServer:
                 extra_headers=extra_headers,
                 cors_origin=ctx.cors_origin,
             )
-            await self._write_http_response(ctx.writer, resp)
+            await self._write_http_response(ctx.writer, resp, head_only=(ctx.method == "HEAD"))
         else:
             fallback = b"<h1>MeshCore Web Client</h1><p>Archivos estaticos inicializandose...</p>"
-            await self._write_http_response(ctx.writer, "200 OK", fallback, "text/html; charset=utf-8", cors_origin=ctx.cors_origin)
+            await self._write_http_response(
+                ctx.writer,
+                "200 OK",
+                fallback,
+                "text/html; charset=utf-8",
+                cors_origin=ctx.cors_origin,
+                head_only=(ctx.method == "HEAD"),
+            )

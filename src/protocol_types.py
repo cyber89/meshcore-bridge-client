@@ -428,16 +428,30 @@ class TelemetryPayload:
         return asdict(self)
 
 
+def truncate_utf8_bytes(b: bytes, max_bytes: int) -> bytes:
+    """Trunca un búfer de bytes a un máximo de max_bytes respetando la frontera de caracteres UTF-8."""
+    if len(b) <= max_bytes:
+        return b
+    chunk = b[:max_bytes]
+    while chunk:
+        try:
+            chunk.decode("utf-8")
+            return chunk
+        except UnicodeDecodeError:
+            chunk = chunk[:-1]
+    return b""
+
+
 @dataclass(frozen=True)
 class TextMessagePayload:
-    """Payload de mensaje de texto en canal o directo (OpCode 0x02)."""
+    """Payload de mensaje de texto en canal o directo (OpCode 0x02 / PacketType.CHANNEL_MSG_RECV)."""
     channel_idx: int
     sender_alias: str
     text: str
 
     def pack(self) -> bytes:
-        alias_bytes = self.sender_alias.encode("utf-8")[:15].ljust(16, b"\x00")
-        text_bytes = self.text.encode("utf-8")[:238]
+        alias_bytes = truncate_utf8_bytes(self.sender_alias.encode("utf-8"), 15).ljust(16, b"\x00")
+        text_bytes = truncate_utf8_bytes(self.text.encode("utf-8"), 238)
         return struct.pack("<B16sB", self.channel_idx, alias_bytes, len(text_bytes)) + text_bytes
 
     @classmethod
@@ -457,7 +471,7 @@ class TextMessagePayload:
 
 @dataclass(frozen=True)
 class NodeAdvertisement:
-    """Anuncio de contacto transmitido periódicamente (OpCode 0x03)."""
+    """Anuncio de contacto transmitido periódicamente (OpCode 0x03 / PacketType.CONTACT)."""
     node_id: int
     short_name: str
     long_name: str
@@ -468,8 +482,8 @@ class NodeAdvertisement:
     altitude_m: int
 
     def pack(self) -> bytes:
-        sname_bytes = self.short_name.encode("utf-8")[:4].ljust(4, b"\x00")
-        lname_bytes = self.long_name.encode("utf-8")[:20].ljust(20, b"\x00")
+        sname_bytes = truncate_utf8_bytes(self.short_name.encode("utf-8"), 4).ljust(4, b"\x00")
+        lname_bytes = truncate_utf8_bytes(self.long_name.encode("utf-8"), 20).ljust(20, b"\x00")
         lat_e7 = int(round(self.latitude * 1e7))
         lon_e7 = int(round(self.longitude * 1e7))
         fw_val = int(self.fw_version.replace(".", "").replace("v", "")[:4] or "0")

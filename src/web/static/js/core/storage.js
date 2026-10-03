@@ -60,6 +60,7 @@ export class MeshCoreStorage {
         is_outgoing: !!msg.is_outgoing,
         channel_idx: msg.channel_idx,
         dm_target: msg.dm_target,
+        dm_target_name: msg.dm_target_name || null,
         timestamp: msg.timestamp || new Date().toISOString(),
         metrics: msg.metrics || null,
         delivered: !!msg.delivered,
@@ -221,7 +222,12 @@ export class MeshCoreStorage {
 
             const localPk = (document.getElementById("localNodePubkey")?.value || "").toLowerCase().trim();
             const normPk = pubkey.toLowerCase();
-            if (localPk && (normPk === localPk || (localPk.length >= 8 && normPk.startsWith(localPk.slice(0, 8))))) continue;
+            if (localPk) {
+              if (normPk === localPk) continue;
+              if ((localPk.length < 16 || normPk.length < 16) && normPk.startsWith(localPk.slice(0, Math.min(localPk.length, normPk.length)))) {
+                continue;
+              }
+            }
 
             const isOut = Boolean(msg.is_outgoing);
             const fallbackName = pubkey.slice(0, 8);

@@ -28,6 +28,7 @@ from src.contact_manager import (
 )
 from src.mqtt_client import AsyncBridgeMQTTClient
 from src.repeater_manager import RepeaterManager
+from src.shared_utils import redact_sensitive_command
 from src.target_resolver import TargetResolver
 
 
@@ -179,21 +180,32 @@ class AdminCommandHandler:
 
         s_clean = str(sender).strip().lower()
         tag_clean = str(data.get("tag", "")).strip().lower() if data.get("tag") is not None else ""
+        registry = getattr(self._ctx, "node_registry", None)
+        canon_sender = (registry.get_canonical_key(s_clean) or s_clean).lower() if registry else s_clean
         matched = False
 
         keys_to_check = list(self._ping_waiters.keys())
         for k in keys_to_check:
             k_lower = k.lower()
-            is_match = (
-                k_lower == s_clean
-                or (len(k_lower) >= 8 and s_clean.startswith(k_lower))
-                or (len(s_clean) >= 8 and k_lower.startswith(s_clean))
-                or (bool(tag_clean) and k_lower == tag_clean)
-            )
+            canon_k = (registry.get_canonical_key(k_lower) or k_lower).lower() if registry else k_lower
+            is_match = False
+            if bool(tag_clean) and k_lower == tag_clean:
+                is_match = True
+            elif k_lower == s_clean or canon_k == canon_sender:
+                is_match = True
+            else:
+                if len(canon_sender) >= 32 and len(canon_k) >= 32 and canon_sender != canon_k:
+                    is_match = False
+                elif (len(k_lower) >= 8 and s_clean.startswith(k_lower)) or (len(s_clean) >= 8 and k_lower.startswith(s_clean)):
+                    is_match = True
+
             if is_match:
                 waiters = self._ping_waiters.get(k, [])
                 while waiters:
                     fut = waiters.pop(0)
+                    fut_target = getattr(fut, "_target_canonical", None)
+                    if fut_target and len(canon_sender) >= 32 and len(fut_target) >= 32 and fut_target != canon_sender:
+                        continue
                     if not fut.done():
                         fut.set_result(data)
                         matched = True
@@ -219,25 +231,36 @@ class AdminCommandHandler:
 
         s_clean = str(sender).strip().lower()
         tag_clean = str(data.get("tag", "")).strip().lower() if data.get("tag") is not None else ""
-        canon_sender = (self._ctx.node_registry.get_canonical_key(s_clean) or s_clean).lower()
+        registry = getattr(self._ctx, "node_registry", None)
+        canon_sender = (registry.get_canonical_key(s_clean) or s_clean).lower() if registry else s_clean
 
         keys_to_check = list(self._cmd_waiters.keys())
         for k in keys_to_check:
             k_lower = k.lower()
-            canon_k = (self._ctx.node_registry.get_canonical_key(k_lower) or k_lower).lower()
-            is_match = (
-                k_lower == s_clean
-                or canon_k == canon_sender
-                or (len(k_lower) >= 8 and s_clean.startswith(k_lower))
-                or (len(s_clean) >= 8 and k_lower.startswith(s_clean))
-                or (len(canon_k) >= 8 and canon_sender.startswith(canon_k))
-                or (len(canon_sender) >= 8 and canon_k.startswith(canon_sender))
-                or (bool(tag_clean) and k_lower == tag_clean)
-            )
+            canon_k = (registry.get_canonical_key(k_lower) or k_lower).lower() if registry else k_lower
+            is_match = False
+            if bool(tag_clean) and k_lower == tag_clean:
+                is_match = True
+            elif k_lower == s_clean or canon_k == canon_sender:
+                is_match = True
+            else:
+                if len(canon_sender) >= 32 and len(canon_k) >= 32 and canon_sender != canon_k:
+                    is_match = False
+                elif (
+                    (len(k_lower) >= 8 and s_clean.startswith(k_lower))
+                    or (len(s_clean) >= 8 and k_lower.startswith(s_clean))
+                    or (len(canon_k) >= 8 and canon_sender.startswith(canon_k))
+                    or (len(canon_sender) >= 8 and canon_k.startswith(canon_sender))
+                ):
+                    is_match = True
+
             if is_match:
                 waiters = self._cmd_waiters.get(k, [])
                 while waiters:
                     fut = waiters.pop(0)
+                    fut_target = getattr(fut, "_target_canonical", None)
+                    if fut_target and len(canon_sender) >= 32 and len(fut_target) >= 32 and fut_target != canon_sender:
+                        continue
                     if not fut.done():
                         fut.set_result(data)
                         matched = True
@@ -307,7 +330,7 @@ class AdminCommandHandler:
         target_node = admin_data.get("target_node", admin_data.get("repeater"))
         password = str(admin_data.get("password", "")).strip()
 
-        res: dict[str, Any] = {"status": "ok", "action": action}
+        res: dict[str, Any] = {"status": "ok", "action": redact_sensitive_command(action)}
         if req_id is not None:
             res["request_id"] = req_id
 
@@ -331,10 +354,12 @@ class AdminCommandHandler:
             )
             return await self._handle_remote_repeater(req)
 
+        stat_topic = getattr(self._ctx.mqtt, "topic_admin_stat", config.TOPIC_ADMIN_STAT)
+
         # 2. Comandos locales sobre el nodo conectado
         if action in ("get_config", "get_local_config"):
             res["config"] = self.get_local_config()
-            self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
+            self._publish_safe(stat_topic, json.dumps(res), qos=1)
             return res
 
         if action in ("set_config", "set_local_config"):
@@ -342,7 +367,7 @@ class AdminCommandHandler:
 
         if action == "list_nodes":
             res["nodes"] = self._ctx.node_registry.list_nodes()
-            self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
+            self._publish_safe(stat_topic, json.dumps(res), qos=1)
             return res
 
         if action == "get_custom_vars":

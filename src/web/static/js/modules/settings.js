@@ -118,6 +118,13 @@ export class SettingsModule {
       qrModalTitle: document.getElementById("qrModalTitle"),
       btnCopyQrUri: document.getElementById("btnCopyQrUri"),
       btnDownloadQrJson: document.getElementById("btnDownloadQrJson"),
+      btnHeaderImportContact: document.getElementById("btnHeaderImportContact"),
+      btnImportData: document.getElementById("btnImportData"),
+      importModal: document.getElementById("importModal"),
+      importPayloadInput: document.getElementById("importPayloadInput"),
+      btnCloseImportModal: document.getElementById("btnCloseImportModal"),
+      btnCancelImport: document.getElementById("btnCancelImport"),
+      importForm: document.getElementById("importForm"),
       importFileInput: document.getElementById("importFileInput"),
       localRadioForm: document.getElementById("localRadioForm"),
       localOwnerPosForm: document.getElementById("localOwnerPosForm"),
@@ -1199,7 +1206,8 @@ export class SettingsModule {
         try {
           const parsed = JSON.parse(cleanRaw);
           if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && (parsed.type === "channel" || (parsed.index !== undefined && parsed.name && !parsed.public_key))) {
-            const idx = parseInt(parsed.index, 10) || 1;
+            const parsedIdx = parseInt(parsed.index, 10);
+            const idx = !isNaN(parsedIdx) ? parsedIdx : 1;
             const name = parsed.name || `Canal ${idx}`;
             const psk = parsed.secret || parsed.psk || "";
             const cleanPsk = (psk && psk !== MESHCORE_PUBLIC_CHANNEL_SECRET) ? psk : "";
