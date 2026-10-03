@@ -1,0 +1,510 @@
+{
+  "scope": "constructors only; fake send captures bytes; no RF or firmware execution",
+  "sdk_version": "2.3.8",
+  "isolation": {
+    "bridge_or_config_imported": false,
+    "dotenv_reads_blocked": []
+  },
+  "sdk_tx": [
+    {
+      "input_dbm": -9,
+      "exception": "OverflowError",
+      "message": "can't convert negative int to unsigned",
+      "frames": 0
+    },
+    {
+      "input_dbm": -1,
+      "exception": "OverflowError",
+      "message": "can't convert negative int to unsigned",
+      "frames": 0
+    },
+    {
+      "input_dbm": 0,
+      "result": "captured_only",
+      "frame": "0c00000000"
+    },
+    {
+      "input_dbm": 20,
+      "result": "captured_only",
+      "frame": "0c14000000"
+    }
+  ],
+  "tuning": [
+    {
+      "input": 10,
+      "writes": [
+        {
+          "command": "set_tuning",
+          "args": [
+            10000,
+            10000
+          ]
+        }
+      ],
+      "firmware_decoded": [
+        10.0,
+        10.0
+      ]
+    },
+    {
+      "input": 11,
+      "writes": [
+        {
+          "command": "set_tuning",
+          "args": [
+            11000,
+            11000
+          ]
+        }
+      ],
+      "firmware_decoded": [
+        11.0,
+        11.0
+      ]
+    },
+    {
+      "input": 20,
+      "writes": [
+        {
+          "command": "set_tuning",
+          "args": [
+            20000,
+            20000
+          ]
+        }
+      ],
+      "firmware_decoded": [
+        20.0,
+        20.0
+      ]
+    }
+  ],
+  "builders": [
+    {
+      "action": "set_frequency",
+      "params": {
+        "frequency": 868.1
+      },
+      "actual_command": null
+    },
+    {
+      "action": "set_sf",
+      "params": {
+        "sf": 7
+      },
+      "actual_command": null
+    },
+    {
+      "action": "set_bw",
+      "params": {
+        "bw": 125
+      },
+      "actual_command": null
+    },
+    {
+      "action": "set_cr",
+      "params": {
+        "cr": "4/7"
+      },
+      "actual_command": null
+    },
+    {
+      "action": "set_position",
+      "params": {
+        "lat": 0,
+        "lon": 10,
+        "alt": 15,
+        "fixed": true
+      },
+      "actual_command": null
+    },
+    {
+      "action": "set_hop_limit",
+      "params": {
+        "hops": 4
+      },
+      "actual_command": null
+    },
+    {
+      "action": "set_pos_alt",
+      "params": {
+        "alt": 15
+      },
+      "actual_command": null
+    },
+    {
+      "action": "set_radio",
+      "params": {
+        "frequency": 868.1,
+        "bandwidth": 125,
+        "sf": 7,
+        "cr": 7
+      },
+      "actual_command": "set radio 868.1,125,7,7"
+    },
+    {
+      "action": "set_radio",
+      "params": {
+        "frequency": 868.1,
+        "bandwidth": 125,
+        "sf": 7,
+        "cr": "INVALID"
+      },
+      "actual_command": "set radio 868.1,125,7,5"
+    },
+    {
+      "action": "set_radio",
+      "params": {
+        "frequency": 868.1,
+        "bandwidth": 125,
+        "sf": 7,
+        "cr": "99/7"
+      },
+      "actual_command": "set radio 868.1,125,7,7"
+    },
+    {
+      "action": "radio",
+      "params": {
+        "frequency": 868.1,
+        "bandwidth": 125,
+        "sf": 7,
+        "cr": 7
+      },
+      "actual_command": "get radio"
+    },
+    {
+      "action": "set_lat",
+      "params": {
+        "lat": 0
+      },
+      "actual_command": "set lat 0.000000"
+    },
+    {
+      "action": "set_lon",
+      "params": {
+        "lon": 0
+      },
+      "actual_command": "set lon 0.000000"
+    },
+    {
+      "action": "set_lat",
+      "params": {
+        "lat": 100
+      },
+      "actual_command": "set lat 100.000000"
+    },
+    {
+      "action": "set_lon",
+      "params": {
+        "lon": "nan"
+      },
+      "actual_command": "set lon nan"
+    },
+    {
+      "action": "lat",
+      "params": {
+        "lat": 41
+      },
+      "actual_command": "get lat"
+    },
+    {
+      "action": "lon",
+      "params": {
+        "lon": -73
+      },
+      "actual_command": "get lon"
+    },
+    {
+      "action": "set_owner_info",
+      "params": {
+        "owner_info": "REPRO_DUMMY"
+      },
+      "actual_command": "set owner.info REPRO_DUMMY"
+    },
+    {
+      "action": "set_admin_password",
+      "params": {
+        "new_password": "REPRO_DUMMY"
+      },
+      "actual_command": "password REPRO_DUMMY"
+    },
+    {
+      "action": "acl_add",
+      "params": {
+        "public_key": "1111111111111111111111111111111111111111111111111111111111111111",
+        "permission": "admin"
+      },
+      "actual_command": "setperm 1111111111111111111111111111111111111111111111111111111111111111 1"
+    },
+    {
+      "action": "acl_add",
+      "params": {
+        "public_key": "1111111111111111111111111111111111111111111111111111111111111111",
+        "permission": "guest"
+      },
+      "actual_command": "setperm 1111111111111111111111111111111111111111111111111111111111111111 2"
+    },
+    {
+      "action": "acl_add",
+      "params": {
+        "public_key": "1111111111111111111111111111111111111111111111111111111111111111",
+        "permission": "read"
+      },
+      "actual_command": "setperm 1111111111111111111111111111111111111111111111111111111111111111 2"
+    },
+    {
+      "action": "acl_remove",
+      "params": {
+        "public_key": "1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "actual_command": "setperm 1111111111111111111111111111111111111111111111111111111111111111 1"
+    },
+    {
+      "action": "setperm",
+      "params": {
+        "public_key": "1111111111111111111111111111111111111111111111111111111111111111",
+        "permission": 3
+      },
+      "actual_command": "setperm 1111111111111111111111111111111111111111111111111111111111111111 3"
+    },
+    {
+      "action": "setperm",
+      "params": {
+        "public_key": "xx",
+        "permission": 999
+      },
+      "actual_command": "setperm xx 999"
+    },
+    {
+      "action": "acl_list",
+      "params": {},
+      "actual_command": null
+    },
+    {
+      "action": "get_acl",
+      "params": {},
+      "actual_command": "get allow.read.only"
+    },
+    {
+      "action": "status",
+      "params": {},
+      "actual_command": "stats-core"
+    },
+    {
+      "action": "battery",
+      "params": {},
+      "actual_command": "get pwrmgt.bootmv"
+    },
+    {
+      "action": "discover.neighbors",
+      "params": {},
+      "actual_command": "neighbors"
+    },
+    {
+      "action": "uptime",
+      "params": {},
+      "actual_command": "get uptime"
+    },
+    {
+      "action": "help",
+      "params": {},
+      "actual_command": "help"
+    },
+    {
+      "action": "set_repeat_enabled",
+      "params": {
+        "repeat_enabled": false
+      },
+      "actual_command": null
+    },
+    {
+      "action": "set_guest_password",
+      "params": {
+        "guest_password": "REPRO_DUMMY"
+      },
+      "actual_command": null
+    },
+    {
+      "action": "set_latitude",
+      "params": {
+        "latitude": 41
+      },
+      "actual_command": null
+    },
+    {
+      "action": "set_longitude",
+      "params": {
+        "longitude": -73
+      },
+      "actual_command": null
+    },
+    {
+      "action": "set_region",
+      "params": {
+        "region": "TEST"
+      },
+      "actual_command": null
+    },
+    {
+      "action": "set_advert_interval",
+      "params": {
+        "advert_interval": 0
+      },
+      "actual_command": "set advert.interval 0"
+    },
+    {
+      "action": "set_advert_interval",
+      "params": {
+        "advert_interval": 30
+      },
+      "actual_command": "set advert.interval 0"
+    },
+    {
+      "action": "set_advert_interval",
+      "params": {
+        "advert_interval": 60
+      },
+      "actual_command": "set advert.interval 60"
+    },
+    {
+      "action": "set_advert_interval",
+      "params": {
+        "advert_interval": 61
+      },
+      "actual_command": "set advert.interval 60"
+    },
+    {
+      "action": "set_advert_interval",
+      "params": {
+        "advert_interval": 120
+      },
+      "actual_command": "set advert.interval 120"
+    },
+    {
+      "action": "set_advert_interval",
+      "params": {
+        "advert_interval": 239
+      },
+      "actual_command": "set advert.interval 238"
+    },
+    {
+      "action": "set_advert_interval",
+      "params": {
+        "advert_interval": 240
+      },
+      "actual_command": "set advert.interval 240"
+    },
+    {
+      "action": "set_advert_interval",
+      "params": {
+        "advert_interval": 241
+      },
+      "actual_command": "set advert.interval 60"
+    },
+    {
+      "action": "set_advert_interval",
+      "params": {
+        "advert_interval": 300
+      },
+      "actual_command": "set advert.interval 60"
+    },
+    {
+      "action": "set_advert_interval",
+      "params": {
+        "advert_interval": 600
+      },
+      "actual_command": "set advert.interval 60"
+    },
+    {
+      "action": "set_advert_interval",
+      "params": {
+        "advert_interval": 1200
+      },
+      "actual_command": "set advert.interval 60"
+    },
+    {
+      "action": "set_advert_interval",
+      "params": {
+        "advert_interval": 3600
+      },
+      "actual_command": "set advert.interval 60"
+    },
+    {
+      "action": "set_advert_interval",
+      "params": {
+        "advert_interval": 14400
+      },
+      "actual_command": "set advert.interval 240"
+    },
+    {
+      "action": "set_advert_interval",
+      "params": {
+        "advert_interval": -1
+      },
+      "actual_command": "set advert.interval 0"
+    },
+    {
+      "action": "set_advert_interval",
+      "params": {
+        "advert_interval": "INVALID"
+      },
+      "actual_command": "set advert.interval 0"
+    },
+    {
+      "action": "set_flood_advert_interval",
+      "params": {
+        "flood_advert_interval": 0
+      },
+      "actual_command": "set flood.advert.interval 0"
+    },
+    {
+      "action": "set_flood_advert_interval",
+      "params": {
+        "flood_advert_interval": 1
+      },
+      "actual_command": "set flood.advert.interval 3"
+    },
+    {
+      "action": "set_flood_advert_interval",
+      "params": {
+        "flood_advert_interval": 2
+      },
+      "actual_command": "set flood.advert.interval 3"
+    },
+    {
+      "action": "set_flood_advert_interval",
+      "params": {
+        "flood_advert_interval": 3
+      },
+      "actual_command": "set flood.advert.interval 3"
+    },
+    {
+      "action": "set_flood_advert_interval",
+      "params": {
+        "flood_advert_interval": 168
+      },
+      "actual_command": "set flood.advert.interval 168"
+    },
+    {
+      "action": "set_flood_advert_interval",
+      "params": {
+        "flood_advert_interval": 169
+      },
+      "actual_command": "set flood.advert.interval 168"
+    },
+    {
+      "action": "set_flood_advert_interval",
+      "params": {
+        "flood_advert_interval": -1
+      },
+      "actual_command": "set flood.advert.interval 3"
+    },
+    {
+      "action": "set_flood_advert_interval",
+      "params": {
+        "flood_advert_interval": "INVALID"
+      },
+      "actual_command": "set flood.advert.interval 0"
+    }
+  ]
+}

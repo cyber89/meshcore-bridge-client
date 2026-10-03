@@ -1,0 +1,31 @@
+{
+  "base_head": "9f561932d648470e8c8bd23fc789a66bdb378d0e",
+  "case": "positive_dedicated_autoadd",
+  "request": {
+    "flags": 15
+  },
+  "response": {
+    "post": {
+      "status": "ok",
+      "data": {
+        "status": "ok",
+        "autoadd_config": {
+          "config": 15,
+          "max_hops": 0
+        }
+      }
+    },
+    "get": {
+      "status": "ok",
+      "autoadd_config": {
+        "config": 15,
+        "max_hops": 0
+      },
+      "data": {
+        "config": 15,
+        "max_hops": 0
+      }
+    }
+  },
+  "sdk_calls": "call(15)"
+}

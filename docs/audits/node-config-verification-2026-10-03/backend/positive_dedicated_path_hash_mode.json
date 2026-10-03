@@ -1,0 +1,25 @@
+{
+  "base_head": "9f561932d648470e8c8bd23fc789a66bdb378d0e",
+  "case": "positive_dedicated_path_hash_mode",
+  "request": {
+    "mode": 2
+  },
+  "response": {
+    "post": {
+      "status": "ok",
+      "path_hash_mode": 2,
+      "data": {
+        "status": "ok",
+        "path_hash_mode": 2
+      }
+    },
+    "get": {
+      "status": "ok",
+      "path_hash_mode": 2,
+      "data": {
+        "path_hash_mode": 2
+      }
+    }
+  },
+  "sdk_calls": "call(2)"
+}

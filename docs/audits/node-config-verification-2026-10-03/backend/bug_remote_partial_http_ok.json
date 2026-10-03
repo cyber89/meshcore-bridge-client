@@ -1,0 +1,24 @@
+{
+  "base_head": "9f561932d648470e8c8bd23fc789a66bdb378d0e",
+  "case": "bug_remote_partial_http_ok",
+  "request": {
+    "target_node": "2222222222222222222222222222222222222222222222222222222222222222",
+    "params": {
+      "name": "AlreadyChanged",
+      "lat": "invalid"
+    }
+  },
+  "response": {
+    "status": "ok",
+    "data": {
+      "status": "partial",
+      "action": "remote_repeater_set_config",
+      "target_node": "2222222222222222222222222222222222222222222222222222222222222222",
+      "message": "could not convert string to float: 'invalid'",
+      "dispatched_commands": [
+        "set name AlreadyChanged"
+      ]
+    }
+  },
+  "sdk_calls": null
+}

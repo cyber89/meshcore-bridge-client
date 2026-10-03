@@ -1,0 +1,254 @@
+INFO:root:\u26a1 [USB-HARDWARE] Heltec v4 MeshCore Companion USB conectado (modo virtual).
+INFO:root:[RX-TELEMETR�A] De: Alpha Field Sensor (a1b2c3d4) -> Para: Gateway/MQTT | Tipo: node_discovered | \U0001f50b 98% (4.18V) | \U0001f4cd (20.1520, -75.1980) | RSSI: -65 dBm, SNR: 12.4 dB | LQI: 89.7% [EXCELLENT]
+INFO:root:[RX-TELEMETR�A] De: Bravo Scout Rover (d7e8f901) -> Para: Gateway/MQTT | Tipo: node_discovered | \U0001f50b 84% (4.01V) | \U0001f4cd (20.1850, -75.2420) | RSSI: -78 dBm, SNR: 8.5 dB | LQI: 66.1% [GOOD]
+INFO:root:[RX-TELEMETR�A] De: \u26c5 Charlie Weather Station (c3d4e5f6) -> Para: Gateway/MQTT | Tipo: node_discovered | \U0001f50b 91% (4.09V) | \U0001f4cd (20.1410, -75.2150) | RSSI: -74 dBm, SNR: 10.1 dB | LQI: 71.0% [GOOD]
+INFO:root:[RX-TELEMETR�A] De: \U0001f4f1 Delta Field Operative (e9f01234) -> Para: Gateway/MQTT | Tipo: node_discovered | \U0001f50b 76% (3.91V) | \U0001f4cd (20.1650, -75.2280) | RSSI: -70 dBm, SNR: 11.2 dB | LQI: 87.7% [EXCELLENT]
+INFO:root:[RX-TELEMETR�A] De: \u26a1 Echo Gateway Repeater (5a6b7c8d) -> Para: Gateway/MQTT | Tipo: node_discovered | \U0001f50b 99% (4.19V) | \U0001f4cd (20.1720, -75.1850) | RSSI: -63 dBm, SNR: 13.1 dB | LQI: 90.5% [EXCELLENT]
+INFO:root:[RX-TELEMETR�A] De: \U0001f3e5 Foxtrot Base HQ (6f7e8d9c) -> Para: Gateway/MQTT | Tipo: node_discovered | \U0001f50b 100% (4.2V) | \U0001f4cd (20.1380, -75.2350) | RSSI: -58 dBm, SNR: 14.2 dB | LQI: 92.6% [EXCELLENT]
+INFO:root:[RX-TELEMETR�A] De: \U0001f681 Golf Drone Scout (7a8b9c0d) -> Para: Gateway/MQTT | Tipo: node_discovered | \U0001f50b 68% (3.82V) | \U0001f4cd (20.1920, -75.2110) | RSSI: -76 dBm, SNR: 9.4 dB | LQI: 68.9% [GOOD]
+INFO:root:[RX-TELEMETR�A] De: \U0001f332 Hotel Forest Sensor (8b9c0d1e) -> Para: Gateway/MQTT | Tipo: node_discovered | \U0001f50b 93% (4.12V) | \U0001f4cd (20.1250, -75.2050) | RSSI: -82 dBm, SNR: 6.8 dB | LQI: 45.8% [FAIR]
+INFO:root:[RX-TELEMETR�A] De: \u26f0\ufe0f R3-Ridge Solar Repeater (aabbccdd) -> Para: Gateway/MQTT | Tipo: node_discovered | \U0001f50b 97% (4.16V) | \U0001f4cd (20.1880, -75.1740) | RSSI: -68 dBm, SNR: 12.0 dB | LQI: 73.5% [GOOD]
+INFO:root:[RX-TELEMETR�A] De: \U0001f6a8 Emergency Bulletin Mailbox (33445566) -> Para: Gateway/MQTT | Tipo: node_discovered | \U0001f50b 100% (4.2V) | \U0001f4cd (20.1450, -75.2050) | RSSI: -60 dBm, SNR: 13.5 dB | LQI: 91.8% [EXCELLENT]
+INFO:root:Servidor Web MeshCore activo en http://127.0.0.1:0
+INFO:root:\U0001f50c [WEBSOCKET] IP: 127.0.0.1 -> Conexi�n WebSocket establecida (Clientes activos: 1)
+WARNING:root:BRIDGE_API_KEY no configurada, omitiendo autenticaci�n (modo desarrollo)
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/custom_vars | C�digo: 200 | 0.2ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/flood_scope | C�digo: 200 | 0.1ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/autoadd | C�digo: 200 | 0.1ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/custom_vars | C�digo: 200 | 0.1ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/custom_vars | C�digo: 200 | 0.1ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/flood_scope | C�digo: 200 | 0.1ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/autoadd | C�digo: 200 | 0.1ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/flood_scope | C�digo: 200 | 0.1ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/autoadd | C�digo: 200 | 0.1ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/custom_vars | C�digo: 200 | 0.2ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/custom_vars | C�digo: 200 | 0.1ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/flood_scope | C�digo: 200 | 0.1ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/autoadd | C�digo: 200 | 0.1ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/flood_scope | C�digo: 200 | 0.1ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/autoadd | C�digo: 200 | 0.2ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/custom_vars | C�digo: 200 | 0.2ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/custom_vars | C�digo: 200 | 0.2ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/flood_scope | C�digo: 200 | 0.2ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/autoadd | C�digo: 200 | 0.1ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/flood_scope | C�digo: 200 | 0.2ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/autoadd | C�digo: 200 | 0.3ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/custom_vars | C�digo: 200 | 0.1ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/custom_vars | C�digo: 200 | 0.2ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/flood_scope | C�digo: 200 | 0.2ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/autoadd | C�digo: 200 | 0.1ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/flood_scope | C�digo: 200 | 0.1ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/autoadd | C�digo: 200 | 0.1ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/custom_vars | C�digo: 200 | 0.1ms
+INFO:root:\u26a1 [REST-API] IP: 127.0.0.1 -> GET /api/config/custom_vars | C�digo: 200 | 0.1ms
+INFO:root:\U0001f50c [WEBSOCKET] IP: 127.0.0.1 -> Conexi�n WebSocket cerrada (Clientes activos: 0)
+ERROR:asyncio:Exception in callback _ProactorBasePipeTransport._call_connection_lost(None)
+handle: <Handle _ProactorBasePipeTransport._call_connection_lost(None)>
+Traceback (most recent call last):
+  File "C:\Users\Ruby\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\asyncio\events.py", line 88, in _run
+    self._context.run(self._callback, *self._args)
+  File "C:\Users\Ruby\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\asyncio\proactor_events.py", line 165, in _call_connection_lost
+    self._sock.shutdown(socket.SHUT_RDWR)
+ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host
+INFO:root:Adaptador Virtual LoRa MeshCore desconectado.
+{
+  "local_draft_overwrite_and_altitude": {
+    "frequency": "916.5",
+    "name": "UNSAVED_DRAFT",
+    "altitude": "123",
+    "max_hops": "0",
+    "auto_chat": false
+  },
+  "local_capability_controls": [
+    {
+      "id": "btnSaveLocalRadio",
+      "disabled": true
+    },
+    {
+      "id": "localRepeatMode",
+      "disabled": false
+    },
+    {
+      "id": "localDevicePin",
+      "disabled": false
+    },
+    {
+      "id": "localPathHashMode",
+      "disabled": false
+    },
+    {
+      "id": "btnActionAdvertHop",
+      "disabled": false
+    },
+    {
+      "id": "btnActionRebootLocal",
+      "disabled": false
+    }
+  ],
+  "local_server_normalization_ignored": {
+    "display": "433.125",
+    "cached": 433.125,
+    "toasts": [
+      {
+        "message": "\u2705 Radio parameters saved and applied",
+        "type": "success"
+      }
+    ]
+  },
+  "local_fractional_tuning": {
+    "rx_delay": 0.5,
+    "airtime_factor": 1.5
+  },
+  "local_problem_detail": [
+    {
+      "message": "\u26a0\ufe0f Failed to save identity and location: AUDIT_EXACT_VALIDATION_DETAIL",
+      "type": "error"
+    }
+  ],
+  "remote_role_capabilities_and_zero_power": {
+    "gateVisible": true,
+    "zeroPowerDisplay": "0",
+    "powerAfterPartialUpdate": "20",
+    "frequencyAfterUpdate": "916.5",
+    "controls": [
+      {
+        "id": "btnSubmitRepRadio",
+        "disabled": false
+      },
+      {
+        "id": "radioRepeatMode",
+        "disabled": false
+      },
+      {
+        "id": "btnModalActionReboot",
+        "disabled": false
+      }
+    ]
+  },
+  "remote_radio_busy": {
+    "buttonDisabledAfterFirst": true,
+    "posts": 1
+  },
+  "remote_problem_detail": "\n                MeshCore Remote CLI \u2014 LoRa RF console\n                Remote console ready. Send RF commands or press \u2191 / \u2193 to navigate history.\n              [5:49:30 PM] > [TX CONFIG] Transmitting RF parameters to cacacaca (916.5MHz, 20dBm, SF11, BW250kHz)...[5:49:31 PM] \u2713 [RX OK] RF parameters applied to repeater cacacaca.[5:49:31 PM] > [TX CONFIG] Transmitting RF parameters to cacacaca (916.5MHz, 20dBm, SF11, BW250kHz)...[5:49:31 PM] \u2717 [RX ERROR] AUDIT_EXACT_VALIDATION_DETAIL",
+  "target_switch_stale_fields": {
+    "frequency": "",
+    "sf": "11",
+    "owner": "",
+    "lat": ""
+  },
+  "remote_security_unchanged": {
+    "posts": 0,
+    "last_request": null
+  },
+  "native_numeric_validity": [
+    {
+      "id": "localSf",
+      "value": "",
+      "valid": true,
+      "stepMismatch": false,
+      "min": null,
+      "max": null
+    },
+    {
+      "id": "localTxPower",
+      "value": "2",
+      "valid": true,
+      "stepMismatch": false,
+      "min": "2",
+      "max": "22"
+    },
+    {
+      "id": "localRxDelay",
+      "value": "0.5",
+      "valid": false,
+      "stepMismatch": true,
+      "min": "0",
+      "max": "100000"
+    },
+    {
+      "id": "localAirtimeFactor",
+      "value": "1.5",
+      "valid": false,
+      "stepMismatch": true,
+      "min": "0",
+      "max": "1000"
+    },
+    {
+      "id": "localFreq",
+      "value": "915.123",
+      "valid": false,
+      "stepMismatch": true
+    }
+  ],
+  "client_entry_guard": {
+    "target": null,
+    "hidden": true,
+    "toast": [
+      {
+        "message": "Client or messaging devices do not support remote administration.",
+        "type": "warning"
+      }
+    ]
+  },
+  "sf5_roundtrip_fallback": {
+    "posts": 1,
+    "sf": 11,
+    "power": 2
+  },
+  "autoadd_draft_overwrite": {
+    "hops": "0",
+    "chat": false
+  },
+  "local_one_field_full_payload": {
+    "posts": 1,
+    "body": {
+      "frequency": 916.5,
+      "tx_power": 2,
+      "spreading_factor": 9,
+      "bandwidth": 250,
+      "coding_rate": "4/5",
+      "repeat": true,
+      "hop_limit": 3,
+      "telemetry_interval": 60,
+      "advert_interval": 300,
+      "beacon_interval": 300,
+      "pin": 0,
+      "path_hash_mode": 0,
+      "rx_delay": 0.5,
+      "airtime_factor": 1.5,
+      "telemetry_mode_base": 1,
+      "telemetry_mode_loc": 1,
+      "telemetry_mode_env": 1,
+      "adv_loc_policy": false,
+      "multi_acks": false,
+      "manual_add_contacts": false
+    }
+  },
+  "remote_dispatched_presented_applied": {
+    "frequency": 916.5,
+    "summary": "916.500 MHz",
+    "dirty": false,
+    "toast": [
+      {
+        "message": "\ud83d\udcfb RF parameters applied and synchronized on repeater",
+        "type": "success"
+      }
+    ],
+    "terminal": "\n                MeshCore Remote CLI \u2014 LoRa RF console\n                Remote console ready. Send RF commands or press \u2191 / \u2193 to navigate history.\n              [5:49:30 PM] > [TX CONFIG] Transmitting RF parameters to cacacaca (916.5MHz, 20dBm, SF11, BW250kHz)...[5:49:31 PM] \u2713 [RX OK] RF parameters applied to repeater cacacaca.[5:49:31 PM] > [TX CONFIG] Transmitting RF parameters to cacacaca (916.5MHz, 20dBm, SF11, BW250kHz)...[5:49:31 PM] \u2717 [RX ERROR] AUDIT_EXACT_VALIDATION_DETAIL[5:49:32 PM] > [TX CONFIG] Transmitting RF parameters to dddddddd (916.5MHz, 20dBm, SF11, BW250kHz)...[5:49:32 PM] \u2713 [RX OK] RF parameters applied to repeater dddddddd."
+  },
+  "local_edit_during_save_and_disconnect": {
+    "frequency": "433.125",
+    "dirty": false,
+    "saveDisabled": false,
+    "radioConnected": false
+  },
+  "remote_owner_read_destroys_dirty": {
+    "value": "OBSERVED_A",
+    "dirty": true
+  },
+  "remote_owner_read_cross_target": {
+    "target": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "name": "OBSERVED_A",
+    "info": "INFO_A"
+  }
+}

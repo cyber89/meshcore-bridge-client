@@ -1,0 +1,22 @@
+{
+  "base_head": "9f561932d648470e8c8bd23fc789a66bdb378d0e",
+  "case": "fixed_role_FixtureLocal",
+  "request": {
+    "target_node": "FixtureLocal"
+  },
+  "response": {
+    "type": "urn:meshcore:error:remote_config_failed",
+    "title": "Config Error",
+    "status": 400,
+    "detail": "'NodeContactInfo' object has no attribute 'get'",
+    "error": "remote_config_failed",
+    "message": "'NodeContactInfo' object has no attribute 'get'",
+    "timestamp": 1791064320.2598934,
+    "data": {
+      "status": "error",
+      "target_node": "FixtureLocal",
+      "message": "'NodeContactInfo' object has no attribute 'get'"
+    }
+  },
+  "sdk_calls": null
+}

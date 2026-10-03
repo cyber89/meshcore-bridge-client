@@ -1,0 +1,25 @@
+{
+  "base_head": "9f561932d648470e8c8bd23fc789a66bdb378d0e",
+  "case": "fixed_remote_prevalidation_bogus_setting",
+  "request": {
+    "target_node": "2222222222222222222222222222222222222222222222222222222222222222",
+    "params": {
+      "name": "NoChange",
+      "bogus_setting": 42
+    }
+  },
+  "response": {
+    "type": "urn:meshcore:error:remote_config_failed",
+    "title": "Config Error",
+    "status": 400,
+    "detail": "Parámetro de configuración remota desconocido: 'bogus_setting'",
+    "error": "remote_config_failed",
+    "message": "Parámetro de configuración remota desconocido: 'bogus_setting'",
+    "timestamp": 1791064320.1584914,
+    "data": {
+      "status": "error",
+      "message": "Parámetro de configuración remota desconocido: 'bogus_setting'"
+    }
+  },
+  "sdk_calls": null
+}

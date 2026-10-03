@@ -1,0 +1,24 @@
+{
+  "base_head": "9f561932d648470e8c8bd23fc789a66bdb378d0e",
+  "case": "positive_remote_tx_power",
+  "request": {
+    "target_node": "2222222222222222222222222222222222222222222222222222222222222222",
+    "params": {
+      "tx_power": 22
+    }
+  },
+  "response": {
+    "status": "ok",
+    "data": {
+      "status": "dispatched",
+      "action": "remote_repeater_set_config",
+      "target_node": "2222222222222222222222222222222222222222222222222222222222222222",
+      "dispatched_commands": [
+        "set tx 22"
+      ]
+    }
+  },
+  "sdk_calls": [
+    "set tx 22"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "base_head": "9f561932d648470e8c8bd23fc789a66bdb378d0e",
+  "case": "fixed_role_3333333333333333333333333333333333333333333333333333333333333333",
+  "request": {
+    "target_node": "3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "response": {
+    "type": "urn:meshcore:error:remote_config_failed",
+    "title": "Config Error",
+    "status": 400,
+    "detail": "La configuración remota solo aplica a nodos repetidores",
+    "error": "remote_config_failed",
+    "message": "La configuración remota solo aplica a nodos repetidores",
+    "timestamp": 1791064320.2504146,
+    "data": {
+      "status": "error",
+      "message": "La configuración remota solo aplica a nodos repetidores"
+    }
+  },
+  "sdk_calls": null
+}

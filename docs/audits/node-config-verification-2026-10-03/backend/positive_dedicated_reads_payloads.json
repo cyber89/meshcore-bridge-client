@@ -1,0 +1,37 @@
+{
+  "base_head": "9f561932d648470e8c8bd23fc789a66bdb378d0e",
+  "case": "positive_dedicated_reads_payloads",
+  "request": {},
+  "response": {
+    "autoadd": {
+      "status": "ok",
+      "autoadd_config": {
+        "config": 15,
+        "max_hops": 3
+      },
+      "data": {
+        "config": 15,
+        "max_hops": 3
+      }
+    },
+    "flood_scope": {
+      "status": "ok",
+      "flood_scope": {
+        "scope_name": "AuditScope"
+      },
+      "data": {
+        "scope_name": "AuditScope"
+      }
+    },
+    "custom_vars": {
+      "status": "ok",
+      "custom_vars": {
+        "audit.key": "value"
+      },
+      "data": {
+        "audit.key": "value"
+      }
+    }
+  },
+  "sdk_calls": null
+}

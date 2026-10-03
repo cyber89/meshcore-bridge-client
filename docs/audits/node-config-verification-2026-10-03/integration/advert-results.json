@@ -1,0 +1,39 @@
+{
+  "head": "9f561932d648470e8c8bd23fc789a66bdb378d0e",
+  "scope": "Real handler; mock registry; dotenv blocked; no RF, MQTT or filesystem persistence",
+  "passed": 4,
+  "observations": [
+    {
+      "event": "ADVERTISEMENT",
+      "input_last_advert": null,
+      "discover_calls": 1,
+      "update_calls": 1,
+      "last_advert": null,
+      "last_advert_heard_at_present": true
+    },
+    {
+      "event": "ADVERTISEMENT",
+      "input_last_advert": "not-numeric",
+      "discover_calls": 1,
+      "update_calls": 1,
+      "last_advert": null,
+      "last_advert_heard_at_present": true
+    },
+    {
+      "event": "ADVERTISEMENT",
+      "input_last_advert": "1791000000",
+      "discover_calls": 1,
+      "update_calls": 1,
+      "last_advert": 1791000000.0,
+      "last_advert_heard_at_present": true
+    },
+    {
+      "event": "NEXT_CONTACT",
+      "input_last_advert": "1791000000",
+      "discover_calls": 1,
+      "update_calls": 1,
+      "last_advert": 1791000000.0,
+      "last_advert_heard_at_present": false
+    }
+  ]
+}

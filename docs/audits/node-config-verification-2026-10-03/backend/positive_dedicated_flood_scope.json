@@ -1,0 +1,28 @@
+{
+  "base_head": "9f561932d648470e8c8bd23fc789a66bdb378d0e",
+  "case": "positive_dedicated_flood_scope",
+  "request": {
+    "scope": "AuditScope"
+  },
+  "response": {
+    "post": {
+      "status": "ok",
+      "data": {
+        "status": "ok",
+        "flood_scope": {
+          "scope_name": "AuditScope"
+        }
+      }
+    },
+    "get": {
+      "status": "ok",
+      "flood_scope": {
+        "scope_name": "AuditScope"
+      },
+      "data": {
+        "scope_name": "AuditScope"
+      }
+    }
+  },
+  "sdk_calls": "call('AuditScope')"
+}
