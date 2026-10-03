@@ -1387,11 +1387,11 @@
                     </p>
                     <form class="settings-form" id="autoAddConfigForm" onsubmit="return false;" aria-label="Política de contactos" data-i18n-aria-label="ui.form_contacts">
                       <div class="form-group" style="display: flex; flex-direction: column; gap: 10px;">
-                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <label for="chkAutoAddChat" style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
                           <input type="checkbox" id="chkAutoAddChat" checked />
                           <span data-i18n="ui.static_365">Auto-agregar contactos que envían mensajes directos (<code>AUTO_ADD_CHAT</code>)</span>
                         </label>
-                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <label for="chkAutoAddOverwrite" style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
                           <input type="checkbox" id="chkAutoAddOverwrite" />
                           <span data-i18n="ui.static_366">Sobrescribir el contacto más antiguo cuando la flash esté llena (<code>AUTO_ADD_OVERWRITE_OLDEST</code>)</span>
                         </label>
@@ -2242,7 +2242,7 @@
               <button type="button" id="btnSelectImportFile" class="btn-secondary btn-xs" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px; margin: 0;" data-i18n="ui.static_553">
                 <span data-lucide="upload" data-size="12"></span> Cargar Archivo
               </button>
-              <input type="file" id="importFileInput" accept=".json,.txt" class="hidden" />
+              <input type="file" id="importFileInput" accept=".json,.txt" class="hidden" aria-label="Seleccionar archivo de respaldo o configuración" />
             </div>
           </div>
 

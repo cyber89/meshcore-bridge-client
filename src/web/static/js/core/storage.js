@@ -202,7 +202,7 @@ export class MeshCoreStorage {
     });
   }
 
-  async getDmConversations() {
+  async getDmConversations(localPubkey = "") {
     await this.readyPromise;
     if (!this.db) return [];
     return new Promise((resolve) => {
@@ -213,6 +213,7 @@ export class MeshCoreStorage {
         req.onsuccess = () => {
           const allMsgs = req.result || [];
           const threadsMap = new Map();
+          const localPk = (localPubkey || (typeof document !== "undefined" ? document.getElementById("localNodePubkey")?.value : "") || "").toLowerCase().trim();
 
           for (const msg of allMsgs) {
             const feedKey = msg.feed_key || "";
@@ -220,7 +221,6 @@ export class MeshCoreStorage {
             const pubkey = feedKey.slice(3).trim();
             if (!pubkey || pubkey.toLowerCase() === "unknown" || pubkey.toLowerCase() === "local") continue;
 
-            const localPk = (document.getElementById("localNodePubkey")?.value || "").toLowerCase().trim();
             const normPk = pubkey.toLowerCase();
             if (localPk) {
               if (normPk === localPk) continue;

@@ -130,7 +130,10 @@ export class MeshCoreWebSocketClient {
   _scheduleReconnect() {
     this._setStatus("reconnecting");
     clearTimeout(this.reconnectTimer);
-    this.reconnectTimer = setTimeout(() => this.connect(), this.reconnectDelay);
+    // Jitter aleatorio del 25% para evitar reconexiones sincronizadas en ráfaga (thundering herd)
+    const jitter = Math.floor(Math.random() * (this.reconnectDelay * 0.25));
+    const effectiveDelay = Math.min(this.reconnectDelay + jitter, this.maxReconnectDelay);
+    this.reconnectTimer = setTimeout(() => this.connect(), effectiveDelay);
     this.reconnectDelay = Math.min(this.reconnectDelay * 2, this.maxReconnectDelay);
   }
 

@@ -338,7 +338,8 @@ export class ChatModule {
     }
 
     try {
-      const dmThreads = await this.ctx.storage.getDmConversations();
+      const localPk = (this.ctx.localNodePubkey || (typeof document !== "undefined" ? document.getElementById("localNodePubkey")?.value : "") || "").toLowerCase().trim();
+      const dmThreads = await this.ctx.storage.getDmConversations(localPk);
       if (dmThreads && dmThreads.length > 0) {
         for (const thread of dmThreads) {
           const canonicalPk = this.resolveCanonicalPubkey(thread.pubkey);
@@ -490,7 +491,7 @@ export class ChatModule {
           <span style="font-size: 18px;">${isMyContact ? "⭐" : "👤"}</span>
           <div>
             <div class="share-picker-title">${escapeHtml(cleanName)}</div>
-            <div class="share-picker-sub">${contact.public_key.slice(0, 14)}… • ${isMyContact ? (window.I18n ? window.I18n.t('chat.my_station_sub') : "Mi Estación Local") : (contact.role || "CLIENT")}</div>
+            <div class="share-picker-sub">${escapeHtml(contact.public_key.slice(0, 14))}… • ${isMyContact ? (window.I18n ? window.I18n.t('chat.my_station_sub') : "Mi Estación Local") : escapeHtml(contact.role || "CLIENT")}</div>
           </div>
         </div>
         <span class="badge-pill ${isMyContact ? 'badge-primary' : ''}">${isMyContact ? (window.I18n ? window.I18n.t('chat.my_contact_badge') : "Mi Contacto") : (contact.is_favorite ? "⭐" : I18n.t("chat.contact"))}</span>
@@ -639,6 +640,13 @@ export class ChatModule {
         alert(I18n.t("chat.protected_channel_alert"));
       }
       return;
+    }
+
+    // Protección de seguridad (OpSec): Advertir si se comparte una clave privada en el canal público (Canal 0)
+    if (!isPublic && secret && !this.activeDmTarget && Number(this.activeChannelIdx) === 0) {
+      const confirmWarning = (window.I18n ? window.I18n.t("chat.warn_share_psk_public") : null) ||
+        `⚠️ ADVERTENCIA DE SEGURIDAD:\n\nEstás a punto de compartir la clave secreta (PSK) de un canal privado en el CANAL PÚBLICO (Broadcast #0).\nCualquier nodo que reciba este mensaje podrá descifrar y unirse a este canal.\n\n¿Estás seguro de que deseas transmitir esta clave por radio abierta?`;
+      if (!confirm(confirmWarning)) return;
     }
 
     const uri = buildMeshCoreChannelUri(ch.name, secret, ch.index);
@@ -1382,12 +1390,11 @@ export class ChatModule {
     const canonicalTarget = this.activeDmTarget ? this.resolveCanonicalPubkey(this.activeDmTarget) : null;
 
     if (canonicalTarget) {
-      const normTarget = canonicalTarget.toLowerCase().trim();
-      const localPk = (document.getElementById("localNodePubkey")?.value || "").toLowerCase().trim();
-      if (normTarget === "local" || (localPk && (normTarget === localPk || normTarget.startsWith(localPk) || localPk.startsWith(normTarget)))) {
+      if (this._isLocalTarget(canonicalTarget)) {
         if (this.ctx.showToast) this.ctx.showToast(I18n.t("chat.no_local_message"), "warning");
         return;
       }
+      const normTarget = canonicalTarget.toLowerCase().trim();
       const targetNode = (this.ctx.knownNodes ? Array.from(this.ctx.knownNodes.values()) : []).find(
         (n) => (n.public_key && n.public_key.toLowerCase() === normTarget) ||
                (n.key_prefix && normTarget.startsWith(n.key_prefix.toLowerCase()))

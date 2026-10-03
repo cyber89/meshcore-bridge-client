@@ -254,23 +254,29 @@ export class SettingsModule {
         const isEncrypted = this.dom.chModalIsEncrypted ? this.dom.chModalIsEncrypted.checked : true;
         const psk = isEncrypted ? this.dom.chModalPsk.value.trim() : "";
 
+        const btnSubmit = this.dom.createChannelForm.querySelector('button[type="submit"]');
+        if (btnSubmit) btnSubmit.disabled = true;
+
         try {
           const res = await fetch("/api/channels", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
             body: JSON.stringify({ index, name, psk }),
           });
-          const data = await res.json();
-          if (data.status === "ok") {
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.status === "ok") {
             closeCreateChannel();
             await this.fetchChannels();
             if (this.ctx.switchChannel) this.ctx.switchChannel(index);
             if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.ch_saved').replace('{index}', index).replace('{name}', escapeHtml(name)), "success");
           } else {
-            this._notify(I18n.t("settings.channel_save_error", { p0: data.message || I18n.t("settings.unknown_failure") }), "error");
+            const errDetail = data.detail || data.message || data.error || I18n.t("settings.unknown_failure");
+            this._notify(I18n.t("settings.channel_save_error", { p0: errDetail }), "error");
           }
         } catch (err) {
           this._notify(I18n.t('settings.channel_save_network_error', { error: err.message }), "error");
+        } finally {
+          if (btnSubmit) btnSubmit.disabled = false;
         }
       });
     }
@@ -320,6 +326,9 @@ export class SettingsModule {
         const isFavorite = Boolean(this.dom.contactModalFavorite?.checked);
         if (!pubkey) return;
 
+        const btnSubmit = this.dom.createContactForm.querySelector('button[type="submit"]');
+        if (btnSubmit) btnSubmit.disabled = true;
+
         const payload = { public_key: pubkey, name: name, alias: name, role: role, is_favorite: isFavorite };
         const latVal = this.dom.contactModalLat ? parseFloat(this.dom.contactModalLat.value) : NaN;
         const lonVal = this.dom.contactModalLon ? parseFloat(this.dom.contactModalLon.value) : NaN;
@@ -332,17 +341,20 @@ export class SettingsModule {
             headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           });
-          const data = await res.json();
-          if (data.status === "ok") {
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.status === "ok") {
             closeCreateContact();
             if (this.ctx.fetchNodes) await this.ctx.fetchNodes();
             if (this.ctx.setDmTarget) this.ctx.setDmTarget(pubkey, name || pubkey);
             if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.contact_added').replace('{name}', name || pubkey.slice(0, 8)), "success");
           } else {
-            this._notify(I18n.t("settings.contact_add_error", { p0: data.message || I18n.t("settings.unknown_failure") }), "error");
+            const errDetail = data.detail || data.message || data.error || I18n.t("settings.unknown_failure");
+            this._notify(I18n.t("settings.contact_add_error", { p0: errDetail }), "error");
           }
         } catch (err) {
           this._notify(I18n.t('settings.contact_add_network_error', { error: err.message }), "error");
+        } finally {
+          if (btnSubmit) btnSubmit.disabled = false;
         }
       });
     }
@@ -849,60 +861,75 @@ export class SettingsModule {
 
     if (this.dom.btnActionAdvertHop) {
       this.dom.btnActionAdvertHop.addEventListener("click", async () => {
+        const btn = this.dom.btnActionAdvertHop;
+        btn.disabled = true;
         try {
           const res = await fetch("/api/node/advert", {
             method: "POST",
             headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
             body: JSON.stringify({ flood: false }),
           });
-          const data = await res.json();
-          if (data.status === "ok") {
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.status === "ok") {
             if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.advert_sent"), "success");
           } else {
-            if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || I18n.t("settings.advert_failed")}`, "error");
+            const errDetail = data.detail || data.message || data.error || I18n.t("settings.advert_failed");
+            if (this.ctx.showToast) this.ctx.showToast(`Error: ${errDetail}`, "error");
           }
         } catch (err) {
           if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.network_error", { p0: err.message }), "error");
+        } finally {
+          btn.disabled = false;
         }
       });
     }
 
     if (this.dom.btnActionAdvertFlood) {
       this.dom.btnActionAdvertFlood.addEventListener("click", async () => {
+        const btn = this.dom.btnActionAdvertFlood;
+        btn.disabled = true;
         try {
           const res = await fetch("/api/node/advert", {
             method: "POST",
             headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
             body: JSON.stringify({ flood: true }),
           });
-          const data = await res.json();
-          if (data.status === "ok") {
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.status === "ok") {
             if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.flood_sent"), "success");
           } else {
-            if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || I18n.t("settings.flood_failed")}`, "error");
+            const errDetail = data.detail || data.message || data.error || I18n.t("settings.flood_failed");
+            if (this.ctx.showToast) this.ctx.showToast(`Error: ${errDetail}`, "error");
           }
         } catch (err) {
           if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.network_error", { p0: err.message }), "error");
+        } finally {
+          btn.disabled = false;
         }
       });
     }
 
     if (this.dom.btnActionReconnectSerial) {
       this.dom.btnActionReconnectSerial.addEventListener("click", async () => {
+        const btn = this.dom.btnActionReconnectSerial;
+        btn.disabled = true;
         try {
           const res = await fetch("/api/config/reconnect", {
             method: "POST",
             headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
           });
-          const data = await res.json();
-          if (data.status === "ok") {
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.status === "ok") {
             if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.serial_reconnected"), "success");
             setTimeout(() => this.fetchLocalNodeConfig(true), 1500);
           } else {
-            if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || I18n.t("settings.reconnect_failed")}`, "error");
+            const errDetail = data.detail || data.message || data.error || I18n.t("settings.reconnect_failed");
+            if (this.ctx.showToast) this.ctx.showToast(`Error: ${errDetail}`, "error");
           }
         } catch (err) {
           if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.network_error", { p0: err.message }), "error");
+        } finally {
+          btn.disabled = false;
         }
       });
     }
@@ -910,19 +937,24 @@ export class SettingsModule {
     if (this.dom.btnActionRebootLocal) {
       this.dom.btnActionRebootLocal.addEventListener("click", async () => {
         if (!confirm(I18n.t("settings.reboot_confirm"))) return;
+        const btn = this.dom.btnActionRebootLocal;
+        btn.disabled = true;
         try {
           const res = await fetch("/api/config/reboot", {
             method: "POST",
             headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
           });
-          const data = await res.json();
-          if (data.status === "ok") {
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.status === "ok") {
             if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.reboot_sent"), "warning");
           } else {
-            if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || I18n.t("settings.reboot_failed")}`, "error");
+            const errDetail = data.detail || data.message || data.error || I18n.t("settings.reboot_failed");
+            if (this.ctx.showToast) this.ctx.showToast(`Error: ${errDetail}`, "error");
           }
         } catch (err) {
           if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.network_error", { p0: err.message }), "error");
+        } finally {
+          btn.disabled = false;
         }
       });
     }
@@ -931,21 +963,26 @@ export class SettingsModule {
       this.dom.btnActionClearLocalStats.addEventListener("click", async () => {
         const confirmMsg = I18n.t('analytics.confirm_reset') || "¿Deseas restablecer todos los contadores de paquetes y métricas acumuladas?";
         if (!confirm(confirmMsg)) return;
+        const btn = this.dom.btnActionClearLocalStats;
+        btn.disabled = true;
         try {
           const res = await fetch("/api/config/clear-stats", {
             method: "POST",
             headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
           });
-          const data = await res.json();
-          if (data.status === "ok") {
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.status === "ok") {
             if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.counters_reset"), "success");
             await this.fetchLocalNodeConfig(false);
             if (this.ctx.fetchNodes) await this.ctx.fetchNodes();
           } else {
-            if (this.ctx.showToast) this.ctx.showToast(`Error: ${data.message || I18n.t("settings.reset_failed")}`, "error");
+            const errDetail = data.detail || data.message || data.error || I18n.t("settings.reset_failed");
+            if (this.ctx.showToast) this.ctx.showToast(`Error: ${errDetail}`, "error");
           }
         } catch (err) {
           if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.network_error", { p0: err.message }), "error");
+        } finally {
+          btn.disabled = false;
         }
       });
     }

@@ -259,7 +259,7 @@ export class NodesModule {
           <div class="contact-info">
             <div class="contact-title-row">
               <span class="contact-name font-mono" title="${escapeHtml(cleanName)}">${escapeHtml(cleanName)}</span>
-              ${batText ? `<span class="contact-battery-chip" title="${I18n.t('nodes.battery_title').replace('{val}', batText)}">🔋 ${escapeHtml(batText)}</span>` : ""}
+              ${batText ? `<span class="contact-battery-chip" title="${escapeHtml(I18n.t('nodes.battery_title').replace('{val}', batText))}">🔋 ${escapeHtml(batText)}</span>` : ""}
               <button type="button" class="btn-toggle-fav ${node.is_favorite ? "is-fav" : ""}" title="${node.is_favorite ? I18n.t('nodes.remove_fav') : I18n.t('nodes.add_fav')}" aria-label="${I18n.t('nodes.favorite')}">
                 <span data-lucide="star" data-size="14"></span>
               </button>
@@ -414,7 +414,7 @@ export class NodesModule {
             <div class="node-card-top-row">
               <span class="node-card-name font-mono" title="${escapeHtml(cleanName)}">${escapeHtml(cleanName)}</span>
               <div class="node-card-badges-group">
-                ${batText ? `<span class="contact-battery-chip" title="${I18n.t('nodes.battery_title').replace('{val}', batText)}">🔋 ${escapeHtml(batText)}</span>` : ""}
+                ${batText ? `<span class="contact-battery-chip" title="${escapeHtml(I18n.t('nodes.battery_title').replace('{val}', batText))}">🔋 ${escapeHtml(batText)}</span>` : ""}
                 <span class="node-role-badge ${roleClass}">${escapeHtml(I18n.role(roleUpper))}</span>
               </div>
             </div>
