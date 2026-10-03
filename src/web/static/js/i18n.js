@@ -1176,7 +1176,7 @@
       'nodes.dist_local':          'Local',
       'nodes.dist_no_local_gps':   'Sin GPS local',
       'nodes.dist_no_remote_gps':  'Sin GPS remoto',
-      'nodes.last_advert_heard_label': 'Último anuncio recibido',
+      'nodes.last_advert_heard_label': 'Último anuncio recibido (Last Advert Heard)',
       'nodes.advert_heard_never':  'Nunca oído',
       'nodes.advert_heard_local':  'Estación base local',
       'nodes.advert_verified_badge': 'advert verificado',

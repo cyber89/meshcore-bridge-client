@@ -363,7 +363,7 @@ export class NodesModule {
           <dd class="metric-distance-val">${distHtml}</dd>
         </div>
         <div class="node-metric-item">
-          <dt>${I18n.t('nodes.last_advert_heard_label')}</dt>
+          <dt title="${escapeHtml(I18n.t('nodes.last_advert_heard_label'))}">${escapeHtml(I18n.t('nodes.last_advert_heard_label'))}</dt>
           <dd class="metric-advert-heard-val">${advertHeardHtml}</dd>
         </div>
         <div class="node-metric-item">

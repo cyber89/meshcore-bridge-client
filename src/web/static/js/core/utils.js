@@ -638,7 +638,8 @@ export function formatDistance(meters) {
 }
 
 /**
- * Formatea un timestamp epoch en segundos a tiempo transcurrido relativo ("hace X s", "hace X m", etc.).
+ * Formatea un timestamp epoch en segundos a tiempo transcurrido relativo (minutos, horas, días).
+ * Si es menos de 1 hora se expresa en minutos, si es menos de 1 día en horas, y si es 1 día o más en días.
  * @param {number|null} epochSec Segundos epoch
  * @returns {string} Cadena legible
  */
@@ -649,20 +650,35 @@ export function formatTimeAgo(epochSec) {
   let diff = Math.floor(Date.now() / 1000) - effTs;
   if (diff < 0) diff = 0;
 
-  const isEs = !window.I18n || window.I18n.lang !== "en";
-  if (diff < 60) {
-    return isEs ? `hace ${diff} s` : `${diff}s ago`;
-  }
+  const isEs = typeof window === "undefined" || !window.I18n || window.I18n.lang !== "en";
+
+  // Menos de una hora (< 3600 s): expresado en minutos
   if (diff < 3600) {
     const mins = Math.floor(diff / 60);
-    return isEs ? `hace ${mins} m` : `${mins}m ago`;
+    if (mins < 1) {
+      return isEs ? "hace menos de 1 minuto" : "less than 1 minute ago";
+    }
+    if (mins === 1) {
+      return isEs ? "hace 1 minuto" : "1 minute ago";
+    }
+    return isEs ? `hace ${mins} minutos` : `${mins} minutes ago`;
   }
+
+  // Menos de un día (< 86400 s): expresado en horas
   if (diff < 86400) {
     const hrs = Math.floor(diff / 3600);
-    return isEs ? `hace ${hrs} h` : `${hrs}h ago`;
+    if (hrs === 1) {
+      return isEs ? "hace 1 hora" : "1 hour ago";
+    }
+    return isEs ? `hace ${hrs} horas` : `${hrs} hours ago`;
   }
+
+  // Un día o más (>= 86400 s): expresado en días
   const days = Math.floor(diff / 86400);
-  return isEs ? `hace ${days} d` : `${days}d ago`;
+  if (days === 1) {
+    return isEs ? "hace 1 día" : "1 day ago";
+  }
+  return isEs ? `hace ${days} días` : `${days} days ago`;
 }
 
 
