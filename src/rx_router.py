@@ -249,7 +249,12 @@ class RxEventRouter:
 
         try:
             if isinstance(event, MeshcoreFrame):
-                if not event.is_valid or event.header.packet_type == PacketType.PRIVATE_KEY:
+                if not event.is_valid:
+                    pb = getattr(self._ctx, "packet_buffer", None)
+                    if pb and getattr(pb, "metrics_aggregator", None):
+                        pb.metrics_aggregator.record_error("crc_errors")
+                    return
+                if event.header.packet_type == PacketType.PRIVATE_KEY:
                     return
                 self._ctx.counters.rx_count += 1
                 if getattr(self._ctx, "packet_buffer", None) is not None:

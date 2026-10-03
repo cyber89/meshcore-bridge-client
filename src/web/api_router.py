@@ -523,7 +523,8 @@ class WebAPIRouter:
 
         if clean_path == "/api/analytics":
             if method == "GET":
-                return await self.nodes_ctrl.get_analytics()
+                range_param = str(req_body.get("range", "24h"))
+                return await self.nodes_ctrl.get_analytics(range_str=range_param)
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
         if clean_path == "/api/rf/heatmap":

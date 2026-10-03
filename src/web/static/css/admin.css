@@ -2501,6 +2501,40 @@ select {
   overflow-y: auto;
 }
 
+/* Selector de Rango Temporal */
+.time-range-selector {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-surface-elevated, #1e293b);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-sm, 6px);
+  padding: 2px;
+  gap: 2px;
+}
+
+.btn-range {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #94a3b8);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-range:hover {
+  color: var(--text-bright, #ffffff);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.btn-range.active {
+  background: var(--accent-primary, #3b82f6);
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
 /* Grid de KPIs Superiores */
 .analytics-kpi-grid {
   display: grid;
@@ -2515,9 +2549,11 @@ select {
   padding: 16px 18px;
   display: flex;
   align-items: center;
-  gap: 14px;
+  justify-content: space-between;
+  gap: 12px;
   box-shadow: var(--shadow-sm);
   transition: transform 0.15s ease, border-color 0.15s ease;
+  min-height: 80px;
 }
 
 .analytics-kpi-card:hover {
@@ -2526,14 +2562,17 @@ select {
 }
 
 .analytics-kpi-card .kpi-icon {
-  font-size: 28px;
+  font-size: 26px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
 }
 
 .analytics-kpi-card .kpi-data {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  flex: 1;
 }
 
 .analytics-kpi-card .kpi-label {
@@ -2556,17 +2595,261 @@ select {
   color: var(--text-muted);
 }
 
-/* Grilla de Secciones Analíticas */
-.analytics-sections-grid {
+.kpi-sparkline-box {
+  width: 80px;
+  height: 28px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* Grillas de Secciones Analíticas */
+.analytics-charts-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 2fr 1fr;
   gap: 16px;
 }
 
-@media (max-width: 960px) {
-  .analytics-sections-grid {
+.analytics-diagnostics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.analytics-bottom-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 1080px) {
+  .analytics-charts-grid,
+  .analytics-diagnostics-grid,
+  .analytics-bottom-grid {
     grid-template-columns: 1fr;
   }
+}
+
+.chart-card-wide {
+  min-width: 0;
+}
+
+.card-header-badge {
+  margin-left: auto;
+}
+
+.chart-canvas-container {
+  position: relative;
+  width: 100%;
+  min-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chart-svg-area {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.chart-empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+  width: 100%;
+}
+
+.chart-tooltip {
+  position: absolute;
+  pointer-events: none;
+  z-index: 20;
+  background: var(--bg-surface-elevated, #1e293b);
+  border: 1px solid var(--border-strong, #334155);
+  border-radius: var(--radius-sm, 6px);
+  padding: 8px 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  font-size: 11.5px;
+  transition: opacity 0.1s ease;
+  white-space: nowrap;
+}
+
+.chart-tooltip.hidden {
+  display: none;
+}
+
+.tooltip-time {
+  font-weight: 700;
+  color: var(--text-bright, #ffffff);
+  margin-bottom: 4px;
+  font-family: var(--font-mono, monospace);
+}
+
+.tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0;
+  color: var(--text-bright, #ffffff);
+}
+
+.tooltip-sub {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+  color: var(--text-muted, #94a3b8);
+}
+
+.dot-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+/* Gráfico Donut */
+.donut-chart-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 8px 0;
+}
+
+.donut-chart-svg {
+  width: 150px;
+  height: 150px;
+  flex-shrink: 0;
+}
+
+.donut-legend-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+  width: 100%;
+  font-size: 11.5px;
+}
+
+.donut-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.legend-color-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.legend-label {
+  color: var(--text-muted, #94a3b8);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.legend-pct {
+  font-weight: 600;
+  color: var(--text-bright, #ffffff);
+}
+
+.legend-val {
+  font-size: 10.5px;
+}
+
+/* Diagnóstico y Barras Horizontales */
+.diagnostic-bars-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.diagnostic-subgroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.subgroup-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted, #94a3b8);
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+
+.chart-bars-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.bar-chart-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.bar-chart-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.bar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.bar-label {
+  color: var(--text-bright, #ffffff);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+}
+
+.bar-value {
+  color: var(--text-bright, #ffffff);
+  font-size: 11.5px;
+}
+
+.bar-track {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-surface-elevated, #1e293b);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.35s ease;
+}
+
+/* Micro Sparkline */
+.sparkline-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
 }
 
 .analytics-card {

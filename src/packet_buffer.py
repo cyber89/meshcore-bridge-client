@@ -17,6 +17,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
+from src.metrics_aggregator import MetricsAggregator
+
 
 @dataclass(slots=True)
 class CapturedPacket:
@@ -78,6 +80,7 @@ class PacketBuffer:
         self._buffer: deque[CapturedPacket] = deque(maxlen=max_packets)
         self._counter = 0
         self.capture_enabled = True
+        self.metrics_aggregator = MetricsAggregator()
 
     def record(
         self,
@@ -146,6 +149,16 @@ class PacketBuffer:
         )
 
         self._buffer.append(pkt)
+        if self.metrics_aggregator is not None:
+            self.metrics_aggregator.record_packet(
+                direction=pkt.direction,
+                packet_type=pkt.packet_type,
+                target=pkt.target,
+                size_bytes=pkt.size_bytes,
+                snr=pkt.snr,
+                rssi=pkt.rssi,
+                timestamp=pkt.timestamp,
+            )
         return pkt
 
     def get_packets(
@@ -175,6 +188,8 @@ class PacketBuffer:
     def clear(self) -> None:
         """Vacía el búfer de paquetes en memoria."""
         self._buffer.clear()
+        if self.metrics_aggregator is not None:
+            self.metrics_aggregator.reset()
 
     def generate_json(self) -> str:
         """Serializa todas las tramas en formato JSON estructurado."""

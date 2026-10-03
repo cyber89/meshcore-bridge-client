@@ -41,7 +41,7 @@ class NodesController(BaseController):
             "count": len(lqi_data),
         }
 
-    async def get_analytics(self) -> tuple[int, dict[str, Any]]:
+    async def get_analytics(self, range_str: str = "24h") -> tuple[int, dict[str, Any]]:
         """Devuelve el resumen consolidado de telemetría y tráfico de la malla."""
         analytics = self.ctx.bridge.node_registry.get_analytics_summary()
         analytics["queue_depth"] = self.ctx.bridge.rate_limiter.get_queue_depth()
@@ -54,6 +54,27 @@ class NodesController(BaseController):
 
         analytics["serial_connected"] = ser_connected
         analytics["mqtt_connected"] = mqtt_connected
+
+        # Obtener métricas enriquecidas desde metrics_aggregator si está disponible
+        packet_buffer = getattr(self.ctx.bridge, "packet_buffer", None)
+        aggregator = getattr(packet_buffer, "metrics_aggregator", None)
+        if aggregator:
+            agg_data = aggregator.get_summary(range_str=range_str)
+            analytics["routing_efficiency"] = agg_data.get("routing_efficiency", {})
+            analytics["packet_type_breakdown"] = agg_data.get("packet_type_breakdown", {})
+            analytics["error_breakdown"] = agg_data.get("error_breakdown", {})
+            analytics["time_series"] = agg_data.get("time_series", {})
+            analytics["radio_hardware"] = agg_data.get("radio_metrics", {})
+
+            # Enriquecer radio_hardware con uptime y estado del bridge
+            start_t = getattr(self.ctx.bridge, "start_time", time.time())
+            analytics["radio_hardware"]["uptime_secs"] = int(time.time() - start_t)
+        else:
+            analytics["routing_efficiency"] = {"flood_tx": 0, "direct_tx": 0, "flood_rx": 0, "direct_rx": 0, "flood_ratio_pct": 0.0}
+            analytics["packet_type_breakdown"] = {}
+            analytics["error_breakdown"] = {}
+            analytics["time_series"] = {"range": range_str, "points": []}
+            analytics["radio_hardware"] = {}
 
         bridge_rx = getattr(self.ctx.bridge, "rx_count", 0)
         bridge_tx = getattr(self.ctx.bridge, "tx_count", 0)
@@ -87,6 +108,10 @@ class NodesController(BaseController):
             bridge.tx_error_count = 0
             bridge.err_count = 0
             res = bridge.node_registry.reset_analytics()
+
+        packet_buffer = getattr(bridge, "packet_buffer", None)
+        if packet_buffer and hasattr(packet_buffer, "metrics_aggregator") and packet_buffer.metrics_aggregator:
+            packet_buffer.metrics_aggregator.reset()
 
         # Emitir actualización por WebSocket si está disponible
         if self.ctx.broadcast_ws:

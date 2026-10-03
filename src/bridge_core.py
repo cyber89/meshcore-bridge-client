@@ -297,9 +297,10 @@ class MeshCoreBridge:
         self.tx_count = 0
         self.tx_error_count = 0
         self.err_count = 0
-        res: dict[str, Any] = {"nodes_reset": 0}
         if hasattr(self, "node_registry") and hasattr(self.node_registry, "reset_analytics"):
             res = self.node_registry.reset_analytics()
+        if hasattr(self, "packet_buffer") and getattr(self.packet_buffer, "metrics_aggregator", None):
+            self.packet_buffer.metrics_aggregator.reset()
         return res
 
     def _add_background_task(self, task: asyncio.Task[Any]) -> asyncio.Task[Any]:
@@ -834,6 +835,8 @@ class MeshCoreBridge:
         except Exception as e:
             async with self._tx_metrics_lock:
                 self.tx_error_count += 1
+                if hasattr(self, "packet_buffer") and getattr(self.packet_buffer, "metrics_aggregator", None):
+                    self.packet_buffer.metrics_aggregator.record_error("timeouts")
             status_val = "error"
             error_detail = str(e)
 
@@ -943,6 +946,8 @@ class MeshCoreBridge:
                 self.tx_count += 1
                 if not success:
                     self.tx_error_count += 1
+                    if hasattr(self, "packet_buffer") and getattr(self.packet_buffer, "metrics_aggregator", None):
+                        self.packet_buffer.metrics_aggregator.record_error("timeouts")
             return {"status": "sent" if success else "error", "target": item.target, "channel_idx": item.channel_idx}
         return await self._execute_tx(item)
 
@@ -976,6 +981,9 @@ class MeshCoreBridge:
 
     def _on_airtime_cutoff_change(self, active: bool, channel_utilization: float) -> None:
         """Notifica transiciones del Airtime Cutoff dinámico a WebSockets y MQTT."""
+        if active and hasattr(self, "packet_buffer") and getattr(self.packet_buffer, "metrics_aggregator", None):
+            self.packet_buffer.metrics_aggregator.record_error("airtime_cutoff")
+
         payload = {
             "type": "airtime_cutoff_change",
             "event": "airtime_cutoff_change",
