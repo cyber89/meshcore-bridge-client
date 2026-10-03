@@ -1,0 +1,13 @@
+{
+  "base_head": "81f4260eccf9bdec6c6f7ba9caca5322997f6eeb",
+  "scope": "Direct handler call, mock registry, no transport/services/dotenv",
+  "input": {
+    "public_key": "2222222222222222222222222222222222222222222222222222222222222222",
+    "type": 2,
+    "name": "Synthetic repeater"
+  },
+  "reproduced": true,
+  "exception": "NameError",
+  "message": "name '_safe_float' is not defined",
+  "registry_discover_calls": 0
+}

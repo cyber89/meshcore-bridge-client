@@ -1,0 +1,87 @@
+{
+  "base_head": "81f4260eccf9bdec6c6f7ba9caca5322997f6eeb",
+  "case": "local_radio_patch_defaults",
+  "request": {
+    "bandwidth": 500
+  },
+  "response": {
+    "status": "ok",
+    "data": {
+      "status": "ok",
+      "action": "set_local_config",
+      "applied": {
+        "bandwidth": 500.0
+      },
+      "message": "Configuración local aplicada exitosamente: bandwidth",
+      "config": {
+        "name": "FixtureLocal",
+        "public_key": "1111111111111111111111111111111111111111111111111111111111111111",
+        "role": "Base Station",
+        "tx_power": 20,
+        "frequency": 915.0,
+        "spreading_factor": 11,
+        "bandwidth": 500.0,
+        "coding_rate": 5,
+        "hop_limit": 3,
+        "repeat": false,
+        "beacon_interval": 300,
+        "telemetry_interval": 60,
+        "radio_freq": 915.0,
+        "radio_bw": 500.0,
+        "sf": 11,
+        "cr": 5,
+        "serial_port": "AUTO",
+        "owner_info": null,
+        "latitude": 40.0,
+        "longitude": -3.0,
+        "altitude": null,
+        "advert_interval": null,
+        "battery_pct": null,
+        "voltage": null,
+        "battery_mv": null,
+        "telemetry_mode_base": null,
+        "telemetry_mode_loc": null,
+        "telemetry_mode_env": null,
+        "adv_loc_policy": null,
+        "multi_acks": null,
+        "manual_add_contacts": null,
+        "pin": 0,
+        "rx_delay": 0,
+        "airtime_factor": 0,
+        "path_hash_mode": 0,
+        "custom_vars": {},
+        "power_source": "desconocida",
+        "temperature_c": null,
+        "humidity_pct": null,
+        "pressure_hpa": null,
+        "satellites": 0,
+        "uptime": 1,
+        "uptime_secs": 1,
+        "uptime_str": "0m",
+        "airtime_ms": 0,
+        "duty_cycle_pct": 0.0,
+        "tx_count": 0,
+        "rx_count": 0,
+        "last_snr": null,
+        "last_rssi": null,
+        "min_tx_power": 2,
+        "max_tx_power": 22,
+        "default_tx_power": 20
+      }
+    }
+  },
+  "sdk_calls": {
+    "device_before": {
+      "freq": 868,
+      "sf": 7,
+      "cr": 6
+    },
+    "set_radio": [
+      915,
+      500,
+      11,
+      5,
+      0
+    ]
+  }
+}

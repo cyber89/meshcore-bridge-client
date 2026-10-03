@@ -1,0 +1,28 @@
+{
+  "timestamp_utc": "2026-10-03T21:01:22Z",
+  "python": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]",
+  "all_passed": true,
+  "tools": [
+    {
+      "tool_name": "pytest",
+      "command": [
+        "C:\\Users\\Ruby\\Desktop\\meshcore-bridge\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "docs/audits/node-config-2026-10-03/backend/test_reproductions.py",
+        "-q",
+        "-o",
+        "addopts=",
+        "-p",
+        "no:cacheprovider",
+        "--basetemp=docs/audits/node-config-2026-10-03/backend/tmp-run-03",
+        "--junitxml=docs/audits/node-config-2026-10-03/backend/junit.xml"
+      ],
+      "exit_code": 0,
+      "duration_sec": 1.407,
+      "stdout": "...................                                                      [100%]\n19 passed in 0.75s\n",
+      "stderr": "",
+      "passed": true
+    }
+  ]
+}

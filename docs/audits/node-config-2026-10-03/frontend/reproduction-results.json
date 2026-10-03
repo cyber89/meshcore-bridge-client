@@ -1,0 +1,1220 @@
+{
+  "base_head": "81f4260eccf9bdec6c6f7ba9caca5322997f6eeb",
+  "requests": [
+    {
+      "path": "/api/config/radio",
+      "body": {
+        "frequency": 915,
+        "tx_power": 20,
+        "spreading_factor": 11,
+        "bandwidth": 250,
+        "coding_rate": "4/5",
+        "repeat": true,
+        "hop_limit": 3,
+        "telemetry_interval": 60,
+        "advert_interval": 300,
+        "beacon_interval": 300,
+        "pin": 0,
+        "path_hash_mode": 0,
+        "rx_delay": 0,
+        "airtime_factor": 0,
+        "telemetry_mode_base": 1,
+        "telemetry_mode_loc": 1,
+        "telemetry_mode_env": 1,
+        "adv_loc_policy": false,
+        "multi_acks": false,
+        "manual_add_contacts": false
+      }
+    },
+    {
+      "path": "/api/config/radio",
+      "body": {
+        "frequency": 915,
+        "tx_power": 20,
+        "spreading_factor": 11,
+        "bandwidth": 250,
+        "coding_rate": "4/5",
+        "repeat": true,
+        "hop_limit": 3,
+        "telemetry_interval": 60,
+        "advert_interval": 300,
+        "beacon_interval": 300,
+        "pin": 0,
+        "path_hash_mode": 0,
+        "rx_delay": 0,
+        "airtime_factor": 1,
+        "telemetry_mode_base": 1,
+        "telemetry_mode_loc": 1,
+        "telemetry_mode_env": 1,
+        "adv_loc_policy": false,
+        "multi_acks": false,
+        "manual_add_contacts": false
+      }
+    },
+    {
+      "path": "/api/config/identity",
+      "body": {
+        "name": "ORIGINAL",
+        "owner_info": "Operador Estación Base / TG-0",
+        "fixed_position": true,
+        "latitude": 20.15,
+        "longitude": -75.2,
+        "altitude_m": 50
+      }
+    },
+    {
+      "path": "/api/repeater/remote/config",
+      "body": {
+        "target_node": "cacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca",
+        "password": "",
+        "params": {
+          "freq": 915,
+          "region": "US915",
+          "tx_power": 20,
+          "sf": 11,
+          "bw": 250,
+          "cr": "4/5",
+          "hop_limit": 3,
+          "repeat": false,
+          "beacon_interval": 300
+        }
+      }
+    },
+    {
+      "path": "/api/repeater/remote/config",
+      "body": {
+        "target_node": "cacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca",
+        "password": "",
+        "params": {
+          "freq": 915,
+          "region": "US915",
+          "tx_power": 20,
+          "sf": 11,
+          "bw": 250,
+          "cr": "4/5",
+          "hop_limit": 3,
+          "repeat": false,
+          "beacon_interval": 300
+        }
+      }
+    },
+    {
+      "path": "/api/repeater/remote/config",
+      "body": {
+        "target_node": "cacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca",
+        "password": "",
+        "params": {
+          "freq": 915,
+          "region": "US915",
+          "tx_power": 20,
+          "sf": 11,
+          "bw": 250,
+          "cr": "4/5",
+          "hop_limit": 3,
+          "repeat": false,
+          "beacon_interval": 300
+        }
+      }
+    },
+    {
+      "path": "/api/repeater/remote/config",
+      "body": {
+        "target_node": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "password": "",
+        "params": {
+          "acl_mode": "public"
+        }
+      }
+    }
+  ],
+  "reproductions": {
+    "local_draft_overwrite_and_altitude": {
+      "frequency": "915",
+      "name": "ORIGINAL",
+      "altitude": "50",
+      "max_hops": "3",
+      "auto_chat": true
+    },
+    "local_capability_controls": [
+      {
+        "id": "btnSaveLocalRadio",
+        "disabled": false
+      },
+      {
+        "id": "localRepeatMode",
+        "disabled": false
+      },
+      {
+        "id": "localDevicePin",
+        "disabled": false
+      },
+      {
+        "id": "localPathHashMode",
+        "disabled": false
+      },
+      {
+        "id": "btnActionAdvertHop",
+        "disabled": false
+      },
+      {
+        "id": "btnActionRebootLocal",
+        "disabled": false
+      }
+    ],
+    "local_server_normalization_ignored": {
+      "display": "915",
+      "cached": 915,
+      "toasts": [
+        {
+          "message": "✅ Radio parameters saved and applied",
+          "type": "success"
+        }
+      ]
+    },
+    "local_fractional_tuning": {
+      "rx_delay": 0,
+      "airtime_factor": 1
+    },
+    "local_problem_detail": [
+      {
+        "message": "⚠️ Failed to save identity and location: unknown",
+        "type": "error"
+      }
+    ],
+    "remote_role_capabilities_and_zero_power": {
+      "gateVisible": true,
+      "zeroPowerDisplay": "14",
+      "powerAfterPartialUpdate": "20",
+      "frequencyAfterUpdate": "915.000",
+      "controls": [
+        {
+          "id": "btnSubmitRepRadio",
+          "disabled": false
+        },
+        {
+          "id": "radioRepeatMode",
+          "disabled": false
+        },
+        {
+          "id": "btnModalActionReboot",
+          "disabled": false
+        }
+      ]
+    },
+    "remote_radio_busy": {
+      "buttonDisabledAfterFirst": false,
+      "posts": 2
+    },
+    "remote_problem_detail": "\n                MeshCore Remote CLI — LoRa RF console\n                Remote console ready. Send RF commands or press ↑ / ↓ to navigate history.\n              [5:07:10 PM] > [TX CONFIG] Transmitting RF parameters to cacacaca (915MHz, 20dBm, SF11, BW250kHz)...[5:07:11 PM] ✓ [RX OK] RF parameters applied to repeater cacacaca.[5:07:11 PM] > [TX CONFIG] Transmitting RF parameters to cacacaca (915MHz, 20dBm, SF11, BW250kHz)...[5:07:11 PM] ✗ [RX ERROR] undefined",
+    "target_switch_stale_fields": {
+      "frequency": "867.500",
+      "sf": "9",
+      "owner": "",
+      "lat": ""
+    },
+    "remote_security_unchanged": {
+      "posts": 1,
+      "params": {
+        "acl_mode": "public"
+      }
+    }
+  },
+  "virtual_origin": "http://127.0.0.1:54133",
+  "tools": {
+    "playwright": "1.62.0",
+    "chromium": "151.0.7922.34",
+    "python": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]"
+  },
+  "console_errors": [
+    "Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)",
+    "Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)"
+  ],
+  "i18n": {
+    "es": {
+      "keys": 373,
+      "missing": []
+    },
+    "en": {
+      "keys": 373,
+      "missing": []
+    }
+  },
+  "layout": {
+    "dark-es-local-radio-390": {
+      "viewport": 390,
+      "root": {
+        "client": 390,
+        "scroll": 390
+      },
+      "panels": [
+        {
+          "selector": "tab-settings",
+          "height": 727,
+          "scrollHeight": 2892,
+          "overflowY": "auto"
+        }
+      ],
+      "tabs": []
+    },
+    "dark-es-local-owner-pos-390": {
+      "viewport": 390,
+      "root": {
+        "client": 390,
+        "scroll": 390
+      },
+      "panels": [
+        {
+          "selector": "tab-settings",
+          "height": 727,
+          "scrollHeight": 1269,
+          "overflowY": "auto"
+        }
+      ],
+      "tabs": []
+    },
+    "dark-es-local-security-390": {
+      "viewport": 390,
+      "root": {
+        "client": 390,
+        "scroll": 390
+      },
+      "panels": [
+        {
+          "selector": "tab-settings",
+          "height": 727,
+          "scrollHeight": 1396,
+          "overflowY": "auto"
+        }
+      ],
+      "tabs": []
+    },
+    "dark-es-rep-radio-390": {
+      "viewport": 390,
+      "root": {
+        "client": 390,
+        "scroll": 390
+      },
+      "panels": [
+        {
+          "selector": "tab-settings",
+          "height": 727,
+          "scrollHeight": 1396,
+          "overflowY": "auto"
+        },
+        {
+          "selector": "modal-body repeater-admin-modal-body",
+          "height": 468,
+          "scrollHeight": 796,
+          "overflowY": "auto"
+        }
+      ],
+      "tabs": [
+        {
+          "text": "Telemetría & Estado",
+          "client": 113,
+          "scroll": 126,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Configuración RF",
+          "client": 113,
+          "scroll": 120,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Propietario & Posición",
+          "client": 113,
+          "scroll": 132,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Seguridad & ACL",
+          "client": 113,
+          "scroll": 118,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Malla & Vecinos",
+          "client": 113,
+          "scroll": 115,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Terminal",
+          "client": 113,
+          "scroll": 113,
+          "overflow": "hidden"
+        }
+      ]
+    },
+    "dark-es-rep-owner-pos-390": {
+      "viewport": 390,
+      "root": {
+        "client": 390,
+        "scroll": 390
+      },
+      "panels": [
+        {
+          "selector": "tab-settings",
+          "height": 727,
+          "scrollHeight": 1396,
+          "overflowY": "auto"
+        },
+        {
+          "selector": "modal-body repeater-admin-modal-body",
+          "height": 468,
+          "scrollHeight": 802,
+          "overflowY": "auto"
+        }
+      ],
+      "tabs": [
+        {
+          "text": "Telemetría & Estado",
+          "client": 113,
+          "scroll": 126,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Configuración RF",
+          "client": 113,
+          "scroll": 120,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Propietario & Posición",
+          "client": 113,
+          "scroll": 132,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Seguridad & ACL",
+          "client": 113,
+          "scroll": 118,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Malla & Vecinos",
+          "client": 113,
+          "scroll": 115,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Terminal",
+          "client": 113,
+          "scroll": 113,
+          "overflow": "hidden"
+        }
+      ]
+    },
+    "dark-es-rep-security-390": {
+      "viewport": 390,
+      "root": {
+        "client": 390,
+        "scroll": 390
+      },
+      "panels": [
+        {
+          "selector": "tab-settings",
+          "height": 727,
+          "scrollHeight": 1396,
+          "overflowY": "auto"
+        },
+        {
+          "selector": "modal-body repeater-admin-modal-body",
+          "height": 468,
+          "scrollHeight": 559,
+          "overflowY": "auto"
+        }
+      ],
+      "tabs": [
+        {
+          "text": "Telemetría & Estado",
+          "client": 113,
+          "scroll": 126,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Configuración RF",
+          "client": 113,
+          "scroll": 120,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Propietario & Posición",
+          "client": 113,
+          "scroll": 132,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Seguridad & ACL",
+          "client": 113,
+          "scroll": 118,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Malla & Vecinos",
+          "client": 113,
+          "scroll": 115,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Terminal",
+          "client": 113,
+          "scroll": 113,
+          "overflow": "hidden"
+        }
+      ]
+    },
+    "dark-en-local-radio-390": {
+      "viewport": 390,
+      "root": {
+        "client": 390,
+        "scroll": 390
+      },
+      "panels": [
+        {
+          "selector": "tab-settings",
+          "height": 727,
+          "scrollHeight": 2744,
+          "overflowY": "auto"
+        }
+      ],
+      "tabs": []
+    },
+    "dark-en-local-owner-pos-390": {
+      "viewport": 390,
+      "root": {
+        "client": 390,
+        "scroll": 390
+      },
+      "panels": [
+        {
+          "selector": "tab-settings",
+          "height": 727,
+          "scrollHeight": 1241,
+          "overflowY": "auto"
+        }
+      ],
+      "tabs": []
+    },
+    "dark-en-local-security-390": {
+      "viewport": 390,
+      "root": {
+        "client": 390,
+        "scroll": 390
+      },
+      "panels": [
+        {
+          "selector": "tab-settings",
+          "height": 727,
+          "scrollHeight": 1302,
+          "overflowY": "auto"
+        }
+      ],
+      "tabs": []
+    },
+    "dark-en-rep-radio-390": {
+      "viewport": 390,
+      "root": {
+        "client": 390,
+        "scroll": 390
+      },
+      "panels": [
+        {
+          "selector": "tab-settings",
+          "height": 727,
+          "scrollHeight": 1302,
+          "overflowY": "auto"
+        },
+        {
+          "selector": "modal-body repeater-admin-modal-body",
+          "height": 468,
+          "scrollHeight": 796,
+          "overflowY": "auto"
+        }
+      ],
+      "tabs": [
+        {
+          "text": "Telemetry & Status",
+          "client": 113,
+          "scroll": 123,
+          "overflow": "hidden"
+        },
+        {
+          "text": "RF configuration",
+          "client": 113,
+          "scroll": 117,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Owner & position",
+          "client": 113,
+          "scroll": 119,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Security & ACL",
+          "client": 113,
+          "scroll": 113,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Mesh & neighbors",
+          "client": 113,
+          "scroll": 121,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Terminal",
+          "client": 113,
+          "scroll": 113,
+          "overflow": "hidden"
+        }
+      ]
+    },
+    "dark-en-rep-owner-pos-390": {
+      "viewport": 390,
+      "root": {
+        "client": 390,
+        "scroll": 390
+      },
+      "panels": [
+        {
+          "selector": "tab-settings",
+          "height": 727,
+          "scrollHeight": 1302,
+          "overflowY": "auto"
+        },
+        {
+          "selector": "modal-body repeater-admin-modal-body",
+          "height": 468,
+          "scrollHeight": 754,
+          "overflowY": "auto"
+        }
+      ],
+      "tabs": [
+        {
+          "text": "Telemetry & Status",
+          "client": 113,
+          "scroll": 123,
+          "overflow": "hidden"
+        },
+        {
+          "text": "RF configuration",
+          "client": 113,
+          "scroll": 117,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Owner & position",
+          "client": 113,
+          "scroll": 119,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Security & ACL",
+          "client": 113,
+          "scroll": 113,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Mesh & neighbors",
+          "client": 113,
+          "scroll": 121,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Terminal",
+          "client": 113,
+          "scroll": 113,
+          "overflow": "hidden"
+        }
+      ]
+    },
+    "dark-en-rep-security-390": {
+      "viewport": 390,
+      "root": {
+        "client": 390,
+        "scroll": 390
+      },
+      "panels": [
+        {
+          "selector": "tab-settings",
+          "height": 727,
+          "scrollHeight": 1302,
+          "overflowY": "auto"
+        },
+        {
+          "selector": "modal-body repeater-admin-modal-body",
+          "height": 468,
+          "scrollHeight": 545,
+          "overflowY": "auto"
+        }
+      ],
+      "tabs": [
+        {
+          "text": "Telemetry & Status",
+          "client": 113,
+          "scroll": 123,
+          "overflow": "hidden"
+        },
+        {
+          "text": "RF configuration",
+          "client": 113,
+          "scroll": 117,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Owner & position",
+          "client": 113,
+          "scroll": 119,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Security & ACL",
+          "client": 113,
+          "scroll": 113,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Mesh & neighbors",
+          "client": 113,
+          "scroll": 121,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Terminal",
+          "client": 113,
+          "scroll": 113,
+          "overflow": "hidden"
+        }
+      ]
+    },
+    "light-es-local-radio-390": {
+      "viewport": 390,
+      "root": {
+        "client": 390,
+        "scroll": 390
+      },
+      "panels": [
+        {
+          "selector": "tab-settings",
+          "height": 727,
+          "scrollHeight": 2892,
+          "overflowY": "auto"
+        }
+      ],
+      "tabs": []
+    },
+    "light-es-local-owner-pos-390": {
+      "viewport": 390,
+      "root": {
+        "client": 390,
+        "scroll": 390
+      },
+      "panels": [
+        {
+          "selector": "tab-settings",
+          "height": 727,
+          "scrollHeight": 1269,
+          "overflowY": "auto"
+        }
+      ],
+      "tabs": []
+    },
+    "light-es-local-security-390": {
+      "viewport": 390,
+      "root": {
+        "client": 390,
+        "scroll": 390
+      },
+      "panels": [
+        {
+          "selector": "tab-settings",
+          "height": 727,
+          "scrollHeight": 1396,
+          "overflowY": "auto"
+        }
+      ],
+      "tabs": []
+    },
+    "light-es-rep-radio-390": {
+      "viewport": 390,
+      "root": {
+        "client": 390,
+        "scroll": 390
+      },
+      "panels": [
+        {
+          "selector": "tab-settings",
+          "height": 727,
+          "scrollHeight": 1396,
+          "overflowY": "auto"
+        },
+        {
+          "selector": "modal-body repeater-admin-modal-body",
+          "height": 468,
+          "scrollHeight": 796,
+          "overflowY": "auto"
+        }
+      ],
+      "tabs": [
+        {
+          "text": "Telemetría & Estado",
+          "client": 113,
+          "scroll": 126,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Configuración RF",
+          "client": 113,
+          "scroll": 120,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Propietario & Posición",
+          "client": 113,
+          "scroll": 132,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Seguridad & ACL",
+          "client": 113,
+          "scroll": 118,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Malla & Vecinos",
+          "client": 113,
+          "scroll": 115,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Terminal",
+          "client": 113,
+          "scroll": 113,
+          "overflow": "hidden"
+        }
+      ]
+    },
+    "light-es-rep-owner-pos-390": {
+      "viewport": 390,
+      "root": {
+        "client": 390,
+        "scroll": 390
+      },
+      "panels": [
+        {
+          "selector": "tab-settings",
+          "height": 727,
+          "scrollHeight": 1396,
+          "overflowY": "auto"
+        },
+        {
+          "selector": "modal-body repeater-admin-modal-body",
+          "height": 468,
+          "scrollHeight": 802,
+          "overflowY": "auto"
+        }
+      ],
+      "tabs": [
+        {
+          "text": "Telemetría & Estado",
+          "client": 113,
+          "scroll": 126,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Configuración RF",
+          "client": 113,
+          "scroll": 120,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Propietario & Posición",
+          "client": 113,
+          "scroll": 132,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Seguridad & ACL",
+          "client": 113,
+          "scroll": 118,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Malla & Vecinos",
+          "client": 113,
+          "scroll": 115,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Terminal",
+          "client": 113,
+          "scroll": 113,
+          "overflow": "hidden"
+        }
+      ]
+    },
+    "light-es-rep-security-390": {
+      "viewport": 390,
+      "root": {
+        "client": 390,
+        "scroll": 390
+      },
+      "panels": [
+        {
+          "selector": "tab-settings",
+          "height": 727,
+          "scrollHeight": 1396,
+          "overflowY": "auto"
+        },
+        {
+          "selector": "modal-body repeater-admin-modal-body",
+          "height": 468,
+          "scrollHeight": 559,
+          "overflowY": "auto"
+        }
+      ],
+      "tabs": [
+        {
+          "text": "Telemetría & Estado",
+          "client": 113,
+          "scroll": 126,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Configuración RF",
+          "client": 113,
+          "scroll": 120,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Propietario & Posición",
+          "client": 113,
+          "scroll": 132,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Seguridad & ACL",
+          "client": 113,
+          "scroll": 118,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Malla & Vecinos",
+          "client": 113,
+          "scroll": 115,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Terminal",
+          "client": 113,
+          "scroll": 113,
+          "overflow": "hidden"
+        }
+      ]
+    },
+    "light-en-local-radio-390": {
+      "viewport": 390,
+      "root": {
+        "client": 390,
+        "scroll": 390
+      },
+      "panels": [
+        {
+          "selector": "tab-settings",
+          "height": 727,
+          "scrollHeight": 2744,
+          "overflowY": "auto"
+        }
+      ],
+      "tabs": []
+    },
+    "light-en-local-owner-pos-390": {
+      "viewport": 390,
+      "root": {
+        "client": 390,
+        "scroll": 390
+      },
+      "panels": [
+        {
+          "selector": "tab-settings",
+          "height": 727,
+          "scrollHeight": 1241,
+          "overflowY": "auto"
+        }
+      ],
+      "tabs": []
+    },
+    "light-en-local-security-390": {
+      "viewport": 390,
+      "root": {
+        "client": 390,
+        "scroll": 390
+      },
+      "panels": [
+        {
+          "selector": "tab-settings",
+          "height": 727,
+          "scrollHeight": 1302,
+          "overflowY": "auto"
+        }
+      ],
+      "tabs": []
+    },
+    "light-en-rep-radio-390": {
+      "viewport": 390,
+      "root": {
+        "client": 390,
+        "scroll": 390
+      },
+      "panels": [
+        {
+          "selector": "tab-settings",
+          "height": 727,
+          "scrollHeight": 1302,
+          "overflowY": "auto"
+        },
+        {
+          "selector": "modal-body repeater-admin-modal-body",
+          "height": 468,
+          "scrollHeight": 796,
+          "overflowY": "auto"
+        }
+      ],
+      "tabs": [
+        {
+          "text": "Telemetry & Status",
+          "client": 113,
+          "scroll": 123,
+          "overflow": "hidden"
+        },
+        {
+          "text": "RF configuration",
+          "client": 113,
+          "scroll": 117,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Owner & position",
+          "client": 113,
+          "scroll": 119,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Security & ACL",
+          "client": 113,
+          "scroll": 113,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Mesh & neighbors",
+          "client": 113,
+          "scroll": 121,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Terminal",
+          "client": 113,
+          "scroll": 113,
+          "overflow": "hidden"
+        }
+      ]
+    },
+    "light-en-rep-owner-pos-390": {
+      "viewport": 390,
+      "root": {
+        "client": 390,
+        "scroll": 390
+      },
+      "panels": [
+        {
+          "selector": "tab-settings",
+          "height": 727,
+          "scrollHeight": 1302,
+          "overflowY": "auto"
+        },
+        {
+          "selector": "modal-body repeater-admin-modal-body",
+          "height": 468,
+          "scrollHeight": 754,
+          "overflowY": "auto"
+        }
+      ],
+      "tabs": [
+        {
+          "text": "Telemetry & Status",
+          "client": 113,
+          "scroll": 123,
+          "overflow": "hidden"
+        },
+        {
+          "text": "RF configuration",
+          "client": 113,
+          "scroll": 117,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Owner & position",
+          "client": 113,
+          "scroll": 119,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Security & ACL",
+          "client": 113,
+          "scroll": 113,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Mesh & neighbors",
+          "client": 113,
+          "scroll": 121,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Terminal",
+          "client": 113,
+          "scroll": 113,
+          "overflow": "hidden"
+        }
+      ]
+    },
+    "light-en-rep-security-390": {
+      "viewport": 390,
+      "root": {
+        "client": 390,
+        "scroll": 390
+      },
+      "panels": [
+        {
+          "selector": "tab-settings",
+          "height": 727,
+          "scrollHeight": 1302,
+          "overflowY": "auto"
+        },
+        {
+          "selector": "modal-body repeater-admin-modal-body",
+          "height": 468,
+          "scrollHeight": 545,
+          "overflowY": "auto"
+        }
+      ],
+      "tabs": [
+        {
+          "text": "Telemetry & Status",
+          "client": 113,
+          "scroll": 123,
+          "overflow": "hidden"
+        },
+        {
+          "text": "RF configuration",
+          "client": 113,
+          "scroll": 117,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Owner & position",
+          "client": 113,
+          "scroll": 119,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Security & ACL",
+          "client": 113,
+          "scroll": 113,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Mesh & neighbors",
+          "client": 113,
+          "scroll": 121,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Terminal",
+          "client": 113,
+          "scroll": 113,
+          "overflow": "hidden"
+        }
+      ]
+    },
+    "light-es-local-radio-1920": {
+      "viewport": 1920,
+      "root": {
+        "client": 1920,
+        "scroll": 1920
+      },
+      "panels": [
+        {
+          "selector": "tab-settings",
+          "height": 1020,
+          "scrollHeight": 1326,
+          "overflowY": "auto"
+        }
+      ],
+      "tabs": []
+    },
+    "light-es-rep-radio-1920": {
+      "viewport": 1920,
+      "root": {
+        "client": 1920,
+        "scroll": 1920
+      },
+      "panels": [
+        {
+          "selector": "tab-settings",
+          "height": 1020,
+          "scrollHeight": 1326,
+          "overflowY": "auto"
+        },
+        {
+          "selector": "modal-body repeater-admin-modal-body",
+          "height": 391,
+          "scrollHeight": 391,
+          "overflowY": "auto"
+        }
+      ],
+      "tabs": [
+        {
+          "text": "Telemetría & Estado",
+          "client": 148,
+          "scroll": 155,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Configuración RF",
+          "client": 148,
+          "scroll": 149,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Propietario & Posición",
+          "client": 148,
+          "scroll": 163,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Seguridad & ACL",
+          "client": 148,
+          "scroll": 148,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Malla & Vecinos",
+          "client": 148,
+          "scroll": 148,
+          "overflow": "hidden"
+        },
+        {
+          "text": "Terminal",
+          "client": 148,
+          "scroll": 148,
+          "overflow": "hidden"
+        }
+      ]
+    }
+  },
+  "websocket_connected": true
+}

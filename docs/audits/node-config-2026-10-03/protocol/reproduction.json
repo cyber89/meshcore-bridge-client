@@ -1,0 +1,214 @@
+{
+  "scope": "construction only; no firmware execution, RF or socket use",
+  "sdk_version_source": "installed meshcore 2.3.8",
+  "sdk_tx_power": [
+    {
+      "tx_power_dbm": -9,
+      "exception": "OverflowError",
+      "message": "can't convert negative int to unsigned",
+      "frames_constructed": 0
+    },
+    {
+      "tx_power_dbm": -1,
+      "exception": "OverflowError",
+      "message": "can't convert negative int to unsigned",
+      "frames_constructed": 0
+    },
+    {
+      "tx_power_dbm": 0,
+      "result": "captured_only",
+      "frame_hex": "0c00000000"
+    },
+    {
+      "tx_power_dbm": 20,
+      "result": "captured_only",
+      "frame_hex": "0c14000000"
+    }
+  ],
+  "tuning": [
+    {
+      "input": 10,
+      "writes": [
+        {
+          "command": "set_tuning",
+          "args": [
+            10000,
+            10000
+          ]
+        }
+      ],
+      "stored": {
+        "rx_delay": 10.0,
+        "airtime_factor": 10.0
+      },
+      "firmware_dimensionless_values": [
+        10.0,
+        10.0
+      ]
+    },
+    {
+      "input": 11,
+      "writes": [
+        {
+          "command": "set_tuning",
+          "args": [
+            11,
+            11
+          ]
+        }
+      ],
+      "stored": {
+        "rx_delay": 0.011,
+        "airtime_factor": 0.011
+      },
+      "firmware_dimensionless_values": [
+        0.011,
+        0.011
+      ]
+    },
+    {
+      "input": 20,
+      "writes": [
+        {
+          "command": "set_tuning",
+          "args": [
+            20,
+            20
+          ]
+        }
+      ],
+      "stored": {
+        "rx_delay": 0.02,
+        "airtime_factor": 0.02
+      },
+      "firmware_dimensionless_values": [
+        0.02,
+        0.02
+      ]
+    }
+  ],
+  "remote_builder": [
+    {
+      "action": "set_frequency",
+      "params": {
+        "frequency": 868.1
+      },
+      "command": "set freq 868.1"
+    },
+    {
+      "action": "set_sf",
+      "params": {
+        "sf": 7
+      },
+      "command": "set sf 7"
+    },
+    {
+      "action": "set_bw",
+      "params": {
+        "bw": 125
+      },
+      "command": "set bw 125"
+    },
+    {
+      "action": "set_cr",
+      "params": {
+        "cr": "4/7"
+      },
+      "command": "set cr 4/7"
+    },
+    {
+      "action": "set_hop_limit",
+      "params": {
+        "hops": 4
+      },
+      "command": "set hop_limit 4"
+    },
+    {
+      "action": "set_position",
+      "params": {
+        "lat": 0,
+        "lon": 10,
+        "alt": 15,
+        "fixed": true
+      },
+      "command": "set pos 0 10 15 1"
+    },
+    {
+      "action": "set_pos_alt",
+      "params": {
+        "alt": 15
+      },
+      "command": "set pos.alt 15"
+    },
+    {
+      "action": "set_admin_password",
+      "params": {
+        "new_password": "REPRO_DUMMY"
+      },
+      "command": "set admin.password REPRO_DUMMY"
+    },
+    {
+      "action": "acl_add",
+      "params": {
+        "public_key": "1111111111111111111111111111111111111111111111111111111111111111",
+        "permission": "admin"
+      },
+      "command": "acl add 1111111111111111111111111111111111111111111111111111111111111111 admin"
+    },
+    {
+      "action": "acl_remove",
+      "params": {
+        "public_key": "1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "command": "acl remove 1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "action": "acl_list",
+      "params": {},
+      "command": "acl list"
+    },
+    {
+      "action": "set_advert_interval",
+      "params": {
+        "advert_interval": 0
+      },
+      "command": "set advert.interval 2"
+    },
+    {
+      "action": "set_advert_interval",
+      "params": {
+        "advert_interval": 300
+      },
+      "command": "set advert.interval 5"
+    },
+    {
+      "action": "set_advert_interval",
+      "params": {
+        "advert_interval": 3600
+      },
+      "command": "set advert.interval 60"
+    },
+    {
+      "action": "set_owner_info",
+      "params": {
+        "owner_info": "REPRO_DUMMY"
+      },
+      "command": "set owner.info \"REPRO_DUMMY\""
+    },
+    {
+      "action": "discover.neighbors",
+      "params": {},
+      "command": "neighbors"
+    },
+    {
+      "action": "radio",
+      "params": {
+        "frequency": 868.1,
+        "bandwidth": 125,
+        "sf": 7,
+        "cr": 5
+      },
+      "command": "get radio"
+    }
+  ]
+}

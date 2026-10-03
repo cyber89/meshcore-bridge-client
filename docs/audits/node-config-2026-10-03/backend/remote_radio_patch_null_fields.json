@@ -1,0 +1,24 @@
+{
+  "base_head": "81f4260eccf9bdec6c6f7ba9caca5322997f6eeb",
+  "case": "remote_radio_patch_null_fields",
+  "request": {
+    "target_node": "2222222222222222222222222222222222222222222222222222222222222222",
+    "params": {
+      "bandwidth": 500
+    }
+  },
+  "response": {
+    "status": "ok",
+    "data": {
+      "status": "dispatched",
+      "action": "remote_repeater_set_config",
+      "target_node": "2222222222222222222222222222222222222222222222222222222222222222",
+      "dispatched_commands": [
+        "set radio None,500,None,5"
+      ]
+    }
+  },
+  "sdk_calls": [
+    "set radio None,500,None,5"
+  ]
+}
