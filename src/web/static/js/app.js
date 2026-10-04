@@ -847,15 +847,17 @@ class MeshCoreApp {
    * @returns {Promise<boolean>}
    */
   showConfirm(message, options = {}) {
+    const isDanger = Boolean(options.isDanger || options.type === "error" || options.type === "danger");
+    const type = options.type || (isDanger ? "danger" : "info");
     return this._showSystemDialog({
       mode: "confirm",
       message,
-      title: options.title || (options.isDanger ? (I18n.t("modal.confirm") || "Confirmar") : (I18n.t("modal.confirm") || "Confirmar")),
+      title: options.title || I18n.t("modal.confirm") || "Confirmar",
       confirmText: options.confirmText || I18n.t("modal.confirm") || "Confirmar",
       cancelText: options.cancelText || I18n.t("modal.cancel") || "Cancelar",
-      isDanger: Boolean(options.isDanger),
-      type: options.type || (options.isDanger ? "warning" : "info"),
-      icon: options.icon || (options.isDanger ? "alert-triangle" : "help-circle"),
+      isDanger,
+      type,
+      icon: options.icon,
     });
   }
 
@@ -866,15 +868,18 @@ class MeshCoreApp {
    * @returns {Promise<void>}
    */
   showAlert(message, options = {}) {
-    const isError = options.type === "error";
+    const isError = options.type === "error" || options.type === "danger";
+    const isWarning = options.type === "warning";
+    const isSuccess = options.type === "success";
+    const type = isError ? "danger" : (options.type || "info");
     return this._showSystemDialog({
       mode: "alert",
       message,
-      title: options.title || (isError ? (I18n.t("modal.error") || "Error") : (I18n.t("modal.info") || "Información")),
+      title: options.title || (isError ? (I18n.t("modal.error") || "Error") : (isWarning ? (I18n.t("modal.warning") || "Advertencia") : (isSuccess ? (I18n.t("modal.success") || "Éxito") : (I18n.t("modal.info") || "Información")))),
       confirmText: options.confirmText || options.buttonText || I18n.t("modal.close") || "Aceptar",
-      isDanger: false,
-      type: options.type || (isError ? "error" : "info"),
-      icon: options.icon || (isError ? "alert-triangle" : (options.type === "warning" ? "shield-alert" : "info")),
+      isDanger: isError,
+      type,
+      icon: options.icon,
     });
   }
 
@@ -894,8 +899,8 @@ class MeshCoreApp {
       confirmText: options.confirmText || I18n.t("modal.confirm") || "Aceptar",
       cancelText: options.cancelText || I18n.t("modal.cancel") || "Cancelar",
       isDanger: false,
-      type: "info",
-      icon: options.icon || "help-circle",
+      type: options.type || "info",
+      icon: options.icon || "edit-3",
     });
   }
 
@@ -912,21 +917,26 @@ class MeshCoreApp {
       modal.innerHTML = `
         <div class="modal-card system-dialog-card" id="systemDialogCard">
           <div class="modal-header system-dialog-header">
-            <h3 id="systemDialogTitle">
-              <span class="modal-title-icon" id="systemDialogIcon" data-lucide="help-circle" data-size="18"></span>
-              <span id="systemDialogTitleText">Confirmar</span>
-            </h3>
+            <div class="system-dialog-title-group">
+              <div class="system-dialog-icon-badge" id="systemDialogIconBadge">
+                <span class="modal-title-icon" id="systemDialogIcon" data-lucide="help-circle" data-size="20"></span>
+              </div>
+              <h3 id="systemDialogTitle">
+                <span id="systemDialogTitleText">Confirmar</span>
+              </h3>
+            </div>
             <button type="button" class="btn-icon modal-close" id="btnCloseSystemDialog" aria-label="Cerrar modal">✕</button>
           </div>
           <div class="modal-body system-dialog-body">
             <p id="systemDialogMessage" class="system-dialog-message"></p>
-            <div id="systemDialogInputWrap" class="system-dialog-input-wrap hidden" style="margin-top: 14px;">
-              <input type="text" id="systemDialogInput" class="text-input" style="width: 100%;" autocomplete="off" />
+            <div id="systemDialogInputWrap" class="system-dialog-input-wrap hidden">
+              <label for="systemDialogInput" class="sr-only">Entrada de texto</label>
+              <input type="text" id="systemDialogInput" class="system-dialog-input text-input" autocomplete="off" spellcheck="false" />
             </div>
           </div>
           <div class="modal-footer system-dialog-footer">
-            <button type="button" class="btn-secondary" id="btnCancelSystemDialog">Cancelar</button>
-            <button type="button" class="btn-primary" id="btnConfirmSystemDialog">Confirmar</button>
+            <button type="button" class="btn-secondary system-dialog-btn" id="btnCancelSystemDialog">Cancelar</button>
+            <button type="button" class="btn-primary system-dialog-btn" id="btnConfirmSystemDialog">Confirmar</button>
           </div>
         </div>
       `;
@@ -938,7 +948,10 @@ class MeshCoreApp {
   _showSystemDialog(config) {
     return new Promise((resolve) => {
       const modal = this._ensureSystemDialogModal();
+      const previousActiveElement = document.activeElement;
 
+      const card = modal.querySelector(".system-dialog-card") || document.getElementById("systemDialogCard");
+      const iconBadge = document.getElementById("systemDialogIconBadge");
       const titleEl = document.getElementById("systemDialogTitleText");
       const iconEl = document.getElementById("systemDialogIcon");
       const msgEl = document.getElementById("systemDialogMessage");
@@ -948,17 +961,37 @@ class MeshCoreApp {
       const btnCancel = document.getElementById("btnCancelSystemDialog");
       const btnClose = document.getElementById("btnCloseSystemDialog");
 
+      const isDanger = Boolean(config.isDanger || config.type === "error" || config.type === "danger");
+      const rawType = config.type || (isDanger ? "danger" : "info");
+      const dialogType = rawType === "error" ? "danger" : rawType;
+
+      if (card) {
+        card.className = `modal-card system-dialog-card dialog-type-${dialogType}${isDanger ? " is-danger" : ""}`;
+      }
+
+      if (iconBadge) {
+        iconBadge.className = `system-dialog-icon-badge badge-${dialogType}${isDanger ? " badge-danger" : ""}`;
+      }
+
       if (titleEl) titleEl.textContent = config.title;
       if (msgEl) msgEl.textContent = config.message;
 
       if (iconEl && window.getLucideIcon) {
-        iconEl.innerHTML = window.getLucideIcon(config.icon || "info", "", 18);
-        iconEl.className = `modal-title-icon ${config.type === "error" || config.isDanger ? "is-danger" : (config.type === "warning" ? "is-warning" : "")}`;
+        let iconName = config.icon;
+        if (!iconName) {
+          if (isDanger || dialogType === "danger") iconName = "alert-triangle";
+          else if (dialogType === "warning") iconName = "shield-alert";
+          else if (dialogType === "success") iconName = "check-circle-2";
+          else if (config.mode === "prompt") iconName = "edit-3";
+          else iconName = config.mode === "alert" ? "info" : "help-circle";
+        }
+        iconEl.innerHTML = window.getLucideIcon(iconName, "", 20);
+        iconEl.className = `modal-title-icon is-${dialogType}${isDanger ? " is-danger" : ""}`;
       }
 
       if (btnConfirm) {
         btnConfirm.textContent = config.confirmText;
-        btnConfirm.className = config.isDanger ? "btn-danger" : "btn-primary";
+        btnConfirm.className = `system-dialog-btn ${isDanger ? "btn-danger" : "btn-primary"}`;
       }
 
       if (btnCancel) {
@@ -967,6 +1000,7 @@ class MeshCoreApp {
         } else {
           btnCancel.classList.remove("hidden");
           btnCancel.textContent = config.cancelText;
+          btnCancel.className = "btn-secondary system-dialog-btn";
         }
       }
 
@@ -979,6 +1013,13 @@ class MeshCoreApp {
         }
       }
 
+      const getFocusableElements = () => {
+        const focusables = modal.querySelectorAll('button:not(.hidden), input:not(.hidden), [tabindex="0"]');
+        return Array.from(focusables).filter((el) => {
+          return el.offsetParent !== null && !el.disabled && !el.classList.contains("hidden");
+        });
+      };
+
       let settled = false;
       const cleanup = () => {
         if (settled) return;
@@ -989,6 +1030,9 @@ class MeshCoreApp {
         if (btnCancel) btnCancel.removeEventListener("click", onCancel);
         if (btnClose) btnClose.removeEventListener("click", onCancel);
         modal.removeEventListener("click", onOverlayClick);
+        if (previousActiveElement && typeof previousActiveElement.focus === "function") {
+          try { previousActiveElement.focus(); } catch (_) {}
+        }
       };
 
       const onConfirm = (e) => {
@@ -1031,6 +1075,18 @@ class MeshCoreApp {
         } else if (e.key === "Enter" && config.mode === "prompt" && document.activeElement === inputEl) {
           e.preventDefault();
           onConfirm(e);
+        } else if (e.key === "Tab") {
+          const focusables = getFocusableElements();
+          if (focusables.length === 0) return;
+          const first = focusables[0];
+          const last = focusables[focusables.length - 1];
+          if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
         }
       };
 
@@ -1046,7 +1102,7 @@ class MeshCoreApp {
         if (config.mode === "prompt" && inputEl) {
           inputEl.focus();
           inputEl.select();
-        } else if (config.isDanger && btnCancel) {
+        } else if (isDanger && btnCancel) {
           btnCancel.focus();
         } else if (btnConfirm) {
           btnConfirm.focus();

@@ -2000,52 +2000,409 @@ body.light-theme .radio-status-pill.radio-status--disconnected {
 
 /* ==========================================================================
    Diálogos Modales del Sistema (Confirm / Alert / Prompt)
+   UI/UX PRO MAX - Design Standards (Dark Tech & Light Theme)
    ========================================================================== */
-.system-dialog-card {
-  width: 92%;
-  max-width: 480px;
-  border-radius: var(--radius-lg, 16px);
-  background: var(--bg-surface, #1e293b);
-  border: 1px solid var(--border-strong, #334155);
-  box-shadow: var(--shadow-lg, 0 10px 25px -5px rgba(0, 0, 0, 0.5));
+
+#systemDialogModal {
+  z-index: 10050;
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
 }
 
+.system-dialog-card {
+  position: relative;
+  width: 90%;
+  max-width: 460px;
+  border-radius: var(--radius-lg, 14px);
+  background: linear-gradient(180deg, var(--bg-surface-elevated, #1e293b) 0%, var(--bg-surface, #0f172a) 100%);
+  border: 1px solid var(--border-strong, rgba(56, 189, 248, 0.45));
+  box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.75), 0 0 1px 1px rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: systemDialogZoomIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: center center;
+}
+
+/* Banner de acento superior */
+.system-dialog-card::before {
+  content: "";
+  display: block;
+  height: 3.5px;
+  width: 100%;
+  background: var(--dialog-banner-gradient, linear-gradient(90deg, var(--accent-primary, #38bdf8), #0284c7));
+  transition: background 0.25s ease;
+}
+
+.system-dialog-card.dialog-type-danger::before,
+.system-dialog-card.dialog-type-error::before,
+.system-dialog-card.is-danger::before {
+  --dialog-banner-gradient: linear-gradient(90deg, #f87171 0%, #ef4444 50%, #b91c1c 100%);
+}
+
+.system-dialog-card.dialog-type-warning::before {
+  --dialog-banner-gradient: linear-gradient(90deg, #fde047 0%, #fbbf24 50%, #d97706 100%);
+}
+
+.system-dialog-card.dialog-type-success::before {
+  --dialog-banner-gradient: linear-gradient(90deg, #86efac 0%, #4ade80 50%, #15803d 100%);
+}
+
+.system-dialog-card.dialog-type-info::before {
+  --dialog-banner-gradient: linear-gradient(90deg, #7dd3fc 0%, #38bdf8 50%, #0369a1 100%);
+}
+
+/* Resplandores de borde sutiles por tipo */
+.system-dialog-card.dialog-type-danger,
+.system-dialog-card.dialog-type-error,
+.system-dialog-card.is-danger {
+  border-color: rgba(239, 68, 68, 0.45);
+  box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.75), 0 0 25px rgba(220, 38, 38, 0.18);
+}
+
+.system-dialog-card.dialog-type-warning {
+  border-color: rgba(245, 158, 11, 0.45);
+  box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.75), 0 0 25px rgba(245, 158, 11, 0.18);
+}
+
+.system-dialog-card.dialog-type-success {
+  border-color: rgba(34, 197, 94, 0.45);
+  box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.75), 0 0 25px rgba(34, 197, 94, 0.18);
+}
+
+/* Cabecera del Diálogo */
 .system-dialog-header {
-  padding: 14px 20px;
+  padding: 16px 20px 14px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
-  background: var(--bg-surface-elevated, #243044);
+  border-bottom: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.14));
+  background: var(--bg-surface-elevated, #1e293b);
 }
 
+.system-dialog-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.system-dialog-header h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-bright, #f8fafc);
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+  display: flex;
+  align-items: center;
+}
+
+/* Insignia / Halo del Icono */
+.system-dialog-icon-badge {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background: var(--bg-primary-soft, #123149);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: var(--accent-primary, #38bdf8);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.15);
+}
+
+.system-dialog-icon-badge.badge-danger,
+.system-dialog-icon-badge.badge-error,
+.system-dialog-card.is-danger .system-dialog-icon-badge {
+  background: var(--bg-danger-soft, #48232c);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: var(--accent-danger, #ef4444);
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.22);
+}
+
+.system-dialog-icon-badge.badge-warning {
+  background: var(--bg-warning-soft, #44351a);
+  border-color: rgba(245, 158, 11, 0.45);
+  color: var(--accent-warning, #f59e0b);
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.22);
+}
+
+.system-dialog-icon-badge.badge-success {
+  background: var(--bg-success-soft, #143b2c);
+  border-color: rgba(34, 197, 94, 0.45);
+  color: var(--accent-success, #22c55e);
+  box-shadow: 0 0 14px rgba(34, 197, 94, 0.22);
+}
+
+.system-dialog-icon-badge .lucide-icon,
+.system-dialog-icon-badge svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Cuerpo y Mensaje */
 .system-dialog-body {
-  padding: 18px 20px;
+  padding: 20px 22px 18px 22px;
 }
 
 .system-dialog-message {
   margin: 0;
   font-size: 0.95rem;
-  line-height: 1.55;
-  color: var(--text-main, #f8fafc);
+  line-height: 1.62;
+  color: var(--text-main, #e2e8f0);
   white-space: pre-wrap;
   word-break: break-word;
+  letter-spacing: -0.01em;
 }
 
-.modal-title-icon.is-danger {
-  color: var(--danger-fill, #ef4444);
+/* Entrada de Datos (Prompt) */
+.system-dialog-input-wrap {
+  margin-top: 16px;
 }
 
-.modal-title-icon.is-warning {
-  color: var(--accent-warning, #f59e0b);
+.system-dialog-input {
+  width: 100%;
+  height: 42px;
+  padding: 9px 14px;
+  font-size: 0.925rem;
+  font-family: inherit;
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-canvas, #070b14);
+  border: 1px solid var(--border-control, #64748b);
+  color: var(--text-bright, #f8fafc);
+  box-sizing: border-box;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.system-dialog-input:hover {
+  border-color: var(--border-strong, #38bdf8);
+}
+
+.system-dialog-input:focus {
+  border-color: var(--accent-primary, #38bdf8);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
+  outline: none;
+}
+
+/* Pie del Diálogo y Botones */
 .system-dialog-footer {
-  padding: 12px 20px 16px 20px;
+  padding: 14px 20px 18px 20px;
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
-  background: var(--bg-surface, #1e293b);
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.14));
+  background: var(--bg-surface-elevated, #1e293b);
+}
+
+.system-dialog-btn {
+  min-height: 40px;
+  min-width: 96px;
+  padding: 9px 18px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  letter-spacing: 0.01em;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.system-dialog-btn:active {
+  transform: scale(0.97);
+}
+
+.system-dialog-btn:focus-visible {
+  outline: 2px solid var(--border-focus, #38bdf8);
+  outline-offset: 2px;
+}
+
+.system-dialog-btn.btn-secondary {
+  background-color: var(--bg-surface, #0f172a);
+  border: 1px solid var(--border-medium, rgba(148, 163, 184, 0.28));
+  color: var(--text-main, #e2e8f0);
+}
+
+.system-dialog-btn.btn-secondary:hover {
+  background-color: var(--bg-surface-hover, #334155);
+  border-color: var(--border-control, #64748b);
+  color: var(--text-bright, #f8fafc);
+  transform: translateY(-1px);
+}
+
+.system-dialog-btn.btn-primary {
+  background: linear-gradient(135deg, var(--accent-primary, #38bdf8) 0%, #0284c7 100%);
+  color: var(--text-inverse, #070b14);
+  border: 1px solid rgba(56, 189, 248, 0.5);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25), 0 0 12px rgba(56, 189, 248, 0.2);
+}
+
+.system-dialog-btn.btn-primary:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35), 0 0 18px rgba(56, 189, 248, 0.38);
+  transform: translateY(-1px);
+  opacity: 0.98;
+}
+
+.system-dialog-btn.btn-danger {
+  background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+  color: #ffffff;
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25), 0 0 14px rgba(220, 38, 38, 0.3);
+}
+
+.system-dialog-btn.btn-danger:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35), 0 0 22px rgba(220, 38, 38, 0.5);
+  transform: translateY(-1px);
+}
+
+/* Animaciones y Accesibilidad */
+@keyframes systemDialogZoomIn {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .system-dialog-card {
+    animation: none !important;
+    transition: none !important;
+  }
+  .system-dialog-btn {
+    transition: none !important;
+  }
+}
+
+/* Adaptación Responsiva para Móviles */
+@media (max-width: 540px) {
+  .system-dialog-card {
+    width: 95vw !important;
+    max-width: 95vw !important;
+    border-radius: var(--radius-md, 10px) !important;
+  }
+
+  .system-dialog-header {
+    padding: 12px 16px !important;
+  }
+
+  .system-dialog-icon-badge {
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+  }
+
+  .system-dialog-body {
+    padding: 16px 16px 14px 16px !important;
+  }
+
+  .system-dialog-footer {
+    padding: 12px 16px 16px 16px !important;
+    flex-direction: column-reverse !important;
+    gap: 10px !important;
+  }
+
+  .system-dialog-btn {
+    width: 100% !important;
+    min-height: 44px !important;
+  }
+}
+
+/* ==========================================================================
+   Tema Claro (Light Theme) para Diálogos del Sistema
+   ========================================================================== */
+body.light-theme .system-dialog-card {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border-color: var(--border-medium, #bacbdc);
+  box-shadow: 0 20px 40px -10px rgba(10, 25, 47, 0.16), 0 2px 8px rgba(10, 25, 47, 0.06);
+}
+
+body.light-theme .system-dialog-header {
+  background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+  border-bottom-color: var(--border-subtle, #d2deeb);
+}
+
+body.light-theme .system-dialog-header h3 {
+  color: var(--text-bright, #0a192f);
+}
+
+body.light-theme .system-dialog-icon-badge {
+  background: #e0f2fe;
+  border-color: #bae6fd;
+  color: #0369a1;
+  box-shadow: 0 0 10px rgba(3, 105, 161, 0.12);
+}
+
+body.light-theme .system-dialog-icon-badge.badge-danger,
+body.light-theme .system-dialog-icon-badge.badge-error,
+body.light-theme .system-dialog-card.is-danger .system-dialog-icon-badge {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #b91c1c;
+  box-shadow: 0 0 10px rgba(185, 28, 28, 0.14);
+}
+
+body.light-theme .system-dialog-icon-badge.badge-warning {
+  background: #fef3c7;
+  border-color: #fcd34d;
+  color: #92400e;
+  box-shadow: 0 0 10px rgba(146, 64, 14, 0.14);
+}
+
+body.light-theme .system-dialog-icon-badge.badge-success {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #046c4e;
+  box-shadow: 0 0 10px rgba(4, 108, 78, 0.14);
+}
+
+body.light-theme .system-dialog-message {
+  color: var(--text-main, #1e2e42);
+}
+
+body.light-theme .system-dialog-input {
+  background: #ffffff;
+  border-color: var(--border-medium, #bacbdc);
+  color: var(--text-bright, #0a192f);
+}
+
+body.light-theme .system-dialog-input:focus {
+  border-color: var(--accent-primary, #0369a1);
+  box-shadow: 0 0 0 3px rgba(3, 105, 161, 0.2);
+}
+
+body.light-theme .system-dialog-footer {
+  background: #f8fafc;
+  border-top-color: var(--border-subtle, #d2deeb);
+}
+
+body.light-theme .system-dialog-btn.btn-secondary {
+  background-color: #ffffff;
+  border-color: var(--border-medium, #bacbdc);
+  color: var(--text-main, #1e2e42);
+}
+
+body.light-theme .system-dialog-btn.btn-secondary:hover {
+  background-color: #e2eaf2;
+  border-color: var(--border-control, #72859a);
+  color: var(--text-bright, #0a192f);
+}
+
+body.light-theme .system-dialog-btn.btn-primary {
+  background: linear-gradient(135deg, #0369a1 0%, #0284c7 100%);
+  color: #ffffff;
 }
 
