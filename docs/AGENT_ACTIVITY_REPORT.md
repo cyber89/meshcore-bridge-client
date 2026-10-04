@@ -2,6 +2,24 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Mejora visual global, diálogos y administración remota
+
+- **Fecha/base**: 2026-10-03; `7a93028`.
+- **Equipo**: dirigente (paleta/chat/integración) y especialista frontend (modales/administración); skills `web-ui-design-system`, `html-css-modern-js`, `ui-ux-pro-max`.
+- **Cambios**: cuatro hojas CSS; paleta clara gris salvia, contraste, scroll y tamaños de modales, acciones visibles y formularios móviles. Sin cambios de contratos o RF.
+- **Verificación**: 82 pares de tokens aprobados, llaves equilibradas y diff sin errores. Pytest/Chromium rechazado por revisión automática por falta de autorización expresa para la nueva mejora; autorización solicitada, sin ejecución ni capturas nuevas.
+- **Entrega**: [informe visual y pasos pendientes](FRONTEND_VISUAL_REFRESH_2026-10-03.md), evidencia estática versionada. La comodidad visual y el layout renderizado siguen sin comprobar.
+
+### Hito: Verificación actual de configuración local/remota y plan de corrección
+
+- **Fecha**: 2026-10-03.
+- **Base**: `9f561932d648470e8c8bd23fc789a66bdb378d0e`.
+- **Estado**: análisis y documento completos como snapshot de la base indicada; cambios posteriores de configuración/diálogos aún no revalidados por este informe. No certificación de hardware ni lectura/escritura universal.
+- **Equipo**: dirigente/integrador, frontend, backend/QA y protocolo. Propiedad separada de anexos; sin cambios de producción o referencias durante esta auditoría.
+- **Entrega**: [documento completo](NODE_CONFIGURATION_VERIFICATION_2026-10-03.md), evidencia en `docs/audits/node-config-verification-2026-10-03/` e índice actualizado. Contraste actual del cliente oficial desconectado, firmware/SDK/CLI y formularios del bridge.
+- **Resultados**: 71 diagnósticos backend aprobados que confirman observaciones/bugs; suite dirigida mantenida 47 passed/8 failed/1 warning; 67 escenarios de construcción de protocolo; Chromium 19 observaciones/65 controles/26 capturas; cuatro variantes de descubrimiento. Ruff focalizado un error y mypy --strict ocho errores en nueve módulos; cobertura/suite general/hardware no ejecutados. Fallos e incidencias de harness/entorno se conservan o declaran explícitamente en anexos.
+- **Pendientes principales**: PIN GET/escritura involuntaria, semántica de permisos telemetría/ACL, baseline y validación de lotes, AutoAdd, campos remotos ignorados, partial/dispatched/pending reboot, borradores y respuestas tardías por destino. Plan con checklist RF sin intervalos nuevos escogidos.
+
 ### Hito: Integración Quirúrgica Secuencial de Mejoras de PR #2 y Verificación de Suite Completa
 - **Fecha**: 2026-10-01
 - **Estado**: ✅ COMPLETADO (4 mejoras aplicadas de forma secuencial con verificación 100% exitosa)

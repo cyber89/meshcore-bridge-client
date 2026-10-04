@@ -89,51 +89,51 @@ body.light-theme {
   --bg-surface-secondary: var(--bg-surface-elevated);
   --color-text-secondary: var(--text-muted);
   --bg-tertiary: var(--bg-surface-elevated);
-  /* Fondo general y Lienzo: Tono pizarra azulado suave anti-deslumbramiento */
-  --bg-canvas: #EAF0F6;
-  --bg-surface: #F3F7FA;
-  --bg-surface-elevated: #FFFFFF;
-  --bg-surface-hover: #E1EAF2;
-  --bg-glass: rgba(234, 240, 246, 0.94);
+  /* Luz suave: capas gris salvia, sin grandes superficies blanco puro. */
+  --bg-canvas: #dce3e4;
+  --bg-surface: #e7ecea;
+  --bg-surface-elevated: #f1f3ee;
+  --bg-surface-hover: #d2dcdb;
+  --bg-glass: rgba(225, 232, 230, 0.96);
 
   /* Estructura y Bordes refinados con matiz azul-acero */
-  --border-subtle: #D2DEEB;
-  --border-medium: #BACBDC;
-  --border-strong: #8BA2BA;
+  --border-subtle: #b5c3c2;
+  --border-medium: #98abae;
+  --border-strong: #82999e;
   --border-focus: #0369A1;
 
   /* Estructura y Textos: Azul Marino Profundo de alto contraste */
-  --text-bright: #0A192F;
-  --text-main: #1E2E42;
-  --text-muted: #486282;
-  --text-dim: #50637B;
-  --text-inverse: #FFFFFF;
+  --text-bright: #172b33;
+  --text-main: #273a41;
+  --text-muted: #4b6069;
+  --text-dim: #4b6065;
+  --text-inverse: #f1f3ee;
 
   /* Paleta Semántica & Roles MeshCore - Tonos Azules y Acentos Profesionales */
-  --accent-primary: #0369A1;          /* Azul Cielo / Océano profundo */
-  --accent-primary-hover: #0369A1;
-  --accent-secondary: #2563EB;        /* Azul Real / Red */
+  --accent-primary: #035f91;          /* Azul Cielo / Océano profundo */
+  --accent-primary-hover: #075985;
+  --accent-secondary: #1d4ed8;        /* Azul Real / Red */
   --accent-cyan: var(--accent-primary);
   --accent-success: #046C4E;          /* Verde Esmeralda (alta legibilidad) */
   --accent-warning: #92400E;          /* Ámbar Cálido */
   --accent-danger: #B91C1C;           /* Carmesí / Errores */
-  --accent-purple: #7C3AED;           /* Violeta Real / Repetidores */
-  --bg-primary-soft: #e0eff9;
-  --bg-success-soft: #def4e9;
-  --bg-warning-soft: #fff0d4;
-  --bg-danger-soft: #fee7e7;
-  --bg-purple-soft: #eee6fa;
-  --border-control: #72859a;
-  --chat-outgoing-bg: #e0eff9;
-  --chat-outgoing-text: #1e2e42;
-  --chat-outgoing-muted: #486282;
+  --accent-purple: #7130ce;           /* Violeta legible sobre el lienzo suave */
+  --bg-primary-soft: #d5e5e9;
+  --bg-success-soft: #d9e8df;
+  --bg-warning-soft: #ece1c8;
+  --bg-danger-soft: #eedbd9;
+  --bg-purple-soft: #e4ddec;
+  --border-control: #71868b;
+  --chat-outgoing-bg: #d5e5e9;
+  --chat-outgoing-text: var(--text-main);
+  --chat-outgoing-muted: var(--text-muted);
 
   /* Sombras y Elevación Suave con tinte azul */
-  --shadow-sm: 0 1px 3px 0 rgba(10, 25, 47, 0.06);
-  --shadow-md: 0 4px 8px -1px rgba(10, 25, 47, 0.08), 0 2px 4px -2px rgba(10, 25, 47, 0.04);
-  --shadow-lg: 0 12px 24px -4px rgba(10, 25, 47, 0.10), 0 4px 8px -4px rgba(10, 25, 47, 0.04);
-  --shadow-glow: 0 0 16px rgba(2, 132, 199, 0.22);
-  --shadow-glow-success: 0 0 16px rgba(5, 150, 105, 0.22);
+  --shadow-sm: 0 1px 2px rgba(31, 54, 62, 0.06);
+  --shadow-md: 0 5px 16px -6px rgba(31, 54, 62, 0.16);
+  --shadow-lg: 0 16px 40px -12px rgba(31, 54, 62, 0.22);
+  --shadow-glow: 0 0 0 3px rgba(3, 105, 161, 0.12);
+  --shadow-glow-success: 0 0 0 3px rgba(4, 108, 78, 0.12);
 
   /* Barras de Desplazamiento */
   --scrollbar-thumb: rgba(72, 98, 130, 0.35);
@@ -144,18 +144,18 @@ body.light-theme {
 
 /* Ajustes Específicos de Componentes para Tema Claro */
 body.light-theme .app-header {
-  background-color: rgba(240, 245, 250, 0.95);
-  border-bottom-color: #D2DEEB;
+  background-color: var(--bg-glass);
+  border-bottom-color: var(--border-subtle);
 }
 
 body.light-theme .app-sidebar {
-  background-color: #F0F5FA;
-  border-right-color: #D2DEEB;
+  background-color: var(--bg-surface);
+  border-right-color: var(--border-subtle);
 }
 
 body.light-theme .nav-btn:hover {
-  background-color: #E2ECF5;
-  color: #0A192F;
+  background-color: var(--bg-surface-hover);
+  color: var(--text-bright);
 }
 
 body.light-theme .nav-btn.active {
@@ -165,13 +165,13 @@ body.light-theme .nav-btn.active {
 }
 
 body.light-theme .chat-channels-panel {
-  background-color: #F5F9FC;
-  border-right-color: #D2DEEB;
+  background-color: var(--bg-surface);
+  border-right-color: var(--border-subtle);
 }
 
 body.light-theme .channel-item:hover,
 body.light-theme .dm-item:hover {
-  background-color: #E6EFF7;
+  background-color: var(--bg-surface-hover);
 }
 
 body.light-theme .channel-item.active,
@@ -181,18 +181,18 @@ body.light-theme .dm-item.active {
 }
 
 body.light-theme .chat-conversation-panel {
-  background-color: #EAF0F6;
+  background-color: var(--bg-canvas);
 }
 
 body.light-theme .chat-messages-container {
-  background-color: #EAF0F6;
+  background-color: var(--bg-canvas);
 }
 
 body.light-theme .incoming .msg-bubble,
 body.light-theme .incoming .message-bubble {
-  background: #FFFFFF;
-  border-color: #D2DEEB;
-  box-shadow: 0 1px 3px rgba(10, 25, 47, 0.05);
+  background: var(--bg-surface-elevated);
+  border-color: var(--border-subtle);
+  box-shadow: var(--shadow-sm);
 }
 
 body.light-theme .node-card,
@@ -200,16 +200,16 @@ body.light-theme .contact-card,
 body.light-theme .analytics-kpi-card,
 body.light-theme .settings-card,
 body.light-theme .metric-card {
-  background: #FFFFFF;
-  border-color: #D2DEEB;
-  box-shadow: 0 2px 5px rgba(10, 25, 47, 0.05);
+  background: var(--bg-surface-elevated);
+  border-color: var(--border-subtle);
+  box-shadow: var(--shadow-sm);
 }
 
 body.light-theme .node-card:hover,
 body.light-theme .contact-card:hover,
 body.light-theme .settings-card:hover {
-  border-color: #8BA2BA;
-  box-shadow: 0 6px 14px rgba(10, 25, 47, 0.08);
+  border-color: var(--border-medium);
+  box-shadow: var(--shadow-md);
 }
 
 body.light-theme .linux-terminal,
@@ -275,13 +275,13 @@ body.light-theme .modal-close:hover {
 }
 
 body.light-theme .airtime-progress-bar-bg {
-  background: #e2ecf5;
-  border-color: #d2deeb;
+  background: var(--bg-surface-hover);
+  border-color: var(--border-subtle);
 }
 
 body.light-theme .toast,
 body.light-theme .toast-item {
-  background-color: #ffffff;
+  background-color: var(--bg-surface-elevated);
   color: var(--text-bright);
   border-color: var(--border-medium);
   box-shadow: 0 10px 25px rgba(10, 25, 47, 0.12);

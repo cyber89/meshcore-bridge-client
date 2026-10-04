@@ -2,6 +2,8 @@
 
 Fecha: **2026-10-03** (America/New_York). Checkout auditado: **`9f561932d648470e8c8bd23fc789a66bdb378d0e`**. Entrega: análisis, reproducciones aisladas y plan de corrección; **no se modifica código de producción ni hardware**.
 
+> Alcance temporal: los resultados de este informe describen exclusivamente `9f56193`. Durante el trabajo posterior aparecieron `f9efe01` (correcciones de configuración), `13d7157` y `7a93028` (diálogos). Sus cambios no están revalidados por estas reproducciones y el listado de defectos no debe interpretarse como el estado de esas versiones. La mejora visual posterior se documenta en [FRONTEND_VISUAL_REFRESH_2026-10-03.md](FRONTEND_VISUAL_REFRESH_2026-10-03.md).
+
 ## 1. Resultado y objetivos
 
 **No se puede afirmar que todos los parámetros se lean y escriban sin errores.** La revisión actual confirma mejoras del último commit y encuentra defectos que siguen impidiendo ese objetivo. Entre ellos: guardar radio local envía un PIN no editado como cero; la API GET conserva el PIN; AutoAdd falla cuando incluye `max_hops`; hay etiquetas de permisos de telemetría invertidas; varias claves remotas aceptadas no producen comandos; y la interfaz llama «aplicado» a un resultado sólo despachado.

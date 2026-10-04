@@ -7,9 +7,10 @@
    Modal de Administración de Repetidor Remoto (Optimizado & Altamente Legible)
    ============================================================================== */
 .modal-card.repeater-admin-modal-card {
-  max-width: 960px !important;
-  width: 95vw !important;
-  max-height: 92vh !important;
+  max-width: 1080px !important;
+  width: calc(100vw - 48px) !important;
+  max-height: calc(100dvh - 48px) !important;
+  min-height: 0;
   display: flex !important;
   flex-direction: column !important;
   background: var(--bg-surface);
@@ -24,7 +25,7 @@
 }
 
 .repeater-admin-modal-header {
-  padding: 14px 22px;
+  padding: 20px 24px;
   background: linear-gradient(180deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.9) 100%);
   border-bottom: 1px solid var(--border-medium);
   display: flex;
@@ -42,8 +43,9 @@
 }
 
 .header-node-info h3 {
-  font-size: 16px;
+  font-size: clamp(15px, 1.6vw, 19px);
   font-weight: 700;
+  overflow-wrap: anywhere;
   color: var(--text-bright);
   margin: 0;
   display: flex;
@@ -211,12 +213,16 @@
   flex: 1;
   align-items: center;
   justify-content: center;
-  padding: 48px 24px;
+  padding: clamp(20px, 5vh, 48px) 24px;
+  min-height: 0;
+  overflow-y: auto;
   background: radial-gradient(circle at 50% 30%, rgba(56, 189, 248, 0.1) 0%, rgba(15, 23, 42, 0.95) 75%), var(--bg-canvas);
-  min-height: 440px;
+  max-height: calc(100dvh - 144px);
 }
 
 .auth-gate-card {
+  flex-shrink: 0;
+  margin-block: auto;
   max-width: 480px;
   width: 100%;
   background: linear-gradient(145deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%);
@@ -405,7 +411,7 @@
   gap: 6px;
   text-align: center;
   min-width: 0;
-  min-height: 38px;
+  min-height: 44px;
 }
 
 .repeater-subtabs .subtab-btn:hover {
@@ -424,13 +430,38 @@
 }
 
 .repeater-admin-modal-body {
-  padding: 20px 22px;
+  padding: 24px;
+  min-height: 0;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   overflow-y: auto;
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-height: calc(92vh - 160px);
+  max-height: none;
+}
+
+.repeater-admin-modal-body .form-actions-full {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  grid-column: 1 / -1;
+  padding: 16px 0 8px;
+  background: var(--bg-surface);
+  border-top-color: var(--border-medium);
+}
+
+.repeater-admin-modal-body .form-actions-full button {
+  min-height: 44px;
+  min-width: 128px;
+}
+
+.repeater-subtabs .subtab-btn:focus-visible,
+.local-subtab-btn:focus-visible,
+.auth-gate-actions button:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 3px;
 }
 
 .repeater-subpanel {
@@ -575,13 +606,13 @@
 /* Grid de Formulario de Radio y Secciones */
 .grid-form-3col {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
 .grid-form-2col {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -884,10 +915,11 @@
   right: 0 !important;
   bottom: 0 !important;
   width: 100vw !important;
-  height: 100vh !important;
-  background: rgba(7, 11, 20, 0.82);
-  backdrop-filter: blur(14px) saturate(180%);
-  -webkit-backdrop-filter: blur(14px) saturate(180%);
+  height: 100dvh !important;
+  padding: 24px;
+  background: rgba(7, 11, 20, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -904,7 +936,12 @@
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg), 0 0 30px rgba(56, 189, 248, 0.15);
   overflow: hidden;
-  max-width: 95vw;
+  width: min(620px, 100%);
+  max-width: 100%;
+  max-height: calc(100dvh - 48px);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   animation: modalZoomIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -928,20 +965,26 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 20px;
+  padding: 20px 24px;
+  gap: 16px;
+  flex-shrink: 0;
   border-bottom: 1px solid var(--border-subtle);
   background: var(--bg-surface-elevated);
 }
 
 .modal-header h3 {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-main);
+  font-size: 17px;
+  line-height: 1.35;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  color: var(--text-bright);
 }
 
 .modal-body {
-  padding: 16px 20px;
-  max-height: 70vh;
+  padding: 24px;
+  min-height: 0;
+  flex: 1 1 auto;
+  overscroll-behavior: contain;
   overflow-y: auto;
 }
 
@@ -950,14 +993,22 @@
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
-  padding: 14px 20px;
+  padding: 16px 24px;
+  flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
   border-top: 1px solid var(--border-subtle);
-  background: var(--bg-surface);
+  background: var(--bg-surface-elevated);
+}
+
+.modal-footer button {
+  min-height: 44px;
 }
 
 .modal-close {
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border-radius: var(--radius-full);
   display: inline-flex;
@@ -1262,6 +1313,8 @@
 
 .cmd-palette-header input {
   flex: 1;
+  min-width: 0;
+  min-height: 44px;
   background: var(--bg-surface-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
@@ -1285,7 +1338,8 @@
 }
 
 .cmd-palette-results {
-  max-height: 320px;
+  max-height: min(440px, 60dvh);
+  min-height: 0;
   overflow-y: auto;
   padding: 8px;
   display: flex;
@@ -3689,14 +3743,32 @@ select {
 /* ==============================================================================
    ☀️ LIGHT THEME COMPATIBILITY: LINUX TERMINAL & REPEATER REMOTE ADMIN
    ============================================================================== */
+body.light-theme .modal-overlay {
+  background: rgba(30, 47, 53, 0.58);
+}
+
+body.light-theme .repeater-auth-gate {
+  background: var(--bg-surface-hover);
+}
+
+body.light-theme .auth-gate-card {
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-lg);
+}
+
+body.light-theme .auth-gate-status.error {
+  color: var(--accent-danger);
+  background: var(--bg-danger-soft);
+}
+
 body.light-theme .modal-card.repeater-admin-modal-card {
-  background: var(--bg-surface-elevated, #ffffff);
+  background: var(--bg-surface);
   border-color: var(--border-medium, #bacbdc);
   box-shadow: 0 20px 48px -10px rgba(10, 25, 47, 0.18), 0 0 0 1px rgba(2, 132, 199, 0.15);
 }
 
 body.light-theme .repeater-admin-modal-header {
-  background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+  background: var(--bg-surface-elevated);
   border-bottom: 1px solid var(--border-subtle, #d2deeb);
 }
 
@@ -3705,23 +3777,23 @@ body.light-theme .repeater-admin-modal-header h3 {
 }
 
 body.light-theme .repeater-auth-strip {
-  background: #f1f5f9;
+  background: var(--bg-surface-hover);
   border-bottom: 1px solid var(--border-subtle, #d2deeb);
 }
 
 body.light-theme .repeater-subtabs {
-  background: #e2e8f0;
+  background: var(--bg-surface-hover);
   border-bottom: 1px solid var(--border-subtle, #d2deeb);
 }
 
 body.light-theme .repeater-subtabs .subtab-btn {
-  color: #475569;
+  color: var(--text-muted);
   background: transparent;
 }
 
 body.light-theme .repeater-subtabs .subtab-btn:hover {
-  color: #0f172a;
-  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-bright);
+  background: var(--bg-surface-hover);
 }
 
 body.light-theme .repeater-subtabs .subtab-btn.active {
@@ -3731,41 +3803,41 @@ body.light-theme .repeater-subtabs .subtab-btn.active {
 }
 
 body.light-theme .linux-term-window {
-  background: #f8fafc;
-  border: 1px solid #cbd5e1;
-  box-shadow: 0 6px 24px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-medium);
+  box-shadow: 0 6px 24px rgba(15, 23, 42, 0.08), inset 0 1px 0 var(--border-subtle);
 }
 
 body.light-theme .linux-term-header {
-  background: #e2e8f0;
-  border-bottom: 1px solid #cbd5e1;
+  background: var(--bg-surface-hover);
+  border-bottom: 1px solid var(--border-medium);
 }
 
 body.light-theme .linux-term-title {
-  color: #1e293b;
+  color: var(--text-main);
   font-weight: 700;
 }
 
 body.light-theme .btn-outline-term {
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  color: #334155;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-medium);
+  color: var(--text-main);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 body.light-theme .btn-outline-term:hover {
-  background: #f1f5f9;
-  color: #0f172a;
-  border-color: #94a3b8;
+  background: var(--bg-surface-hover);
+  color: var(--text-bright);
+  border-color: var(--border-control);
 }
 
 body.light-theme .linux-term-body {
-  background: #ffffff;
-  color: #0f172a;
+  background: var(--bg-surface-elevated);
+  color: var(--text-bright);
 }
 
 body.light-theme .linux-term-body .term-sys {
-  color: #64748b;
+  color: var(--text-muted);
 }
 
 body.light-theme .linux-term-body .term-cmd {
@@ -3774,7 +3846,7 @@ body.light-theme .linux-term-body .term-cmd {
 }
 
 body.light-theme .linux-term-body .term-resp {
-  color: #1e293b;
+  color: var(--text-main);
   font-weight: 600;
 }
 
@@ -3794,12 +3866,12 @@ body.light-theme .linux-term-body .term-warning {
 }
 
 body.light-theme .linux-term-body .term-info {
-  color: #475569;
+  color: var(--text-muted);
 }
 
 body.light-theme .linux-term-input-bar {
-  background: #f1f5f9;
-  border-top: 1px solid #cbd5e1;
+  background: var(--bg-surface-hover);
+  border-top: 1px solid var(--border-medium);
 }
 
 body.light-theme .linux-term-input-bar:focus-within {
@@ -3813,27 +3885,27 @@ body.light-theme .linux-term-prompt {
 }
 
 body.light-theme .linux-term-input {
-  color: #0f172a;
+  color: var(--text-bright);
 }
 
 body.light-theme .linux-term-input::placeholder {
-  color: #94a3b8;
+  color: var(--text-dim);
 }
 
 body.light-theme .terminal-help-drawer {
-  background: #f8fafc;
-  border: 1px solid #cbd5e1;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-medium);
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
 }
 
 body.light-theme .help-drawer-header {
   color: var(--accent-primary);
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 body.light-theme .help-cmd-item {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
@@ -3848,18 +3920,18 @@ body.light-theme .help-cmd-item code {
 }
 
 body.light-theme .help-cmd-item span {
-  color: #475569;
+  color: var(--text-muted);
 }
 
 body.light-theme .rep-quick-cmd-panel {
-  background: #ffffff;
+  background: var(--bg-surface-elevated);
   border: 1px solid var(--border-subtle, #d2deeb);
   box-shadow: 0 1px 3px rgba(10, 25, 47, 0.05);
 }
 
 body.light-theme .rep-quick-cmd-bar {
-  background: #f1f5f9;
-  border: 1px solid #cbd5e1;
+  background: var(--bg-surface-hover);
+  border: 1px solid var(--border-medium);
 }
 
 body.light-theme .rep-quick-cmd-bar:focus-within {
@@ -4094,4 +4166,25 @@ body.light-theme .rep-quick-feedback.error {
 
 .term-info {
   color: var(--text-muted, #94a3b8);
+}
+
+/* Los tamaños remotos se resuelven aquí, después de components.css. */
+@media (max-width: 860px) {
+  .modal-overlay {
+    padding: 16px;
+  }
+
+  .modal-card.repeater-admin-modal-card {
+    width: calc(100vw - 32px) !important;
+    max-width: calc(100vw - 32px) !important;
+    max-height: calc(100dvh - 32px) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .modal-card.repeater-admin-modal-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: calc(100dvh - 16px) !important;
+  }
 }
