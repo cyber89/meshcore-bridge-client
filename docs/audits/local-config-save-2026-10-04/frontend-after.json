@@ -1,0 +1,80 @@
+{
+  "baseline": false,
+  "revision": "working-tree",
+  "passed": 18,
+  "total": 18,
+  "cases": [
+    {
+      "name": "single_power_only",
+      "passed": true
+    },
+    {
+      "name": "policy_only_does_not_reset_radio",
+      "passed": true
+    },
+    {
+      "name": "name_only_omits_unsupported_metadata",
+      "passed": true
+    },
+    {
+      "name": "no_changes_no_post",
+      "passed": true
+    },
+    {
+      "name": "http_failure_not_success",
+      "passed": true
+    },
+    {
+      "name": "unconfirmed_no_optimistic_payload",
+      "passed": true
+    },
+    {
+      "name": "partial_clears_only_acknowledged",
+      "passed": true
+    },
+    {
+      "name": "status_ok_missing_key_not_success",
+      "passed": true
+    },
+    {
+      "name": "old_get_cannot_undo_saved_config",
+      "passed": true
+    },
+    {
+      "name": "editing_while_saving_preserves_new_draft",
+      "passed": true
+    },
+    {
+      "name": "same_value_edited_while_saving_remains_draft",
+      "passed": true
+    },
+    {
+      "name": "clamped_ack_updates_focused_field",
+      "passed": true
+    },
+    {
+      "name": "pending_reboot_not_claimed_active",
+      "passed": true
+    },
+    {
+      "name": "unsupported_periodic_controls_disabled",
+      "passed": true
+    },
+    {
+      "name": "nonfinite_not_serialized_as_null",
+      "passed": true
+    },
+    {
+      "name": "disconnect_keeps_save_button_disabled",
+      "passed": true
+    },
+    {
+      "name": "null_applied_is_not_confirmation",
+      "passed": true
+    },
+    {
+      "name": "false_and_zero_acknowledgements_are_valid",
+      "passed": true
+    }
+  ]
+}

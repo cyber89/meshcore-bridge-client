@@ -1,0 +1,33 @@
+{
+  "date": "2026-10-04",
+  "baseline": "226f8aceb17bb35fb285dc8a2f6300bb05a0a577",
+  "scope": "Local Companion configuration saves; isolated station, no physical radio",
+  "python": "3.12.14",
+  "pytest": "9.1.1",
+  "backend": {
+    "passed": 117,
+    "failed": 0,
+    "junit": "tests/artifacts/local-config-backend.xml",
+    "coverage_xml": "tests/artifacts/local-config-coverage.xml",
+    "coverage_scope": "Selected administration, REST, protocol and configuration tests; not full suite",
+    "coverage_percent_src_rounded": 39,
+    "coverage_percent_local_executor_rounded": 72
+  },
+  "frontend": {
+    "passed": 97,
+    "failed": 0,
+    "junit": "tests/artifacts/local-config-frontend.xml",
+    "selection": [
+      "tests/test_frontend_exhaustive_audit.py",
+      "tests/test_frontend_ui_audit.py",
+      "tests/test_frontend_i18n_audit.py",
+      "tests/test_frontend_followup.py",
+      "tests/test_local_config_save_browser.py"
+    ]
+  },
+  "isolated_javascript": {"baseline_passed": 2, "final_passed": 18, "total": 18},
+  "historical_backend": {"passed": 2, "failed": 17, "errors": 0, "total": 19},
+  "mypy_strict": {"source_files": 60, "errors": 0},
+  "ruff": {"errors": 0, "scope": "src tests scripts and baseline reproducer"},
+  "hardware_verified": false
+}

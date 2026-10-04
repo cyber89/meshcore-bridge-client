@@ -18,6 +18,9 @@ export class SettingsModule {
     this.cachedConfig = {};
     this.observedConfig = {};
     this.dirtyFields = new Set();
+    this._fieldEditVersions = new Map();
+    this._configRevision = 0;
+    this._configReadSequence = 0;
     this._isSavingRadio = false;
     this._isSavingIdentity = false;
     this._deviceClockHostBase = null;
@@ -50,6 +53,7 @@ export class SettingsModule {
         option.textContent = I18n.t('settings.secondary_channel', { p0: option.value });
       });
     }
+    this._applyLocalConfigCapabilities();
   }
 
   _startLiveTick() {
@@ -165,7 +169,7 @@ export class SettingsModule {
   _setFieldIfNotDirty(id, value, isChecked = null) {
     if (this.dirtyFields.has(id)) return;
     const el = document.getElementById(id);
-    if (!el || document.activeElement === el) return;
+    if (!el || (document.activeElement === el && !this._confirmedFieldIds?.has(id))) return;
     if (isChecked !== null) {
       el.checked = Boolean(isChecked);
     } else if (value != null) {
@@ -178,6 +182,7 @@ export class SettingsModule {
     const markDirty = (e) => {
       if (e.target && e.target.id) {
         this.dirtyFields.add(e.target.id);
+        this._fieldEditVersions.set(e.target.id, (this._fieldEditVersions.get(e.target.id) || 0) + 1);
       }
     };
     [
@@ -499,6 +504,8 @@ export class SettingsModule {
         const reg = e.target.value;
         if (REGION_FREQUENCIES[reg]) {
           freqInput.value = REGION_FREQUENCIES[reg];
+          this.dirtyFields.add("localFreq");
+          this._fieldEditVersions.set("localFreq", (this._fieldEditVersions.get("localFreq") || 0) + 1);
           const sumFreq = document.getElementById("localSummaryFreq");
           if (sumFreq) sumFreq.textContent = `${REGION_FREQUENCIES[reg]} MHz`;
         }
@@ -579,7 +586,8 @@ export class SettingsModule {
             badge.classList.toggle("badge-active", checked);
           }
           if (input) {
-            input.disabled = !checked;
+            const capability = inputId === "localTelemetryInterval" ? "telemetry_interval" : "advert_interval";
+            input.disabled = !checked || this.cachedConfig.capabilities?.[capability] === false;
             input.style.opacity = checked ? "1" : "0.5";
           }
         });
@@ -1385,13 +1393,16 @@ export class SettingsModule {
   }
 
   async fetchLocalNodeConfig(force = false) {
+    if (this._isSavingRadio || this._isSavingIdentity) return;
+    const revision = this._configRevision;
+    const readSequence = ++this._configReadSequence;
     try {
       const url = force ? "/api/config?refresh=true" : "/api/config";
       const res = await fetch(url, {
         headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
       });
       const data = await res.json();
-      if (data.status === "ok" && data.data) {
+      if (res.ok && data.status === "ok" && data.data && revision === this._configRevision && readSequence === this._configReadSequence) {
         this._lastFetchTime = Date.now();
         this.populateLocalConfig(data.data);
       }
@@ -1432,7 +1443,7 @@ export class SettingsModule {
     const radioSubmit = this.dom.localRadioForm?.querySelector("button[type='submit']");
     const ownerSubmit = this.dom.localOwnerPosForm?.querySelector("button[type='submit']");
     if (radioSubmit) {
-      radioSubmit.disabled = isDisconnected;
+      radioSubmit.disabled = isDisconnected || this._isSavingRadio;
       if (isDisconnected) {
         radioSubmit.title = I18n.t("settings.radio_disconnected_notice");
       } else {
@@ -1440,7 +1451,7 @@ export class SettingsModule {
       }
     }
     if (ownerSubmit) {
-      ownerSubmit.disabled = isDisconnected;
+      ownerSubmit.disabled = isDisconnected || this._isSavingIdentity;
       if (isDisconnected) {
         ownerSubmit.title = I18n.t("settings.radio_disconnected_notice");
       } else {
@@ -1817,150 +1828,172 @@ export class SettingsModule {
       const isConnected = Boolean(cfg.serial_connected ?? cfg.radio_connected);
       this.ctx.updateRadioBadge(isConnected, cfg.serial_port || "");
     }
+    this._applyLocalConfigCapabilities();
+  }
+
+  _applyLocalConfigCapabilities() {
+    const capabilities = this.cachedConfig.capabilities || {};
+    for (const [key, ids] of [
+      ["telemetry_interval", ["localTelemetryEnable", "localTelemetryInterval"]],
+      ["advert_interval", ["localAdvertEnable", "localAdvertInterval"]],
+      ["hop_limit", ["localHopLimit"]], ["owner_info", ["localOwnerInfo"]],
+      ["altitude", ["localGpsAlt"]], ["fixed_position", ["localPosFixed"]],
+    ]) {
+      if (capabilities[key] !== false) continue;
+      for (const id of ids) {
+        const element = document.getElementById(id);
+        if (!element) continue;
+        element.disabled = true;
+        element.title = I18n.t("settings.config_unsupported");
+        if (id === "localTelemetryInterval" || id === "localAdvertInterval") element.value = "";
+        if (id === "localTelemetryEnable" || id === "localAdvertEnable") {
+          element.checked = false;
+          const badge = document.getElementById(`${id}Badge`);
+          if (badge) {
+            I18n.setText(badge, "common.off");
+            badge.classList.remove("badge-active");
+          }
+        }
+      }
+    }
+  }
+
+  _localFieldValue(id) {
+    const element = document.getElementById(id);
+    return element?.type === "checkbox" ? Boolean(element.checked) : (element?.value ?? "");
+  }
+
+  _collectLocalConfigDraft(fields) {
+    const payload = {};
+    const snapshot = new Map();
+    for (const [id, key, convert] of fields) {
+      if (!this.dirtyFields.has(id)) continue;
+      const raw = this._localFieldValue(id);
+      const value = convert(raw);
+      if (typeof value === "number" && !Number.isFinite(value)) {
+        throw new Error(I18n.t("settings.invalid_value"));
+      }
+      payload[key] = value;
+      snapshot.set(id, { key, raw, version: this._fieldEditVersions.get(id) || 0 });
+    }
+    return { payload, snapshot };
+  }
+
+  _hasAppliedConfigKey(applied, key) {
+    const canonical = key === "altitude_m" ? "altitude" : key;
+    return [key, canonical].some(name => Object.hasOwn(applied, name) && applied[name] != null && (typeof applied[name] !== "number" || Number.isFinite(applied[name])));
+  }
+
+  _applyLocalConfigSaveResult(data, snapshot) {
+    const result = data.data && typeof data.data === "object" ? data.data : data;
+    const applied = result.applied && typeof result.applied === "object" ? result.applied : {};
+    const confirmedFields = new Set();
+    // The requested payload is never evidence that the device accepted a change.
+    for (const [id, saved] of snapshot) {
+      if (!this._hasAppliedConfigKey(applied, saved.key)) continue;
+      if (!result.pending_reboot && !result.reboot_required && this._localFieldValue(id) === saved.raw && (this._fieldEditVersions.get(id) || 0) === saved.version) {
+        this.dirtyFields.delete(id);
+        confirmedFields.add(id);
+      }
+    }
+    const confirmed = result.config || data.config || applied;
+    this._confirmedFieldIds = confirmedFields;
+    try {
+      if (confirmed && typeof confirmed === "object") this.populateLocalConfig(confirmed);
+    } finally {
+      this._confirmedFieldIds = null;
+    }
+    return { result, applied };
+  }
+
+  async _saveLocalConfigDraft(kind, draft) {
+    if (Object.keys(draft.payload).length === 0) {
+      this._notify(I18n.t("settings.no_config_changes"), "info");
+      return;
+    }
+    const isRadio = kind === "radio";
+    const savingFlag = isRadio ? "_isSavingRadio" : "_isSavingIdentity";
+    if (this[savingFlag]) return;
+    this[savingFlag] = true;
+    ++this._configRevision;
+    const form = isRadio ? this.dom.localRadioForm : this.dom.localOwnerPosForm;
+    const submitBtn = form?.querySelector("button[type='submit']");
+    if (submitBtn) submitBtn.disabled = true;
+    try {
+      const response = await fetch(`/api/config/${kind}`, {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
+        body: JSON.stringify(draft.payload),
+      });
+      const data = await response.json();
+      ++this._configRevision;
+      const { result, applied } = this._applyLocalConfigSaveResult(data, draft.snapshot);
+      const allApplied = Object.keys(draft.payload).every(key => this._hasAppliedConfigKey(applied, key));
+      if (response.ok && data.status === "ok" && (!result.status || result.status === "ok") && allApplied) {
+        if (result.pending_reboot || result.reboot_required) {
+          this._notify(I18n.t("settings.config_pending_reboot"), "warning");
+        } else {
+          this._notify(I18n.t(isRadio ? 'toast.radio_cfg_ok' : 'toast.identity_ok'), "success");
+        }
+      } else {
+        const detail = data.detail || result.detail || data.message || result.message || data.error || I18n.t("settings.config_unconfirmed");
+        this._notify(I18n.t(isRadio ? 'settings.radio_save_error' : 'settings.identity_save_error', { error: detail }), "error");
+      }
+    } catch (error) {
+      ++this._configRevision;
+      this._notify(I18n.t(isRadio ? 'settings.radio_save_network_error' : 'settings.network_error', { error: error.message, p0: error.message }), "error");
+    } finally {
+      this[savingFlag] = false;
+      const disconnected = this.cachedConfig.serial_connected === false || this.cachedConfig.radio_connected === false;
+      if (submitBtn) submitBtn.disabled = disconnected;
+    }
   }
 
   async saveLocalRadioConfig() {
     if (this._isSavingRadio) return;
-    const submitBtn = this.dom.localRadioForm?.querySelector("button[type='submit']");
-    this._isSavingRadio = true;
-    if (submitBtn) submitBtn.disabled = true;
-
+    const numeric = raw => String(raw).trim() === "" ? NaN : Number(raw);
+    const fields = [
+      ["localFreq", "frequency", numeric], ["localTxPower", "tx_power", numeric],
+      ["localSf", "spreading_factor", numeric], ["localBw", "bandwidth", numeric],
+      ["localCr", "coding_rate", String], ["localRepeatMode", "repeat", Boolean],
+      ["localHopLimit", "hop_limit", numeric], ["localPathHashMode", "path_hash_mode", numeric],
+      ["localRxDelay", "rx_delay", numeric], ["localAirtimeFactor", "airtime_factor", numeric],
+      ["localTelemBase", "telemetry_mode_base", numeric], ["localTelemLoc", "telemetry_mode_loc", numeric],
+      ["localTelemEnv", "telemetry_mode_env", numeric], ["localAdvLocPolicy", "adv_loc_policy", Boolean],
+      ["localMultiAcks", "multi_acks", Boolean], ["localManualAddContacts", "manual_add_contacts", Boolean],
+      ["localDevicePin", "pin", raw => String(raw).trim() === "" ? 0 : Number(raw)],
+      ["localAdvertInterval", "advert_interval", numeric], ["localTelemetryInterval", "telemetry_interval", numeric],
+    ];
     try {
-      const freq = parseFloat(document.getElementById("localFreq")?.value || "915.000");
-      const tx_power = parseInt(document.getElementById("localTxPower")?.value || "20", 10);
-      const sf = parseInt(document.getElementById("localSf")?.value || "11", 10);
-      const bw = parseFloat(document.getElementById("localBw")?.value || "250");
-      const cr = document.getElementById("localCr")?.value || "4/5";
-      const hop_limit = parseInt(document.getElementById("localHopLimit")?.value || "3", 10);
-      const repeat = Boolean(document.getElementById("localRepeatMode")?.checked);
-      const advertEnabled = Boolean(document.getElementById("localAdvertEnable")?.checked);
-      const advert_interval = advertEnabled
-        ? parseInt(document.getElementById("localAdvertInterval")?.value || "300", 10)
-        : 0;
-
-      const telemEnabled = Boolean(document.getElementById("localTelemetryEnable")?.checked);
-      const telemetry_interval = telemEnabled
-        ? parseInt(document.getElementById("localTelemetryInterval")?.value || "60", 10)
-        : 0;
-
-      const isDirty = (id) => this.dirtyFields.has(id);
-      const path_hash_mode = parseInt(document.getElementById("localPathHashMode")?.value || "0", 10);
-      const rxDelayVal = document.getElementById("localRxDelay")?.value.trim();
-      const rx_delay = rxDelayVal ? parseFloat(rxDelayVal) : 0;
-      const airtimeFactorVal = document.getElementById("localAirtimeFactor")?.value.trim();
-      const airtime_factor = airtimeFactorVal ? parseFloat(airtimeFactorVal) : 0;
-      let telemetry_mode_base = parseInt(document.getElementById("localTelemBase")?.value || "1", 10);
-      if (!telemEnabled) {
-        telemetry_mode_base = 0;
+      const draft = this._collectLocalConfigDraft(fields);
+      for (const [toggle, input, key] of [
+        ["localAdvertEnable", "localAdvertInterval", "advert_interval"],
+        ["localTelemetryEnable", "localTelemetryInterval", "telemetry_interval"],
+      ]) {
+        if (!this.dirtyFields.has(toggle)) continue;
+        draft.payload[key] = this._localFieldValue(toggle) ? numeric(this._localFieldValue(input)) : 0;
+        if (!Number.isFinite(draft.payload[key])) throw new Error(I18n.t("settings.invalid_value"));
+        draft.snapshot.set(toggle, { key, raw: this._localFieldValue(toggle), version: this._fieldEditVersions.get(toggle) || 0 });
       }
-      const telemetry_mode_loc = parseInt(document.getElementById("localTelemLoc")?.value || "1", 10);
-      const telemetry_mode_env = parseInt(document.getElementById("localTelemEnv")?.value || "1", 10);
-      const adv_loc_policy = Boolean(document.getElementById("localAdvLocPolicy")?.checked);
-      const multi_acks = Boolean(document.getElementById("localMultiAcks")?.checked);
-      const manual_add_contacts = Boolean(document.getElementById("localManualAddContacts")?.checked);
-
-      const payload = {
-        frequency: freq,
-        tx_power,
-        spreading_factor: sf,
-        bandwidth: bw,
-        coding_rate: cr,
-        repeat,
-        hop_limit,
-        telemetry_interval,
-        advert_interval,
-        beacon_interval: advert_interval,
-        path_hash_mode,
-        rx_delay,
-        airtime_factor,
-        telemetry_mode_base,
-        telemetry_mode_loc,
-        telemetry_mode_env,
-        adv_loc_policy,
-        multi_acks,
-        manual_add_contacts,
-      };
-
-      // Omitir PIN si no fue explícitamente modificado por el usuario (VUI02)
-      if (isDirty("localDevicePin")) {
-        const pinVal = document.getElementById("localDevicePin")?.value.trim();
-        payload.pin = pinVal ? parseInt(pinVal, 10) : 0;
-      }
-
-      const res = await fetch("/api/config/radio", {
-        method: "POST",
-        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (data.status === "ok") {
-        const confirmed = data.config || data.applied || data.data?.config || data.data?.applied || payload;
-        const radioFields = [
-          "localFreq", "localTxPower", "localSf", "localBw", "localCr", "localRepeatMode",
-          "localHopLimit", "localTelemetryEnable", "localTelemetryInterval", "localAdvertEnable",
-          "localAdvertInterval", "localDevicePin", "localPathHashMode", "localRxDelay",
-          "localAirtimeFactor", "localTelemBase", "localTelemLoc", "localTelemEnv",
-          "localAdvLocPolicy", "localMultiAcks", "localManualAddContacts"
-        ];
-        radioFields.forEach((id) => this.dirtyFields.delete(id));
-        this.populateLocalConfig(confirmed);
-        if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.radio_cfg_ok'), "success");
-      } else {
-        const errMsg = data.detail || data.message || data.error || I18n.t('settings.unknown');
-        this._notify(I18n.t('settings.radio_save_error', { error: errMsg }), "error");
-      }
-    } catch (e) {
-      this._notify(I18n.t('settings.radio_save_network_error', { error: e.message }), "error");
-    } finally {
-      this._isSavingRadio = false;
-      if (submitBtn) submitBtn.disabled = false;
+      await this._saveLocalConfigDraft("radio", draft);
+    } catch (error) {
+      this._notify(I18n.t("settings.radio_save_error", { error: error.message }), "error");
     }
   }
 
   async saveLocalIdentityAndPosition() {
     if (this._isSavingIdentity) return;
-    const submitBtn = this.dom.localOwnerPosForm?.querySelector("button[type='submit']");
-    this._isSavingIdentity = true;
-    if (submitBtn) submitBtn.disabled = true;
-
+    const numeric = raw => String(raw).trim() === "" ? NaN : Number(raw);
     try {
-      const name = document.getElementById("localNodeName")?.value.trim() || "";
-      const owner_info = document.getElementById("localOwnerInfo")?.value.trim() || "";
-      const lat = parseFloat(document.getElementById("localGpsLat")?.value || "");
-      const lon = parseFloat(document.getElementById("localGpsLon")?.value || "");
-      const alt = parseFloat(document.getElementById("localGpsAlt")?.value || "");
-
-      const payload = { name, owner_info };
-      const posFixedElem = document.getElementById("localPosFixed");
-      if (posFixedElem) {
-        payload.fixed_position = Boolean(posFixedElem.checked);
-      }
-      if (!isNaN(lat) && !isNaN(lon)) {
-        payload.latitude = lat;
-        payload.longitude = lon;
-        if (!isNaN(alt)) payload.altitude_m = alt;
-      }
-
-      const res = await fetch("/api/config/identity", {
-        method: "POST",
-        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (data.status === "ok") {
-        const confirmed = data.config || data.applied || data.data?.config || data.data?.applied || payload;
-        ["localNodeName", "localOwnerInfo", "localGpsLat", "localGpsLon", "localGpsAlt", "localPosFixed"].forEach((id) => this.dirtyFields.delete(id));
-        this.populateLocalConfig(confirmed);
-        if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.identity_ok'), "success");
-      } else {
-        const errMsg = data.detail || data.message || data.error || I18n.t('settings.unknown');
-        this._notify(I18n.t('settings.identity_save_error', { error: errMsg }), "error");
-      }
-    } catch (e) {
-      this._notify(I18n.t('settings.network_error', { p0: e.message }), "error");
-    } finally {
-      this._isSavingIdentity = false;
-      if (submitBtn) submitBtn.disabled = false;
+      const draft = this._collectLocalConfigDraft([
+        ["localNodeName", "name", raw => String(raw).trim()],
+        ["localOwnerInfo", "owner_info", raw => String(raw).trim()],
+        ["localGpsLat", "latitude", numeric], ["localGpsLon", "longitude", numeric],
+        ["localGpsAlt", "altitude_m", numeric], ["localPosFixed", "fixed_position", Boolean],
+      ]);
+      await this._saveLocalConfigDraft("identity", draft);
+    } catch (error) {
+      this._notify(I18n.t("settings.identity_save_error", { error: error.message }), "error");
     }
   }
 

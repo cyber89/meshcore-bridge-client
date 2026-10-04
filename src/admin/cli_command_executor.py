@@ -795,24 +795,30 @@ class CliCommandExecutor:
 
     def _cli_show_config(self, cfg: dict[str, Any]) -> str:
         """Imprime el volcado completo de configuración NVS/JSON."""
+        def supported_value(key: str, unit: str = "") -> str:
+            if cfg.get("capabilities", {}).get(key) is False:
+                return "No soportado por Companion"
+            value = cfg.get(key)
+            return f"{value}{unit}" if value is not None else "--"
+
         return (
             "⚙️ [CONFIGURACIÓN COMPLETA DEL NODO LOCAL]\n"
             f"  [Identidad]\n"
             f"    • Nombre / Alias      : {cfg.get('name', '--')}\n"
             f"    • Clave Pública       : {cfg.get('public_key', '--')}\n"
             f"    • Rol del Dispositivo : {cfg.get('role', 'Base Station')}\n"
-            f"    • Propietario / Info  : {cfg.get('owner_info', '--')}\n"
+            f"    • Propietario / Info  : {supported_value('owner_info')}\n"
             f"  [Radio LoRa]\n"
             f"    • Frecuencia          : {cfg.get('frequency', 915.0):.3f} MHz\n"
             f"    • Potencia Transmisión: {cfg.get('tx_power', 20)} dBm\n"
             f"    • Modulación Módem    : SF{cfg.get('spreading_factor', 11)} / BW{cfg.get('bandwidth', 250)} kHz / CR {cfg.get('coding_rate', '4/5')}\n"
-            f"    • Límite de Saltos    : {cfg.get('hop_limit', 3)} saltos\n"
+            f"    • Límite de Saltos    : {supported_value('hop_limit', ' saltos')}\n"
             f"    • Modo Repetidor      : {'Activado' if cfg.get('repeat', False) else 'Desactivado'}\n"
             f"  [Temporizadores & Ubicación]\n"
-            f"    • Intervalo Anuncio   : {cfg.get('beacon_interval', cfg.get('advert_interval', 300))} s\n"
-            f"    • Intervalo Telemetría: {cfg.get('telemetry_interval', 60)} s\n"
-            f"    • Posición GPS        : Lat {cfg.get('latitude', 0.0)}, Lon {cfg.get('longitude', 0.0)}, Alt {cfg.get('altitude', 0.0)} m\n"
-            f"    • Posición Fija       : {'Sí' if cfg.get('fixed_position', True) else 'No'}"
+            f"    • Intervalo Anuncio   : {supported_value('beacon_interval', ' s')}\n"
+            f"    • Intervalo Telemetría: {supported_value('telemetry_interval', ' s')}\n"
+            f"    • Posición GPS        : Lat {cfg.get('latitude', 0.0)}, Lon {cfg.get('longitude', 0.0)}, Alt {supported_value('altitude', ' m')}\n"
+            f"    • Posición Fija       : {supported_value('fixed_position')}"
         )
 
     async def _cli_sensors(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:

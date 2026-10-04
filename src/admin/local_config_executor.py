@@ -3,7 +3,7 @@ LocalConfigExecutor: Gestión y parametrización del nodo local y módem LoRa co
 Descompone la lectura y escritura de configuración local:
 - get_local_config: Consolidación de parámetros de hardware, telemetría y uptime.
 - fetch_device_config: Consulta síncrona/asíncrona a la radio serial.
-- set_local_config: Modificación atómica de potencia TX, frecuencia, posición GPS y alias.
+- set_local_config: Modificación confirmada de potencia TX, frecuencia, posición GPS y alias.
 """
 
 from __future__ import annotations
@@ -31,6 +31,18 @@ from src.shared_utils import (
     get_hardware_power_limits,
     normalize_battery,
     to_bool,
+)
+
+# Companion exposes no write command or bridge scheduler for these historical UI fields.
+UNSUPPORTED_LOCAL_FIELDS = frozenset({
+    "telemetry_interval", "beacon_interval", "advert_interval", "hop_limit", "hops",
+    "owner_info", "owner", "altitude", "alt", "altitude_m",
+    "fixed_position", "pos_fixed",
+})
+
+OTHER_PARAM_FIELDS = (
+    "telemetry_mode_base", "telemetry_mode_loc", "telemetry_mode_env",
+    "multi_acks", "adv_loc_policy", "manual_add_contacts",
 )
 
 if TYPE_CHECKING:
@@ -82,8 +94,7 @@ class LocalConfigExecutor:
     def _get_device_baseline(self, field: str, aliases: tuple[str, ...]) -> Any:
         """Obtiene el baseline del dispositivo físico conectado (self_info) antes de recurrir al host."""
         mc = self._ctx.mc_provider()
-        for attr in ("self_info", "_self_info"):
-            si = getattr(mc, attr, None)
+        for si in (self._read_self_info(mc), getattr(mc, "_self_info", None)):
             if isinstance(si, dict):
                 for a in (field, *aliases):
                     if a in si and si[a] is not None:
@@ -92,6 +103,29 @@ class LocalConfigExecutor:
             if a in self._local_config and self._local_config[a] is not None:
                 return self._local_config[a]
         return None
+
+    def _sync_confirmed_self_info(self, mc: Any, fields: dict[str, Any]) -> None:
+        """Synchronize SDK and adapter snapshots after a confirmed write or read."""
+        snapshots = [self._read_self_info(mc), getattr(mc, "_self_info", None)]
+        adapter = getattr(self._ctx, "serial_adapter", None)
+        if adapter is not None:
+            snapshots.append(getattr(adapter, "self_info", None))
+        for snapshot in snapshots:
+            if isinstance(snapshot, dict):
+                snapshot.update(fields)
+
+    def _other_params_baseline(self, params: dict[str, Any], mc: Any) -> dict[str, Any]:
+        """Require each untouched packed setting to have an observed device value."""
+        current_info = self._read_self_info(mc)
+        infos = dict(current_info) if current_info is not None else {}
+        for key in OTHER_PARAM_FIELDS:
+            if key in params:
+                continue
+            value = self._get_device_baseline(key, ())
+            if value is None:
+                raise ValueError(f"Baseline del dispositivo no disponible para {key}; actualice desde el dispositivo antes de guardar")
+            infos[key] = value
+        return infos
 
     def get_local_config(self) -> dict[str, Any]:
         """Devuelve la configuración consolidada del nodo local y su telemetría."""
@@ -113,6 +147,11 @@ class LocalConfigExecutor:
         self._populate_uptime_and_airtime(cfg)
         self._populate_last_rf_metrics(cfg)
         self._populate_radio_limits(cfg, si)
+        cfg["capabilities"] = {
+            "telemetry_interval": False, "beacon_interval": False, "advert_interval": False,
+            "hop_limit": False, "owner_info": False, "altitude": False,
+            "fixed_position": False,
+        }
         return cfg
 
     def _read_self_info(self, mc: Any) -> dict[str, Any] | None:
@@ -306,6 +345,7 @@ class LocalConfigExecutor:
         app_data = extract_payload_dict(res_app)
         if app_data and isinstance(app_data, dict):
             self._apply_self_info_to_cfg(self._local_config, app_data)
+            self._sync_confirmed_self_info(mc, app_data)
             pk = app_data.get("public_key") or app_data.get("pubkey")
             if pk and self._ctx.node_registry:
                 pk_clean = str(pk).lower().strip()
@@ -478,14 +518,19 @@ class LocalConfigExecutor:
         if not isinstance(params, dict):
             raise ValueError("params debe ser un objeto")
 
+        unsupported = sorted(UNSUPPORTED_LOCAL_FIELDS.intersection(params))
+        if unsupported:
+            raise ValueError(
+                "Parámetros no soportados por el nodo local: " + ", ".join(unsupported)
+                + ". El firmware Companion no expone estos ajustes; no se aplicó ningún cambio."
+            )
+
         allowed_local_keys = frozenset({
             # Identidad y ubicación
-            "name", "latitude", "lat", "longitude", "lon", "altitude", "alt", "altitude_m", "owner_info", "owner",
+            "name", "latitude", "lat", "longitude", "lon",
             # Radio
             "frequency", "radio_freq", "bandwidth", "bw", "spreading_factor", "sf", "coding_rate", "cr",
             "tx_power", "power", "repeat", "repeat_enabled",
-            # Tiempos e intervalos
-            "beacon_interval", "advert_interval", "telemetry_interval", "hop_limit", "hops",
             # Parámetros de telemetría y políticas
             "telemetry_mode_base", "telemetry_mode_loc", "telemetry_mode_env",
             "multi_acks", "adv_loc_policy", "manual_add_contacts",
@@ -501,6 +546,9 @@ class LocalConfigExecutor:
         for k in params:
             if k not in allowed_local_keys:
                 raise ValueError(f"Parámetro de configuración local desconocido: '{k}'")
+
+        if any(key in params for key in OTHER_PARAM_FIELDS):
+            self._other_params_baseline(params, self._ctx.mc_provider())
 
         if "name" in params:
             name_val = str(params["name"]).strip()
@@ -524,16 +572,6 @@ class LocalConfigExecutor:
                     raise ValueError("Coordenadas fuera de rango (-90..90, -180..180)")
             except (ValueError, TypeError) as err:
                 raise ValueError("Coordenadas inválidas") from err
-
-        if "altitude" in params or "alt" in params or "altitude_m" in params:
-            alt_raw = params.get("altitude", params.get("alt", params.get("altitude_m")))
-            if alt_raw is not None:
-                try:
-                    alt_f = float(alt_raw)
-                    if math.isnan(alt_f) or math.isinf(alt_f):
-                        raise ValueError("Altitud inválida")
-                except (ValueError, TypeError) as err:
-                    raise ValueError(f"Altitud inválida: {alt_raw}") from err
 
         if "path_hash_mode" in params:
             try:
@@ -593,19 +631,6 @@ class LocalConfigExecutor:
             except (ValueError, TypeError) as err:
                 raise ValueError(f"Parámetros de radio inválidos: {err}") from err
 
-        # Prevalidación de tiempos e intervalos
-        for int_key in ("beacon_interval", "advert_interval", "telemetry_interval", "hop_limit", "hops"):
-            if int_key in params:
-                val = params[int_key]
-                if isinstance(val, bool):
-                    raise ValueError(f"El parámetro '{int_key}' no puede ser booleano")
-                try:
-                    i_val = int(val)
-                    if i_val < 0:
-                        raise ValueError(f"El parámetro '{int_key}' debe ser no negativo")
-                except (ValueError, TypeError) as err:
-                    raise ValueError(f"Parámetro '{int_key}' inválido: {val}") from err
-
         # Prevalidación de modos de telemetría
         for ok in ("telemetry_mode_base", "telemetry_mode_loc", "telemetry_mode_env"):
             if ok in params:
@@ -632,12 +657,23 @@ class LocalConfigExecutor:
                 except (ValueError, TypeError) as err:
                     raise ValueError(f"Parámetro '{tk}' inválido: {t_val}") from err
 
+        if any(key in params for key in ("rx_delay", "rx_dly", "airtime_factor", "af")):
+            for field, alias in (("rx_delay", "rx_dly"), ("airtime_factor", "af")):
+                if field not in params and alias not in params and self._get_device_baseline(field, (alias,)) is None:
+                    raise ValueError(f"Baseline de tuning no disponible para {field}; actualice desde el dispositivo o especifique ambos ajustes")
+
         # Prevalidación de custom_vars
         if "custom_vars" in params and not isinstance(params["custom_vars"], dict):
             raise ValueError("custom_vars debe ser un objeto/diccionario")
 
     async def set_local_config(self, admin_data: dict[str, Any], res: dict[str, Any], mc: Any) -> dict[str, Any]:
         """Aplica configuraciones locales sobre el nodo conectado."""
+        # A refresh must not restore an older SDK snapshot during a confirmed write.
+        async with self._fetch_lock:
+            return await self._set_local_config_locked(admin_data, res, mc)
+
+    async def _set_local_config_locked(self, admin_data: dict[str, Any], res: dict[str, Any], mc: Any) -> dict[str, Any]:
+        """Apply one save while hardware refreshes and other saves are excluded."""
         params = admin_data.get("params", admin_data)
         applied: dict[str, Any] = {}
 
@@ -647,7 +683,6 @@ class LocalConfigExecutor:
             self._prevalidate_local_params(params)
             await self._apply_identity_settings(params, applied, mc)
             await self._apply_radio_settings(params, applied, mc)
-            self._apply_timing_settings(params, applied, mc)
             await self._apply_other_params_settings(params, applied, mc)
             await self._apply_advanced_meshcore_settings(params, applied, mc)
         except Exception as error:
@@ -700,11 +735,7 @@ class LocalConfigExecutor:
             await self._write_device(mc, "set_name", new_name, timeout=2.0)
             self._local_config["name"] = new_name
             applied["name"] = new_name
-            if mc:
-                if hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
-                    mc.self_info["name"] = new_name
-                if hasattr(mc, "_self_info") and isinstance(mc._self_info, dict):
-                    mc._self_info["name"] = new_name
+            self._sync_confirmed_self_info(mc, {"name": new_name})
 
         lat_val = params.get("latitude", params.get("lat"))
         lon_val = params.get("longitude", params.get("lon"))
@@ -724,33 +755,12 @@ class LocalConfigExecutor:
                 self._local_config["longitude"] = lon_f
                 applied["latitude"] = lat_f
                 applied["longitude"] = lon_f
-                if mc:
-                    if hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
-                        mc.self_info["adv_lat"] = lat_f
-                        mc.self_info["adv_lon"] = lon_f
-                    if hasattr(mc, "_self_info") and isinstance(mc._self_info, dict):
-                        mc._self_info["adv_lat"] = lat_f
-                        mc._self_info["adv_lon"] = lon_f
+                self._sync_confirmed_self_info(mc, {
+                    "adv_lat": lat_f, "latitude": lat_f, "lat": lat_f,
+                    "adv_lon": lon_f, "longitude": lon_f, "lon": lon_f,
+                })
             except (ValueError, TypeError) as error:
                 raise ValueError("Coordenadas inválidas") from error
-
-        alt_val = params.get("altitude", params.get("alt", params.get("altitude_m")))
-        if alt_val is not None:
-            try:
-                alt_f = float(alt_val)
-                self._local_config["altitude"] = alt_f
-                applied["altitude"] = alt_f
-                if mc and hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
-                    mc.self_info["altitude"] = alt_f
-                if mc and hasattr(mc, "_self_info") and isinstance(mc._self_info, dict):
-                    mc._self_info["altitude"] = alt_f
-            except (ValueError, TypeError):
-                pass
-
-        if "owner_info" in params or "owner" in params:
-            owner = str(params.get("owner_info", params.get("owner", ""))).strip()
-            self._local_config["owner_info"] = owner
-            applied["owner_info"] = owner
 
     async def _apply_radio_settings(self, params: dict[str, Any], applied: dict[str, Any], mc: Any) -> None:
         """
@@ -767,11 +777,7 @@ class LocalConfigExecutor:
             await self._write_device(mc, "set_tx_power", new_p, timeout=2.0)
             self._local_config["tx_power"] = new_p
             applied["tx_power"] = new_p
-            if mc:
-                if hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
-                    mc.self_info["tx_power"] = new_p
-                if hasattr(mc, "_self_info") and isinstance(mc._self_info, dict):
-                    mc._self_info["tx_power"] = new_p
+            self._sync_confirmed_self_info(mc, {"tx_power": new_p})
 
         radio_keys = ("frequency", "radio_freq", "bandwidth", "bw", "spreading_factor", "sf", "coding_rate", "cr", "repeat", "repeat_enabled")
         if any(k in params for k in radio_keys):
@@ -828,7 +834,7 @@ class LocalConfigExecutor:
                 if new_cr is None:
                     raise ValueError(f"Baseline de coding rate inválido: {baseline_cr}")
 
-            rep_val = params.get("repeat", params.get("repeat_enabled", self._local_config.get("repeat", False)))
+            rep_val = params.get("repeat", params.get("repeat_enabled", self._get_device_baseline("repeat", ("repeat_enabled",))))
             new_rep = to_bool(rep_val)
 
             await self._write_device(mc, "set_radio", new_f, new_bw, new_sf, new_cr, int(new_rep), timeout=3.0)
@@ -856,26 +862,21 @@ class LocalConfigExecutor:
 
 
             update_fields = {
+                "frequency": new_f,
                 "freq": new_f,
                 "radio_freq": new_f,
+                "bandwidth": new_bw,
                 "bw": new_bw,
                 "radio_bw": new_bw,
+                "spreading_factor": new_sf,
                 "sf": new_sf,
                 "radio_sf": new_sf,
+                "coding_rate": new_cr,
                 "cr": new_cr,
                 "radio_cr": new_cr,
                 "repeat": new_rep,
             }
-            if mc:
-                raw_si = getattr(mc, "self_info", None)
-                if isinstance(raw_si, dict):
-                    raw_si.update(update_fields)
-                if hasattr(mc, "_self_info") and isinstance(mc._self_info, dict):
-                    mc._self_info.update(update_fields)
-
-            ser = getattr(self._ctx, "serial_adapter", None)
-            if ser and hasattr(ser, "self_info") and isinstance(ser.self_info, dict):
-                ser.self_info.update(update_fields)
+            self._sync_confirmed_self_info(mc, update_fields)
 
             rl = getattr(self._ctx, "rate_limiter", None)
             if rl and hasattr(rl, "radio_config") and rl.radio_config:
@@ -892,37 +893,9 @@ class LocalConfigExecutor:
                     rl.radio_config.cr = new_cr
                 logging.info("TxRateLimiter: Parámetros LoRa actualizados a SF%d, BW%.1f kHz, CR%d", new_sf, new_bw, new_cr)
 
-    def _apply_timing_settings(self, params: dict[str, Any], applied: dict[str, Any], mc: Any) -> None:
-        """Aplica intervalos de baliza (advert) y telemetría."""
-        if "beacon_interval" in params or "advert_interval" in params:
-            try:
-                adv_i = int(params.get("beacon_interval", params.get("advert_interval", 300)))
-                self._local_config["beacon_interval"] = adv_i
-                self._local_config["advert_interval"] = adv_i
-                applied["beacon_interval"] = adv_i
-                applied["advert_interval"] = adv_i
-            except (ValueError, TypeError):
-                pass
-
-        if "telemetry_interval" in params:
-            try:
-                tel_i = int(params["telemetry_interval"])
-                self._local_config["telemetry_interval"] = tel_i
-                applied["telemetry_interval"] = tel_i
-            except (ValueError, TypeError):
-                pass
-
-        if "hop_limit" in params or "hops" in params:
-            try:
-                hl = int(params.get("hop_limit", params.get("hops", 3)))
-                self._local_config["hop_limit"] = hl
-                applied["hop_limit"] = hl
-            except (ValueError, TypeError):
-                pass
-
     async def _apply_other_params_settings(self, params: dict[str, Any], applied: dict[str, Any], mc: Any) -> None:
         """Aplica modos de telemetría, políticas de anuncios y multi-acks."""
-        keys = ["telemetry_mode_base", "telemetry_mode_loc", "telemetry_mode_env", "multi_acks", "adv_loc_policy", "manual_add_contacts"]
+        keys = OTHER_PARAM_FIELDS
         need_update = any(k in params for k in keys)
 
         if need_update:
@@ -940,22 +913,17 @@ class LocalConfigExecutor:
                     pending[k] = int_val
 
             if mc:
-                infos: dict[str, Any] = {}
-                if hasattr(mc, "self_info") and isinstance(mc.self_info, dict):
-                    infos = mc.self_info.copy()
-                else:
-                    infos = {k: int(self._local_config.get(k, 0)) for k in keys}
+                infos = self._other_params_baseline(params, mc)
 
                 for k in keys:
                     if k in params:
                         infos[k] = pending[k]
-                    else:
-                        infos.setdefault(k, int(self._local_config.get(k, 0)))
 
                 await self._write_device(mc, "set_other_params_from_infos", infos, timeout=2.0)
             else:
                 raise ConnectionError("Radio no conectada")
             self._local_config.update(pending)
+            self._sync_confirmed_self_info(mc, pending)
             applied.update(pending)
 
     async def _apply_advanced_meshcore_settings(self, params: dict[str, Any], applied: dict[str, Any], mc: Any) -> None:
@@ -969,14 +937,15 @@ class LocalConfigExecutor:
                 raise ValueError(f"PIN inválido proporcionado: {raw_pin}") from err
             await self._write_device(mc, "set_devicepin", pin_val, timeout=2.0)
             self._local_config["pin"] = pin_val
+            self._sync_confirmed_self_info(mc, {"pin": pin_val})
             applied["pin"] = pin_val
 
         # 2. Tuning de Radio (rx_delay y airtime_factor / af)
         tuning_keys = ("rx_delay", "airtime_factor", "af", "rx_dly")
         if any(k in params for k in tuning_keys):
             try:
-                raw_rx = params.get("rx_delay", params.get("rx_dly", self._local_config.get("rx_delay", 0.0)))
-                raw_af = params.get("airtime_factor", params.get("af", self._local_config.get("airtime_factor", 1.0)))
+                raw_rx = params.get("rx_delay", params.get("rx_dly", self._get_device_baseline("rx_delay", ("rx_dly",))))
+                raw_af = params.get("airtime_factor", params.get("af", self._get_device_baseline("airtime_factor", ("af",))))
 
                 rx_flt = float(raw_rx)
                 af_flt = float(raw_af)
@@ -991,6 +960,7 @@ class LocalConfigExecutor:
 
             self._local_config["rx_delay"] = rx_flt
             self._local_config["airtime_factor"] = af_flt
+            self._sync_confirmed_self_info(mc, {"rx_delay": rx_flt, "airtime_factor": af_flt})
             if "rx_delay" in params or "rx_dly" in params:
                 applied["rx_delay"] = rx_flt
             if "airtime_factor" in params or "af" in params:
@@ -1006,6 +976,7 @@ class LocalConfigExecutor:
                 raise ValueError(f"Path hash mode inválido: {err}") from err
             await self._write_device(mc, "set_path_hash_mode", phm, timeout=2.0)
             self._local_config["path_hash_mode"] = phm
+            self._sync_confirmed_self_info(mc, {"path_hash_mode": phm})
             applied["path_hash_mode"] = phm
 
         # 4. Variables personalizadas (custom_vars)
@@ -1015,6 +986,8 @@ class LocalConfigExecutor:
             for k, v in params["custom_vars"].items():
                 await self._write_device(mc, "set_custom_var", str(k), str(v), timeout=2.0)
                 self._local_config["custom_vars"][str(k)] = str(v)
+                applied["custom_vars"] = dict(self._local_config["custom_vars"])
+                self._sync_confirmed_self_info(mc, {"custom_vars": dict(self._local_config["custom_vars"])})
             applied["custom_vars"] = self._local_config["custom_vars"]
 
     async def get_custom_vars(self) -> dict[str, Any]:
@@ -1034,6 +1007,7 @@ class LocalConfigExecutor:
         if "custom_vars" not in self._local_config or not isinstance(self._local_config["custom_vars"], dict):
             self._local_config["custom_vars"] = {}
         self._local_config["custom_vars"][str(key)] = str(val)
+        self._sync_confirmed_self_info(mc, {"custom_vars": dict(self._local_config["custom_vars"])})
         return {"status": "ok", "custom_vars": self._local_config["custom_vars"]}
 
     async def delete_custom_var(self, key: str) -> dict[str, Any]:
@@ -1042,6 +1016,7 @@ class LocalConfigExecutor:
         await self._write_device(mc, "set_custom_var", str(key), "", timeout=3.0)
         if "custom_vars" in self._local_config and isinstance(self._local_config["custom_vars"], dict):
             self._local_config["custom_vars"].pop(str(key), None)
+            self._sync_confirmed_self_info(mc, {"custom_vars": dict(self._local_config["custom_vars"])})
         return {"status": "ok", "custom_vars": self._local_config.get("custom_vars", {})}
 
     async def get_path_hash_mode(self) -> int:
@@ -1056,6 +1031,7 @@ class LocalConfigExecutor:
         mc = self._ctx.mc_provider()
         await self._write_device(mc, "set_path_hash_mode", mode, timeout=3.0)
         self._local_config["path_hash_mode"] = mode
+        self._sync_confirmed_self_info(mc, {"path_hash_mode": mode})
         return {"status": "ok", "path_hash_mode": mode}
 
     async def get_autoadd_config(self) -> dict[str, Any]:

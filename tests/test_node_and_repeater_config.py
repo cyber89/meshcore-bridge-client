@@ -175,8 +175,6 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
             "frequency": 915.0,
             "spreading_factor": 10,
             "bandwidth": 500,
-            "hop_limit": 4,
-            "telemetry_interval": 120,
         }
         code, resp = await self.router.handle_request("POST", "/api/node/config", update_payload)
         self.assertEqual(code, 200)

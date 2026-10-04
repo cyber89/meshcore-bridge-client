@@ -848,7 +848,8 @@ def redact_sensitive_mapping(data: dict[str, Any]) -> dict[str, Any]:
         k_lower = str(k).lower().strip()
         if k_lower in SENSITIVE_CONFIG_KEYS:
             if k_lower in ("pin", "devicepin"):
-                result["has_pin"] = bool(v and v != 0 and v != "0")
+                # Redacting an already redacted envelope must retain its presence flag.
+                result["has_pin"] = bool(v and v != 0 and v != "0") or data.get("has_pin") is True
                 result[k] = 0
             else:
                 result[k] = "********"

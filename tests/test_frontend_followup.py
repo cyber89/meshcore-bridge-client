@@ -107,6 +107,7 @@ async def test_error_messages_use_selected_language_and_preserve_detail(
         subtab = "local-radio" if action == "radio" else "local-owner-pos"
         await browser_page.locator(f'[data-subtab="{subtab}"]').click()
         if action == "radio":
+            await browser_page.locator("#localTxPower").fill("17")
             await browser_page.locator("#btnSaveLocalRadio").click()
         else:
             await browser_page.locator("#localNodeName").fill("QA name")

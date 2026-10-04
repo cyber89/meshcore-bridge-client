@@ -480,3 +480,18 @@ sequenceDiagram
 No hay base SQLite de nodos/mensajes ni cola MQTT durable en disco. El código separa el parser raw propio del transporte SDK; los diagramas raw no deben leerse como un pipeline obligatorio del Companion. `TxRateLimiter` estima airtime, espacia TX y puede descartar prioridad `LOW` en estado crítico, pero no aplica un bloqueo absoluto a toda transmisión.
 
 El mapa REST es una selección de rutas: `ROUTE_ALIASES` y los dispatchers de `src/web/api_router.py` son la autoridad de implementación, con métodos/validación en los controladores. El estado `sent` de TX describe el resultado del envío; entrega DM/ACK y recepción en otros nodos son hechos distintos. Configuración de firmware, temporizadores, sondeos y reintentos pueden consumir RF: aplicar el checklist de `AGENTS.md` antes de introducir cambios y acordar umbrales/intervalos con el usuario.
+
+### Guardado de configuración local Companion
+
+La SPA envía únicamente campos editados y exige `applied` por campo para confirmar
+un guardado. El executor serializa guardados y refrescos con el mismo lock,
+sincroniza snapshots SDK/serial después de un ACK y conserva baselines de
+parámetros agrupados; rechaza el lote antes de escribir si falta alguno. Los
+lotes pueden quedar parcialmente aplicados y se reportan como tales.
+
+`GET /api/config` expone `data.capabilities`: los intervalos periódicos de
+telemetría/anuncios, propietario, límite de saltos, altitud y posición fija no
+tienen setter local Companion; sus escrituras se rechazan con 422. Los modos de
+telemetría son permisos para responder solicitudes, sin scheduler de envíos.
+La UI no presenta los valores históricos RAM como ajustes aplicables. Evidencia
+y aceptación: [LOCAL_CONFIGURATION_SAVE_FIX_2026-10-04.md](LOCAL_CONFIGURATION_SAVE_FIX_2026-10-04.md).

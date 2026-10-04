@@ -1,0 +1,104 @@
+{
+  "revision": "226f8aceb17bb35fb285dc8a2f6300bb05a0a577",
+  "exit_code": 1,
+  "cases": [
+    {
+      "name": "test_acknowledged_settings_survive_get_refresh_and_new_handler[telemetry_mode_base-2]",
+      "failed": true,
+      "error": false
+    },
+    {
+      "name": "test_acknowledged_settings_survive_get_refresh_and_new_handler[telemetry_mode_loc-0]",
+      "failed": true,
+      "error": false
+    },
+    {
+      "name": "test_acknowledged_settings_survive_get_refresh_and_new_handler[telemetry_mode_env-2]",
+      "failed": true,
+      "error": false
+    },
+    {
+      "name": "test_acknowledged_settings_survive_get_refresh_and_new_handler[multi_acks-1]",
+      "failed": true,
+      "error": false
+    },
+    {
+      "name": "test_acknowledged_settings_survive_get_refresh_and_new_handler[manual_add_contacts-True]",
+      "failed": true,
+      "error": false
+    },
+    {
+      "name": "test_acknowledged_settings_survive_get_refresh_and_new_handler[adv_loc_policy-1]",
+      "failed": true,
+      "error": false
+    },
+    {
+      "name": "test_unsupported_field_rejected_before_any_batch_write[telemetry_interval]",
+      "failed": true,
+      "error": false
+    },
+    {
+      "name": "test_unsupported_field_rejected_before_any_batch_write[beacon_interval]",
+      "failed": true,
+      "error": false
+    },
+    {
+      "name": "test_unsupported_field_rejected_before_any_batch_write[advert_interval]",
+      "failed": true,
+      "error": false
+    },
+    {
+      "name": "test_unsupported_field_rejected_before_any_batch_write[hop_limit]",
+      "failed": true,
+      "error": false
+    },
+    {
+      "name": "test_unsupported_field_rejected_before_any_batch_write[hops]",
+      "failed": true,
+      "error": false
+    },
+    {
+      "name": "test_unsupported_field_rejected_before_any_batch_write[owner_info]",
+      "failed": true,
+      "error": false
+    },
+    {
+      "name": "test_unsupported_field_rejected_before_any_batch_write[owner]",
+      "failed": true,
+      "error": false
+    },
+    {
+      "name": "test_unsupported_field_rejected_before_any_batch_write[altitude]",
+      "failed": true,
+      "error": false
+    },
+    {
+      "name": "test_unsupported_field_rejected_before_any_batch_write[alt]",
+      "failed": true,
+      "error": false
+    },
+    {
+      "name": "test_unsupported_field_rejected_before_any_batch_write[altitude_m]",
+      "failed": true,
+      "error": false
+    },
+    {
+      "name": "test_unsupported_field_rejected_before_any_batch_write[fixed_position]",
+      "failed": false,
+      "error": false
+    },
+    {
+      "name": "test_unsupported_field_rejected_before_any_batch_write[pos_fixed]",
+      "failed": false,
+      "error": false
+    },
+    {
+      "name": "test_read_exposes_unsupported_periodic_telemetry_without_hiding_historical_values",
+      "failed": true,
+      "error": false
+    }
+  ],
+  "passed": 2,
+  "failed": 17,
+  "errors": 0
+}
