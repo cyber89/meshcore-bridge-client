@@ -30,7 +30,7 @@ from src.protocol_types import (
     LORA_MAX_FREQ_MHZ,
     LORA_MIN_FREQ_MHZ,
     redact_command_str,
-    redact_sensitive_dict,
+    redact_sensitive_mapping,
 )
 from src.shared_utils import normalize_battery, redact_sensitive_command
 
@@ -208,11 +208,9 @@ class RepeaterAdminExecutor:
             if pk == tgt_lower or (len(pk) >= 8 and (pk.startswith(tgt_lower) or tgt_lower.startswith(pk))):
                 return n
         # 2. Búsqueda por nombre o alias (B12: evita que pasar nombre de cliente ignore el guard de rol)
-        finder = getattr(self._ctx.node_registry, "find_by_name", None)
-        if callable(finder):
-            found = finder(tgt)
-            if found:
-                return found
+        found = self._ctx.node_registry.find_by_name(tgt)
+        if found is not None:
+            return found.to_dict()
         for n in self._ctx.node_registry.list_nodes():
             n_name = str(n.get("name", "")).strip().lower()
             n_alias = str(n.get("alias", "")).strip().lower()
@@ -440,8 +438,8 @@ class RepeaterAdminExecutor:
                     authenticated, message = await self._authenticate_repeater(rf_ctx, min_timeout=3.0)
                 if not authenticated:
                     res.update({"status": "error", "authenticated": False, "message": message, "dispatched_commands": []})
-                    self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{req.target_node}/status", json.dumps(redact_sensitive_dict(res)), 1)
-                    return redact_sensitive_dict(res)
+                    self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{req.target_node}/status", json.dumps(redact_sensitive_mapping(res)), 1)
+                    return redact_sensitive_mapping(res)
                 dispatched.append("login ********")
                 await asyncio.sleep(0.35)
 
@@ -458,16 +456,16 @@ class RepeaterAdminExecutor:
 
             res["status"] = "dispatched"
             res["dispatched_commands"] = dispatched
-            self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{req.target_node}/status", json.dumps(redact_sensitive_dict(res)), 1)
-            return redact_sensitive_dict(res)
+            self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{req.target_node}/status", json.dumps(redact_sensitive_mapping(res)), 1)
+            return redact_sensitive_mapping(res)
         except Exception as error:
             res.update({
                 "status": "partial" if dispatched else "error",
                 "message": str(error),
                 "dispatched_commands": dispatched,
             })
-            self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{req.target_node}/status", json.dumps(redact_sensitive_dict(res)), 1)
-            return redact_sensitive_dict(res)
+            self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{req.target_node}/status", json.dumps(redact_sensitive_mapping(res)), 1)
+            return redact_sensitive_mapping(res)
 
     async def _update_local_registry_from_params(self, target_node: str, params: dict[str, Any]) -> None:
         """Actualiza inmediatamente los parámetros del repetidor en el registro local."""
@@ -1133,6 +1131,14 @@ class RepeaterAdminExecutor:
     async def _execute_unit_command(self, rf_ctx: RfExecutionContext) -> dict[str, Any]:
         """Ejecuta un comando unitario con protección de Airtime LoRa."""
         req = rf_ctx.req
+        cmd_text = self._ctx.repeater_manager.build_repeater_command_payload(req.action, req.admin_data)
+        if not cmd_text:
+            rf_ctx.res.update({
+                "status": "error",
+                "code": 422,
+                "message": "Comando remoto no compatible o parámetros inválidos",
+            })
+            return rf_ctx.res
         can_send, rem_cd = self._ctx.repeater_manager.check_airtime_cooldown(str(req.target_node), is_full_query=False)
         if not can_send:
             return self._ctx.repeater_manager.build_cooldown_error_response(rem_cd)
@@ -1148,15 +1154,14 @@ class RepeaterAdminExecutor:
             self._waiters.unregister(rf_ctx.waiter_keys, rf_ctx.fut)
             async with self._waiters.expect_response(rf_ctx.waiter_keys) as command_fut:
                 rf_ctx.fut = command_fut
-                return await self._execute_unit_command_rf(rf_ctx)
+                return await self._execute_unit_command_rf(rf_ctx, cmd_text)
 
-        return await self._execute_unit_command_rf(rf_ctx)
+        return await self._execute_unit_command_rf(rf_ctx, cmd_text)
 
-    async def _execute_unit_command_rf(self, rf_ctx: RfExecutionContext) -> dict[str, Any]:
+    async def _execute_unit_command_rf(self, rf_ctx: RfExecutionContext, cmd_text: str) -> dict[str, Any]:
         """Envía el comando con su propia espera, después de validar el prelogin solicitado."""
         req = rf_ctx.req
 
-        cmd_text = self._ctx.repeater_manager.build_repeater_command_payload(req.action, req.admin_data)
         self._ctx.repeater_manager.record_command_sent(str(req.target_node), is_full_query=False)
         t_start = time.perf_counter()
 

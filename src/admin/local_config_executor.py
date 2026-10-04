@@ -546,6 +546,8 @@ class LocalConfigExecutor:
         if "pin" in params or "devicepin" in params:
             raw_pin = params.get("pin", params.get("devicepin"))
             try:
+                if raw_pin is None:
+                    raise ValueError("El PIN del dispositivo no puede ser nulo")
                 p_int = int(raw_pin)
                 if p_int != 0 and not (100000 <= p_int <= 999999):
                     raise ValueError("El PIN del dispositivo debe ser 0 (desactivado) o de 6 dígitos (100000-999999)")
@@ -558,6 +560,8 @@ class LocalConfigExecutor:
             if isinstance(raw_pwr, bool):
                 raise ValueError("Potencia TX no puede ser un booleano")
             try:
+                if raw_pwr is None:
+                    raise ValueError("Potencia TX no puede ser nula")
                 p_int = int(raw_pwr)
                 if not (-9 <= p_int <= 30):
                     raise ValueError(f"Potencia TX fuera de rango (-9..30 dBm): {raw_pwr}")

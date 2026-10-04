@@ -9,7 +9,6 @@ import asyncio
 import json
 import logging
 import re
-import time
 import urllib.parse
 from typing import Any
 
@@ -105,7 +104,6 @@ class ContactsController(BaseController):
         imported_count = 0
         try:
             imported = await ser.sync_all_contacts()
-            now_cur = time.time()
             for c in imported:
                 pk = str(c.get("public_key", "")).strip()
                 if pk:

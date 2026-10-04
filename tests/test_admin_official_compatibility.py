@@ -86,7 +86,11 @@ async def test_official_battery_payload_level_is_used() -> None:
 
 async def test_repeat_string_false_is_encoded_as_zero() -> None:
     ctx, mc, cfg = context()
-    await local_executor(ctx, cfg).set_local_config({"params": {"repeat": "false"}}, {}, mc)
+    # A repeat-only write must use the complete, device-reported radio baseline.
+    mc.self_info.update({"radio_freq": 915.0, "bw": 125.0, "sf": 7, "cr": 5})
+    result = await local_executor(ctx, cfg).set_local_config({"params": {"repeat": "false"}}, {}, mc)
+    assert result["status"] == "ok"
+    mc.commands.set_radio.assert_awaited_once_with(915.0, 125.0, 7, 5, 0)
     assert mc.commands.set_radio.await_args.args[-1] == 0
 
 

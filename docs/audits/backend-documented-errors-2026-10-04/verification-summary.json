@@ -1,0 +1,433 @@
+{
+  "baseline": "6b2480c4bb9cbf8c93e26a0d11fb6e51d2783849",
+  "versions": {
+    "python": "3.12.14",
+    "pytest": "9.1.1",
+    "mypy": "2.3.1",
+    "ruff": "0.16.3"
+  },
+  "scope": "SDK/MQTT mocks, temporary JSON, virtual adapters, OS-assigned loopback ports; no physical RF",
+  "runs": [
+    {
+      "artifact": "junit.xml",
+      "tests": 237,
+      "failures": [
+        {
+          "module": "tests.test_admin_executor_type_boundaries",
+          "name": "test_named_repeater_can_dispatch_a_valid_command",
+          "message": "AssertionError: expected await not found.\nExpected: mock('cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd', 'clock')\n  Actual: mock('RelayAlias', 'clock')"
+        },
+        {
+          "module": "tests.test_admin_executor_type_boundaries",
+          "name": "test_valid_zero_and_numeric_aliases_keep_official_sdk_contract[tx_power-0-set_tx_power-0]",
+          "message": "AssertionError: expected await not found.\nExpected: mock(0)\n  Actual: mock(2)"
+        },
+        {
+          "module": "tests.test_admin_executor_type_boundaries",
+          "name": "test_valid_zero_and_numeric_aliases_keep_official_sdk_contract[power-0-set_tx_power-0]",
+          "message": "AssertionError: expected await not found.\nExpected: mock(0)\n  Actual: mock(2)"
+        },
+        {
+          "module": "tests.test_admin_official_compatibility",
+          "name": "test_repeat_string_false_is_encoded_as_zero",
+          "message": "AttributeError: 'NoneType' object has no attribute 'args'"
+        },
+        {
+          "module": "tests.test_node_and_repeater_config.TestNodeAndRepeaterConfig",
+          "name": "test_local_node_get_and_set_config",
+          "message": "AssertionError: 422 != 200"
+        },
+        {
+          "module": "tests.test_node_and_repeater_config.TestNodeAndRepeaterConfig",
+          "name": "test_post_config_radio_updates_frozen_radio_config",
+          "message": "AssertionError: 422 != 200"
+        },
+        {
+          "module": "tests.test_node_and_repeater_config.TestNodeAndRepeaterConfig",
+          "name": "test_remote_repeater_login_and_config",
+          "message": "AssertionError: 400 != 401"
+        },
+        {
+          "module": "tests.test_node_and_repeater_config.TestNodeAndRepeaterConfig",
+          "name": "test_repeater_manager_payload_builder",
+          "message": "AssertionError: None != 'set freq 868.0'"
+        },
+        {
+          "module": "tests.test_repeater_manager_unit",
+          "name": "test_build_repeater_radio_commands",
+          "message": "AssertionError: assert None == 'set freq 915.0'"
+        },
+        {
+          "module": "tests.test_repeater_manager_unit",
+          "name": "test_build_repeater_location_and_security_commands",
+          "message": "AttributeError: 'NoneType' object has no attribute 'startswith'"
+        }
+      ],
+      "errors": 0,
+      "skipped": [
+        {
+          "name": "test_map_tile_symlink_cannot_escape_map_storage",
+          "reason": "Platform does not permit creating a symlink for this regression"
+        }
+      ],
+      "modules": {
+        "tests.test_admin_executor_type_boundaries": 17,
+        "tests.test_admin_executors": 9,
+        "tests.test_admin_official_compatibility": 33,
+        "tests.test_node_and_repeater_config.TestNodeAndRepeaterConfig": 9,
+        "tests.test_recent_regressions": 53,
+        "tests.test_repeater_manager.TestRepeaterManager": 1,
+        "tests.test_repeater_manager_unit": 4,
+        "tests.test_contact_manager.TestContactManager": 5,
+        "tests.test_node_registry_telemetry.TestNodeRegistryTelemetry": 3,
+        "tests.test_channels_and_contacts_controllers": 3,
+        "tests.test_rest_controllers": 9,
+        "tests.test_web_official_compatibility": 49,
+        "tests.test_domain_official_compatibility": 42
+      }
+    },
+    {
+      "artifact": "junit-legacy-baseline.xml",
+      "tests": 7,
+      "failures": [
+        {
+          "module": "tests.test_admin_official_compatibility",
+          "name": "test_repeat_string_false_is_encoded_as_zero",
+          "message": "AttributeError: 'NoneType' object has no attribute 'args'"
+        },
+        {
+          "module": "tests.test_node_and_repeater_config.TestNodeAndRepeaterConfig",
+          "name": "test_local_node_get_and_set_config",
+          "message": "AssertionError: 422 != 200"
+        },
+        {
+          "module": "tests.test_node_and_repeater_config.TestNodeAndRepeaterConfig",
+          "name": "test_post_config_radio_updates_frozen_radio_config",
+          "message": "AssertionError: 422 != 200"
+        },
+        {
+          "module": "tests.test_node_and_repeater_config.TestNodeAndRepeaterConfig",
+          "name": "test_remote_repeater_login_and_config",
+          "message": "AssertionError: 400 != 401"
+        },
+        {
+          "module": "tests.test_node_and_repeater_config.TestNodeAndRepeaterConfig",
+          "name": "test_repeater_manager_payload_builder",
+          "message": "AssertionError: None != 'set freq 868.0'"
+        },
+        {
+          "module": "tests.test_repeater_manager_unit",
+          "name": "test_build_repeater_radio_commands",
+          "message": "AssertionError: assert None == 'set freq 915.0'"
+        },
+        {
+          "module": "tests.test_repeater_manager_unit",
+          "name": "test_build_repeater_location_and_security_commands",
+          "message": "AttributeError: 'NoneType' object has no attribute 'startswith'"
+        }
+      ],
+      "errors": 0,
+      "skipped": [],
+      "modules": {
+        "tests.test_admin_official_compatibility": 1,
+        "tests.test_node_and_repeater_config.TestNodeAndRepeaterConfig": 4,
+        "tests.test_repeater_manager_unit": 2
+      }
+    },
+    {
+      "artifact": "junit-runtime-baseline.xml",
+      "tests": 17,
+      "failures": [
+        {
+          "module": "tests.test_admin_executor_type_boundaries",
+          "name": "test_named_client_keeps_role_guard[Alice]",
+          "message": "assert 'exclusivos para repetidores' in \"'NodeContactInfo' object has no attribute 'get'\""
+        },
+        {
+          "module": "tests.test_admin_executor_type_boundaries",
+          "name": "test_named_client_keeps_role_guard[MobileAlias]",
+          "message": "assert 'exclusivos para repetidores' in \"'NodeContactInfo' object has no attribute 'get'\""
+        },
+        {
+          "module": "tests.test_admin_executor_type_boundaries",
+          "name": "test_named_repeater_can_dispatch_a_valid_command",
+          "message": "AssertionError: assert 'error' == 'ok'\n  \n  - ok\n  + error"
+        },
+        {
+          "module": "tests.test_admin_executor_type_boundaries",
+          "name": "test_uncompiled_command_does_not_login_transmit_or_consume_cooldown[unknown_command-data0-]",
+          "message": "KeyError: 'code'"
+        },
+        {
+          "module": "tests.test_admin_executor_type_boundaries",
+          "name": "test_uncompiled_command_does_not_login_transmit_or_consume_cooldown[unknown_command-data0-secret]",
+          "message": "KeyError: 'code'"
+        },
+        {
+          "module": "tests.test_admin_executor_type_boundaries",
+          "name": "test_uncompiled_command_does_not_login_transmit_or_consume_cooldown[set_radio-data1-]",
+          "message": "KeyError: 'code'"
+        },
+        {
+          "module": "tests.test_admin_executor_type_boundaries",
+          "name": "test_uncompiled_command_does_not_login_transmit_or_consume_cooldown[set_radio-data1-secret]",
+          "message": "KeyError: 'code'"
+        },
+        {
+          "module": "tests.test_admin_executor_type_boundaries",
+          "name": "test_uncompiled_command_does_not_login_transmit_or_consume_cooldown[set_lat-data2-]",
+          "message": "KeyError: 'code'"
+        },
+        {
+          "module": "tests.test_admin_executor_type_boundaries",
+          "name": "test_uncompiled_command_does_not_login_transmit_or_consume_cooldown[set_lat-data2-secret]",
+          "message": "KeyError: 'code'"
+        }
+      ],
+      "errors": 0,
+      "skipped": [],
+      "modules": {
+        "tests.test_admin_executor_type_boundaries": 17
+      }
+    },
+    {
+      "artifact": "junit-final.xml",
+      "tests": 249,
+      "failures": [
+        {
+          "module": "tests.test_admin_executor_type_boundaries",
+          "name": "test_valid_zero_and_numeric_aliases_keep_official_sdk_contract[tx_power-0-set_tx_power-0]",
+          "message": "AssertionError: expected await not found.\nExpected: mock(0)\n  Actual: mock(2)"
+        },
+        {
+          "module": "tests.test_admin_executor_type_boundaries",
+          "name": "test_valid_zero_and_numeric_aliases_keep_official_sdk_contract[power-0-set_tx_power-0]",
+          "message": "AssertionError: expected await not found.\nExpected: mock(0)\n  Actual: mock(2)"
+        }
+      ],
+      "errors": 0,
+      "skipped": [
+        {
+          "name": "test_map_tile_symlink_cannot_escape_map_storage",
+          "reason": "Platform does not permit creating a symlink for this regression"
+        }
+      ],
+      "modules": {
+        "tests.test_admin_executor_type_boundaries": 17,
+        "tests.test_sensitive_mapping": 5,
+        "tests.test_admin_executors": 9,
+        "tests.test_admin_official_compatibility": 33,
+        "tests.test_node_and_repeater_config.TestNodeAndRepeaterConfig": 10,
+        "tests.test_recent_regressions": 53,
+        "tests.test_repeater_manager.TestRepeaterManager": 1,
+        "tests.test_repeater_manager_unit": 10,
+        "tests.test_contact_manager.TestContactManager": 5,
+        "tests.test_node_registry_telemetry.TestNodeRegistryTelemetry": 3,
+        "tests.test_channels_and_contacts_controllers": 3,
+        "tests.test_rest_controllers": 9,
+        "tests.test_web_official_compatibility": 49,
+        "tests.test_domain_official_compatibility": 42
+      }
+    },
+    {
+      "artifact": "junit-accepted.xml",
+      "tests": 249,
+      "failures": [],
+      "errors": 0,
+      "skipped": [
+        {
+          "name": "test_map_tile_symlink_cannot_escape_map_storage",
+          "reason": "Platform does not permit creating a symlink for this regression"
+        }
+      ],
+      "modules": {
+        "tests.test_admin_executor_type_boundaries": 17,
+        "tests.test_sensitive_mapping": 5,
+        "tests.test_admin_executors": 9,
+        "tests.test_admin_official_compatibility": 33,
+        "tests.test_node_and_repeater_config.TestNodeAndRepeaterConfig": 10,
+        "tests.test_recent_regressions": 53,
+        "tests.test_repeater_manager.TestRepeaterManager": 1,
+        "tests.test_repeater_manager_unit": 10,
+        "tests.test_contact_manager.TestContactManager": 5,
+        "tests.test_node_registry_telemetry.TestNodeRegistryTelemetry": 3,
+        "tests.test_channels_and_contacts_controllers": 3,
+        "tests.test_rest_controllers": 9,
+        "tests.test_web_official_compatibility": 49,
+        "tests.test_domain_official_compatibility": 42
+      }
+    }
+  ],
+  "quality_tools": {
+    "pytest-accepted": [
+      {
+        "tool_name": "pytest",
+        "command": [
+          "C:\\Users\\Ruby\\Desktop\\meshcore-bridge\\.venv\\Scripts\\python.exe",
+          "-m",
+          "pytest",
+          "tests/test_admin_executor_type_boundaries.py",
+          "tests/test_sensitive_mapping.py",
+          "tests/test_admin_executors.py",
+          "tests/test_admin_official_compatibility.py",
+          "tests/test_node_and_repeater_config.py",
+          "tests/test_recent_regressions.py",
+          "tests/test_repeater_manager.py",
+          "tests/test_repeater_manager_unit.py",
+          "tests/test_contact_manager.py",
+          "tests/test_node_registry_telemetry.py",
+          "tests/test_channels_and_contacts_controllers.py",
+          "tests/test_rest_controllers.py",
+          "tests/test_web_official_compatibility.py",
+          "tests/test_domain_official_compatibility.py",
+          "-q",
+          "--tb=short",
+          "-p",
+          "no:cacheprovider",
+          "--basetemp=tests/artifacts/backend-documented-errors/tmp-accepted",
+          "--junitxml=tests/artifacts/backend-documented-errors/junit-accepted.xml",
+          "--cov-report=xml:tests/artifacts/backend-documented-errors/coverage-accepted.xml"
+        ],
+        "exit_code": 0,
+        "duration_sec": 20.187,
+        "stderr": "",
+        "passed": true,
+        "stdout_summary": "248 passed, 1 skipped in 18.93s"
+      }
+    ],
+    "mypy-final": [
+      {
+        "tool_name": "mypy",
+        "command": [
+          "C:\\Users\\Ruby\\Desktop\\meshcore-bridge\\.venv\\Scripts\\python.exe",
+          "-m",
+          "mypy",
+          "--strict",
+          "src"
+        ],
+        "exit_code": 0,
+        "duration_sec": 2.0,
+        "stderr": "",
+        "passed": true,
+        "stdout_summary": "Success: no issues found in 60 source files"
+      }
+    ],
+    "ruff-final": [
+      {
+        "tool_name": "ruff",
+        "command": [
+          "C:\\Users\\Ruby\\Desktop\\meshcore-bridge\\.venv\\Scripts\\python.exe",
+          "-m",
+          "ruff",
+          "check",
+          "src",
+          "tests",
+          "scripts"
+        ],
+        "exit_code": 0,
+        "duration_sec": 0.125,
+        "stderr": "",
+        "passed": true,
+        "stdout_summary": "All checks passed!"
+      }
+    ],
+    "docs-final": [
+      {
+        "tool_name": "documentation",
+        "command": [
+          "C:\\Users\\Ruby\\Desktop\\meshcore-bridge\\.venv\\Scripts\\python.exe",
+          "scripts/validate_project_docs.py"
+        ],
+        "exit_code": 0,
+        "duration_sec": 0.25,
+        "stderr": "",
+        "passed": true,
+        "stdout_summary": "Documentation structure: 72 files checked; 0 issues."
+      }
+    ],
+    "legacy-baseline": [
+      {
+        "tool_name": "pytest",
+        "command": [
+          "C:\\Users\\Ruby\\Desktop\\meshcore-bridge\\.venv\\Scripts\\python.exe",
+          "-m",
+          "pytest",
+          "tests/test_admin_official_compatibility.py::test_repeat_string_false_is_encoded_as_zero",
+          "tests/test_node_and_repeater_config.py::TestNodeAndRepeaterConfig::test_local_node_get_and_set_config",
+          "tests/test_node_and_repeater_config.py::TestNodeAndRepeaterConfig::test_post_config_radio_updates_frozen_radio_config",
+          "tests/test_node_and_repeater_config.py::TestNodeAndRepeaterConfig::test_remote_repeater_login_and_config",
+          "tests/test_node_and_repeater_config.py::TestNodeAndRepeaterConfig::test_repeater_manager_payload_builder",
+          "tests/test_repeater_manager_unit.py::test_build_repeater_radio_commands",
+          "tests/test_repeater_manager_unit.py::test_build_repeater_location_and_security_commands",
+          "-q",
+          "--tb=short",
+          "-p",
+          "no:cacheprovider",
+          "-o",
+          "addopts=",
+          "--basetemp=C:/Users/Ruby/Desktop/meshcore-bridge/tests/artifacts/backend-documented-errors/tmp-legacy-baseline",
+          "--junitxml=C:/Users/Ruby/Desktop/meshcore-bridge/tests/artifacts/backend-documented-errors/junit-legacy-baseline.xml"
+        ],
+        "exit_code": 1,
+        "duration_sec": 1.984,
+        "stderr": "",
+        "passed": false,
+        "stdout_summary": "7 failed, 1 warning in 0.37s"
+      }
+    ],
+    "runtime-baseline": [
+      {
+        "tool_name": "pytest",
+        "command": [
+          "C:\\Users\\Ruby\\Desktop\\meshcore-bridge\\.venv\\Scripts\\python.exe",
+          "-m",
+          "pytest",
+          "tests/test_admin_executor_type_boundaries.py",
+          "-q",
+          "--tb=short",
+          "-p",
+          "no:cacheprovider",
+          "-o",
+          "addopts=",
+          "--basetemp=C:/Users/Ruby/Desktop/meshcore-bridge/tests/artifacts/backend-documented-errors/tmp-runtime-baseline",
+          "--junitxml=C:/Users/Ruby/Desktop/meshcore-bridge/tests/artifacts/backend-documented-errors/junit-runtime-baseline.xml"
+        ],
+        "exit_code": 1,
+        "duration_sec": 1.156,
+        "stderr": "",
+        "passed": false,
+        "stdout_summary": "9 failed, 8 passed in 0.42s"
+      }
+    ]
+  },
+  "python_coverage": {
+    "version": "7.15.4",
+    "timestamp": "1791114820523",
+    "lines-valid": "14291",
+    "lines-covered": "6872",
+    "line-rate": "0.4809",
+    "branches-covered": "0",
+    "branches-valid": "0",
+    "branch-rate": "0",
+    "complexity": "0"
+  },
+  "tested_sha256_normalized_lf": {
+    "src/admin/local_config_executor.py": "e3dab3810891285d39949946a418a24c104056cd3d9ffb8883c237269e59cb7e",
+    "src/admin/repeater_executor.py": "15e318eddc2bc67af946e7dec572a2ab102d69bba9fa38c9ed1c2192505ef1e6",
+    "src/contact_manager.py": "2d27c5ec9097246b2f36aa3b5b17a37535e6c0869546e1f5ae3360b3abaab92c",
+    "src/metrics_aggregator.py": "52e6264978bcf4809030761be36b3c47554a0a1f1ed80c414589b9a7730819fd",
+    "src/protocol_types.py": "911b7d2bf8026d150b7d60c8846b13df9d46df20728c57d9b8185292347d606a",
+    "src/web/controllers/contacts_controller.py": "df849ff3049756193e90264b52f67b4495837295d4d271f11f7b3a9a42c367e6",
+    "tests/test_admin_executor_type_boundaries.py": "8061088b8c255bbd0a59529ea5f2ee8169cfbd750b7c34c8e17e852f34ef704a",
+    "tests/test_sensitive_mapping.py": "89e5eee69810754ecb5fd2640e106375a32f8bba0b8b778dfb10172ffeddd1a1",
+    "tests/test_admin_official_compatibility.py": "b4b87deac0c83d45df571099ddce5a4a63b7275b66f633ea9cb9f2515132370a",
+    "tests/test_node_and_repeater_config.py": "578b20117f7ba482947a1cfcde4890d11daa721fe55c4dfeca1a27e3a5aa18ef",
+    "tests/test_repeater_manager_unit.py": "5befba83ad82e8beef8bb39d038a03fbb85a929c69c819a281d7422dd896ffbf"
+  },
+  "limitations": [
+    "Selected 14 backend test modules, not the full maintained suite.",
+    "One symlink test is skipped because this Windows platform cannot create its symlink fixture.",
+    "No new browser run, hardware roundtrip, performance or interoperability certification.",
+    "Runtime used Python 3.12; mypy/ruff target Python 3.10, not a Python 3.10 runtime execution."
+  ]
+}

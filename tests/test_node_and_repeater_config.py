@@ -27,6 +27,7 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
             "radio_freq": 915.0,
             "sf": 11,
             "bw": 250,
+            "cr": 5,
         }
         self.mock_mc.commands = MagicMock()
         repeater_key = "a1b2c3d4e5f6" + "00" * 26
@@ -35,9 +36,12 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
             (contact for pk, contact in self.mock_mc.contacts.items() if pk.startswith(key)), None
         )
         self.mock_mc.get_contact_by_name.return_value = None
-        self.mock_mc.commands.set_name = AsyncMock()
-        self.mock_mc.commands.set_tx_power = AsyncMock()
-        self.mock_mc.commands.reboot = AsyncMock()
+        self.mock_mc.commands.set_name = AsyncMock(return_value=Event(EventType.OK, {}))
+        self.mock_mc.commands.set_tx_power = AsyncMock(return_value=Event(EventType.OK, {}))
+        self.mock_mc.commands.set_radio = AsyncMock(return_value=Event(EventType.OK, {}))
+        self.mock_mc.commands.reboot = AsyncMock(return_value=Event(EventType.OK, {}))
+        self.mock_mc.commands.add_contact = AsyncMock(return_value=Event(EventType.OK, {}))
+        self.mock_mc._contacts = {}
         # Both login and CLI requests use SDK opcodes; MSG_SENT is dispatch only.
         self.mock_mc.commands.send_login = AsyncMock(return_value=Event(EventType.MSG_SENT, {}))
         self.mock_mc.commands.send_login_sync = AsyncMock(return_value=None)
@@ -126,28 +130,25 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
             "set name Mountain_Alpha",
         )
         self.assertEqual(
-            self.repeater_mgr.build_repeater_command_payload("set_freq", {"freq": 868.0}),
-            "set freq 868.0",
+            self.repeater_mgr.build_repeater_command_payload(
+                "set_radio", {"freq": 868.0, "sf": 12, "bw": 125, "cr": 5}
+            ),
+            "set radio 868.0,125,12,5",
         )
-        self.assertEqual(
-            self.repeater_mgr.build_repeater_command_payload("set_sf", {"sf": 12}),
-            "set sf 12",
-        )
-        self.assertEqual(
-            self.repeater_mgr.build_repeater_command_payload("set_bw", {"bw": 125}),
-            "set bw 125",
-        )
+        # CommonCLI accepts a complete RF tuple remotely. Legacy set freq is
+        # restricted to sender_timestamp == 0; these remote setters are unsupported.
+        for action, params in (
+            ("set_freq", {"freq": 868.0}), ("set_sf", {"sf": 12}),
+            ("set_bw", {"bw": 125}), ("set_hop_limit", {"hop_limit": 5}),
+        ):
+            self.assertIsNone(self.repeater_mgr.build_repeater_command_payload(action, params))
         self.assertEqual(
             self.repeater_mgr.build_repeater_command_payload("set_repeat", {"repeat": True}),
             "set repeat on",
         )
         self.assertEqual(
-            self.repeater_mgr.build_repeater_command_payload("set_hop_limit", {"hop_limit": 5}),
-            "set hop_limit 5",
-        )
-        self.assertEqual(
             self.repeater_mgr.build_repeater_command_payload("set_admin_password", {"password": "new_pin_999"}),
-            "set admin.password new_pin_999",
+            "password new_pin_999",
         )
         # Direct actions
         self.assertEqual(
@@ -241,17 +242,16 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
                 "name": "Tower_Alpha_West",
                 "tx_power": 22,
                 "repeat": True,
-                "hop_limit": 4,
             },
         }
         code, resp = await self.router.handle_request("POST", "/api/repeater/remote/config", config_payload)
         self.assertEqual(code, 200)
-        # Authentication uses the SDK opcode, followed by four administrative commands.
+        # Authentication uses the SDK opcode, followed by three supported CLI writes.
         self.assertEqual(len(self.dispatched_txs), 0)
         self.mock_mc.commands.send_login_sync.assert_awaited()
         cli_commands = [call.args[1] for call in self.mock_mc.commands.send_cmd.await_args_list]
         self.assertEqual(cli_commands, [
-            "set name Tower_Alpha_West", "set tx 22", "set repeat on", "set hop_limit 4",
+            "set tx 22", "set repeat on", "set name Tower_Alpha_West",
         ])
         self.assertEqual(resp["data"]["status"], "dispatched")
 
@@ -269,6 +269,19 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.dispatched_txs), 0)
         self.assertEqual(self.mock_mc.commands.send_cmd.await_args.args[1], "reboot")
         self.assertEqual(resp["data"]["status"], "dispatched")
+
+    async def test_remote_hop_limit_rejects_batch_before_login_or_commands(self) -> None:
+        """Unsupported remote fields cannot turn a valid name write into a partial dispatch."""
+        code, resp = await self.router.handle_request("POST", "/api/repeater/remote/config", {
+            "target_node": "a1b2c3d4e5f6", "password": "repeater_secret",
+            "params": {"name": "After", "hop_limit": 4},
+        })
+        self.assertEqual(code, 400)
+        self.assertEqual(resp["status"], 400)
+        self.assertIn("hop_limit", resp["detail"])
+        self.mock_mc.commands.send_login_sync.assert_not_awaited()
+        self.mock_mc.commands.send_cmd.assert_not_awaited()
+        self.assertEqual(self.dispatched_txs, [])
 
     def test_record_incoming_telemetry_with_known_and_unknown_nodes(self) -> None:
         """Verifica que la telemetría identifique al repetidor por nombre o prefijo y registre todas las métricas."""

@@ -2,6 +2,9 @@
 Unit tests for RepeaterManager (Airtime Cooldowns, Command Formatting & Analysis).
 """
 
+from typing import Any
+
+import pytest
 
 from src.repeater_manager import RepeaterManager
 
@@ -51,26 +54,42 @@ def test_build_repeater_radio_commands() -> None:
     pwr_cmd = mgr.build_repeater_command_payload("set_tx_power", {"tx_power": 18})
     assert pwr_cmd == "set tx 18"
 
-    # set_freq
-    freq_cmd = mgr.build_repeater_command_payload("set_freq", {"freq": 915.0})
-    assert freq_cmd == "set freq 915.0"
+    # CommonCLI.cpp accepts the four remote radio parameters together.
+    radio_cmd = mgr.build_repeater_command_payload(
+        "set_radio", {"freq": 915.0, "bw": 250, "sf": 10, "cr": "4/5"}
+    )
+    assert radio_cmd == "set radio 915.0,250,10,5"
 
-    # set_bw
-    bw_cmd = mgr.build_repeater_command_payload("set_bw", {"bw": 250})
-    assert bw_cmd == "set bw 250"
+
+@pytest.mark.parametrize(
+    ("action", "params"),
+    [
+        ("set_freq", {"freq": 915.0}),
+        ("set_bw", {"bw": 250}),
+        ("set_sf", {"sf": 10}),
+        ("set_cr", {"cr": 5}),
+        ("set_hop_limit", {"hop_limit": 5}),
+        ("set_coords", {"lat": -33.45, "lon": -70.66}),
+    ],
+)
+def test_remote_builder_rejects_unsupported_setters(action: str, params: dict[str, Any]) -> None:
+    # set freq is local-only (sender_timestamp == 0); it is not a remote setter.
+    assert RepeaterManager().build_repeater_command_payload(action, params) is None
 
 
 def test_build_repeater_location_and_security_commands() -> None:
     mgr = RepeaterManager()
 
-    # set_coords
-    pos_cmd = mgr.build_repeater_command_payload("set_coords", {"lat": -33.45, "lon": -70.66})
-    assert pos_cmd.startswith("set pos -33.45 -70.66")
+    # CommonCLI.cpp accepts latitude and longitude in separate setters.
+    lat_cmd = mgr.build_repeater_command_payload("set_lat", {"lat": -33.45})
+    lon_cmd = mgr.build_repeater_command_payload("set_lon", {"lon": -70.66})
+    assert lat_cmd == "set lat -33.450000"
+    assert lon_cmd == "set lon -70.660000"
 
     # set_name
     name_cmd = mgr.build_repeater_command_payload("set_name", {"name": "Rep-Cumbre"})
     assert name_cmd == "set name Rep-Cumbre"
 
     # login / auth
-    login_cmd = mgr.build_repeater_command_payload("login", {"pin": "1234"})
+    login_cmd = mgr.build_repeater_command_payload("login", {"password": "1234"})
     assert login_cmd == "login 1234"

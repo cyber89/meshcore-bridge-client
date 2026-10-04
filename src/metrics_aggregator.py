@@ -13,7 +13,6 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
-
 CANONICAL_TYPES = ("CHAT", "ADVERT", "TELEMETRY", "TRACEROUTE", "PING", "ADMIN", "OTHER")
 CANONICAL_ERRORS = ("crc_errors", "timeouts", "queue_overflow", "airtime_cutoff", "other")
 
@@ -35,7 +34,7 @@ class MinuteBucket:
     timeouts: int = 0
     queue_overflow: int = 0
     airtime_cutoff: int = 0
-    type_counts: dict[str, int] = field(default_factory=lambda: {t: 0 for t in CANONICAL_TYPES})
+    type_counts: dict[str, int] = field(default_factory=lambda: dict.fromkeys(CANONICAL_TYPES, 0))
 
 
 class MetricsAggregator:
@@ -60,8 +59,8 @@ class MetricsAggregator:
         self.total_direct_rx = 0
         self.total_direct_tx = 0
 
-        self.type_totals: dict[str, int] = {t: 0 for t in CANONICAL_TYPES}
-        self.error_totals: dict[str, int] = {e: 0 for e in CANONICAL_ERRORS}
+        self.type_totals: dict[str, int] = dict.fromkeys(CANONICAL_TYPES, 0)
+        self.error_totals: dict[str, int] = dict.fromkeys(CANONICAL_ERRORS, 0)
 
         # Últimos valores de radio conocidos
         self.last_snr: float | None = None
@@ -334,8 +333,8 @@ class MetricsAggregator:
             self.total_flood_tx = 0
             self.total_direct_rx = 0
             self.total_direct_tx = 0
-            self.type_totals = {t: 0 for t in CANONICAL_TYPES}
-            self.error_totals = {e: 0 for e in CANONICAL_ERRORS}
+            self.type_totals = dict.fromkeys(CANONICAL_TYPES, 0)
+            self.error_totals = dict.fromkeys(CANONICAL_ERRORS, 0)
             self.last_snr = None
             self.last_rssi = None
             self.start_time = time.time()

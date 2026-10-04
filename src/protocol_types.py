@@ -841,29 +841,34 @@ def redact_command_str(cmd: str) -> str:
     return cmd
 
 
+def redact_sensitive_mapping(data: dict[str, Any]) -> dict[str, Any]:
+    """Redacta un diccionario conservando su contrato de salida como diccionario."""
+    result: dict[str, Any] = {}
+    for k, v in data.items():
+        k_lower = str(k).lower().strip()
+        if k_lower in SENSITIVE_CONFIG_KEYS:
+            if k_lower in ("pin", "devicepin"):
+                result["has_pin"] = bool(v and v != 0 and v != "0")
+                result[k] = 0
+            else:
+                result[k] = "********"
+        elif k_lower in ("dispatched_commands", "commands") and isinstance(v, list):
+            result[k] = [
+                redact_command_str(item) if isinstance(item, str) else redact_sensitive_dict(item)
+                for item in v
+            ]
+        else:
+            result[k] = redact_sensitive_dict(v)
+    return result
+
+
 def redact_sensitive_dict(data: Any) -> Any:
     """
     Recorre recursivamente estructuras de datos para redactar secretos antes de
     cualquier salida pública (MQTT, WebSockets, REST, logs del sistema).
     """
     if isinstance(data, dict):
-        result: dict[str, Any] = {}
-        for k, v in data.items():
-            k_lower = str(k).lower().strip()
-            if k_lower in SENSITIVE_CONFIG_KEYS:
-                if k_lower in ("pin", "devicepin"):
-                    result["has_pin"] = bool(v and v != 0 and v != "0")
-                    result[k] = 0
-                else:
-                    result[k] = "********"
-            elif k_lower in ("dispatched_commands", "commands") and isinstance(v, list):
-                result[k] = [
-                    redact_command_str(item) if isinstance(item, str) else redact_sensitive_dict(item)
-                    for item in v
-                ]
-            else:
-                result[k] = redact_sensitive_dict(v)
-        return result
+        return redact_sensitive_mapping(data)
     if isinstance(data, list):
         return [redact_sensitive_dict(item) for item in data]
     if isinstance(data, str):

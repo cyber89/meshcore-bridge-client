@@ -1,5 +1,7 @@
 # Auditoría y corrección exhaustiva del frontend — 2026-10-03
 
+> Seguimiento 2026-10-04: los ocho errores mypy y nueve incidencias Ruff pendientes de esta base se corrigen y verifican en [BACKEND_DOCUMENTED_ERRORS_FIX_2026-10-04.md](BACKEND_DOCUMENTED_ERRORS_FIX_2026-10-04.md). Los resultados de abajo se conservan como evidencia de esta auditoría histórica.
+
 ## Plan de trabajo
 
 Base inicial: `942ccd8`. Petición: corregir logs en tema claro y comprobar el frontend, incoherencias y código obsoleto, con agentes y solución. La petición de comprobación exhaustiva autoriza suites dirigidas y navegador durante esta tarea. Todo se ejecuta sobre adaptador virtual, datos temporales, MQTT simulado y loopback propio, sin hardware ni estación operativa.

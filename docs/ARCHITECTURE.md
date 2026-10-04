@@ -373,6 +373,9 @@ sequenceDiagram
 
 - **`src/routers/`**: Utiliza el **Strategy Pattern** para enrutar los diferentes tipos de paquetes RF (`AdvertHandler`, `ChannelHandler`, `DirectHandler`, `RepeaterHandler`, `SystemHandler`, `TelemetryHandler`). Al desacoplar la lógica, simplifica la expansión del formato de los mensajes.
 - **`src/admin/`**: Implementa un esquema de comandos basado en **Command Pattern** y **Strategy Pattern** para separar la lógica de parseo, de la ejecución en RF: (`LocalConfigExecutor`, `RepeaterAdminExecutor`, `TracerouteExecutor`).
+
+  El executor remoto convierte `NodeContactInfo` obtenido por nombre/alias a su representación dict antes de aplicar guards de identidad/rol. Los comandos unitarios se construyen y validan antes de autenticación, consumo de cooldown y envío: un resultado no compilable devuelve error administrativo con `code: 422`. La preparación local de contactos SDK del dispatcher permanece previa. Los resultados de lote usan `redact_sensitive_mapping` con salida dict; el redactor general conserva soporte de estructuras arbitrarias. PIN y potencia TX nulos se rechazan en prevalidación del lote local. Ver [corrección y evidencia del 2026-10-04](BACKEND_DOCUMENTED_ERRORS_FIX_2026-10-04.md).
+
 - **`src/web/controllers/`**: Sigue el patrón **MVC / Modular Controllers**. Organiza unívocamente las rutas REST por dominios funcionales (Contactos, Nodos, Sistema, Transmisiones).
 
 ## 8. Mapa de Endpoints REST API

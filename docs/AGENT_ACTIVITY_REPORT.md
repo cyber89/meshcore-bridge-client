@@ -2,6 +2,14 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Corrección de errores documentados de tipos y lint
+
+- **Fecha/base**: 2026-10-04; `6b2480c`. Continuación autorizada de la auditoría anterior.
+- **Equipo**: dirigente/integrador, especialista de executors y especialista de lint; skills `python-patterns-typing`, `clean-code-solid`, `bridge-test-runner`.
+- **Cambios**: nombre/alias de nodo convertido a dict, comandos inválidos rechazados antes de prelogin/send/cooldown, PIN/TX nulos explícitos, rama de redacción tipada, imports/variable sin uso y contadores simplificados. Sin nuevos paquetes, timers o límites RF; frontend y referencias sin cambios.
+- **Verificación**: mypy global 60 archivos aprobado, Ruff global aprobado, 248 pruebas aprobadas y una omitida por symlink no permitido en Windows; cobertura dirigida 48,09%. Reproducción aislada: nueve fallos de las 17 regresiones contra la base y siete fallos antiguos de fixtures, conservados como evidencia y corregidos. 29 casos nuevos en total.
+- **Entrega**: [causas, correcciones, pruebas y límites](BACKEND_DOCUMENTED_ERRORS_FIX_2026-10-04.md), resumen versionado con hashes. No se certifica hardware ni toda la suite mantenida.
+
 ### Hito: Auditoría exhaustiva y corrección del frontend, logs y diálogos
 
 - **Fecha/base**: 2026-10-03; `942ccd8`. Comprobaciones autorizadas expresamente por la petición de auditoría exhaustiva.

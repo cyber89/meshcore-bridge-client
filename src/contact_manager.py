@@ -20,8 +20,6 @@ from typing import Any
 
 from src.lqi_engine import LinkQualityEngine, LQIStatus
 from src.protocol_types import (
-    RouteObservation,
-    decode_path_hashes,
     hash_mode_to_bytes,
     normalize_hash_mode,
 )
