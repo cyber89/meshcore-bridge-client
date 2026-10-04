@@ -1,0 +1,27 @@
+{
+  "description": "Lexical inventory; optional/dynamic DOM IDs are not proven errors.",
+  "files": 16,
+  "html_ids": 488,
+  "duplicate_ids": [],
+  "lookup_ids_absent_from_static_html": {},
+  "unused_named_imports": {},
+  "unprovided_context_calls": {},
+  "node_syntax_exit_codes": {
+    "js/app.js": 0,
+    "js/core/chart_engine.js": 0,
+    "js/core/eventbus.js": 0,
+    "js/core/storage.js": 0,
+    "js/core/utils.js": 0,
+    "js/core/websocket.js": 0,
+    "js/i18n.js": 0,
+    "js/icons.js": 0,
+    "js/modules/analytics.js": 0,
+    "js/modules/chat.js": 0,
+    "js/modules/map.js": 0,
+    "js/modules/nodes.js": 0,
+    "js/modules/repeater.js": 0,
+    "js/modules/settings.js": 0,
+    "js/modules/sniffer.js": 0,
+    "js/qrcode.js": 0
+  }
+}

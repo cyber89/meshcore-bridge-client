@@ -6,6 +6,17 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
+// Only showQrModal consumes an options.key as a translation key. Chart series
+// and custom-variable payloads also use key, with a different meaning.
+function qrTitleReferences(content) {
+  return [...content.matchAll(/\bshowQrModal\s*\([^;]*?\bkey\s*:\s*(['"])([^'"]+)\1/g)].map(match => match[2]);
+}
+
+if (process.argv.includes('--scan-qr-keys')) {
+  process.stdout.write(JSON.stringify(qrTitleReferences(fs.readFileSync(0, 'utf8'))) + '\n');
+  return;
+}
+
 // Lexical inspection of UI arguments: comments, regexes and translated keys are
 // masked, while template interpolation expressions remain inspectable.
 function scanUiLiterals(content, dictionary = {}, filename = '<stdin>') {
@@ -197,7 +208,7 @@ for (const filename of files(jsRoot).filter(file => file.endsWith('.js') && !fil
   const content = fs.readFileSync(filename, 'utf8');
   for (const match of content.matchAll(/\b(?:I18n|window\.I18n)\.t\(\s*(['"])([^'"]+)\1/g)) references.add(match[2]);
   for (const match of content.matchAll(/\bI18n\.setText\([^,\n]+,\s*(['"])([^'"]+)\1/g)) references.add(match[2]);
-  for (const match of content.matchAll(/\bkey:\s*(['"])([^'"]+)\1/g)) references.add(match[2]);
+  for (const key of qrTitleReferences(content)) references.add(key);
   for (const match of content.matchAll(/\b(?:I18n|window\.I18n)\.t\(\s*([^'"\s][^)]*)\)/g)) {
     dynamic.push({ file: path.relative(root, filename), expression: match[1] });
     for (const literal of match[1].matchAll(/['"]([a-z]+\.[a-z_]+)['"]/g)) references.add(literal[1]);

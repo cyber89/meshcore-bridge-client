@@ -5,11 +5,7 @@
 
 import {
   escapeHtml,
-  getHardwarePowerLimits,
   REGION_FREQUENCIES,
-  debounce,
-  buildMeshCoreContactUri,
-  buildMeshCoreChannelUri,
   parseMeshCoreUri,
   MESHCORE_PUBLIC_CHANNEL_SECRET,
 } from "../core/utils.js";

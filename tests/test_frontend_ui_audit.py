@@ -19,7 +19,7 @@ ARTIFACTS = Path("tests/artifacts/frontend-ui")
 TABS = ("chat", "contacts", "nodes", "map", "analytics", "logs", "settings")
 
 
-@pytest.mark.parametrize("width,height", [(320, 740), (390, 844), (768, 1024), (1920, 1080)])
+@pytest.mark.parametrize("width,height", [(320, 740), (390, 844), (768, 1024), (844, 390), (1920, 1080)])
 @pytest.mark.parametrize("theme", ["dark", "light"])
 async def test_all_views_reflow_in_both_languages(
     browser_page: Page, width: int, height: int, theme: str

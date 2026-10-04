@@ -71,6 +71,25 @@ def test_exact_catalogue_fallback_is_explained() -> None:
     assert report["reviewedExclusions"][0]["reason"] == "Exact Spanish catalogue fallback"
 
 
+@pytest.mark.parametrize(
+    "source,expected",
+    [
+        ('const series = [{key:"rx", label:I18n.t("analytics.chart_rx_label")}, {key:"tx"}];', []),
+        ('fetch("/api/config", {body:JSON.stringify({key:"custom.name", value:1})});', []),
+        ('window.showQrModal("", uri, json, {key:"nodes.qr_node_title", params:{name}});', ["nodes.qr_node_title"]),
+        ('showQrModal("", uri, json,\n {params:{name}, key:"nodes.qr_contact_title"});', ["nodes.qr_contact_title"]),
+    ],
+)
+def test_only_qr_options_keys_are_translation_references(source: str, expected: list[str]) -> None:
+    assert NODE is not None
+    result = subprocess.run(
+        [NODE, str(AUDITOR), "--scan-qr-keys"], input=source, text=True,
+        encoding="utf-8", capture_output=True, check=False, timeout=15,
+    )
+    assert result.returncode == 0 and not result.stderr, result.stderr
+    assert json.loads(result.stdout) == expected
+
+
 def test_auditor_self_test_reports_every_case() -> None:
     assert NODE is not None
     result = subprocess.run(

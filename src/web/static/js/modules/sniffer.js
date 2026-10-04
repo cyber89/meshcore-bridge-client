@@ -675,7 +675,8 @@ export class SnifferModule {
     if (!log) return false;
     const levelFilter = this.dom.logLevelFilter?.value || "ALL";
     const searchQuery = (this.dom.logSearchInput?.value || "").toLowerCase().trim();
-    const msg = log.message || "";
+    const msg = String(log.message || "");
+    const level = String(log.level || "INFO").toUpperCase();
 
     if (levelFilter !== "ALL") {
       if (levelFilter === "RF") {
@@ -687,19 +688,19 @@ export class SnifferModule {
       } else if (levelFilter === "NET") {
         const isNet = msg.includes("[HTTP-CLIENT]") || msg.includes("[REST-API]") || msg.includes("[TCP-COMPANION]") || msg.includes("[WEBSOCKET]");
         if (!isNet) return false;
-      } else if (levelFilter === "ERROR" && !["ERROR", "CRITICAL"].includes(log.level)) {
+      } else if (levelFilter === "ERROR" && !["ERROR", "CRITICAL"].includes(level)) {
         return false;
-      } else if (levelFilter === "WARNING" && !["WARNING", "WARN"].includes(log.level)) {
+      } else if (levelFilter === "WARNING" && !["WARNING", "WARN"].includes(level)) {
         return false;
-      } else if (levelFilter === "INFO" && log.level !== "INFO") {
+      } else if (levelFilter === "INFO" && level !== "INFO") {
         return false;
-      } else if (levelFilter === "DEBUG" && log.level !== "DEBUG") {
+      } else if (levelFilter === "DEBUG" && level !== "DEBUG") {
         return false;
       }
     }
 
     if (searchQuery) {
-      const text = `${msg} ${log.module || ""} ${log.logger || ""} ${log.exception || ""}`.toLowerCase();
+      const text = `${msg} ${log.module || ""} ${log.logger || ""} ${log.source || ""} ${log.exception || ""}`.toLowerCase();
       if (!text.includes(searchQuery)) return false;
     }
 
@@ -730,7 +731,7 @@ export class SnifferModule {
 
   createLogElement(log) {
     const row = document.createElement("div");
-    const msg = log.message || "";
+    const msg = String(log.message || "");
     const isSuspicious = msg.includes("[TRAFICO-SOSPECHOSO]");
     const isNetwork = msg.includes("[HTTP-CLIENT]") || msg.includes("[REST-API]") || msg.includes("[TCP-COMPANION]") || msg.includes("[WEBSOCKET]");
     const isRf = msg.includes("[RX-") || msg.includes("[TX-") || msg.includes("[NODO-DESCUBIERTO]") || msg.includes("[ESTACIÓN LOCAL]");
@@ -742,13 +743,15 @@ export class SnifferModule {
 
     row.className = `log-row ${extraClass}`;
 
-    const lvlLower = (log.level || "info").toLowerCase();
-    const timeStr = log.iso_time ? (log.iso_time.split(" ")[1] || log.iso_time) : new Date((log.timestamp || (Date.now() / 1000)) * 1000).toLocaleTimeString();
+    const level = String(log.level || "INFO").toUpperCase();
+    const lvlLower = level === "WARN" ? "warning" : level.toLowerCase();
+    const source = log.module || log.logger || log.source || "core";
+    const timeStr = log.iso_time ? (String(log.iso_time).split(/[T ]/)[1]?.split(".")[0] || log.iso_time) : new Date((log.timestamp || (Date.now() / 1000)) * 1000).toLocaleTimeString();
 
     row.innerHTML = `
       <span class="log-time">${escapeHtml(timeStr)}</span>
-      <span class="log-badge badge-lvl-${escapeHtml(lvlLower)}">${escapeHtml(log.level)}</span>
-      <span class="log-mod font-mono" title="${escapeHtml(log.module || log.logger)}">${escapeHtml(log.module || log.logger || "core")}</span>
+      <span class="log-badge badge-lvl-${escapeHtml(lvlLower)}">${escapeHtml(level)}</span>
+      <span class="log-mod font-mono" title="${escapeHtml(source)}">${escapeHtml(source)}</span>
       <span class="log-msg">${escapeHtml(log.message)}</span>
       ${log.exception ? `<pre class="log-trace">${escapeHtml(log.exception)}</pre>` : ""}
     `;
@@ -772,8 +775,9 @@ export class SnifferModule {
   }
 
   async setDebugMode(enabled) {
-    this.isDebugMode = Boolean(enabled);
-    const targetLevel = this.isDebugMode ? "DEBUG" : "INFO";
+    if (this.dom.chkDebugMode?.disabled) return;
+    const targetLevel = enabled ? "DEBUG" : "INFO";
+    if (this.dom.chkDebugMode) this.dom.chkDebugMode.disabled = true;
     try {
       const res = await fetch("/api/system/logs/level", {
         method: "POST",
@@ -781,11 +785,14 @@ export class SnifferModule {
         body: JSON.stringify({ level: targetLevel }),
       });
       const data = await res.json();
-      if (data.status === "ok") {
-        this.updateDebugButtonState();
-      }
+      if (!res.ok || data.status !== "ok") throw new Error(data.detail || data.message || I18n.t('sniffer.http_error', { status: res.status }));
+      this.isDebugMode = (data.current_level || data.level || targetLevel) === "DEBUG";
     } catch (e) {
       console.warn("Error cambiando nivel de log:", e);
+      this.ctx.showToast?.(I18n.t('sniffer.logs_level_error', { error: e.message }), "error");
+    } finally {
+      this.updateDebugButtonState();
+      if (this.dom.chkDebugMode) this.dom.chkDebugMode.disabled = false;
     }
   }
 
@@ -804,15 +811,25 @@ export class SnifferModule {
   }
 
   async clearSystemLogs() {
+    if (this.dom.btnClearLogs?.disabled) return;
+    if (this.dom.btnClearLogs) this.dom.btnClearLogs.disabled = true;
     try {
-      await fetch("/api/system/logs", {
+      const res = await fetch("/api/system/logs", {
         method: "DELETE",
         headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
       });
+      if (!res.ok) {
+        let detail = I18n.t('sniffer.http_error', { status: res.status });
+        try { const data = await res.json(); detail = data.detail || data.message || detail; } catch (_) {}
+        throw new Error(detail);
+      }
       this.systemLogs = [];
       this.renderFilteredLogs();
     } catch (e) {
       console.warn("Error limpiando logs:", e);
+      this.ctx.showToast?.(I18n.t('sniffer.logs_clear_error', { error: e.message }), "error");
+    } finally {
+      if (this.dom.btnClearLogs) this.dom.btnClearLogs.disabled = false;
     }
   }
 
@@ -844,6 +861,7 @@ export class SnifferModule {
         headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
       });
       const data = await res.json();
+      if (!res.ok || data.status !== "ok") throw new Error(data.detail || data.message || I18n.t('sniffer.http_error', { status: res.status }));
       const rawText = data.raw_logs || "";
       const blob = new Blob([rawText], { type: "text/plain;charset=utf-8" });
       const url = URL.createObjectURL(blob);

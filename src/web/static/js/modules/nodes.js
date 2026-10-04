@@ -624,7 +624,7 @@ export class NodesModule {
           if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.contact_deleted'), "info");
         } catch (e) {
           console.warn("Fallo eliminando contacto:", e);
-          if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.network_error') || "Error de red", "error");
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.network_error'), "error");
         }
       });
 

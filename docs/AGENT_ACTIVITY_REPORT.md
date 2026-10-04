@@ -2,6 +2,14 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Auditoría exhaustiva y corrección del frontend, logs y diálogos
+
+- **Fecha/base**: 2026-10-03; `942ccd8`. Comprobaciones autorizadas expresamente por la petición de auditoría exhaustiva.
+- **Equipo**: dirigente/integrador, especialista visual, interacción y calidad CSS; propiedad de archivos separada, skills de diseño, HTML/JS, contratos, QA y seguridad.
+- **Cambios**: logs claros y filtros/origen, errores HTTP sin pérdida de datos, cola y teclado de diálogos, idiomas, tokens/estados, cabecera responsive y limpieza demostrada de CSS/imports. Sin cambios de backend de producción, radio o referencias.
+- **Verificación**: 108 casos dirigidos aprobados (83 Chromium, 24 estáticos/política URL, uno HTTP/cache), cuatro repeticiones adicionales con fondos especiales de logs aprobadas; Node 13/13; sintaxis/DOM/i18n y ruff propio correctos. Mypy global: ocho errores; ruff global: nueve incidencias en Python ajeno a estos cambios. Cobertura Python dirigida 36,73%; no cobertura JS ni garantía universal de hardware.
+- **Entrega**: [plan ejecutado, defectos, soluciones, evidencia y límites](FRONTEND_EXHAUSTIVE_AUDIT_2026-10-03.md). Se conserva el resultado histórico de la mejora anterior; esta auditoría sí incorpora navegador virtual y capturas finales.
+
 ### Hito: Mejora visual global, diálogos y administración remota
 
 - **Fecha/base**: 2026-10-03; `7a93028`.

@@ -1,0 +1,77 @@
+{
+  "catalog": {
+    "es": 1348,
+    "en": 1348
+  },
+  "referencedKeys": 1195,
+  "staticSelectors": 132,
+  "findings": [
+    "Missing es: rx",
+    "Missing en: rx",
+    "Missing es: tx",
+    "Missing en: tx"
+  ],
+  "dynamicReferences": [
+    {
+      "file": "src\\web\\static\\js\\app.js",
+      "expression": "isDark ? 'app.dark_theme_title' : 'app.light_theme_title'"
+    },
+    {
+      "file": "src\\web\\static\\js\\app.js",
+      "expression": "collapsed ? \"nav.expand\" : \"nav.collapse\""
+    },
+    {
+      "file": "src\\web\\static\\js\\app.js",
+      "expression": "roleKey"
+    },
+    {
+      "file": "src\\web\\static\\js\\app.js",
+      "expression": "data.status === \"ok\" ? \"app.diag_ok\" : \"app.diag_error\""
+    },
+    {
+      "file": "src\\web\\static\\js\\app.js",
+      "expression": "isCritical ? \"app.airtime_critical_title\" : (isWarning ? \"app.airtime_warning_title\" : \"app.airtime_normal_title\""
+    }
+  ],
+  "untranslatedCandidates": [],
+  "reviewedExclusions": [
+    {
+      "file": "src\\web\\static\\js\\modules\\chat.js",
+      "line": 493,
+      "literal": "Mi Estación Local",
+      "sink": ".innerHTML =",
+      "reason": "Exact Spanish catalogue fallback",
+      "key": "chat.my_station_sub"
+    },
+    {
+      "file": "src\\web\\static\\js\\modules\\chat.js",
+      "line": 496,
+      "literal": "Mi Contacto",
+      "sink": ".innerHTML =",
+      "reason": "Exact Spanish catalogue fallback",
+      "key": "chat.my_contact_badge"
+    },
+    {
+      "file": "src\\web\\static\\js\\modules\\chat.js",
+      "line": 1331,
+      "literal": "Contacto Guardado",
+      "sink": ".innerHTML =",
+      "reason": "Exact Spanish catalogue fallback",
+      "key": "chat.saved_contact"
+    },
+    {
+      "file": "src\\web\\static\\js\\modules\\nodes.js",
+      "line": 1187,
+      "literal": "Dueño:",
+      "sink": ".innerHTML =",
+      "reason": "Exact Spanish catalogue fallback",
+      "key": "nodes.owner_label"
+    }
+  ],
+  "limitations": [
+    "Static reference and interpolation audit; visual behavior and selector matches require browser verification.",
+    "User content, firmware responses, backend diagnostics, protocol labels, and numeric units retain their original content.",
+    "Dynamic translation-key expressions are listed for manual review; this scan does not prove every UI string is localized.",
+    "UI-literal analysis is lexical, not a JavaScript AST or runtime data-flow proof. Exact Spanish catalogue fallbacks are individually listed as exclusions."
+  ]
+}

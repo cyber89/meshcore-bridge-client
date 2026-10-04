@@ -57,7 +57,7 @@ export function renderAreaChart(container, options = {}) {
   ];
 
   if (!points || points.length === 0) {
-    container.innerHTML = `<div class="chart-empty-state"><span class="text-muted text-sm">${options.emptyText || "Sin datos de tráfico en este intervalo"}</span></div>`;
+    container.innerHTML = `<div class="chart-empty-state"><span class="text-muted text-sm">${escapeHtml(options.emptyText || I18n.t("analytics.no_traffic_data"))}</span></div>`;
     return;
   }
 
@@ -456,7 +456,7 @@ export function renderHorizontalBarChart(container, items = []) {
   container.innerHTML = "";
 
   if (!items || items.length === 0) {
-    container.innerHTML = `<div class="chart-empty-state"><span class="text-muted text-sm">Sin datos para comparar</span></div>`;
+    container.innerHTML = `<div class="chart-empty-state"><span class="text-muted text-sm">${escapeHtml(I18n.t("analytics.no_comparison_data"))}</span></div>`;
     return;
   }
 

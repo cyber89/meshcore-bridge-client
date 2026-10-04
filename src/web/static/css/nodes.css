@@ -16,12 +16,6 @@
   box-sizing: border-box;
 }
 
-.contacts-toolbar {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
 /* ==============================================================================
    Unified Pane Headers & Typography System
    ============================================================================== */
@@ -117,15 +111,11 @@
   border: 1px solid rgba(148, 163, 184, 0.3);
 }
 
-.node-card.node-card-offline {
+.node-card.node-card-offline,
+.contact-card.contact-card-offline {
   /* Keep offline metadata readable; the status chip communicates availability. */
   border-style: dashed;
   border-color: rgba(148, 163, 184, 0.2);
-}
-
-.node-card.node-card-offline:hover {
-  opacity: 1;
-  filter: grayscale(0%);
 }
 
 .nodes-toolbar,
@@ -262,11 +252,6 @@
 .node-card.role-room-card,
 .contact-card.role-room-card {
   border-left: 4px solid #fbbf24;
-}
-
-.node-card-offline,
-.contact-card-offline {
-  opacity: 0.82;
 }
 
 /* Header de Tarjeta */

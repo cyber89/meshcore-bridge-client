@@ -1,5 +1,7 @@
 # Mejora visual del sitio y administración remota — 2026-10-03
 
+> Seguimiento: la petición posterior de comprobación exhaustiva autorizó navegador y suites. Sus resultados y correcciones adicionales están en [FRONTEND_EXHAUSTIVE_AUDIT_2026-10-03.md](FRONTEND_EXHAUSTIVE_AUDIT_2026-10-03.md). El rechazo y la falta de capturas descritos abajo pertenecen a esta primera entrega histórica.
+
 ## Resultado y alcance
 
 Se aplica una paleta clara gris salvia, con texto oscuro y acentos azules, para reducir las grandes superficies blancas. Los componentes compartidos transmiten el cambio a navegación, chat, nodos, contactos, analítica, ajustes y diagnósticos. También se ajustan los diálogos generales, los diálogos de confirmación/aviso/entrada y la administración remota.

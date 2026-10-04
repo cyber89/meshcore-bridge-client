@@ -279,9 +279,7 @@
 }
 
 body.light-theme .chat-messages {
-  background-color: var(--bg-canvas);
   background-image: radial-gradient(rgba(17, 27, 33, 0.05) 1px, transparent 1px);
-  background-size: 24px 24px;
 }
 
 .chat-empty-state {
@@ -426,10 +424,6 @@ body.light-theme .outgoing .message-bubble {
   display: block;
 }
 
-body.light-theme .incoming .msg-sender {
-  color: var(--accent-primary);
-}
-
 .outgoing .msg-sender {
   display: none;
 }
@@ -455,16 +449,8 @@ body.light-theme .incoming .msg-sender {
   color: var(--text-muted);
 }
 
-body.light-theme .incoming .msg-footer {
-  color: var(--text-muted);
-}
-
 .outgoing .msg-footer {
   color: var(--chat-outgoing-muted);
-}
-
-body.light-theme .outgoing .msg-footer {
-  color: var(--text-muted);
 }
 
 .signal-chip {
@@ -496,24 +482,12 @@ body.light-theme .signal-chip {
   color: var(--chat-outgoing-muted);
 }
 
-body.light-theme .ack-queued {
-  color: var(--text-muted);
-}
-
 .ack-sent {
   color: var(--chat-outgoing-muted);
 }
 
-body.light-theme .ack-sent {
-  color: var(--text-muted);
-}
-
 .ack-delivered {
   color: var(--accent-primary); /* Delivered receipt */
-}
-
-body.light-theme .ack-delivered {
-  color: var(--accent-primary);
 }
 
 .ack-failed {
@@ -606,10 +580,6 @@ body.light-theme .chat-channel-card {
   color: var(--chat-outgoing-muted);
 }
 
-body.light-theme .outgoing .card-sub {
-  color: var(--text-muted);
-}
-
 .card-key-mono {
   font-family: var(--font-mono);
   font-size: 10.5px;
@@ -664,7 +634,7 @@ body.light-theme .outgoing .card-sub {
 body.light-theme .card-local-pill {
   background: rgba(37, 99, 235, 0.08);
   border-color: rgba(37, 99, 235, 0.25);
-  color: #2563eb;
+  color: var(--accent-primary);
 }
 
 /* Tarjeta de Ubicación GPS en Burbuja */
@@ -998,146 +968,6 @@ body.light-theme .card-local-pill {
   font-weight: 700;
 }
 
-
-/* Botones Estandarizados */
-.btn-primary {
-  background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-primary-hover) 100%);
-  color: var(--text-inverse);
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  padding: 8px 16px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-  user-select: none;
-  text-decoration: none;
-}
-
-.btn-primary:hover {
-  box-shadow: var(--shadow-glow);
-  transform: translateY(-1px);
-  opacity: 0.96;
-}
-
-.btn-primary:active {
-  transform: translateY(0);
-}
-
-.btn-secondary {
-  background-color: var(--bg-surface-elevated);
-  color: var(--text-main);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 8px 14px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  user-select: none;
-  text-decoration: none;
-}
-
-.btn-secondary:hover {
-  background-color: var(--bg-surface-hover);
-  border-color: var(--border-medium);
-  color: var(--text-bright);
-}
-
-.btn-outline {
-  background: transparent;
-  border: 1px solid var(--border-medium);
-  color: var(--text-main);
-  border-radius: var(--radius-md);
-  padding: 7px 14px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  user-select: none;
-  text-decoration: none;
-}
-
-.btn-outline:hover {
-  background-color: var(--bg-surface-elevated);
-  border-color: var(--accent-primary);
-  color: var(--accent-primary);
-}
-
-.btn-danger {
-  background-color: rgba(239, 68, 68, 0.15);
-  color: var(--accent-danger);
-  border: 1px solid rgba(239, 68, 68, 0.35);
-  border-radius: var(--radius-md);
-  padding: 8px 14px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.18s ease;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-
-.btn-danger:hover {
-  background-color: var(--danger-fill);
-  color: var(--on-danger);
-  border-color: transparent;
-}
-
-.btn-danger-hover:hover {
-  background-color: rgba(239, 68, 68, 0.15);
-  border-color: rgba(239, 68, 68, 0.45);
-  color: var(--accent-danger);
-}
-
-.btn-icon {
-  background: var(--bg-surface-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  color: var(--text-muted);
-  padding: 7px 10px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.btn-icon:hover {
-  background-color: var(--bg-surface-hover);
-  border-color: var(--border-medium);
-  color: var(--text-bright);
-}
-
-.btn-sm {
-  padding: 5px 10px;
-  font-size: 12px;
-  border-radius: var(--radius-sm);
-  gap: 5px;
-}
-
-.btn-xs {
-  padding: 3px 8px;
-  font-size: 11px;
-  border-radius: var(--radius-sm);
-  gap: 4px;
-}
 
 /* ==============================================================================
    📡 CONTACT DISCOVERY BANNER

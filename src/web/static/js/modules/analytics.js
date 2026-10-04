@@ -164,7 +164,7 @@ export class AnalyticsModule {
       });
       const data = await res.json();
       if (data.status === "ok") {
-        if (this.ctx.showToast) this.ctx.showToast(I18n.t("toast.metrics_reset") || "Métricas y contadores restablecidos correctamente", "success");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t("toast.metrics_reset"), "success");
         await this.fetchAnalytics();
         if (this.ctx.fetchNodes) await this.ctx.fetchNodes();
       } else {

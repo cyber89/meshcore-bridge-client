@@ -45,16 +45,17 @@ async def test_palette_refilters_without_editing_query_on_language_change(
     await expect(browser_page.locator(".cmd-item:visible")).to_have_count(0)
 
 
-# Independent expected UI copy: these scenarios previously displayed Spanish in EN.
+# Independent expected UI copy from the current UI contract. The original cases
+# predated the messages revised in f9efe01; do not derive expectations from I18n.
 ERROR_CASES = [
-    ("channel_save", "/api/channels", "network", "Error de red al guardar canal", "Network error saving channel"),
-    ("contact_add", "/api/contacts", "network", "Error de red al agregar contacto", "Network error adding contact"),
-    ("channel_export", "/api/channels/export", "network", "Error obteniendo datos del canal", "Error obtaining channel data"),
-    ("channel_delete", "/api/channels", "network", "Error de red al eliminar canal", "Network error deleting channel"),
-    ("radio", "/api/config/radio", "network", "Error de red guardando radio", "Network error saving radio settings"),
-    ("radio", "/api/config/radio", "response", "Error guardando radio", "Error saving radio settings"),
-    ("identity", "/api/config/identity", "network", "Error de red", "Network error"),
-    ("identity", "/api/config/identity", "response", "Error guardando identidad", "Error saving identity"),
+    ("channel_save", "/api/channels", "network", "⚠️ Error de red al guardar el canal", "⚠️ Network error while saving channel"),
+    ("contact_add", "/api/contacts", "network", "⚠️ Error de red al añadir el contacto", "⚠️ Network error while adding contact"),
+    ("channel_export", "/api/channels/export", "network", "⚠️ Error al leer los datos del canal", "⚠️ Error reading channel data"),
+    ("channel_delete", "/api/channels", "network", "⚠️ Error de red al eliminar el canal", "⚠️ Network error while deleting channel"),
+    ("radio", "/api/config/radio", "network", "⚠️ Error de red al guardar parámetros de radio", "⚠️ Network error while saving radio settings"),
+    ("radio", "/api/config/radio", "response", "⚠️ Fallo al guardar parámetros de radio", "⚠️ Failed to save radio settings"),
+    ("identity", "/api/config/identity", "network", "⚠️ Error de red en ajustes", "⚠️ Network error in settings"),
+    ("identity", "/api/config/identity", "response", "⚠️ Fallo al guardar identidad y ubicación", "⚠️ Failed to save identity and location"),
     ("logs", "/api/logs/download", "network", "Error descargando archivo de logs", "Error downloading log file"),
 ]
 
@@ -96,10 +97,11 @@ async def test_error_messages_use_selected_language_and_preserve_detail(
         await browser_page.locator("#contactModalName").fill("QA contact")
         await browser_page.locator("#btnSaveContact").click()
     elif action in ("channel_export", "channel_delete"):
-        if action == "channel_delete":
-            browser_page.once("dialog", lambda dialog: dialog.accept())
         selector = ".btn-item-qr" if action == "channel_export" else ".btn-item-delete"
         await browser_page.locator(selector).first.click()
+        if action == "channel_delete":
+            await expect(browser_page.locator("#systemDialogModal")).to_be_visible()
+            await browser_page.locator("#btnConfirmSystemDialog").click()
     elif action in ("radio", "identity"):
         await browser_page.locator('[data-tab="tab-settings"]').click()
         subtab = "local-radio" if action == "radio" else "local-owner-pos"
@@ -111,11 +113,12 @@ async def test_error_messages_use_selected_language_and_preserve_detail(
             await browser_page.locator("#btnSaveLocalIdentityPos").click()
     else:
         await browser_page.locator('[data-tab="tab-logs"]').click()
-        browser_page.once("dialog", lambda dialog: dialog.accept())
-        async with browser_page.expect_event("dialog") as dialog_event:
-            await browser_page.locator("#btnDownloadRawLogs").click()
-        dialog = await dialog_event.value
-        assert dialog.message == expected
+        await browser_page.locator("#btnDownloadRawLogs").click()
+        await expect(browser_page.locator("#systemDialogModal")).to_be_visible()
+        message = browser_page.locator("#systemDialogMessage")
+        await expect(message).to_have_text(expected)
+        assert await message.locator("b").count() == 0
+        await browser_page.locator("#btnConfirmSystemDialog").click()
         return
     message = browser_page.locator(".toast-message").last
     await expect(message).to_have_text(expected)

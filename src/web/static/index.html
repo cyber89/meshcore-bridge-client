@@ -1330,7 +1330,7 @@
                     </div>
                     <p class="card-desc"><span data-i18n="ui.mixed_maps_before">Permite navegar cartográficamente 100% fuera de línea sin conexión a Internet usando bases de datos</span> <code>.mbtiles</code> <span data-i18n="ui.mixed_maps_after">o carpetas de teselas XYZ locales.</span></p>
                     
-                    <div id="localMapsStatusCard" class="analytics-card" style="margin-bottom: 16px; background: rgba(15, 23, 42, 0.6);">
+                    <div id="localMapsStatusCard" class="analytics-card" style="margin-bottom: 16px; background: var(--bg-surface-elevated);">
                       <div class="card-title-row">
                         <h4 style="font-size: 0.9rem; font-weight: 600;" data-i18n="ui.static_343"><span data-lucide="hard-drive" data-size="14"></span> Estado del Almacenamiento Local</h4>
                         <button type="button" class="btn-secondary btn-xs" id="btnReloadLocalMaps" title="Volver a escanear archivos .mbtiles en data/maps/" data-i18n-title="ui.static_344" data-i18n="ui.static_345"><span data-lucide="refresh-cw" data-size="12"></span> Reindexar</button>
@@ -2332,7 +2332,7 @@
               <span class="text-xs text-muted font-mono" data-i18n="ui.static_571">Offset: 00000000  00 01 02 03 04 05 06 07  08 09 0a 0b 0c 0d 0e 0f  |ASCII|</span>
               <button type="button" class="btn-outline btn-xs" id="btnCopyHexDump">Copiar Hex</button>
             </div>
-            <pre id="inspHexDumpView" class="hex-dump-view" style="font-family: var(--font-mono); font-size: 12px; background: #0b0f19; color: #38bdf8; padding: 12px; border-radius: 6px; overflow-x: auto; line-height: 1.5; border: 1px solid var(--border-color);"></pre>
+            <pre id="inspHexDumpView" class="hex-dump-view" style="font-family: var(--font-mono); font-size: 12px; background: var(--bg-canvas); color: var(--accent-primary); padding: 12px; border-radius: 6px; overflow-x: auto; line-height: 1.5; border: 1px solid var(--border-subtle);"></pre>
           </div>
 
           <!-- Panel 3: JSON Crudo -->
@@ -2340,7 +2340,7 @@
             <div style="display: flex; justify-content: flex-end; margin-bottom: 6px;">
               <button type="button" class="btn-outline btn-xs" id="btnCopyJsonDump">Copiar JSON</button>
             </div>
-            <pre id="inspJsonDumpView" class="json-dump-view" style="font-family: var(--font-mono); font-size: 12px; background: #0b0f19; color: #a5f3fc; padding: 12px; border-radius: 6px; overflow-x: auto; max-height: 350px; border: 1px solid var(--border-color);"></pre>
+            <pre id="inspJsonDumpView" class="json-dump-view" style="font-family: var(--font-mono); font-size: 12px; background: var(--bg-canvas); color: var(--text-main); padding: 12px; border-radius: 6px; overflow-x: auto; max-height: 350px; border: 1px solid var(--border-subtle);"></pre>
           </div>
         </div>
       </div>
@@ -2364,7 +2364,7 @@
       <div class="modal-body system-dialog-body">
         <p id="systemDialogMessage" class="system-dialog-message"></p>
         <div id="systemDialogInputWrap" class="system-dialog-input-wrap hidden">
-          <label for="systemDialogInput" class="sr-only">Entrada de texto</label>
+          <label for="systemDialogInput" class="sr-only" data-i18n="modal.input_label">Entrada de texto</label>
           <input type="text" id="systemDialogInput" class="system-dialog-input text-input" autocomplete="off" spellcheck="false" />
         </div>
       </div>

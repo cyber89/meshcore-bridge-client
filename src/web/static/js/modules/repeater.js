@@ -433,8 +433,8 @@ export class RepeaterModule {
             ].forEach((id) => this.dirtyFields.delete(id));
 
             if (isPendingReboot) {
-              this.appendTerminalLine(`✓ [DISPATCHED] ${I18n.t("repeater.rx_config", { p0: target.slice(0, 8) })} (Reinicio pendiente)`, "term-warning");
-              if (this.ctx.showToast) this.ctx.showToast("Comando despachado por radio (reinicio pendiente en repetidor)", "info");
+              this.appendTerminalLine(I18n.t("repeater.config_pending_reboot", { p0: I18n.t("repeater.rx_config", { p0: target.slice(0, 8) }) }), "term-warning");
+              if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.config_pending_reboot_notice"), "info");
             } else {
               this.appendTerminalLine(I18n.t("repeater.rx_config", { p0: target.slice(0, 8) }), "term-success");
               if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.rep_cfg_ok'), "success");

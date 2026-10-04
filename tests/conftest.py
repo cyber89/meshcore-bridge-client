@@ -126,6 +126,13 @@ async def browser_page(virtual_bridge: MeshCoreBridge) -> AsyncIterator[Page]:
         await context.add_init_script(
             "if (!localStorage.getItem('mc_lang')) localStorage.setItem('mc_lang', 'es');"
         )
+        await context.add_init_script("""(() => {
+            const NativeWebSocket = window.WebSocket;
+            window.__qaWebSockets = [];
+            window.WebSocket = class extends NativeWebSocket {
+                constructor(...args) { super(...args); window.__qaWebSockets.push(this); }
+            };
+        })();""")
 
         async def local_only(route: Route) -> None:
             if not route.request.url.startswith(origin + "/"):
@@ -143,6 +150,7 @@ async def browser_page(virtual_bridge: MeshCoreBridge) -> AsyncIterator[Page]:
 
         await context.route("**/*", local_only)
         page = await context.new_page()
+        cleanup.push_async_callback(_close_browser_websockets, page)
         errors: list[str] = []
         console_errors: list[str] = []
         failures: list[str] = []
@@ -175,3 +183,19 @@ async def browser_page(virtual_bridge: MeshCoreBridge) -> AsyncIterator[Page]:
         assert not console_errors, f"Browser console errors: {console_errors}"
         assert not failures, f"Failed local HTTP responses: {failures}"
         assert not external_requests, f"Unexpected external requests: {external_requests}"
+
+
+async def _close_browser_websockets(page: Page) -> None:
+    """Close the real client gracefully before Chromium drops its TCP pipes."""
+    if page.is_closed():
+        return
+    await page.evaluate("""async () => {
+        await Promise.all((window.__qaWebSockets || []).map(socket => {
+            if (socket.readyState === WebSocket.CLOSED) return;
+            socket.onclose = null; // The client's reconnect timer is irrelevant during teardown.
+            return new Promise(resolve => {
+                socket.addEventListener('close', resolve, {once:true});
+                socket.close(1000, 'QA complete');
+            });
+        }));
+    }""")

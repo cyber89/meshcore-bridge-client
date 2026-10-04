@@ -57,6 +57,7 @@ class MeshCoreApp {
       get channelsList() { return self.settingsModule?.channelsList || []; },
       get localConfig() { return self.settingsModule?.cachedConfig || {}; },
       renderNodesDirectory: () => self.nodesModule?.renderNodesDirectory?.(),
+      fetchNodes: () => self.nodesModule?.fetchNodes(),
       updateNodeInDom: (a, b) => self.nodesModule?.updateNodeInDom?.(a, b),
     };
 
@@ -853,8 +854,11 @@ class MeshCoreApp {
       mode: "confirm",
       message,
       title: options.title || I18n.t("modal.confirm") || "Confirmar",
+      titleKey: options.title ? null : "modal.confirm",
       confirmText: options.confirmText || I18n.t("modal.confirm") || "Confirmar",
+      confirmKey: options.confirmText ? null : "modal.confirm",
       cancelText: options.cancelText || I18n.t("modal.cancel") || "Cancelar",
+      cancelKey: options.cancelText ? null : "modal.cancel",
       isDanger,
       type,
       icon: options.icon,
@@ -872,11 +876,14 @@ class MeshCoreApp {
     const isWarning = options.type === "warning";
     const isSuccess = options.type === "success";
     const type = isError ? "danger" : (options.type || "info");
+    const defaultTitleKey = isError ? "modal.error" : (isWarning ? "modal.warning" : (isSuccess ? "modal.success" : "modal.info"));
     return this._showSystemDialog({
       mode: "alert",
       message,
-      title: options.title || (isError ? (I18n.t("modal.error") || "Error") : (isWarning ? (I18n.t("modal.warning") || "Advertencia") : (isSuccess ? (I18n.t("modal.success") || "Éxito") : (I18n.t("modal.info") || "Información")))),
+      title: options.title || I18n.t(defaultTitleKey),
+      titleKey: options.title ? null : defaultTitleKey,
       confirmText: options.confirmText || options.buttonText || I18n.t("modal.close") || "Aceptar",
+      confirmKey: options.confirmText || options.buttonText ? null : "modal.close",
       isDanger: isError,
       type,
       icon: options.icon,
@@ -895,9 +902,12 @@ class MeshCoreApp {
       mode: "prompt",
       message,
       defaultValue,
-      title: options.title || "Entrada de Datos",
+      title: options.title || I18n.t("modal.input_title"),
+      titleKey: options.title ? null : "modal.input_title",
       confirmText: options.confirmText || I18n.t("modal.confirm") || "Aceptar",
+      confirmKey: options.confirmText ? null : "modal.confirm",
       cancelText: options.cancelText || I18n.t("modal.cancel") || "Cancelar",
+      cancelKey: options.cancelText ? null : "modal.cancel",
       isDanger: false,
       type: options.type || "info",
       icon: options.icon || "edit-3",
@@ -930,7 +940,7 @@ class MeshCoreApp {
           <div class="modal-body system-dialog-body">
             <p id="systemDialogMessage" class="system-dialog-message"></p>
             <div id="systemDialogInputWrap" class="system-dialog-input-wrap hidden">
-              <label for="systemDialogInput" class="sr-only">Entrada de texto</label>
+              <label for="systemDialogInput" class="sr-only" data-i18n="modal.input_label">${escapeHtml(I18n.t("modal.input_label"))}</label>
               <input type="text" id="systemDialogInput" class="system-dialog-input text-input" autocomplete="off" spellcheck="false" />
             </div>
           </div>
@@ -946,6 +956,14 @@ class MeshCoreApp {
   }
 
   _showSystemDialog(config) {
+    // A single dialog element must never share listeners between pending requests.
+    const previous = this._systemDialogTask || Promise.resolve();
+    const task = previous.then(() => this._displaySystemDialog(config));
+    this._systemDialogTask = task.catch(() => {});
+    return task;
+  }
+
+  _displaySystemDialog(config) {
     return new Promise((resolve) => {
       const modal = this._ensureSystemDialogModal();
       const previousActiveElement = document.activeElement;
@@ -973,7 +991,19 @@ class MeshCoreApp {
         iconBadge.className = `system-dialog-icon-badge badge-${dialogType}${isDanger ? " badge-danger" : ""}`;
       }
 
-      if (titleEl) titleEl.textContent = config.title;
+      // Defaults keep live language bindings; explicit action labels remain intact.
+      const setDialogLabel = (element, text, key) => {
+        if (!element) return;
+        element.removeAttribute("data-i18n-params");
+        if (key) {
+          element.setAttribute("data-i18n", key);
+          element.textContent = I18n.t(key);
+        } else {
+          element.removeAttribute("data-i18n");
+          element.textContent = text;
+        }
+      };
+      setDialogLabel(titleEl, config.title, config.titleKey);
       if (msgEl) msgEl.textContent = config.message;
 
       if (iconEl && window.getLucideIcon) {
@@ -990,16 +1020,16 @@ class MeshCoreApp {
       }
 
       if (btnConfirm) {
-        btnConfirm.textContent = config.confirmText;
+        setDialogLabel(btnConfirm, config.confirmText, config.confirmKey);
         btnConfirm.className = `system-dialog-btn ${isDanger ? "btn-danger" : "btn-primary"}`;
       }
 
       if (btnCancel) {
+        setDialogLabel(btnCancel, config.cancelText, config.cancelKey);
         if (config.mode === "alert") {
           btnCancel.classList.add("hidden");
         } else {
           btnCancel.classList.remove("hidden");
-          btnCancel.textContent = config.cancelText;
           btnCancel.className = "btn-secondary system-dialog-btn";
         }
       }
@@ -1066,12 +1096,11 @@ class MeshCoreApp {
       };
 
       const onKeyDown = (e) => {
+        if (e.defaultPrevented) return;
         if (e.key === "Escape") {
           e.preventDefault();
+          e.stopPropagation();
           onCancel(e);
-        } else if (e.key === "Enter" && config.mode !== "prompt") {
-          e.preventDefault();
-          onConfirm(e);
         } else if (e.key === "Enter" && config.mode === "prompt" && document.activeElement === inputEl) {
           e.preventDefault();
           onConfirm(e);
@@ -1099,10 +1128,11 @@ class MeshCoreApp {
       modal.classList.remove("hidden");
 
       setTimeout(() => {
+        if (settled) return;
         if (config.mode === "prompt" && inputEl) {
           inputEl.focus();
           inputEl.select();
-        } else if (isDanger && btnCancel) {
+        } else if (isDanger && config.mode !== "alert" && btnCancel) {
           btnCancel.focus();
         } else if (btnConfirm) {
           btnConfirm.focus();

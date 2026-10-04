@@ -212,14 +212,6 @@ body.light-theme .settings-card:hover {
   box-shadow: var(--shadow-md);
 }
 
-body.light-theme .linux-terminal,
-body.light-theme .linux-term-output,
-body.light-theme .system-logs-box {
-  background: #0B192C;
-  border-color: #1E3A5F;
-  color: #E2E8F0;
-}
-
 body.light-theme .incoming .signal-chip,
 body.light-theme .incoming .loc-coords-badge {
   background: rgba(2, 132, 199, 0.08);
@@ -228,9 +220,9 @@ body.light-theme .incoming .loc-coords-badge {
 }
 
 body.light-theme .hex-preview-box {
-  background: #0B192C;
-  border-color: #1E3A5F;
-  color: #38BDF8;
+  background: var(--bg-primary-soft);
+  border-color: var(--border-subtle);
+  color: var(--accent-primary);
 }
 
 body.light-theme .warning-callout {
@@ -264,9 +256,9 @@ body.light-theme .badge-info {
 }
 
 body.light-theme .badge-secondary {
-  background: rgba(37, 99, 235, 0.1);
-  color: #2563eb;
-  border-color: rgba(37, 99, 235, 0.25);
+  background: var(--bg-primary-soft);
+  color: var(--accent-secondary);
+  border-color: var(--border-subtle);
 }
 
 body.light-theme .modal-close:hover {

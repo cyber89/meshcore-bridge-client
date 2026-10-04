@@ -9,7 +9,6 @@ import {
   isCommandOrSystemText,
   isCommonChatMessage,
   MAX_FEED_MESSAGES,
-  buildMeshCoreContactUri,
   buildMeshCoreChannelUri,
   formatMeshCoreContactMessage,
   parseMeshCoreUri,
@@ -993,7 +992,7 @@ export class ChatModule {
     }
 
     if (this.ctx.showToast) {
-      this.ctx.showToast(window.I18n ? window.I18n.t('chat.chat_closed') : "Conversación cerrada (mensajes conservados)", "info");
+      this.ctx.showToast(I18n.t('chat.chat_closed'), "info");
     }
   }
 
