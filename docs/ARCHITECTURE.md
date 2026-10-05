@@ -411,7 +411,7 @@ sequenceDiagram
 | POST | `/api/admin/repeater` | `RepeaterController` | Invocador base que interactúa con la lógica central de repetición remota en el aire. |
 | POST | `/api/repeater/remote/login` | `RepeaterController` | Solicita autenticación administrativa al repetidor remoto. |
 | POST | `/api/repeater/remote/logout` | `RepeaterController` | Libera recursos y anula el inicio de sesión remoto. |
-| POST | `/api/repeater/remote/config` | `RepeaterController` | Envía paquete de reconfiguración remota con comprobación criptográfica L3. |
+| POST | `/api/repeater/remote/config` | `RepeaterController` | Envía comandos CLI autenticados y correlacionados; distingue aplicado, preferencias guardadas y despacho no confirmado. |
 | POST | `/api/repeater/remote/action` | `RepeaterController` | Ejecución de una acción instantánea en el dispositivo objetivo (e.g., LED Toggle). |
 | POST | `/api/repeater/ping_zero` | `RepeaterController` | Operación de diagnóstico Hop 0; también `/api/node/ping_zero`. No es ICMP IP. |
 | POST | `/api/traceroute` | `RepeaterController` | Herramienta de medición y exploración de saltos entre el servidor y un destino remoto. |
@@ -495,3 +495,32 @@ tienen setter local Companion; sus escrituras se rechazan con 422. Los modos de
 telemetría son permisos para responder solicitudes, sin scheduler de envíos.
 La UI no presenta los valores históricos RAM como ajustes aplicables. Evidencia
 y aceptación: [LOCAL_CONFIGURATION_SAVE_FIX_2026-10-04.md](LOCAL_CONFIGURATION_SAVE_FIX_2026-10-04.md).
+
+### Parámetros avanzados y configuración remota
+
+Autoadd local conserva flags observados y usa el byte opcional de max hops sólo
+cuando el firmware lo reporta. Flood scope se serializa por bytes UTF-8 con
+nombre canónico y clave; reset consiste en un opcode. Path hash exige un campo
+DEVICE_INFO real, sin sustituir una lectura fallida por 0. Variables de sensor
+son configuraciones predefinidas; la API no simula borrado de claves.
+
+El executor remoto serializa solicitudes por objetivo y asocia respuestas CLI
+por tag y emisor. `MSG_SENT` es despacho; los SET esperan respuesta del firmware
+y reportan `applied`, `saved`, `unconfirmed` y errores parciales. Las rutas
+conservan HTTP 200 para despacho válido: el consumidor debe examinar también
+`data.status`. Un fallo incluye detalles parciales redactados, sin éxito global.
+
+`set radio` remoto guarda preferencias que requieren reinicio. `get radio`
+también lee preferencias: ambas rutas separan `saved` del registro RF observado
+y no actualizan frecuencia/BW/SF/CR activos a partir de ellas. Los GET escalares
+se interpretan por comando; owner/status/ACL utilizan los payloads binarios SDK.
+La consola no deriva estado del dispositivo desde ecos TX o líneas arbitrarias.
+Las respuestas privadas necesarias para confirmar contraseñas se redactan
+antes de publicarse por REST, MQTT y WebSocket.
+
+La SPA envía sólo campos editados, conserva borradores pendientes y restringe
+datos recibidos al objetivo abierto. Los controles sin setter oficial se
+deshabilitan; presets de región no se envían como parámetros del dispositivo.
+No se añadieron sondeos RF, reintentos, timers ni intervalos nuevos.
+Matriz, evidencia y aceptación física pendiente:
+[CONFIGURATION_PARAMETERS_AUDIT_2026-10-04.md](CONFIGURATION_PARAMETERS_AUDIT_2026-10-04.md).

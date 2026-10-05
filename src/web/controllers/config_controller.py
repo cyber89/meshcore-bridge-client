@@ -335,6 +335,10 @@ class ConfigController(BaseController):
             )
 
         applied_vars: dict[str, str] = {}
+        # Validate the whole batch before the first firmware command.
+        for key, value in pairs.items():
+            if any(char in key + value for char in (":", ",", "\0", "\r", "\n")):
+                return problem_details(422, "Unprocessable Entity", "Separadores reservados en variable custom", "invalid_custom_var")
         for k, v in pairs.items():
             result = await admin.set_custom_var(k, v)
             failure = self.command_failure(result)
@@ -370,7 +374,12 @@ class ConfigController(BaseController):
     async def get_path_hash_mode(self) -> tuple[int, dict[str, Any]]:
         """Obtiene el modo actual de compresión path hash."""
         admin = getattr(self.ctx.bridge, "admin_handler", None)
-        mode = await admin.get_path_hash_mode() if admin and hasattr(admin, "get_path_hash_mode") else 0
+        if not admin or not hasattr(admin, "get_path_hash_mode"):
+            return problem_details(503, "Service Unavailable", "Admin handler no disponible", "admin_unavailable")
+        try:
+            mode = await admin.get_path_hash_mode()
+        except ConnectionError as error:
+            return problem_details(503, "Service Unavailable", str(error), "read_unconfirmed")
         return 200, {"status": "ok", "path_hash_mode": mode, "data": {"path_hash_mode": mode}}
 
     async def set_path_hash_mode(self, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -432,6 +441,8 @@ class ConfigController(BaseController):
             else:
                 return problem_details(422, "Unprocessable Entity", "El parámetro 'max_hops' debe ser un entero", "invalid_max_hops")
 
+        if not 0 <= flags <= 255 or (max_hops is not None and not 0 <= max_hops <= 64):
+            return problem_details(422, "Unprocessable Entity", "flags fuera de 0..255 o max_hops fuera de 0..64", "invalid_autoadd")
         res = await admin.set_autoadd_config(flags, max_hops)
         if isinstance(res, dict) and res.get("status") == "error":
             return problem_details(
@@ -458,6 +469,12 @@ class ConfigController(BaseController):
         if not admin:
             return problem_details(503, "Service Unavailable", "Admin handler no disponible", "admin_unavailable")
         scope = body.get("scope", body.get("scope_name"))
+        if scope is not None and not isinstance(scope, str):
+            return problem_details(422, "Unprocessable Entity", "scope debe ser texto", "invalid_scope")
+        if scope and scope not in ("*", "0", "global", "none"):
+            canonical = scope if scope.startswith("#") else "#" + scope
+            if len(canonical.encode("utf-8")) > 30 or any(ord(char) < 32 for char in canonical):
+                return problem_details(422, "Unprocessable Entity", "Ámbito fuera de 1..30 bytes UTF-8 o con caracteres de control", "invalid_scope")
         res = await admin.set_flood_scope(str(scope) if scope else None)
         failure = self.command_failure(res)
         if failure:

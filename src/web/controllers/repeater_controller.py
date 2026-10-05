@@ -8,17 +8,27 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from src.protocol_types import redact_sensitive_mapping
 from src.web.controllers.base import BaseController, problem_details
 
 
 class RepeaterController(BaseController):
     """Controlador para administración remota de repetidores, login, telemetría y diagnósticos."""
 
+    def _remote_failure(self, result: Any) -> tuple[int, dict[str, Any]] | None:
+        """Keep dispatch distinct from a remote confirmation, including partial details."""
+        if isinstance(result, dict) and result.get("status") == "dispatched" and not result.get("error"):
+            return None
+        failure = self.command_failure(result)
+        if failure is not None and isinstance(result, dict):
+            failure[1]["data"] = redact_sensitive_mapping(result)
+        return failure
+
     async def execute_admin_command(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Ejecuta un comando de administración directa."""
         action = req_body.get("action")
         res = await self.ctx.bridge.handle_admin(req_body)
-        failure = self.command_failure(res)
+        failure = self._remote_failure(res)
         if failure:
             return failure
         self.ctx.log_system_event("INFO", f"Comando admin ejecutado: {action}", source="admin")
@@ -38,17 +48,13 @@ class RepeaterController(BaseController):
             "target_node": target_node,
             "action": action,
             "params": req_body.get("params", {}),
+            "password": req_body.get("password", ""),
             "request_id": req_body.get("request_id", f"web_rep_{int(time.time())}"),
         }
         res = await self.ctx.bridge.handle_admin(cmd_data)
-        if isinstance(res, dict) and res.get("status") == "error":
-            return problem_details(
-                int(res.get("code", 400)),
-                "Repeater Error",
-                str(res.get("error") or res.get("message") or "Error en repetidor"),
-                "repeater_command_failed",
-                {"data": res},
-            )
+        failure = self._remote_failure(res)
+        if failure:
+            return failure
 
         self.ctx.log_system_event("INFO", f"Comando RF a repetidor {target_node}: {action}", source="repeater_admin")
         return 200, {"status": "ok", "data": res}
@@ -86,11 +92,9 @@ class RepeaterController(BaseController):
 
         cmd = {"action": "logout", "target_node": target}
         res = await self.ctx.bridge.handle_admin(cmd)
-        if isinstance(res, dict) and (res.get("status") == "error" or res.get("error")):
-            msg = str(res.get("message") or res.get("error") or "Fallo al cerrar sesión en el repetidor")
-            code = res.get("code", 503)
-            status_code = code if isinstance(code, int) and 400 <= code <= 599 else 503
-            return problem_details(status_code, "Service Unavailable", msg, "logout_failed", {"data": res})
+        failure = self._remote_failure(res)
+        if failure:
+            return failure
 
         self.ctx.log_system_event("INFO", f"Sesión cerrada en repetidor {target}", source="repeater_admin")
         return 200, {"status": "ok", "data": res}
@@ -110,22 +114,9 @@ class RepeaterController(BaseController):
             "params": params,
         }
         res = await self.ctx.bridge.handle_admin(cmd)
-        if res.get("status") == "error":
-            return problem_details(
-                int(res.get("code", 400)),
-                "Config Error",
-                str(res.get("error") or res.get("message") or "Error en configuración remota"),
-                "remote_config_failed",
-                {"data": res},
-            )
-        if res.get("status") == "partial":
-            return problem_details(
-                400,
-                "Partial Remote Config",
-                str(res.get("error") or res.get("message") or "Configuración remota aplicada parcialmente"),
-                "remote_config_partial",
-                {"data": res, "partial": True},
-            )
+        failure = self._remote_failure(res)
+        if failure:
+            return failure
 
         self.ctx.log_system_event("INFO", f"Configuración remota despachada a repetidor {target}", source="repeater_admin")
         return 200, {"status": "ok", "data": res}
@@ -145,14 +136,9 @@ class RepeaterController(BaseController):
             "params": req_body.get("params", {}),
         }
         res = await self.ctx.bridge.handle_admin(cmd)
-        if res.get("status") == "error":
-            return problem_details(
-                int(res.get("code", 400)),
-                "Action Error",
-                str(res.get("error") or res.get("message") or "Error ejecutando acción remota"),
-                "remote_action_failed",
-                {"data": res},
-            )
+        failure = self._remote_failure(res)
+        if failure:
+            return failure
 
         self.ctx.log_system_event("INFO", f"Acción remota '{action_name}' despachada a repetidor {target}", source="repeater_admin")
         return 200, {"status": "ok", "data": res}
@@ -168,14 +154,9 @@ class RepeaterController(BaseController):
             "target_node": target,
         }
         res = await self.ctx.bridge.handle_admin(cmd)
-        if res.get("status") == "error":
-            return problem_details(
-                int(res.get("code", 400)),
-                "Ping Zero Error",
-                str(res.get("error") or res.get("message") or "Error en ping zero"),
-                "ping_zero_failed",
-                {"data": res},
-            )
+        failure = self._remote_failure(res)
+        if failure:
+            return failure
 
         self.ctx.log_system_event("INFO", f"🎯 Ping Zero (0 saltos) enviado a {target} - RTT: {res.get('rtt_ms')} ms", source="repeater_admin")
         return 200, {"status": "ok", "data": res}
@@ -191,14 +172,9 @@ class RepeaterController(BaseController):
             "target_node": target,
         }
         res = await self.ctx.bridge.handle_admin(cmd)
-        if res.get("status") == "error":
-            return problem_details(
-                int(res.get("code", 400)),
-                "Traceroute Error",
-                str(res.get("error") or res.get("message") or "Error en traceroute"),
-                "traceroute_failed",
-                {"data": res},
-            )
+        failure = self._remote_failure(res)
+        if failure:
+            return failure
 
         self.ctx.log_system_event("INFO", f"🗺️ Traceroute completado hacia {target} ({res.get('hop_count', 0)} saltos)", source="admin")
         return 200, {"status": "ok", "data": res}
@@ -213,10 +189,12 @@ class RepeaterController(BaseController):
             "target_node": target,
             "count": req_body.get("count", 255),
             "offset": req_body.get("offset", 0),
+            "password": req_body.get("password", ""),
         }
         res = await self.ctx.bridge.handle_admin(cmd)
-        if isinstance(res, dict) and res.get("status") == "error":
-            return problem_details(int(res.get("code", 400)), "Error Vecinos", str(res.get("message", "Error consultando vecinos")), "neighbours_error", {"data": res})
+        failure = self._remote_failure(res)
+        if failure:
+            return failure
         self.ctx.log_system_event("INFO", f"Vecinos consultados para repetidor {target}", source="repeater_admin")
         return 200, {"status": "ok", "data": res}
 
@@ -225,10 +203,11 @@ class RepeaterController(BaseController):
         target = str(req_body.get("target_node", req_body.get("repeater", ""))).strip()
         if not target:
             return problem_details(400, "Bad Request", "Se requiere 'target_node'", "missing_target_node")
-        cmd = {"action": "req_owner", "target_node": target}
+        cmd = {"action": "req_owner", "target_node": target, "password": req_body.get("password", "")}
         res = await self.ctx.bridge.handle_admin(cmd)
-        if isinstance(res, dict) and res.get("status") == "error":
-            return problem_details(int(res.get("code", 400)), "Error Propietario", str(res.get("message", "Error consultando propietario")), "owner_error", {"data": res})
+        failure = self._remote_failure(res)
+        if failure:
+            return failure
         return 200, {"status": "ok", "data": res}
 
     async def get_regions(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -236,10 +215,11 @@ class RepeaterController(BaseController):
         target = str(req_body.get("target_node", req_body.get("repeater", ""))).strip()
         if not target:
             return problem_details(400, "Bad Request", "Se requiere 'target_node'", "missing_target_node")
-        cmd = {"action": "req_regions", "target_node": target}
+        cmd = {"action": "req_regions", "target_node": target, "password": req_body.get("password", "")}
         res = await self.ctx.bridge.handle_admin(cmd)
-        if isinstance(res, dict) and res.get("status") == "error":
-            return problem_details(int(res.get("code", 400)), "Error Regiones", str(res.get("message", "Error consultando regiones")), "regions_error", {"data": res})
+        failure = self._remote_failure(res)
+        if failure:
+            return failure
         return 200, {"status": "ok", "data": res}
 
     async def get_clock(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -247,10 +227,11 @@ class RepeaterController(BaseController):
         target = str(req_body.get("target_node", req_body.get("repeater", ""))).strip()
         if not target:
             return problem_details(400, "Bad Request", "Se requiere 'target_node'", "missing_target_node")
-        cmd = {"action": "req_clock", "target_node": target}
+        cmd = {"action": "req_clock", "target_node": target, "password": req_body.get("password", "")}
         res = await self.ctx.bridge.handle_admin(cmd)
-        if isinstance(res, dict) and res.get("status") == "error":
-            return problem_details(int(res.get("code", 400)), "Error Reloj", str(res.get("message", "Error consultando reloj")), "clock_error", {"data": res})
+        failure = self._remote_failure(res)
+        if failure:
+            return failure
         return 200, {"status": "ok", "data": res}
 
     async def get_acl(self, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -258,9 +239,10 @@ class RepeaterController(BaseController):
         target = str(req_body.get("target_node", req_body.get("repeater", ""))).strip()
         if not target:
             return problem_details(400, "Bad Request", "Se requiere 'target_node'", "missing_target_node")
-        cmd = {"action": "req_acl", "target_node": target}
+        cmd = {"action": "req_acl", "target_node": target, "password": req_body.get("password", "")}
         res = await self.ctx.bridge.handle_admin(cmd)
-        if isinstance(res, dict) and res.get("status") == "error":
-            return problem_details(int(res.get("code", 400)), "Error ACL", str(res.get("message", "Error consultando ACL")), "acl_error", {"data": res})
+        failure = self._remote_failure(res)
+        if failure:
+            return failure
         return 200, {"status": "ok", "data": res}
 

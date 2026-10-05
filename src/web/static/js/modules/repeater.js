@@ -18,6 +18,10 @@ export class RepeaterModule {
     this._lastTerminalEntry = null;
     this.dom = {};
     this.dirtyFields = new Set();
+    this._fieldEditVersions = new Map();
+    this._modalRevision = 0;
+    this._observationRevision = 0;
+    this._remoteRadioPreferences = {};
     this._isSavingRadio = false;
     this._isSavingOwnerPos = false;
     this._isSavingSecurity = false;
@@ -38,7 +42,7 @@ export class RepeaterModule {
   _setFieldIfNotDirty(id, value, isChecked = null) {
     if (this.dirtyFields.has(id)) return;
     const el = document.getElementById(id);
-    if (!el || document.activeElement === el) return;
+    if (!el || (document.activeElement === el && !this._confirmedFieldIds?.has(id))) return;
     if (isChecked !== null) {
       el.checked = Boolean(isChecked);
     } else if (value != null) {
@@ -47,7 +51,18 @@ export class RepeaterModule {
   }
 
   _resetModalInputs() {
+    ++this._modalRevision;
+    ++this._observationRevision;
     this.dirtyFields.clear();
+    this._fieldEditVersions.clear();
+    this._remoteRadioPreferences = {};
+    this._isSavingRadio = false;
+    this._isSavingOwnerPos = false;
+    this._isSavingSecurity = false;
+    for (const id of ["btnSubmitRepRadio", "btnSubmitRepOwnerPos", "btnSubmitRepSecurity"]) {
+      const button = document.getElementById(id);
+      if (button) button.disabled = false;
+    }
     const setVal = (id, val = "") => {
       const el = document.getElementById(id);
       if (el) el.value = val;
@@ -56,18 +71,18 @@ export class RepeaterModule {
     setVal("radioRegion", "US915");
     setVal("radioPower", "20");
     const pVal = document.getElementById("radioPowerVal");
-    if (pVal) pVal.textContent = "20 dBm";
-    setVal("radioHopLimit", "3");
-    setVal("radioBeaconInterval", "300");
-    setVal("radioSf", "11");
-    setVal("radioBw", "250");
-    setVal("radioCr", "4/5");
+    if (pVal) pVal.textContent = "-- dBm";
+    setVal("radioHopLimit", "");
+    setVal("radioBeaconInterval", "");
+    setVal("radioSf", "");
+    setVal("radioBw", "");
+    setVal("radioCr", "");
     const repMode = document.getElementById("radioRepeatMode");
-    if (repMode) repMode.checked = true;
+    if (repMode) repMode.checked = false;
     const repBadge = document.getElementById("radioRepeatBadge");
     if (repBadge) {
-      I18n.setText(repBadge, 'common.on');
-      repBadge.className = "toggle-state-badge is-active-purple";
+      I18n.setText(repBadge, 'settings.unknown');
+      repBadge.className = "toggle-state-badge";
     }
     setVal("repOwnerName", "");
     setVal("repOwnerInfo", "");
@@ -119,6 +134,7 @@ export class RepeaterModule {
     const markDirty = (e) => {
       if (e.target && e.target.id) {
         this.dirtyFields.add(e.target.id);
+        this._fieldEditVersions.set(e.target.id, (this._fieldEditVersions.get(e.target.id) || 0) + 1);
       }
     };
     [
@@ -152,7 +168,7 @@ export class RepeaterModule {
     const gateSubmit = this.dom.btnRepeaterGateSubmit;
     const submitAuth = async () => {
       const target = this.selectedRepeaterTarget;
-      const pwd = repeaterGatePassword ? repeaterGatePassword.value.trim() : "";
+      const pwd = repeaterGatePassword ? repeaterGatePassword.value : "";
       if (!target) return;
       await this.authenticateRepeater(target, pwd);
     };
@@ -235,13 +251,13 @@ export class RepeaterModule {
           if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.choose_target"), "warning");
           return;
         }
-        this._remoteCliHistory.push(cmd);
+        if (this._redactRemoteCommand(cmd) === cmd) this._remoteCliHistory.push(cmd);
         this._remoteCliHistoryIdx = -1;
         if (repQuickCmdInput) repQuickCmdInput.value = "";
 
         if (repQuickCmdFeedback) {
           repQuickCmdFeedback.className = "rep-quick-feedback pending";
-          I18n.setText(repQuickCmdFeedback, "repeater.transmitting_command", { p0: cmd });
+          I18n.setText(repQuickCmdFeedback, "repeater.transmitting_command", { p0: this._redactRemoteCommand(cmd) });
           repQuickCmdFeedback.classList.remove("hidden");
         }
 
@@ -361,6 +377,8 @@ export class RepeaterModule {
         const reg = e.target.value;
         if (REGION_FREQUENCIES[reg]) {
           repFreqInput.value = REGION_FREQUENCIES[reg];
+          this.dirtyFields.add("radioFreq");
+          this._fieldEditVersions.set("radioFreq", (this._fieldEditVersions.get("radioFreq") || 0) + 1);
         }
       });
     }
@@ -384,103 +402,9 @@ export class RepeaterModule {
     }
 
     if (radioForm) {
-      radioForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        if (this._isSavingRadio) return;
-        const target = this.selectedRepeaterTarget;
-        if (!target) {
-          const msg = I18n.t('repeater.select_repeater');
-          if (this.ctx.showAlert) {
-            await this.ctx.showAlert(msg, { type: "warning", title: I18n.t("modal.warning") || "Atención" });
-          } else if (this.ctx.showToast) {
-            this.ctx.showToast(msg, "warning");
-          }
-          return;
-        }
-        const submitBtn = radioForm.querySelector("button[type='submit']");
-        this._isSavingRadio = true;
-        if (submitBtn) submitBtn.disabled = true;
-
-        const password = this.getRepeaterPassword(target);
-        const freq = parseFloat(document.getElementById("radioFreq").value);
-        const region = document.getElementById("radioRegion")?.value || "US915";
-        const tx_power = parseInt(document.getElementById("radioPower").value, 10);
-        const sf = parseInt(document.getElementById("radioSf").value, 10);
-        const bw = parseFloat(document.getElementById("radioBw").value);
-        const cr = document.getElementById("radioCr")?.value || "4/5";
-        const hop_limit = parseInt(document.getElementById("radioHopLimit").value, 10);
-        const repeat = document.getElementById("radioRepeatMode")?.checked === true;
-        const beacon_interval = parseInt(document.getElementById("radioBeaconInterval")?.value || "300", 10);
-
-        const params = { freq, region, tx_power, sf, bw, cr, hop_limit, repeat, beacon_interval };
-        this.appendTerminalLine(I18n.t("repeater.tx_config", { p0: target.slice(0, 8), p1: freq, p2: tx_power, p3: sf, p4: bw }), "term-cmd");
-
-        try {
-          const res = await fetch("/api/repeater/remote/config", {
-            method: "POST",
-            headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
-            body: JSON.stringify({ target_node: target, password: password, params: params }),
-          });
-          const data = await res.json();
-          if (this.selectedRepeaterTarget !== target) return;
-
-          if (data.status === "ok") {
-            const inner = data.data || {};
-            const isPendingReboot = Boolean(inner.pending_reboot);
-            [
-              "radioFreq", "radioRegion", "radioPower", "radioHopLimit",
-              "radioRepeatMode", "radioBeaconInterval", "radioSf", "radioBw", "radioCr"
-            ].forEach((id) => this.dirtyFields.delete(id));
-
-            if (isPendingReboot) {
-              this.appendTerminalLine(I18n.t("repeater.config_pending_reboot", { p0: I18n.t("repeater.rx_config", { p0: target.slice(0, 8) }) }), "term-warning");
-              if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.config_pending_reboot_notice"), "info");
-            } else {
-              this.appendTerminalLine(I18n.t("repeater.rx_config", { p0: target.slice(0, 8) }), "term-success");
-              if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.rep_cfg_ok'), "success");
-
-              const sFreq = document.getElementById("repSummaryFreq");
-              if (sFreq) sFreq.textContent = `${freq.toFixed(3)} MHz`;
-              const sPower = document.getElementById("repSummaryPower");
-              if (sPower) sPower.textContent = `${tx_power} dBm`;
-              const sModem = document.getElementById("repSummaryModem");
-              if (sModem) sModem.textContent = `SF${sf} / BW${bw}`;
-              const sHop = document.getElementById("repSummaryHopLimit");
-              if (sHop) I18n.setText(sHop, "repeater.hop_count", { p0: hop_limit });
-              const sRep = document.getElementById("repSummaryRepeat");
-              if (sRep) I18n.setText(sRep, repeat ? "repeater.enabled" : "repeater.disabled");
-
-              if (this.ctx.knownNodes) {
-                const canonicalPk = this.resolveCanonicalPubkey(target) || target;
-                const existing = this.ctx.knownNodes.get(canonicalPk) || this.ctx.knownNodes.get(target);
-                if (existing) {
-                  existing.frequency = freq;
-                  existing.tx_power = tx_power;
-                  existing.spreading_factor = sf;
-                  existing.bandwidth = bw;
-                  existing.coding_rate = cr;
-                  existing.hop_limit = hop_limit;
-                  existing.repeat_enabled = repeat;
-                  existing.advert_interval = beacon_interval;
-                  if (this.ctx.updateNodeInDom) this.ctx.updateNodeInDom(canonicalPk, existing);
-                }
-              }
-            }
-          } else {
-            const errMsg = data.detail || data.message || data.error || I18n.t('settings.unknown');
-            this.appendTerminalLine(`✗ [RX ERROR] ${errMsg}`, "term-error");
-            if (errMsg.toLowerCase().includes("password") || errMsg.toLowerCase().includes("auth") || errMsg.toLowerCase().includes("pin")) {
-              this.handleRepeaterAuthError(target, errMsg);
-            } else {
-              if (this.ctx.showToast) this.ctx.showToast(I18n.t('app.error', { error: errMsg }), "error");
-            }
-          }
-        } catch (err) {
-          this.appendTerminalLine(`✗ [ERROR] ${err.message}`, "term-error");
-        } finally {
-          this._isSavingRadio = false;
-          if (submitBtn) submitBtn.disabled = false;
-        }
+      radioForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        this.saveRemoteConfiguration("radio");
       });
     }
 
@@ -497,170 +421,18 @@ export class RepeaterModule {
     }
 
     if (ownerPosForm) {
-      ownerPosForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        if (this._isSavingOwnerPos) return;
-        const target = this.selectedRepeaterTarget;
-        if (!target) {
-          const msg = I18n.t("repeater.select_repeater");
-          if (this.ctx.showAlert) {
-            await this.ctx.showAlert(msg, { type: "warning", title: I18n.t("modal.warning") || "Atención" });
-          } else if (this.ctx.showToast) {
-            this.ctx.showToast(msg, "warning");
-          }
-          return;
-        }
-        const submitBtn = ownerPosForm.querySelector("button[type='submit']");
-        this._isSavingOwnerPos = true;
-        if (submitBtn) submitBtn.disabled = true;
-
-        const password = this.getRepeaterPassword(target);
-        const owner_name = document.getElementById("repOwnerName")?.value.trim() || "";
-        const owner_info = document.getElementById("repOwnerInfo")?.value.trim() || "";
-        const rawLat = document.getElementById("repPosLat")?.value.trim();
-        const rawLon = document.getElementById("repPosLon")?.value.trim();
-        const rawAlt = document.getElementById("repPosAlt")?.value.trim();
-        const lat = rawLat !== undefined && rawLat !== "" && !isNaN(parseFloat(rawLat)) ? parseFloat(rawLat) : null;
-        const lon = rawLon !== undefined && rawLon !== "" && !isNaN(parseFloat(rawLon)) ? parseFloat(rawLon) : null;
-        const alt = rawAlt !== undefined && rawAlt !== "" && !isNaN(parseFloat(rawAlt)) ? parseFloat(rawAlt) : null;
-        const fixed = document.getElementById("repPosFixed")?.checked === true;
-
-        const params = { owner_name, owner_info, lat, lon, alt, fixed, fixed_position: fixed };
-        this.appendTerminalLine(I18n.t("repeater.tx_owner", { p0: owner_name, p1: lat ?? '--', p2: lon ?? '--', p3: target.slice(0, 8) }), "term-cmd");
-
-        try {
-          const res = await fetch("/api/repeater/remote/config", {
-            method: "POST",
-            headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
-            body: JSON.stringify({ target_node: target, password: password, params: params }),
-          });
-          const data = await res.json();
-          if (this.selectedRepeaterTarget !== target) return;
-
-          if (data.status === "ok") {
-            [
-              "repOwnerName", "repOwnerInfo", "repPosLat", "repPosLon", "repPosAlt", "repPosFixed"
-            ].forEach((id) => this.dirtyFields.delete(id));
-
-            this.appendTerminalLine(I18n.t("repeater.rx_owner", { p0: target.slice(0, 8) }), "term-success");
-            if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.rep_pos_ok'), "success");
-
-            if (this.ctx.knownNodes) {
-              const canonicalPk = this.resolveCanonicalPubkey(target) || target;
-              const existing = this.ctx.knownNodes.get(canonicalPk) || this.ctx.knownNodes.get(target);
-              if (existing) {
-                if (owner_name) { existing.name = owner_name; existing.alias = owner_name; existing.owner_name = owner_name; }
-                if (owner_info) existing.owner_info = owner_info;
-                if (lat !== null) existing.latitude = lat;
-                if (lon !== null) existing.longitude = lon;
-                if (alt !== null) existing.altitude_m = alt;
-                existing.fixed_position = fixed;
-                existing.fixed = fixed;
-              }
-              if (this.ctx.renderNodesDirectory) this.ctx.renderNodesDirectory(Array.from(this.ctx.knownNodes.values()));
-            }
-          } else {
-            const errMsg = data.detail || data.message || data.error || I18n.t('settings.unknown');
-            this.appendTerminalLine(`✗ [RX ERROR] ${errMsg}`, "term-error");
-            if (errMsg.toLowerCase().includes("password") || errMsg.toLowerCase().includes("auth") || errMsg.toLowerCase().includes("pin")) {
-              this.handleRepeaterAuthError(target, errMsg);
-            } else {
-              if (this.ctx.showToast) this.ctx.showToast(I18n.t('app.error', { error: errMsg }), "error");
-            }
-          }
-        } catch (err) {
-          this.appendTerminalLine(`✗ [ERROR] ${err.message}`, "term-error");
-        } finally {
-          this._isSavingOwnerPos = false;
-          if (submitBtn) submitBtn.disabled = false;
-        }
+      ownerPosForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        this.saveRemoteConfiguration("ownerPos");
       });
     }
 
     // Formulario de Seguridad & ACL (F11)
     const securityForm = document.getElementById("repSecurityForm");
     if (securityForm) {
-      securityForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        if (this._isSavingSecurity) return;
-        const target = this.selectedRepeaterTarget;
-        if (!target) {
-          const msg = I18n.t("repeater.select_repeater");
-          if (this.ctx.showAlert) {
-            await this.ctx.showAlert(msg, { type: "warning", title: I18n.t("modal.warning") || "Atención" });
-          } else if (this.ctx.showToast) {
-            this.ctx.showToast(msg, "warning");
-          }
-          return;
-        }
-        const submitBtn = securityForm.querySelector("button[type='submit']");
-        this._isSavingSecurity = true;
-        if (submitBtn) submitBtn.disabled = true;
-
-        const currentPassword = this.getRepeaterPassword(target);
-        const adminPwdInput = document.getElementById("secNewAdminPwd");
-        const guestPwdInput = document.getElementById("secNewGuestPwd");
-        const aclModeInput = document.getElementById("secAclMode");
-        const identityKeyInput = document.getElementById("secIdentityKey");
-
-        const newAdminPwd = adminPwdInput ? adminPwdInput.value.trim() : "";
-        const newGuestPwd = guestPwdInput ? guestPwdInput.value.trim() : "";
-        const identityKey = identityKeyInput ? identityKeyInput.value.trim() : "";
-        const isAclDirty = this.dirtyFields.has("secAclMode");
-        const aclMode = (isAclDirty && aclModeInput) ? aclModeInput.value : null;
-
-        const params = {};
-        if (newAdminPwd) params.new_password = newAdminPwd;
-        if (newGuestPwd) params.guest_password = newGuestPwd;
-        if (identityKey) params.identity_key = identityKey;
-        if (aclMode) params.acl_mode = aclMode;
-
-        if (Object.keys(params).length === 0) {
-          if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.no_security_changes"), "info");
-          this._isSavingSecurity = false;
-          if (submitBtn) submitBtn.disabled = false;
-          return;
-        }
-
-        this.appendTerminalLine(I18n.t("repeater.tx_security", { p0: target.slice(0, 8) }), "term-cmd");
-
-        try {
-          const res = await fetch("/api/repeater/remote/config", {
-            method: "POST",
-            headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
-            body: JSON.stringify({ target_node: target, password: currentPassword, params: params }),
-          });
-          const data = await res.json();
-          if (this.selectedRepeaterTarget !== target) return;
-
-          if (data.status === "ok") {
-            [
-              "secNewAdminPwd", "secNewGuestPwd", "secAclMode", "secIdentityKey"
-            ].forEach((id) => this.dirtyFields.delete(id));
-
-            this.appendTerminalLine(I18n.t("repeater.rx_security", { p0: target.slice(0, 8) }), "term-success");
-            if (newAdminPwd) {
-              const canonicalPk = this.resolveCanonicalPubkey(target) || target;
-              this.setStoredRepeaterPassword(canonicalPk, newAdminPwd);
-              this.setStoredRepeaterPassword(target, newAdminPwd);
-              if (this.dom.repeaterGatePassword) this.dom.repeaterGatePassword.value = newAdminPwd;
-              this.appendTerminalLine(I18n.t("repeater.cached_credentials", {  }), "term-info");
-            }
-            if (adminPwdInput) adminPwdInput.value = "";
-            if (guestPwdInput) guestPwdInput.value = "";
-            if (identityKeyInput) identityKeyInput.value = "";
-            if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.security_applied"), "success");
-          } else {
-            const errMsg = data.detail || data.message || data.error || I18n.t('settings.unknown');
-            this.appendTerminalLine(`✗ [RX ERROR] ${errMsg}`, "term-error");
-            if (this.ctx.showToast) this.ctx.showToast(I18n.t('app.error', { error: errMsg }), "error");
-          }
-        } catch (err) {
-          this.appendTerminalLine(`✗ [ERROR] ${err.message}`, "term-error");
-        } finally {
-          this._isSavingSecurity = false;
-          if (submitBtn) submitBtn.disabled = false;
-        }
+      securityForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        this.saveRemoteConfiguration("security");
       });
     }
 
@@ -677,8 +449,8 @@ export class RepeaterModule {
         const origText = lbl.textContent;
         I18n.setText(lbl, "repeater.querying");
         try {
-          await this.refreshRepeaterFullTelemetry(target, password);
-          if (this.ctx.showToast) this.ctx.showToast(I18n.t('toast.rep_telem_req'), "info");
+          const received = await this.refreshRepeaterFullTelemetry(target, password);
+          if (received && this.ctx.showToast) this.ctx.showToast(I18n.t('toast.rep_telem_req'), "info");
         } catch (_) {
         } finally {
           btnRefreshTelem.disabled = false;
@@ -890,7 +662,7 @@ export class RepeaterModule {
           if (helpDrawer) helpDrawer.classList.toggle("hidden");
         }
 
-        this._remoteCliHistory.push(cmd);
+        if (this._redactRemoteCommand(cmd) === cmd) this._remoteCliHistory.push(cmd);
         this._remoteCliHistoryIdx = -1;
         if (repeaterTerminalInput) repeaterTerminalInput.value = "";
         const password = this.getRepeaterPassword(target);
@@ -903,76 +675,215 @@ export class RepeaterModule {
     }
   }
 
+  _redactRemoteCommand(command) {
+    return String(command).replace(/^((?:login|password|set\s+(?:password|guest\.password|identity))\s+).+$/i, "$1********");
+  }
+
+  _remoteFieldValue(id) {
+    const element = document.getElementById(id);
+    return element?.type === "checkbox" ? Boolean(element.checked) : (element?.value ?? "");
+  }
+
+  _collectRemoteDraft(kind) {
+    const numeric = raw => String(raw).trim() === "" ? NaN : Number(raw);
+    const fields = {
+      radio: [
+        ["radioFreq", "frequency", numeric], ["radioPower", "tx_power", numeric],
+        ["radioSf", "spreading_factor", numeric], ["radioBw", "bandwidth", numeric],
+        ["radioCr", "coding_rate", String], ["radioRepeatMode", "repeat", Boolean],
+        ["radioBeaconInterval", "advert_interval", numeric], ["radioHopLimit", "hop_limit", numeric],
+      ],
+      ownerPos: [
+        ["repOwnerName", "name", raw => String(raw).trim()], ["repOwnerInfo", "owner_info", String],
+        ["repPosLat", "latitude", numeric], ["repPosLon", "longitude", numeric],
+        ["repPosAlt", "altitude", numeric], ["repPosFixed", "fixed_position", Boolean],
+      ],
+      security: [
+        ["secNewAdminPwd", "new_password", String], ["secNewGuestPwd", "guest_password", String],
+        ["secAclMode", "acl_mode", String], ["secIdentityKey", "identity_key", String],
+      ],
+    };
+    const params = {};
+    const snapshot = new Map();
+    for (const [id, key, convert] of fields[kind]) {
+      if (!this.dirtyFields.has(id)) continue;
+      const raw = this._remoteFieldValue(id);
+      if (kind === "security" && (key === "new_password" || key === "guest_password") && raw === "") continue;
+      const value = convert(raw);
+      if (typeof value === "number" && !Number.isFinite(value)) throw new Error(I18n.t("settings.invalid_value"));
+      if (key === "advert_interval" && value !== 0 && (!Number.isInteger(value) || value < 60 || value > 240 || value % 2 !== 0)) {
+        throw new Error(I18n.t("repeater.advert_minutes_hint"));
+      }
+      params[key] = value;
+      snapshot.set(id, {key,raw,version:this._fieldEditVersions.get(id) || 0});
+    }
+    if (kind === "radio" && ["frequency", "bandwidth", "spreading_factor", "coding_rate"].some(key => Object.hasOwn(params,key))) {
+      for (const [id,key,convert] of fields.radio.slice(0,5).filter(([,key])=>key!=="tx_power")) {
+        const raw = this._remoteFieldValue(id);
+        if (String(raw).trim() === "") throw new Error(I18n.t("repeater.radio_baseline_required"));
+        const value = convert(raw);
+        if (typeof value === "number" && !Number.isFinite(value)) throw new Error(I18n.t("settings.invalid_value"));
+        params[key] = value;
+      }
+    }
+    return {params,snapshot};
+  }
+
+  _populateRemoteSavedRadio(saved) {
+    if (!saved || typeof saved !== "object") return;
+    this._remoteRadioPreferences = {...this._remoteRadioPreferences,...saved};
+    for (const [key,id] of [["frequency","radioFreq"],["bandwidth","radioBw"],["spreading_factor","radioSf"],["coding_rate","radioCr"]]) {
+      if (saved[key] == null) continue;
+      const value = key === "coding_rate" && [5,6,7,8].includes(Number(saved[key])) ? `4/${saved[key]}` : saved[key];
+      this._setFieldIfNotDirty(id,value);
+    }
+    const state = document.getElementById("remoteRadioSettingsState");
+    if(state)I18n.setText(state,"repeater.radio_saved_preferences");
+  }
+
+  _remoteAppliedKey(applied, key) {
+    const aliases = {
+      frequency:["frequency","freq"], bandwidth:["bandwidth","bw"], spreading_factor:["spreading_factor","sf"],
+      coding_rate:["coding_rate","cr"], repeat:["repeat","repeat_enabled"], name:["name","owner_name"],
+      latitude:["latitude","lat"], longitude:["longitude","lon"], advert_interval:["advert_interval","beacon_interval"],
+      new_password:["new_password","admin_password","password"],
+    };
+    return (aliases[key] || [key]).find(name => Object.hasOwn(applied, name) && applied[name] != null);
+  }
+
+  _commitRemoteConfirmed(target, applied, snapshot) {
+    const confirmedFields = new Set();
+    for (const [id, sent] of snapshot) {
+      if (!this._remoteAppliedKey(applied, sent.key)) continue;
+      if (this._remoteFieldValue(id) === sent.raw && (this._fieldEditVersions.get(id) || 0) === sent.version) {
+        this.dirtyFields.delete(id);
+        confirmedFields.add(id);
+        if (id === "secNewAdminPwd" || id === "secNewGuestPwd") document.getElementById(id).value = "";
+      }
+      if (id === "secNewAdminPwd") {
+        const canonical = this.resolveCanonicalPubkey(target) || target;
+        this.setStoredRepeaterPassword(canonical, sent.raw);
+        this.setStoredRepeaterPassword(target, sent.raw);
+        if (this.dom.repeaterGatePassword) this.dom.repeaterGatePassword.value = sent.raw;
+      }
+    }
+    const canonical = this.resolveCanonicalPubkey(target) || target;
+    const existing = this.ctx.knownNodes?.get(canonical) || this.ctx.knownNodes?.get(target) || {};
+    const next = {...existing};
+    for (const key of ["frequency","tx_power","bandwidth","spreading_factor","coding_rate","repeat","name","owner_info","latitude","longitude","advert_interval"]) {
+      const observed = this._remoteAppliedKey(applied, key);
+      if (observed) next[key] = applied[observed];
+    }
+    if (Object.hasOwn(next,"name")) next.owner_name = next.alias = next.name;
+    if (Object.hasOwn(next,"repeat")) next.repeat_enabled = next.repeat;
+    this.ctx.knownNodes?.set(canonical,next);
+    this._confirmedFieldIds = confirmedFields;
+    try { this.populateRepeaterModalData({...next,public_key:canonical}); }
+    finally { this._confirmedFieldIds = null; }
+    if (this.ctx.updateNodeInDom) this.ctx.updateNodeInDom(canonical,next);
+  }
+
+  async saveRemoteConfiguration(kind) {
+    const flags = {radio:"_isSavingRadio",ownerPos:"_isSavingOwnerPos",security:"_isSavingSecurity"};
+    const formIds = {radio:"repRadioForm",ownerPos:"repOwnerPosForm",security:"repSecurityForm"};
+    const flag = flags[kind];
+    if (this[flag]) return;
+    const target = this.selectedRepeaterTarget;
+    const canonical = this.resolveCanonicalPubkey(target) || target;
+    if (!target || !this.authenticatedRepeaters.has(canonical)) {
+      if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.select_repeater"),"warning");
+      return;
+    }
+    let draft;
+    try { draft = this._collectRemoteDraft(kind); }
+    catch(error) { if(this.ctx.showToast)this.ctx.showToast(error.message,"error");return; }
+    if (Object.keys(draft.params).length === 0) {
+      if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.no_config_changes"),"info");
+      return;
+    }
+    const revision = this._modalRevision;
+    const submit = document.getElementById(formIds[kind])?.querySelector("button[type='submit']");
+    this[flag] = true;
+    ++this._observationRevision;
+    if(submit)submit.disabled=true;
+    this.appendTerminalLine(I18n.t("repeater.config_sending"),"term-cmd");
+    try {
+      const response = await fetch("/api/repeater/remote/config",{
+        method:"POST",
+        headers:this.ctx.getAuthHeaders?this.ctx.getAuthHeaders({"Content-Type":"application/json"}):{"Content-Type":"application/json"},
+        body:JSON.stringify({target_node:canonical,password:this.getRepeaterPassword(canonical),params:draft.params}),
+      });
+      const data = await response.json();
+      if(revision!==this._modalRevision||this.selectedRepeaterTarget!==target)return;
+      ++this._observationRevision;
+      const result=data.data&&typeof data.data==="object"?data.data:data;
+      const applied=result.applied&&typeof result.applied==="object"?result.applied:{};
+      if(result.saved)this._populateRemoteSavedRadio(result.saved);
+      if(Object.keys(applied).length)this._commitRemoteConfirmed(target,applied,draft.snapshot);
+      const allApplied=Object.keys(draft.params).every(key=>this._remoteAppliedKey(applied,key));
+      const allAcknowledged=Object.keys(draft.params).every(key=>this._remoteAppliedKey(applied,key)||this._remoteAppliedKey(result.saved||{},key));
+      if(response.ok&&data.status==="ok"&&result.status==="ok"&&allApplied) {
+        this.appendTerminalLine(I18n.t("repeater.config_confirmed"),"term-success");
+        if(this.ctx.showToast)this.ctx.showToast(I18n.t("repeater.config_confirmed"),"success");
+      } else if(response.ok&&data.status==="ok"&&result.pending_reboot&&allAcknowledged) {
+        this.appendTerminalLine(I18n.t("repeater.config_saved_reboot"),"term-warning");
+        if(this.ctx.showToast)this.ctx.showToast(I18n.t("repeater.config_saved_reboot"),"warning");
+      } else if(response.ok&&data.status==="ok"&&result.status==="dispatched") {
+        this.appendTerminalLine(I18n.t("repeater.config_dispatched"),"term-warning");
+        if(this.ctx.showToast)this.ctx.showToast(I18n.t("repeater.config_dispatched"),"warning");
+      } else {
+        const detail=data.detail||result.detail||data.message||result.message||data.error||I18n.t("settings.config_unconfirmed");
+        this.appendTerminalLine(`✗ ${detail}`,"term-error");
+        if(response.status===401||result.authenticated===false)this.handleRepeaterAuthError(target,detail);
+        else if(this.ctx.showToast)this.ctx.showToast(I18n.t("app.error",{error:detail}),"error");
+      }
+      for(const entry of result.results||[]) {
+        if(entry.response)this.appendTerminalLine(`← ${entry.command}: ${entry.response}`,"term-resp");
+      }
+    } catch(error) {
+      if(revision===this._modalRevision&&this.selectedRepeaterTarget===target) {
+        this.appendTerminalLine(I18n.t("repeater.command_network_error",{p0:error.message}),"term-error");
+        if(this.ctx.showToast)this.ctx.showToast(I18n.t("repeater.command_network_error",{p0:error.message}),"error");
+      }
+    } finally {
+      if(revision===this._modalRevision) {
+        this[flag]=false;
+        if(submit)submit.disabled=false;
+      }
+    }
+  }
+
   _subscribeBus() {
     if (!this.ctx.eventBus) return;
-
     this.ctx.eventBus.on(EVENTS.RX_PACKET, (payload) => {
-      if (!payload || typeof payload !== "object") return;
-      const evType = payload.type || payload.event_type;
-
-      if (evType === "repeater_response" || evType === "repeater_telemetry") {
-        const text = payload.text || payload.message || payload.response || "";
-        if (text) {
-          this.appendTerminalLine(text, "term-resp");
-          const parsed = this.parseRepeaterTelemetryFromText(text);
-          if (parsed && Object.keys(parsed).length > 0 && this.selectedRepeaterTarget) {
-            const canonicalPk = this.resolveCanonicalPubkey(this.selectedRepeaterTarget) || this.selectedRepeaterTarget;
-            if (this.ctx.knownNodes) {
-              const existing = this.ctx.knownNodes.get(canonicalPk) || {};
-              const updated = { ...existing, ...parsed, public_key: canonicalPk };
-              this.ctx.knownNodes.set(canonicalPk, updated);
-              this.populateRepeaterModalData(updated);
-              if (this.ctx.updateNodeInDom) this.ctx.updateNodeInDom(canonicalPk, updated);
-            }
-          }
-        }
-      }
-
-      // Actualización en vivo del modal de repetidor si llega telemetría o contacto actualizado
-      if (this.selectedRepeaterTarget) {
-        const canonicalTarget = this.resolveCanonicalPubkey(this.selectedRepeaterTarget) || this.selectedRepeaterTarget;
-
-        if ((evType === "contact_updated" || evType === "contact_discovered") && payload.contact) {
-          const c = payload.contact;
-          const cPk = this.resolveCanonicalPubkey(c.public_key || c.pubkey || c.sender || "");
-          if (cPk && (cPk === canonicalTarget || cPk.startsWith(canonicalTarget.slice(0, 8)) || canonicalTarget.startsWith(cPk.slice(0, 8)))) {
-            if (this.ctx.knownNodes) {
-              const existing = this.ctx.knownNodes.get(canonicalTarget) || {};
-              const updated = { ...existing, ...c, public_key: canonicalTarget };
-              this.ctx.knownNodes.set(canonicalTarget, updated);
-              this.populateRepeaterModalData(updated);
-            }
-          }
-        } else if (evType === "telemetry" || evType === "stats" || evType === "STATS") {
-          const sender = payload.sender || payload.pubkey || payload.from;
-          if (sender) {
-            const sPk = this.resolveCanonicalPubkey(sender);
-            if (sPk && (sPk === canonicalTarget || sPk.startsWith(canonicalTarget.slice(0, 8)) || canonicalTarget.startsWith(sPk.slice(0, 8)))) {
-              if (this.ctx.knownNodes) {
-                const existing = this.ctx.knownNodes.get(canonicalTarget) || {};
-                const updated = { ...existing, ...payload, public_key: canonicalTarget };
-                this.ctx.knownNodes.set(canonicalTarget, updated);
-                this.populateRepeaterModalData(updated);
-              }
-            }
-          }
-        } else {
-          const c = payload.contact || payload.data || payload;
-          const pk = c.public_key || c.sender || c.from || payload.sender || payload.from;
-          if (pk) {
-            const cPk = this.resolveCanonicalPubkey(pk);
-            if (cPk && (cPk === canonicalTarget || cPk.startsWith(canonicalTarget.slice(0, 8)) || canonicalTarget.startsWith(cPk.slice(0, 8)))) {
-              if (this.ctx.knownNodes) {
-                const existing = this.ctx.knownNodes.get(canonicalTarget) || {};
-                const updated = { ...existing, ...c, ...payload, public_key: canonicalTarget };
-                this.ctx.knownNodes.set(canonicalTarget, updated);
-                this.populateRepeaterModalData(updated);
-              }
-            }
-          }
-        }
+      if (!payload || typeof payload !== "object" || !this.selectedRepeaterTarget) return;
+      const type = payload.type || payload.event_type;
+      const contact = payload.contact || payload.data || {};
+      const sender = payload.sender || payload.pubkey || payload.from || contact.public_key || contact.pubkey || contact.sender;
+      const canonicalSender = this.resolveCanonicalPubkey(sender);
+      const canonicalTarget = this.resolveCanonicalPubkey(this.selectedRepeaterTarget);
+      if (!canonicalSender || canonicalSender !== canonicalTarget) return;
+      if (type === "repeater_response" || type === "repeater_telemetry") {
+        const text = payload.text || payload.message || payload.response;
+        if (text) this.appendTerminalLine(text, "term-resp");
+        // Only structured, sender-scoped observations can change the registry.
+        if (payload.telemetry && typeof payload.telemetry === "object") this._mergeRemoteObservation(canonicalSender, payload.telemetry);
+      } else if (type === "contact_updated" || type === "contact_discovered") {
+        this._mergeRemoteObservation(canonicalSender, contact);
+      } else if (type === "telemetry" || type === "stats" || type === "STATS") {
+        this._mergeRemoteObservation(canonicalSender, {...payload,...contact,...payload.telemetry});
       }
     });
+  }
+
+  _mergeRemoteObservation(target, observation) {
+    if (!observation || typeof observation !== "object" || Array.isArray(observation)) return;
+    const canonical = this.resolveCanonicalPubkey(target) || target;
+    const existing = this.ctx.knownNodes?.get(canonical) || {};
+    const updated = {...existing,...observation,public_key:canonical};
+    this.ctx.knownNodes?.set(canonical,updated);
+    if (this.resolveCanonicalPubkey(this.selectedRepeaterTarget) === canonical) this.populateRepeaterModalData(updated);
+    if (this.ctx.updateNodeInDom) this.ctx.updateNodeInDom(canonical,updated);
   }
 
   resolveCanonicalPubkey(pubkey) {
@@ -1012,7 +923,7 @@ export class RepeaterModule {
     return this.getStoredRepeaterPassword(canonicalPk) ||
       this.getStoredRepeaterPassword(target) ||
       (this.repeaterPasswords && (this.repeaterPasswords.get(canonicalPk) || this.repeaterPasswords.get(target))) ||
-      (this.dom.repeaterGatePassword ? this.dom.repeaterGatePassword.value.trim() : "");
+      (this.dom.repeaterGatePassword ? this.dom.repeaterGatePassword.value : "");
   }
 
   lockRepeaterAdminView(pubkey, errorMessage = null) {
@@ -1090,6 +1001,7 @@ export class RepeaterModule {
     }
 
     const canonicalPk = this.resolveCanonicalPubkey(pubkey);
+    const revision = this._modalRevision;
     const statusEl = this.dom.repeaterGateStatus || document.getElementById("repeaterGateStatus");
     const submitBtn = this.dom.btnRepeaterGateSubmit || document.getElementById("btnRepeaterGateSubmit");
 
@@ -1111,6 +1023,7 @@ export class RepeaterModule {
         body: JSON.stringify({ target_node: canonicalPk, password: password }),
       });
       const data = await res.json();
+      if (revision !== this._modalRevision || this.resolveCanonicalPubkey(this.selectedRepeaterTarget) !== canonicalPk) return false;
 
       if (res.ok && data.status === "ok" && data.data?.authenticated === true) {
         this.authenticatedRepeaters.add(canonicalPk);
@@ -1127,10 +1040,11 @@ export class RepeaterModule {
         return false;
       }
     } catch (err) {
+      if (revision !== this._modalRevision) return false;
       this.handleRepeaterAuthError(canonicalPk, I18n.t("repeater.connection_error", { p0: err.message }));
       return false;
     } finally {
-      if (submitBtn) {
+      if (submitBtn && revision === this._modalRevision) {
         submitBtn.disabled = false;
         submitBtn.innerHTML = `<span class="btn-icon">🔐</span> ${I18n.t('repeater.unlock')}`;
         I18n.setText(submitBtn, 'repeater.unlock');
@@ -1139,6 +1053,8 @@ export class RepeaterModule {
   }
 
   async refreshRepeaterFullTelemetry(canonicalPk, password) {
+    const revision = this._modalRevision;
+    const observationRevision = this._observationRevision;
     if (!canonicalPk || !password) return;
     try {
       const res = await fetch("/api/repeater/remote/action", {
@@ -1147,7 +1063,8 @@ export class RepeaterModule {
         body: JSON.stringify({ target_node: canonicalPk, password: password, action: "refresh_telemetry" }),
       });
       const data = await res.json();
-      if (data.status === "ok") {
+      if (revision !== this._modalRevision || observationRevision !== this._observationRevision) return false;
+      if (res.ok && data.status === "ok" && !["error", "partial"].includes(data.data?.status)) {
         const payload = data.data || data;
         const telem = payload.telemetry || {};
         if (Object.keys(telem).length > 0 && this.ctx.knownNodes) {
@@ -1164,12 +1081,19 @@ export class RepeaterModule {
             this.appendTerminalLine(`← [${cmd}] ${resp}`, "term-resp");
           }
         }
+        if (payload.saved) this._populateRemoteSavedRadio(payload.saved);
+        return Object.keys(telem).length > 0 || Object.values(payload.responses || {}).some(text => Boolean(text));
       } else if (data.status === "error" && data.cooldown_remaining) {
         this.appendTerminalLine(I18n.t("repeater.telemetry_cooldown", { p0: data.cooldown_remaining }), "term-resp");
+      } else {
+        const detail = data.detail || data.message || data.data?.message || I18n.t("settings.config_unconfirmed");
+        this.appendTerminalLine(I18n.t("repeater.command_error", {p0:detail}), "term-error");
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.command_error", {p0:detail}), "error");
       }
     } catch (err) {
       console.warn("Error en refreshRepeaterFullTelemetry:", err);
     }
+    return false;
   }
 
   calculateBatteryPct(val) {
@@ -1181,128 +1105,14 @@ export class RepeaterModule {
     return Math.max(0, Math.min(100, Math.round(((volt - 3.0) / 1.2) * 100)));
   }
 
-  parseRepeaterTelemetryFromText(text) {
-    if (!text || typeof text !== "string") return {};
-    const extracted = {};
-    const clean = text.trim();
-
-    // 1. Batería & Voltaje
-    const batM = clean.match(/(?:battery|batt|bat|pwrmgt\.bootmv|boot\s+voltage|bootmv)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:mv|v|%)?(?:\s*\((?:(\d+)\s*%)?\))?/i)
-      || clean.match(/(?:^|>)\s*(\d{3,4})\s*(?:mv)?(?:\s*\((?:(\d+)\s*%)?\))?$/i)
-      || clean.match(/(?:^|>)\s*([34]\.\d{1,3})\s*(?:v)?$/i)
-      || clean.match(/(?:^|>)\s*(\d{1,2}|100)\s*%$/i);
-
-    if (batM) {
-      const rawVal = parseFloat(batM[1]);
-      const pctParen = batM[2] ? parseInt(batM[2], 10) : null;
-      if (!isNaN(rawVal)) {
-        if (batM[0].includes("%") || (rawVal <= 100 && rawVal > 4.5)) {
-          extracted.battery_pct = Math.round(rawVal);
-        } else if (rawVal > 100) {
-          extracted.voltage_v = Number((rawVal / 1000).toFixed(2));
-          extracted.battery_pct = pctParen !== null ? pctParen : this.calculateBatteryPct(rawVal);
-        } else {
-          extracted.voltage_v = Number(rawVal.toFixed(2));
-          extracted.battery_pct = pctParen !== null ? pctParen : this.calculateBatteryPct(rawVal);
-        }
-      }
-    }
-
-    // Voltaje explícito
-    if (extracted.voltage_v == null) {
-      const voltM = clean.match(/(?:voltage|volt|vbat|v_bat)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:mv|v)?/i);
-      if (voltM) {
-        const vNum = parseFloat(voltM[1]);
-        if (!isNaN(vNum)) {
-          extracted.voltage_v = vNum > 100 ? Number((vNum / 1000).toFixed(2)) : Number(vNum.toFixed(2));
-          if (extracted.battery_pct == null) {
-            extracted.battery_pct = this.calculateBatteryPct(extracted.voltage_v);
-          }
-        }
-      }
-    }
-
-    // Solar
-    const solM = clean.match(/(?:solar(?:_v)?|vin|v_in|vsolar|input(?:_v)?)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*v?/i);
-    if (solM) {
-      const sNum = parseFloat(solM[1]);
-      if (!isNaN(sNum)) extracted.solar_v = Number(sNum.toFixed(2));
-    }
-
-    // Radio: > 915.000,250,11,5
-    const radM = clean.match(/(?:^|>)\s*(\d{3}(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+)\s*,\s*(\d+)/);
-    if (radM) {
-      extracted.frequency = parseFloat(radM[1]);
-      extracted.bandwidth = parseFloat(radM[2]);
-      extracted.spreading_factor = parseInt(radM[3], 10);
-      extracted.coding_rate = `4/${radM[4]}`;
-    }
-
-    // Uptime
-    const upM = clean.match(/(?:uptime|up)\s*[:=]?\s*([0-9a-zA-Z\s]+?)(?:,|$|\n)/i);
-    if (upM) extracted.uptime = upM[1].trim();
-
-    // Clock
-    let clkM = clean.match(/(?:clock|rtc|time)(?:\s*set)?\s*[:=]?\s*([0-9\-:\s\/]+(?:[ap]m|utc)?)/i);
-    if (!clkM || !clkM[1].trim()) {
-      clkM = clean.match(/(?:^|>)\s*(\d{1,2}:\d{2}(?::\d{2})?(?:\s*-\s*\d{1,2}\/\d{1,2}\/\d{2,4})?(?:\s*(?:UTC|[ap]m))?)/i);
-    }
-    if (!clkM || !clkM[1].trim()) {
-      clkM = clean.match(/(?:^|>)\s*([0-9\-:\s\/]+UTC)/i);
-    }
-    if (clkM && clkM[1].trim()) extracted.clock = clkM[1].trim();
-
-    // Duty Cycle
-    let dutyM = clean.match(/(?:duty(?:cycle)?)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*%/i);
-    if (!dutyM) {
-      dutyM = clean.match(/(?:^|>)\s*(\d+(?:\.\d+)?)\s*%/);
-    }
-    if (dutyM) extracted.duty_cycle_pct = parseFloat(dutyM[1]);
-
-    // Noise Floor
-    const noiseM = clean.match(/(?:noise(?:\s*floor)?|noisefloor|floor)\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*(?:dbm)?/i);
-    if (noiseM) extracted.noise_floor_dbm = parseInt(noiseM[1], 10);
-
-    // Airtime
-    const atM = clean.match(/(?:total\s+)?airtime\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(ms|s)?/i);
-    if (atM) {
-      const v = parseFloat(atM[1]);
-      extracted.airtime_ms = (atM[2] || "").toLowerCase() === "s" ? Math.round(v * 1000) : Math.round(v);
-    }
-
-    // Packets rx, tx
-    const pktM = clean.match(/packets:\s*rx=(\d+),\s*tx=(\d+)(?:,\s*routed=(\d+))?(?:,\s*(?:drop|err|errors?)=(\d+))?/i);
-    if (pktM) {
-      extracted.packets_recv = parseInt(pktM[1], 10);
-      extracted.packets_sent = parseInt(pktM[2], 10);
-      if (pktM[4]) extracted.packet_errors = parseInt(pktM[4], 10);
-    }
-
-    // TX Power
-    const pwrM = clean.match(/(?:tx_?power|power)\s*[:=]?\s*(\d+)\s*(?:dbm)?/i) || clean.match(/^>\s*(\d{1,2})\s*(?:dbm)?$/);
-    if (pwrM) {
-      const p = parseInt(pwrM[1], 10);
-      if (p <= 33) extracted.tx_power = p;
-    }
-
-    // Lat / Lon
-    const latM = clean.match(/lat(?:itude)?\s*[:=]?\s*(-?\d+\.\d+)/i) || clean.match(/^>\s*(-?\d{1,2}\.\d{3,7})$/);
-    if (latM) extracted.latitude = parseFloat(latM[1]);
-
-    const lonM = clean.match(/lon(?:gitude)?\s*[:=]?\s*(-?\d+\.\d+)/i);
-    if (lonM) extracted.longitude = parseFloat(lonM[1]);
-
-    return extracted;
-  }
-
   openRepeaterAdminModal(pubkey, name) {
     if (this.ctx.knownNodes) {
       const canonicalPk = this.resolveCanonicalPubkey(pubkey);
       const existing = this.ctx.knownNodes.get(canonicalPk) || this.ctx.knownNodes.get(pubkey);
       if (existing) {
         const role = String(existing.role || existing.advert_type || "").toUpperCase();
-        if (role === "CLIENT" || existing.advert_type === 1 || existing.advert_type === 0) {
-          if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.client_not_administrable"), "warning");
+        if (["LOCAL", "CLIENT", "SENSOR"].includes(role) || [0, 1, 4].includes(existing.advert_type) || canonicalPk === this.ctx.localNodePubkey) {
+          if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.not_administrable"), "warning");
           return;
         }
       }
@@ -1451,27 +1261,23 @@ export class RepeaterModule {
     }
 
     const sumFreq = document.getElementById("repSummaryFreq");
-    if (sumFreq) sumFreq.textContent = node.frequency != null ? `${node.frequency} MHz` : (node.freq != null ? `${node.freq} MHz` : "915.000 MHz");
+    if (sumFreq) sumFreq.textContent = node.frequency != null ? `${node.frequency} MHz` : (node.freq != null ? `${node.freq} MHz` : "-- MHz");
     const sumPower = document.getElementById("repSummaryPower");
-    if (sumPower) sumPower.textContent = node.tx_power != null ? `${node.tx_power} dBm` : (node.power != null ? `${node.power} dBm` : "20 dBm");
+    if (sumPower) sumPower.textContent = node.tx_power != null ? `${node.tx_power} dBm` : (node.power != null ? `${node.power} dBm` : "-- dBm");
     const sumModem = document.getElementById("repSummaryModem");
-    const sfVal = node.spreading_factor != null ? node.spreading_factor : (node.sf != null ? node.sf : 11);
-    const bwVal = node.bandwidth != null ? node.bandwidth : (node.bw != null ? node.bw : 250);
-    if (sumModem) sumModem.textContent = `SF${sfVal} / BW${bwVal}`;
+    const sfVal = node.spreading_factor != null ? node.spreading_factor : (node.sf != null ? node.sf : "--");
+    const bwVal = node.bandwidth != null ? node.bandwidth : (node.bw != null ? node.bw : "--");
+    if (sumModem) sumModem.textContent = `SF${sfVal} / BW${Number(bwVal) > 1000 ? Number(bwVal) / 1000 : bwVal}`;
 
-    const isRep = node.repeat_enabled !== undefined && node.repeat_enabled !== null
-      ? Boolean(node.repeat_enabled)
-      : (node.repeat !== undefined && node.repeat !== null
-          ? Boolean(node.repeat)
-          : (String(node.role || "").toUpperCase() === "REPEATER" || node.is_repeater === true || node.advert_type === 2 || String(node.raw_role || "").toUpperCase() === "REPEATER"));
+    const isRep = node.repeat_enabled != null ? Boolean(node.repeat_enabled) : (node.repeat != null ? Boolean(node.repeat) : null);
 
-    const repHopLimit = node.hop_limit != null ? node.hop_limit : (node.default_hop_limit != null ? node.default_hop_limit : (node.hopLimit != null ? node.hopLimit : 3));
+    const repHopLimit = node.hop_limit != null ? node.hop_limit : (node.default_hop_limit != null ? node.default_hop_limit : (node.hopLimit != null ? node.hopLimit : "--"));
 
     const sumHopLimit = document.getElementById("repSummaryHopLimit");
     if (sumHopLimit) I18n.setText(sumHopLimit, "repeater.hop_limit", { p0: repHopLimit });
 
     const sumRepeat = document.getElementById("repSummaryRepeat");
-    if (sumRepeat) I18n.setText(sumRepeat, isRep ? "repeater.enabled" : "repeater.disabled");
+    if (sumRepeat) I18n.setText(sumRepeat, isRep == null ? "settings.unknown" : (isRep ? "repeater.enabled" : "repeater.disabled"));
 
     const sumQueue = document.getElementById("repSummaryQueue");
     if (sumQueue) I18n.setText(sumQueue, "repeater.queue_packets", { p0: node.queue_len != null ? node.queue_len : (node.tx_queue_len != null ? node.tx_queue_len : 0) });
@@ -1513,9 +1319,9 @@ export class RepeaterModule {
       radioPowerInput.min = String(pLimits.min);
       radioPowerInput.max = String(pLimits.max);
     }
-    this._setFieldIfNotDirty("radioPower", clampedPower);
+    if (node.tx_power != null || node.power != null) this._setFieldIfNotDirty("radioPower", clampedPower);
     if (radioPowerVal) {
-      radioPowerVal.textContent = `${clampedPower} dBm`;
+      radioPowerVal.textContent = node.tx_power != null || node.power != null ? `${clampedPower} dBm` : "-- dBm";
     }
 
     this._setFieldIfNotDirty("radioHopLimit", repHopLimit);
@@ -1546,15 +1352,15 @@ export class RepeaterModule {
       }
     }
 
-    this._setFieldIfNotDirty("radioRepeatMode", null, isRep);
+    if (isRep != null) this._setFieldIfNotDirty("radioRepeatMode", null, isRep);
     const radioRepBadge = document.getElementById("radioRepeatBadge");
     if (radioRepBadge) {
-      I18n.setText(radioRepBadge, isRep ? 'common.on' : 'common.off');
+      I18n.setText(radioRepBadge, isRep == null ? 'settings.unknown' : (isRep ? 'common.on' : 'common.off'));
       radioRepBadge.className = isRep ? "toggle-state-badge is-active-purple" : "toggle-state-badge";
     }
 
-    if (node.owner_name || node.alias || node.name) {
-      this._setFieldIfNotDirty("repOwnerName", node.owner_name || node.alias || node.name);
+    if (node.owner_name != null || node.name != null) {
+      this._setFieldIfNotDirty("repOwnerName", node.owner_name ?? node.name);
     }
     if (node.owner_info != null) {
       this._setFieldIfNotDirty("repOwnerInfo", node.owner_info);
@@ -1594,6 +1400,7 @@ export class RepeaterModule {
     if (node.acl_mode) {
       this._setFieldIfNotDirty("secAclMode", node.acl_mode);
     }
+    if (Object.keys(this._remoteRadioPreferences).length) this._populateRemoteSavedRadio(this._remoteRadioPreferences);
   }
 
   appendTerminalLine(text, cssClass = "term-info") {
@@ -1627,18 +1434,8 @@ export class RepeaterModule {
       this.dom.repeaterTerminalOutput.scrollTop = this.dom.repeaterTerminalOutput.scrollHeight;
     }
 
-    if (this.selectedRepeaterTarget) {
-      const parsed = this.parseRepeaterTelemetryFromText(strText);
-      if (parsed && Object.keys(parsed).length > 0 && this.ctx.knownNodes) {
-        const canonicalPk = this.resolveCanonicalPubkey(this.selectedRepeaterTarget) || this.selectedRepeaterTarget;
-        const existing = this.ctx.knownNodes.get(canonicalPk) || {};
-        const updated = { ...existing, ...parsed, public_key: canonicalPk };
-        this.ctx.knownNodes.set(canonicalPk, updated);
-        this.populateRepeaterModalData(updated);
-        if (this.ctx.updateNodeInDom) this.ctx.updateNodeInDom(canonicalPk, updated);
-      }
-    }
   }
+
 
   async pingZero(targetNode, targetName) {
     const target = targetNode || this.selectedRepeaterTarget;
@@ -1706,7 +1503,7 @@ export class RepeaterModule {
         return;
       }
 
-      if (data.status === "ok" && data.data) {
+      if (res.ok && data.status === "ok" && data.data) {
         this._pingCooldowns.set(cleanTarget, Date.now() + 15000);
         const pingData = data.data;
         const rtt = Number(pingData.rtt_ms || pingData.duration_ms || 0);
@@ -1799,8 +1596,10 @@ export class RepeaterModule {
   }
 
   async executeRepeaterCommand(target, action, params = {}, password = "") {
+    const revision = this._modalRevision;
+    const observationRevision = this._observationRevision;
     const pwd = password || this.getRepeaterPassword(target) || "";
-    this.appendTerminalLine(`repeater> ${action}`, "term-cmd");
+    this.appendTerminalLine(`repeater> ${this._redactRemoteCommand(action)}`, "term-cmd");
     try {
       const res = await fetch("/api/repeater/remote/action", {
         method: "POST",
@@ -1808,10 +1607,11 @@ export class RepeaterModule {
         body: JSON.stringify({ target_node: target, action, params, password: pwd }),
       });
       const data = await res.json();
+      if (revision !== this._modalRevision || observationRevision !== this._observationRevision) return false;
       const qFeedback = document.getElementById("repQuickCmdFeedback");
-      if (data.status === "ok") {
+      if (res.ok && data.status === "ok" && !["error", "partial"].includes(data.data?.status)) {
         const payload = data.data || data;
-        const respTxt = payload.text || payload.response || payload.message || "";
+        const respTxt = payload.text || payload.response || (payload.status === "ok" ? payload.message : "") || "";
         if (respTxt) {
           const cleanTxt = String(respTxt).replace(/^>\s*/, "").trim();
           if (cleanTxt) {
@@ -1824,7 +1624,7 @@ export class RepeaterModule {
               }, 6000);
             }
           }
-          const parsed = { ...(payload.telemetry || {}), ...this.parseRepeaterTelemetryFromText(cleanTxt) };
+          const parsed = payload.telemetry || {};
           if (parsed && Object.keys(parsed).length > 0) {
             const canonicalPk = this.resolveCanonicalPubkey(target) || target;
             if (this.ctx.knownNodes) {
@@ -1838,12 +1638,13 @@ export class RepeaterModule {
             }
           }
         } else if (qFeedback) {
-          qFeedback.className = "rep-quick-feedback success";
+          qFeedback.className = "rep-quick-feedback pending";
           I18n.setText(qFeedback, "repeater.command_sent", { p0: target.slice(0, 8) });
           setTimeout(() => {
-            if (qFeedback && qFeedback.classList.contains("success")) qFeedback.classList.add("hidden");
+            if (qFeedback && qFeedback.classList.contains("pending")) qFeedback.classList.add("hidden");
           }, 5000);
         }
+        if (payload.saved) this._populateRemoteSavedRadio(payload.saved);
       } else {
         const errMsg = data.detail || data.message || data.error || I18n.t("repeater.unknown_error");
         this.appendTerminalLine(I18n.t('repeater.command_error', { p0: errMsg }), "term-error");
@@ -1851,11 +1652,12 @@ export class RepeaterModule {
           qFeedback.className = "rep-quick-feedback error";
           qFeedback.textContent = `✗ ${errMsg}`;
         }
-        if (errMsg && (errMsg.toLowerCase().includes("password") || errMsg.toLowerCase().includes("auth") || errMsg.toLowerCase().includes("pin"))) {
+        if (res.status === 401 || data.data?.authenticated === false) {
           this.handleRepeaterAuthError(target, errMsg);
         }
       }
     } catch (err) {
+      if (revision !== this._modalRevision) return false;
       this.appendTerminalLine(I18n.t("repeater.command_network_error", { p0: err.message }), "term-error");
       const qFeedback = document.getElementById("repQuickCmdFeedback");
       if (qFeedback) {
@@ -1866,6 +1668,8 @@ export class RepeaterModule {
   }
 
   async fetchRepeaterNeighbors(target) {
+    const revision = this._modalRevision;
+    const observationRevision = this._observationRevision;
     const pwd = this.getRepeaterPassword(target) || "";
     const btn = document.getElementById("btnDiscoverNeighbors");
     const tbody = document.getElementById("neighborsTableBody");
@@ -1880,7 +1684,8 @@ export class RepeaterModule {
         body: JSON.stringify({ target_node: target, password: pwd }),
       });
       const data = await res.json();
-      if (data.status === "ok") {
+      if (revision !== this._modalRevision || observationRevision !== this._observationRevision) return false;
+      if (res.ok && data.status === "ok" && (!data.data?.status || data.data.status === "ok") && Array.isArray(data.data?.neighbours ?? data.neighbours)) {
         const neighbours = data.data?.neighbours || data.neighbours || [];
         this.renderNeighborsTable(neighbours);
         const countBadge = document.getElementById("neighborsCountBadge");
@@ -1888,14 +1693,15 @@ export class RepeaterModule {
         this.appendTerminalLine(I18n.t("repeater.rx_neighbors", { p0: neighbours.length }), "term-success");
         if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.neighbors_detected", { p0: neighbours.length }), "success");
       } else {
-        if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">${escapeHtml(data.message || I18n.t("repeater.query_failed"))}</td></tr>`;
-        this.appendTerminalLine(`✗ [ERROR] ${data.message || data.error}`, "term-error");
+        if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">${escapeHtml(data.detail || data.data?.message || data.message || I18n.t("repeater.query_failed"))}</td></tr>`;
+        this.appendTerminalLine(`✗ [ERROR] ${data.detail || data.data?.message || data.message || data.error || I18n.t("repeater.query_failed")}`, "term-error");
       }
     } catch (err) {
+      if (revision !== this._modalRevision) return false;
       if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">${escapeHtml(err.message)}</td></tr>`;
       this.appendTerminalLine(`✗ [ERROR] ${err.message}`, "term-error");
     } finally {
-      if (btn) {
+      if (btn && revision === this._modalRevision) {
         btn.disabled = false;
         btn.innerHTML = `<span data-lucide="wifi" data-size="14"></span> ${I18n.t('repeater.discover_neighbors')}`;
         I18n.setText(btn, 'repeater.discover_neighbors');
@@ -1946,6 +1752,8 @@ export class RepeaterModule {
   }
 
   async fetchRepeaterOwner(target) {
+    const revision = this._modalRevision;
+    const observationRevision = this._observationRevision;
     const pwd = this.getRepeaterPassword(target) || "";
     this.appendTerminalLine(I18n.t("repeater.tx_owner_query", { p0: target.slice(0, 8) }), "term-cmd");
     try {
@@ -1955,25 +1763,29 @@ export class RepeaterModule {
         body: JSON.stringify({ target_node: target, password: pwd }),
       });
       const data = await res.json();
+      if (revision !== this._modalRevision || observationRevision !== this._observationRevision) return false;
       if (this.selectedRepeaterTarget !== target) return;
-      if (data.status === "ok") {
-        const ownerName = data.data?.owner_name || data.owner_name || "";
-        const ownerInfo = data.data?.owner_info || data.owner_info || "";
+      if (res.ok && data.status === "ok" && (!data.data?.status || data.data.status === "ok") && (data.data?.owner_name != null || data.data?.owner_info != null || data.owner_name != null || data.owner_info != null)) {
+        const ownerName = data.data?.owner_name ?? data.data?.name ?? data.owner_name;
+        const ownerInfo = data.data?.owner_info ?? data.owner_info;
         const nameEl = document.getElementById("repOwnerName");
         const infoEl = document.getElementById("repOwnerInfo");
-        if (nameEl && ownerName && !this.dirtyFields.has("repOwnerName")) nameEl.value = ownerName;
-        if (infoEl && ownerInfo && !this.dirtyFields.has("repOwnerInfo")) infoEl.value = ownerInfo;
-        this.appendTerminalLine(I18n.t("repeater.owner_details", { p0: ownerName, p1: ownerInfo }), "term-success");
+        if (nameEl && ownerName != null && !this.dirtyFields.has("repOwnerName")) nameEl.value = ownerName;
+        if (infoEl && ownerInfo != null && !this.dirtyFields.has("repOwnerInfo")) infoEl.value = ownerInfo;
+        this.appendTerminalLine(I18n.t("repeater.owner_details", { p0: ownerName ?? "--", p1: ownerInfo ?? "--" }), "term-success");
         if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.owner_received", { p0: ownerName || "OK" }), "success");
       } else {
-        this.appendTerminalLine(`✗ [ERROR] ${data.message || data.error}`, "term-error");
+        this.appendTerminalLine(`✗ [ERROR] ${data.detail || data.data?.message || data.message || data.error || I18n.t("repeater.query_failed")}`, "term-error");
       }
     } catch (err) {
+      if (revision !== this._modalRevision) return false;
       this.appendTerminalLine(`✗ [ERROR] ${err.message}`, "term-error");
     }
   }
 
   async fetchRepeaterRegions(target) {
+    const revision = this._modalRevision;
+    const observationRevision = this._observationRevision;
     const pwd = this.getRepeaterPassword(target) || "";
     this.appendTerminalLine(I18n.t("repeater.tx_regions", { p0: target.slice(0, 8) }), "term-cmd");
     try {
@@ -1983,20 +1795,24 @@ export class RepeaterModule {
         body: JSON.stringify({ target_node: target, password: pwd }),
       });
       const data = await res.json();
+      if (revision !== this._modalRevision || observationRevision !== this._observationRevision) return false;
       if (this.selectedRepeaterTarget !== target) return;
-      if (data.status === "ok") {
+      if (res.ok && data.status === "ok" && (!data.data?.status || data.data.status === "ok") && (data.data?.regions != null || data.regions != null)) {
         const regions = JSON.stringify(data.data?.regions || data.regions || []);
         this.appendTerminalLine(I18n.t("repeater.rx_regions", { p0: regions }), "term-success");
         if (this.ctx.showToast) this.ctx.showToast(I18n.t("repeater.regions", { p0: regions }), "info");
       } else {
-        this.appendTerminalLine(`✗ [ERROR] ${data.message || data.error}`, "term-error");
+        this.appendTerminalLine(`✗ [ERROR] ${data.detail || data.data?.message || data.message || data.error || I18n.t("repeater.query_failed")}`, "term-error");
       }
     } catch (err) {
+      if (revision !== this._modalRevision) return false;
       this.appendTerminalLine(`✗ [ERROR] ${err.message}`, "term-error");
     }
   }
 
   async fetchRepeaterAcl(target) {
+    const revision = this._modalRevision;
+    const observationRevision = this._observationRevision;
     const pwd = this.getRepeaterPassword(target) || "";
     this.appendTerminalLine(I18n.t("repeater.tx_acl", { p0: target.slice(0, 8) }), "term-cmd");
     try {
@@ -2006,15 +1822,17 @@ export class RepeaterModule {
         body: JSON.stringify({ target_node: target, password: pwd }),
       });
       const data = await res.json();
+      if (revision !== this._modalRevision || observationRevision !== this._observationRevision) return false;
       if (this.selectedRepeaterTarget !== target) return;
-      if (data.status === "ok") {
+      if (res.ok && data.status === "ok" && (!data.data?.status || data.data.status === "ok") && (data.data?.acl_data != null || data.acl_data != null)) {
         const aclData = JSON.stringify(data.data?.acl_data || data.acl_data || {});
         this.appendTerminalLine(I18n.t("repeater.rx_acl", { p0: aclData }), "term-success");
         if (this.ctx.showToast) this.ctx.showToast(I18n.t('repeater.acl_received'), "success");
       } else {
-        this.appendTerminalLine(`✗ [ERROR] ${data.message || data.error}`, "term-error");
+        this.appendTerminalLine(`✗ [ERROR] ${data.detail || data.data?.message || data.message || data.error || I18n.t("repeater.query_failed")}`, "term-error");
       }
     } catch (err) {
+      if (revision !== this._modalRevision) return false;
       this.appendTerminalLine(`✗ [ERROR] ${err.message}`, "term-error");
     }
   }

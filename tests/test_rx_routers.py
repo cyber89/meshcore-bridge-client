@@ -295,6 +295,7 @@ class TestRxEventRouterIntegration:
         mock_ctx.register_task = None
         mock_ctx.serial_adapter = MagicMock()
         mock_ctx.packet_buffer = MagicMock()
+        mock_ctx.bridge = None
         mock_ctx.deduplicator = MagicMock()
         mock_ctx.deduplicator.is_duplicate = AsyncMock(return_value=False)
         mock_ctx.node_registry = MagicMock()

@@ -32,6 +32,7 @@ from src.protocol_types import (
     redact_command_str,
     redact_sensitive_mapping,
 )
+from src.repeater_manager import RepeaterManager
 from src.shared_utils import normalize_battery, redact_sensitive_command
 
 if TYPE_CHECKING:
@@ -149,10 +150,15 @@ class RepeaterAdminExecutor:
         self._resolve_target = resolve_target
         self._wait_for_repeater_response = wait_for_repeater_response
         self._get_local_config = get_local_config or (lambda: {})
+        self._request_locks: dict[str, asyncio.Lock] = {}
+        self._command_tag_sequence = 0
 
     async def execute(self, req: RemoteRepeaterRequest) -> dict[str, Any]:
         try:
-            return await self._execute_request(req)
+            target = self._ctx.node_registry.get_canonical_key(str(req.target_node)) or str(req.target_node).strip().lower()
+            lock = self._request_locks.setdefault(target, asyncio.Lock())
+            async with lock:
+                return await self._execute_request(req)
         except Exception as error:
             return {"status": "error", "target_node": str(req.target_node), "message": str(error)}
 
@@ -227,6 +233,17 @@ class RepeaterAdminExecutor:
         params = req.admin_data.get("params", {})
         if not isinstance(params, dict):
             return {"status": "error", "message": "params debe ser un objeto"}
+        aliases = (
+            ("freq", "frequency"), ("bw", "bandwidth"), ("sf", "spreading_factor"),
+            ("cr", "coding_rate"), ("tx_power", "power", "tx"), ("repeat", "repeat_enabled"),
+            ("advert_interval", "beacon_interval"), ("name", "owner_name"),
+            ("lat", "latitude"), ("lon", "longitude"),
+            ("password", "new_password", "admin_password"), ("public_key", "pk"), ("permission", "perm"),
+        )
+        for group in aliases:
+            provided = [params[key] for key in group if key in params]
+            if len(provided) > 1 and any(str(value).lower() != str(provided[0]).lower() for value in provided[1:]):
+                return {"status": "error", "code": 422, "message": f"Alias de configuración contradictorios: {', '.join(group)}"}
 
         allowed_keys = frozenset({
             "freq", "frequency", "bw", "bandwidth", "sf", "spreading_factor", "cr", "coding_rate",
@@ -234,7 +251,7 @@ class RepeaterAdminExecutor:
             "advert_interval", "beacon_interval", "flood_advert_interval",
             "name", "owner_name", "owner_info", "lat", "latitude", "lon", "longitude",
             "password", "new_password", "admin_password", "guest_password",
-            "public_key", "pk", "permission", "perm", "acl_mode", "identity_key"
+            "public_key", "pk", "permission", "perm"
         })
         # Prevalidación estricta de parámetros permitidos y rechazo de no soportados (B09)
         if "region" in params:
@@ -253,10 +270,10 @@ class RepeaterAdminExecutor:
         has_radio = any(k in params for k in radio_keys)
         radio_cmd: str | None = None
         if has_radio:
-            freq_cand = params.get("freq", params.get("frequency", target_node_info.get("frequency")))
-            bw_cand = params.get("bw", params.get("bandwidth", target_node_info.get("bandwidth")))
-            sf_cand = params.get("sf", params.get("spreading_factor", target_node_info.get("spreading_factor")))
-            cr_cand = params.get("cr", params.get("coding_rate", target_node_info.get("coding_rate")))
+            freq_cand = params.get("freq", params.get("frequency"))
+            bw_cand = params.get("bw", params.get("bandwidth"))
+            sf_cand = params.get("sf", params.get("spreading_factor"))
+            cr_cand = params.get("cr", params.get("coding_rate"))
 
             if freq_cand is None or bw_cand is None or sf_cand is None or cr_cand is None:
                 return {
@@ -270,7 +287,7 @@ class RepeaterAdminExecutor:
                 bw_f = float(bw_cand)
                 if not (7.0 <= bw_f <= 500.0):
                     return {"status": "error", "message": f"Ancho de banda {bw_f} kHz inválido"}
-                sf_i = int(sf_cand)
+                sf_i = RepeaterManager._integer(sf_cand)
                 if sf_i not in range(5, 13):
                     return {"status": "error", "message": f"Spreading factor SF{sf_i} inválido (5..12)"}
                 cr_raw = str(cr_cand).strip()
@@ -296,12 +313,14 @@ class RepeaterAdminExecutor:
             if p_k in params:
                 raw_pwr = params[p_k]
                 try:
-                    pwr_i = int(raw_pwr)
-                    if not (-9 <= pwr_i <= 30):
+                    pwr_i = RepeaterManager._integer(raw_pwr)
+                    if pwr_i is None or not (-9 <= pwr_i <= 30):
                         return {"status": "error", "message": f"Potencia TX {pwr_i} dBm fuera de rango (-9..30)"}
                 except (ValueError, TypeError):
                     return {"status": "error", "message": f"Potencia TX remota inválida: {raw_pwr}"}
-                tx_cmd = self._ctx.repeater_manager.build_repeater_command_payload("set_tx_power", {"tx_power": pwr_i})
+                observed_node = self._ctx.node_registry.get_by_key_or_prefix(str(target_node_info.get("public_key") or req.target_node))
+                max_power = observed_node.max_tx_power if observed_node is not None else None
+                tx_cmd = self._ctx.repeater_manager.build_repeater_command_payload("set_tx_power", {"tx_power": pwr_i, "max_tx_power": max_power})
                 if not tx_cmd:
                     return {"status": "error", "message": f"No se pudo compilar comando de potencia TX: {raw_pwr}"}
                 planned_commands.append(tx_cmd)
@@ -367,7 +386,7 @@ class RepeaterAdminExecutor:
                 adv_val = params[adv_k]
                 adv_cmd = self._ctx.repeater_manager.build_repeater_command_payload("set_advert_interval", {"advert_interval": adv_val})
                 if not adv_cmd:
-                    return {"status": "error", "message": f"Intervalo de baliza inválido: {adv_val} (debe ser 0 o entre 60 y 240 minutos)"}
+                    return {"status": "error", "message": f"Intervalo de baliza inválido: {adv_val} (debe ser 0 o un número par entre 60 y 240 minutos)"}
                 planned_commands.append(adv_cmd)
                 handled_keys.update({"advert_interval", "beacon_interval"})
                 break
@@ -409,7 +428,7 @@ class RepeaterAdminExecutor:
             if not acl_cmd:
                 return {"status": "error", "message": f"Parámetros de ACL inválidos (clave pública: '{pk_val}', permiso: '{perm_val}')"}
             planned_commands.append(acl_cmd)
-            handled_keys.update({"public_key", "pk", "permission", "perm", "acl_mode", "identity_key"})
+            handled_keys.update({"public_key", "pk", "permission", "perm"})
 
         # Comprobar si quedó alguna clave sin manejar
         for remaining_k in params:
@@ -421,6 +440,10 @@ class RepeaterAdminExecutor:
 
         self._ctx.repeater_manager.record_command_sent(str(req.target_node), is_full_query=True)
         dispatched: list[str] = []
+        applied: dict[str, Any] = {}
+        saved: dict[str, Any] = {}
+        unconfirmed: dict[str, Any] = {}
+        results: list[dict[str, Any]] = []
 
         try:
             if req.password:
@@ -443,26 +466,42 @@ class RepeaterAdminExecutor:
                 dispatched.append("login ********")
                 await asyncio.sleep(0.35)
 
-            if radio_cmd:
-                await self._send_rf_command(req.mc, self._resolve_target(str(req.target_node), 12), radio_cmd, str(req.target_node), req.req_id)
-                dispatched.append(radio_cmd)
-                res["pending_reboot"] = True
-                await asyncio.sleep(0.35)
-
-            for cmd_str in planned_commands:
-                await self._send_rf_command(req.mc, self._resolve_target(str(req.target_node), 12), cmd_str, str(req.target_node), req.req_id)
+            commands = ([radio_cmd] if radio_cmd else []) + planned_commands
+            norm_target = self._ctx.node_registry.get_canonical_key(str(req.target_node)) or str(req.target_node).strip().lower()
+            waiter_keys = [norm_target, norm_target[:8], norm_target[:4], str(req.target_node).strip().lower()]
+            for cmd_str in commands:
+                async with self._waiters.expect_response(waiter_keys) as command_fut:
+                    await self._send_rf_command(req.mc, self._resolve_target(str(req.target_node), 12), cmd_str, str(req.target_node), req.req_id, response_future=command_fut)
+                    reply = await self._wait_for_repeater_response(req.mc, command_fut, timeout=6.0) or {}
                 dispatched.append(redact_command_str(cmd_str))
+                text = str(reply.get("text") or reply.get("message") or "").removeprefix("> ").strip()
+                fields = self._ctx.repeater_manager.command_parameters(cmd_str)
+                if self._ctx.repeater_manager.response_is_error(text):
+                    safe_error = self._safe_response_text(cmd_str, text)
+                    results.append({"command": redact_command_str(cmd_str), "status": "error", "response": safe_error})
+                    raise RuntimeError(safe_error)
+                confirmed = self._setter_response_confirmed(cmd_str, text)
+                if confirmed:
+                    if cmd_str.startswith("set radio ") or "reboot to apply" in text.lower():
+                        saved.update(fields)
+                        res["pending_reboot"] = True
+                    else:
+                        applied.update(fields)
+                        await self._update_local_registry_from_params(str(req.target_node), fields)
+                else:
+                    unconfirmed.update(fields)
+                results.append({"command": redact_command_str(cmd_str), "status": "saved" if confirmed and cmd_str.startswith("set radio ") else ("applied" if confirmed else "dispatched"), "response": self._safe_response_text(cmd_str, text)})
                 await asyncio.sleep(0.35)
 
-            res["status"] = "dispatched"
-            res["dispatched_commands"] = dispatched
+            res.update({"status": "dispatched" if unconfirmed else "ok", "dispatched_commands": dispatched, "applied": applied, "saved": saved, "unconfirmed": unconfirmed, "results": results})
             self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{req.target_node}/status", json.dumps(redact_sensitive_mapping(res)), 1)
             return redact_sensitive_mapping(res)
         except Exception as error:
             res.update({
-                "status": "partial" if dispatched else "error",
+                "status": "partial" if applied or saved or unconfirmed else "error",
                 "message": str(error),
                 "dispatched_commands": dispatched,
+                "applied": applied, "saved": saved, "unconfirmed": unconfirmed, "results": results,
             })
             self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{req.target_node}/status", json.dumps(redact_sensitive_mapping(res)), 1)
             return redact_sensitive_mapping(res)
@@ -473,7 +512,7 @@ class RepeaterAdminExecutor:
         owner_n = params.get("owner_name", params.get("name"))
         lat_val = params.get("lat", params.get("latitude"))
         lon_val = params.get("lon", params.get("longitude"))
-        alt_val = params.get("alt", params.get("altitude"))
+        alt_val = params.get("alt", params.get("altitude", params.get("altitude_m")))
         tx_pwr = params.get("tx_power", params.get("power"))
 
         freq_raw = params.get("freq", params.get("frequency"))
@@ -499,19 +538,21 @@ class RepeaterAdminExecutor:
             name=str(owner_n) if owner_n else None,
             alias=str(owner_n) if owner_n else None,
             owner_name=str(owner_n) if owner_n else None,
-            owner_info=str(params.get("owner_info")) if params.get("owner_info") else None,
+            owner_info=str(params.get("owner_info")) if "owner_info" in params else None,
             latitude=float(lat_val) if lat_val is not None else None,
             longitude=float(lon_val) if lon_val is not None else None,
             altitude_m=float(alt_val) if alt_val is not None else None,
-            fixed_position=bool(fixed_val) if fixed_val is not None else None,
+            fixed_position=RepeaterManager._boolean(fixed_val) if fixed_val is not None else None,
             frequency=float(freq_raw) if freq_raw is not None else None,
             spreading_factor=int(sf_raw) if sf_raw is not None else None,
             bandwidth=float(bw_raw) if bw_raw is not None else None,
             coding_rate=str(cr_raw) if cr_raw is not None else None,
             tx_power=int(tx_pwr) if tx_pwr is not None else None,
             hop_limit=int(hop_raw) if hop_raw is not None else None,
-            repeat_enabled=bool(rep_raw) if rep_raw is not None else None,
+            repeat_enabled=RepeaterManager._boolean(rep_raw) if rep_raw is not None else None,
             advert_interval=int(adv_raw) if adv_raw is not None else None,
+            flood_advert_interval=int(params["flood_advert_interval"]) if "flood_advert_interval" in params else None,
+            allow_read_only=RepeaterManager._boolean(params["allow_read_only"]) if "allow_read_only" in params else None,
             clock=str(clk_raw) if clk_raw else None,
             battery_pct=int(bat_raw) if bat_raw is not None else None,
             voltage_v=float(volt_raw) if volt_raw is not None else None,
@@ -522,6 +563,11 @@ class RepeaterAdminExecutor:
             temperature_c=float(temp_raw) if temp_raw is not None else None,
             humidity_pct=float(hum_raw) if hum_raw is not None else None,
             pressure_hpa=float(press_raw) if press_raw is not None else None,
+            solar_v=params.get("solar_v"),
+            last_rssi=params.get("last_rssi"), last_snr=params.get("last_snr"),
+            packets_sent=params.get("packets_sent"), packets_recv=params.get("packets_recv"),
+            duplicate_packets=params.get("duplicate_packets"), packet_errors=params.get("packet_errors"),
+            queue_len=params.get("queue_len"), firmware_version=params.get("firmware_version"), hardware_board=params.get("hardware_board"),
         )
         updated_contact = self._ctx.node_registry.add_or_update(canon, update)
         if updated_contact and self._ctx.web_server and hasattr(self._ctx.web_server, "broadcast_event"):
@@ -738,21 +784,28 @@ class RepeaterAdminExecutor:
 
         for cmd in queries:
             async with self._waiters.expect_response(waiter_keys, include_ping=False) as cmd_fut:
-                await self._send_rf_command(req.mc, dest_target, cmd, str(req.target_node), req.req_id)
+                await self._send_rf_command(req.mc, dest_target, cmd, str(req.target_node), req.req_id, response_future=cmd_fut)
                 dispatched.append(cmd)
                 resp_data = await self._wait_for_repeater_response(req.mc, cmd_fut, timeout=4.0) or {}
                 raw_resp = resp_data.get("text") or resp_data.get("message") or ""
                 resp_text = raw_resp[2:].strip() if raw_resp.startswith("> ") else raw_resp.strip()
                 if resp_text:
                     responses[cmd] = resp_text
-                    parsed = self._ctx.repeater_manager.parse_repeater_telemetry_or_response(resp_text)
+                    parsed = self._ctx.repeater_manager.parse_command_response(cmd, resp_text)
+                    if cmd == "get radio":
+                        res["saved"] = parsed
+                        res["radio_settings_source"] = "saved_preferences"
+                        parsed = {}
                     if parsed:
                         accumulated_telemetry.update(parsed)
                     if cmd == "clock" and resp_text:
                         clk_val = (parsed.get("clock") if parsed else None) or resp_text
                         accumulated_telemetry["clock"] = clk_val
                 if resp_data.get("telemetry"):
-                    accumulated_telemetry.update(resp_data["telemetry"])
+                    received_telemetry = resp_data["telemetry"]
+                    if cmd == "get radio":
+                        received_telemetry = {key: value for key, value in received_telemetry.items() if key not in ("frequency", "bandwidth", "spreading_factor", "coding_rate")}
+                    accumulated_telemetry.update(received_telemetry)
                 if resp_data.get("rssi") is not None:
                     accumulated_telemetry["last_rssi"] = resp_data["rssi"]
                 if resp_data.get("snr") is not None:
@@ -861,6 +914,7 @@ class RepeaterAdminExecutor:
             if req.action in (
                 "req_neighbours", "req_neighbors", "neighbours", "neighbors",
                 "req_owner", "req_regions", "req_clock", "req_acl",
+                "acl", "get_acl",
                 "req_status", "status", "req_telemetry", "telemetry",
             ):
                 allowed, remaining = self._ctx.repeater_manager.check_airtime_cooldown(str(req.target_node), is_full_query=False)
@@ -891,6 +945,7 @@ class RepeaterAdminExecutor:
             return None
 
         action = rf_ctx.req.action.lower()
+        action = {"acl": "req_acl", "get_acl": "req_acl"}.get(action, action)
         target = rf_ctx.dest_login_target
         cmds = mc.commands
 
@@ -940,16 +995,26 @@ class RepeaterAdminExecutor:
             elif action in ("req_status", "status") and hasattr(cmds, "req_status_sync"):
                 data = await run_sdk_command(self._ctx, mc, "req_status_sync", target, min_timeout=4.0)
                 if data is not None and isinstance(data, dict):
+                    require_success(data, "req_status_sync")
+                    normalized = dict(data)
+                    for source, field in {"bat": "battery_mv", "nb_recv": "packets_recv", "nb_sent": "packets_sent", "airtime": "tx_air_secs", "tx_queue_len": "queue_len"}.items():
+                        if source in data:
+                            normalized[field] = data[source]
+                    telemetry = self._ctx.repeater_manager.parse_repeater_telemetry_or_response(json.dumps(normalized))
+                    if "direct_dups" in data or "flood_dups" in data:
+                        telemetry["duplicate_packets"] = int(data.get("direct_dups") or 0) + int(data.get("flood_dups") or 0)
+                    if isinstance(data.get("telemetry"), dict):
+                        telemetry.update(data["telemetry"])
                     rf_ctx.res.update({
                         "status": "ok",
                         "action": action,
                         "target_node": str(rf_ctx.req.target_node),
                         "data": data,
+                        "telemetry": telemetry,
                         "message": "Estado binario del repetidor obtenido correctamente",
                     })
-                    if "telemetry" in data and isinstance(data["telemetry"], dict):
-                        rf_ctx.res["telemetry"] = data["telemetry"]
-                        await self._update_local_registry_from_params(str(rf_ctx.req.target_node), data["telemetry"])
+                    if telemetry:
+                        await self._update_local_registry_from_params(str(rf_ctx.req.target_node), telemetry)
                     self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{rf_ctx.req.target_node}/status", json.dumps(rf_ctx.res), 1)
                     return rf_ctx.res
 
@@ -980,12 +1045,16 @@ class RepeaterAdminExecutor:
             elif action in ("req_owner", "owner") and hasattr(cmds, "req_owner_sync"):
                 data = await run_sdk_command(self._ctx, mc, "req_owner_sync", target, min_timeout=4.0)
                 if data is not None and isinstance(data, dict):
+                    require_success(data, "req_owner_sync")
+                    owner_fields = {"name": str(data.get("name", "")), "owner_info": str(data.get("owner", ""))}
+                    await self._update_local_registry_from_params(str(rf_ctx.req.target_node), owner_fields)
                     rf_ctx.res.update({
                         "status": "ok",
                         "action": action,
                         "target_node": str(rf_ctx.req.target_node),
                         "owner_name": data.get("name", ""),
                         "owner_info": data.get("owner", ""),
+                        "telemetry": owner_fields,
                         "message": f"Propietario: {data.get('owner', '')} ({data.get('name', '')})",
                     })
                     self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{rf_ctx.req.target_node}/owner", json.dumps(rf_ctx.res), 1)
@@ -1165,32 +1234,46 @@ class RepeaterAdminExecutor:
         self._ctx.repeater_manager.record_command_sent(str(req.target_node), is_full_query=False)
         t_start = time.perf_counter()
 
-        await self._send_rf_command(req.mc, rf_ctx.dest_target, cmd_text, str(req.target_node), req.req_id)
+        await self._send_rf_command(req.mc, rf_ctx.dest_target, cmd_text, str(req.target_node), req.req_id, response_future=rf_ctx.fut)
         resp_data = await self._wait_for_repeater_response(req.mc, rf_ctx.fut, timeout=6.0) or {}
 
         elapsed = round((time.perf_counter() - t_start) * 1000, 1)
         raw_resp = resp_data.get("text") or resp_data.get("message") or ""
         resp_text = raw_resp[2:].strip() if raw_resp.startswith("> ") else raw_resp.strip()
 
-        is_error = False
-        if resp_text:
-            clean_lower = resp_text.lower()
-            if clean_lower.startswith(("error", "err:", "err,", "invalid", "fail", "unknown command", "denied")):
-                is_error = True
+        is_error = self._ctx.repeater_manager.response_is_error(raw_resp)
 
         redacted_cmd = redact_sensitive_command(cmd_text)
         rf_ctx.res["cmd_dispatched"] = redacted_cmd
+        parameters = self._ctx.repeater_manager.command_parameters(cmd_text) if not is_error else {}
+        confirmed = bool(parameters) and self._setter_response_confirmed(cmd_text, resp_text)
         if is_error:
             rf_ctx.res["status"] = "error"
-            rf_ctx.res["error"] = resp_text
+            rf_ctx.res["error"] = self._safe_response_text(cmd_text, resp_text)
         else:
-            rf_ctx.res["status"] = "ok" if resp_text else "dispatched"
-        rf_ctx.res["response"] = resp_text or f"Comando '{redacted_cmd}' transmitido por RF a {str(req.target_node)[:8]}"
+            rf_ctx.res["status"] = "ok" if (confirmed or (raw_resp and not parameters)) else "dispatched"
+        if confirmed:
+            if cmd_text.startswith("set radio ") or "reboot to apply" in resp_text.lower():
+                rf_ctx.res["saved"] = redact_sensitive_mapping(parameters)
+                rf_ctx.res["pending_reboot"] = True
+            else:
+                rf_ctx.res["applied"] = redact_sensitive_mapping(parameters)
+                await self._update_local_registry_from_params(str(req.target_node), parameters)
+        elif parameters and not is_error:
+            rf_ctx.res["unconfirmed"] = redact_sensitive_mapping(parameters)
+        rf_ctx.res["response"] = self._safe_response_text(cmd_text, resp_text) or f"Comando '{redacted_cmd}' transmitido por RF a {str(req.target_node)[:8]}"
         rf_ctx.res["message"] = rf_ctx.res["response"]
 
-        parsed_telem = self._ctx.repeater_manager.parse_repeater_telemetry_or_response(resp_text) if resp_text else {}
-        telem = {**parsed_telem, **(resp_data.get("telemetry") or {})}
-        if req.action.lower() in ("clock", "get clock", "req_clock", "time", "sync_clock", "clock sync") and resp_text:
+        sensitive = cmd_text.startswith(("password ", "set guest.password ", "get guest.password"))
+        parsed_telem = self._ctx.repeater_manager.parse_command_response(cmd_text, raw_resp) if raw_resp and not is_error and not sensitive else {}
+        if cmd_text == "get radio" and parsed_telem:
+            rf_ctx.res["saved"] = parsed_telem
+            rf_ctx.res["radio_settings_source"] = "saved_preferences"
+            parsed_telem = {}
+        telem = {**parsed_telem, **(resp_data.get("telemetry") or {})} if not is_error and not sensitive else {}
+        if cmd_text == "get radio" or cmd_text.startswith("set radio "):
+            telem = {key: value for key, value in telem.items() if key not in ("frequency", "bandwidth", "spreading_factor", "coding_rate")}
+        if req.action.lower() in ("clock", "get clock", "req_clock", "time", "sync_clock", "clock sync") and resp_text and not is_error:
             clk_val = (parsed_telem.get("clock") if parsed_telem else None) or resp_text
             telem["clock"] = clk_val
 
@@ -1206,6 +1289,23 @@ class RepeaterAdminExecutor:
 
         self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{req.target_node}/status", json.dumps(rf_ctx.res), 1)
         return rf_ctx.res
+
+    @staticmethod
+    def _setter_response_confirmed(command: str, text: str) -> bool:
+        clean = text.removeprefix("> ").strip().lower()
+        if command.startswith("password "):
+            return clean.startswith("password now: ")
+        return re.match(r"^\(?ok(?:\b|\s|$)", clean) is not None
+
+    @staticmethod
+    def _safe_response_text(command: str, text: str) -> str:
+        if command.startswith(("password ", "set guest.password ", "get guest.password")):
+            if not text:
+                return ""
+            if RepeaterManager.response_is_error(text):
+                return "Error: operación de credenciales rechazada"
+            return "Credencial confirmada" if RepeaterAdminExecutor._setter_response_confirmed(command, text) else "********"
+        return redact_command_str(text)
 
     # --------------------------------------------------------------------------
     # Helpers Privados de Radio y Registro
@@ -1326,7 +1426,7 @@ class RepeaterAdminExecutor:
                     return len(node.out_path) // 2
         return 0
 
-    async def _send_rf_command(self, mc: Any, dest_target: Any, cmd_text: str, target_node: str, req_id: Any) -> None:
+    async def _send_rf_command(self, mc: Any, dest_target: Any, cmd_text: str, target_node: str, req_id: Any, response_future: asyncio.Future[dict[str, Any]] | None = None) -> None:
         """Envía un comando RF aplicando Pre-Send Delay si el nodo está a múltiples saltos."""
         hops = self._determine_target_hops(dest_target, target_node)
         if getattr(config, "REPEATER_PRE_SEND_DELAY_ENABLED", True) and hops >= 1:
@@ -1338,7 +1438,14 @@ class RepeaterAdminExecutor:
             await asyncio.sleep(delay_s)
 
         if mc and hasattr(mc, "commands") and hasattr(mc.commands, "send_cmd"):
-            if len(cmd_text.encode("utf-8")) > 160 or "\x00" in cmd_text:
+            if response_future is not None:
+                # CommonCLI reflects exactly two prefix characters followed by '|'.
+                tag = f"{self._command_tag_sequence % 256:02x}"
+                self._command_tag_sequence += 1
+                setattr(response_future, "_command_tag", tag)  # noqa: B010
+                setattr(response_future, "_command_sensitive", cmd_text.startswith(("password ", "set guest.password ", "get guest.password")))  # noqa: B010
+                cmd_text = f"{tag}|{cmd_text}"
+            if len(cmd_text.encode("utf-8")) > 160 or any(ord(char) < 32 for char in cmd_text):
                 raise ValueError("Comando CLI inválido: máximo oficial 160 bytes UTF-8 sin NUL")
             response = await run_sdk_command(self._ctx, mc, "send_cmd", dest_target, cmd_text)
             require_success(response, "send_cmd")

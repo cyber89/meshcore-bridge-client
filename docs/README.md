@@ -44,6 +44,12 @@ Las guías vigentes describen JSON para nodos/canales/airtime, capturas RAM y ch
 
 ## Verificación y cambios RF
 
+La comprobación de configuración local y remota del 2026-10-04, sus correcciones,
+matrices y pasos de aceptación se documentan en
+[CONFIGURATION_PARAMETERS_AUDIT_2026-10-04.md](CONFIGURATION_PARAMETERS_AUDIT_2026-10-04.md).
+Los resultados virtuales no certifican hardware instalado; el documento separa
+soporte de firmware, confirmación CLI y preferencias pendientes de reinicio.
+
 Las suites y auditorías se ejecutan cuando el usuario las solicita o autoriza. Indicar siempre el checkout, alcance y evidencia de la ejecución; no reutilizar un resultado histórico como prueba actual. Las herramientas de `.agents/skills/` son instrucciones/procedimientos y también deben contrastarse con el inventario del repositorio.
 
 Antes de crear notificaciones, reintentos, timers o comandos que envíen RF, documentar airtime, riesgos de feedback/origen propio y persistencia del último disparo. Acordar con el usuario los límites y los intervalos según `AGENTS.md`. La edición documental por sí sola no activa hardware ni workflows externos.

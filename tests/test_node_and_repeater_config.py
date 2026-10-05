@@ -249,9 +249,13 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
         self.mock_mc.commands.send_login_sync.assert_awaited()
         cli_commands = [call.args[1] for call in self.mock_mc.commands.send_cmd.await_args_list]
         self.assertEqual(cli_commands, [
-            "set tx 22", "set repeat on", "set name Tower_Alpha_West",
+            "00|set tx 22", "01|set repeat on", "02|set name Tower_Alpha_West",
         ])
         self.assertEqual(resp["data"]["status"], "dispatched")
+        self.assertEqual(resp["data"]["applied"], {})
+        self.assertEqual(resp["data"]["unconfirmed"], {
+            "tx_power": 22, "repeat_enabled": True, "name": "Tower_Alpha_West",
+        })
 
         # 4. Acción remota (reboot del repetidor)
         self.dispatched_txs.clear()
@@ -265,7 +269,7 @@ class TestNodeAndRepeaterConfig(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(code, 200)
         self.mock_mc.commands.send_login_sync.assert_awaited()
         self.assertEqual(len(self.dispatched_txs), 0)
-        self.assertEqual(self.mock_mc.commands.send_cmd.await_args.args[1], "reboot")
+        self.assertEqual(self.mock_mc.commands.send_cmd.await_args.args[1], "03|reboot")
         self.assertEqual(resp["data"]["status"], "dispatched")
 
     async def test_remote_hop_limit_rejects_batch_before_login_or_commands(self) -> None:

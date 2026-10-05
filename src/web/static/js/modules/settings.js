@@ -192,7 +192,8 @@ export class SettingsModule {
       "localDevicePin", "localPathHashMode", "localRxDelay", "localAirtimeFactor",
       "localTelemBase", "localTelemLoc", "localTelemEnv", "localAdvLocPolicy",
       "localMultiAcks", "localManualAddContacts", "localAdvertInterval",
-      "localAdvertEnable", "localTelemetryInterval", "localTelemetryEnable"
+      "localAdvertEnable", "localTelemetryInterval", "localTelemetryEnable",
+      "chkAutoAddChat", "chkAutoAddOverwrite", "numAutoAddMaxHops", "inputFloodScope"
     ].forEach((id) => {
       const el = document.getElementById(id);
       if (el) {
@@ -1704,21 +1705,10 @@ export class SettingsModule {
       this.renderCustomVarsTable(cfg.custom_vars);
     }
     if (cfg.flood_scope && typeof cfg.flood_scope === "object") {
-      const scopeName = cfg.flood_scope.scope_name || "";
-      const inScope = document.getElementById("inputFloodScope");
-      const lbl = document.getElementById("currentFloodScopeLabel");
-      if (inScope && !inScope.value) inScope.value = scopeName;
-      if (lbl) lbl.textContent = scopeName ? scopeName : I18n.t("settings.global_scope");
+      this._renderFloodScope(cfg.flood_scope);
     }
     if (cfg.autoadd_config && typeof cfg.autoadd_config === "object") {
-      const flags = Number(cfg.autoadd_config.config ?? 0);
-      const maxHops = cfg.autoadd_config.max_hops != null ? Number(cfg.autoadd_config.max_hops) : 3;
-      const chkChat = document.getElementById("chkAutoAddChat");
-      const chkOverwrite = document.getElementById("chkAutoAddOverwrite");
-      const numHops = document.getElementById("numAutoAddMaxHops");
-      if (chkOverwrite) chkOverwrite.checked = (flags & 1) !== 0;
-      if (chkChat) chkChat.checked = (flags & 2) !== 0;
-      if (numHops && maxHops != null) numHops.value = String(maxHops);
+      this._populateAutoAddConfig(cfg.autoadd_config);
     }
 
 
@@ -2088,7 +2078,7 @@ export class SettingsModule {
         <td class="font-mono"><strong>${escapeHtml(String(k))}</strong></td>
         <td><code>${escapeHtml(String(v))}</code></td>
         <td style="text-align: right;">
-          <button type="button" class="btn-danger btn-xs btn-del-custom-var" data-key="${escapeHtml(String(k))}" title="${I18n.t("settings.delete_variable")}">
+          <button type="button" disabled class="btn-danger btn-xs btn-del-custom-var" data-key="${escapeHtml(String(k))}" title="${I18n.t("settings.config_unsupported")}">
             ${I18n.t("settings.delete_variable_button")}
           </button>
         </td>
@@ -2117,7 +2107,7 @@ export class SettingsModule {
         body: JSON.stringify({ key: k, value: v }),
       });
       const data = await res.json();
-      if (data.status === "ok") {
+      if (res.ok && data.status === "ok") {
         this.renderCustomVarsTable(data.custom_vars || data.data || {});
         const inKey = document.getElementById("inputCustomVarKey");
         const inVal = document.getElementById("inputCustomVarVal");
@@ -2151,7 +2141,7 @@ export class SettingsModule {
         body: JSON.stringify({ key }),
       });
       const data = await res.json();
-      if (data.status === "ok") {
+      if (res.ok && data.status === "ok") {
         this.renderCustomVarsTable(data.custom_vars || data.data || {});
         if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.custom_var_deleted", { p0: key }), "info");
       } else {
@@ -2163,18 +2153,15 @@ export class SettingsModule {
   }
 
   async fetchFloodScope() {
+    const revision = this._configRevision;
     try {
       const res = await fetch("/api/config/flood_scope", {
         headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
       });
       const data = await res.json();
-      if (data.status === "ok") {
+      if (res.ok && data.status === "ok" && revision === this._configRevision) {
         const fs = data.flood_scope || data.data || {};
-        const scopeName = fs.scope_name || "";
-        const inScope = document.getElementById("inputFloodScope");
-        const lbl = document.getElementById("currentFloodScopeLabel");
-        if (inScope && !inScope.value) inScope.value = scopeName;
-        if (lbl) lbl.textContent = scopeName ? scopeName : I18n.t("settings.global_scope");
+        this._renderFloodScope(fs);
       }
     } catch (e) {
       console.warn("Error consultando flood scope:", e);
@@ -2182,8 +2169,12 @@ export class SettingsModule {
   }
 
   async saveFloodScope() {
+    if (this._savingFloodScope) return;
     const inScope = document.getElementById("inputFloodScope");
     const scopeVal = inScope ? inScope.value.trim() : "";
+    const snapshot = this._snapshotAdvancedFields(["inputFloodScope"]);
+    this._savingFloodScope = true;
+    ++this._configRevision;
     try {
       const res = await fetch("/api/config/flood_scope", {
         method: "POST",
@@ -2191,19 +2182,30 @@ export class SettingsModule {
         body: JSON.stringify({ scope: scopeVal }),
       });
       const data = await res.json();
-      if (data.status === "ok") {
-        const lbl = document.getElementById("currentFloodScopeLabel");
-        if (lbl) lbl.textContent = scopeVal ? scopeVal : I18n.t("settings.global_scope");
-        if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.scope_applied", { p0: scopeVal || I18n.t("settings.global") }), "success");
+      ++this._configRevision;
+      const result = data.data || data;
+      const confirmed = result.flood_scope;
+      if (res.ok && data.status === "ok" && result.status === "ok" && confirmed) {
+        const name = confirmed.scope_name || "";
+        this._clearAdvancedFields(snapshot);
+        this._renderFloodScope(confirmed);
+        if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.scope_applied", { p0: name || I18n.t("settings.global") }), "success");
       } else {
         this._notify(I18n.t("settings.scope_save_error", { p0: data.message || I18n.t("settings.unknown") }), "error");
       }
     } catch (err) {
       this._notify(I18n.t("settings.network_error", { p0: err.message }), "error");
+    } finally {
+      this._savingFloodScope = false;
+      ++this._configRevision;
     }
   }
 
   async resetFloodScope() {
+    if (this._savingFloodScope) return;
+    const snapshot = this._snapshotAdvancedFields(["inputFloodScope"]);
+    this._savingFloodScope = true;
+    ++this._configRevision;
     try {
       const res = await fetch("/api/config/flood_scope", {
         method: "POST",
@@ -2211,34 +2213,33 @@ export class SettingsModule {
         body: JSON.stringify({ scope: "*" }),
       });
       const data = await res.json();
-      if (data.status === "ok") {
-        const inScope = document.getElementById("inputFloodScope");
-        const lbl = document.getElementById("currentFloodScopeLabel");
-        if (inScope) inScope.value = "";
-        if (lbl) I18n.setText(lbl, "settings.global_scope");
+      ++this._configRevision;
+      const result = data.data || data;
+      if (res.ok && data.status === "ok" && result.status === "ok" && result.flood_scope?.scope_name === "") {
+        this._clearAdvancedFields(snapshot);
+        this._renderFloodScope(result.flood_scope);
         if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.scope_reset"), "info");
+      } else {
+        this._notify(I18n.t("settings.scope_save_error", { p0: data.detail || data.message || I18n.t("settings.config_unconfirmed") }), "error");
       }
     } catch (err) {
       this._notify(I18n.t("settings.network_error", { p0: err.message }), "error");
+    } finally {
+      this._savingFloodScope = false;
+      ++this._configRevision;
     }
   }
 
   async fetchAutoAddConfig() {
+    const revision = this._configRevision;
     try {
       const res = await fetch("/api/config/autoadd", {
         headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
       });
       const data = await res.json();
-      if (data.status === "ok") {
+      if (res.ok && data.status === "ok" && revision === this._configRevision) {
         const cfg = data.autoadd_config || data.data || {};
-        const flags = Number(cfg.config ?? 0);
-        const maxHops = cfg.max_hops != null ? Number(cfg.max_hops) : 3;
-        const chkChat = document.getElementById("chkAutoAddChat");
-        const chkOverwrite = document.getElementById("chkAutoAddOverwrite");
-        const numHops = document.getElementById("numAutoAddMaxHops");
-        if (chkOverwrite) chkOverwrite.checked = (flags & 1) !== 0;
-        if (chkChat) chkChat.checked = (flags & 2) !== 0;
-        if (numHops && maxHops != null) numHops.value = String(maxHops);
+        this._populateAutoAddConfig(cfg);
       }
     } catch (e) {
       console.warn("Error consultando autoadd config:", e);
@@ -2246,28 +2247,95 @@ export class SettingsModule {
   }
 
   async saveAutoAddConfig() {
+    if (this._savingAutoAdd) return;
     const chkChat = document.getElementById("chkAutoAddChat");
     const chkOverwrite = document.getElementById("chkAutoAddOverwrite");
     const numHops = document.getElementById("numAutoAddMaxHops");
-    let flags = 0;
+    const observed = this.cachedConfig.autoadd_config;
+    if (!Number.isInteger(observed?.config)) {
+      this._notify(I18n.t("settings.config_unconfirmed"), "error");
+      return;
+    }
+    // Preserve firmware flags which are not exposed by these two checkboxes.
+    let flags = observed.config & ~3;
     if (chkOverwrite?.checked) flags |= 1;
     if (chkChat?.checked) flags |= 2;
-    const maxHops = numHops ? parseInt(numHops.value, 10) : 3;
+    const payload = { flags };
+    if (observed.max_hops_supported === true && numHops && !numHops.disabled) {
+      const maxHops = Number(numHops.value);
+      if (numHops.value.trim() === "" || !Number.isInteger(maxHops) || maxHops < 0 || maxHops > 64) {
+        this._notify(I18n.t("settings.invalid_value"), "error");
+        return;
+      }
+      payload.max_hops = maxHops;
+    }
 
+    const snapshot = this._snapshotAdvancedFields(["chkAutoAddChat", "chkAutoAddOverwrite", "numAutoAddMaxHops"]);
+    this._savingAutoAdd = true;
+    ++this._configRevision;
     try {
       const res = await fetch("/api/config/autoadd", {
         method: "POST",
         headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
-        body: JSON.stringify({ flags, max_hops: maxHops }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (data.status === "ok") {
+      ++this._configRevision;
+      const result = data.data || data;
+      if (res.ok && data.status === "ok" && result.status === "ok" && result.autoadd_config?.config === flags) {
+        this.cachedConfig.autoadd_config = result.autoadd_config;
+        this._clearAdvancedFields(snapshot);
+        this._populateAutoAddConfig(result.autoadd_config);
         if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.auto_add_saved"), "success");
       } else {
         this._notify(I18n.t("settings.policy_save_error", { p0: data.message || I18n.t("settings.unknown") }), "error");
       }
     } catch (err) {
       this._notify(I18n.t("settings.network_error", { p0: err.message }), "error");
+    } finally {
+      this._savingAutoAdd = false;
+      ++this._configRevision;
+    }
+  }
+
+  _populateAutoAddConfig(cfg) {
+    this.cachedConfig.autoadd_config = cfg;
+    const known = Number.isInteger(cfg.config);
+    const chat = document.getElementById("chkAutoAddChat");
+    const overwrite = document.getElementById("chkAutoAddOverwrite");
+    const hops = document.getElementById("numAutoAddMaxHops");
+    const save = document.getElementById("btnSaveAutoAddConfig");
+    if (chat) { chat.disabled = !known; this._setFieldIfNotDirty("chkAutoAddChat", null, known && (cfg.config & 2) !== 0); }
+    if (overwrite) { overwrite.disabled = !known; this._setFieldIfNotDirty("chkAutoAddOverwrite", null, known && (cfg.config & 1) !== 0); }
+    if (hops) {
+      hops.disabled = !known || cfg.max_hops_supported !== true;
+      this._setFieldIfNotDirty("numAutoAddMaxHops", cfg.max_hops != null ? String(cfg.max_hops) : "");
+    }
+    if (save) save.disabled = !known;
+  }
+
+  _snapshotAdvancedFields(ids) {
+    return new Map(ids.map(id => [id, { raw: this._localFieldValue(id), version: this._fieldEditVersions.get(id) || 0 }]));
+  }
+
+  _renderFloodScope(scope) {
+    this.cachedConfig.flood_scope = scope;
+    const name = scope.scope_name || "";
+    this._setFieldIfNotDirty("inputFloodScope", name);
+    const label = document.getElementById("currentFloodScopeLabel");
+    if (!label) return;
+    if (name) {
+      label.removeAttribute("data-i18n");
+      label.removeAttribute("data-i18n-params");
+      label.textContent = name;
+    } else {
+      I18n.setText(label, "settings.global_scope");
+    }
+  }
+
+  _clearAdvancedFields(snapshot) {
+    for (const [id, saved] of snapshot) {
+      if (this._localFieldValue(id) === saved.raw && (this._fieldEditVersions.get(id) || 0) === saved.version) this.dirtyFields.delete(id);
     }
   }
 }

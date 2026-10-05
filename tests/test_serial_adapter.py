@@ -73,15 +73,15 @@ class TestSerialAdapter(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(rx_frame.header.src_node_id, 0x1111)
 
     async def test_serial_watchdog_timeout_trigger(self) -> None:
-        from unittest.mock import AsyncMock
+        from unittest.mock import AsyncMock, MagicMock
 
         adapter = RawSerialFramingAdapter(port="COM_TEST")
         adapter.ping_or_check_alive = AsyncMock(return_value=False)
-        reconnect_called = False
+        adapter.is_hardware_alive = MagicMock(return_value=True)
+        reconnect_called = asyncio.Event()
 
         def _on_reconnect() -> None:
-            nonlocal reconnect_called
-            reconnect_called = True
+            reconnect_called.set()
 
         watchdog = SerialWatchdog(
             adapter=adapter,
@@ -89,14 +89,17 @@ class TestSerialAdapter(unittest.IsolatedAsyncioTestCase):
             interval_sec=0.02,
             on_timeout_reconnect=_on_reconnect,
         )
+        # Constructor conserva el mínimo de seguridad; sólo acelerar el fixture.
+        self.assertEqual(watchdog.interval_sec, 30.0)
+        watchdog.interval_sec = 0.02
         adapter.is_connected = True
-        watchdog.start()
-
-        # Simular inactividad
         adapter.last_heartbeat_time = 0.0
-        await asyncio.sleep(0.20)
-        await watchdog.stop()
-        self.assertTrue(reconnect_called, "El Watchdog debe haber activado la reconexión")
+        watchdog.start()
+        try:
+            await asyncio.wait_for(reconnect_called.wait(), timeout=1.0)
+            self.assertGreaterEqual(adapter.ping_or_check_alive.await_count, 2)
+        finally:
+            await watchdog.stop()
 
     async def test_meshcore_sdk_adapter_connect_lifecycle(self) -> None:
         from unittest.mock import AsyncMock, MagicMock, patch

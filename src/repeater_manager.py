@@ -14,7 +14,6 @@ from collections.abc import Callable
 from typing import Any
 
 from src.shared_utils import (
-    clamp_tx_power,
     clean_battery_input,
     clean_numeric_value,
     normalize_battery,
@@ -180,6 +179,11 @@ class RepeaterManager:
     def build_repeater_command_payload(self, action: str, params: dict[str, Any]) -> str | None:
         """Construye la cadena de comando en texto para enviar al firmware del repetidor."""
         act = action.strip().lower()
+        nested = params.get("params")
+        if isinstance(nested, dict):
+            params = nested
+        if any(ord(char) < 32 for char in action) or len(action.encode("utf-8")) > 160:
+            return None
 
         # Si se pasan parámetros con valor, intentar primero los builders con parámetros
         # para evitar que aliases como 'radio', 'lat', 'lon' se interpreten como queries (P08)
@@ -191,7 +195,7 @@ class RepeaterManager:
 
         # Comandos que ya vienen formateados directamente con prefijo reconocido
         if act.startswith(("set ", "login ", "password ", "setperm ", "cmd ", "time ")):
-            return action
+            return self._build_preformatted_command(action)
 
         # 2. Comandos de radio y parámetros RF
         radio_cmd = self._build_radio_cmd(act, params)
@@ -216,6 +220,32 @@ class RepeaterManager:
 
         # Rechazar acciones desconocidas para evitar despachar basura a la radio (B09)
         return None
+
+    def _build_preformatted_command(self, command: str) -> str | None:
+        """Apply the same validation to CLI aliases as to structured configuration."""
+        if command.startswith("login "):
+            return None  # Login must use the binary authentication opcode.
+        if command.startswith("password "):
+            return self._build_acl_and_security_cmd("set_password", {"password": command[9:]})
+        if command.startswith("setperm "):
+            parts = command.split()
+            return self._build_acl_and_security_cmd("setperm", {"public_key": parts[1], "permission": parts[2]}) if len(parts) == 3 else None
+        if command.startswith("set radio "):
+            values = command[10:].split(",")
+            return self._build_radio_cmd("set_radio", dict(zip(("frequency", "bandwidth", "spreading_factor", "coding_rate"), values, strict=False))) if len(values) == 4 else None
+        setters = {
+            "set name ": ("set_name", "name"), "set owner.info ": ("set_owner_info", "owner_info"),
+            "set lat ": ("set_lat", "lat"), "set lon ": ("set_lon", "lon"),
+            "set tx ": ("set_tx_power", "tx_power"), "set repeat ": ("set_repeat", "repeat"),
+            "set advert.interval ": ("set_advert_interval", "advert_interval"),
+            "set flood.advert.interval ": ("set_flood_advert_interval", "flood_advert_interval"),
+            "set guest.password ": ("set_guest_password", "guest_password"),
+            "set allow.read.only ": ("set_allow_read_only", "allow_read_only"),
+        }
+        for prefix, (action, field) in setters.items():
+            if command.startswith(prefix):
+                return self.build_repeater_command_payload(action, {field: command[len(prefix):]})
+        return command
 
     def _build_query_cmd(self, act: str) -> str | None:
         """Construye comandos de lectura sin argumentos adicionales."""
@@ -304,6 +334,11 @@ class RepeaterManager:
             "reboot": "reboot",
             "restart": "reboot",
         }
+        if act in {
+            "get name", "get tx", "get repeat", "get advert.interval",
+            "get flood.advert.interval", "get allow.read.only", "get guest.password",
+        }:
+            return act
         return query_map.get(act)
 
     def _build_radio_cmd(self, act: str, params: dict[str, Any]) -> str | None:
@@ -324,22 +359,32 @@ class RepeaterManager:
                     cr_num = int(parts[1].strip())
             if cr_num is None:
                 return None
+            try:
+                freq_f, bw_f = float(freq), float(bw)
+                sf_i = self._integer(sf)
+                if sf_i is None or not (150 <= freq_f <= 2500 and 7 <= bw_f <= 500 and 5 <= sf_i <= 12):
+                    return None
+            except (TypeError, ValueError, OverflowError):
+                return None
             return f"set radio {freq},{bw},{sf},{cr_num}"
 
         if act in ("set_tx_power", "set_power", "tx_power", "power", "set_tx", "tx"):
-            pwr = params.get("tx_power", params.get("power", params.get("tx", 20)))
-            try:
-                pwr_int = int(pwr)
-            except (ValueError, TypeError):
+            pwr = params.get("tx_power", params.get("power", params.get("tx")))
+            pwr_int = self._integer(pwr)
+            if pwr_int is None or not -9 <= pwr_int <= 30:
                 return None
-            hw_board = params.get("hardware_board", params.get("board", params.get("hw_model")))
             max_p_hint = params.get("max_tx_power", params.get("max_power"))
-            pwr_clamped = clamp_tx_power(pwr_int, hw_board, max_p_hint)
-            return f"set tx {pwr_clamped}"
+            if max_p_hint is not None:
+                max_power = self._integer(max_p_hint)
+                if max_power is None or pwr_int > max_power:
+                    return None
+            return f"set tx {pwr_int}"
 
         if act in ("set_repeat", "repeat_settings", "repeat", "set_repeat_enabled", "repeat_enabled"):
-            enabled = params.get("repeat", params.get("repeat_enabled", params.get("enabled", True)))
-            val = "on" if enabled is True or str(enabled).lower() in ("true", "1", "on") else "off"
+            enabled = self._boolean(params.get("repeat", params.get("repeat_enabled", params.get("enabled"))))
+            if enabled is None:
+                return None
+            val = "on" if enabled else "off"
             return f"set repeat {val}"
 
         # Comandos unitarios de radio (set freq, set sf, set bw, set cr, set hop_limit) no existen en CommonCLI oficial
@@ -372,22 +417,26 @@ class RepeaterManager:
             return None
 
         if act in ("set_name", "name", "rename", "set_owner_name", "set_owner"):
-            name = params.get("name", params.get("owner_name", params.get("new_name", "Repeater")))
+            name = params.get("name", params.get("owner_name", params.get("new_name")))
+            if not self._text(name, 31) or not name or any(char in name for char in "[]\\:,?*"):
+                return None
             return f"set name {name}"
 
         if act in ("set_owner_info", "owner_info"):
             info = params.get("owner_info", params.get("info", ""))
+            if not self._text(info, 119):
+                return None
             # Sin comillas envolventes literales (CommonCLI consume hasta fin de línea)
             return f"set owner.info {info}"
 
         if act in ("set_advert_interval", "set_beacon", "advert_intervals", "beacon", "set_beacon_interval", "beacon_interval"):
             interval = params.get("advert_interval", params.get("beacon_interval", params.get("interval", params.get("beacon", 0))))
             try:
-                inv = int(interval)
+                inv = self._integer(interval)
                 if inv == 0:
                     mins = 0
-                elif 60 <= inv <= 240:
-                    mins = (inv // 2) * 2
+                elif inv is not None and 60 <= inv <= 240 and inv % 2 == 0:
+                    mins = inv
                 else:
                     return None
             except (ValueError, TypeError):
@@ -397,10 +446,10 @@ class RepeaterManager:
         if act in ("set_flood_advert_interval", "flood_advert_interval", "flood_interval"):
             interval = params.get("flood_advert_interval", params.get("interval", 0))
             try:
-                inv = int(interval)
+                inv = self._integer(interval)
                 if inv == 0:
                     hours = 0
-                elif 3 <= inv <= 168:
+                elif inv is not None and 3 <= inv <= 168:
                     hours = inv
                 else:
                     return None
@@ -418,22 +467,26 @@ class RepeaterManager:
 
         if act in ("set_password", "change_password", "password", "set_admin_password", "admin_password"):
             new_pwd = params.get("new_password", params.get("password", params.get("admin_password", "")))
-            if new_pwd:
+            if new_pwd and self._text(new_pwd, 15):
                 return f"password {new_pwd}"
             return None
 
         if act in ("set_guest_password", "guest_password", "set guest.password"):
             gpwd = params.get("guest_password", params.get("password", ""))
+            if not self._text(gpwd, 15):
+                return None
             return f"set guest.password {gpwd}"
 
         if act in ("set_allow_read_only", "allow_read_only", "set allow.read.only"):
-            allow = params.get("allow_read_only", params.get("allow", True))
-            val = "on" if allow is True or str(allow).lower() in ("true", "1", "on") else "off"
+            allow = self._boolean(params.get("allow_read_only", params.get("allow")))
+            if allow is None:
+                return None
+            val = "on" if allow else "off"
             return f"set allow.read.only {val}"
 
         if act in ("setperm", "acl_setperm", "acl_add", "add_acl", "acl_remove", "remove_acl"):
             pk = str(params.get("public_key", params.get("pk", ""))).strip().lower()
-            if not pk:
+            if len(pk) != 64 or re.fullmatch(r"[0-9a-f]{64}", pk) is None:
                 return None
             default_perm = 0 if act in ("acl_remove", "remove_acl") else 1
             perm = params.get("permission", params.get("perm", default_perm))
@@ -461,10 +514,10 @@ class RepeaterManager:
                     except ValueError:
                         return None
             else:
-                try:
-                    perm_u8 = int(perm)
-                except (ValueError, TypeError):
+                numeric_perm = self._integer(perm)
+                if numeric_perm is None:
                     return None
+                perm_u8 = numeric_perm
             if not (0 <= perm_u8 <= 255):
                 return None
             return f"setperm {pk} {perm_u8}"
@@ -474,6 +527,100 @@ class RepeaterManager:
             return f"time {ts}"
 
         return None
+
+    @staticmethod
+    def _integer(value: Any) -> int | None:
+        if isinstance(value, bool):
+            return None
+        try:
+            numeric = float(value)
+            return int(numeric) if math.isfinite(numeric) and numeric.is_integer() else None
+        except (TypeError, ValueError, OverflowError):
+            return None
+
+    @staticmethod
+    def _boolean(value: Any) -> bool | None:
+        if isinstance(value, bool):
+            return value
+        if str(value).lower() in ("true", "1", "on"):
+            return True
+        if str(value).lower() in ("false", "0", "off"):
+            return False
+        return None
+
+    @staticmethod
+    def _text(value: Any, max_bytes: int) -> bool:
+        return isinstance(value, str) and len(value.encode("utf-8")) <= max_bytes and all(ord(char) >= 32 for char in value)
+
+    @staticmethod
+    def response_is_error(text: str) -> bool:
+        if text.startswith("> "):
+            return False  # A scalar GET value may itself begin with 'Error' or 'Unknown'.
+        clean = text.removeprefix("> ").strip().lower().lstrip("(")
+        return clean.startswith(("error", "err", "invalid", "fail", "unknown", "denied", "not supported", "??:"))
+
+    @staticmethod
+    def command_parameters(command: str) -> dict[str, Any]:
+        """Decode the values serialized into an existing SET, never an unconfirmed request."""
+        parts = command.split(" ", 2)
+        if command.startswith("password "):
+            return {"admin_password": True}
+        if command.startswith("setperm "):
+            return {"public_key": parts[1], "permission": int(parts[2])}
+        if len(parts) != 3 or parts[0] != "set":
+            return {}
+        key, value = parts[1], parts[2]
+        if key == "radio":
+            freq, bw, sf, cr = value.split(",")
+            return {"frequency": float(freq), "bandwidth": float(bw), "spreading_factor": int(sf), "coding_rate": f"4/{cr}"}
+        mapping = {
+            "name": "name", "owner.info": "owner_info", "lat": "latitude", "lon": "longitude",
+            "tx": "tx_power", "repeat": "repeat_enabled", "advert.interval": "advert_interval",
+            "flood.advert.interval": "flood_advert_interval", "allow.read.only": "allow_read_only",
+            "guest.password": "guest_password",
+        }
+        field = mapping.get(key)
+        if field is None:
+            return {}
+        if key == "guest.password":
+            return {field: True}
+        if key in ("repeat", "allow.read.only"):
+            return {field: value == "on"}
+        if key in ("tx", "advert.interval", "flood.advert.interval"):
+            return {field: int(value)}
+        if key in ("lat", "lon"):
+            return {field: float(value)}
+        return {field: value.replace("|", "\n") if key == "owner.info" else value}
+
+    def parse_command_response(self, command: str, text: str) -> dict[str, Any]:
+        """CommonCLI GETs return scalars; their field comes from the corresponding command."""
+        if self.response_is_error(text):
+            return {}
+        clean = text.removeprefix("> ").strip()
+        field_by_command = {
+            "get name": "name", "get owner.info": "owner_info", "get tx": "tx_power",
+            "get lat": "latitude", "get lon": "longitude", "get repeat": "repeat_enabled",
+            "get advert.interval": "advert_interval", "get flood.advert.interval": "flood_advert_interval",
+            "get allow.read.only": "allow_read_only",
+            "ver": "firmware_version", "board": "hardware_board", "clock": "clock",
+        }
+        field = field_by_command.get(command)
+        extracted = {} if field is not None else self.parse_repeater_telemetry_or_response(text)
+        if field and (clean or field in ("name", "owner_info")):
+            if field in ("name", "owner_info", "firmware_version", "hardware_board", "clock"):
+                extracted[field] = clean.replace("|", "\n") if field == "owner_info" else clean
+            elif field in ("repeat_enabled", "allow_read_only"):
+                enabled = self._boolean(clean)
+                if enabled is not None:
+                    extracted[field] = enabled
+            else:
+                try:
+                    numeric = float(clean)
+                    if math.isfinite(numeric):
+                        extracted[field] = int(numeric) if field in ("tx_power", "advert_interval", "flood_advert_interval") else numeric
+                except ValueError:
+                    pass
+        return extracted
 
     def parse_repeater_telemetry_or_response(self, raw_text: str) -> dict[str, Any]:
         """

@@ -51,6 +51,7 @@ async def test_plain_or_valid_json_text_keeps_supported_tx_contract(body: str, t
 async def test_multisegment_topic_prefix_resolves_relative_target(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(config, "TOPIC_ADMIN_REPEATER", "lab/north/mesh/admin/repeater")
     ctx = _context()
+    ctx.mqtt.topic_admin_repeater = config.TOPIC_ADMIN_REPEATER
     await MqttInboundDispatcher(ctx)._process_mqtt_input("lab/north/mesh/admin/repeater/aabbccdd/cmd", json.dumps({"action": "status"}))
     ctx.handle_admin.assert_awaited_once_with({"action": "status", "target_node": "aabbccdd"})
 
@@ -60,5 +61,6 @@ async def test_multisegment_topic_prefix_resolves_relative_target(monkeypatch: p
 async def test_admin_topic_requires_exact_relative_target_and_cmd(monkeypatch: pytest.MonkeyPatch, suffix: str) -> None:
     monkeypatch.setattr(config, "TOPIC_ADMIN_REPEATER", "lab/mesh/admin/repeater")
     ctx = _context()
+    ctx.mqtt.topic_admin_repeater = config.TOPIC_ADMIN_REPEATER
     await MqttInboundDispatcher(ctx)._process_mqtt_input(config.TOPIC_ADMIN_REPEATER + suffix, '{"action":"status"}')
     ctx.handle_admin.assert_not_called()

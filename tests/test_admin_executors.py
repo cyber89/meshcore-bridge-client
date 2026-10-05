@@ -22,6 +22,7 @@ from src.admin import (
 )
 from src.admin_handler import AdminContext
 from src.contact_manager import NodeContactUpdate, NodeRegistry
+from src.repeater_manager import RepeaterManager
 
 
 class MockRadioCommands:
@@ -299,6 +300,8 @@ async def test_repeater_admin_executor_client_rejected(admin_context: Any) -> No
 @pytest.mark.asyncio
 async def test_repeater_admin_executor_batch_config(admin_context: Any) -> None:
     ctx, mock_mc, registry, published = admin_context
+    # Exercise real CommonCLI serialization; MSG_SENT deliberately supplies no remote ACK.
+    ctx.repeater_manager = RepeaterManager(min_cmd_interval_s=0, min_telemetry_interval_s=0)
     # Register node as REPEATER
     registry.add_or_update("2233445566778899", NodeContactUpdate(name="R-Mountain", role="REPEATER"))
 
@@ -327,6 +330,9 @@ async def test_repeater_admin_executor_batch_config(admin_context: Any) -> None:
     )
 
     res = await executor.execute(req)
+    assert res["status"] == "dispatched"
+    assert res["applied"] == {}
+    assert res["unconfirmed"] == {"tx_power": 22, "latitude": 40.5, "longitude": -3.5}
     assert "dispatched_commands" in res
     assert len(res["dispatched_commands"]) >= 2
     mock_mc.commands.send_login_sync.assert_awaited_once()

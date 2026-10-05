@@ -33,6 +33,7 @@ from src.protocol_types import (
     RouteObservation,
     TextMessagePayload,
     decode_path_hashes,
+    redact_command_str,
 )
 from src.repeater_manager import RepeaterManager
 from src.routers.base import BaseRxHandler, MeshMessageEvent, RxMeta
@@ -773,7 +774,10 @@ class RxEventRouter:
                 logging.debug(f"[RX-DEDUP] Mensaje duplicado LoRa ignorado: de {msg.sender_name or clean_sender[:8]} (canal {msg.channel_idx})")
                 return None
 
-        extracted_telem = self._ctx.repeater_manager.parse_repeater_telemetry_or_response(msg.text)
+        tagged_cli = bool(re.match(r"^[0-9a-fA-F]{2}\|", msg.text))
+        # Scalar CLI replies need their request context; a password or latitude
+        # must never become battery telemetry through the generic text parser.
+        extracted_telem = {} if tagged_cli else self._ctx.repeater_manager.parse_repeater_telemetry_or_response(msg.text)
         existing_contact = self._ctx.node_registry.get_contact(msg.sender)
         should_treat_as_repeater = bool(
             existing_contact and existing_contact.role in ("REPEATER", "ROUTER")
@@ -814,6 +818,7 @@ class RxEventRouter:
 
         if is_cmd_response:
             admin = getattr(self._ctx, "admin_handler", None)
+            cmd_resp_payload: dict[str, Any] = {"text": msg.text}
             if admin:
                 cmd_resp_payload = {
                     "rssi": msg.rssi,
@@ -831,12 +836,19 @@ class RxEventRouter:
                 elif hasattr(admin, "notify_ping_response"):
                     admin.notify_ping_response(msg.sender, cmd_resp_payload)
 
+            if cmd_resp_payload.get("sensitive_response"):
+                public_text = "********"
+            elif tagged_cli and not cmd_resp_payload.get("response_matched"):
+                public_text = "Respuesta de administración no asociada"
+            else:
+                public_text = redact_command_str(str(cmd_resp_payload.get("text", msg.text)))
+
             rep_payload = {
                 "type": "repeater_response",
                 "event_type": "repeater_response",
                 "sender": msg.sender,
                 "sender_name": msg.sender_name,
-                "text": msg.text,
+                "text": public_text,
                 "channel_idx": msg.channel_idx,
                 "channel_index": msg.channel_idx,
                 "telemetry": extracted_telem if extracted_telem else None,

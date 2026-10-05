@@ -225,6 +225,11 @@ class AdminCommandHandler:
             sender = str(sender_or_data)
             data = data or {}
 
+        text = str(data.get("text") or data.get("message") or "")
+        if len(text) >= 3 and text[2] == "|":
+            data["tag"] = text[:2]
+            data["text"] = text[3:]
+            data["message"] = text[3:]
         matched = self.notify_ping_response(sender, data)
         if not sender or not self._cmd_waiters:
             return matched
@@ -256,12 +261,18 @@ class AdminCommandHandler:
 
             if is_match:
                 waiters = self._cmd_waiters.get(k, [])
-                while waiters:
-                    fut = waiters.pop(0)
+                for fut in list(waiters):
                     fut_target = getattr(fut, "_target_canonical", None)
                     if fut_target and len(canon_sender) >= 32 and len(fut_target) >= 32 and fut_target != canon_sender:
                         continue
+                    expected_tag = getattr(fut, "_command_tag", None)
+                    if expected_tag is not None and tag_clean != expected_tag:
+                        continue
+                    waiters.remove(fut)
                     if not fut.done():
+                        data["response_matched"] = True
+                        if getattr(fut, "_command_sensitive", False):
+                            data["sensitive_response"] = True
                         fut.set_result(data)
                         matched = True
                         break

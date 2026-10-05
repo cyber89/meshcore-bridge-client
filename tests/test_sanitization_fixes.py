@@ -348,15 +348,19 @@ class TestSystemMessageDetection:
         from src.rx_router import is_command_or_system_message
         assert is_command_or_system_message("") is True
 
-    def test_ok_is_system(self) -> None:
-        """Verifica que 'ok' es mensaje de sistema."""
+    def test_ok_requires_command_context(self) -> None:
+        """El chat 'ok' sigue visible; prompt/tipo CLI sí son administración."""
         from src.rx_router import is_command_or_system_message
-        assert is_command_or_system_message("ok") is True
+        assert is_command_or_system_message("ok") is False
+        assert is_command_or_system_message("> ok") is True
+        assert is_command_or_system_message("ok", txt_type=1) is True
 
-    def test_pong_is_system(self) -> None:
-        """Verifica que 'pong' es mensaje de sistema."""
+    def test_pong_requires_command_context(self) -> None:
+        """Sin contexto de comando no se descarta texto breve de un usuario."""
         from src.rx_router import is_command_or_system_message
-        assert is_command_or_system_message("pong") is True
+        assert is_command_or_system_message("pong") is False
+        assert is_command_or_system_message("> pong") is True
+        assert is_command_or_system_message("pong", txt_type=1) is True
 
     def test_cmd_prefix_is_system(self) -> None:
         """Verifica que 'cmd set_name Test' es mensaje de sistema."""

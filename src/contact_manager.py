@@ -81,6 +81,8 @@ class NodeRfMetrics:
     coding_rate: str | None = None
     repeat_enabled: bool | None = None
     advert_interval: int | None = None
+    flood_advert_interval: int | None = None
+    allow_read_only: bool | None = None
     flags: int | None = None
     last_advert: float | None = None
     last_advert_heard_at: float | None = None
@@ -185,6 +187,8 @@ class NodeContactInfo:
         firmware_version: str | None = None,
         hardware_board: str | None = None,
         advert_interval: int | None = None,
+        flood_advert_interval: int | None = None,
+        allow_read_only: bool | None = None,
         repeat_enabled: bool | None = None,
         tx_power: int | None = None,
         max_tx_power: int | None = None,
@@ -261,6 +265,8 @@ class NodeContactInfo:
                 coding_rate=coding_rate,
                 repeat_enabled=repeat_enabled,
                 advert_interval=advert_interval,
+                flood_advert_interval=flood_advert_interval,
+                allow_read_only=allow_read_only,
                 flags=flags,
                 last_advert=last_advert,
                 last_advert_heard_at=last_advert_heard_at,
@@ -427,6 +433,14 @@ class NodeContactInfo:
     @property
     def advert_interval(self) -> int | None:
         return self.rf.advert_interval
+
+    @property
+    def flood_advert_interval(self) -> int | None:
+        return self.rf.flood_advert_interval
+
+    @property
+    def allow_read_only(self) -> bool | None:
+        return self.rf.allow_read_only
 
     @property
     def flags(self) -> int | None:
@@ -772,6 +786,8 @@ class NodeContactUpdate:
     firmware_version: str | None = None
     hardware_board: str | None = None
     advert_interval: int | None = None
+    flood_advert_interval: int | None = None
+    allow_read_only: bool | None = None
     repeat_enabled: bool | None = None
     tx_power: int | None = None
     max_tx_power: int | None = None
@@ -1184,6 +1200,8 @@ class NodeRegistry:
             firmware_version=m(u("firmware_version"), existing, "firmware_version"),
             hardware_board=m(u("hardware_board"), existing, "hardware_board"),
             advert_interval=m(u("advert_interval"), existing, "advert_interval"),
+            flood_advert_interval=m(u("flood_advert_interval"), existing, "flood_advert_interval"),
+            allow_read_only=m(u("allow_read_only"), existing, "allow_read_only"),
             repeat_enabled=m(u("repeat_enabled"), existing, "repeat_enabled"),
             tx_power=m(u("tx_power"), existing, "tx_power"),
             max_tx_power=m(u("max_tx_power"), existing, "max_tx_power"),
@@ -1870,6 +1888,8 @@ class NodeRegistry:
             firmware_version=nd.get("firmware_version"),
             hardware_board=nd.get("hardware_board"),
             advert_interval=_safe_int(nd.get("advert_interval")) if nd.get("advert_interval") is not None else None,
+            flood_advert_interval=_safe_int(nd.get("flood_advert_interval")) if nd.get("flood_advert_interval") is not None else None,
+            allow_read_only=bool(nd.get("allow_read_only")) if nd.get("allow_read_only") is not None else None,
             repeat_enabled=bool(nd.get("repeat_enabled", False)) if nd.get("repeat_enabled") is not None else None,
             tx_power=_safe_int(nd.get("tx_power")) if nd.get("tx_power") is not None else None,
             max_tx_power=_safe_int(nd.get("max_tx_power")) if nd.get("max_tx_power") is not None else None,

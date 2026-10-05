@@ -1,0 +1,167 @@
+{
+  "date": "2026-10-04",
+  "base_commit": "0e1c6f697ddfb5420128cf61f510f7bcd9acad1f",
+  "branch": "main",
+  "environment": {
+    "system": "Windows",
+    "python": "3.12.14",
+    "versions": {
+      "pytest": "9.1.1",
+      "pytest-asyncio": "1.4.0",
+      "pytest-cov": "7.1.0",
+      "mypy": "2.3.1",
+      "ruff": "0.16.3",
+      "meshcore": "2.3.8",
+      "playwright": "1.62.0"
+    },
+    "node": "v24.19.0"
+  },
+  "scope": {
+    "physical_radio": false,
+    "production_mqtt": false,
+    "operational_files": false,
+    "test_devices": "independent mock firmware state and virtual Companion; own loopback browser fixtures",
+    "references_modified": false
+  },
+  "baseline_reproduction": {
+    "artifact": "tests/artifacts/config-baseline-reproductions.xml",
+    "tests": 114,
+    "failures": 104,
+    "errors": 0,
+    "skipped": []
+  },
+  "first_full_run": {
+    "artifact": "tests/artifacts/config-parameters-full.xml",
+    "tests": 934,
+    "failures": 6,
+    "errors": 0,
+    "skipped": [
+      {
+        "case": "tests.test_web_official_compatibility.test_map_tile_symlink_cannot_escape_map_storage",
+        "reason": "Platform does not permit creating a symlink for this regression"
+      }
+    ]
+  },
+  "final_full_run": {
+    "artifact": "tests/artifacts/config-parameters-release.xml",
+    "tests": 964,
+    "failures": 0,
+    "errors": 0,
+    "skipped": [
+      {
+        "case": "tests.test_web_official_compatibility.test_map_tile_symlink_cannot_escape_map_storage",
+        "reason": "Platform does not permit creating a symlink for this regression"
+      }
+    ],
+    "passed": 963,
+    "duration_seconds": 336.146,
+    "command": "python -m pytest tests --cov=src --cov-report=xml:tests/artifacts/config-parameters-release-coverage.xml --cov-report=term:skip-covered --junitxml=tests/artifacts/config-parameters-release.xml -q -p no:cacheprovider --basetemp tests/artifacts/config-parameters-release-tmp"
+  },
+  "coverage": {
+    "artifact": "tests/artifacts/config-parameters-release-coverage.xml",
+    "lines_valid": 14579,
+    "lines_covered": 10229,
+    "line_percent": 70.16,
+    "scope": "Python src only; no firmware or JavaScript coverage claim"
+  },
+  "local_supplement_after_empty_custom_vars_refresh_assertion": {
+    "artifact": "tests/artifacts/config-local-final.xml",
+    "tests": 41,
+    "failures": 0,
+    "errors": 0,
+    "skipped": [],
+    "passed": 41,
+    "duration_seconds": 7.35
+  },
+  "browser_configuration_cases": {
+    "local_advanced": 3,
+    "remote": 17,
+    "all_in_full_suite": true,
+    "hardware_interoperability": false
+  },
+  "checks": {
+    "mypy": {
+      "command": "python -m mypy --strict src",
+      "exit_code": 0,
+      "output": "Success: no issues found in 60 source files"
+    },
+    "ruff": {
+      "command": "python -m ruff check src tests scripts",
+      "exit_code": 0,
+      "output": "All checks passed!"
+    },
+    "javascript": [
+      {
+        "file": "src/web/static/js/modules/settings.js",
+        "exit_code": 0,
+        "output": ""
+      },
+      {
+        "file": "src/web/static/js/modules/repeater.js",
+        "exit_code": 0,
+        "output": ""
+      },
+      {
+        "file": "src/web/static/js/i18n.js",
+        "exit_code": 0,
+        "output": ""
+      }
+    ],
+    "docs": {
+      "command": "python scripts/validate_project_docs.py",
+      "exit_code": 0,
+      "output": "Documentation structure: 76 files checked; 0 issues.\n"
+    }
+  },
+  "source_sha256": {
+    "src/admin/local_config_executor.py": "a2d6f7191271f1b383a43bde30581b0860f40ab8ff47e6501b92408b3df8639a",
+    "src/admin/repeater_executor.py": "d369f34edb01acd624face3706e4b5f6d3b7ceb55d9165a64f80d1a738b827da",
+    "src/admin_handler.py": "fd59f456a06219491f55fbaf3cab11be7a2a44d5c30a9dd1f498282a03a40671",
+    "src/contact_manager.py": "734cebcca2f29d5b08287d6aa6e66ee63dd2b7987791df11d360746a56865e47",
+    "src/repeater_manager.py": "292ed9aa83404128fceb88c0588646c5f71e7062f857ccaa071e7150350981b8",
+    "src/rx_router.py": "61fb0cddc9129d666ffd7d1d077ec314df9ed48a01a6e25267314422bb783925",
+    "src/web/controllers/config_controller.py": "09bce4cd89aafac2e30eb9a22e5257e97931f16442c746ca81be90bb487c2d91",
+    "src/web/controllers/repeater_controller.py": "a7d110cb1acd76535a9ea1ffa8ea4f4c7580b8e809ff6a0549f14c7f3f02c2d5",
+    "src/web/static/index.html": "92f04eb8d146960e7fcf32417d242dcf25961d029f2d0c228b41614201c4faff",
+    "src/web/static/js/i18n.js": "931d4b4fa21c6364ee3ce6dcd14815e442087f2df2e4ed58e75043b39ca737ba",
+    "src/web/static/js/modules/repeater.js": "70f0fdde3f5475f6ba966a2d7bec8d1b3c09df211c9cbec7a4fc31cf3fffd82d",
+    "src/web/static/js/modules/settings.js": "c4dae4469e15575ce3f0e236947902803429e39938bb1390549fa5e9e278c643"
+  },
+  "limitations": [
+    "ACK/CLI response means firmware acceptance, not physical RF measurement.",
+    "Remote get radio returns saved preferences, not active RF.",
+    "One symlink regression skipped due platform permissions.",
+    "Baseline reproduction uses current isolated tests against src from base_commit.",
+    "No operational reboot or live radio write performed."
+  ],
+  "full_run_before_tuning_limits": {
+    "artifact": "tests/artifacts/config-parameters-final.xml",
+    "tests": 956,
+    "failures": 0,
+    "errors": 0,
+    "skipped": [
+      {
+        "case": "tests.test_web_official_compatibility.test_map_tile_symlink_cannot_escape_map_storage",
+        "reason": "Platform does not permit creating a symlink for this regression"
+      }
+    ],
+    "passed": 955,
+    "duration_seconds": 332.19,
+    "command": "python -m pytest tests --cov=src --cov-report=xml:tests/artifacts/config-parameters-final-coverage.xml --cov-report=term:skip-covered --junitxml=tests/artifacts/config-parameters-final.xml -q -p no:cacheprovider --basetemp tests/artifacts/config-parameters-final-tmp"
+  },
+  "baseline_tuning_reproduction": {
+    "artifact": "tests/artifacts/config-baseline-tuning.xml",
+    "tests": 8,
+    "failures": 7,
+    "errors": 0,
+    "skipped": []
+  },
+  "local_tuning_final": {
+    "artifact": "tests/artifacts/config-tuning-final.xml",
+    "tests": 81,
+    "failures": 0,
+    "errors": 0,
+    "skipped": [],
+    "passed": 81
+  }
+}

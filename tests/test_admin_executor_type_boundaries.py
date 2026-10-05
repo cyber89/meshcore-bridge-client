@@ -80,7 +80,7 @@ async def test_named_repeater_can_dispatch_a_valid_command(executors: Any) -> No
     )
     assert result["status"] == "ok"
     assert result["cmd_dispatched"] == "clock"
-    mc.commands.send_cmd.assert_awaited_once_with(REMOTE_KEY, "clock")
+    mc.commands.send_cmd.assert_awaited_once_with(REMOTE_KEY, "00|clock")
     ctx.execute_tx.assert_not_awaited()
 
 

@@ -10,12 +10,16 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import hashlib
 import json
 import logging
 import math
 import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
+
+from meshcore.events import EventType
+from meshcore.packets import CommandType
 
 import config
 from src.admin.sdk_commands import require_success, run_sdk_command
@@ -179,13 +183,17 @@ class LocalConfigExecutor:
         pk = si.get("public_key") or si.get("pubkey")
         if pk:
             cfg["public_key"] = str(pk).lower().strip()
+        # SELF_INFO stores int8 power; SDK versions decoding uint8 expose -9 as 247.
+        power = si.get("tx_power", cfg.get("tx_power"))
+        if isinstance(power, int) and not isinstance(power, bool) and 128 <= power <= 255:
+            power -= 256
         cfg.update({
             "name": si.get("name", cfg.get("name")),
             "owner_info": si.get("owner_info", si.get("owner", cfg.get("owner_info"))),
             "latitude": si.get("adv_lat", si.get("latitude", si.get("lat", cfg.get("latitude")))),
             "longitude": si.get("adv_lon", si.get("longitude", si.get("lon", cfg.get("longitude")))),
             "altitude": si.get("altitude", si.get("alt", cfg.get("altitude"))),
-            "tx_power": si.get("tx_power", cfg.get("tx_power")),
+            "tx_power": power,
             "frequency": si.get("radio_freq", si.get("freq", cfg.get("frequency"))),
             "radio_freq": si.get("radio_freq", si.get("freq", cfg.get("frequency"))),
             "spreading_factor": si.get("sf", si.get("radio_sf", si.get("spreading_factor", cfg.get("spreading_factor")))),
@@ -379,6 +387,12 @@ class LocalConfigExecutor:
                 self._local_config["repeat"] = bool(dev_data["repeat"])
             if "path_hash_mode" in dev_data:
                 self._local_config["path_hash_mode"] = dev_data["path_hash_mode"]
+            if "ble_pin" in dev_data:
+                self._local_config["pin"] = dev_data["ble_pin"]
+            self._sync_confirmed_self_info(mc, {
+                key: self._local_config[key] for key in ("repeat", "path_hash_mode", "pin")
+                if key in self._local_config
+            })
 
         bat_res = await self._query_device(mc, "get_bat")
         bat_data = extract_payload_dict(bat_res)
@@ -466,7 +480,7 @@ class LocalConfigExecutor:
 
         cv_res = await self._query_device(mc, "get_custom_vars")
         cv_data = extract_payload_dict(cv_res)
-        if cv_data and isinstance(cv_data, dict):
+        if cv_res is not None and isinstance(cv_data, dict):
             self._local_config["custom_vars"] = cv_data
 
         arf_res = await self._query_device(mc, "get_allowed_repeat_freq")
@@ -517,6 +531,39 @@ class LocalConfigExecutor:
         """Prevalida el lote completo de configuración local antes de mutar el hardware."""
         if not isinstance(params, dict):
             raise ValueError("params debe ser un objeto")
+        integer_keys = {"tx_power", "power", "spreading_factor", "sf", "path_hash_mode",
+                        "pin", "devicepin", "telemetry_mode_base", "telemetry_mode_loc",
+                        "telemetry_mode_env"}
+        for key in integer_keys.intersection(params):
+            value = params[key]
+            if isinstance(value, bool) or (isinstance(value, float) and
+                                          (not math.isfinite(value) or not value.is_integer())):
+                raise ValueError(f"El parámetro '{key}' debe ser un entero")
+        if "name" in params and not isinstance(params["name"], str):
+            raise ValueError("name debe ser texto")
+        for key in {"repeat", "repeat_enabled", "manual_add_contacts", "adv_loc_policy", "multi_acks"}.intersection(params):
+            value = params[key]
+            if not (isinstance(value, bool) or
+                    (isinstance(value, int) and value in (0, 1)) or
+                    (isinstance(value, str) and value.lower().strip() in {"true", "false", "1", "0", "yes", "no", "on", "off"})):
+                raise ValueError(f"El parámetro '{key}' debe ser booleano")
+        for canonical, alias, convert in (
+            ("frequency", "radio_freq", float), ("bandwidth", "bw", float),
+            ("spreading_factor", "sf", int), ("coding_rate", "cr", normalize_coding_rate),
+            ("tx_power", "power", int), ("latitude", "lat", float),
+            ("longitude", "lon", float), ("repeat", "repeat_enabled", to_bool),
+            ("rx_delay", "rx_dly", float), ("airtime_factor", "af", float),
+        ):
+            if canonical in params and alias in params and convert(params[canonical]) != convert(params[alias]):
+                raise ValueError(f"Alias contradictorios: '{canonical}' y '{alias}'")
+        for key in {"latitude", "lat", "longitude", "lon"}.intersection(params):
+            if isinstance(params[key], bool):
+                raise ValueError(f"El parámetro '{key}' no puede ser booleano")
+        if "custom_vars" in params:
+            if not isinstance(params["custom_vars"], dict):
+                raise ValueError("custom_vars debe ser un objeto")
+            for key, value in params["custom_vars"].items():
+                self._validate_custom_var(str(key), str(value))
 
         unsupported = sorted(UNSUPPORTED_LOCAL_FIELDS.intersection(params))
         if unsupported:
@@ -654,6 +701,10 @@ class LocalConfigExecutor:
                     f_val = float(t_val)
                     if not math.isfinite(f_val) or f_val < 0.0:
                         raise ValueError(f"El parámetro '{tk}' debe ser un número finito no negativo")
+                    # Companion loadPrefs constrains these factors after restart.
+                    maximum = 20.0 if tk in ("rx_delay", "rx_dly") else 9.0
+                    if f_val > maximum:
+                        raise ValueError(f"El parámetro '{tk}' debe estar entre 0 y {maximum}")
                 except (ValueError, TypeError) as err:
                     raise ValueError(f"Parámetro '{tk}' inválido: {t_val}") from err
 
@@ -750,6 +801,9 @@ class LocalConfigExecutor:
                 lat_f, lon_f = float(lat_val), float(lon_val)
                 if not (-90.0 <= lat_f <= 90.0 and -180.0 <= lon_f <= 180.0):
                     raise ValueError("Coordenadas fuera de rango (-90..90, -180..180)")
+                # SDK and firmware encode signed microdegrees, truncating toward zero.
+                lat_f = int(lat_f * 1_000_000) / 1_000_000
+                lon_f = int(lon_f * 1_000_000) / 1_000_000
                 await self._write_device(mc, "set_coords", lat=lat_f, lon=lon_f, timeout=2.0)
                 self._local_config["latitude"] = lat_f
                 self._local_config["longitude"] = lon_f
@@ -955,6 +1009,7 @@ class LocalConfigExecutor:
             # Conversión canónica dominio -> wire (wire = int(round(val * 1000)))
             wire_rx = int(round(rx_flt * 1000.0))
             wire_af = int(round(af_flt * 1000.0))
+            rx_flt, af_flt = wire_rx / 1000.0, wire_af / 1000.0
 
             await self._write_device(mc, "set_tuning", wire_rx, wire_af, timeout=2.0)
 
@@ -995,13 +1050,15 @@ class LocalConfigExecutor:
         mc = self._ctx.mc_provider()
         cv_res = await self._query_device(mc, "get_custom_vars", timeout=3.0)
         cv_data = extract_payload_dict(cv_res)
-        if cv_data and isinstance(cv_data, dict):
+        if cv_res is not None and isinstance(cv_data, dict):
             self._local_config["custom_vars"] = cv_data
+            self._sync_confirmed_self_info(mc, {"custom_vars": dict(cv_data)})
         cv = self._local_config.get("custom_vars", {})
         return cv if isinstance(cv, dict) else {}
 
     async def set_custom_var(self, key: str, val: str) -> dict[str, Any]:
         """Asigna o actualiza una variable personalizada en el transceptor."""
+        self._validate_custom_var(key, val)
         mc = self._ctx.mc_provider()
         await self._write_device(mc, "set_custom_var", str(key), str(val), timeout=3.0)
         if "custom_vars" not in self._local_config or not isinstance(self._local_config["custom_vars"], dict):
@@ -1011,17 +1068,22 @@ class LocalConfigExecutor:
         return {"status": "ok", "custom_vars": self._local_config["custom_vars"]}
 
     async def delete_custom_var(self, key: str) -> dict[str, Any]:
-        """Elimina una variable personalizada asignando cadena vacía al firmware."""
-        mc = self._ctx.mc_provider()
-        await self._write_device(mc, "set_custom_var", str(key), "", timeout=3.0)
-        if "custom_vars" in self._local_config and isinstance(self._local_config["custom_vars"], dict):
-            self._local_config["custom_vars"].pop(str(key), None)
-            self._sync_confirmed_self_info(mc, {"custom_vars": dict(self._local_config["custom_vars"])})
-        return {"status": "ok", "custom_vars": self._local_config.get("custom_vars", {})}
+        """Firmware custom variables are predefined settings, not deletable keys."""
+        self._validate_custom_var(key, "")
+        return {"status": "not_supported", "code": 422,
+                "message": "Companion permite modificar ajustes custom definidos por el firmware, no eliminarlos"}
 
     async def get_path_hash_mode(self) -> int:
         """Obtiene el modo de compresión path hash configurado."""
-        return int(self._local_config.get("path_hash_mode", 0))
+        mc = self._ctx.mc_provider()
+        response = await self._query_device(mc, "send_device_query", timeout=3.0)
+        info = extract_payload_dict(response)
+        mode = info.get("path_hash_mode")
+        if mode not in (0, 1, 2) or isinstance(mode, bool):
+            raise ConnectionError("El dispositivo no confirmó path_hash_mode")
+        self._local_config["path_hash_mode"] = int(mode)
+        self._sync_confirmed_self_info(mc, {"path_hash_mode": int(mode)})
+        return int(mode)
 
     async def set_path_hash_mode(self, mode: int) -> dict[str, Any]:
         """Configura el modo de path hash (0, 1, 2)."""
@@ -1039,26 +1101,41 @@ class LocalConfigExecutor:
         mc = self._ctx.mc_provider()
         res = await self._query_device(mc, "get_autoadd_config", timeout=3.0)
         res_dict = extract_payload_dict(res)
-        if res_dict and isinstance(res_dict, dict):
-            if "max_hops" not in res_dict and isinstance(self._local_config.get("autoadd_config"), dict):
-                res_dict["max_hops"] = self._local_config["autoadd_config"].get("max_hops", 0)
+        if res is not None and "config" in res_dict:
+            res_dict = dict(res_dict)
+            res_dict["max_hops_supported"] = "max_hops" in res_dict
             self._local_config["autoadd_config"] = res_dict
+            self._sync_confirmed_self_info(mc, {"autoadd_config": dict(res_dict)})
         cfg = self._local_config.get("autoadd_config", {})
         if not isinstance(cfg, dict):
-            cfg = {"config": int(self._local_config.get("manual_add_contacts", 0)), "max_hops": 0}
+            cfg = {}
         return cfg
 
     async def set_autoadd_config(self, flags: int, max_hops: int | None = None) -> dict[str, Any]:
         """Aplica la máscara de auto-adición de contactos."""
         mc = self._ctx.mc_provider()
-        if max_hops is not None and max_hops != 0:
+        if isinstance(flags, bool) or not isinstance(flags, int) or not 0 <= flags <= 255:
+            raise ValueError("flags debe ser un entero 0..255")
+        observed = self._local_config.get("autoadd_config", {})
+        if max_hops is not None and (isinstance(max_hops, bool) or
+                                    not isinstance(max_hops, int) or not 0 <= max_hops <= 64):
+            raise ValueError("max_hops debe ser un entero 0..64")
+        if max_hops is not None and not observed.get("max_hops_supported", False):
             return {
                 "status": "error",
                 "code": 422,
-                "message": "El SDK oficial de MeshCore no admite 'max_hops' en set_autoadd_config (parámetro no soportado)",
+                "message": "El dispositivo no confirmó soporte de max_hops; consulte primero autoadd",
             }
-        await self._write_device(mc, "set_autoadd_config", int(flags), timeout=3.0)
-        self._local_config["autoadd_config"] = {"config": int(flags), "max_hops": 0}
+        if max_hops is None:
+            await self._write_device(mc, "set_autoadd_config", flags, timeout=3.0)
+        else:
+            frame = bytes([CommandType.SET_AUTOADD_CONFIG.value, flags, max_hops])
+            await self._write_device(mc, "send", frame, [EventType.OK, EventType.ERROR], timeout=3.0)
+        confirmed = {**observed, "config": flags}
+        if max_hops is not None:
+            confirmed["max_hops"] = max_hops
+        self._local_config["autoadd_config"] = confirmed
+        self._sync_confirmed_self_info(mc, {"autoadd_config": dict(confirmed)})
         return {"status": "ok", "autoadd_config": self._local_config["autoadd_config"]}
 
     async def get_flood_scope(self) -> dict[str, Any]:
@@ -1066,8 +1143,9 @@ class LocalConfigExecutor:
         mc = self._ctx.mc_provider()
         res = await self._query_device(mc, "get_default_flood_scope", timeout=3.0)
         res_dict = extract_payload_dict(res)
-        if res_dict and isinstance(res_dict, dict):
-            self._local_config["flood_scope"] = res_dict
+        if res is not None:
+            self._local_config["flood_scope"] = res_dict or {"scope_name": "", "scope_key": ""}
+            self._sync_confirmed_self_info(mc, {"flood_scope": dict(self._local_config["flood_scope"])})
         fs = self._local_config.get("flood_scope", {})
         return fs if isinstance(fs, dict) else {}
 
@@ -1075,12 +1153,27 @@ class LocalConfigExecutor:
         """Asigna o reinicia el ámbito de inundación por defecto."""
         mc = self._ctx.mc_provider()
         if not scope or scope in ("*", "0", "global", "none"):
-            await self._write_device(mc, "reset_default_flood_scope", timeout=3.0)
+            await self._write_device(mc, "send", bytes([CommandType.SET_DEFAULT_FLOOD_SCOPE.value]),
+                                     [EventType.OK, EventType.ERROR], timeout=3.0)
             self._local_config["flood_scope"] = {"scope_name": "", "scope_key": ""}
+            self._sync_confirmed_self_info(mc, {"flood_scope": dict(self._local_config["flood_scope"])})
             return {"status": "ok", "flood_scope": self._local_config["flood_scope"]}
 
-        await self._write_device(mc, "set_default_flood_scope", scope, timeout=3.0)
-        self._local_config["flood_scope"] = {"scope_name": str(scope)}
+        canonical = scope if scope.startswith("#") else "#" + scope
+        name = canonical.encode("utf-8")
+        if not 1 <= len(name) <= 30 or any(ord(char) < 32 for char in canonical):
+            raise ValueError("El ámbito debe ocupar 1..30 bytes UTF-8 sin caracteres de control")
+        key = hashlib.sha256(name).digest()[:16]
+        frame = bytes([CommandType.SET_DEFAULT_FLOOD_SCOPE.value]) + name.ljust(31, b"\0") + key
+        await self._write_device(mc, "send", frame, [EventType.OK, EventType.ERROR], timeout=3.0)
+        self._local_config["flood_scope"] = {"scope_name": canonical, "scope_key": key.hex()}
+        self._sync_confirmed_self_info(mc, {"flood_scope": dict(self._local_config["flood_scope"])})
         return {"status": "ok", "flood_scope": self._local_config["flood_scope"]}
+
+    @staticmethod
+    def _validate_custom_var(key: str, val: str) -> None:
+        """Keep the official key:value / comma-delimited readback unambiguous."""
+        if not key or any(char in key + val for char in (":", ",", "\0", "\r", "\n")):
+            raise ValueError("Variable custom inválida: clave vacía o separadores reservados")
 
 
