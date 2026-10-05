@@ -1,0 +1,2185 @@
+{
+  "baseline": "c9b2d3ce4c1776f2d0603f57481df2395d84ea2e",
+  "findings": [
+    {
+      "id": "PI-01",
+      "expected": "00:00 - 04/10/2026 UTC",
+      "observed": {
+        "clock": "00:00 - 01/01/2024 UTC",
+        "registry_clock": "00:00 - 01/01/2024 UTC"
+      },
+      "priority": "P2",
+      "sources": [
+        "src/admin/repeater_executor.py:1080"
+      ],
+      "reproduced": true,
+      "command": ".venv/Scripts/python.exe tests/audit_layer_protocol_2026_10_04.py",
+      "environment": "isolated mocks / memory"
+    },
+    {
+      "id": "PI-02",
+      "expected": "PIN redacted in MQTT admin/status",
+      "observed": {
+        "returned_pin": 654321,
+        "published_pin": 654321
+      },
+      "priority": "P1",
+      "sources": [
+        "src/admin_handler.py:371",
+        "src/admin/cli_command_executor.py:125"
+      ],
+      "reproduced": true,
+      "command": ".venv/Scripts/python.exe tests/audit_layer_protocol_2026_10_04.py",
+      "environment": "isolated mocks / memory"
+    },
+    {
+      "id": "PI-03",
+      "expected": "422; zero writes for bool flags and fractional mode",
+      "observed": {
+        "autoadd": {
+          "status": "ok",
+          "autoadd_config": {
+            "config": 1
+          }
+        },
+        "path_hash": {
+          "status": "ok",
+          "path_hash_mode": 1
+        },
+        "autoadd_sdk_args": [
+          1
+        ],
+        "path_hash_sdk_args": [
+          1
+        ]
+      },
+      "priority": "P2",
+      "sources": [
+        "src/admin_handler.py:415",
+        "src/admin_handler.py:423"
+      ],
+      "reproduced": true,
+      "command": ".venv/Scripts/python.exe tests/audit_layer_protocol_2026_10_04.py",
+      "environment": "isolated mocks / memory"
+    },
+    {
+      "id": "PI-04",
+      "expected": "Prevalidate all entries before first SDK write, or report applied partial values",
+      "observed": {
+        "response": {
+          "status": "error",
+          "code": 422,
+          "message": "Parámetros administrativos inválidos"
+        },
+        "writes": [
+          [
+            "gps",
+            "0"
+          ]
+        ],
+        "cached_custom_vars": {
+          "gps": "0"
+        }
+      },
+      "priority": "P2",
+      "sources": [
+        "src/admin_handler.py:394"
+      ],
+      "reproduced": true,
+      "command": ".venv/Scripts/python.exe tests/audit_layer_protocol_2026_10_04.py",
+      "environment": "isolated mocks / memory"
+    },
+    {
+      "id": "PI-05",
+      "expected": "error / timeout when no remote result arrived",
+      "observed": {
+        "response": {
+          "status": "ok",
+          "action": "refresh_telemetry",
+          "target_node": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+          "dispatched": [
+            "ver",
+            "clock",
+            "get radio",
+            "get dutycycle",
+            "get pwrmgt.bootmv"
+          ],
+          "responses": {},
+          "telemetry": {},
+          "message": "Telemetría consolidada de cdcdcdcd (0/5 respuestas)"
+        },
+        "send_count": 5
+      },
+      "priority": "P2",
+      "sources": [
+        "src/admin/repeater_executor.py:862"
+      ],
+      "reproduced": true,
+      "command": ".venv/Scripts/python.exe tests/audit_layer_protocol_2026_10_04.py",
+      "environment": "isolated mocks / memory"
+    },
+    {
+      "id": "PI-06",
+      "expected": "Reject repeater CLI batch for known CLIENT; zero admin RF calls",
+      "observed": {
+        "status": "ok",
+        "send_count": 5
+      },
+      "priority": "P2",
+      "sources": [
+        "src/admin/repeater_executor.py:199"
+      ],
+      "reproduced": true,
+      "command": ".venv/Scripts/python.exe tests/audit_layer_protocol_2026_10_04.py",
+      "environment": "isolated mocks / memory"
+    },
+    {
+      "id": "PI-07",
+      "expected": {
+        "solar_v": 0.1,
+        "fixed_position": false
+      },
+      "observed": {
+        "solar_v": 100.0,
+        "fixed_position": true
+      },
+      "priority": "P2",
+      "sources": [
+        "src/sensor_decoder.py:402",
+        "src/sensor_decoder.py:434"
+      ],
+      "reproduced": true,
+      "command": ".venv/Scripts/python.exe tests/audit_layer_protocol_2026_10_04.py",
+      "environment": "isolated mocks / memory"
+    },
+    {
+      "id": "PI-08",
+      "expected": "LPP current 117 (0.1 A), then temperature 103 (25 C)",
+      "observed": {
+        "readings": [
+          {
+            "type": 117,
+            "value": null
+          }
+        ],
+        "summary": {}
+      },
+      "priority": "P2",
+      "sources": [
+        "src/sensor_decoder.py:19",
+        "src/sensor_decoder.py:204"
+      ],
+      "reproduced": true,
+      "command": ".venv/Scripts/python.exe tests/audit_layer_protocol_2026_10_04.py",
+      "environment": "isolated mocks / memory"
+    },
+    {
+      "id": "PI-09",
+      "expected": "Node clock unknown / error when firmware query fails",
+      "observed": {
+        "status": "ok",
+        "result": "🕒 [RTC CLOCK] Hora del Nodo: 2026-10-04 22:20:17 (Timestamp: 1791166817)"
+      },
+      "priority": "P2",
+      "sources": [
+        "src/admin/cli_command_executor.py:449"
+      ],
+      "reproduced": true,
+      "command": ".venv/Scripts/python.exe tests/audit_layer_protocol_2026_10_04.py",
+      "environment": "isolated mocks / memory"
+    },
+    {
+      "id": "PI-10",
+      "expected": "Companion ACL unsupported / actual device evidence; do not invent authentication",
+      "observed": {
+        "status": "ok",
+        "result": "🔐 [CONTROL DE ACCESO ACL] Autenticación por PIN activa | Permisos: ADMIN / OPERATOR"
+      },
+      "priority": "P2",
+      "sources": [
+        "src/admin/cli_command_executor.py:223"
+      ],
+      "reproduced": true,
+      "command": ".venv/Scripts/python.exe tests/audit_layer_protocol_2026_10_04.py",
+      "environment": "isolated mocks / memory"
+    },
+    {
+      "id": "PI-11",
+      "expected": "rx_delay is dimensionless base factor, firmware RX delay depends on airtime and score",
+      "observed": "🎛️ [TUNING] Retardo RX: 10s | Factor de Airtime: 0x",
+      "priority": "P2",
+      "sources": [
+        "src/admin/cli_command_executor.py:171"
+      ],
+      "reproduced": true,
+      "command": ".venv/Scripts/python.exe tests/audit_layer_protocol_2026_10_04.py",
+      "environment": "isolated mocks / memory"
+    },
+    {
+      "id": "PI-12",
+      "expected": "Invalid numeric CLI input must carry status=error / 422",
+      "observed": {
+        "status": "ok",
+        "result": "⚠️ Valor de potencia inválido: abc"
+      },
+      "priority": "P2",
+      "sources": [
+        "src/admin/cli_command_executor.py:956"
+      ],
+      "reproduced": true,
+      "command": ".venv/Scripts/python.exe tests/audit_layer_protocol_2026_10_04.py",
+      "environment": "isolated mocks / memory"
+    },
+    {
+      "id": "PI-13",
+      "expected": "Reported applied fields equal the effective values serialized by the official SDK",
+      "observed": {
+        "status": "ok",
+        "applied": {
+          "frequency": 915.0009,
+          "bandwidth": 250.0009,
+          "spreading_factor": 11,
+          "coding_rate": 5
+        },
+        "wire_effective": {
+          "frequency": 915.0,
+          "bandwidth": 250.0
+        }
+      },
+      "priority": "P2",
+      "sources": [
+        "src/admin/local_config_executor.py:850",
+        "src/admin/local_config_executor.py:906"
+      ],
+      "reproduced": true,
+      "command": ".venv/Scripts/python.exe tests/audit_layer_protocol_2026_10_04.py",
+      "environment": "isolated mocks / memory"
+    }
+  ],
+  "python_inventory": [
+    {
+      "path": "src/admin/cli_command_executor.py",
+      "lines": 1035,
+      "classes": [
+        "CliCommandExecutor"
+      ],
+      "methods": [
+        {
+          "name": "__init__",
+          "line": 27,
+          "lines": 18,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_build_dispatch_map",
+          "line": 46,
+          "lines": 51,
+          "branch_nodes": 1
+        },
+        {
+          "name": "execute",
+          "line": 98,
+          "lines": 30,
+          "branch_nodes": 4
+        },
+        {
+          "name": "_cli_radio",
+          "line": 131,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_stats_radio",
+          "line": 135,
+          "lines": 19,
+          "branch_nodes": 3
+        },
+        {
+          "name": "_cli_tuning",
+          "line": 155,
+          "lines": 18,
+          "branch_nodes": 3
+        },
+        {
+          "name": "_cli_packets",
+          "line": 174,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_channels",
+          "line": 178,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_nodes",
+          "line": 182,
+          "lines": 5,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_neighbors_wrapper",
+          "line": 188,
+          "lines": 5,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_routes_wrapper",
+          "line": 194,
+          "lines": 4,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_signal_wrapper",
+          "line": 199,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_lqi_wrapper",
+          "line": 203,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_config",
+          "line": 207,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_position",
+          "line": 211,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_logs_wrapper",
+          "line": 215,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_owner",
+          "line": 219,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_acl",
+          "line": 223,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_board",
+          "line": 227,
+          "lines": 7,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_ping",
+          "line": 235,
+          "lines": 7,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_advert_hop0",
+          "line": 243,
+          "lines": 4,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_advert_flood",
+          "line": 248,
+          "lines": 4,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_reboot",
+          "line": 253,
+          "lines": 5,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_clear_stats",
+          "line": 259,
+          "lines": 14,
+          "branch_nodes": 2
+        },
+        {
+          "name": "_cli_help",
+          "line": 274,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_info",
+          "line": 281,
+          "lines": 22,
+          "branch_nodes": 2
+        },
+        {
+          "name": "_cli_status",
+          "line": 304,
+          "lines": 35,
+          "branch_nodes": 5
+        },
+        {
+          "name": "_cli_uptime",
+          "line": 340,
+          "lines": 20,
+          "branch_nodes": 3
+        },
+        {
+          "name": "_cli_mem",
+          "line": 361,
+          "lines": 26,
+          "branch_nodes": 2
+        },
+        {
+          "name": "_cli_version",
+          "line": 388,
+          "lines": 27,
+          "branch_nodes": 5
+        },
+        {
+          "name": "_cli_battery",
+          "line": 416,
+          "lines": 32,
+          "branch_nodes": 11
+        },
+        {
+          "name": "_cli_time",
+          "line": 449,
+          "lines": 16,
+          "branch_nodes": 4
+        },
+        {
+          "name": "_cli_sync_clock",
+          "line": 466,
+          "lines": 13,
+          "branch_nodes": 1
+        },
+        {
+          "name": "_cli_stats_core",
+          "line": 480,
+          "lines": 87,
+          "branch_nodes": 20
+        },
+        {
+          "name": "_cli_radio_info",
+          "line": 568,
+          "lines": 15,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_packets_info",
+          "line": 584,
+          "lines": 10,
+          "branch_nodes": 1
+        },
+        {
+          "name": "_cli_position_info",
+          "line": 595,
+          "lines": 16,
+          "branch_nodes": 3
+        },
+        {
+          "name": "_cli_owner_info",
+          "line": 612,
+          "lines": 6,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_neighbors",
+          "line": 619,
+          "lines": 32,
+          "branch_nodes": 4
+        },
+        {
+          "name": "_cli_nodes_list",
+          "line": 652,
+          "lines": 19,
+          "branch_nodes": 8
+        },
+        {
+          "name": "_cli_lqi",
+          "line": 672,
+          "lines": 18,
+          "branch_nodes": 3
+        },
+        {
+          "name": "_cli_channel_info",
+          "line": 691,
+          "lines": 45,
+          "branch_nodes": 8
+        },
+        {
+          "name": "_cli_routes",
+          "line": 737,
+          "lines": 32,
+          "branch_nodes": 5
+        },
+        {
+          "name": "_cli_signal",
+          "line": 770,
+          "lines": 25,
+          "branch_nodes": 4
+        },
+        {
+          "name": "_cli_show_config",
+          "line": 796,
+          "lines": 27,
+          "branch_nodes": 3
+        },
+        {
+          "name": "_cli_sensors",
+          "line": 824,
+          "lines": 33,
+          "branch_nodes": 10
+        },
+        {
+          "name": "_cli_logs",
+          "line": 858,
+          "lines": 29,
+          "branch_nodes": 6
+        },
+        {
+          "name": "_cli_send_advert",
+          "line": 888,
+          "lines": 7,
+          "branch_nodes": 1
+        },
+        {
+          "name": "_cli_help_text",
+          "line": 896,
+          "lines": 37,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_confirmed_local_config",
+          "line": 934,
+          "lines": 6,
+          "branch_nodes": 2
+        },
+        {
+          "name": "_cli_set_param",
+          "line": 941,
+          "lines": 95,
+          "branch_nodes": 28
+        },
+        {
+          "name": "register",
+          "line": 50,
+          "lines": 3,
+          "branch_nodes": 1
+        },
+        {
+          "name": "_read_channels",
+          "line": 701,
+          "lines": 10,
+          "branch_nodes": 3
+        },
+        {
+          "name": "supported_value",
+          "line": 798,
+          "lines": 5,
+          "branch_nodes": 2
+        }
+      ]
+    },
+    {
+      "path": "src/admin/local_config_executor.py",
+      "lines": 1179,
+      "classes": [
+        "LocalConfigExecutor"
+      ],
+      "methods": [
+        {
+          "name": "normalize_coding_rate",
+          "line": 56,
+          "lines": 12,
+          "branch_nodes": 4
+        },
+        {
+          "name": "__init__",
+          "line": 73,
+          "lines": 13,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_write_device",
+          "line": 87,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_query_device",
+          "line": 91,
+          "lines": 6,
+          "branch_nodes": 1
+        },
+        {
+          "name": "_get_device_baseline",
+          "line": 98,
+          "lines": 12,
+          "branch_nodes": 6
+        },
+        {
+          "name": "_sync_confirmed_self_info",
+          "line": 111,
+          "lines": 9,
+          "branch_nodes": 3
+        },
+        {
+          "name": "_other_params_baseline",
+          "line": 121,
+          "lines": 12,
+          "branch_nodes": 4
+        },
+        {
+          "name": "get_local_config",
+          "line": 134,
+          "lines": 26,
+          "branch_nodes": 1
+        },
+        {
+          "name": "_read_self_info",
+          "line": 161,
+          "lines": 19,
+          "branch_nodes": 7
+        },
+        {
+          "name": "_apply_self_info_to_cfg",
+          "line": 181,
+          "lines": 41,
+          "branch_nodes": 2
+        },
+        {
+          "name": "_ensure_default_telemetry",
+          "line": 223,
+          "lines": 21,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_populate_uptime_and_airtime",
+          "line": 245,
+          "lines": 42,
+          "branch_nodes": 13
+        },
+        {
+          "name": "_populate_last_rf_metrics",
+          "line": 288,
+          "lines": 17,
+          "branch_nodes": 4
+        },
+        {
+          "name": "_populate_radio_limits",
+          "line": 306,
+          "lines": 8,
+          "branch_nodes": 2
+        },
+        {
+          "name": "fetch_device_config",
+          "line": 315,
+          "lines": 34,
+          "branch_nodes": 3
+        },
+        {
+          "name": "_query_hardware_device_and_battery",
+          "line": 350,
+          "lines": 77,
+          "branch_nodes": 16
+        },
+        {
+          "name": "_query_hardware_stats_and_packets",
+          "line": 428,
+          "lines": 62,
+          "branch_nodes": 19
+        },
+        {
+          "name": "sync_device_clock",
+          "line": 491,
+          "lines": 20,
+          "branch_nodes": 2
+        },
+        {
+          "name": "clear_device_stats",
+          "line": 512,
+          "lines": 17,
+          "branch_nodes": 2
+        },
+        {
+          "name": "_prevalidate_local_params",
+          "line": 530,
+          "lines": 189,
+          "branch_nodes": 61
+        },
+        {
+          "name": "set_local_config",
+          "line": 720,
+          "lines": 5,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_set_local_config_locked",
+          "line": 726,
+          "lines": 53,
+          "branch_nodes": 6
+        },
+        {
+          "name": "_apply_identity_settings",
+          "line": 780,
+          "lines": 38,
+          "branch_nodes": 8
+        },
+        {
+          "name": "_apply_radio_settings",
+          "line": 819,
+          "lines": 130,
+          "branch_nodes": 29
+        },
+        {
+          "name": "_apply_other_params_settings",
+          "line": 950,
+          "lines": 32,
+          "branch_nodes": 8
+        },
+        {
+          "name": "_apply_advanced_meshcore_settings",
+          "line": 983,
+          "lines": 64,
+          "branch_nodes": 12
+        },
+        {
+          "name": "get_custom_vars",
+          "line": 1048,
+          "lines": 10,
+          "branch_nodes": 2
+        },
+        {
+          "name": "set_custom_var",
+          "line": 1059,
+          "lines": 10,
+          "branch_nodes": 1
+        },
+        {
+          "name": "delete_custom_var",
+          "line": 1070,
+          "lines": 5,
+          "branch_nodes": 0
+        },
+        {
+          "name": "get_path_hash_mode",
+          "line": 1076,
+          "lines": 11,
+          "branch_nodes": 1
+        },
+        {
+          "name": "set_path_hash_mode",
+          "line": 1088,
+          "lines": 10,
+          "branch_nodes": 1
+        },
+        {
+          "name": "get_autoadd_config",
+          "line": 1099,
+          "lines": 14,
+          "branch_nodes": 2
+        },
+        {
+          "name": "set_autoadd_config",
+          "line": 1114,
+          "lines": 26,
+          "branch_nodes": 5
+        },
+        {
+          "name": "get_flood_scope",
+          "line": 1141,
+          "lines": 10,
+          "branch_nodes": 2
+        },
+        {
+          "name": "set_flood_scope",
+          "line": 1152,
+          "lines": 20,
+          "branch_nodes": 3
+        },
+        {
+          "name": "_validate_custom_var",
+          "line": 1174,
+          "lines": 4,
+          "branch_nodes": 1
+        }
+      ]
+    },
+    {
+      "path": "src/admin/repeater_executor.py",
+      "lines": 1468,
+      "classes": [
+        "RemoteRepeaterRequest",
+        "WaiterRegistry",
+        "RfExecutionContext",
+        "PingZeroOutcome",
+        "RepeaterAdminExecutor"
+      ],
+      "methods": [
+        {
+          "name": "register",
+          "line": 62,
+          "lines": 16,
+          "branch_nodes": 7
+        },
+        {
+          "name": "unregister",
+          "line": 79,
+          "lines": 13,
+          "branch_nodes": 6
+        },
+        {
+          "name": "expect_response",
+          "line": 94,
+          "lines": 15,
+          "branch_nodes": 1
+        },
+        {
+          "name": "__init__",
+          "line": 138,
+          "lines": 17,
+          "branch_nodes": 0
+        },
+        {
+          "name": "execute",
+          "line": 156,
+          "lines": 8,
+          "branch_nodes": 1
+        },
+        {
+          "name": "_execute_request",
+          "line": 165,
+          "lines": 41,
+          "branch_nodes": 8
+        },
+        {
+          "name": "_collect_target_info",
+          "line": 207,
+          "lines": 19,
+          "branch_nodes": 5
+        },
+        {
+          "name": "_execute_batch_config",
+          "line": 227,
+          "lines": 281,
+          "branch_nodes": 64
+        },
+        {
+          "name": "_update_local_registry_from_params",
+          "line": 509,
+          "lines": 76,
+          "branch_nodes": 31
+        },
+        {
+          "name": "_execute_ping_zero",
+          "line": 586,
+          "lines": 55,
+          "branch_nodes": 10
+        },
+        {
+          "name": "_build_ping_zero_success",
+          "line": 642,
+          "lines": 32,
+          "branch_nodes": 1
+        },
+        {
+          "name": "_build_ping_zero_timeout",
+          "line": 675,
+          "lines": 18,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_execute_batch_telemetry_query",
+          "line": 694,
+          "lines": 179,
+          "branch_nodes": 42
+        },
+        {
+          "name": "_dispatch_rf_command",
+          "line": 874,
+          "lines": 66,
+          "branch_nodes": 10
+        },
+        {
+          "name": "_try_execute_binary_or_anon",
+          "line": 941,
+          "lines": 182,
+          "branch_nodes": 38
+        },
+        {
+          "name": "_login_event_name",
+          "line": 1125,
+          "lines": 5,
+          "branch_nodes": 1
+        },
+        {
+          "name": "_authenticate_repeater",
+          "line": 1131,
+          "lines": 36,
+          "branch_nodes": 10
+        },
+        {
+          "name": "_login_is_authorized",
+          "line": 1168,
+          "lines": 11,
+          "branch_nodes": 5
+        },
+        {
+          "name": "_execute_auth_command",
+          "line": 1180,
+          "lines": 19,
+          "branch_nodes": 2
+        },
+        {
+          "name": "_execute_unit_command",
+          "line": 1200,
+          "lines": 29,
+          "branch_nodes": 4
+        },
+        {
+          "name": "_execute_unit_command_rf",
+          "line": 1230,
+          "lines": 62,
+          "branch_nodes": 16
+        },
+        {
+          "name": "_setter_response_confirmed",
+          "line": 1294,
+          "lines": 5,
+          "branch_nodes": 1
+        },
+        {
+          "name": "_safe_response_text",
+          "line": 1301,
+          "lines": 8,
+          "branch_nodes": 4
+        },
+        {
+          "name": "_ensure_radio_contact",
+          "line": 1314,
+          "lines": 85,
+          "branch_nodes": 17
+        },
+        {
+          "name": "_determine_target_hops",
+          "line": 1400,
+          "lines": 28,
+          "branch_nodes": 12
+        },
+        {
+          "name": "_send_rf_command",
+          "line": 1429,
+          "lines": 25,
+          "branch_nodes": 4
+        },
+        {
+          "name": "_send_login_fallback",
+          "line": 1456,
+          "lines": 9,
+          "branch_nodes": 2
+        },
+        {
+          "name": "_send_pre_login",
+          "line": 1466,
+          "lines": 3,
+          "branch_nodes": 0
+        }
+      ]
+    },
+    {
+      "path": "src/admin/sdk_commands.py",
+      "lines": 37,
+      "classes": [],
+      "methods": [
+        {
+          "name": "run_sdk_command",
+          "line": 12,
+          "lines": 8,
+          "branch_nodes": 3
+        },
+        {
+          "name": "require_success",
+          "line": 22,
+          "lines": 16,
+          "branch_nodes": 6
+        }
+      ]
+    },
+    {
+      "path": "src/admin/traceroute_executor.py",
+      "lines": 317,
+      "classes": [
+        "TracerouteExecutor"
+      ],
+      "methods": [
+        {
+          "name": "__init__",
+          "line": 27,
+          "lines": 9,
+          "branch_nodes": 0
+        },
+        {
+          "name": "execute",
+          "line": 37,
+          "lines": 98,
+          "branch_nodes": 19
+        },
+        {
+          "name": "_parse_path_list",
+          "line": 136,
+          "lines": 7,
+          "branch_nodes": 2
+        },
+        {
+          "name": "_format_trace_hops",
+          "line": 144,
+          "lines": 56,
+          "branch_nodes": 20
+        },
+        {
+          "name": "_dispatch_trace_rf",
+          "line": 201,
+          "lines": 13,
+          "branch_nodes": 3
+        },
+        {
+          "name": "_build_hops_breakdown",
+          "line": 215,
+          "lines": 80,
+          "branch_nodes": 14
+        },
+        {
+          "name": "_find_node_info",
+          "line": 296,
+          "lines": 22,
+          "branch_nodes": 9
+        }
+      ]
+    },
+    {
+      "path": "src/admin/__init__.py",
+      "lines": 25,
+      "classes": [],
+      "methods": []
+    },
+    {
+      "path": "src/admin_handler.py",
+      "lines": 520,
+      "classes": [
+        "AdminContext",
+        "AdminCommandHandler"
+      ],
+      "methods": [
+        {
+          "name": "__init__",
+          "line": 56,
+          "lines": 46,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_publish_safe",
+          "line": 103,
+          "lines": 7,
+          "branch_nodes": 2
+        },
+        {
+          "name": "get_local_config",
+          "line": 111,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "fetch_device_config",
+          "line": 115,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "sync_device_clock",
+          "line": 119,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "clear_device_stats",
+          "line": 123,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "broadcast_advert",
+          "line": 127,
+          "lines": 11,
+          "branch_nodes": 3
+        },
+        {
+          "name": "get_custom_vars",
+          "line": 139,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "set_custom_var",
+          "line": 143,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "delete_custom_var",
+          "line": 147,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "get_path_hash_mode",
+          "line": 151,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "set_path_hash_mode",
+          "line": 155,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "get_autoadd_config",
+          "line": 159,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "set_autoadd_config",
+          "line": 163,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "get_flood_scope",
+          "line": 167,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "set_flood_scope",
+          "line": 171,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "notify_ping_response",
+          "line": 176,
+          "lines": 42,
+          "branch_nodes": 15
+        },
+        {
+          "name": "notify_command_response",
+          "line": 219,
+          "lines": 65,
+          "branch_nodes": 19
+        },
+        {
+          "name": "_resolve_target",
+          "line": 285,
+          "lines": 7,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_wait_for_repeater_response",
+          "line": 293,
+          "lines": 24,
+          "branch_nodes": 6
+        },
+        {
+          "name": "handle",
+          "line": 318,
+          "lines": 10,
+          "branch_nodes": 3
+        },
+        {
+          "name": "_handle",
+          "line": 329,
+          "lines": 108,
+          "branch_nodes": 26
+        },
+        {
+          "name": "_handle_traceroute",
+          "line": 442,
+          "lines": 10,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_handle_remote_repeater",
+          "line": 453,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_handle_set_local_config",
+          "line": 457,
+          "lines": 8,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_handle_cli_command",
+          "line": 466,
+          "lines": 8,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_version",
+          "line": 477,
+          "lines": 2,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_battery",
+          "line": 480,
+          "lines": 2,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_time",
+          "line": 483,
+          "lines": 2,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_sync_clock",
+          "line": 486,
+          "lines": 2,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_stats_core",
+          "line": 489,
+          "lines": 2,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_radio_info",
+          "line": 492,
+          "lines": 2,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_packets_info",
+          "line": 495,
+          "lines": 2,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_position_info",
+          "line": 498,
+          "lines": 2,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_owner_info",
+          "line": 501,
+          "lines": 2,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_neighbors",
+          "line": 504,
+          "lines": 2,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_nodes_list",
+          "line": 507,
+          "lines": 2,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_lqi",
+          "line": 510,
+          "lines": 2,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_send_advert",
+          "line": 513,
+          "lines": 2,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_help_text",
+          "line": 516,
+          "lines": 2,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_cli_set_param",
+          "line": 519,
+          "lines": 2,
+          "branch_nodes": 0
+        }
+      ]
+    },
+    {
+      "path": "src/repeater_manager.py",
+      "lines": 1094,
+      "classes": [
+        "RepeaterManager"
+      ],
+      "methods": [
+        {
+          "name": "__init__",
+          "line": 26,
+          "lines": 22,
+          "branch_nodes": 0
+        },
+        {
+          "name": "is_airtime_cutoff_active",
+          "line": 49,
+          "lines": 3,
+          "branch_nodes": 1
+        },
+        {
+          "name": "_find_matching_key",
+          "line": 53,
+          "lines": 9,
+          "branch_nodes": 4
+        },
+        {
+          "name": "_get_last_ts",
+          "line": 63,
+          "lines": 4,
+          "branch_nodes": 1
+        },
+        {
+          "name": "_record_ts",
+          "line": 68,
+          "lines": 11,
+          "branch_nodes": 2
+        },
+        {
+          "name": "check_airtime_cooldown",
+          "line": 80,
+          "lines": 23,
+          "branch_nodes": 4
+        },
+        {
+          "name": "build_cooldown_error_response",
+          "line": 104,
+          "lines": 14,
+          "branch_nodes": 1
+        },
+        {
+          "name": "record_command_sent",
+          "line": 119,
+          "lines": 7,
+          "branch_nodes": 1
+        },
+        {
+          "name": "check_ping_cooldown",
+          "line": 127,
+          "lines": 12,
+          "branch_nodes": 2
+        },
+        {
+          "name": "record_ping_sent",
+          "line": 140,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "check_traceroute_cooldown",
+          "line": 144,
+          "lines": 12,
+          "branch_nodes": 2
+        },
+        {
+          "name": "record_traceroute_sent",
+          "line": 157,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "check_neighbours_cooldown",
+          "line": 161,
+          "lines": 12,
+          "branch_nodes": 2
+        },
+        {
+          "name": "record_neighbours_sent",
+          "line": 174,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "build_repeater_command_payload",
+          "line": 179,
+          "lines": 44,
+          "branch_nodes": 10
+        },
+        {
+          "name": "_build_preformatted_command",
+          "line": 224,
+          "lines": 25,
+          "branch_nodes": 8
+        },
+        {
+          "name": "_build_query_cmd",
+          "line": 250,
+          "lines": 93,
+          "branch_nodes": 1
+        },
+        {
+          "name": "_build_radio_cmd",
+          "line": 344,
+          "lines": 48,
+          "branch_nodes": 15
+        },
+        {
+          "name": "_build_owner_and_location_cmd",
+          "line": 393,
+          "lines": 68,
+          "branch_nodes": 20
+        },
+        {
+          "name": "_build_acl_and_security_cmd",
+          "line": 462,
+          "lines": 68,
+          "branch_nodes": 17
+        },
+        {
+          "name": "_integer",
+          "line": 532,
+          "lines": 8,
+          "branch_nodes": 3
+        },
+        {
+          "name": "_boolean",
+          "line": 542,
+          "lines": 8,
+          "branch_nodes": 3
+        },
+        {
+          "name": "_text",
+          "line": 552,
+          "lines": 2,
+          "branch_nodes": 0
+        },
+        {
+          "name": "response_is_error",
+          "line": 556,
+          "lines": 5,
+          "branch_nodes": 1
+        },
+        {
+          "name": "command_parameters",
+          "line": 563,
+          "lines": 31,
+          "branch_nodes": 10
+        },
+        {
+          "name": "parse_command_response",
+          "line": 595,
+          "lines": 29,
+          "branch_nodes": 10
+        },
+        {
+          "name": "parse_repeater_telemetry_or_response",
+          "line": 625,
+          "lines": 24,
+          "branch_nodes": 2
+        },
+        {
+          "name": "_parse_auth_status",
+          "line": 650,
+          "lines": 19,
+          "branch_nodes": 2
+        },
+        {
+          "name": "_extract_json_power",
+          "line": 671,
+          "lines": 28,
+          "branch_nodes": 10
+        },
+        {
+          "name": "_extract_json_system",
+          "line": 701,
+          "lines": 74,
+          "branch_nodes": 28
+        },
+        {
+          "name": "_extract_json_radio_and_coords",
+          "line": 777,
+          "lines": 54,
+          "branch_nodes": 22
+        },
+        {
+          "name": "_parse_json_telemetry",
+          "line": 832,
+          "lines": 16,
+          "branch_nodes": 3
+        },
+        {
+          "name": "_parse_battery_and_voltage",
+          "line": 849,
+          "lines": 52,
+          "branch_nodes": 18
+        },
+        {
+          "name": "_parse_radio_parameters",
+          "line": 902,
+          "lines": 61,
+          "branch_nodes": 18
+        },
+        {
+          "name": "_parse_system_metrics",
+          "line": 964,
+          "lines": 91,
+          "branch_nodes": 33
+        },
+        {
+          "name": "_parse_owner_and_location",
+          "line": 1056,
+          "lines": 39,
+          "branch_nodes": 11
+        }
+      ]
+    },
+    {
+      "path": "src/protocol_types.py",
+      "lines": 900,
+      "classes": [
+        "PacketType",
+        "FirmwareRouteType",
+        "FirmwarePayloadType",
+        "FirmwareAdvertType",
+        "CommandType",
+        "BinaryReqType",
+        "ControlType",
+        "AnonReqType",
+        "HardwareModel",
+        "FrameHeader",
+        "MeshCoreSDKProtocol",
+        "TelemetryPayload",
+        "TextMessagePayload",
+        "NodeAdvertisement",
+        "AckPayload",
+        "RouteObservation",
+        "MeshcoreFrame"
+      ],
+      "methods": [
+        {
+          "name": "compute_crc16_ccitt",
+          "line": 233,
+          "lines": 11,
+          "branch_nodes": 3
+        },
+        {
+          "name": "parse_status_response",
+          "line": 322,
+          "lines": 52,
+          "branch_nodes": 4
+        },
+        {
+          "name": "truncate_utf8_bytes",
+          "line": 431,
+          "lines": 12,
+          "branch_nodes": 3
+        },
+        {
+          "name": "normalize_hash_mode",
+          "line": 568,
+          "lines": 19,
+          "branch_nodes": 8
+        },
+        {
+          "name": "hash_mode_to_bytes",
+          "line": 589,
+          "lines": 6,
+          "branch_nodes": 1
+        },
+        {
+          "name": "decode_path_hashes",
+          "line": 597,
+          "lines": 80,
+          "branch_nodes": 13
+        },
+        {
+          "name": "redact_command_str",
+          "line": 822,
+          "lines": 20,
+          "branch_nodes": 4
+        },
+        {
+          "name": "redact_sensitive_mapping",
+          "line": 844,
+          "lines": 20,
+          "branch_nodes": 5
+        },
+        {
+          "name": "redact_sensitive_dict",
+          "line": 866,
+          "lines": 12,
+          "branch_nodes": 3
+        },
+        {
+          "name": "__getattr__",
+          "line": 887,
+          "lines": 12,
+          "branch_nodes": 1
+        },
+        {
+          "name": "opcode",
+          "line": 258,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "__post_init__",
+          "line": 262,
+          "lines": 11,
+          "branch_nodes": 5
+        },
+        {
+          "name": "pack",
+          "line": 274,
+          "lines": 11,
+          "branch_nodes": 0
+        },
+        {
+          "name": "unpack",
+          "line": 287,
+          "lines": 13,
+          "branch_nodes": 1
+        },
+        {
+          "name": "get_contact_by_name",
+          "line": 310,
+          "lines": 1,
+          "branch_nodes": 0
+        },
+        {
+          "name": "get_contact_by_key_prefix",
+          "line": 311,
+          "lines": 1,
+          "branch_nodes": 0
+        },
+        {
+          "name": "start_auto_message_fetching",
+          "line": 312,
+          "lines": 1,
+          "branch_nodes": 0
+        },
+        {
+          "name": "ensure_contacts",
+          "line": 313,
+          "lines": 1,
+          "branch_nodes": 0
+        },
+        {
+          "name": "disconnect",
+          "line": 314,
+          "lines": 1,
+          "branch_nodes": 0
+        },
+        {
+          "name": "stop",
+          "line": 315,
+          "lines": 1,
+          "branch_nodes": 0
+        },
+        {
+          "name": "close",
+          "line": 316,
+          "lines": 1,
+          "branch_nodes": 0
+        },
+        {
+          "name": "subscribe",
+          "line": 317,
+          "lines": 1,
+          "branch_nodes": 0
+        },
+        {
+          "name": "pack",
+          "line": 395,
+          "lines": 15,
+          "branch_nodes": 0
+        },
+        {
+          "name": "unpack",
+          "line": 412,
+          "lines": 14,
+          "branch_nodes": 1
+        },
+        {
+          "name": "to_dict",
+          "line": 427,
+          "lines": 2,
+          "branch_nodes": 0
+        },
+        {
+          "name": "pack",
+          "line": 452,
+          "lines": 4,
+          "branch_nodes": 0
+        },
+        {
+          "name": "unpack",
+          "line": 458,
+          "lines": 9,
+          "branch_nodes": 2
+        },
+        {
+          "name": "to_dict",
+          "line": 468,
+          "lines": 2,
+          "branch_nodes": 0
+        },
+        {
+          "name": "pack",
+          "line": 484,
+          "lines": 17,
+          "branch_nodes": 0
+        },
+        {
+          "name": "unpack",
+          "line": 503,
+          "lines": 20,
+          "branch_nodes": 2
+        },
+        {
+          "name": "to_dict",
+          "line": 524,
+          "lines": 4,
+          "branch_nodes": 0
+        },
+        {
+          "name": "pack",
+          "line": 536,
+          "lines": 2,
+          "branch_nodes": 0
+        },
+        {
+          "name": "unpack",
+          "line": 540,
+          "lines": 5,
+          "branch_nodes": 1
+        },
+        {
+          "name": "to_dict",
+          "line": 546,
+          "lines": 2,
+          "branch_nodes": 0
+        },
+        {
+          "name": "to_dict",
+          "line": 564,
+          "lines": 2,
+          "branch_nodes": 0
+        },
+        {
+          "name": "serialize",
+          "line": 693,
+          "lines": 22,
+          "branch_nodes": 3
+        },
+        {
+          "name": "parse_raw_packet",
+          "line": 717,
+          "lines": 38,
+          "branch_nodes": 7
+        },
+        {
+          "name": "to_mqtt_event",
+          "line": 756,
+          "lines": 27,
+          "branch_nodes": 1
+        }
+      ]
+    },
+    {
+      "path": "src/sensor_decoder.py",
+      "lines": 672,
+      "classes": [
+        "LppDataType",
+        "SensorReading",
+        "CayenneLPPDecoder"
+      ],
+      "methods": [
+        {
+          "name": "_decode_digital_io",
+          "line": 47,
+          "lines": 8,
+          "branch_nodes": 2
+        },
+        {
+          "name": "_decode_analog_io",
+          "line": 57,
+          "lines": 9,
+          "branch_nodes": 2
+        },
+        {
+          "name": "_decode_scalar_sensors",
+          "line": 68,
+          "lines": 67,
+          "branch_nodes": 15
+        },
+        {
+          "name": "_decode_multiaxis_or_gps",
+          "line": 137,
+          "lines": 30,
+          "branch_nodes": 5
+        },
+        {
+          "name": "_extract_lpp_telemetry",
+          "line": 220,
+          "lines": 20,
+          "branch_nodes": 7
+        },
+        {
+          "name": "_parse_lpp_candidate_list",
+          "line": 242,
+          "lines": 12,
+          "branch_nodes": 3
+        },
+        {
+          "name": "_map_lpp_item_to_res",
+          "line": 256,
+          "lines": 42,
+          "branch_nodes": 15
+        },
+        {
+          "name": "_parse_lpp_gps_val",
+          "line": 300,
+          "lines": 29,
+          "branch_nodes": 12
+        },
+        {
+          "name": "_extract_environment_telemetry",
+          "line": 331,
+          "lines": 19,
+          "branch_nodes": 6
+        },
+        {
+          "name": "_extract_power_telemetry",
+          "line": 352,
+          "lines": 55,
+          "branch_nodes": 19
+        },
+        {
+          "name": "_extract_system_telemetry",
+          "line": 409,
+          "lines": 38,
+          "branch_nodes": 10
+        },
+        {
+          "name": "_extract_radio_telemetry",
+          "line": 449,
+          "lines": 93,
+          "branch_nodes": 32
+        },
+        {
+          "name": "_extract_location_telemetry",
+          "line": 545,
+          "lines": 40,
+          "branch_nodes": 20
+        },
+        {
+          "name": "extract_telemetry_fields",
+          "line": 587,
+          "lines": 22,
+          "branch_nodes": 1
+        },
+        {
+          "name": "format_telemetry_summary",
+          "line": 611,
+          "lines": 58,
+          "branch_nodes": 18
+        },
+        {
+          "name": "decode",
+          "line": 173,
+          "lines": 45,
+          "branch_nodes": 8
+        }
+      ]
+    },
+    {
+      "path": "src/target_resolver.py",
+      "lines": 111,
+      "classes": [
+        "TargetResolver"
+      ],
+      "methods": [
+        {
+          "name": "__init__",
+          "line": 11,
+          "lines": 3,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_get_mc",
+          "line": 15,
+          "lines": 5,
+          "branch_nodes": 1
+        },
+        {
+          "name": "_field",
+          "line": 22,
+          "lines": 2,
+          "branch_nodes": 1
+        },
+        {
+          "name": "_select_unique",
+          "line": 26,
+          "lines": 13,
+          "branch_nodes": 1
+        },
+        {
+          "name": "resolve",
+          "line": 40,
+          "lines": 52,
+          "branch_nodes": 15
+        },
+        {
+          "name": "_search_sdk_helpers",
+          "line": 94,
+          "lines": 18,
+          "branch_nodes": 6
+        }
+      ]
+    },
+    {
+      "path": "src/mqtt_client.py",
+      "lines": 275,
+      "classes": [
+        "MQTTConfig",
+        "AsyncBridgeMQTTClient",
+        "_MockClient",
+        "_MockMQTT"
+      ],
+      "methods": [
+        {
+          "name": "__init__",
+          "line": 62,
+          "lines": 52,
+          "branch_nodes": 2
+        },
+        {
+          "name": "start",
+          "line": 115,
+          "lines": 16,
+          "branch_nodes": 1
+        },
+        {
+          "name": "stop",
+          "line": 132,
+          "lines": 31,
+          "branch_nodes": 6
+        },
+        {
+          "name": "publish_safe",
+          "line": 164,
+          "lines": 29,
+          "branch_nodes": 5
+        },
+        {
+          "name": "_on_connect",
+          "line": 194,
+          "lines": 37,
+          "branch_nodes": 4
+        },
+        {
+          "name": "_on_disconnect",
+          "line": 232,
+          "lines": 17,
+          "branch_nodes": 2
+        },
+        {
+          "name": "_on_message",
+          "line": 250,
+          "lines": 26,
+          "branch_nodes": 6
+        },
+        {
+          "name": "__init__",
+          "line": 28,
+          "lines": 4,
+          "branch_nodes": 0
+        },
+        {
+          "name": "username_pw_set",
+          "line": 33,
+          "lines": 1,
+          "branch_nodes": 0
+        },
+        {
+          "name": "will_set",
+          "line": 34,
+          "lines": 1,
+          "branch_nodes": 0
+        },
+        {
+          "name": "connect",
+          "line": 35,
+          "lines": 1,
+          "branch_nodes": 0
+        },
+        {
+          "name": "loop_start",
+          "line": 36,
+          "lines": 1,
+          "branch_nodes": 0
+        },
+        {
+          "name": "loop_stop",
+          "line": 37,
+          "lines": 1,
+          "branch_nodes": 0
+        },
+        {
+          "name": "disconnect",
+          "line": 38,
+          "lines": 1,
+          "branch_nodes": 0
+        },
+        {
+          "name": "subscribe",
+          "line": 39,
+          "lines": 1,
+          "branch_nodes": 0
+        },
+        {
+          "name": "publish",
+          "line": 40,
+          "lines": 1,
+          "branch_nodes": 0
+        }
+      ]
+    },
+    {
+      "path": "src/mqtt_dispatcher.py",
+      "lines": 253,
+      "classes": [
+        "MqttInboundContext",
+        "MqttInboundDispatcher"
+      ],
+      "methods": [
+        {
+          "name": "__init__",
+          "line": 35,
+          "lines": 2,
+          "branch_nodes": 0
+        },
+        {
+          "name": "handle_incoming",
+          "line": 38,
+          "lines": 44,
+          "branch_nodes": 8
+        },
+        {
+          "name": "topic_tx_status",
+          "line": 84,
+          "lines": 4,
+          "branch_nodes": 1
+        },
+        {
+          "name": "topic_admin_stat",
+          "line": 90,
+          "lines": 4,
+          "branch_nodes": 1
+        },
+        {
+          "name": "topic_admin_repeater",
+          "line": 96,
+          "lines": 5,
+          "branch_nodes": 1
+        },
+        {
+          "name": "_process_mqtt_input",
+          "line": 102,
+          "lines": 22,
+          "branch_nodes": 7
+        },
+        {
+          "name": "_handle_tx_request",
+          "line": 125,
+          "lines": 97,
+          "branch_nodes": 19
+        },
+        {
+          "name": "_reject_tx_input",
+          "line": 223,
+          "lines": 5,
+          "branch_nodes": 0
+        },
+        {
+          "name": "_handle_admin_request",
+          "line": 229,
+          "lines": 25,
+          "branch_nodes": 4
+        },
+        {
+          "name": "schedule",
+          "line": 58,
+          "lines": 9,
+          "branch_nodes": 2
+        }
+      ]
+    },
+    {
+      "path": "config.py",
+      "lines": 228,
+      "classes": [],
+      "methods": [
+        {
+          "name": "_parse_env_value",
+          "line": 11,
+          "lines": 18,
+          "branch_nodes": 8
+        },
+        {
+          "name": "_safe_int",
+          "line": 52,
+          "lines": 11,
+          "branch_nodes": 3
+        },
+        {
+          "name": "_safe_float",
+          "line": 65,
+          "lines": 13,
+          "branch_nodes": 4
+        },
+        {
+          "name": "_validate_config",
+          "line": 178,
+          "lines": 49,
+          "branch_nodes": 15
+        }
+      ]
+    },
+    {
+      "path": "src/__main__.py",
+      "lines": 19,
+      "classes": [],
+      "methods": [
+        {
+          "name": "main",
+          "line": 9,
+          "lines": 7,
+          "branch_nodes": 1
+        }
+      ]
+    }
+  ],
+  "limits": "Only deterministic mocks and static metrics; no hardware interoperability or load certification."
+}

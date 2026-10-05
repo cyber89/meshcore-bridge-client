@@ -1,0 +1,1795 @@
+{
+  "date": "2026-10-04",
+  "base": "c9b2d3c",
+  "production_changed": false,
+  "files": [
+    {
+      "path": "src/web/__init__.py",
+      "lines": 9,
+      "inspection": "inventory/search only; no complete semantic review claimed"
+    },
+    {
+      "path": "src/web/api_router.py",
+      "lines": 784,
+      "inspection": "aliases/dispatch/response/error contracts"
+    },
+    {
+      "path": "src/web/controllers/__init__.py",
+      "lines": 31,
+      "inspection": "inventory/search only; no complete semantic review claimed"
+    },
+    {
+      "path": "src/web/controllers/base.py",
+      "lines": 111,
+      "inspection": "mutation failure normalization"
+    },
+    {
+      "path": "src/web/controllers/channels_controller.py",
+      "lines": 361,
+      "inspection": "route checking, secrets, locks and persistence"
+    },
+    {
+      "path": "src/web/controllers/config_controller.py",
+      "lines": 484,
+      "inspection": "inventory/search only; no complete semantic review claimed"
+    },
+    {
+      "path": "src/web/controllers/contacts_controller.py",
+      "lines": 560,
+      "inspection": "roles/import/validation and mutation ordering"
+    },
+    {
+      "path": "src/web/controllers/logs_controller.py",
+      "lines": 141,
+      "inspection": "query parsing/diagnostic routing"
+    },
+    {
+      "path": "src/web/controllers/nodes_controller.py",
+      "lines": 179,
+      "inspection": "inventory/search only; no complete semantic review claimed"
+    },
+    {
+      "path": "src/web/controllers/packets_controller.py",
+      "lines": 111,
+      "inspection": "capture/list/export contracts"
+    },
+    {
+      "path": "src/web/controllers/repeater_controller.py",
+      "lines": 248,
+      "inspection": "remote request/response contracts"
+    },
+    {
+      "path": "src/web/controllers/system_controller.py",
+      "lines": 139,
+      "inspection": "health/logs/preflight and duplicate handlers"
+    },
+    {
+      "path": "src/web/controllers/tx_controller.py",
+      "lines": 120,
+      "inspection": "inventory/search only; no complete semantic review claimed"
+    },
+    {
+      "path": "src/web/http_server.py",
+      "lines": 1212,
+      "inspection": "HTTP framing/authentication/origins/WS/static and shutdown"
+    },
+    {
+      "path": "src/web/map_tile_service.py",
+      "lines": 202,
+      "inspection": "inventory/search only; no complete semantic review claimed"
+    },
+    {
+      "path": "src/web/security_inspector.py",
+      "lines": 295,
+      "inspection": "IP trust and log redaction"
+    },
+    {
+      "path": "src/web/static/css/admin.css",
+      "lines": 4125,
+      "inspection": "remote dialog and theme overrides, directed inspection"
+    },
+    {
+      "path": "src/web/static/css/app.css",
+      "lines": 159,
+      "inspection": "module import order/mobile/shared overrides"
+    },
+    {
+      "path": "src/web/static/css/chat.css",
+      "lines": 1033,
+      "inspection": "chat layout, directed inspection"
+    },
+    {
+      "path": "src/web/static/css/components.css",
+      "lines": 2612,
+      "inspection": "reset/layout/hiding/mobile behavior, directed inspection"
+    },
+    {
+      "path": "src/web/static/css/nodes.css",
+      "lines": 1017,
+      "inspection": "directory layout, directed inspection"
+    },
+    {
+      "path": "src/web/static/css/tokens.css",
+      "lines": 280,
+      "inspection": "themes and token scopes, directed inspection"
+    },
+    {
+      "path": "src/web/static/index.html",
+      "lines": 2392,
+      "inspection": "interactive ID and aria/modal/controls inventory"
+    },
+    {
+      "path": "src/web/static/js/app.js",
+      "lines": 1148,
+      "inspection": "composition context/event/modal/navigation/auth/theme"
+    },
+    {
+      "path": "src/web/static/js/core/chart_engine.js",
+      "lines": 545,
+      "inspection": "renderer boundaries and accessibility claims"
+    },
+    {
+      "path": "src/web/static/js/core/eventbus.js",
+      "lines": 66,
+      "inspection": "subscriptions/caller search/unused constants"
+    },
+    {
+      "path": "src/web/static/js/core/storage.js",
+      "lines": 302,
+      "inspection": "IndexedDB write/status/read/ACK/cursor behavior"
+    },
+    {
+      "path": "src/web/static/js/core/utils.js",
+      "lines": 684,
+      "inspection": "escaping/URI/classification/power/domain helpers"
+    },
+    {
+      "path": "src/web/static/js/core/websocket.js",
+      "lines": 157,
+      "inspection": "credential encoding/reconnect/dispatch/heartbeat"
+    },
+    {
+      "path": "src/web/static/js/i18n.js",
+      "lines": 3192,
+      "inspection": "inventory/search only; no complete semantic review claimed"
+    },
+    {
+      "path": "src/web/static/js/icons.js",
+      "lines": 118,
+      "inspection": "inventory/search only; no complete semantic review claimed"
+    },
+    {
+      "path": "src/web/static/js/modules/analytics.js",
+      "lines": 598,
+      "inspection": "fetch/range race/metrics renderer"
+    },
+    {
+      "path": "src/web/static/js/modules/chat.js",
+      "lines": 1659,
+      "inspection": "send/failure/history/ACK/storage/cards/races"
+    },
+    {
+      "path": "src/web/static/js/modules/map.js",
+      "lines": 796,
+      "inspection": "traceroute schema/coordinates/popup/marker lifecycle"
+    },
+    {
+      "path": "src/web/static/js/modules/nodes.js",
+      "lines": 1366,
+      "inspection": "pagination/empty snapshot/local classification/roles/events"
+    },
+    {
+      "path": "src/web/static/js/modules/repeater.js",
+      "lines": 1840,
+      "inspection": "dirty state/modal revisions/saved radio/reading/power"
+    },
+    {
+      "path": "src/web/static/js/modules/settings.js",
+      "lines": 2342,
+      "inspection": "config dirty fields/local radio/hardware controls"
+    },
+    {
+      "path": "src/web/static/js/modules/sniffer.js",
+      "lines": 884,
+      "inspection": "HTTP/WS snapshots/capture/export/filter/DOM"
+    },
+    {
+      "path": "src/web/static/js/qrcode.js",
+      "lines": 609,
+      "inspection": "inventory/search only; no complete semantic review claimed"
+    }
+  ],
+  "reproductions": {
+    "command": ".venv/Scripts/python.exe -m pytest tests/audit_layer_web_2026_10_04.py -q --no-cov -p no:cacheprovider --basetemp tests/artifacts/layers-2026-10-04/web-final-tmp --junitxml tests/artifacts/layers-2026-10-04/web-reproductions.xml",
+    "passed": 13,
+    "defect_groups": 11,
+    "positive_controls": 1,
+    "meaning": "Expectations reproduce current defects; passing does not mean corrected",
+    "browser_launch": "Chromium, own isolated virtual station, elevation approved after sandbox spawn EPERM"
+  },
+  "findings": [
+    {
+      "id": "WEB-01",
+      "priority": "P1",
+      "title": "CLI secret leak through PacketBuffer/WS/API/export",
+      "state": "confirmed_not_fixed",
+      "observed": {
+        "capture_count": 1,
+        "packet_text_exposes_secret": true,
+        "packet_raw_hex_decodes_secret": true,
+        "rf_ws_exposes_secret": true,
+        "csv_exposes_secret": true,
+        "json_export_exposes_secret": true,
+        "pcap_exposes_secret": true,
+        "semantic_cli_sanitized": true,
+        "packets_get_without_key": "HTTP/1.1 200 OK"
+      },
+      "evidence_artifact": "tests/artifacts/layers-2026-10-04/web-packet-secret.json"
+    },
+    {
+      "id": "WEB-02",
+      "priority": "P2",
+      "title": "URL encoded key rejected only by WebSocket",
+      "state": "confirmed_not_fixed",
+      "observed": {
+        "REST": "HTTP/1.1 200 OK",
+        "WS": "HTTP/1.1 401 Unauthorized",
+        "synthetic_key_only": true
+      },
+      "evidence_artifact": "tests/artifacts/layers-2026-10-04/web-ws-key.json"
+    },
+    {
+      "id": "WEB-03",
+      "priority": "P2",
+      "title": "GET map reload bypasses write authentication",
+      "state": "confirmed_not_fixed",
+      "observed": {
+        "GET": "HTTP/1.1 200 OK",
+        "POST": "HTTP/1.1 401 Unauthorized",
+        "reload_calls": [
+          "reload"
+        ]
+      },
+      "evidence_artifact": "tests/artifacts/layers-2026-10-04/web-map-auth.json"
+    },
+    {
+      "id": "WEB-04",
+      "priority": "P2",
+      "title": "Unknown channel subroute performs write",
+      "state": "confirmed_not_fixed",
+      "observed": {
+        "status": 201,
+        "SDK_writes": 1,
+        "channel": "AuditChannel"
+      },
+      "evidence_artifact": "tests/artifacts/layers-2026-10-04/web-unknown-route.json"
+    },
+    {
+      "id": "WEB-05",
+      "priority": "P2",
+      "title": "Chat HTTP failure silently remains queued",
+      "state": "confirmed_not_fixed",
+      "observed": {
+        "status": "queued",
+        "notices": [],
+        "input": "",
+        "stored_status": "queued",
+        "bubble": "HOY\n      \n        \n        Rejected audit message\n        \n        \n        \n          22:14\n          ✓\n        \n      \n    "
+      },
+      "evidence_artifact": "tests/artifacts/layers-2026-10-04/web-chat-failure.json"
+    },
+    {
+      "id": "WEB-06",
+      "priority": "P2",
+      "title": "Late conversation history renders into active conversation",
+      "state": "confirmed_not_fixed",
+      "observed": {
+        "active": 1,
+        "before": "HOY\n      \n        peer\n        NEW CHANNEL\n        \n        \n        \n          08:00\n          \n        \n      \n    ",
+        "after": "HOY\n      \n        peer\n        NEW CHANNEL\n        \n        \n        \n          08:00\n          \n        \n      \n    HOY\n      \n        peer\n        OLD CHANNEL\n        \n        \n        \n          08:00\n          \n        \n      \n    "
+      },
+      "evidence_artifact": "tests/artifacts/layers-2026-10-04/web-chat-race.json"
+    },
+    {
+      "id": "WEB-07",
+      "priority": "P2",
+      "title": "Successful TX remains queued in IndexedDB",
+      "state": "confirmed_not_fixed",
+      "observed": {
+        "memory_status": "sent",
+        "stored_status": "queued",
+        "ack": "abc123"
+      },
+      "evidence_artifact": "tests/artifacts/layers-2026-10-04/web-chat-persist-status.json"
+    },
+    {
+      "id": "WEB-08",
+      "priority": "P2",
+      "title": "Empty node snapshot fails reconciliation",
+      "state": "confirmed_not_fixed",
+      "observed": {
+        "known": 1,
+        "renderCalls": 0
+      },
+      "evidence_artifact": "tests/artifacts/layers-2026-10-04/web-nodes-empty.json"
+    },
+    {
+      "id": "WEB-09",
+      "priority": "P2",
+      "title": "Observed remote TX power clamped by assumed hardware limits",
+      "state": "confirmed_not_fixed",
+      "observed": {
+        "summary": "27 dBm",
+        "field": "22",
+        "min": "2",
+        "max": "22",
+        "caption": "22 dBm"
+      },
+      "evidence_artifact": "tests/artifacts/layers-2026-10-04/web-tx-power-27.json"
+    },
+    {
+      "id": "WEB-10",
+      "priority": "P2",
+      "title": "Sniffer startup snapshot omits newest captures",
+      "state": "confirmed_not_fixed",
+      "observed": {
+        "status": 200,
+        "total": 250,
+        "count": 200,
+        "first": "Audit packet 0",
+        "last": "Audit packet 199"
+      },
+      "evidence_artifact": "tests/artifacts/layers-2026-10-04/web-sniffer-oldest.json"
+    },
+    {
+      "id": "WEB-11",
+      "priority": "P2",
+      "title": "Pending RF snapshot drops live arrivals",
+      "state": "confirmed_not_fixed",
+      "observed": [
+        {
+          "packet_id": 1,
+          "text": "OLD SNAPSHOT"
+        }
+      ],
+      "evidence_artifact": "tests/artifacts/layers-2026-10-04/web-sniffer-race.json"
+    }
+  ],
+  "positive_control": {
+    "status": 400,
+    "error": "repeater_contact_forbidden",
+    "writes": 0
+  },
+  "limitations": [
+    "No physical RF or production MQTT",
+    "No benchmark on SBC",
+    "No complete WCAG assessment",
+    "External Leaflet and font CDN omitted by existing offline fixture",
+    "Direct module browser exercises complement, not replace, all user click paths"
+  ],
+  "report": "docs/audits/layers-2026-10-04/web.md",
+  "javascript_class_inventory": {
+    "method": "lexical extraction of two-space-indented class-style declarations, not an AST or proof of call graph reachability",
+    "entries": [
+      {
+        "source": "src/web/static/js/app.js",
+        "classes": [
+          "MeshCoreApp"
+        ],
+        "methods": [
+          {
+            "name": "constructor",
+            "async": false,
+            "line": 20
+          },
+          {
+            "name": "init",
+            "async": false,
+            "line": 86
+          },
+          {
+            "name": "_bindElements",
+            "async": false,
+            "line": 118
+          },
+          {
+            "name": "_initTheme",
+            "async": false,
+            "line": 138
+          },
+          {
+            "name": "_updateThemeIcon",
+            "async": false,
+            "line": 172
+          },
+          {
+            "name": "_initNavigation",
+            "async": false,
+            "line": 188
+          },
+          {
+            "name": "_initVisibilityHandler",
+            "async": false,
+            "line": 232
+          },
+          {
+            "name": "_initSidebar",
+            "async": false,
+            "line": 243
+          },
+          {
+            "name": "_initModalFocus",
+            "async": false,
+            "line": 253
+          },
+          {
+            "name": "_updateSidebarState",
+            "async": false,
+            "line": 307
+          },
+          {
+            "name": "_initCommandPalette",
+            "async": false,
+            "line": 319
+          },
+          {
+            "name": "_subscribeBus",
+            "async": false,
+            "line": 609
+          },
+          {
+            "name": "updateAirtimeBadge",
+            "async": false,
+            "line": 675
+          },
+          {
+            "name": "updateRadioBadge",
+            "async": false,
+            "line": 749
+          },
+          {
+            "name": "showToast",
+            "async": false,
+            "line": 781
+          },
+          {
+            "name": "getAuthHeaders",
+            "async": false,
+            "line": 831
+          },
+          {
+            "name": "resolveCanonicalPubkey",
+            "async": false,
+            "line": 840
+          },
+          {
+            "name": "showConfirm",
+            "async": false,
+            "line": 850
+          },
+          {
+            "name": "showAlert",
+            "async": false,
+            "line": 874
+          },
+          {
+            "name": "showPrompt",
+            "async": false,
+            "line": 900
+          },
+          {
+            "name": "_ensureSystemDialogModal",
+            "async": false,
+            "line": 917
+          },
+          {
+            "name": "_showSystemDialog",
+            "async": false,
+            "line": 958
+          },
+          {
+            "name": "_displaySystemDialog",
+            "async": false,
+            "line": 966
+          }
+        ],
+        "method_count": 23
+      },
+      {
+        "source": "src/web/static/js/core/eventbus.js",
+        "classes": [
+          "EventBus"
+        ],
+        "methods": [
+          {
+            "name": "constructor",
+            "async": false,
+            "line": 7
+          },
+          {
+            "name": "on",
+            "async": false,
+            "line": 17
+          },
+          {
+            "name": "emit",
+            "async": false,
+            "line": 28
+          },
+          {
+            "name": "once",
+            "async": false,
+            "line": 37
+          }
+        ],
+        "method_count": 4
+      },
+      {
+        "source": "src/web/static/js/core/storage.js",
+        "classes": [
+          "MeshCoreStorage"
+        ],
+        "methods": [
+          {
+            "name": "constructor",
+            "async": false,
+            "line": 7
+          },
+          {
+            "name": "init",
+            "async": true,
+            "line": 14
+          },
+          {
+            "name": "saveMessage",
+            "async": true,
+            "line": 48
+          },
+          {
+            "name": "updateMessageExpectedAck",
+            "async": true,
+            "line": 85
+          },
+          {
+            "name": "updateMessageDelivery",
+            "async": true,
+            "line": 108
+          },
+          {
+            "name": "updateMessageStatus",
+            "async": true,
+            "line": 141
+          },
+          {
+            "name": "purgeNonCommonMessages",
+            "async": true,
+            "line": 163
+          },
+          {
+            "name": "getMessagesByFeed",
+            "async": true,
+            "line": 185
+          },
+          {
+            "name": "getDmConversations",
+            "async": true,
+            "line": 205
+          },
+          {
+            "name": "clearFeedMessages",
+            "async": true,
+            "line": 276
+          },
+          {
+            "name": "clearAll",
+            "async": true,
+            "line": 294
+          }
+        ],
+        "method_count": 11
+      },
+      {
+        "source": "src/web/static/js/core/websocket.js",
+        "classes": [
+          "MeshCoreWebSocketClient"
+        ],
+        "methods": [
+          {
+            "name": "constructor",
+            "async": false,
+            "line": 9
+          },
+          {
+            "name": "connect",
+            "async": false,
+            "line": 20
+          },
+          {
+            "name": "send",
+            "async": false,
+            "line": 103
+          },
+          {
+            "name": "close",
+            "async": false,
+            "line": 112
+          },
+          {
+            "name": "_setStatus",
+            "async": false,
+            "line": 125
+          },
+          {
+            "name": "_scheduleReconnect",
+            "async": false,
+            "line": 130
+          },
+          {
+            "name": "_startHeartbeat",
+            "async": false,
+            "line": 140
+          },
+          {
+            "name": "_stopHeartbeat",
+            "async": false,
+            "line": 151
+          }
+        ],
+        "method_count": 8
+      },
+      {
+        "source": "src/web/static/js/modules/analytics.js",
+        "classes": [
+          "AnalyticsModule"
+        ],
+        "methods": [
+          {
+            "name": "constructor",
+            "async": false,
+            "line": 31
+          },
+          {
+            "name": "init",
+            "async": false,
+            "line": 40
+          },
+          {
+            "name": "onLanguageChange",
+            "async": false,
+            "line": 50
+          },
+          {
+            "name": "_bindElements",
+            "async": false,
+            "line": 62
+          },
+          {
+            "name": "_bindEvents",
+            "async": false,
+            "line": 116
+          },
+          {
+            "name": "resetMetrics",
+            "async": true,
+            "line": 148
+          },
+          {
+            "name": "_subscribeBus",
+            "async": false,
+            "line": 178
+          },
+          {
+            "name": "fetchAnalytics",
+            "async": true,
+            "line": 237
+          },
+          {
+            "name": "renderKpis",
+            "async": false,
+            "line": 271
+          },
+          {
+            "name": "renderCharts",
+            "async": false,
+            "line": 325
+          },
+          {
+            "name": "renderDiagnostics",
+            "async": false,
+            "line": 371
+          },
+          {
+            "name": "renderHardwareStats",
+            "async": false,
+            "line": 435
+          },
+          {
+            "name": "renderTopActiveTable",
+            "async": false,
+            "line": 478
+          },
+          {
+            "name": "renderAirtimeStats",
+            "async": false,
+            "line": 530
+          }
+        ],
+        "method_count": 14
+      },
+      {
+        "source": "src/web/static/js/modules/chat.js",
+        "classes": [
+          "ChatModule"
+        ],
+        "methods": [
+          {
+            "name": "constructor",
+            "async": false,
+            "line": 26
+          },
+          {
+            "name": "init",
+            "async": false,
+            "line": 80
+          },
+          {
+            "name": "onLanguageChange",
+            "async": false,
+            "line": 93
+          },
+          {
+            "name": "_bindElements",
+            "async": false,
+            "line": 105
+          },
+          {
+            "name": "_bindEvents",
+            "async": false,
+            "line": 151
+          },
+          {
+            "name": "_subscribeBus",
+            "async": false,
+            "line": 298
+          },
+          {
+            "name": "loadInitialHistory",
+            "async": true,
+            "line": 321
+          },
+          {
+            "name": "_isLocalTarget",
+            "async": false,
+            "line": 357
+          },
+          {
+            "name": "resolveCanonicalPubkey",
+            "async": false,
+            "line": 370
+          },
+          {
+            "name": "_renderEmojiGrid",
+            "async": false,
+            "line": 377
+          },
+          {
+            "name": "insertEmoji",
+            "async": false,
+            "line": 399
+          },
+          {
+            "name": "openShareContactModal",
+            "async": false,
+            "line": 412
+          },
+          {
+            "name": "closeShareContactModal",
+            "async": false,
+            "line": 424
+          },
+          {
+            "name": "_populateShareContactList",
+            "async": false,
+            "line": 429
+          },
+          {
+            "name": "filterShareContactList",
+            "async": false,
+            "line": 512
+          },
+          {
+            "name": "confirmShareContact",
+            "async": true,
+            "line": 516
+          },
+          {
+            "name": "openShareChannelModal",
+            "async": false,
+            "line": 525
+          },
+          {
+            "name": "closeShareChannelModal",
+            "async": false,
+            "line": 549
+          },
+          {
+            "name": "_populateShareChannelList",
+            "async": false,
+            "line": 554
+          },
+          {
+            "name": "confirmShareChannel",
+            "async": true,
+            "line": 610
+          },
+          {
+            "name": "sendMessageWithText",
+            "async": true,
+            "line": 668
+          },
+          {
+            "name": "updateCharCounter",
+            "async": false,
+            "line": 677
+          },
+          {
+            "name": "_updateActiveChatHeader",
+            "async": false,
+            "line": 714
+          },
+          {
+            "name": "switchChannel",
+            "async": false,
+            "line": 820
+          },
+          {
+            "name": "setDmTarget",
+            "async": false,
+            "line": 843
+          },
+          {
+            "name": "openDmConversation",
+            "async": false,
+            "line": 847
+          },
+          {
+            "name": "shareCurrentLocation",
+            "async": false,
+            "line": 900
+          },
+          {
+            "name": "_fallbackShareLocalStationLocation",
+            "async": false,
+            "line": 923
+          },
+          {
+            "name": "clearCurrentChat",
+            "async": true,
+            "line": 943
+          },
+          {
+            "name": "_saveClosedDmThreads",
+            "async": false,
+            "line": 967
+          },
+          {
+            "name": "closeDmConversation",
+            "async": false,
+            "line": 973
+          },
+          {
+            "name": "refreshDmNamesFromKnownNodes",
+            "async": false,
+            "line": 999
+          },
+          {
+            "name": "addDmContact",
+            "async": false,
+            "line": 1019
+          },
+          {
+            "name": "renderCurrentConversation",
+            "async": true,
+            "line": 1084
+          },
+          {
+            "name": "createMessageBubble",
+            "async": false,
+            "line": 1127
+          },
+          {
+            "name": "sendMessage",
+            "async": true,
+            "line": 1381
+          },
+          {
+            "name": "appendChatMessage",
+            "async": false,
+            "line": 1492
+          },
+          {
+            "name": "handleIncomingChatMessage",
+            "async": true,
+            "line": 1527
+          },
+          {
+            "name": "handleDeliveryAck",
+            "async": false,
+            "line": 1591
+          },
+          {
+            "name": "playNotificationChime",
+            "async": false,
+            "line": 1638
+          }
+        ],
+        "method_count": 40
+      },
+      {
+        "source": "src/web/static/js/modules/map.js",
+        "classes": [
+          "MapModule"
+        ],
+        "methods": [
+          {
+            "name": "constructor",
+            "async": false,
+            "line": 10
+          },
+          {
+            "name": "init",
+            "async": false,
+            "line": 28
+          },
+          {
+            "name": "onLanguageChange",
+            "async": false,
+            "line": 43
+          },
+          {
+            "name": "_bindElements",
+            "async": false,
+            "line": 53
+          },
+          {
+            "name": "_bindEvents",
+            "async": false,
+            "line": 77
+          },
+          {
+            "name": "_subscribeBus",
+            "async": false,
+            "line": 97
+          },
+          {
+            "name": "initLeafletMap",
+            "async": false,
+            "line": 151
+          },
+          {
+            "name": "setMapLayer",
+            "async": false,
+            "line": 223
+          },
+          {
+            "name": "initMapOverlayToggle",
+            "async": false,
+            "line": 246
+          },
+          {
+            "name": "setRfHeatmap",
+            "async": true,
+            "line": 283
+          },
+          {
+            "name": "toggleRfHeatmap",
+            "async": true,
+            "line": 311
+          },
+          {
+            "name": "updateRfHeatmapToggleState",
+            "async": false,
+            "line": 315
+          },
+          {
+            "name": "refreshRfHeatmap",
+            "async": true,
+            "line": 325
+          },
+          {
+            "name": "initAirtimeMonitoring",
+            "async": false,
+            "line": 418
+          },
+          {
+            "name": "fetchAirtimeStats",
+            "async": true,
+            "line": 422
+          },
+          {
+            "name": "initTraceroute",
+            "async": false,
+            "line": 440
+          },
+          {
+            "name": "openTracerouteModal",
+            "async": false,
+            "line": 460
+          },
+          {
+            "name": "executeTraceroute",
+            "async": true,
+            "line": 483
+          },
+          {
+            "name": "renderTracerouteGraph",
+            "async": false,
+            "line": 534
+          },
+          {
+            "name": "renderTracerouteTable",
+            "async": false,
+            "line": 564
+          },
+          {
+            "name": "centerMapOnCoords",
+            "async": false,
+            "line": 583
+          },
+          {
+            "name": "getLocalNodeCoordinates",
+            "async": false,
+            "line": 592
+          },
+          {
+            "name": "centerOnLocalNode",
+            "async": false,
+            "line": 622
+          },
+          {
+            "name": "updateMapMarkers",
+            "async": false,
+            "line": 657
+          },
+          {
+            "name": "updateMapNodesOverlayList",
+            "async": false,
+            "line": 684
+          },
+          {
+            "name": "updateSingleNodeMarker",
+            "async": false,
+            "line": 743
+          }
+        ],
+        "method_count": 26
+      },
+      {
+        "source": "src/web/static/js/modules/nodes.js",
+        "classes": [
+          "NodesModule"
+        ],
+        "methods": [
+          {
+            "name": "constructor",
+            "async": false,
+            "line": 10
+          },
+          {
+            "name": "init",
+            "async": false,
+            "line": 19
+          },
+          {
+            "name": "onLanguageChange",
+            "async": false,
+            "line": 29
+          },
+          {
+            "name": "_bindElements",
+            "async": false,
+            "line": 33
+          },
+          {
+            "name": "_bindEvents",
+            "async": false,
+            "line": 44
+          },
+          {
+            "name": "_subscribeBus",
+            "async": false,
+            "line": 91
+          },
+          {
+            "name": "isValidNodeKey",
+            "async": false,
+            "line": 154
+          },
+          {
+            "name": "resolveCanonicalPubkey",
+            "async": false,
+            "line": 162
+          },
+          {
+            "name": "fetchNodes",
+            "async": true,
+            "line": 191
+          },
+          {
+            "name": "_getLocalCoordinates",
+            "async": false,
+            "line": 223
+          },
+          {
+            "name": "_renderTelemetryMetricsHtml",
+            "async": false,
+            "line": 240
+          },
+          {
+            "name": "createNodeCard",
+            "async": false,
+            "line": 449
+          },
+          {
+            "name": "renderNodesDirectory",
+            "async": false,
+            "line": 773
+          },
+          {
+            "name": "updateNodePresenceRealtime",
+            "async": false,
+            "line": 913
+          },
+          {
+            "name": "initPresenceTicker",
+            "async": false,
+            "line": 923
+          },
+          {
+            "name": "initContactDiscovery",
+            "async": false,
+            "line": 967
+          },
+          {
+            "name": "fetchDiscoveredContacts",
+            "async": true,
+            "line": 993
+          },
+          {
+            "name": "filterContactsGrid",
+            "async": false,
+            "line": 1005
+          },
+          {
+            "name": "filterNodesGrid",
+            "async": false,
+            "line": 1055
+          },
+          {
+            "name": "initAnalytics",
+            "async": false,
+            "line": 1087
+          },
+          {
+            "name": "fetchAnalytics",
+            "async": true,
+            "line": 1091
+          },
+          {
+            "name": "updateNodeInDom",
+            "async": false,
+            "line": 1103
+          },
+          {
+            "name": "pingNode",
+            "async": true,
+            "line": 1249
+          },
+          {
+            "name": "_startPingButtonCooldown",
+            "async": false,
+            "line": 1343
+          }
+        ],
+        "method_count": 24
+      },
+      {
+        "source": "src/web/static/js/modules/repeater.js",
+        "classes": [
+          "RepeaterModule"
+        ],
+        "methods": [
+          {
+            "name": "constructor",
+            "async": false,
+            "line": 10
+          },
+          {
+            "name": "init",
+            "async": false,
+            "line": 30
+          },
+          {
+            "name": "onLanguageChange",
+            "async": false,
+            "line": 36
+          },
+          {
+            "name": "_setFieldIfNotDirty",
+            "async": false,
+            "line": 42
+          },
+          {
+            "name": "_resetModalInputs",
+            "async": false,
+            "line": 53
+          },
+          {
+            "name": "_bindElements",
+            "async": false,
+            "line": 105
+          },
+          {
+            "name": "_bindEvents",
+            "async": false,
+            "line": 132
+          },
+          {
+            "name": "_redactRemoteCommand",
+            "async": false,
+            "line": 678
+          },
+          {
+            "name": "_remoteFieldValue",
+            "async": false,
+            "line": 682
+          },
+          {
+            "name": "_collectRemoteDraft",
+            "async": false,
+            "line": 687
+          },
+          {
+            "name": "_populateRemoteSavedRadio",
+            "async": false,
+            "line": 732
+          },
+          {
+            "name": "_remoteAppliedKey",
+            "async": false,
+            "line": 744
+          },
+          {
+            "name": "_commitRemoteConfirmed",
+            "async": false,
+            "line": 754
+          },
+          {
+            "name": "saveRemoteConfiguration",
+            "async": true,
+            "line": 786
+          },
+          {
+            "name": "_subscribeBus",
+            "async": false,
+            "line": 856
+          },
+          {
+            "name": "_mergeRemoteObservation",
+            "async": false,
+            "line": 879
+          },
+          {
+            "name": "resolveCanonicalPubkey",
+            "async": false,
+            "line": 889
+          },
+          {
+            "name": "getStoredRepeaterPassword",
+            "async": false,
+            "line": 896
+          },
+          {
+            "name": "setStoredRepeaterPassword",
+            "async": false,
+            "line": 905
+          },
+          {
+            "name": "clearStoredRepeaterPassword",
+            "async": false,
+            "line": 912
+          },
+          {
+            "name": "getRepeaterPassword",
+            "async": false,
+            "line": 920
+          },
+          {
+            "name": "lockRepeaterAdminView",
+            "async": false,
+            "line": 929
+          },
+          {
+            "name": "unlockRepeaterAdminView",
+            "async": false,
+            "line": 967
+          },
+          {
+            "name": "handleRepeaterAuthError",
+            "async": false,
+            "line": 991
+          },
+          {
+            "name": "authenticateRepeater",
+            "async": true,
+            "line": 997
+          },
+          {
+            "name": "refreshRepeaterFullTelemetry",
+            "async": true,
+            "line": 1055
+          },
+          {
+            "name": "calculateBatteryPct",
+            "async": false,
+            "line": 1099
+          },
+          {
+            "name": "openRepeaterAdminModal",
+            "async": false,
+            "line": 1108
+          },
+          {
+            "name": "closeRepeaterAdminModal",
+            "async": false,
+            "line": 1163
+          },
+          {
+            "name": "populateRepeaterModalData",
+            "async": false,
+            "line": 1173
+          },
+          {
+            "name": "appendTerminalLine",
+            "async": false,
+            "line": 1406
+          },
+          {
+            "name": "pingZero",
+            "async": true,
+            "line": 1440
+          },
+          {
+            "name": "_startModalPingCooldown",
+            "async": false,
+            "line": 1567
+          },
+          {
+            "name": "executeRepeaterCommand",
+            "async": true,
+            "line": 1598
+          },
+          {
+            "name": "fetchRepeaterNeighbors",
+            "async": true,
+            "line": 1670
+          },
+          {
+            "name": "renderNeighborsTable",
+            "async": false,
+            "line": 1713
+          },
+          {
+            "name": "fetchRepeaterOwner",
+            "async": true,
+            "line": 1754
+          },
+          {
+            "name": "fetchRepeaterRegions",
+            "async": true,
+            "line": 1786
+          },
+          {
+            "name": "fetchRepeaterAcl",
+            "async": true,
+            "line": 1813
+          }
+        ],
+        "method_count": 39
+      },
+      {
+        "source": "src/web/static/js/modules/settings.js",
+        "classes": [
+          "SettingsModule"
+        ],
+        "methods": [
+          {
+            "name": "constructor",
+            "async": false,
+            "line": 15
+          },
+          {
+            "name": "init",
+            "async": false,
+            "line": 35
+          },
+          {
+            "name": "onLanguageChange",
+            "async": false,
+            "line": 48
+          },
+          {
+            "name": "_startLiveTick",
+            "async": false,
+            "line": 59
+          },
+          {
+            "name": "_notify",
+            "async": false,
+            "line": 90
+          },
+          {
+            "name": "_bindElements",
+            "async": false,
+            "line": 100
+          },
+          {
+            "name": "_setFieldIfNotDirty",
+            "async": false,
+            "line": 169
+          },
+          {
+            "name": "_bindEvents",
+            "async": false,
+            "line": 180
+          },
+          {
+            "name": "_subscribeBus",
+            "async": false,
+            "line": 1061
+          },
+          {
+            "name": "generateRandomHex",
+            "async": false,
+            "line": 1141
+          },
+          {
+            "name": "fetchChannels",
+            "async": true,
+            "line": 1152
+          },
+          {
+            "name": "renderChannelsList",
+            "async": false,
+            "line": 1167
+          },
+          {
+            "name": "processImportPayload",
+            "async": true,
+            "line": 1291
+          },
+          {
+            "name": "fetchLocalNodeConfig",
+            "async": true,
+            "line": 1396
+          },
+          {
+            "name": "populateLocalConfig",
+            "async": false,
+            "line": 1415
+          },
+          {
+            "name": "_applyLocalConfigCapabilities",
+            "async": false,
+            "line": 1824
+          },
+          {
+            "name": "_localFieldValue",
+            "async": false,
+            "line": 1851
+          },
+          {
+            "name": "_collectLocalConfigDraft",
+            "async": false,
+            "line": 1856
+          },
+          {
+            "name": "_hasAppliedConfigKey",
+            "async": false,
+            "line": 1872
+          },
+          {
+            "name": "_applyLocalConfigSaveResult",
+            "async": false,
+            "line": 1877
+          },
+          {
+            "name": "_saveLocalConfigDraft",
+            "async": true,
+            "line": 1899
+          },
+          {
+            "name": "saveLocalRadioConfig",
+            "async": true,
+            "line": 1942
+          },
+          {
+            "name": "saveLocalIdentityAndPosition",
+            "async": true,
+            "line": 1974
+          },
+          {
+            "name": "showQrModal",
+            "async": false,
+            "line": 1990
+          },
+          {
+            "name": "appendLocalTerminalLine",
+            "async": false,
+            "line": 2035
+          },
+          {
+            "name": "fetchCustomVars",
+            "async": true,
+            "line": 2049
+          },
+          {
+            "name": "renderCustomVarsTable",
+            "async": false,
+            "line": 2064
+          },
+          {
+            "name": "saveCustomVar",
+            "async": true,
+            "line": 2095
+          },
+          {
+            "name": "deleteCustomVar",
+            "async": true,
+            "line": 2125
+          },
+          {
+            "name": "fetchFloodScope",
+            "async": true,
+            "line": 2155
+          },
+          {
+            "name": "saveFloodScope",
+            "async": true,
+            "line": 2171
+          },
+          {
+            "name": "resetFloodScope",
+            "async": true,
+            "line": 2204
+          },
+          {
+            "name": "fetchAutoAddConfig",
+            "async": true,
+            "line": 2233
+          },
+          {
+            "name": "saveAutoAddConfig",
+            "async": true,
+            "line": 2249
+          },
+          {
+            "name": "_populateAutoAddConfig",
+            "async": false,
+            "line": 2301
+          },
+          {
+            "name": "_snapshotAdvancedFields",
+            "async": false,
+            "line": 2317
+          },
+          {
+            "name": "_renderFloodScope",
+            "async": false,
+            "line": 2321
+          },
+          {
+            "name": "_clearAdvancedFields",
+            "async": false,
+            "line": 2336
+          }
+        ],
+        "method_count": 38
+      },
+      {
+        "source": "src/web/static/js/modules/sniffer.js",
+        "classes": [
+          "SnifferModule"
+        ],
+        "methods": [
+          {
+            "name": "constructor",
+            "async": false,
+            "line": 64
+          },
+          {
+            "name": "init",
+            "async": false,
+            "line": 75
+          },
+          {
+            "name": "onLanguageChange",
+            "async": false,
+            "line": 84
+          },
+          {
+            "name": "_bindElements",
+            "async": false,
+            "line": 93
+          },
+          {
+            "name": "_bindEvents",
+            "async": false,
+            "line": 156
+          },
+          {
+            "name": "_subscribeBus",
+            "async": false,
+            "line": 238
+          },
+          {
+            "name": "switchSubtab",
+            "async": false,
+            "line": 269
+          },
+          {
+            "name": "fetchCapturedPackets",
+            "async": true,
+            "line": 285
+          },
+          {
+            "name": "onRfPacketReceived",
+            "async": false,
+            "line": 301
+          },
+          {
+            "name": "updateSnifferBadge",
+            "async": false,
+            "line": 313
+          },
+          {
+            "name": "setSnifferCapture",
+            "async": false,
+            "line": 319
+          },
+          {
+            "name": "toggleSnifferPause",
+            "async": false,
+            "line": 324
+          },
+          {
+            "name": "updateSnifferCaptureState",
+            "async": false,
+            "line": 329
+          },
+          {
+            "name": "clearCapturedPackets",
+            "async": true,
+            "line": 340
+          },
+          {
+            "name": "exportPackets",
+            "async": true,
+            "line": 373
+          },
+          {
+            "name": "renderFilteredPackets",
+            "async": false,
+            "line": 420
+          },
+          {
+            "name": "openPacketInspector",
+            "async": false,
+            "line": 513
+          },
+          {
+            "name": "closePacketInspector",
+            "async": false,
+            "line": 568
+          },
+          {
+            "name": "switchInspectorTab",
+            "async": false,
+            "line": 575
+          },
+          {
+            "name": "copyHexDumpToClipboard",
+            "async": false,
+            "line": 585
+          },
+          {
+            "name": "copyJsonDumpToClipboard",
+            "async": false,
+            "line": 595
+          },
+          {
+            "name": "fetchSystemLogs",
+            "async": true,
+            "line": 609
+          },
+          {
+            "name": "fetchSubsystemsHealth",
+            "async": true,
+            "line": 628
+          },
+          {
+            "name": "updateHealthChips",
+            "async": false,
+            "line": 642
+          },
+          {
+            "name": "matchesLogFilter",
+            "async": false,
+            "line": 674
+          },
+          {
+            "name": "renderFilteredLogs",
+            "async": false,
+            "line": 710
+          },
+          {
+            "name": "createLogElement",
+            "async": false,
+            "line": 732
+          },
+          {
+            "name": "appendLogEntryToDom",
+            "async": false,
+            "line": 762
+          },
+          {
+            "name": "setDebugMode",
+            "async": true,
+            "line": 777
+          },
+          {
+            "name": "toggleDebugMode",
+            "async": true,
+            "line": 799
+          },
+          {
+            "name": "updateDebugButtonState",
+            "async": false,
+            "line": 803
+          },
+          {
+            "name": "clearSystemLogs",
+            "async": true,
+            "line": 813
+          },
+          {
+            "name": "setLogsScroll",
+            "async": false,
+            "line": 836
+          },
+          {
+            "name": "toggleLogsScroll",
+            "async": false,
+            "line": 841
+          },
+          {
+            "name": "updateLogsScrollState",
+            "async": false,
+            "line": 846
+          },
+          {
+            "name": "downloadRawLogs",
+            "async": true,
+            "line": 858
+          }
+        ],
+        "method_count": 36
+      }
+    ],
+    "total_methods": 263
+  },
+  "discarded_hypotheses": [
+    "Existing repeater role downgraded via contact POST: rejected before SDK write",
+    "Missing traceroute schema: TracerouteExecutor does produce all three fields"
+  ]
+}

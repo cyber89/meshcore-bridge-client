@@ -1,0 +1,10 @@
+{
+  "expected": "docstring declares <100 KB",
+  "observed": {
+    "retained_bytes": 670624,
+    "peak_bytes": 671257,
+    "buckets": 1440,
+    "load": "one 32-byte RX per minute, 1440 synthetic minutes",
+    "scope": "traced Python allocations in isolated pytest process; not RSS or live service/SBC"
+  }
+}

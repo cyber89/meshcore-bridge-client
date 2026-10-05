@@ -1,0 +1,7 @@
+{
+  "expected": "nested dense module reported",
+  "observed": {
+    "console": "====================================================================\n [CLEAN-METRICS] Evaluacion de Metricas de Codigo y Complejidad\n====================================================================\n[PASS] Complejidad ciclomática bajo control en todas las funciones.\n[PASS] Parametros y modularidad conformes a los estandares Clean Code.\n--------------------------------------------------------------------\n[EXITOSO] Codigo 100% limpio y mantenible.\n",
+    "missed": "src/admin/unsafe.py"
+  }
+}

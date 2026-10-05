@@ -1,0 +1,8 @@
+{
+  "expected": "do not move expired packet into another timestamp",
+  "observed": {
+    "packet_timestamp": 1699994040,
+    "assigned_timestamp": 1700000040,
+    "assigned_rx_count": 2
+  }
+}

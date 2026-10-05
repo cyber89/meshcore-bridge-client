@@ -1,0 +1,129 @@
+{
+  "audit_date": "2026-10-04",
+  "timezone": "America/New_York",
+  "layer": "runtime_transport_registry",
+  "production_changed": false,
+  "baseline": "c9b2d3c",
+  "harness": "tests/audit_layer_runtime_2026_10_04.py",
+  "validation": {
+    "command": ".venv/Scripts/python.exe -m pytest tests/audit_layer_runtime_2026_10_04.py -q -s --no-cov -p no:cacheprovider --basetemp tests/artifacts/audit-runtime-2026-10-04-complete-tmp",
+    "exit_code": 0,
+    "passed": 12,
+    "duration_seconds": 1.25,
+    "meaning": "Assertions document currently observed defects and positive controls; not repaired contracts",
+    "ruff": "All checks passed!",
+    "python": "3.12.14",
+    "platform": "Windows-11-10.0.26300-SP0 AMD64",
+    "physical_hardware": false,
+    "operational_data": false
+  },
+  "findings": [
+    {
+      "id": "RUNTIME-01",
+      "priority": "P1",
+      "status": "confirmed_reproduced",
+      "title": "Generic strategies shadow PATH_UPDATE and RX_LOG_DATA route processing",
+      "sources": ["src/rx_router.py:339", "src/rx_router.py:349", "src/rx_router.py:354", "src/routers/system_handler.py:33", "src/routers/telemetry_handler.py:22"],
+      "reproductions": ["test_path_update_shadowed_by_system_strategy", "test_rx_log_route_shadowed_but_direct_control_updates"],
+      "expected": "Synchronize path and preserve identified passive RF route observations",
+      "observed": "Path synchronization calls=0; normal RX_LOG route=None; direct helper control route.count=2",
+      "cause": "Handlers return from dispatch before specialized branches",
+      "proposed_fix": "Assign route processing to event strategies or before generic dispatch; preserve serial transaction ownership"
+    },
+    {
+      "id": "RUNTIME-02",
+      "priority": "P1",
+      "status": "confirmed_reproduced",
+      "title": "RX concurrency semaphore does not bound pending tasks",
+      "sources": ["src/rx_router.py:239", "src/rx_router.py:342", "src/rx_router.py:1194", "src/serial/sdk_adapter.py:514"],
+      "reproductions": ["test_rx_semaphore_does_not_bound_pending_tasks"],
+      "expected": "Explicit bounded admission/backpressure and event preservation policy",
+      "observed": "1000 retained own tasks, 20 active handlers, all drain when gate releases",
+      "cause": "Task creation precedes semaphore admission",
+      "proposed_fix": "Bounded worker queue and valid coalescing; agree capacity and overflow policy with user",
+      "limitations": "Synthetic burst; does not establish persistent leak or SBC performance"
+    },
+    {
+      "id": "RUNTIME-03",
+      "priority": "P2",
+      "status": "confirmed_reproduced",
+      "title": "Expired ACK correlation survives and recent table lacks hard cap",
+      "sources": ["src/bridge_core.py:137", "src/bridge_core.py:154", "src/routers/repeater_handler.py:98"],
+      "reproductions": ["test_expired_ack_still_publishes_old_delivery", "test_recent_pending_ack_table_not_capped_at_prune_threshold"],
+      "expected": "Respect correlation validity and explicitly bounded pending state",
+      "observed": "ACK at age7200s emits old request id; 1000 recent entries remain; entry not consumed",
+      "cause": "Lookup has no TTL; cleanup only on new registration above threshold200",
+      "proposed_fix": "Consistent expiry, capacity and duplicate resolution semantics with agreed TTL/limits"
+    },
+    {
+      "id": "RUNTIME-04",
+      "priority": "P1",
+      "status": "confirmed_reproduced",
+      "title": "Presentation defaults contaminate persisted domain state and analytics",
+      "sources": ["src/contact_manager.py:685", "src/contact_manager.py:686", "src/contact_manager.py:689", "src/contact_manager.py:1658", "src/contact_manager.py:1661", "src/contact_manager.py:1780", "src/contact_manager.py:1895"],
+      "reproductions": ["test_registry_persists_presentation_defaults_as_observed_fields", "test_analytics_invents_unknown_repeater_measurements"],
+      "expected": "Unknown observed/configuration fields remain null across reload",
+      "observed": "Reload None->hop_limit3/max_tx_power22/repeat_enabledTrue; analytics unknown->tx_power20/clients2",
+      "cause": "Persistence reuses public presentation DTO containing inferred defaults",
+      "proposed_fix": "Separate raw storage schema, observed public DTO and suggested defaults; migrate historical ambiguity"
+    },
+    {
+      "id": "RUNTIME-05",
+      "priority": "P1",
+      "status": "confirmed_reproduced",
+      "title": "Raw setter accepts unrelated Companion response as confirmation",
+      "sources": ["src/serial/sdk_adapter.py:143", "src/serial/sdk_adapter.py:145", "src/serial/sdk_adapter.py:940", "reference/meshcore/examples/companion_radio/MyMesh.cpp:1212"],
+      "reproductions": ["test_raw_setter_accepts_unrelated_battery_response"],
+      "expected": "SET_NAME waits for its allowed OK or ERROR response",
+      "observed": "SET_NAME opcode8 returnsTrue from unrelated BATTERY0x0C without setter ACK",
+      "cause": "Any response opcode<0x80 resolves raw future except contact stream special case",
+      "proposed_fix": "Allowed response map by command, stream semantics and conservative recovery after timeout"
+    },
+    {
+      "id": "RUNTIME-06",
+      "priority": "P2",
+      "status": "confirmed_reproduced",
+      "title": "Unsolicited SELF_INFO reintroduces unsigned TX representation",
+      "sources": ["src/serial/sdk_adapter.py:856", "src/serial/sdk_adapter.py:864", "src/rx_router.py:1107", "reference/meshcore_py/src/meshcore/reader.py:168"],
+      "reproductions": ["test_unsolicited_self_info_reintroduces_unsigned_tx_power"],
+      "expected": "Signed firmware TX=-9 remains normalized in live cache",
+      "observed": "SDK byte247 overwrites normalized local_config -9 with247 and logs247dBm",
+      "cause": "Event path does not share explicit configuration read normalizer",
+      "proposed_fix": "Common normalization boundary for SELF_INFO and explicit query"
+    },
+    {
+      "id": "RUNTIME-07",
+      "priority": "P3",
+      "status": "confirmed_reproduced",
+      "title": "Backward wall clock reorders equal-priority messages",
+      "sources": ["src/rate_limiter.py:74", "src/rate_limiter.py:78", "src/rate_limiter.py:79", "src/rate_limiter.py:706"],
+      "reproductions": ["test_priority_queue_fifo_changes_when_wall_clock_moves_back"],
+      "expected": "Admission sequence determines equal-priority FIFO",
+      "observed": "counter2 atwall90 dequeues before counter1 atwall100",
+      "cause": "Ordered dataclass compares wall timestamp before sequence counter",
+      "proposed_fix": "Compare priority and sequence; keep wall timestamp as nonordering metadata"
+    },
+    {
+      "id": "RUNTIME-CODE-01",
+      "priority": "P3",
+      "status": "confirmed_internal_redundancy",
+      "title": "Maintained name index does not serve name lookups",
+      "sources": ["src/contact_manager.py:894", "src/contact_manager.py:1483", "src/contact_manager.py:1514", "src/contact_manager.py:1562"],
+      "reproductions": ["test_unused_name_index_does_not_affect_lookup_control"],
+      "expected": "State is either used for correct multivalued lookup or not maintained",
+      "observed": "Clearing index leaves name and alias lookups working; only mutation/cleanup consumers found in checkout",
+      "proposed_fix": "Remove internal index or implement multivalued ambiguity-safe index",
+      "limitations": "Private attribute consumers outside checkout cannot be ruled out"
+    }
+  ],
+  "unconfirmed_risks": ["No fsync power-loss durability evidence", "Cancellation does not stop I/O worker thread", "Airtime payload estimate differs from complete radio measurement", "Wall-clock heartbeat sensitivity", "Cached channel/contact refresh provenance", "Background exception callbacks inconsistency", "Public load_history reentry appends but production currently calls once"],
+  "positive_controls": ["Disconnect completes raw pending future False and clears SDK reference", "RX backlog drains fully after slow consumer gate releases"],
+  "inventory": {
+    "method": "All22 files ast.parse plus manually traced flows listed in runtime.md; not universal dynamic method coverage",
+    "files": [
+      "src/serial/raw_framing.py", "src/serial/sdk_adapter.py", "src/serial/serial_base.py", "src/serial/watchdog.py", "src/serial/__init__.py",
+      "src/routers/advert_handler.py", "src/routers/base.py", "src/routers/channel_handler.py", "src/routers/direct_handler.py", "src/routers/repeater_handler.py", "src/routers/system_handler.py", "src/routers/telemetry_handler.py", "src/routers/__init__.py",
+      "src/bridge_core.py", "src/serial_driver.py", "src/rx_router.py", "src/rate_limiter.py", "src/contact_manager.py", "src/event_utils.py", "src/deduplicator.py", "src/packet_buffer.py", "src/health_reporter.py"
+    ]
+  }
+}

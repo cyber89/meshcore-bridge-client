@@ -1,0 +1,9 @@
+{
+  "expected": "demo data paths distinct from operational configuration",
+  "observed": {
+    "requested_legacy_db_path": "meshcore_sim_buffer.db",
+    "actual": "config.NODE_REGISTRY_STORAGE_PATH",
+    "start_called": false,
+    "broker_or_radio_started": false
+  }
+}

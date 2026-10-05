@@ -1,0 +1,10 @@
+{
+  "expected": {
+    "with_decisions": 1,
+    "outer_decisions_excluding_nested_scope": 1
+  },
+  "observed": {
+    "with": 2,
+    "outer": 2
+  }
+}

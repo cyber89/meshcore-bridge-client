@@ -1,0 +1,11 @@
+{
+  "expected": "live packet represented in live chart or explicit closed-minute label",
+  "observed": {
+    "session_rx": 1,
+    "chart_rx": {
+      "1h": 0,
+      "6h": 0,
+      "24h": 0
+    }
+  }
+}
