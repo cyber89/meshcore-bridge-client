@@ -1570,13 +1570,28 @@ class NodeRegistry:
         with self._lock:
             return self._list_nodes_snapshot()
 
-    def _list_nodes_snapshot(self) -> list[dict[str, Any]]:
-        """Serialize one coherent registry snapshot while the caller holds _lock."""
+    def _snapshot_contacts(self) -> list[NodeContactInfo]:
+        """Select canonical contacts once; callers hold _lock for a coherent snapshot."""
         seen_keys: set[str] = set()
         local_included = False
-        result: list[dict[str, Any]] = []
+        result: list[NodeContactInfo] = []
+        for contact in self._nodes_by_key.values():
+            if not is_valid_node_key(contact.public_key) or contact.name.startswith("Node_unknow"):
+                continue
+            if contact.is_local or self.is_local_key(contact.public_key) or str(contact.role).upper() == "LOCAL":
+                if local_included:
+                    continue
+                local_included = True
+            norm_pk = contact.public_key.strip().lower()
+            if norm_pk not in seen_keys:
+                seen_keys.add(norm_pk)
+                result.append(contact)
+        return result
 
-        contacts_snapshot = list(self._nodes_by_key.values())
+    def _list_nodes_snapshot(self) -> list[dict[str, Any]]:
+        """Serialize the public view independently from persisted domain fields."""
+        result: list[dict[str, Any]] = []
+        contacts_snapshot = self._snapshot_contacts()
         local_node = next(
             (c for c in contacts_snapshot if c.is_local or self.is_local_key(c.public_key) or str(c.role).upper() == "LOCAL"),
             None,
@@ -1589,20 +1604,6 @@ class NodeRegistry:
             local_lon = local_node.adv_lon
 
         for c in contacts_snapshot:
-            if not is_valid_node_key(c.public_key) or c.name.startswith("Node_unknow"):
-                continue
-
-            # Deduplicar estrictamente el nodo local
-            if c.is_local or self.is_local_key(c.public_key) or str(c.role).upper() == "LOCAL":
-                if local_included:
-                    continue
-                local_included = True
-
-            norm_pk = c.public_key.strip().lower()
-            if norm_pk in seen_keys:
-                continue
-            seen_keys.add(norm_pk)
-
             node_dict = c.to_dict(local_lat=local_lat, local_lon=local_lon)
             # Preservar métricas medidas reales de LQI y hardware sin contaminación de presentación
             node_dict["lqi_score"] = c.lqi_score
@@ -1636,7 +1637,7 @@ class NodeRegistry:
             and not self.is_repeater_key(str(n.get("public_key", "")))
         ]
 
-    def _extract_top_repeaters(self, nodes_list: list[dict[str, Any]], direct_remote_nodes_count: int) -> list[dict[str, Any]]:
+    def _extract_top_repeaters(self, nodes_list: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Extrae y filtra los nodos de infraestructura (repetidores y routers) con mayor conectividad."""
         def is_repeater_node(n: dict[str, Any]) -> bool:
             if n.get("is_local") or str(n.get("role")).upper() == "LOCAL":
@@ -1654,20 +1655,24 @@ class NodeRegistry:
                 r_dict = dict(n)
                 neighbors_list = r_dict.get("neighbors") or []
                 clients_count = len(neighbors_list) if neighbors_list else int(r_dict.get("connected_clients_count") or 0)
-                if clients_count == 0:
-                    clients_count = max(1, direct_remote_nodes_count)
                 r_dict["connected_clients_count"] = clients_count
-                if r_dict.get("tx_power") is None:
-                    r_dict["tx_power"] = 20
-                if r_dict.get("hop_limit") is None:
-                    r_dict["hop_limit"] = 3
+                r_dict["connected_clients_count_source"] = (
+                    "neighbors" if neighbors_list else "reported" if clients_count else "unknown"
+                )
                 repeaters_list.append(r_dict)
 
         return heapq.nlargest(5, repeaters_list, key=lambda n: int(str(n.get("connected_clients_count", 0))))
 
     def get_analytics_summary(self) -> dict[str, Any]:
         """Calcula el resumen analítico avanzado (Top Nodos, Top Clientes, Top Errores)."""
-        nodes_list = self.list_nodes()
+        with self._lock:
+            nodes_list = self._list_nodes_snapshot()
+            contacts = {c.public_key: c for c in self._snapshot_contacts()}
+            for node in nodes_list:
+                contact = contacts[node["public_key"]]
+                # Analytics describes observations, not defaults of an editor.
+                for field_name in ("tx_power", "max_tx_power", "hop_limit", "repeat_enabled"):
+                    node[field_name] = getattr(contact, field_name)
 
         # 1. Top Nodos por Tráfico y Señal
         top_traffic = heapq.nlargest(10, nodes_list, key=lambda n: int(str(n.get("total_packets", 0))))
@@ -1676,8 +1681,7 @@ class NodeRegistry:
         top_worst_signal = heapq.nsmallest(5, measured_nodes, key=lambda n: float(n.get("last_snr", 0.0)))
 
         # 2. Top Routers & Repetidores
-        direct_remote_count = len([n for n in nodes_list if not n.get("is_local") and (n.get("hops") == 0 or n.get("hops") is None)])
-        top_repeaters = self._extract_top_repeaters(nodes_list, direct_remote_count)
+        top_repeaters = self._extract_top_repeaters(nodes_list)
 
         # 3. Top Errores y Totales Globales
         error_items: list[dict[str, Any]] = [{"category": k, "count": v} for k, v in self.error_categories.items()]
@@ -1777,7 +1781,9 @@ class NodeRegistry:
                 logging.debug("NodeRegistry sin cambios pendientes de persistencia (omitiendo escritura en disco)")
                 return True
             generation = self._generation
-            nodes_list = self._list_nodes_snapshot()
+            # Keep raw domain values, including None; view-only suggestions must
+            # never become firmware observations after a save/load roundtrip.
+            nodes_list = [contact.as_flat_dict() for contact in self._snapshot_contacts()]
             data = {
                 "local_pubkey": self._local_pubkey,
                 "saved_at": time.time(),

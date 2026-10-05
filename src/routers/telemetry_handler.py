@@ -39,6 +39,7 @@ class TelemetryHandler(BaseRxHandler):
 
         # Caso Log de RF / Métricas de señal a bajo nivel (LOG_DATA / RX_LOG_DATA)
         if "LOG" in meta.ev_upper or payload.get("event_type") in ("log_data", "rx_log_data"):
+            ctx._handle_rf_log_observation(payload, meta)
             rx_rssi = clean_numeric_value(payload.get("rssi", payload.get("RSSI")))
             rx_snr = clean_numeric_value(payload.get("snr", payload.get("SNR")))
             if rx_rssi is not None:

@@ -27,6 +27,7 @@ from src.contact_manager import (
     NodeRegistry,
 )
 from src.mqtt_client import AsyncBridgeMQTTClient
+from src.protocol_types import redact_sensitive_dict, redact_sensitive_mapping
 from src.repeater_manager import RepeaterManager
 from src.shared_utils import redact_sensitive_command
 from src.target_resolver import TargetResolver
@@ -101,10 +102,11 @@ class AdminCommandHandler:
         )
 
     def _publish_safe(self, topic: str, payload: str, qos: int = 1) -> None:
-        """Publica de forma segura a MQTT si el cliente está disponible."""
+        """Redact executor responses at the MQTT boundary before publication."""
         if self._ctx.mqtt and hasattr(self._ctx.mqtt, "publish_safe"):
             try:
-                self._ctx.mqtt.publish_safe(topic, payload, qos=qos)
+                public_payload = json.dumps(redact_sensitive_dict(json.loads(payload)))
+                self._ctx.mqtt.publish_safe(topic, public_payload, qos=qos)
             except Exception as e:
                 logging.debug(f"Error publicando en MQTT ({topic}): {e}")
 
@@ -318,7 +320,7 @@ class AdminCommandHandler:
     async def handle(self, admin_data: dict[str, Any]) -> dict[str, Any]:
         """Preserve command failures in the response envelope without exposing secrets."""
         try:
-            return await self._handle(admin_data)
+            return redact_sensitive_mapping(await self._handle(admin_data))
         except (ValueError, TypeError):
             return {"status": "error", "code": 422, "message": "Parámetros administrativos inválidos"}
         except (ConnectionError, NotImplementedError):

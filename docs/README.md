@@ -1,6 +1,6 @@
 # Documentación de MeshCore Bridge
 
-Índice revisado el 2026-09-29. Distingue las reglas y guías actuales de los informes que describen un momento histórico del proyecto.
+Índice revisado el 2026-10-05. Distingue las reglas y guías actuales de los informes que describen un momento histórico del proyecto.
 
 ## Autoridad y lectura recomendada
 
@@ -26,7 +26,8 @@ su atributo HTML de idioma usan el fallback inglés del paquete instalado.
 
 ## Decisiones e historial
 
-- [LAYERED_SYSTEM_AUDIT_2026-10-04.md](LAYERED_SYSTEM_AUDIT_2026-10-04.md): auditoría actual en cinco capas, errores reproducidos, contradicciones, inventario de clases/métodos, candidatos de desuso y plan de corrección. Los harness documentan defectos abiertos; no son pruebas de una solución aplicada.
+- [AUDIT_REMEDIATION_2026-10-05.md](AUDIT_REMEDIATION_2026-10-05.md): seguimiento vigente de las correcciones por hallazgo, regresiones y pendientes de la auditoría por capas.
+- [LAYERED_SYSTEM_AUDIT_2026-10-04.md](LAYERED_SYSTEM_AUDIT_2026-10-04.md): snapshot de auditoría en cinco capas, errores reproducidos, contradicciones, inventario y plan. Los harness afirman los defectos de esa revisión; la resolución posterior se registra en el seguimiento, sin reescribir las reproducciones.
 - [ADRs](adr/): decisiones y contexto histórico (ADR 0001 a ADR 0010); revisar estado y fecha. Una decisión anterior que no coincida con el código necesita conciliación explícita, sin borrar su historia.
 - [PROTOCOL_AUDIT_2026-09-29.md](PROTOCOL_AUDIT_2026-09-29.md): auditoría de frontera de protocolo MeshCore contrastando firmware C/C++, SDK oficial 2.3.14 y el bridge.
 - [FRONTEND_UI_REVIEW_2026-10-03.md](FRONTEND_UI_REVIEW_2026-10-03.md): plan, mejoras y evidencia de la revisión de temas, responsive, accesibilidad e idiomas de la SPA.

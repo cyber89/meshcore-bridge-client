@@ -422,6 +422,37 @@ A nivel de transporte TCP (por defecto `5000` tanto en el firmware Companion WiF
 - **App $\to$ Radio (`0x3C` / `<`)**: Tramas emitidas desde la aplicación hacia el nodo (ej. `CMD_APP_START (0x01)`, `CMD_SEND_TXT_MSG (0x02)`, `CMD_SEND_CHANNEL_TXT_MSG (0x03)`, `CMD_GET_CONTACTS (0x04)`).
 - **Radio $\to$ App (`0x3E` / `>`)**: Tramas emitidas desde el nodo hacia la aplicación (ej. `SELF_INFO (0x05)`, `CONTACT_START (0x02)`, `CONTACT (0x03)`, `CONTACT_END (0x04)`, `MSG_SENT (0x06)`, `CONTACT_MSG_RECV (0x07)`, `CHANNEL_MSG_RECV (0x08)`, `ACK (0x82)`, `STATUS_RESPONSE (0x87)`).
 
+#### Correlación de respuestas raw Companion
+
+El adaptador mantiene una tabla de respuesta terminal por opcode derivada de
+`reference/meshcore/examples/companion_radio/MyMesh.cpp`. Por ejemplo:
+
+| Comando | Opcode | Respuesta terminal admitida |
+|---|---|---|
+| SET_ADVERT_NAME | 8 | OK (0) |
+| SEND_TXT_MSG | 2 | SENT (6), sólo despacho, sin certificar entrega RF |
+| GET_DEVICE_TIME | 5 | CURR_TIME (9) |
+| GET_BATT_AND_STORAGE | 20 | BATTERY (12) |
+| GET_CONTACT_BY_KEY | 30 | CONTACT/NEXT_CONTACT (3) |
+| GET_CONTACTS | 4 | END (4); START (2) y CONTACT (3) son elementos intermedios |
+
+ERROR (1) y DISABLED (15) terminan con fallo. Los pushes >=0x80 conservan su
+canal asíncrono; una respuesta síncrona de otro tipo no confirma ni se entrega
+como respuesta del comando pendiente. El lock, timeout configurado y
+fire-and-forget de reboot permanecen. No hay retransmisión automática.
+La tabla completa está en `src/serial/sdk_adapter.py` (`_RAW_REPLY_TYPES`).
+
+OK/SENT no incluyen un ID de petición. Una respuesta tardía del mismo tipo
+sigue siendo ambigua; este contrato no acredita correlación perfecta ni
+validación de todos los campos del payload. Los opcodes desconocidos requieren
+un contrato explícito. SELF_INFO interpreta su byte TX como int8 con signo
+de forma canónica: 247 representa -9 dBm, sin aplicar límites de hardware.
+
+PATH_UPDATE (push 0x81) contiene una clave pública de 32 bytes. Su sincronización
+consulta GET_CONTACT_BY_KEY por Companion local y conserva hashes 00 del path;
+no dispara una consulta RF ni crea un scheduler.
+Regresiones y límites: [AUDIT_REMEDIATION_2026-10-05.md](AUDIT_REMEDIATION_2026-10-05.md).
+
 ### 13.2 Enrutamiento Multi-Salto (Multi-Hop Routing)
 El protocolo opera en dos modalidades principales de enrutamiento:
 1. **Inundación Controlada (`ROUTE_TYPE_FLOOD = 0x01` / `TRANSPORT_FLOOD = 0x00`)**:

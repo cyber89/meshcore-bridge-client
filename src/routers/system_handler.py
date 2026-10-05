@@ -48,6 +48,9 @@ class SystemHandler(BaseRxHandler):
         if "event_type" not in payload:
             payload["event_type"] = event_type
 
+        if event_type == "path_update" or clean_ev == "PATH_UPDATE":
+            ctx._handle_path_update(payload, meta)
+
         # Tratamiento limpio para respuestas de canales del transceptor local
         if event_type == "channel_info" or clean_ev == "CHANNEL_INFO":
             ch_name = str(payload.get("channel_name", "")).strip()

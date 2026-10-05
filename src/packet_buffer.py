@@ -67,6 +67,7 @@ class PacketInput:
     lqi_status: str = "N/A"
     raw_bytes: bytes | bytearray | None = None
     payload_dict: dict[str, Any] | None = None
+    redact_content: bool = False
 
 
 class PacketBuffer:
@@ -97,6 +98,7 @@ class PacketBuffer:
         lqi_status: str = "N/A",
         raw_bytes: bytes | bytearray | None = None,
         payload_dict: dict[str, Any] | None = None,
+        redact_content: bool = False,
     ) -> CapturedPacket | None:
         """Registra una trama en el búfer circular aceptando PacketInput o parámetros individuales."""
         if not self.capture_enabled:
@@ -117,6 +119,7 @@ class PacketBuffer:
             lqi_status = inp.lqi_status
             raw_bytes = inp.raw_bytes
             payload_dict = inp.payload_dict
+            redact_content = inp.redact_content
         else:
             direction_str = str(direction)
 
@@ -127,6 +130,21 @@ class PacketBuffer:
         b_bytes = bytes(raw_bytes) if raw_bytes else b""
         if not b_bytes and text:
             b_bytes = text.encode("utf-8", errors="ignore")
+        size_bytes = len(b_bytes)
+        # CLI scalar replies can be credentials even without a password label.
+        # Never retain their arbitrary payload or decoded Companion bytes in a
+        # public capture. Correlation and private waiter delivery happen upstream.
+        capture_payload = payload_dict or {}
+        redact_content = bool(
+            redact_content
+            or str(packet_type).upper() == "CLI_REPLY"
+            or capture_payload.get("txt_type", capture_payload.get("text_type")) in (1, "1")
+            or capture_payload.get("sensitive_response")
+        )
+        if redact_content:
+            text = "Contenido de administración protegido"
+            b_bytes = b""
+            capture_payload = {"content_redacted": True}
 
         pkt = CapturedPacket(
             packet_id=self._counter,
@@ -144,8 +162,8 @@ class PacketBuffer:
             lqi_score=lqi_score,
             lqi_status=lqi_status,
             raw_bytes=b_bytes,
-            payload_dict=copy.deepcopy(payload_dict) if payload_dict else {},
-            size_bytes=len(b_bytes),
+            payload_dict=copy.deepcopy(capture_payload),
+            size_bytes=size_bytes,
         )
 
         self._buffer.append(pkt)

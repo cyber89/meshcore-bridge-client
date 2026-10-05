@@ -33,6 +33,7 @@ from src.protocol_types import (
     RouteObservation,
     TextMessagePayload,
     decode_path_hashes,
+    normalize_tx_power,
     redact_command_str,
 )
 from src.repeater_manager import RepeaterManager
@@ -45,6 +46,7 @@ from src.shared_utils import (
     classify_device_role,
     clean_coordinate_value,
     clean_numeric_value,
+    extract_payload_dict,
     is_empty_channel_slot,
     safe_device_query,
     sanitize_public_payload,
@@ -278,6 +280,7 @@ class RxEventRouter:
                             rssi=getattr(event, "rssi", None),
                             snr=getattr(event, "snr", None),
                             raw_bytes=raw_b,
+                            redact_content=event.header.packet_type == PacketType.CLI_REPLY,
                         )
                         if pkt and self._ctx.web_server:
                             self._spawn_broadcast_task({"type": "rf_packet", "event": "rf_packet", "data": pkt.to_dict()})
@@ -294,13 +297,18 @@ class RxEventRouter:
                 return
 
             payload_dict, meta = normalized
+            sender_contact = self._ctx.node_registry.get_contact(meta.sender)
+            protect_admin_capture = bool(
+                payload_dict.get("txt_type", payload_dict.get("text_type")) in (1, "1")
+                or (sender_contact and sender_contact.role in ("REPEATER", "ROUTER") and meta.text)
+            )
 
             # Filtrar eventos internos, diagnóstico y logs para que no se contabilicen como paquetes RF de entrada
             is_internal_or_diag = (
                 meta.is_local_sender
                 or any(k in meta.ev_upper for k in (
                     "SELF", "BATTERY", "DEVICE_INFO", "STATUS", "STATS", "TUNING",
-                    "CUSTOM_VARS", "MSG_SENT", "ACK", "LOGIN", "CONTROL", "LOG", "DEBUG",
+                    "CUSTOM_VARS", "MSG_SENT", "ACK", "LOGIN", "CONTROL", "LOG", "DEBUG", "PATH_UPDATE",
                     "NO_MORE", "CHANNEL_INFO"
                 ))
                 or payload_dict.get("event_type") in (
@@ -329,6 +337,7 @@ class RxEventRouter:
                             snr=meta.effective_snr,
                             raw_bytes=raw_b if isinstance(raw_b, (bytes, bytearray)) else None,
                             payload_dict=payload_dict,
+                            redact_content=protect_admin_capture,
                         )
                         if pkt and self._ctx.web_server:
                             self._spawn_broadcast_task({"type": "rf_packet", "event": "rf_packet", "data": pkt.to_dict()})
@@ -426,7 +435,7 @@ class RxEventRouter:
             ev_type_str = str(raw_type)
         if ev_type_str.startswith("EventType."):
             ev_type_str = ev_type_str[len("EventType."):]
-        if ev_type_str.upper() == "PRIVATE_KEY":
+        if ev_type_str.upper() in ("PRIVATE_KEY", "CLI_REPLY"):
             # The original SDK event stays available to its command waiter.
             return None
 
@@ -561,7 +570,11 @@ class RxEventRouter:
             is_local_sender=is_local_sender,
         )
 
-        if sender and is_valid_node_key(sender):
+        specialized_route_event = (
+            meta.ev_upper in ("PATH_UPDATE", "RX_LOG_DATA", "LOG_DATA")
+            or payload_dict.get("event_type") in ("path_update", "rx_log_data", "log_data")
+        )
+        if sender and is_valid_node_key(sender) and not specialized_route_event:
             self._update_node_registry_presence(meta, payload_dict)
 
         return payload_dict, meta
@@ -714,17 +727,32 @@ class RxEventRouter:
         })
 
     def _handle_path_update(self, payload_dict: dict[str, Any], meta: RxMeta) -> None:
-        """Maneja el push 0x81 (PATH_UPDATE) solicitando GET_CONTACT de forma asíncrona."""
+        """Synchronize PATH_UPDATE via local Companion GET_CONTACT_BY_KEY (30)."""
         pk = str(payload_dict.get("public_key") or payload_dict.get("key") or meta.sender or "").strip().lower()
-        if not pk or not is_valid_node_key(pk) or self._ctx.node_registry.is_local_key(pk):
+        if len(pk) != 64 or not is_valid_node_key(pk) or self._ctx.node_registry.is_local_key(pk):
             return
 
         async def _query_and_update_path(target_key: str) -> None:
             ser = self._ctx.serial_adapter
             if not ser or not ser.mc:
                 return
-            res = await safe_device_query(ser.mc, "get_contact", target_key, timeout=4.0)
-            if res and isinstance(res, dict):
+            try:
+                if callable(getattr(ser, "run_sdk_command", None)):
+                    result = await asyncio.wait_for(
+                        ser.run_sdk_command("get_contact_by_key", bytes.fromhex(target_key)), timeout=4.0,
+                    )
+                else:
+                    result = await safe_device_query(
+                        ser.mc, "get_contact_by_key", bytes.fromhex(target_key), timeout=4.0,
+                    )
+            except Exception as exc:
+                logging.warning("[PATH_UPDATE] Local contact query failed: %s", type(exc).__name__)
+                return
+            result_type = getattr(result, "type", None)
+            if result_type is not None and str(result_type).upper().replace("EVENTTYPE.", "") != "NEXT_CONTACT":
+                return
+            res = extract_payload_dict(result)
+            if str(res.get("public_key", "")).strip().lower() == target_key and "out_path" in res:
                 out_p = res.get("out_path")
                 out_plen = clean_numeric_value(res.get("out_path_len"))
                 out_pmode = res.get("out_path_hash_mode")
@@ -777,7 +805,7 @@ class RxEventRouter:
         tagged_cli = bool(re.match(r"^[0-9a-fA-F]{2}\|", msg.text))
         # Scalar CLI replies need their request context; a password or latitude
         # must never become battery telemetry through the generic text parser.
-        extracted_telem = {} if tagged_cli else self._ctx.repeater_manager.parse_repeater_telemetry_or_response(msg.text)
+        extracted_telem = {} if tagged_cli or msg.txt_type == 1 else self._ctx.repeater_manager.parse_repeater_telemetry_or_response(msg.text)
         existing_contact = self._ctx.node_registry.get_contact(msg.sender)
         should_treat_as_repeater = bool(
             existing_contact and existing_contact.role in ("REPEATER", "ROUTER")
@@ -838,7 +866,7 @@ class RxEventRouter:
 
             if cmd_resp_payload.get("sensitive_response"):
                 public_text = "********"
-            elif tagged_cli and not cmd_resp_payload.get("response_matched"):
+            elif (tagged_cli or msg.txt_type == 1) and not cmd_resp_payload.get("response_matched"):
                 public_text = "Respuesta de administración no asociada"
             else:
                 public_text = redact_command_str(str(cmd_resp_payload.get("text", msg.text)))
@@ -952,8 +980,20 @@ class RxEventRouter:
 
     def _handle_mesh_telemetry_msg(self, payload_dict: dict[str, Any]) -> None:
         payload_dict = sanitize_public_payload(payload_dict)
+        ev_name = str(payload_dict.get("event_type", payload_dict.get("type", "telemetry")))
+        is_self_info = ev_name in ("self_info", "SELF_INFO", "self") or "SELF" in ev_name.upper()
+        if is_self_info and "tx_power" in payload_dict:
+            raw_power = payload_dict["tx_power"]
+            power = normalize_tx_power(raw_power)
+            if power is not None or raw_power is None:
+                payload_dict["tx_power"] = power
+            else:
+                payload_dict.pop("tx_power")
         # Extraer y normalizar exhaustivamente todas las lecturas de telemetría/sensores
         extracted_fields = extract_telemetry_fields(payload_dict)
+        if is_self_info:
+            # Generic telemetry accepts floats; SELF_INFO is an int8 wire field.
+            extracted_fields.pop("tx_power", None)
         payload_dict.update(extracted_fields)
         latitude, longitude = _location_pair(payload_dict)
         for key in ("lat", "latitude", "gps_lat", "adv_lat"):
@@ -1052,17 +1092,15 @@ class RxEventRouter:
                 logging.debug(f"Error actualizando ocupación de canal en rate limiter: {e}")
 
 
-        ev_name = str(payload_dict.get("event_type", payload_dict.get("type", "telemetry")))
-
         # Si el evento corresponde a configuración o hardware del nodo local, registrar con formato limpio [ESTACIÓN LOCAL]
-        if ev_name in ("self_info", "SELF_INFO", "self") or "SELF" in ev_name.upper():
+        if is_self_info:
             node_name = payload_dict.get("name") or "Estación Base"
             pk_val = str(payload_dict.get("public_key", sender or "")).strip().lower()
             freq = payload_dict.get("radio_freq", "--")
             sf = payload_dict.get("radio_sf", "--")
             bw = payload_dict.get("radio_bw", "--")
             cr = payload_dict.get("radio_cr", "--")
-            tx_p = payload_dict.get("tx_power", "--")
+            tx_p = normalize_tx_power(payload_dict.get("tx_power"))
 
             if pk_val and is_valid_node_key(pk_val):
                 self._ctx.node_registry.set_local_pubkey(pk_val)
@@ -1102,11 +1140,8 @@ class RxEventRouter:
                         cfg_update["coding_rate"] = int(cr)
                     except (ValueError, TypeError):
                         pass
-                if tx_p != "--":
-                    try:
-                        cfg_update["tx_power"] = int(tx_p)
-                    except (ValueError, TypeError):
-                        pass
+                if tx_p is not None or ("tx_power" in payload_dict and payload_dict["tx_power"] is None):
+                    cfg_update["tx_power"] = tx_p
                 self._ctx.admin_handler._local_config.update(cfg_update)
 
             logging.info(
@@ -1210,7 +1245,7 @@ class RxEventRouter:
 
     async def _dispatch_parsed_frame(self, frame: MeshcoreFrame) -> None:
         """Enruta instancias de MeshcoreFrame validadas a MQTT."""
-        if not frame.is_valid or frame.header.packet_type == PacketType.PRIVATE_KEY:
+        if not frame.is_valid or frame.header.packet_type in (PacketType.PRIVATE_KEY, PacketType.CLI_REPLY):
             return
         async with self._rx_semaphore:
             mqtt_evt = frame.to_mqtt_event()

@@ -20,7 +20,9 @@ def adapter() -> MeshcoreSDKAdapter:
     result = MeshcoreSDKAdapter("VIRTUAL", node_registry=registry)
     result.is_connected = True
     async def reply(data: bytes) -> None:
-        result._observe_companion_frame(b"\x00")
+        # Official SEND_TXT_MSG reports SENT; GET_BATT reports BATT_AND_STORAGE.
+        response = b"\x06" + bytes(9) if data[0] == 2 else b"\x0c" + bytes(6)
+        result._observe_companion_frame(response)
     result.mc = SimpleNamespace(cx=SimpleNamespace(send=AsyncMock(side_effect=reply)), self_info={"public_key": "ab" * 32})
     return result
 

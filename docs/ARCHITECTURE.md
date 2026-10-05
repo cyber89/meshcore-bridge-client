@@ -459,7 +459,7 @@ sequenceDiagram
 
 ## 11. Seguridad y Resiliencia Perimetral
 
-- **Autenticación API (`BRIDGE_API_KEY`)**: Cuando está configurada, se exige la cabecera `X-Api-Key` o parámetro `?api_key=` en todas las mutaciones (`POST`, `PUT`, `DELETE`, `PATCH`), endpoints de administración, inyección RF (`/api/tx`), descargas de logs (`/api/logs/download`, `/api/logs/raw`) y handshakes de WebSocket. Modo permisivo por defecto para desarrollo local si la variable no está definida.
+- **Autenticación API (`BRIDGE_API_KEY`)**: Cuando está configurada, se exige la cabecera `X-Api-Key` o parámetro `?api_key=` en todas las mutaciones (`POST`, `PUT`, `DELETE`, `PATCH`), endpoints de administración, inyección RF (`/api/tx`), descargas de logs (`/api/logs/download`, `/api/logs/raw`), listado/exportación de capturas (`/api/packets`, `/api/packets/export`, también HEAD) y handshakes de WebSocket. REST/WS usan el mismo parser URL/UTF-8; una cabecera no vacía tiene prioridad, y las claves duplicadas en query se rechazan. Comparación constante por bytes UTF-8. Modo permisivo por defecto para desarrollo local si la variable no está definida.
 - **Límite de Conexiones WebSocket**: Máximo 32 conexiones simultáneas concurrentes para prevenir agotamiento de descriptores de sockets y memoria en SBCs.
 - **Protección de Teselas Cartográficas**: Validación estricta de coordenadas y zoom ($0 \le z \le 22$, $0 \le x < 2^z$, $0 \le y < 2^z$) para evitar desbordamientos de enteros o caídas por desplazamiento negativo de bits.
 - **Autoridad de Roles**: La clasificación canónica deriva de `FirmwareAdvertType` (0/1 CLIENT, 2 REPEATER, 3 ROOM, 4 SENSOR), no del nombre. Las restricciones de `CONTEXT.md` excluyen repetidores y nodo local de Contactos/chat. Las heurísticas de normalización que aún existan deben revisarse frente a esa autoridad; la documentación no certifica cada ruta.
@@ -468,7 +468,7 @@ sequenceDiagram
 
 | Estado | Almacenamiento actual |
 | --- | --- |
-| Nodos | Registro RAM y JSON atómico (`NODE_REGISTRY_STORAGE_PATH`). |
+| Nodos | Registro RAM y JSON atómico (`NODE_REGISTRY_STORAGE_PATH`), serializado desde campos crudos del dominio, preservando None; independiente del DTO visual. |
 | Canales | JSON atómico (`CHANNELS_JSON_PATH`) y sincronización con firmware. |
 | Contactos | SDK/memoria de radio y registro local; sólo clientes en la agenda de chat. |
 | Airtime | Estimación con historial JSON (`AIRTIME_HISTORY_FILE`). |
@@ -524,3 +524,28 @@ deshabilitan; presets de región no se envían como parámetros del dispositivo.
 No se añadieron sondeos RF, reintentos, timers ni intervalos nuevos.
 Matriz, evidencia y aceptación física pendiente:
 [CONFIGURATION_PARAMETERS_AUDIT_2026-10-04.md](CONFIGURATION_PARAMETERS_AUDIT_2026-10-04.md).
+
+### Fronteras de recepción y estado observado
+
+Las respuestas CLI conservan su entrega privada al waiter administrativo.
+La captura pública protege todo contenido administrativo antes de almacenar:
+conserva metadatos/tamaño, marca `content_redacted` y elimina bytes/payload
+arbitrarios para JSON, CSV, hex y PCAP. Una respuesta CLI sin correlación
+no se interpreta como batería ni se publica como texto administrativo arbitrario.
+Las salidas de AdminHandler/CLI y la publicación MQTT administrativa usan
+el redactor canónico; PIN devuelve 0 con `has_pin`, sin modificar la caché privada.
+
+PATH_UPDATE y logs RF tienen operación específica en su estrategia propietaria.
+El primero usa GET_CONTACT_BY_KEY local por el lock compartido Companion,
+admite sólo la respuesta del objetivo y no cuenta como recepción RF.
+RX_LOG_DATA preserva la observación pasiva de path y su trust declarado.
+No hay sondeos periódicos nuevos. SELF_INFO normaliza TX int8 en una frontera
+común, sin clamp hardware ni modificación del payload privado SDK.
+
+La analítica no inventa potencia ni conectividad desde defaults de un editor.
+`connected_clients_count_source` distingue vecinos, contador reportado y
+ausencia de evidencia. Archivos históricos que ya contienen defaults no
+permiten inferir su origen; no se migran automáticamente. El DTO visual mantiene
+compatibilidad; la corrección pendiente WEB-09 debe distinguir medida/capacidad
+en el slider. Evidencia y pendientes:
+[AUDIT_REMEDIATION_2026-10-05.md](AUDIT_REMEDIATION_2026-10-05.md).

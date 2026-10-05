@@ -15,7 +15,8 @@ from typing import TYPE_CHECKING, Any
 
 import config
 from src.admin.sdk_commands import require_success, run_sdk_command
-from src.shared_utils import extract_payload_dict, normalize_battery
+from src.protocol_types import redact_sensitive_mapping
+from src.shared_utils import extract_payload_dict, normalize_battery, redact_sensitive_command
 
 if TYPE_CHECKING:
     from src.admin_handler import AdminContext
@@ -118,13 +119,16 @@ class CliCommandExecutor:
             else:
                 raise NotImplementedError(f"Comando no soportado: {action}")
         except Exception as e:
+            public_action = redact_sensitive_command(action)
+            public_error = "Operación administrativa fallida" if public_action != action.strip() else str(e)
             res["status"] = "error"
-            res["error"] = str(e)
-            res["result"] = f"✗ ERROR ejecutando comando '{action}': {e}"
+            res["error"] = public_error
+            res["result"] = f"✗ ERROR ejecutando comando '{public_action}': {public_error}"
 
         res["config"] = self._get_local_config()
-        self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(res), qos=1)
-        return res
+        public_res = redact_sensitive_mapping(res)
+        self._publish_safe(config.TOPIC_ADMIN_STAT, json.dumps(public_res), qos=1)
+        return public_res
 
     # ---- CLI Helper Adapters for Dispatch Table ---- #
 
@@ -1011,7 +1015,7 @@ class CliCommandExecutor:
                     await self._confirmed_local_config({"action": "set_local_config", "params": {"pin": int(val)}}, res, mc)
                     res["result"] = "✓ PIN de vinculación actualizado"
                 except ValueError:
-                    res["result"] = f"⚠️ PIN numérico inválido: {val}"
+                    res["result"] = "⚠️ PIN numérico inválido"
             elif sub_cmd in ("repeat", "repeater"):
                 from src.shared_utils import to_bool
                 b_val = to_bool(val)

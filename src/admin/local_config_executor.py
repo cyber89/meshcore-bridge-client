@@ -27,6 +27,7 @@ from src.contact_manager import NodeContactUpdate, is_valid_node_key
 from src.protocol_types import (
     LORA_MAX_FREQ_MHZ,
     LORA_MIN_FREQ_MHZ,
+    normalize_tx_power,
     redact_sensitive_dict,
 )
 from src.shared_utils import (
@@ -183,10 +184,10 @@ class LocalConfigExecutor:
         pk = si.get("public_key") or si.get("pubkey")
         if pk:
             cfg["public_key"] = str(pk).lower().strip()
-        # SELF_INFO stores int8 power; SDK versions decoding uint8 expose -9 as 247.
-        power = si.get("tx_power", cfg.get("tx_power"))
-        if isinstance(power, int) and not isinstance(power, bool) and 128 <= power <= 255:
-            power -= 256
+        raw_power = si.get("tx_power", cfg.get("tx_power"))
+        power = normalize_tx_power(raw_power)
+        if power is None and raw_power is not None:
+            power = normalize_tx_power(cfg.get("tx_power"))
         cfg.update({
             "name": si.get("name", cfg.get("name")),
             "owner_info": si.get("owner_info", si.get("owner", cfg.get("owner_info"))),

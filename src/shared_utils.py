@@ -5,7 +5,7 @@ import math
 import re
 from typing import Any
 
-from src.protocol_types import FirmwareAdvertType
+from src.protocol_types import FirmwareAdvertType, redact_command_str
 
 
 def classify_device_role(advert_type: int, is_local: bool = False) -> str:
@@ -444,24 +444,7 @@ def redact_sensitive_command(text: str) -> str:
     """Oculta contraseñas y secretos en comandos administrativos para logs y envelopes."""
     if not text:
         return text
-    clean = text.strip()
-    clean_lower = clean.lower()
-
-    sensitive_prefixes = (
-        "password ",
-        "set password ",
-        "set admin.password ",
-        "set guest.password ",
-        "set wifi.password ",
-        "login ",
-    )
-    for prefix in sensitive_prefixes:
-        if clean_lower.startswith(prefix):
-            head = clean[: len(prefix)]
-            secret = clean[len(prefix) :].strip()
-            return f"{head}{'*' * len(secret)}"
-
-    return clean
+    return redact_command_str(text.strip())
 
 
 

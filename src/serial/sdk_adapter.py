@@ -12,7 +12,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from src.protocol_types import MeshCoreSDKProtocol
+from src.protocol_types import MeshCoreSDKProtocol, normalize_tx_power
 from src.serial.serial_base import BaseSerialAdapter
 from src.shared_utils import classify_device_role, is_empty_channel_slot
 from src.target_resolver import TargetResolver
@@ -31,6 +31,43 @@ __all__ = ["MeshcoreSDKAdapter", "MeshCore", "EventType", "Event"]
 MAX_TEXT_BYTES = 160
 # Firmware stores channel names in char[32], with a trailing NUL.
 MAX_CHANNEL_NAME_BYTES = 31
+
+# Terminal synchronous response codes from Companion MyMesh.cpp. Pushes remain
+# asynchronous; GET_CONTACTS additionally forwards START/CONTACT until END.
+_RAW_OK_COMMANDS = (
+    3, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 18, 21, 24, 25, 28, 29,
+    32, 34, 37, 38, 41, 51, 54, 55, 58, 61, 62, 63, 65,
+)
+_RAW_REPLY_TYPES: dict[int, frozenset[int]] = {
+    **{opcode: frozenset({0}) for opcode in _RAW_OK_COMMANDS},
+    1: frozenset({5}),  # APP_START -> SELF_INFO
+    2: frozenset({6}),  # SEND_TXT_MSG -> SENT (not delivery ACK)
+    4: frozenset({4}),  # GET_CONTACTS -> END_OF_CONTACTS
+    5: frozenset({9}),  # GET_DEVICE_TIME -> CURR_TIME
+    10: frozenset({7, 8, 10, 16, 17}),  # SYNC_NEXT_MESSAGE
+    17: frozenset({11}),  # EXPORT_CONTACT
+    20: frozenset({12}),  # GET_BATT_AND_STORAGE
+    22: frozenset({13}),  # DEVICE_QUERY
+    23: frozenset({14}),  # EXPORT_PRIVATE_KEY
+    26: frozenset({6}),  # SEND_LOGIN
+    27: frozenset({6}),  # SEND_STATUS_REQ
+    30: frozenset({3}),  # GET_CONTACT_BY_KEY
+    31: frozenset({18}),  # GET_CHANNEL
+    33: frozenset({19}),  # SIGN_START
+    35: frozenset({20}),  # SIGN_FINISH
+    36: frozenset({6}),  # SEND_TRACE_PATH
+    39: frozenset({6}),  # Remote SEND_TELEMETRY_REQ; self telemetry is a push.
+    40: frozenset({21}),  # GET_CUSTOM_VARS
+    42: frozenset({22}),  # GET_ADVERT_PATH
+    43: frozenset({23}),  # GET_TUNING_PARAMS
+    50: frozenset({6}),  # SEND_BINARY_REQ
+    52: frozenset({6}),  # SEND_PATH_DISCOVERY_REQ
+    56: frozenset({24}),  # GET_STATS
+    57: frozenset({6}),  # SEND_ANON_REQ
+    59: frozenset({25}),  # GET_AUTOADD_CONFIG
+    60: frozenset({26}),  # GET_ALLOWED_REPEAT_FREQ
+    64: frozenset({28}),  # GET_DEFAULT_FLOOD_SCOPE
+}
 
 
 class _BootWaitSerialConnection:
@@ -102,6 +139,18 @@ def _safe_truncate_utf8(text: str, max_bytes: int = 32) -> str:
     return raw[:max_bytes].decode("utf-8", "ignore")
 
 
+def _copy_self_info_snapshot(info: dict[str, Any]) -> dict[str, Any]:
+    """Normalize observed fields without modifying a private SDK payload."""
+    snapshot = dict(info)
+    if "tx_power" in snapshot:
+        power = normalize_tx_power(snapshot["tx_power"])
+        if power is not None or snapshot["tx_power"] is None:
+            snapshot["tx_power"] = power
+        else:
+            snapshot.pop("tx_power")
+    return snapshot
+
+
 class MeshcoreSDKAdapter(BaseSerialAdapter):
     """Adaptador principal basado en el SDK oficial meshcore_py."""
 
@@ -135,14 +184,18 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
             return
         pending = self._raw_command_future
         raw_active = pending is not None and not pending.done()
-        if (data[0] >= 0x80 or raw_active) and self.companion_rx_callback:
+        response_type = data[0]
+        terminal = _RAW_REPLY_TYPES.get(self._raw_command_opcode or 0, frozenset())
+        failed = response_type in (1, 15)  # ERR / DISABLED
+        stream_item = self._raw_command_opcode == 4 and response_type in (2, 3)
+        matches_raw = raw_active and (failed or stream_item or response_type in terminal)
+        if (response_type >= 0x80 or matches_raw) and self.companion_rx_callback:
             try:
                 self.companion_rx_callback(data)
             except Exception as ex:
                 logging.debug("Error en companion_rx_callback: %s", ex)
-        if pending is not None and raw_active and data[0] < 0x80:
-            if self._raw_command_opcode != 4 or data[0] in (0, 1, 4):
-                pending.set_result(data[0] != 1)
+        if pending is not None and matches_raw and not stream_item:
+            pending.set_result(not failed)
 
     def _raw_chat_permitted(self, data: bytes) -> bool:
         """Keep the same local identity and infrastructure guards on the raw path."""
@@ -231,11 +284,18 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         """Información del nodo local obtenida del SDK."""
         if self._self_info is not None:
             return self._self_info
-        return getattr(self.mc, "self_info", None) if self.mc else None
+        info = getattr(self.mc, "self_info", None) if self.mc else None
+        if isinstance(info, dict):
+            self._self_info = _copy_self_info_snapshot(info)
+            return self._self_info
+        return info
 
     @self_info.setter
     def self_info(self, value: Any) -> None:
-        self._self_info = value
+        if isinstance(value, dict):
+            self._self_info = _copy_self_info_snapshot(value)
+        else:
+            self._self_info = value
 
     async def connect(self) -> bool:
         if MeshCore is None:
@@ -858,10 +918,9 @@ class MeshcoreSDKAdapter(BaseSerialAdapter):
         logging.debug(f"Self info: {data}")
         payload = getattr(data, "payload", data)
         if isinstance(payload, dict):
-            if self._self_info is None or not isinstance(self._self_info, dict):
-                self._self_info = dict(payload)
-            else:
-                self._self_info.update(payload)
+            update = _copy_self_info_snapshot(payload)
+            current = self._self_info if isinstance(self._self_info, dict) else {}
+            self.self_info = {**current, **update}
         if self.rx_callback:
             self.rx_callback(data)
 

@@ -20,6 +20,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs
 
 from src.web.api_router import WebAPIRouter
 from src.web.security_inspector import (
@@ -602,6 +603,8 @@ class MeshCoreWebServer:
             "/api/diagnostics/report",
             "/api/diagnostics/report.md",
             "/api/channels/export",
+            "/api/packets",
+            "/api/packets/export",
         )
         needs_auth = False
         clean_p = ctx.path.split("?")[0].rstrip("/")
@@ -622,30 +625,48 @@ class MeshCoreWebServer:
             logging.warning("BRIDGE_API_KEY no configurada, omitiendo autenticación (modo desarrollo)")
             return True
 
-        req_api_key = ctx.headers.get("x-api-key", "")
-        if not req_api_key and "?" in ctx.path:
-            import urllib.parse
-            query_str = ctx.path.split("?", 1)[1]
-            params = urllib.parse.parse_qs(query_str)
-            if "api_key" in params and params["api_key"]:
-                req_api_key = params["api_key"][0]
-
-        if not hmac.compare_digest(req_api_key, api_key):
+        if not self._has_valid_api_key(ctx, api_key):
             SecurityTrafficInspector.log_suspicious_traffic(
                 SuspiciousTrafficEvent(
                     client_ip=ctx.client_ip,
                     source_type="API-AUTH",
-                    endpoint=ctx.path,
+                    endpoint=clean_p,
                     anomaly_type="AUTENTICACION_API_FALLIDA",
-                    detail=f"Intento no autorizado a endpoint protegido '{ctx.path}'",
+                    detail=f"Intento no autorizado a endpoint protegido '{clean_p}'",
                     user_agent=ctx.headers.get("user-agent", ""),
                 )
             )
             resp_bytes = json.dumps({"error": "Unauthorized"}).encode("utf-8")
-            await self._write_http_response(ctx.writer, "401 Unauthorized", resp_bytes, "application/json", cors_origin=ctx.cors_origin)
+            await self._write_http_response(
+                ctx.writer, "401 Unauthorized", resp_bytes, "application/json",
+                cors_origin=ctx.cors_origin, head_only=(ctx.method == "HEAD"),
+            )
             return False
 
         return True
+
+    @staticmethod
+    def _extract_api_key(ctx: HttpRequestContext) -> str:
+        """Use one credential source, rejecting ambiguous or malformed query values."""
+        header_key = ctx.headers.get("x-api-key", "")
+        if header_key:
+            return header_key
+        try:
+            params = parse_qs(ctx.path.partition("?")[2], keep_blank_values=True, errors="strict")
+        except ValueError:
+            return ""
+        query_keys = params.get("api_key", [])
+        return query_keys[0] if len(query_keys) == 1 else ""
+
+    @classmethod
+    def _has_valid_api_key(cls, ctx: HttpRequestContext, expected_key: str) -> bool:
+        """Compare UTF-8 bytes in constant time for REST and WebSocket credentials."""
+        try:
+            return hmac.compare_digest(
+                cls._extract_api_key(ctx).encode("utf-8"), expected_key.encode("utf-8"),
+            )
+        except UnicodeEncodeError:
+            return False
 
     def _is_origin_allowed(self, req_origin: str, host_header: str, allowed_origins: list[str]) -> bool:
         """Valida si el origen HTTP/WebSocket está autorizado para CORS y WebSockets."""
@@ -681,7 +702,7 @@ class MeshCoreWebServer:
                 SuspiciousTrafficEvent(
                     client_ip=ctx.client_ip,
                     source_type="WEBSOCKET",
-                    endpoint=ctx.path,
+                    endpoint=ctx.path.split("?", 1)[0],
                     anomaly_type="CONEXIONES_WS_AGOTADAS",
                     detail="Límite máximo de 32 conexiones concurrentes WebSocket alcanzado",
                     user_agent=ctx.headers.get("user-agent", ""),
@@ -692,17 +713,12 @@ class MeshCoreWebServer:
 
         api_key = os.getenv("BRIDGE_API_KEY", "")
         if api_key:
-            ws_key = ctx.headers.get("x-api-key", "")
-            if not ws_key and "?" in ctx.path:
-                for param in ctx.path.split("?", 1)[1].split("&"):
-                    if param.startswith("api_key="):
-                        ws_key = param.split("=", 1)[1]
-            if not hmac.compare_digest(ws_key, api_key):
+            if not self._has_valid_api_key(ctx, api_key):
                 SecurityTrafficInspector.log_suspicious_traffic(
                     SuspiciousTrafficEvent(
                         client_ip=ctx.client_ip,
                         source_type="WEBSOCKET",
-                        endpoint=ctx.path,
+                        endpoint=ctx.path.split("?", 1)[0],
                         anomaly_type="AUTENTICACION_WS_FALLIDA",
                         detail="Handshake WebSocket rechazado por API Key ausente o inválida",
                         user_agent=ctx.headers.get("user-agent", ""),

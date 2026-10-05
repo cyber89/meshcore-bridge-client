@@ -11,6 +11,7 @@ Companion UART framing is managed by the official SDK.
 
 from __future__ import annotations
 
+import re
 import struct
 from dataclasses import asdict, dataclass
 from enum import IntEnum
@@ -228,6 +229,17 @@ class HardwareModel(IntEnum):
     M5STACK_CORE = 0x08
     SEEED_XIAO = 0x09
     RP2040_LORA = 0x0A
+
+
+def normalize_tx_power(value: object) -> int | None:
+    """Decode SELF_INFO int8 dBm, including SDKs exposing its uint8 byte.
+
+    This is wire interpretation, not hardware power validation or clamping.
+    Missing, malformed and out-of-byte-range values remain unknown.
+    """
+    if not isinstance(value, int) or isinstance(value, bool) or not -128 <= value <= 255:
+        return None
+    return value - 256 if value >= 128 else value
 
 
 def compute_crc16_ccitt(data: bytes, init: int = 0xFFFF, poly: int = 0x1021) -> int:
@@ -805,6 +817,8 @@ REMOTE_FLOOD_INTERVAL_MAX_HOURS: int = 168
 SENSITIVE_CONFIG_KEYS: frozenset[str] = frozenset({
     "pin",
     "devicepin",
+    "ble_pin",
+    "blepin",
     "password",
     "admin_password",
     "guest_password",
@@ -818,6 +832,13 @@ SENSITIVE_CONFIG_KEYS: frozenset[str] = frozenset({
     "identity_key",
 })
 
+_PIN_CONFIG_KEYS: frozenset[str] = frozenset({"pin", "devicepin", "ble_pin", "blepin"})
+_SENSITIVE_COMMAND = re.compile(
+    r"^(?P<prefix>(?:password|login)\s+|set[ _](?:password|admin\.password|guest\.password|"
+    r"wifi\.password|prv\.key|prv_key|pin|ble_pin|blepin|devicepin)\s+).*$",
+    re.IGNORECASE | re.DOTALL,
+)
+
 
 def redact_command_str(cmd: str) -> str:
     """Redacta contraseñas y credenciales de comandos de texto y respuestas de firmware."""
@@ -825,16 +846,9 @@ def redact_command_str(cmd: str) -> str:
         return cmd
     s = str(cmd).strip()
     lower = s.lower()
-    for prefix in (
-        "password ",
-        "login ",
-        "set admin.password ",
-        "set guest.password ",
-        "set prv.key ",
-        "set prv_key ",
-    ):
-        if lower.startswith(prefix):
-            return f"{s[:len(prefix)]}********"
+    match = _SENSITIVE_COMMAND.match(s)
+    if match:
+        return f"{match.group('prefix')}********"
     if "password changed to " in lower:
         idx = lower.find("password changed to ")
         return f"{s[:idx + len('password changed to ')]}********"
@@ -847,7 +861,7 @@ def redact_sensitive_mapping(data: dict[str, Any]) -> dict[str, Any]:
     for k, v in data.items():
         k_lower = str(k).lower().strip()
         if k_lower in SENSITIVE_CONFIG_KEYS:
-            if k_lower in ("pin", "devicepin"):
+            if k_lower in _PIN_CONFIG_KEYS:
                 # Redacting an already redacted envelope must retain its presence flag.
                 result["has_pin"] = bool(v and v != 0 and v != "0") or data.get("has_pin") is True
                 result[k] = 0

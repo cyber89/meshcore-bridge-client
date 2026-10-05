@@ -47,7 +47,9 @@ def test_nonfinite_numeric_input_is_missing_not_a_metric(value: object) -> None:
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
 async def test_nonfinite_rf_log_cannot_poison_previous_metrics(value: float) -> None:
     ctx = _context()
-    await TelemetryHandler().handle(ctx, {"rssi": value, "snr": value}, _meta("RX_LOG_DATA"), None)
+    # Strategies receive the router, which owns passive route observations.
+    router = RxEventRouter(ctx)
+    await TelemetryHandler().handle(router, {"rssi": value, "snr": value}, _meta("RX_LOG_DATA"), None)
     assert ctx.last_rx_rssi == -80
     assert ctx.last_rx_snr == 8.0
 
