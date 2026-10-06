@@ -31,6 +31,7 @@ export class EventBus {
 
   /**
    * Escucha un evento exactamente una vez.
+   * API pública conservada para integraciones; la SPA actual usa on().
    * @param {string} eventName Nombre del evento
    * @param {Function} handler Función callback
    */

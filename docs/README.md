@@ -26,7 +26,7 @@ su atributo HTML de idioma usan el fallback inglés del paquete instalado.
 
 ## Decisiones e historial
 
-- [AUDIT_REMEDIATION_2026-10-05.md](AUDIT_REMEDIATION_2026-10-05.md): seguimiento vigente de las correcciones por hallazgo, regresiones y pendientes de la auditoría por capas.
+- [AUDIT_REMEDIATION_2026-10-05.md](AUDIT_REMEDIATION_2026-10-05.md): seguimiento vigente de los 39 hallazgos originales, cierre de los 32 restantes, riesgos adicionales, reproducciones y verificación integrada. El primer lote conserva sus resultados históricos.
 - [LAYERED_SYSTEM_AUDIT_2026-10-04.md](LAYERED_SYSTEM_AUDIT_2026-10-04.md): snapshot de auditoría en cinco capas, errores reproducidos, contradicciones, inventario y plan. Los harness afirman los defectos de esa revisión; la resolución posterior se registra en el seguimiento, sin reescribir las reproducciones.
 - [ADRs](adr/): decisiones y contexto histórico (ADR 0001 a ADR 0010); revisar estado y fecha. Una decisión anterior que no coincida con el código necesita conciliación explícita, sin borrar su historia.
 - [PROTOCOL_AUDIT_2026-09-29.md](PROTOCOL_AUDIT_2026-09-29.md): auditoría de frontera de protocolo MeshCore contrastando firmware C/C++, SDK oficial 2.3.14 y el bridge.

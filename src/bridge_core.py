@@ -13,6 +13,7 @@ import signal
 import time
 from collections.abc import Callable, Coroutine
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Protocol, cast
 
 import config
@@ -100,7 +101,7 @@ class MeshCoreBridge:
             self.node_registry.load_from_file()
         except Exception as e:
             logging.debug(f"No se pudo cargar NodeRegistry previo: {e}")
-        self.repeater_manager = RepeaterManager()
+        self.repeater_manager = RepeaterManager(storage_path=Path(config.DATA_DIR) / "repeater_cooldowns.json")
         self.rate_limiter = TxRateLimiter(
             tx_interval_sec=config.TX_INTERVAL_SEC,
             radio_config=LoRaRadioConfig(
@@ -128,37 +129,59 @@ class MeshCoreBridge:
                 password=config.MQTT_PASSWORD,
                 keepalive=config.MQTT_KEEPALIVE,
                 topic_prefix=config.TOPIC_PREFIX,
+                tls_enabled=config.MQTT_TLS,
+                tls_ca_file=config.MQTT_TLS_CA_FILE,
+                tls_cert_file=config.MQTT_TLS_CERT_FILE,
+                tls_key_file=config.MQTT_TLS_KEY_FILE,
             ),
             on_rx_message_callback=self._on_incoming_mqtt_message,
         )
         self.preflight = PreflightChecker()
         self._pending_acks: dict[str, dict[str, Any]] = {}
 
-    def register_pending_ack(self, expected_ack: str, req_id: str, target: str = "") -> None:
-        """Registra un expected_ack para correlacionar la entrega con el msg_id."""
+    def _prune_pending_acks(self) -> None:
+        """Expire delivery correlations using the agreed 3600-second lifetime."""
+        now = time.monotonic()
+        pending = getattr(self, "_pending_acks", {})
+        expired = [key for key, info in pending.items()
+                   if now - info.get("registered_at", float("-inf")) >= 3600]
+        for key in expired:
+            pending.pop(key, None)
+
+    def register_pending_ack(self, expected_ack: str, req_id: str, target: str = "") -> str:
+        """Track at most 200 pending deliveries without replacing another request."""
         clean_ack = str(expected_ack).lower().strip()
         if clean_ack.startswith("0x"):
             clean_ack = clean_ack[2:]
-        if not clean_ack or set(clean_ack) <= {"0"}:
-            return
-        now = time.time()
-        # Podar entradas de más de 1 hora si la tabla supera 200 elementos
-        if len(self._pending_acks) > 200:
-            self._pending_acks = {k: v for k, v in self._pending_acks.items() if now - v.get("timestamp", 0) < 3600}
+        self._prune_pending_acks()
+        if len(clean_ack) != 8 or any(char not in "0123456789abcdef" for char in clean_ack) or set(clean_ack) <= {"0"}:
+            return "invalid_ack"
+        previous = self._pending_acks.get(clean_ack)
+        if previous:
+            if previous.get("req_id") == req_id and previous.get("target") == target:
+                return "registered"
+            logging.warning("ACK delivery tracking unavailable: collision; request_id=%s", req_id)
+            return "collision"
+        if len(self._pending_acks) >= 200:
+            logging.warning("ACK delivery tracking unavailable: capacity_exceeded; request_id=%s", req_id)
+            return "capacity_exceeded"
         self._pending_acks[clean_ack] = {
             "req_id": req_id,
-            "timestamp": now,
+            "timestamp": time.time(),
+            "registered_at": time.monotonic(),
             "target": target,
         }
+        return "registered"
 
     def resolve_pending_ack(self, ack_code: str) -> dict[str, Any] | None:
         """Resuelve el msg_id y target asociados a un código ACK recibido."""
         clean_ack = str(ack_code).lower().strip()
         if clean_ack.startswith("0x"):
             clean_ack = clean_ack[2:]
+        self._prune_pending_acks()
         if not clean_ack or set(clean_ack) <= {"0"}:
             return None
-        return self._pending_acks.get(clean_ack)
+        return self._pending_acks.pop(clean_ack, None)
 
     def _init_adapters_and_watchdog(self) -> None:
         """Inicializa adaptador serial, watchdog, gestor de diagnóstico y servidor web."""
@@ -224,7 +247,11 @@ class MeshCoreBridge:
             if not getattr(self, "running", False):
                 return
             try:
-                self._add_background_task(asyncio.create_task(factory()))
+                router = getattr(self, "rx_router", None)
+                if isinstance(router, RxEventRouter):
+                    router._enqueue_work(factory)
+                else:
+                    self._add_background_task(asyncio.create_task(factory()))
             except Exception:
                 logging.exception("No se pudo iniciar tarea background", extra={"skip_broadcast": True})
 
@@ -329,6 +356,7 @@ class MeshCoreBridge:
     async def _cleanup_loop(self) -> None:
         while self.running:
             await asyncio.sleep(60.0)
+            self._prune_pending_acks()
             async with self._tasks_lock:
                 self._background_tasks.difference_update([t for t in self._background_tasks if t.done()])
             try:
@@ -543,6 +571,12 @@ class MeshCoreBridge:
     async def _start_subsystems(self) -> None:
         self.running = True
         loop = self._custom_loop or asyncio.get_running_loop()
+        manager = getattr(self, "repeater_manager", None)
+        if manager is not None:
+            await manager.load_state()
+        dispatcher = getattr(self, "mqtt_dispatcher", None)
+        if dispatcher is not None:
+            dispatcher.start()
 
         # 0. Diagnósticos Preflight de arranque
         report = await asyncio.to_thread(self.preflight.run_all,
@@ -592,6 +626,12 @@ class MeshCoreBridge:
         self._started = False
         logging.info("Deteniendo MeshCore Bridge...")
         self.running = False
+        dispatcher = getattr(self, "mqtt_dispatcher", None)
+        if dispatcher is not None:
+            try:
+                await asyncio.wait_for(dispatcher.close(), timeout=1.5)
+            except Exception:
+                logging.warning("MQTT ingress shutdown did not complete within existing shutdown bound")
 
         cleanup_task = self._cleanup_task
         if cleanup_task is not None and not cleanup_task.done():
@@ -647,6 +687,14 @@ class MeshCoreBridge:
 
         if hasattr(self, "log_handler") and self.log_handler in logging.getLogger().handlers:
             logging.getLogger().removeHandler(self.log_handler)
+        manager = getattr(self, "repeater_manager", None)
+        if manager is not None:
+            try:
+                await asyncio.wait_for(manager.close(), timeout=1.5)
+            except Exception:
+                logging.warning("Repeater cooldown persistence did not complete at shutdown")
+        if hasattr(self, "_pending_acks"):
+            self._pending_acks.clear()
         self._is_stopped = True
         logging.info("MeshCore Bridge detenido correctamente.")
 
@@ -853,6 +901,8 @@ class MeshCoreBridge:
         }
         if error_detail:
             ack_payload["error"] = error_detail
+        if status_val == "sent" and expected_ack_hex and req_id:
+            ack_payload["delivery_tracking"] = self.register_pending_ack(expected_ack_hex, req_id, str(target))
 
         self.publish_mqtt_safe(config.TOPIC_TX_STATUS, json.dumps(ack_payload), qos=1)
         self._record_tx_packet(str(target), ch_idx, text, is_admin_cmd, ack_payload)
@@ -870,8 +920,6 @@ class MeshCoreBridge:
                 except Exception as ex:
                     logging.debug(f"Error registrando airtime de TX directa en rate_limiter: {ex}")
 
-            if expected_ack_hex and req_id:
-                self.register_pending_ack(expected_ack_hex, req_id, str(target))
             dest_label = "Broadcast / Canal 0" if is_broadcast else f"Nodo [{target[:8] if len(str(target)) >= 8 else target}]"
             logging.info(
                 f"[TX-TRANSMISIÓN] Destino: {dest_label} | Canal: #{ch_idx} | "

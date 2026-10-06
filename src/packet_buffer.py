@@ -16,6 +16,7 @@ from collections import deque
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any
+from uuid import uuid4
 
 from src.metrics_aggregator import MetricsAggregator
 
@@ -41,6 +42,7 @@ class CapturedPacket:
     raw_bytes: bytes = b""
     payload_dict: dict[str, Any] = field(default_factory=dict)
     size_bytes: int = 0
+    session_id: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """Serializa la trama a un diccionario apto para JSON / API REST."""
@@ -80,6 +82,7 @@ class PacketBuffer:
         self.max_packets = max_packets
         self._buffer: deque[CapturedPacket] = deque(maxlen=max_packets)
         self._counter = 0
+        self.session_id = uuid4().hex
         self.capture_enabled = True
         self.metrics_aggregator = MetricsAggregator()
 
@@ -148,6 +151,7 @@ class PacketBuffer:
 
         pkt = CapturedPacket(
             packet_id=self._counter,
+            session_id=self.session_id,
             timestamp=now_ts,
             iso_time=iso_time,
             direction=direction_str.lower(),
@@ -185,8 +189,11 @@ class PacketBuffer:
         offset: int = 0,
         direction: str | None = None,
         p_type: str | None = None,
+        order: str = "asc",
     ) -> tuple[list[dict[str, Any]], int]:
         """Obtiene un lote paginado y filtrado de paquetes."""
+        if order not in ("asc", "desc"):
+            raise ValueError("order must be asc or desc")
         items = list(self._buffer)
         if direction:
             dir_clean = direction.strip().lower()
@@ -196,6 +203,8 @@ class PacketBuffer:
             items = [p for p in items if p.packet_type == type_clean]
 
         total = len(items)
+        if order == "desc":
+            items.reverse()
         if offset > 0:
             items = items[offset:]
         if limit > 0:

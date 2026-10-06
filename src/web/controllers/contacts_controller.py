@@ -66,6 +66,23 @@ class ContactsController(BaseController):
         req_body: dict[str, Any],
     ) -> tuple[int, dict[str, Any]]:
         """Maneja todas las rutas asociadas a /api/contacts."""
+        resource_methods = {
+            "/api/contacts": {"GET", "POST", "DELETE"},
+            "/api/contacts/sync": {"POST"},
+            "/api/contacts/share": {"POST"},
+            "/api/contacts/export": {"GET", "POST"},
+            "/api/contacts/import": {"POST"},
+        }
+        path_pubkey = ""
+        if path not in resource_methods:
+            match = re.fullmatch(r"/api/contacts/([0-9a-fA-F]{64})", path)
+            if not match:
+                return problem_details(404, "Not Found", "Ruta de contactos desconocida", "route_not_found")
+            path_pubkey = match.group(1).lower()
+            if method != "DELETE":
+                return problem_details(405, "Method Not Allowed", "Contacto individual admite DELETE", "method_not_allowed")
+        elif method not in resource_methods[path]:
+            return problem_details(405, "Method Not Allowed", "Método no permitido para este recurso", "method_not_allowed")
         if path == "/api/contacts/sync" and method == "POST":
             return await self._sync_contacts()
 
@@ -84,12 +101,6 @@ class ContactsController(BaseController):
 
         if method == "POST":
             return await self._create_or_update_contact(req_body)
-
-        path_pubkey = ""
-        if path.startswith("/api/contacts/"):
-            sub = path.removeprefix("/api/contacts/").strip()
-            if sub and "/" not in sub and sub not in ("sync", "share", "export", "import", "discovered", "accept"):
-                path_pubkey = sub
 
         if method == "DELETE":
             return await self._delete_contact(req_body, path_pubkey=path_pubkey)

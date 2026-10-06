@@ -393,10 +393,21 @@ class AdminCommandHandler:
                 vars_data = {admin_data["key"]: admin_data.get("value", admin_data.get("val", ""))}
             if not isinstance(vars_data, dict):
                 raise ValueError("custom_vars debe ser un objeto")
+            # Validate the whole request before any irreversible device write.
             for k, v in vars_data.items():
-                result = await self.set_custom_var(str(k), str(v))
+                self._local_config_executor._validate_custom_var(str(k), str(v))
+            applied_vars: dict[str, str] = {}
+            for k, v in vars_data.items():
+                try:
+                    result = await self.set_custom_var(str(k), str(v))
+                except Exception as error:
+                    return {"status": "partial" if applied_vars else "error", "code": 502,
+                            "message": str(error), "applied": {"custom_vars": applied_vars}}
                 if str(result.get("status", "")).lower() == "error":
-                    return result
+                    return {**result, "status": "partial" if applied_vars else "error",
+                            "applied": {"custom_vars": applied_vars}}
+                applied_vars[str(k)] = str(v)
+            res["applied"] = {"custom_vars": applied_vars}
             res["custom_vars"] = await self.get_custom_vars()
             return res
 
@@ -414,7 +425,7 @@ class AdminCommandHandler:
             return res
 
         if action == "set_path_hash_mode":
-            ph_mode = int(admin_data.get("mode", admin_data.get("path_hash_mode", 0)))
+            ph_mode = admin_data.get("mode", admin_data.get("path_hash_mode", 0))
             return await self.set_path_hash_mode(ph_mode)
 
         if action == "get_autoadd_config":
@@ -422,9 +433,9 @@ class AdminCommandHandler:
             return res
 
         if action == "set_autoadd_config":
-            flags = int(admin_data.get("flags", admin_data.get("config", 0)))
+            flags = admin_data.get("flags", admin_data.get("config", 0))
             max_h = admin_data.get("max_hops")
-            return await self.set_autoadd_config(flags, int(max_h) if max_h is not None else None)
+            return await self.set_autoadd_config(flags, max_h)
 
         if action == "get_flood_scope":
             res["flood_scope"] = await self.get_flood_scope()

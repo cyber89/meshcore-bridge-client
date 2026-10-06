@@ -99,7 +99,7 @@ async def test_cli_tuning_calls_the_official_sdk_method() -> None:
     mc.commands.get_tuning.return_value = Event(EventType.TUNING_PARAMS, {"rx_delay": 1000, "airtime_factor": 2000})
     result = await cli_executor(ctx, cfg).execute("tuning", {}, mc)
     mc.commands.get_tuning.assert_awaited_once()
-    assert "1.0s" in result["result"]
+    assert "Base RX: 1.0 (adimensional)" in result["result"]
     assert "2.0x" in result["result"]
 
 

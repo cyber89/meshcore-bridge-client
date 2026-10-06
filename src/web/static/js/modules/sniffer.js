@@ -65,6 +65,9 @@ export class SnifferModule {
     this.ctx = context;
     this.systemLogs = [];
     this.rfPackets = [];
+    this._packetGeneration = 0;
+    this._logGeneration = 0;
+    this._packetSession = null;
     this.isDebugMode = false;
     this.logsScrollPaused = false;
     this.isSnifferPaused = false;
@@ -282,14 +285,48 @@ export class SnifferModule {
   // Módulo de Paquetes RF (LoRa Sniffer)
   // ================================================================
 
+  _packetKey(pkt) {
+    return JSON.stringify([pkt.session_id ?? null, pkt.packet_id ?? null,
+      pkt.packet_id == null ? pkt : null]);
+  }
+
+  _logKey(log) {
+    return JSON.stringify([log.timestamp, log.iso_time, log.level, log.module,
+      log.logger, log.source, log.message, log.exception]);
+  }
+
+  _mergeRecords(snapshot, current, getKey) {
+    // Keep duplicate log occurrences while reconciling overlapping HTTP/WS copies.
+    const counts = new Map();
+    for (const record of snapshot) {
+      const key = getKey(record);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    const merged = [...snapshot];
+    for (const record of current) {
+      const key = getKey(record);
+      const remaining = counts.get(key) || 0;
+      if (remaining) counts.set(key, remaining - 1);
+      else merged.push(record);
+    }
+    return merged;
+  }
+
   async fetchCapturedPackets() {
+    const generation = ++this._packetGeneration;
+    const existingPackets = new Set(this.rfPackets);
     try {
-      const res = await fetch("/api/packets?limit=200", {
+      const res = await fetch("/api/packets?limit=200&order=desc", {
         headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
       });
       const data = await res.json();
-      if (data.status === "ok" && Array.isArray(data.data)) {
-        this.rfPackets = data.data;
+      if (generation !== this._packetGeneration) return;
+      if (res.ok && data.status === "ok" && Array.isArray(data.data)) {
+        const snapshot = [...data.data].reverse();
+        this._acceptPacketSession(data.session_id || snapshot[0]?.session_id);
+        const live = this.rfPackets.filter(pkt => !existingPackets.has(pkt));
+        this.rfPackets = this._mergeRecords(snapshot, live, pkt => this._packetKey(pkt))
+          .sort((a, b) => Number(a.packet_id) - Number(b.packet_id)).slice(-MAX_RAW_PACKETS);
         this.updateSnifferBadge();
         this.renderFilteredPackets();
       }
@@ -299,6 +336,9 @@ export class SnifferModule {
   }
 
   onRfPacketReceived(pkt) {
+    this._acceptPacketSession(pkt.session_id);
+    const key = this._packetKey(pkt);
+    if (this.rfPackets.some(existing => this._packetKey(existing) === key)) return;
     this.rfPackets.push(pkt);
     if (this.rfPackets.length > MAX_RAW_PACKETS) {
       this.rfPackets.shift();
@@ -316,14 +356,23 @@ export class SnifferModule {
     }
   }
 
+  _acceptPacketSession(sessionId) {
+    if (!sessionId) return;
+    if (this._packetSession && this._packetSession !== sessionId) {
+      ++this._packetGeneration;
+      this.rfPackets = [];
+    }
+    this._packetSession = sessionId;
+  }
+
   setSnifferCapture(enabled) {
     this.isSnifferPaused = !enabled;
     this.updateSnifferCaptureState();
   }
 
   toggleSnifferPause() {
-    this.isSnifferPaused = !this.isSnifferPaused;
-    this.updateSnifferCaptureState();
+    // Retained public compatibility facade; current bindings use setSnifferCapture.
+    this.setSnifferCapture(this.isSnifferPaused);
   }
 
   updateSnifferCaptureState() {
@@ -338,6 +387,8 @@ export class SnifferModule {
   }
 
   async clearCapturedPackets() {
+    ++this._packetGeneration;
+    const existingPackets = new Set(this.rfPackets);
     try {
       const res = await fetch("/api/packets", {
         method: "DELETE",
@@ -356,7 +407,8 @@ export class SnifferModule {
         }
         return;
       }
-      this.rfPackets = [];
+      ++this._packetGeneration;
+      this.rfPackets = this.rfPackets.filter(pkt => !existingPackets.has(pkt));
       this.updateSnifferBadge();
       this.renderFilteredPackets();
       if (this.ctx.showToast) {
@@ -607,13 +659,18 @@ export class SnifferModule {
   // ================================================================
 
   async fetchSystemLogs() {
+    const generation = ++this._logGeneration;
+    const existingLogs = new Set(this.systemLogs);
     try {
       const res = await fetch("/api/system/logs?limit=200", {
         headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
       });
       const data = await res.json();
-      if (data.status === "ok" && Array.isArray(data.data)) {
-        this.systemLogs = data.data;
+      if (generation !== this._logGeneration) return;
+      if (res.ok && data.status === "ok" && Array.isArray(data.data)) {
+        const live = this.systemLogs.filter(log => !existingLogs.has(log));
+        this.systemLogs = this._mergeRecords(data.data, live, log => this._logKey(log))
+          .sort((a, b) => Number(a.timestamp || 0) - Number(b.timestamp || 0)).slice(-MAX_SYSTEM_LOGS);
         if (data.current_level) {
           this.isDebugMode = data.current_level === "DEBUG";
           this.updateDebugButtonState();
@@ -812,6 +869,8 @@ export class SnifferModule {
 
   async clearSystemLogs() {
     if (this.dom.btnClearLogs?.disabled) return;
+    ++this._logGeneration;
+    const existingLogs = new Set(this.systemLogs);
     if (this.dom.btnClearLogs) this.dom.btnClearLogs.disabled = true;
     try {
       const res = await fetch("/api/system/logs", {
@@ -823,7 +882,8 @@ export class SnifferModule {
         try { const data = await res.json(); detail = data.detail || data.message || detail; } catch (_) {}
         throw new Error(detail);
       }
-      this.systemLogs = [];
+      ++this._logGeneration;
+      this.systemLogs = this.systemLogs.filter(log => !existingLogs.has(log));
       this.renderFilteredLogs();
     } catch (e) {
       console.warn("Error limpiando logs:", e);

@@ -119,6 +119,7 @@ class RfExecutionContext:
     waiter_keys: list[str]
     fut: asyncio.Future[dict[str, Any]]
     res: dict[str, Any]
+    cooldown_reserved: bool = False
 
 
 @dataclass(slots=True)
@@ -155,12 +156,24 @@ class RepeaterAdminExecutor:
 
     async def execute(self, req: RemoteRepeaterRequest) -> dict[str, Any]:
         try:
+            state_loader = getattr(self._ctx.repeater_manager, "load_state", None)
+            if callable(state_loader):
+                loading = state_loader()
+                if asyncio.iscoroutine(loading):
+                    await loading
             target = self._ctx.node_registry.get_canonical_key(str(req.target_node)) or str(req.target_node).strip().lower()
             lock = self._request_locks.setdefault(target, asyncio.Lock())
             async with lock:
                 return await self._execute_request(req)
         except Exception as error:
             return {"status": "error", "target_node": str(req.target_node), "message": str(error)}
+
+    async def _flush_cooldowns(self) -> None:
+        writer = getattr(self._ctx.repeater_manager, "flush_state", None)
+        if callable(writer):
+            writing = writer()
+            if asyncio.iscoroutine(writing):
+                await writing
 
     async def _execute_request(self, req: RemoteRepeaterRequest) -> dict[str, Any]:
         """Punto de entrada principal para despachar acciones sobre un repetidor remoto."""
@@ -197,6 +210,8 @@ class RepeaterAdminExecutor:
             return await self._execute_ping_zero(req, target_info, res)
 
         if req.action in ("refresh_telemetry", "full_telemetry", "refresh_repeater_telemetry", "get_telemetry_batch"):
+            if target_info and str(target_info.get("role", "")).upper() not in ("REPEATER", "ROUTER"):
+                return {"status": "error", "code": 422, "message": "El lote de administración requiere un repetidor"}
             return await self._execute_batch_telemetry_query(req, target_info, res)
 
         if is_client_only:
@@ -439,6 +454,7 @@ class RepeaterAdminExecutor:
             return {"status": "error", "message": "No se encontraron parámetros válidos para configurar"}
 
         self._ctx.repeater_manager.record_command_sent(str(req.target_node), is_full_query=True)
+        await self._flush_cooldowns()
         dispatched: list[str] = []
         applied: dict[str, Any] = {}
         saved: dict[str, Any] = {}
@@ -622,9 +638,10 @@ class RepeaterAdminExecutor:
 
                 t_start = time.perf_counter()
                 cmd_text = "ping 0"
-                await self._send_rf_command(req.mc, dest_target, cmd_text, str(req.target_node), req.req_id)
                 if hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "record_ping_sent"):
                     self._ctx.repeater_manager.record_ping_sent(str(req.target_node))
+                    await self._flush_cooldowns()
+                await self._send_rf_command(req.mc, dest_target, cmd_text, str(req.target_node), req.req_id)
 
                 resp_data = await self._wait_for_repeater_response(req.mc, fut, timeout=5.0) or {}
             finally:
@@ -703,6 +720,7 @@ class RepeaterAdminExecutor:
 
         if hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "record_command_sent"):
             self._ctx.repeater_manager.record_command_sent(str(req.target_node), is_full_query=True)
+            await self._flush_cooldowns()
 
         dest_target = self._resolve_target(str(req.target_node), 12)
         dest_login_target = self._resolve_target(str(req.target_node), 12)
@@ -726,18 +744,28 @@ class RepeaterAdminExecutor:
             await asyncio.sleep(0.4)
 
         accumulated_telemetry: dict[str, Any] = {}
+        binary_responses: list[str] = []
+        binary_requested: list[str] = []
 
         # 1. Consulta binaria directa de estado (RepeaterStats del firmware MeshCore)
         if req.mc and hasattr(req.mc, "commands") and hasattr(req.mc.commands, "req_status_sync"):
+            binary_requested.append("req_status_sync")
             try:
                 status_res = await run_sdk_command(self._ctx, req.mc, "req_status_sync", dest_login_target, timeout=4.0)
                 if status_res and isinstance(status_res, dict):
+                    require_success(status_res, "req_status_sync")
                     raw_bat = status_res.get("bat")
+                    if isinstance(raw_bat, bool) or not isinstance(raw_bat, int) or not 0 <= raw_bat <= 65535:
+                        raise ValueError("Lectura binaria de batería inválida")
+                    binary_responses.append("req_status_sync")
                     if raw_bat is not None:
-                        pct_norm, volt_norm = normalize_battery(raw_bat)
+                        volt_norm = raw_bat / 1000
+                        pct_norm, _ = normalize_battery(f"{raw_bat}mV")
                         accumulated_telemetry["battery_pct"] = int(round(pct_norm))
                         accumulated_telemetry["voltage_v"] = volt_norm
                         accumulated_telemetry["battery_mv"] = int(raw_bat)
+                        accumulated_telemetry["battery_source"] = "repeater_status"
+                        accumulated_telemetry["battery_pct_source"] = "voltage_estimate"
                     if status_res.get("noise_floor") is not None:
                         accumulated_telemetry["noise_floor_dbm"] = int(status_res["noise_floor"])
                     if status_res.get("last_rssi") is not None:
@@ -768,17 +796,20 @@ class RepeaterAdminExecutor:
 
         # 2. Consulta binaria directa de telemetría / sensores LPP
         if req.mc and hasattr(req.mc, "commands") and hasattr(req.mc.commands, "req_telemetry_sync"):
+            binary_requested.append("req_telemetry_sync")
             try:
                 lpp_res = await run_sdk_command(self._ctx, req.mc, "req_telemetry_sync", dest_login_target, timeout=3.5)
                 if lpp_res:
+                    require_success(lpp_res, "req_telemetry_sync")
                     from src.sensor_decoder import extract_telemetry_fields
                     decoded_lpp = extract_telemetry_fields({"lpp": lpp_res})
                     if decoded_lpp:
                         accumulated_telemetry.update(decoded_lpp)
+                        binary_responses.append("req_telemetry_sync")
             except Exception as e:
                 logging.debug(f"Fallo en req_telemetry_sync: {e}")
 
-        queries = ["ver", "clock", "get radio", "get dutycycle", "get pwrmgt.bootmv"]
+        queries = ["ver", "clock", "get radio", "get dutycycle"]
         dispatched: list[str] = []
         responses: dict[str, str] = {}
 
@@ -789,7 +820,7 @@ class RepeaterAdminExecutor:
                 resp_data = await self._wait_for_repeater_response(req.mc, cmd_fut, timeout=4.0) or {}
                 raw_resp = resp_data.get("text") or resp_data.get("message") or ""
                 resp_text = raw_resp[2:].strip() if raw_resp.startswith("> ") else raw_resp.strip()
-                if resp_text:
+                if resp_text and not self._ctx.repeater_manager.response_is_error(resp_text):
                     responses[cmd] = resp_text
                     parsed = self._ctx.repeater_manager.parse_command_response(cmd, resp_text)
                     if cmd == "get radio":
@@ -815,7 +846,6 @@ class RepeaterAdminExecutor:
         if accumulated_telemetry:
             update = NodeContactUpdate(
                 last_seen=time.time(),
-                role="REPEATER",
                 last_rssi=accumulated_telemetry.get("last_rssi"),
                 last_snr=accumulated_telemetry.get("last_snr"),
                 battery_pct=accumulated_telemetry.get("battery_pct"),
@@ -859,14 +889,19 @@ class RepeaterAdminExecutor:
                     except Exception:
                         pass
 
+        confirmed_count = len(responses) + len(binary_responses)
+        requested_count = len(queries) + len(binary_requested)
         res.update({
-            "status": "ok",
+            "status": "ok" if confirmed_count == requested_count else ("partial" if confirmed_count else "error"),
             "action": req.action,
             "target_node": norm_target,
             "dispatched": dispatched,
             "responses": responses,
+            "binary_responses": binary_responses,
+            "confirmed_count": confirmed_count,
+            "requested_count": requested_count,
             "telemetry": accumulated_telemetry,
-            "message": f"Telemetría consolidada de {norm_target[:8]} ({len(responses)}/{len(queries)} respuestas)",
+            "message": f"Telemetría consolidada de {norm_target[:8]} ({confirmed_count}/{requested_count} respuestas válidas)",
         })
         self._publish_safe(f"{config.TOPIC_ADMIN_REPEATER}/{norm_target}/telemetry", json.dumps(res), 1)
         return res
@@ -911,15 +946,18 @@ class RepeaterAdminExecutor:
             if req.action in ("login", "auth"):
                 return await self._execute_auth_command(rf_ctx)
 
-            if req.action in (
+            if req.action.strip().lower() in (
                 "req_neighbours", "req_neighbors", "neighbours", "neighbors",
                 "req_owner", "req_regions", "req_clock", "req_acl",
                 "acl", "get_acl",
                 "req_status", "status", "req_telemetry", "telemetry",
+                "bat", "get_bat", "get bat", "battery",
             ):
                 allowed, remaining = self._ctx.repeater_manager.check_airtime_cooldown(str(req.target_node), is_full_query=False)
                 if not allowed:
                     return self._ctx.repeater_manager.build_cooldown_error_response(remaining)
+                self._ctx.repeater_manager.record_command_sent(str(req.target_node), is_full_query=False)
+                await self._flush_cooldowns()
                 if req.password:
                     authenticated, message = await self._authenticate_repeater(rf_ctx, min_timeout=4.0)
                     if not authenticated:
@@ -927,7 +965,6 @@ class RepeaterAdminExecutor:
                         return res
                     # Auth completed; a fallback CLI must not log in again.
                     req.password = ""
-                self._ctx.repeater_manager.record_command_sent(str(req.target_node), is_full_query=False)
                 bin_res = await self._try_execute_binary_or_anon(rf_ctx)
                 if bin_res is not None:
                     return bin_res
@@ -944,8 +981,11 @@ class RepeaterAdminExecutor:
         if not mc or not hasattr(mc, "commands"):
             return None
 
-        action = rf_ctx.req.action.lower()
+        action = rf_ctx.req.action.strip().lower()
         action = {"acl": "req_acl", "get_acl": "req_acl"}.get(action, action)
+        battery_only = action in ("bat", "get_bat", "get bat", "battery")
+        if battery_only:
+            action = "req_status"
         target = rf_ctx.dest_login_target
         cmds = mc.commands
 
@@ -976,6 +1016,7 @@ class RepeaterAdminExecutor:
                 if hasattr(cmds, "req_neighbours_sync"):
                     if hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "record_neighbours_sent"):
                         self._ctx.repeater_manager.record_neighbours_sent(str(rf_ctx.req.target_node))
+                        await self._flush_cooldowns()
                     count = int(rf_ctx.req.admin_data.get("count", 255))
                     offset = int(rf_ctx.req.admin_data.get("offset", 0))
                     data = await run_sdk_command(self._ctx, mc, "req_neighbours_sync", target, count=count, offset=offset, min_timeout=4.0)
@@ -1001,6 +1042,17 @@ class RepeaterAdminExecutor:
                         if source in data:
                             normalized[field] = data[source]
                     telemetry = self._ctx.repeater_manager.parse_repeater_telemetry_or_response(json.dumps(normalized))
+                    if "bat" in data:
+                        raw_bat = data["bat"]
+                        if isinstance(raw_bat, bool) or not isinstance(raw_bat, int) or not 0 <= raw_bat <= 65535:
+                            raise ValueError("Lectura binaria de batería inválida")
+                        voltage = raw_bat / 1000
+                        estimated_pct, _ = normalize_battery(f"{raw_bat}mV")
+                        telemetry.update(battery_mv=raw_bat, voltage_v=voltage,
+                                         battery_pct=int(round(estimated_pct)),
+                                         battery_source="repeater_status", battery_pct_source="voltage_estimate")
+                    elif battery_only:
+                        raise ValueError("La respuesta de estado no contiene batería")
                     if "direct_dups" in data or "flood_dups" in data:
                         telemetry["duplicate_packets"] = int(data.get("direct_dups") or 0) + int(data.get("flood_dups") or 0)
                     if isinstance(data.get("telemetry"), dict):
@@ -1075,18 +1127,19 @@ class RepeaterAdminExecutor:
 
             elif action in ("req_clock", "clock", "req_basic") and hasattr(cmds, "req_basic_sync"):
                 data = await run_sdk_command(self._ctx, mc, "req_basic_sync", target, min_timeout=4.0)
-                if data is not None:
+                if isinstance(data, dict):
+                    require_success(data, "req_basic_sync")
                     clock_str = ""
-                    raw_tag = data.get("tag") or (data.get("data")[:8] if isinstance(data.get("data"), str) else "")
-                    if raw_tag and len(raw_tag) == 8:
-                        try:
-                            ts_int = int.from_bytes(bytes.fromhex(raw_tag), byteorder="little")
-                            if 1577836800 <= ts_int <= 2147483647:
-                                from datetime import datetime, timezone
-                                dt = datetime.fromtimestamp(ts_int, timezone.utc)
-                                clock_str = dt.strftime("%H:%M - %d/%m/%Y UTC")
-                        except Exception:
-                            pass
+                    raw_data = data.get("data")
+                    if not isinstance(raw_data, str):
+                        raise ValueError("El nodo no devolvió los bytes de su RTC")
+                    clock_bytes = bytes.fromhex(raw_data)
+                    if len(clock_bytes) < 4:
+                        raise ValueError("Respuesta RTC incompleta")
+                    ts_int = int.from_bytes(clock_bytes[:4], byteorder="little")
+                    from datetime import datetime, timezone
+                    dt = datetime.fromtimestamp(ts_int, timezone.utc)
+                    clock_str = dt.strftime("%H:%M - %d/%m/%Y UTC")
                     rf_ctx.res.update({
                         "status": "ok",
                         "action": action,
@@ -1212,6 +1265,9 @@ class RepeaterAdminExecutor:
         if not can_send:
             return self._ctx.repeater_manager.build_cooldown_error_response(rem_cd)
 
+        self._ctx.repeater_manager.record_command_sent(str(req.target_node), is_full_query=False)
+        await self._flush_cooldowns()
+        rf_ctx.cooldown_reserved = True
         if req.password and req.action != "login":
             authenticated, message = await self._send_pre_login(rf_ctx)
             if not authenticated:
@@ -1231,7 +1287,10 @@ class RepeaterAdminExecutor:
         """Envía el comando con su propia espera, después de validar el prelogin solicitado."""
         req = rf_ctx.req
 
-        self._ctx.repeater_manager.record_command_sent(str(req.target_node), is_full_query=False)
+        if not rf_ctx.cooldown_reserved:
+            self._ctx.repeater_manager.record_command_sent(str(req.target_node), is_full_query=False)
+            await self._flush_cooldowns()
+            rf_ctx.cooldown_reserved = True
         t_start = time.perf_counter()
 
         await self._send_rf_command(req.mc, rf_ctx.dest_target, cmd_text, str(req.target_node), req.req_id, response_future=rf_ctx.fut)

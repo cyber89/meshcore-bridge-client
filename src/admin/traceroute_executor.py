@@ -46,6 +46,10 @@ class TracerouteExecutor:
         target_str = str(target_node or "").strip()
         force = bool(admin_data.get("force", False))
         rep_mgr = getattr(self._ctx, "repeater_manager", None)
+        if rep_mgr is not None and hasattr(rep_mgr, "load_state"):
+            loading = rep_mgr.load_state()
+            if asyncio.iscoroutine(loading):
+                await loading
         if not force and rep_mgr is not None and hasattr(rep_mgr, "check_traceroute_cooldown"):
             chk_result = rep_mgr.check_traceroute_cooldown(target_str)
             if isinstance(chk_result, tuple) and len(chk_result) >= 2:
@@ -80,6 +84,12 @@ class TracerouteExecutor:
         trace_data_payload: dict[str, Any] | None = None
         trace_waiter: asyncio.Task[Any] | None = None
         try:
+            if rep_mgr is not None and hasattr(rep_mgr, "record_traceroute_sent"):
+                rep_mgr.record_traceroute_sent(target_str)
+                if hasattr(rep_mgr, "flush_state"):
+                    writing = rep_mgr.flush_state()
+                    if asyncio.iscoroutine(writing):
+                        await writing
             from meshcore.events import EventType
             if mc and hasattr(mc, "dispatcher") and hasattr(mc.dispatcher, "wait_for_event"):
                 # Subscribe before sending: a valid trace may arrive before MSG_SENT.
@@ -87,8 +97,6 @@ class TracerouteExecutor:
                 await asyncio.sleep(0)
             send_ev = await self._dispatch_trace_rf(mc, trace_path_arg, trace_flags, tag=tag)
             require_success(send_ev, "send_trace")
-            if hasattr(self._ctx, "repeater_manager") and hasattr(self._ctx.repeater_manager, "record_traceroute_sent"):
-                self._ctx.repeater_manager.record_traceroute_sent(target_str)
             if trace_waiter is not None:
                 suggested_to = 6.0
                 if send_ev and hasattr(send_ev, "payload") and isinstance(send_ev.payload, dict):

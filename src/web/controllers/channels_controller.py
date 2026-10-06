@@ -104,11 +104,18 @@ class ChannelsController(BaseController):
         req_body: dict[str, Any],
     ) -> tuple[int, dict[str, Any]]:
         """Enruta solicitudes hacia /api/channels y /api/channels/sync."""
-        if path == "/api/channels/sync" and method == "POST":
-            return await self._sync_channels()
+        if path == "/api/channels/sync":
+            if method == "POST":
+                return await self._sync_channels()
+            return problem_details(405, "Method Not Allowed", "Sincronización requiere POST", "method_not_allowed")
 
-        if path == "/api/channels/export" and method in ("GET", "POST"):
-            return await self._export_channel(req_body)
+        if path == "/api/channels/export":
+            if method in ("GET", "POST"):
+                return await self._export_channel(req_body)
+            return problem_details(405, "Method Not Allowed", "Exportación requiere GET o POST", "method_not_allowed")
+
+        if path != "/api/channels":
+            return problem_details(404, "Not Found", "Ruta de canales desconocida", "route_not_found")
 
         if method == "GET":
             return await self._get_channels(sync_serial=False)

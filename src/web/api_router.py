@@ -80,15 +80,6 @@ ROUTE_ALIASES: dict[str, str] = {
 }
 
 
-def _safe_int(val: Any, default: int, min_val: int = 0, max_val: int = 100000) -> int:
-    """Convierte de forma segura cualquier entrada a entero acotado."""
-    try:
-        res = int(val)
-        return max(min_val, min(max_val, res))
-    except (ValueError, TypeError):
-        return default
-
-
 def _parse_bounded_int(
     val: Any,
     field_name: str,
@@ -198,14 +189,12 @@ class WebAPIRouter:
 
         diag = getattr(self.bridge, "diagnostics", None)
         if diag and hasattr(diag, "log_handler") and diag.log_handler:
-            if lvl_upper in ("ERROR", "CRITICAL"):
-                diag.log_handler.error_count += 1
-            elif lvl_upper in ("WARNING", "WARN"):
-                diag.log_handler.warn_count += 1
-            elif lvl_upper == "INFO":
-                diag.log_handler.info_count += 1
-            else:
-                diag.log_handler.debug_count += 1
+            record = logging.LogRecord(
+                name=source,
+                level=getattr(logging, lvl_upper, logging.INFO),
+                pathname=__file__, lineno=0, msg=message, args=(), exc_info=None,
+            )
+            diag.log_handler.handle(record)
 
     def record_incoming_event(self, ev_type_or_data: str | dict[str, Any], event_data: dict[str, Any] | None = None) -> None:
         """Registra eventos en los buffers circulares en memoria para clientes web."""
@@ -356,10 +345,10 @@ class WebAPIRouter:
             ):
                 return await self._dispatch_nodes(method, path, clean_path, req_body)
 
-            if clean_path.startswith("/api/contacts"):
+            if clean_path == "/api/contacts" or clean_path.startswith("/api/contacts/"):
                 return await self._dispatch_contacts(method, clean_path, req_body)
 
-            if clean_path.startswith("/api/channels"):
+            if clean_path == "/api/channels" or clean_path.startswith("/api/channels/"):
                 return await self._dispatch_channels(method, clean_path, req_body)
 
             if clean_path in ("/api/tx", "/api/messages/recent"):
@@ -405,14 +394,7 @@ class WebAPIRouter:
         if clean_path in ("/api/health", "/api/diagnostics") and method == "GET":
             return await self.system_ctrl.get_health()
         if clean_path in ("/api/diagnostics/report.md", "/api/diagnostics/report") and method == "GET":
-            diag = getattr(self.bridge, "diagnostics", None)
-            from src.diagnostics import DiagnosticManager
-
-            if isinstance(diag, DiagnosticManager):
-                md_text = await asyncio.to_thread(diag.generate_markdown_report)
-            else:
-                md_text = "# Reporte de Diagnóstico no disponible"
-            return 200, {"status": "ok", "markdown": md_text, "text": md_text}
+            return await self._route_logs(raw_path, clean_path)
         if clean_path == "/api/diagnostics/export" and method == "GET":
             diag = getattr(self.bridge, "diagnostics", None)
             from src.diagnostics import DiagnosticManager
@@ -475,6 +457,9 @@ class WebAPIRouter:
                 raw_offset = req_body.get("offset")
                 direction = str(req_body.get("direction", ""))
                 p_type = str(req_body.get("type", ""))
+                order = str(req_body.get("order", "asc"))
+                if order not in ("asc", "desc"):
+                    return problem_details(400, "Bad Request", "order debe ser asc o desc", "invalid_order")
 
                 limit, err = _parse_bounded_int(raw_limit, "limit", default=100, min_val=1, max_val=500)
                 if err:
@@ -482,7 +467,7 @@ class WebAPIRouter:
                 offset, err = _parse_bounded_int(raw_offset, "offset", default=0, min_val=0, max_val=100000)
                 if err:
                     return err
-                return await self.packets_ctrl.get_packets(limit, offset, direction, p_type)
+                return await self.packets_ctrl.get_packets(limit, offset, direction, p_type, order)
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
         return problem_details(404, "Not Found", f"Ruta no encontrada: {method} {clean_path}", "route_not_found")
@@ -562,6 +547,10 @@ class WebAPIRouter:
 
     async def _dispatch_contacts(self, method: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Despacha rutas de libreta de contactos al ContactsController."""
+        if clean_path in ("/api/contacts/discovered", "/api/contacts/accept"):
+            expected_method = "GET" if clean_path.endswith("/discovered") else "POST"
+            if method != expected_method:
+                return problem_details(405, "Method Not Allowed", "Método no permitido para este recurso", "method_not_allowed")
         if clean_path == "/api/contacts/discovered" and method == "GET":
             discovered = self.bridge.node_registry.list_discovered()
             return 200, {"status": "ok", "data": {"discovered": discovered, "count": len(discovered)}}
@@ -754,11 +743,14 @@ class WebAPIRouter:
         if clean_path == "/api/map/status" and method == "GET":
             return 200, {"status": "ok", "data": await asyncio.to_thread(self.map_tile_service.get_status)}
 
-        if clean_path == "/api/map/reload" and method in ("GET", "POST"):
+        if clean_path == "/api/map/reload":
+            if method != "POST":
+                return problem_details(405, "Method Not Allowed", "La recarga de mapas requiere POST", "method_not_allowed")
             try:
                 await asyncio.to_thread(self.map_tile_service.reload_mbtiles)
             except Exception as e:
                 logging.warning("Error recargando mosaicos de mapas: %s", e)
+                return problem_details(500, "Internal Server Error", "No se pudieron reindexar los mapas locales", "map_reload_failed")
             return 200, {
                 "status": "ok",
                 "message": "Archivos MBTiles reindexados correctamente",

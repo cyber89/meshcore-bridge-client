@@ -7,26 +7,19 @@ el bot de auto-eco, telemetría y sniffer.
 from __future__ import annotations
 
 import asyncio
-import os
-import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock
 
-from src.bridge_core import MeshCoreBridge
-from src.virtual_mesh_adapter import VirtualMeshAdapter
+import config
+from run_interactive_demo import create_demo_bridge
 
 
 class TestVirtualMeshSimulation(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
-        self.temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-        self.db_path = self.temp_db.name
-        self.temp_db.close()
-
-        # Instanciar bridge con base temporal
-        self.bridge = MeshCoreBridge(db_path=self.db_path)
-        # Reemplazar adaptador serial por el VirtualMeshAdapter
-        self.v_adapter = VirtualMeshAdapter(event_callback=self.bridge.on_mesh_event)
-        self.bridge.serial_adapter = self.v_adapter
+        # Paths are supplied by the maintained pytest isolated_state fixture.
+        self.bridge = create_demo_bridge(Path(config.DATA_DIR))
+        self.v_adapter = self.bridge.serial_adapter
 
         # Mock de cliente MQTT para capturar publicaciones
         self.published_events: list[tuple[str, str]] = []
@@ -37,14 +30,7 @@ class TestVirtualMeshSimulation(unittest.IsolatedAsyncioTestCase):
         await self.v_adapter.connect()
 
     async def asyncTearDown(self) -> None:
-        await self.v_adapter.disconnect()
-        for ext in ["", "-wal", "-shm"]:
-            p = self.db_path + ext
-            if os.path.exists(p):
-                try:
-                    os.remove(p)
-                except Exception:
-                    pass
+        await self.bridge.stop()
 
     async def test_initial_node_discovery(self) -> None:
         """Comprueba que los nodos Alpha y Bravo sean descubiertos automáticamente."""
@@ -96,7 +82,3 @@ class TestVirtualMeshSimulation(unittest.IsolatedAsyncioTestCase):
             echo_found = any("Echo DM de Bravo Scout Rover" in p[1] for p in self.published_events)
 
         self.assertTrue(echo_found, "No se recibió la respuesta de eco de Bravo Scout Rover")
-
-
-if __name__ == "__main__":
-    unittest.main()

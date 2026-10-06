@@ -98,7 +98,7 @@ def test_chat_tokens_do_not_bypass_repeater_role_guard() -> None:
 async def test_health_requires_mqtt_and_serial_connection() -> None:
     ctx = SimpleNamespace(serial_adapter=SimpleNamespace(is_connected=True), mqtt=SimpleNamespace(is_connected=False),
         start_time=time.time(), node_registry=MagicMock(), rate_limiter=MagicMock(),
-        counters=SimpleNamespace(rx_count=0, tx_count=0, tx_error_count=0))
+        counters=SimpleNamespace(rx_count=0, tx_count=0, tx_error_count=0, err_count=0))
     result = await HealthReporter(ctx, 60).build_payload()
     assert result["status"] == "degraded"
 

@@ -25,7 +25,6 @@ from src.protocol_types import (
 )
 from src.shared_utils import (
     clean_numeric_value,
-    get_hardware_power_limits,
     haversine_distance_m,
     normalize_battery,
 )
@@ -684,10 +683,11 @@ class NodeContactInfo:
         d["adv_lon"] = self.adv_lon if self.adv_lon is not None else eff_lon
         d["repeat_enabled"] = self.repeat_enabled if self.repeat_enabled is not None else (self.role in ("REPEATER", "ROUTER"))
         d["hop_limit"] = self.hop_limit if self.hop_limit is not None else 3
-        min_p, max_p, def_p = get_hardware_power_limits(self.hardware_board, self.max_tx_power)
-        d["min_tx_power"] = min_p
-        d["max_tx_power"] = max_p
-        d["default_tx_power"] = def_p
+        # A board name cannot establish the radio's measured power limits.
+        d["min_tx_power"] = None
+        d["max_tx_power"] = self.max_tx_power
+        d["default_tx_power"] = None
+        d["tx_power_limits_source"] = "observed" if self.max_tx_power is not None else "unknown"
 
         # Ciclo de vida y presencia: Activo (<12h), Inactivo (12h-24h), Desconectado (>24h)
         now_ts = time.time()
@@ -891,7 +891,6 @@ class NodeRegistry:
     def __init__(self) -> None:
         self._lock = threading.RLock()
         self._nodes_by_key: dict[str, NodeContactInfo] = {}
-        self._nodes_by_name: dict[str, str] = {}  # lower(name) -> public_key
         self._local_pubkey: str = ""
         self.error_categories: dict[str, int] = {
             "SERIAL_TIMEOUT": 0,
@@ -933,12 +932,8 @@ class NodeRegistry:
                         primary_k, primary_node = k, node
 
                 # Eliminar todas las entradas locales detectadas
-                for k, node in local_entries:
+                for k, _node in local_entries:
                     self._nodes_by_key.pop(k, None)
-                    if node.name:
-                        self._nodes_by_name.pop(node.name.lower(), None)
-                    if node.alias:
-                        self._nodes_by_name.pop(node.alias.lower(), None)
 
                 # Fusionar todos los atributos de las entradas locales (GPS, telemetría, batería)
                 merged_fields = primary_node.as_flat_dict()
@@ -954,10 +949,6 @@ class NodeRegistry:
                 merged_fields["hops"] = 0
                 consolidated = NodeContactInfo(**merged_fields)
                 self._nodes_by_key[self._local_pubkey] = consolidated
-                if consolidated.name:
-                    self._nodes_by_name[consolidated.name.lower()] = self._local_pubkey
-                if consolidated.alias:
-                    self._nodes_by_name[consolidated.alias.lower()] = self._local_pubkey
 
     def get_local_pubkey(self) -> str:
         """Devuelve la clave pública del nodo local."""
@@ -1044,10 +1035,6 @@ class NodeRegistry:
             for k, node in list(self._nodes_by_key.items()):
                 if k != canonical_key and (node.is_local or self.is_local_key(k) or str(node.role).upper() == "LOCAL"):
                     del self._nodes_by_key[k]
-                    if node.name:
-                        self._nodes_by_name.pop(node.name.lower(), None)
-                    if node.alias:
-                        self._nodes_by_name.pop(node.alias.lower(), None)
         else:
             canonical_key = norm_key
             if existing_key:
@@ -1275,16 +1262,7 @@ class NodeRegistry:
                 (eff_hops, eff_rssi, eff_snr, calc_lqi, calc_status, calc_route),
             )
 
-            if existing:
-                if existing.name and existing.name.lower() != clean_name.lower():
-                    self._nodes_by_name.pop(existing.name.lower(), None)
-                if existing.alias and existing.alias.lower() != clean_alias.lower():
-                    self._nodes_by_name.pop(existing.alias.lower(), None)
-
             self._nodes_by_key[canonical_key] = contact
-            self._nodes_by_name[clean_name.lower()] = canonical_key
-            if clean_alias:
-                self._nodes_by_name[clean_alias.lower()] = canonical_key
 
             self._mark_dirty()
             return contact
@@ -1547,21 +1525,14 @@ class NodeRegistry:
         return query
 
     def remove_node(self, public_key: str) -> bool:
-        """Elimina un nodo del registro y limpia sus índices asociados (nombre/alias)."""
+        """Elimina un nodo del registro canónico."""
         if not public_key:
             return False
         with self._lock:
             canon = self.get_canonical_key(public_key)
             if not canon or canon not in self._nodes_by_key:
                 return False
-            node = self._nodes_by_key.pop(canon)
-            if node.name:
-                self._nodes_by_name.pop(node.name.lower(), None)
-            if node.alias:
-                self._nodes_by_name.pop(node.alias.lower(), None)
-            stale_names = [k for k, v in self._nodes_by_name.items() if v == canon]
-            for sn in stale_names:
-                self._nodes_by_name.pop(sn, None)
+            self._nodes_by_key.pop(canon)
             self._mark_dirty()
             return True
 
@@ -1757,10 +1728,7 @@ class NodeRegistry:
                 and str(c.role).upper() != "LOCAL"
             ]
             for k in to_remove:
-                contact = self._nodes_by_key.pop(k, None)
-                if contact:
-                    self._nodes_by_name.pop(contact.name.lower(), None)
-                    self._nodes_by_name.pop(contact.alias.lower(), None)
+                self._nodes_by_key.pop(k, None)
 
         if to_remove:
             with self._lock:
@@ -1949,10 +1917,6 @@ class NodeRegistry:
                     if not contact:
                         continue
                     self._nodes_by_key[contact.public_key] = contact
-                    if contact.name:
-                        self._nodes_by_name[contact.name.lower()] = contact.public_key
-                    if contact.alias:
-                        self._nodes_by_name[contact.alias.lower()] = contact.public_key
                     loaded_count += 1
 
                 if "local_pubkey" in data and data["local_pubkey"]:

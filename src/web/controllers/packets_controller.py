@@ -21,6 +21,7 @@ class PacketsController(BaseController):
         offset: int = 0,
         direction: str = "",
         p_type: str = "",
+        order: str = "asc",
     ) -> tuple[int, dict[str, Any]]:
         """Devuelve un lote paginado de paquetes capturados en el búfer."""
         packet_buf = getattr(self.ctx, "packet_buffer", None)
@@ -36,6 +37,7 @@ class PacketsController(BaseController):
             offset=offset,
             direction=direction if direction else None,
             p_type=p_type if p_type else None,
+            order=order,
         )
 
         return 200, {
@@ -45,6 +47,8 @@ class PacketsController(BaseController):
             "total_count": total_count,
             "limit": limit,
             "offset": offset,
+            "order": order,
+            "session_id": getattr(packet_buf, "session_id", None),
             "capture_enabled": getattr(packet_buf, "capture_enabled", True),
         }
 

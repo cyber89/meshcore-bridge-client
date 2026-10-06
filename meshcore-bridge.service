@@ -5,7 +5,8 @@ Wants=mosquitto.service
 
 [Service]
 Type=simple
-User=root
+User=meshcore
+Group=meshcore
 WorkingDirectory=/opt/meshcore-bridge
 ExecStart=/opt/meshcore-bridge/venv/bin/python /opt/meshcore-bridge/meshcore_bridge.py
 Restart=always
@@ -14,8 +15,9 @@ EnvironmentFile=-/opt/meshcore-bridge/.env
 StandardOutput=journal
 StandardError=journal
 
-# Seguridad y aislamiento opcional
-KillMode=process
+# La cuenta se crea/renderiza por install.sh; necesita permisos de datos y serie.
+NoNewPrivileges=true
+KillMode=control-group
 TimeoutStopSec=20
 
 [Install]

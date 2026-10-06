@@ -10,9 +10,11 @@ import json
 import logging
 import re
 import time
-from collections.abc import Callable
+from collections import deque
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from functools import partial
 from typing import Any, Protocol
 
 import config
@@ -239,6 +241,12 @@ class RxEventRouter:
         except (ValueError, TypeError):
             pass
         self._rx_semaphore = asyncio.Semaphore(rx_limit)
+        self._rx_workers_limit = rx_limit
+        self._rx_workers: set[asyncio.Task[Any]] = set()
+        self._pending_rx: deque[tuple[Callable[[], Coroutine[Any, Any, Any]], str | None]] = deque()
+        self._rx_capacity = 256  # Explicitly approved by the user on 2026-10-05.
+        self.rx_coalesced_count = 0
+        self.rx_overflow_count = 0
         self._handlers: list[BaseRxHandler] = [
             RepeaterAdminHandler(),
             DirectMessageHandler(),
@@ -287,9 +295,7 @@ class RxEventRouter:
                     except Exception as ex:
                         logging.debug(f"Error registrando MeshcoreFrame en packet_buffer: {ex}")
 
-                loop = self._ctx.loop or asyncio.get_running_loop()
-                task = loop.create_task(self._dispatch_parsed_frame(event))
-                self._register_task(task)
+                self._enqueue_work(lambda: self._dispatch_parsed_frame(event))
                 return
 
             normalized = self._extract_normalized_meta(event)
@@ -344,14 +350,15 @@ class RxEventRouter:
                     except Exception as ex:
                         logging.debug(f"Error registrando paquete RX en packet_buffer: {ex}")
 
-            loop = self._ctx.loop or asyncio.get_running_loop()
-
             for handler in self._handlers:
                 if handler.can_handle(meta, payload_dict):
-                    task = loop.create_task(
-                        self._dispatch_sdk_event(handler, payload_dict, meta, event)
+                    # Only adverts are replaceable snapshots. Chat, ACK and
+                    # requested telemetry/admin responses retain their identity.
+                    observation_key = f"advert:{meta.sender}" if type(handler).__name__ == "AdvertHandler" and meta.sender else None
+                    self._enqueue_work(
+                        partial(self._dispatch_sdk_event, handler, payload_dict, meta, event),
+                        observation_key=observation_key,
                     )
-                    self._register_task(task)
                     return
 
             # Manejar observaciones pasivas de ruta RF del firmware (RX_LOG_DATA push 0x88)
@@ -412,18 +419,77 @@ class RxEventRouter:
             self._ctx.background_tasks.add(task)
             task.add_done_callback(self._ctx.background_tasks.discard)
 
+    def _enqueue_work(
+        self, factory: Callable[[], Coroutine[Any, Any, Any]], *, observation_key: str | None = None,
+    ) -> bool:
+        """Bound retained jobs and tasks without creating waiting coroutines.
+
+        Critical work may displace a queued observation. If all slots contain
+        critical work, rejection is logged and counted; the SDK private command
+        waiter still receives its original event independently of this router.
+        """
+        if observation_key is not None:
+            for index, (_, key) in enumerate(self._pending_rx):
+                if key == observation_key:
+                    self._pending_rx[index] = (factory, key)
+                    self.rx_coalesced_count += 1
+                    return True
+        if len(self._pending_rx) >= self._rx_capacity:
+            observation = next((index for index, (_, key) in enumerate(self._pending_rx) if key is not None), None)
+            if observation_key is None and observation is not None:
+                del self._pending_rx[observation]
+            else:
+                self._record_rx_overflow(critical=observation_key is None)
+                return False
+            self._record_rx_overflow(critical=False)
+        self._pending_rx.append((factory, observation_key))
+        loop = self._ctx.loop
+        if loop is None or not loop.is_running():
+            loop = asyncio.get_running_loop()
+        self._rx_workers.difference_update([task for task in self._rx_workers if task.done()])
+        if len(self._rx_workers) < self._rx_workers_limit:
+            task = loop.create_task(self._drain_rx_work(), name="MeshCoreRxWorker")
+            self._rx_workers.add(task)
+            task.add_done_callback(self._rx_workers.discard)
+            self._register_task(task)
+        return True
+
+    def _record_rx_overflow(self, *, critical: bool) -> None:
+        self.rx_overflow_count += 1
+        self._ctx.counters.err_count += 1
+        logging.error(
+            "[RX-OVERFLOW] capacity=%d count=%d critical=%s; work not processed by public router",
+            self._rx_capacity, self.rx_overflow_count, critical,
+            extra={"skip_broadcast": True},
+        )
+
+    async def _drain_rx_work(self) -> None:
+        try:
+            while self._pending_rx:
+                factory, _ = self._pending_rx.popleft()
+                try:
+                    await factory()
+                except Exception:
+                    self._ctx.counters.err_count += 1
+                    logging.exception("[RX-ROUTER] Worker failed processing queued work", extra={"skip_broadcast": True})
+        except asyncio.CancelledError:
+            # Factories hold no started coroutine; dropping them on shutdown
+            # cannot leak a pending task or a 'never awaited' coroutine.
+            self._pending_rx.clear()
+            raise
+
     def _spawn_broadcast_task(self, payload: dict[str, Any]) -> None:
         """Emite eventos WebSocket registrando la tarea en background_tasks."""
         if not self._ctx.web_server:
             return
-        try:
-            loop = self._ctx.loop or asyncio.get_running_loop()
-        except RuntimeError:
-            return
-        coro = self._ctx.web_server.broadcast_event(payload)
-        if asyncio.iscoroutine(coro):
-            task: asyncio.Task[Any] = loop.create_task(coro)
-            self._register_task(task)
+        async def broadcast() -> None:
+            coro = self._ctx.web_server.broadcast_event(payload)
+            if asyncio.iscoroutine(coro):
+                await coro
+
+        contact = payload.get("contact")
+        key = f"contact:{contact.get('public_key')}" if payload.get("type") == "contact_updated" and isinstance(contact, dict) and contact.get("public_key") else None
+        self._enqueue_work(broadcast, observation_key=key)
 
     def _extract_normalized_meta(self, event: Any) -> tuple[dict[str, Any], RxMeta] | None:
         raw_type = getattr(event, "type", getattr(event, "event_type", ""))
@@ -771,9 +837,7 @@ class RxEventRouter:
                     "contact": updated_node.to_dict(),
                 })
 
-        loop = self._ctx.loop or asyncio.get_running_loop()
-        task = loop.create_task(_query_and_update_path(pk))
-        self._register_task(task)
+        self._enqueue_work(lambda: _query_and_update_path(pk), observation_key=f"path:{pk}")
 
     def _resolve_sender_name(self, prefix_or_key: str) -> str:
         # Primero consultar el registro dinámico local

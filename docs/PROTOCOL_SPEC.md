@@ -472,6 +472,30 @@ La administración remota de nodos repetidores se ejecuta mediante tramas de tex
 
 ## 14. Matriz Canónica de Parámetros por Tipo de Nodo
 
+Las lecturas desconocidas permanecen None; esta matriz enumera campos posibles,
+no garantiza soporte de todos ellos en cada firmware. min/default TX no se
+deducen del nombre de placa y max_tx_power sólo es observado cuando se recibió.
+El BASIC remoto expone tag para correlación y cuatro bytes RTC uint32 LE al
+inicio de data, sin padding/CRC propio. No representa la hora del solicitante.
+RepeaterStats.bat usa mV actuales; get pwrmgt.bootmv es voltaje histórico de
+arranque de builds compatibles y se conserva como boot_voltage_mv separado.
+Los aliases de batería usan req_status_sync bajo demanda. Un porcentaje calculado
+desde voltaje se identifica como estimación, no estado de carga medido.
+
+La telemetría respeta solar_mv/solar_v y flags booleanos estrictos. CayenneLPP
+reconoce tipos extendidos del SDK, con enteros big endian y longitudes exactas;
+current 117 usa int16/1000 A. LOAD 122 pertenece a la extensión Python.
+Datos truncados/desconocidos detienen el decoder sin inventar el siguiente registro.
+Detalles/fuentes: [core](audits/fixes-2026-10-05/core-remaining.md) y
+[administración](audits/fixes-2026-10-05/admin-remaining.md).
+
+API capturas admite order=asc (default) o desc, aplicado antes de offset/limit.
+Cada paquete incluye session_id y packet_id; clear conserva identidad y contador.
+ACK pendiente tiene máximo 200 y TTL 3600 s monotónico, consumo una vez y
+delivery_tracking explícito si no se admite otra correlación. Esos valores fueron
+acordados, no defaults derivados de hardware. El DTO de métricas separa sesión
+de ventana con último intervalo partial y includes_current_minute.
+
 | Tipo de Nodo | Categoría de Parámetros | Parámetros Disponibles y Alcanzables en el Código | Vectores de Adquisición |
 | :--- | :--- | :--- | :--- |
 | **`LOCAL`** (Estación Base / Host) | Identidad, RF, Hardware, Rendimiento | `public_key`, `name`, `alias`, `role`, `is_local=True`, `hops=0`, `tx_power`, `min_tx_power`, `max_tx_power`, `default_tx_power`, `frequency`, `spreading_factor`, `bandwidth`, `coding_rate`, `hop_limit`, `repeat_enabled`, `hardware_board`, `firmware_version`, `uptime_secs`, `uptime_str`, `clock`, `airtime_ms`, `duty_cycle_pct`, `noise_floor_dbm`, `tx_count`, `rx_count`, `duplicate_packets`, `packet_errors`, `queue_len`, `battery_pct`, `voltage_v`, `latitude`, `longitude`, `altitude_m`, `fixed_position`, `owner_name`, `owner_info`, `advert_interval` | `fetch_device_config()`, `_cli_stats_core()`, `_cli_radio_info()`, `_cli_packets_info()`, `TxRateLimiter` |

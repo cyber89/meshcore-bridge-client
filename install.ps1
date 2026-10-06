@@ -25,6 +25,12 @@ function Invoke-NativeCommand {
     }
 }
 
+function Test-RuntimeDependencies {
+    param([string]$PythonPath, [string]$ScriptDir)
+    & $PythonPath "$ScriptDir\scripts\check_runtime_dependencies.py" | Out-Host
+    return ($LASTEXITCODE -eq 0)
+}
+
 Write-Host "==================================================================" -ForegroundColor Cyan
 Write-Host "    🚀 GESTOR DE MESHCORE BRIDGE PARA WINDOWS (v3.0.0)" -ForegroundColor Green
 Write-Host "    Heltec / LilyGO / RAKwireless / Seeed / RP2040 <-> MQTT <-> n8n" -ForegroundColor Yellow
@@ -58,10 +64,10 @@ if (Test-Path $VenvPython) {
 }
 
 # 2. Instalar dependencias de producción
-if ($InstallDeps -or -not (Test-Path "$ScriptDir\.venv\Lib\site-packages\paho")) {
+if ($InstallDeps -or -not (Test-RuntimeDependencies -PythonPath $PythonPath -ScriptDir $ScriptDir)) {
     Write-Host "[2/4] Instalando / verificando dependencias en requirements.txt..." -ForegroundColor Blue
-    Invoke-NativeCommand { & $PythonPath -m pip install --upgrade pip -q } "Fallo al actualizar pip."
     Invoke-NativeCommand { & $PythonPath -m pip install -r "$ScriptDir\requirements.txt" -q } "Fallo al instalar requirements.txt."
+    Invoke-NativeCommand { & $PythonPath "$ScriptDir\scripts\check_runtime_dependencies.py" } "Dependencias incompletas o incompatibles tras instalar."
     Write-Host "[OK] Dependencias instaladas correctamente." -ForegroundColor Green
 } else {
     Write-Host "[2/4] Dependencias ya disponibles." -ForegroundColor Green
@@ -90,7 +96,7 @@ if (-not (Test-Path "$ScriptDir\.env")) {
 
 Write-Host ""
 Write-Host "🎉 Configuración de MeshCore Bridge completada." -ForegroundColor Green
-Write-Host "🌐 Cliente Web Station SPA: http://localhost:8080 (o http://localhost:8085 en simulación)" -ForegroundColor Green
+Write-Host "🌐 Producción: puerto configurado; simulación: puerto loopback temporal mostrado al arrancar." -ForegroundColor Green
 Write-Host "Para iniciar el servicio en producción:" -ForegroundColor Cyan
 Write-Host "    .\install.ps1 -Run" -ForegroundColor Yellow
 Write-Host "Para iniciar la simulación con 8 nodos LoRa y Heltec v4 USB:" -ForegroundColor Cyan
@@ -101,7 +107,7 @@ Push-Location $ScriptDir
 try {
     if ($Simulate) {
         Write-Host "Iniciando simulación interactiva con 8 nodos LoRa..." -ForegroundColor Cyan
-        Invoke-NativeCommand { & $PythonPath "$ScriptDir\scripts\simulate_heltec_v4_mesh.py" --live } "La simulación finalizó con error."
+        Invoke-NativeCommand { & $PythonPath "$ScriptDir\run_interactive_demo.py" } "La simulación finalizó con error."
     } elseif ($Run) {
         Write-Host "Iniciando MeshCore Bridge en producción..." -ForegroundColor Cyan
         Invoke-NativeCommand { & $PythonPath -m src } "MeshCore Bridge finalizó con error."

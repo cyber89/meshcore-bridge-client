@@ -200,22 +200,12 @@ export function isCommonChatMessage(payload) {
  * Calcula los límites mínimo, máximo y por defecto de potencia TX según el hardware del nodo.
  */
 export function getHardwarePowerLimits(node) {
-  if (!node) return { min: 2, max: 22, def: 20 };
-  if (typeof node.max_tx_power === "number" && node.max_tx_power > 0) {
-    const minP = typeof node.min_tx_power === "number" ? node.min_tx_power : (node.max_tx_power >= 30 ? 10 : (node.max_tx_power <= 14 ? 0 : 2));
-    return { min: minP, max: node.max_tx_power, def: Math.min(20, node.max_tx_power) };
-  }
-  const hw = String(node.hardware_board || node.hw_model_name || node.hw_model || node.model || node.board || "").toUpperCase();
-  if (hw.includes("30DBM") || hw.includes("E22") || hw.includes("PA") || hw.includes("PLUS") || hw.includes("HIGH_POWER")) {
-    return { min: 10, max: 30, def: 27 };
-  }
-  if (hw.includes("V2") || hw.includes("V1") || hw.includes("SX1276") || hw.includes("SX1278") || hw.includes("M5STACK") || hw.includes("TLORA")) {
-    return { min: 2, max: 20, def: 17 };
-  }
-  if (hw.includes("CC1352") || hw.includes("LOW_POWER")) {
-    return { min: 0, max: 14, def: 10 };
-  }
-  return { min: 2, max: 22, def: 20 };
+  // Signed byte protocol domain is an encoding bound, never a board capability.
+  const known = node?.tx_power_limits_source !== "unknown";
+  const min = known && Number.isInteger(node?.min_tx_power) ? node.min_tx_power : -128;
+  const max = known && Number.isInteger(node?.max_tx_power) ? node.max_tx_power : 127;
+  const confirmed = known && Number.isInteger(node?.max_tx_power);
+  return { min, max, def: null, confirmed };
 }
 
 /**

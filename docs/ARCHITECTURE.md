@@ -545,7 +545,46 @@ común, sin clamp hardware ni modificación del payload privado SDK.
 La analítica no inventa potencia ni conectividad desde defaults de un editor.
 `connected_clients_count_source` distingue vecinos, contador reportado y
 ausencia de evidencia. Archivos históricos que ya contienen defaults no
-permiten inferir su origen; no se migran automáticamente. El DTO visual mantiene
-compatibilidad; la corrección pendiente WEB-09 debe distinguir medida/capacidad
-en el slider. Evidencia y pendientes:
+permiten inferir su origen; no se migran automáticamente. El DTO visual conserva
+límites observados y None en ausencia de lectura; la SPA distingue medida/capacidad
+en el slider. Evidencia y seguimiento:
 [AUDIT_REMEDIATION_2026-10-05.md](AUDIT_REMEDIATION_2026-10-05.md).
+
+### Admisión, confirmaciones y aislamiento de QA
+
+Recepción limita a 256 trabajos pendientes y usa workers con concurrencia
+existente. Despacho/broadcast/rutas comparten ownership; las estrategias no
+crean otra cola de tareas. Snapshots de igual identidad se agrupan. Saturación
+crítica registra RX-OVERFLOW/error, sin prometer entrega pública ilimitada.
+ACK retiene hasta 200 correlaciones, expira a 3600 s monotónicos y se consume
+una vez. TX válido sin slot retorna sent con delivery_tracking explícito.
+Límites aprobados, sin timer/reintento RF nuevo.
+
+El bridge también entrega al pool las factorías de notificación/log/TCP iniciadas
+en su loop, evitando tareas desacopladas por recepción. Overflow evita broadcast
+de su propio log. MQTT reserva capacidad con lock antes de publicar callbacks
+entre hilos, libera cada token al completar/cancelar y cierra sus propios handles.
+Se mantiene el presupuesto existente que ya contaba tareas externas.
+
+RepeaterManager persiste cinco categorías de timestamps UTC en
+DATA_DIR/repeater_cooldowns.json. Carga/escritura usan to_thread y reemplazo
+atómico; la reserva se guarda antes del paquete. El reloj monotónico se
+reconstruye al reiniciar, conservando cooldown completo si UTC retrocede.
+Guardar configuración no rearma timers; no hay sondeo RF nuevo. Cierre intenta
+flush bajo el límite existente y hace visible un fallo, sin prometer durabilidad
+ante pérdida de energía o bloqueo de disco. Detalles:
+[admisión y política](audits/fixes-2026-10-05/policy-remaining.md).
+
+El chat conserva ACK concurrente, recupera borrador al fallar y descarta historial
+obsoleto al cambiar de feed. Capturas usan sesión/ID, desc antes de paginar y
+merge HTTP/WS por generación. Lectores/reportes de logs comparten rutas reales;
+un LogRecord manual se entrega una vez al handler. Recarga cartográfica exige
+POST autorizado. Métricas distinguen sesión e intervalo actual parcial.
+
+La demo usa proceso/directorio temporal, MQTT en memoria y adaptador virtual
+desde construcción; mapas respetan DATA_DIR. MQTT ofrece TLS opcional con
+certificado/hostname verificados, CA del sistema o explícita y mTLS; un fallo
+de confianza no degrada a plaintext. Detalles:
+[core](audits/fixes-2026-10-05/core-remaining.md),
+[web](audits/fixes-2026-10-05/web-remaining.md) y
+[calidad](audits/fixes-2026-10-05/quality-remaining.md).

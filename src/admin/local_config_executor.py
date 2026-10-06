@@ -893,6 +893,10 @@ class LocalConfigExecutor:
             new_rep = to_bool(rep_val)
 
             await self._write_device(mc, "set_radio", new_f, new_bw, new_sf, new_cr, int(new_rep), timeout=3.0)
+            # Report exactly the single conversion performed by the SDK.
+            # Re-serializing a rounded float could lose another unit at a boundary.
+            new_f = int(new_f * 1000) / 1000
+            new_bw = int(new_bw * 1000) / 1000
 
             self._local_config["frequency"] = new_f
             self._local_config["radio_freq"] = new_f
@@ -1088,8 +1092,7 @@ class LocalConfigExecutor:
 
     async def set_path_hash_mode(self, mode: int) -> dict[str, Any]:
         """Configura el modo de path hash (0, 1, 2)."""
-        mode = int(mode)
-        if mode not in (0, 1, 2):
+        if isinstance(mode, bool) or not isinstance(mode, int) or mode not in (0, 1, 2):
             raise ValueError("path_hash_mode debe ser 0, 1 o 2")
         mc = self._ctx.mc_provider()
         await self._write_device(mc, "set_path_hash_mode", mode, timeout=3.0)

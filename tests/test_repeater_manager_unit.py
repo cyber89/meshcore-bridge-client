@@ -41,7 +41,8 @@ def test_build_repeater_query_commands() -> None:
     assert mgr.build_repeater_command_payload("ver", {}) == "ver"
     assert mgr.build_repeater_command_payload("version", {}) == "ver"
     assert mgr.build_repeater_command_payload("neighbors", {}) == "neighbors"
-    assert mgr.build_repeater_command_payload("bat", {}) == "get pwrmgt.bootmv"
+    # Live battery is a binary status query, not the boot-voltage CLI setting.
+    assert mgr.build_repeater_command_payload("bat", {}) is None
     assert mgr.build_repeater_command_payload("clock", {}) == "clock"
     assert mgr.build_repeater_command_payload("uptime", {}) == "get uptime"
     assert mgr.build_repeater_command_payload("pos", {}) == "get lat"

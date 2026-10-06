@@ -5,7 +5,6 @@ Handles ACK, PATH_UPDATE, MESSAGES_WAITING, and all other unhandled events.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -84,13 +83,7 @@ class SystemHandler(BaseRxHandler):
             logging.info(f"[RX-SISTEMA] Evento de red: {event_type.upper()} | Carga: {payload}")
 
         if router_ctx.web_server:
-            try:
-                loop = router_ctx.loop or asyncio.get_running_loop()
-            except RuntimeError:
-                loop = None
-            if loop:
-                task = loop.create_task(router_ctx.web_server.broadcast_event(payload))
-                router_ctx.background_tasks.add(task)
-                task.add_done_callback(router_ctx.background_tasks.discard)
+            # The ingress worker already owns this asynchronous operation.
+            await router_ctx.web_server.broadcast_event(payload)
 
         return True

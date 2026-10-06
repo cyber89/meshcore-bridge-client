@@ -79,6 +79,11 @@ export class MeshCoreStorage {
           msg._db_id = e.target.result;
         };
       }
+      await new Promise(resolve => {
+        tx.oncomplete = resolve;
+        tx.onerror = resolve;
+        tx.onabort = resolve;
+      });
     } catch (_) {}
   }
 
@@ -150,6 +155,10 @@ export class MeshCoreStorage {
         if (cursor) {
           const val = cursor.value;
           if (msgId && (val.msg_id === msgId || String(val.id) === String(msgId))) {
+            if (val.delivered || val.status === "delivered") {
+              cursor.continue();
+              return;
+            }
             val.status = status;
             if (status === "delivered") val.delivered = true;
             cursor.update(val);
@@ -157,6 +166,11 @@ export class MeshCoreStorage {
           cursor.continue();
         }
       };
+      await new Promise(resolve => {
+        tx.oncomplete = resolve;
+        tx.onerror = resolve;
+        tx.onabort = resolve;
+      });
     } catch (_) {}
   }
 

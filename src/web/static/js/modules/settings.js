@@ -818,10 +818,12 @@ export class SettingsModule {
             method: "POST",
             headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
           });
-          if (content) I18n.setText(content, res.ok ? "settings.maps_reindexed" : "settings.maps_active");
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          if (content) I18n.setText(content, "settings.maps_reindexed");
           if (this.ctx.showToast) this.ctx.showToast(I18n.t("settings.tiles_reindexed"), "success");
         } catch (e) {
           if (content) I18n.setText(content, "settings.maps_check_dir");
+          this.ctx.showToast?.(I18n.t("settings.maps_check_dir"), "error");
         }
       });
     }

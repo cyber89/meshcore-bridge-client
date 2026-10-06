@@ -122,6 +122,8 @@ class CliCommandExecutor:
             public_action = redact_sensitive_command(action)
             public_error = "Operación administrativa fallida" if public_action != action.strip() else str(e)
             res["status"] = "error"
+            if isinstance(e, (ValueError, TypeError)):
+                res["code"] = 422
             res["error"] = public_error
             res["result"] = f"✗ ERROR ejecutando comando '{public_action}': {public_error}"
 
@@ -172,7 +174,7 @@ class CliCommandExecutor:
                     af = round(af_raw / 1000.0, 3)
             except Exception as e:
                 logging.debug(f"Error en get_tuning_params: {e}")
-        res["result"] = f"🎛️ [TUNING] Retardo RX: {rx_dly}s | Factor de Airtime: {af}x"
+        res["result"] = f"🎛️ [TUNING] Base RX: {rx_dly} (adimensional) | Factor de Airtime: {af}x"
         return res
 
     def _cli_packets(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
@@ -225,7 +227,8 @@ class CliCommandExecutor:
         return res
 
     def _cli_acl(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
-        res["result"] = "🔐 [CONTROL DE ACCESO ACL] Autenticación por PIN activa | Permisos: ADMIN / OPERATOR"
+        res.update(status="error", unsupported=True, code=422)
+        res["result"] = "ACL no disponible en Companion; el PIN BLE no representa permisos de administración remota."
         return res
 
     def _cli_board(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
@@ -452,18 +455,13 @@ class CliCommandExecutor:
 
     async def _cli_time(self, res: dict[str, Any], cfg: dict[str, Any], mc: Any) -> dict[str, Any]:
         """Handler para comandos: time, get_time, clock, hora."""
-        now_str = time.strftime("%Y-%m-%d %H:%M:%S")
-        now_ts = int(time.time())
-        if mc and hasattr(mc, "commands") and hasattr(mc.commands, "get_time"):
-            try:
-                t_res = require_success(await run_sdk_command(self._ctx, mc, "get_time"), "get_time")
-                if hasattr(t_res, "payload") and isinstance(t_res.payload, dict):
-                    raw_time = t_res.payload.get("time", t_res.payload.get("timestamp"))
-                    if raw_time is not None:
-                        now_ts = int(raw_time)
-                        now_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now_ts))
-            except Exception:
-                pass
+        t_res = require_success(await run_sdk_command(self._ctx, mc, "get_time"), "get_time")
+        payload = extract_payload_dict(t_res)
+        raw_time = payload.get("time", payload.get("timestamp"))
+        if isinstance(raw_time, bool) or not isinstance(raw_time, int):
+            raise ValueError("El nodo no devolvió un RTC válido")
+        now_ts = raw_time
+        now_str = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(now_ts)) + " UTC"
         res["result"] = f"🕒 [RTC CLOCK] Hora del Nodo: {now_str} (Timestamp: {now_ts})"
         return res
 
@@ -957,35 +955,37 @@ class CliCommandExecutor:
                     await self._confirmed_local_config({"action": "set_local_config", "params": {"tx_power": int(val)}}, res, mc)
                     res["result"] = f"✓ Potencia TX establecida a: {val} dBm"
                 except ValueError:
-                    res["result"] = f"⚠️ Valor de potencia inválido: {val}"
+                    raise ValueError(f"Valor de potencia inválido: {val}") from None
             elif sub_cmd in ("freq", "frequency"):
                 try:
                     await self._confirmed_local_config({"action": "set_local_config", "params": {"frequency": float(val)}}, res, mc)
-                    res["result"] = f"✓ Frecuencia RF establecida a: {val} MHz"
+                    effective = res.get("applied", {}).get("frequency", val)
+                    res["result"] = f"✓ Frecuencia RF establecida a: {effective} MHz"
                 except ValueError:
-                    res["result"] = f"⚠️ Valor de frecuencia inválido: {val}"
+                    raise ValueError(f"Valor de frecuencia inválido: {val}") from None
             elif sub_cmd in ("sf", "spreading_factor"):
                 try:
                     await self._confirmed_local_config({"action": "set_local_config", "params": {"sf": int(val)}}, res, mc)
                     res["result"] = f"✓ Spreading Factor establecido a: SF{val}"
                 except ValueError:
-                    res["result"] = f"⚠️ Spreading factor inválido: {val}"
+                    raise ValueError(f"Spreading factor inválido: {val}") from None
             elif sub_cmd in ("bw", "bandwidth"):
                 try:
                     await self._confirmed_local_config({"action": "set_local_config", "params": {"bw": float(val)}}, res, mc)
-                    res["result"] = f"✓ Ancho de banda (BW) establecido a: {val} kHz"
+                    effective = res.get("applied", {}).get("bandwidth", val)
+                    res["result"] = f"✓ Ancho de banda (BW) establecido a: {effective} kHz"
                 except ValueError:
-                    res["result"] = f"⚠️ Ancho de banda inválido: {val}"
+                    raise ValueError(f"Ancho de banda inválido: {val}") from None
             elif sub_cmd in ("cr", "coding_rate"):
                 try:
                     cr_val = int(val) if val.isdigit() else val
                     await self._confirmed_local_config({"action": "set_local_config", "params": {"cr": cr_val}}, res, mc)
                     res["result"] = f"✓ Coding Rate (CR) establecido a: {val}"
                 except ValueError:
-                    res["result"] = f"⚠️ Coding rate inválido: {val}"
+                    raise ValueError(f"Coding rate inválido: {val}") from None
             elif sub_cmd == "radio":
                 r_parts = val.split()
-                if len(r_parts) >= 4:
+                if len(r_parts) == 4:
                     try:
                         p_dict = {
                             "frequency": float(r_parts[0]),
@@ -994,46 +994,53 @@ class CliCommandExecutor:
                             "cr": int(r_parts[3]) if r_parts[3].isdigit() else r_parts[3],
                         }
                         await self._confirmed_local_config({"action": "set_local_config", "params": p_dict}, res, mc)
-                        res["result"] = f"✓ Radio configurado: {r_parts[0]} MHz, BW{r_parts[1]}, SF{r_parts[2]}, CR{r_parts[3]}"
+                        actual = res.get("applied", {})
+                        res["result"] = (
+                            f"✓ Radio configurado: {actual.get('frequency', r_parts[0])} MHz, "
+                            f"BW{actual.get('bandwidth', r_parts[1])}, SF{actual.get('spreading_factor', r_parts[2])}, "
+                            f"CR{actual.get('coding_rate', r_parts[3])}"
+                        )
                     except ValueError as ve:
-                        res["result"] = f"⚠️ Error en parámetros de radio: {ve}"
+                        raise ValueError(f"Error en parámetros de radio: {ve}") from None
                 else:
-                    res["result"] = "⚠️ Uso: set radio <frecuencia_mhz> <bw_khz> <sf> <cr>"
+                    raise ValueError("Uso: set radio <frecuencia_mhz> <bw_khz> <sf> <cr>")
             elif sub_cmd == "tuning":
                 t_parts = val.split()
-                if len(t_parts) >= 2:
+                if len(t_parts) == 2:
                     try:
                         p_dict = {"rx_delay": float(t_parts[0]), "airtime_factor": float(t_parts[1])}
                         await self._confirmed_local_config({"action": "set_local_config", "params": p_dict}, res, mc)
                         res["result"] = f"✓ Tuning actualizado: rx_delay={t_parts[0]}, airtime_factor={t_parts[1]}"
                     except ValueError as ve:
-                        res["result"] = f"⚠️ Error en parámetros de tuning: {ve}"
+                        raise ValueError(f"Error en parámetros de tuning: {ve}") from None
                 else:
-                    res["result"] = "⚠️ Uso: set tuning <rx_delay> <airtime_factor>"
+                    raise ValueError("Uso: set tuning <rx_delay> <airtime_factor>")
             elif sub_cmd in ("pin", "ble_pin"):
                 try:
                     await self._confirmed_local_config({"action": "set_local_config", "params": {"pin": int(val)}}, res, mc)
                     res["result"] = "✓ PIN de vinculación actualizado"
                 except ValueError:
-                    res["result"] = "⚠️ PIN numérico inválido"
+                    raise ValueError("PIN numérico inválido") from None
             elif sub_cmd in ("repeat", "repeater"):
                 from src.shared_utils import to_bool
+                if val.lower() not in ("true", "false", "1", "0", "on", "off", "yes", "no"):
+                    raise ValueError("Valor de repetición inválido")
                 b_val = to_bool(val)
                 await self._confirmed_local_config({"action": "set_local_config", "params": {"repeat": b_val}}, res, mc)
                 res["result"] = f"✓ Modo repetidor {'activado' if b_val else 'desactivado'}"
             elif sub_cmd in ("coords", "pos", "gps"):
                 c_parts = val.split(",")
-                if len(c_parts) >= 2:
+                if len(c_parts) == 2:
                     try:
                         await self._confirmed_local_config({"action": "set_local_config", "params": {"latitude": float(c_parts[0]), "longitude": float(c_parts[1])}}, res, mc)
                         res["result"] = f"✓ Coordenadas GPS establecidas a: {val}"
                     except ValueError:
-                        res["result"] = f"⚠️ Coordenadas numéricas inválidas: {val}"
+                        raise ValueError(f"Coordenadas numéricas inválidas: {val}") from None
                 else:
-                    res["result"] = "⚠️ Formato de coordenadas inválido. Uso: set coords <lat>,<lon>"
+                    raise ValueError("Formato de coordenadas inválido. Uso: set coords <lat>,<lon>")
             else:
                 await self._confirmed_local_config({"action": "set_local_config", "params": {sub_cmd: val}}, res, mc)
                 res["result"] = f"✓ Parámetro '{sub_cmd}' actualizado a: {val}"
         else:
-            res["result"] = f"⚠️ Comando de configuración incompleto: {act_clean}"
+            raise ValueError("Comando de configuración incompleto")
         return res

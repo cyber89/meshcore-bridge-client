@@ -5,7 +5,6 @@ Handles repeater CLI responses, delivery acknowledgments, pings and traceroutes.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import time
@@ -90,9 +89,11 @@ class RepeaterAdminHandler(BaseRxHandler):
             trip_time = payload.get("trip_time_ms", payload.get("trip_time", payload.get("rtt_ms")))
 
             bridge = getattr(router_ctx, "bridge", None) or getattr(router_ctx, "_bridge", None)
-            if not ack_msg_id and ack_code and bridge and hasattr(bridge, "resolve_pending_ack"):
+            if ack_code and bridge and hasattr(bridge, "resolve_pending_ack"):
                 ack_info = bridge.resolve_pending_ack(ack_code)
-                if ack_info:
+                # Incoming IDs cannot bypass lifetime/capacity/one-shot tracking.
+                ack_msg_id = None
+                if isinstance(ack_info, dict):
                     ack_msg_id = ack_info.get("req_id")
                     if not meta.sender and ack_info.get("target"):
                         meta.sender = str(ack_info.get("target"))
@@ -118,10 +119,8 @@ class RepeaterAdminHandler(BaseRxHandler):
                 "sender": meta.sender,
             }
 
-            if router_ctx.web_server:
-                t = asyncio.create_task(router_ctx.web_server.broadcast_event(ack_evt_data))
-                router_ctx.background_tasks.add(t)
-                t.add_done_callback(router_ctx.background_tasks.discard)
+            if router_ctx.web_server and ack_msg_id:
+                await router_ctx.web_server.broadcast_event(ack_evt_data)
 
             # Actualizar presencia del emisor del ACK si es un nodo remoto
             ack_sender = meta.sender or str(payload.get("sender") or payload.get("from") or "").strip()
@@ -146,13 +145,11 @@ class RepeaterAdminHandler(BaseRxHandler):
                     ),
                 )
                 if updated_node and router_ctx.web_server:
-                    t_node = asyncio.create_task(router_ctx.web_server.broadcast_event({
+                    await router_ctx.web_server.broadcast_event({
                         "type": "contact_updated",
                         "event_type": "contact_updated",
                         "contact": updated_node.to_dict(),
-                    }))
-                    router_ctx.background_tasks.add(t_node)
-                    t_node.add_done_callback(router_ctx.background_tasks.discard)
+                    })
 
             router_ctx.mqtt.publish_safe(
                 config.TOPIC_TX_STATUS,
@@ -192,12 +189,10 @@ class RepeaterAdminHandler(BaseRxHandler):
                 )
 
             if router_ctx.web_server:
-                t = asyncio.create_task(router_ctx.web_server.broadcast_event({
+                await router_ctx.web_server.broadcast_event({
                     "type": "trace_data",
                     "data": payload,
-                }))
-                router_ctx.background_tasks.add(t)
-                t.add_done_callback(router_ctx.background_tasks.discard)
+                })
             return True
 
         return False

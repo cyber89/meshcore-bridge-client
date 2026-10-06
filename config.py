@@ -90,6 +90,13 @@ MQTT_USER = os.getenv("MQTT_USER", "").strip() or None
 MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "").strip() or None
 MQTT_PASSWORD_MASKED = "****" if MQTT_PASSWORD else ""
 MQTT_KEEPALIVE = _safe_int("MQTT_KEEPALIVE", 60)
+_mqtt_tls_value = os.getenv("MQTT_TLS", "false").strip().lower()
+if _mqtt_tls_value not in ("true", "false", "1", "0", "on", "off", "yes", "no"):
+    raise ValueError("MQTT_TLS must be a boolean; refusing an ambiguous transport")
+MQTT_TLS = _mqtt_tls_value in ("true", "1", "on", "yes")
+MQTT_TLS_CA_FILE = os.getenv("MQTT_TLS_CA_FILE", "").strip() or None
+MQTT_TLS_CERT_FILE = os.getenv("MQTT_TLS_CERT_FILE", "").strip() or None
+MQTT_TLS_KEY_FILE = os.getenv("MQTT_TLS_KEY_FILE", "").strip() or None
 
 # ================= Tópicos MQTT =================
 TOPIC_PREFIX = os.getenv("TOPIC_PREFIX", "meshcore").strip("/")

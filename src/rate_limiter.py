@@ -75,7 +75,7 @@ def estimate_lora_airtime_ms(payload_len_bytes: int, radio: LoRaRadioConfig) -> 
 class TxItem:
     """Elemento ordenable para asyncio.PriorityQueue con desempate por contador."""
     priority: int
-    created_at: float
+    created_at: float = field(compare=False)
     counter: int
     payload: Any = field(compare=False)
     target: str | None = field(compare=False, default=None)

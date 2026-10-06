@@ -22,6 +22,7 @@ class LppDataType(IntEnum):
     DIGITAL_OUTPUT = 1     # 1 byte
     ANALOG_INPUT = 2       # 2 bytes, signed, resolution 0.01
     ANALOG_OUTPUT = 3      # 2 bytes, signed, resolution 0.01
+    GENERIC_SENSOR = 100
     ILLUMINANCE = 101      # 2 bytes, unsigned, resolution 1 lux
     PRESENCE = 102         # 1 byte
     TEMPERATURE = 103      # 2 bytes, signed, resolution 0.1 °C
@@ -30,8 +31,38 @@ class LppDataType(IntEnum):
     BAROMETER = 115        # 2 bytes, unsigned, resolution 0.1 hPa
     GYROSCOPE = 134        # 6 bytes, signed int16 * 3, resolution 0.01 °/s
     GPS_LOCATION = 136     # 9 bytes: Lat (3B), Lon (3B), Alt (3B)
-    VOLTAGE = 116          # 2 bytes, unsigned, resolution 0.01 V
+    VOLTAGE = 116          # 2 bytes, signed, resolution 0.01 V
+    CURRENT = 117
+    FREQUENCY = 118
     PERCENTAGE = 120       # 1 byte, unsigned, resolution 1 %
+    ALTITUDE = 121
+    LOAD = 122             # Python SDK extension
+    CONCENTRATION = 125
+    POWER = 128
+    DISTANCE = 130
+    ENERGY = 131
+    DIRECTION = 132
+    TIME = 133
+    COLOUR = 135
+    SWITCH = 142
+
+
+# (name, bytes, divisor, signed, unit, summary key). No padding or inner CRC.
+# CayenneLPP 1.6.1 uses big endian; MeshCore's Python SDK also supports LOAD.
+_EXTENDED_SCALARS: dict[int, tuple[str, int, int, bool, str, str]] = {
+    100: ("generic_sensor", 4, 1, False, "", "generic_sensor"),
+    117: ("current", 2, 1000, True, "A", "current_a"),
+    118: ("frequency", 4, 1, False, "Hz", "frequency_hz"),
+    121: ("altitude", 2, 1, True, "m", "altitude_m"),
+    122: ("load", 3, 1000, True, "", "load"),
+    125: ("concentration", 2, 1, False, "ppm", "concentration_ppm"),
+    128: ("power", 2, 1, False, "W", "power_w"),
+    130: ("distance", 4, 1000, False, "m", "distance_m"),
+    131: ("energy", 4, 1000, False, "kWh", "energy_kwh"),
+    132: ("direction", 2, 1, False, "deg", "direction_deg"),
+    133: ("time", 4, 1, False, "s", "unix_time"),
+    142: ("switch", 1, 1, False, "", "switch"),
+}
 
 
 @dataclass(frozen=True)
@@ -66,6 +97,26 @@ def _decode_analog_io(stream: io.BytesIO, channel: int, type_val: int, summary: 
 
 
 def _decode_scalar_sensors(stream: io.BytesIO, channel: int, type_val: int, summary: dict[str, Any]) -> SensorReading | None:
+    extended = _EXTENDED_SCALARS.get(type_val)
+    if extended is not None:
+        name, size, divisor, signed, unit, summary_key = extended
+        raw = stream.read(size)
+        if len(raw) != size:
+            return None
+        integer = int.from_bytes(raw, "big", signed=signed)
+        value = integer if divisor == 1 else integer / divisor
+        summary[summary_key] = value
+        summary[f"ch_{channel}_{summary_key}"] = value
+        return SensorReading(channel, type_val, name, value, unit)
+
+    if type_val == LppDataType.COLOUR:
+        raw = stream.read(3)
+        if len(raw) != 3:
+            return None
+        colour = dict(zip(("red", "green", "blue"), raw, strict=True))
+        summary[f"ch_{channel}_colour"] = colour
+        return SensorReading(channel, type_val, "colour", colour, "RGB")
+
     if type_val == LppDataType.ILLUMINANCE:
         raw = stream.read(2)
         if len(raw) < 2:
@@ -256,6 +307,22 @@ def _parse_lpp_candidate_list(lpp_list: list[Any], res: dict[str, Any]) -> None:
 def _map_lpp_item_to_res(t: str, val: Any, ch: Any, res: dict[str, Any]) -> None:
     """Mapea un elemento individual de LPP al diccionario de resultados."""
     try:
+        if t.isdigit() and int(t) in _EXTENDED_SCALARS:
+            t = _EXTENDED_SCALARS[int(t)][0]
+        if isinstance(val, (list, tuple)) and len(val) == 1:
+            val = val[0]
+        for name, _, _, _, _, key in _EXTENDED_SCALARS.values():
+            if t.replace(" ", "_") == name:
+                number = clean_numeric_value(val)
+                if number is not None:
+                    res[key] = number
+                    res[f"ch_{ch}_{key}"] = number
+                return
+        if t in ("colour", "color") and isinstance(val, dict):
+            colour = {key: clean_numeric_value(val.get(key)) for key in ("red", "green", "blue")}
+            if all(value is not None for value in colour.values()):
+                res[f"ch_{ch}_colour"] = colour
+            return
         if "temp" in t:
             clean_t = clean_numeric_value(val)
             if clean_t is not None:
@@ -360,7 +427,7 @@ def _extract_power_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
         if clean_mv is not None:
             res["battery_mv"] = int(round(clean_mv))
             if "voltage_v" not in res and raw_volt is None:
-                res["voltage_v"] = round(clean_mv / 1000.0, 2)
+                res["voltage_v"] = clean_mv / 1000.0
             if "battery_pct" not in res and raw_bat is None and 2500 <= clean_mv <= 4500:
                 pct_norm, _ = normalize_battery(clean_mv)
                 res["battery_pct"] = int(round(pct_norm))
@@ -368,7 +435,7 @@ def _extract_power_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
     if raw_volt is not None:
         clean_v = clean_numeric_value(raw_volt)
         if clean_v is not None:
-            res["voltage_v"] = round(clean_v, 2)
+            res["voltage_v"] = clean_v
             if "battery_pct" not in res and raw_bat is None and 2.5 <= clean_v <= 4.5:
                 pct_norm, _ = normalize_battery(clean_v)
                 res["battery_pct"] = int(round(pct_norm))
@@ -399,11 +466,15 @@ def _extract_power_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
         calc_pct, _ = normalize_battery(eff_v)
         res["battery_pct"] = int(round(calc_pct))
 
-    raw_solar = data.get("solar_v", data.get("solar_voltage", data.get("solar_mv", data.get("solar"))))
-    if raw_solar is not None:
-        clean_s = clean_battery_input(raw_solar)
+    for key in ("solar_v", "solar_voltage", "solar_mv", "solar"):
+        if data.get(key) is None:
+            continue
+        clean_s = clean_battery_input(data[key])
         if clean_s is not None:
-            res["solar_v"] = round(clean_s / 1000.0, 2) if clean_s > 100.0 else round(clean_s, 2)
+            # Only the legacy unitless alias retains its magnitude heuristic.
+            millivolts = key == "solar_mv" or (key == "solar" and clean_s > 100.0)
+            res["solar_v"] = clean_s / 1000.0 if millivolts else clean_s
+        break
 
 
 def _extract_system_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None:
@@ -431,7 +502,13 @@ def _extract_system_telemetry(data: dict[str, Any], res: dict[str, Any]) -> None
     if "clock" in data and data["clock"] is not None:
         res["clock"] = str(data["clock"])
     if "fixed_position" in data and data["fixed_position"] is not None:
-        res["fixed_position"] = bool(data["fixed_position"])
+        value = data["fixed_position"]
+        if isinstance(value, bool):
+            res["fixed_position"] = value
+        elif isinstance(value, int) and value in (0, 1):
+            res["fixed_position"] = bool(value)
+        elif isinstance(value, str) and value.strip().lower() in ("true", "false", "0", "1", "on", "off", "yes", "no"):
+            res["fixed_position"] = value.strip().lower() in ("true", "1", "on", "yes")
 
     errors = data.get("errors", data.get("packet_errors", data.get("recv_errors")))
     if errors is not None:

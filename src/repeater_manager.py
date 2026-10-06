@@ -6,11 +6,17 @@ y el análisis integral de su telemetría con control de Airtime LoRa.
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 import math
+import os
 import re
+import tempfile
 import time
+import warnings
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from src.shared_utils import (
@@ -32,7 +38,16 @@ class RepeaterManager:
         min_traceroute_interval_s: float = 60.0,
         min_neighbours_interval_s: float = 30.0,
         is_cutoff_active_callback: Callable[[], bool] | None = None,
+        storage_path: str | Path | None = None,
     ) -> None:
+        if transmit_callback is not None:
+            warnings.warn(
+                "RepeaterManager.transmit_callback is deprecated and is not invoked; "
+                "send commands through the administrative executor",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        # Kept as an inert compatibility attribute for existing integrations.
         self.transmit_callback = transmit_callback
         self.min_cmd_interval_s = min_cmd_interval_s
         self.min_telemetry_interval_s = min_telemetry_interval_s
@@ -45,6 +60,106 @@ class RepeaterManager:
         self._last_ping_ts: dict[str, float] = {}
         self._last_traceroute_ts: dict[str, float] = {}
         self._last_neighbours_ts: dict[str, float] = {}
+        self._storage_path = Path(storage_path) if storage_path is not None else None
+        self._state_loaded = False
+        self._load_lock = asyncio.Lock()
+        self._flush_lock = asyncio.Lock()
+        self._wall_timestamps: dict[str, dict[str, float]] = {key: {} for key in self._cooldown_maps()}
+        self._generation = 0
+        self._persisted_generation = 0
+        self._write_task: asyncio.Task[None] | None = None
+
+    def _cooldown_maps(self) -> dict[str, dict[str, float]]:
+        return {"command": self._last_cmd_ts, "telemetry": self._last_full_telemetry_ts,
+                "ping": self._last_ping_ts, "traceroute": self._last_traceroute_ts,
+                "neighbours": self._last_neighbours_ts}
+
+    async def load_state(self) -> None:
+        """Restore UTC observations before evaluating existing monotonic cooldowns."""
+        async with self._load_lock:
+            if self._state_loaded:
+                return
+            if self._storage_path is not None:
+                saved = await asyncio.to_thread(self._read_state, self._storage_path)
+                now_wall, now_mono = time.time(), time.monotonic()
+                for category, values in saved.items():
+                    monotonic_map = self._cooldown_maps()[category]
+                    for key, epoch in values.items():
+                        if self._find_matching_key(monotonic_map, key) is not None:
+                            continue  # A current-process observation is newer than disk.
+                        elapsed = max(0.0, now_wall - epoch)
+                        monotonic_map[key] = now_mono - elapsed
+                        self._wall_timestamps[category][key] = epoch
+            self._state_loaded = True
+
+    @staticmethod
+    def _read_state(path: Path) -> dict[str, dict[str, float]]:
+        try:
+            document = json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return {}
+        if not isinstance(document, dict) or document.get("schema") != 1:
+            raise ValueError("Cooldown state schema invalid")
+        maps = document.get("timestamps")
+        if not isinstance(maps, dict):
+            raise ValueError("Cooldown state timestamps invalid")
+        allowed = {"command", "telemetry", "ping", "traceroute", "neighbours"}
+        result: dict[str, dict[str, float]] = {}
+        for category, values in maps.items():
+            if category not in allowed or not isinstance(values, dict):
+                raise ValueError("Cooldown state category invalid")
+            result[category] = {}
+            for key, value in values.items():
+                if not isinstance(key, str) or not key or isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
+                    raise ValueError("Cooldown state timestamp invalid")
+                result[category][key] = float(value)
+        return result
+
+    @staticmethod
+    def _write_state(path: Path, document: dict[str, Any]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary: str | None = None
+        try:
+            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, prefix=path.name + ".", suffix=".tmp", delete=False) as handle:
+                temporary = handle.name
+                json.dump(document, handle, ensure_ascii=False, allow_nan=False)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, path)
+        finally:
+            if temporary is not None and os.path.exists(temporary):
+                os.unlink(temporary)
+
+    async def _persist_snapshot(self, document: dict[str, Any], generation: int) -> None:
+        if self._storage_path is not None:
+            await asyncio.to_thread(self._write_state, self._storage_path, document)
+        self._persisted_generation = generation
+
+    @staticmethod
+    def _observe_writer(task: asyncio.Task[None]) -> None:
+        if not task.cancelled() and task.exception() is not None:
+            logging.error("Failed to persist repeater cooldown state")
+
+    async def flush_state(self) -> None:
+        """Await the single owned writer; cancellation cannot start a competing write."""
+        await self.load_state()
+        async with self._flush_lock:
+            if self._write_task is not None and not self._write_task.done():
+                await asyncio.shield(self._write_task)
+            while self._persisted_generation != self._generation:
+                generation = self._generation
+                document = {"schema": 1, "timestamps": {key: dict(value) for key, value in self._wall_timestamps.items()}}
+                self._write_task = asyncio.create_task(self._persist_snapshot(document, generation))
+                self._write_task.add_done_callback(self._observe_writer)
+                await asyncio.shield(self._write_task)
+
+    async def close(self) -> None:
+        await self.flush_state()
+
+    def _record_persisted_ts(self, category: str, key: str, ts: float) -> None:
+        self._record_ts(self._cooldown_maps()[category], key, ts)
+        self._record_ts(self._wall_timestamps[category], key, time.time())
+        self._generation += 1
 
     def is_airtime_cutoff_active(self) -> bool:
         """Consulta si el Airtime Cutoff dinámico está activo en el sistema."""
@@ -120,9 +235,9 @@ class RepeaterManager:
         """Registra el timestamp de transmisión hacia un repetidor para gobernar el airtime."""
         now = time.monotonic()
         clean_pk = repeater_pk.strip().lower()
-        self._record_ts(self._last_cmd_ts, clean_pk, now)
+        self._record_persisted_ts("command", clean_pk, now)
         if is_full_query:
-            self._record_ts(self._last_full_telemetry_ts, clean_pk, now)
+            self._record_persisted_ts("telemetry", clean_pk, now)
 
     def check_ping_cooldown(self, target_pk: str, is_automated: bool = False) -> tuple[bool, float]:
         """Verifica si ha transcurrido el cooldown mínimo antes de enviar otro ping 0 a target_pk."""
@@ -139,7 +254,7 @@ class RepeaterManager:
 
     def record_ping_sent(self, target_pk: str) -> None:
         """Registra la emisión de un ping 0 hacia target_pk."""
-        self._record_ts(self._last_ping_ts, target_pk.strip().lower(), time.monotonic())
+        self._record_persisted_ts("ping", target_pk.strip().lower(), time.monotonic())
 
     def check_traceroute_cooldown(self, target_pk: str, is_automated: bool = False) -> tuple[bool, float]:
         """Verifica si ha transcurrido el cooldown mínimo antes de iniciar otro traceroute a target_pk."""
@@ -156,7 +271,7 @@ class RepeaterManager:
 
     def record_traceroute_sent(self, target_pk: str) -> None:
         """Registra la emisión de un traceroute hacia target_pk."""
-        self._record_ts(self._last_traceroute_ts, target_pk.strip().lower(), time.monotonic())
+        self._record_persisted_ts("traceroute", target_pk.strip().lower(), time.monotonic())
 
     def check_neighbours_cooldown(self, target_pk: str, is_automated: bool = False) -> tuple[bool, float]:
         """Verifica si ha transcurrido el cooldown antes de consultar vecinos de target_pk."""
@@ -173,7 +288,7 @@ class RepeaterManager:
 
     def record_neighbours_sent(self, target_pk: str) -> None:
         """Registra la consulta de vecinos hacia target_pk."""
-        self._record_ts(self._last_neighbours_ts, target_pk.strip().lower(), time.monotonic())
+        self._record_persisted_ts("neighbours", target_pk.strip().lower(), time.monotonic())
 
 
     def build_repeater_command_payload(self, action: str, params: dict[str, Any]) -> str | None:
@@ -271,10 +386,6 @@ class RepeaterManager:
             "clock_sync": "clock sync",
             "st": "clock sync",
             "clock sync": "clock sync",
-            "bat": "get pwrmgt.bootmv",
-            "get_bat": "get pwrmgt.bootmv",
-            "get bat": "get pwrmgt.bootmv",
-            "battery": "get pwrmgt.bootmv",
             "uptime": "get uptime",
             "get_uptime": "get uptime",
             "get uptime": "get uptime",
@@ -597,6 +708,10 @@ class RepeaterManager:
         if self.response_is_error(text):
             return {}
         clean = text.removeprefix("> ").strip()
+        if command == "get pwrmgt.bootmv":
+            # A historical startup reading must never overwrite live battery.
+            match = re.fullmatch(r"(\d+)\s*(?:mV)?", clean, re.IGNORECASE)
+            return {"boot_voltage_mv": int(match.group(1))} if match else {}
         field_by_command = {
             "get name": "name", "get owner.info": "owner_info", "get tx": "tx_power",
             "get lat": "latitude", "get lon": "longitude", "get repeat": "repeat_enabled",
@@ -848,7 +963,7 @@ class RepeaterManager:
 
     def _parse_battery_and_voltage(self, text: str, extracted: dict[str, Any]) -> None:
         """Extrae porcentaje de batería, voltaje y lecturas solares de respuestas CLI."""
-        bat_m = re.search(r'(?:battery|batt|bat|pwrmgt\.bootmv|boot\s+voltage|bootmv)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:mv|v|%)?(?:\s*\((?:(\d+)\s*%)?\))?', text, re.IGNORECASE)
+        bat_m = re.search(r'(?:battery|batt|bat)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:mv|v|%)?(?:\s*\((?:(\d+)\s*%)?\))?', text, re.IGNORECASE)
         if not bat_m:
             bat_m = re.search(r'(?:^|>)\s*(\d{3,4})\s*(?:mv)?(?:\s*\((?:(\d+)\s*%)?\))?$', text, re.IGNORECASE)
         if not bat_m:

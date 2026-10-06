@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import threading
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -34,6 +35,37 @@ class MqttInboundDispatcher:
 
     def __init__(self, ctx: MqttInboundContext) -> None:
         self._ctx = ctx
+        self._admission_lock = threading.Lock()
+        self._admission_tokens: set[object] = set()
+        self._scheduled_handles: dict[object, asyncio.Handle] = {}
+        self._inbound_tasks: dict[asyncio.Task[Any], object] = {}
+        self._closed = False
+
+    def start(self) -> None:
+        with self._admission_lock:
+            self._closed = False
+
+    async def close(self) -> None:
+        """Stop queued callbacks and join only this dispatcher's owned tasks."""
+        with self._admission_lock:
+            self._closed = True
+            handles = list(self._scheduled_handles.values())
+            tasks = list(self._inbound_tasks)
+            self._scheduled_handles.clear()
+            self._admission_tokens.clear()
+        for handle in handles:
+            handle.cancel()
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    def _release_admission(self, token: object, task: asyncio.Task[Any] | None = None) -> None:
+        with self._admission_lock:
+            self._admission_tokens.discard(token)
+            self._scheduled_handles.pop(token, None)
+            if task is not None:
+                self._inbound_tasks.pop(task, None)
 
     def handle_incoming(self, topic: str, payload_str: str) -> None:
         """Punto de entrada sincrónico que programa el procesamiento asíncrono."""
@@ -45,29 +77,45 @@ class MqttInboundDispatcher:
             return
 
         max_inbound_tasks = getattr(config, "MAX_MQTT_INBOUND_TASKS", 50)
-        current_tasks = len(self._ctx.background_tasks)
-        if current_tasks >= max_inbound_tasks:
-            logging.warning(
-                "Descartando mensaje MQTT entrante por sobrecarga de tareas pendientes (%d >= %d). Tópico: %s",
-                current_tasks,
-                max_inbound_tasks,
-                topic,
-            )
-            return
+        token = object()
+        with self._admission_lock:
+            current_tasks = max(0, len(self._ctx.background_tasks) - len(self._inbound_tasks)) + len(self._admission_tokens)
+            if self._closed or current_tasks >= max_inbound_tasks:
+                logging.warning("MQTT admission rejected: pending=%d, limit=%d, topic=%s", current_tasks, max_inbound_tasks, topic)
+                return
+            self._admission_tokens.add(token)
 
         def schedule() -> None:
-            if loop.is_closed():
-                return
-            task = loop.create_task(self._process_mqtt_input(topic, payload_str))
-            if self._ctx.register_task is not None:
-                self._ctx.register_task(task)
-            else:
-                self._ctx.background_tasks.add(task)
-                task.add_done_callback(self._ctx.background_tasks.discard)
+            with self._admission_lock:
+                self._scheduled_handles.pop(token, None)
+                if self._closed or token not in self._admission_tokens or loop.is_closed():
+                    self._admission_tokens.discard(token)
+                    return
+                operation = self._process_mqtt_input(topic, payload_str)
+                try:
+                    task = loop.create_task(operation)
+                except Exception:
+                    operation.close()
+                    self._admission_tokens.discard(token)
+                    logging.exception("MQTT inbound task creation failed")
+                    return
+                self._inbound_tasks[task] = token
+            task.add_done_callback(lambda completed: self._release_admission(token, completed))
+            try:
+                if self._ctx.register_task is not None:
+                    self._ctx.register_task(task)
+                else:
+                    self._ctx.background_tasks.add(task)
+                    task.add_done_callback(self._ctx.background_tasks.discard)
+            except Exception:
+                task.cancel()
+                self._release_admission(token, task)
+                logging.exception("MQTT task ownership registration failed")
 
         try:
             loop = self._ctx.loop or asyncio.get_running_loop()
             if loop.is_closed():
+                self._release_admission(token)
                 return
             try:
                 running = asyncio.get_running_loop()
@@ -76,8 +124,14 @@ class MqttInboundDispatcher:
             if running is loop:
                 schedule()
             else:
-                loop.call_soon_threadsafe(schedule)
+                handle = loop.call_soon_threadsafe(schedule)
+                with self._admission_lock:
+                    if self._closed or token not in self._admission_tokens:
+                        handle.cancel()
+                    elif token not in self._inbound_tasks.values():
+                        self._scheduled_handles[token] = handle
         except RuntimeError:
+            self._release_admission(token)
             logging.error("No se pudo programar procesamiento MQTT")
 
     @property
@@ -193,6 +247,8 @@ class MqttInboundDispatcher:
                 status_payload["error"] = res["error"]
             if "expected_ack" in res:
                 status_payload["expected_ack"] = res["expected_ack"]
+            if "delivery_tracking" in res:
+                status_payload["delivery_tracking"] = res["delivery_tracking"]
             if "message" in res and "error" not in status_payload:
                 status_payload["message"] = res["message"]
             self._ctx.mqtt.publish_safe(self.topic_tx_status, json.dumps(status_payload), qos=1)

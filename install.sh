@@ -5,7 +5,7 @@
 # Compatible con Armbian (Orange Pi 2W), Debian, Ubuntu y Raspberry Pi OS
 # ==============================================================================
 
-set -euo pipefail
+set -Eeuo pipefail
 
 # Colores para la terminal
 RED='\033[0;31m'
@@ -20,7 +20,10 @@ INSTALL_DIR="/opt/meshcore-bridge"
 SERVICE_NAME="meshcore-bridge.service"
 SYSTEMD_DIR="/etc/systemd/system"
 CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TARGET_USER="${SUDO_USER:-$USER}"
+TARGET_USER="${SUDO_USER:-${USER:-root}}"
+SERVICE_USER="${MESHCORE_SERVICE_USER:-$TARGET_USER}"
+if [[ "$SERVICE_USER" == "root" ]]; then SERVICE_USER="meshcore"; fi
+SERVICE_GROUP=""
 
 echo -e "${CYAN}"
 echo "=================================================================="
@@ -71,160 +74,121 @@ if [[ "$ACTION" == "--uninstall" ]]; then
     exit 0
 fi
 
-# 3.0 Modo Desarrollo / QA (--dev): instala tooling de auditoría y ejecuta suite de tests (INS-04)
+# --dev never falls back to globally installing QA dependencies.
 if [[ "$ACTION" == "--dev" ]]; then
-    echo -e "${CYAN}==================================================================${NC}"
-    echo -e "${YELLOW}    🔬 MODO DESARROLLADOR: EJECUTANDO VERIFICACIÓN DE QA Y AUDITORÍA${NC}"
-    echo -e "${CYAN}==================================================================${NC}"
-
-    PYTHON_BIN="python3"
-    if [[ -d "$INSTALL_DIR/venv" ]]; then
-        PYTHON_BIN="$INSTALL_DIR/venv/bin/python"
-        PIP_BIN="$INSTALL_DIR/venv/bin/pip"
-    else
-        PIP_BIN="pip3"
+    QA_VENV="$CURRENT_DIR/.venv"
+    if [[ ! -x "$QA_VENV/bin/python" ]]; then
+        python3 -m venv "$QA_VENV"
     fi
-
-    echo -e "${BLUE}[1/3] Instalando tooling de desarrollo en el entorno...${NC}"
-    if [[ -f "$CURRENT_DIR/requirements-dev.txt" ]]; then
-        "$PIP_BIN" install -r "$CURRENT_DIR/requirements-dev.txt" -q 2>/dev/null || true
-    fi
-
-    echo -e "${BLUE}[2/3] Verificando Playwright Chromium (si está disponible)...${NC}"
-    "$PYTHON_BIN" -m playwright install chromium 2>/dev/null || true
-
-    echo -e "${BLUE}[3/3] Ejecutando verificación estática, unitaria y de calidad...${NC}"
+    PYTHON_BIN="$QA_VENV/bin/python"
+    "$PYTHON_BIN" -c 'import sys; assert sys.version_info >= (3, 10), "Python >=3.10 requerido"'
+    [[ -f "$CURRENT_DIR/requirements-dev.txt" ]]
+    [[ -f "$CURRENT_DIR/scripts/run_quality_checks.py" ]]
+    echo "[1/3] Instalando dependencias de QA en $QA_VENV"
+    "$PYTHON_BIN" -m pip install -r "$CURRENT_DIR/requirements.txt" -r "$CURRENT_DIR/requirements-dev.txt"
+    echo "[2/3] Instalando Chromium para las pruebas de navegador"
+    "$PYTHON_BIN" -m playwright install chromium
+    echo "[3/3] Ejecutando pytest/cobertura, mypy, ruff y documentación"
     cd "$CURRENT_DIR"
-    if [[ -f "$CURRENT_DIR/.agents/skills/bridge-test-runner/scripts/run_checks.py" ]]; then
-        "$PYTHON_BIN" "$CURRENT_DIR/.agents/skills/bridge-test-runner/scripts/run_checks.py"
-    else
-        "$PYTHON_BIN" -m pytest -v tests
-    fi
-
-    echo ""
-    echo -e "${GREEN}    🎉 ¡VERIFICACIÓN DE DESARROLLO FINALIZADA!${NC}"
-    echo "Herramientas: pytest, mypy --strict, ruff, bandit SAST, playwright."
-    echo ""
+    "$PYTHON_BIN" "$CURRENT_DIR/scripts/run_quality_checks.py"
+    echo "[OK] Verificaciones ejecutadas: pytest/cobertura, mypy, ruff y documentación."
+    echo "Bandit no forma parte de este runner; no se acredita SAST en esta ejecución."
     exit 0
 fi
 
-# 3.1 Manejo de Actualización en Caliente (--update)
+# Render service identity from an existing non-root invoking account, or a
+# dedicated account for installations invoked directly by root.
+configure_service_identity() {
+    if [[ ! "$SERVICE_USER" =~ ^[a-z_][a-z0-9_-]*\$?$ ]]; then
+        echo "[ERROR] MESHCORE_SERVICE_USER inválido" >&2
+        return 1
+    fi
+    if ! id "$SERVICE_USER" >/dev/null 2>&1; then
+        useradd --system --user-group --home-dir "$INSTALL_DIR" --shell /usr/sbin/nologin "$SERVICE_USER"
+    fi
+    if [[ "$(id -u "$SERVICE_USER")" == "0" ]]; then
+        echo "[ERROR] El servicio requiere una cuenta sin UID 0" >&2
+        return 1
+    fi
+    SERVICE_GROUP="$(id -gn "$SERVICE_USER")"
+    local group
+    for group in ${MESHCORE_SERIAL_GROUPS:-dialout uucp}; do
+        if getent group "$group" >/dev/null; then
+            usermod -aG "$group" "$SERVICE_USER"
+        fi
+    done
+    echo "[OK] Servicio: $SERVICE_USER:$SERVICE_GROUP. Comprueba el grupo propietario del dispositivo serial."
+}
+
+render_service() {
+    local template="$1" destination="$2"
+    sed -e "s/^User=.*/User=$SERVICE_USER/" -e "s/^Group=.*/Group=$SERVICE_GROUP/" "$template" > "$destination"
+}
+
+# --update stages code and a fresh environment before stopping the service.
 if [[ "$ACTION" == "--update" ]]; then
-    echo -e "${CYAN}==================================================================${NC}"
-    echo -e "${YELLOW}    🔄 ACTUALIZANDO INSTALACIÓN EXISTENTE DE MESHCORE BRIDGE${NC}"
-    echo -e "${CYAN}==================================================================${NC}"
-    
-    if [[ ! -d "$INSTALL_DIR" ]]; then
-        echo -e "${RED}[ERROR] No se encontró una instalación previa en ${INSTALL_DIR}.${NC}"
-        echo "Ejecuta 'sudo bash install.sh' para realizar una instalación completa."
-        exit 1
-    fi
-
-    echo -e "${BLUE}[1/5] Deteniendo servicio actual...${NC}"
-    systemctl stop "$SERVICE_NAME" 2>/dev/null || true
-
-    echo -e "${BLUE}[2/5] Actualizando archivos de código fuente, paquete src/ y configuración...${NC}"
-    if [[ "$CURRENT_DIR" != "$INSTALL_DIR" ]]; then
-        cp -f "$CURRENT_DIR/config.py" "$INSTALL_DIR/"
-        cp -f "$CURRENT_DIR/meshcore_bridge.py" "$INSTALL_DIR/"
-        cp -f "$CURRENT_DIR/pyproject.toml" "$INSTALL_DIR/" 2>/dev/null || true
-        cp -f "$CURRENT_DIR/requirements.txt" "$INSTALL_DIR/"
-        cp -f "$CURRENT_DIR/meshcore-bridge.service" "$INSTALL_DIR/"
-        if [[ -f "$CURRENT_DIR/.env.example" ]]; then
-            cp -f "$CURRENT_DIR/.env.example" "$INSTALL_DIR/" 2>/dev/null || true
+    [[ -d "$INSTALL_DIR" ]] || { echo "[ERROR] No existe $INSTALL_DIR" >&2; exit 1; }
+    UPDATE_HELPER="$CURRENT_DIR/scripts/staged_update.py"
+    [[ -f "$UPDATE_HELPER" ]]
+    STAGE_DIR="$(python3 "$UPDATE_HELPER" prepare "$CURRENT_DIR" "$INSTALL_DIR")"
+    STAGE_APPLIED=0
+    SERVICE_STOPPED=0
+    WAS_ACTIVE=0
+    HAD_UNIT=0
+    rollback_update() {
+        local status="$?"
+        trap - ERR INT TERM
+        echo "[ERROR] Actualización interrumpida; recuperando instalación anterior" >&2
+        if [[ "$STAGE_APPLIED" == "1" ]]; then
+            python3 "$UPDATE_HELPER" rollback "$STAGE_DIR" || {
+                echo "[ERROR] Rollback incompleto. Conserva $STAGE_DIR para recuperación manual." >&2
+                exit 1
+            }
         fi
-        
-        # Copiar paquete modular src/
-        rm -rf "$INSTALL_DIR/src"
-        cp -rf "$CURRENT_DIR/src" "$INSTALL_DIR/"
-
-        # Copiar scripts
-        if [[ -d "$CURRENT_DIR/scripts" ]]; then
-            mkdir -p "$INSTALL_DIR/scripts"
-            cp -rf "$CURRENT_DIR/scripts/"* "$INSTALL_DIR/scripts/" 2>/dev/null || true
+        if [[ "$SERVICE_STOPPED" == "1" ]]; then
+            if [[ "$HAD_UNIT" == "1" ]]; then
+                cp -f "$STAGE_DIR/systemd.previous" "$SYSTEMD_DIR/$SERVICE_NAME"
+            else
+                rm -f "$SYSTEMD_DIR/$SERVICE_NAME"
+            fi
+            systemctl daemon-reload
+            if [[ "$WAS_ACTIVE" == "1" ]]; then
+                systemctl start "$SERVICE_NAME" || echo "[ERROR] Código recuperado; servicio anterior no pudo arrancar" >&2
+            fi
         fi
-        
-        # Copiar documentación
-        mkdir -p "$INSTALL_DIR/docs"
-        cp -rf "$CURRENT_DIR/docs/"* "$INSTALL_DIR/docs/" 2>/dev/null || true
-    else
-        echo -e "${YELLOW}[AVISO] Ejecutando actualización desde el propio directorio de instalación (${INSTALL_DIR}). Omitiendo copia de archivos sobre sí mismos.${NC}"
+        python3 "$UPDATE_HELPER" finish "$STAGE_DIR"
+        exit "$((status == 0 ? 1 : status))"
+    }
+    trap rollback_update ERR INT TERM
+    python3 -m venv "$STAGE_DIR/release/venv"
+    STAGED_PYTHON="$STAGE_DIR/release/venv/bin/python"
+    "$STAGED_PYTHON" -m pip install -r "$STAGE_DIR/release/requirements.txt"
+    "$STAGED_PYTHON" "$STAGE_DIR/release/scripts/check_runtime_dependencies.py"
+    "$STAGED_PYTHON" -m compileall -q "$STAGE_DIR/release/src" "$STAGE_DIR/release/config.py"
+    configure_service_identity
+    render_service "$STAGE_DIR/release/meshcore-bridge.service" "$STAGE_DIR/systemd.next"
+    if [[ -f "$SYSTEMD_DIR/$SERVICE_NAME" ]]; then
+        cp -f "$SYSTEMD_DIR/$SERVICE_NAME" "$STAGE_DIR/systemd.previous"
+        HAD_UNIT=1
     fi
-
-    # Si .env existe, conservarlo e incorporar nuevas variables si faltan
-    if [[ -f "$INSTALL_DIR/.env" ]]; then
-        if ! grep -q "TCP_SERVER_ENABLED" "$INSTALL_DIR/.env"; then
-            echo "" >> "$INSTALL_DIR/.env"
-            echo "# Servidor TCP/IP Companion para Apps MeshCore (puerto 5000)" >> "$INSTALL_DIR/.env"
-            echo "TCP_SERVER_ENABLED=true" >> "$INSTALL_DIR/.env"
-            echo "TCP_SERVER_HOST=0.0.0.0" >> "$INSTALL_DIR/.env"
-            echo "TCP_SERVER_PORT=5000" >> "$INSTALL_DIR/.env"
-            echo -e "${GREEN}[OK] Variables de Servidor TCP Companion añadidas a tu .env existente.${NC}"
-        fi
-        if ! grep -q "LOG_FILE_PATH" "$INSTALL_DIR/.env"; then
-            echo "" >> "$INSTALL_DIR/.env"
-            echo "# Logging Persistente y Rotación de Archivos" >> "$INSTALL_DIR/.env"
-            echo "LOG_DIR=${INSTALL_DIR}/logs" >> "$INSTALL_DIR/.env"
-            echo "LOG_FILE_PATH=${INSTALL_DIR}/logs/meshcore-bridge.log" >> "$INSTALL_DIR/.env"
-            echo "LOG_ERROR_FILE_PATH=${INSTALL_DIR}/logs/meshcore-bridge.error.log" >> "$INSTALL_DIR/.env"
-            echo "LOG_MAX_BYTES=5242880" >> "$INSTALL_DIR/.env"
-            echo "LOG_BACKUP_COUNT=3" >> "$INSTALL_DIR/.env"
-            echo -e "${GREEN}[OK] Variables de Logging Persistente añadidas a tu .env existente.${NC}"
-        fi
-    fi
-
-    mkdir -p "$INSTALL_DIR/logs"
-    mkdir -p "$INSTALL_DIR/data"
-    mkdir -p "$INSTALL_DIR/scripts"
-    if [[ "$CURRENT_DIR" != "$INSTALL_DIR" && -d "$CURRENT_DIR/scripts" ]]; then
-        cp -rf "$CURRENT_DIR/scripts/"* "$INSTALL_DIR/scripts/" 2>/dev/null || true
-    fi
-    chmod +x "$INSTALL_DIR/scripts/"*.py 2>/dev/null || true
-
-    # Corregir configuración de Mosquitto únicamente si no existe política previa (INS-05)
-    MOSQUITTO_CONF_DIR="/etc/mosquitto/conf.d"
-    if [[ -d "$MOSQUITTO_CONF_DIR" && ! -f "$MOSQUITTO_CONF_DIR/meshcore_local.conf" ]]; then
-        cat << 'EOF' > "$MOSQUITTO_CONF_DIR/meshcore_local.conf"
-# Configuración de acceso para MeshCore Bridge
-listener 1883 0.0.0.0
-allow_anonymous true
-EOF
-        systemctl restart mosquitto 2>/dev/null || true
-    fi
-
-    echo -e "${BLUE}[3/5] Actualizando dependencias de Python en entorno virtual...${NC}"
-    if [[ -d "$INSTALL_DIR/venv" ]]; then
-        "$INSTALL_DIR/venv/bin/pip" install --upgrade pip -q
-        "$INSTALL_DIR/venv/bin/pip" install -r "$INSTALL_DIR/requirements.txt" -q
-    else
-        python3 -m venv "$INSTALL_DIR/venv"
-        "$INSTALL_DIR/venv/bin/pip" install --upgrade pip -q
-        "$INSTALL_DIR/venv/bin/pip" install -r "$INSTALL_DIR/requirements.txt" -q
-    fi
-
-    chown -R "$TARGET_USER:$TARGET_USER" "$INSTALL_DIR"
-
-    echo -e "${BLUE}[4/5] Actualizando unidad systemd...${NC}"
-    cp -f "$INSTALL_DIR/meshcore-bridge.service" "$SYSTEMD_DIR/$SERVICE_NAME"
+    if systemctl is-active --quiet "$SERVICE_NAME"; then WAS_ACTIVE=1; fi
+    SERVICE_STOPPED=1
+    systemctl stop "$SERVICE_NAME"
+    # Mark before apply: the helper also rolls back internal rename failures.
+    STAGE_APPLIED=1
+    python3 "$UPDATE_HELPER" apply "$STAGE_DIR"
+    python3 "$UPDATE_HELPER" relocate "$STAGE_DIR"
+    "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/check_runtime_dependencies.py"
+    mkdir -p "$INSTALL_DIR/logs" "$INSTALL_DIR/data"
+    chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR"
+    cp -f "$STAGE_DIR/systemd.next" "$SYSTEMD_DIR/$SERVICE_NAME"
     systemctl daemon-reload
-    systemctl enable "$SERVICE_NAME" >/dev/null 2>&1
     systemctl restart "$SERVICE_NAME"
-
-    echo -e "${BLUE}[5/5] Verificando estado del servicio...${NC}"
-    sleep 2
-    if systemctl is-active --quiet "$SERVICE_NAME"; then
-        echo -e "${GREEN}[OK] ¡Servicio ${SERVICE_NAME} actualizado y en ejecución!${NC}"
-        echo ""
-        echo -e "${GREEN}    🎉 ¡ACTUALIZACIÓN COMPLETADA CON ÉXITO!${NC}"
-        echo "Tu configuración (.env) y base de datos persistente se conservaron intactas."
-        echo "Para ver los logs en vivo: sudo journalctl -u meshcore-bridge.service -f"
-        echo ""
-        exit 0
-    else
-        echo -e "${RED}[ERROR] El servicio ${SERVICE_NAME} no se encuentra activo tras el reinicio.${NC}"
-        echo "       Revisa los logs con: sudo journalctl -u $SERVICE_NAME -n 20"
-        exit 1
-    fi
+    systemctl is-active --quiet "$SERVICE_NAME"
+    trap - ERR INT TERM
+    python3 "$UPDATE_HELPER" finish "$STAGE_DIR"
+    echo "[OK] Actualización verificada; .env, datos, mapas y logs conservados."
+    exit 0
 fi
 
 # ==============================================================================
@@ -271,11 +235,9 @@ else
     echo -e "${YELLOW}[AVISO] Mosquitto no pudo iniciar automáticamente. Verifica con: sudo systemctl status mosquitto${NC}"
 fi
 
-# Asignar permisos de puerto serial al usuario
-echo -e "${BLUE}[3/7] Configurando permisos de puerto serial (dialout/tty)...${NC}"
-usermod -aG dialout "$TARGET_USER" 2>/dev/null || true
-usermod -aG tty "$TARGET_USER" 2>/dev/null || true
-echo -e "${GREEN}[OK] Usuario '${TARGET_USER}' añadido al grupo dialout.${NC}"
+# Preparar la misma identidad usada por chown y la unidad antes del despliegue.
+echo -e "${BLUE}[3/7] Configurando cuenta del servicio y acceso al puerto serial...${NC}"
+configure_service_identity
 
 # Detección automática del puerto serial del dispositivo MeshCore
 echo -e "${BLUE}[4/7] Detectando dispositivo MeshCore Companion USB conectado (Heltec, LilyGO, RAK, Seeed, RP2040)...${NC}"
@@ -336,16 +298,16 @@ fi
 # Crear entorno virtual Python e instalar dependencias
 echo -e "${BLUE}[6/7] Creando entorno virtual Python e instalando librerías...${NC}"
 python3 -m venv "$INSTALL_DIR/venv"
-"$INSTALL_DIR/venv/bin/pip" install --upgrade pip -q
-"$INSTALL_DIR/venv/bin/pip" install -r "$INSTALL_DIR/requirements.txt" -q
+"$INSTALL_DIR/venv/bin/python" -m pip install -r "$INSTALL_DIR/requirements.txt"
+"$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/check_runtime_dependencies.py"
 
 # Asegurar permisos del usuario sobre todo el directorio y venv
-chown -R "$TARGET_USER:$TARGET_USER" "$INSTALL_DIR"
+chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR"
 echo -e "${GREEN}[OK] Entorno virtual y dependencias Python instaladas exitosamente.${NC}"
 
 # Instalar y arrancar el servicio systemd
 echo -e "${BLUE}[7/7] Registrando y activando el servicio systemd (${SERVICE_NAME})...${NC}"
-cp -f "$INSTALL_DIR/meshcore-bridge.service" "$SYSTEMD_DIR/$SERVICE_NAME"
+render_service "$INSTALL_DIR/meshcore-bridge.service" "$SYSTEMD_DIR/$SERVICE_NAME"
 systemctl daemon-reload
 systemctl enable "$SERVICE_NAME" >/dev/null 2>&1
 systemctl restart "$SERVICE_NAME"

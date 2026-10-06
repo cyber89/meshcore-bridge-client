@@ -12,6 +12,8 @@ import threading
 from pathlib import Path
 from typing import Any
 
+import config
+
 
 class MapTileService:
     """Gestiona el almacenamiento y despacho de teselas cartográficas offline."""
@@ -20,7 +22,7 @@ class MapTileService:
         if data_dir:
             self.base_dir = Path(data_dir)
         else:
-            self.base_dir = Path(__file__).resolve().parent.parent.parent / "data"
+            self.base_dir = Path(config.DATA_DIR)
 
         self.maps_dir = self.base_dir / "maps"
         self.tiles_dir = self.maps_dir / "tiles"

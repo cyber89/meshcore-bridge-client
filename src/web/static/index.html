@@ -339,7 +339,7 @@
               <div class="analytics-kpi-card" id="cardKpiPackets">
                 <div class="kpi-icon"><span data-lucide="package" data-size="22"></span></div>
                 <div class="kpi-data">
-                  <span class="kpi-label" data-i18n="analytics.kpi_packets">Paquetes Totales Malla</span>
+                  <span class="kpi-label" data-i18n="analytics.kpi_packets">Paquetes de la sesión</span>
                   <strong class="kpi-value" id="kpiTotalPackets">0</strong>
                   <span class="kpi-sub" id="kpiPacketsRatio">RX: 0 | TX: 0</span>
                 </div>
@@ -382,7 +382,7 @@
                   <span class="card-icon"><span data-lucide="trending-up" data-size="18"></span></span>
                   <div>
                     <h3 data-i18n="analytics.chart_traffic_title">Actividad Temporal de Tráfico (RX vs TX)</h3>
-                    <p data-i18n="analytics.chart_traffic_sub">Volumen de paquetes recibidos y transmitidos en la malla a lo largo del tiempo</p>
+                    <p data-i18n="analytics.chart_traffic_sub">Ventana seleccionada; el último intervalo está en curso. Los totales superiores cubren toda la sesión.</p>
                   </div>
                   <div class="card-header-badge">
                     <span class="badge-pill badge-primary text-xs" id="chartTrafficRangeBadge">24h</span>
@@ -1908,8 +1908,9 @@
                   </select>
                 </div>
                 <div class="form-group">
-                  <label for="radioPower" data-i18n="ui.static_202">Potencia TX LoRa: <span id="radioPowerVal" class="val-badge">20 dBm</span></label>
-                  <input type="range" id="radioPower" min="2" max="22" value="20" step="1" />
+                  <label for="radioPower" data-i18n="ui.static_202">Potencia TX LoRa: <span id="radioPowerVal" class="val-badge">-- dBm</span></label>
+                  <input type="number" id="radioPower" min="-128" max="127" step="1" aria-describedby="radioPowerLimits" />
+                  <small id="radioPowerLimits" class="text-muted" data-i18n="repeater.power_limits_unknown">Capacidad de la placa desconocida. El dispositivo validará el valor solicitado.</small>
                 </div>
                 <div class="form-group">
                   <label for="radioHopLimit" data-i18n="ui.static_458">Hop Limit (Límite de Saltos):</label>

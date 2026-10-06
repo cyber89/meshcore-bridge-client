@@ -26,6 +26,8 @@ export class ChatModule {
   constructor(context) {
     this.ctx = context;
     this.channelFeeds = new Map();
+    this._renderGeneration = 0;
+    this._feedGenerations = new Map();
     this.conversationsWithMessages = new Set();
     this.unreadCounts = new Map();
     this.activeChannelIdx = 0;
@@ -942,7 +944,9 @@ export class ChatModule {
 
   async clearCurrentChat() {
     const feedKey = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
-    this.channelFeeds.delete(feedKey);
+    const renderGeneration = ++this._renderGeneration;
+    this._feedGenerations.set(feedKey, (this._feedGenerations.get(feedKey) || 0) + 1);
+    this.channelFeeds.set(feedKey, []);
 
     if (this.ctx.storage && this.ctx.storage.clearFeedMessages) {
       try {
@@ -950,7 +954,8 @@ export class ChatModule {
       } catch (_) {}
     }
 
-    if (this.dom.chatMessageFeed) {
+    const currentFeed = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
+    if (renderGeneration === this._renderGeneration && feedKey === currentFeed && this.dom.chatMessageFeed) {
       this.dom.chatMessageFeed.innerHTML = `
         <div class="chat-empty-state">
           <p>${window.I18n ? window.I18n.t('chat.cleared') : 'Historial de chat limpiado'}</p>
@@ -1083,15 +1088,26 @@ export class ChatModule {
 
   async renderCurrentConversation() {
     if (!this.dom.chatMessageFeed) return;
+    const renderGeneration = ++this._renderGeneration;
     this.dom.chatMessageFeed.textContent = "";
 
     const feedKey = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
+    const feedGeneration = this._feedGenerations.get(feedKey) || 0;
     let msgs = this.channelFeeds.get(feedKey);
 
     if (!msgs && this.ctx.storage) {
       msgs = await this.ctx.storage.getMessagesByFeed(feedKey);
-      this.channelFeeds.set(feedKey, msgs || []);
+      if (feedGeneration === (this._feedGenerations.get(feedKey) || 0)) {
+        const existing = this.channelFeeds.get(feedKey) || [];
+        const byId = new Map((msgs || []).map(msg => [msg.msg_id || msg.id, msg]));
+        for (const msg of existing) byId.set(msg.msg_id || msg.id, msg);
+        this.channelFeeds.set(feedKey, [...byId.values()].slice(-MAX_FEED_MESSAGES));
+      }
+      msgs = this.channelFeeds.get(feedKey);
     }
+
+    const currentFeed = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
+    if (renderGeneration !== this._renderGeneration || feedKey !== currentFeed) return;
 
     if (!msgs || msgs.length === 0) {
       this.dom.chatMessageFeed.innerHTML = `
@@ -1289,6 +1305,8 @@ export class ChatModule {
         ackHtml = `<span class="ack-indicator ack-delivered" title="${window.I18n ? window.I18n.t('chat.delivered') : 'Entregado'}">✓✓</span>`;
       } else if (msg.status === "sent") {
         ackHtml = `<span class="ack-indicator ack-sent" title="${window.I18n ? window.I18n.t('chat.sent') : 'Transmitido'}">✓</span>`;
+      } else if (msg.status === "failed") {
+        ackHtml = `<span class="ack-indicator ack-failed" title="${escapeHtml(I18n.t('chat.failed'))}">!</span>`;
       } else {
         ackHtml = `<span class="ack-indicator ack-queued" title="${window.I18n ? window.I18n.t('chat.queued') : 'En cola'}">✓</span>`;
       }
@@ -1306,8 +1324,19 @@ export class ChatModule {
           <span class="msg-time">${escapeHtml(timeStr)}</span>
           ${ackHtml}
         </div>
+        ${msg.status === "failed" ? `<button type="button" class="btn-retry-msg">${escapeHtml(I18n.t('chat.recover_draft'))}</button>` : ""}
       </div>
     `;
+
+    row.querySelector('.btn-retry-msg')?.addEventListener('click', () => {
+      if (this.dom.chatInputText && !this.dom.chatInputText.value.trim()) {
+        this.dom.chatInputText.value = msg.text;
+        this.updateCharCounter();
+        this.dom.chatInputText.focus();
+      } else {
+        this.ctx.showToast?.(I18n.t('chat.draft_occupied'), 'warning');
+      }
+    });
 
     // 5. Cableado de interactividad en tarjetas
     if (parsedUri?.type === "contact") {
@@ -1378,6 +1407,15 @@ export class ChatModule {
     return row;
   }
 
+  async _persistOutgoingMessage(operation) {
+    try {
+      await operation();
+    } catch (error) {
+      console.warn("Error guardando mensaje:", error);
+      this.ctx.showToast?.(I18n.t('chat.storage_error'), 'warning');
+    }
+  }
+
   async sendMessage() {
     const rawInput = this.dom.chatInputText ? this.dom.chatInputText.value.trim() : "";
     if (!rawInput) return;
@@ -1393,9 +1431,6 @@ export class ChatModule {
       }
       return;
     }
-
-    if (this.dom.chatInputText) this.dom.chatInputText.value = "";
-    this.updateCharCounter();
 
     const msgId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
     const canonicalTarget = this.activeDmTarget ? this.resolveCanonicalPubkey(this.activeDmTarget) : null;
@@ -1418,6 +1453,8 @@ export class ChatModule {
     }
 
     const target = canonicalTarget || "broadcast";
+    if (this.dom.chatInputText) this.dom.chatInputText.value = "";
+    this.updateCharCounter();
 
     const outgoingMsg = {
       id: msgId,
@@ -1440,35 +1477,39 @@ export class ChatModule {
     feed.push(outgoingMsg);
     if (feed.length > MAX_FEED_MESSAGES) feed.shift();
 
-    if (this.ctx.storage) {
-      this.ctx.storage.saveMessage(feedKey, outgoingMsg);
-    }
-
     this.appendChatMessage(outgoingMsg);
 
+    await this._persistOutgoingMessage(() => this.ctx.storage?.saveMessage(feedKey, outgoingMsg));
     try {
       const res = await fetch("/api/tx", {
         method: "POST",
         headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" }) : { "Content-Type": "application/json" },
         body: JSON.stringify({
           to: target,
-          channel_index: this.activeChannelIdx,
+          channel_index: outgoingMsg.channel_idx,
           text: rawInput,
           request_id: msgId,
         }),
       });
       const txData = await res.json();
+      if (!res.ok || !txData || txData.status !== "ok") {
+        throw new Error(txData?.detail || txData?.message || txData?.error || `HTTP ${res.status}`);
+      }
       if (res.ok && txData && txData.status === "ok") {
-        outgoingMsg.status = "sent";
+        if (!outgoingMsg.delivered && outgoingMsg.status !== "delivered") outgoingMsg.status = "sent";
+        await this._persistOutgoingMessage(() => this.ctx.storage?.updateMessageStatus?.(msgId, outgoingMsg.status));
+        const deliveryTracking = txData.data?.delivery_tracking || txData.delivery_tracking;
+        const canTrackDelivery = !deliveryTracking || deliveryTracking === "registered";
+        if (!canTrackDelivery) {
+          this.ctx.showToast?.(I18n.t('chat.delivery_tracking_unavailable'), 'info');
+        }
         const rawExpectedAck = txData.data?.expected_ack || txData.expected_ack;
-        if (rawExpectedAck) {
+        if (rawExpectedAck && canTrackDelivery) {
           const cleanExpectedAck = String(rawExpectedAck).toLowerCase().replace(/^0x/, "").trim();
           if (cleanExpectedAck) {
             outgoingMsg.expected_ack = cleanExpectedAck;
-            this.pendingOutgoingAcks.set(cleanExpectedAck, msgId);
-            if (this.ctx.storage) {
-              this.ctx.storage.updateMessageExpectedAck(msgId, cleanExpectedAck);
-            }
+            if (!outgoingMsg.delivered) this.pendingOutgoingAcks.set(cleanExpectedAck, msgId);
+            await this._persistOutgoingMessage(() => this.ctx.storage?.updateMessageExpectedAck?.(msgId, cleanExpectedAck));
           }
         }
         const row = this.dom.chatMessageFeed?.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
@@ -1486,6 +1527,19 @@ export class ChatModule {
       }
     } catch (e) {
       console.warn("Error transmitiendo mensaje:", e);
+      if (outgoingMsg.delivered || outgoingMsg.status === "delivered") return;
+      outgoingMsg.status = "failed";
+      await this._persistOutgoingMessage(() => this.ctx.storage?.updateMessageStatus?.(msgId, "failed"));
+      this.ctx.showToast?.(I18n.t('chat.send_failed', { error: e.message }), 'error');
+      const currentFeed = this.activeDmTarget ? `dm_${this.activeDmTarget}` : `ch_${this.activeChannelIdx}`;
+      if (currentFeed === feedKey) {
+        if (this.dom.chatInputText && !this.dom.chatInputText.value.trim()) {
+          this.dom.chatInputText.value = rawInput;
+          this.updateCharCounter();
+        }
+        const row = this.dom.chatMessageFeed?.querySelector(`.message-bubble-row[data-msg-id="${msgId}"]`);
+        row?.replaceWith(this.createMessageBubble(outgoingMsg));
+      }
     }
   }
 

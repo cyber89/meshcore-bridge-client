@@ -39,8 +39,9 @@ class MinuteBucket:
 
 class MetricsAggregator:
     """
-    Agregador en memoria de alto rendimiento y bajo consumo RAM (< 100 KB).
-    Almacena hasta 1440 cubos de 1 minuto (24 horas continuas de tráfico).
+    Agregador en memoria con retención limitada de cubos de un minuto.
+    El valor por defecto conserva 1440 minutos. El coste de objetos Python depende
+    de plataforma y carga; no representa un presupuesto de RAM del servicio.
     """
 
     def __init__(self, max_minutes: int = 1440) -> None:
@@ -84,7 +85,7 @@ class MetricsAggregator:
             return "ADMIN"
         return "OTHER"
 
-    def _get_or_create_bucket(self, ts: float) -> MinuteBucket:
+    def _get_or_create_bucket(self, ts: float) -> MinuteBucket | None:
         """Obtiene el cubo correspondiente al minuto dado o crea los intermedios."""
         minute_ts = (int(ts) // 60) * 60
 
@@ -99,12 +100,8 @@ class MetricsAggregator:
 
         if minute_ts > last_bucket.timestamp:
             # Rellenar minutos faltantes si hay un salto temporal (máx 1440)
-            gap_seconds = minute_ts - last_bucket.timestamp
-            gap_minutes = min(gap_seconds // 60, self.max_minutes)
-
-            cur_ts = last_bucket.timestamp
-            for _ in range(1, gap_minutes):
-                cur_ts += 60
+            start = max(last_bucket.timestamp + 60, minute_ts - (self.max_minutes - 1) * 60)
+            for cur_ts in range(start, minute_ts, 60):
                 self._buckets.append(MinuteBucket(timestamp=cur_ts))
 
             new_bucket = MinuteBucket(timestamp=minute_ts)
@@ -116,8 +113,15 @@ class MetricsAggregator:
             if b.timestamp == minute_ts:
                 return b
 
-        # Si es más viejo que el búfer, devolver el primero disponible
-        return self._buckets[0]
+        # Una observación caducada cuenta en sesión, sin cambiar su fecha.
+        if minute_ts < last_bucket.timestamp - (self.max_minutes - 1) * 60:
+            return None
+        bucket = MinuteBucket(timestamp=minute_ts)
+        self._buckets = deque(
+            sorted([*self._buckets, bucket], key=lambda item: item.timestamp),
+            maxlen=self.max_minutes,
+        )
+        return bucket
 
     def record_packet(
         self,
@@ -148,28 +152,35 @@ class MetricsAggregator:
             if is_rx:
                 self.total_rx_packets += 1
                 self.total_rx_bytes += size_bytes
-                bucket.rx_packets += 1
-                bucket.rx_bytes += size_bytes
+                if bucket is not None:
+                    bucket.rx_packets += 1
+                    bucket.rx_bytes += size_bytes
                 if is_flood:
                     self.total_flood_rx += 1
-                    bucket.flood_rx += 1
+                    if bucket is not None:
+                        bucket.flood_rx += 1
                 else:
                     self.total_direct_rx += 1
-                    bucket.direct_rx += 1
+                    if bucket is not None:
+                        bucket.direct_rx += 1
             else:
                 self.total_tx_packets += 1
                 self.total_tx_bytes += size_bytes
-                bucket.tx_packets += 1
-                bucket.tx_bytes += size_bytes
+                if bucket is not None:
+                    bucket.tx_packets += 1
+                    bucket.tx_bytes += size_bytes
                 if is_flood:
                     self.total_flood_tx += 1
-                    bucket.flood_tx += 1
+                    if bucket is not None:
+                        bucket.flood_tx += 1
                 else:
                     self.total_direct_tx += 1
-                    bucket.direct_tx += 1
+                    if bucket is not None:
+                        bucket.direct_tx += 1
 
             self.type_totals[canon_type] = self.type_totals.get(canon_type, 0) + 1
-            bucket.type_counts[canon_type] = bucket.type_counts.get(canon_type, 0) + 1
+            if bucket is not None:
+                bucket.type_counts[canon_type] = bucket.type_counts.get(canon_type, 0) + 1
 
             if snr is not None:
                 self.last_snr = round(float(snr), 1)
@@ -186,24 +197,22 @@ class MetricsAggregator:
             bucket = self._get_or_create_bucket(ts)
             self._record_error_locked(bucket, category)
 
-    def _record_error_locked(self, bucket: MinuteBucket, category: str) -> None:
+    def _record_error_locked(self, bucket: MinuteBucket | None, category: str) -> None:
         """Incrementa los contadores de error de forma segura con el lock adquirido."""
         cat = str(category).lower().strip()
         matched = "other"
         if "crc" in cat:
             matched = "crc_errors"
-            bucket.crc_errors += 1
         elif "timeout" in cat or "ack" in cat:
             matched = "timeouts"
-            bucket.timeouts += 1
         elif "queue" in cat or "overflow" in cat:
             matched = "queue_overflow"
-            bucket.queue_overflow += 1
         elif "cutoff" in cat or "duty" in cat or "airtime" in cat:
             matched = "airtime_cutoff"
-            bucket.airtime_cutoff += 1
-
-        bucket.errors += 1
+        if bucket is not None:
+            bucket.errors += 1
+            if matched != "other":
+                setattr(bucket, matched, getattr(bucket, matched) + 1)
         self.error_totals[matched] = self.error_totals.get(matched, 0) + 1
 
     def get_time_series(self, range_str: str = "24h") -> list[dict[str, Any]]:
@@ -212,6 +221,7 @@ class MetricsAggregator:
         - '1h': 60 puntos (1 min por punto)
         - '6h': 72 puntos (5 min por punto)
         - '24h': 96 puntos (15 min por punto)
+        Incluye el minuto en curso; el último punto se marca como parcial.
         """
         now = time.time()
         current_minute = (int(now) // 60) * 60
@@ -226,11 +236,16 @@ class MetricsAggregator:
             num_points = 96
             bucket_step_sec = 900  # 15 minutos
 
-        start_ts = current_minute - (num_points * bucket_step_sec)
+        end_ts = current_minute + 60
+        start_ts = end_ts - (num_points * bucket_step_sec)
 
         with self._lock:
             # Crear mapa de búsqueda rápida por timestamp de minuto
-            bucket_map = {b.timestamp: b for b in self._buckets}
+            bucket_map = {
+                b.timestamp: (b.rx_packets, b.tx_packets, b.flood_rx + b.flood_tx,
+                              b.direct_rx + b.direct_tx, b.errors)
+                for b in self._buckets
+            }
 
         result: list[dict[str, Any]] = []
 
@@ -249,11 +264,11 @@ class MetricsAggregator:
             while cur < slot_end:
                 b = bucket_map.get(cur)
                 if b is not None:
-                    slot_rx += b.rx_packets
-                    slot_tx += b.tx_packets
-                    slot_flood += (b.flood_rx + b.flood_tx)
-                    slot_direct += (b.direct_rx + b.direct_tx)
-                    slot_errors += b.errors
+                    slot_rx += b[0]
+                    slot_tx += b[1]
+                    slot_flood += b[2]
+                    slot_direct += b[3]
+                    slot_errors += b[4]
                 cur += 60
 
             result.append({
@@ -263,6 +278,7 @@ class MetricsAggregator:
                 "flood": slot_flood,
                 "direct": slot_direct,
                 "errors": slot_errors,
+                "partial": i == num_points - 1,
             })
 
         return result
@@ -294,6 +310,7 @@ class MetricsAggregator:
 
         return {
             "summary": {
+                "scope": "session",
                 "total_rx_packets": total_rx,
                 "total_tx_packets": total_tx,
                 "total_errors": total_errors,
@@ -317,6 +334,7 @@ class MetricsAggregator:
             },
             "time_series": {
                 "range": range_str,
+                "includes_current_minute": True,
                 "points": time_series,
             },
         }

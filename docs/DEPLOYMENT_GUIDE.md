@@ -2,7 +2,7 @@
 
 Esta guía describe el procedimiento para desplegar el puente **MeshCore Bridge** en **Armbian (Orange Pi 2W)**, **Raspberry Pi**, **Debian** o **Ubuntu** con arranque automático mediante **systemd**, broker **Mosquitto** y conexión a **n8n**.
 
-Guía vigente revisada el 2026-09-29 por lectura de los instaladores raíz. No acredita una instalación completada ni compatibilidad de cada modelo. Consulte el [índice documental](README.md); los informes de agosto son históricos. Los archivos vigentes son `install.sh`, `install.ps1` y `meshcore-bridge.service` en la raíz; no existe un directorio `deploy/` actual.
+Guía vigente revisada el 2026-10-05, con contratos de instaladores comprobados en temporales y comandos simulados. No acredita una instalación real completada ni compatibilidad de cada modelo. Consulte el [índice documental](README.md); los informes de agosto son históricos. Los archivos vigentes son `install.sh`, `install.ps1` y `meshcore-bridge.service` en la raíz; no existe un directorio `deploy/` actual.
 
 ---
 
@@ -36,7 +36,7 @@ sudo bash install.sh --update
 **El instalador realiza estas tareas si dispone de los permisos, paquetes y servicios necesarios:**
 1. Instala paquetes del sistema (`python3-venv`, `pip`, `mosquitto`, `git`, `udev`).
 2. Configura e inicia **Mosquitto** escuchando en `0.0.0.0:1883` con `allow_anonymous true`. Esto expone el broker a otras interfaces del host; revise el bind, autenticación y firewall para su red.
-3. Asigna permisos al usuario para el puerto serial (`dialout` / `tty`).
+3. Utiliza la cuenta invocante `SUDO_USER` sin UID 0; si se invoca directamente como root, crea/usa la cuenta de sistema `meshcore`. Obtiene su grupo primario y añade los grupos serie existentes (`dialout`/`uucp`).
 4. **Detecta automáticamente el puerto de tu placa LoRa** conectada por USB.
 5. Despliega los archivos en `/opt/meshcore-bridge` y crea el archivo de configuración `.env`.
 6. Crea `venv/` e instala `requirements.txt`: `paho-mqtt`, `meshcore`, `python-dotenv` y `pyserial`. El decodificador CayenneLPP es nativo; no requiere `pycayennelpp` ni el parser raw actual importa `pyserial-asyncio`.
@@ -98,6 +98,8 @@ sudo systemctl restart mosquitto
 sudo systemctl enable mosquitto
 ```
 
+Para un broker remoto con TLS, configure `MQTT_TLS=true`, `MQTT_BROKER` con el nombre cubierto por su certificado y `MQTT_PORT` con el listener elegido por el operador. `MQTT_TLS_CA_FILE` puede señalar una CA propia; vacío utiliza la confianza del sistema operativo. Para mTLS, configure juntos `MQTT_TLS_CERT_FILE` y `MQTT_TLS_KEY_FILE`. Un archivo requerido ausente, una cadena no confiable o un hostname incorrecto producen fallo sin volver a texto plano. Requiere reiniciar el proceso; no se habilita automáticamente al guardar un endpoint de la WebUI. Los defaults locales siguen siendo `MQTT_TLS=false` y puerto 1883. No se instalaron certificados operativos durante esta corrección.
+
 ---
 
 ### 5. Configuración del Entorno Python
@@ -129,7 +131,7 @@ sudo systemctl enable mosquitto
 
 ### 6. Configuración del Servicio systemd
 
-1. Copie y edite la plantilla de servicio, incluyendo `User`, `Group` y permisos del puerto. La plantilla usa `WorkingDirectory=/opt/meshcore-bridge` y ejecuta `venv/bin/python meshcore_bridge.py`:
+1. Copie y edite la plantilla de servicio, incluyendo `User`, `Group` y permisos del puerto. La plantilla usa `meshcore:meshcore`, `WorkingDirectory=/opt/meshcore-bridge`, `KillMode=control-group`, `NoNewPrivileges=true` y ejecuta `venv/bin/python meshcore_bridge.py`. En instalación manual cree previamente esa cuenta/grupo o sustituya ambos por una cuenta existente sin UID 0 con acceso a datos y dispositivo:
    ```bash
    sudo cp meshcore-bridge.service /etc/systemd/system/
    ```
@@ -209,7 +211,7 @@ curl -s http://127.0.0.1:8080/api/status | jq .
 ```
 
 ### Instalación en Windows (PowerShell)
-`install.ps1` utiliza el intérprete `python`/`py` encontrado en PATH y ejecuta pip en ese intérprete. No crea un venv automáticamente. Para aislar dependencias, cree y active un entorno antes de invocarlo desde la raíz del proyecto:
+`install.ps1` crea/reutiliza `.venv` con el intérprete `python`/`py` disponible y ejecuta pip mediante el Python de ese entorno. Verifica imports y versiones mínimas de las cuatro dependencias de producción; una carpeta `paho` por sí sola no acredita el entorno. Un fallo de instalación/verificación termina con código distinto de cero:
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -224,23 +226,29 @@ python -m venv .venv
 ```
 
 ### Modo de Simulación
-Para probar el bridge sin hardware LoRa físico, utiliza los scripts de simulación incluidos que emplean el `VirtualMeshAdapter`:
+La demo mantenida utiliza datos temporales, MQTT en memoria, adaptador virtual y puerto loopback asignado por el SO. Imprime la URL efectiva al arrancar y cierra recursos antes de eliminar los temporales. `install.ps1 -Simulate` invoca esta demo:
 ```bash
-# Demo interactiva con malla virtual de 4 nodos
+# Demo interactiva aislada con la malla virtual disponible
 python run_interactive_demo.py
-
-# Simulación de red Heltec v4 (con interfaz web activa)
-python scripts/simulate_heltec_v4_mesh.py --live
-
-# Simulación de red TCP multi-nodo
-python scripts/simulate_tcp_mesh_network.py
 ```
+
+Los otros scripts históricos de simulación deben inspeccionarse antes de ejecutar: algunos publican MQTT o arrancan componentes con configuración de estación. No constituyen fixtures mantenidos de navegador.
 
 ### Mapas Offline
 `MapTileService` sirve archivos XYZ desde `data/maps/tiles/{z}/{x}/{y}.ext` o archivos `.mbtiles` de `data/maps/`. MBTiles utiliza SQLite de sólo lectura para cartografía; no es una base de nodos ni de mensajes. Consulte `/api/map/status` y recargue el índice cuando añada mapas. No basta con activar `WEB_ENABLED`: hacen falta teselas locales y seleccionar el modo de mapa correspondiente en la UI.
 
 ### Datos y actualización
 
-Guarde copia de `.env`, archivos JSON de `DATA_DIR`, mapas y logs antes de una actualización. Canales, nodos y airtime estimado usan JSON; las capturas `PacketBuffer` y deduplicación son RAM, y chat del navegador usa IndexedDB. El código actual no mantiene una cola MQTT durable en disco ni una base SQLite de mensajes. `install.sh --update` conserva configuración/datos, pero puede volver a escribir la configuración de Mosquitto; revisar sus efectos antes de aplicarlo.
+Guarde copia de `.env`, archivos JSON de `DATA_DIR`, mapas y logs antes de una actualización. Canales, nodos y airtime estimado usan JSON; las capturas `PacketBuffer` y deduplicación son RAM, y chat del navegador usa IndexedDB. El código actual no mantiene una cola MQTT durable en disco ni una base SQLite de mensajes.
+
+`install.sh --update` prepara una copia independiente de los componentes de release y un entorno nuevo, instala/verifica dependencias y comprueba sintaxis antes de detener el servicio. Después cambia componentes con copias de retorno y conserva la unidad systemd anterior. Ante un fallo de cambio o arranque, restaura código/unidad e intenta arrancar el servicio previo si estaba activo. Si la recuperación falla, conserva el staging e informa su ruta para recuperación manual. `.env`, datos, mapas y logs quedan fuera de la sustitución; no se añaden variables ni se modifica Mosquitto durante update. La propiedad de archivos se ajusta a la identidad de servicio seleccionada.
+
+Los renames son atómicos por componente, no una transacción atómica de todo el árbol; el servicio permanece detenido durante el cambio. Las copias permiten recuperación ante errores manejados/señales y rollback manual tras interrupciones del host; no se acredita supervivencia automática a pérdida de energía. Cuando origen y destino coinciden, se prepara igualmente una copia antes de reemplazar: el retorno recupera el estado al invocar el instalador, no el código anterior a un `git pull` externo. Tras mover el venv se regenera su configuración/activación sin reinstalar paquetes ni consultar red, se actualizan los shebangs de sus scripts al destino final y se comprueban de nuevo los imports/versiones mediante `venv/bin/python`.
+
+Para una identidad distinta, establezca `MESHCORE_SERVICE_USER` explícitamente al invocar el instalador. `MESHCORE_SERIAL_GROUPS` permite indicar los grupos existentes del dispositivo. Verifique su propietario con `stat`/`ls -l`; el instalador no inventa grupos o permisos USB. La instalación manual debe conceder también acceso de lectura a `.env` y escritura a datos/logs.
+
+### QA explícito en Linux
+
+`sudo bash install.sh --dev` prepara `.venv` local, instala dependencias QA y Chromium y ejecuta el runner de pytest/cobertura, mypy, Ruff y documentación. Cualquier fallo de pip, Chromium o QA interrumpe el flujo; el mensaje final enumera únicamente esas comprobaciones. Bandit puede estar instalado como herramienta, pero no forma parte de ese runner y no se presenta como SAST aprobado. El modo `--dev` no instala paquetes globales ni reinicia el servicio de producción.
 
 La [guía n8n](N8N_WORKFLOW_GUIDE.md) describe la programación existente cada seis horas y su zona horaria a configurar. Ejecutar el bridge real, activar el workflow, enviar un TX o sondear un repetidor puede afectar hardware/RF. La lectura o edición de documentación no ejecuta esas operaciones. Para nuevas automatizaciones, intervalos o cambios de radio, aplicar el checklist de `AGENTS.md` y acordar límites con el usuario.

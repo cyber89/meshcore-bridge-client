@@ -69,7 +69,7 @@ export class RepeaterModule {
     };
     setVal("radioFreq", "");
     setVal("radioRegion", "US915");
-    setVal("radioPower", "20");
+    setVal("radioPower", "");
     const pVal = document.getElementById("radioPowerVal");
     if (pVal) pVal.textContent = "-- dBm";
     setVal("radioHopLimit", "");
@@ -1311,17 +1311,22 @@ export class RepeaterModule {
     const radioPowerInput = document.getElementById("radioPower");
     const radioPowerVal = document.getElementById("radioPowerVal");
     const pLimits = getHardwarePowerLimits(node);
-    const rawPower = node.tx_power != null ? node.tx_power : (node.power != null ? node.power : pLimits.def);
-    const parsedPower = parseInt(rawPower, 10);
-    const validPower = !isNaN(parsedPower) ? parsedPower : pLimits.def;
-    const clampedPower = Math.max(pLimits.min, Math.min(pLimits.max, validPower));
+    const rawPower = node.tx_power ?? node.power;
+    const parsedPower = rawPower != null ? Number(rawPower) : null;
+    const observedPower = Number.isInteger(parsedPower) ? parsedPower : null;
     if (radioPowerInput) {
+      radioPowerInput.type = "number";
+      radioPowerInput.step = "1";
       radioPowerInput.min = String(pLimits.min);
       radioPowerInput.max = String(pLimits.max);
+      radioPowerInput.title = I18n.t(pLimits.confirmed ? 'repeater.power_limits_confirmed' : 'repeater.power_limits_unknown');
     }
-    if (node.tx_power != null || node.power != null) this._setFieldIfNotDirty("radioPower", clampedPower);
+    const powerLimitsHint = document.getElementById('radioPowerLimits');
+    if (powerLimitsHint) I18n.setText(powerLimitsHint, pLimits.confirmed ? 'repeater.power_limits_confirmed' : 'repeater.power_limits_unknown');
+    this._setFieldIfNotDirty("radioPower", observedPower ?? "");
     if (radioPowerVal) {
-      radioPowerVal.textContent = node.tx_power != null || node.power != null ? `${clampedPower} dBm` : "-- dBm";
+      const draftPower = this.dirtyFields.has('radioPower') && radioPowerInput?.value !== '' ? radioPowerInput?.value : observedPower;
+      radioPowerVal.textContent = draftPower != null ? `${draftPower} dBm` : "-- dBm";
     }
 
     this._setFieldIfNotDirty("radioHopLimit", repHopLimit);

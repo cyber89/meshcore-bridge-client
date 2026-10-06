@@ -189,6 +189,7 @@ export class NodesModule {
   }
 
   async fetchNodes() {
+    const generation = this._fetchGeneration = (this._fetchGeneration || 0) + 1;
     try {
       const allNodes = [];
       let offset = 0;
@@ -200,19 +201,20 @@ export class NodesModule {
           headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
         });
         const data = await res.json();
-        if (data.status === "ok" && Array.isArray(data.data)) {
+        if (res.ok && data.status === "ok" && Array.isArray(data.data)) {
           allNodes.push(...data.data);
           totalCount = typeof data.total_count === "number" ? data.total_count : data.data.length;
-          if (data.data.length < limit || allNodes.length >= totalCount) {
+          if (allNodes.length >= totalCount) {
             break;
           }
+          if (data.data.length === 0) return;
           offset += data.data.length;
         } else {
-          break;
+          return;
         }
       }
 
-      if (allNodes.length > 0) {
+      if (generation === this._fetchGeneration && allNodes.length >= totalCount) {
         this.renderNodesDirectory(allNodes);
       }
     } catch (e) {

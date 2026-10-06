@@ -53,14 +53,18 @@ class VirtualMeshCoreCommands:
         }
 
     async def get_time(self) -> dict[str, Any]:
-        ts = int(time.time())
+        ts = self._adapter.device_time()
         return {
             "time": ts,
             "timestamp": ts,
-            "time_str": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "time_str": time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(ts)),
         }
 
     async def set_time(self, val: int) -> dict[str, Any]:
+        if isinstance(val, bool) or not isinstance(val, int) or not 0 <= val <= 0xffffffff:
+            return {"status": "ERROR", "reason": "RTC requiere entero uint32"}
+        self._adapter._rtc_epoch = val
+        self._adapter._rtc_monotonic = time.monotonic()
         return {"status": "ok", "time": val}
 
     async def set_name(self, name: str) -> dict[str, Any]:
@@ -100,12 +104,12 @@ class VirtualMeshCoreCommands:
         return {"status": "ok"}
 
     async def get_stats_core(self) -> dict[str, Any]:
-        uptime_val = max(1, int(time.time() - getattr(self._adapter, "_start_time", time.time())))
+        uptime_val = max(0, int(time.time() - self._adapter._start_time))
         return {
             "uptime": uptime_val,
             "uptime_secs": uptime_val,
             "airtime_ms": 120,
-            "battery_mv": 4180,
+            "battery_mv": self._adapter.mc.self_info["battery_mv"],
             "errors": 0,
             "queue_len": 0,
         }
@@ -413,6 +417,8 @@ class VirtualMeshAdapter(BaseSerialAdapter):
             self.set_rx_callback(event_callback)
         self.running = False
         self._start_time = time.time()
+        self._rtc_epoch = int(time.time())
+        self._rtc_monotonic = time.monotonic()
         self.mc = VirtualMeshCoreMock(self)
         self._sim_task: asyncio.Task[None] | None = None
         self._background_tasks: set[asyncio.Task[Any]] = set()
@@ -425,6 +431,10 @@ class VirtualMeshAdapter(BaseSerialAdapter):
         # Referencias directas para compatibilidad
         self.node_alpha = self.nodes["a1b2c3d4e5f6"]
         self.node_bravo = self.nodes["d7e8f9012345"]
+
+    def device_time(self) -> int:
+        """RTC propio de la estación virtual; no modifica el reloj del host."""
+        return (self._rtc_epoch + int(time.monotonic() - self._rtc_monotonic)) & 0xffffffff
 
     async def get_channels(self) -> list[dict[str, Any]]:
         """Devuelve los canales virtuales configurados."""
@@ -554,14 +564,26 @@ class VirtualMeshAdapter(BaseSerialAdapter):
                 "status": "ERROR",
                 "reason": f"Payload de mensaje excede límite oficial ({len(raw_bytes)} > 160 bytes)",
             }
-        safe_ch = int(channel_idx) if channel_idx is not None else 0
+        target_clean = str(target or "").strip().lower()
+        resolved_channel: Any = channel_idx
+        if target_clean.startswith("channel"):
+            suffix = target_clean[8:]
+            if not target_clean.startswith("channel_") or not suffix.isascii() or not suffix.isdigit():
+                return {"status": "ERROR", "reason": "Alias de canal inválido"}
+            try:
+                resolved_channel = int(suffix)
+            except ValueError:
+                return {"status": "ERROR", "reason": "Alias de canal inválido"}
+        if isinstance(resolved_channel, bool) or not isinstance(resolved_channel, int):
+            return {"status": "ERROR", "reason": "Índice de canal requiere entero"}
+        safe_ch = resolved_channel
         if not (0 <= safe_ch < 8):
             return {
                 "status": "ERROR",
                 "reason": f"Índice de canal inválido ({safe_ch}). Debe estar en el rango 0..7",
             }
 
-        target_clean = str(target or "").strip().lower()
+        channel_idx = safe_ch
         local_key = str(self.mc.self_info.get("public_key", "")).lower()
         is_local_target = bool(
             target_clean
@@ -576,10 +598,6 @@ class VirtualMeshAdapter(BaseSerialAdapter):
 
         if target_clean.startswith("channel"):
             is_direct = False
-            try:
-                channel_idx = int(target_clean.split("_")[1])
-            except Exception:
-                pass
             target_node = self.node_bravo
         elif target_clean and target_clean not in ("broadcast", "public", "0xffff", "none"):
             is_direct = True
@@ -653,19 +671,20 @@ class VirtualMeshAdapter(BaseSerialAdapter):
         # CMD_APP_START (1) -> Responder con SELF_INFO (5)
         if cmd_type == 1:
             pubkey_bytes = bytes.fromhex(str(self.mc.self_info["public_key"]))
-            lat_int = int(20.1520 * 1000000)
-            lon_int = int(-75.1980 * 1000000)
-            freq = 915000
-            bw = 250000
-            sf = 11
-            cr = 5
-            name_bytes = b"MeshCore-Bridge-Virtual"
+            info = self.mc.self_info
+            lat_int = int(float(info["adv_lat"]) * 1000000)
+            lon_int = int(float(info["adv_lon"]) * 1000000)
+            freq = int(float(info["radio_freq"]) * 1000)
+            bw = int(float(info["bw"]) * 1000)
+            sf = int(info["sf"])
+            cr = int(info["cr"])
+            name_bytes = str(info["name"]).encode("utf-8")
 
             resp = bytearray()
             resp.append(5)  # PacketType.SELF_INFO
             resp.append(1)  # adv_type
-            resp.append(20)  # tx_power
-            resp.append(22)  # max_tx_power
+            resp.append(int(info["tx_power"]) & 0xff)  # signed int8 wire representation
+            resp.append(int(info.get("max_tx_power", 22)))
             resp.extend(pubkey_bytes)  # 32 bytes
             resp.extend(lat_int.to_bytes(4, "little", signed=True))
             resp.extend(lon_int.to_bytes(4, "little", signed=True))
@@ -713,16 +732,23 @@ class VirtualMeshAdapter(BaseSerialAdapter):
 
         # CMD_GET_BATT_AND_STORAGE (20) -> BATTERY (12)
         if cmd_type == 20:
-            bat_pkt = struct.pack("<BHII", 12, 4150, 0, 1024)
+            bat_pkt = struct.pack("<BHII", 12, int(self.mc.self_info["battery_mv"]), 0, 1024)
             if self.companion_rx_callback:
                 self.companion_rx_callback(bytes(bat_pkt))
             return True
 
         # CMD_GET_DEVICE_TIME (5) -> CURRENT_TIME (9)
         if cmd_type == 5:
-            time_pkt = bytearray([9]) + int(time.time()).to_bytes(4, "little")
+            time_pkt = bytearray([9]) + self.device_time().to_bytes(4, "little")
             if self.companion_rx_callback:
                 self.companion_rx_callback(bytes(time_pkt))
+            return True
+
+        # CMD_SET_DEVICE_TIME (6) updates the same RTC as the SDK setter.
+        if cmd_type == 6:
+            result = await self.mc.commands.set_time(int.from_bytes(data[1:], "little")) if len(data) == 5 else {"status": "ERROR"}
+            if self.companion_rx_callback:
+                self.companion_rx_callback(b"\x00" if result["status"] == "ok" else b"\x01\x06")
             return True
 
         # CMD_DEVICE_QUERY (22) -> DEVICE_INFO (13)
@@ -743,11 +769,14 @@ class VirtualMeshAdapter(BaseSerialAdapter):
         if cmd_type == 56:
             subtype = data[1] if len(data) == 2 else -1
             if subtype == 0:
-                stats_pkt = struct.pack("<BBHIHB", 24, 0, 4150, max(0, int(time.time() - self._start_time)), 0, 0)
+                core = await self.mc.commands.get_stats_core()
+                stats_pkt = struct.pack("<BBHIHB", 24, 0, core["battery_mv"], core["uptime_secs"], core["errors"], core["queue_len"])
             elif subtype == 1:
-                stats_pkt = struct.pack("<BBhbbII", 24, 1, -118, -72, 48, 2, 5)
+                radio = await self.mc.commands.get_stats_radio()
+                stats_pkt = struct.pack("<BBhbbII", 24, 1, radio["noise_floor"], radio["last_rssi"], int(radio["last_snr"] * 4), radio["tx_air_secs"], radio["rx_air_secs"])
             elif subtype == 2:
-                stats_pkt = struct.pack("<BBIIIIIII", 24, 2, 24, 15, 10, 5, 18, 6, 0)
+                packets = await self.mc.commands.get_stats_packets()
+                stats_pkt = struct.pack("<BBIIIIIII", 24, 2, *(packets[key] for key in ("recv", "sent", "flood_tx", "direct_tx", "flood_rx", "direct_rx", "recv_errors")))
             else:
                 stats_pkt = b"\x01\x06"  # ERR_CODE_ILLEGAL_ARG
             if self.companion_rx_callback:

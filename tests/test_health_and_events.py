@@ -23,6 +23,7 @@ class MockCounters:
     rx_count: int = 0
     tx_count: int = 0
     tx_error_count: int = 0
+    err_count: int = 0
 
 
 class TestHealthAndEvents(unittest.IsolatedAsyncioTestCase):

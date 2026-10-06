@@ -76,26 +76,10 @@ class SystemController(BaseController):
         }
 
     async def get_logs(self, query: str = "", level: str = "", limit: int = 200) -> tuple[int, dict[str, Any]]:
-        """Filtra y devuelve los registros de actividad del sistema."""
-        logs = list(self.ctx.system_logs)
+        """Compatibility facade; HTTP and direct callers share the canonical reader."""
+        from src.web.controllers.logs_controller import LogsController
 
-        if level:
-            level_clean = level.strip().upper()
-            logs = [entry for entry in logs if str(entry.get("level", "")).upper() == level_clean]
-
-        if query:
-            q_clean = query.strip().lower()
-            logs = [entry for entry in logs if q_clean in str(entry.get("message", "")).lower()]
-
-        if limit > 0:
-            logs = logs[-limit:]
-
-        return 200, {
-            "status": "ok",
-            "data": logs,
-            "count": len(logs),
-            "total_logs": len(self.ctx.system_logs),
-        }
+        return LogsController(self.ctx).get_system_logs(level or None, query or None, limit)
 
     async def clear_logs(self) -> tuple[int, dict[str, Any]]:
         """Limpia el buffer de registros del sistema tanto en API como en el handler de diagnóstico."""
@@ -103,7 +87,8 @@ class SystemController(BaseController):
         diag = getattr(self.ctx.bridge, "diagnostics", None)
         if diag and hasattr(diag, "log_handler") and diag.log_handler:
             diag.log_handler.clear()
-        self.ctx.log_system_event("INFO", "Buffer de logs del sistema limpiado por el usuario", source="web_admin")
+        # The HTTP response confirms the clear; recording that confirmation in
+        # the canonical handler would immediately repopulate the cleared buffer.
         return 204, {}
 
     async def run_preflight(self) -> tuple[int, dict[str, Any]]:

@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import ssl
 import threading
 import time
 import uuid
@@ -54,6 +55,10 @@ class MQTTConfig:
     password: str | None = None
     keepalive: int = 60
     topic_prefix: str = "meshcore"
+    tls_enabled: bool = False
+    tls_ca_file: str | None = None
+    tls_cert_file: str | None = None
+    tls_key_file: str | None = None
 
 
 class AsyncBridgeMQTTClient:
@@ -72,6 +77,12 @@ class AsyncBridgeMQTTClient:
         self.keepalive = config.keepalive
         self.topic_prefix = config.topic_prefix.strip("/")
         self.on_rx_message_callback = on_rx_message_callback
+        if not isinstance(config.tls_enabled, bool):
+            raise ValueError("tls_enabled must be boolean")
+        if bool(config.tls_cert_file) != bool(config.tls_key_file):
+            raise ValueError("MQTT TLS requires both client certificate and key")
+        if not config.tls_enabled and any((config.tls_ca_file, config.tls_cert_file, config.tls_key_file)):
+            raise ValueError("MQTT TLS files require tls_enabled=True")
 
         self.topic_state = f"{self.topic_prefix}/bridge/state"
         self.topic_health = f"{self.topic_prefix}/bridge/health"
@@ -97,6 +108,15 @@ class AsyncBridgeMQTTClient:
             )
         else:
             self.client = mqtt.Client(client_id=client_uid, protocol=mqtt.MQTTv311)
+
+        if config.tls_enabled:
+            # Configure before opening a connection; invalid trust fails closed.
+            context = ssl.create_default_context(cafile=config.tls_ca_file)
+            # SSLContext accepts None to disable an inherited SSLKEYLOGFILE.
+            context.keylog_filename = None  # type: ignore[assignment]  # SSL setter accepts None; typeshed says str.
+            if config.tls_cert_file and config.tls_key_file:
+                context.load_cert_chain(certfile=config.tls_cert_file, keyfile=config.tls_key_file)
+            self.client.tls_set_context(context)
 
         if self.username:
             self.client.username_pw_set(self.username, self.password)
@@ -169,7 +189,14 @@ class AsyncBridgeMQTTClient:
         retain: bool = False,
         ttl_seconds: float | None = None,
     ) -> bool:
-        """Publica directamente en MQTT con validación de tamaño de payload."""
+        """Publish immediately; this MQTT 3 client cannot promise message expiry.
+
+        The legacy TTL argument is retained for call compatibility, but an
+        explicit TTL is rejected rather than silently publishing without it.
+        """
+        if ttl_seconds is not None:
+            logging.warning("MQTT message expiry is unsupported; publication rejected")
+            return False
         if not self.is_connected:
             return False
 

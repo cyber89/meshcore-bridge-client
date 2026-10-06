@@ -213,6 +213,8 @@ class TestRepeaterAdminHandler:
         mock_ctx._ctx.web_server = None
 
         meta = _dummy_meta(ev_type="ack")
+        mock_ctx._ctx.bridge = None
+        mock_ctx._ctx._bridge = None
         payload = {"event_type": "ack", "msg_id": "msg-123", "ack_code": "12ab34cd", "trip_time_ms": 45}
 
         res = await handler.handle(mock_ctx, payload, meta, raw_event=None)
@@ -259,6 +261,7 @@ class TestSystemHandler:
     async def test_handle_system_event(self, handler: SystemHandler) -> None:
         mock_ctx = MagicMock()
         mock_ctx._ctx.mqtt = MagicMock()
+        mock_ctx._ctx.web_server.broadcast_event = AsyncMock()
 
         meta = _dummy_meta(ev_type="MESSAGES_WAITING", text="")
         payload = {"event_type": "messages_waiting", "count": 3}
