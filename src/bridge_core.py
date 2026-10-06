@@ -22,7 +22,6 @@ from src.contact_manager import NodeContactUpdate, NodeRegistry
 from src.deduplicator import PacketDeduplicator
 from src.diagnostics import DiagnosticManager, SystemLogHandler, setup_file_logging
 from src.health_reporter import HealthContext, HealthReporter
-from src.mqtt_client import AsyncBridgeMQTTClient, MQTTConfig
 from src.mqtt_dispatcher import MqttInboundContext, MqttInboundDispatcher
 from src.packet_buffer import PacketBuffer
 from src.preflight import PreflightChecker
@@ -40,6 +39,8 @@ from src.serial_driver import (
     MeshcoreSDKAdapter,
     SerialWatchdog,
 )
+from src.services_config import ServicesConfig
+from src.services_manager import ServicesManager
 from src.tcp_companion_server import MeshCoreCompanionServer
 from src.web import MeshCoreWebServer
 
@@ -121,21 +122,13 @@ class MeshCoreBridge:
             on_cutoff_change_callback=self._on_airtime_cutoff_change,
         )
         self.repeater_manager.is_cutoff_active_callback = self.rate_limiter.is_cutoff_active
-        self.mqtt = AsyncBridgeMQTTClient(
-            config=MQTTConfig(
-                broker=config.MQTT_BROKER,
-                port=config.MQTT_PORT,
-                username=config.MQTT_USER,
-                password=config.MQTT_PASSWORD,
-                keepalive=config.MQTT_KEEPALIVE,
-                topic_prefix=config.TOPIC_PREFIX,
-                tls_enabled=config.MQTT_TLS,
-                tls_ca_file=config.MQTT_TLS_CA_FILE,
-                tls_cert_file=config.MQTT_TLS_CERT_FILE,
-                tls_key_file=config.MQTT_TLS_KEY_FILE,
-            ),
-            on_rx_message_callback=self._on_incoming_mqtt_message,
+        self.services_manager = ServicesManager(
+            bridge=self,
+            on_incoming_mqtt_message=self._on_incoming_mqtt_message,
+            on_incoming_external_downlink=self._on_incoming_external_downlink,
         )
+        self.mqtt = self.services_manager.local_mqtt
+        self.external_mqtt = self.services_manager.external_mqtt
         self.preflight = PreflightChecker()
         self._pending_acks: dict[str, dict[str, Any]] = {}
 
@@ -380,6 +373,8 @@ class MeshCoreBridge:
 
     def _create_tcp_server(self) -> MeshCoreCompanionServer | None:
         """Crea el servidor TCP Companion asíncrono si está habilitado por configuración."""
+        if hasattr(self, "services_manager"):
+            return self.services_manager.tcp_server
         if not getattr(config, "TCP_SERVER_ENABLED", True):
             return None
         return MeshCoreCompanionServer(
@@ -415,6 +410,7 @@ class MeshCoreBridge:
                 packet_buffer=self.packet_buffer,
                 bridge=self,
                 register_task=self._add_background_task,
+                external_mqtt=self.external_mqtt,
             )
         )
 
@@ -501,6 +497,23 @@ class MeshCoreBridge:
     ) -> bool:
         return self.mqtt.publish_safe(topic, payload_str, qos=qos, retain=retain)
 
+    @property
+    def services_config(self) -> ServicesConfig:
+        if hasattr(self, "services_manager"):
+            return self.services_manager.services_config
+        from src.services_config import load_services_config
+        return load_services_config()
+
+    async def reload_services(self, new_config: Any) -> dict[str, Any]:
+        """Recarga en caliente la configuración de servicios de red."""
+        if hasattr(self, "services_manager"):
+            res = await self.services_manager.reload_services(new_config)
+            self.mqtt = self.services_manager.local_mqtt
+            self.external_mqtt = self.services_manager.external_mqtt
+            self.tcp_server = self.services_manager.tcp_server
+            return res
+        return {"status": "error", "message": "ServicesManager no disponible"}
+
     def get_health(self) -> dict[str, Any]:
         """Devuelve un snapshot consolidado de la salud de todos los subsistemas del bridge."""
         if hasattr(self, "diagnostics") and hasattr(self.diagnostics, "collect_health_snapshot"):
@@ -508,7 +521,11 @@ class MeshCoreBridge:
         serial_adapter = getattr(self, "serial_adapter", None)
         mqtt_client = getattr(self, "mqtt", None)
         is_ser_ok = getattr(serial_adapter, "is_connected", False) if serial_adapter else False
-        is_mqtt_ok = getattr(mqtt_client, "is_connected", False) if mqtt_client else False
+        loc_enabled = True
+        if hasattr(self, "services_manager"):
+            loc_enabled = self.services_manager.services_config.local_mqtt.enabled
+        is_mqtt_connected = getattr(mqtt_client, "is_connected", False) if mqtt_client else False
+        is_mqtt_ok = is_mqtt_connected if loc_enabled else True
         port_val = getattr(serial_adapter, "port", getattr(config, "SERIAL_PORT", "desconocido")) if serial_adapter else "none"
         return {
             "status": "healthy" if is_ser_ok and is_mqtt_ok else "degraded",
@@ -520,7 +537,8 @@ class MeshCoreBridge:
                     "port": port_val,
                 },
                 "mqtt_broker": {
-                    "connected": is_mqtt_ok,
+                    "enabled": loc_enabled,
+                    "connected": is_mqtt_connected,
                 },
             },
         }
@@ -579,19 +597,31 @@ class MeshCoreBridge:
             dispatcher.start()
 
         # 0. Diagnósticos Preflight de arranque
+        loc_cfg = self.services_config.local_mqtt
+        tcp_cfg = self.services_config.tcp_server
         report = await asyncio.to_thread(self.preflight.run_all,
-            mqtt_host=config.MQTT_BROKER,
-            mqtt_port=config.MQTT_PORT,
+            mqtt_host=loc_cfg.host,
+            mqtt_port=loc_cfg.port,
             serial_port=getattr(self.serial_adapter, "port", config.SERIAL_PORT),
-            tcp_server_port=getattr(config, "TCP_SERVER_PORT", 5000),
-            tcp_server_enabled=getattr(config, "TCP_SERVER_ENABLED", True),
-            tcp_server_host=getattr(config, "TCP_SERVER_HOST", "0.0.0.0"),  # nosec B104
+            tcp_server_port=tcp_cfg.port,
+            tcp_server_enabled=tcp_cfg.enabled,
+            tcp_server_host=tcp_cfg.host,
+            mqtt_enabled=loc_cfg.enabled,
         )
         logging.debug(f"Preflight Diagnostics: Estado {report['status']} ({len(report['checks'])} comprobaciones realizadas)")
 
         # Iniciar Rate Limiter y Cliente MQTT
+        # Iniciar Rate Limiter y Servicios de Red (MQTT local, MQTT externo, TCP Companion)
         self.rate_limiter.start()
-        self.mqtt.start(loop=loop)
+        if hasattr(self, "services_manager"):
+            await self.services_manager.start(loop=loop)
+            self.mqtt = self.services_manager.local_mqtt
+            self.external_mqtt = self.services_manager.external_mqtt
+            self.tcp_server = self.services_manager.tcp_server
+        else:
+            self.mqtt.start(loop=loop)
+            if self.tcp_server:
+                await self.tcp_server.start()
 
         # Conectar con hardware serial
         await self.serial_adapter.connect()
@@ -600,10 +630,6 @@ class MeshCoreBridge:
         # Iniciar servidor web si está habilitado
         if self.web_server:
             await self.web_server.start()
-
-        # Iniciar servidor TCP Companion si está habilitado
-        if self.tcp_server:
-            await self.tcp_server.start()
 
         # Auto-importación en arranque: canales, contactos y configuración del hardware Heltec
         await self._auto_bootstrap_heltec_state()
@@ -657,7 +683,7 @@ class MeshCoreBridge:
 
         # Detención resiliente: cada subsistema se cierra con timeout individual estricto (1.5s máx)
         for subsystem_name, coro in [
-            ("tcp_server", self.tcp_server.stop() if self.tcp_server else None),
+            ("services_manager", self.services_manager.stop() if hasattr(self, "services_manager") else (self.tcp_server.stop() if self.tcp_server else None)),
             ("web_server", self.web_server.stop() if self.web_server else None),
             ("health_reporter", self.health_reporter.stop()),
             ("watchdog", self.watchdog.stop()),
@@ -680,10 +706,11 @@ class MeshCoreBridge:
         except (asyncio.TimeoutError, Exception) as e:
             logging.debug(f"Error o timeout guardando NodeRegistry al detener: {e}")
 
-        try:
-            await asyncio.wait_for(asyncio.to_thread(self.mqtt.stop), timeout=1.5)
-        except (asyncio.TimeoutError, Exception) as e:
-            logging.warning(f"Error o timeout deteniendo cliente MQTT: {e}")
+        if not hasattr(self, "services_manager"):
+            try:
+                await asyncio.wait_for(asyncio.to_thread(self.mqtt.stop), timeout=1.5)
+            except (asyncio.TimeoutError, Exception) as e:
+                logging.warning(f"Error o timeout deteniendo cliente MQTT: {e}")
 
         if hasattr(self, "log_handler") and self.log_handler in logging.getLogger().handlers:
             logging.getLogger().removeHandler(self.log_handler)
@@ -761,6 +788,8 @@ class MeshCoreBridge:
                 if cfg and "public_key" in cfg:
                     local_pk = str(cfg["public_key"]).strip().lower()
                     self.node_registry.set_local_pubkey(local_pk)
+                    if hasattr(self, "services_manager"):
+                        self.services_manager.set_local_pubkey(local_pk)
                     self.node_registry.add_or_update(
                         local_pk,
                         NodeContactUpdate(
@@ -961,6 +990,24 @@ class MeshCoreBridge:
             )
             return
         self.mqtt_dispatcher.handle_incoming(topic, payload_str)
+
+    def _on_incoming_external_downlink(self, topic: str, payload_str: str) -> None:
+        """Procesa mensajes recibidos desde el broker MQTT externo hacia la radio LoRa (Downlink con rate limit)."""
+        if not self.running or getattr(self, "_is_stopped", False):
+            return
+        if not getattr(self, "services_manager", None):
+            return
+        cfg = getattr(self.services_manager, "services_config", None)
+        if not cfg or not cfg.external_mqtt.enabled or not cfg.external_mqtt.downlink_enabled:
+            logging.debug("Mensaje downlink externo ignorado: Downlink desactivado en configuración.")
+            return
+        if hasattr(self, "rate_limiter") and self.rate_limiter.is_cutoff_active():
+            logging.warning("Mensaje downlink externo descartado: Corte de seguridad por saturación de airtime activo.")
+            return
+
+        # Procesar payload pasando por el dispatcher y la cola de rate limiting LoRa
+        if hasattr(self, "mqtt_dispatcher"):
+            self._schedule_background(lambda: self.mqtt_dispatcher._handle_tx_request(payload_str))
 
     def on_mqtt_message(self, client: Any, userdata: Any, msg: Any) -> None:
         """Compatibilidad con suites de pruebas y callbacks directos de paho-mqtt."""

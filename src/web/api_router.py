@@ -24,6 +24,7 @@ from src.web.controllers import (
     NodesController,
     PacketsController,
     RepeaterController,
+    ServicesController,
     SystemController,
     TxController,
     problem_details,
@@ -144,6 +145,7 @@ class WebAPIRouter:
         self.config_ctrl = ConfigController(self.api_ctx)
         self.packets_ctrl = PacketsController(self.api_ctx)
         self.logs_ctrl = LogsController(self.api_ctx)
+        self.services_ctrl = ServicesController(self.api_ctx)
 
         # Referencia compartida de canales para retrocompatibilidad
         self.channels: dict[int, dict[str, Any]] = self.channels_ctrl.channels
@@ -367,6 +369,9 @@ class WebAPIRouter:
 
             if clean_path.startswith(("/api/node", "/api/config")):
                 return await self._dispatch_config(method, path, clean_path, req_body)
+
+            if clean_path.startswith("/api/services"):
+                return await self._dispatch_services(method, path, clean_path, req_body)
 
             if clean_path.startswith("/api/packets"):
                 return await self._dispatch_packets(method, path, clean_path, req_body)
@@ -737,6 +742,39 @@ class WebAPIRouter:
             return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
 
         return problem_details(404, "Not Found", f"Ruta no encontrada: {method} {clean_path}", "route_not_found")
+
+    async def _dispatch_services(
+        self, method: str, raw_path: str, clean_path: str, req_body: dict[str, Any]
+    ) -> tuple[int, dict[str, Any]]:
+        """Despacha endpoints para administración y diagnóstico de servicios de red y presets."""
+        if clean_path == "/api/services/config":
+            if method == "GET":
+                return await self.services_ctrl.get_services_config()
+            if method == "POST":
+                return await self.services_ctrl.set_services_config(req_body)
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+        if clean_path == "/api/services/presets":
+            if method == "GET":
+                _, res = await self.services_ctrl.get_services_config()
+                presets = res.get("data", {}).get("all_presets", [])
+                return 200, {"status": "ok", "presets": presets}
+            if method == "POST":
+                return await self.services_ctrl.save_preset(req_body)
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+        if clean_path.startswith("/api/services/presets/"):
+            preset_id = clean_path[len("/api/services/presets/"):].strip()
+            if method == "DELETE":
+                return await self.services_ctrl.delete_preset(preset_id)
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+        if clean_path == "/api/services/mqtt-external/test":
+            if method == "POST":
+                return await self.services_ctrl.test_external_mqtt(req_body)
+            return problem_details(405, "Method Not Allowed", f"Método {method} no permitido", "method_not_allowed")
+
+        return problem_details(404, "Not Found", f"Ruta de servicios no encontrada: {method} {clean_path}", "services_route_not_found")
 
     async def _dispatch_misc(self, method: str, raw_path: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Despacha servicios de mapas y visualización de diagnósticos históricos."""

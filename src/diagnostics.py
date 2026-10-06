@@ -206,15 +206,22 @@ class DiagnosticManager:
             "last_heartbeat": getattr(serial_adapter, "last_heartbeat_time", 0) if serial_adapter else 0,
         }
 
+        services_cfg = getattr(self.bridge, "services_config", None)
+        local_mqtt_enabled = services_cfg.local_mqtt.enabled if services_cfg else True
+        is_mqtt_conn = getattr(mqtt_client, "is_connected", False) if mqtt_client else False
+
         mqtt_status = {
-            "connected": getattr(mqtt_client, "is_connected", False) if mqtt_client else False,
+            "enabled": local_mqtt_enabled,
+            "connected": is_mqtt_conn,
             "broker": getattr(mqtt_client, "broker", "desconocido") if mqtt_client else "none",
             "port": getattr(mqtt_client, "port", 1883) if mqtt_client else 0,
             "reconnect_count": getattr(mqtt_client, "reconnect_count", 0) if mqtt_client else 0,
         }
 
+        mqtt_healthy = is_mqtt_conn if local_mqtt_enabled else True
+
         return {
-            "status": "healthy" if serial_status["connected"] and mqtt_status["connected"] else "degraded",
+            "status": "healthy" if serial_status["connected"] and mqtt_healthy else "degraded",
             "timestamp": time.time(),
             "uptime_seconds": int(time.time() - getattr(self.bridge, "start_time", time.time())),
             "subsystems": {

@@ -213,6 +213,7 @@ class RxRouterContext:
     last_rx_snr: float | None = None
     packet_buffer: Any = None
     bridge: Any = None
+    external_mqtt: Any = None
 
 
 class RxEventRouter:
@@ -255,6 +256,35 @@ class RxEventRouter:
             TelemetryHandler(),
             SystemHandler(),
         ]
+
+    def _forward_to_external_mqtt(
+        self,
+        event_type: str,
+        payload_data: dict[str, Any],
+        channel_idx: int = 0,
+        pubkey: str = "",
+        raw_hex: str = "",
+    ) -> None:
+        """Reenvía un evento hacia el broker MQTT externo si está habilitado y configurado."""
+        ext_client = getattr(self._ctx, "external_mqtt", None)
+        if ext_client is None:
+            bridge = getattr(self._ctx, "bridge", None)
+            if bridge and hasattr(bridge, "external_mqtt"):
+                ext_client = bridge.external_mqtt
+
+        if ext_client is None or not getattr(ext_client, "config", None) or not ext_client.config.enabled:
+            return
+
+        try:
+            ext_client.publish_event(
+                event_type=event_type,
+                payload_data=payload_data,
+                channel_idx=channel_idx,
+                pubkey=pubkey,
+                raw_hex=raw_hex,
+            )
+        except Exception as e:
+            logging.debug(f"[RX-ROUTER] Error reexpidiendo evento '{event_type}' a MQTT externo: {e}")
 
     def handle_event(self, event: Any) -> None:
         """Procesa y enruta eventos de la red Mesh hacia MQTT y n8n."""
@@ -1023,6 +1053,13 @@ class RxEventRouter:
         else:
             self._ctx.mqtt.publish_safe(f"{config.TOPIC_RX_CHANNEL}/ch_{msg.channel_idx}", evt_json, qos=0)
 
+        self._forward_to_external_mqtt(
+            event_type="public" if msg.channel_idx == 0 else "channel",
+            payload_data=evt_payload,
+            channel_idx=msg.channel_idx,
+            pubkey=msg.sender or "",
+        )
+
         logging.info(
             f"[RX-CANAL] De: {msg.sender_name or msg.sender} -> Para: Canal #{msg.channel_idx} | "
             f"Texto: '{msg.text}' | LQI: {evt_payload['lqi_score']}% [{evt_payload['lqi_status']}] | RSSI: {msg.rssi} dBm, SNR: {msg.snr} dB"
@@ -1036,6 +1073,13 @@ class RxEventRouter:
         evt_json = json.dumps(evt_payload, sort_keys=True)
         topic = f"{config.TOPIC_RX_DIRECT}/{msg.sender}"
         self._ctx.mqtt.publish_safe(topic, evt_json, qos=1)
+
+        self._forward_to_external_mqtt(
+            event_type="direct",
+            payload_data=evt_payload,
+            channel_idx=0,
+            pubkey=msg.sender or "",
+        )
 
         logging.info(
             f"[RX-DM] De: {msg.sender_name or msg.sender} -> Para: Estación Base Local | "
@@ -1143,6 +1187,15 @@ class RxEventRouter:
         if any(k in payload_dict for k in ("battery", "battery_pct", "battery_mv", "voltage", "voltage_v", "temperature", "temperature_c", "humidity_pct", "pressure_hpa", "solar_v")):
             self._ctx.mqtt.publish_safe(config.TOPIC_RX_TELEMETRY, evt_json, qos=0)
         self._spawn_broadcast_task(payload_dict)
+
+        if not is_self_info:
+            is_telemetry = any(k in payload_dict for k in ("battery", "battery_pct", "battery_mv", "voltage", "voltage_v", "temperature", "temperature_c", "humidity_pct", "pressure_hpa", "solar_v"))
+            ev_type = "telemetry" if is_telemetry else "node"
+            self._forward_to_external_mqtt(
+                event_type=ev_type,
+                payload_data=payload_dict,
+                pubkey=str(sender or ""),
+            )
 
         # Actualizar ocupación de canal en RateLimiter para gobernar el Airtime Cutoff
         ch_util_cand = payload_dict.get("channel_utilization", payload_dict.get("ch_util"))

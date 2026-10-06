@@ -29,6 +29,10 @@ export class SettingsModule {
     this._localCliHistory = [];
     this._localCliHistoryIdx = -1;
     this._localCliTempInput = "";
+    this.servicesConfig = null;
+    this.servicesPresets = [];
+    this._isSavingServices = false;
+    this._isTestingExtMqtt = false;
     this.dom = {};
   }
 
@@ -41,6 +45,7 @@ export class SettingsModule {
     this.fetchCustomVars();
     this.fetchFloodScope();
     this.fetchAutoAddConfig();
+    this.loadServicesConfig();
     this._startLiveTick();
     window.showQrModal = (title, uri, rawJson, label) => this.showQrModal(title, uri, rawJson, label);
   }
@@ -54,6 +59,9 @@ export class SettingsModule {
       });
     }
     this._applyLocalConfigCapabilities();
+    if (this.servicesConfig) {
+      this._updateServicesStatusBadge(this.servicesConfig);
+    }
   }
 
   _startLiveTick() {
@@ -163,6 +171,69 @@ export class SettingsModule {
       btnActionClearLocalStats: document.getElementById("btnActionClearLocalStats"),
       localHwBoardBadge: document.getElementById("localHwBoardBadge"),
       localFwVersionBadge: document.getElementById("localFwVersionBadge"),
+
+      // Servicios de Red & MQTT Externo
+      badgeExtMqttStatus: document.getElementById("badgeExtMqttStatus"),
+      chkExternalMqttEnabled: document.getElementById("chkExternalMqttEnabled"),
+      selExtMqttPreset: document.getElementById("selExtMqttPreset"),
+      presetTypeBadge: document.getElementById("presetTypeBadge"),
+      presetDescriptionText: document.getElementById("presetDescriptionText"),
+      btnSaveCurrentAsPreset: document.getElementById("btnSaveCurrentAsPreset"),
+      btnDeleteCustomPreset: document.getElementById("btnDeleteCustomPreset"),
+      inputExtMqttHost: document.getElementById("inputExtMqttHost"),
+      inputExtMqttPort: document.getElementById("inputExtMqttPort"),
+      selExtMqttTransport: document.getElementById("selExtMqttTransport"),
+      chkExtMqttTls: document.getElementById("chkExtMqttTls"),
+      chkExtMqttTlsVerify: document.getElementById("chkExtMqttTlsVerify"),
+      selExtMqttAuthType: document.getElementById("selExtMqttAuthType"),
+      selExtMqttPrivacy: document.getElementById("selExtMqttPrivacy"),
+      extMqttUserPassFields: document.getElementById("extMqttUserPassFields"),
+      inputExtMqttUser: document.getElementById("inputExtMqttUser"),
+      inputExtMqttPass: document.getElementById("inputExtMqttPass"),
+      extMqttTokenField: document.getElementById("extMqttTokenField"),
+      inputExtMqttToken: document.getElementById("inputExtMqttToken"),
+      selExtMqttTopicMode: document.getElementById("selExtMqttTopicMode"),
+      inputExtMqttPrefix: document.getElementById("inputExtMqttPrefix"),
+      inputExtMqttIata: document.getElementById("inputExtMqttIata"),
+      selExtMqttFormat: document.getElementById("selExtMqttFormat"),
+      selExtMqttQos: document.getElementById("selExtMqttQos"),
+      chkExtObserverMode: document.getElementById("chkExtObserverMode"),
+      chkExtFilterPublic: document.getElementById("chkExtFilterPublic"),
+      chkExtFilterChannels: document.getElementById("chkExtFilterChannels"),
+      chkExtFilterDirect: document.getElementById("chkExtFilterDirect"),
+      chkExtFilterTelemetry: document.getElementById("chkExtFilterTelemetry"),
+      chkExtFilterNodes: document.getElementById("chkExtFilterNodes"),
+      chkExtFilterRaw: document.getElementById("chkExtFilterRaw"),
+      chkExtDownlink: document.getElementById("chkExtDownlink"),
+      btnTestExternalMqtt: document.getElementById("btnTestExternalMqtt"),
+      extMqttTestStatus: document.getElementById("extMqttTestStatus"),
+
+      // MQTT Local (n8n / Domótica)
+      chkLocalMqttEnabled: document.getElementById("chkLocalMqttEnabled"),
+      inputLocalMqttHost: document.getElementById("inputLocalMqttHost"),
+      inputLocalMqttPort: document.getElementById("inputLocalMqttPort"),
+      inputLocalMqttPrefix: document.getElementById("inputLocalMqttPrefix"),
+      chkLocalMqttAuth: document.getElementById("chkLocalMqttAuth"),
+      localMqttCredsRow: document.getElementById("localMqttCredsRow"),
+      inputLocalMqttUser: document.getElementById("inputLocalMqttUser"),
+      inputLocalMqttPass: document.getElementById("inputLocalMqttPass"),
+
+      // Servidor TCP Companion
+      chkTcpServerEnabled: document.getElementById("chkTcpServerEnabled"),
+      selTcpServerHost: document.getElementById("selTcpServerHost"),
+      inputTcpServerPort: document.getElementById("inputTcpServerPort"),
+      inputTcpMaxClients: document.getElementById("inputTcpMaxClients"),
+      inputTcpAllowedIps: document.getElementById("inputTcpAllowedIps"),
+
+      btnSaveServicesConfig: document.getElementById("btnSaveServicesConfig"),
+
+      // Modal Preset
+      modalSavePreset: document.getElementById("modalSavePreset"),
+      inputNewPresetName: document.getElementById("inputNewPresetName"),
+      inputNewPresetDesc: document.getElementById("inputNewPresetDesc"),
+      btnCloseSavePresetModal: document.getElementById("btnCloseSavePresetModal"),
+      btnCancelSavePreset: document.getElementById("btnCancelSavePreset"),
+      btnConfirmSavePreset: document.getElementById("btnConfirmSavePreset"),
     };
   }
 
@@ -494,6 +565,9 @@ export class SettingsModule {
         if (target === "local-security") {
           this.fetchFloodScope();
           this.fetchAutoAddConfig();
+        }
+        if (target === "local-services") {
+          this.loadServicesConfig();
         }
       });
     });
@@ -1058,6 +1132,9 @@ export class SettingsModule {
         }
       });
     }
+
+    // 7. Eventos de la pestaña de Servicios de Red & MQTT Externo
+    this._bindServicesEvents();
   }
 
   _subscribeBus() {
@@ -2338,6 +2415,524 @@ export class SettingsModule {
   _clearAdvancedFields(snapshot) {
     for (const [id, saved] of snapshot) {
       if (this._localFieldValue(id) === saved.raw && (this._fieldEditVersions.get(id) || 0) === saved.version) this.dirtyFields.delete(id);
+    }
+  }
+
+  // ── Gestión de Servicios de Red & MQTT Externo (Paso 7) ────────────────────
+
+  _bindServicesEvents() {
+    // Selector de método de autenticación externa
+    if (this.dom.selExtMqttAuthType) {
+      this.dom.selExtMqttAuthType.addEventListener("change", () => {
+        this._updateAuthFieldsVisibility();
+      });
+    }
+
+    // Checkbox de autenticación MQTT local
+    if (this.dom.chkLocalMqttAuth) {
+      this.dom.chkLocalMqttAuth.addEventListener("change", () => {
+        this._updateLocalMqttAuthVisibility();
+      });
+    }
+
+    // Checkbox de modo Observer (informa si se activan o desactivan chats)
+    if (this.dom.chkExtObserverMode) {
+      this.dom.chkExtObserverMode.addEventListener("change", (e) => {
+        if (e.target.checked && this.ctx.showToast) {
+          this.ctx.showToast(I18n.t("services.observer_mode") || "Modo Observer activo: chats no reenviados", "info");
+        }
+      });
+    }
+
+    // Cambio de Preset en el dropdown
+    if (this.dom.selExtMqttPreset) {
+      this.dom.selExtMqttPreset.addEventListener("change", (e) => {
+        const val = e.target.value;
+        if (val === "custom") {
+          this._updatePresetBadgeAndButtons("custom");
+        } else {
+          const p = (this.servicesPresets || []).find((x) => x.id === val);
+          if (p) {
+            this._applyPresetToForm(p);
+            this._updatePresetBadgeAndButtons(val);
+          }
+        }
+      });
+    }
+
+    // Botón: Abrir modal "Guardar como Preset"
+    if (this.dom.btnSaveCurrentAsPreset) {
+      this.dom.btnSaveCurrentAsPreset.addEventListener("click", () => {
+        if (this.dom.modalSavePreset) {
+          this.dom.modalSavePreset.classList.remove("hidden");
+          if (this.dom.inputNewPresetName) {
+            this.dom.inputNewPresetName.value = "";
+            this.dom.inputNewPresetName.focus();
+          }
+          if (this.dom.inputNewPresetDesc) {
+            this.dom.inputNewPresetDesc.value = "";
+          }
+        }
+      });
+    }
+
+    // Botones de cierre del modal de Preset
+    if (this.dom.btnCloseSavePresetModal) {
+      this.dom.btnCloseSavePresetModal.addEventListener("click", () => {
+        if (this.dom.modalSavePreset) this.dom.modalSavePreset.classList.add("hidden");
+      });
+    }
+    if (this.dom.btnCancelSavePreset) {
+      this.dom.btnCancelSavePreset.addEventListener("click", () => {
+        if (this.dom.modalSavePreset) this.dom.modalSavePreset.classList.add("hidden");
+      });
+    }
+
+    // Confirmar guardado de preset personalizado
+    if (this.dom.btnConfirmSavePreset) {
+      this.dom.btnConfirmSavePreset.addEventListener("click", () => {
+        this.saveCustomPreset();
+      });
+    }
+
+    // Botón: Eliminar preset personalizado
+    if (this.dom.btnDeleteCustomPreset) {
+      this.dom.btnDeleteCustomPreset.addEventListener("click", () => {
+        this.deleteCustomPreset();
+      });
+    }
+
+    // Botón: Probar conexión externa
+    if (this.dom.btnTestExternalMqtt) {
+      this.dom.btnTestExternalMqtt.addEventListener("click", () => {
+        this.testExternalMqttConnection();
+      });
+    }
+
+    // Botón principal: Guardar y aplicar configuración de servicios
+    if (this.dom.btnSaveServicesConfig) {
+      this.dom.btnSaveServicesConfig.addEventListener("click", () => {
+        this.saveServicesConfig();
+      });
+    }
+  }
+
+  async loadServicesConfig() {
+    try {
+      const res = await fetch("/api/services/config", {
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const body = await res.json();
+      if (body.status !== "ok" || !body.data) return;
+      const data = body.data;
+      this.servicesConfig = data;
+      this.servicesPresets = data.all_presets || [];
+
+      this._renderServicesPresetsDropdown(this.servicesPresets, data.external_mqtt?.selected_preset_id);
+      this._populateServicesForm(data);
+    } catch (err) {
+      console.warn("Error cargando configuración de servicios:", err);
+    }
+  }
+
+  _renderServicesPresetsDropdown(presets, selectedId = "custom") {
+    const sel = this.dom.selExtMqttPreset;
+    if (!sel) return;
+    sel.innerHTML = "";
+
+    const optCustom = document.createElement("option");
+    optCustom.value = "custom";
+    optCustom.textContent = "Personalizado / Manual";
+    sel.appendChild(optCustom);
+
+    presets.forEach((p) => {
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      const icon = p.is_system ? "🔒" : "⭐";
+      opt.textContent = `${icon} ${p.name}`;
+      sel.appendChild(opt);
+    });
+
+    sel.value = selectedId || "custom";
+    this._updatePresetBadgeAndButtons(sel.value);
+  }
+
+  _updatePresetBadgeAndButtons(selectedId) {
+    const badge = this.dom.presetTypeBadge;
+    const desc = this.dom.presetDescriptionText;
+    const btnDel = this.dom.btnDeleteCustomPreset;
+
+    if (!selectedId || selectedId === "custom") {
+      if (badge) {
+        badge.textContent = "Personalizado";
+        badge.className = "badge-pill badge-primary text-xs";
+      }
+      if (desc) desc.textContent = "Configuración libre de servidor MQTT";
+      if (btnDel) btnDel.disabled = true;
+      return;
+    }
+
+    const p = (this.servicesPresets || []).find((x) => x.id === selectedId);
+    if (!p) {
+      if (btnDel) btnDel.disabled = true;
+      return;
+    }
+
+    if (badge) {
+      badge.textContent = p.is_system ? "Sistema" : "Personalizado";
+      badge.className = p.is_system ? "badge-pill badge-secondary text-xs" : "badge-pill badge-primary text-xs";
+    }
+    if (desc) desc.textContent = p.description || "";
+    if (btnDel) btnDel.disabled = Boolean(p.is_system);
+  }
+
+  _applyPresetToForm(p) {
+    if (this.dom.inputExtMqttHost) this.dom.inputExtMqttHost.value = p.host || "";
+    if (this.dom.inputExtMqttPort) this.dom.inputExtMqttPort.value = p.port || 1883;
+    if (this.dom.selExtMqttTransport) this.dom.selExtMqttTransport.value = p.transport || "tcp";
+    if (this.dom.chkExtMqttTls) this.dom.chkExtMqttTls.checked = Boolean(p.tls_enabled);
+    if (this.dom.chkExtMqttTlsVerify) this.dom.chkExtMqttTlsVerify.checked = p.tls_verify !== false;
+    if (this.dom.selExtMqttAuthType) this.dom.selExtMqttAuthType.value = p.auth_type || "anonymous";
+    if (this.dom.selExtMqttPrivacy) this.dom.selExtMqttPrivacy.value = p.location_privacy || "fuzzed";
+    if (this.dom.inputExtMqttUser) this.dom.inputExtMqttUser.value = p.username || "";
+    if (this.dom.inputExtMqttPass) this.dom.inputExtMqttPass.value = p.password || "";
+    if (this.dom.inputExtMqttToken) this.dom.inputExtMqttToken.value = p.token || "";
+    if (this.dom.selExtMqttTopicMode) this.dom.selExtMqttTopicMode.value = p.topic_mode || "standard";
+    if (this.dom.inputExtMqttPrefix) this.dom.inputExtMqttPrefix.value = p.topic_prefix || "meshcore/remote";
+    if (this.dom.inputExtMqttIata) this.dom.inputExtMqttIata.value = p.region_iata || "XXX";
+    if (this.dom.selExtMqttFormat) this.dom.selExtMqttFormat.value = p.payload_format || "json_canonical";
+    if (this.dom.selExtMqttQos) this.dom.selExtMqttQos.value = String(p.qos ?? 0);
+    if (this.dom.chkExtObserverMode) this.dom.chkExtObserverMode.checked = Boolean(p.filter_observer_mode);
+    if (this.dom.chkExtFilterPublic) this.dom.chkExtFilterPublic.checked = Boolean(p.filter_public);
+    if (this.dom.chkExtFilterChannels) this.dom.chkExtFilterChannels.checked = Boolean(p.filter_channels);
+    if (this.dom.chkExtFilterDirect) this.dom.chkExtFilterDirect.checked = Boolean(p.filter_direct);
+    if (this.dom.chkExtFilterTelemetry) this.dom.chkExtFilterTelemetry.checked = Boolean(p.filter_telemetry);
+    if (this.dom.chkExtFilterNodes) this.dom.chkExtFilterNodes.checked = Boolean(p.filter_nodes);
+    if (this.dom.chkExtFilterRaw) this.dom.chkExtFilterRaw.checked = Boolean(p.filter_raw);
+    if (this.dom.chkExtDownlink) this.dom.chkExtDownlink.checked = Boolean(p.downlink_enabled);
+
+    this._updateAuthFieldsVisibility();
+  }
+
+  _populateServicesForm(data) {
+    const ext = data.external_mqtt || {};
+    const loc = data.local_mqtt || {};
+    const tcp = data.tcp_server || {};
+
+    this._updateServicesStatusBadge(data);
+
+    if (this.dom.chkExternalMqttEnabled) this.dom.chkExternalMqttEnabled.checked = Boolean(ext.enabled);
+    if (this.dom.inputExtMqttHost) this.dom.inputExtMqttHost.value = ext.host || "";
+    if (this.dom.inputExtMqttPort) this.dom.inputExtMqttPort.value = ext.port || 1883;
+    if (this.dom.selExtMqttTransport) this.dom.selExtMqttTransport.value = ext.transport || "tcp";
+    if (this.dom.chkExtMqttTls) this.dom.chkExtMqttTls.checked = Boolean(ext.tls_enabled);
+    if (this.dom.chkExtMqttTlsVerify) this.dom.chkExtMqttTlsVerify.checked = ext.tls_verify !== false;
+    if (this.dom.selExtMqttAuthType) this.dom.selExtMqttAuthType.value = ext.auth_type || "anonymous";
+    if (this.dom.selExtMqttPrivacy) this.dom.selExtMqttPrivacy.value = ext.location_privacy || "fuzzed";
+    if (this.dom.inputExtMqttUser) this.dom.inputExtMqttUser.value = ext.username || "";
+    if (this.dom.inputExtMqttPass) this.dom.inputExtMqttPass.value = ext.password || "";
+    if (this.dom.inputExtMqttToken) this.dom.inputExtMqttToken.value = ext.token || "";
+    if (this.dom.selExtMqttTopicMode) this.dom.selExtMqttTopicMode.value = ext.topic_mode || "standard";
+    if (this.dom.inputExtMqttPrefix) this.dom.inputExtMqttPrefix.value = ext.topic_prefix || "meshcore/remote";
+    if (this.dom.inputExtMqttIata) this.dom.inputExtMqttIata.value = ext.region_iata || "XXX";
+    if (this.dom.selExtMqttFormat) this.dom.selExtMqttFormat.value = ext.payload_format || "json_canonical";
+    if (this.dom.selExtMqttQos) this.dom.selExtMqttQos.value = String(ext.qos ?? 0);
+    if (this.dom.chkExtObserverMode) this.dom.chkExtObserverMode.checked = Boolean(ext.filter_observer_mode);
+    if (this.dom.chkExtFilterPublic) this.dom.chkExtFilterPublic.checked = Boolean(ext.filter_public);
+    if (this.dom.chkExtFilterChannels) this.dom.chkExtFilterChannels.checked = Boolean(ext.filter_channels);
+    if (this.dom.chkExtFilterDirect) this.dom.chkExtFilterDirect.checked = Boolean(ext.filter_direct);
+    if (this.dom.chkExtFilterTelemetry) this.dom.chkExtFilterTelemetry.checked = Boolean(ext.filter_telemetry);
+    if (this.dom.chkExtFilterNodes) this.dom.chkExtFilterNodes.checked = Boolean(ext.filter_nodes);
+    if (this.dom.chkExtFilterRaw) this.dom.chkExtFilterRaw.checked = Boolean(ext.filter_raw);
+    if (this.dom.chkExtDownlink) this.dom.chkExtDownlink.checked = Boolean(ext.downlink_enabled);
+
+    // MQTT Local
+    if (this.dom.chkLocalMqttEnabled) this.dom.chkLocalMqttEnabled.checked = loc.enabled !== false;
+    if (this.dom.inputLocalMqttHost) this.dom.inputLocalMqttHost.value = loc.host || "127.0.0.1";
+    if (this.dom.inputLocalMqttPort) this.dom.inputLocalMqttPort.value = loc.port || 1883;
+    if (this.dom.inputLocalMqttPrefix) this.dom.inputLocalMqttPrefix.value = loc.topic_prefix || "meshcore";
+    if (this.dom.chkLocalMqttAuth) this.dom.chkLocalMqttAuth.checked = Boolean(loc.auth_enabled);
+    if (this.dom.inputLocalMqttUser) this.dom.inputLocalMqttUser.value = loc.username || "";
+    if (this.dom.inputLocalMqttPass) this.dom.inputLocalMqttPass.value = loc.password || "";
+
+    // TCP Server
+    if (this.dom.chkTcpServerEnabled) this.dom.chkTcpServerEnabled.checked = tcp.enabled !== false;
+    if (this.dom.selTcpServerHost) this.dom.selTcpServerHost.value = tcp.host || "0.0.0.0";
+    if (this.dom.inputTcpServerPort) this.dom.inputTcpServerPort.value = tcp.port || 5000;
+    if (this.dom.inputTcpMaxClients) this.dom.inputTcpMaxClients.value = tcp.max_clients || 8;
+    if (this.dom.inputTcpAllowedIps) this.dom.inputTcpAllowedIps.value = tcp.allowed_ips || "";
+
+    this._updateAuthFieldsVisibility();
+    this._updateLocalMqttAuthVisibility();
+  }
+
+  _updateServicesStatusBadge(data) {
+    const badge = this.dom.badgeExtMqttStatus;
+    if (!badge) return;
+    const ext = data?.external_mqtt || {};
+    if (data?.external_mqtt_connected) {
+      badge.className = "badge-pill badge-success";
+      badge.textContent = I18n.t("services.status_connected") || "Conectado";
+    } else if (ext.enabled) {
+      badge.className = "badge-pill badge-warning";
+      badge.textContent = "Conectando...";
+    } else {
+      badge.className = "badge-pill badge-secondary";
+      badge.textContent = I18n.t("services.status_disconnected") || "Desconectado";
+    }
+  }
+
+  _updateAuthFieldsVisibility() {
+    const authType = this.dom.selExtMqttAuthType?.value || "anonymous";
+    if (this.dom.extMqttUserPassFields) {
+      this.dom.extMqttUserPassFields.classList.toggle("hidden", authType !== "user_pass");
+    }
+    if (this.dom.extMqttTokenField) {
+      this.dom.extMqttTokenField.classList.toggle("hidden", authType !== "token");
+    }
+  }
+
+  _updateLocalMqttAuthVisibility() {
+    const isAuth = Boolean(this.dom.chkLocalMqttAuth?.checked);
+    if (this.dom.localMqttCredsRow) {
+      this.dom.localMqttCredsRow.classList.toggle("hidden", !isAuth);
+    }
+  }
+
+  _gatherExternalMqttFormData() {
+    return {
+      enabled: Boolean(this.dom.chkExternalMqttEnabled?.checked),
+      host: (this.dom.inputExtMqttHost?.value || "").trim(),
+      port: parseInt(this.dom.inputExtMqttPort?.value, 10) || 1883,
+      transport: this.dom.selExtMqttTransport?.value || "tcp",
+      tls_enabled: Boolean(this.dom.chkExtMqttTls?.checked),
+      tls_verify: Boolean(this.dom.chkExtMqttTlsVerify?.checked),
+      auth_type: this.dom.selExtMqttAuthType?.value || "anonymous",
+      location_privacy: this.dom.selExtMqttPrivacy?.value || "fuzzed",
+      username: (this.dom.inputExtMqttUser?.value || "").trim(),
+      password: this.dom.inputExtMqttPass?.value || "",
+      token: (this.dom.inputExtMqttToken?.value || "").trim(),
+      downlink_enabled: Boolean(this.dom.chkExtDownlink?.checked),
+      topic_mode: this.dom.selExtMqttTopicMode?.value || "standard",
+      topic_prefix: (this.dom.inputExtMqttPrefix?.value || "").trim() || "meshcore/remote",
+      region_iata: (this.dom.inputExtMqttIata?.value || "").trim().toUpperCase() || "XXX",
+      payload_format: this.dom.selExtMqttFormat?.value || "json_canonical",
+      qos: parseInt(this.dom.selExtMqttQos?.value, 10) || 0,
+      filter_observer_mode: Boolean(this.dom.chkExtObserverMode?.checked),
+      filter_public: Boolean(this.dom.chkExtFilterPublic?.checked),
+      filter_channels: Boolean(this.dom.chkExtFilterChannels?.checked),
+      filter_direct: Boolean(this.dom.chkExtFilterDirect?.checked),
+      filter_telemetry: Boolean(this.dom.chkExtFilterTelemetry?.checked),
+      filter_nodes: Boolean(this.dom.chkExtFilterNodes?.checked),
+      filter_raw: Boolean(this.dom.chkExtFilterRaw?.checked),
+      selected_preset_id: this.dom.selExtMqttPreset?.value || "custom",
+    };
+  }
+
+  _gatherLocalMqttFormData() {
+    return {
+      enabled: Boolean(this.dom.chkLocalMqttEnabled?.checked),
+      host: (this.dom.inputLocalMqttHost?.value || "").trim() || "127.0.0.1",
+      port: parseInt(this.dom.inputLocalMqttPort?.value, 10) || 1883,
+      topic_prefix: (this.dom.inputLocalMqttPrefix?.value || "").trim() || "meshcore",
+      auth_enabled: Boolean(this.dom.chkLocalMqttAuth?.checked),
+      username: (this.dom.inputLocalMqttUser?.value || "").trim(),
+      password: this.dom.inputLocalMqttPass?.value || "",
+    };
+  }
+
+  _gatherTcpServerFormData() {
+    return {
+      enabled: Boolean(this.dom.chkTcpServerEnabled?.checked),
+      host: this.dom.selTcpServerHost?.value || "0.0.0.0",
+      port: parseInt(this.dom.inputTcpServerPort?.value, 10) || 5000,
+      max_clients: parseInt(this.dom.inputTcpMaxClients?.value, 10) || 8,
+      allowed_ips: (this.dom.inputTcpAllowedIps?.value || "").trim(),
+    };
+  }
+
+  async saveServicesConfig() {
+    if (this._isSavingServices) return;
+    const btn = this.dom.btnSaveServicesConfig;
+    if (btn) btn.disabled = true;
+    this._isSavingServices = true;
+
+    try {
+      const payload = {
+        external_mqtt: this._gatherExternalMqttFormData(),
+        local_mqtt: this._gatherLocalMqttFormData(),
+        tcp_server: this._gatherTcpServerFormData(),
+      };
+
+      const res = await fetch("/api/services/config", {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders
+          ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" })
+          : { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const body = await res.json().catch(() => ({}));
+      if (res.ok && body.status === "ok") {
+        if (this.ctx.showToast) {
+          this.ctx.showToast(I18n.t("services.saved_success") || "Configuración guardada y aplicada correctamente", "success");
+        }
+        await this.loadServicesConfig();
+      } else {
+        const errDetail = body.detail || body.message || body.error || "Error al guardar servicios";
+        this._notify(`Error: ${errDetail}`, "error");
+      }
+    } catch (err) {
+      this._notify(`Error de red al guardar servicios: ${err.message}`, "error");
+    } finally {
+      this._isSavingServices = false;
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async testExternalMqttConnection() {
+    if (this._isTestingExtMqtt) return;
+    const btn = this.dom.btnTestExternalMqtt;
+    const statusEl = this.dom.extMqttTestStatus;
+    if (btn) btn.disabled = true;
+    this._isTestingExtMqtt = true;
+
+    if (statusEl) {
+      statusEl.textContent = "⏳ Probando conexión...";
+      statusEl.style.color = "var(--color-text-secondary)";
+    }
+
+    try {
+      const extData = this._gatherExternalMqttFormData();
+      const res = await fetch("/api/services/mqtt-external/test", {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders
+          ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" })
+          : { "Content-Type": "application/json" },
+        body: JSON.stringify(extData),
+      });
+
+      const body = await res.json().catch(() => ({}));
+      if (res.ok && body.status === "ok" && body.success) {
+        const latency = body.latency_ms ?? 0;
+        const msg = I18n.t("services.test_success", { latency }) || `✅ Conexión exitosa (${latency} ms)`;
+        if (statusEl) {
+          statusEl.textContent = msg;
+          statusEl.style.color = "var(--accent-success, #22c55e)";
+        }
+        if (this.ctx.showToast) this.ctx.showToast(msg, "success");
+      } else {
+        const errMsg = body.error || body.detail || body.message || "Fallo de conexión";
+        const msg = I18n.t("services.test_failed", { error: errMsg }) || `❌ Error: ${errMsg}`;
+        if (statusEl) {
+          statusEl.textContent = msg;
+          statusEl.style.color = "var(--color-danger, #ef4444)";
+        }
+        if (this.ctx.showToast) this.ctx.showToast(msg, "error");
+      }
+    } catch (err) {
+      const msg = `❌ Error de red: ${err.message}`;
+      if (statusEl) {
+        statusEl.textContent = msg;
+        statusEl.style.color = "var(--color-danger, #ef4444)";
+      }
+    } finally {
+      this._isTestingExtMqtt = false;
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async saveCustomPreset() {
+    const nameInput = this.dom.inputNewPresetName;
+    const descInput = this.dom.inputNewPresetDesc;
+    const name = (nameInput?.value || "").trim();
+    const description = (descInput?.value || "").trim();
+
+    if (!name) {
+      this._notify("Por favor ingrese un nombre para el perfil", "warning");
+      nameInput?.focus();
+      return;
+    }
+
+    const config = this._gatherExternalMqttFormData();
+    try {
+      const res = await fetch("/api/services/presets", {
+        method: "POST",
+        headers: this.ctx.getAuthHeaders
+          ? this.ctx.getAuthHeaders({ "Content-Type": "application/json" })
+          : { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, description, config }),
+      });
+
+      const body = await res.json().catch(() => ({}));
+      if (res.ok && body.status === "ok") {
+        if (this.dom.modalSavePreset) {
+          this.dom.modalSavePreset.classList.add("hidden");
+        }
+        const created = body.data;
+        if (this.ctx.showToast) {
+          this.ctx.showToast(I18n.t("services.preset_saved", { name }) || `Preset "${name}" guardado`, "success");
+        }
+        await this.loadServicesConfig();
+        if (created && created.id && this.dom.selExtMqttPreset) {
+          this.dom.selExtMqttPreset.value = created.id;
+          this._updatePresetBadgeAndButtons(created.id);
+        }
+      } else {
+        const errDetail = body.detail || body.message || "Error al crear preset";
+        this._notify(`Error: ${errDetail}`, "error");
+      }
+    } catch (err) {
+      this._notify(`Error de red: ${err.message}`, "error");
+    }
+  }
+
+  async deleteCustomPreset() {
+    const sel = this.dom.selExtMqttPreset;
+    const presetId = sel?.value;
+    if (!presetId || presetId === "custom") return;
+
+    const preset = (this.servicesPresets || []).find((p) => p.id === presetId);
+    if (!preset || preset.is_system) {
+      this._notify("No se pueden eliminar presets del sistema", "warning");
+      return;
+    }
+
+    const confirmMsg = `¿Eliminar el perfil "${preset.name}"?`;
+    const confirmFn = this.ctx?.showConfirm || window?.showConfirm;
+    const confirmed = confirmFn
+      ? await confirmFn(confirmMsg, {
+          title: "Eliminar Preset",
+          isDanger: true,
+          confirmText: "Eliminar",
+        })
+      : confirm(confirmMsg);
+
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`/api/services/presets/${presetId}`, {
+        method: "DELETE",
+        headers: this.ctx.getAuthHeaders ? this.ctx.getAuthHeaders() : {},
+      });
+
+      const body = await res.json().catch(() => ({}));
+      if (res.ok && body.status === "ok") {
+        if (this.ctx.showToast) {
+          this.ctx.showToast(I18n.t("services.preset_deleted") || "Preset eliminado correctamente", "info");
+        }
+        await this.loadServicesConfig();
+        if (this.dom.selExtMqttPreset) {
+          this.dom.selExtMqttPreset.value = "custom";
+          this._updatePresetBadgeAndButtons("custom");
+        }
+      } else {
+        const errDetail = body.detail || body.message || "Error al eliminar preset";
+        this._notify(`Error: ${errDetail}`, "error");
+      }
+    } catch (err) {
+      this._notify(`Error de red: ${err.message}`, "error");
     }
   }
 }

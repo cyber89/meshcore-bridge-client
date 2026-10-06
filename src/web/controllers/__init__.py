@@ -12,6 +12,7 @@ from src.web.controllers.logs_controller import LogsController
 from src.web.controllers.nodes_controller import NodesController
 from src.web.controllers.packets_controller import PacketsController
 from src.web.controllers.repeater_controller import RepeaterController
+from src.web.controllers.services_controller import ServicesController
 from src.web.controllers.system_controller import SystemController
 from src.web.controllers.tx_controller import TxController
 
@@ -25,6 +26,7 @@ __all__ = [
     "NodesController",
     "PacketsController",
     "RepeaterController",
+    "ServicesController",
     "SystemController",
     "TxController",
     "problem_details",

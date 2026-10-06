@@ -706,6 +706,7 @@
               <button type="button" class="local-subtab-btn" data-subtab="local-console" data-i18n="settings.subtab_terminal"><span class="subtab-icon" data-lucide="terminal" data-size="15"></span> Terminal</button>
               <button type="button" class="local-subtab-btn" data-subtab="local-storage-maps" data-i18n="settings.subtab_maps"><span class="subtab-icon" data-lucide="map" data-size="15"></span> Mapas Offline</button>
               <button type="button" class="local-subtab-btn" data-subtab="local-security" data-i18n="settings.subtab_security"><span class="subtab-icon" data-lucide="shield" data-size="15"></span> Seguridad & API</button>
+              <button type="button" class="local-subtab-btn" data-subtab="local-services" data-i18n="settings.subtab_services"><span class="subtab-icon" data-lucide="server" data-size="15"></span> Servicios & Red</button>
             </div>
 
             <!-- Subpanel 1: Telemetría & Estado en Tiempo Real -->
@@ -1433,9 +1434,349 @@
                 </div>
               </div>
             </div>
+
+            <!-- Subpanel 7: Servicios de Red (MQTT Local/Externo & TCP Companion) -->
+            <div id="local-services" class="local-settings-subpanel">
+              <div class="settings-content-layout">
+                <div class="settings-cards-col" style="max-width: 900px;">
+
+                  <!-- Tarjeta 1: Servidor MQTT Externo & Gestor de Presets -->
+                  <div class="settings-card">
+                    <div class="card-title-row">
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="section-icon" data-lucide="globe" data-size="18"></span>
+                        <h3 data-i18n="services.ext_title">Servidor MQTT Externo / Upstream</h3>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 10px;">
+                        <span id="badgeExtMqttStatus" class="badge-pill badge-secondary" data-i18n="services.status_disconnected">Desconectado</span>
+                        <label class="switch-toggle" style="margin: 0;">
+                          <input type="checkbox" id="chkExternalMqttEnabled" />
+                          <span class="slider round"></span>
+                        </label>
+                      </div>
+                    </div>
+                    <p class="card-desc" data-i18n="services.ext_desc">
+                      Reenvía pasivamente paquetes LoRa (telemetría, anuncios o chat) hacia servidores comunitarios como LetsMesh.net, analizadores de red o brokers remotos.
+                    </p>
+
+                    <!-- Gestor de Presets -->
+                    <div class="form-group" style="background: var(--color-bg-secondary, rgba(255,255,255,0.03)); padding: 12px; border-radius: 8px; border: 1px solid var(--color-border); margin-bottom: 16px;">
+                      <label style="font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;">
+                        <span><span data-lucide="bookmark" data-size="14" style="vertical-align: middle;"></span> <span data-i18n="services.preset_label">Perfil de Conexión (Preset):</span></span>
+                        <span id="presetTypeBadge" class="badge-pill badge-primary text-xs" style="font-size: 10px;">Personalizado</span>
+                      </label>
+                      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                        <select id="selExtMqttPreset" class="form-control" style="flex: 1; min-width: 200px;">
+                          <!-- Dinámico desde API / services_config.json -->
+                        </select>
+                        <button type="button" class="btn-secondary btn-sm" id="btnSaveCurrentAsPreset" title="Guardar los valores actuales como un perfil nuevo">
+                          <span data-lucide="plus-circle" data-size="14"></span> <span data-i18n="services.btn_save_preset">Guardar como Preset</span>
+                        </button>
+                        <button type="button" class="btn-danger btn-sm" id="btnDeleteCustomPreset" title="Eliminar el preset personalizado seleccionado" disabled>
+                          <span data-lucide="trash-2" data-size="14"></span> <span data-i18n="services.btn_delete_preset">Borrar</span>
+                        </button>
+                      </div>
+                      <small id="presetDescriptionText" style="display: block; margin-top: 6px; color: var(--color-text-secondary);"></small>
+                    </div>
+
+                    <form id="externalMqttForm" onsubmit="return false;" class="settings-form">
+                      <div class="form-row-2col">
+                        <div class="form-group">
+                          <label for="inputExtMqttHost" data-i18n="services.host">Servidor / Host:</label>
+                          <input type="text" id="inputExtMqttHost" class="form-control font-mono" placeholder="ej: mqtt.letsmesh.net" />
+                        </div>
+                        <div class="form-group">
+                          <label for="inputExtMqttPort" data-i18n="services.port">Puerto:</label>
+                          <input type="number" id="inputExtMqttPort" class="form-control font-mono" min="1" max="65535" placeholder="1883 / 443" />
+                        </div>
+                      </div>
+
+                      <div class="form-row-2col">
+                        <div class="form-group">
+                          <label for="selExtMqttTransport" data-i18n="services.transport">Transporte:</label>
+                          <select id="selExtMqttTransport" class="form-control">
+                            <option value="tcp">TCP Estándar</option>
+                            <option value="websockets">WebSockets (WSS)</option>
+                          </select>
+                        </div>
+                        <div class="form-group">
+                          <label data-i18n="services.tls_security">Seguridad TLS / SSL:</label>
+                          <div style="display: flex; gap: 16px; align-items: center; margin-top: 8px;">
+                            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                              <input type="checkbox" id="chkExtMqttTls" />
+                              <span data-i18n="services.enable_tls">Habilitar TLS</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                              <input type="checkbox" id="chkExtMqttTlsVerify" checked />
+                              <span data-i18n="services.verify_cert">Verificar CA</span>
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="form-row-2col">
+                        <div class="form-group">
+                          <label for="selExtMqttAuthType" data-i18n="services.auth_type">Método de Autenticación:</label>
+                          <select id="selExtMqttAuthType" class="form-control">
+                            <option value="anonymous">Anónimo (Sin credenciales)</option>
+                            <option value="user_pass">Usuario y Contraseña</option>
+                            <option value="token">Token JWT (LetsMesh)</option>
+                          </select>
+                        </div>
+                        <div class="form-group">
+                          <label for="selExtMqttPrivacy" data-i18n="services.location_privacy">Privacidad GPS (Geofuzzing):</label>
+                          <select id="selExtMqttPrivacy" class="form-control">
+                            <option value="fuzzed">Aproximada (~1 km fuzzed)</option>
+                            <option value="exact">Exacta (Coordenadas completas)</option>
+                            <option value="hidden">Oculta (Sin datos GPS)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <!-- Credenciales condicionales -->
+                      <div id="extMqttUserPassFields" class="form-row-2col hidden">
+                        <div class="form-group">
+                          <label for="inputExtMqttUser" data-i18n="services.username">Usuario:</label>
+                          <input type="text" id="inputExtMqttUser" class="form-control" autocomplete="off" />
+                        </div>
+                        <div class="form-group">
+                          <label for="inputExtMqttPass" data-i18n="services.password">Contraseña:</label>
+                          <input type="password" id="inputExtMqttPass" class="form-control" autocomplete="new-password" placeholder="••••••••" />
+                        </div>
+                      </div>
+
+                      <div id="extMqttTokenField" class="form-group hidden">
+                        <label for="inputExtMqttToken" data-i18n="services.token">Token de Acceso (JWT / Clave API):</label>
+                        <input type="password" id="inputExtMqttToken" class="form-control font-mono" autocomplete="new-password" placeholder="••••••••" />
+                      </div>
+
+                      <!-- Configuración de Tópicos y Región -->
+                      <div class="form-row-3col" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
+                        <div class="form-group">
+                          <label for="selExtMqttTopicMode" data-i18n="services.topic_mode">Modo de Tópicos:</label>
+                          <select id="selExtMqttTopicMode" class="form-control">
+                            <option value="standard">Estándar (meshcore/remote)</option>
+                            <option value="hierarchical">Jerárquico (IATA/Gateway)</option>
+                            <option value="custom">Personalizado</option>
+                          </select>
+                        </div>
+                        <div class="form-group">
+                          <label for="inputExtMqttPrefix" data-i18n="services.topic_prefix">Prefijo Base:</label>
+                          <input type="text" id="inputExtMqttPrefix" class="form-control font-mono" value="meshcore/remote" />
+                        </div>
+                        <div class="form-group">
+                          <label for="inputExtMqttIata" data-i18n="services.region_iata">Código IATA Región:</label>
+                          <input type="text" id="inputExtMqttIata" class="form-control font-mono" maxlength="5" value="XXX" style="text-transform: uppercase;" />
+                        </div>
+                      </div>
+
+                      <div class="form-row-2col">
+                        <div class="form-group">
+                          <label for="selExtMqttFormat" data-i18n="services.payload_format">Formato de Carga Útil:</label>
+                          <select id="selExtMqttFormat" class="form-control">
+                            <option value="json_canonical">JSON Canónico MeshCore</option>
+                            <option value="analyzer_packet">Analyzer Raw Hex (LetsMesh)</option>
+                          </select>
+                        </div>
+                        <div class="form-group">
+                          <label for="selExtMqttQos" data-i18n="services.qos">Nivel QoS:</label>
+                          <select id="selExtMqttQos" class="form-control">
+                            <option value="0">QoS 0 (At most once)</option>
+                            <option value="1">QoS 1 (At least once)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <!-- Filtros de Contenido -->
+                      <div style="background: var(--color-bg-secondary, rgba(255,255,255,0.02)); padding: 12px; border-radius: 8px; border: 1px solid var(--color-border); margin: 12px 0;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                          <strong data-i18n="services.filters_title"><span data-lucide="filter" data-size="14"></span> Filtros de Reenvío LoRa &rarr; MQTT</strong>
+                          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--color-warning, #f59e0b);">
+                            <input type="checkbox" id="chkExtObserverMode" />
+                            <strong data-i18n="services.observer_mode">Modo Observer (Sin chats)</strong>
+                          </label>
+                        </div>
+                        <div class="checkbox-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px;">
+                          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <input type="checkbox" id="chkExtFilterPublic" checked />
+                            <span data-i18n="services.filter_public">Canal 0 (Público)</span>
+                          </label>
+                          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <input type="checkbox" id="chkExtFilterChannels" checked />
+                            <span data-i18n="services.filter_channels">Canales Secundarios</span>
+                          </label>
+                          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <input type="checkbox" id="chkExtFilterDirect" />
+                            <span data-i18n="services.filter_direct">Mensajes Directos (DM)</span>
+                          </label>
+                          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <input type="checkbox" id="chkExtFilterTelemetry" checked />
+                            <span data-i18n="services.filter_telemetry">Telemetría y Sensores</span>
+                          </label>
+                          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <input type="checkbox" id="chkExtFilterNodes" checked />
+                            <span data-i18n="services.filter_nodes">Anuncios de Nodos</span>
+                          </label>
+                          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <input type="checkbox" id="chkExtFilterRaw" />
+                            <span data-i18n="services.filter_raw">Tramas RF Crudas (Hex)</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      <!-- Downlink Toggle con Advertencia -->
+                      <div style="background: rgba(245, 158, 11, 0.08); border-left: 3px solid var(--color-warning, #f59e0b); padding: 10px 14px; border-radius: 4px; margin: 12px 0;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600;">
+                          <input type="checkbox" id="chkExtDownlink" />
+                          <span data-i18n="services.enable_downlink">Permitir retransmisión desde Internet hacia la Radio (Downlink)</span>
+                        </label>
+                        <p style="font-size: 11px; margin: 4px 0 0 24px; color: var(--color-text-secondary);" data-i18n="services.downlink_warning">
+                          ⚠️ Advertencia: El downlink hace que tu nodo transmita paquetes al aire, consumiendo tiempo de radio (airtime). Desactivado por defecto.
+                        </p>
+                      </div>
+
+                      <!-- Botón Probar Conexión -->
+                      <div style="display: flex; align-items: center; gap: 12px; margin-top: 12px;">
+                        <button type="button" class="btn-secondary" id="btnTestExternalMqtt">
+                          <span data-lucide="zap" data-size="14"></span> <span data-i18n="services.btn_test_conn">Probar Conexión</span>
+                        </button>
+                        <span id="extMqttTestStatus" class="text-xs" style="font-weight: 500;"></span>
+                      </div>
+                    </form>
+                  </div>
+
+                  <!-- Tarjeta 2: Servidor MQTT Local / Propio -->
+                  <div class="settings-card" style="margin-top: 16px;">
+                    <div class="card-title-row">
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="section-icon" data-lucide="cpu" data-size="18"></span>
+                        <h3 data-i18n="services.local_mqtt_title">Servidor MQTT Local / Domótica (n8n & Home Assistant)</h3>
+                      </div>
+                      <label class="switch-toggle" style="margin: 0;">
+                        <input type="checkbox" id="chkLocalMqttEnabled" checked />
+                        <span class="slider round"></span>
+                      </label>
+                    </div>
+                    <p class="card-desc" data-i18n="services.local_mqtt_desc">
+                      Conecta el bridge con tu broker local (Mosquitto/EMQX) para automatizaciones con n8n, Home Assistant o Node-RED en tu red LAN.
+                    </p>
+                    <form id="localMqttForm" onsubmit="return false;" class="settings-form">
+                      <div class="form-row-2col">
+                        <div class="form-group">
+                          <label for="inputLocalMqttHost" data-i18n="services.local_host">Host / IP Local:</label>
+                          <input type="text" id="inputLocalMqttHost" class="form-control font-mono" value="127.0.0.1" />
+                        </div>
+                        <div class="form-group">
+                          <label for="inputLocalMqttPort" data-i18n="services.local_port">Puerto Local:</label>
+                          <input type="number" id="inputLocalMqttPort" class="form-control font-mono" min="1" max="65535" value="1883" />
+                        </div>
+                      </div>
+                      <div class="form-row-2col">
+                        <div class="form-group">
+                          <label for="inputLocalMqttPrefix" data-i18n="services.local_prefix">Tópico Raíz:</label>
+                          <input type="text" id="inputLocalMqttPrefix" class="form-control font-mono" value="meshcore" />
+                        </div>
+                        <div class="form-group" style="display: flex; align-items: flex-end; padding-bottom: 8px;">
+                          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="chkLocalMqttAuth" />
+                            <span data-i18n="services.local_auth_toggle">Requiere Autenticación</span>
+                          </label>
+                        </div>
+                      </div>
+                      <div id="localMqttCredsRow" class="form-row-2col hidden">
+                        <div class="form-group">
+                          <label for="inputLocalMqttUser" data-i18n="services.local_user">Usuario Local:</label>
+                          <input type="text" id="inputLocalMqttUser" class="form-control" autocomplete="off" />
+                        </div>
+                        <div class="form-group">
+                          <label for="inputLocalMqttPass" data-i18n="services.local_pass">Contraseña Local:</label>
+                          <input type="password" id="inputLocalMqttPass" class="form-control" autocomplete="new-password" placeholder="••••••••" />
+                        </div>
+                      </div>
+                    </form>
+                  </div>
+
+                  <!-- Tarjeta 3: Servidor TCP Companion -->
+                  <div class="settings-card" style="margin-top: 16px;">
+                    <div class="card-title-row">
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="section-icon" data-lucide="smartphone" data-size="18"></span>
+                        <h3 data-i18n="services.tcp_title">Servidor TCP Companion (App Móvil Oficial & CLI)</h3>
+                      </div>
+                      <label class="switch-toggle" style="margin: 0;">
+                        <input type="checkbox" id="chkTcpServerEnabled" checked />
+                        <span class="slider round"></span>
+                      </label>
+                    </div>
+                    <p class="card-desc" data-i18n="services.tcp_desc">
+                      Abre un socket TCP transparente en el puerto 5000 para conectar la App Oficial de MeshCore (Android/iOS) o clientes meshcore-cli por WiFi/LAN.
+                    </p>
+                    <form id="tcpServerForm" onsubmit="return false;" class="settings-form">
+                      <div class="form-row-2col">
+                        <div class="form-group">
+                          <label for="selTcpServerHost" data-i18n="services.tcp_interface">Interfaz de Escucha:</label>
+                          <select id="selTcpServerHost" class="form-control font-mono">
+                            <option value="0.0.0.0">0.0.0.0 (Toda la red LAN / WiFi)</option>
+                            <option value="127.0.0.1">127.0.0.1 (Solo local / Loopback)</option>
+                          </select>
+                        </div>
+                        <div class="form-group">
+                          <label for="inputTcpServerPort" data-i18n="services.tcp_port">Puerto de Escucha:</label>
+                          <input type="number" id="inputTcpServerPort" class="form-control font-mono" min="1024" max="65535" value="5000" />
+                        </div>
+                      </div>
+                      <div class="form-row-2col">
+                        <div class="form-group">
+                          <label for="inputTcpMaxClients" data-i18n="services.tcp_max_clients">Clientes Concurrentes Máximos:</label>
+                          <input type="number" id="inputTcpMaxClients" class="form-control" min="1" max="32" value="8" />
+                        </div>
+                        <div class="form-group">
+                          <label for="inputTcpAllowedIps" data-i18n="services.tcp_allowed_ips">Lista Blanca de IPs (Opcional):</label>
+                          <input type="text" id="inputTcpAllowedIps" class="form-control font-mono" placeholder="ej: 192.168.1.50, 192.168.1.51" />
+                        </div>
+                      </div>
+                    </form>
+                  </div>
+
+                  <!-- Botón Principal Guardar y Aplicar -->
+                  <div style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px;">
+                    <button type="button" class="btn-primary" id="btnSaveServicesConfig" style="padding: 10px 24px; font-size: 14px;">
+                      <span data-lucide="save" data-size="16"></span> <span data-i18n="services.btn_save_all">Guardar y Aplicar Servicios</span>
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+            </div>
           </div>
         </section>
       </main>
+    </div>
+
+    <!-- Modal: Guardar Preset Personalizado -->
+    <div id="modalSavePreset" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalSavePresetTitle">
+      <div class="modal-card" style="max-width: 480px;">
+        <div class="modal-header">
+          <h3 id="modalSavePresetTitle" style="display: flex; align-items: center; gap: 8px;">
+            <span data-lucide="bookmark-plus" data-size="18"></span> <span data-i18n="services.modal_save_title">Guardar como Preset</span>
+          </h3>
+          <button type="button" class="modal-close-btn" id="btnCloseSavePresetModal">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 16px;">
+          <div class="form-group">
+            <label for="inputNewPresetName" data-i18n="services.preset_name">Nombre del Perfil:</label>
+            <input type="text" id="inputNewPresetName" class="form-control" placeholder="ej: LetsMesh US o Mi Broker" />
+          </div>
+          <div class="form-group" style="margin-top: 12px;">
+            <label for="inputNewPresetDesc" data-i18n="services.preset_desc">Descripción (Opcional):</label>
+            <textarea id="inputNewPresetDesc" class="form-control" rows="2" placeholder="Notas sobre el broker o servidor..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer" style="padding: 12px 16px; display: flex; justify-content: flex-end; gap: 8px;">
+          <button type="button" class="btn-secondary" id="btnCancelSavePreset" data-i18n="modal.cancel">Cancelar</button>
+          <button type="button" class="btn-primary" id="btnConfirmSavePreset" data-i18n="modal.save">Guardar Perfil</button>
+        </div>
+      </div>
     </div>
 
     <!-- Modal: Paleta de Comandos (Ctrl+K / Cmd+K) -->

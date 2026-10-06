@@ -27,8 +27,15 @@ class PreflightChecker:
     def __init__(self) -> None:
         self.results: list[PreflightCheckResult] = []
 
-    def check_mqtt_broker(self, host: str, port: int, timeout: float = 2.0) -> PreflightCheckResult:
+    def check_mqtt_broker(self, host: str, port: int, timeout: float = 2.0, enabled: bool = True) -> PreflightCheckResult:
         """Comprueba la disponibilidad del broker MQTT mediante socket TCP directo."""
+        if not enabled:
+            return PreflightCheckResult(
+                name="Broker MQTT",
+                passed=True,
+                message="Broker MQTT local desactivado en configuración",
+                is_critical=False,
+            )
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
                 sock.settimeout(timeout)
@@ -133,10 +140,11 @@ class PreflightChecker:
         tcp_server_port: int = 5000,
         tcp_server_enabled: bool = True,
         tcp_server_host: str = "0.0.0.0",  # nosec B104
+        mqtt_enabled: bool = True,
     ) -> dict[str, Any]:
         """Ejecuta toda la matriz de comprobaciones y devuelve el informe consolidado."""
         self.results = [
-            self.check_mqtt_broker(mqtt_host, mqtt_port),
+            self.check_mqtt_broker(mqtt_host, mqtt_port, enabled=mqtt_enabled),
             self.check_serial_port(serial_port),
             self.check_tcp_companion_port(tcp_server_host, tcp_server_port, tcp_server_enabled),
         ]
