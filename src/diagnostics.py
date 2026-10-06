@@ -226,6 +226,14 @@ class DiagnosticManager:
                 "mesh_nodes": {
                     "known_count": node_registry.get_count() if node_registry else 0,
                 },
+                "tcp_companion": {
+                    "enabled": getattr(getattr(self.bridge, "tcp_server", None), "is_running", False),
+                    "connected_clients": (
+                        self.bridge.tcp_server.get_connected_count()
+                        if getattr(self.bridge, "tcp_server", None)
+                        else 0
+                    ),
+                },
             },
             "counters": {
                 "rx_packets": getattr(self.bridge, "rx_count", 0),
@@ -260,7 +268,7 @@ class DiagnosticManager:
                     ),
                     tcp_server_port=getattr(config, "TCP_SERVER_PORT", 5000),
                     tcp_server_enabled=getattr(config, "TCP_SERVER_ENABLED", True),
-                    tcp_server_host=getattr(config, "TCP_SERVER_HOST", "0.0.0.0"),
+                    tcp_server_host=getattr(config, "TCP_SERVER_HOST", "0.0.0.0"),  # nosec B104
                 )
             except Exception as e:
                 preflight_results = {"status": "ERROR", "error": str(e)}

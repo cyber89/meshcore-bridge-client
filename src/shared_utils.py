@@ -299,7 +299,13 @@ REPEATER_SUBSTRINGS: tuple[str, ...] = (
 
 
 def is_repeater_name(name: str | None) -> bool:
-    """Heurística de presentación por nombre; nunca acredita un rol de firmware."""
+    """[DEPRECATED] Heurística obsoleta por nombre; usar resolve_canonical_role() conforme a SSoT."""
+    import warnings
+    warnings.warn(
+        "is_repeater_name es obsoleta y no determina el rol de firmware. Usar resolve_canonical_role().",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     if not name or not isinstance(name, str):
         return False
     name_clean = name.strip().upper()

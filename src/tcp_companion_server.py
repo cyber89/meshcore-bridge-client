@@ -8,6 +8,7 @@ la App Móvil oficial de MeshCore (Android/iOS) y clientes oficiales (meshcore-c
 from __future__ import annotations
 
 import asyncio
+import hmac
 import logging
 from typing import Any
 
@@ -241,7 +242,8 @@ class MeshCoreCompanionServer:
                 await writer.drain()
                 try:
                     auth_line = await asyncio.wait_for(reader.readline(), timeout=5.0)
-                    if auth_line.decode("utf-8", errors="ignore").strip() != f"TOKEN:{token}":
+                    received_token = auth_line.decode("utf-8", errors="ignore").strip()
+                    if not hmac.compare_digest(received_token, f"TOKEN:{token}"):
                         SecurityTrafficInspector.log_suspicious_traffic(
                             SuspiciousTrafficEvent(
                                 client_ip=peer_ip,
