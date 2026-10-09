@@ -17,13 +17,34 @@ from contextlib import asynccontextmanager, contextmanager
 from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import FastAPI
+from starlette.types import ASGIApp
 from uvicorn import Config, Server
 from uvicorn.lifespan.on import LifespanOn
+
+from src.web.access_policy import (
+    HTTP_MAX_HEADER_BYTES,
+    WS_MAX_PAYLOAD_BYTES,
+)
+from src.web.asgi_http import BridgeH11Protocol
+from src.web.asgi_security import BridgeSecurityMiddleware
+from src.web.asgi_websocket import BridgeWebSocketProtocol
 
 if TYPE_CHECKING:
     from src.web.api_router import WebAPIRouter
 
 logger = logging.getLogger(__name__)
+
+
+class _SecuredFastAPI(FastAPI):
+    """Place perimeter controls outside framework-generated error responses.
+
+    The build hook is localized to the evaluated FastAPI 0.143 / Starlette 1.7
+    stack. add_middleware alone would leave ServerErrorMiddleware outside the
+    security-header wrapper. Re-audit the ordering on a framework update.
+    """
+
+    def build_middleware_stack(self) -> ASGIApp:
+        return BridgeSecurityMiddleware(super().build_middleware_stack())
 
 
 def create_asgi_app(router: WebAPIRouter) -> FastAPI:
@@ -39,7 +60,7 @@ def create_asgi_app(router: WebAPIRouter) -> FastAPI:
         finally:
             app.state.web_lifespan_task = None
 
-    app = FastAPI(
+    app = _SecuredFastAPI(
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
@@ -199,13 +220,21 @@ class AsgiWebServer:
                 host=self.host,
                 port=self.port,
                 loop="asyncio",
-                http="h11",
-                ws="websockets-sansio",
+                http=BridgeH11Protocol,
+                ws=BridgeWebSocketProtocol,
                 lifespan="on",
                 workers=1,
                 reload=False,
                 log_config=None,
                 proxy_headers=False,
+                access_log=False,
+                server_header=False,
+                date_header=False,
+                h11_max_incomplete_event_size=HTTP_MAX_HEADER_BYTES,
+                ws_max_size=WS_MAX_PAYLOAD_BYTES,
+                ws_per_message_deflate=False,
+                ws_ping_interval=None,
+                ws_ping_timeout=None,
             )
             # 0.54 annotates this as int|None but passes it to asyncio.wait_for,
             # which accepts float seconds. Preserve the owner's existing 1.5 s

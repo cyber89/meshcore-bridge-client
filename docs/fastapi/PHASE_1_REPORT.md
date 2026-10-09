@@ -1,8 +1,9 @@
 # FastAPI: base opcional de infraestructura de fase 1
 
 Fecha local: 2026-10-08. Continuación de [fase 0](PHASE_0_REPORT.md).
-Estado: **infraestructura preparatoria escrita y revisada estáticamente**;
-seguridad perimetral, integración y aceptación operativa pendientes. No se declara
+Estado actualizado el 2026-10-09: **infraestructura y seguridad perimetral
+preparatorias escritas y revisadas estáticamente**; integración y aceptación
+operativa pendientes. No se declara
 la fase 1 aprobada en ejecución ni se activa el candidato.
 
 ## Cambios y propiedad
@@ -36,7 +37,7 @@ La llegada del listener a readiness no acredita contratos funcionales. No hay
 fallback silencioso ni selección de ASGI mediante configuración de producción.
 
 El servidor utiliza `Server.serve()` en el loop del propietario, un worker,
-sin reload, `h11`, backend `websockets-sansio`, lifespan explícito y
+sin reload, adaptadores de `h11` y `websockets-sansio`, lifespan explícito y
 `proxy_headers=False`. La subclase localizada para Uvicorn 0.54.0 deja las señales
 al core. El arranque espera readiness del listener/lifespan y observa terminación
 temprana de la tarea; convierte `SystemExit` de Uvicorn dentro de esa tarea en un
@@ -73,7 +74,7 @@ contratos contrastó fuentes de Uvicorn y consumidores del proyecto, y señaló:
 - Matices REST sobre alias cartográfico, código TX oculto y `408 Unknown`:
   registrados en la línea base, sin alterar funciones de negocio.
 
-La inspección AST con gramática 3.10 de los siete archivos Python propios,
+La inspección de la entrega inicial del 2026-10-08 usó AST con gramática 3.10 de los siete archivos Python propios,
 correspondencia de manifests, 157 enlaces locales de ocho documentos y whitespace
 documenta estructura y sintaxis. La comparación de los 95 hashes de fase 0 sólo
 encontró los cuatro archivos previstos modificados por esta fase; los cambios
@@ -82,10 +83,15 @@ tipado estricto, ausencia de carreras, bind, lifespan, señales o apagado real.
 No se ejecutaron suites, cobertura, mypy, Ruff ni navegador, conforme al usuario.
 El fixture se adaptó por lectura; no se afirma que esté aprobado en ejecución.
 
-Antes de cerrar fase 1 y portar DTO/rutas:
+La continuación de seguridad del 2026-10-09 se documenta en
+[PHASE_1_SECURITY_REPORT.md](PHASE_1_SECURITY_REPORT.md): auth, Origin, headers,
+lectura, reservas WS y privacidad de logs están conectados al candidato inactivo.
 
-1. Trasladar políticas REST/WS de autenticación, Origin/CORS, inspector, límites
-   de lectura y cabeceras del [catálogo web](WEB_CONTRACT_BASELINE.md).
+Antes de aceptar fase 1 y portar DTO/rutas:
+
+1. Verificar en ejecución las políticas trasladadas REST/WS de autenticación,
+   Origin/CORS, inspector, límites de lectura y cabeceras del
+   [catálogo web](WEB_CONTRACT_BASELINE.md), incluidas diferencias registradas.
 2. Decidir el ownership definitivo de mapas, tareas y canales conforme al
    [contrato interno](INTERNAL_CONTRACT_BASELINE.md), evitando duplicación.
 3. Cuando se autorice ejecución, verificar arranque cancelado/fallido, puerto

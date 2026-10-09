@@ -5,6 +5,14 @@ MeshCore Bridge v3.0 conecta una radio MeshCore Companion con MQTT, REST y una S
 
 Documento vigente revisado el 2026-09-29 por inspección de código. Los modelos/clases describen la implementación, no medidas de rendimiento o certificaciones. El [índice documental](README.md) distingue guías vigentes, contratos e informes históricos.
 
+Actualización de preparación del 2026-10-09: existe un adaptador ASGI opcional e
+inactivo en `src/web/asgi_server.py`, con estado prestado y controles de ingreso
+HTTP/WS. La fábrica del bridge conserva `MeshCoreWebServer`; los diagramas
+siguientes representan ese camino activo. La [fase 1](fastapi/PHASE_1_REPORT.md)
+y su [seguridad](fastapi/PHASE_1_SECURITY_REPORT.md) separan código preparatorio,
+contratos pendientes y evidencia estática de aceptación operativa. No se crean
+endpoints, hardware ni nuevos servicios desde la fábrica ASGI.
+
 El framing Companion oficial (`<`/`>`, longitud `uint16` little-endian y payload) es distinto del formato raw propio `0xAA/0x55/0x1B` con CRC-16 de `MeshcoreFrame`. El adaptador raw actual es un parser en memoria sin E/S física; no es una etapa obligatoria del RX/TX SDK ni del paquete RF oficial.
 
 ## 1.1 Mapas Interactivos de Arquitectura (Generados con Archify)

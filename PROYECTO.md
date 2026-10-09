@@ -2,13 +2,13 @@
 
 **Estado:** preparación autorizada e iniciada por fases; adopción de producción pendiente de paridad y verificación.
 
-**Fecha de revisión:** 2026-10-08.
+**Fecha de revisión:** 2026-10-09; revisión inicial 2026-10-08.
 
 **Versión declarada implementada:** 3.0.0; 3.1.0 era una versión objetivo de la guía inicial, no una release aprobada.
 
 **Base inspeccionada:** HEAD `558385ad77afb8e691252c037dacb76e730b51db` y el árbol de trabajo existente. Había modificaciones ajenas sin commit: los hallazgos describen ese checkout, no sólo el commit.
 
-**Alcance inicial:** reunión técnica de los roles 0 a 7 y del rol 8 propuesto; revisión documental publicada en `457903d`. **Continuación autorizada:** catálogos y dependencias de fase 0, preparación de infraestructura de fase 1. Los candidatos se descargaron para inspección, sin instalarlos en el entorno del bridge. El usuario indicó «Continúa sin ejecutar suites»; no se arrancan servicios, radio o workflows.
+**Alcance inicial:** reunión técnica de los roles 0 a 7 y del rol 8 propuesto; revisión documental publicada en `457903d`. **Continuación autorizada:** catálogos y dependencias de fase 0, infraestructura de fase 1 publicada en `e8a7030` y seguridad perimetral preparada el 2026-10-09. Los candidatos se descargaron para inspección, sin instalarlos en el entorno del bridge. El usuario indicó «Continúa sin ejecutar suites»; no se arrancan servicios, radio o workflows.
 
 ## 1. Dictamen y autoridad
 
@@ -97,7 +97,7 @@ Las fases se entregan secuencialmente. El usuario autorizó comenzar y continuar
 | Etapa | Estado actual | Evidencia / pendiente |
 |---|---|---|
 | 0 | Preparación documental y binaria entregada | [Informe](docs/fastapi/PHASE_0_REPORT.md); seis cierres con wheels, catálogos y snapshot. Recursos e interoperabilidad sin medir |
-| 1 | Base opcional ASGI preparada; integración de seguridad pendiente | [Informe](docs/fastapi/PHASE_1_REPORT.md); servidor actual predeterminado, candidato sin endpoints de negocio/WS/SPA. Lifecycle en ejecución sin verificar |
+| 1 | Infraestructura y seguridad ASGI preparadas; aceptación operativa pendiente | [Informe](docs/fastapi/PHASE_1_REPORT.md) y [seguridad](docs/fastapi/PHASE_1_SECURITY_REPORT.md); servidor actual predeterminado, candidato sin endpoints de negocio/WS/SPA. Lifecycle y paridad en ejecución sin verificar |
 | 2–4 | Pendientes | DTO/errores, rutas, WS/SPA/mapas según catálogos |
 | 5–6 | Pendientes | OpenAPI, QA autorizado, instaladores, adopción y retiro |
 

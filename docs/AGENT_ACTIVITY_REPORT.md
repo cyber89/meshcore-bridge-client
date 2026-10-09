@@ -2,6 +2,15 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Seguridad perimetral del candidato ASGI de fase 1
+
+- **Fecha/base**: 2026-10-09; `e8a7030` y checkout anterior conservado. Continuación autorizada sin suites.
+- **Equipo**: líder/integrador, política de acceso/reviewer, middleware y transportes. Propiedad separada; skills de seguridad, contratos API, concurrencia, Python y documentación.
+- **Cambios**: política neutral de auth/Origin/headers, guard externo a errores del framework, body 1 MiB/deadline 10 s y reserva WS 32; guard H11 de cabeceras 65.536 bytes/10 s antes de parsing; abort controlado de body, métodos/HEAD coherentes y logs privados HTTP/WS sin query ni valores de excepción.
+- **Revisión**: corregidos headers del 400 de ingreso, JSON profundamente anidado, normalización antes de H11 y fugas de logs del backend. Configuración explícita sin proxy, compresión o ping automático WS; aplicación candidata inactiva y sin rutas de negocio/SPA/WS.
+- **Verificación**: inspección de fuentes/wheels, AST 3.10, enlaces y diff propio. Sin pytest/cobertura, mypy, Ruff, navegador, imports de candidatos, servicios ni hardware. Las puertas de ejecución no se declaran superadas.
+- **Entrega y límites**: [informe de seguridad](fastapi/PHASE_1_SECURITY_REPORT.md), [fase 1](fastapi/PHASE_1_REPORT.md), arquitectura/ADR/plan conciliados. Framing 413/HEAD, WS/cupo/logs y lifecycle necesitan QA autorizada; propiedad/cierre de mapas debe transferirse antes de adopción. No se alteran radio, persistencia o servidor predeterminado.
+
 ### Hito: Preparación de FastAPI por fases, contratos y fundamento opcional
 
 - **Fecha/base**: 2026-10-08; `457903d` y checkout con modificaciones anteriores conservadas.

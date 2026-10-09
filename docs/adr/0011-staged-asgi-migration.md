@@ -51,3 +51,13 @@ Riesgos de señales, bind, lifespan, cancelación y cierre quedan registrados en
 [informe de fase 1](../fastapi/PHASE_1_REPORT.md). La aceptación de producción
 queda pendiente de paridad y verificación autorizada; no se aprueba por disponer
 de wheels ni por publicar esta preparación.
+
+## Evolución del 2026-10-09
+
+Se preparó la [seguridad perimetral ASGI](../fastapi/PHASE_1_SECURITY_REPORT.md):
+política neutral de credenciales/Origin/headers, guard de body y reservas WS,
+protocolo H11 con límite/deadline de cabeceras y logs de protocolo por instancia
+sin query o valores de excepciones. El orden del middleware cubre también headers
+de los 500 del framework. Las diferencias de framing, handshake y reserva se
+registran expresamente; no se certifica paridad mediante lectura. La fábrica sigue
+seleccionando el servidor anterior y las suites permanecen suspendidas.

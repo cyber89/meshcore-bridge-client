@@ -1,6 +1,6 @@
 # Documentación de MeshCore Bridge
 
-Índice revisado el 2026-10-08. Distingue las reglas y guías actuales de los informes que describen un momento histórico del proyecto.
+Índice revisado el 2026-10-09. Distingue las reglas y guías actuales de los informes que describen un momento histórico del proyecto.
 
 ## Autoridad y lectura recomendada
 
@@ -26,7 +26,7 @@ su atributo HTML de idioma usan el fallback inglés del paquete instalado.
 
 ## Decisiones e historial
 
-- [Plan FastAPI](../PROYECTO.md), [preparación de fase 0](fastapi/PHASE_0_REPORT.md) y [base de fase 1](fastapi/PHASE_1_REPORT.md): catálogos REST/WS/internos, seis resoluciones binarias y fundamento ASGI opcional. Servidor actual predeterminado; aceptación operativa y suites pendientes por instrucción del usuario.
+- [Plan FastAPI](../PROYECTO.md), [preparación de fase 0](fastapi/PHASE_0_REPORT.md), [base de fase 1](fastapi/PHASE_1_REPORT.md) y [seguridad ASGI](fastapi/PHASE_1_SECURITY_REPORT.md): catálogos REST/WS/internos, seis resoluciones binarias, infraestructura y controles perimetrales opcionales. Servidor actual predeterminado; aceptación operativa y suites pendientes por instrucción del usuario.
 - [AUDIT_REMEDIATION_2026-10-05.md](AUDIT_REMEDIATION_2026-10-05.md): seguimiento vigente de los 39 hallazgos originales, cierre de los 32 restantes, riesgos adicionales, reproducciones y verificación integrada. El primer lote conserva sus resultados históricos.
 - [LAYERED_SYSTEM_AUDIT_2026-10-04.md](LAYERED_SYSTEM_AUDIT_2026-10-04.md): snapshot de auditoría en cinco capas, errores reproducidos, contradicciones, inventario y plan. Los harness afirman los defectos de esa revisión; la resolución posterior se registra en el seguimiento, sin reescribir las reproducciones.
 - [ADRs](adr/): decisiones y contexto histórico (ADR 0001 a ADR 0011); [ADR 0011](adr/0011-staged-asgi-migration.md) prepara ASGI sin adoptar aún el servidor candidato. Revisar estado y fecha. Una decisión anterior que no coincida con el código necesita conciliación explícita, sin borrar su historia.
