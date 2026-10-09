@@ -25,6 +25,7 @@ from src.web.access_policy import (
     HTTP_MAX_HEADER_BYTES,
     WS_MAX_PAYLOAD_BYTES,
 )
+from src.web.asgi_errors import install_error_handlers
 from src.web.asgi_http import BridgeH11Protocol
 from src.web.asgi_security import BridgeSecurityMiddleware
 from src.web.asgi_websocket import BridgeWebSocketProtocol
@@ -66,6 +67,7 @@ def create_asgi_app(router: WebAPIRouter) -> FastAPI:
         openapi_url=None,
         lifespan=web_lifespan,
     )
+    install_error_handlers(app)
     app.state.router = router
     app.state.api_context = router.api_ctx
     app.state.web_lifespan_task = None

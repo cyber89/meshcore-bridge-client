@@ -1,0 +1,4248 @@
+{
+  "schema_version": 1,
+  "phase": 2,
+  "date": "2026-10-09",
+  "status": "static preparatory inventory; business ASGI routes inactive",
+  "verification_scope": "Python3.10 AST grammar and source reading only; no application/candidate imports, suites, browser, services or RF",
+  "derivation": {
+    "operations": "method/path rows from baseline catalog before aliases; curated map to current dispatcher/controller functions",
+    "fields": "literal get/subscript request accesses extracted by AST; known top-level fields curated per branch; local config fields extracted from allowed_local_keys set",
+    "reproduction": "parse baseline catalog rows, inspect named source functions using Python ast.parse(feature_version=(3,10)); obtain ROUTE_ALIASES with ast.literal_eval; compare canonical non-template routes against AST constants; recompute file SHA256",
+    "limitations": "dispatcher evidence spans multiple branches; expression/default metadata is literal source, not runtime proof. Nested or encoded contact imports, services merge, command grammar and action-specific params are not exhaustive. DTO boundary preserves values; domain validators remain controller/executor-owned."
+  },
+  "counts": {
+    "canonical_json_operations": 90,
+    "canonical_json_paths": 69,
+    "tile_operations_outside_router": 1,
+    "tile_patterns": 1,
+    "alias_keys": 39,
+    "alias_functional_operations": 50,
+    "functional_operations_with_aliases": 141,
+    "functional_paths_with_aliases": 109,
+    "family_operations": {
+      "system": 11,
+      "nodes": 8,
+      "contacts": 11,
+      "channels": 6,
+      "tx": 2,
+      "repeater": 15,
+      "config": 22,
+      "services": 6,
+      "packets": 3,
+      "maps": 6
+    }
+  },
+  "source_files": [
+    {
+      "file": "docs/fastapi/REST_CONTRACT_BASELINE.md",
+      "sha256": "25dcfc7e9e1b940454919622321d5ab0fb7f7f817b8ca98c0adfa290c0a283b6"
+    },
+    {
+      "file": "src/web/api_router.py",
+      "sha256": "d577ff9af52b486ccfa56e636e55f625d4814f9db42c3ac307b440fbdbd1fc11"
+    },
+    {
+      "file": "src/web/controllers/__init__.py",
+      "sha256": "df4ab01307cb4b414814b370808b64a102b366e078add59d53c2b1b65429eb61"
+    },
+    {
+      "file": "src/web/controllers/base.py",
+      "sha256": "c8f17e52822c848918ce4a3197ce86c5629069ab597e625770d32ca7eecd5d39"
+    },
+    {
+      "file": "src/web/controllers/channels_controller.py",
+      "sha256": "b3d158f1f90e501b0af1616851fbba7cbfb8ee94ea11365b983c27c152ac2922"
+    },
+    {
+      "file": "src/web/controllers/config_controller.py",
+      "sha256": "09bce4cd89aafac2e30eb9a22e5257e97931f16442c746ca81be90bb487c2d91"
+    },
+    {
+      "file": "src/web/controllers/contacts_controller.py",
+      "sha256": "3a3cdc0ee43f4e3e12561bf5569ce28b564348dc0241c96498ae92ff1c6e2261"
+    },
+    {
+      "file": "src/web/controllers/logs_controller.py",
+      "sha256": "d0061276b938e31ad1f2064d8b143084be11e4c4ed0e1b42cfa158c9ace4522c"
+    },
+    {
+      "file": "src/web/controllers/nodes_controller.py",
+      "sha256": "9906c9e191c96fede67254610e0143c599d3f20f26887eb5077b87006c4e269d"
+    },
+    {
+      "file": "src/web/controllers/packets_controller.py",
+      "sha256": "e75e17408aed65225974ba17cb92d5d3ac9982b7737e4903ac5819123935784e"
+    },
+    {
+      "file": "src/web/controllers/repeater_controller.py",
+      "sha256": "a7d110cb1acd76535a9ea1ffa8ea4f4c7580b8e809ff6a0549f14c7f3f02c2d5"
+    },
+    {
+      "file": "src/web/controllers/services_controller.py",
+      "sha256": "638f71e41dfc731070237fd6ec1794dfe458b24973b1385c3a4de3e9200f983e"
+    },
+    {
+      "file": "src/web/controllers/system_controller.py",
+      "sha256": "53337a204e757e0f3ab028d02b107657213171108a4f71ad86389330effbbe20"
+    },
+    {
+      "file": "src/web/controllers/tx_controller.py",
+      "sha256": "aedb0d4e09c46ee6211dc6c525c5000e45dfe4869bd9fb8df4158c7f6efbedbc"
+    },
+    {
+      "file": "src/admin/local_config_executor.py",
+      "sha256": "e127c4138043b96dd6bc5ed763b86478f95254dc23d808a98a0b9da28ce8d489"
+    },
+    {
+      "file": "src/admin_handler.py",
+      "sha256": "09a69095669080a640aa2d301bd9499bd4c6f3a65194e8fed78a9d9808253346"
+    }
+  ],
+  "common_semantics": {
+    "router": "copy body if truthy; parse_qs keep_blank_values=True; body key presence wins including null/false/empty; single query value str, repeated list; unknown fields preserved at boundary",
+    "normalization": "strip trailing slash; apply exact alias once; HTTP uppercases method, direct router does not",
+    "logs_exception": "parse_qs defaults keep_blank_values=False: discard empty query values, choose first remaining; ignore body; unsigned isdigit limit/offset else100/0; no bounds; system-log offset unused; reports/downloads both pagination values parsed unused",
+    "dto": "exclude unset fields when exporting; preserve unknown fields, nested raw dicts and operation-specific coercion/order. Typed strict models cannot be applied globally without changing observed behavior",
+    "auth": "raw path before aliases; credential fields are perimeter inputs and must not be logged"
+  },
+  "local_config_allowed_fields": [
+    "adv_loc_policy",
+    "af",
+    "airtime_cutoff_enabled",
+    "airtime_cutoff_resume_pct",
+    "airtime_cutoff_threshold_pct",
+    "airtime_factor",
+    "bandwidth",
+    "bw",
+    "coding_rate",
+    "cr",
+    "custom_vars",
+    "devicepin",
+    "duty_cycle_limit_pct",
+    "frequency",
+    "lat",
+    "latitude",
+    "lon",
+    "longitude",
+    "manual_add_contacts",
+    "multi_acks",
+    "name",
+    "path_hash_mode",
+    "pin",
+    "power",
+    "radio_freq",
+    "repeat",
+    "repeat_enabled",
+    "repeater_pre_send_delay_enabled",
+    "repeater_pre_send_delay_s",
+    "rx_delay",
+    "rx_dly",
+    "sf",
+    "spreading_factor",
+    "telemetry_mode_base",
+    "telemetry_mode_env",
+    "telemetry_mode_loc",
+    "tx_power",
+    "warn_threshold_pct"
+  ],
+  "nested_services_config_validation": {
+    "external_mqtt": "only dict and enabled truthy: host required, optional int(port)1..65535; truthy transport tcp/websockets, auth_type anonymous/user_pass/token, privacy exact/fuzzed/hidden",
+    "local_mqtt": "only dict and enabled truthy: optional int(port)1..65535",
+    "tcp_server": "only dict and enabled truthy: optional int(port)1024..65535",
+    "passthrough": "whole body forwarded reload_services; complete merge/persistence schema not asserted"
+  },
+  "operations": [
+    {
+      "method": "GET",
+      "path": "/api/status",
+      "family": "system",
+      "suggested_dto": "SystemBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_system",
+        "src/web/controllers/system_controller.py:get_status"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "family": "system",
+      "suggested_dto": "SystemBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_system",
+        "src/web/controllers/system_controller.py:get_health"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/diagnostics",
+      "family": "system",
+      "suggested_dto": "SystemBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_system",
+        "src/web/controllers/system_controller.py:get_health"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/preflight",
+      "family": "system",
+      "suggested_dto": "SystemBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna; checker toma configuración host",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_system",
+        "src/web/controllers/system_controller.py:run_preflight"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/diagnostics/report.md",
+      "family": "system",
+      "suggested_dto": "SystemBodyDTO",
+      "fields": [
+        "limit",
+        "offset"
+      ],
+      "observed_input_notes": "ignora limit/offset una vez parseados",
+      "body_query_policy": "logs_raw_query_parsed_unused",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_system",
+        "src/web/controllers/logs_controller.py:route_logs",
+        "src/web/controllers/logs_controller.py:_handle_diagnostics_report"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/diagnostics/report",
+      "family": "system",
+      "suggested_dto": "SystemBodyDTO",
+      "fields": [
+        "limit",
+        "offset"
+      ],
+      "observed_input_notes": "igual report.md",
+      "body_query_policy": "logs_raw_query_parsed_unused",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_system",
+        "src/web/controllers/logs_controller.py:route_logs",
+        "src/web/controllers/logs_controller.py:_handle_diagnostics_report"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/diagnostics/export",
+      "family": "system",
+      "suggested_dto": "SystemBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_system"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/system/logs",
+      "family": "system",
+      "suggested_dto": "SystemBodyDTO",
+      "fields": [
+        "limit",
+        "offset",
+        "level",
+        "search"
+      ],
+      "observed_input_notes": "query limit=100, sólo isdigit; level/search primer valor, offset parseado pero no usado",
+      "body_query_policy": "logs_raw_query",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_system",
+        "src/web/controllers/logs_controller.py:route_logs",
+        "src/web/controllers/logs_controller.py:_handle_system_logs"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/system/logs",
+      "family": "system",
+      "suggested_dto": "SystemBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_system",
+        "src/web/controllers/system_controller.py:clear_logs"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/system/logs/level",
+      "family": "system",
+      "suggested_dto": "SystemBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_system"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/system/logs/level",
+      "family": "system",
+      "suggested_dto": "SystemBodyDTO",
+      "fields": [
+        "level"
+      ],
+      "observed_input_notes": "level=INFO convertido str",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_system"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/nodes",
+      "family": "nodes",
+      "suggested_dto": "NodesBodyDTO",
+      "fields": [
+        "limit",
+        "offset"
+      ],
+      "observed_input_notes": "limit100 [1..500],offset0 [0..100000], int acotado",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_nodes",
+        "src/web/controllers/nodes_controller.py:list_nodes"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/lqi",
+      "family": "nodes",
+      "suggested_dto": "NodesBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_nodes",
+        "src/web/controllers/nodes_controller.py:get_lqi"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/analytics",
+      "family": "nodes",
+      "suggested_dto": "NodesBodyDTO",
+      "fields": [
+        "range"
+      ],
+      "observed_input_notes": "range=str(value), default24h; controlador no enumera rechazo",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_nodes",
+        "src/web/controllers/nodes_controller.py:get_analytics"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/analytics/reset",
+      "family": "nodes",
+      "suggested_dto": "NodesBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_nodes",
+        "src/web/controllers/nodes_controller.py:reset_metrics"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/analytics/reset",
+      "family": "nodes",
+      "suggested_dto": "NodesBodyDTO",
+      "fields": [],
+      "observed_input_notes": "igual POST",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_nodes",
+        "src/web/controllers/nodes_controller.py:reset_metrics"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/rf/heatmap",
+      "family": "nodes",
+      "suggested_dto": "NodesBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_nodes",
+        "src/web/controllers/nodes_controller.py:get_rf_heatmap"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/airtime/stats",
+      "family": "nodes",
+      "suggested_dto": "NodesBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_nodes",
+        "src/web/controllers/nodes_controller.py:get_airtime_stats"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/rf/noise",
+      "family": "nodes",
+      "suggested_dto": "NodesBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_nodes"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/contacts",
+      "family": "contacts",
+      "suggested_dto": "ContactsBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna, sin paginación",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_contacts",
+        "src/web/controllers/contacts_controller.py:_handle_contacts_route"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/contacts",
+      "family": "contacts",
+      "suggested_dto": "ContactWriteBodyDTO",
+      "fields": [
+        "public_key",
+        "key",
+        "name",
+        "alias",
+        "role",
+        "is_favorite",
+        "latitude",
+        "lat",
+        "adv_lat",
+        "longitude",
+        "lon",
+        "adv_lon"
+      ],
+      "observed_input_notes": "esquema C abajo",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_contacts",
+        "src/web/controllers/contacts_controller.py:_create_or_update_contact",
+        "src/web/controllers/contacts_controller.py:_contact_validation"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/contacts",
+      "family": "contacts",
+      "suggested_dto": "ContactsBodyDTO",
+      "fields": [
+        "public_key",
+        "key"
+      ],
+      "observed_input_notes": "public_key > key > vacío, str.strip.lower",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_contacts",
+        "src/web/controllers/contacts_controller.py:_delete_contact",
+        "src/web/controllers/contacts_controller.py:_handle_contacts_route"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/contacts/{public_key}",
+      "family": "contacts",
+      "suggested_dto": "ContactsBodyDTO",
+      "fields": [
+        "public_key",
+        "key"
+      ],
+      "observed_input_notes": "regex exactamente64 hex, minúscula; **body/query public_key/key puede reemplazar clave path**",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_contacts",
+        "src/web/controllers/contacts_controller.py:_delete_contact",
+        "src/web/controllers/contacts_controller.py:_handle_contacts_route"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes",
+      "path_parameters": {
+        "public_key": "exactly64hex and DELETE; body/query public_key or key may replace path fallback"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/contacts/sync",
+      "family": "contacts",
+      "suggested_dto": "ContactsBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_contacts",
+        "src/web/controllers/contacts_controller.py:_sync_contacts"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/contacts/share",
+      "family": "contacts",
+      "suggested_dto": "ContactTransferBodyDTO",
+      "fields": [
+        "public_key",
+        "key"
+      ],
+      "observed_input_notes": "public_key > key, str.strip; faltante400 missing_public_key",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_contacts",
+        "src/web/controllers/contacts_controller.py:_share_contact"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/contacts/export",
+      "family": "contacts",
+      "suggested_dto": "ContactTransferBodyDTO",
+      "fields": [
+        "public_key",
+        "pubkey",
+        "key",
+        "name",
+        "alias"
+      ],
+      "observed_input_notes": "public_key OR pubkey OR key; name OR alias si no registro",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_contacts",
+        "src/web/controllers/contacts_controller.py:_export_contact",
+        "src/web/controllers/contacts_controller.py:_contact_validation"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/contacts/export",
+      "family": "contacts",
+      "suggested_dto": "ContactTransferBodyDTO",
+      "fields": [
+        "public_key",
+        "pubkey",
+        "key",
+        "name",
+        "alias"
+      ],
+      "observed_input_notes": "igual GET",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_contacts",
+        "src/web/controllers/contacts_controller.py:_export_contact",
+        "src/web/controllers/contacts_controller.py:_contact_validation"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/contacts/import",
+      "family": "contacts",
+      "suggested_dto": "ContactTransferBodyDTO",
+      "fields": [
+        "public_key",
+        "key",
+        "name",
+        "alias",
+        "role",
+        "is_favorite",
+        "latitude",
+        "lat",
+        "adv_lat",
+        "longitude",
+        "lon",
+        "adv_lon",
+        "pubkey",
+        "contacts",
+        "data",
+        "payload",
+        "uri"
+      ],
+      "observed_input_notes": "esquema I abajo",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_contacts",
+        "src/web/controllers/contacts_controller.py:_import_contact",
+        "src/web/controllers/contacts_controller.py:_contact_validation"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/contacts/discovered",
+      "family": "contacts",
+      "suggested_dto": "ContactsBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_contacts"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/contacts/accept",
+      "family": "contacts",
+      "suggested_dto": "ContactsBodyDTO",
+      "fields": [
+        "public_key",
+        "target_node"
+      ],
+      "observed_input_notes": "public_key > target_node, str.strip",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_contacts"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/channels",
+      "family": "channels",
+      "suggested_dto": "ChannelsBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna; sync_serial=False",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_channels",
+        "src/web/controllers/channels_controller.py:_get_channels",
+        "src/web/controllers/channels_controller.py:_handle_channels_route"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/channels",
+      "family": "channels",
+      "suggested_dto": "ChannelWriteBodyDTO",
+      "fields": [
+        "index",
+        "overwrite",
+        "name",
+        "psk"
+      ],
+      "observed_input_notes": "index1 entero estricto, name defaultCanal N, psk vacío, overwrite to_bool false",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_channels",
+        "src/web/controllers/channels_controller.py:_create_or_update_channel"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/channels",
+      "family": "channels",
+      "suggested_dto": "ChannelIndexBodyDTO",
+      "fields": [
+        "index"
+      ],
+      "observed_input_notes": "index0 entero estricto",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_channels",
+        "src/web/controllers/channels_controller.py:_delete_channel"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/channels/sync",
+      "family": "channels",
+      "suggested_dto": "ChannelsBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_channels",
+        "src/web/controllers/channels_controller.py:_sync_channels"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/channels/export",
+      "family": "channels",
+      "suggested_dto": "ChannelIndexBodyDTO",
+      "fields": [
+        "index"
+      ],
+      "observed_input_notes": "index=int(default0), aquí bool/float admitidos por int",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_channels",
+        "src/web/controllers/channels_controller.py:_export_channel"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/channels/export",
+      "family": "channels",
+      "suggested_dto": "ChannelIndexBodyDTO",
+      "fields": [
+        "index"
+      ],
+      "observed_input_notes": "igual GET",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_channels",
+        "src/web/controllers/channels_controller.py:_export_channel"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tx",
+      "family": "tx",
+      "suggested_dto": "SendTxBodyDTO",
+      "fields": [
+        "text",
+        "to",
+        "target",
+        "channel_index",
+        "channel_idx",
+        "request_id"
+      ],
+      "observed_input_notes": "text=str().strip obligatorio; destino to si existe, si no target; channel_index > channel_idx default0 vía int; request_id defaultweb_<ms>",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_tx",
+        "src/web/controllers/tx_controller.py:send_tx"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/messages/recent",
+      "family": "tx",
+      "suggested_dto": "TxBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna; no paginación",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_tx",
+        "src/web/controllers/tx_controller.py:get_recent_messages"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin",
+      "family": "repeater",
+      "suggested_dto": "RepeaterBodyDTO",
+      "fields": [
+        "action",
+        "command",
+        "cmd",
+        "request_id",
+        "id",
+        "target_node",
+        "repeater",
+        "params"
+      ],
+      "observed_input_notes": "diccionario completo a handle_admin; action sólo leído para log",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:execute_admin_command",
+        "src/admin_handler.py:_handle"
+      ],
+      "field_completeness": "open command grammar forwarded whole body; action-specific params delegated to domain, not exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/repeater",
+      "family": "repeater",
+      "suggested_dto": "RepeaterBodyDTO",
+      "fields": [
+        "target_node",
+        "repeater",
+        "action",
+        "command",
+        "params",
+        "password",
+        "request_id"
+      ],
+      "observed_input_notes": "target_node > repeater str.strip; action > command defaultstats-radio str; params={},password=\"\",request_id defaultweb_rep_<s>",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:execute_repeater_command"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/login",
+      "family": "repeater",
+      "suggested_dto": "RepeaterBodyDTO",
+      "fields": [
+        "target_node",
+        "repeater",
+        "password"
+      ],
+      "observed_input_notes": "target_node > repeater; password str excepto null⇒vacío; no trim password",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:login"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/logout",
+      "family": "repeater",
+      "suggested_dto": "RepeaterBodyDTO",
+      "fields": [
+        "target_node",
+        "repeater"
+      ],
+      "observed_input_notes": "target_node > repeater",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:logout"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/config",
+      "family": "repeater",
+      "suggested_dto": "RepeaterBodyDTO",
+      "fields": [
+        "target_node",
+        "repeater",
+        "password",
+        "params"
+      ],
+      "observed_input_notes": "target_node > repeater; password null⇒vacío/string; params default{}",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:set_remote_config"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/action",
+      "family": "repeater",
+      "suggested_dto": "RepeaterBodyDTO",
+      "fields": [
+        "target_node",
+        "repeater",
+        "action",
+        "password",
+        "params"
+      ],
+      "observed_input_notes": "target_node > repeater; action str.strip;password como config;params{}",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:execute_remote_action"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/neighbours",
+      "family": "repeater",
+      "suggested_dto": "RepeaterBodyDTO",
+      "fields": [
+        "target_node",
+        "repeater",
+        "count",
+        "offset",
+        "password"
+      ],
+      "observed_input_notes": "target_node > repeater;count255,offset0,password\"\" sin coerción de esos3 en controller",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:get_neighbours"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/owner",
+      "family": "repeater",
+      "suggested_dto": "RepeaterBodyDTO",
+      "fields": [
+        "target_node",
+        "repeater",
+        "password"
+      ],
+      "observed_input_notes": "target_node > repeater;password\"\"",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:get_owner"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/regions",
+      "family": "repeater",
+      "suggested_dto": "RepeaterBodyDTO",
+      "fields": [
+        "target_node",
+        "repeater",
+        "password"
+      ],
+      "observed_input_notes": "target_node > repeater;password\"\"",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:get_regions"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/clock",
+      "family": "repeater",
+      "suggested_dto": "RepeaterBodyDTO",
+      "fields": [
+        "target_node",
+        "repeater",
+        "password"
+      ],
+      "observed_input_notes": "target_node > repeater;password\"\"",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:get_clock"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/acl",
+      "family": "repeater",
+      "suggested_dto": "RepeaterBodyDTO",
+      "fields": [
+        "target_node",
+        "repeater",
+        "password"
+      ],
+      "observed_input_notes": "target_node > repeater;password\"\"",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:get_acl"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/ping_zero",
+      "family": "repeater",
+      "suggested_dto": "RepeaterBodyDTO",
+      "fields": [
+        "target_node",
+        "repeater",
+        "target"
+      ],
+      "observed_input_notes": "target_node > repeater > target, str.strip",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:ping_zero"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/ping_zero",
+      "family": "repeater",
+      "suggested_dto": "RepeaterBodyDTO",
+      "fields": [
+        "target_node",
+        "repeater",
+        "target"
+      ],
+      "observed_input_notes": "igual node/ping_zero",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:ping_zero"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/traceroute",
+      "family": "repeater",
+      "suggested_dto": "RepeaterBodyDTO",
+      "fields": [
+        "target_node",
+        "target",
+        "repeater",
+        "to"
+      ],
+      "observed_input_notes": "target_node > target > repeater > to, str.strip",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:traceroute"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/traceroute",
+      "family": "repeater",
+      "suggested_dto": "RepeaterBodyDTO",
+      "fields": [
+        "target_node",
+        "target",
+        "repeater",
+        "to"
+      ],
+      "observed_input_notes": "igual traceroute",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:traceroute"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/config",
+      "family": "config",
+      "suggested_dto": "ConfigBodyDTO",
+      "fields": [
+        "refresh"
+      ],
+      "observed_input_notes": "refresh false",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:get_device_config"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config",
+      "family": "config",
+      "suggested_dto": "ConfigBodyDTO",
+      "fields": [
+        "adv_loc_policy",
+        "af",
+        "airtime_cutoff_enabled",
+        "airtime_cutoff_resume_pct",
+        "airtime_cutoff_threshold_pct",
+        "airtime_factor",
+        "bandwidth",
+        "bw",
+        "coding_rate",
+        "cr",
+        "custom_vars",
+        "devicepin",
+        "duty_cycle_limit_pct",
+        "frequency",
+        "lat",
+        "latitude",
+        "lon",
+        "longitude",
+        "manual_add_contacts",
+        "multi_acks",
+        "name",
+        "path_hash_mode",
+        "pin",
+        "power",
+        "radio_freq",
+        "repeat",
+        "repeat_enabled",
+        "repeater_pre_send_delay_enabled",
+        "repeater_pre_send_delay_s",
+        "rx_delay",
+        "rx_dly",
+        "sf",
+        "spreading_factor",
+        "telemetry_mode_base",
+        "telemetry_mode_env",
+        "telemetry_mode_loc",
+        "tx_power",
+        "warn_threshold_pct"
+      ],
+      "observed_input_notes": "diccionario parámetros LC abajo",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:set_local_config",
+        "src/admin/local_config_executor.py:_prevalidate_local_params"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/config/radio",
+      "family": "config",
+      "suggested_dto": "ConfigBodyDTO",
+      "fields": [
+        "refresh"
+      ],
+      "observed_input_notes": "refresh false",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:get_device_config"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/radio",
+      "family": "config",
+      "suggested_dto": "ConfigBodyDTO",
+      "fields": [
+        "adv_loc_policy",
+        "af",
+        "airtime_cutoff_enabled",
+        "airtime_cutoff_resume_pct",
+        "airtime_cutoff_threshold_pct",
+        "airtime_factor",
+        "bandwidth",
+        "bw",
+        "coding_rate",
+        "cr",
+        "custom_vars",
+        "devicepin",
+        "duty_cycle_limit_pct",
+        "frequency",
+        "lat",
+        "latitude",
+        "lon",
+        "longitude",
+        "manual_add_contacts",
+        "multi_acks",
+        "name",
+        "path_hash_mode",
+        "pin",
+        "power",
+        "radio_freq",
+        "repeat",
+        "repeat_enabled",
+        "repeater_pre_send_delay_enabled",
+        "repeater_pre_send_delay_s",
+        "rx_delay",
+        "rx_dly",
+        "sf",
+        "spreading_factor",
+        "telemetry_mode_base",
+        "telemetry_mode_env",
+        "telemetry_mode_loc",
+        "tx_power",
+        "warn_threshold_pct"
+      ],
+      "observed_input_notes": "igual POST config, no subset impuesto",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:set_local_config",
+        "src/admin/local_config_executor.py:_prevalidate_local_params"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/config/identity",
+      "family": "config",
+      "suggested_dto": "ConfigBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ignora refresh, get_device_config()",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:get_device_config"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/identity",
+      "family": "config",
+      "suggested_dto": "ConfigBodyDTO",
+      "fields": [
+        "adv_loc_policy",
+        "af",
+        "airtime_cutoff_enabled",
+        "airtime_cutoff_resume_pct",
+        "airtime_cutoff_threshold_pct",
+        "airtime_factor",
+        "bandwidth",
+        "bw",
+        "coding_rate",
+        "cr",
+        "custom_vars",
+        "devicepin",
+        "duty_cycle_limit_pct",
+        "frequency",
+        "lat",
+        "latitude",
+        "lon",
+        "longitude",
+        "manual_add_contacts",
+        "multi_acks",
+        "name",
+        "path_hash_mode",
+        "pin",
+        "power",
+        "radio_freq",
+        "repeat",
+        "repeat_enabled",
+        "repeater_pre_send_delay_enabled",
+        "repeater_pre_send_delay_s",
+        "rx_delay",
+        "rx_dly",
+        "sf",
+        "spreading_factor",
+        "telemetry_mode_base",
+        "telemetry_mode_env",
+        "telemetry_mode_loc",
+        "tx_power",
+        "warn_threshold_pct"
+      ],
+      "observed_input_notes": "igual POST config, no subset impuesto",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:set_local_config",
+        "src/admin/local_config_executor.py:_prevalidate_local_params"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/config/custom_vars",
+      "family": "config",
+      "suggested_dto": "ConfigBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:get_custom_vars"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/custom_vars",
+      "family": "config",
+      "suggested_dto": "CustomVarsBodyDTO",
+      "fields": [
+        "key",
+        "value",
+        "val",
+        "vars"
+      ],
+      "observed_input_notes": "key/value(val fallback) OR vars dict no vacío;KV str/null⇒\"\";separadores : , NUL CR LF prohibidos",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:set_custom_vars"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/config/custom_vars",
+      "family": "config",
+      "suggested_dto": "CustomVarsBodyDTO",
+      "fields": [
+        "key"
+      ],
+      "observed_input_notes": "key str,trim",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:delete_custom_var"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/config/path_hash_mode",
+      "family": "config",
+      "suggested_dto": "ConfigBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:get_path_hash_mode"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/path_hash_mode",
+      "family": "config",
+      "suggested_dto": "PathHashBodyDTO",
+      "fields": [
+        "mode",
+        "path_hash_mode"
+      ],
+      "observed_input_notes": "mode > path_hash_mode requerido;int o string trim0/1/2;bool/float prohibidos",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:set_path_hash_mode"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/config/autoadd",
+      "family": "config",
+      "suggested_dto": "ConfigBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:get_autoadd_config"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/autoadd",
+      "family": "config",
+      "suggested_dto": "AutoAddBodyDTO",
+      "fields": [
+        "flags",
+        "config",
+        "autoadd",
+        "max_hops"
+      ],
+      "observed_input_notes": "flags > config > autoadd default0;max_hops opcional;int/string signed digits SIN trim;bool/float prohibidos;flags0..255,hops0..64",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:set_autoadd_config"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/config/flood_scope",
+      "family": "config",
+      "suggested_dto": "ConfigBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:get_flood_scope"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/flood_scope",
+      "family": "config",
+      "suggested_dto": "FloodScopeBodyDTO",
+      "fields": [
+        "scope",
+        "scope_name"
+      ],
+      "observed_input_notes": "scope > scope_name;null/string;global */0/global/none permitidos;otra string prefijo#≤30bytes y sin control",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:set_flood_scope"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/advert",
+      "family": "config",
+      "suggested_dto": "ConfigBodyDTO",
+      "fields": [
+        "flood"
+      ],
+      "observed_input_notes": "flood to_bool false",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:broadcast_advert"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/reboot",
+      "family": "config",
+      "suggested_dto": "ConfigBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:reboot_local"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/sync-clock",
+      "family": "config",
+      "suggested_dto": "SyncClockBodyDTO",
+      "fields": [
+        "epoch",
+        "timestamp"
+      ],
+      "observed_input_notes": "epoch > timestamp;ausente/null⇒hora host;int positivo ostring signed trim;bool/float prohibidos",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:sync_clock"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/clear-stats",
+      "family": "config",
+      "suggested_dto": "ConfigBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:clear_stats"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/config/refresh",
+      "family": "config",
+      "suggested_dto": "ConfigBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna;refresh forzado",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:refresh_hardware_config"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/refresh",
+      "family": "config",
+      "suggested_dto": "ConfigBodyDTO",
+      "fields": [],
+      "observed_input_notes": "igual GET",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:refresh_hardware_config"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/reconnect",
+      "family": "config",
+      "suggested_dto": "ConfigBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:reconnect_serial"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/config",
+      "family": "services",
+      "suggested_dto": "ServicesBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_services",
+        "src/web/controllers/services_controller.py:get_services_config"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/services/config",
+      "family": "services",
+      "suggested_dto": "ServicesConfigBodyDTO",
+      "fields": [
+        "external_mqtt",
+        "local_mqtt",
+        "tcp_server"
+      ],
+      "observed_input_notes": "objeto; external_mqtt/local_mqtt/tcp_server parciales",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_services",
+        "src/web/controllers/services_controller.py:set_services_config"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/presets",
+      "family": "services",
+      "suggested_dto": "ServicesBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_services",
+        "src/web/controllers/services_controller.py:get_services_config"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/services/presets",
+      "family": "services",
+      "suggested_dto": "MqttPresetBodyDTO",
+      "fields": [
+        "name",
+        "host",
+        "port",
+        "id",
+        "description",
+        "transport",
+        "tls_enabled",
+        "tls_verify",
+        "auth_type",
+        "username",
+        "password",
+        "token",
+        "downlink_enabled",
+        "location_privacy",
+        "topic_mode",
+        "topic_prefix",
+        "region_iata",
+        "payload_format",
+        "filter_observer_mode",
+        "filter_public",
+        "filter_channels",
+        "filter_direct",
+        "filter_telemetry",
+        "filter_nodes",
+        "filter_raw",
+        "keepalive",
+        "qos"
+      ],
+      "observed_input_notes": "presets S abajo",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_services",
+        "src/web/controllers/services_controller.py:save_preset"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/services/presets/{id:path}",
+      "family": "services",
+      "suggested_dto": "ServicesBodyDTO",
+      "fields": [],
+      "observed_input_notes": "todo suffix tras prefijo, .strip, admite slash interno",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_services",
+        "src/web/controllers/services_controller.py:delete_preset"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes",
+      "path_parameters": {
+        "id": "whole suffix strip; internal slash permitted"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/services/mqtt-external/test",
+      "family": "services",
+      "suggested_dto": "MqttConnectionBodyDTO",
+      "fields": [
+        "host",
+        "port",
+        "transport",
+        "tls_enabled",
+        "tls_verify",
+        "auth_type",
+        "username",
+        "password",
+        "token",
+        "timeout"
+      ],
+      "observed_input_notes": "host requerido;port1883 int1..65535;credenciales+tls/transport/auth;timeoutfloat(value OR5) clamp1..10",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_services",
+        "src/web/controllers/services_controller.py:test_external_mqtt"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/packets",
+      "family": "packets",
+      "suggested_dto": "PacketsBodyDTO",
+      "fields": [
+        "limit",
+        "offset",
+        "direction",
+        "type",
+        "order"
+      ],
+      "observed_input_notes": "limit100[1..500],offset0[0..100000];direction/type str default\"\";order str asc odesc",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_packets",
+        "src/web/controllers/packets_controller.py:get_packets"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/packets",
+      "family": "packets",
+      "suggested_dto": "PacketsBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_packets",
+        "src/web/controllers/packets_controller.py:clear_packets"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/packets/export",
+      "family": "packets",
+      "suggested_dto": "PacketsBodyDTO",
+      "fields": [
+        "format"
+      ],
+      "observed_input_notes": "format str lower defaultjson, controllerstrip;pcap/csv especiales, cualquier otro⇒json",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_packets",
+        "src/web/controllers/packets_controller.py:export_packets"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/map/status",
+      "family": "maps",
+      "suggested_dto": "MapsBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_misc"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/map/reload",
+      "family": "maps",
+      "suggested_dto": "MapsBodyDTO",
+      "fields": [],
+      "observed_input_notes": "ninguna",
+      "body_query_policy": "router_merged",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_misc"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/messages",
+      "family": "maps",
+      "suggested_dto": "MapsBodyDTO",
+      "fields": [
+        "limit",
+        "offset"
+      ],
+      "observed_input_notes": "sólo query limit100/offset0,primer valor,isDigit;sin rango/techo;inválido⇒default",
+      "body_query_policy": "logs_raw_query",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_misc",
+        "src/web/controllers/logs_controller.py:route_logs"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/telemetry",
+      "family": "maps",
+      "suggested_dto": "MapsBodyDTO",
+      "fields": [
+        "limit",
+        "offset"
+      ],
+      "observed_input_notes": "igual messages",
+      "body_query_policy": "logs_raw_query",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_misc",
+        "src/web/controllers/logs_controller.py:route_logs"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/logs/download",
+      "family": "maps",
+      "suggested_dto": "MapsBodyDTO",
+      "fields": [
+        "limit",
+        "offset"
+      ],
+      "observed_input_notes": "ninguna (limit/offset parseados no usados)",
+      "body_query_policy": "logs_raw_query_parsed_unused",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_misc",
+        "src/web/controllers/logs_controller.py:route_logs",
+        "src/web/controllers/logs_controller.py:_handle_raw_logs_download"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/logs/raw",
+      "family": "maps",
+      "suggested_dto": "MapsBodyDTO",
+      "fields": [
+        "limit",
+        "offset"
+      ],
+      "observed_input_notes": "igual download",
+      "body_query_policy": "logs_raw_query_parsed_unused",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_misc",
+        "src/web/controllers/logs_controller.py:route_logs",
+        "src/web/controllers/logs_controller.py:_handle_raw_logs_download"
+      ],
+      "field_completeness": "curated top-level fields; nested, encoded import and action-specific params are not asserted exhaustive",
+      "field_sourcekeys": "same names as fields; get aliases/default/coercions from referenced source_functions.request_accesses and observed_input_notes"
+    }
+  ],
+  "aliases": [
+    {
+      "path": "/api/node/ping",
+      "canonical_path": "/api/node/ping_zero",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/nodes/ping",
+      "canonical_path": "/api/node/ping_zero",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/nodes/ping_zero",
+      "canonical_path": "/api/node/ping_zero",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/ping_zero",
+      "canonical_path": "/api/node/ping_zero",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/trace",
+      "canonical_path": "/api/traceroute",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/node/traceroute",
+      "canonical_path": "/api/repeater/traceroute",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/node/trace",
+      "canonical_path": "/api/repeater/traceroute",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/nodes/traceroute",
+      "canonical_path": "/api/repeater/traceroute",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/nodes/trace",
+      "canonical_path": "/api/repeater/traceroute",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/link_quality",
+      "canonical_path": "/api/lqi",
+      "functional_methods": [
+        "GET"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/metrics/analytics",
+      "canonical_path": "/api/analytics",
+      "functional_methods": [
+        "GET"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/metrics/reset",
+      "canonical_path": "/api/analytics/reset",
+      "functional_methods": [
+        "POST",
+        "DELETE"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/repeater/neighbours",
+      "canonical_path": "/api/repeater/remote/neighbours",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/repeater/neighbors",
+      "canonical_path": "/api/repeater/remote/neighbours",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/repeater/remote/neighbors",
+      "canonical_path": "/api/repeater/remote/neighbours",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/repeater/owner",
+      "canonical_path": "/api/repeater/remote/owner",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/repeater/regions",
+      "canonical_path": "/api/repeater/remote/regions",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/repeater/clock",
+      "canonical_path": "/api/repeater/remote/clock",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/repeater/acl",
+      "canonical_path": "/api/repeater/remote/acl",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/repeater/logout",
+      "canonical_path": "/api/repeater/remote/logout",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/admin/command",
+      "canonical_path": "/api/admin",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/node/settings",
+      "canonical_path": "/api/config",
+      "functional_methods": [
+        "GET",
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/node/config",
+      "canonical_path": "/api/config",
+      "functional_methods": [
+        "GET",
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/node/custom_vars",
+      "canonical_path": "/api/config/custom_vars",
+      "functional_methods": [
+        "GET",
+        "POST",
+        "DELETE"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/node/path_hash_mode",
+      "canonical_path": "/api/config/path_hash_mode",
+      "functional_methods": [
+        "GET",
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/node/autoadd",
+      "canonical_path": "/api/config/autoadd",
+      "functional_methods": [
+        "GET",
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/node/flood_scope",
+      "canonical_path": "/api/config/flood_scope",
+      "functional_methods": [
+        "GET",
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/node/config/radio",
+      "canonical_path": "/api/config/radio",
+      "functional_methods": [
+        "GET",
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/node/config/identity",
+      "canonical_path": "/api/config/identity",
+      "functional_methods": [
+        "GET",
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/config/advert",
+      "canonical_path": "/api/node/advert",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/config/reboot",
+      "canonical_path": "/api/node/reboot",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/node/sync-clock",
+      "canonical_path": "/api/config/sync-clock",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/config/sync_clock",
+      "canonical_path": "/api/config/sync-clock",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/node/clear-stats",
+      "canonical_path": "/api/config/clear-stats",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/config/clear_stats",
+      "canonical_path": "/api/config/clear-stats",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/node/refresh",
+      "canonical_path": "/api/config/refresh",
+      "functional_methods": [
+        "GET",
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/node/reconnect",
+      "canonical_path": "/api/config/reconnect",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/config/reconnect-serial",
+      "canonical_path": "/api/config/reconnect",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    },
+    {
+      "path": "/api/map/refresh",
+      "canonical_path": "/api/map/reload",
+      "functional_methods": [
+        "POST"
+      ],
+      "auth_policy": "raw path before canonicalization"
+    }
+  ],
+  "source_functions": {
+    "src/web/api_router.py:_dispatch_system": {
+      "file": "src/web/api_router.py",
+      "function": "_dispatch_system",
+      "line": 395,
+      "end_line": 447,
+      "request_accesses": [
+        {
+          "key": "level",
+          "container": "req_body",
+          "line": 420,
+          "default_expression": "'INFO'",
+          "read_expression": "req_body.get('level', 'INFO')"
+        }
+      ]
+    },
+    "src/web/controllers/system_controller.py:get_status": {
+      "file": "src/web/controllers/system_controller.py",
+      "function": "get_status",
+      "line": 51,
+      "end_line": 69,
+      "request_accesses": []
+    },
+    "src/web/controllers/system_controller.py:get_health": {
+      "file": "src/web/controllers/system_controller.py",
+      "function": "get_health",
+      "line": 71,
+      "end_line": 76,
+      "request_accesses": []
+    },
+    "src/web/controllers/system_controller.py:run_preflight": {
+      "file": "src/web/controllers/system_controller.py",
+      "function": "run_preflight",
+      "line": 94,
+      "end_line": 124,
+      "request_accesses": []
+    },
+    "src/web/controllers/logs_controller.py:route_logs": {
+      "file": "src/web/controllers/logs_controller.py",
+      "function": "route_logs",
+      "line": 18,
+      "end_line": 64,
+      "request_accesses": [
+        {
+          "key": "limit",
+          "container": "query",
+          "line": 23,
+          "default_expression": "['']",
+          "read_expression": "query.get('limit', [''])[0]"
+        },
+        {
+          "key": "offset",
+          "container": "query",
+          "line": 24,
+          "default_expression": "['']",
+          "read_expression": "query.get('offset', [''])[0]"
+        }
+      ]
+    },
+    "src/web/controllers/logs_controller.py:_handle_diagnostics_report": {
+      "file": "src/web/controllers/logs_controller.py",
+      "function": "_handle_diagnostics_report",
+      "line": 113,
+      "end_line": 120,
+      "request_accesses": []
+    },
+    "src/web/controllers/logs_controller.py:_handle_system_logs": {
+      "file": "src/web/controllers/logs_controller.py",
+      "function": "_handle_system_logs",
+      "line": 66,
+      "end_line": 68,
+      "request_accesses": [
+        {
+          "key": "level",
+          "container": "query",
+          "line": 68,
+          "default_expression": "['']",
+          "read_expression": "self.get_system_logs(query.get('level', [''])[0] or None, query.get('search', [''])[0] or None, limit)"
+        },
+        {
+          "key": "search",
+          "container": "query",
+          "line": 68,
+          "default_expression": "['']",
+          "read_expression": "self.get_system_logs(query.get('level', [''])[0] or None, query.get('search', [''])[0] or None, limit)"
+        }
+      ]
+    },
+    "src/web/controllers/system_controller.py:clear_logs": {
+      "file": "src/web/controllers/system_controller.py",
+      "function": "clear_logs",
+      "line": 84,
+      "end_line": 92,
+      "request_accesses": []
+    },
+    "src/web/api_router.py:_dispatch_nodes": {
+      "file": "src/web/api_router.py",
+      "function": "_dispatch_nodes",
+      "line": 480,
+      "end_line": 551,
+      "request_accesses": [
+        {
+          "key": "limit",
+          "container": "req_body",
+          "line": 493,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "req_body.get('limit')"
+        },
+        {
+          "key": "offset",
+          "container": "req_body",
+          "line": 494,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "req_body.get('offset')"
+        },
+        {
+          "key": "range",
+          "container": "req_body",
+          "line": 516,
+          "default_expression": "'24h'",
+          "read_expression": "str(req_body.get('range', '24h'))"
+        }
+      ]
+    },
+    "src/web/controllers/nodes_controller.py:list_nodes": {
+      "file": "src/web/controllers/nodes_controller.py",
+      "function": "list_nodes",
+      "line": 17,
+      "end_line": 29,
+      "request_accesses": []
+    },
+    "src/web/controllers/nodes_controller.py:get_lqi": {
+      "file": "src/web/controllers/nodes_controller.py",
+      "function": "get_lqi",
+      "line": 31,
+      "end_line": 42,
+      "request_accesses": []
+    },
+    "src/web/controllers/nodes_controller.py:get_analytics": {
+      "file": "src/web/controllers/nodes_controller.py",
+      "function": "get_analytics",
+      "line": 44,
+      "end_line": 97,
+      "request_accesses": []
+    },
+    "src/web/controllers/nodes_controller.py:reset_metrics": {
+      "file": "src/web/controllers/nodes_controller.py",
+      "function": "reset_metrics",
+      "line": 99,
+      "end_line": 128,
+      "request_accesses": []
+    },
+    "src/web/controllers/nodes_controller.py:get_rf_heatmap": {
+      "file": "src/web/controllers/nodes_controller.py",
+      "function": "get_rf_heatmap",
+      "line": 130,
+      "end_line": 163,
+      "request_accesses": []
+    },
+    "src/web/controllers/nodes_controller.py:get_airtime_stats": {
+      "file": "src/web/controllers/nodes_controller.py",
+      "function": "get_airtime_stats",
+      "line": 165,
+      "end_line": 179,
+      "request_accesses": []
+    },
+    "src/web/api_router.py:_dispatch_contacts": {
+      "file": "src/web/api_router.py",
+      "function": "_dispatch_contacts",
+      "line": 553,
+      "end_line": 570,
+      "request_accesses": [
+        {
+          "key": "public_key",
+          "container": "req_body",
+          "line": 564,
+          "default_expression": "req_body.get('target_node', '')",
+          "read_expression": "str(req_body.get('public_key', req_body.get('target_node', ''))).strip()"
+        },
+        {
+          "key": "target_node",
+          "container": "req_body",
+          "line": 564,
+          "default_expression": "''",
+          "read_expression": "str(req_body.get('public_key', req_body.get('target_node', ''))).strip()"
+        }
+      ]
+    },
+    "src/web/controllers/contacts_controller.py:_handle_contacts_route": {
+      "file": "src/web/controllers/contacts_controller.py",
+      "function": "_handle_contacts_route",
+      "line": 62,
+      "end_line": 108,
+      "request_accesses": []
+    },
+    "src/web/controllers/contacts_controller.py:_create_or_update_contact": {
+      "file": "src/web/controllers/contacts_controller.py",
+      "function": "_create_or_update_contact",
+      "line": 472,
+      "end_line": 548,
+      "request_accesses": [
+        {
+          "key": "key",
+          "container": "req_body",
+          "line": 474,
+          "default_expression": "''",
+          "read_expression": "str(req_body.get('public_key', req_body.get('key', ''))).strip()"
+        },
+        {
+          "key": "public_key",
+          "container": "req_body",
+          "line": 474,
+          "default_expression": "req_body.get('key', '')",
+          "read_expression": "str(req_body.get('public_key', req_body.get('key', ''))).strip()"
+        },
+        {
+          "key": "name",
+          "container": "req_body",
+          "line": 475,
+          "default_expression": "''",
+          "read_expression": "str(req_body.get('name', '')).strip()"
+        },
+        {
+          "key": "alias",
+          "container": "req_body",
+          "line": 476,
+          "default_expression": "''",
+          "read_expression": "str(req_body.get('alias', '')).strip()"
+        },
+        {
+          "key": "role",
+          "container": "req_body",
+          "line": 477,
+          "default_expression": "'CLIENT'",
+          "read_expression": "str(req_body.get('role', 'CLIENT')).strip()"
+        },
+        {
+          "key": "is_favorite",
+          "container": "req_body",
+          "line": 493,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "req_body.get('is_favorite')"
+        },
+        {
+          "key": "adv_lat",
+          "container": "req_body",
+          "line": 496,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "req_body.get('latitude') if req_body.get('latitude') is not None else req_body.get('lat') if req_body.get('lat') is not None else req_body.get('adv_lat')"
+        },
+        {
+          "key": "lat",
+          "container": "req_body",
+          "line": 496,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "req_body.get('latitude') if req_body.get('latitude') is not None else req_body.get('lat') if req_body.get('lat') is not None else req_body.get('adv_lat')"
+        },
+        {
+          "key": "lat",
+          "container": "req_body",
+          "line": 496,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "req_body.get('lat')"
+        },
+        {
+          "key": "latitude",
+          "container": "req_body",
+          "line": 496,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "req_body.get('latitude') if req_body.get('latitude') is not None else req_body.get('lat') if req_body.get('lat') is not None else req_body.get('adv_lat')"
+        },
+        {
+          "key": "latitude",
+          "container": "req_body",
+          "line": 496,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "req_body.get('latitude')"
+        },
+        {
+          "key": "adv_lon",
+          "container": "req_body",
+          "line": 497,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "req_body.get('longitude') if req_body.get('longitude') is not None else req_body.get('lon') if req_body.get('lon') is not None else req_body.get('adv_lon')"
+        },
+        {
+          "key": "lon",
+          "container": "req_body",
+          "line": 497,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "req_body.get('longitude') if req_body.get('longitude') is not None else req_body.get('lon') if req_body.get('lon') is not None else req_body.get('adv_lon')"
+        },
+        {
+          "key": "lon",
+          "container": "req_body",
+          "line": 497,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "req_body.get('lon')"
+        },
+        {
+          "key": "longitude",
+          "container": "req_body",
+          "line": 497,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "req_body.get('longitude') if req_body.get('longitude') is not None else req_body.get('lon') if req_body.get('lon') is not None else req_body.get('adv_lon')"
+        },
+        {
+          "key": "longitude",
+          "container": "req_body",
+          "line": 497,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "req_body.get('longitude')"
+        }
+      ]
+    },
+    "src/web/controllers/contacts_controller.py:_contact_validation": {
+      "file": "src/web/controllers/contacts_controller.py",
+      "function": "_contact_validation",
+      "line": 31,
+      "end_line": 44,
+      "request_accesses": []
+    },
+    "src/web/controllers/contacts_controller.py:_delete_contact": {
+      "file": "src/web/controllers/contacts_controller.py",
+      "function": "_delete_contact",
+      "line": 550,
+      "end_line": 571,
+      "request_accesses": [
+        {
+          "key": "key",
+          "container": "req_body",
+          "line": 552,
+          "default_expression": "path_pubkey",
+          "read_expression": "str(req_body.get('public_key', req_body.get('key', path_pubkey))).strip().lower()"
+        },
+        {
+          "key": "public_key",
+          "container": "req_body",
+          "line": 552,
+          "default_expression": "req_body.get('key', path_pubkey)",
+          "read_expression": "str(req_body.get('public_key', req_body.get('key', path_pubkey))).strip().lower()"
+        }
+      ]
+    },
+    "src/web/controllers/contacts_controller.py:_sync_contacts": {
+      "file": "src/web/controllers/contacts_controller.py",
+      "function": "_sync_contacts",
+      "line": 110,
+      "end_line": 150,
+      "request_accesses": []
+    },
+    "src/web/controllers/contacts_controller.py:_share_contact": {
+      "file": "src/web/controllers/contacts_controller.py",
+      "function": "_share_contact",
+      "line": 152,
+      "end_line": 164,
+      "request_accesses": [
+        {
+          "key": "key",
+          "container": "req_body",
+          "line": 154,
+          "default_expression": "''",
+          "read_expression": "str(req_body.get('public_key', req_body.get('key', ''))).strip()"
+        },
+        {
+          "key": "public_key",
+          "container": "req_body",
+          "line": 154,
+          "default_expression": "req_body.get('key', '')",
+          "read_expression": "str(req_body.get('public_key', req_body.get('key', ''))).strip()"
+        }
+      ]
+    },
+    "src/web/controllers/contacts_controller.py:_export_contact": {
+      "file": "src/web/controllers/contacts_controller.py",
+      "function": "_export_contact",
+      "line": 166,
+      "end_line": 246,
+      "request_accesses": [
+        {
+          "key": "key",
+          "container": "req_body",
+          "line": 168,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(req_body.get('public_key') or req_body.get('pubkey') or req_body.get('key') or '').strip()"
+        },
+        {
+          "key": "pubkey",
+          "container": "req_body",
+          "line": 168,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(req_body.get('public_key') or req_body.get('pubkey') or req_body.get('key') or '').strip()"
+        },
+        {
+          "key": "public_key",
+          "container": "req_body",
+          "line": 168,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(req_body.get('public_key') or req_body.get('pubkey') or req_body.get('key') or '').strip()"
+        },
+        {
+          "key": "alias",
+          "container": "req_body",
+          "line": 198,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(req_body.get('name') or req_body.get('alias') or f'Node_{pubkey[:6]}').strip()"
+        },
+        {
+          "key": "name",
+          "container": "req_body",
+          "line": 198,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(req_body.get('name') or req_body.get('alias') or f'Node_{pubkey[:6]}').strip()"
+        }
+      ]
+    },
+    "src/web/controllers/contacts_controller.py:_import_contact": {
+      "file": "src/web/controllers/contacts_controller.py",
+      "function": "_import_contact",
+      "line": 248,
+      "end_line": 470,
+      "request_accesses": [
+        {
+          "key": "data",
+          "container": "req_body",
+          "line": 250,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(req_body.get('data') or req_body.get('payload') or req_body.get('uri') or '').strip()"
+        },
+        {
+          "key": "payload",
+          "container": "req_body",
+          "line": 250,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(req_body.get('data') or req_body.get('payload') or req_body.get('uri') or '').strip()"
+        },
+        {
+          "key": "uri",
+          "container": "req_body",
+          "line": 250,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(req_body.get('data') or req_body.get('payload') or req_body.get('uri') or '').strip()"
+        },
+        {
+          "key": "contacts",
+          "container": "req_body",
+          "line": 256,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "isinstance(req_body.get('contacts'), list)"
+        },
+        {
+          "key": "contacts",
+          "container": "req_body",
+          "line": 257,
+          "default_expression": "no default; indexed access",
+          "read_expression": "req_body['contacts']"
+        }
+      ]
+    },
+    "src/web/api_router.py:_dispatch_channels": {
+      "file": "src/web/api_router.py",
+      "function": "_dispatch_channels",
+      "line": 572,
+      "end_line": 576,
+      "request_accesses": []
+    },
+    "src/web/controllers/channels_controller.py:_get_channels": {
+      "file": "src/web/controllers/channels_controller.py",
+      "function": "_get_channels",
+      "line": 210,
+      "end_line": 215,
+      "request_accesses": []
+    },
+    "src/web/controllers/channels_controller.py:_handle_channels_route": {
+      "file": "src/web/controllers/channels_controller.py",
+      "function": "_handle_channels_route",
+      "line": 100,
+      "end_line": 129,
+      "request_accesses": []
+    },
+    "src/web/controllers/channels_controller.py:_create_or_update_channel": {
+      "file": "src/web/controllers/channels_controller.py",
+      "function": "_create_or_update_channel",
+      "line": 278,
+      "end_line": 332,
+      "request_accesses": [
+        {
+          "key": "index",
+          "container": "req_body",
+          "line": 280,
+          "default_expression": "1",
+          "read_expression": "req_body.get('index', 1)"
+        },
+        {
+          "key": "overwrite",
+          "container": "req_body",
+          "line": 302,
+          "default_expression": "False",
+          "read_expression": "to_bool(req_body.get('overwrite', False))"
+        },
+        {
+          "key": "name",
+          "container": "req_body",
+          "line": 312,
+          "default_expression": "f'Canal {idx}'",
+          "read_expression": "req_body.get('name', f'Canal {idx}')"
+        },
+        {
+          "key": "psk",
+          "container": "req_body",
+          "line": 316,
+          "default_expression": "''",
+          "read_expression": "str(req_body.get('psk', '')).strip()"
+        }
+      ]
+    },
+    "src/web/controllers/channels_controller.py:_delete_channel": {
+      "file": "src/web/controllers/channels_controller.py",
+      "function": "_delete_channel",
+      "line": 334,
+      "end_line": 368,
+      "request_accesses": [
+        {
+          "key": "index",
+          "container": "req_body",
+          "line": 336,
+          "default_expression": "0",
+          "read_expression": "req_body.get('index', 0)"
+        }
+      ]
+    },
+    "src/web/controllers/channels_controller.py:_sync_channels": {
+      "file": "src/web/controllers/channels_controller.py",
+      "function": "_sync_channels",
+      "line": 162,
+      "end_line": 171,
+      "request_accesses": []
+    },
+    "src/web/controllers/channels_controller.py:_export_channel": {
+      "file": "src/web/controllers/channels_controller.py",
+      "function": "_export_channel",
+      "line": 217,
+      "end_line": 263,
+      "request_accesses": [
+        {
+          "key": "index",
+          "container": "req_body",
+          "line": 220,
+          "default_expression": "0",
+          "read_expression": "int(req_body.get('index', 0))"
+        }
+      ]
+    },
+    "src/web/api_router.py:_dispatch_tx": {
+      "file": "src/web/api_router.py",
+      "function": "_dispatch_tx",
+      "line": 578,
+      "end_line": 584,
+      "request_accesses": []
+    },
+    "src/web/controllers/tx_controller.py:send_tx": {
+      "file": "src/web/controllers/tx_controller.py",
+      "function": "send_tx",
+      "line": 20,
+      "end_line": 111,
+      "request_accesses": [
+        {
+          "key": "text",
+          "container": "req_body",
+          "line": 22,
+          "default_expression": "''",
+          "read_expression": "str(req_body.get('text', '')).strip()"
+        },
+        {
+          "key": "target",
+          "container": "req_body",
+          "line": 34,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "req_body.get('to') if 'to' in req_body else req_body.get('target')"
+        },
+        {
+          "key": "to",
+          "container": "req_body",
+          "line": 34,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "req_body.get('to') if 'to' in req_body else req_body.get('target')"
+        },
+        {
+          "key": "channel_idx",
+          "container": "req_body",
+          "line": 61,
+          "default_expression": "0",
+          "read_expression": "int(req_body.get('channel_index', req_body.get('channel_idx', 0)))"
+        },
+        {
+          "key": "channel_index",
+          "container": "req_body",
+          "line": 61,
+          "default_expression": "req_body.get('channel_idx', 0)",
+          "read_expression": "int(req_body.get('channel_index', req_body.get('channel_idx', 0)))"
+        },
+        {
+          "key": "request_id",
+          "container": "req_body",
+          "line": 65,
+          "default_expression": "f'web_{int(time.time() * 1000)}'",
+          "read_expression": "req_body.get('request_id', f'web_{int(time.time() * 1000)}')"
+        }
+      ]
+    },
+    "src/web/controllers/tx_controller.py:get_recent_messages": {
+      "file": "src/web/controllers/tx_controller.py",
+      "function": "get_recent_messages",
+      "line": 113,
+      "end_line": 120,
+      "request_accesses": []
+    },
+    "src/web/api_router.py:_dispatch_repeater": {
+      "file": "src/web/api_router.py",
+      "function": "_dispatch_repeater",
+      "line": 586,
+      "end_line": 634,
+      "request_accesses": []
+    },
+    "src/web/controllers/repeater_controller.py:execute_admin_command": {
+      "file": "src/web/controllers/repeater_controller.py",
+      "function": "execute_admin_command",
+      "line": 27,
+      "end_line": 38,
+      "request_accesses": [
+        {
+          "key": "action",
+          "container": "req_body",
+          "line": 29,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "req_body.get('action')"
+        }
+      ]
+    },
+    "src/admin_handler.py:_handle": {
+      "file": "src/admin_handler.py",
+      "function": "_handle",
+      "line": 331,
+      "end_line": 449,
+      "request_accesses": []
+    },
+    "src/web/controllers/repeater_controller.py:execute_repeater_command": {
+      "file": "src/web/controllers/repeater_controller.py",
+      "function": "execute_repeater_command",
+      "line": 40,
+      "end_line": 60,
+      "request_accesses": [
+        {
+          "key": "repeater",
+          "container": "req_body",
+          "line": 42,
+          "default_expression": "''",
+          "read_expression": "str(req_body.get('target_node', req_body.get('repeater', ''))).strip()"
+        },
+        {
+          "key": "target_node",
+          "container": "req_body",
+          "line": 42,
+          "default_expression": "req_body.get('repeater', '')",
+          "read_expression": "str(req_body.get('target_node', req_body.get('repeater', ''))).strip()"
+        },
+        {
+          "key": "action",
+          "container": "req_body",
+          "line": 43,
+          "default_expression": "req_body.get('command', 'stats-radio')",
+          "read_expression": "str(req_body.get('action', req_body.get('command', 'stats-radio')))"
+        },
+        {
+          "key": "command",
+          "container": "req_body",
+          "line": 43,
+          "default_expression": "'stats-radio'",
+          "read_expression": "str(req_body.get('action', req_body.get('command', 'stats-radio')))"
+        },
+        {
+          "key": "params",
+          "container": "req_body",
+          "line": 50,
+          "default_expression": "{}",
+          "read_expression": "req_body.get('params', {})"
+        },
+        {
+          "key": "password",
+          "container": "req_body",
+          "line": 51,
+          "default_expression": "''",
+          "read_expression": "req_body.get('password', '')"
+        },
+        {
+          "key": "request_id",
+          "container": "req_body",
+          "line": 52,
+          "default_expression": "f'web_rep_{int(time.time())}'",
+          "read_expression": "req_body.get('request_id', f'web_rep_{int(time.time())}')"
+        }
+      ]
+    },
+    "src/web/controllers/repeater_controller.py:login": {
+      "file": "src/web/controllers/repeater_controller.py",
+      "function": "login",
+      "line": 62,
+      "end_line": 85,
+      "request_accesses": [
+        {
+          "key": "repeater",
+          "container": "req_body",
+          "line": 64,
+          "default_expression": "''",
+          "read_expression": "str(req_body.get('target_node', req_body.get('repeater', ''))).strip()"
+        },
+        {
+          "key": "target_node",
+          "container": "req_body",
+          "line": 64,
+          "default_expression": "req_body.get('repeater', '')",
+          "read_expression": "str(req_body.get('target_node', req_body.get('repeater', ''))).strip()"
+        },
+        {
+          "key": "password",
+          "container": "req_body",
+          "line": 65,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "req_body.get('password')"
+        }
+      ]
+    },
+    "src/web/controllers/repeater_controller.py:logout": {
+      "file": "src/web/controllers/repeater_controller.py",
+      "function": "logout",
+      "line": 87,
+      "end_line": 100,
+      "request_accesses": [
+        {
+          "key": "repeater",
+          "container": "req_body",
+          "line": 89,
+          "default_expression": "''",
+          "read_expression": "str(req_body.get('target_node', req_body.get('repeater', ''))).strip()"
+        },
+        {
+          "key": "target_node",
+          "container": "req_body",
+          "line": 89,
+          "default_expression": "req_body.get('repeater', '')",
+          "read_expression": "str(req_body.get('target_node', req_body.get('repeater', ''))).strip()"
+        }
+      ]
+    },
+    "src/web/controllers/repeater_controller.py:set_remote_config": {
+      "file": "src/web/controllers/repeater_controller.py",
+      "function": "set_remote_config",
+      "line": 102,
+      "end_line": 122,
+      "request_accesses": [
+        {
+          "key": "repeater",
+          "container": "req_body",
+          "line": 104,
+          "default_expression": "''",
+          "read_expression": "str(req_body.get('target_node', req_body.get('repeater', ''))).strip()"
+        },
+        {
+          "key": "target_node",
+          "container": "req_body",
+          "line": 104,
+          "default_expression": "req_body.get('repeater', '')",
+          "read_expression": "str(req_body.get('target_node', req_body.get('repeater', ''))).strip()"
+        },
+        {
+          "key": "password",
+          "container": "req_body",
+          "line": 105,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "req_body.get('password')"
+        },
+        {
+          "key": "password",
+          "container": "req_body",
+          "line": 105,
+          "default_expression": "''",
+          "read_expression": "str(req_body.get('password', '')) if req_body.get('password') is not None else ''"
+        },
+        {
+          "key": "params",
+          "container": "req_body",
+          "line": 106,
+          "default_expression": "{}",
+          "read_expression": "req_body.get('params', {})"
+        }
+      ]
+    },
+    "src/web/controllers/repeater_controller.py:execute_remote_action": {
+      "file": "src/web/controllers/repeater_controller.py",
+      "function": "execute_remote_action",
+      "line": 124,
+      "end_line": 144,
+      "request_accesses": [
+        {
+          "key": "repeater",
+          "container": "req_body",
+          "line": 126,
+          "default_expression": "''",
+          "read_expression": "str(req_body.get('target_node', req_body.get('repeater', ''))).strip()"
+        },
+        {
+          "key": "target_node",
+          "container": "req_body",
+          "line": 126,
+          "default_expression": "req_body.get('repeater', '')",
+          "read_expression": "str(req_body.get('target_node', req_body.get('repeater', ''))).strip()"
+        },
+        {
+          "key": "password",
+          "container": "req_body",
+          "line": 127,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "req_body.get('password')"
+        },
+        {
+          "key": "password",
+          "container": "req_body",
+          "line": 127,
+          "default_expression": "''",
+          "read_expression": "str(req_body.get('password', '')) if req_body.get('password') is not None else ''"
+        },
+        {
+          "key": "action",
+          "container": "req_body",
+          "line": 128,
+          "default_expression": "''",
+          "read_expression": "str(req_body.get('action', '')).strip()"
+        },
+        {
+          "key": "params",
+          "container": "req_body",
+          "line": 136,
+          "default_expression": "{}",
+          "read_expression": "req_body.get('params', {})"
+        }
+      ]
+    },
+    "src/web/controllers/repeater_controller.py:get_neighbours": {
+      "file": "src/web/controllers/repeater_controller.py",
+      "function": "get_neighbours",
+      "line": 182,
+      "end_line": 199,
+      "request_accesses": [
+        {
+          "key": "repeater",
+          "container": "req_body",
+          "line": 184,
+          "default_expression": "''",
+          "read_expression": "str(req_body.get('target_node', req_body.get('repeater', ''))).strip()"
+        },
+        {
+          "key": "target_node",
+          "container": "req_body",
+          "line": 184,
+          "default_expression": "req_body.get('repeater', '')",
+          "read_expression": "str(req_body.get('target_node', req_body.get('repeater', ''))).strip()"
+        },
+        {
+          "key": "count",
+          "container": "req_body",
+          "line": 190,
+          "default_expression": "255",
+          "read_expression": "req_body.get('count', 255)"
+        },
+        {
+          "key": "offset",
+          "container": "req_body",
+          "line": 191,
+          "default_expression": "0",
+          "read_expression": "req_body.get('offset', 0)"
+        },
+        {
+          "key": "password",
+          "container": "req_body",
+          "line": 192,
+          "default_expression": "''",
+          "read_expression": "req_body.get('password', '')"
+        }
+      ]
+    },
+    "src/web/controllers/repeater_controller.py:get_owner": {
+      "file": "src/web/controllers/repeater_controller.py",
+      "function": "get_owner",
+      "line": 201,
+      "end_line": 211,
+      "request_accesses": [
+        {
+          "key": "repeater",
+          "container": "req_body",
+          "line": 203,
+          "default_expression": "''",
+          "read_expression": "str(req_body.get('target_node', req_body.get('repeater', ''))).strip()"
+        },
+        {
+          "key": "target_node",
+          "container": "req_body",
+          "line": 203,
+          "default_expression": "req_body.get('repeater', '')",
+          "read_expression": "str(req_body.get('target_node', req_body.get('repeater', ''))).strip()"
+        },
+        {
+          "key": "password",
+          "container": "req_body",
+          "line": 206,
+          "default_expression": "''",
+          "read_expression": "req_body.get('password', '')"
+        }
+      ]
+    },
+    "src/web/controllers/repeater_controller.py:get_regions": {
+      "file": "src/web/controllers/repeater_controller.py",
+      "function": "get_regions",
+      "line": 213,
+      "end_line": 223,
+      "request_accesses": [
+        {
+          "key": "repeater",
+          "container": "req_body",
+          "line": 215,
+          "default_expression": "''",
+          "read_expression": "str(req_body.get('target_node', req_body.get('repeater', ''))).strip()"
+        },
+        {
+          "key": "target_node",
+          "container": "req_body",
+          "line": 215,
+          "default_expression": "req_body.get('repeater', '')",
+          "read_expression": "str(req_body.get('target_node', req_body.get('repeater', ''))).strip()"
+        },
+        {
+          "key": "password",
+          "container": "req_body",
+          "line": 218,
+          "default_expression": "''",
+          "read_expression": "req_body.get('password', '')"
+        }
+      ]
+    },
+    "src/web/controllers/repeater_controller.py:get_clock": {
+      "file": "src/web/controllers/repeater_controller.py",
+      "function": "get_clock",
+      "line": 225,
+      "end_line": 235,
+      "request_accesses": [
+        {
+          "key": "repeater",
+          "container": "req_body",
+          "line": 227,
+          "default_expression": "''",
+          "read_expression": "str(req_body.get('target_node', req_body.get('repeater', ''))).strip()"
+        },
+        {
+          "key": "target_node",
+          "container": "req_body",
+          "line": 227,
+          "default_expression": "req_body.get('repeater', '')",
+          "read_expression": "str(req_body.get('target_node', req_body.get('repeater', ''))).strip()"
+        },
+        {
+          "key": "password",
+          "container": "req_body",
+          "line": 230,
+          "default_expression": "''",
+          "read_expression": "req_body.get('password', '')"
+        }
+      ]
+    },
+    "src/web/controllers/repeater_controller.py:get_acl": {
+      "file": "src/web/controllers/repeater_controller.py",
+      "function": "get_acl",
+      "line": 237,
+      "end_line": 247,
+      "request_accesses": [
+        {
+          "key": "repeater",
+          "container": "req_body",
+          "line": 239,
+          "default_expression": "''",
+          "read_expression": "str(req_body.get('target_node', req_body.get('repeater', ''))).strip()"
+        },
+        {
+          "key": "target_node",
+          "container": "req_body",
+          "line": 239,
+          "default_expression": "req_body.get('repeater', '')",
+          "read_expression": "str(req_body.get('target_node', req_body.get('repeater', ''))).strip()"
+        },
+        {
+          "key": "password",
+          "container": "req_body",
+          "line": 242,
+          "default_expression": "''",
+          "read_expression": "req_body.get('password', '')"
+        }
+      ]
+    },
+    "src/web/controllers/repeater_controller.py:ping_zero": {
+      "file": "src/web/controllers/repeater_controller.py",
+      "function": "ping_zero",
+      "line": 146,
+      "end_line": 162,
+      "request_accesses": [
+        {
+          "key": "repeater",
+          "container": "req_body",
+          "line": 148,
+          "default_expression": "req_body.get('target', '')",
+          "read_expression": "str(req_body.get('target_node', req_body.get('repeater', req_body.get('target', '')))).strip()"
+        },
+        {
+          "key": "target",
+          "container": "req_body",
+          "line": 148,
+          "default_expression": "''",
+          "read_expression": "str(req_body.get('target_node', req_body.get('repeater', req_body.get('target', '')))).strip()"
+        },
+        {
+          "key": "target_node",
+          "container": "req_body",
+          "line": 148,
+          "default_expression": "req_body.get('repeater', req_body.get('target', ''))",
+          "read_expression": "str(req_body.get('target_node', req_body.get('repeater', req_body.get('target', '')))).strip()"
+        }
+      ]
+    },
+    "src/web/controllers/repeater_controller.py:traceroute": {
+      "file": "src/web/controllers/repeater_controller.py",
+      "function": "traceroute",
+      "line": 164,
+      "end_line": 180,
+      "request_accesses": [
+        {
+          "key": "repeater",
+          "container": "req_body",
+          "line": 166,
+          "default_expression": "req_body.get('to', '')",
+          "read_expression": "str(req_body.get('target_node', req_body.get('target', req_body.get('repeater', req_body.get('to', ''))))).strip()"
+        },
+        {
+          "key": "target",
+          "container": "req_body",
+          "line": 166,
+          "default_expression": "req_body.get('repeater', req_body.get('to', ''))",
+          "read_expression": "str(req_body.get('target_node', req_body.get('target', req_body.get('repeater', req_body.get('to', ''))))).strip()"
+        },
+        {
+          "key": "target_node",
+          "container": "req_body",
+          "line": 166,
+          "default_expression": "req_body.get('target', req_body.get('repeater', req_body.get('to', '')))",
+          "read_expression": "str(req_body.get('target_node', req_body.get('target', req_body.get('repeater', req_body.get('to', ''))))).strip()"
+        },
+        {
+          "key": "to",
+          "container": "req_body",
+          "line": 166,
+          "default_expression": "''",
+          "read_expression": "str(req_body.get('target_node', req_body.get('target', req_body.get('repeater', req_body.get('to', ''))))).strip()"
+        }
+      ]
+    },
+    "src/web/api_router.py:_dispatch_config": {
+      "file": "src/web/api_router.py",
+      "function": "_dispatch_config",
+      "line": 636,
+      "end_line": 744,
+      "request_accesses": [
+        {
+          "key": "refresh",
+          "container": "req_body",
+          "line": 638,
+          "default_expression": "False",
+          "read_expression": "req_body.get('refresh', False)"
+        },
+        {
+          "key": "key",
+          "container": "req_body",
+          "line": 659,
+          "default_expression": "''",
+          "read_expression": "str(req_body.get('key', ''))"
+        },
+        {
+          "key": "flood",
+          "container": "req_body",
+          "line": 700,
+          "default_expression": "False",
+          "read_expression": "to_bool(req_body.get('flood', False))"
+        },
+        {
+          "key": "epoch",
+          "container": "req_body",
+          "line": 711,
+          "default_expression": "req_body.get('timestamp')",
+          "read_expression": "req_body.get('epoch', req_body.get('timestamp'))"
+        },
+        {
+          "key": "timestamp",
+          "container": "req_body",
+          "line": 711,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "req_body.get('epoch', req_body.get('timestamp'))"
+        }
+      ]
+    },
+    "src/web/controllers/config_controller.py:get_device_config": {
+      "file": "src/web/controllers/config_controller.py",
+      "function": "get_device_config",
+      "line": 22,
+      "end_line": 111,
+      "request_accesses": []
+    },
+    "src/web/controllers/config_controller.py:set_local_config": {
+      "file": "src/web/controllers/config_controller.py",
+      "function": "set_local_config",
+      "line": 113,
+      "end_line": 181,
+      "request_accesses": [
+        {
+          "key": "duty_cycle_limit_pct",
+          "container": "params",
+          "line": 151,
+          "default_expression": "no default; indexed access",
+          "read_expression": "params['duty_cycle_limit_pct']"
+        },
+        {
+          "key": "warn_threshold_pct",
+          "container": "params",
+          "line": 154,
+          "default_expression": "no default; indexed access",
+          "read_expression": "params['warn_threshold_pct']"
+        },
+        {
+          "key": "airtime_cutoff_enabled",
+          "container": "params",
+          "line": 157,
+          "default_expression": "no default; indexed access",
+          "read_expression": "params['airtime_cutoff_enabled']"
+        },
+        {
+          "key": "airtime_cutoff_threshold_pct",
+          "container": "params",
+          "line": 160,
+          "default_expression": "no default; indexed access",
+          "read_expression": "params['airtime_cutoff_threshold_pct']"
+        },
+        {
+          "key": "airtime_cutoff_resume_pct",
+          "container": "params",
+          "line": 163,
+          "default_expression": "no default; indexed access",
+          "read_expression": "params['airtime_cutoff_resume_pct']"
+        },
+        {
+          "key": "repeater_pre_send_delay_enabled",
+          "container": "params",
+          "line": 169,
+          "default_expression": "no default; indexed access",
+          "read_expression": "params['repeater_pre_send_delay_enabled']"
+        },
+        {
+          "key": "repeater_pre_send_delay_s",
+          "container": "params",
+          "line": 171,
+          "default_expression": "no default; indexed access",
+          "read_expression": "params['repeater_pre_send_delay_s']"
+        }
+      ]
+    },
+    "src/admin/local_config_executor.py:_prevalidate_local_params": {
+      "file": "src/admin/local_config_executor.py",
+      "function": "_prevalidate_local_params",
+      "line": 531,
+      "end_line": 719,
+      "request_accesses": [
+        {
+          "key": "name",
+          "container": "params",
+          "line": 543,
+          "default_expression": "no default; indexed access",
+          "read_expression": "params['name']"
+        },
+        {
+          "key": "custom_vars",
+          "container": "params",
+          "line": 564,
+          "default_expression": "no default; indexed access",
+          "read_expression": "params['custom_vars']"
+        },
+        {
+          "key": "custom_vars",
+          "container": "params",
+          "line": 566,
+          "default_expression": "no default; indexed access",
+          "read_expression": "params['custom_vars']"
+        },
+        {
+          "key": "name",
+          "container": "params",
+          "line": 602,
+          "default_expression": "no default; indexed access",
+          "read_expression": "params['name']"
+        },
+        {
+          "key": "lat",
+          "container": "params",
+          "line": 606,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "params.get('latitude', params.get('lat'))"
+        },
+        {
+          "key": "latitude",
+          "container": "params",
+          "line": 606,
+          "default_expression": "params.get('lat')",
+          "read_expression": "params.get('latitude', params.get('lat'))"
+        },
+        {
+          "key": "lon",
+          "container": "params",
+          "line": 607,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "params.get('longitude', params.get('lon'))"
+        },
+        {
+          "key": "longitude",
+          "container": "params",
+          "line": 607,
+          "default_expression": "params.get('lon')",
+          "read_expression": "params.get('longitude', params.get('lon'))"
+        },
+        {
+          "key": "path_hash_mode",
+          "container": "params",
+          "line": 626,
+          "default_expression": "no default; indexed access",
+          "read_expression": "params['path_hash_mode']"
+        },
+        {
+          "key": "devicepin",
+          "container": "params",
+          "line": 633,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "params.get('pin', params.get('devicepin'))"
+        },
+        {
+          "key": "pin",
+          "container": "params",
+          "line": 633,
+          "default_expression": "params.get('devicepin')",
+          "read_expression": "params.get('pin', params.get('devicepin'))"
+        },
+        {
+          "key": "power",
+          "container": "params",
+          "line": 645,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "params.get('tx_power', params.get('power'))"
+        },
+        {
+          "key": "tx_power",
+          "container": "params",
+          "line": 645,
+          "default_expression": "params.get('power')",
+          "read_expression": "params.get('tx_power', params.get('power'))"
+        },
+        {
+          "key": "frequency",
+          "container": "params",
+          "line": 660,
+          "default_expression": "params.get('radio_freq', self._get_device_baseline('frequency', ('freq', 'radio_freq')))",
+          "read_expression": "params.get('frequency', params.get('radio_freq', self._get_device_baseline('frequency', ('freq', 'radio_freq'))))"
+        },
+        {
+          "key": "radio_freq",
+          "container": "params",
+          "line": 660,
+          "default_expression": "self._get_device_baseline('frequency', ('freq', 'radio_freq'))",
+          "read_expression": "params.get('frequency', params.get('radio_freq', self._get_device_baseline('frequency', ('freq', 'radio_freq'))))"
+        },
+        {
+          "key": "bandwidth",
+          "container": "params",
+          "line": 661,
+          "default_expression": "params.get('bw', self._get_device_baseline('bandwidth', ('bw', 'radio_bw')))",
+          "read_expression": "params.get('bandwidth', params.get('bw', self._get_device_baseline('bandwidth', ('bw', 'radio_bw'))))"
+        },
+        {
+          "key": "bw",
+          "container": "params",
+          "line": 661,
+          "default_expression": "self._get_device_baseline('bandwidth', ('bw', 'radio_bw'))",
+          "read_expression": "params.get('bandwidth', params.get('bw', self._get_device_baseline('bandwidth', ('bw', 'radio_bw'))))"
+        },
+        {
+          "key": "sf",
+          "container": "params",
+          "line": 662,
+          "default_expression": "self._get_device_baseline('spreading_factor', ('sf', 'radio_sf'))",
+          "read_expression": "params.get('spreading_factor', params.get('sf', self._get_device_baseline('spreading_factor', ('sf', 'radio_sf'))))"
+        },
+        {
+          "key": "spreading_factor",
+          "container": "params",
+          "line": 662,
+          "default_expression": "params.get('sf', self._get_device_baseline('spreading_factor', ('sf', 'radio_sf')))",
+          "read_expression": "params.get('spreading_factor', params.get('sf', self._get_device_baseline('spreading_factor', ('sf', 'radio_sf'))))"
+        },
+        {
+          "key": "coding_rate",
+          "container": "params",
+          "line": 663,
+          "default_expression": "params.get('cr', self._get_device_baseline('coding_rate', ('cr', 'radio_cr')))",
+          "read_expression": "params.get('coding_rate', params.get('cr', self._get_device_baseline('coding_rate', ('cr', 'radio_cr'))))"
+        },
+        {
+          "key": "cr",
+          "container": "params",
+          "line": 663,
+          "default_expression": "self._get_device_baseline('coding_rate', ('cr', 'radio_cr'))",
+          "read_expression": "params.get('coding_rate', params.get('cr', self._get_device_baseline('coding_rate', ('cr', 'radio_cr'))))"
+        },
+        {
+          "key": "custom_vars",
+          "container": "params",
+          "line": 718,
+          "default_expression": "no default; indexed access",
+          "read_expression": "params['custom_vars']"
+        }
+      ]
+    },
+    "src/web/controllers/config_controller.py:get_custom_vars": {
+      "file": "src/web/controllers/config_controller.py",
+      "function": "get_custom_vars",
+      "line": 290,
+      "end_line": 297,
+      "request_accesses": []
+    },
+    "src/web/controllers/config_controller.py:set_custom_vars": {
+      "file": "src/web/controllers/config_controller.py",
+      "function": "set_custom_vars",
+      "line": 299,
+      "end_line": 356,
+      "request_accesses": [
+        {
+          "key": "key",
+          "container": "body",
+          "line": 315,
+          "default_expression": "no default; indexed access",
+          "read_expression": "body['key']"
+        },
+        {
+          "key": "val",
+          "container": "body",
+          "line": 318,
+          "default_expression": "''",
+          "read_expression": "body.get('value', body.get('val', ''))"
+        },
+        {
+          "key": "value",
+          "container": "body",
+          "line": 318,
+          "default_expression": "body.get('val', '')",
+          "read_expression": "body.get('value', body.get('val', ''))"
+        },
+        {
+          "key": "vars",
+          "container": "body",
+          "line": 321,
+          "default_expression": "no default; indexed access",
+          "read_expression": "body['vars']"
+        }
+      ]
+    },
+    "src/web/controllers/config_controller.py:delete_custom_var": {
+      "file": "src/web/controllers/config_controller.py",
+      "function": "delete_custom_var",
+      "line": 358,
+      "end_line": 372,
+      "request_accesses": []
+    },
+    "src/web/controllers/config_controller.py:get_path_hash_mode": {
+      "file": "src/web/controllers/config_controller.py",
+      "function": "get_path_hash_mode",
+      "line": 374,
+      "end_line": 383,
+      "request_accesses": []
+    },
+    "src/web/controllers/config_controller.py:set_path_hash_mode": {
+      "file": "src/web/controllers/config_controller.py",
+      "function": "set_path_hash_mode",
+      "line": 385,
+      "end_line": 408,
+      "request_accesses": [
+        {
+          "key": "mode",
+          "container": "body",
+          "line": 390,
+          "default_expression": "body.get('path_hash_mode')",
+          "read_expression": "body.get('mode', body.get('path_hash_mode'))"
+        },
+        {
+          "key": "path_hash_mode",
+          "container": "body",
+          "line": 390,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "body.get('mode', body.get('path_hash_mode'))"
+        }
+      ]
+    },
+    "src/web/controllers/config_controller.py:get_autoadd_config": {
+      "file": "src/web/controllers/config_controller.py",
+      "function": "get_autoadd_config",
+      "line": 410,
+      "end_line": 414,
+      "request_accesses": []
+    },
+    "src/web/controllers/config_controller.py:set_autoadd_config": {
+      "file": "src/web/controllers/config_controller.py",
+      "function": "set_autoadd_config",
+      "line": 416,
+      "end_line": 458,
+      "request_accesses": [
+        {
+          "key": "autoadd",
+          "container": "body",
+          "line": 421,
+          "default_expression": "0",
+          "read_expression": "body.get('flags', body.get('config', body.get('autoadd', 0)))"
+        },
+        {
+          "key": "config",
+          "container": "body",
+          "line": 421,
+          "default_expression": "body.get('autoadd', 0)",
+          "read_expression": "body.get('flags', body.get('config', body.get('autoadd', 0)))"
+        },
+        {
+          "key": "flags",
+          "container": "body",
+          "line": 421,
+          "default_expression": "body.get('config', body.get('autoadd', 0))",
+          "read_expression": "body.get('flags', body.get('config', body.get('autoadd', 0)))"
+        },
+        {
+          "key": "max_hops",
+          "container": "body",
+          "line": 422,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "body.get('max_hops')"
+        }
+      ]
+    },
+    "src/web/controllers/config_controller.py:get_flood_scope": {
+      "file": "src/web/controllers/config_controller.py",
+      "function": "get_flood_scope",
+      "line": 460,
+      "end_line": 464,
+      "request_accesses": []
+    },
+    "src/web/controllers/config_controller.py:set_flood_scope": {
+      "file": "src/web/controllers/config_controller.py",
+      "function": "set_flood_scope",
+      "line": 466,
+      "end_line": 483,
+      "request_accesses": [
+        {
+          "key": "scope",
+          "container": "body",
+          "line": 471,
+          "default_expression": "body.get('scope_name')",
+          "read_expression": "body.get('scope', body.get('scope_name'))"
+        },
+        {
+          "key": "scope_name",
+          "container": "body",
+          "line": 471,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "body.get('scope', body.get('scope_name'))"
+        }
+      ]
+    },
+    "src/web/controllers/config_controller.py:broadcast_advert": {
+      "file": "src/web/controllers/config_controller.py",
+      "function": "broadcast_advert",
+      "line": 183,
+      "end_line": 195,
+      "request_accesses": []
+    },
+    "src/web/controllers/config_controller.py:reboot_local": {
+      "file": "src/web/controllers/config_controller.py",
+      "function": "reboot_local",
+      "line": 280,
+      "end_line": 288,
+      "request_accesses": []
+    },
+    "src/web/controllers/config_controller.py:sync_clock": {
+      "file": "src/web/controllers/config_controller.py",
+      "function": "sync_clock",
+      "line": 197,
+      "end_line": 216,
+      "request_accesses": []
+    },
+    "src/web/controllers/config_controller.py:clear_stats": {
+      "file": "src/web/controllers/config_controller.py",
+      "function": "clear_stats",
+      "line": 218,
+      "end_line": 246,
+      "request_accesses": []
+    },
+    "src/web/controllers/config_controller.py:refresh_hardware_config": {
+      "file": "src/web/controllers/config_controller.py",
+      "function": "refresh_hardware_config",
+      "line": 248,
+      "end_line": 257,
+      "request_accesses": []
+    },
+    "src/web/controllers/config_controller.py:reconnect_serial": {
+      "file": "src/web/controllers/config_controller.py",
+      "function": "reconnect_serial",
+      "line": 259,
+      "end_line": 278,
+      "request_accesses": []
+    },
+    "src/web/api_router.py:_dispatch_services": {
+      "file": "src/web/api_router.py",
+      "function": "_dispatch_services",
+      "line": 746,
+      "end_line": 777,
+      "request_accesses": []
+    },
+    "src/web/controllers/services_controller.py:get_services_config": {
+      "file": "src/web/controllers/services_controller.py",
+      "function": "get_services_config",
+      "line": 32,
+      "end_line": 45,
+      "request_accesses": []
+    },
+    "src/web/controllers/services_controller.py:set_services_config": {
+      "file": "src/web/controllers/services_controller.py",
+      "function": "set_services_config",
+      "line": 47,
+      "end_line": 145,
+      "request_accesses": [
+        {
+          "key": "external_mqtt",
+          "container": "body",
+          "line": 55,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "body.get('external_mqtt')"
+        },
+        {
+          "key": "enabled",
+          "container": "ext",
+          "line": 56,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "isinstance(ext, dict) and ext.get('enabled')"
+        },
+        {
+          "key": "host",
+          "container": "ext",
+          "line": 57,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(ext.get('host') or '').strip()"
+        },
+        {
+          "key": "port",
+          "container": "ext",
+          "line": 62,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "ext.get('port')"
+        },
+        {
+          "key": "transport",
+          "container": "ext",
+          "line": 73,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "ext.get('transport')"
+        },
+        {
+          "key": "auth_type",
+          "container": "ext",
+          "line": 79,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "ext.get('auth_type')"
+        },
+        {
+          "key": "location_privacy",
+          "container": "ext",
+          "line": 85,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "ext.get('location_privacy')"
+        },
+        {
+          "key": "local_mqtt",
+          "container": "body",
+          "line": 92,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "body.get('local_mqtt')"
+        },
+        {
+          "key": "enabled",
+          "container": "loc",
+          "line": 93,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "isinstance(loc, dict) and loc.get('enabled')"
+        },
+        {
+          "key": "port",
+          "container": "loc",
+          "line": 94,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "loc.get('port')"
+        },
+        {
+          "key": "tcp_server",
+          "container": "body",
+          "line": 106,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "body.get('tcp_server')"
+        },
+        {
+          "key": "enabled",
+          "container": "tcp",
+          "line": 107,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "isinstance(tcp, dict) and tcp.get('enabled')"
+        },
+        {
+          "key": "port",
+          "container": "tcp",
+          "line": 108,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "tcp.get('port')"
+        }
+      ]
+    },
+    "src/web/controllers/services_controller.py:save_preset": {
+      "file": "src/web/controllers/services_controller.py",
+      "function": "save_preset",
+      "line": 147,
+      "end_line": 254,
+      "request_accesses": [
+        {
+          "key": "name",
+          "container": "body",
+          "line": 154,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(body.get('name') or '').strip()"
+        },
+        {
+          "key": "host",
+          "container": "body",
+          "line": 160,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(body.get('host') or '').strip()"
+        },
+        {
+          "key": "port",
+          "container": "body",
+          "line": 166,
+          "default_expression": "1883",
+          "read_expression": "body.get('port', 1883)"
+        },
+        {
+          "key": "id",
+          "container": "body",
+          "line": 176,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(body.get('id') or '').strip()"
+        },
+        {
+          "key": "password",
+          "container": "body",
+          "line": 195,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(body.get('password') or '')"
+        },
+        {
+          "key": "token",
+          "container": "body",
+          "line": 196,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(body.get('token') or '')"
+        },
+        {
+          "key": "description",
+          "container": "body",
+          "line": 206,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(body.get('description') or '')"
+        },
+        {
+          "key": "transport",
+          "container": "body",
+          "line": 209,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(body.get('transport') or 'tcp')"
+        },
+        {
+          "key": "tls_enabled",
+          "container": "body",
+          "line": 210,
+          "default_expression": "False",
+          "read_expression": "bool(body.get('tls_enabled', False))"
+        },
+        {
+          "key": "tls_verify",
+          "container": "body",
+          "line": 211,
+          "default_expression": "True",
+          "read_expression": "bool(body.get('tls_verify', True))"
+        },
+        {
+          "key": "auth_type",
+          "container": "body",
+          "line": 212,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(body.get('auth_type') or 'anonymous')"
+        },
+        {
+          "key": "username",
+          "container": "body",
+          "line": 213,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(body.get('username') or '')"
+        },
+        {
+          "key": "downlink_enabled",
+          "container": "body",
+          "line": 216,
+          "default_expression": "False",
+          "read_expression": "bool(body.get('downlink_enabled', False))"
+        },
+        {
+          "key": "location_privacy",
+          "container": "body",
+          "line": 217,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(body.get('location_privacy') or 'fuzzed')"
+        },
+        {
+          "key": "topic_mode",
+          "container": "body",
+          "line": 218,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(body.get('topic_mode') or 'standard')"
+        },
+        {
+          "key": "topic_prefix",
+          "container": "body",
+          "line": 219,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(body.get('topic_prefix') or 'meshcore/remote')"
+        },
+        {
+          "key": "region_iata",
+          "container": "body",
+          "line": 220,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(body.get('region_iata') or 'XXX').upper()"
+        },
+        {
+          "key": "payload_format",
+          "container": "body",
+          "line": 221,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(body.get('payload_format') or 'json_canonical')"
+        },
+        {
+          "key": "filter_observer_mode",
+          "container": "body",
+          "line": 222,
+          "default_expression": "False",
+          "read_expression": "bool(body.get('filter_observer_mode', False))"
+        },
+        {
+          "key": "filter_public",
+          "container": "body",
+          "line": 223,
+          "default_expression": "True",
+          "read_expression": "bool(body.get('filter_public', True))"
+        },
+        {
+          "key": "filter_channels",
+          "container": "body",
+          "line": 224,
+          "default_expression": "True",
+          "read_expression": "bool(body.get('filter_channels', True))"
+        },
+        {
+          "key": "filter_direct",
+          "container": "body",
+          "line": 225,
+          "default_expression": "False",
+          "read_expression": "bool(body.get('filter_direct', False))"
+        },
+        {
+          "key": "filter_telemetry",
+          "container": "body",
+          "line": 226,
+          "default_expression": "True",
+          "read_expression": "bool(body.get('filter_telemetry', True))"
+        },
+        {
+          "key": "filter_nodes",
+          "container": "body",
+          "line": 227,
+          "default_expression": "True",
+          "read_expression": "bool(body.get('filter_nodes', True))"
+        },
+        {
+          "key": "filter_raw",
+          "container": "body",
+          "line": 228,
+          "default_expression": "False",
+          "read_expression": "bool(body.get('filter_raw', False))"
+        },
+        {
+          "key": "keepalive",
+          "container": "body",
+          "line": 229,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "int(body.get('keepalive') or 60)"
+        },
+        {
+          "key": "qos",
+          "container": "body",
+          "line": 230,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "int(body.get('qos') or 0)"
+        }
+      ]
+    },
+    "src/web/controllers/services_controller.py:delete_preset": {
+      "file": "src/web/controllers/services_controller.py",
+      "function": "delete_preset",
+      "line": 256,
+      "end_line": 284,
+      "request_accesses": []
+    },
+    "src/web/controllers/services_controller.py:test_external_mqtt": {
+      "file": "src/web/controllers/services_controller.py",
+      "function": "test_external_mqtt",
+      "line": 286,
+      "end_line": 339,
+      "request_accesses": [
+        {
+          "key": "host",
+          "container": "body",
+          "line": 293,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(body.get('host') or '').strip()"
+        },
+        {
+          "key": "port",
+          "container": "body",
+          "line": 299,
+          "default_expression": "1883",
+          "read_expression": "body.get('port', 1883)"
+        },
+        {
+          "key": "password",
+          "container": "body",
+          "line": 312,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(body.get('password') or '')"
+        },
+        {
+          "key": "token",
+          "container": "body",
+          "line": 313,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(body.get('token') or '')"
+        },
+        {
+          "key": "transport",
+          "container": "body",
+          "line": 323,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(body.get('transport') or 'tcp')"
+        },
+        {
+          "key": "tls_enabled",
+          "container": "body",
+          "line": 324,
+          "default_expression": "False",
+          "read_expression": "bool(body.get('tls_enabled', False))"
+        },
+        {
+          "key": "tls_verify",
+          "container": "body",
+          "line": 325,
+          "default_expression": "True",
+          "read_expression": "bool(body.get('tls_verify', True))"
+        },
+        {
+          "key": "auth_type",
+          "container": "body",
+          "line": 326,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(body.get('auth_type') or 'anonymous')"
+        },
+        {
+          "key": "username",
+          "container": "body",
+          "line": 327,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "str(body.get('username') or '')"
+        },
+        {
+          "key": "timeout",
+          "container": "body",
+          "line": 332,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "float(body.get('timeout') or 5.0)"
+        }
+      ]
+    },
+    "src/web/api_router.py:_dispatch_packets": {
+      "file": "src/web/api_router.py",
+      "function": "_dispatch_packets",
+      "line": 449,
+      "end_line": 478,
+      "request_accesses": [
+        {
+          "key": "format",
+          "container": "req_body",
+          "line": 453,
+          "default_expression": "'json'",
+          "read_expression": "str(req_body.get('format', 'json')).lower()"
+        },
+        {
+          "key": "limit",
+          "container": "req_body",
+          "line": 461,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "req_body.get('limit')"
+        },
+        {
+          "key": "offset",
+          "container": "req_body",
+          "line": 462,
+          "default_expression": "None (dict.get implicit)",
+          "read_expression": "req_body.get('offset')"
+        },
+        {
+          "key": "direction",
+          "container": "req_body",
+          "line": 463,
+          "default_expression": "''",
+          "read_expression": "str(req_body.get('direction', ''))"
+        },
+        {
+          "key": "type",
+          "container": "req_body",
+          "line": 464,
+          "default_expression": "''",
+          "read_expression": "str(req_body.get('type', ''))"
+        },
+        {
+          "key": "order",
+          "container": "req_body",
+          "line": 465,
+          "default_expression": "'asc'",
+          "read_expression": "str(req_body.get('order', 'asc'))"
+        }
+      ]
+    },
+    "src/web/controllers/packets_controller.py:get_packets": {
+      "file": "src/web/controllers/packets_controller.py",
+      "function": "get_packets",
+      "line": 18,
+      "end_line": 53,
+      "request_accesses": []
+    },
+    "src/web/controllers/packets_controller.py:clear_packets": {
+      "file": "src/web/controllers/packets_controller.py",
+      "function": "clear_packets",
+      "line": 105,
+      "end_line": 115,
+      "request_accesses": []
+    },
+    "src/web/controllers/packets_controller.py:export_packets": {
+      "file": "src/web/controllers/packets_controller.py",
+      "function": "export_packets",
+      "line": 55,
+      "end_line": 103,
+      "request_accesses": []
+    },
+    "src/web/api_router.py:_dispatch_misc": {
+      "file": "src/web/api_router.py",
+      "function": "_dispatch_misc",
+      "line": 779,
+      "end_line": 807,
+      "request_accesses": []
+    },
+    "src/web/controllers/logs_controller.py:_handle_raw_logs_download": {
+      "file": "src/web/controllers/logs_controller.py",
+      "function": "_handle_raw_logs_download",
+      "line": 122,
+      "end_line": 139,
+      "request_accesses": []
+    }
+  },
+  "excluded": {
+    "recognized_nonfunctional": [
+      {
+        "method": "GET",
+        "path": "/api/logs",
+        "result": "404 log_not_found"
+      }
+    ],
+    "binary_tile": {
+      "method": "GET",
+      "pattern": "/api/map/tiles/{z}/{x}/{y}[.<suffix>][/{extra...}]",
+      "owner": "native HTTP server, outside ApiRouter",
+      "input": "int(z,x,y before first dot); suffix and trailing segments ignored; query ignored; no business DTO"
+    },
+    "transport_static": "OPTIONS, unknown methods, malformed bodies, HEAD and static serving covered by perimeter baseline"
+  }
+}

@@ -8,7 +8,7 @@
 
 **Base inspeccionada:** HEAD `558385ad77afb8e691252c037dacb76e730b51db` y el árbol de trabajo existente. Había modificaciones ajenas sin commit: los hallazgos describen ese checkout, no sólo el commit.
 
-**Alcance inicial:** reunión técnica de los roles 0 a 7 y del rol 8 propuesto; revisión documental publicada en `457903d`. **Continuación autorizada:** catálogos y dependencias de fase 0, infraestructura de fase 1 publicada en `e8a7030` y seguridad perimetral preparada el 2026-10-09. Los candidatos se descargaron para inspección, sin instalarlos en el entorno del bridge. El usuario indicó «Continúa sin ejecutar suites»; no se arrancan servicios, radio o workflows.
+**Alcance inicial:** reunión técnica de los roles 0 a 7 y del rol 8 propuesto; revisión documental publicada en `457903d`. **Continuación autorizada:** catálogos y dependencias de fase 0, infraestructura de fase 1 publicada en `e8a7030`, seguridad perimetral publicada en `9eead69` y preparación de DTO/errores de fase 2 el 2026-10-09. Los candidatos se descargaron para inspección, sin instalarlos en el entorno del bridge. El usuario indicó «Continúa sin ejecutar suites»; no se arrancan servicios, radio o workflows.
 
 ## 1. Dictamen y autoridad
 
@@ -98,7 +98,8 @@ Las fases se entregan secuencialmente. El usuario autorizó comenzar y continuar
 |---|---|---|
 | 0 | Preparación documental y binaria entregada | [Informe](docs/fastapi/PHASE_0_REPORT.md); seis cierres con wheels, catálogos y snapshot. Recursos e interoperabilidad sin medir |
 | 1 | Infraestructura y seguridad ASGI preparadas; aceptación operativa pendiente | [Informe](docs/fastapi/PHASE_1_REPORT.md) y [seguridad](docs/fastapi/PHASE_1_SECURITY_REPORT.md); servidor actual predeterminado, candidato sin endpoints de negocio/WS/SPA. Lifecycle y paridad en ejecución sin verificar |
-| 2–4 | Pendientes | DTO/errores, rutas, WS/SPA/mapas según catálogos |
+| 2 | DTO y errores del framework preparados; aceptación pendiente | [Informe](docs/fastapi/PHASE_2_REPORT.md), [inventario](docs/fastapi/PHASE_2_REQUEST_INVENTORY.json) y [ejemplos sanitizados](docs/fastapi/PHASE_2_COMPATIBILITY_CASES.json); sin endpoints ni validación en ejecución |
+| 3–4 | Pendientes | Rutas, WS/SPA/mapas según catálogos |
 | 5–6 | Pendientes | OpenAPI, QA autorizado, instaladores, adopción y retiro |
 
 [ADR 0011](docs/adr/0011-staged-asgi-migration.md) registra la preparación autorizada y sus condiciones de adopción. No se convierte una comprobación pendiente en aprobada por no ejecutar suites.
@@ -189,6 +190,13 @@ Retirar X-XSS-Protection: 1; mode=block como requisito añadido sin fundamento e
 ### Fase 2. DTO y errores compatibles
 
 **Responsables:** 1, 2, 5 y 8. **Objetivo:** declarar contrato observado sin imponer otro por accidente.
+
+Preparación entregada el 2026-10-09: DTO permisivos por familia/operación,
+inventario de 90 operaciones JSON/69 rutas y errores seguros del framework
+registrados en la fábrica inactiva. La [fase 2](docs/fastapi/PHASE_2_REPORT.md)
+explica presencia/coerción/extras, límites de seguridad y aceptación pendiente.
+Los handlers no redactan respuestas que el router ya convierte en errores;
+ese camino requiere integración explícita en fase 3.
 
 #### 2.1 Modelos por operación
 

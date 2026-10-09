@@ -9,9 +9,12 @@ Actualización de preparación del 2026-10-09: existe un adaptador ASGI opcional
 inactivo en `src/web/asgi_server.py`, con estado prestado y controles de ingreso
 HTTP/WS. La fábrica del bridge conserva `MeshCoreWebServer`; los diagramas
 siguientes representan ese camino activo. La [fase 1](fastapi/PHASE_1_REPORT.md)
-y su [seguridad](fastapi/PHASE_1_SECURITY_REPORT.md) separan código preparatorio,
+y su [seguridad](fastapi/PHASE_1_SECURITY_REPORT.md), junto con los
+[DTO/errores de fase 2](fastapi/PHASE_2_REPORT.md), separan código preparatorio,
 contratos pendientes y evidencia estática de aceptación operativa. No se crean
-endpoints, hardware ni nuevos servicios desde la fábrica ASGI.
+endpoints, hardware ni nuevos servicios desde la fábrica ASGI. Los handlers de
+errores del framework están registrados en el candidato; los DTO todavía no
+intervienen en endpoints ni cambian validaciones de los controladores actuales.
 
 El framing Companion oficial (`<`/`>`, longitud `uint16` little-endian y payload) es distinto del formato raw propio `0xAA/0x55/0x1B` con CRC-16 de `MeshcoreFrame`. El adaptador raw actual es un parser en memoria sin E/S física; no es una etapa obligatoria del RX/TX SDK ni del paquete RF oficial.
 

@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-09",
+  "evidence": "Expected examples from source inspection; none executed. These are documentation fixtures, not passing tests.",
+  "dto_handoff_cases": [
+    {"id": "absent-fields", "model": "SendTxBodyDTO", "body": {}, "expected_body": {}},
+    {"id": "explicit-null", "model": "SendTxBodyDTO", "body": {"text": null, "to": null}, "expected_body": {"text": null, "to": null}},
+    {"id": "destination-presence", "model": "SendTxBodyDTO", "body": {"text": "hola", "to": null, "target": "broadcast"}, "expected_body": {"text": "hola", "to": null, "target": "broadcast"}},
+    {"id": "untrimmed-destination", "model": "SendTxBodyDTO", "body": {"text": " hola ", "to": " broadcast "}, "expected_body": {"text": " hola ", "to": " broadcast "}},
+    {"id": "boolean-channel", "model": "SendTxBodyDTO", "body": {"channel_index": true}, "expected_body": {"channel_index": true}},
+    {"id": "fractional-channel", "model": "SendTxBodyDTO", "body": {"channel_index": 2.9}, "expected_body": {"channel_index": 2.9}},
+    {"id": "query-list", "model": "PacketsBodyDTO", "body": {"limit": ["1", "2"]}, "expected_body": {"limit": ["1", "2"]}},
+    {"id": "extra-nested-values", "model": "ConfigBodyDTO", "body": {"vendor_option": {"enabled": false, "names": [null, ""]}}, "expected_body": {"vendor_option": {"enabled": false, "names": [null, ""]}}},
+    {"id": "false-is-present", "model": "ServicesConfigBodyDTO", "body": {"external_mqtt": false}, "expected_body": {"external_mqtt": false}},
+    {"id": "nested-coercion-deferred", "model": "ServicesConfigBodyDTO", "body": {"external_mqtt": {"enabled": "false", "port": "1883"}}, "expected_body": {"external_mqtt": {"enabled": "false", "port": "1883"}}},
+    {"id": "contact-transfer-aliases", "model": "ContactTransferBodyDTO", "body": {"public_key": null, "key": "invalid-placeholder", "contacts": []}, "expected_body": {"public_key": null, "key": "invalid-placeholder", "contacts": []}},
+    {"id": "unknown-command-fields", "model": "RepeaterBodyDTO", "body": {"params": {"custom": 0}, "custom_extension": "example"}, "expected_body": {"params": {"custom": 0}, "custom_extension": "example"}}
+  ],
+  "controller_and_query_cases": [
+    {"id": "tx-missing-text-before-target", "method": "POST", "path": "/api/tx", "body": {}, "expected_status": 400, "expected_error": "missing_text_field", "source": "src/web/controllers/tx_controller.py:send_tx"},
+    {"id": "tx-null-to-wins", "method": "POST", "path": "/api/tx", "body": {"text": "hola", "to": null, "target": "broadcast"}, "expected_status": 422, "expected_error": "null_target_destination", "source": "src/web/controllers/tx_controller.py:send_tx"},
+    {"id": "tx-int-coercion", "body": {"channel_index": true}, "expected_coercion": 1, "source": "src/web/controllers/tx_controller.py:send_tx", "note": "Role/locality checks run first; this is not an expected overall request success."},
+    {"id": "tx-float-coercion", "body": {"channel_index": 2.9}, "expected_coercion": 2, "source": "src/web/controllers/tx_controller.py:send_tx", "note": "Text/target/role checks run before coercion; this is not an expected overall request success."},
+    {"id": "query-body-null-priority", "path": "/api/packets?limit=10", "body": {"limit": null}, "expected_merged": {"limit": null}, "expected_limit": 100, "source": "src/web/api_router.py:handle_request/_parse_bounded_int"},
+    {"id": "query-empty-preserved", "path": "/api/packets?limit=", "body": {}, "expected_merged": {"limit": ""}, "expected_limit": 100, "source": "src/web/api_router.py:handle_request/_parse_bounded_int"},
+    {"id": "query-repeat-not-last-wins", "path": "/api/packets?limit=1&limit=2", "body": {}, "expected_merged": {"limit": ["1", "2"]}, "expected_status": 400, "expected_error": "invalid_integer_param", "source": "src/web/api_router.py:handle_request/_parse_bounded_int"},
+    {"id": "logs-special-query", "path": "/api/system/logs?limit=&limit=5", "body": {"limit": 99}, "expected_log_limit": 5, "source": "src/web/controllers/logs_controller.py:route_logs", "note": "Reparses raw query without keep_blank_values; body and global merged DTO are ignored."},
+    {"id": "utf8-not-character-limit", "field": "text", "construction": "81 copies of U+00E9", "utf8_bytes": 162, "characters": 81, "source": "src/serial/sdk_adapter.py:send_message", "note": "Existing SDK byte guard remains authority; DTO does not impose max_length=160."},
+    {"id": "contact-role-rejection", "context": "valid 64-hex nonlocal contact key, valid name, role REPEATER", "expected_status": 400, "expected_error": "repeater_contact_forbidden", "source": "src/web/controllers/contacts_controller.py:_contact_validation"},
+    {"id": "partial-result-extensions", "source": "src/web/controllers/base.py:command_failure", "preserve_fields_if_present": ["applied", "config", "action", "dispatched_commands", "target_node"], "generated_partial_when_status_PARTIAL": true, "note": "No narrowed response_model or serialization through ProblemDetailsDTO."}
+  ]
+}

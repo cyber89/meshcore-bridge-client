@@ -87,7 +87,7 @@ La continuación de seguridad del 2026-10-09 se documenta en
 [PHASE_1_SECURITY_REPORT.md](PHASE_1_SECURITY_REPORT.md): auth, Origin, headers,
 lectura, reservas WS y privacidad de logs están conectados al candidato inactivo.
 
-Antes de aceptar fase 1 y portar DTO/rutas:
+Antes de aceptar fase 1 y activar los contratos preparados:
 
 1. Verificar en ejecución las políticas trasladadas REST/WS de autenticación,
    Origin/CORS, inspector, límites de lectura y cabeceras del
@@ -101,5 +101,7 @@ Antes de aceptar fase 1 y portar DTO/rutas:
    un entorno aislado; comparar recursos sin inventar presupuestos numéricos.
 
 No se retira el servidor anterior, no se añade tráfico RF, no se rearman timers
-de radio y no se cambian límites/intervalos de la malla. Las fases 2 a 6 siguen
-pendientes en [PROYECTO.md](../../PROYECTO.md).
+de radio y no se cambian límites/intervalos de la malla. La
+[preparación de DTO/errores de fase 2](PHASE_2_REPORT.md) avanzó el 2026-10-09;
+no declara superadas estas puertas. Las fases 3 a 6 siguen pendientes en
+[PROYECTO.md](../../PROYECTO.md).

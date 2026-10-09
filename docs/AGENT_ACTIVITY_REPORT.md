@@ -2,6 +2,15 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: DTO y errores preparatorios de fase 2 de FastAPI
+
+- **Fecha/base**: 2026-10-09; `9eead69` y cambios anteriores del checkout conservados. Continuación autorizada sin suites.
+- **Equipo**: líder/integrador y tres especialistas de modelos Python, contratos y seguridad. Propiedad separada; skills Python, contratos API, seguridad, gobernanza ADR y verificación.
+- **Cambios**: 26 modelos de frontera/esquema documental, inventario de 90 operaciones JSON/69 rutas, 23 ejemplos sanitizados y handlers del framework en el candidato; JSON sin filtros de respuesta, `204`/HEAD delegados a sus capas.
+- **Revisión**: conserva ausencia/null/extras y validación/coerción de controladores. Los DTO omiten valores en representaciones; errores nuevos no reflejan objetos de validación o excepciones. Los errores retornados y logs del router necesitan redacción explícita en fase 3; no se afirma protección global.
+- **Verificación**: fuentes/wheels y AST 3.10, estructura JSON, hashes, referencias y diff propio. Sin suites/cobertura, mypy, Ruff, navegador, imports del candidato, servicios o hardware. No se activan rutas ni se alteran controles de radio.
+- **Entrega y límites**: [informe de fase 2](fastapi/PHASE_2_REPORT.md), [inventario](fastapi/PHASE_2_REQUEST_INVENTORY.json), [casos](fastapi/PHASE_2_COMPATIBILITY_CASES.json); plan, arquitectura y ADR conciliados. Paridad y aceptación operativa pendientes; siguiente fase, rutas por lotes.
+
 ### Hito: Seguridad perimetral del candidato ASGI de fase 1
 
 - **Fecha/base**: 2026-10-09; `e8a7030` y checkout anterior conservado. Continuación autorizada sin suites.

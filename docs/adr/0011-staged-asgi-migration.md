@@ -61,3 +61,16 @@ sin query o valores de excepciones. El orden del middleware cubre también heade
 de los 500 del framework. Las diferencias de framing, handshake y reserva se
 registran expresamente; no se certifica paridad mediante lectura. La fábrica sigue
 seleccionando el servidor anterior y las suites permanecen suspendidas.
+
+### Preparación de fase 2
+
+Se añadieron [DTO y errores](../fastapi/PHASE_2_REPORT.md): modelos de frontera
+permisivos que conservan presencia, valores y extras; esquema Problem Details
+documental sin filtro de respuestas; serialización JSON compatible y handlers
+del framework con mensajes seguros. El inventario relaciona operaciones con
+fuentes y modelos. No se activan endpoints ni imports del candidato en producción.
+
+Los controladores mantienen validación, coerción y dominio. Sus errores
+retornados y logs pueden incluir detalles que los handlers no interceptan;
+la fase de rutas debe abordar esa redacción expresamente. Las puertas de
+ejecución y la adopción siguen pendientes, sin relajar la instrucción del usuario.
