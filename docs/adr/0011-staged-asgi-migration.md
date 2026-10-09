@@ -116,3 +116,28 @@ ejecución que puedan emitir transmisiones LoRa accidentales.
 El candidato ASGI permanece inactivo en la configuración predeterminada del bridge.
 Las puertas operativas, suites de pruebas automatizadas y adopción en producción continúan
 pendientes para la fase 6, respetando la instrucción de suspender ejecución de suites.
+
+### Preparación de fase 6
+
+La [fase 6](../fastapi/PHASE_6_REPORT.md) establece el modelo de release basado en perfiles
+de dependencia (`core` por defecto vs `web` opcional) y el registro de gobernanza
+[PHASE_6_RELEASE_REGISTRY.json](../fastapi/PHASE_6_RELEASE_REGISTRY.json). El perfil `core`
+mantiene las cuatro dependencias esenciales (`pyserial`, `paho-mqtt`, `meshcore`, `dotenv`)
+con soporte para estaciones y microcontroladores o SBCs de bajos recursos (ej. 512 MB RAM),
+evitando la compilación de `pydantic-core` (Rust/C) en arquitecturas sin wheels precompilados.
+El perfil `web` incorpora `fastapi`, `uvicorn`, `pydantic` y `websockets` para estaciones que
+habiliten el candidato ASGI.
+
+Se actualizó `scripts/check_runtime_dependencies.py` con soporte para `--profile core` y
+`--profile web` (o variable de entorno `MESHCORE_PROFILE`), preservando la tupla inmutable
+`DEPENDENCIES` para compatibilidad de pruebas existentes. Se integró `requirements-web.txt` en
+los componentes gestionados por `scripts/staged_update.py`, garantizando verificación de sintaxis,
+despliegue en staging y reversión atómica en caso de fallo.
+
+El balance de retiro del servidor heredado proyecta una reducción neta de -321 líneas y -17.3%
+en bytes de código web tras la convergencia completa. El servidor `MeshCoreWebServer` permanece
+como el runtime predeterminado activo en `bridge_core.py`. La activación en producción de ASGI
+queda condicionada al cumplimiento de las nueve puertas operativas definidas en el registro de
+release, manteniendo intactas las restricciones de no ejecutar suites de pruebas automatizadas y
+no transmitir tramas de radio LoRa sin autorización explícita.
+

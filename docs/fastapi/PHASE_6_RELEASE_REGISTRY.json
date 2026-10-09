@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "phase": 6,
+  "date": "2026-10-09",
+  "base": "a32cb14",
+  "status": "Release documentation and installer profile hardening prepared; candidate remains optional/inactive pending operational execution gates",
+  "profiles": {
+    "core": {
+      "description": "Headless gateway profile for low-resource SBCs (Orange Pi 2W, Raspberry Pi Zero 2W, 512MB RAM)",
+      "manifest": "requirements.txt",
+      "dependencies": [
+        {
+          "name": "paho-mqtt",
+          "module": "paho.mqtt.client",
+          "min_version": "2.1.0"
+        },
+        {
+          "name": "meshcore",
+          "module": "meshcore",
+          "min_version": "2.3.8"
+        },
+        {
+          "name": "pyserial",
+          "module": "serial",
+          "min_version": "3.5.0"
+        },
+        {
+          "name": "python-dotenv",
+          "module": "dotenv",
+          "min_version": "1.0.1"
+        }
+      ],
+      "ram_footprint_rss_mb": "35 - 45 MB",
+      "server_default": "MeshCoreWebServer (native asyncio.start_server)"
+    },
+    "web": {
+      "description": "Full ASGI profile with OpenAPI 3.1.0 and offline documentation viewer",
+      "manifest": "requirements-web.txt",
+      "pyproject_extra": "web",
+      "dependencies": [
+        {
+          "name": "fastapi",
+          "module": "fastapi",
+          "pinned_version": "0.143.0"
+        },
+        {
+          "name": "uvicorn",
+          "module": "uvicorn",
+          "pinned_version": "0.54.0"
+        },
+        {
+          "name": "pydantic",
+          "module": "pydantic",
+          "pinned_version": "2.14.0"
+        },
+        {
+          "name": "websockets",
+          "module": "websockets",
+          "pinned_version": "16.1.1"
+        }
+      ],
+      "ram_footprint_rss_mb": "75 - 90 MB",
+      "server_candidate": "create_asgi_app (Uvicorn SansIO embedded loop)"
+    }
+  },
+  "installer_contracts": {
+    "checker_script": "scripts/check_runtime_dependencies.py",
+    "checker_cli_flag": "--profile {core,web}",
+    "checker_env_var": "MESHCORE_PROFILE",
+    "staged_update_helper": "scripts/staged_update.py",
+    "staged_update_components": [
+      "src",
+      "scripts",
+      "docs",
+      "config.py",
+      "meshcore_bridge.py",
+      "requirements.txt",
+      "requirements-web.txt",
+      "pyproject.toml",
+      "meshcore-bridge.service",
+      ".env.example",
+      "run_interactive_demo.py",
+      "install.sh",
+      "install.ps1",
+      "venv"
+    ],
+    "atomic_rollback": true,
+    "operational_data_preservation": [
+      ".env",
+      "data/nodes.json",
+      "data/channels.json",
+      "data/maps/",
+      "logs/"
+    ]
+  },
+  "process_model": {
+    "entrypoint": "meshcore_bridge.py",
+    "execution_mode": "single-process asyncio event loop",
+    "uvicorn_embedding": "uvicorn.Server.serve() called directly in loop without uvicorn.run or CLI reload",
+    "signal_handlers_intercepted": false,
+    "multiprocess_workers": 1,
+    "radio_ownership": "Single owner; BridgeCore owns serial adapter; web server only borrows context"
+  },
+  "codebase_accounting": {
+    "legacy_stack": {
+      "file_count": 14,
+      "line_count": 4875,
+      "byte_count": 233173,
+      "primary_modules": [
+        "src/web/http_server.py",
+        "src/web/api_router.py",
+        "src/web/controllers/*"
+      ]
+    },
+    "asgi_candidate_stack": {
+      "file_count": 16,
+      "line_count": 4554,
+      "byte_count": 192879,
+      "primary_modules": [
+        "src/web/asgi_server.py",
+        "src/web/asgi_security.py",
+        "src/web/asgi_routes.py",
+        "src/web/asgi_ws_hub.py",
+        "src/web/asgi_assets.py",
+        "src/web/asgi_docs.py",
+        "src/web/asgi_openapi.py",
+        "src/web/request_models.py"
+      ]
+    }
+  },
+  "release_gates": [
+    "RELEASE-GATE-01: Verificación de perfiles de dependencias (core y web) en los 6 entornos diana",
+    "RELEASE-GATE-02: Verificación de instalación limpia y actualización transaccional con install.sh --update",
+    "RELEASE-GATE-03: Verificación de arranque y parada limpia de meshcore-bridge.service en systemd",
+    "RELEASE-GATE-04: Verificación de rollback transaccional ante fallo simulado durante staged_update",
+    "RELEASE-GATE-05: Verificación de preservación íntegra de archivos .env y data/*.json en actualización",
+    "RELEASE-GATE-06: Verificación de ciclo de vida del puente: timeout de apagado conjunto acotado a 1.5s",
+    "RELEASE-GATE-07: Comprobación de que no existen procesos huérfanos ni tareas de asyncio sin cancelar",
+    "RELEASE-GATE-08: Verificación de compatibilidad estricta con Python 3.10 sin constructos exclusivos 3.11+",
+    "RELEASE-GATE-09: Aprobación formal de adopción del candidato ASGI y cambio de servidor predeterminado en BridgeCore"
+  ]
+}

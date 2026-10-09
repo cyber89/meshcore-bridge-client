@@ -359,7 +359,9 @@ Actualizar arquitectura/manuales/CONTEXT cuando proceda, despliegue/pruebas/índ
 
 Publicar sólo archivos/hunks propios conforme AGENTS, verificando rama/remoto/índice, sin force push. Publicación de esta revisión documental distinta de release FastAPI.
 
-**Puerta:** paridad/recursos acreditados, rollback comprobado, perfiles/servicio actualizados, documentación sincronizada y aceptación de release según alcance autorizado.
+**Estado de fase 6:** Preparación completada en [`PHASE_6_REPORT.md`](docs/fastapi/PHASE_6_REPORT.md) y [`PHASE_6_RELEASE_REGISTRY.json`](docs/fastapi/PHASE_6_RELEASE_REGISTRY.json). Perfiles `core` y `web` implementados en [`check_runtime_dependencies.py`](scripts/check_runtime_dependencies.py) y [`staged_update.py`](scripts/staged_update.py). Guías de despliegue sincronizadas en [`DEPLOYMENT_GUIDE.md`](docs/DEPLOYMENT_GUIDE.md). Todas las 6 fases preparatorias de la migración están concluidas y registradas.
+
+**Puerta final:** 9 compuertas de release formalizadas. La activación en producción de FastAPI y cambio de servidor predeterminado en `BridgeCore` permanecen condicionados a la ejecución autorizada de las pruebas de integración en entorno virtual.
 
 ## 5. Riesgos y decisiones pendientes
 

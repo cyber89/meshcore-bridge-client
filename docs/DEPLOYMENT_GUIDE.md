@@ -42,6 +42,17 @@ sudo bash install.sh --update
 6. Crea `venv/` e instala `requirements.txt`: `paho-mqtt`, `meshcore`, `python-dotenv` y `pyserial`. El decodificador CayenneLPP es nativo; no requiere `pycayennelpp` ni el parser raw actual importa `pyserial-asyncio`.
 7. Registra, habilita y arranca el servicio **`meshcore-bridge.service`** en systemd.
 
+### 📦 Perfiles de Instalación (Headless Core vs. Web ASGI)
+
+MeshCore Bridge soporta dos perfiles de dependencias según el hardware y caso de uso:
+
+- **Perfil `core` (Por Defecto)**: Instala las 4 dependencias mínimas de `requirements.txt`. Optimizado para SBCs ligeros (Orange Pi 2W, Raspberry Pi Zero 2W con 512 MB de RAM). Huella de memoria mínima (~35-45 MB RSS) y cero riesgo de compilación Rust.
+- **Perfil `web` (Stack ASGI Opcional)**: Añade `requirements-web.txt` (`fastapi`, `uvicorn`, `pydantic`, `websockets`) para soporte OpenAPI 3.1.0 y visor local offline. Para verificarlo, defina `MESHCORE_PROFILE=web` o ejecute:
+  ```bash
+  python scripts/check_runtime_dependencies.py --profile core   # Perfil base
+  python scripts/check_runtime_dependencies.py --profile web    # Perfil ASGI
+  ```
+
 ---
 
 ## 🛠️ Método 2: Despliegue Manual Paso a Paso

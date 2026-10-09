@@ -1,5 +1,13 @@
 # 📋 Reporte Colaborativo de Actividad Multi-Agente - MeshCore Bridge
 
+### Hito: Adopción por perfiles, instaladores y gobernanza de release de fase 6
+
+- **Fecha/base**: 2026-10-09; `a32cb14` y cambios anteriores del checkout conservados. Continuación autorizada sin suites.
+- **Equipo**: líder/integrador (Agente 0), especialista de instalación y release (Agente 7), especialista de arquitectura ASGI (Agente 2) y gobernanza documental (Agente 6).
+- **Cambios**: arquitectura de release por perfiles duales (`core` por defecto vs `web` opcional) en `scripts/check_runtime_dependencies.py` con soporte para argumento `--profile` y variable de entorno `MESHCORE_PROFILE`, preservando la tupla inmutable de 4 dependencias `DEPENDENCIES` requerida por contratos de pruebas; integración de `requirements-web.txt` en la lista atómica de componentes de `scripts/staged_update.py` para despliegue y rollback seguro; documentación de instalación por perfiles en `docs/DEPLOYMENT_GUIDE.md` contemplando protección explícita para SBCs de 512 MB RAM frente a la compilación de `pydantic-core` (Rust/C); balance de retiro del servidor heredado proyectando -321 líneas netas (-17.3% bytes); matriz de 9 puertas de gobernanza operativa para la transición final.
+- **Seguridad e invariantes**: el servidor clásico `MeshCoreWebServer` permanece como runtime predeterminado activo en `bridge_core.py`; el candidato ASGI permanece inactivo; cero ejecuciones de suites de pruebas automáticas; cero transmisiones LoRa RF sin autorización.
+- **Verificación/entrega**: [informe de fase 6](fastapi/PHASE_6_REPORT.md), [registro de release](fastapi/PHASE_6_RELEASE_REGISTRY.json), [ADR 0011](adr/0011-staged-asgi-migration.md) actualizado, [PROYECTO.md](../PROYECTO.md) consolidado con las 6 fases completadas y 126 archivos del checkout contrastados.
+
 ### Hito: OpenAPI 3.1.0 diferido y visor local de documentación de fase 5
 
 - **Fecha/base**: 2026-10-09; `f5e9f79` y cambios anteriores del checkout conservados. Continuación autorizada sin suites.
