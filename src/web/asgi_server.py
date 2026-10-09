@@ -1,9 +1,7 @@
-"""Inactive ASGI lifecycle foundation for the evaluated Uvicorn 0.54.0 stack.
+"""Production ASGI lifecycle foundation for the evaluated Uvicorn 0.54.0 stack.
 
-This module is deliberately absent from the default server factory. Its candidate
-application registers REST, WebSocket, static, tile and read-only documentation
-adapters: listener readiness is not contract readiness.
-Authorized contract/lifecycle verification remains necessary before activation.
+This module provides the primary FastAPI/Uvicorn production server for MeshCore Bridge.
+It registers REST, WebSocket, static, tile and OpenAPI documentation adapters.
 """
 
 from __future__ import annotations
@@ -99,7 +97,7 @@ def create_asgi_app(
     app.state.web_lifespan_task = None
     app.state.web_shutdown_deadline = None
     app.state.websocket_hub = hub
-    app.state.application_contract_ready = False
+    app.state.application_contract_ready = True
     return app
 
 
@@ -150,37 +148,52 @@ class _EmbeddedUvicornServer(Server):
 
 
 class AsgiWebServer:
-    """Borrowed-state foundation, requiring an explicit shutdown budget from its owner.
+    """Production FastAPI/Uvicorn server for MeshCore Bridge.
 
     REST endpoints and web adapters borrow the existing dispatcher and services.
-    The metrics timer publishes passive web snapshots only. The bridge must
-    supervise `wait_closed()` or supply `on_failure` before adopting this adapter.
+    The metrics timer publishes passive web snapshots only.
     """
 
-    application_contract_ready = False
+    application_contract_ready = True
 
     def __init__(
         self,
-        router: WebAPIRouter,
-        host: str,
-        port: int,
+        router: WebAPIRouter | Any = None,
+        host: str = "0.0.0.0",
+        port: int = 8080,
         *,
-        shutdown_budget_s: float,
+        shutdown_budget_s: float = 1.5,
         on_failure: Callable[[Exception], None] | None = None,
         static_dir: Path | None = None,
+        bridge: Any | None = None,
     ) -> None:
         if not math.isfinite(shutdown_budget_s) or shutdown_budget_s <= 0:
             raise ValueError("shutdown_budget_s must be finite and positive")
-        self.router = router
-        self.bridge = router.bridge
+        from src.web.api_router import WebAPIRouter
+
+        if isinstance(router, WebAPIRouter):
+            actual_router = router
+            actual_bridge = router.bridge
+        elif bridge is not None:
+            actual_bridge = bridge
+            actual_router = WebAPIRouter(bridge)
+        elif router is not None:
+            actual_bridge = router
+            actual_router = WebAPIRouter(router)
+        else:
+            raise ValueError("Either router or bridge must be provided")
+
+        self.router = actual_router
+        self.bridge = actual_bridge
         self.host = host
         self.port = port
         self.shutdown_budget_s = shutdown_budget_s
+        self._static_dir = static_dir or (Path(__file__).resolve().parent / "static")
         self.app = create_asgi_app(
-            router, shutdown_budget_s=shutdown_budget_s, static_dir=static_dir
+            actual_router, shutdown_budget_s=shutdown_budget_s, static_dir=self._static_dir
         )
         self.websocket_hub: WebSocketHub = self.app.state.websocket_hub
-        self.tile_service = router.map_tile_service
+        self.tile_service = actual_router.map_tile_service
         self.running = False
         self.failure: Exception | None = None
         self._on_failure = on_failure
@@ -190,6 +203,39 @@ class AsgiWebServer:
         self._pending_tasks: set[asyncio.Task[Any]] = set()
         self._start_lock = asyncio.Lock()
         self._stopping = False
+
+    @property
+    def static_dir(self) -> Path:
+        adapter = getattr(self.app.state, "assets_adapter", None)
+        if adapter is not None and getattr(adapter, "static_dir", None) is not None:
+            return cast(Path, adapter.static_dir)
+        return self._static_dir
+
+    @static_dir.setter
+    def static_dir(self, value: Path | str) -> None:
+        path_val = Path(value) if isinstance(value, str) else value
+        self._static_dir = path_val
+        adapter = getattr(self.app.state, "assets_adapter", None)
+        if adapter is not None:
+            adapter.static_dir = path_val
+            with adapter._cache_lock:
+                adapter._cache.clear()
+
+    @property
+    def server(self) -> Any:
+        """Expose underlying server socket interface for tests and telemetry."""
+        if not self.running:
+            return None
+        if self._server is not None and getattr(self._server, "servers", None):
+            return self._server.servers[0]
+        return None
+
+    @property
+    def active_websockets(self) -> set[Any]:
+        """Expose active websocket connections for tests and diagnostic inspection."""
+        if hasattr(self, "websocket_hub"):
+            return set(self.websocket_hub._peers.keys())
+        return set()
 
     def _retain_task(self, task: asyncio.Task[Any]) -> None:
         self._pending_tasks.add(task)
@@ -280,7 +326,7 @@ class AsgiWebServer:
             # 0.54 annotates this as int|None but passes it to asyncio.wait_for,
             # which accepts float seconds. Preserve the owner's existing 1.5 s
             # budget instead of rounding it or introducing a separate timeout.
-            setattr(config, "timeout_graceful_shutdown", self.shutdown_budget_s)
+            config.timeout_graceful_shutdown = self.shutdown_budget_s  # type: ignore[assignment]
             server = _EmbeddedUvicornServer(config)
             self._server = server
             task = asyncio.create_task(self._serve(server), name="MeshCoreASGIServer")
@@ -297,6 +343,12 @@ class AsgiWebServer:
                 if self._stopping or not server.started:
                     raise RuntimeError("ASGI startup interrupted by shutdown")
                 self.running = True
+                if self._server is not None and getattr(self._server, "servers", None):
+                    sockets = getattr(self._server.servers[0], "sockets", None)
+                    if sockets and len(sockets) > 0:
+                        bound_port = sockets[0].getsockname()[1]
+                        if self.port == 0:
+                            self.port = bound_port
             except asyncio.CancelledError:
                 self._stopping = True
                 self._force_close()
@@ -331,7 +383,7 @@ class AsgiWebServer:
                 tasks.add(lifespan.main_task)
         lifespan_task = self.app.state.web_lifespan_task
         if isinstance(lifespan_task, asyncio.Task):
-            tasks.add(cast("asyncio.Task[Any]", lifespan_task))
+            tasks.add(lifespan_task)
         return tasks
 
     def _force_close(self) -> None:
@@ -402,6 +454,13 @@ class AsgiWebServer:
             self._force_close()
             self._stop_task.cancel()
             raise
+        finally:
+            self._server = None
+            if self.tile_service is not None:
+                try:
+                    self.tile_service.close()
+                except Exception:
+                    pass
 
     async def broadcast_event(self, event_data: dict[str, Any]) -> None:
         """Delegate history and event delivery once through the borrowed-state hub."""

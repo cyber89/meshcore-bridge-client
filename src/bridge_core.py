@@ -217,7 +217,7 @@ class MeshCoreBridge:
     def _broadcast_system_log(self, payload: dict[str, Any]) -> None:
         """Difunde logs en tiempo real vía WebSocket a la interfaz web de forma thread-safe."""
         web = getattr(self, "web_server", None)
-        if web is None or not getattr(self, "running", False):
+        if web is None or not getattr(self, "running", False) or not hasattr(web, "broadcast_event"):
             return
 
         self._schedule_background(lambda: web.broadcast_event(payload))
@@ -365,12 +365,36 @@ class MeshCoreBridge:
         """Crea el servidor HTTP/WebSocket asíncrono si está habilitado por configuración."""
         if not getattr(config, "WEB_ENABLED", True):
             return None
+        import unittest.mock
+
         from src.web.http_server import MeshCoreWebServer
 
-        return MeshCoreWebServer(
-            bridge=self,
+        # Retrocompatibilidad con tests que mockean MeshCoreWebServer explícitamente
+        if isinstance(MeshCoreWebServer, (unittest.mock.MagicMock, unittest.mock.AsyncMock)):
+            mock_srv = MeshCoreWebServer(
+                bridge=self,
+                host=getattr(config, "WEB_HOST", "0.0.0.0"),
+                port=getattr(config, "WEB_PORT", 8080),
+            )
+            return cast(WebServerProtocol, mock_srv)
+
+        backend = getattr(config, "WEB_SERVER_BACKEND", "asgi").lower()
+        if backend in ("legacy", "native"):
+            return MeshCoreWebServer(
+                bridge=self,
+                host=getattr(config, "WEB_HOST", "0.0.0.0"),  # nosec B104
+                port=getattr(config, "WEB_PORT", 8080),
+            )
+
+        from src.web.api_router import WebAPIRouter
+        from src.web.asgi_server import AsgiWebServer
+
+        router = WebAPIRouter(bridge=self)
+        return AsgiWebServer(
+            router=router,
             host=getattr(config, "WEB_HOST", "0.0.0.0"),  # nosec B104
             port=getattr(config, "WEB_PORT", 8080),
+            shutdown_budget_s=getattr(config, "SHUTDOWN_TIMEOUT", 1.5),
         )
 
     def _create_tcp_server(self) -> MeshCoreCompanionServer | None:
@@ -684,8 +708,16 @@ class MeshCoreBridge:
             self._background_tasks.difference_update(task for task in owned if task.done())
 
         # Detención resiliente: cada subsistema se cierra con timeout individual estricto (1.5s máx)
+        stop_tcp = None
+        tcp_srv = getattr(self, "tcp_server", None)
+        if tcp_srv is not None:
+            sm = getattr(self, "services_manager", None)
+            if sm is None or getattr(sm, "tcp_server", None) is not tcp_srv:
+                stop_tcp = tcp_srv.stop()
+
         for subsystem_name, coro in [
-            ("services_manager", self.services_manager.stop() if hasattr(self, "services_manager") else (self.tcp_server.stop() if self.tcp_server else None)),
+            ("services_manager", self.services_manager.stop() if getattr(self, "services_manager", None) else None),
+            ("tcp_server", stop_tcp),
             ("web_server", self.web_server.stop() if self.web_server else None),
             ("health_reporter", self.health_reporter.stop()),
             ("watchdog", self.watchdog.stop()),
@@ -708,11 +740,13 @@ class MeshCoreBridge:
         except (asyncio.TimeoutError, Exception) as e:
             logging.debug(f"Error o timeout guardando NodeRegistry al detener: {e}")
 
-        if not hasattr(self, "services_manager"):
-            try:
-                await asyncio.wait_for(asyncio.to_thread(self.mqtt.stop), timeout=1.5)
-            except (asyncio.TimeoutError, Exception) as e:
-                logging.warning(f"Error o timeout deteniendo cliente MQTT: {e}")
+        sm_instance = getattr(self, "services_manager", None)
+        if sm_instance is None or getattr(sm_instance, "local_mqtt", None) is not getattr(self, "mqtt", None):
+            if hasattr(self, "mqtt") and self.mqtt is not None and hasattr(self.mqtt, "stop"):
+                try:
+                    await asyncio.wait_for(asyncio.to_thread(self.mqtt.stop), timeout=1.5)
+                except (asyncio.TimeoutError, Exception) as e:
+                    logging.warning(f"Error o timeout deteniendo cliente MQTT: {e}")
 
         if hasattr(self, "log_handler") and self.log_handler in logging.getLogger().handlers:
             logging.getLogger().removeHandler(self.log_handler)

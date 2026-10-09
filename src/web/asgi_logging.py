@@ -10,9 +10,14 @@ import logging
 import sys
 import traceback
 from types import TracebackType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from src.web.access_policy import safe_log_path
+
+if TYPE_CHECKING:
+    _BaseLoggerAdapter = logging.LoggerAdapter[logging.Logger]
+else:
+    _BaseLoggerAdapter = logging.LoggerAdapter
 
 _UPGRADE_LOG_PATTERNS = frozenset(
     (
@@ -24,13 +29,14 @@ _UPGRADE_LOG_PATTERNS = frozenset(
 _INVALID_RESULT_LOG = "ASGI callable should return None, but returned '%s'."
 
 
-class SafeProtocolLogger(logging.LoggerAdapter):
+class SafeProtocolLogger(_BaseLoggerAdapter):
     """Suppress frame/header tracing and retain error frames without raw values."""
 
     @property
     def level(self) -> int:
         # Uvicorn accesses .level directly; LoggerAdapter does not provide it.
-        return max(logging.INFO, self.logger.getEffectiveLevel())
+        effective = self.logger.getEffectiveLevel()
+        return max(logging.INFO, int(effective))
 
     def isEnabledFor(self, level: int) -> bool:  # noqa: N802 - stdlib logger interface
         return level >= logging.INFO and self.logger.isEnabledFor(level)

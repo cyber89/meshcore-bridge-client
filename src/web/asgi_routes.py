@@ -115,7 +115,7 @@ def install_rest_routes(app: FastAPI, router: WebAPIRouter) -> None:
         batch: APIRouter(route_class=_RawTargetAPIRoute, redirect_slashes=False)
         for batch in ROUTE_BATCHES
     }
-    counts = {batch: 0 for batch in ROUTE_BATCHES}
+    counts = dict.fromkeys(ROUTE_BATCHES, 0)
     alias_count = 0
     for contract in ROUTE_CONTRACTS:
         batch_router = batches[contract.batch]

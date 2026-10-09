@@ -12,7 +12,6 @@ from typing import Any
 from src.protocol_types import redact_sensitive_mapping
 from src.shared_utils import sanitize_public_payload
 
-
 _PUBLIC_ERROR_DETAILS: dict[str, str] = {
     "command_failed": "El transceptor rechazó la operación",
     "command_partial": "El transceptor confirmó la operación parcialmente",

@@ -62,15 +62,16 @@ class BridgeH11Protocol(H11Protocol):
             scope: Scope, receive: ASGIReceiveCallable, send: ASGISendCallable
         ) -> None:
             if scope["type"] == "http":
-                extensions = dict(scope.get("extensions", {}))
+                raw_ext = scope.get("extensions")
+                extensions: dict[str, Any] = dict(raw_ext) if isinstance(raw_ext, dict) else {}
                 extensions[HTTP_ABORT_EXTENSION] = self._abort_request
                 scope["extensions"] = extensions
             await wrapped_app(scope, receive, send)
 
         self.app = app_with_abort
 
-    def connection_made(self, transport: asyncio.Transport) -> None:
-        super().connection_made(transport)
+    def connection_made(self, transport: asyncio.BaseTransport) -> None:
+        super().connection_made(cast(asyncio.Transport, transport))
         # One deadline for the entire head, never extended by individual chunks.
         self._head_timer = self.loop.call_later(HTTP_READ_TIMEOUT_S, self._head_timeout)
 
