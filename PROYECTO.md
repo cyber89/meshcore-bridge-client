@@ -329,7 +329,9 @@ Conservar regresiones actuales. test_web_server.py llama directamente al router,
 
 Conservar Python 3.10 y versiones soportadas; CI actual con 3.10/3.12. Datos temporales/limpieza garantizada, sin `.env` ni nodos/canales/airtime operativos. [TESTING.md](docs/TESTING.md) define suite; autorizaciones históricas no activan suites aquí.
 
-**Puerta:** resultados actuales por área, pendientes/skips/riesgos revisados. Ejecución futura por petición explícita. Esta reunión no ejecutó ninguna suite.
+**Estado de fase 5:** Preparación estática completada en [`PHASE_5_REPORT.md`](docs/fastapi/PHASE_5_REPORT.md) y [`PHASE_5_DOCUMENTATION_REGISTRY.json`](docs/fastapi/PHASE_5_DOCUMENTATION_REGISTRY.json). OpenAPI 3.1.0 diferido (70 rutas, 90 operaciones canónicas, 50 alias, 25 DTOs), visor local en [`src/web/docs_ui/`](src/web/docs_ui/), CSP restrictivo y autenticación estricta por cabecera. El candidato permanece inactivo en el core.
+
+**Puerta:** 16 compuertas registradas en el catálogo de fase 5 pendientes de ejecución autorizada. Sin suites ejecutadas.
 
 ### Fase 6. Adopción, retiro y publicación
 

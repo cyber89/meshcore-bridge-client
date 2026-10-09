@@ -1,0 +1,2203 @@
+{
+  "schema_version": 1,
+  "phase": 5,
+  "date": "2026-10-09",
+  "base": "f5e9f79",
+  "evidence": "Static source/AST/hash inspection only; no imports, app construction, suites, listener, browser, broker or RF. Runtime acceptance pending.",
+  "counts": {
+    "canonical_json_operations": 90,
+    "canonical_json_paths": 69,
+    "alias_operations": 50,
+    "json_operations": 140,
+    "json_path_patterns": 108,
+    "tile_operations": 1,
+    "functional_rest_operations": 141,
+    "functional_rest_path_patterns": 109,
+    "openapi_paths": 70,
+    "tags": 7,
+    "components_schemas": 25,
+    "scope": "declarative OpenAPI 3.1.0 catalog and offline local documentation"
+  },
+  "documentation": {
+    "spec_version": "3.1.0",
+    "title": "MeshCore Bridge — candidato ASGI de compatibilidad",
+    "version": "phase-5-preparation",
+    "endpoints": [
+      {
+        "path": "/docs",
+        "method": "GET",
+        "type": "html_viewer"
+      },
+      {
+        "path": "/redoc",
+        "method": "GET",
+        "type": "html_viewer_alias"
+      },
+      {
+        "path": "/openapi.json",
+        "method": "GET",
+        "type": "schema_json"
+      },
+      {
+        "path": "/docs/assets/docs.css",
+        "method": "GET",
+        "type": "css"
+      },
+      {
+        "path": "/docs/assets/docs.js",
+        "method": "GET",
+        "type": "javascript"
+      }
+    ],
+    "offline_guarantee": "100% local assets; zero CDN; zero external network requests",
+    "auth_policy": {
+      "header": "X-Api-Key",
+      "query_api_key_permitted_for_docs": false,
+      "empty_env_bypasses": true,
+      "unauthenticated_html_status": 401,
+      "unauthenticated_json_status": 401,
+      "no_store": true,
+      "vary": "X-Api-Key"
+    },
+    "content_security_policy": "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    "execution_policy": "Strictly read-only; no Try-it-out controls; zero radio mutation"
+  },
+  "files": [
+    {
+      "path": "src/web/asgi_openapi.py",
+      "length_bytes": 17824,
+      "sha256": "b43ab22d6e4b514e552bf477e362f86df0677873892d4674b53917746226e1bc"
+    },
+    {
+      "path": "src/web/asgi_openapi_catalog.py",
+      "length_bytes": 42120,
+      "sha256": "fe4c9d0dc9dce3ec091a9208c2175d031b8972dc770f794c1b158ee608632b64"
+    },
+    {
+      "path": "src/web/asgi_docs.py",
+      "length_bytes": 6292,
+      "sha256": "241f9760e29ec1a83fea89bf117000f6f5ceaecf5b586a309a60d92d2cfc9d84"
+    },
+    {
+      "path": "src/web/docs_ui/index.html",
+      "length_bytes": 3139,
+      "sha256": "3d79214a2c0c86b2923f16ce84109f544210faaa622ab4c69f12a98b8312f345"
+    },
+    {
+      "path": "src/web/docs_ui/docs.css",
+      "length_bytes": 3776,
+      "sha256": "895a4f12a6ea2992084bd2697898a1f7dc6a0083cbd7f7847b713c2992028b2d"
+    },
+    {
+      "path": "src/web/docs_ui/docs.js",
+      "length_bytes": 12735,
+      "sha256": "380298987822055c399411dc63511648e6075b84687e25b96444ff7dbc45e622"
+    },
+    {
+      "path": "src/web/docs_ui/README.md",
+      "length_bytes": 1653,
+      "sha256": "d123f348d639a0137ee4d1da1a098d62658db277d22c6d66845547d638e444f8"
+    },
+    {
+      "path": "src/web/asgi_security.py",
+      "length_bytes": 19252,
+      "sha256": "a169bd3e818f0d332433b479e0a5a36d6a69bdc17c3293d56b0490a7e54a5628"
+    },
+    {
+      "path": "src/web/asgi_routes.py",
+      "length_bytes": 6734,
+      "sha256": "9911c0fb2284dd83cd333b51b162d42e8fb2bfd07d3472e56f39ad8f58946a48"
+    },
+    {
+      "path": "src/web/asgi_server.py",
+      "length_bytes": 17190,
+      "sha256": "2c4bfe4f49b1e953f00a1e86d351855539d10904357c674c395249d56bd1a6bf"
+    }
+  ],
+  "operations": [
+    {
+      "method": "GET",
+      "path": "/api/status",
+      "model": "SystemBodyDTO",
+      "batch": "system",
+      "fields": [],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "pasivo",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_system",
+        "src/web/controllers/system_controller.py:get_status"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "model": "SystemBodyDTO",
+      "batch": "system",
+      "fields": [],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "pasivo",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_system",
+        "src/web/controllers/system_controller.py:get_health"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/diagnostics",
+      "model": "SystemBodyDTO",
+      "batch": "system",
+      "fields": [],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "pasivo",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_system",
+        "src/web/controllers/system_controller.py:get_health"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/preflight",
+      "model": "SystemBodyDTO",
+      "batch": "system",
+      "fields": [],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "red/serial/chequeos locales según PreflightChecker",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_system",
+        "src/web/controllers/system_controller.py:run_preflight"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/diagnostics/report.md",
+      "model": "SystemBodyDTO",
+      "batch": "system",
+      "fields": [
+        "limit",
+        "offset"
+      ],
+      "statuses": [
+        200
+      ],
+      "input_policy": "logs_raw_query_parsed_unused",
+      "effect": "local",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_system",
+        "src/web/controllers/logs_controller.py:route_logs",
+        "src/web/controllers/logs_controller.py:_handle_diagnostics_report"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/diagnostics/report",
+      "model": "SystemBodyDTO",
+      "batch": "system",
+      "fields": [
+        "limit",
+        "offset"
+      ],
+      "statuses": [
+        200
+      ],
+      "input_policy": "logs_raw_query_parsed_unused",
+      "effect": "local",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_system",
+        "src/web/controllers/logs_controller.py:route_logs",
+        "src/web/controllers/logs_controller.py:_handle_diagnostics_report"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/diagnostics/export",
+      "model": "SystemBodyDTO",
+      "batch": "system",
+      "fields": [],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "local",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_system"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/system/logs",
+      "model": "SystemBodyDTO",
+      "batch": "system",
+      "fields": [
+        "limit",
+        "offset",
+        "level",
+        "search"
+      ],
+      "statuses": [
+        200
+      ],
+      "input_policy": "logs_raw_query",
+      "effect": "pasivo",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_system",
+        "src/web/controllers/logs_controller.py:route_logs",
+        "src/web/controllers/logs_controller.py:_handle_system_logs"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/system/logs",
+      "model": "SystemBodyDTO",
+      "batch": "system",
+      "fields": [],
+      "statuses": [
+        204
+      ],
+      "input_policy": "router_merged",
+      "effect": "local",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_system",
+        "src/web/controllers/system_controller.py:clear_logs"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/system/logs/level",
+      "model": "SystemBodyDTO",
+      "batch": "system",
+      "fields": [],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "pasivo",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_system"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/system/logs/level",
+      "model": "SystemBodyDTO",
+      "batch": "system",
+      "fields": [
+        "level"
+      ],
+      "statuses": [
+        200,
+        400
+      ],
+      "input_policy": "router_merged",
+      "effect": "local",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_system"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/nodes",
+      "model": "NodesBodyDTO",
+      "batch": "network",
+      "fields": [
+        "limit",
+        "offset"
+      ],
+      "statuses": [
+        200,
+        400
+      ],
+      "input_policy": "router_merged",
+      "effect": "pasivo",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_nodes",
+        "src/web/controllers/nodes_controller.py:list_nodes"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/lqi",
+      "model": "NodesBodyDTO",
+      "batch": "network",
+      "fields": [],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "pasivo",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_nodes",
+        "src/web/controllers/nodes_controller.py:get_lqi"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/analytics",
+      "model": "NodesBodyDTO",
+      "batch": "network",
+      "fields": [
+        "range"
+      ],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "pasivo",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_nodes",
+        "src/web/controllers/nodes_controller.py:get_analytics"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/analytics/reset",
+      "model": "NodesBodyDTO",
+      "batch": "network",
+      "fields": [],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "local",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_nodes",
+        "src/web/controllers/nodes_controller.py:reset_metrics"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/analytics/reset",
+      "model": "NodesBodyDTO",
+      "batch": "network",
+      "fields": [],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "local",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_nodes",
+        "src/web/controllers/nodes_controller.py:reset_metrics"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/rf/heatmap",
+      "model": "NodesBodyDTO",
+      "batch": "network",
+      "fields": [],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "pasivo",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_nodes",
+        "src/web/controllers/nodes_controller.py:get_rf_heatmap"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/airtime/stats",
+      "model": "NodesBodyDTO",
+      "batch": "network",
+      "fields": [],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "pasivo",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_nodes",
+        "src/web/controllers/nodes_controller.py:get_airtime_stats"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/rf/noise",
+      "model": "NodesBodyDTO",
+      "batch": "network",
+      "fields": [],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "pasivo",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_nodes"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/contacts",
+      "model": "ContactsBodyDTO",
+      "batch": "contacts_channels",
+      "fields": [],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "pasivo",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_contacts",
+        "src/web/controllers/contacts_controller.py:_handle_contacts_route"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/contacts",
+      "model": "ContactWriteBodyDTO",
+      "batch": "contacts_channels",
+      "fields": [
+        "public_key",
+        "key",
+        "name",
+        "alias",
+        "role",
+        "is_favorite",
+        "latitude",
+        "lat",
+        "adv_lat",
+        "longitude",
+        "lon",
+        "adv_lon"
+      ],
+      "statuses": [
+        200,
+        201,
+        400,
+        422,
+        500,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial+disco",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_contacts",
+        "src/web/controllers/contacts_controller.py:_create_or_update_contact",
+        "src/web/controllers/contacts_controller.py:_contact_validation"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/contacts",
+      "model": "ContactsBodyDTO",
+      "batch": "contacts_channels",
+      "fields": [
+        "public_key",
+        "key"
+      ],
+      "statuses": [
+        204,
+        400,
+        404,
+        422,
+        500,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial+disco",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_contacts",
+        "src/web/controllers/contacts_controller.py:_delete_contact",
+        "src/web/controllers/contacts_controller.py:_handle_contacts_route"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/contacts/sync",
+      "model": "ContactsBodyDTO",
+      "batch": "contacts_channels",
+      "fields": [],
+      "statuses": [
+        200,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial lectura tabla +registro/disco",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_contacts",
+        "src/web/controllers/contacts_controller.py:_sync_contacts"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/contacts/share",
+      "model": "ContactTransferBodyDTO",
+      "batch": "contacts_channels",
+      "fields": [
+        "public_key",
+        "key"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "RF share_contact",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_contacts",
+        "src/web/controllers/contacts_controller.py:_share_contact"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/contacts/export",
+      "model": "ContactTransferBodyDTO",
+      "batch": "contacts_channels",
+      "fields": [
+        "public_key",
+        "pubkey",
+        "key",
+        "name",
+        "alias"
+      ],
+      "statuses": [
+        200,
+        400,
+        422
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial export local opcional",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_contacts",
+        "src/web/controllers/contacts_controller.py:_export_contact",
+        "src/web/controllers/contacts_controller.py:_contact_validation"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/contacts/export",
+      "model": "ContactTransferBodyDTO",
+      "batch": "contacts_channels",
+      "fields": [
+        "public_key",
+        "pubkey",
+        "key",
+        "name",
+        "alias"
+      ],
+      "statuses": [
+        200,
+        400,
+        422
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_contacts",
+        "src/web/controllers/contacts_controller.py:_export_contact",
+        "src/web/controllers/contacts_controller.py:_contact_validation"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/contacts/import",
+      "model": "ContactTransferBodyDTO",
+      "batch": "contacts_channels",
+      "fields": [
+        "public_key",
+        "key",
+        "name",
+        "alias",
+        "role",
+        "is_favorite",
+        "latitude",
+        "lat",
+        "adv_lat",
+        "longitude",
+        "lon",
+        "adv_lon",
+        "pubkey",
+        "contacts",
+        "data",
+        "payload",
+        "uri"
+      ],
+      "statuses": [
+        200,
+        201,
+        400,
+        422,
+        500,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial+disco",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_contacts",
+        "src/web/controllers/contacts_controller.py:_import_contact",
+        "src/web/controllers/contacts_controller.py:_contact_validation"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/contacts/discovered",
+      "model": "ContactsBodyDTO",
+      "batch": "contacts_channels",
+      "fields": [],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "pasivo",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_contacts"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/contacts/accept",
+      "model": "ContactsBodyDTO",
+      "batch": "contacts_channels",
+      "fields": [
+        "public_key",
+        "target_node"
+      ],
+      "statuses": [
+        200,
+        400
+      ],
+      "input_policy": "router_merged",
+      "effect": "registro accept_discovered_contact",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_contacts"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/channels",
+      "model": "ChannelsBodyDTO",
+      "batch": "contacts_channels",
+      "fields": [],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "pasivo",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_channels",
+        "src/web/controllers/channels_controller.py:_get_channels",
+        "src/web/controllers/channels_controller.py:_handle_channels_route"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/channels",
+      "model": "ChannelWriteBodyDTO",
+      "batch": "contacts_channels",
+      "fields": [
+        "index",
+        "overwrite",
+        "name",
+        "psk"
+      ],
+      "statuses": [
+        200,
+        201,
+        400,
+        409,
+        422,
+        500,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial+disco",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_channels",
+        "src/web/controllers/channels_controller.py:_create_or_update_channel"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/channels",
+      "model": "ChannelIndexBodyDTO",
+      "batch": "contacts_channels",
+      "fields": [
+        "index"
+      ],
+      "statuses": [
+        204,
+        400,
+        404,
+        422,
+        500,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial delete_channel o set_channel vacío",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_channels",
+        "src/web/controllers/channels_controller.py:_delete_channel"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/channels/sync",
+      "model": "ChannelsBodyDTO",
+      "batch": "contacts_channels",
+      "fields": [],
+      "statuses": [
+        200,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial lectura",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_channels",
+        "src/web/controllers/channels_controller.py:_sync_channels"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/channels/export",
+      "model": "ChannelIndexBodyDTO",
+      "batch": "contacts_channels",
+      "fields": [
+        "index"
+      ],
+      "statuses": [
+        200,
+        400,
+        404
+      ],
+      "input_policy": "router_merged",
+      "effect": "local",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_channels",
+        "src/web/controllers/channels_controller.py:_export_channel"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/channels/export",
+      "model": "ChannelIndexBodyDTO",
+      "batch": "contacts_channels",
+      "fields": [
+        "index"
+      ],
+      "statuses": [
+        200,
+        400,
+        404
+      ],
+      "input_policy": "router_merged",
+      "effect": "local",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_channels",
+        "src/web/controllers/channels_controller.py:_export_channel"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/contacts/{public_key}",
+      "model": "ContactsBodyDTO",
+      "batch": "contacts_channels",
+      "fields": [
+        "public_key",
+        "key"
+      ],
+      "statuses": [
+        204,
+        400,
+        404,
+        422,
+        500,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial+disco",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_contacts",
+        "src/web/controllers/contacts_controller.py:_delete_contact",
+        "src/web/controllers/contacts_controller.py:_handle_contacts_route"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/messages/recent",
+      "model": "TxBodyDTO",
+      "batch": "history_maps",
+      "fields": [],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "pasivo",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_tx",
+        "src/web/controllers/tx_controller.py:get_recent_messages"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/packets",
+      "model": "PacketsBodyDTO",
+      "batch": "history_maps",
+      "fields": [
+        "limit",
+        "offset",
+        "direction",
+        "type",
+        "order"
+      ],
+      "statuses": [
+        200,
+        400,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "pasivo",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_packets",
+        "src/web/controllers/packets_controller.py:get_packets"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/packets",
+      "model": "PacketsBodyDTO",
+      "batch": "history_maps",
+      "fields": [],
+      "statuses": [
+        204
+      ],
+      "input_policy": "router_merged",
+      "effect": "local",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_packets",
+        "src/web/controllers/packets_controller.py:clear_packets"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/packets/export",
+      "model": "PacketsBodyDTO",
+      "batch": "history_maps",
+      "fields": [
+        "format"
+      ],
+      "statuses": [
+        200,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "local",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_packets",
+        "src/web/controllers/packets_controller.py:export_packets"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/map/status",
+      "model": "MapsBodyDTO",
+      "batch": "history_maps",
+      "fields": [],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "local",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_misc"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/map/reload",
+      "model": "MapsBodyDTO",
+      "batch": "history_maps",
+      "fields": [],
+      "statuses": [
+        200,
+        500
+      ],
+      "input_policy": "router_merged",
+      "effect": "local reindex/disco/thread",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_misc"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/messages",
+      "model": "MapsBodyDTO",
+      "batch": "history_maps",
+      "fields": [
+        "limit",
+        "offset"
+      ],
+      "statuses": [
+        200
+      ],
+      "input_policy": "logs_raw_query",
+      "effect": "pasivo deque200",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_misc",
+        "src/web/controllers/logs_controller.py:route_logs"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/telemetry",
+      "model": "MapsBodyDTO",
+      "batch": "history_maps",
+      "fields": [
+        "limit",
+        "offset"
+      ],
+      "statuses": [
+        200
+      ],
+      "input_policy": "logs_raw_query",
+      "effect": "pasivo deque200",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_misc",
+        "src/web/controllers/logs_controller.py:route_logs"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/logs/download",
+      "model": "MapsBodyDTO",
+      "batch": "history_maps",
+      "fields": [
+        "limit",
+        "offset"
+      ],
+      "statuses": [
+        200
+      ],
+      "input_policy": "logs_raw_query_parsed_unused",
+      "effect": "local tail2000 líneas o deque fallback",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_misc",
+        "src/web/controllers/logs_controller.py:route_logs",
+        "src/web/controllers/logs_controller.py:_handle_raw_logs_download"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/logs/raw",
+      "model": "MapsBodyDTO",
+      "batch": "history_maps",
+      "fields": [
+        "limit",
+        "offset"
+      ],
+      "statuses": [
+        200
+      ],
+      "input_policy": "logs_raw_query_parsed_unused",
+      "effect": "local",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_misc",
+        "src/web/controllers/logs_controller.py:route_logs",
+        "src/web/controllers/logs_controller.py:_handle_raw_logs_download"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/config",
+      "model": "ServicesBodyDTO",
+      "batch": "services",
+      "fields": [],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "pasivo/disco fallbackload",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_services",
+        "src/web/controllers/services_controller.py:get_services_config"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/services/config",
+      "model": "ServicesConfigBodyDTO",
+      "batch": "services",
+      "fields": [
+        "external_mqtt",
+        "local_mqtt",
+        "tcp_server"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        500
+      ],
+      "input_policy": "router_merged",
+      "effect": "red+disco,hotreload",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_services",
+        "src/web/controllers/services_controller.py:set_services_config"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/presets",
+      "model": "ServicesBodyDTO",
+      "batch": "services",
+      "fields": [],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "pasivo",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_services",
+        "src/web/controllers/services_controller.py:get_services_config"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/services/presets",
+      "model": "MqttPresetBodyDTO",
+      "batch": "services",
+      "fields": [
+        "name",
+        "host",
+        "port",
+        "id",
+        "description",
+        "transport",
+        "tls_enabled",
+        "tls_verify",
+        "auth_type",
+        "username",
+        "password",
+        "token",
+        "downlink_enabled",
+        "location_privacy",
+        "topic_mode",
+        "topic_prefix",
+        "region_iata",
+        "payload_format",
+        "filter_observer_mode",
+        "filter_public",
+        "filter_channels",
+        "filter_direct",
+        "filter_telemetry",
+        "filter_nodes",
+        "filter_raw",
+        "keepalive",
+        "qos"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        500
+      ],
+      "input_policy": "router_merged",
+      "effect": "local+disco",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_services",
+        "src/web/controllers/services_controller.py:save_preset"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/services/mqtt-external/test",
+      "model": "MqttConnectionBodyDTO",
+      "batch": "services",
+      "fields": [
+        "host",
+        "port",
+        "transport",
+        "tls_enabled",
+        "tls_verify",
+        "auth_type",
+        "username",
+        "password",
+        "token",
+        "timeout"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        500
+      ],
+      "input_policy": "router_merged",
+      "effect": "red conexión efímera MQTT",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_services",
+        "src/web/controllers/services_controller.py:test_external_mqtt"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/services/presets/{id:path}",
+      "model": "ServicesBodyDTO",
+      "batch": "services",
+      "fields": [],
+      "statuses": [
+        200,
+        400,
+        404,
+        500
+      ],
+      "input_policy": "router_merged",
+      "effect": "local+disco",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_services",
+        "src/web/controllers/services_controller.py:delete_preset"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/tx",
+      "model": "SendTxBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "text",
+        "to",
+        "target",
+        "channel_index",
+        "channel_idx",
+        "request_id"
+      ],
+      "statuses": [
+        200,
+        400,
+        408,
+        422,
+        429,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "RF cola NORMAL submit y espera hasta30s",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_tx",
+        "src/web/controllers/tx_controller.py:send_tx"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "action",
+        "command",
+        "cmd",
+        "request_id",
+        "id",
+        "target_node",
+        "repeater",
+        "params"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial/RF/MQTT según acción",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:execute_admin_command",
+        "src/admin_handler.py:_handle"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/repeater",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "target_node",
+        "repeater",
+        "action",
+        "command",
+        "params",
+        "password",
+        "request_id"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "RF remoto",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:execute_repeater_command"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/login",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "target_node",
+        "repeater",
+        "password"
+      ],
+      "statuses": [
+        200,
+        400,
+        401,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "RF login",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:login"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/logout",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "target_node",
+        "repeater"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "RF logout",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:logout"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/config",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "target_node",
+        "repeater",
+        "password",
+        "params"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "RF configuración",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:set_remote_config"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/action",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "target_node",
+        "repeater",
+        "action",
+        "password",
+        "params"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "RF acción",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:execute_remote_action"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/neighbours",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "target_node",
+        "repeater",
+        "count",
+        "offset",
+        "password"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "RF consulta",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:get_neighbours"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/owner",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "target_node",
+        "repeater",
+        "password"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "RF consulta",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:get_owner"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/regions",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "target_node",
+        "repeater",
+        "password"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "RF consulta",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:get_regions"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/clock",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "target_node",
+        "repeater",
+        "password"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "RF consulta",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:get_clock"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/acl",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "target_node",
+        "repeater",
+        "password"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "RF consulta",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:get_acl"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/ping_zero",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "target_node",
+        "repeater",
+        "target"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "RF ping",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:ping_zero"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/ping_zero",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "target_node",
+        "repeater",
+        "target"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "RF ping",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:ping_zero"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/traceroute",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "target_node",
+        "target",
+        "repeater",
+        "to"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "RF trace",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:traceroute"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/traceroute",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "target_node",
+        "target",
+        "repeater",
+        "to"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "RF trace",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_repeater",
+        "src/web/controllers/repeater_controller.py:traceroute"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/config",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "refresh"
+      ],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "pasivo o serial refresh",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:get_device_config"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/config",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "adv_loc_policy",
+        "af",
+        "airtime_cutoff_enabled",
+        "airtime_cutoff_resume_pct",
+        "airtime_cutoff_threshold_pct",
+        "airtime_factor",
+        "bandwidth",
+        "bw",
+        "coding_rate",
+        "cr",
+        "custom_vars",
+        "devicepin",
+        "duty_cycle_limit_pct",
+        "frequency",
+        "lat",
+        "latitude",
+        "lon",
+        "longitude",
+        "manual_add_contacts",
+        "multi_acks",
+        "name",
+        "path_hash_mode",
+        "pin",
+        "power",
+        "radio_freq",
+        "repeat",
+        "repeat_enabled",
+        "repeater_pre_send_delay_enabled",
+        "repeater_pre_send_delay_s",
+        "rx_delay",
+        "rx_dly",
+        "sf",
+        "spreading_factor",
+        "telemetry_mode_base",
+        "telemetry_mode_env",
+        "telemetry_mode_loc",
+        "tx_power",
+        "warn_threshold_pct"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial+host/disco/RF según parámetro",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:set_local_config",
+        "src/admin/local_config_executor.py:_prevalidate_local_params"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/config/radio",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "refresh"
+      ],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "pasivo/serial",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:get_device_config"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/radio",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "adv_loc_policy",
+        "af",
+        "airtime_cutoff_enabled",
+        "airtime_cutoff_resume_pct",
+        "airtime_cutoff_threshold_pct",
+        "airtime_factor",
+        "bandwidth",
+        "bw",
+        "coding_rate",
+        "cr",
+        "custom_vars",
+        "devicepin",
+        "duty_cycle_limit_pct",
+        "frequency",
+        "lat",
+        "latitude",
+        "lon",
+        "longitude",
+        "manual_add_contacts",
+        "multi_acks",
+        "name",
+        "path_hash_mode",
+        "pin",
+        "power",
+        "radio_freq",
+        "repeat",
+        "repeat_enabled",
+        "repeater_pre_send_delay_enabled",
+        "repeater_pre_send_delay_s",
+        "rx_delay",
+        "rx_dly",
+        "sf",
+        "spreading_factor",
+        "telemetry_mode_base",
+        "telemetry_mode_env",
+        "telemetry_mode_loc",
+        "tx_power",
+        "warn_threshold_pct"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial/modifica radio",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:set_local_config",
+        "src/admin/local_config_executor.py:_prevalidate_local_params"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/config/identity",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin",
+      "fields": [],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "pasivo",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:get_device_config"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/identity",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "adv_loc_policy",
+        "af",
+        "airtime_cutoff_enabled",
+        "airtime_cutoff_resume_pct",
+        "airtime_cutoff_threshold_pct",
+        "airtime_factor",
+        "bandwidth",
+        "bw",
+        "coding_rate",
+        "cr",
+        "custom_vars",
+        "devicepin",
+        "duty_cycle_limit_pct",
+        "frequency",
+        "lat",
+        "latitude",
+        "lon",
+        "longitude",
+        "manual_add_contacts",
+        "multi_acks",
+        "name",
+        "path_hash_mode",
+        "pin",
+        "power",
+        "radio_freq",
+        "repeat",
+        "repeat_enabled",
+        "repeater_pre_send_delay_enabled",
+        "repeater_pre_send_delay_s",
+        "rx_delay",
+        "rx_dly",
+        "sf",
+        "spreading_factor",
+        "telemetry_mode_base",
+        "telemetry_mode_env",
+        "telemetry_mode_loc",
+        "tx_power",
+        "warn_threshold_pct"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:set_local_config",
+        "src/admin/local_config_executor.py:_prevalidate_local_params"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/config/custom_vars",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin",
+      "fields": [],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial si admin disponible",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:get_custom_vars"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/custom_vars",
+      "model": "CustomVarsBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "key",
+        "value",
+        "val",
+        "vars"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:set_custom_vars"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/config/custom_vars",
+      "model": "CustomVarsBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "key"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:delete_custom_var"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/config/path_hash_mode",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin",
+      "fields": [],
+      "statuses": [
+        200,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:get_path_hash_mode"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/path_hash_mode",
+      "model": "PathHashBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "mode",
+        "path_hash_mode"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:set_path_hash_mode"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/config/autoadd",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin",
+      "fields": [],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:get_autoadd_config"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/autoadd",
+      "model": "AutoAddBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "flags",
+        "config",
+        "autoadd",
+        "max_hops"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:set_autoadd_config"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/config/flood_scope",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin",
+      "fields": [],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:get_flood_scope"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/flood_scope",
+      "model": "FloodScopeBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "scope",
+        "scope_name"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:set_flood_scope"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/advert",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "flood"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "RF advert hop0/flood",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:broadcast_advert"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/reboot",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin",
+      "fields": [],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial reinicio",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:reboot_local"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/sync-clock",
+      "model": "SyncClockBodyDTO",
+      "batch": "radio_admin",
+      "fields": [
+        "epoch",
+        "timestamp"
+      ],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial RTC",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:sync_clock"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/clear-stats",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin",
+      "fields": [],
+      "statuses": [
+        200,
+        400,
+        422,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial+contadores host",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:clear_stats"
+      ],
+      "command_failure_codes": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/config/refresh",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin",
+      "fields": [],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:refresh_hardware_config"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/refresh",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin",
+      "fields": [],
+      "statuses": [
+        200
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:refresh_hardware_config"
+      ],
+      "command_failure_codes": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/reconnect",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin",
+      "fields": [],
+      "statuses": [
+        200,
+        400,
+        422,
+        500,
+        503
+      ],
+      "input_policy": "router_merged",
+      "effect": "serial reapertura",
+      "evidence": [
+        "src/web/api_router.py:_dispatch_config",
+        "src/web/controllers/config_controller.py:reconnect_serial"
+      ],
+      "command_failure_codes": true
+    }
+  ],
+  "pending_gates": [
+    "GATE-01: Verificación funcional de GET /docs y /redoc en navegador aislado",
+    "GATE-02: Verificación de autenticación X-Api-Key en /openapi.json contra BRIDGE_API_KEY",
+    "GATE-03: Verificación de rechazo de credenciales por query param en endpoints de documentación",
+    "GATE-04: Verificación de Content-Security-Policy y cabeceras Cache-Control: no-store",
+    "GATE-05: Validación de resolución de referencias JSON Pointer locales en docs.js",
+    "GATE-06: Verificación de que la UI docs.js borra la clave de memoria al cerrar o errar",
+    "GATE-07: Comprobación de que /openapi.json no expone tokens, claves secretas ni rutas fuera de catálogo",
+    "GATE-08: Verificación de integración de documentación dentro del ciclo de vida ASGI",
+    "GATE-09: Verificación de carga en menos de 50ms en SBC con almacenamiento flash/eMMC",
+    "GATE-10: Auditoría de paridad completa REST/WS con la suite de pruebas bajo autorización expresa",
+    "GATE-11: Comprobación de que la SPA Vanilla JS no tiene colisiones de rutas con /docs o /redoc",
+    "GATE-12: Prueba de rendimiento de renderizado DOM con 90 operaciones en navegador móvil",
+    "GATE-13: Verificación de accesibilidad WCAG 2.2 AA (navegación por teclado, skip-link, labels)",
+    "GATE-14: Verificación de comportamiento ante esquemas recursivos o referencias circulares",
+    "GATE-15: Verificación de consistencia entre DTOs Pydantic v2 y la especificación generada",
+    "GATE-16: Aprobación formal de adopción (Fase 6) por el Lead Orchestrator antes de activar ASGI"
+  ]
+}

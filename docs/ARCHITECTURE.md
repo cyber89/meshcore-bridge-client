@@ -21,8 +21,11 @@ en servidor actual como candidato. La [fase 4](fastapi/PHASE_4_REPORT.md) prepar
 WS, SPA y teselas: presta los mapas, registra historial una vez y limita el
 apagado con un deadline común del propietario. Los timers heredados de métricas
 y ping idle son exclusivamente web, sin consultas RF/MQTT. El backend admite
-fragmentación y su flow control difiere de `drain`; hay puertas de aceptación
-pendientes. OpenAPI público sigue deshabilitado y el servidor predeterminado no cambia.
+fragmentación y su flow control difiere de `drain`. La [fase 5](fastapi/PHASE_5_REPORT.md)
+prepara la especificación OpenAPI 3.1.0 diferida y el visor local offline en
+`/docs`, `/redoc` y `/openapi.json` con autenticación estricta `X-Api-Key`, rechazo de
+claves en URL, CSP restrictivo y política de solo lectura sin emisión RF. El servidor
+predeterminado del bridge conserva `MeshCoreWebServer` y las puertas de aceptación siguen pendientes.
 
 El framing Companion oficial (`<`/`>`, longitud `uint16` little-endian y payload) es distinto del formato raw propio `0xAA/0x55/0x1B` con CRC-16 de `MeshcoreFrame`. El adaptador raw actual es un parser en memoria sin E/S física; no es una etapa obligatoria del RX/TX SDK ni del paquete RF oficial.
 

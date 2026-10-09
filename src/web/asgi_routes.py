@@ -23,6 +23,7 @@ from starlette.types import Receive, Scope, Send
 from src.web.api_error_policy import redact_returned_error
 from src.web.api_router import ROUTE_ALIASES
 from src.web.asgi_errors import legacy_json_response
+from src.web.asgi_openapi import operation_metadata
 from src.web.asgi_route_catalog import ROUTE_BATCHES, ROUTE_CONTRACTS, RouteContract
 from src.web.asgi_security import BODY_JSON_STATE, _raw_request_target
 
@@ -76,18 +77,9 @@ def _endpoint(adapter: _RestAdapter) -> Callable[[Request], Awaitable[Response]]
 
 
 def _path_metadata(contract: RouteContract) -> dict[str, Any]:
-    parameters = [
-        {
-            "name": parameter.split(":", 1)[0],
-            "in": "path",
-            "required": True,
-            "schema": {"type": "string"},
-        }
-        for parameter in re.findall(r"\{([^}]+)\}", contract.path)
-    ]
-    # Input DTOs are descriptive and permissive. Complete body/query/response
-    # schemas and authenticated documentation are still phase-5 work.
-    return {"parameters": parameters, "x-meshcore-body-model": contract.model.__name__}
+    # Descriptive metadata only. Endpoint inputs remain Request-only and the
+    # original mapping still reaches the native controller without DTO filtering.
+    return operation_metadata(contract)
 
 
 class _CompatibilityFallback(BaseRoute):

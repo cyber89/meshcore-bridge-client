@@ -238,3 +238,12 @@ El protocolo añade un abort por conexión antes de que corra la aplicación y
 ping idle vacío heredado, sin política nueva de cierre por falta de pong.
 Su semántica de buffers/fragmentación y contrapresión sigue siendo una puerta
 de ejecución. Estas interfaces privadas requieren nueva auditoría al renovar pins.
+
+## Evolución preparatoria de fase 5 — 2026-10-09
+
+La [fase 5](PHASE_5_REPORT.md) genera la especificación OpenAPI 3.1.0 mediante
+`build_openapi_schema` y los métodos `model_json_schema` de Pydantic 2.14 sin
+invocar endpoints ni deserializar peticiones. El visor local prescinde de Swagger UI
+o ReDoc externos y de cualquier paquete npm o CDN; utiliza Vanilla JS/CSS servido
+directamente por el adaptador desde `src/web/docs_ui/`. Los pins de dependencias
+permanecen inalterados y continúan opcionales sin instalarse en el entorno base.

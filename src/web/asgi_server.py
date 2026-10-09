@@ -1,8 +1,8 @@
 """Inactive ASGI lifecycle foundation for the evaluated Uvicorn 0.54.0 stack.
 
 This module is deliberately absent from the default server factory. Its candidate
-application registers REST, WebSocket, static and tile compatibility adapters;
-documentation remains disabled: listener readiness is not contract readiness.
+application registers REST, WebSocket, static, tile and read-only documentation
+adapters: listener readiness is not contract readiness.
 Authorized contract/lifecycle verification remains necessary before activation.
 """
 
@@ -28,8 +28,10 @@ from src.web.access_policy import (
     WS_MAX_PAYLOAD_BYTES,
 )
 from src.web.asgi_assets import install_asset_routes
+from src.web.asgi_docs import install_documentation_routes
 from src.web.asgi_errors import install_error_handlers
 from src.web.asgi_http import BridgeH11Protocol
+from src.web.asgi_openapi import build_openapi_schema
 from src.web.asgi_routes import install_rest_routes
 from src.web.asgi_security import BridgeSecurityMiddleware
 from src.web.asgi_websocket import BridgeWebSocketProtocol
@@ -90,6 +92,7 @@ def create_asgi_app(
     # The native handshake accepts upgrades on any path, including API paths.
     # HTTP route adapters match HTTP scopes only; no WS path restriction is added.
     app.router.routes.append(WebSocketRoute("/{path:path}", hub.endpoint))
+    install_documentation_routes(app, build_openapi_schema)
     install_asset_routes(app, router, static_dir)
     app.state.router = router
     app.state.api_context = router.api_ctx

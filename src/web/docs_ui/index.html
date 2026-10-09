@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MeshCore Bridge · Visor OpenAPI local</title>
+  <link rel="stylesheet" href="/docs/assets/docs.css">
+  <script src="/docs/assets/docs.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Ir al contenido</a>
+  <header class="page-header">
+    <div><p class="eyebrow">MeshCore Bridge · Candidato FastAPI</p><h1>Visor OpenAPI local</h1></div>
+    <p>Consulta del contrato preparatorio. Los recursos del visor se sirven localmente, sin CDN. La aceptación operativa sigue pendiente.</p>
+  </header>
+  <main id="main">
+    <section class="panel access" aria-labelledby="access-title">
+      <div><h2 id="access-title">Cargar documentación</h2><p id="key-help">Si el servidor exige una clave, introdúcela aquí. Se envía únicamente en la cabecera de la solicitud de lectura y se mantiene en memoria hasta cerrar la documentación.</p></div>
+      <form id="load-form" autocomplete="off">
+        <label for="api-key">Clave de API</label>
+        <input id="api-key" type="password" autocomplete="off" spellcheck="false" aria-describedby="key-help" placeholder="Opcional si no hay clave configurada">
+        <div class="actions"><button id="load-button" type="submit">Cargar contrato</button><button id="clear-button" type="button" class="secondary">Cerrar documentación y borrar clave</button></div>
+      </form>
+      <p id="status" role="status" aria-live="polite">El contrato se carga solo cuando pulses el botón.</p>
+    </section>
+    <div id="contract" hidden>
+      <section class="panel overview" aria-labelledby="contract-title">
+        <h2 id="contract-title">Contrato</h2><p id="contract-description"></p><p id="contract-version" class="muted"></p>
+        <div id="contract-notes"></div>
+      </section>
+      <section class="panel filters" aria-labelledby="filter-title">
+        <h2 id="filter-title">Explorar operaciones</h2>
+        <div class="filter-grid">
+          <div><label for="search">Buscar ruta, operación o texto</label><input id="search" type="search" placeholder="Por ejemplo: contactos" autocomplete="off"></div>
+          <div><label for="method">Método</label><select id="method"><option value="">Todos los métodos</option></select></div>
+          <div><label for="tag">Grupo</label><select id="tag"><option value="">Todos los grupos</option></select></div>
+        </div>
+        <p id="result-count" role="status" aria-live="polite"></p>
+      </section>
+      <section aria-label="Operaciones API"><div id="operations" class="operations"></div></section>
+      <section class="panel" aria-labelledby="schemas-title"><h2 id="schemas-title">Esquemas y componentes</h2><p>Referencias locales resueltas para su lectura. El visor no descarga referencias externas ni envía solicitudes a las operaciones descritas.</p><div id="components"></div></section>
+    </div>
+  </main>
+  <footer>Visor propio de solo lectura. No contiene herramientas de ejecución de API, conexiones WebSocket ni consultas periódicas.</footer>
+</body>
+</html>

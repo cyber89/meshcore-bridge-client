@@ -1,6 +1,19 @@
 # 📋 Reporte Colaborativo de Actividad Multi-Agente - MeshCore Bridge
 
-Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
+### Hito: OpenAPI 3.1.0 diferido y visor local de documentación de fase 5
+
+- **Fecha/base**: 2026-10-09; `f5e9f79` y cambios anteriores del checkout conservados. Continuación autorizada sin suites.
+- **Equipo**: líder/integrador (Agente 0), especialista de interfaz/UI (Agente 4), auditor de seguridad (Agente 5), especialista de contratos (Agente 8) y gobernanza documental (Agente 6).
+- **Cambios**: especificación OpenAPI 3.1.0 generada de forma diferida (`lazy`) en `asgi_openapi.py` a partir de `asgi_openapi_catalog.py`, cubriendo 70 rutas (69 JSON y 1 tesela), 90 operaciones canónicas, 50 alias documentados y 25 DTOs Pydantic v2 en `components.schemas`; visor local autónomo en `src/web/docs_ui/` servido por `DocumentationAdapter` en `src/web/asgi_docs.py` con `_DocumentationRoute` integrada en la fábrica ASGI.
+- **Seguridad**: autenticación estricta por cabecera `X-Api-Key` sin soporte de credenciales en query para documentación; respuestas no autenticadas devuelven HTTP 401 con formulario unprivileged sin exponer el esquema; cabecera Content-Security-Policy estricta y Cache-Control `no-store, Vary: X-Api-Key`; visor de solo lectura sin botones de ejecución o emisión RF.
+- **Verificación/entrega**: [informe de fase 5](fastapi/PHASE_5_REPORT.md) y [registro estático](fastapi/PHASE_5_DOCUMENTATION_REGISTRY.json); análisis sintáctico AST Python 3.10, cotejo de hashes SHA-256 de los diez archivos y 16 puertas de aceptación operativa registradas. Sin suites de pruebas, navegador real, radio ni broker. El candidato permanece inactivo; siguiente fase: adopción, retiro e instaladores (fase 6).
+
+### Hito: WebSocket, SPA y cartografía preparatorios de fase 4
+
+- **Fecha/base**: 2026-10-09; `8d5bbdf` y cambios anteriores del checkout conservados. Continuación autorizada sin suites.
+- **Equipo**: líder/integrador y especialistas de WebSocket, archivos/cartografía y revisión de contratos/seguridad.
+- **Cambios**: hub WS con clientes, historial, métricas pasivas y cierre determinista en `asgi_ws_hub.py`; adaptador de estáticos y teselas MBTiles prestadas en `asgi_assets.py`; integración de `WebSocketRoute('/{path:path}')` y rutas de teselas en la fábrica ASGI inactiva con presupuesto común de apagado.
+- **Verificación/entrega**: [informe de fase 4](fastapi/PHASE_4_REPORT.md) y [registro de adaptadores](fastapi/PHASE_4_ADAPTER_REGISTRY.json).
 
 ### Hito: Registro REST por lotes y redacción selectiva de fase 3
 

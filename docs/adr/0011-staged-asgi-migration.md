@@ -102,3 +102,17 @@ index.html. El backend valida RFC y admite fragmentación; su contrapresión,
 timing de chunks y buffers no equivalen al framing nativo. Estas diferencias,
 workers de filesystem pendientes y puertas de ejecución se registran expresamente.
 La preparación no decide adopción ni retira el servidor actual; las suites siguen suspendidas.
+
+### Preparación de fase 5
+
+La [fase 5](../fastapi/PHASE_5_REPORT.md) prepara la especificación OpenAPI 3.1.0 diferida
+y el visor local de documentación offline en `/docs`, `/redoc` y `/openapi.json`.
+Se describe el catálogo completo de 70 rutas (69 JSON y 1 de teselas), 90 operaciones
+canónicas, 50 alias y 25 esquemas DTO. El visor reside en recursos locales propios sin
+dependencias de CDN; implementa autenticación estricta por cabecera `X-Api-Key`, rechazo
+de credenciales en URLs, CSP restrictivo y política de solo lectura sin herramientas de
+ejecución que puedan emitir transmisiones LoRa accidentales.
+
+El candidato ASGI permanece inactivo en la configuración predeterminada del bridge.
+Las puertas operativas, suites de pruebas automatizadas y adopción en producción continúan
+pendientes para la fase 6, respetando la instrucción de suspender ejecución de suites.

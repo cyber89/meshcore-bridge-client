@@ -41,6 +41,12 @@ HTTP_ABORT_EXTENSION = "meshcore.http.abort"
 WS_ABORT_EXTENSION = "meshcore.websocket.abort"
 BODY_BYTES_STATE = "meshcore_body_bytes"
 BODY_JSON_STATE = "meshcore_body_json"
+DOC_RESPONSE_STATE = "meshcore_documentation_response"
+_DOC_CONTENT_SECURITY_POLICY = (
+    "default-src 'none'; script-src 'self'; style-src 'self'; "
+    "connect-src 'self'; img-src 'self'; base-uri 'none'; "
+    "form-action 'none'; frame-ancestors 'none'"
+)
 
 _NORMAL_HEADER_NAMES = frozenset(
     {
@@ -287,7 +293,7 @@ class BridgeSecurityMiddleware:
 
     @staticmethod
     def _normal_response_headers(
-        original: list[tuple[bytes, bytes]], cors_origin: str
+        original: list[tuple[bytes, bytes]], cors_origin: str, *, documentation: bool = False
     ) -> list[tuple[bytes, bytes]]:
         content_type: str | None = None
         extras: list[tuple[bytes, bytes]] = []
@@ -297,9 +303,19 @@ class BridgeSecurityMiddleware:
                 content_type = value.decode("utf-8", errors="ignore")
             elif lowered not in _NORMAL_HEADER_NAMES:
                 extras.append((lowered, value))
-        return response_headers(
+        assembled = response_headers(
             content_type=content_type, cors_origin=cors_origin, extra_headers=extras
         )
+        if documentation and content_type and content_type.startswith("text/html"):
+            assembled = [
+                (name, value)
+                for name, value in assembled
+                if name.lower() != b"content-security-policy"
+            ]
+            assembled.append(
+                (b"content-security-policy", _DOC_CONTENT_SECURITY_POLICY.encode("ascii"))
+            )
+        return assembled
 
     async def _handle_http(self, scope: Scope, receive: Receive, send: Send) -> None:
         target = _raw_request_target(scope)
@@ -361,7 +377,9 @@ class BridgeSecurityMiddleware:
             if message["type"] == "http.response.start":
                 message = dict(message)
                 message["headers"] = self._normal_response_headers(
-                    message.get("headers", []), decision.cors_origin
+                    message.get("headers", []),
+                    decision.cors_origin,
+                    documentation=bool(scope.get("state", {}).get(DOC_RESPONSE_STATE)),
                 )
                 try:
                     SecurityTrafficInspector.log_http_access(
