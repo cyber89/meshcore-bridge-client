@@ -100,7 +100,7 @@ Las fases se entregan secuencialmente. El usuario autorizó comenzar y continuar
 | 1 | Infraestructura y seguridad ASGI preparadas; aceptación operativa pendiente | [Informe](docs/fastapi/PHASE_1_REPORT.md) y [seguridad](docs/fastapi/PHASE_1_SECURITY_REPORT.md); servidor actual predeterminado. Lifecycle y paridad en ejecución sin verificar |
 | 2 | DTO y errores del framework preparados; aceptación pendiente | [Informe](docs/fastapi/PHASE_2_REPORT.md), [inventario](docs/fastapi/PHASE_2_REQUEST_INVENTORY.json) y [ejemplos sanitizados](docs/fastapi/PHASE_2_COMPATIBILITY_CASES.json); sin validación en ejecución |
 | 3 | Seis lotes REST JSON preparados en el candidato inactivo | [Informe](docs/fastapi/PHASE_3_REPORT.md) y [registro estático](docs/fastapi/PHASE_3_ROUTE_REGISTRY.json); 90 operaciones canónicas + 50 de alias, dispatcher compartido, redacción selectiva. Contratos/efectos en ejecución pendientes |
-| 4 | Pendiente | WS, SPA/assets y tiles/cartografía binaria |
+| 4 | WS, SPA/assets y tiles preparados en el candidato inactivo | [Informe](docs/fastapi/PHASE_4_REPORT.md) y [registro estático](docs/fastapi/PHASE_4_ADAPTER_REGISTRY.json); lifecycle compartido, diferencias de transporte explícitas. Aceptación operativa pendiente |
 | 5–6 | Pendientes | OpenAPI, QA autorizado, instaladores, adopción y retiro |
 
 [ADR 0011](docs/adr/0011-staged-asgi-migration.md) registra la preparación autorizada y sus condiciones de adopción. No se convierte una comprobación pendiente en aprobada por no ejecutar suites.
@@ -266,7 +266,7 @@ Chat TX mantiene cola; admin/config mantienen fachadas, serialización y control
 
 #### 4.1 Handshake y mensajes
 
-Mantener `/ws`, auth/Origin/cupo antes de `accept`. Actualmente se responde 401 por clave incorrecta y 429 por cupo. Starlette `close` antes de `accept` normalmente responde 403; paridad requiere comprobar soporte de denial response de la combinación elegida. [WS Starlette](https://starlette.dev/websockets/).
+Mantener `/ws` usado por la SPA y el upgrade en cualquier ruta que admite el servidor actual. El candidato registra un catchall WS; auth/Origin/cupo se aplican antes de `accept`. Actualmente se responde 401 por clave incorrecta y 429 por cupo. Starlette `close` antes de `accept` normalmente responde 403; paridad requiere comprobar soporte de denial response de la combinación elegida. [WS Starlette](https://starlette.dev/websockets/).
 
 Primero event_type=ws_connected, message/timestamp; después metrics_update con event/type. Conservar RX/TX/cola/radio/serial/uptime y airtime/alertas completos. Frontend interpreta type || event_type || event.
 
@@ -278,17 +278,25 @@ El navegador envía JSON `type=ping` cada 15 s; el servidor responde JSON `type=
 
 Conservar broadcast_event o adaptar todos los consumidores. Registrar evento una vez antes de difundir, incluso sin clientes; mantener buffers/retención/contadores.
 
-gather(return_exceptions=True) aísla fallos, no acota cliente lento. Definir timeout, orden por conexión, limpieza y backpressure. Si se crea cola, acordar capacidad/descarte, sin deducirlos de cola entrante Uvicorn. Cada tarea tiene propietario y se cancela/espera al cerrar.
+El servidor actual difunde secuencialmente con `writer.drain()` limitado a 2 s por cliente; el candidato conserva esa secuencia y ese presupuesto mediante tareas retenidas, lock y envío ASGI. La latencia agregada puede crecer con clientes lentos. El envío ASGI espera flow control antes del write; eso no demuestra equivalencia con el drain posterior. Una difusión concurrente mediante `gather(return_exceptions=True)` sería una decisión futura; por sí sola tampoco acota clientes lentos. Si se crea cola, acordar capacidad/descarte. Cada tarea tiene propietario y se cancela/espera al cerrar.
 
 #### 4.3 Estáticos y mapas
 
 Montar estáticos tras API/WS/docs. StaticFiles(html=True) no demuestra fallback actual: /chat,/map,/nodes,/contacts,/settings,/telemetry,/logs,/analytics y ciertas rutas sin extensión sirven index. Assets inexistentes con extensión y API desconocida no deben convertirse en HTML de éxito.
 
-Mantener GET/HEAD, MIME, traversal/pertenencia al root, ETag/304, gzip/Vary, HTML sin caché y caché de assets. Diseñar equivalencia, no asumirla por StaticFiles.
+Los estáticos actuales aceptan todos los métodos que alcanzan el dispatcher; OPTIONS se resuelve antes y HEAD suprime representación. Conservar esa amplitud, MIME, traversal/pertenencia al root, ETag/304, gzip/Vary, HTML sin caché y caché de assets. Diseñar equivalencia, no asumirla por StaticFiles. Las teselas sólo aceptan GET, incluido rechazo 405 para HEAD.
 
 Conservar XYZ/MBTiles, TMS/XYZ, PNG/JPG/JPEG/WebP/PBF, MIME, status/reload. Tiles ya usan `asyncio.to_thread`; mantener locks/cierre/coordenadas/headers. No limitar router a `.png`. [MapTileService](src/web/map_tile_service.py) y `_serve_map_tile` acreditan comportamiento actual.
 
 **Puerta:** bajo autorización, SPA/WS virtuales, desconexión/clientes lentos, historial sin clientes, mapas/offline. No afirmar carga en 100 ms sin medición comparable.
+
+**Preparación entregada el 2026-10-09:** [fase 4](docs/fastapi/PHASE_4_REPORT.md).
+El hub presta el bridge/router y los mapas; el lifespan inicia sólo métricas web pasivas.
+El plazo de apagado procede del propietario y no se renueva entre hub/Uvicorn/lifespan.
+Ping RFC vacío conserva `WS_IDLE_TIMEOUT_SEC` (30 s por defecto) sin exigir pong;
+el reset por chunks, fragmentación aceptada por SansIO y falta de deadline nativo
+de 10 s para tramas parciales son diferencias pendientes. Las rutas de docs
+devuelven 404 explícito hasta fase 5. No se activó el candidato ni se ejecutaron suites.
 
 ### Fase 5. OpenAPI, documentación offline y verificación
 

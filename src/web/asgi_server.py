@@ -1,8 +1,8 @@
 """Inactive ASGI lifecycle foundation for the evaluated Uvicorn 0.54.0 stack.
 
 This module is deliberately absent from the default server factory. Its candidate
-application registers REST compatibility routes but has no WebSocket, static,
-tile or documentation routes: listener readiness is not contract readiness.
+application registers REST, WebSocket, static and tile compatibility adapters;
+documentation remains disabled: listener readiness is not contract readiness.
 Authorized contract/lifecycle verification remains necessary before activation.
 """
 
@@ -14,9 +14,11 @@ import math
 import socket
 from collections.abc import AsyncIterator, Callable, Generator
 from contextlib import asynccontextmanager, contextmanager
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import FastAPI
+from starlette.routing import WebSocketRoute
 from starlette.types import ASGIApp
 from uvicorn import Config, Server
 from uvicorn.lifespan.on import LifespanOn
@@ -25,11 +27,13 @@ from src.web.access_policy import (
     HTTP_MAX_HEADER_BYTES,
     WS_MAX_PAYLOAD_BYTES,
 )
+from src.web.asgi_assets import install_asset_routes
 from src.web.asgi_errors import install_error_handlers
 from src.web.asgi_http import BridgeH11Protocol
 from src.web.asgi_routes import install_rest_routes
 from src.web.asgi_security import BridgeSecurityMiddleware
 from src.web.asgi_websocket import BridgeWebSocketProtocol
+from src.web.asgi_ws_hub import WebSocketHub
 
 if TYPE_CHECKING:
     from src.web.api_router import WebAPIRouter
@@ -49,8 +53,14 @@ class _SecuredFastAPI(FastAPI):
         return BridgeSecurityMiddleware(super().build_middleware_stack())
 
 
-def create_asgi_app(router: WebAPIRouter) -> FastAPI:
+def create_asgi_app(
+    router: WebAPIRouter, *, shutdown_budget_s: float, static_dir: Path | None = None
+) -> FastAPI:
     """Borrow the existing context; construct neither services nor import-time tasks."""
+
+    if not math.isfinite(shutdown_budget_s) or shutdown_budget_s <= 0:
+        raise ValueError("shutdown_budget_s must be finite and positive")
+    hub = WebSocketHub(router)
 
     @asynccontextmanager
     async def web_lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -58,9 +68,16 @@ def create_asgi_app(router: WebAPIRouter) -> FastAPI:
         # or shutdown can cancel this instance's lifespan, never unrelated tasks.
         app.state.web_lifespan_task = asyncio.current_task()
         try:
+            await hub.start()
             yield
         finally:
-            app.state.web_lifespan_task = None
+            try:
+                deadline = app.state.web_shutdown_deadline
+                if deadline is None:
+                    deadline = asyncio.get_running_loop().time() + shutdown_budget_s
+                await hub.stop(deadline)
+            finally:
+                app.state.web_lifespan_task = None
 
     app = _SecuredFastAPI(
         docs_url=None,
@@ -70,9 +87,15 @@ def create_asgi_app(router: WebAPIRouter) -> FastAPI:
     )
     install_error_handlers(app)
     install_rest_routes(app, router)
+    # The native handshake accepts upgrades on any path, including API paths.
+    # HTTP route adapters match HTTP scopes only; no WS path restriction is added.
+    app.router.routes.append(WebSocketRoute("/{path:path}", hub.endpoint))
+    install_asset_routes(app, router, static_dir)
     app.state.router = router
     app.state.api_context = router.api_ctx
     app.state.web_lifespan_task = None
+    app.state.web_shutdown_deadline = None
+    app.state.websocket_hub = hub
     app.state.application_contract_ready = False
     return app
 
@@ -126,9 +149,8 @@ class _EmbeddedUvicornServer(Server):
 class AsgiWebServer:
     """Borrowed-state foundation, requiring an explicit shutdown budget from its owner.
 
-    `broadcast_event` currently records history only. REST endpoints borrow the
-    existing dispatcher; no clients, metrics timers or new radio behavior are
-    introduced. The bridge must
+    REST endpoints and web adapters borrow the existing dispatcher and services.
+    The metrics timer publishes passive web snapshots only. The bridge must
     supervise `wait_closed()` or supply `on_failure` before adopting this adapter.
     """
 
@@ -142,6 +164,7 @@ class AsgiWebServer:
         *,
         shutdown_budget_s: float,
         on_failure: Callable[[Exception], None] | None = None,
+        static_dir: Path | None = None,
     ) -> None:
         if not math.isfinite(shutdown_budget_s) or shutdown_budget_s <= 0:
             raise ValueError("shutdown_budget_s must be finite and positive")
@@ -150,7 +173,11 @@ class AsgiWebServer:
         self.host = host
         self.port = port
         self.shutdown_budget_s = shutdown_budget_s
-        self.app = create_asgi_app(router)
+        self.app = create_asgi_app(
+            router, shutdown_budget_s=shutdown_budget_s, static_dir=static_dir
+        )
+        self.websocket_hub: WebSocketHub = self.app.state.websocket_hub
+        self.tile_service = router.map_tile_service
         self.running = False
         self.failure: Exception | None = None
         self._on_failure = on_failure
@@ -186,12 +213,15 @@ class AsgiWebServer:
             failure = error or RuntimeError("ASGI server stopped unexpectedly")
             self.failure = failure
             self._force_close()
-            logger.error("Embedded ASGI server failed: %s", failure)
+            logger.error("Embedded ASGI server failed with %s", type(failure).__name__)
             if self._on_failure is not None:
                 try:
                     self._on_failure(failure)
-                except Exception:
-                    logger.exception("ASGI owner failure callback failed")
+                except Exception as callback_error:
+                    logger.error(
+                        "ASGI owner failure callback failed with %s",
+                        type(callback_error).__name__,
+                    )
 
     async def _serve(self, server: _EmbeddedUvicornServer) -> None:
         try:
@@ -215,11 +245,14 @@ class AsgiWebServer:
         async with self._start_lock:
             if self.running:
                 return
-            if any(not task.done() for task in self._pending_tasks):
+            if any(
+                not task.done() for task in self._pending_tasks | self._server_tasks()
+            ):
                 raise RuntimeError("Previous ASGI lifecycle has not finished")
             self._stopping = False
             self.failure = None
             self._stop_task = None
+            self.app.state.web_shutdown_deadline = None
             config = Config(
                 self.app,
                 host=self.host,
@@ -285,7 +318,7 @@ class AsgiWebServer:
             listener.close()
 
     def _server_tasks(self) -> set[asyncio.Task[Any]]:
-        tasks: set[asyncio.Task[Any]] = set()
+        tasks: set[asyncio.Task[Any]] = self.websocket_hub.owned_tasks()
         if self._serve_task is not None:
             tasks.add(self._serve_task)
         if self._server is not None:
@@ -300,6 +333,10 @@ class AsgiWebServer:
 
     def _force_close(self) -> None:
         """Close resources synchronously even if the caller cancels stop()."""
+        # Force cleanup must not give an endpoint's finally a fresh close budget.
+        deadline = asyncio.get_running_loop().time()
+        self.app.state.web_shutdown_deadline = deadline
+        self.websocket_hub.force_stop(deadline=deadline)
         server = self._server
         if server is not None:
             server.should_exit = True
@@ -311,10 +348,11 @@ class AsgiWebServer:
                     transport = getattr(connection, "transport", None)
                     if transport is not None:
                         transport.abort()
-                except Exception:
-                    logger.debug("Error forcing ASGI connection closure", exc_info=True)
+                except Exception as close_error:
+                    logger.debug("ASGI forced closure failed with %s", type(close_error).__name__)
+        current = asyncio.current_task()
         for task in self._server_tasks():
-            if not task.done():
+            if task is not current and not task.done():
                 self._retain_task(task)
                 task.cancel()
 
@@ -322,10 +360,14 @@ class AsgiWebServer:
         loop = asyncio.get_running_loop()
         server = self._server
         task = self._serve_task
+        self.app.state.web_shutdown_deadline = deadline
         try:
             if server is not None:
                 server.should_exit = True
                 self._close_listeners(server)
+            # Reject admission and abort peers before waiting on Uvicorn, whose
+            # shutdown otherwise waits for those same WebSocket application tasks.
+            await self.websocket_hub.stop(deadline)
             if task is not None and not task.done():
                 await asyncio.wait({task}, timeout=max(0.0, deadline - loop.time()))
         finally:
@@ -359,5 +401,5 @@ class AsgiWebServer:
             raise
 
     async def broadcast_event(self, event_data: dict[str, Any]) -> None:
-        """Phase 1 preserves history once; WebSocket delivery awaits its migration phase."""
-        self.router.record_incoming_event(event_data)
+        """Delegate history and event delivery once through the borrowed-state hub."""
+        await self.websocket_hub.broadcast_event(event_data)

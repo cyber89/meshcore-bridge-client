@@ -6,6 +6,10 @@ con revisión estática. No se ha importado, construido ni ejecutado la aplicaci
 La fábrica del core sigue seleccionando `MeshCoreWebServer` y
 `application_contract_ready=False` permanece explícito.
 
+Este informe conserva el alcance histórico de fase 3. La preparación posterior
+de WS/SPA/teselas está documentada en [fase 4](PHASE_4_REPORT.md); los hashes
+de su registro son snapshots de cada etapa, no una afirmación de identidad del árbol actual.
+
 ## Entrega y coordinación
 
 El líder integró tres especialistas de catálogo, seguridad y revisión de

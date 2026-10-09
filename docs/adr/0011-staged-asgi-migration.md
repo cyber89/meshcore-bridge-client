@@ -88,3 +88,17 @@ el catch global y errores de enteros compartidos eliminan textos de excepción
 y valores recibidos. Son correcciones explícitas de seguridad. No se afirma
 redacción global de logs o salidas arbitrarias. Tiles, WS, SPA, OpenAPI completo,
 puertas operativas y adopción permanecen pendientes en el plan.
+
+### Preparación de fase 4
+
+La [fase 4](../fastapi/PHASE_4_REPORT.md) registra WS en cualquier ruta, SPA/estáticos
+y teselas en la fábrica inactiva. El hub conserva bienvenida, métricas y heartbeat
+JSON, historial una vez y orden por cliente. Se prestan mapas/estado sin cerrar
+el servicio del router. El propietario aporta un plazo de cierre común a hub,
+Uvicorn y lifespan; métricas y ping idle heredados no consultan radio ni MQTT.
+
+Se reservan las rutas de docs con 404 y se refuerza pertenencia del fallback
+index.html. El backend valida RFC y admite fragmentación; su contrapresión,
+timing de chunks y buffers no equivalen al framing nativo. Estas diferencias,
+workers de filesystem pendientes y puertas de ejecución se registran expresamente.
+La preparación no decide adopción ni retira el servidor actual; las suites siguen suspendidas.

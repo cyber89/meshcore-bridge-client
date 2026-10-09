@@ -1,0 +1,831 @@
+{
+  "schema_version": 1,
+  "phase": 4,
+  "date": "2026-10-09",
+  "base": "8d5bbdf",
+  "evidence": "Static source/AST/hash/ZIP inspection only; no imports, app construction, suites, listener, browser, broker or RF. Runtime acceptance pending.",
+  "counts": {
+    "canonical_json_operations": 90,
+    "canonical_json_paths": 69,
+    "alias_operations": 50,
+    "json_operations": 140,
+    "json_path_patterns": 108,
+    "tile_operations": 1,
+    "functional_rest_operations": 141,
+    "functional_rest_path_patterns": 109,
+    "scope": "declarative catalog, excluding wildcard WS and static targets"
+  },
+  "counts_provenance": "Canonical declarations parsed fresh; unchanged route catalog/router/adapter hashes match phase 3 snapshot for alias counts.",
+  "registration": {
+    "factory": "create_asgi_app(router, *, shutdown_budget_s, static_dir=None)",
+    "default_core_server": "MeshCoreWebServer",
+    "application_contract_ready": false,
+    "websocket_pattern": "/{path:path}",
+    "tile_prefix": "/api/map/tiles/",
+    "tiles_methods": [
+      "GET"
+    ],
+    "static_methods": "any method admitted by perimeter; OPTIONS preflight and HEAD suppression are outside adapter",
+    "raw_file_selection": true,
+    "reserved_documentation_404": [
+      "/docs",
+      "/redoc",
+      "/openapi.json"
+    ],
+    "new_production_dependencies_installed": false
+  },
+  "ownership": {
+    "borrowed": [
+      "router",
+      "ApiContext",
+      "bridge",
+      "radio",
+      "MQTT",
+      "router.map_tile_service"
+    ],
+    "web_owned": [
+      "peers",
+      "locks",
+      "metrics task",
+      "send/close tasks",
+      "idle ping timer/task",
+      "static cache"
+    ],
+    "shutdown": "owner absolute loop deadline shared across hub/server/lifespan; force abort does not renew close budget",
+    "tile_service_closed_by_adapter": false,
+    "history_calls": [
+      {
+        "file": "src/web/asgi_ws_hub.py",
+        "line": 250
+      }
+    ]
+  },
+  "websocket": {
+    "initial_order": [
+      "ws_connected",
+      "metrics_update"
+    ],
+    "periodic_metrics_fields": [
+      "event",
+      "type",
+      "node_count",
+      "rx_count",
+      "tx_count",
+      "error_rate",
+      "queue_depth",
+      "serial_connected",
+      "radio_connected",
+      "uptime",
+      "uptime_str",
+      "airtime_ms",
+      "duty_cycle_pct",
+      "hourly_limit_pct",
+      "warn_threshold_pct",
+      "is_warning",
+      "is_critical",
+      "status_level",
+      "channel_stats",
+      "airtime",
+      "duplicate_packets",
+      "packet_errors"
+    ],
+    "initial_extra_fields": [
+      "radio_port"
+    ],
+    "json_heartbeat": {
+      "input": {
+        "type": "ping"
+      },
+      "output": {
+        "type": "pong",
+        "timestamp": "integer epoch seconds"
+      }
+    },
+    "outgoing_events": "open mappings, JSON default=str, no DTO filter",
+    "metrics_interval_env": "WS_METRICS_INTERVAL_SEC",
+    "metrics_default_seconds": 5.0,
+    "idle_env": "WS_IDLE_TIMEOUT_SEC",
+    "idle_default_seconds": 30.0,
+    "idle_payload": "empty RFC Ping",
+    "pong_timeout": null,
+    "send_seconds_per_peer": 2.0,
+    "broadcast_order": "sequential, per-peer lock; pre-ready broadcasts retained in history without replay"
+  },
+  "assets": {
+    "etag": "quoted SHA256(raw) first 16 hex",
+    "gzip_level": 6,
+    "gzip_min_raw_bytes_exclusive": 256,
+    "vary": "Accept-Encoding",
+    "html_cache": "no-cache, no-store, must-revalidate",
+    "other_cache": "public, max-age=300",
+    "tile_cache": "public, max-age=86400",
+    "tile_zoom_range": [
+      0,
+      22
+    ],
+    "tile_lookup": "borrowed MapTileService.get_tile via to_thread; XYZ/MBTiles/TMS/MIME unchanged",
+    "filesystem_work": "to_thread with adapter-local threading.RLock"
+  },
+  "acceptance_pending": [
+    "REST/WS/SPA/tile parity with isolated virtual data",
+    "handshake/Origin/auth/capacity/close over real loopback socket",
+    "close frame buffered before abort and denial HTTP response delivery",
+    "flow control before ASGI write vs native drain after write",
+    "fragmentation and 1 MiB message vs frame semantics",
+    "native partial-frame 10 s deadline absent",
+    "idle activity chunks vs frame boundaries and env read per connection vs per frame",
+    "unbounded inbound SansIO queue and aggregate memory under load",
+    "ready gate no replay and concurrent producer ordering",
+    "sequential broadcast aggregate latency with slow peers",
+    "startup/shutdown/cancellation/restart and failure supervision",
+    "to_thread workers continuing after coroutine cancellation and future map owner closure",
+    "filesystem symlink TOCTOU and unbounded mtime cache",
+    "HEAD/error/documentation reserved 404 behavior",
+    "offline maps TMS/XYZ/PBF compression and browser consumers",
+    "OpenAPI/authenticated offline documentation and installer/cutover phases 5-6"
+  ],
+  "source_files": [
+    {
+      "file": "src/web/asgi_server.py",
+      "sha256": "f5fbf1e875fecae29c950e1c86895b11ab1d364e688723bdb01435e3186dc01c",
+      "bytes": 17038,
+      "python_grammar": "3.10",
+      "symbols": [
+        {
+          "name": "_SecuredFastAPI",
+          "line": 44,
+          "kind": "ClassDef"
+        },
+        {
+          "name": "create_asgi_app",
+          "line": 56,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_OwnedLifespan",
+          "line": 103,
+          "kind": "ClassDef"
+        },
+        {
+          "name": "_EmbeddedUvicornServer",
+          "line": 128,
+          "kind": "ClassDef"
+        },
+        {
+          "name": "AsgiWebServer",
+          "line": 149,
+          "kind": "ClassDef"
+        },
+        {
+          "name": "build_middleware_stack",
+          "line": 52,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "web_lifespan",
+          "line": 66,
+          "kind": "AsyncFunctionDef"
+        },
+        {
+          "name": "__init__",
+          "line": 112,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "startup",
+          "line": 116,
+          "kind": "AsyncFunctionDef"
+        },
+        {
+          "name": "__init__",
+          "line": 131,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "capture_signals",
+          "line": 136,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "startup",
+          "line": 140,
+          "kind": "AsyncFunctionDef"
+        },
+        {
+          "name": "__init__",
+          "line": 159,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_retain_task",
+          "line": 191,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_consume_task",
+          "line": 195,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_serve_done",
+          "line": 200,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_serve",
+          "line": 226,
+          "kind": "AsyncFunctionDef"
+        },
+        {
+          "name": "start",
+          "line": 243,
+          "kind": "AsyncFunctionDef"
+        },
+        {
+          "name": "wait_closed",
+          "line": 307,
+          "kind": "AsyncFunctionDef"
+        },
+        {
+          "name": "_close_listeners",
+          "line": 316,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_server_tasks",
+          "line": 320,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_force_close",
+          "line": 334,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_shutdown",
+          "line": 359,
+          "kind": "AsyncFunctionDef"
+        },
+        {
+          "name": "stop",
+          "line": 386,
+          "kind": "AsyncFunctionDef"
+        },
+        {
+          "name": "broadcast_event",
+          "line": 403,
+          "kind": "AsyncFunctionDef"
+        }
+      ]
+    },
+    {
+      "file": "src/web/asgi_ws_hub.py",
+      "sha256": "642bef6ce6db96c38b636dcdee7cb96420c17804a0e3e23c07cbd0cdfe2e8016",
+      "bytes": 14302,
+      "python_grammar": "3.10",
+      "symbols": [
+        {
+          "name": "_Peer",
+          "line": 34,
+          "kind": "ClassDef"
+        },
+        {
+          "name": "WebSocketHub",
+          "line": 43,
+          "kind": "ClassDef"
+        },
+        {
+          "name": "__init__",
+          "line": 46,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_retain",
+          "line": 56,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_consume",
+          "line": 60,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "owned_tasks",
+          "line": 68,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "start",
+          "line": 72,
+          "kind": "AsyncFunctionDef"
+        },
+        {
+          "name": "_abort",
+          "line": 86,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "force_stop",
+          "line": 97,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "stop",
+          "line": 109,
+          "kind": "AsyncFunctionDef"
+        },
+        {
+          "name": "_remove_peer",
+          "line": 125,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_close_socket",
+          "line": 140,
+          "kind": "AsyncFunctionDef"
+        },
+        {
+          "name": "_close_peer",
+          "line": 145,
+          "kind": "AsyncFunctionDef"
+        },
+        {
+          "name": "endpoint",
+          "line": 182,
+          "kind": "AsyncFunctionDef"
+        },
+        {
+          "name": "_send_to_peer",
+          "line": 243,
+          "kind": "AsyncFunctionDef"
+        },
+        {
+          "name": "broadcast_event",
+          "line": 248,
+          "kind": "AsyncFunctionDef"
+        },
+        {
+          "name": "_metrics",
+          "line": 279,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_metrics_loop",
+          "line": 321,
+          "kind": "AsyncFunctionDef"
+        }
+      ]
+    },
+    {
+      "file": "src/web/asgi_assets.py",
+      "sha256": "cba5b131c87e75417740691a8c962a12e40f6addd3c66f7c3c6872762b6a008f",
+      "bytes": 12326,
+      "python_grammar": "3.10",
+      "symbols": [
+        {
+          "name": "_CachedAsset",
+          "line": 42,
+          "kind": "ClassDef"
+        },
+        {
+          "name": "_AssetResult",
+          "line": 51,
+          "kind": "ClassDef"
+        },
+        {
+          "name": "_accepts_gzip",
+          "line": 57,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_traversal_attempt",
+          "line": 76,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_response",
+          "line": 93,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "AssetsAdapter",
+          "line": 100,
+          "kind": "ClassDef"
+        },
+        {
+          "name": "_AssetsRoute",
+          "line": 266,
+          "kind": "ClassDef"
+        },
+        {
+          "name": "install_asset_routes",
+          "line": 288,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "__init__",
+          "line": 103,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "dispatch",
+          "line": 112,
+          "kind": "AsyncFunctionDef"
+        },
+        {
+          "name": "_tile",
+          "line": 134,
+          "kind": "AsyncFunctionDef"
+        },
+        {
+          "name": "_contained",
+          "line": 170,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_static",
+          "line": 178,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "__init__",
+          "line": 267,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "matches",
+          "line": 271,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "url_path_for",
+          "line": 280,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "handle",
+          "line": 283,
+          "kind": "AsyncFunctionDef"
+        }
+      ]
+    },
+    {
+      "file": "src/web/asgi_websocket.py",
+      "sha256": "1f4397702629bacb3334c767bc3e89b50cf50321b52a8ecff512609ad1f7b49b",
+      "bytes": 5784,
+      "python_grammar": "3.10",
+      "symbols": [
+        {
+          "name": "BridgeWebSocketProtocol",
+          "line": 24,
+          "kind": "ClassDef"
+        },
+        {
+          "name": "__init__",
+          "line": 33,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "handle_connect",
+          "line": 55,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_abort_peer",
+          "line": 63,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "start_keepalive",
+          "line": 67,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "stop_keepalive",
+          "line": 72,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_schedule_idle_ping",
+          "line": 82,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "data_received",
+          "line": 96,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_begin_idle_ping",
+          "line": 102,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_idle_ping_done",
+          "line": 113,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_send_idle_ping",
+          "line": 126,
+          "kind": "AsyncFunctionDef"
+        }
+      ]
+    },
+    {
+      "file": "src/web/asgi_security.py",
+      "sha256": "5b396819027882a4720437dc6c10bb62c071d395aed55a06b275828fcf364fac",
+      "bytes": 18422,
+      "python_grammar": "3.10",
+      "symbols": [
+        {
+          "name": "HttpAbortUnavailable",
+          "line": 59,
+          "kind": "ClassDef"
+        },
+        {
+          "name": "_BufferedRequest",
+          "line": 64,
+          "kind": "ClassDef"
+        },
+        {
+          "name": "_raw_request_target",
+          "line": 69,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_peer_ip",
+          "line": 82,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_parse_json_object",
+          "line": 90,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "BridgeSecurityMiddleware",
+          "line": 97,
+          "kind": "ClassDef"
+        },
+        {
+          "name": "__init__",
+          "line": 105,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "active_websocket_reservations",
+          "line": 110,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_log_rejection",
+          "line": 114,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_inspect",
+          "line": 138,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_abort_http",
+          "line": 161,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_reply_http",
+          "line": 168,
+          "kind": "AsyncFunctionDef"
+        },
+        {
+          "name": "_read_body",
+          "line": 196,
+          "kind": "AsyncFunctionDef"
+        },
+        {
+          "name": "_reject_large_body",
+          "line": 274,
+          "kind": "AsyncFunctionDef"
+        },
+        {
+          "name": "_normal_response_headers",
+          "line": 289,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_handle_http",
+          "line": 304,
+          "kind": "AsyncFunctionDef"
+        },
+        {
+          "name": "_deny_websocket",
+          "line": 387,
+          "kind": "AsyncFunctionDef"
+        },
+        {
+          "name": "_handle_websocket",
+          "line": 403,
+          "kind": "AsyncFunctionDef"
+        },
+        {
+          "name": "__call__",
+          "line": 464,
+          "kind": "AsyncFunctionDef"
+        },
+        {
+          "name": "replay_receive",
+          "line": 353,
+          "kind": "AsyncFunctionDef"
+        },
+        {
+          "name": "guarded_send",
+          "line": 360,
+          "kind": "AsyncFunctionDef"
+        }
+      ]
+    },
+    {
+      "file": "src/web/asgi_http.py",
+      "sha256": "994fceda79c0e99613573bb2f75780234fbf8a88764582cbad7e363b8cbea548",
+      "bytes": 8823,
+      "python_grammar": "3.10",
+      "symbols": [
+        {
+          "name": "BridgeH11Protocol",
+          "line": 36,
+          "kind": "ClassDef"
+        },
+        {
+          "name": "__init__",
+          "line": 39,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "connection_made",
+          "line": 72,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "data_received",
+          "line": 77,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "handle_events",
+          "line": 135,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "handle_websocket_upgrade",
+          "line": 147,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "send_400_response",
+          "line": 151,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "eof_received",
+          "line": 169,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "connection_lost",
+          "line": 179,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "shutdown",
+          "line": 184,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_head_timeout",
+          "line": 188,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_forward_admitted_tail",
+          "line": 193,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_cancel_head_timer",
+          "line": 204,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_abort_request",
+          "line": 209,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "app_with_abort",
+          "line": 61,
+          "kind": "AsyncFunctionDef"
+        }
+      ]
+    },
+    {
+      "file": "src/web/access_policy.py",
+      "sha256": "caa37a3adb012b236352ae710c7ae47a82fbc110321528071df9c7733eac261d",
+      "bytes": 11213,
+      "python_grammar": "3.10"
+    },
+    {
+      "file": "src/web/asgi_routes.py",
+      "sha256": "7f8ca75032dbb5b0dadfcb01a6e7276e914583b47d2eb9ca448c7cd8e5026ff9",
+      "bytes": 6977,
+      "python_grammar": "3.10"
+    },
+    {
+      "file": "src/web/asgi_route_catalog.py",
+      "sha256": "82d622a9279a1183eafe46fa89158647779bc2d6723a91a03f60167b6e92eb84",
+      "bytes": 9509,
+      "python_grammar": "3.10"
+    },
+    {
+      "file": "src/web/api_router.py",
+      "sha256": "0e07c67ae8ad8633ac462bfdedc455049ea2e2b96d05b5ec8f19e2de7c33c6b8",
+      "bytes": 42070,
+      "python_grammar": "3.10"
+    },
+    {
+      "file": "src/web/http_server.py",
+      "sha256": "c583e79724c1f3770637a6d18f84041782f86b1754c23f6f2eb23289290ab772",
+      "bytes": 54715,
+      "python_grammar": "3.10"
+    },
+    {
+      "file": "src/web/map_tile_service.py",
+      "sha256": "683e19c8640e0991e74c5e46dbcbe076abb0d33beaa007944aae6785cd250627",
+      "bytes": 8580,
+      "python_grammar": "3.10"
+    },
+    {
+      "file": "src/web/__init__.py",
+      "sha256": "4c6820208239ba54a26b17b6a90477d9bbbc72495e86570112d9e9777ae184c6",
+      "bytes": 814,
+      "python_grammar": "3.10"
+    },
+    {
+      "file": "src/bridge_core.py",
+      "sha256": "670351582151d0cecc5b0944976ec744a342fb586093a6c4acbe619a2ea84369",
+      "bytes": 56081,
+      "python_grammar": "3.10"
+    },
+    {
+      "file": "src/web/static/js/core/websocket.js",
+      "sha256": "0a95da85fd774056ff516e4e6d83a356389873b2991ce8ea24dd7727cc18ce82",
+      "bytes": 4389
+    }
+  ],
+  "wheel_source_evidence": [
+    {
+      "wheel": "uvicorn-0.54.0-py3-none-any.whl",
+      "source": "uvicorn/protocols/websockets/websockets_sansio_impl.py",
+      "source_sha256": "8b32a97a1608788bba525c8b1e0d3eb0a93cd09d0f4f41b9b83cebd527336c49",
+      "class": "WebSocketsSansIOProtocol",
+      "methods": {
+        "handle_connect": 223,
+        "data_received": 194,
+        "start_keepalive": 329,
+        "stop_keepalive": 333,
+        "send": 432,
+        "connection_lost": 141
+      },
+      "mode": "ZIP source + AST, no import"
+    },
+    {
+      "wheel": "starlette-1.7.0-py3-none-any.whl",
+      "source": "starlette/routing.py",
+      "source_sha256": "15215c88f4187c98cf498e757b188c0e06fbe80d95f78b7630c4e51f92611af4",
+      "class": "WebSocketRoute",
+      "methods": {
+        "matches": 329,
+        "handle": 355
+      },
+      "mode": "ZIP source + AST, no import"
+    },
+    {
+      "wheel": "websockets-16.1.1-cp310-cp310-win_amd64.whl",
+      "source": "websockets/protocol.py",
+      "source_sha256": "ae60727926d9adc11b008dadb934ef19f283ed283b8e7bf03ae3abfec46d63cf",
+      "class": "Protocol",
+      "methods": {
+        "send_ping": 400,
+        "data_to_send": 497
+      },
+      "mode": "ZIP source + AST, no import"
+    }
+  ],
+  "static_comparisons": {
+    "periodic_metric_keys_match_native": 22,
+    "initial_metric_keys_match_native": 23,
+    "welcome_constant_fields_match_native": true,
+    "history_call_sites_in_hub_and_server": 1,
+    "mode": "AST literals and file hashes only; functions not executed"
+  }
+}

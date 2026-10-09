@@ -38,6 +38,7 @@ from src.web.security_inspector import (
 # transport, avoiding Uvicorn's fallback 500 when no response has been started.
 # Do not import asgi_http merely to share this name and pull h11 into the guard.
 HTTP_ABORT_EXTENSION = "meshcore.http.abort"
+WS_ABORT_EXTENSION = "meshcore.websocket.abort"
 BODY_BYTES_STATE = "meshcore_body_bytes"
 BODY_JSON_STATE = "meshcore_body_json"
 

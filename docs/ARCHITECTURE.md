@@ -17,7 +17,12 @@ inactiva, reutilizando dispatcher y contexto; no crea hardware o servicios.
 Los DTO son metadata y no reserializan entrada ni cambian la validación de
 controladores. El candidato redacta selectivamente errores retornados; el catch
 global REST y errores de enteros compartidos omiten excepciones/valores tanto
-en servidor actual como candidato. WS/SPA/tiles y aceptación siguen pendientes.
+en servidor actual como candidato. La [fase 4](fastapi/PHASE_4_REPORT.md) prepara
+WS, SPA y teselas: presta los mapas, registra historial una vez y limita el
+apagado con un deadline común del propietario. Los timers heredados de métricas
+y ping idle son exclusivamente web, sin consultas RF/MQTT. El backend admite
+fragmentación y su flow control difiere de `drain`; hay puertas de aceptación
+pendientes. OpenAPI público sigue deshabilitado y el servidor predeterminado no cambia.
 
 El framing Companion oficial (`<`/`>`, longitud `uint16` little-endian y payload) es distinto del formato raw propio `0xAA/0x55/0x1B` con CRC-16 de `MeshcoreFrame`. El adaptador raw actual es un parser en memoria sin E/S física; no es una etapa obligatoria del RX/TX SDK ni del paquete RF oficial.
 

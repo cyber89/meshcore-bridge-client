@@ -227,3 +227,14 @@ del hardware. Los presupuestos de recursos quedan sin fijar por la respuesta del
 usuario, y el presupuesto de apagado requiere conciliar los valores ya existentes.
 La ejecución de suites, instalación de producción y transmisión RF siguen siendo
 acciones separadas del análisis de dependencias.
+
+## Evolución preparatoria de fase 4 — 2026-10-09
+
+El candidato conserva los mismos pins; no se instaló ni importó el extra web.
+La [fase 4](PHASE_4_REPORT.md) utiliza las APIs revisadas por lectura de las ruedas:
+`WebSocketRoute` de Starlette 1.7 y hooks `handle_connect`, `start_keepalive`,
+`stop_keepalive`, `writable` y `server_state.tasks` de SansIO/Uvicorn 0.54.
+El protocolo añade un abort por conexión antes de que corra la aplicación y
+ping idle vacío heredado, sin política nueva de cierre por falta de pong.
+Su semántica de buffers/fragmentación y contrapresión sigue siendo una puerta
+de ejecución. Estas interfaces privadas requieren nueva auditoría al renovar pins.
