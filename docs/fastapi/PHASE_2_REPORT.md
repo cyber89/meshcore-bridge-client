@@ -3,7 +3,9 @@
 Fecha: 2026-10-09. Base: `9eead69` y checkout con cambios anteriores conservados.
 Estado: **preparación escrita y revisión estática**. La aceptación de ejecución
 de fases 1 y 2 continúa pendiente; el usuario pidió continuar sin suites.
-ASGI sigue inactivo, sin endpoints de negocio, WS, SPA o documentación pública.
+En esa entrega ASGI seguía inactivo, sin endpoints de negocio, WS, SPA o
+documentación pública. La [fase 3](PHASE_3_REPORT.md) prepara posteriormente
+rutas JSON y política selectiva de errores; no activa el candidato ni acepta QA.
 
 ## Entrega y reunión técnica
 
@@ -101,6 +103,11 @@ deberá revisar esos caminos y las salidas
 de configuración/admin/servicios sin perder códigos o extensiones ni añadir
 logs que contengan secretos. Los handlers HTTP tampoco sustituyen el protocolo
 de errores WebSocket de fase 4.
+
+Evolución posterior: la [fase 3](PHASE_3_REPORT.md) corrige el catch global y los
+errores de enteros compartidos y añade redacción de retornos sólo en el candidato.
+Otros logs internos y textos arbitrarios siguen pendientes; el apartado anterior
+describe el hallazgo que motivó esa continuación, no una certificación global.
 
 ## Evidencia y puerta pendiente
 

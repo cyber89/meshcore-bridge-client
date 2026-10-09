@@ -74,3 +74,17 @@ Los controladores mantienen validación, coerción y dominio. Sus errores
 retornados y logs pueden incluir detalles que los handlers no interceptan;
 la fase de rutas debe abordar esa redacción expresamente. Las puertas de
 ejecución y la adopción siguen pendientes, sin relajar la instrucción del usuario.
+
+### Preparación de fase 3
+
+Se añadieron [seis lotes REST](../fastapi/PHASE_3_REPORT.md) al candidato, con
+90 operaciones JSON canónicas y 50 de alias, sin activar su fábrica en el core.
+Los endpoints Request-only prestan el dispatcher/contexto y conservan target y
+body originales. Se adaptan matching raw y fallback de métodos/slashes a la
+fuente de FastAPI 0.143.0, sin duplicar controladores o efectos.
+
+La redacción selectiva del candidato conserva códigos/extensiones de fallo;
+el catch global y errores de enteros compartidos eliminan textos de excepción
+y valores recibidos. Son correcciones explícitas de seguridad. No se afirma
+redacción global de logs o salidas arbitrarias. Tiles, WS, SPA, OpenAPI completo,
+puertas operativas y adopción permanecen pendientes en el plan.

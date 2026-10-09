@@ -1,9 +1,9 @@
 """Inactive ASGI lifecycle foundation for the evaluated Uvicorn 0.54.0 stack.
 
-This module is deliberately absent from the default server factory. Its empty
-application has no REST, WebSocket, static, or documentation routes: listener
-readiness is not application-contract readiness. Later migration phases must
-provide those contracts and authorized lifecycle verification before activation.
+This module is deliberately absent from the default server factory. Its candidate
+application registers REST compatibility routes but has no WebSocket, static,
+tile or documentation routes: listener readiness is not contract readiness.
+Authorized contract/lifecycle verification remains necessary before activation.
 """
 
 from __future__ import annotations
@@ -27,6 +27,7 @@ from src.web.access_policy import (
 )
 from src.web.asgi_errors import install_error_handlers
 from src.web.asgi_http import BridgeH11Protocol
+from src.web.asgi_routes import install_rest_routes
 from src.web.asgi_security import BridgeSecurityMiddleware
 from src.web.asgi_websocket import BridgeWebSocketProtocol
 
@@ -68,6 +69,7 @@ def create_asgi_app(router: WebAPIRouter) -> FastAPI:
         lifespan=web_lifespan,
     )
     install_error_handlers(app)
+    install_rest_routes(app, router)
     app.state.router = router
     app.state.api_context = router.api_ctx
     app.state.web_lifespan_task = None
@@ -124,8 +126,9 @@ class _EmbeddedUvicornServer(Server):
 class AsgiWebServer:
     """Borrowed-state foundation, requiring an explicit shutdown budget from its owner.
 
-    `broadcast_event` currently records history only. No clients, metrics timers,
-    endpoints or radio operations are introduced in this phase. The bridge must
+    `broadcast_event` currently records history only. REST endpoints borrow the
+    existing dispatcher; no clients, metrics timers or new radio behavior are
+    introduced. The bridge must
     supervise `wait_closed()` or supply `on_failure` before adopting this adapter.
     """
 

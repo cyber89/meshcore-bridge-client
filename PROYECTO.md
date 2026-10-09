@@ -8,7 +8,7 @@
 
 **Base inspeccionada:** HEAD `558385ad77afb8e691252c037dacb76e730b51db` y el árbol de trabajo existente. Había modificaciones ajenas sin commit: los hallazgos describen ese checkout, no sólo el commit.
 
-**Alcance inicial:** reunión técnica de los roles 0 a 7 y del rol 8 propuesto; revisión documental publicada en `457903d`. **Continuación autorizada:** catálogos y dependencias de fase 0, infraestructura de fase 1 publicada en `e8a7030`, seguridad perimetral publicada en `9eead69` y preparación de DTO/errores de fase 2 el 2026-10-09. Los candidatos se descargaron para inspección, sin instalarlos en el entorno del bridge. El usuario indicó «Continúa sin ejecutar suites»; no se arrancan servicios, radio o workflows.
+**Alcance inicial:** reunión técnica de los roles 0 a 7 y del rol 8 propuesto; revisión documental publicada en `457903d`. **Continuación autorizada:** catálogos y dependencias de fase 0, infraestructura de fase 1 publicada en `e8a7030`, seguridad perimetral publicada en `9eead69`, DTO/errores de fase 2 publicados en `42f7104` y registro REST de fase 3 preparado el 2026-10-09. Los candidatos se descargaron para inspección, sin instalarlos en el entorno del bridge. El usuario indicó «Continúa sin ejecutar suites»; no se arrancan servicios, radio o workflows.
 
 ## 1. Dictamen y autoridad
 
@@ -97,9 +97,10 @@ Las fases se entregan secuencialmente. El usuario autorizó comenzar y continuar
 | Etapa | Estado actual | Evidencia / pendiente |
 |---|---|---|
 | 0 | Preparación documental y binaria entregada | [Informe](docs/fastapi/PHASE_0_REPORT.md); seis cierres con wheels, catálogos y snapshot. Recursos e interoperabilidad sin medir |
-| 1 | Infraestructura y seguridad ASGI preparadas; aceptación operativa pendiente | [Informe](docs/fastapi/PHASE_1_REPORT.md) y [seguridad](docs/fastapi/PHASE_1_SECURITY_REPORT.md); servidor actual predeterminado, candidato sin endpoints de negocio/WS/SPA. Lifecycle y paridad en ejecución sin verificar |
-| 2 | DTO y errores del framework preparados; aceptación pendiente | [Informe](docs/fastapi/PHASE_2_REPORT.md), [inventario](docs/fastapi/PHASE_2_REQUEST_INVENTORY.json) y [ejemplos sanitizados](docs/fastapi/PHASE_2_COMPATIBILITY_CASES.json); sin endpoints ni validación en ejecución |
-| 3–4 | Pendientes | Rutas, WS/SPA/mapas según catálogos |
+| 1 | Infraestructura y seguridad ASGI preparadas; aceptación operativa pendiente | [Informe](docs/fastapi/PHASE_1_REPORT.md) y [seguridad](docs/fastapi/PHASE_1_SECURITY_REPORT.md); servidor actual predeterminado. Lifecycle y paridad en ejecución sin verificar |
+| 2 | DTO y errores del framework preparados; aceptación pendiente | [Informe](docs/fastapi/PHASE_2_REPORT.md), [inventario](docs/fastapi/PHASE_2_REQUEST_INVENTORY.json) y [ejemplos sanitizados](docs/fastapi/PHASE_2_COMPATIBILITY_CASES.json); sin validación en ejecución |
+| 3 | Seis lotes REST JSON preparados en el candidato inactivo | [Informe](docs/fastapi/PHASE_3_REPORT.md) y [registro estático](docs/fastapi/PHASE_3_ROUTE_REGISTRY.json); 90 operaciones canónicas + 50 de alias, dispatcher compartido, redacción selectiva. Contratos/efectos en ejecución pendientes |
+| 4 | Pendiente | WS, SPA/assets y tiles/cartografía binaria |
 | 5–6 | Pendientes | OpenAPI, QA autorizado, instaladores, adopción y retiro |
 
 [ADR 0011](docs/adr/0011-staged-asgi-migration.md) registra la preparación autorizada y sus condiciones de adopción. No se convierte una comprobación pendiente en aprobada por no ejecutar suites.
@@ -196,7 +197,8 @@ inventario de 90 operaciones JSON/69 rutas y errores seguros del framework
 registrados en la fábrica inactiva. La [fase 2](docs/fastapi/PHASE_2_REPORT.md)
 explica presencia/coerción/extras, límites de seguridad y aceptación pendiente.
 Los handlers no redactan respuestas que el router ya convierte en errores;
-ese camino requiere integración explícita en fase 3.
+la continuación de fase 3 incorpora una política selectiva y correcciones
+compartidas, con límites de redacción documentados.
 
 #### 2.1 Modelos por operación
 
@@ -221,6 +223,15 @@ No todo error actual sigue ese formato: auth REST devuelve {error:Unauthorized};
 ### Fase 3. Migración gradual de rutas
 
 **Responsables:** 2, 4, 5 y 8; 1 supervisa dominio y 6 trazabilidad. **Objetivo:** APIRouter en lotes, reutilizando inicialmente diez controladores y locks/servicios.
+
+Preparación del 2026-10-09: los seis lotes JSON se registran en la fábrica
+candidata mediante APIRouter y un adaptador al dispatcher existente. Se conserva
+body/target original, alias y fallback de métodos/slashes; los DTO son metadata,
+sin reserialización de entrada. La [fase 3](docs/fastapi/PHASE_3_REPORT.md)
+registra 140 operaciones JSON, redacción explícita de errores y puertas pendientes.
+El servidor predeterminado sólo cambia textos del catch global `500` y errores
+de enteros para no reflejar excepciones/valores; sus códigos y validación siguen.
+Tiles, WS/SPA y adopción no están implementados por este registro.
 
 Tabla de **cobertura comprobada**, no catálogo exhaustivo de la subfase 0.2. Migrar todos los métodos/variantes inventariados, evitando rutas nuevas por parecido de nombre.
 

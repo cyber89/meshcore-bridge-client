@@ -31,8 +31,10 @@ conserva referencias prestadas. No crea bridge, radio, MQTT, mapas ni tareas al
 importar el módulo. El lifespan se limita a web; el adaptador no cierra el mapa
 prestado, cuya propiedad debe conciliarse al hacer el corte definitivo.
 
-La app está deliberadamente vacía: sin endpoints de negocio, WS, SPA, tiles,
-OpenAPI, Swagger ni ReDoc. `application_contract_ready=False` declara ese estado.
+En la entrega inicial la app estaba vacía: sin endpoints de negocio, WS, SPA,
+tiles, OpenAPI, Swagger ni ReDoc. La [fase 3](PHASE_3_REPORT.md) añade después
+declaraciones REST y alias; WS/SPA/tiles/docs siguen pendientes.
+`application_contract_ready=False` conserva la ausencia de aceptación operativa.
 La llegada del listener a readiness no acredita contratos funcionales. No hay
 fallback silencioso ni selección de ASGI mediante configuración de producción.
 
@@ -103,5 +105,6 @@ Antes de aceptar fase 1 y activar los contratos preparados:
 No se retira el servidor anterior, no se añade tráfico RF, no se rearman timers
 de radio y no se cambian límites/intervalos de la malla. La
 [preparación de DTO/errores de fase 2](PHASE_2_REPORT.md) avanzó el 2026-10-09;
-no declara superadas estas puertas. Las fases 3 a 6 siguen pendientes en
+no declara superadas estas puertas. La [fase 3](PHASE_3_REPORT.md) prepara
+rutas JSON; su aceptación y las fases 4 a 6 siguen pendientes en
 [PROYECTO.md](../../PROYECTO.md).

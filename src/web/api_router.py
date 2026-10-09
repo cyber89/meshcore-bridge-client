@@ -100,14 +100,14 @@ def _parse_bounded_int(
         return 0, problem_details(
             400,
             "Bad Request",
-            f"El parámetro '{field_name}' debe ser un número entero válido (recibido: {val!r})",
+            f"El parámetro '{field_name}' debe ser un número entero válido",
             "invalid_integer_param",
         )
     if res < min_val or res > max_val:
         return 0, problem_details(
             400,
             "Bad Request",
-            f"El parámetro '{field_name}' debe estar comprendido entre {min_val} y {max_val} (recibido: {res})",
+            f"El parámetro '{field_name}' debe estar comprendido entre {min_val} y {max_val}",
             "param_out_of_bounds",
         )
     return res, None
@@ -388,9 +388,11 @@ class WebAPIRouter:
             return problem_details(404, "Not Found", f"Ruta no encontrada: {method} {clean_path}", "route_not_found")
 
         except Exception as e:
-            logging.error(f"Error procesando solicitud REST {method} {clean_path}: {e}", exc_info=True)
-            self.log_system_event("ERROR", f"Fallo en API {method} {clean_path}: {e}", source="api")
-            return problem_details(500, "Internal Server Error", str(e), "internal_server_error")
+            # Exception text, traceback values and raw targets can contain
+            # credentials. This shared catch serves both web implementations.
+            logging.error("Fallo interno procesando solicitud REST (%s)", type(e).__name__)
+            self.log_system_event("ERROR", "Fallo interno en API REST", source="api")
+            return problem_details(500, "Internal Server Error", "Error interno del servidor", "internal_server_error")
 
     async def _dispatch_system(self, method: str, raw_path: str, clean_path: str, req_body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         """Despacha rutas de salud, estado y logs al SystemController."""

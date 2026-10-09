@@ -1,0 +1,973 @@
+{
+  "schema_version": 1,
+  "phase": 3,
+  "date": "2026-10-09",
+  "base": "42f7104",
+  "evidence": "Static AST declarations and file hashes; no imports, route installation, handlers, suites or services executed. Runtime acceptance pending.",
+  "counts": {
+    "canonical_operations": 90,
+    "canonical_paths": 69,
+    "alias_keys": 39,
+    "alias_operations": 50,
+    "total_json_operations": 140,
+    "total_json_path_patterns": 108,
+    "batches": {
+      "contacts_channels": 17,
+      "history_maps": 10,
+      "network": 8,
+      "radio_admin": 38,
+      "services": 6,
+      "system": 11
+    }
+  },
+  "registration": {
+    "factory": "create_asgi_app",
+    "installer": "install_rest_routes",
+    "default_core_server": "MeshCoreWebServer",
+    "application_contract_ready": false,
+    "redirect_slashes": false,
+    "request_input": "ingress state mapping, original decoded JSON; Request-only endpoint",
+    "models": "descriptive metadata only; no per-request Pydantic validate/dump",
+    "dispatch": "one call to existing WebAPIRouter.handle_request with raw target",
+    "aliases": "ROUTE_ALIASES imported from existing dispatcher; hidden from schema",
+    "fallback": "HTTP raw /api/ prefix, root BaseRoute after included batches, including slash variants and any verb",
+    "excluded_prefix": "/api/map/tiles/",
+    "root_path": "only current empty root_path supported; proxy/embedding future work",
+    "missing_raw_path": "ASGI decoded path fallback cannot reconstruct percent encoding"
+  },
+  "source_files": [
+    {
+      "file": "src/web/asgi_route_catalog.py",
+      "sha256": "82d622a9279a1183eafe46fa89158647779bc2d6723a91a03f60167b6e92eb84"
+    },
+    {
+      "file": "src/web/asgi_routes.py",
+      "sha256": "7f8ca75032dbb5b0dadfcb01a6e7276e914583b47d2eb9ca448c7cd8e5026ff9"
+    },
+    {
+      "file": "src/web/api_error_policy.py",
+      "sha256": "99d071e9ccba676206b90debff3df174fe42fc87a6d92a1c14ad8dc052e1c2a1"
+    },
+    {
+      "file": "src/web/api_router.py",
+      "sha256": "0e07c67ae8ad8633ac462bfdedc455049ea2e2b96d05b5ec8f19e2de7c33c6b8"
+    },
+    {
+      "file": "src/web/asgi_server.py",
+      "sha256": "0e8f42ac9139326f9ec867769c2b7a82de5c0a43853ff6306099177616215a47"
+    },
+    {
+      "file": "src/web/asgi_errors.py",
+      "sha256": "ad5dca9cd28f849489966ab8b8598118dd42c1e883fffaebcd5497d53ca15bbd"
+    },
+    {
+      "file": "src/web/asgi_security.py",
+      "sha256": "5f1610d387f71672867803b7ce301b6bbe7dfb45a4f3728cc402303846c3a557"
+    },
+    {
+      "file": "src/web/request_models.py",
+      "sha256": "2e7a18d612c79bba2515fd1b3b99b773438ff8f4b1b9ae2b02e7e21ed5388dac"
+    }
+  ],
+  "canonical_operations": [
+    {
+      "method": "DELETE",
+      "path": "/api/channels",
+      "model": "ChannelIndexBodyDTO",
+      "batch": "contacts_channels"
+    },
+    {
+      "method": "GET",
+      "path": "/api/channels",
+      "model": "ChannelsBodyDTO",
+      "batch": "contacts_channels"
+    },
+    {
+      "method": "POST",
+      "path": "/api/channels",
+      "model": "ChannelWriteBodyDTO",
+      "batch": "contacts_channels"
+    },
+    {
+      "method": "GET",
+      "path": "/api/channels/export",
+      "model": "ChannelIndexBodyDTO",
+      "batch": "contacts_channels"
+    },
+    {
+      "method": "POST",
+      "path": "/api/channels/export",
+      "model": "ChannelIndexBodyDTO",
+      "batch": "contacts_channels"
+    },
+    {
+      "method": "POST",
+      "path": "/api/channels/sync",
+      "model": "ChannelsBodyDTO",
+      "batch": "contacts_channels"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/contacts",
+      "model": "ContactsBodyDTO",
+      "batch": "contacts_channels"
+    },
+    {
+      "method": "GET",
+      "path": "/api/contacts",
+      "model": "ContactsBodyDTO",
+      "batch": "contacts_channels"
+    },
+    {
+      "method": "POST",
+      "path": "/api/contacts",
+      "model": "ContactWriteBodyDTO",
+      "batch": "contacts_channels"
+    },
+    {
+      "method": "POST",
+      "path": "/api/contacts/accept",
+      "model": "ContactsBodyDTO",
+      "batch": "contacts_channels"
+    },
+    {
+      "method": "GET",
+      "path": "/api/contacts/discovered",
+      "model": "ContactsBodyDTO",
+      "batch": "contacts_channels"
+    },
+    {
+      "method": "GET",
+      "path": "/api/contacts/export",
+      "model": "ContactTransferBodyDTO",
+      "batch": "contacts_channels"
+    },
+    {
+      "method": "POST",
+      "path": "/api/contacts/export",
+      "model": "ContactTransferBodyDTO",
+      "batch": "contacts_channels"
+    },
+    {
+      "method": "POST",
+      "path": "/api/contacts/import",
+      "model": "ContactTransferBodyDTO",
+      "batch": "contacts_channels"
+    },
+    {
+      "method": "POST",
+      "path": "/api/contacts/share",
+      "model": "ContactTransferBodyDTO",
+      "batch": "contacts_channels"
+    },
+    {
+      "method": "POST",
+      "path": "/api/contacts/sync",
+      "model": "ContactsBodyDTO",
+      "batch": "contacts_channels"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/contacts/{public_key}",
+      "model": "ContactsBodyDTO",
+      "batch": "contacts_channels"
+    },
+    {
+      "method": "GET",
+      "path": "/api/logs/download",
+      "model": "MapsBodyDTO",
+      "batch": "history_maps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/logs/raw",
+      "model": "MapsBodyDTO",
+      "batch": "history_maps"
+    },
+    {
+      "method": "POST",
+      "path": "/api/map/reload",
+      "model": "MapsBodyDTO",
+      "batch": "history_maps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/map/status",
+      "model": "MapsBodyDTO",
+      "batch": "history_maps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/messages",
+      "model": "MapsBodyDTO",
+      "batch": "history_maps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/messages/recent",
+      "model": "TxBodyDTO",
+      "batch": "history_maps"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/packets",
+      "model": "PacketsBodyDTO",
+      "batch": "history_maps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/packets",
+      "model": "PacketsBodyDTO",
+      "batch": "history_maps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/packets/export",
+      "model": "PacketsBodyDTO",
+      "batch": "history_maps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/telemetry",
+      "model": "MapsBodyDTO",
+      "batch": "history_maps"
+    },
+    {
+      "method": "GET",
+      "path": "/api/airtime/stats",
+      "model": "NodesBodyDTO",
+      "batch": "network"
+    },
+    {
+      "method": "GET",
+      "path": "/api/analytics",
+      "model": "NodesBodyDTO",
+      "batch": "network"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/analytics/reset",
+      "model": "NodesBodyDTO",
+      "batch": "network"
+    },
+    {
+      "method": "POST",
+      "path": "/api/analytics/reset",
+      "model": "NodesBodyDTO",
+      "batch": "network"
+    },
+    {
+      "method": "GET",
+      "path": "/api/lqi",
+      "model": "NodesBodyDTO",
+      "batch": "network"
+    },
+    {
+      "method": "GET",
+      "path": "/api/nodes",
+      "model": "NodesBodyDTO",
+      "batch": "network"
+    },
+    {
+      "method": "GET",
+      "path": "/api/rf/heatmap",
+      "model": "NodesBodyDTO",
+      "batch": "network"
+    },
+    {
+      "method": "GET",
+      "path": "/api/rf/noise",
+      "model": "NodesBodyDTO",
+      "batch": "network"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/repeater",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "GET",
+      "path": "/api/config",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "GET",
+      "path": "/api/config/autoadd",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/autoadd",
+      "model": "AutoAddBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/clear-stats",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/config/custom_vars",
+      "model": "CustomVarsBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "GET",
+      "path": "/api/config/custom_vars",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/custom_vars",
+      "model": "CustomVarsBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "GET",
+      "path": "/api/config/flood_scope",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/flood_scope",
+      "model": "FloodScopeBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "GET",
+      "path": "/api/config/identity",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/identity",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "GET",
+      "path": "/api/config/path_hash_mode",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/path_hash_mode",
+      "model": "PathHashBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "GET",
+      "path": "/api/config/radio",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/radio",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/reconnect",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "GET",
+      "path": "/api/config/refresh",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/refresh",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/sync-clock",
+      "model": "SyncClockBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/advert",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/ping_zero",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/reboot",
+      "model": "ConfigBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/ping_zero",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/acl",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/action",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/clock",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/config",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/login",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/logout",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/neighbours",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/owner",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/regions",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/traceroute",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/traceroute",
+      "model": "RepeaterBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tx",
+      "model": "SendTxBodyDTO",
+      "batch": "radio_admin"
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/config",
+      "model": "ServicesBodyDTO",
+      "batch": "services"
+    },
+    {
+      "method": "POST",
+      "path": "/api/services/config",
+      "model": "ServicesConfigBodyDTO",
+      "batch": "services"
+    },
+    {
+      "method": "POST",
+      "path": "/api/services/mqtt-external/test",
+      "model": "MqttConnectionBodyDTO",
+      "batch": "services"
+    },
+    {
+      "method": "GET",
+      "path": "/api/services/presets",
+      "model": "ServicesBodyDTO",
+      "batch": "services"
+    },
+    {
+      "method": "POST",
+      "path": "/api/services/presets",
+      "model": "MqttPresetBodyDTO",
+      "batch": "services"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/services/presets/{id:path}",
+      "model": "ServicesBodyDTO",
+      "batch": "services"
+    },
+    {
+      "method": "GET",
+      "path": "/api/diagnostics",
+      "model": "SystemBodyDTO",
+      "batch": "system"
+    },
+    {
+      "method": "GET",
+      "path": "/api/diagnostics/export",
+      "model": "SystemBodyDTO",
+      "batch": "system"
+    },
+    {
+      "method": "GET",
+      "path": "/api/diagnostics/report",
+      "model": "SystemBodyDTO",
+      "batch": "system"
+    },
+    {
+      "method": "GET",
+      "path": "/api/diagnostics/report.md",
+      "model": "SystemBodyDTO",
+      "batch": "system"
+    },
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "model": "SystemBodyDTO",
+      "batch": "system"
+    },
+    {
+      "method": "GET",
+      "path": "/api/preflight",
+      "model": "SystemBodyDTO",
+      "batch": "system"
+    },
+    {
+      "method": "GET",
+      "path": "/api/status",
+      "model": "SystemBodyDTO",
+      "batch": "system"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/system/logs",
+      "model": "SystemBodyDTO",
+      "batch": "system"
+    },
+    {
+      "method": "GET",
+      "path": "/api/system/logs",
+      "model": "SystemBodyDTO",
+      "batch": "system"
+    },
+    {
+      "method": "GET",
+      "path": "/api/system/logs/level",
+      "model": "SystemBodyDTO",
+      "batch": "system"
+    },
+    {
+      "method": "POST",
+      "path": "/api/system/logs/level",
+      "model": "SystemBodyDTO",
+      "batch": "system"
+    }
+  ],
+  "alias_operations": [
+    {
+      "method": "POST",
+      "path": "/api/admin/command",
+      "canonical_path": "/api/admin",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/advert",
+      "canonical_path": "/api/node/advert",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/clear_stats",
+      "canonical_path": "/api/config/clear-stats",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/reboot",
+      "canonical_path": "/api/node/reboot",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/reconnect-serial",
+      "canonical_path": "/api/config/reconnect",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/config/sync_clock",
+      "canonical_path": "/api/config/sync-clock",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/link_quality",
+      "canonical_path": "/api/lqi",
+      "batch": "network",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/map/refresh",
+      "canonical_path": "/api/map/reload",
+      "batch": "history_maps",
+      "include_in_schema": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/metrics/analytics",
+      "canonical_path": "/api/analytics",
+      "batch": "network",
+      "include_in_schema": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/metrics/reset",
+      "canonical_path": "/api/analytics/reset",
+      "batch": "network",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/metrics/reset",
+      "canonical_path": "/api/analytics/reset",
+      "batch": "network",
+      "include_in_schema": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/node/autoadd",
+      "canonical_path": "/api/config/autoadd",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/autoadd",
+      "canonical_path": "/api/config/autoadd",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/clear-stats",
+      "canonical_path": "/api/config/clear-stats",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/node/config",
+      "canonical_path": "/api/config",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/config",
+      "canonical_path": "/api/config",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/node/config/identity",
+      "canonical_path": "/api/config/identity",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/config/identity",
+      "canonical_path": "/api/config/identity",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/node/config/radio",
+      "canonical_path": "/api/config/radio",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/config/radio",
+      "canonical_path": "/api/config/radio",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/node/custom_vars",
+      "canonical_path": "/api/config/custom_vars",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/node/custom_vars",
+      "canonical_path": "/api/config/custom_vars",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/custom_vars",
+      "canonical_path": "/api/config/custom_vars",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/node/flood_scope",
+      "canonical_path": "/api/config/flood_scope",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/flood_scope",
+      "canonical_path": "/api/config/flood_scope",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/node/path_hash_mode",
+      "canonical_path": "/api/config/path_hash_mode",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/path_hash_mode",
+      "canonical_path": "/api/config/path_hash_mode",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/ping",
+      "canonical_path": "/api/node/ping_zero",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/reconnect",
+      "canonical_path": "/api/config/reconnect",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/node/refresh",
+      "canonical_path": "/api/config/refresh",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/refresh",
+      "canonical_path": "/api/config/refresh",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/node/settings",
+      "canonical_path": "/api/config",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/settings",
+      "canonical_path": "/api/config",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/sync-clock",
+      "canonical_path": "/api/config/sync-clock",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/trace",
+      "canonical_path": "/api/repeater/traceroute",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/traceroute",
+      "canonical_path": "/api/repeater/traceroute",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/nodes/ping",
+      "canonical_path": "/api/node/ping_zero",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/nodes/ping_zero",
+      "canonical_path": "/api/node/ping_zero",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/nodes/trace",
+      "canonical_path": "/api/repeater/traceroute",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/nodes/traceroute",
+      "canonical_path": "/api/repeater/traceroute",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/ping_zero",
+      "canonical_path": "/api/node/ping_zero",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/acl",
+      "canonical_path": "/api/repeater/remote/acl",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/clock",
+      "canonical_path": "/api/repeater/remote/clock",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/logout",
+      "canonical_path": "/api/repeater/remote/logout",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/neighbors",
+      "canonical_path": "/api/repeater/remote/neighbours",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/neighbours",
+      "canonical_path": "/api/repeater/remote/neighbours",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/owner",
+      "canonical_path": "/api/repeater/remote/owner",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/regions",
+      "canonical_path": "/api/repeater/remote/regions",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/repeater/remote/neighbors",
+      "canonical_path": "/api/repeater/remote/neighbours",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/trace",
+      "canonical_path": "/api/traceroute",
+      "batch": "radio_admin",
+      "include_in_schema": false
+    }
+  ],
+  "pending": [
+    "HTTP/transport/contract runtime verification",
+    "WS, static SPA/assets and binary tiles",
+    "complete/authenticated OpenAPI documentation",
+    "ownership/core adoption/release",
+    "internal controller/service logs and arbitrary failure/success free text"
+  ]
+}

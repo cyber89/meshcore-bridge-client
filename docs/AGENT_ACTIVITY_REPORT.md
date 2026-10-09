@@ -2,6 +2,15 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Registro REST por lotes y redacción selectiva de fase 3
+
+- **Fecha/base**: 2026-10-09; `42f7104` y cambios anteriores del checkout conservados. Continuación autorizada sin suites.
+- **Equipo**: líder/integrador y especialistas de catálogo, seguridad y revisión de contratos. Propiedad separada; skills Python, contratos API, seguridad, ADR y verificación.
+- **Cambios**: seis APIRouter con 90 operaciones canónicas/69 patrones y 50 operaciones de alias; target raw, body original, Request-only y fallback raíz para métodos/slashes. DTO descriptivos, sin filtrado de respuestas o reconstrucción de negocio.
+- **Seguridad**: catch global y errores de enteros compartidos omiten excepción/valores; política sólo ASGI redacta trece códigos conocidos, fallos anidados y wrappers de error manteniendo status/extensiones. Logs internos y textos arbitrarios quedan explícitamente fuera de garantía.
+- **Revisión**: fuentes fijadas FastAPI/Starlette, alcance del include_router/fallback, encoded paths, HEAD y nombres de alias. Sin tiles, WS/SPA/docs, estado duplicado, nuevos RF, reintentos, timers o intervalos.
+- **Verificación/entrega**: [fase 3](fastapi/PHASE_3_REPORT.md) y [registro estático](fastapi/PHASE_3_ROUTE_REGISTRY.json); AST 3.10, comparación declarativa/hashes/enlaces y diff. Sin suites/cobertura, mypy, Ruff, imports/registro en ejecución, servicios, navegador o hardware. Aceptación operativa pendiente; siguiente fase, WS/SPA/cartografía binaria.
+
 ### Hito: DTO y errores preparatorios de fase 2 de FastAPI
 
 - **Fecha/base**: 2026-10-09; `9eead69` y cambios anteriores del checkout conservados. Continuación autorizada sin suites.
