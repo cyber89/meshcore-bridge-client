@@ -1,0 +1,386 @@
+{
+  "scope": "source files only; no runtime data or secrets",
+  "head": "457903ddf623768a1c5f90f952fb8b77db45e0c6",
+  "files": [
+    {
+      "path": "config.py",
+      "sha256": "f5e4e6f40747f9ab616da0f784b9e636af347740c326266639750be2100a2c44"
+    },
+    {
+      "path": "install.ps1",
+      "sha256": "e8772aabc321baedc36717aa163c5ee35b896469408f8e1e87302b29ddbfb220"
+    },
+    {
+      "path": "install.sh",
+      "sha256": "6d86a13d4463ef3bb86b069b7a2a767af89c3a7906fb3b20ed7adc96be6ad9d4"
+    },
+    {
+      "path": "meshcore-bridge.service",
+      "sha256": "1eb0d52f3be8fb81a3bdf29ac18ae8c9d5b6817011cb4ebf2501da0d659f123a"
+    },
+    {
+      "path": "pyproject.toml",
+      "sha256": "af2480ea928a85d7a86b79d9a53d792258f3236b2c41a65865951ba25bef0cf9"
+    },
+    {
+      "path": "requirements-dev.txt",
+      "sha256": "d223b05a9103408669c68d15dc9685a824918c375c1c76cc93b7c4d596062d7c"
+    },
+    {
+      "path": "requirements.txt",
+      "sha256": "de80027f7de36fcd58673fd778f3b83eada0bdd4741b48fc8025ed8e48cec2a8"
+    },
+    {
+      "path": "src/__init__.py",
+      "sha256": "2d08dedee38b806b4272802e726fd2165865f2528717297737e1975b9e9e3f16"
+    },
+    {
+      "path": "src/__main__.py",
+      "sha256": "756c04d2add5f2d9368ccbf58afb190cfc00c37672b3184bb986ff9abd714514"
+    },
+    {
+      "path": "src/admin/__init__.py",
+      "sha256": "045eee3d7ad8cba62576b331a7405689a377f5c06ab241c1119a3ff7f9cf9e0d"
+    },
+    {
+      "path": "src/admin/cli_command_executor.py",
+      "sha256": "a396863bd8647fc22a9e6cc0f8826ce891fc5ef73a54a525c68600230ab6f8d6"
+    },
+    {
+      "path": "src/admin/local_config_executor.py",
+      "sha256": "e127c4138043b96dd6bc5ed763b86478f95254dc23d808a98a0b9da28ce8d489"
+    },
+    {
+      "path": "src/admin/repeater_executor.py",
+      "sha256": "4f401a91599cfb80328e425e586a298e0806341a48c35f50e9a2a289308a1bac"
+    },
+    {
+      "path": "src/admin/sdk_commands.py",
+      "sha256": "b67917726e289b37d53f3984814ae43061ad8dd4976c5d2cd217b2754461f91f"
+    },
+    {
+      "path": "src/admin/traceroute_executor.py",
+      "sha256": "e58d4a2028e10dfa862a5dcb659f761a1ae4233ee1ebb8726431ab77cf2ed8cc"
+    },
+    {
+      "path": "src/admin_handler.py",
+      "sha256": "09a69095669080a640aa2d301bd9499bd4c6f3a65194e8fed78a9d9808253346"
+    },
+    {
+      "path": "src/bridge_core.py",
+      "sha256": "15068bcfe46a21c911646a340eb7fdd2a004cdd94c979049a1b136fc342926eb"
+    },
+    {
+      "path": "src/contact_manager.py",
+      "sha256": "159a9226997dcc76732ba29239b80f05b3f7e62c89e4ed01ef064f76302bccd9"
+    },
+    {
+      "path": "src/deduplicator.py",
+      "sha256": "4994cd5e7089295697be540ec49f7024dc3fc4173b223d7d83c4732f06a64ce7"
+    },
+    {
+      "path": "src/diagnostics.py",
+      "sha256": "099a2ac08369458a8441017b58cc9923f55f9df50cec876eec7a9053189d65d0"
+    },
+    {
+      "path": "src/event_utils.py",
+      "sha256": "66488a714a2f3ccdd44f72797476328d70bf20527018b01d9280709b50d26db5"
+    },
+    {
+      "path": "src/external_mqtt_client.py",
+      "sha256": "37d0cf0341ba5dd387474e051aad4813d4df1dec33e33310b2a0f19c142613e6"
+    },
+    {
+      "path": "src/health_reporter.py",
+      "sha256": "8c42cd7c453a305e7322ae83c1509f3a12c4006a923cdf786d45125f4f502982"
+    },
+    {
+      "path": "src/lqi_engine.py",
+      "sha256": "647119d1ed11e535692d550c1e5a079f80a9b86b5c26bd8d4369bd6c7cd5e84e"
+    },
+    {
+      "path": "src/metrics_aggregator.py",
+      "sha256": "546ba2f08fc025f8d9f8413f82bb6238f960f36c924fe1d811c7630920f00953"
+    },
+    {
+      "path": "src/mqtt_client.py",
+      "sha256": "ce7e149327f62b6dd7c6d8f1eb9d7107e3ec4bd43951214d7ccde388d883a01d"
+    },
+    {
+      "path": "src/mqtt_dispatcher.py",
+      "sha256": "c7d7cb9ddfb82cb868786a2fc68719d68d6f39604d3ab7c1a1891ff371525719"
+    },
+    {
+      "path": "src/packet_buffer.py",
+      "sha256": "66ef9ea5b8337b050dd8be784e7e7ead9ce09364b09e90c0445bacc4a07635e2"
+    },
+    {
+      "path": "src/preflight.py",
+      "sha256": "e018e2cb716ce71dabfde4d445fcc85be3d25fa903672635c861b515eb7109ef"
+    },
+    {
+      "path": "src/protocol_types.py",
+      "sha256": "4f47aca201a03baf83259e2652171b824ceab1b62610da7013e33d4931322919"
+    },
+    {
+      "path": "src/rate_limiter.py",
+      "sha256": "67092fccd3159e375250d70a6edbe16d5a217ef340615034d155625f04a7a826"
+    },
+    {
+      "path": "src/repeater_manager.py",
+      "sha256": "4fff1dad257e7aeca7c83ee6e74713783076941a1dd97f726ff78b8b5a632689"
+    },
+    {
+      "path": "src/routers/__init__.py",
+      "sha256": "4b6d1b83cd847235f4d84c918846880229b7e065528c849478ec13ad1b5ba7c1"
+    },
+    {
+      "path": "src/routers/advert_handler.py",
+      "sha256": "b1d811f3792bca43807ff57c2e73df534854971cf53caf7836f0d0973e6f2b73"
+    },
+    {
+      "path": "src/routers/base.py",
+      "sha256": "eb7c85993089911751fa1fa7ba25cf191daad30f18de5489a796ce0090ec0f38"
+    },
+    {
+      "path": "src/routers/channel_handler.py",
+      "sha256": "0d0f4b1e5ab6fbcf0cabba3a2518f31c04feea569ecb9973dc22792766ff1b8f"
+    },
+    {
+      "path": "src/routers/direct_handler.py",
+      "sha256": "eb491cb7e99a1908e462e86b2901c5fb40347a4d4802cb939d33ae61813107b6"
+    },
+    {
+      "path": "src/routers/repeater_handler.py",
+      "sha256": "e1e0133dfa1f6ec28eb20dbd7327c3521e0646d7523293f05b558338557c7180"
+    },
+    {
+      "path": "src/routers/system_handler.py",
+      "sha256": "6226bce4b44467bb05470ead666672111c33c4e0c37bb5465e9d09a591d52669"
+    },
+    {
+      "path": "src/routers/telemetry_handler.py",
+      "sha256": "4dd0504013bcb44f3925e90d917813cd7dc7cb0015a077e9995864289eff2f4a"
+    },
+    {
+      "path": "src/rx_router.py",
+      "sha256": "a190a37b7fa1c82b697b725fad729535d8a9c57f83c0e58441825892feb801d2"
+    },
+    {
+      "path": "src/sensor_decoder.py",
+      "sha256": "61d27c74ca6c5a465b65452ad6d20bd028b46b0eb83d11ebc2b5e0a88214be09"
+    },
+    {
+      "path": "src/serial/__init__.py",
+      "sha256": "03df74590b3076b3856a4572d9a854b91cab3943b68b63b330bac33471a98f2a"
+    },
+    {
+      "path": "src/serial/raw_framing.py",
+      "sha256": "2d282a8ed9837bd5373ab0774a32b716cdf23e84706bf8bf0a653edbdef6241a"
+    },
+    {
+      "path": "src/serial/sdk_adapter.py",
+      "sha256": "6a52b4c2c5b24896cb148397061f23867110c57c20da505c23911427e151f187"
+    },
+    {
+      "path": "src/serial/serial_base.py",
+      "sha256": "20c62fecaeb461cb123a70990e3d76e93cc3a42d514cbdf76790b39a4abad5bc"
+    },
+    {
+      "path": "src/serial/watchdog.py",
+      "sha256": "c540e7db25ed594739a821c44687e6642bec1ca59bbb101b914eee7fb47051c5"
+    },
+    {
+      "path": "src/serial_driver.py",
+      "sha256": "42c1c6dc52a7c28da4730ae8ab710148bb378475333db23b4c06ac72904b4301"
+    },
+    {
+      "path": "src/services_config.py",
+      "sha256": "79725d0dab4c851e80916da96aa5fd1e32a5ebab81fb19a83f727649094491b8"
+    },
+    {
+      "path": "src/services_manager.py",
+      "sha256": "1af8a68291ef1a7593b6ac31423a13f567c57f776955229f56311e909ddcb70e"
+    },
+    {
+      "path": "src/shared_utils.py",
+      "sha256": "b14045a989241a9f4355e8f69ddc3f57c8f2ee3652f193ab7280d38cc8b0e78d"
+    },
+    {
+      "path": "src/target_resolver.py",
+      "sha256": "ad69cb5428b18e96fd7a16e082923d3712dabd020b25d98c435bf3de1028fbc2"
+    },
+    {
+      "path": "src/tcp_companion_server.py",
+      "sha256": "9a61eed699606a929de8496259de10e79a5d8f4f6697e143dce7f7d7a313b921"
+    },
+    {
+      "path": "src/virtual_mesh_adapter.py",
+      "sha256": "d677296e152235357bcb2111172bf27dd7b1f8bad3e16dc55923fa765681dc26"
+    },
+    {
+      "path": "src/web/__init__.py",
+      "sha256": "e65b81ea405c2c6b9a441357ea18cd2fbf3dddac3d0bbcf5f61021ed86439b0b"
+    },
+    {
+      "path": "src/web/api_router.py",
+      "sha256": "d577ff9af52b486ccfa56e636e55f625d4814f9db42c3ac307b440fbdbd1fc11"
+    },
+    {
+      "path": "src/web/controllers/__init__.py",
+      "sha256": "df4ab01307cb4b414814b370808b64a102b366e078add59d53c2b1b65429eb61"
+    },
+    {
+      "path": "src/web/controllers/base.py",
+      "sha256": "c8f17e52822c848918ce4a3197ce86c5629069ab597e625770d32ca7eecd5d39"
+    },
+    {
+      "path": "src/web/controllers/channels_controller.py",
+      "sha256": "b3d158f1f90e501b0af1616851fbba7cbfb8ee94ea11365b983c27c152ac2922"
+    },
+    {
+      "path": "src/web/controllers/config_controller.py",
+      "sha256": "09bce4cd89aafac2e30eb9a22e5257e97931f16442c746ca81be90bb487c2d91"
+    },
+    {
+      "path": "src/web/controllers/contacts_controller.py",
+      "sha256": "3a3cdc0ee43f4e3e12561bf5569ce28b564348dc0241c96498ae92ff1c6e2261"
+    },
+    {
+      "path": "src/web/controllers/logs_controller.py",
+      "sha256": "d0061276b938e31ad1f2064d8b143084be11e4c4ed0e1b42cfa158c9ace4522c"
+    },
+    {
+      "path": "src/web/controllers/nodes_controller.py",
+      "sha256": "9906c9e191c96fede67254610e0143c599d3f20f26887eb5077b87006c4e269d"
+    },
+    {
+      "path": "src/web/controllers/packets_controller.py",
+      "sha256": "e75e17408aed65225974ba17cb92d5d3ac9982b7737e4903ac5819123935784e"
+    },
+    {
+      "path": "src/web/controllers/repeater_controller.py",
+      "sha256": "a7d110cb1acd76535a9ea1ffa8ea4f4c7580b8e809ff6a0549f14c7f3f02c2d5"
+    },
+    {
+      "path": "src/web/controllers/services_controller.py",
+      "sha256": "638f71e41dfc731070237fd6ec1794dfe458b24973b1385c3a4de3e9200f983e"
+    },
+    {
+      "path": "src/web/controllers/system_controller.py",
+      "sha256": "53337a204e757e0f3ab028d02b107657213171108a4f71ad86389330effbbe20"
+    },
+    {
+      "path": "src/web/controllers/tx_controller.py",
+      "sha256": "aedb0d4e09c46ee6211dc6c525c5000e45dfe4869bd9fb8df4158c7f6efbedbc"
+    },
+    {
+      "path": "src/web/http_server.py",
+      "sha256": "c583e79724c1f3770637a6d18f84041782f86b1754c23f6f2eb23289290ab772"
+    },
+    {
+      "path": "src/web/map_tile_service.py",
+      "sha256": "683e19c8640e0991e74c5e46dbcbe076abb0d33beaa007944aae6785cd250627"
+    },
+    {
+      "path": "src/web/security_inspector.py",
+      "sha256": "f35e994c7a3afbce347526b5d5a755f3ff9011b7bad9168bf5cc878366276e23"
+    },
+    {
+      "path": "src/web/static/css/admin.css",
+      "sha256": "12110f7cd05931601a0cf490ae1396063a98fe109868cac1c83adc3cfc92a317"
+    },
+    {
+      "path": "src/web/static/css/app.css",
+      "sha256": "196ef1cf1158a585456c509b9a0b317621fc676c9f5ce580370acc8cdbc4398f"
+    },
+    {
+      "path": "src/web/static/css/chat.css",
+      "sha256": "2d51c228758ef5f53c83722d40ef178b6e2695580db427d7971e735fe562a717"
+    },
+    {
+      "path": "src/web/static/css/components.css",
+      "sha256": "92713f6243f718e2d9d797771e5deaa4e5d0c097a2ca9ab16e09f22b11fd0e3c"
+    },
+    {
+      "path": "src/web/static/css/nodes.css",
+      "sha256": "3021b6af2e8ee6d90d2bc2b7202c55fe6a925e7ff6b7909eb51a6363c0f0f017"
+    },
+    {
+      "path": "src/web/static/css/tokens.css",
+      "sha256": "d9a020cef27436e92bb4fde73f7be97af357781ceea57938f993c159cfd0e891"
+    },
+    {
+      "path": "src/web/static/index.html",
+      "sha256": "55b9f4cef74de55220b680ef57328d8cfd7ed41f4463ec4e33c4de5148280381"
+    },
+    {
+      "path": "src/web/static/js/app.js",
+      "sha256": "01277cce020007bdea671066eec83d602401462932deeb5ddac16355759203f8"
+    },
+    {
+      "path": "src/web/static/js/core/chart_engine.js",
+      "sha256": "2fb69618ab0aa79205105f87e387e8c7477ceeb56519fa3e93f7b17b8a7f1a74"
+    },
+    {
+      "path": "src/web/static/js/core/eventbus.js",
+      "sha256": "e46bc0d0ae483a87026344aca311d566845d8fe21f9b38b821eb28eb2831d834"
+    },
+    {
+      "path": "src/web/static/js/core/storage.js",
+      "sha256": "2bc3dd42615ffa9d904ba6e10cf7272c3664606b4493d07e131cb5d0463128ce"
+    },
+    {
+      "path": "src/web/static/js/core/utils.js",
+      "sha256": "f928a68f8242b10a1a7a12e9d004bc501f142b5a69bb3fc75fe38d69ac0bb5be"
+    },
+    {
+      "path": "src/web/static/js/core/websocket.js",
+      "sha256": "0a95da85fd774056ff516e4e6d83a356389873b2991ce8ea24dd7727cc18ce82"
+    },
+    {
+      "path": "src/web/static/js/i18n.js",
+      "sha256": "48aae6163a5195361dca91aec6e9037799b7475192000639fc7c213ea40fc918"
+    },
+    {
+      "path": "src/web/static/js/icons.js",
+      "sha256": "0c0e4fd3795e2986e29c16241249cc34280d099beeabb69daf142e8b66e321f8"
+    },
+    {
+      "path": "src/web/static/js/modules/analytics.js",
+      "sha256": "025e78b0188d2119dadcff4d010036cabdf7892fea9dcb3df86ef7888e8308be"
+    },
+    {
+      "path": "src/web/static/js/modules/chat.js",
+      "sha256": "85822385c55468b1f5814998c8d4fc9bba70626b0ee82881f7cb7dd640001dff"
+    },
+    {
+      "path": "src/web/static/js/modules/map.js",
+      "sha256": "c947232fa1d0acd47c67d345dee8993d243d2360098921113a6ecf22bce495b4"
+    },
+    {
+      "path": "src/web/static/js/modules/nodes.js",
+      "sha256": "ac099c088a3c750d4206cca841516726052a02348a0ac3f13fce29a5af1f4a1b"
+    },
+    {
+      "path": "src/web/static/js/modules/repeater.js",
+      "sha256": "dcde76896104d62c7f2f94cd594e090bd339a1ecf0f37d074bc229febe714059"
+    },
+    {
+      "path": "src/web/static/js/modules/settings.js",
+      "sha256": "e446f5fbffc8b93f6a71026c288dad9f8f3aebe73051d583ab3004c24725fde8"
+    },
+    {
+      "path": "src/web/static/js/modules/sniffer.js",
+      "sha256": "f564d3ff555fb860063361a0a90e171bcda254fa61898bfe90fbe922e02919f9"
+    },
+    {
+      "path": "src/web/static/js/qrcode.js",
+      "sha256": "0ea2a7b78483f0822457076cf321c113e0bad4d393608c4377c2869809b6c86c"
+    },
+    {
+      "path": "tests/conftest.py",
+      "sha256": "5cd37da80365ea0b98d7d6fecdf34122966238d02688715703c8bd91a181d649"
+    }
+  ]
+}

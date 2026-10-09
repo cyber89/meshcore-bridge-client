@@ -1,6 +1,6 @@
 # Futuro de MeshCore Bridge: evaluación y plan condicionado de FastAPI
 
-**Estado:** propuesta revisada; migración pendiente de aprobación del usuario.
+**Estado:** preparación autorizada e iniciada por fases; adopción de producción pendiente de paridad y verificación.
 
 **Fecha de revisión:** 2026-10-08.
 
@@ -8,13 +8,13 @@
 
 **Base inspeccionada:** HEAD `558385ad77afb8e691252c037dacb76e730b51db` y el árbol de trabajo existente. Había modificaciones ajenas sin commit: los hallazgos describen ese checkout, no sólo el commit.
 
-**Alcance:** reunión técnica de los roles 0 a 7 y del rol 8 propuesto; lectura de código, referencias y documentación; revisión de este archivo. No se instala FastAPI ni se modifica la aplicación. No se ejecutan suites, servicios, radio o workflows.
+**Alcance inicial:** reunión técnica de los roles 0 a 7 y del rol 8 propuesto; revisión documental publicada en `457903d`. **Continuación autorizada:** catálogos y dependencias de fase 0, preparación de infraestructura de fase 1. Los candidatos se descargaron para inspección, sin instalarlos en el entorno del bridge. El usuario indicó «Continúa sin ejecutar suites»; no se arrancan servicios, radio o workflows.
 
 ## 1. Dictamen y autoridad
 
 La recomendación técnica es **FastAPI modular con Uvicorn embebido**, manteniendo una instancia del bridge y su event loop. Puede mejorar la declaración de contratos REST, la validación y el mantenimiento del transporte HTTP/WebSocket. Su adopción queda condicionada a cerrar la fase 0 y demostrar paridad, ciclo de vida y viabilidad en las plataformas seleccionadas.
 
-La revisión documental no aprueba la migración. El plan inicial contenía interfaces incompletas, rutas inexistentes, límites de protocolo incorrectos y cifras sin medición. Esta revisión los corrige y registra las decisiones abiertas.
+La revisión documental inicial no aprobaba la migración. El usuario autorizó después comenzar las fases; esta autorización permite su preparación, manteniendo las condiciones de adopción. El plan inicial contenía interfaces incompletas, rutas inexistentes, límites de protocolo incorrectos y cifras sin medición. Esta revisión los corrige y registra las decisiones abiertas.
 
 [AGENTS.md](AGENTS.md) fija las reglas operativas; [CONTEXT.md](CONTEXT.md) define el dominio; el [índice documental](docs/README.md) distingue guías vigentes e históricas. Firmware/SDK oficiales determinan el protocolo; el código actual determina las capacidades implementadas. Este documento propone el futuro y no sustituye esas fuentes.
 
@@ -92,7 +92,16 @@ No se proponen intervalos ni umbrales nuevos. Los valores existentes citados aba
 
 ## 4. Plan secuencial: una etapa antes de la siguiente
 
-Todas las fases están **pendientes de implementación**. Esta revisión estática no las declara superadas. Cada fase entrega evidencia; una puerta fallida detiene el avance y conserva recuperación. Fase 5 consolida QA, pero las verificaciones pertinentes de cada lote se hacen antes de continuar, cuando estén autorizadas.
+Las fases se entregan secuencialmente. El usuario autorizó comenzar y continuar **sin ejecutar suites**. La lectura estática no declara superadas las puertas operativas. Fase 5 consolida QA; las verificaciones de ejecución permanecen pendientes mientras no estén autorizadas. La preparación del siguiente seam puede avanzar sin activar el candidato ni retirar la recuperación.
+
+| Etapa | Estado actual | Evidencia / pendiente |
+|---|---|---|
+| 0 | Preparación documental y binaria entregada | [Informe](docs/fastapi/PHASE_0_REPORT.md); seis cierres con wheels, catálogos y snapshot. Recursos e interoperabilidad sin medir |
+| 1 | Base opcional ASGI preparada; integración de seguridad pendiente | [Informe](docs/fastapi/PHASE_1_REPORT.md); servidor actual predeterminado, candidato sin endpoints de negocio/WS/SPA. Lifecycle en ejecución sin verificar |
+| 2–4 | Pendientes | DTO/errores, rutas, WS/SPA/mapas según catálogos |
+| 5–6 | Pendientes | OpenAPI, QA autorizado, instaladores, adopción y retiro |
+
+[ADR 0011](docs/adr/0011-staged-asgi-migration.md) registra la preparación autorizada y sus condiciones de adopción. No se convierte una comprobación pendiente en aprobada por no ejecutar suites.
 
 ### Fase 0. Preparación y decisión de viabilidad
 
@@ -132,11 +141,11 @@ Depends(get_api_context) recuperará la instancia existente; no reconstruirá se
 
 #### 0.4 Headless, recursos y aprobación
 
-WEB_ENABLED=False ya devuelve None en la fábrica, pero bridge_core y src/web/__init__.py importan web anticipadamente. Hacen falta imports diferidos después de evaluar configuración, exports ligeros y contrato sin ASGI. Comprobar después ausencia de imports transitivos FastAPI/Starlette/Pydantic/Uvicorn en headless.
+En la base de fase 0, WEB_ENABLED=False devuelve None en la fábrica, pero los exports y el core importan el servidor anticipadamente. La preparación de fase 1 difiere esos imports y añade un contrato sin ASGI. Comprobar después, en ejecución, ausencia de imports transitivos FastAPI/Starlette/Pydantic/Uvicorn en headless.
 
 Medir baseline/candidato con igual equipo, Python, carga, datos y perfil: RSS/CPU, arranque, event-loop lag, REST, entrega WS, assets y tamaño de distribución. Acordar presupuestos antes de convertirlos en límites; todavía no se midieron.
 
-**Puerta conjunta:** catálogo, ownership, plataformas, perfil, backend WS y presupuestos revisados; aprobación del usuario. Si no cierra, conservar A y corregir el plan.
+**Puerta conjunta:** catálogo, ownership, plataformas, perfil, backend WS y presupuestos revisados; aprobación del usuario. La preparación fue autorizada; los presupuestos de recursos quedaron sin fijar («no importa»), las mediciones y la aceptación operativa siguen pendientes. Conservar A hasta demostrar la adopción.
 
 ### Fase 1. Infraestructura ASGI y ciclo de vida
 
@@ -151,7 +160,7 @@ La fábrica recibe fachada/contexto existente, no crea otra radio/bridge/MQTT/sc
 #### 1.2 Arranque, señales y parada
 
 - Supervisar tarea Server.serve(); start espera listener listo o fallo. Sólo create_task cambia el contrato actual. Propagar bind ocupado, fallo lifespan y terminación posterior al propietario.
-- En Uvicorn 0.30.0 serve usa capture_signals y Config no admite install_signal_handlers. Evaluar adaptador/subclase acotado a la versión elegida para dejar señales al bridge; no usar _serve privado como API estable. [Server 0.30.0](https://github.com/encode/uvicorn/blob/0.30.0/uvicorn/server.py), [Config 0.30.0](https://github.com/encode/uvicorn/blob/0.30.0/uvicorn/config.py).
+- En Uvicorn 0.54.0 seleccionado, serve usa capture_signals; la subclase localizada deja señales al bridge y conserva serve público. Bind/lifespan pueden lanzar SystemExit: convertirlo dentro de la tarea supervisada en fallo de arranque, conservando cancelación. La [inspección del wheel](docs/fastapi/DEPENDENCY_DECISIONS.md) registra fuentes y obligaciones; la observación inicial de 0.30.0 se conserva como antecedente, no como versión elegida.
 - Parada idempotente, segura ante cancelación: cesar admisión, cerrar conexiones/tareas, solicitar salida, esperar/cancelar según presupuesto y liberar mapas. Consumir excepciones; no cancelar tareas ajenas.
 - Conciliar presupuesto: core actual permite 1,5 s por subsistema y 5 s globales por señal. Timeout web nuevo de 2 s contradice ese orden. Diseñar/acordar presupuesto conjunto, sin imponer otro número.
 - Conservar paso seguro de callbacks Paho desde threads al loop mediante mecanismo actual.

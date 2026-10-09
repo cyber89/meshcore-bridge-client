@@ -2,6 +2,16 @@
 
 Este documento es el registro central y compartido (Single Source of Truth) donde cada agente documenta sus intervenciones, módulos afectados, contratos de interfaz y estado de integración para que el **Agente Principal (Lead Orchestrator)** pueda conciliar la compatibilidad cruzada de todo el sistema.
 
+### Hito: Preparación de FastAPI por fases, contratos y fundamento opcional
+
+- **Fecha/base**: 2026-10-08; `457903d` y checkout con modificaciones anteriores conservadas.
+- **Autorización**: comenzar fases secuencialmente; equipos/presupuestos «no importa»; continuación «sin ejecutar suites».
+- **Equipo**: líder/integrador, contratos REST, web/seguridad, contratos internos e instalación, en tandas de tres especialistas. Skills de dominio/ADRs, referencias, contratos, concurrencia, Python, seguridad e instalación.
+- **Fase 0**: catálogos REST (141 operaciones contando aliases), WS/SPA y estado interno; candidato exacto, seis resoluciones y descargas binarias, hashes/metadata/tags y snapshot de 95 fuentes. Sin incidencias de metadatos; sin certificación de ejecución/ABI/hardware.
+- **Fase 1**: extra web opcional, imports web diferidos, seam neutral y adaptador ASGI preparatorio; la fábrica del core conserva el servidor actual. Candidato sin rutas de negocio/WS/SPA; sin nuevo RF, timers de radio, límites ni workflows.
+- **Verificación**: lectura cruzada y análisis sintáctico/estructural/documental; suites, cobertura, mypy, Ruff, navegador y lifecycle en ejecución no realizados por instrucción del usuario. No se instalaron los candidatos en el entorno del bridge ni se arrancaron servicios.
+- **Entrega**: [fase 0](fastapi/PHASE_0_REPORT.md), [fase 1](fastapi/PHASE_1_REPORT.md), [plan actualizado](../PROYECTO.md) y [ADR 0011](adr/0011-staged-asgi-migration.md). Puertas operativas y adopción siguen pendientes.
+
 ### Hito: Corrección de errores documentados de tipos y lint
 
 - **Fecha/base**: 2026-10-04; `6b2480c`. Continuación autorizada de la auditoría anterior.

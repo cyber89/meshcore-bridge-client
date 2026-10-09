@@ -3,6 +3,9 @@ MeshCore Bridge Package.
 Puente determinista y asíncrono entre hardware LoRa MeshCore, MQTT/n8n y Servidor Web SPA.
 """
 
+from importlib import import_module
+from typing import TYPE_CHECKING, Any
+
 from src.bridge_core import MeshCoreBridge
 from src.contact_manager import (
     NodeContactInfo,
@@ -39,10 +42,20 @@ from src.serial_driver import (
 )
 from src.tcp_companion_server import MeshCoreCompanionServer
 from src.virtual_mesh_adapter import VirtualMeshAdapter
-from src.web.api_router import WebAPIRouter
-from src.web.http_server import MeshCoreWebServer
+
+if TYPE_CHECKING:
+    from src.web.api_router import WebAPIRouter
+    from src.web.http_server import MeshCoreWebServer
 
 __version__ = "3.0.0"
+
+
+def __getattr__(name: str) -> Any:
+    """Keep historical web exports without loading the HTTP server in headless."""
+    if name in {"MeshCoreWebServer", "WebAPIRouter"}:
+        return getattr(import_module("src.web"), name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "MeshCoreBridge",

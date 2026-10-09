@@ -1,0 +1,3089 @@
+{
+  "generated_at_utc": "2026-10-09T01:43:53.039214+00:00",
+  "scope": "wheel hashes, filename/METADATA identity, target tags, pinned versions, Requires-Python and dependency markers",
+  "download_index": "https://pypi.org/simple",
+  "input_sha256": "2128113c08e112011ac907c788b87dff1d20caf6faa8a874b7d3b0ce040b68be",
+  "not_verified": [
+    "runtime",
+    "platform ABI execution",
+    "bridge lifecycle",
+    "performance"
+  ],
+  "targets": [
+    {
+      "target": {
+        "name": "win-cp310",
+        "python": "3.10",
+        "platform": "Windows",
+        "machine": "AMD64"
+      },
+      "marker_environment": {
+        "implementation_name": "cpython",
+        "implementation_version": "3.10.0",
+        "os_name": "nt",
+        "platform_machine": "AMD64",
+        "platform_release": "",
+        "platform_system": "Windows",
+        "platform_version": "",
+        "python_full_version": "3.10.0",
+        "platform_python_implementation": "CPython",
+        "python_version": "3.10",
+        "sys_platform": "win32",
+        "extra": ""
+      },
+      "accepted_platforms": [
+        "win_amd64"
+      ],
+      "manifest_sha256": "5ad938114bff7dd2dfea2b33be7849f4bb39617ff613c226d9809704d8b05a4f",
+      "package_count": 34,
+      "download_bytes": 7063476,
+      "wheels": [
+        {
+          "name": "annotated-doc",
+          "version": "0.0.5",
+          "filename": "annotated_doc-0.0.5-py3-none-any.whl",
+          "sha256": "117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101",
+          "size_bytes": 5302,
+          "requires_python": ">=3.9",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "annotated-types",
+          "version": "0.8.0",
+          "filename": "annotated_types-0.8.0-py3-none-any.whl",
+          "sha256": "f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0",
+          "size_bytes": 13427,
+          "requires_python": ">=3.10",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "anyio",
+          "version": "4.15.1",
+          "filename": "anyio-4.15.1-py3-none-any.whl",
+          "sha256": "6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101",
+          "size_bytes": 132079,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "exceptiongroup>=1.0.2; python_version < \"3.11\"",
+            "idna>=2.8",
+            "typing_extensions>=4.16.0; python_version < \"3.15\"",
+            "trio>=0.32.0; extra == \"trio\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "async-timeout",
+          "version": "5.0.1",
+          "filename": "async_timeout-5.0.1-py3-none-any.whl",
+          "sha256": "39e3809566ff85354557ec2398b55e096c8364bacac9405a7a1fa429e77fe76c",
+          "size_bytes": 6233,
+          "requires_python": ">=3.8",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "bleak",
+          "version": "3.0.2",
+          "filename": "bleak-3.0.2-py3-none-any.whl",
+          "sha256": "39092feb9e83f1df5ad2f88e837723c7211c982ce9e9cda6235104bc2ebe0d0d",
+          "size_bytes": 146490,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "async-timeout>=3.0.0 ; python_full_version < '3.11'",
+            "typing-extensions>=4.7.0 ; python_full_version < '3.12'",
+            "pyobjc-core>=10.3 ; sys_platform == 'darwin'",
+            "pyobjc-framework-corebluetooth>=10.3 ; sys_platform == 'darwin'",
+            "pyobjc-framework-libdispatch>=10.3 ; sys_platform == 'darwin'",
+            "winrt-runtime>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-bluetooth>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-bluetooth-advertisement>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-bluetooth-genericattributeprofile>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-enumeration>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-radios>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-foundation>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-foundation-collections>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-storage-streams>=3.1 ; sys_platform == 'win32'",
+            "dbus-fast>=1.83.0 ; sys_platform == 'linux'",
+            "bleak-pythonista>=0.1.1 ; extra == 'pythonista'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "click",
+          "version": "8.5.0",
+          "filename": "click-8.5.0-py3-none-any.whl",
+          "sha256": "255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360",
+          "size_bytes": 125251,
+          "requires_python": ">=3.10",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "exceptiongroup",
+          "version": "1.3.1",
+          "filename": "exceptiongroup-1.3.1-py3-none-any.whl",
+          "sha256": "a7a39a3bd276781e98394987d3a5701d0c4edffb633bb7a5144577f82c773598",
+          "size_bytes": 16740,
+          "requires_python": ">=3.7",
+          "requires_dist": [
+            "typing-extensions >= 4.6.0; python_version < '3.13'",
+            "pytest >= 6 ; extra == \"test\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "fastapi",
+          "version": "0.143.0",
+          "filename": "fastapi-0.143.0-py3-none-any.whl",
+          "sha256": "3e9395fd35276425b61b516a31fdd7c77fe2af83e41b4da22e30696fb1304c5d",
+          "size_bytes": 144665,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "starlette>=0.46.0",
+            "pydantic>=2.9.0",
+            "typing-extensions>=4.8.0",
+            "typing-inspection>=0.4.2",
+            "annotated-doc>=0.0.2",
+            "opentelemetry-api>=1.44.0",
+            "opentelemetry-sdk>=1.44.0; extra == \"opentelemetry\"",
+            "opentelemetry-exporter-otlp-proto-http>=1.44.0; extra == \"opentelemetry\"",
+            "opentelemetry-sdk>=1.44.0; extra == \"standard\"",
+            "opentelemetry-exporter-otlp-proto-http>=1.44.0; extra == \"standard\"",
+            "fastapi-cli[standard]>=0.0.32; extra == \"standard\"",
+            "fastar>=0.9.0; extra == \"standard\"",
+            "httpx<1.0.0,>=0.23.0; extra == \"standard\"",
+            "jinja2>=3.1.5; extra == \"standard\"",
+            "python-multipart>=0.0.18; extra == \"standard\"",
+            "email-validator>=2.0.0; extra == \"standard\"",
+            "uvicorn[standard]>=0.12.0; extra == \"standard\"",
+            "pydantic-settings>=2.0.0; extra == \"standard\"",
+            "pydantic-extra-types>=2.0.0; extra == \"standard\"",
+            "opentelemetry-sdk>=1.44.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "opentelemetry-exporter-otlp-proto-http>=1.44.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "fastapi-cli[standard-no-fastapi-cloud-cli]>=0.0.32; extra == \"standard-no-fastapi-cloud-cli\"",
+            "httpx<1.0.0,>=0.23.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "jinja2>=3.1.5; extra == \"standard-no-fastapi-cloud-cli\"",
+            "python-multipart>=0.0.18; extra == \"standard-no-fastapi-cloud-cli\"",
+            "email-validator>=2.0.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "uvicorn[standard]>=0.12.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "pydantic-settings>=2.0.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "pydantic-extra-types>=2.0.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "opentelemetry-sdk>=1.44.0; extra == \"all\"",
+            "opentelemetry-exporter-otlp-proto-http>=1.44.0; extra == \"all\"",
+            "fastapi-cli[standard]>=0.0.32; extra == \"all\"",
+            "httpx<1.0.0,>=0.23.0; extra == \"all\"",
+            "jinja2>=3.1.5; extra == \"all\"",
+            "python-multipart>=0.0.18; extra == \"all\"",
+            "itsdangerous>=1.1.0; extra == \"all\"",
+            "pyyaml>=5.3.1; extra == \"all\"",
+            "email-validator>=2.0.0; extra == \"all\"",
+            "uvicorn[standard]>=0.12.0; extra == \"all\"",
+            "pydantic-settings>=2.0.0; extra == \"all\"",
+            "pydantic-extra-types>=2.0.0; extra == \"all\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "h11",
+          "version": "0.16.0",
+          "filename": "h11-0.16.0-py3-none-any.whl",
+          "sha256": "63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86",
+          "size_bytes": 37515,
+          "requires_python": ">=3.8",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "idna",
+          "version": "3.20",
+          "filename": "idna-3.20-py3-none-any.whl",
+          "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c",
+          "size_bytes": 69583,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "ruff >= 0.16.0 ; extra == \"all\"",
+            "mypy >= 1.11.2 ; extra == \"all\"",
+            "ty >= 0.0.37 ; extra == \"all\"",
+            "pytest >= 8.3.2 ; extra == \"all\"",
+            "hypothesis >= 6.141.1 ; extra == \"all\"",
+            "coverage >= 7.10.0 ; extra == \"all\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "meshcore",
+          "version": "2.3.8",
+          "filename": "meshcore-2.3.8-py3-none-any.whl",
+          "sha256": "799201a164934fd903aea040463571220cd985df6232913c1d613be13069abef",
+          "size_bytes": 64714,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "bleak",
+            "pycayennelpp",
+            "pycryptodome",
+            "pyserial-asyncio-fast",
+            "black; extra == 'dev'",
+            "pytest; extra == 'dev'",
+            "pytest-asyncio; extra == 'dev'",
+            "ruff; extra == 'dev'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "opentelemetry-api",
+          "version": "1.45.1",
+          "filename": "opentelemetry_api-1.45.1-py3-none-any.whl",
+          "sha256": "b31553efa588ae44bc306f863c785c5333a9ecc091248c6ee68b4b6c87fdedfb",
+          "size_bytes": 60256,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "typing-extensions>=4.5.0"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "paho-mqtt",
+          "version": "2.1.0",
+          "filename": "paho_mqtt-2.1.0-py3-none-any.whl",
+          "sha256": "6db9ba9b34ed5bc6b6e3812718c7e06e2fd7444540df2455d2c51bd58808feee",
+          "size_bytes": 67219,
+          "requires_python": ">=3.7",
+          "requires_dist": [
+            "pysocks; extra == 'proxy'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "pycayennelpp",
+          "version": "2.4.0",
+          "filename": "pycayennelpp-2.4.0-py3-none-any.whl",
+          "sha256": "a3e69ea4da9e2971a44d1e275d5555617b2345eea752325f28c0356f64901d62",
+          "size_bytes": 10417,
+          "requires_python": ">=3.6",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "pycryptodome",
+          "version": "3.24.0",
+          "filename": "pycryptodome-3.24.0-cp37-abi3-win_amd64.whl",
+          "sha256": "89a9c14b18f43491d7bec4440c7179eb51a56891c3070e41ae726cb3734c6b9b",
+          "size_bytes": 1822033,
+          "requires_python": ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*, !=3.5.*, !=3.6.*",
+          "requires_dist": [],
+          "tags": [
+            "cp37-abi3-win_amd64"
+          ]
+        },
+        {
+          "name": "pydantic",
+          "version": "2.14.0",
+          "filename": "pydantic-2.14.0-py3-none-any.whl",
+          "sha256": "15fab1bea6f1dc5003b54fc2ecab230c1fd1dbade2acd4addc52d81e32416d4b",
+          "size_bytes": 487109,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "annotated-types>=0.6.0",
+            "pydantic-core==2.50.0",
+            "typing-extensions>=4.16.0",
+            "typing-inspection>=0.4.4",
+            "email-validator>=2.0.0; extra == 'email'",
+            "tzdata; (platform_system == 'Windows') and extra == 'timezone'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "pydantic-core",
+          "version": "2.50.0",
+          "filename": "pydantic_core-2.50.0-cp310-cp310-win_amd64.whl",
+          "sha256": "56178c4116fc0c859786875ff4acc1c8d52678f095c312b0eff2a2dd9d6f8d5f",
+          "size_bytes": 2179027,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "typing-extensions>=4.16.0"
+          ],
+          "tags": [
+            "cp310-cp310-win_amd64"
+          ]
+        },
+        {
+          "name": "pyserial",
+          "version": "3.5",
+          "filename": "pyserial-3.5-py2.py3-none-any.whl",
+          "sha256": "c4451db6ba391ca6ca299fb3ec7bae67a5c55dde170964c7a14ceefec02f2cf0",
+          "size_bytes": 90585,
+          "requires_python": "",
+          "requires_dist": [
+            "hidapi; extra == 'cp2110'"
+          ],
+          "tags": [
+            "py2-none-any",
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "pyserial-asyncio-fast",
+          "version": "0.16",
+          "filename": "pyserial_asyncio_fast-0.16-py3-none-any.whl",
+          "sha256": "88939d94e341a04c0c8bc3c1ed4e874439cb5a1e21ccfb0fd7315a8e45df1687",
+          "size_bytes": 9729,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "pyserial"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "python-dotenv",
+          "version": "1.2.3",
+          "filename": "python_dotenv-1.2.3-py3-none-any.whl",
+          "sha256": "904552145e8bfed22162c09dab1c2b9b54fefa7b23ba780f4f26ca0316b0f0d9",
+          "size_bytes": 22780,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "click>=5.0; extra == \"cli\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "starlette",
+          "version": "1.7.0",
+          "filename": "starlette-1.7.0-py3-none-any.whl",
+          "sha256": "67f8e99895493dd2911a03f11314af6ceebeae4e704bb9f43dfc6a9db151c93e",
+          "size_bytes": 78980,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "anyio<5,>=4.0.0",
+            "typing-extensions>=4.10.0; python_version < '3.13'",
+            "httpx2>=2.0.0; extra == 'full'",
+            "httpx<0.29.0,>=0.27.0; extra == 'full'",
+            "itsdangerous; extra == 'full'",
+            "jinja2; extra == 'full'",
+            "opentelemetry-api; extra == 'full'",
+            "python-multipart>=0.0.18; extra == 'full'",
+            "pyyaml; extra == 'full'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "typing-extensions",
+          "version": "4.16.0",
+          "filename": "typing_extensions-4.16.0-py3-none-any.whl",
+          "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+          "size_bytes": 45571,
+          "requires_python": ">=3.9",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "typing-inspection",
+          "version": "0.4.4",
+          "filename": "typing_inspection-0.4.4-py3-none-any.whl",
+          "sha256": "65b8397ba37ccbce054456aaccddfc91e6e3083c92824df348d96ca832f3f147",
+          "size_bytes": 14750,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "typing-extensions>=4.15.0"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "uvicorn",
+          "version": "0.54.0",
+          "filename": "uvicorn-0.54.0-py3-none-any.whl",
+          "sha256": "505bdb0f318731d45f1f712071fc781a8981f6847a31c902c9f5e652d4f67faf",
+          "size_bytes": 87427,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "click>=7.0",
+            "h11>=0.8",
+            "typing-extensions>=4.0; python_version < '3.11'",
+            "httptools>=0.8.0; extra == 'standard'",
+            "python-dotenv>=0.13; extra == 'standard'",
+            "pyyaml>=5.1; extra == 'standard'",
+            "uvloop>=0.15.1; (sys_platform != 'win32' and (sys_platform != 'cygwin' and platform_python_implementation != 'PyPy')) and extra == 'standard'",
+            "watchfiles>=0.20; extra == 'standard'",
+            "websockets>=13.0; extra == 'standard'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "websockets",
+          "version": "16.1.1",
+          "filename": "websockets-16.1.1-cp310-cp310-win_amd64.whl",
+          "sha256": "d57685547e0060cc6fd90ee6a28405d6bd395e525545f13c8d7cd99c78afd79f",
+          "size_bytes": 180239,
+          "requires_python": ">=3.10",
+          "requires_dist": [],
+          "tags": [
+            "cp310-cp310-win_amd64"
+          ]
+        },
+        {
+          "name": "winrt-runtime",
+          "version": "3.2.1",
+          "filename": "winrt_runtime-3.2.1-cp310-cp310-win_amd64.whl",
+          "sha256": "dc81d5fb736bf1ddecf743928622253dce4d0aac9a57faad776d7a3834e13257",
+          "size_bytes": 242210,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "typing_extensions>=4.12.2"
+          ],
+          "tags": [
+            "cp310-cp310-win_amd64"
+          ]
+        },
+        {
+          "name": "winrt-windows-devices-bluetooth",
+          "version": "3.2.1",
+          "filename": "winrt_windows_devices_bluetooth-3.2.1-cp310-cp310-win_amd64.whl",
+          "sha256": "20f6a21029034c18ea6a6b6df399671813b071102a0d6d8355bb78cf4f547cdb",
+          "size_bytes": 114743,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "winrt-runtime~=3.2.1.0",
+            "winrt-Windows.Devices.Bluetooth.GenericAttributeProfile[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Devices.Bluetooth.Rfcomm[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Devices.Enumeration[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Devices.Radios[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Foundation[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Foundation.Collections[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Networking[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Storage.Streams[all]~=3.2.1.0; extra == \"all\""
+          ],
+          "tags": [
+            "cp310-cp310-win_amd64"
+          ]
+        },
+        {
+          "name": "winrt-windows-devices-bluetooth-advertisement",
+          "version": "3.2.1",
+          "filename": "winrt_windows_devices_bluetooth_advertisement-3.2.1-cp310-cp310-win_amd64.whl",
+          "sha256": "f982ef72e729ddd60cdb975293866e84bb838798828933012a57ee4bf12b0ea1",
+          "size_bytes": 95825,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "winrt-runtime~=3.2.1.0",
+            "winrt-Windows.Devices.Bluetooth[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Foundation[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Foundation.Collections[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Storage.Streams[all]~=3.2.1.0; extra == \"all\""
+          ],
+          "tags": [
+            "cp310-cp310-win_amd64"
+          ]
+        },
+        {
+          "name": "winrt-windows-devices-bluetooth-genericattributeprofile",
+          "version": "3.2.1",
+          "filename": "winrt_windows_devices_bluetooth_genericattributeprofile-3.2.1-cp310-cp310-win_amd64.whl",
+          "sha256": "0e557dd52fc80392b8bd7c237e1153a50a164b3983838b4ac674551072efc9ed",
+          "size_bytes": 187866,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "winrt-runtime~=3.2.1.0",
+            "winrt-Windows.Devices.Bluetooth[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Devices.Enumeration[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Foundation[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Foundation.Collections[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Storage.Streams[all]~=3.2.1.0; extra == \"all\""
+          ],
+          "tags": [
+            "cp310-cp310-win_amd64"
+          ]
+        },
+        {
+          "name": "winrt-windows-devices-enumeration",
+          "version": "3.2.1",
+          "filename": "winrt_windows_devices_enumeration-3.2.1-cp310-cp310-win_amd64.whl",
+          "sha256": "a101ec3e0ad0a0783032fdcd5dc48e7cd68ee034cbde4f903a8c7b391532c71a",
+          "size_bytes": 142463,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "winrt-runtime~=3.2.1.0",
+            "winrt-Windows.ApplicationModel.Background[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Foundation[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Foundation.Collections[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Security.Credentials[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Storage.Streams[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.UI[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.UI.Popups[all]~=3.2.1.0; extra == \"all\""
+          ],
+          "tags": [
+            "cp310-cp310-win_amd64"
+          ]
+        },
+        {
+          "name": "winrt-windows-devices-radios",
+          "version": "3.2.1",
+          "filename": "winrt_windows_devices_radios-3.2.1-cp310-cp310-win_amd64.whl",
+          "sha256": "104b737fa1279a3b6a88ba3c6236157afc1de03c472657c45e5176ad7a209e23",
+          "size_bytes": 40295,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "winrt-runtime~=3.2.1.0",
+            "winrt-Windows.Foundation[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Foundation.Collections[all]~=3.2.1.0; extra == \"all\""
+          ],
+          "tags": [
+            "cp310-cp310-win_amd64"
+          ]
+        },
+        {
+          "name": "winrt-windows-foundation",
+          "version": "3.2.1",
+          "filename": "winrt_windows_foundation-3.2.1-cp310-cp310-win_amd64.whl",
+          "sha256": "a8f27b4f0fdb73ccc4a3e24bc8010a6607b2bdd722fa799eafce7daa87d19d39",
+          "size_bytes": 118695,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "winrt-runtime~=3.2.1.0",
+            "winrt-Windows.Foundation.Collections[all]~=3.2.1.0; extra == \"all\""
+          ],
+          "tags": [
+            "cp310-cp310-win_amd64"
+          ]
+        },
+        {
+          "name": "winrt-windows-foundation-collections",
+          "version": "3.2.1",
+          "filename": "winrt_windows_foundation_collections-3.2.1-cp310-cp310-win_amd64.whl",
+          "sha256": "899eaa3a93c35bfb1857d649e8dd60c38b978dda7cedd9725fcdbcebba156fd6",
+          "size_bytes": 70650,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "winrt-runtime~=3.2.1.0",
+            "winrt-Windows.Foundation[all]~=3.2.1.0; extra == \"all\""
+          ],
+          "tags": [
+            "cp310-cp310-win_amd64"
+          ]
+        },
+        {
+          "name": "winrt-windows-storage-streams",
+          "version": "3.2.1",
+          "filename": "winrt_windows_storage_streams-3.2.1-cp310-cp310-win_amd64.whl",
+          "sha256": "48a78e5dc7d3488eb77e449c278bc6d6ac28abcdda7df298462c4112d7635d00",
+          "size_bytes": 132608,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "winrt-runtime~=3.2.1.0",
+            "winrt-Windows.Foundation[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Foundation.Collections[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Storage[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.System[all]~=3.2.1.0; extra == \"all\""
+          ],
+          "tags": [
+            "cp310-cp310-win_amd64"
+          ]
+        }
+      ],
+      "issues": []
+    },
+    {
+      "target": {
+        "name": "win-cp312",
+        "python": "3.12",
+        "platform": "Windows",
+        "machine": "AMD64"
+      },
+      "marker_environment": {
+        "implementation_name": "cpython",
+        "implementation_version": "3.12.0",
+        "os_name": "nt",
+        "platform_machine": "AMD64",
+        "platform_release": "",
+        "platform_system": "Windows",
+        "platform_version": "",
+        "python_full_version": "3.12.0",
+        "platform_python_implementation": "CPython",
+        "python_version": "3.12",
+        "sys_platform": "win32",
+        "extra": ""
+      },
+      "accepted_platforms": [
+        "win_amd64"
+      ],
+      "manifest_sha256": "d9b94975ba7145ed90a30d2848c7179456b4ba938e154506216e4e71757c06d5",
+      "package_count": 32,
+      "download_bytes": 7027301,
+      "wheels": [
+        {
+          "name": "annotated-doc",
+          "version": "0.0.5",
+          "filename": "annotated_doc-0.0.5-py3-none-any.whl",
+          "sha256": "117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101",
+          "size_bytes": 5302,
+          "requires_python": ">=3.9",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "annotated-types",
+          "version": "0.8.0",
+          "filename": "annotated_types-0.8.0-py3-none-any.whl",
+          "sha256": "f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0",
+          "size_bytes": 13427,
+          "requires_python": ">=3.10",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "anyio",
+          "version": "4.15.1",
+          "filename": "anyio-4.15.1-py3-none-any.whl",
+          "sha256": "6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101",
+          "size_bytes": 132079,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "exceptiongroup>=1.0.2; python_version < \"3.11\"",
+            "idna>=2.8",
+            "typing_extensions>=4.16.0; python_version < \"3.15\"",
+            "trio>=0.32.0; extra == \"trio\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "bleak",
+          "version": "3.0.2",
+          "filename": "bleak-3.0.2-py3-none-any.whl",
+          "sha256": "39092feb9e83f1df5ad2f88e837723c7211c982ce9e9cda6235104bc2ebe0d0d",
+          "size_bytes": 146490,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "async-timeout>=3.0.0 ; python_full_version < '3.11'",
+            "typing-extensions>=4.7.0 ; python_full_version < '3.12'",
+            "pyobjc-core>=10.3 ; sys_platform == 'darwin'",
+            "pyobjc-framework-corebluetooth>=10.3 ; sys_platform == 'darwin'",
+            "pyobjc-framework-libdispatch>=10.3 ; sys_platform == 'darwin'",
+            "winrt-runtime>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-bluetooth>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-bluetooth-advertisement>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-bluetooth-genericattributeprofile>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-enumeration>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-radios>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-foundation>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-foundation-collections>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-storage-streams>=3.1 ; sys_platform == 'win32'",
+            "dbus-fast>=1.83.0 ; sys_platform == 'linux'",
+            "bleak-pythonista>=0.1.1 ; extra == 'pythonista'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "click",
+          "version": "8.5.0",
+          "filename": "click-8.5.0-py3-none-any.whl",
+          "sha256": "255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360",
+          "size_bytes": 125251,
+          "requires_python": ">=3.10",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "fastapi",
+          "version": "0.143.0",
+          "filename": "fastapi-0.143.0-py3-none-any.whl",
+          "sha256": "3e9395fd35276425b61b516a31fdd7c77fe2af83e41b4da22e30696fb1304c5d",
+          "size_bytes": 144665,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "starlette>=0.46.0",
+            "pydantic>=2.9.0",
+            "typing-extensions>=4.8.0",
+            "typing-inspection>=0.4.2",
+            "annotated-doc>=0.0.2",
+            "opentelemetry-api>=1.44.0",
+            "opentelemetry-sdk>=1.44.0; extra == \"opentelemetry\"",
+            "opentelemetry-exporter-otlp-proto-http>=1.44.0; extra == \"opentelemetry\"",
+            "opentelemetry-sdk>=1.44.0; extra == \"standard\"",
+            "opentelemetry-exporter-otlp-proto-http>=1.44.0; extra == \"standard\"",
+            "fastapi-cli[standard]>=0.0.32; extra == \"standard\"",
+            "fastar>=0.9.0; extra == \"standard\"",
+            "httpx<1.0.0,>=0.23.0; extra == \"standard\"",
+            "jinja2>=3.1.5; extra == \"standard\"",
+            "python-multipart>=0.0.18; extra == \"standard\"",
+            "email-validator>=2.0.0; extra == \"standard\"",
+            "uvicorn[standard]>=0.12.0; extra == \"standard\"",
+            "pydantic-settings>=2.0.0; extra == \"standard\"",
+            "pydantic-extra-types>=2.0.0; extra == \"standard\"",
+            "opentelemetry-sdk>=1.44.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "opentelemetry-exporter-otlp-proto-http>=1.44.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "fastapi-cli[standard-no-fastapi-cloud-cli]>=0.0.32; extra == \"standard-no-fastapi-cloud-cli\"",
+            "httpx<1.0.0,>=0.23.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "jinja2>=3.1.5; extra == \"standard-no-fastapi-cloud-cli\"",
+            "python-multipart>=0.0.18; extra == \"standard-no-fastapi-cloud-cli\"",
+            "email-validator>=2.0.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "uvicorn[standard]>=0.12.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "pydantic-settings>=2.0.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "pydantic-extra-types>=2.0.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "opentelemetry-sdk>=1.44.0; extra == \"all\"",
+            "opentelemetry-exporter-otlp-proto-http>=1.44.0; extra == \"all\"",
+            "fastapi-cli[standard]>=0.0.32; extra == \"all\"",
+            "httpx<1.0.0,>=0.23.0; extra == \"all\"",
+            "jinja2>=3.1.5; extra == \"all\"",
+            "python-multipart>=0.0.18; extra == \"all\"",
+            "itsdangerous>=1.1.0; extra == \"all\"",
+            "pyyaml>=5.3.1; extra == \"all\"",
+            "email-validator>=2.0.0; extra == \"all\"",
+            "uvicorn[standard]>=0.12.0; extra == \"all\"",
+            "pydantic-settings>=2.0.0; extra == \"all\"",
+            "pydantic-extra-types>=2.0.0; extra == \"all\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "h11",
+          "version": "0.16.0",
+          "filename": "h11-0.16.0-py3-none-any.whl",
+          "sha256": "63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86",
+          "size_bytes": 37515,
+          "requires_python": ">=3.8",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "idna",
+          "version": "3.20",
+          "filename": "idna-3.20-py3-none-any.whl",
+          "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c",
+          "size_bytes": 69583,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "ruff >= 0.16.0 ; extra == \"all\"",
+            "mypy >= 1.11.2 ; extra == \"all\"",
+            "ty >= 0.0.37 ; extra == \"all\"",
+            "pytest >= 8.3.2 ; extra == \"all\"",
+            "hypothesis >= 6.141.1 ; extra == \"all\"",
+            "coverage >= 7.10.0 ; extra == \"all\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "meshcore",
+          "version": "2.3.8",
+          "filename": "meshcore-2.3.8-py3-none-any.whl",
+          "sha256": "799201a164934fd903aea040463571220cd985df6232913c1d613be13069abef",
+          "size_bytes": 64714,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "bleak",
+            "pycayennelpp",
+            "pycryptodome",
+            "pyserial-asyncio-fast",
+            "black; extra == 'dev'",
+            "pytest; extra == 'dev'",
+            "pytest-asyncio; extra == 'dev'",
+            "ruff; extra == 'dev'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "opentelemetry-api",
+          "version": "1.45.1",
+          "filename": "opentelemetry_api-1.45.1-py3-none-any.whl",
+          "sha256": "b31553efa588ae44bc306f863c785c5333a9ecc091248c6ee68b4b6c87fdedfb",
+          "size_bytes": 60256,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "typing-extensions>=4.5.0"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "paho-mqtt",
+          "version": "2.1.0",
+          "filename": "paho_mqtt-2.1.0-py3-none-any.whl",
+          "sha256": "6db9ba9b34ed5bc6b6e3812718c7e06e2fd7444540df2455d2c51bd58808feee",
+          "size_bytes": 67219,
+          "requires_python": ">=3.7",
+          "requires_dist": [
+            "pysocks; extra == 'proxy'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "pycayennelpp",
+          "version": "2.4.0",
+          "filename": "pycayennelpp-2.4.0-py3-none-any.whl",
+          "sha256": "a3e69ea4da9e2971a44d1e275d5555617b2345eea752325f28c0356f64901d62",
+          "size_bytes": 10417,
+          "requires_python": ">=3.6",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "pycryptodome",
+          "version": "3.24.0",
+          "filename": "pycryptodome-3.24.0-cp37-abi3-win_amd64.whl",
+          "sha256": "89a9c14b18f43491d7bec4440c7179eb51a56891c3070e41ae726cb3734c6b9b",
+          "size_bytes": 1822033,
+          "requires_python": ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*, !=3.5.*, !=3.6.*",
+          "requires_dist": [],
+          "tags": [
+            "cp37-abi3-win_amd64"
+          ]
+        },
+        {
+          "name": "pydantic",
+          "version": "2.14.0",
+          "filename": "pydantic-2.14.0-py3-none-any.whl",
+          "sha256": "15fab1bea6f1dc5003b54fc2ecab230c1fd1dbade2acd4addc52d81e32416d4b",
+          "size_bytes": 487109,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "annotated-types>=0.6.0",
+            "pydantic-core==2.50.0",
+            "typing-extensions>=4.16.0",
+            "typing-inspection>=0.4.4",
+            "email-validator>=2.0.0; extra == 'email'",
+            "tzdata; (platform_system == 'Windows') and extra == 'timezone'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "pydantic-core",
+          "version": "2.50.0",
+          "filename": "pydantic_core-2.50.0-cp312-cp312-win_amd64.whl",
+          "sha256": "1541c334af5d42cb9eb03862a9b4d2cfbfc670fd05172ec51f3ce02d704550f1",
+          "size_bytes": 2171536,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "typing-extensions>=4.16.0"
+          ],
+          "tags": [
+            "cp312-cp312-win_amd64"
+          ]
+        },
+        {
+          "name": "pyserial",
+          "version": "3.5",
+          "filename": "pyserial-3.5-py2.py3-none-any.whl",
+          "sha256": "c4451db6ba391ca6ca299fb3ec7bae67a5c55dde170964c7a14ceefec02f2cf0",
+          "size_bytes": 90585,
+          "requires_python": "",
+          "requires_dist": [
+            "hidapi; extra == 'cp2110'"
+          ],
+          "tags": [
+            "py2-none-any",
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "pyserial-asyncio-fast",
+          "version": "0.16",
+          "filename": "pyserial_asyncio_fast-0.16-py3-none-any.whl",
+          "sha256": "88939d94e341a04c0c8bc3c1ed4e874439cb5a1e21ccfb0fd7315a8e45df1687",
+          "size_bytes": 9729,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "pyserial"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "python-dotenv",
+          "version": "1.2.3",
+          "filename": "python_dotenv-1.2.3-py3-none-any.whl",
+          "sha256": "904552145e8bfed22162c09dab1c2b9b54fefa7b23ba780f4f26ca0316b0f0d9",
+          "size_bytes": 22780,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "click>=5.0; extra == \"cli\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "starlette",
+          "version": "1.7.0",
+          "filename": "starlette-1.7.0-py3-none-any.whl",
+          "sha256": "67f8e99895493dd2911a03f11314af6ceebeae4e704bb9f43dfc6a9db151c93e",
+          "size_bytes": 78980,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "anyio<5,>=4.0.0",
+            "typing-extensions>=4.10.0; python_version < '3.13'",
+            "httpx2>=2.0.0; extra == 'full'",
+            "httpx<0.29.0,>=0.27.0; extra == 'full'",
+            "itsdangerous; extra == 'full'",
+            "jinja2; extra == 'full'",
+            "opentelemetry-api; extra == 'full'",
+            "python-multipart>=0.0.18; extra == 'full'",
+            "pyyaml; extra == 'full'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "typing-extensions",
+          "version": "4.16.0",
+          "filename": "typing_extensions-4.16.0-py3-none-any.whl",
+          "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+          "size_bytes": 45571,
+          "requires_python": ">=3.9",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "typing-inspection",
+          "version": "0.4.4",
+          "filename": "typing_inspection-0.4.4-py3-none-any.whl",
+          "sha256": "65b8397ba37ccbce054456aaccddfc91e6e3083c92824df348d96ca832f3f147",
+          "size_bytes": 14750,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "typing-extensions>=4.15.0"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "uvicorn",
+          "version": "0.54.0",
+          "filename": "uvicorn-0.54.0-py3-none-any.whl",
+          "sha256": "505bdb0f318731d45f1f712071fc781a8981f6847a31c902c9f5e652d4f67faf",
+          "size_bytes": 87427,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "click>=7.0",
+            "h11>=0.8",
+            "typing-extensions>=4.0; python_version < '3.11'",
+            "httptools>=0.8.0; extra == 'standard'",
+            "python-dotenv>=0.13; extra == 'standard'",
+            "pyyaml>=5.1; extra == 'standard'",
+            "uvloop>=0.15.1; (sys_platform != 'win32' and (sys_platform != 'cygwin' and platform_python_implementation != 'PyPy')) and extra == 'standard'",
+            "watchfiles>=0.20; extra == 'standard'",
+            "websockets>=13.0; extra == 'standard'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "websockets",
+          "version": "16.1.1",
+          "filename": "websockets-16.1.1-cp312-cp312-win_amd64.whl",
+          "sha256": "b436f6ec4fc3a6b4237c84d3f83170ed2b40bb584222f0ac47a0c8a5921980c7",
+          "size_bytes": 180243,
+          "requires_python": ">=3.10",
+          "requires_dist": [],
+          "tags": [
+            "cp312-cp312-win_amd64"
+          ]
+        },
+        {
+          "name": "winrt-runtime",
+          "version": "3.2.1",
+          "filename": "winrt_runtime-3.2.1-cp312-cp312-win_amd64.whl",
+          "sha256": "06510db215d4f0dc45c00fbb1251c6544e91742a0ad928011db33b30677e1576",
+          "size_bytes": 241391,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "typing_extensions>=4.12.2"
+          ],
+          "tags": [
+            "cp312-cp312-win_amd64"
+          ]
+        },
+        {
+          "name": "winrt-windows-devices-bluetooth",
+          "version": "3.2.1",
+          "filename": "winrt_windows_devices_bluetooth-3.2.1-cp312-cp312-win_amd64.whl",
+          "sha256": "9b6702c462b216c91e32388023a74d0f87210cef6fd5d93b7191e9427ce2faca",
+          "size_bytes": 113356,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "winrt-runtime~=3.2.1.0",
+            "winrt-Windows.Devices.Bluetooth.GenericAttributeProfile[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Devices.Bluetooth.Rfcomm[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Devices.Enumeration[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Devices.Radios[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Foundation[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Foundation.Collections[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Networking[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Storage.Streams[all]~=3.2.1.0; extra == \"all\""
+          ],
+          "tags": [
+            "cp312-cp312-win_amd64"
+          ]
+        },
+        {
+          "name": "winrt-windows-devices-bluetooth-advertisement",
+          "version": "3.2.1",
+          "filename": "winrt_windows_devices_bluetooth_advertisement-3.2.1-cp312-cp312-win_amd64.whl",
+          "sha256": "e6c66e7d4f4ca86d2c801d30efd2b9673247b59a2b4c365d9e11650303d68d89",
+          "size_bytes": 95824,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "winrt-runtime~=3.2.1.0",
+            "winrt-Windows.Devices.Bluetooth[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Foundation[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Foundation.Collections[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Storage.Streams[all]~=3.2.1.0; extra == \"all\""
+          ],
+          "tags": [
+            "cp312-cp312-win_amd64"
+          ]
+        },
+        {
+          "name": "winrt-windows-devices-bluetooth-genericattributeprofile",
+          "version": "3.2.1",
+          "filename": "winrt_windows_devices_bluetooth_genericattributeprofile-3.2.1-cp312-cp312-win_amd64.whl",
+          "sha256": "db05de95cd1b24a51abb69cb936a8b17e9214e015757d0b37e3a5e207ddceb3d",
+          "size_bytes": 187810,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "winrt-runtime~=3.2.1.0",
+            "winrt-Windows.Devices.Bluetooth[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Devices.Enumeration[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Foundation[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Foundation.Collections[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Storage.Streams[all]~=3.2.1.0; extra == \"all\""
+          ],
+          "tags": [
+            "cp312-cp312-win_amd64"
+          ]
+        },
+        {
+          "name": "winrt-windows-devices-enumeration",
+          "version": "3.2.1",
+          "filename": "winrt_windows_devices_enumeration-3.2.1-cp312-cp312-win_amd64.whl",
+          "sha256": "a73bc88d7f510af454f2b392985501c96f39b89fd987140708ccaec1588ceebc",
+          "size_bytes": 141512,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "winrt-runtime~=3.2.1.0",
+            "winrt-Windows.ApplicationModel.Background[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Foundation[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Foundation.Collections[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Security.Credentials[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Storage.Streams[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.UI[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.UI.Popups[all]~=3.2.1.0; extra == \"all\""
+          ],
+          "tags": [
+            "cp312-cp312-win_amd64"
+          ]
+        },
+        {
+          "name": "winrt-windows-devices-radios",
+          "version": "3.2.1",
+          "filename": "winrt_windows_devices_radios-3.2.1-cp312-cp312-win_amd64.whl",
+          "sha256": "a116e552a3f38607b9be558fb2e7de9b4450d1f9080069944d74d80cdda1873e",
+          "size_bytes": 40172,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "winrt-runtime~=3.2.1.0",
+            "winrt-Windows.Foundation[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Foundation.Collections[all]~=3.2.1.0; extra == \"all\""
+          ],
+          "tags": [
+            "cp312-cp312-win_amd64"
+          ]
+        },
+        {
+          "name": "winrt-windows-foundation",
+          "version": "3.2.1",
+          "filename": "winrt_windows_foundation-3.2.1-cp312-cp312-win_amd64.whl",
+          "sha256": "45550c5b6c2125cde495c409633e6b1ea5aa1677724e3b95eb8140bfccbe30c9",
+          "size_bytes": 118668,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "winrt-runtime~=3.2.1.0",
+            "winrt-Windows.Foundation.Collections[all]~=3.2.1.0; extra == \"all\""
+          ],
+          "tags": [
+            "cp312-cp312-win_amd64"
+          ]
+        },
+        {
+          "name": "winrt-windows-foundation-collections",
+          "version": "3.2.1",
+          "filename": "winrt_windows_foundation_collections-3.2.1-cp312-cp312-win_amd64.whl",
+          "sha256": "550dfb8c82fe74d9e0728a2a16a9175cc9e34ca2b8ef758d69b2a398894b698b",
+          "size_bytes": 69058,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "winrt-runtime~=3.2.1.0",
+            "winrt-Windows.Foundation[all]~=3.2.1.0; extra == \"all\""
+          ],
+          "tags": [
+            "cp312-cp312-win_amd64"
+          ]
+        },
+        {
+          "name": "winrt-windows-storage-streams",
+          "version": "3.2.1",
+          "filename": "winrt_windows_storage_streams-3.2.1-cp312-cp312-win_amd64.whl",
+          "sha256": "e4508ee135af53e4fc142876abbf4bc7c2a95edfc7d19f52b291a8499cacd6dc",
+          "size_bytes": 131849,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "winrt-runtime~=3.2.1.0",
+            "winrt-Windows.Foundation[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Foundation.Collections[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.Storage[all]~=3.2.1.0; extra == \"all\"",
+            "winrt-Windows.System[all]~=3.2.1.0; extra == \"all\""
+          ],
+          "tags": [
+            "cp312-cp312-win_amd64"
+          ]
+        }
+      ],
+      "issues": []
+    },
+    {
+      "target": {
+        "name": "linux-x64-cp310",
+        "python": "3.10",
+        "platform": "Linux",
+        "machine": "x86_64"
+      },
+      "marker_environment": {
+        "implementation_name": "cpython",
+        "implementation_version": "3.10.0",
+        "os_name": "posix",
+        "platform_machine": "x86_64",
+        "platform_release": "",
+        "platform_system": "Linux",
+        "platform_version": "",
+        "python_full_version": "3.10.0",
+        "platform_python_implementation": "CPython",
+        "python_version": "3.10",
+        "sys_platform": "linux",
+        "extra": ""
+      },
+      "accepted_platforms": [
+        "manylinux_2_17_x86_64",
+        "manylinux_2_16_x86_64",
+        "manylinux_2_15_x86_64",
+        "manylinux_2_14_x86_64",
+        "manylinux_2_13_x86_64",
+        "manylinux_2_12_x86_64",
+        "manylinux_2_11_x86_64",
+        "manylinux_2_10_x86_64",
+        "manylinux_2_9_x86_64",
+        "manylinux_2_8_x86_64",
+        "manylinux_2_7_x86_64",
+        "manylinux_2_6_x86_64",
+        "manylinux_2_5_x86_64",
+        "manylinux2014_x86_64",
+        "manylinux2010_x86_64",
+        "manylinux1_x86_64"
+      ],
+      "manifest_sha256": "3819db83091ae86bff59c04e76d7347823a8702f1b0eca150ffd89e93b6da621",
+      "package_count": 26,
+      "download_bytes": 7290499,
+      "wheels": [
+        {
+          "name": "annotated-doc",
+          "version": "0.0.5",
+          "filename": "annotated_doc-0.0.5-py3-none-any.whl",
+          "sha256": "117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101",
+          "size_bytes": 5302,
+          "requires_python": ">=3.9",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "annotated-types",
+          "version": "0.8.0",
+          "filename": "annotated_types-0.8.0-py3-none-any.whl",
+          "sha256": "f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0",
+          "size_bytes": 13427,
+          "requires_python": ">=3.10",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "anyio",
+          "version": "4.15.1",
+          "filename": "anyio-4.15.1-py3-none-any.whl",
+          "sha256": "6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101",
+          "size_bytes": 132079,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "exceptiongroup>=1.0.2; python_version < \"3.11\"",
+            "idna>=2.8",
+            "typing_extensions>=4.16.0; python_version < \"3.15\"",
+            "trio>=0.32.0; extra == \"trio\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "async-timeout",
+          "version": "5.0.1",
+          "filename": "async_timeout-5.0.1-py3-none-any.whl",
+          "sha256": "39e3809566ff85354557ec2398b55e096c8364bacac9405a7a1fa429e77fe76c",
+          "size_bytes": 6233,
+          "requires_python": ">=3.8",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "bleak",
+          "version": "3.0.2",
+          "filename": "bleak-3.0.2-py3-none-any.whl",
+          "sha256": "39092feb9e83f1df5ad2f88e837723c7211c982ce9e9cda6235104bc2ebe0d0d",
+          "size_bytes": 146490,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "async-timeout>=3.0.0 ; python_full_version < '3.11'",
+            "typing-extensions>=4.7.0 ; python_full_version < '3.12'",
+            "pyobjc-core>=10.3 ; sys_platform == 'darwin'",
+            "pyobjc-framework-corebluetooth>=10.3 ; sys_platform == 'darwin'",
+            "pyobjc-framework-libdispatch>=10.3 ; sys_platform == 'darwin'",
+            "winrt-runtime>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-bluetooth>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-bluetooth-advertisement>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-bluetooth-genericattributeprofile>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-enumeration>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-radios>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-foundation>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-foundation-collections>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-storage-streams>=3.1 ; sys_platform == 'win32'",
+            "dbus-fast>=1.83.0 ; sys_platform == 'linux'",
+            "bleak-pythonista>=0.1.1 ; extra == 'pythonista'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "click",
+          "version": "8.5.0",
+          "filename": "click-8.5.0-py3-none-any.whl",
+          "sha256": "255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360",
+          "size_bytes": 125251,
+          "requires_python": ">=3.10",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "dbus-fast",
+          "version": "5.0.26",
+          "filename": "dbus_fast-5.0.26-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+          "sha256": "2ed8cd03d81d05cc83d778ba19b1c9a4e786da0a227473802ab1dcc033d7d30b",
+          "size_bytes": 931164,
+          "requires_python": ">=3.10",
+          "requires_dist": [],
+          "tags": [
+            "cp310-cp310-manylinux2014_x86_64",
+            "cp310-cp310-manylinux_2_17_x86_64",
+            "cp310-cp310-manylinux_2_28_x86_64"
+          ]
+        },
+        {
+          "name": "exceptiongroup",
+          "version": "1.3.1",
+          "filename": "exceptiongroup-1.3.1-py3-none-any.whl",
+          "sha256": "a7a39a3bd276781e98394987d3a5701d0c4edffb633bb7a5144577f82c773598",
+          "size_bytes": 16740,
+          "requires_python": ">=3.7",
+          "requires_dist": [
+            "typing-extensions >= 4.6.0; python_version < '3.13'",
+            "pytest >= 6 ; extra == \"test\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "fastapi",
+          "version": "0.143.0",
+          "filename": "fastapi-0.143.0-py3-none-any.whl",
+          "sha256": "3e9395fd35276425b61b516a31fdd7c77fe2af83e41b4da22e30696fb1304c5d",
+          "size_bytes": 144665,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "starlette>=0.46.0",
+            "pydantic>=2.9.0",
+            "typing-extensions>=4.8.0",
+            "typing-inspection>=0.4.2",
+            "annotated-doc>=0.0.2",
+            "opentelemetry-api>=1.44.0",
+            "opentelemetry-sdk>=1.44.0; extra == \"opentelemetry\"",
+            "opentelemetry-exporter-otlp-proto-http>=1.44.0; extra == \"opentelemetry\"",
+            "opentelemetry-sdk>=1.44.0; extra == \"standard\"",
+            "opentelemetry-exporter-otlp-proto-http>=1.44.0; extra == \"standard\"",
+            "fastapi-cli[standard]>=0.0.32; extra == \"standard\"",
+            "fastar>=0.9.0; extra == \"standard\"",
+            "httpx<1.0.0,>=0.23.0; extra == \"standard\"",
+            "jinja2>=3.1.5; extra == \"standard\"",
+            "python-multipart>=0.0.18; extra == \"standard\"",
+            "email-validator>=2.0.0; extra == \"standard\"",
+            "uvicorn[standard]>=0.12.0; extra == \"standard\"",
+            "pydantic-settings>=2.0.0; extra == \"standard\"",
+            "pydantic-extra-types>=2.0.0; extra == \"standard\"",
+            "opentelemetry-sdk>=1.44.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "opentelemetry-exporter-otlp-proto-http>=1.44.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "fastapi-cli[standard-no-fastapi-cloud-cli]>=0.0.32; extra == \"standard-no-fastapi-cloud-cli\"",
+            "httpx<1.0.0,>=0.23.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "jinja2>=3.1.5; extra == \"standard-no-fastapi-cloud-cli\"",
+            "python-multipart>=0.0.18; extra == \"standard-no-fastapi-cloud-cli\"",
+            "email-validator>=2.0.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "uvicorn[standard]>=0.12.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "pydantic-settings>=2.0.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "pydantic-extra-types>=2.0.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "opentelemetry-sdk>=1.44.0; extra == \"all\"",
+            "opentelemetry-exporter-otlp-proto-http>=1.44.0; extra == \"all\"",
+            "fastapi-cli[standard]>=0.0.32; extra == \"all\"",
+            "httpx<1.0.0,>=0.23.0; extra == \"all\"",
+            "jinja2>=3.1.5; extra == \"all\"",
+            "python-multipart>=0.0.18; extra == \"all\"",
+            "itsdangerous>=1.1.0; extra == \"all\"",
+            "pyyaml>=5.3.1; extra == \"all\"",
+            "email-validator>=2.0.0; extra == \"all\"",
+            "uvicorn[standard]>=0.12.0; extra == \"all\"",
+            "pydantic-settings>=2.0.0; extra == \"all\"",
+            "pydantic-extra-types>=2.0.0; extra == \"all\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "h11",
+          "version": "0.16.0",
+          "filename": "h11-0.16.0-py3-none-any.whl",
+          "sha256": "63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86",
+          "size_bytes": 37515,
+          "requires_python": ">=3.8",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "idna",
+          "version": "3.20",
+          "filename": "idna-3.20-py3-none-any.whl",
+          "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c",
+          "size_bytes": 69583,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "ruff >= 0.16.0 ; extra == \"all\"",
+            "mypy >= 1.11.2 ; extra == \"all\"",
+            "ty >= 0.0.37 ; extra == \"all\"",
+            "pytest >= 8.3.2 ; extra == \"all\"",
+            "hypothesis >= 6.141.1 ; extra == \"all\"",
+            "coverage >= 7.10.0 ; extra == \"all\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "meshcore",
+          "version": "2.3.8",
+          "filename": "meshcore-2.3.8-py3-none-any.whl",
+          "sha256": "799201a164934fd903aea040463571220cd985df6232913c1d613be13069abef",
+          "size_bytes": 64714,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "bleak",
+            "pycayennelpp",
+            "pycryptodome",
+            "pyserial-asyncio-fast",
+            "black; extra == 'dev'",
+            "pytest; extra == 'dev'",
+            "pytest-asyncio; extra == 'dev'",
+            "ruff; extra == 'dev'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "opentelemetry-api",
+          "version": "1.45.1",
+          "filename": "opentelemetry_api-1.45.1-py3-none-any.whl",
+          "sha256": "b31553efa588ae44bc306f863c785c5333a9ecc091248c6ee68b4b6c87fdedfb",
+          "size_bytes": 60256,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "typing-extensions>=4.5.0"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "paho-mqtt",
+          "version": "2.1.0",
+          "filename": "paho_mqtt-2.1.0-py3-none-any.whl",
+          "sha256": "6db9ba9b34ed5bc6b6e3812718c7e06e2fd7444540df2455d2c51bd58808feee",
+          "size_bytes": 67219,
+          "requires_python": ">=3.7",
+          "requires_dist": [
+            "pysocks; extra == 'proxy'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "pycayennelpp",
+          "version": "2.4.0",
+          "filename": "pycayennelpp-2.4.0-py3-none-any.whl",
+          "sha256": "a3e69ea4da9e2971a44d1e275d5555617b2345eea752325f28c0356f64901d62",
+          "size_bytes": 10417,
+          "requires_python": ">=3.6",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "pycryptodome",
+          "version": "3.24.0",
+          "filename": "pycryptodome-3.24.0-cp37-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+          "sha256": "cf975cc3a0822a662ec2cdae85b38ad6f67654f9b48fbe02c5baae5999a6c18d",
+          "size_bytes": 2275758,
+          "requires_python": ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*, !=3.5.*, !=3.6.*",
+          "requires_dist": [],
+          "tags": [
+            "cp37-abi3-manylinux2014_x86_64",
+            "cp37-abi3-manylinux_2_17_x86_64"
+          ]
+        },
+        {
+          "name": "pydantic",
+          "version": "2.14.0",
+          "filename": "pydantic-2.14.0-py3-none-any.whl",
+          "sha256": "15fab1bea6f1dc5003b54fc2ecab230c1fd1dbade2acd4addc52d81e32416d4b",
+          "size_bytes": 487109,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "annotated-types>=0.6.0",
+            "pydantic-core==2.50.0",
+            "typing-extensions>=4.16.0",
+            "typing-inspection>=0.4.4",
+            "email-validator>=2.0.0; extra == 'email'",
+            "tzdata; (platform_system == 'Windows') and extra == 'timezone'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "pydantic-core",
+          "version": "2.50.0",
+          "filename": "pydantic_core-2.50.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+          "sha256": "cbce1b5a2a88a465d7865df61b7e4f8829ddc49b4fa841e9b241815c9d67c3b2",
+          "size_bytes": 2160717,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "typing-extensions>=4.16.0"
+          ],
+          "tags": [
+            "cp310-cp310-manylinux2014_x86_64",
+            "cp310-cp310-manylinux_2_17_x86_64"
+          ]
+        },
+        {
+          "name": "pyserial",
+          "version": "3.5",
+          "filename": "pyserial-3.5-py2.py3-none-any.whl",
+          "sha256": "c4451db6ba391ca6ca299fb3ec7bae67a5c55dde170964c7a14ceefec02f2cf0",
+          "size_bytes": 90585,
+          "requires_python": "",
+          "requires_dist": [
+            "hidapi; extra == 'cp2110'"
+          ],
+          "tags": [
+            "py2-none-any",
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "pyserial-asyncio-fast",
+          "version": "0.16",
+          "filename": "pyserial_asyncio_fast-0.16-py3-none-any.whl",
+          "sha256": "88939d94e341a04c0c8bc3c1ed4e874439cb5a1e21ccfb0fd7315a8e45df1687",
+          "size_bytes": 9729,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "pyserial"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "python-dotenv",
+          "version": "1.2.3",
+          "filename": "python_dotenv-1.2.3-py3-none-any.whl",
+          "sha256": "904552145e8bfed22162c09dab1c2b9b54fefa7b23ba780f4f26ca0316b0f0d9",
+          "size_bytes": 22780,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "click>=5.0; extra == \"cli\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "starlette",
+          "version": "1.7.0",
+          "filename": "starlette-1.7.0-py3-none-any.whl",
+          "sha256": "67f8e99895493dd2911a03f11314af6ceebeae4e704bb9f43dfc6a9db151c93e",
+          "size_bytes": 78980,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "anyio<5,>=4.0.0",
+            "typing-extensions>=4.10.0; python_version < '3.13'",
+            "httpx2>=2.0.0; extra == 'full'",
+            "httpx<0.29.0,>=0.27.0; extra == 'full'",
+            "itsdangerous; extra == 'full'",
+            "jinja2; extra == 'full'",
+            "opentelemetry-api; extra == 'full'",
+            "python-multipart>=0.0.18; extra == 'full'",
+            "pyyaml; extra == 'full'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "typing-extensions",
+          "version": "4.16.0",
+          "filename": "typing_extensions-4.16.0-py3-none-any.whl",
+          "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+          "size_bytes": 45571,
+          "requires_python": ">=3.9",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "typing-inspection",
+          "version": "0.4.4",
+          "filename": "typing_inspection-0.4.4-py3-none-any.whl",
+          "sha256": "65b8397ba37ccbce054456aaccddfc91e6e3083c92824df348d96ca832f3f147",
+          "size_bytes": 14750,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "typing-extensions>=4.15.0"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "uvicorn",
+          "version": "0.54.0",
+          "filename": "uvicorn-0.54.0-py3-none-any.whl",
+          "sha256": "505bdb0f318731d45f1f712071fc781a8981f6847a31c902c9f5e652d4f67faf",
+          "size_bytes": 87427,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "click>=7.0",
+            "h11>=0.8",
+            "typing-extensions>=4.0; python_version < '3.11'",
+            "httptools>=0.8.0; extra == 'standard'",
+            "python-dotenv>=0.13; extra == 'standard'",
+            "pyyaml>=5.1; extra == 'standard'",
+            "uvloop>=0.15.1; (sys_platform != 'win32' and (sys_platform != 'cygwin' and platform_python_implementation != 'PyPy')) and extra == 'standard'",
+            "watchfiles>=0.20; extra == 'standard'",
+            "websockets>=13.0; extra == 'standard'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "websockets",
+          "version": "16.1.1",
+          "filename": "websockets-16.1.1-cp310-cp310-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl",
+          "sha256": "1214e673c404684b9bf7154f5cf43b45025b1a6160fac3a9e438e9c1a97e22cb",
+          "size_bytes": 186038,
+          "requires_python": ">=3.10",
+          "requires_dist": [],
+          "tags": [
+            "cp310-cp310-manylinux1_x86_64",
+            "cp310-cp310-manylinux_2_28_x86_64",
+            "cp310-cp310-manylinux_2_5_x86_64"
+          ]
+        }
+      ],
+      "issues": []
+    },
+    {
+      "target": {
+        "name": "linux-x64-cp312",
+        "python": "3.12",
+        "platform": "Linux",
+        "machine": "x86_64"
+      },
+      "marker_environment": {
+        "implementation_name": "cpython",
+        "implementation_version": "3.12.0",
+        "os_name": "posix",
+        "platform_machine": "x86_64",
+        "platform_release": "",
+        "platform_system": "Linux",
+        "platform_version": "",
+        "python_full_version": "3.12.0",
+        "platform_python_implementation": "CPython",
+        "python_version": "3.12",
+        "sys_platform": "linux",
+        "extra": ""
+      },
+      "accepted_platforms": [
+        "manylinux_2_17_x86_64",
+        "manylinux_2_16_x86_64",
+        "manylinux_2_15_x86_64",
+        "manylinux_2_14_x86_64",
+        "manylinux_2_13_x86_64",
+        "manylinux_2_12_x86_64",
+        "manylinux_2_11_x86_64",
+        "manylinux_2_10_x86_64",
+        "manylinux_2_9_x86_64",
+        "manylinux_2_8_x86_64",
+        "manylinux_2_7_x86_64",
+        "manylinux_2_6_x86_64",
+        "manylinux_2_5_x86_64",
+        "manylinux2014_x86_64",
+        "manylinux2010_x86_64",
+        "manylinux1_x86_64"
+      ],
+      "manifest_sha256": "6bf97e344ba4578cfe67ac9c4104de1a512e03d3d77b0508f35ec817eeb42546",
+      "package_count": 24,
+      "download_bytes": 7239281,
+      "wheels": [
+        {
+          "name": "annotated-doc",
+          "version": "0.0.5",
+          "filename": "annotated_doc-0.0.5-py3-none-any.whl",
+          "sha256": "117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101",
+          "size_bytes": 5302,
+          "requires_python": ">=3.9",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "annotated-types",
+          "version": "0.8.0",
+          "filename": "annotated_types-0.8.0-py3-none-any.whl",
+          "sha256": "f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0",
+          "size_bytes": 13427,
+          "requires_python": ">=3.10",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "anyio",
+          "version": "4.15.1",
+          "filename": "anyio-4.15.1-py3-none-any.whl",
+          "sha256": "6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101",
+          "size_bytes": 132079,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "exceptiongroup>=1.0.2; python_version < \"3.11\"",
+            "idna>=2.8",
+            "typing_extensions>=4.16.0; python_version < \"3.15\"",
+            "trio>=0.32.0; extra == \"trio\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "bleak",
+          "version": "3.0.2",
+          "filename": "bleak-3.0.2-py3-none-any.whl",
+          "sha256": "39092feb9e83f1df5ad2f88e837723c7211c982ce9e9cda6235104bc2ebe0d0d",
+          "size_bytes": 146490,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "async-timeout>=3.0.0 ; python_full_version < '3.11'",
+            "typing-extensions>=4.7.0 ; python_full_version < '3.12'",
+            "pyobjc-core>=10.3 ; sys_platform == 'darwin'",
+            "pyobjc-framework-corebluetooth>=10.3 ; sys_platform == 'darwin'",
+            "pyobjc-framework-libdispatch>=10.3 ; sys_platform == 'darwin'",
+            "winrt-runtime>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-bluetooth>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-bluetooth-advertisement>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-bluetooth-genericattributeprofile>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-enumeration>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-radios>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-foundation>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-foundation-collections>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-storage-streams>=3.1 ; sys_platform == 'win32'",
+            "dbus-fast>=1.83.0 ; sys_platform == 'linux'",
+            "bleak-pythonista>=0.1.1 ; extra == 'pythonista'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "click",
+          "version": "8.5.0",
+          "filename": "click-8.5.0-py3-none-any.whl",
+          "sha256": "255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360",
+          "size_bytes": 125251,
+          "requires_python": ">=3.10",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "dbus-fast",
+          "version": "5.2.0",
+          "filename": "dbus_fast-5.2.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+          "sha256": "236327794a5957238e83c363809903b6a47d1f4fecd64831a29fd09458d90f0e",
+          "size_bytes": 902179,
+          "requires_python": ">=3.11",
+          "requires_dist": [],
+          "tags": [
+            "cp312-cp312-manylinux2014_x86_64",
+            "cp312-cp312-manylinux_2_17_x86_64",
+            "cp312-cp312-manylinux_2_28_x86_64"
+          ]
+        },
+        {
+          "name": "fastapi",
+          "version": "0.143.0",
+          "filename": "fastapi-0.143.0-py3-none-any.whl",
+          "sha256": "3e9395fd35276425b61b516a31fdd7c77fe2af83e41b4da22e30696fb1304c5d",
+          "size_bytes": 144665,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "starlette>=0.46.0",
+            "pydantic>=2.9.0",
+            "typing-extensions>=4.8.0",
+            "typing-inspection>=0.4.2",
+            "annotated-doc>=0.0.2",
+            "opentelemetry-api>=1.44.0",
+            "opentelemetry-sdk>=1.44.0; extra == \"opentelemetry\"",
+            "opentelemetry-exporter-otlp-proto-http>=1.44.0; extra == \"opentelemetry\"",
+            "opentelemetry-sdk>=1.44.0; extra == \"standard\"",
+            "opentelemetry-exporter-otlp-proto-http>=1.44.0; extra == \"standard\"",
+            "fastapi-cli[standard]>=0.0.32; extra == \"standard\"",
+            "fastar>=0.9.0; extra == \"standard\"",
+            "httpx<1.0.0,>=0.23.0; extra == \"standard\"",
+            "jinja2>=3.1.5; extra == \"standard\"",
+            "python-multipart>=0.0.18; extra == \"standard\"",
+            "email-validator>=2.0.0; extra == \"standard\"",
+            "uvicorn[standard]>=0.12.0; extra == \"standard\"",
+            "pydantic-settings>=2.0.0; extra == \"standard\"",
+            "pydantic-extra-types>=2.0.0; extra == \"standard\"",
+            "opentelemetry-sdk>=1.44.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "opentelemetry-exporter-otlp-proto-http>=1.44.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "fastapi-cli[standard-no-fastapi-cloud-cli]>=0.0.32; extra == \"standard-no-fastapi-cloud-cli\"",
+            "httpx<1.0.0,>=0.23.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "jinja2>=3.1.5; extra == \"standard-no-fastapi-cloud-cli\"",
+            "python-multipart>=0.0.18; extra == \"standard-no-fastapi-cloud-cli\"",
+            "email-validator>=2.0.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "uvicorn[standard]>=0.12.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "pydantic-settings>=2.0.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "pydantic-extra-types>=2.0.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "opentelemetry-sdk>=1.44.0; extra == \"all\"",
+            "opentelemetry-exporter-otlp-proto-http>=1.44.0; extra == \"all\"",
+            "fastapi-cli[standard]>=0.0.32; extra == \"all\"",
+            "httpx<1.0.0,>=0.23.0; extra == \"all\"",
+            "jinja2>=3.1.5; extra == \"all\"",
+            "python-multipart>=0.0.18; extra == \"all\"",
+            "itsdangerous>=1.1.0; extra == \"all\"",
+            "pyyaml>=5.3.1; extra == \"all\"",
+            "email-validator>=2.0.0; extra == \"all\"",
+            "uvicorn[standard]>=0.12.0; extra == \"all\"",
+            "pydantic-settings>=2.0.0; extra == \"all\"",
+            "pydantic-extra-types>=2.0.0; extra == \"all\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "h11",
+          "version": "0.16.0",
+          "filename": "h11-0.16.0-py3-none-any.whl",
+          "sha256": "63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86",
+          "size_bytes": 37515,
+          "requires_python": ">=3.8",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "idna",
+          "version": "3.20",
+          "filename": "idna-3.20-py3-none-any.whl",
+          "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c",
+          "size_bytes": 69583,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "ruff >= 0.16.0 ; extra == \"all\"",
+            "mypy >= 1.11.2 ; extra == \"all\"",
+            "ty >= 0.0.37 ; extra == \"all\"",
+            "pytest >= 8.3.2 ; extra == \"all\"",
+            "hypothesis >= 6.141.1 ; extra == \"all\"",
+            "coverage >= 7.10.0 ; extra == \"all\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "meshcore",
+          "version": "2.3.8",
+          "filename": "meshcore-2.3.8-py3-none-any.whl",
+          "sha256": "799201a164934fd903aea040463571220cd985df6232913c1d613be13069abef",
+          "size_bytes": 64714,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "bleak",
+            "pycayennelpp",
+            "pycryptodome",
+            "pyserial-asyncio-fast",
+            "black; extra == 'dev'",
+            "pytest; extra == 'dev'",
+            "pytest-asyncio; extra == 'dev'",
+            "ruff; extra == 'dev'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "opentelemetry-api",
+          "version": "1.45.1",
+          "filename": "opentelemetry_api-1.45.1-py3-none-any.whl",
+          "sha256": "b31553efa588ae44bc306f863c785c5333a9ecc091248c6ee68b4b6c87fdedfb",
+          "size_bytes": 60256,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "typing-extensions>=4.5.0"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "paho-mqtt",
+          "version": "2.1.0",
+          "filename": "paho_mqtt-2.1.0-py3-none-any.whl",
+          "sha256": "6db9ba9b34ed5bc6b6e3812718c7e06e2fd7444540df2455d2c51bd58808feee",
+          "size_bytes": 67219,
+          "requires_python": ">=3.7",
+          "requires_dist": [
+            "pysocks; extra == 'proxy'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "pycayennelpp",
+          "version": "2.4.0",
+          "filename": "pycayennelpp-2.4.0-py3-none-any.whl",
+          "sha256": "a3e69ea4da9e2971a44d1e275d5555617b2345eea752325f28c0356f64901d62",
+          "size_bytes": 10417,
+          "requires_python": ">=3.6",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "pycryptodome",
+          "version": "3.24.0",
+          "filename": "pycryptodome-3.24.0-cp37-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+          "sha256": "cf975cc3a0822a662ec2cdae85b38ad6f67654f9b48fbe02c5baae5999a6c18d",
+          "size_bytes": 2275758,
+          "requires_python": ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*, !=3.5.*, !=3.6.*",
+          "requires_dist": [],
+          "tags": [
+            "cp37-abi3-manylinux2014_x86_64",
+            "cp37-abi3-manylinux_2_17_x86_64"
+          ]
+        },
+        {
+          "name": "pydantic",
+          "version": "2.14.0",
+          "filename": "pydantic-2.14.0-py3-none-any.whl",
+          "sha256": "15fab1bea6f1dc5003b54fc2ecab230c1fd1dbade2acd4addc52d81e32416d4b",
+          "size_bytes": 487109,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "annotated-types>=0.6.0",
+            "pydantic-core==2.50.0",
+            "typing-extensions>=4.16.0",
+            "typing-inspection>=0.4.4",
+            "email-validator>=2.0.0; extra == 'email'",
+            "tzdata; (platform_system == 'Windows') and extra == 'timezone'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "pydantic-core",
+          "version": "2.50.0",
+          "filename": "pydantic_core-2.50.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+          "sha256": "f187030fc3d62c668feb0f09e92852e0eb414d7fcefc4748f2e67d245aade37e",
+          "size_bytes": 2160358,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "typing-extensions>=4.16.0"
+          ],
+          "tags": [
+            "cp312-cp312-manylinux2014_x86_64",
+            "cp312-cp312-manylinux_2_17_x86_64"
+          ]
+        },
+        {
+          "name": "pyserial",
+          "version": "3.5",
+          "filename": "pyserial-3.5-py2.py3-none-any.whl",
+          "sha256": "c4451db6ba391ca6ca299fb3ec7bae67a5c55dde170964c7a14ceefec02f2cf0",
+          "size_bytes": 90585,
+          "requires_python": "",
+          "requires_dist": [
+            "hidapi; extra == 'cp2110'"
+          ],
+          "tags": [
+            "py2-none-any",
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "pyserial-asyncio-fast",
+          "version": "0.16",
+          "filename": "pyserial_asyncio_fast-0.16-py3-none-any.whl",
+          "sha256": "88939d94e341a04c0c8bc3c1ed4e874439cb5a1e21ccfb0fd7315a8e45df1687",
+          "size_bytes": 9729,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "pyserial"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "python-dotenv",
+          "version": "1.2.3",
+          "filename": "python_dotenv-1.2.3-py3-none-any.whl",
+          "sha256": "904552145e8bfed22162c09dab1c2b9b54fefa7b23ba780f4f26ca0316b0f0d9",
+          "size_bytes": 22780,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "click>=5.0; extra == \"cli\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "starlette",
+          "version": "1.7.0",
+          "filename": "starlette-1.7.0-py3-none-any.whl",
+          "sha256": "67f8e99895493dd2911a03f11314af6ceebeae4e704bb9f43dfc6a9db151c93e",
+          "size_bytes": 78980,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "anyio<5,>=4.0.0",
+            "typing-extensions>=4.10.0; python_version < '3.13'",
+            "httpx2>=2.0.0; extra == 'full'",
+            "httpx<0.29.0,>=0.27.0; extra == 'full'",
+            "itsdangerous; extra == 'full'",
+            "jinja2; extra == 'full'",
+            "opentelemetry-api; extra == 'full'",
+            "python-multipart>=0.0.18; extra == 'full'",
+            "pyyaml; extra == 'full'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "typing-extensions",
+          "version": "4.16.0",
+          "filename": "typing_extensions-4.16.0-py3-none-any.whl",
+          "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+          "size_bytes": 45571,
+          "requires_python": ">=3.9",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "typing-inspection",
+          "version": "0.4.4",
+          "filename": "typing_inspection-0.4.4-py3-none-any.whl",
+          "sha256": "65b8397ba37ccbce054456aaccddfc91e6e3083c92824df348d96ca832f3f147",
+          "size_bytes": 14750,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "typing-extensions>=4.15.0"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "uvicorn",
+          "version": "0.54.0",
+          "filename": "uvicorn-0.54.0-py3-none-any.whl",
+          "sha256": "505bdb0f318731d45f1f712071fc781a8981f6847a31c902c9f5e652d4f67faf",
+          "size_bytes": 87427,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "click>=7.0",
+            "h11>=0.8",
+            "typing-extensions>=4.0; python_version < '3.11'",
+            "httptools>=0.8.0; extra == 'standard'",
+            "python-dotenv>=0.13; extra == 'standard'",
+            "pyyaml>=5.1; extra == 'standard'",
+            "uvloop>=0.15.1; (sys_platform != 'win32' and (sys_platform != 'cygwin' and platform_python_implementation != 'PyPy')) and extra == 'standard'",
+            "watchfiles>=0.20; extra == 'standard'",
+            "websockets>=13.0; extra == 'standard'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "websockets",
+          "version": "16.1.1",
+          "filename": "websockets-16.1.1-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl",
+          "sha256": "0f62863e8a00a6d33c3d6566ec0b89f23787b747ffe0c3bc71ec0e76b82c94b1",
+          "size_bytes": 187137,
+          "requires_python": ">=3.10",
+          "requires_dist": [],
+          "tags": [
+            "cp312-cp312-manylinux1_x86_64",
+            "cp312-cp312-manylinux_2_28_x86_64",
+            "cp312-cp312-manylinux_2_5_x86_64"
+          ]
+        }
+      ],
+      "issues": []
+    },
+    {
+      "target": {
+        "name": "linux-arm64-cp310",
+        "python": "3.10",
+        "platform": "Linux",
+        "machine": "aarch64"
+      },
+      "marker_environment": {
+        "implementation_name": "cpython",
+        "implementation_version": "3.10.0",
+        "os_name": "posix",
+        "platform_machine": "aarch64",
+        "platform_release": "",
+        "platform_system": "Linux",
+        "platform_version": "",
+        "python_full_version": "3.10.0",
+        "platform_python_implementation": "CPython",
+        "python_version": "3.10",
+        "sys_platform": "linux",
+        "extra": ""
+      },
+      "accepted_platforms": [
+        "manylinux_2_17_aarch64",
+        "manylinux2014_aarch64"
+      ],
+      "manifest_sha256": "3819db83091ae86bff59c04e76d7347823a8702f1b0eca150ffd89e93b6da621",
+      "package_count": 26,
+      "download_bytes": 7051735,
+      "wheels": [
+        {
+          "name": "annotated-doc",
+          "version": "0.0.5",
+          "filename": "annotated_doc-0.0.5-py3-none-any.whl",
+          "sha256": "117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101",
+          "size_bytes": 5302,
+          "requires_python": ">=3.9",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "annotated-types",
+          "version": "0.8.0",
+          "filename": "annotated_types-0.8.0-py3-none-any.whl",
+          "sha256": "f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0",
+          "size_bytes": 13427,
+          "requires_python": ">=3.10",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "anyio",
+          "version": "4.15.1",
+          "filename": "anyio-4.15.1-py3-none-any.whl",
+          "sha256": "6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101",
+          "size_bytes": 132079,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "exceptiongroup>=1.0.2; python_version < \"3.11\"",
+            "idna>=2.8",
+            "typing_extensions>=4.16.0; python_version < \"3.15\"",
+            "trio>=0.32.0; extra == \"trio\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "async-timeout",
+          "version": "5.0.1",
+          "filename": "async_timeout-5.0.1-py3-none-any.whl",
+          "sha256": "39e3809566ff85354557ec2398b55e096c8364bacac9405a7a1fa429e77fe76c",
+          "size_bytes": 6233,
+          "requires_python": ">=3.8",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "bleak",
+          "version": "3.0.2",
+          "filename": "bleak-3.0.2-py3-none-any.whl",
+          "sha256": "39092feb9e83f1df5ad2f88e837723c7211c982ce9e9cda6235104bc2ebe0d0d",
+          "size_bytes": 146490,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "async-timeout>=3.0.0 ; python_full_version < '3.11'",
+            "typing-extensions>=4.7.0 ; python_full_version < '3.12'",
+            "pyobjc-core>=10.3 ; sys_platform == 'darwin'",
+            "pyobjc-framework-corebluetooth>=10.3 ; sys_platform == 'darwin'",
+            "pyobjc-framework-libdispatch>=10.3 ; sys_platform == 'darwin'",
+            "winrt-runtime>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-bluetooth>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-bluetooth-advertisement>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-bluetooth-genericattributeprofile>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-enumeration>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-radios>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-foundation>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-foundation-collections>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-storage-streams>=3.1 ; sys_platform == 'win32'",
+            "dbus-fast>=1.83.0 ; sys_platform == 'linux'",
+            "bleak-pythonista>=0.1.1 ; extra == 'pythonista'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "click",
+          "version": "8.5.0",
+          "filename": "click-8.5.0-py3-none-any.whl",
+          "sha256": "255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360",
+          "size_bytes": 125251,
+          "requires_python": ">=3.10",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "dbus-fast",
+          "version": "5.0.26",
+          "filename": "dbus_fast-5.0.26-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl",
+          "sha256": "973a02188ce9417e87b4067bfb9f4a1d5b358b27685a9ee1065b9e60d9fcb20f",
+          "size_bytes": 885857,
+          "requires_python": ">=3.10",
+          "requires_dist": [],
+          "tags": [
+            "cp310-cp310-manylinux2014_aarch64",
+            "cp310-cp310-manylinux_2_17_aarch64",
+            "cp310-cp310-manylinux_2_28_aarch64"
+          ]
+        },
+        {
+          "name": "exceptiongroup",
+          "version": "1.3.1",
+          "filename": "exceptiongroup-1.3.1-py3-none-any.whl",
+          "sha256": "a7a39a3bd276781e98394987d3a5701d0c4edffb633bb7a5144577f82c773598",
+          "size_bytes": 16740,
+          "requires_python": ">=3.7",
+          "requires_dist": [
+            "typing-extensions >= 4.6.0; python_version < '3.13'",
+            "pytest >= 6 ; extra == \"test\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "fastapi",
+          "version": "0.143.0",
+          "filename": "fastapi-0.143.0-py3-none-any.whl",
+          "sha256": "3e9395fd35276425b61b516a31fdd7c77fe2af83e41b4da22e30696fb1304c5d",
+          "size_bytes": 144665,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "starlette>=0.46.0",
+            "pydantic>=2.9.0",
+            "typing-extensions>=4.8.0",
+            "typing-inspection>=0.4.2",
+            "annotated-doc>=0.0.2",
+            "opentelemetry-api>=1.44.0",
+            "opentelemetry-sdk>=1.44.0; extra == \"opentelemetry\"",
+            "opentelemetry-exporter-otlp-proto-http>=1.44.0; extra == \"opentelemetry\"",
+            "opentelemetry-sdk>=1.44.0; extra == \"standard\"",
+            "opentelemetry-exporter-otlp-proto-http>=1.44.0; extra == \"standard\"",
+            "fastapi-cli[standard]>=0.0.32; extra == \"standard\"",
+            "fastar>=0.9.0; extra == \"standard\"",
+            "httpx<1.0.0,>=0.23.0; extra == \"standard\"",
+            "jinja2>=3.1.5; extra == \"standard\"",
+            "python-multipart>=0.0.18; extra == \"standard\"",
+            "email-validator>=2.0.0; extra == \"standard\"",
+            "uvicorn[standard]>=0.12.0; extra == \"standard\"",
+            "pydantic-settings>=2.0.0; extra == \"standard\"",
+            "pydantic-extra-types>=2.0.0; extra == \"standard\"",
+            "opentelemetry-sdk>=1.44.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "opentelemetry-exporter-otlp-proto-http>=1.44.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "fastapi-cli[standard-no-fastapi-cloud-cli]>=0.0.32; extra == \"standard-no-fastapi-cloud-cli\"",
+            "httpx<1.0.0,>=0.23.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "jinja2>=3.1.5; extra == \"standard-no-fastapi-cloud-cli\"",
+            "python-multipart>=0.0.18; extra == \"standard-no-fastapi-cloud-cli\"",
+            "email-validator>=2.0.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "uvicorn[standard]>=0.12.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "pydantic-settings>=2.0.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "pydantic-extra-types>=2.0.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "opentelemetry-sdk>=1.44.0; extra == \"all\"",
+            "opentelemetry-exporter-otlp-proto-http>=1.44.0; extra == \"all\"",
+            "fastapi-cli[standard]>=0.0.32; extra == \"all\"",
+            "httpx<1.0.0,>=0.23.0; extra == \"all\"",
+            "jinja2>=3.1.5; extra == \"all\"",
+            "python-multipart>=0.0.18; extra == \"all\"",
+            "itsdangerous>=1.1.0; extra == \"all\"",
+            "pyyaml>=5.3.1; extra == \"all\"",
+            "email-validator>=2.0.0; extra == \"all\"",
+            "uvicorn[standard]>=0.12.0; extra == \"all\"",
+            "pydantic-settings>=2.0.0; extra == \"all\"",
+            "pydantic-extra-types>=2.0.0; extra == \"all\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "h11",
+          "version": "0.16.0",
+          "filename": "h11-0.16.0-py3-none-any.whl",
+          "sha256": "63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86",
+          "size_bytes": 37515,
+          "requires_python": ">=3.8",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "idna",
+          "version": "3.20",
+          "filename": "idna-3.20-py3-none-any.whl",
+          "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c",
+          "size_bytes": 69583,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "ruff >= 0.16.0 ; extra == \"all\"",
+            "mypy >= 1.11.2 ; extra == \"all\"",
+            "ty >= 0.0.37 ; extra == \"all\"",
+            "pytest >= 8.3.2 ; extra == \"all\"",
+            "hypothesis >= 6.141.1 ; extra == \"all\"",
+            "coverage >= 7.10.0 ; extra == \"all\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "meshcore",
+          "version": "2.3.8",
+          "filename": "meshcore-2.3.8-py3-none-any.whl",
+          "sha256": "799201a164934fd903aea040463571220cd985df6232913c1d613be13069abef",
+          "size_bytes": 64714,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "bleak",
+            "pycayennelpp",
+            "pycryptodome",
+            "pyserial-asyncio-fast",
+            "black; extra == 'dev'",
+            "pytest; extra == 'dev'",
+            "pytest-asyncio; extra == 'dev'",
+            "ruff; extra == 'dev'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "opentelemetry-api",
+          "version": "1.45.1",
+          "filename": "opentelemetry_api-1.45.1-py3-none-any.whl",
+          "sha256": "b31553efa588ae44bc306f863c785c5333a9ecc091248c6ee68b4b6c87fdedfb",
+          "size_bytes": 60256,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "typing-extensions>=4.5.0"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "paho-mqtt",
+          "version": "2.1.0",
+          "filename": "paho_mqtt-2.1.0-py3-none-any.whl",
+          "sha256": "6db9ba9b34ed5bc6b6e3812718c7e06e2fd7444540df2455d2c51bd58808feee",
+          "size_bytes": 67219,
+          "requires_python": ">=3.7",
+          "requires_dist": [
+            "pysocks; extra == 'proxy'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "pycayennelpp",
+          "version": "2.4.0",
+          "filename": "pycayennelpp-2.4.0-py3-none-any.whl",
+          "sha256": "a3e69ea4da9e2971a44d1e275d5555617b2345eea752325f28c0356f64901d62",
+          "size_bytes": 10417,
+          "requires_python": ">=3.6",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "pycryptodome",
+          "version": "3.24.0",
+          "filename": "pycryptodome-3.24.0-cp37-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.whl",
+          "sha256": "585b8eaffb7acb1db161de9c7579687ea6dae493663392fc4016a0e329526c56",
+          "size_bytes": 2189593,
+          "requires_python": ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*, !=3.5.*, !=3.6.*",
+          "requires_dist": [],
+          "tags": [
+            "cp37-abi3-manylinux2014_aarch64",
+            "cp37-abi3-manylinux_2_17_aarch64"
+          ]
+        },
+        {
+          "name": "pydantic",
+          "version": "2.14.0",
+          "filename": "pydantic-2.14.0-py3-none-any.whl",
+          "sha256": "15fab1bea6f1dc5003b54fc2ecab230c1fd1dbade2acd4addc52d81e32416d4b",
+          "size_bytes": 487109,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "annotated-types>=0.6.0",
+            "pydantic-core==2.50.0",
+            "typing-extensions>=4.16.0",
+            "typing-inspection>=0.4.4",
+            "email-validator>=2.0.0; extra == 'email'",
+            "tzdata; (platform_system == 'Windows') and extra == 'timezone'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "pydantic-core",
+          "version": "2.50.0",
+          "filename": "pydantic_core-2.50.0-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl",
+          "sha256": "02ec3675d606a355523e1c52bf5aa4116776f8d273dba03d8336a5a3ae984e15",
+          "size_bytes": 2052185,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "typing-extensions>=4.16.0"
+          ],
+          "tags": [
+            "cp310-cp310-manylinux2014_aarch64",
+            "cp310-cp310-manylinux_2_17_aarch64"
+          ]
+        },
+        {
+          "name": "pyserial",
+          "version": "3.5",
+          "filename": "pyserial-3.5-py2.py3-none-any.whl",
+          "sha256": "c4451db6ba391ca6ca299fb3ec7bae67a5c55dde170964c7a14ceefec02f2cf0",
+          "size_bytes": 90585,
+          "requires_python": "",
+          "requires_dist": [
+            "hidapi; extra == 'cp2110'"
+          ],
+          "tags": [
+            "py2-none-any",
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "pyserial-asyncio-fast",
+          "version": "0.16",
+          "filename": "pyserial_asyncio_fast-0.16-py3-none-any.whl",
+          "sha256": "88939d94e341a04c0c8bc3c1ed4e874439cb5a1e21ccfb0fd7315a8e45df1687",
+          "size_bytes": 9729,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "pyserial"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "python-dotenv",
+          "version": "1.2.3",
+          "filename": "python_dotenv-1.2.3-py3-none-any.whl",
+          "sha256": "904552145e8bfed22162c09dab1c2b9b54fefa7b23ba780f4f26ca0316b0f0d9",
+          "size_bytes": 22780,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "click>=5.0; extra == \"cli\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "starlette",
+          "version": "1.7.0",
+          "filename": "starlette-1.7.0-py3-none-any.whl",
+          "sha256": "67f8e99895493dd2911a03f11314af6ceebeae4e704bb9f43dfc6a9db151c93e",
+          "size_bytes": 78980,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "anyio<5,>=4.0.0",
+            "typing-extensions>=4.10.0; python_version < '3.13'",
+            "httpx2>=2.0.0; extra == 'full'",
+            "httpx<0.29.0,>=0.27.0; extra == 'full'",
+            "itsdangerous; extra == 'full'",
+            "jinja2; extra == 'full'",
+            "opentelemetry-api; extra == 'full'",
+            "python-multipart>=0.0.18; extra == 'full'",
+            "pyyaml; extra == 'full'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "typing-extensions",
+          "version": "4.16.0",
+          "filename": "typing_extensions-4.16.0-py3-none-any.whl",
+          "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+          "size_bytes": 45571,
+          "requires_python": ">=3.9",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "typing-inspection",
+          "version": "0.4.4",
+          "filename": "typing_inspection-0.4.4-py3-none-any.whl",
+          "sha256": "65b8397ba37ccbce054456aaccddfc91e6e3083c92824df348d96ca832f3f147",
+          "size_bytes": 14750,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "typing-extensions>=4.15.0"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "uvicorn",
+          "version": "0.54.0",
+          "filename": "uvicorn-0.54.0-py3-none-any.whl",
+          "sha256": "505bdb0f318731d45f1f712071fc781a8981f6847a31c902c9f5e652d4f67faf",
+          "size_bytes": 87427,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "click>=7.0",
+            "h11>=0.8",
+            "typing-extensions>=4.0; python_version < '3.11'",
+            "httptools>=0.8.0; extra == 'standard'",
+            "python-dotenv>=0.13; extra == 'standard'",
+            "pyyaml>=5.1; extra == 'standard'",
+            "uvloop>=0.15.1; (sys_platform != 'win32' and (sys_platform != 'cygwin' and platform_python_implementation != 'PyPy')) and extra == 'standard'",
+            "watchfiles>=0.20; extra == 'standard'",
+            "websockets>=13.0; extra == 'standard'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "websockets",
+          "version": "16.1.1",
+          "filename": "websockets-16.1.1-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl",
+          "sha256": "90001d893bc368e302ef168d82130b4e4fdd27b85fa094682df9b667c2d48838",
+          "size_bytes": 187278,
+          "requires_python": ">=3.10",
+          "requires_dist": [],
+          "tags": [
+            "cp310-cp310-manylinux2014_aarch64",
+            "cp310-cp310-manylinux_2_17_aarch64",
+            "cp310-cp310-manylinux_2_28_aarch64"
+          ]
+        }
+      ],
+      "issues": []
+    },
+    {
+      "target": {
+        "name": "linux-arm64-cp312",
+        "python": "3.12",
+        "platform": "Linux",
+        "machine": "aarch64"
+      },
+      "marker_environment": {
+        "implementation_name": "cpython",
+        "implementation_version": "3.12.0",
+        "os_name": "posix",
+        "platform_machine": "aarch64",
+        "platform_release": "",
+        "platform_system": "Linux",
+        "platform_version": "",
+        "python_full_version": "3.12.0",
+        "platform_python_implementation": "CPython",
+        "python_version": "3.12",
+        "sys_platform": "linux",
+        "extra": ""
+      },
+      "accepted_platforms": [
+        "manylinux_2_17_aarch64",
+        "manylinux2014_aarch64"
+      ],
+      "manifest_sha256": "6bf97e344ba4578cfe67ac9c4104de1a512e03d3d77b0508f35ec817eeb42546",
+      "package_count": 24,
+      "download_bytes": 6987704,
+      "wheels": [
+        {
+          "name": "annotated-doc",
+          "version": "0.0.5",
+          "filename": "annotated_doc-0.0.5-py3-none-any.whl",
+          "sha256": "117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101",
+          "size_bytes": 5302,
+          "requires_python": ">=3.9",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "annotated-types",
+          "version": "0.8.0",
+          "filename": "annotated_types-0.8.0-py3-none-any.whl",
+          "sha256": "f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0",
+          "size_bytes": 13427,
+          "requires_python": ">=3.10",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "anyio",
+          "version": "4.15.1",
+          "filename": "anyio-4.15.1-py3-none-any.whl",
+          "sha256": "6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101",
+          "size_bytes": 132079,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "exceptiongroup>=1.0.2; python_version < \"3.11\"",
+            "idna>=2.8",
+            "typing_extensions>=4.16.0; python_version < \"3.15\"",
+            "trio>=0.32.0; extra == \"trio\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "bleak",
+          "version": "3.0.2",
+          "filename": "bleak-3.0.2-py3-none-any.whl",
+          "sha256": "39092feb9e83f1df5ad2f88e837723c7211c982ce9e9cda6235104bc2ebe0d0d",
+          "size_bytes": 146490,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "async-timeout>=3.0.0 ; python_full_version < '3.11'",
+            "typing-extensions>=4.7.0 ; python_full_version < '3.12'",
+            "pyobjc-core>=10.3 ; sys_platform == 'darwin'",
+            "pyobjc-framework-corebluetooth>=10.3 ; sys_platform == 'darwin'",
+            "pyobjc-framework-libdispatch>=10.3 ; sys_platform == 'darwin'",
+            "winrt-runtime>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-bluetooth>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-bluetooth-advertisement>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-bluetooth-genericattributeprofile>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-enumeration>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-devices-radios>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-foundation>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-foundation-collections>=3.1 ; sys_platform == 'win32'",
+            "winrt-windows-storage-streams>=3.1 ; sys_platform == 'win32'",
+            "dbus-fast>=1.83.0 ; sys_platform == 'linux'",
+            "bleak-pythonista>=0.1.1 ; extra == 'pythonista'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "click",
+          "version": "8.5.0",
+          "filename": "click-8.5.0-py3-none-any.whl",
+          "sha256": "255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360",
+          "size_bytes": 125251,
+          "requires_python": ">=3.10",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "dbus-fast",
+          "version": "5.2.0",
+          "filename": "dbus_fast-5.2.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl",
+          "sha256": "e5a0742c9c2bdae7599d1fff06a609cc7cf19d4a84bf7e6e2cea1d086d1ecc0b",
+          "size_bytes": 847456,
+          "requires_python": ">=3.11",
+          "requires_dist": [],
+          "tags": [
+            "cp312-cp312-manylinux2014_aarch64",
+            "cp312-cp312-manylinux_2_17_aarch64",
+            "cp312-cp312-manylinux_2_28_aarch64"
+          ]
+        },
+        {
+          "name": "fastapi",
+          "version": "0.143.0",
+          "filename": "fastapi-0.143.0-py3-none-any.whl",
+          "sha256": "3e9395fd35276425b61b516a31fdd7c77fe2af83e41b4da22e30696fb1304c5d",
+          "size_bytes": 144665,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "starlette>=0.46.0",
+            "pydantic>=2.9.0",
+            "typing-extensions>=4.8.0",
+            "typing-inspection>=0.4.2",
+            "annotated-doc>=0.0.2",
+            "opentelemetry-api>=1.44.0",
+            "opentelemetry-sdk>=1.44.0; extra == \"opentelemetry\"",
+            "opentelemetry-exporter-otlp-proto-http>=1.44.0; extra == \"opentelemetry\"",
+            "opentelemetry-sdk>=1.44.0; extra == \"standard\"",
+            "opentelemetry-exporter-otlp-proto-http>=1.44.0; extra == \"standard\"",
+            "fastapi-cli[standard]>=0.0.32; extra == \"standard\"",
+            "fastar>=0.9.0; extra == \"standard\"",
+            "httpx<1.0.0,>=0.23.0; extra == \"standard\"",
+            "jinja2>=3.1.5; extra == \"standard\"",
+            "python-multipart>=0.0.18; extra == \"standard\"",
+            "email-validator>=2.0.0; extra == \"standard\"",
+            "uvicorn[standard]>=0.12.0; extra == \"standard\"",
+            "pydantic-settings>=2.0.0; extra == \"standard\"",
+            "pydantic-extra-types>=2.0.0; extra == \"standard\"",
+            "opentelemetry-sdk>=1.44.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "opentelemetry-exporter-otlp-proto-http>=1.44.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "fastapi-cli[standard-no-fastapi-cloud-cli]>=0.0.32; extra == \"standard-no-fastapi-cloud-cli\"",
+            "httpx<1.0.0,>=0.23.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "jinja2>=3.1.5; extra == \"standard-no-fastapi-cloud-cli\"",
+            "python-multipart>=0.0.18; extra == \"standard-no-fastapi-cloud-cli\"",
+            "email-validator>=2.0.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "uvicorn[standard]>=0.12.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "pydantic-settings>=2.0.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "pydantic-extra-types>=2.0.0; extra == \"standard-no-fastapi-cloud-cli\"",
+            "opentelemetry-sdk>=1.44.0; extra == \"all\"",
+            "opentelemetry-exporter-otlp-proto-http>=1.44.0; extra == \"all\"",
+            "fastapi-cli[standard]>=0.0.32; extra == \"all\"",
+            "httpx<1.0.0,>=0.23.0; extra == \"all\"",
+            "jinja2>=3.1.5; extra == \"all\"",
+            "python-multipart>=0.0.18; extra == \"all\"",
+            "itsdangerous>=1.1.0; extra == \"all\"",
+            "pyyaml>=5.3.1; extra == \"all\"",
+            "email-validator>=2.0.0; extra == \"all\"",
+            "uvicorn[standard]>=0.12.0; extra == \"all\"",
+            "pydantic-settings>=2.0.0; extra == \"all\"",
+            "pydantic-extra-types>=2.0.0; extra == \"all\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "h11",
+          "version": "0.16.0",
+          "filename": "h11-0.16.0-py3-none-any.whl",
+          "sha256": "63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86",
+          "size_bytes": 37515,
+          "requires_python": ">=3.8",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "idna",
+          "version": "3.20",
+          "filename": "idna-3.20-py3-none-any.whl",
+          "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c",
+          "size_bytes": 69583,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "ruff >= 0.16.0 ; extra == \"all\"",
+            "mypy >= 1.11.2 ; extra == \"all\"",
+            "ty >= 0.0.37 ; extra == \"all\"",
+            "pytest >= 8.3.2 ; extra == \"all\"",
+            "hypothesis >= 6.141.1 ; extra == \"all\"",
+            "coverage >= 7.10.0 ; extra == \"all\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "meshcore",
+          "version": "2.3.8",
+          "filename": "meshcore-2.3.8-py3-none-any.whl",
+          "sha256": "799201a164934fd903aea040463571220cd985df6232913c1d613be13069abef",
+          "size_bytes": 64714,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "bleak",
+            "pycayennelpp",
+            "pycryptodome",
+            "pyserial-asyncio-fast",
+            "black; extra == 'dev'",
+            "pytest; extra == 'dev'",
+            "pytest-asyncio; extra == 'dev'",
+            "ruff; extra == 'dev'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "opentelemetry-api",
+          "version": "1.45.1",
+          "filename": "opentelemetry_api-1.45.1-py3-none-any.whl",
+          "sha256": "b31553efa588ae44bc306f863c785c5333a9ecc091248c6ee68b4b6c87fdedfb",
+          "size_bytes": 60256,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "typing-extensions>=4.5.0"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "paho-mqtt",
+          "version": "2.1.0",
+          "filename": "paho_mqtt-2.1.0-py3-none-any.whl",
+          "sha256": "6db9ba9b34ed5bc6b6e3812718c7e06e2fd7444540df2455d2c51bd58808feee",
+          "size_bytes": 67219,
+          "requires_python": ">=3.7",
+          "requires_dist": [
+            "pysocks; extra == 'proxy'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "pycayennelpp",
+          "version": "2.4.0",
+          "filename": "pycayennelpp-2.4.0-py3-none-any.whl",
+          "sha256": "a3e69ea4da9e2971a44d1e275d5555617b2345eea752325f28c0356f64901d62",
+          "size_bytes": 10417,
+          "requires_python": ">=3.6",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "pycryptodome",
+          "version": "3.24.0",
+          "filename": "pycryptodome-3.24.0-cp37-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.whl",
+          "sha256": "585b8eaffb7acb1db161de9c7579687ea6dae493663392fc4016a0e329526c56",
+          "size_bytes": 2189593,
+          "requires_python": ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*, !=3.5.*, !=3.6.*",
+          "requires_dist": [],
+          "tags": [
+            "cp37-abi3-manylinux2014_aarch64",
+            "cp37-abi3-manylinux_2_17_aarch64"
+          ]
+        },
+        {
+          "name": "pydantic",
+          "version": "2.14.0",
+          "filename": "pydantic-2.14.0-py3-none-any.whl",
+          "sha256": "15fab1bea6f1dc5003b54fc2ecab230c1fd1dbade2acd4addc52d81e32416d4b",
+          "size_bytes": 487109,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "annotated-types>=0.6.0",
+            "pydantic-core==2.50.0",
+            "typing-extensions>=4.16.0",
+            "typing-inspection>=0.4.4",
+            "email-validator>=2.0.0; extra == 'email'",
+            "tzdata; (platform_system == 'Windows') and extra == 'timezone'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "pydantic-core",
+          "version": "2.50.0",
+          "filename": "pydantic_core-2.50.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl",
+          "sha256": "ae45853d25a23fba56681d2f9ed41f3e3f12f0a3b2393fefa08ff6406320a1f5",
+          "size_bytes": 2048432,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "typing-extensions>=4.16.0"
+          ],
+          "tags": [
+            "cp312-cp312-manylinux2014_aarch64",
+            "cp312-cp312-manylinux_2_17_aarch64"
+          ]
+        },
+        {
+          "name": "pyserial",
+          "version": "3.5",
+          "filename": "pyserial-3.5-py2.py3-none-any.whl",
+          "sha256": "c4451db6ba391ca6ca299fb3ec7bae67a5c55dde170964c7a14ceefec02f2cf0",
+          "size_bytes": 90585,
+          "requires_python": "",
+          "requires_dist": [
+            "hidapi; extra == 'cp2110'"
+          ],
+          "tags": [
+            "py2-none-any",
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "pyserial-asyncio-fast",
+          "version": "0.16",
+          "filename": "pyserial_asyncio_fast-0.16-py3-none-any.whl",
+          "sha256": "88939d94e341a04c0c8bc3c1ed4e874439cb5a1e21ccfb0fd7315a8e45df1687",
+          "size_bytes": 9729,
+          "requires_python": ">=3.9",
+          "requires_dist": [
+            "pyserial"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "python-dotenv",
+          "version": "1.2.3",
+          "filename": "python_dotenv-1.2.3-py3-none-any.whl",
+          "sha256": "904552145e8bfed22162c09dab1c2b9b54fefa7b23ba780f4f26ca0316b0f0d9",
+          "size_bytes": 22780,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "click>=5.0; extra == \"cli\""
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "starlette",
+          "version": "1.7.0",
+          "filename": "starlette-1.7.0-py3-none-any.whl",
+          "sha256": "67f8e99895493dd2911a03f11314af6ceebeae4e704bb9f43dfc6a9db151c93e",
+          "size_bytes": 78980,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "anyio<5,>=4.0.0",
+            "typing-extensions>=4.10.0; python_version < '3.13'",
+            "httpx2>=2.0.0; extra == 'full'",
+            "httpx<0.29.0,>=0.27.0; extra == 'full'",
+            "itsdangerous; extra == 'full'",
+            "jinja2; extra == 'full'",
+            "opentelemetry-api; extra == 'full'",
+            "python-multipart>=0.0.18; extra == 'full'",
+            "pyyaml; extra == 'full'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "typing-extensions",
+          "version": "4.16.0",
+          "filename": "typing_extensions-4.16.0-py3-none-any.whl",
+          "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+          "size_bytes": 45571,
+          "requires_python": ">=3.9",
+          "requires_dist": [],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "typing-inspection",
+          "version": "0.4.4",
+          "filename": "typing_inspection-0.4.4-py3-none-any.whl",
+          "sha256": "65b8397ba37ccbce054456aaccddfc91e6e3083c92824df348d96ca832f3f147",
+          "size_bytes": 14750,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "typing-extensions>=4.15.0"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "uvicorn",
+          "version": "0.54.0",
+          "filename": "uvicorn-0.54.0-py3-none-any.whl",
+          "sha256": "505bdb0f318731d45f1f712071fc781a8981f6847a31c902c9f5e652d4f67faf",
+          "size_bytes": 87427,
+          "requires_python": ">=3.10",
+          "requires_dist": [
+            "click>=7.0",
+            "h11>=0.8",
+            "typing-extensions>=4.0; python_version < '3.11'",
+            "httptools>=0.8.0; extra == 'standard'",
+            "python-dotenv>=0.13; extra == 'standard'",
+            "pyyaml>=5.1; extra == 'standard'",
+            "uvloop>=0.15.1; (sys_platform != 'win32' and (sys_platform != 'cygwin' and platform_python_implementation != 'PyPy')) and extra == 'standard'",
+            "watchfiles>=0.20; extra == 'standard'",
+            "websockets>=13.0; extra == 'standard'"
+          ],
+          "tags": [
+            "py3-none-any"
+          ]
+        },
+        {
+          "name": "websockets",
+          "version": "16.1.1",
+          "filename": "websockets-16.1.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl",
+          "sha256": "8087e82f842609734c9b5a1330464f8e94e346ba0e18c832c08bafa4b0d63c15",
+          "size_bytes": 188374,
+          "requires_python": ">=3.10",
+          "requires_dist": [],
+          "tags": [
+            "cp312-cp312-manylinux2014_aarch64",
+            "cp312-cp312-manylinux_2_17_aarch64",
+            "cp312-cp312-manylinux_2_28_aarch64"
+          ]
+        }
+      ],
+      "issues": []
+    }
+  ]
+}

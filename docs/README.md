@@ -1,6 +1,6 @@
 # Documentación de MeshCore Bridge
 
-Índice revisado el 2026-10-05. Distingue las reglas y guías actuales de los informes que describen un momento histórico del proyecto.
+Índice revisado el 2026-10-08. Distingue las reglas y guías actuales de los informes que describen un momento histórico del proyecto.
 
 ## Autoridad y lectura recomendada
 
@@ -26,9 +26,10 @@ su atributo HTML de idioma usan el fallback inglés del paquete instalado.
 
 ## Decisiones e historial
 
+- [Plan FastAPI](../PROYECTO.md), [preparación de fase 0](fastapi/PHASE_0_REPORT.md) y [base de fase 1](fastapi/PHASE_1_REPORT.md): catálogos REST/WS/internos, seis resoluciones binarias y fundamento ASGI opcional. Servidor actual predeterminado; aceptación operativa y suites pendientes por instrucción del usuario.
 - [AUDIT_REMEDIATION_2026-10-05.md](AUDIT_REMEDIATION_2026-10-05.md): seguimiento vigente de los 39 hallazgos originales, cierre de los 32 restantes, riesgos adicionales, reproducciones y verificación integrada. El primer lote conserva sus resultados históricos.
 - [LAYERED_SYSTEM_AUDIT_2026-10-04.md](LAYERED_SYSTEM_AUDIT_2026-10-04.md): snapshot de auditoría en cinco capas, errores reproducidos, contradicciones, inventario y plan. Los harness afirman los defectos de esa revisión; la resolución posterior se registra en el seguimiento, sin reescribir las reproducciones.
-- [ADRs](adr/): decisiones y contexto histórico (ADR 0001 a ADR 0010); revisar estado y fecha. Una decisión anterior que no coincida con el código necesita conciliación explícita, sin borrar su historia.
+- [ADRs](adr/): decisiones y contexto histórico (ADR 0001 a ADR 0011); [ADR 0011](adr/0011-staged-asgi-migration.md) prepara ASGI sin adoptar aún el servidor candidato. Revisar estado y fecha. Una decisión anterior que no coincida con el código necesita conciliación explícita, sin borrar su historia.
 - [PROTOCOL_AUDIT_2026-09-29.md](PROTOCOL_AUDIT_2026-09-29.md): auditoría de frontera de protocolo MeshCore contrastando firmware C/C++, SDK oficial 2.3.14 y el bridge.
 - [FRONTEND_UI_REVIEW_2026-10-03.md](FRONTEND_UI_REVIEW_2026-10-03.md): plan, mejoras y evidencia de la revisión de temas, responsive, accesibilidad e idiomas de la SPA.
 - [FRONTEND_VISUAL_REFRESH_2026-10-03.md](FRONTEND_VISUAL_REFRESH_2026-10-03.md): primera entrega de paleta clara suave y diálogos, con evidencia estática; seguimiento renderizado en el informe exhaustivo siguiente.

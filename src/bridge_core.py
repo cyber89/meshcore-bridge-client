@@ -42,7 +42,7 @@ from src.serial_driver import (
 from src.services_config import ServicesConfig
 from src.services_manager import ServicesManager
 from src.tcp_companion_server import MeshCoreCompanionServer
-from src.web import MeshCoreWebServer
+from src.web.server_protocol import WebServerProtocol
 
 
 class MqttClientProtocol(Protocol):
@@ -361,10 +361,12 @@ class MeshCoreBridge:
             except Exception as e:
                 logging.debug(f"Fallo en mantenimiento periódico de NodeRegistry: {e}")
 
-    def _create_web_server(self) -> MeshCoreWebServer | None:
+    def _create_web_server(self) -> WebServerProtocol | None:
         """Crea el servidor HTTP/WebSocket asíncrono si está habilitado por configuración."""
         if not getattr(config, "WEB_ENABLED", True):
             return None
+        from src.web.http_server import MeshCoreWebServer
+
         return MeshCoreWebServer(
             bridge=self,
             host=getattr(config, "WEB_HOST", "0.0.0.0"),  # nosec B104

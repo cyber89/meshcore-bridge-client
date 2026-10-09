@@ -21,7 +21,7 @@ def mock_bridge() -> tuple[MeshCoreBridge, list[tuple[str, str, int]]]:
     loop = asyncio.new_event_loop()
     published: list[tuple[str, str, int]] = []
 
-    with patch("src.bridge_core.MeshCoreWebServer"), patch("src.bridge_core.MeshCoreCompanionServer"):
+    with patch("src.web.http_server.MeshCoreWebServer"), patch("src.bridge_core.MeshCoreCompanionServer"):
         bridge = MeshCoreBridge(loop=loop)
         bridge.mqtt.is_connected = True
         bridge.mqtt.publish_safe = MagicMock(

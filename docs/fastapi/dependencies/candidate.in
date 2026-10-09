@@ -1,0 +1,12 @@
+# Candidate for phase 0 only. Not a production dependency manifest.
+# Keep the installed bridge dependency versions while resolving the web stack.
+paho-mqtt==2.1.0
+meshcore==2.3.8
+pyserial==3.5
+python-dotenv==1.2.3
+# Versions selected from the downloaded candidate METADATA on 2026-10-08.
+# Resolution across target environments follows; these are not approved runtime pins.
+fastapi==0.143.0
+uvicorn==0.54.0
+pydantic==2.14.0
+websockets==16.1.1
