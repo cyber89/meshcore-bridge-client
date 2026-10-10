@@ -49,7 +49,6 @@ from src.shared_utils import (
     clean_coordinate_value,
     clean_numeric_value,
     extract_payload_dict,
-    is_empty_channel_slot,
     safe_device_query,
     sanitize_public_payload,
 )
@@ -391,37 +390,9 @@ class RxEventRouter:
                     )
                     return
 
-            # Manejar observaciones pasivas de ruta RF del firmware (RX_LOG_DATA push 0x88)
-            if "RX_LOG_DATA" in meta.ev_upper or "LOG_DATA" in meta.ev_upper or payload_dict.get("event_type") in ("rx_log_data", "log_data"):
-                self._handle_rf_log_observation(payload_dict, meta)
-                return
-
-            # Manejar actualizaciones asíncronas de ruta por el firmware (PATH_UPDATE push 0x81)
-            if "PATH_UPDATE" in meta.ev_upper or payload_dict.get("event_type") == "path_update":
-                self._handle_path_update(payload_dict, meta)
-                return
-
             # Descartar eventos internos de control de flujo de la radio (NO_MORE_MSGS)
             if "NO_MORE" in meta.ev_upper or payload_dict.get("event_type") == "no_more_messages" or "messages_available" in payload_dict:
                 logging.debug("[INTERNAL-RADIO] Fin de cola de mensajes en transceptor (NO_MORE_MSGS)")
-                return
-
-            # Manejar eventos de configuración de canales de la estación local
-            if "CHANNEL_INFO" in meta.ev_upper or payload_dict.get("event_type") == "channel_info":
-                ch_name = str(payload_dict.get("channel_name", "")).strip()
-                ch_sec = payload_dict.get("channel_secret")
-                if is_empty_channel_slot(ch_name, ch_sec):
-                    logging.debug(f"[ESTACIÓN LOCAL] Canal #{payload_dict.get('channel_idx')} no configurado / vacío")
-                    return
-                ch_idx = int(payload_dict.get("channel_idx", 0))
-                ch_hash = str(payload_dict.get("channel_hash", "--"))
-                logging.info(f"[ESTACIÓN LOCAL] Canal #{ch_idx}: {ch_name} (Hash: {ch_hash})")
-                if self._ctx.web_server and hasattr(self._ctx.web_server, "router") and hasattr(self._ctx.web_server.router, "channels"):
-                    self._ctx.web_server.router.channels[ch_idx] = {
-                        "index": ch_idx,
-                        "name": ch_name,
-                        "channel_hash": ch_hash,
-                    }
                 return
 
             if "event_type" not in payload_dict:
@@ -1373,7 +1344,7 @@ class RxEventRouter:
             mqtt_evt = frame.to_mqtt_event()
             evt_json = json.dumps(mqtt_evt)
 
-            dedup_key = f"frame::{frame.header.src_node_id}::{frame.header.seq_num}::{int(frame.header.opcode)}"
+            dedup_key = f"frame::{frame.header.src_node_id}::{frame.header.seq_num}::{int(frame.header.packet_type)}"
             if await self._ctx.deduplicator.is_duplicate(dedup_key):
                 return
 
@@ -1398,5 +1369,5 @@ class RxEventRouter:
 
             logging.info(
                 f"[RX-FRAME] De: 0x{frame.header.src_node_id:04X} -> Para: 0x{frame.header.dst_node_id:04X} | "
-                f"OpCode: {frame.header.opcode.name} | Seq: {frame.header.seq_num} | Válido: {frame.is_valid}"
+                f"OpCode: {frame.header.packet_type.name} | Seq: {frame.header.seq_num} | Válido: {frame.is_valid}"
             )

@@ -245,6 +245,30 @@ class WebSocketHub:
             if self.running and peer.ready and peer.socket in self._peers:
                 await peer.socket.send_text(text)
 
+    async def _deliver_to_peer(self, peer: _Peer, text: str) -> None:
+        if not self.running:
+            return
+        send_task = asyncio.create_task(
+            self._send_to_peer(peer, text), name="MeshCoreASGIWebSocketSend"
+        )
+        self._retain(send_task)
+        try:
+            _, pending = await asyncio.wait({send_task}, timeout=WS_SEND_TIMEOUT_SEC)
+            if pending:
+                send_task.cancel()
+                raise asyncio.TimeoutError
+            if send_task.cancelled() and not self.running:
+                # Shutdown cancelled this hub's child, not the bridge caller.
+                return
+            await send_task
+        except asyncio.CancelledError:
+            send_task.cancel()
+            raise
+        except Exception:
+            self._remove_peer(peer)
+            self._abort(peer)
+            peer.task.cancel()
+
     async def broadcast_event(self, event_data: dict[str, Any]) -> None:
         """Record history exactly once, including when no clients are connected."""
         self.router.record_incoming_event(event_data)
@@ -252,29 +276,8 @@ class WebSocketHub:
         if not peers or not self.running:
             return
         text = json.dumps(event_data, default=str)
-        for peer in peers:
-            if not self.running:
-                return
-            send_task = asyncio.create_task(
-                self._send_to_peer(peer, text), name="MeshCoreASGIWebSocketSend"
-            )
-            self._retain(send_task)
-            try:
-                _, pending = await asyncio.wait({send_task}, timeout=WS_SEND_TIMEOUT_SEC)
-                if pending:
-                    send_task.cancel()
-                    raise asyncio.TimeoutError
-                if send_task.cancelled() and not self.running:
-                    # Shutdown cancelled this hub's child, not the bridge caller.
-                    return
-                await send_task
-            except asyncio.CancelledError:
-                send_task.cancel()
-                raise
-            except Exception:
-                self._remove_peer(peer)
-                self._abort(peer)
-                peer.task.cancel()
+        delivery_tasks = [self._deliver_to_peer(peer, text) for peer in peers]
+        await asyncio.gather(*delivery_tasks, return_exceptions=True)
 
     def _metrics(self, *, initial: bool) -> dict[str, Any]:
         """Preserve native initial/periodic field differences and tracker defaults."""

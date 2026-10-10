@@ -159,7 +159,7 @@ class AsgiWebServer:
     def __init__(
         self,
         router: WebAPIRouter | Any = None,
-        host: str = "0.0.0.0",
+        host: str = "0.0.0.0",  # nosec B104
         port: int = 8080,
         *,
         shutdown_budget_s: float = 1.5,
@@ -236,6 +236,11 @@ class AsgiWebServer:
         if hasattr(self, "websocket_hub"):
             return set(self.websocket_hub._peers.keys())
         return set()
+
+    @property
+    def system_logs(self) -> Any:
+        """Expose recent system log buffer for diagnostic consumers and CLI."""
+        return getattr(self.router, "recent_system_logs", None)
 
     def _retain_task(self, task: asyncio.Task[Any]) -> None:
         self._pending_tasks.add(task)

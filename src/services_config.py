@@ -227,7 +227,7 @@ class LocalMqttConfig:
 class TcpServerConfig:
     """Configuración del Servidor TCP Companion (App Móvil Oficial MeshCore & CLI)."""
     enabled: bool = True
-    host: str = "0.0.0.0"
+    host: str = "0.0.0.0"  # nosec B104
     port: int = 5000
     max_clients: int = 8
     allowed_ips: str = ""
@@ -262,7 +262,7 @@ def _bootstrap_from_env() -> ServicesConfig:
 
     tcp_cfg = TcpServerConfig(
         enabled=bool(getattr(config, "TCP_SERVER_ENABLED", True)),
-        host=str(getattr(config, "TCP_SERVER_HOST", "0.0.0.0")),
+        host=str(getattr(config, "TCP_SERVER_HOST", "0.0.0.0")),  # nosec B104
         port=int(getattr(config, "TCP_SERVER_PORT", 5000)),
         max_clients=int(getattr(config, "MAX_COMPANION_CLIENTS", 8)),
         allowed_ips=str(getattr(config, "COMPANION_ALLOWED_IPS", "") or ""),
