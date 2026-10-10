@@ -110,4 +110,4 @@ python .agents/skills/software-architecture-patterns/scripts/audit_architecture.
 
 Leer [AGENTS.md](../../../AGENTS.md) y el [índice documental](../../../docs/README.md). Las suites, fuzzing y Playwright sólo se ejecutan bajo petición del usuario; la autorización permanece durante la tarea.
 
-Diagramas FastAPI/SQL de ejemplo no representan esta aplicación. El proyecto usa HTTP nativo y JSON para estado de nodos/canales; SQLite sólo puede aparecer para leer mapas MBTiles. Revisar código antes de proponer migraciones o componentes nuevos.
+Diagramas SQL relacionales de ejemplo no representan esta aplicación. El proyecto usa FastAPI/Uvicorn (ASGI) para la capa web y JSON atómico para estado de nodos/canales; SQLite sólo se utiliza para lectura de mapas MBTiles en MapTileService. Revisar código antes de proponer migraciones o componentes nuevos.

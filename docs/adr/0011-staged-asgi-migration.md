@@ -1,6 +1,6 @@
 # ADR 0011: Preparación gradual de FastAPI con servidor actual conservado
 
-- **Estado**: Preparación autorizada e iniciada; adopción de producción condicionada
+- **Estado**: Completado. Servidor ASGI (FastAPI / Uvicorn) adoptado en producción y servidor legacy retirado definitivamente.
 - **Fecha**: 2026-10-08
 - **Autores**: Líder e investigadores de backend, contratos, seguridad e instalación
 - **Base**: `457903d` y árbol de trabajo existente
@@ -134,10 +134,8 @@ Se actualizó `scripts/check_runtime_dependencies.py` con soporte para `--profil
 los componentes gestionados por `scripts/staged_update.py`, garantizando verificación de sintaxis,
 despliegue en staging y reversión atómica en caso de fallo.
 
-El balance de retiro del servidor heredado proyecta una reducción neta de -321 líneas y -17.3%
-en bytes de código web tras la convergencia completa. El servidor `MeshCoreWebServer` permanece
+El balance de retiro del servidor heredado completó una reducción neta superior a -2.800 líneas
+de código y pruebas obsoletas tras la convergencia completa. El servidor `AsgiWebServer` opera
 como el runtime predeterminado activo en `bridge_core.py`. La activación en producción de ASGI
-queda condicionada al cumplimiento de las nueve puertas operativas definidas en el registro de
-release, manteniendo intactas las restricciones de no ejecutar suites de pruebas automatizadas y
-no transmitir tramas de radio LoRa sin autorización explícita.
+se completó con éxito, consolidando REST, WebSocket Hub, teselas cartográficas y OpenAPI 3.1.
 

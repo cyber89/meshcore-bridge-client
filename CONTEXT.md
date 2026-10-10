@@ -66,7 +66,7 @@ El sistema sigue la filosofía de **Deep Modules** (John Ousterhout, *A Philosop
 - **`TxRateLimiter`**: Cola de prioridades y worker con espaciado y estimador de airtime. Puede descartar elementos `LOW` cuando el duty cycle estimado es crítico; no es Token Bucket ni bloqueo absoluto de todo TX.
 - **`PacketDeduplicator`**: Filtro de idempotencia para eventos entrantes y salientes.
 - **`AsyncBridgeMQTTClient`**: Conector asíncrono MQTT con soporte LWT (*Last Will and Testament*) y reconexión automática.
-- **`MeshCoreWebServer`**: Servidor HTTP 1.1 y WebSocket con `asyncio.start_server`, API key opcional y difusión de eventos; no es una aplicación ASGI.
+- **`AsgiWebServer`**: Servidor web asíncrono de producción basado en FastAPI y Uvicorn (ASGI) con REST, WebSockets, servicio de teselas cartográficas, documentación interactiva OpenAPI 3.1 y difusión de eventos.
 
 ---
 

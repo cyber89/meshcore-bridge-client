@@ -39,18 +39,21 @@ sudo bash install.sh --update
 3. Utiliza la cuenta invocante `SUDO_USER` sin UID 0; si se invoca directamente como root, crea/usa la cuenta de sistema `meshcore`. Obtiene su grupo primario y añade los grupos serie existentes (`dialout`/`uucp`).
 4. **Detecta automáticamente el puerto de tu placa LoRa** conectada por USB.
 5. Despliega los archivos en `/opt/meshcore-bridge` y crea el archivo de configuración `.env`.
-6. Crea `venv/` e instala `requirements.txt`: `paho-mqtt`, `meshcore`, `python-dotenv` y `pyserial`. El decodificador CayenneLPP es nativo; no requiere `pycayennelpp` ni el parser raw actual importa `pyserial-asyncio`.
+6. Crea `venv/` e instala `requirements.txt`: `paho-mqtt`, `meshcore`, `python-dotenv`, `pyserial`, `fastapi`, `uvicorn`, `pydantic` y `websockets`. El decodificador CayenneLPP es nativo; no requiere `pycayennelpp` ni el parser raw actual importa `pyserial-asyncio`.
 7. Registra, habilita y arranca el servicio **`meshcore-bridge.service`** en systemd.
 
-### 📦 Perfiles de Instalación (Headless Core vs. Web ASGI)
+### 📦 Dependencias y Perfiles de Verificación
 
-MeshCore Bridge soporta dos perfiles de dependencias según el hardware y caso de uso:
+El archivo `requirements.txt` incluye el stack completo de producción (MQTT, MeshCore SDK, Serial, FastAPI 0.143, Uvicorn 0.54, Pydantic 2.14 y websockets). Para verificar la integridad de las dependencias:
 
-- **Perfil `core` (Por Defecto)**: Instala las 4 dependencias mínimas de `requirements.txt`. Optimizado para SBCs ligeros (Orange Pi 2W, Raspberry Pi Zero 2W con 512 MB de RAM). Huella de memoria mínima (~35-45 MB RSS) y cero riesgo de compilación Rust.
-- **Perfil `web` (Stack ASGI Opcional)**: Añade `requirements-web.txt` (`fastapi`, `uvicorn`, `pydantic`, `websockets`) para soporte OpenAPI 3.1.0 y visor local offline. Para verificarlo, defina `MESHCORE_PROFILE=web` o ejecute:
+- **Perfil `web` (Por Defecto)**: Verifica el stack completo de producción (`requirements.txt`) para operación con la interfaz web y API REST/WebSocket:
   ```bash
-  python scripts/check_runtime_dependencies.py --profile core   # Perfil base
-  python scripts/check_runtime_dependencies.py --profile web    # Perfil ASGI
+  python scripts/check_runtime_dependencies.py                  # Por defecto (perfil web)
+  python scripts/check_runtime_dependencies.py --profile web    # Explícito
+  ```
+- **Perfil `core` (Modo Headless sin Web)**: Verifica únicamente las 4 dependencias mínimas si la estación opera con `WEB_ENABLED=false`:
+  ```bash
+  python scripts/check_runtime_dependencies.py --profile core   # Perfil core headless
   ```
 
 ---

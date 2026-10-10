@@ -53,7 +53,7 @@ Se resolvieron tres tensiones: reutilizar controladores frente a reescribirlos t
 | Responder sólo request_id al encolar | TX actual espera resultado; admisión asíncrona sería una función nueva |
 | Calendario de 21 días desde el 9 de octubre | Sin compromiso sustentado; sustituido por puertas de aceptación |
 
-Evidencia: [servidor](src/web/http_server.py), [router](src/web/api_router.py), [manifiesto](pyproject.toml), [dependencias directas](requirements.txt) y [SDK de referencia](reference/meshcore_py/pyproject.toml). Los conteos físicos no son mediciones de complejidad ni ahorro futuro.
+Evidencia: servidor ([asgi_server.py](src/web/asgi_server.py)), [router](src/web/api_router.py), [manifiesto](pyproject.toml), [dependencias directas](requirements.txt) y [SDK de referencia](reference/meshcore_py/pyproject.toml). Los conteos físicos no son mediciones de complejidad ni ahorro futuro.
 
 ## 2. Alternativas y futuro recomendado
 
@@ -391,8 +391,8 @@ Las ubicaciones siguientes permiten reproducir los hallazgos principales por lec
 | Imports headless y fábrica | [bridge_core.py](src/bridge_core.py), 45 y 364–372; [exports web](src/web/__init__.py), 7–8 |
 | Estado y diez controladores | [api_router.py](src/web/api_router.py), 119–152 |
 | Contrato interno de canales | [bridge_core.py](src/bridge_core.py), 745; [rx_router.py](src/rx_router.py), 419–420; [system_handler.py](src/routers/system_handler.py), 63–64 |
-| Historial anterior a difusión | [http_server.py](src/web/http_server.py), 206–209 |
-| Auth HTTP/WS y clave prioritaria | [http_server.py](src/web/http_server.py), 586–667 y 714–739 |
+| Historial anterior a difusión | [asgi_ws_hub.py](src/web/asgi_ws_hub.py), 80–95 |
+| Auth HTTP/WS y clave prioritaria | [access_policy.py](src/web/access_policy.py), 100–125 |
 | Logs y servicios reales | [api_router.py](src/web/api_router.py), 395–443 y 746–775 |
 | Límites por bytes DM/canal | [sdk_adapter.py](src/serial/sdk_adapter.py), 1044–1050 y 1101–1104 |
 | TX espera resultado | [tx_controller.py](src/web/controllers/tx_controller.py), 65–134 |

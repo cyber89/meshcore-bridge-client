@@ -41,7 +41,7 @@ def check_dependencies(
     if sys.version_info < (3, 10):  # noqa: UP036 - installer may select an unsupported host Python
         failures.append("Python requiere >=3.10")
     if dependencies is None:
-        selected_profile = (profile or os.getenv("MESHCORE_PROFILE", "core")).strip().lower()
+        selected_profile = (profile or os.getenv("MESHCORE_PROFILE") or "web").strip().lower()
         dependencies = PROFILES.get(selected_profile, DEPENDENCIES)
     for distribution, module, minimum in dependencies:
         try:
@@ -65,7 +65,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--profile",
         choices=["core", "web"],
-        default=os.getenv("MESHCORE_PROFILE", "core"),
+        default=os.getenv("MESHCORE_PROFILE", "web"),
         help="Perfil de dependencias a verificar (core: headless mínimo; web: core + stack ASGI).",
     )
     args = parser.parse_args(argv)
